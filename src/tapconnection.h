@@ -141,19 +141,19 @@ public:
         item_ = qi;
 
         switch(item_->getOperation()) {
-        case queue_op_set:
+        case queue_op::set:
             event_ = TAP_MUTATION;
             break;
-        case queue_op_del:
+        case queue_op::del:
             event_ = TAP_DELETION;
             break;
-        case queue_op_flush:
+        case queue_op::flush:
             event_ = TAP_FLUSH;
             break;
-        case queue_op_checkpoint_start:
+        case queue_op::checkpoint_start:
             event_ = TAP_CHECKPOINT_START;
             break;
-        case queue_op_checkpoint_end:
+        case queue_op::checkpoint_end:
             event_ = TAP_CHECKPOINT_END;
             break;
         default:

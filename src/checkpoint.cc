@@ -31,6 +31,14 @@
 
 const std::string CheckpointManager::pCursorName("persistence");
 
+const char* to_string(enum checkpoint_state s) {
+    switch (s) {
+        case CHECKPOINT_OPEN: return "CHECKPOINT_OPEN";
+        case CHECKPOINT_CLOSED: return "CHECKPOINT_CLOSED";
+    }
+    return "<unknown>";
+}
+
 /**
  * A listener class to update checkpoint related configs at runtime.
  */
@@ -103,7 +111,7 @@ void Checkpoint::setState(checkpoint_state state) {
 
 void Checkpoint::popBackCheckpointEndItem() {
     if (!toWrite.empty() &&
-        toWrite.back()->getOperation() == queue_op_checkpoint_end) {
+        toWrite.back()->getOperation() == queue_op::checkpoint_end) {
         metaKeyIndex.erase(toWrite.back()->getKey());
         toWrite.pop_back();
     }
@@ -200,8 +208,8 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
     }
 
     // Notify flusher if in case queued item is a checkpoint meta item
-    if (qi->getOperation() == queue_op_checkpoint_start ||
-        qi->getOperation() == queue_op_checkpoint_end) {
+    if (qi->getOperation() == queue_op::checkpoint_start ||
+        qi->getOperation() == queue_op::checkpoint_end) {
         checkpointManager->notifyFlusher();
     }
 
@@ -230,8 +238,8 @@ size_t Checkpoint::mergePrevCheckpoint(Checkpoint *pPrevCheckpoint) {
 
     for (; rit != pPrevCheckpoint->rend(); ++rit) {
         const std::string &key = (*rit)->getKey();
-        if ((*rit)->getOperation() != queue_op_del &&
-            (*rit)->getOperation() != queue_op_set) {
+        if ((*rit)->getOperation() != queue_op::del &&
+            (*rit)->getOperation() != queue_op::set) {
             continue;
         }
         checkpoint_index::iterator it = keyIndex.find(key);
@@ -296,9 +304,15 @@ bool Checkpoint::isEligibleToBeUnreferenced() {
 }
 
 std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
-    os << "Checkpoint[" << &c << "] with "
-       << "seqno:{" << c.getLowSeqno() << "," << c.getHighSeqno() << "} "
-       << "state:" << c.getState();
+    os << "Checkpoint[" << &c << "] with"
+       << " seqno:{" << c.getLowSeqno() << "," << c.getHighSeqno() << "}"
+       << " state:" << to_string(c.getState())
+       << " items:[" << std::endl;
+    for (const auto& e : c.toWrite) {
+        os << "\t{" << e->getBySeqno() << ","
+           << to_string(e->getOperation()) << "}" << std::endl;
+    }
+    os << "]";
     return os;
 }
 
@@ -382,11 +396,12 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id,
     // item in this new checkpoint can be safely shifted left by 1 if the
     // first item is removed
     // and pushed into the tail.
-    queued_item qi = createCheckpointItem(0, 0xffff, queue_op_empty);
+    queued_item qi = createCheckpointItem(0, 0xffff, queue_op::empty);
     checkpoint->queueDirty(qi, this);
+    // Note: We explicitly do /not/ include {empty} ops in numItems.
 
     // This item represents the start of the new checkpoint and is also sent to the slave node.
-    qi = createCheckpointItem(id, vbucketId, queue_op_checkpoint_start);
+    qi = createCheckpointItem(id, vbucketId, queue_op::checkpoint_start);
     checkpoint->queueDirty(qi, this);
     ++numItems;
     checkpointList.push_back(checkpoint);
@@ -406,7 +421,7 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id,
         if ((cursor.shouldSendCheckpointEndMetaItem() ==
              MustSendCheckpointEnd::NO) &&
             cursor.currentPos != (*(cursor.currentCheckpoint))->end() &&
-            (*(cursor.currentPos))->getOperation() == queue_op_checkpoint_end) {
+            (*(cursor.currentPos))->getOperation() == queue_op::checkpoint_end) {
             /* checkpoint_end meta item is expected by TAP cursors. Hence skip
                it only for persitence and DCP cursors */
             ++(cursor.offset);
@@ -448,7 +463,7 @@ bool CheckpointManager::closeOpenCheckpoint_UNLOCKED() {
     // This item represents the end of the current open checkpoint and is sent
     // to the slave node.
     queued_item qi = createCheckpointItem(cur_ckpt->getId(), vbucketId,
-                                          queue_op_checkpoint_end);
+                                          queue_op::checkpoint_end);
 
     checkpointList.back()->queueDirty(qi, this);
     ++numItems;
@@ -879,8 +894,8 @@ void CheckpointManager::collapseClosedCheckpoints(
             if (cc == connCursors.end()) {
                 continue;
             }
-            enum queue_operation qop = (*(cc->second.currentPos))->getOperation();
-            if (qop ==  queue_op_empty || qop == queue_op_checkpoint_start) {
+            queue_op qop = (*(cc->second.currentPos))->getOperation();
+            if (qop ==  queue_op::empty || qop == queue_op::checkpoint_start) {
                 return;
             }
         }
@@ -904,7 +919,7 @@ void CheckpointManager::collapseClosedCheckpoints(
                             (*(cc->second.currentPos))->isCheckPointMetaItem();
                 bool cursor_on_chk_start = false;
                 if ((*(cc->second.currentPos))->getOperation() ==
-                    queue_op_checkpoint_start) {
+                    queue_op::checkpoint_start) {
                     cursor_on_chk_start = true;
                 }
                 slowCursors[*nameItr] =
@@ -1069,7 +1084,7 @@ snapshot_range_t CheckpointManager::getAllItemsForCursor(
         queued_item& qi = *(it->second.currentPos);
         items.push_back(qi);
 
-        if (qi->getOperation() == queue_op_checkpoint_end) {
+        if (qi->getOperation() == queue_op::checkpoint_end) {
             range.end = (*it->second.currentCheckpoint)->getSnapshotEndSeqno();
             moveCursorToNextCheckpoint(it->second);
         }
@@ -1091,7 +1106,7 @@ queued_item CheckpointManager::nextItem(const std::string &name,
         "The cursor with name \"%s\" is not found in the checkpoint of vbucket"
         "%d.\n", name.c_str(), vbucketId);
         queued_item qi(new Item(std::string(""), 0xffff,
-                                queue_op_empty, 0, 0));
+                                queue_op::empty, 0, 0));
         return qi;
     }
     if (checkpointList.back()->getId() == 0) {
@@ -1100,7 +1115,7 @@ queued_item CheckpointManager::nextItem(const std::string &name,
             " the cursor to fetch an item from it's current checkpoint",
             vbucketId);
         queued_item qi(new Item(std::string(""), 0xffff,
-                                queue_op_empty, 0, 0));
+                                queue_op::empty, 0, 0));
         return qi;
     }
 
@@ -1111,7 +1126,7 @@ queued_item CheckpointManager::nextItem(const std::string &name,
     } else {
         isLastMutationItem = false;
         queued_item qi(new Item(std::string(""), 0xffff,
-                                queue_op_empty, 0, 0));
+                                queue_op::empty, 0, 0));
         return qi;
     }
 }
@@ -1263,7 +1278,7 @@ size_t CheckpointManager::getNumOfMetaItemsFromCursor(CheckpointCursor &cursor) 
             if (curr_pos == (*curr_chk)->end()) {
                 continue;
             }
-            if ((*curr_pos)->getOperation() == queue_op_checkpoint_start) {
+            if ((*curr_pos)->getOperation() == queue_op::checkpoint_start) {
                 if ((*curr_chk)->getState() == CHECKPOINT_CLOSED) {
                     meta_items += 2;
                 } else {
@@ -1290,7 +1305,7 @@ void CheckpointManager::decrCursorFromCheckpointEnd(const std::string &name) {
     cursor_index::iterator it = connCursors.find(name);
     if (it != connCursors.end() &&
         (*(it->second.currentPos))->getOperation() ==
-        queue_op_checkpoint_end) {
+        queue_op::checkpoint_end) {
         it->second.decrPos();
     }
 }
@@ -1300,7 +1315,7 @@ bool CheckpointManager::isLastMutationItemInCheckpoint(
     std::list<queued_item>::iterator it = cursor.currentPos;
     ++it;
     if (it == (*(cursor.currentCheckpoint))->end() ||
-        (*it)->getOperation() == queue_op_checkpoint_end) {
+        (*it)->getOperation() == queue_op::checkpoint_end) {
         return true;
     }
     return false;
@@ -1477,7 +1492,7 @@ void CheckpointManager::collapseCheckpoints(uint64_t id) {
         const std::string& key = (*(itr->second.currentPos))->getKey();
         bool isMetaItem = (*(itr->second.currentPos))->isCheckPointMetaItem();
         bool cursor_on_chk_start = false;
-        if ((*(itr->second.currentPos))->getOperation() == queue_op_checkpoint_start) {
+        if ((*(itr->second.currentPos))->getOperation() == queue_op::checkpoint_start) {
             cursor_on_chk_start = true;
         }
         cursorMap[itr->first.c_str()] =
@@ -1532,7 +1547,7 @@ putCursorsInCollapsedChk(std::map<std::string, std::pair<uint64_t, bool> > &curs
         while (mit != cursors.end()) {
             std::pair<uint64_t, bool> val = mit->second;
             if (val.first < id || (val.first == id && val.second &&
-                (*last)->getOperation() == queue_op_checkpoint_start)) {
+                (*last)->getOperation() == queue_op::checkpoint_start)) {
 
                 cursor_index::iterator cc = connCursors.find(mit->first);
                 if (cc == connCursors.end() ||
@@ -1592,27 +1607,27 @@ bool CheckpointManager::hasNext(const std::string &name) {
 }
 
 queued_item CheckpointManager::createCheckpointItem(uint64_t id, uint16_t vbid,
-                                          enum queue_operation checkpoint_op) {
+                                          queue_op checkpoint_op) {
     uint64_t bySeqno;
     std::string key;
 
     switch (checkpoint_op) {
-    case queue_op_checkpoint_start:
+    case queue_op::checkpoint_start:
         key = "checkpoint_start";
         bySeqno = lastBySeqno + 1;
         break;
-    case queue_op_checkpoint_end:
+    case queue_op::checkpoint_end:
         key = "checkpoint_end";
         bySeqno = lastBySeqno;
         break;
-    case queue_op_empty:
+    case queue_op::empty:
         key = "dummy_key";
         bySeqno = lastBySeqno;
         break;
     default:
         throw std::invalid_argument("CheckpointManager::createCheckpointItem:"
                         "checkpoint_op (which is " +
-                        std::to_string(checkpoint_op) +
+                        std::to_string(static_cast<std::underlying_type<queue_op>::type>(checkpoint_op)) +
                         ") is not a valid item to create");
     }
 

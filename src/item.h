@@ -35,14 +35,49 @@
 #include "objectregistry.h"
 #include "stats.h"
 
-enum queue_operation {
-    queue_op_set,
-    queue_op_del,
-    queue_op_flush,
-    queue_op_empty,
-    queue_op_checkpoint_start,
-    queue_op_checkpoint_end
+/// The set of possible operations which can be queued into a checkpoint.
+enum class queue_op : uint8_t {
+    /// Set a document key to a given value. Sets to the same key can (and
+    /// typically are) de-duplicated - only the most recent queue_op::set in a
+    /// checkpoint will be kept. This means that there's no guarantee that
+    /// clients will see all intermediate values of a key.
+    set,
+
+    /// Delete a key. Deletes can be de-duplicated with respect to queue_op::set -
+    /// set(key) followed by del(key) will result in just del(key).
+    del,
+
+    /// (meta item) Testing only op, used to mark the end of a test.
+    /// TODO: Remove this, it shouldn't be necessary / included just to support
+    /// testing.
+    flush,
+
+    /// (meta item) Dummy op added to the start of checkpoints to simplify
+    /// checkpoint logic.
+    /// This is because our Checkpoints are structured such that
+    /// CheckpointCursors are advanced before dereferencing them, not after -
+    /// see Checkpoint documentation for details. As such we need to have an
+    /// empty/dummy element at the start of each Checkpoint, so after the first
+    /// advance the cursor is pointing at the 'real' first element (normally
+    /// checkpoint_start).
+    ///
+    /// Unlike other operations, queue_op::empty is ignored for the purposes of
+    /// CheckpointManager::numItems - due to it only existing as a placeholder.
+    empty,
+
+    /// (meta item) Marker for the start of a checkpoint.
+    /// All checkpoints (open or closed) will start with an item of this type.
+    /// Like all meta items, this doens't directly match user operations, but
+    /// is used to delineate the start of a checkpoint.
+    checkpoint_start,
+
+    /// (meta item) Marker for the end of a checkpoint. Only exists in closed
+    /// checkpoints, where it is always the last item in the checkpoint.
+    checkpoint_end,
 };
+
+/// Return a string representation of queue_op.
+std::string to_string(queue_op op);
 
 // Max Value for NRU bits
 const uint8_t MAX_NRU_VALUE = 3;
@@ -327,7 +362,7 @@ public:
         bySeqno(i),
         queuedTime(ep_current_time()),
         vbucketId(vbid),
-        op(queue_op_set),
+        op(queue_op::set),
         nru(nru_value)
     {
         if (bySeqno == 0) {
@@ -357,7 +392,7 @@ public:
         bySeqno(i),
         queuedTime(ep_current_time()),
         vbucketId(vbid),
-        op(queue_op_set),
+        op(queue_op::set),
         nru(nru_value)
     {
         if (bySeqno == 0) {
@@ -368,14 +403,14 @@ public:
     }
 
     Item(const std::string &k, const uint16_t vb,
-         enum queue_operation o, const uint64_t revSeq,
+         queue_op o, const uint64_t revSeq,
          const int64_t bySeq, uint8_t nru_value = INITIAL_NRU_VALUE) :
         metaData(),
         key(k),
         bySeqno(bySeq),
         queuedTime(ep_current_time()),
         vbucketId(vb),
-        op(static_cast<uint16_t>(o)),
+        op(o),
         nru(nru_value)
     {
        if (bySeqno < 0) {
@@ -608,42 +643,41 @@ public:
     }
 
     bool isDeleted() {
-        return op == queue_op_del;
+        return op == queue_op::del;
     }
 
     void setDeleted() {
-        op = queue_op_del;
+        op = queue_op::del;
     }
 
     uint32_t getQueuedTime(void) const { return queuedTime; }
 
-    enum queue_operation getOperation(void) const {
-        return static_cast<enum queue_operation>(op);
+    queue_op getOperation(void) const {
+        return op;
     }
 
     /*
      * Should this item be persisted?
      */
     bool shouldPersist() const {
-        return (op == queue_op_set) ||
-               (op == queue_op_del);
+        return (op == queue_op::set) ||
+               (op == queue_op::del);
     }
 
     /*
      * Should this item be replicated (e.g. by DCP)
      */
     bool shouldReplicate() const {
-        return (op == queue_op_set) ||
-               (op == queue_op_del);
+        return (op == queue_op::set) ||
+               (op == queue_op::del);
     }
 
-    void setOperation(enum queue_operation o) {
-        op = static_cast<uint8_t>(o);
+    void setOperation(queue_op o) {
+        op = o;
     }
 
     bool isCheckPointMetaItem(void) const {
-        queue_operation qOp = static_cast<enum queue_operation>(op);
-        if ((queue_op_set == qOp) || (queue_op_del == qOp)) {
+        if ((queue_op::set == op) || (queue_op::del == op)) {
             return false;
         }
         return true;
@@ -691,7 +725,7 @@ private:
     int64_t bySeqno;
     uint32_t queuedTime;
     uint16_t vbucketId;
-    uint8_t op;
+    queue_op op;
     uint8_t nru  : 2;
 
     static AtomicValue<uint64_t> casCounter;

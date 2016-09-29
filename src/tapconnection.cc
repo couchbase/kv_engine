@@ -1239,8 +1239,8 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
             queued_item qi = vb->checkpointManager.nextItem(getName(),
                                                             isLastItem);
             switch(qi->getOperation()) {
-            case queue_op_set:
-            case queue_op_del:
+            case queue_op::set:
+            case queue_op::del:
                 if (supportCheckpointSync_ && isLastItem) {
                     it->second.lastItem = true;
                 } else {
@@ -1248,7 +1248,7 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
                 }
                 addEvent_UNLOCKED(qi);
                 break;
-            case queue_op_checkpoint_start:
+            case queue_op::checkpoint_start:
                 {
                     it->second.currentCheckpointId = qi->getRevSeqno();
                     if (supportCheckpointSync_) {
@@ -1257,7 +1257,7 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
                     }
                 }
                 break;
-            case queue_op_checkpoint_end:
+            case queue_op::checkpoint_end:
                 if (supportCheckpointSync_) {
                     it->second.state = checkpoint_end;
                     uint32_t seqno_acked;
@@ -1277,7 +1277,7 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
                     }
                 }
                 break;
-            case queue_op_empty:
+            case queue_op::empty:
                 {
                     ++open_checkpoint_count;
                 }
@@ -1780,16 +1780,16 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
     queued_item checkpoint_msg = nextCheckpointMessage_UNLOCKED();
     if (checkpoint_msg.get() != NULL) {
         switch (checkpoint_msg->getOperation()) {
-        case queue_op_checkpoint_start:
+        case queue_op::checkpoint_start:
             ret = TAP_CHECKPOINT_START;
             break;
-        case queue_op_checkpoint_end:
+        case queue_op::checkpoint_end:
             ret = TAP_CHECKPOINT_END;
             break;
         default:
             logger.log(EXTENSION_LOG_WARNING,
-                "Checkpoint start or end msg with incorrect opcode %d",
-                checkpoint_msg->getOperation());
+                "Checkpoint start or end msg with incorrect opcode %s",
+                to_string(checkpoint_msg->getOperation()).c_str());
             ret = TAP_DISCONNECT;
             return NULL;
         }
@@ -1840,7 +1840,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
 
         ++stats.numTapBGFetched;
         qi = queued_item(new Item(itm->getKey(), itm->getVBucketId(),
-                                  ret == TAP_MUTATION ? queue_op_set : queue_op_del,
+                                  ret == TAP_MUTATION ? queue_op::set : queue_op::del,
                                   itm->getRevSeqno(), itm->getBySeqno()));
     } else if (hasItemFromVBHashtable_UNLOCKED()) { // Item from memory backfill or checkpoints
         if (waitForCheckpointMsgAck()) {
@@ -1862,7 +1862,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
             return NULL;
         }
 
-        if (qi->getOperation() == queue_op_set) {
+        if (qi->getOperation() == queue_op::set) {
             get_options_t options = DELETE_TEMP;
             GetValue gv(engine_.getEpStore()->get(qi->getKey(), qi->getVBucketId(),
                                                   c, options));
@@ -1871,7 +1871,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
                 itm = gv.getValue();
                 if (itm == nullptr) {
                     throw std::logic_error("TapProducer::getNextItem: found a"
-                            " NULL value for GetValue from queue_op_set");
+                            " NULL value for GetValue from queue_op::set");
                 }
                 nru = gv.getNRUValue();
                 ret = TAP_MUTATION;
@@ -1909,7 +1909,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
                 return NULL;
             }
             ++stats.numTapFGFetched;
-        } else if (qi->getOperation() == queue_op_del) {
+        } else if (qi->getOperation() == queue_op::del) {
             itm = new Item(qi->getKey().c_str(), qi->getNKey(),
                            /*flags*/0, /*exp*/0,
                            /*data*/NULL, /*size*/0,

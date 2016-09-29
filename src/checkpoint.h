@@ -54,6 +54,8 @@ enum checkpoint_state {
     CHECKPOINT_CLOSED  //!< The checkpoint is not open.
 };
 
+const char* to_string(enum checkpoint_state);
+
 /**
  * A checkpoint index entry.
  */
@@ -98,7 +100,30 @@ class CheckpointConfig;
 class VBucket;
 
 /**
- * A checkpoint cursor
+ * A checkpoint cursor, representing the current position in a Checkpoint
+ * series.
+ *
+ * CheckpointCursors are similar to STL-style iterators but for Checkpoints.
+ * A consumer (DCP, TAP, persistence) will have one CheckpointCursor, initially
+ * positioned at the first item they want. As they read items from the
+ * Checkpoint the Cursor is advanced, allowing them to continue from where
+ * they left off when they next attempt to read items.
+ *
+ * A CheckpointCursor has two main pieces of state:
+ *
+ * - currentCheckpoint - The current Checkpoint the cursor is operating on.
+ * - currentPos - the position with the current Checkpoint.
+ *
+ * When a CheckpointCursor reaches the end of Checkpoint, the CheckpointManager
+ * will move it to the next Checkpoint.
+ *
+ * To assist in accounting how many items remain in a Checkpoint series, a
+ * cursor also records its `offset` - the count of items (non-meta and meta) it
+ * has already 'consumed' from the Checkpoint series. Note that this `offset`
+ * count is not cumulative - when the CheckpointManager removes checkpoints
+ * the offset will be decremented. To put it another way - the number of items
+ * a CheckpointCursor has left to consume can be calcuated as
+ * `CheckpointManager::numItems - CheckpointCursor::offset`.
  */
 class CheckpointCursor {
     friend class CheckpointManager;
@@ -197,6 +222,70 @@ enum queue_dirty_t {
 /**
  * Representation of a checkpoint used in the unified queue for persistence and
  * replication.
+ *
+ * Each Checkpoint consists of an ordered series of queued_item items, each
+ * of which either represents a 'real' user operation
+ * (queue_op::set & queue_op::del), or one of a range of meta-items
+ * (queue_op::checkpoint_start, queue_op::checkpoint_end, ...).
+ *
+ * A checkpoint may either be Open or Closed. Open checkpoints can still have
+ * new items appended to them, whereas Closed checkpoints cannot (and are
+ * logically immutable). A checkpoint begins life as an Open checkpoint, will
+ * have items added to it (including de-duplication if a key is added which
+ * already exists), and then once large/old enough it will be marked as Closed,
+ * and a new Open checkpoint created for new items.
+ *
+ * Consumers read items from Checkpoints by creating a CheckpointCursor
+ * (similar to an STL iterator), which they use to mark how far along the
+ * Checkpoint they are.
+ *
+ *
+ *     Checkpoint (closed)
+ *                               numItems: 5 (1x start, 2x set, 1x del, 1x end)
+ *
+ *              +-------+-------+-------+-------+-------+-------+
+ *              | empty | Start |  Set  |  Set  |  Del  |  End  |
+ *              +-------+-------+-------+-------+-------+-------+
+ *         seqno    0       1       1       2       3       3
+ *
+ *                  ^
+ *                  |
+ *                  |
+ *            CheckpointCursor
+ *             (initial pos)
+ *
+ *     Checkpoint (open)
+ *                               numItems: 4 (1x start, 1x set, 2x set)
+ *
+ *              +-------+-------+-------+-------+-------+
+ *              | empty | Start |  Del  |  Set  |  Set
+ *              +-------+-------+-------+-------+-------+
+ *         seqno    3       4       4       5       6
+ *
+ * A Checkpoint starts with an empty item, followed by a checkpoint_start,
+ * and then 0...N set and del items, finally finishing with a checkpoint_end if
+ * the Checkpoint is closed.
+ * The empty item exists because Checkpoints are structured such that
+ * CheckpointCursors are advanced _before_ dereferencing them, not _after_
+ * (this differs from STL iterators which are typically incremented after
+ * dereferencing them) - i.e. the pseudo-code for reading elements is:
+ *
+ *     getElements(CheckpointCursor& cur) {
+ *         std::vector<...> result;
+ *         while (incrCursorAndCheckValid(cur) {
+ *             result.push_back(*cur);
+ *         };
+ *         return result;
+ *     }
+ *
+ * As such we need to have a dummy element at the start of each Checkpoint, so
+ * after the first call to CheckpointManager::incrCursor() the cursor
+ * dereferences to the checkpoint_start element.
+ *
+ * Note that sequence numbers are only unique for normal operations (set & del) -
+ * for meta-items like checkpoint start/end they share the same sequence number
+ * as the associated op - for checkpoint_start that is the ID of the following
+ * op, for checkpoint_end the ID of the proceeding op.
  */
 class Checkpoint {
 public:
@@ -763,7 +852,7 @@ private:
                                   std::list<Checkpoint*>::iterator chkItr);
 
     queued_item createCheckpointItem(uint64_t id, uint16_t vbid,
-                                     enum queue_operation checkpoint_op);
+                                     queue_op checkpoint_op);
 
     size_t getNumOfMetaItemsFromCursor(CheckpointCursor &cursor);
 

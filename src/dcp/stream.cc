@@ -782,7 +782,7 @@ void ActiveStream::getOutstandingItems(RCPtr<VBucket> &vb,
 void ActiveStream::processItems(std::vector<queued_item>& items) {
     if (!items.empty()) {
         bool mark = false;
-        if (items.front()->getOperation() == queue_op_checkpoint_start) {
+        if (items.front()->getOperation() == queue_op::checkpoint_start) {
             mark = true;
         }
 
@@ -798,7 +798,7 @@ void ActiveStream::processItems(std::vector<queued_item>& items) {
                 mutations.push_back(new MutationResponse(qi, opaque_, nullptr,
                             isSendMutationKeyOnlyEnabled() ? KEY_ONLY :
                                                              KEY_VALUE));
-            } else if (qi->getOperation() == queue_op_checkpoint_start) {
+            } else if (qi->getOperation() == queue_op::checkpoint_start) {
                 /* if there are already other mutations, then they belong to the
                    previous checkpoint and hence we must create a snapshot and
                    put them onto readyQ */

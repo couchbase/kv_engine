@@ -107,7 +107,7 @@ static void launch_persistence_thread(void *arg) {
         args->checkpoint_manager->getAllItemsForCursor(cursor, items);
         for(itemPos = 0; itemPos < items.size(); ++itemPos) {
             queued_item qi = items.at(itemPos);
-            if (qi->getOperation() == queue_op_flush) {
+            if (qi->getOperation() == queue_op::flush) {
                 flush = true;
                 break;
             }
@@ -118,9 +118,9 @@ static void launch_persistence_thread(void *arg) {
             // these. Anything else will be considered an error.
             for(size_t i = itemPos + 1; i < items.size(); ++i) {
                 queued_item qi = items.at(i);
-                EXPECT_TRUE(queue_op_checkpoint_start == qi->getOperation() ||
-                            queue_op_checkpoint_end == qi->getOperation())
-                    << "Unexpected operation:" << qi->getOperation();
+                EXPECT_TRUE(queue_op::checkpoint_start == qi->getOperation() ||
+                            queue_op::checkpoint_end == qi->getOperation())
+                    << "Unexpected operation:" << to_string(qi->getOperation());
             }
             break;
         }
@@ -143,7 +143,7 @@ static void launch_tap_client_thread(void *arg) {
     while(true) {
         queued_item qi = args->checkpoint_manager->nextItem(args->name,
                                                             isLastItem);
-        if (qi->getOperation() == queue_op_flush) {
+        if (qi->getOperation() == queue_op::flush) {
             flush = true;
             break;
         }
@@ -183,7 +183,7 @@ static void launch_set_thread(void *arg) {
         std::stringstream key;
         key << "key-" << i;
         queued_item qi(new Item(key.str(), args->vbucket->getId(),
-                                queue_op_set, 0, 0));
+                                queue_op::set, 0, 0));
         args->checkpoint_manager->queueDirty(args->vbucket, qi, GenerateBySeqno::Yes, GenerateCas::Yes);
     }
 }
@@ -264,7 +264,7 @@ TEST_F(CheckpointTest, basic_chk_test) {
 
     // Push the flush command into the queue so that all other threads can be terminated.
     std::string key("flush");
-    queued_item qi(new Item(key, vbucket->getId(), queue_op_flush, 0xffff, 0));
+    queued_item qi(new Item(key, vbucket->getId(), queue_op::flush, 0xffff, 0));
     checkpoint_manager->queueDirty(vbucket, qi, GenerateBySeqno::Yes, GenerateCas::Yes);
 
     rc = cb_join_thread(persistence_thread);
@@ -299,7 +299,7 @@ TEST_F(CheckpointTest, reset_checkpoint_id) {
     for (i = 0; i < 10; ++i) {
         std::stringstream key;
         key << "key-" << i;
-        queued_item qi(new Item(key.str(), vbucket->getId(), queue_op_set,
+        queued_item qi(new Item(key.str(), vbucket->getId(), queue_op::set,
                                 0, 0));
         manager->queueDirty(vbucket, qi, GenerateBySeqno::Yes, GenerateCas::Yes);
     }
@@ -313,19 +313,19 @@ TEST_F(CheckpointTest, reset_checkpoint_id) {
     manager->getAllItemsForCursor(cursor, items);
     for(itemPos = 0; itemPos < items.size(); ++itemPos) {
         queued_item qi = items.at(itemPos);
-        if (qi->getOperation() != queue_op_checkpoint_start &&
-            qi->getOperation() != queue_op_checkpoint_end) {
+        if (qi->getOperation() != queue_op::checkpoint_start &&
+            qi->getOperation() != queue_op::checkpoint_end) {
             size_t mid = qi->getBySeqno();
             EXPECT_GT(mid, lastMutationId);
             lastMutationId = qi->getBySeqno();
         }
         if (itemPos == 0 || itemPos == (items.size() - 1)) {
-            EXPECT_EQ(queue_op_checkpoint_start, qi->getOperation()) << "For itemPos:" << itemPos;
+            EXPECT_EQ(queue_op::checkpoint_start, qi->getOperation()) << "For itemPos:" << itemPos;
         } else if (itemPos == (items.size() - 2)) {
-            EXPECT_EQ(queue_op_checkpoint_end, qi->getOperation()) << "For itemPos:" << itemPos;
+            EXPECT_EQ(queue_op::checkpoint_end, qi->getOperation()) << "For itemPos:" << itemPos;
             chk++;
         } else {
-            EXPECT_EQ(queue_op_set, qi->getOperation()) << "For itemPos:" << itemPos;
+            EXPECT_EQ(queue_op::set, qi->getOperation()) << "For itemPos:" << itemPos;
         }
     }
     EXPECT_EQ(13, items.size());
@@ -355,7 +355,7 @@ TEST_F(CheckpointTest, CheckFixture) {
 TEST_F(CheckpointTest, OneOpenCkpt) {
 
     // Queue a set operation.
-    queued_item qi(new Item("key1", vbucket->getId(), queue_op_set,
+    queued_item qi(new Item("key1", vbucket->getId(), queue_op::set,
                             /*revSeq*/20, /*bySeq*/0));
 
     // No set_ops in queue, expect queueDirty to return true (increase
@@ -368,7 +368,7 @@ TEST_F(CheckpointTest, OneOpenCkpt) {
     EXPECT_EQ(1, manager->getNumItemsForCursor(CheckpointManager::pCursorName));
 
     // Adding the same key again shouldn't increase the size.
-    queued_item qi2(new Item("key1", vbucket->getId(), queue_op_set,
+    queued_item qi2(new Item("key1", vbucket->getId(), queue_op::set,
                             /*revSeq*/21, /*bySeq*/0));
     EXPECT_FALSE(manager->queueDirty(vbucket, qi2, GenerateBySeqno::Yes, GenerateCas::Yes));
     EXPECT_EQ(1, manager->getNumCheckpoints());
@@ -378,7 +378,7 @@ TEST_F(CheckpointTest, OneOpenCkpt) {
     EXPECT_EQ(1, manager->getNumItemsForCursor(CheckpointManager::pCursorName));
 
     // Adding a different key should increase size.
-    queued_item qi3(new Item("key2", vbucket->getId(), queue_op_set,
+    queued_item qi3(new Item("key2", vbucket->getId(), queue_op::set,
                             /*revSeq*/0, /*bySeq*/0));
     EXPECT_TRUE(manager->queueDirty(vbucket, qi3, GenerateBySeqno::Yes, GenerateCas::Yes));
     EXPECT_EQ(1, manager->getNumCheckpoints());
@@ -394,7 +394,7 @@ TEST_F(CheckpointTest, OneOpenOneClosed) {
     // Add some items to the initial (open) checkpoint.
     for (auto i : {1,2}) {
         queued_item qi(new Item("key" + std::to_string(i), vbucket->getId(),
-                                queue_op_set, /*revSeq*/0, /*bySeq*/0));
+                                queue_op::set, /*revSeq*/0, /*bySeq*/0));
         EXPECT_TRUE(manager->queueDirty(vbucket, qi, GenerateBySeqno::Yes, GenerateCas::Yes));
     }
     EXPECT_EQ(1, manager->getNumCheckpoints());
@@ -412,7 +412,7 @@ TEST_F(CheckpointTest, OneOpenOneClosed) {
     // ckpt).
     for (auto ii : {1,2}) {
         queued_item qi(new Item("key" + std::to_string(ii), vbucket->getId(),
-                                queue_op_set, /*revSeq*/1, /*bySeq*/0));
+                                queue_op::set, /*revSeq*/1, /*bySeq*/0));
         EXPECT_TRUE(manager->queueDirty(vbucket, qi, GenerateBySeqno::Yes, GenerateCas::Yes));
     }
     EXPECT_EQ(2, manager->getNumCheckpoints());
@@ -448,14 +448,14 @@ TEST_F(CheckpointTest, ItemBasedCheckpointCreation) {
         EXPECT_EQ(ii + 1, manager->getNumOpenChkItems()); /* +1 for op_ckpt_start */
 
         qi.reset(new Item("key" + std::to_string(ii), vbucket->getId(),
-                          queue_op_set, /*revSeq*/0, /*bySeq*/0));
+                          queue_op::set, /*revSeq*/0, /*bySeq*/0));
         EXPECT_TRUE(manager->queueDirty(vbucket, qi, GenerateBySeqno::Yes, GenerateCas::Yes));
         EXPECT_EQ(1, manager->getNumCheckpoints());
 
     }
 
     // Add one more - should create a new checkpoint.
-    qi.reset(new Item("key_epoch", vbucket->getId(), queue_op_set, /*revSeq*/0,
+    qi.reset(new Item("key_epoch", vbucket->getId(), queue_op::set, /*revSeq*/0,
                       /*bySeq*/0));
     EXPECT_TRUE(manager->queueDirty(vbucket, qi, GenerateBySeqno::Yes, GenerateCas::Yes));
     EXPECT_EQ(2, manager->getNumCheckpoints());
@@ -466,14 +466,14 @@ TEST_F(CheckpointTest, ItemBasedCheckpointCreation) {
         EXPECT_EQ(ii + 2, manager->getNumOpenChkItems()); /* +2 op_ckpt_start, key_epoch */
 
         qi.reset(new Item("key" + std::to_string(ii), vbucket->getId(),
-                                queue_op_set, /*revSeq*/1, /*bySeq*/0));
+                                queue_op::set, /*revSeq*/1, /*bySeq*/0));
         EXPECT_TRUE(manager->queueDirty(vbucket, qi, GenerateBySeqno::Yes, GenerateCas::Yes));
         EXPECT_EQ(2, manager->getNumCheckpoints());
     }
 
     // Add one more - as we have hit maximum checkpoints should *not* create a
     // new one.
-    qi.reset(new Item("key_epoch2", vbucket->getId(), queue_op_set,
+    qi.reset(new Item("key_epoch2", vbucket->getId(), queue_op::set,
                       /*revSeq*/1, /*bySeq*/0));
     EXPECT_TRUE(manager->queueDirty(vbucket, qi, GenerateBySeqno::Yes, GenerateCas::Yes));
     EXPECT_EQ(2, manager->getNumCheckpoints());
@@ -493,7 +493,7 @@ TEST_F(CheckpointTest, ItemBasedCheckpointCreation) {
     EXPECT_EQ(12, manager->getNumOpenChkItems());
 
     // But adding a new item will create a new one.
-    qi.reset(new Item("key_epoch3", vbucket->getId(), queue_op_set,
+    qi.reset(new Item("key_epoch3", vbucket->getId(), queue_op::set,
                       /*revSeq*/1, /*bySeq*/0));
     EXPECT_TRUE(manager->queueDirty(vbucket, qi, GenerateBySeqno::Yes, GenerateCas::Yes));
     EXPECT_EQ(3, manager->getNumCheckpoints());
@@ -507,7 +507,7 @@ TEST_F(CheckpointTest, CursorOffsetOnCheckpointClose) {
     // Add two items to the initial (open) checkpoint.
     for (auto i : {1,2}) {
         queued_item qi(new Item("key" + std::to_string(i), vbucket->getId(),
-                                queue_op_set, /*revSeq*/0, /*bySeq*/0));
+                                queue_op::set, /*revSeq*/0, /*bySeq*/0));
         EXPECT_TRUE(manager->queueDirty(vbucket, qi, GenerateBySeqno::Yes, GenerateCas::Yes));
     }
     EXPECT_EQ(1, manager->getNumCheckpoints());
@@ -521,7 +521,7 @@ TEST_F(CheckpointTest, CursorOffsetOnCheckpointClose) {
     // Check de-dupe counting - after adding another item with the same key,
     // should still see two items.
     queued_item qi(new Item("key1", vbucket->getId(),
-                            queue_op_set, /*revSeq*/0, /*bySeq*/0));
+                            queue_op::set, /*revSeq*/0, /*bySeq*/0));
     EXPECT_FALSE(manager->queueDirty(vbucket, qi, GenerateBySeqno::Yes, GenerateCas::Yes))
         << "Adding a duplicate key to open checkpoint should not increase queue size";
 
@@ -551,7 +551,7 @@ TEST_F(CheckpointTest, CursorOffsetOnCheckpointClose) {
     // but cannot de-dupe across checkpoints.
     for (auto ii : {1,2}) {
         queued_item qi(new Item("key" + std::to_string(ii), vbucket->getId(),
-                                queue_op_set, /*revSeq*/1, /*bySeq*/0));
+                                queue_op::set, /*revSeq*/1, /*bySeq*/0));
         EXPECT_TRUE(manager->queueDirty(vbucket, qi, GenerateBySeqno::Yes, GenerateCas::Yes));
     }
 
@@ -618,7 +618,7 @@ TEST_F(CheckpointTest, ItemsForCheckpointCursor) {
     queued_item qi;
     for (unsigned int ii = 0; ii < 2 * MIN_CHECKPOINT_ITEMS; ii++) {
         qi.reset(new Item("key" + std::to_string(ii), vbucket->getId(),
-                          queue_op_set, /*revSeq*/0, /*bySeq*/0));
+                          queue_op::set, /*revSeq*/0, /*bySeq*/0));
         EXPECT_TRUE(manager->queueDirty(vbucket, qi, GenerateBySeqno::Yes, GenerateCas::Yes));
     }
 
@@ -669,7 +669,7 @@ TEST_F(CheckpointTest, CursorMovement) {
     queued_item qi;
     for (unsigned int ii = 0; ii < MIN_CHECKPOINT_ITEMS; ii++) {
         qi.reset(new Item("key" + std::to_string(ii), vbucket->getId(),
-                          queue_op_set, /*revSeq*/0, /*bySeq*/0));
+                          queue_op::set, /*revSeq*/0, /*bySeq*/0));
         EXPECT_TRUE(manager->queueDirty(vbucket, qi, GenerateBySeqno::Yes, GenerateCas::Yes));
     }
 
@@ -736,7 +736,7 @@ TEST_F(CheckpointTest, CursorMovement) {
        checkpoint. TAP unlike DCP cannot skip the op_ckpt_end message */
     bool isLastItem = false;
     qi = manager->nextItem(tap_cursor, isLastItem);
-    EXPECT_EQ(queue_op_checkpoint_end, qi->getOperation());
+    EXPECT_EQ(queue_op::checkpoint_end, qi->getOperation());
     EXPECT_EQ(true, isLastItem);
 
 }
@@ -776,7 +776,7 @@ TEST_F(CheckpointTest, SeqnoAndHLCOrdering) {
             std::string key = "key" + std::to_string(ii);
             for (int item  = 0; item < n_items; item++) {
                 queued_item qi(new Item(key + std::to_string(item),
-                                        vbucket->getId(), queue_op_set,
+                                        vbucket->getId(), queue_op::set,
                                         /*revSeq*/0, /*bySeq*/0));
                 EXPECT_TRUE(manager->queueDirty(vbucket,
                                                 qi,

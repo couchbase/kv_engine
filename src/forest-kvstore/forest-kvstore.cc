@@ -1478,7 +1478,7 @@ RollbackResult ForestKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
        RememberingCallback<GetValue> gcb;
        get(*it, vbid, gcb);
        if (gcb.val.getStatus() == ENGINE_KEY_ENOENT) {
-           Item *itm = new Item(*it, vbid, queue_op_del, 0, 0);
+           Item *itm = new Item(*it, vbid, queue_op::del, 0, 0);
            gcb.val.setValue(itm);
        }
        cb->callback(gcb.val);
