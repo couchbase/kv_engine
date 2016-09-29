@@ -1159,6 +1159,12 @@ uint64_t get_stat(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
 }
 
 template<>
+bool get_stat(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
+              const char* statname, const char* statkey) {
+    return get_str_stat(h, h1, statname, statkey) == "true";
+}
+
+template<>
 std::string get_stat(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
                      const char* statname, const char* statkey) {
     std::lock_guard<std::mutex> lh(vals_mutex);

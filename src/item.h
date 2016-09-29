@@ -376,18 +376,18 @@ public:
         ObjectRegistry::onCreateItem(this);
     }
 
-   Item(const std::string &k, const uint16_t vb,
-        enum queue_operation o, const uint64_t revSeq,
-        const int64_t bySeq, uint8_t nru_value = INITIAL_NRU_VALUE,
-        uint8_t conflict_res_value = revision_seqno) :
-       metaData(),
-       key(k),
-       bySeqno(bySeq),
-       queuedTime(ep_current_time()),
-       vbucketId(vb),
-       op(static_cast<uint16_t>(o)),
-       nru(nru_value),
-       conflictResMode(conflict_res_value)
+    Item(const std::string &k, const uint16_t vb,
+         enum queue_operation o, const uint64_t revSeq,
+         const int64_t bySeq, uint8_t nru_value = INITIAL_NRU_VALUE,
+         uint8_t conflict_res_value = revision_seqno) :
+        metaData(),
+        key(k),
+        bySeqno(bySeq),
+        queuedTime(ep_current_time()),
+        vbucketId(vb),
+        op(static_cast<uint16_t>(o)),
+        nru(nru_value),
+        conflictResMode(conflict_res_value)
     {
        if (bySeqno < 0) {
            throw std::invalid_argument("Item(): bySeqno must be non-negative");
@@ -631,6 +631,22 @@ public:
 
     enum queue_operation getOperation(void) const {
         return static_cast<enum queue_operation>(op);
+    }
+
+    /*
+     * Should this item be persisted?
+     */
+    bool shouldPersist() const {
+        return (op == queue_op_set) ||
+               (op == queue_op_del);
+    }
+
+    /*
+     * Should this item be replicated (e.g. by DCP)
+     */
+    bool shouldReplicate() const {
+        return (op == queue_op_set) ||
+               (op == queue_op_del);
     }
 
     void setOperation(enum queue_operation o) {

@@ -2834,11 +2834,12 @@ static enum test_result test_access_scanner(ENGINE_HANDLE *h,
 
     const int num_shards = get_int_stat(h, h1, "ep_workload:num_shards",
                                         "workload");
-    int access_scanner_skips = 0, alog_runs = 0;
     name = name + ".0";
     std::string prev(name + ".old");
 
-    /* Get the resident ratio down to below 90% */
+    /* Get the resident ratio down to below 95% - point at which access.log
+     * generation occurs.
+     */
     int num_items = 0;
     // Size chosen to create ~2000 items (i.e. 2x more than we sanity-check below)
     // with the given max_size for this test.
@@ -2875,19 +2876,18 @@ static enum test_result test_access_scanner(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong number of items");
     int num_non_resident = get_int_stat(h, h1, "vb_active_num_non_resident");
-    cb_assert(num_non_resident >= ((float)(6/100) * num_items));
+    checkge(num_non_resident, num_items * 6 / 100,
+            "Expected num_non_resident to be at least 6% of total items");
 
-    /* Run access scanner task twice and expect it to generate access log */
-    for(int i = 0; i < 2; i++) {
-        alog_runs = get_int_stat(h, h1, "ep_num_access_scanner_runs");
-        check(set_param(h, h1, protocol_binary_engine_param_flush,
-                        "access_scanner_run", "true"),
-              "Failed to trigger access scanner");
-        wait_for_stat_to_be_gte(h, h1, "ep_num_access_scanner_runs",
-                                alog_runs + num_shards);
-    }
+    /* Run access scanner task once and expect it to generate access log */
+    check(set_param(h, h1, protocol_binary_engine_param_flush,
+                    "access_scanner_run", "true"),
+          "Failed to trigger access scanner");
 
-    /* This time since resident ratio is < 90% access log should be generated */
+    // Wait for the number of runs to equal the number of shards.
+    wait_for_stat_to_be(h, h1, "ep_num_access_scanner_runs", num_shards);
+
+    /* This time since resident ratio is < 95% access log should be generated */
     checkeq(0, access(name.c_str(), F_OK), "access log file should exist");
 
     /* Increase resident ratio by deleting items */
@@ -2896,7 +2896,8 @@ static enum test_result test_access_scanner(ENGINE_HANDLE *h,
           "Failed to set VB0 state.");
 
     /* Run access scanner task once */
-    access_scanner_skips = get_int_stat(h, h1, "ep_num_access_scanner_skips");
+    const int access_scanner_skips =
+            get_int_stat(h, h1, "ep_num_access_scanner_skips");
     check(set_param(h, h1, protocol_binary_engine_param_flush,
                     "access_scanner_run", "true"),
           "Failed to trigger access scanner");

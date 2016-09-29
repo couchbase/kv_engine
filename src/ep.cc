@@ -3256,9 +3256,10 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             uint64_t maxDeletedRevSeqno = 0;
             std::list<PersistenceCallback*>& pcbs = rwUnderlying->getPersistenceCbList();
             std::vector<queued_item>::iterator it = items.begin();
+
             for(; it != items.end(); ++it) {
-                if ((*it)->getOperation() != queue_op_set &&
-                    (*it)->getOperation() != queue_op_del) {
+
+                if (!(*it)->shouldPersist()) {
                     continue;
                 } else if (!prev || prev->getKey() != (*it)->getKey()) {
                     prev = (*it).get();
