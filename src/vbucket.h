@@ -24,6 +24,7 @@
 #include "checkpoint.h"
 #include "ep_types.h"
 #include "failover-table.h"
+#include "hlc.h"
 #include "kvstore.h"
 #include "stored-value.h"
 #include "utility.h"
@@ -144,6 +145,7 @@ public:
             int64_t lastSeqno, uint64_t lastSnapStart,
             uint64_t lastSnapEnd, FailoverTable *table,
             std::shared_ptr<Callback<id_type> > cb,
+            Configuration& config,
             vbucket_state_t initState = vbucket_state_dead,
             uint64_t chkId = 1, uint64_t purgeSeqno = 0,
             uint64_t maxCas = 0):
@@ -170,7 +172,6 @@ public:
         initialState(initState),
         stats(st),
         purge_seqno(purgeSeqno),
-        max_cas(maxCas),
         takeover_backed_up(false),
         persisted_snapshot_start(lastSnapStart),
         persisted_snapshot_end(lastSnapEnd),
@@ -178,7 +179,11 @@ public:
         shard(kvshard),
         bFilter(NULL),
         tempFilter(NULL),
-        rollbackItemCount(0)
+        rollbackItemCount(0),
+        hlc(maxCas,
+            config.getHlcAheadThresholdUs(),
+            config.getHlcBehindThresholdUs()),
+        statPrefix("vb_" + std::to_string(i))
     {
         backfill.isBackfillPhase = false;
         pendingOpsStart = 0;
@@ -194,7 +199,7 @@ public:
             id, VBucket::toString(state), VBucket::toString(initialState),
             lastSeqno, lastSnapStart, lastSnapEnd,
             persisted_snapshot_start, persisted_snapshot_end,
-            max_cas.load());
+            getMaxCas());
     }
 
     ~VBucket();
@@ -232,11 +237,23 @@ public:
     }
 
     uint64_t getMaxCas() {
-        return max_cas;
+        return hlc.getMaxHLC();
     }
 
     void setMaxCas(uint64_t cas) {
-        atomic_setIfBigger(max_cas, cas);
+        hlc.setMaxHLC(cas);
+    }
+
+    void setMaxCasAndTrackDrift(uint64_t cas) {
+        hlc.setMaxHLCAndTrackDrift(cas);
+    }
+
+    HLC::DriftStats getHLCDriftStats() const {
+        return hlc.getDriftStats();
+    }
+
+    HLC::DriftExceptions getHLCDriftExceptionCounters() const {
+        return hlc.getDriftExceptionCounters();
     }
 
     bool isTakeoverBackedUp() {
@@ -397,7 +414,9 @@ public:
     size_t getFilterSize();
     size_t getNumOfKeysInFilter();
 
-    uint64_t nextHLCCas();
+    uint64_t nextHLCCas() {
+        return hlc.nextHLC();
+    }
 
     // Applicable only for FULL EVICTION POLICY
     bool isResidentRatioUnderThreshold(float threshold,
@@ -498,7 +517,6 @@ private:
     EPStats                        &stats;
     uint64_t                        purge_seqno;
 
-    AtomicValue<uint64_t>           max_cas;
     AtomicValue<bool>               takeover_backed_up;
 
     Mutex pendingBGFetchesLock;
@@ -520,6 +538,9 @@ private:
     BloomFilter *tempFilter;    // Used during compaction.
 
     AtomicValue<uint64_t> rollbackItemCount;
+
+    HLC hlc;
+    std::string statPrefix;
 
     static size_t chkFlushTimeout;
 

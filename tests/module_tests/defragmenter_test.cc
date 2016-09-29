@@ -129,8 +129,8 @@ protected:
 
         /* Create the vbucket */
         std::shared_ptr<Callback<uint16_t> > cb(new DummyCB());
-        vbucket.reset(new VBucket(0, vbucket_state_active, stats, config,
-                                  nullptr, 0, 0, 0, nullptr, cb));
+        vbucket.reset(new VBucket(0, vbucket_state_active, stats, chkConfig,
+                                  nullptr, 0, 0, 0, nullptr, cb, config));
     }
 
     static void TearDownTestCase() {
@@ -140,12 +140,14 @@ protected:
     }
 
     static EPStats stats;
-    static CheckpointConfig config;
+    static CheckpointConfig chkConfig;
+    static Configuration config;
     static std::unique_ptr<VBucket> vbucket;
 };
 
 EPStats DefragmenterBenchmarkTest::stats;
-CheckpointConfig DefragmenterBenchmarkTest::config;
+CheckpointConfig DefragmenterBenchmarkTest::chkConfig;
+Configuration DefragmenterBenchmarkTest::config;
 std::unique_ptr<VBucket> DefragmenterBenchmarkTest::vbucket;
 
 
@@ -246,9 +248,10 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
     /* Create the vbucket */
     std::shared_ptr<Callback<uint16_t> > cb(new DummyCB());
     EPStats stats;
-    CheckpointConfig config;
-    VBucket vbucket(0, vbucket_state_active, stats, config, nullptr, 0, 0, 0,
-                    nullptr, cb);
+    CheckpointConfig chkConfig;
+    Configuration config;
+    VBucket vbucket(0, vbucket_state_active, stats, chkConfig, nullptr, 0, 0, 0,
+                    nullptr, cb, config);
 
     // 1. Create a number of small documents. Doesn't really matter that
     //    they are small, main thing is we create enough to span multiple

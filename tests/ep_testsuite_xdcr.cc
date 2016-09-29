@@ -23,6 +23,7 @@
 
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
+#include "hlc.h"
 
 #include <platform/cb_malloc.h>
 
@@ -1537,6 +1538,202 @@ static enum test_result test_getMeta_with_item_eviction(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_set_with_meta_and_check_drift_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    // Activate n vbuckets (vb 0 is already)
+    const int n_vbuckets = 10;
+    for (int ii = 1; ii < n_vbuckets; ii++) {
+        check(set_vbucket_state(h, h1, ii, vbucket_state_active),
+              "Failed to set vbucket state.");
+    }
+
+    // Let's make vbucket n/2 be the one who is ahead, n/3 is behind
+    const int aheadVb = n_vbuckets/2;
+    const int behindVb = n_vbuckets/3;
+    checkne(aheadVb, behindVb, "Cannot have the same VB as ahead/behind");
+
+    HLC hlc(0/*init HLC*/, 0/*ahead threshold*/, 0/*behind threshold*/);
+
+    // grab the drift behind threshold
+    uint64_t driftBehindThreshold = get_ull_stat(h, h1,
+                                                 "ep_hlc_ahead_threshold_us",
+                                                 nullptr);
+    // Create n keys
+    const int n_keys = 5;
+    for (int ii = 0 ; ii < n_vbuckets; ii++) {
+        for (int k = 0; k < n_keys; k++) {
+            std::string key = "key_" + std::to_string(k);
+            ItemMetaData itm_meta;
+            itm_meta.cas = hlc.nextHLC();
+            if (ii == aheadVb) {
+                // Push this guy *far* ahead (1 year)
+                itm_meta.cas += 3154E10;
+            } else if(ii == behindVb) {
+                // just be sure it was already greater then 1 + driftthreshold
+                checkge(itm_meta.cas, uint64_t(1) + driftBehindThreshold,
+                        "HLC was already zero");
+                // set to be way way behind...
+                itm_meta.cas = 1;
+            }
+            set_with_meta(h, h1, key.data(), key.size(), NULL, 0, ii, &itm_meta,
+                          0, false, PROTOCOL_BINARY_RAW_BYTES, true, 0);
+            checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+                    "Expected success");
+        }
+    }
+
+    // Bucket stats should report drift
+    checkge(get_ull_stat(h, h1, "ep_active_hlc_drift"), uint64_t(0),
+            "Expected drift above zero");
+    checkeq(uint64_t(n_keys), get_ull_stat(h, h1, "ep_active_hlc_drift_count"),
+            "Expected ahead counter to match mutations");
+
+    // Victim VBs should have exceptions
+    {
+        std::string vbAheadName = "vb_" + std::to_string(aheadVb);
+        std::string ahead_threshold_exceeded = vbAheadName + ":drift_ahead_threshold_exceeded";
+        std::string behind_threshold_exceeded = vbAheadName + ":drift_behind_threshold_exceeded";
+        std::string total_abs_drift = vbAheadName + ":total_abs_drift";
+        std::string details = "vbucket-details " + std::to_string(aheadVb);
+            checkeq(uint64_t(n_keys), get_ull_stat(h, h1, ahead_threshold_exceeded.data(), details.data()),
+                "Expected ahead threshold to match mutations");
+        checkeq(uint64_t(0), get_ull_stat(h, h1, behind_threshold_exceeded.data(), details.data()),
+                "Expected no behind exceptions");
+        checkge(get_ull_stat(h, h1, total_abs_drift.data(), details.data()), uint64_t(0),
+                "Expected some drift");
+    }
+
+    {
+        std::string vbBehindName = "vb_" + std::to_string(behindVb);
+        std::string ahead_threshold_exceeded = vbBehindName + ":drift_ahead_threshold_exceeded";
+        std::string behind_threshold_exceeded = vbBehindName + ":drift_behind_threshold_exceeded";
+        std::string total_abs_drift = vbBehindName + ":total_abs_drift";
+        std::string details = "vbucket-details " + std::to_string(behindVb);
+        checkeq(uint64_t(n_keys), get_ull_stat(h, h1, behind_threshold_exceeded.data(), details.data()),
+                "Expected behind threshold to match mutations");
+        checkeq(uint64_t(0), get_ull_stat(h, h1, ahead_threshold_exceeded.data(), details.data()),
+                "Expected no ahead exceptions");
+        checkge(get_ull_stat(h, h1, total_abs_drift.data(), details.data()), uint64_t(0),
+                "Expected some drift");
+    }
+
+
+    return SUCCESS;
+}
+
+static enum test_result test_del_with_meta_and_check_drift_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    // Activate n vbuckets (vb 0 is already)
+    const int n_vbuckets = 10;
+    for (int ii = 1; ii < n_vbuckets; ii++) {
+        check(set_vbucket_state(h, h1, ii, vbucket_state_active),
+              "Failed to set vbucket state.");
+    }
+
+    // Let's make vbucket n/2 be the one who is ahead, n/3 is behind
+    const int aheadVb = n_vbuckets/2;
+    const int behindVb = n_vbuckets/3;
+    checkne(aheadVb, behindVb, "Cannot have the same VB as ahead/behind");
+
+    HLC hlc(0/*init HLC*/, 0/*ahead threshold*/, 0/*behind threshold*/);
+
+    // grab the drift behind threshold
+    uint64_t driftBehindThreshold = get_ull_stat(h, h1,
+                                                 "ep_hlc_ahead_threshold_us",
+                                                 nullptr);
+    // Create n keys * n_vbuckets
+    const int n_keys = 5;
+    for (int ii = 0 ; ii < n_vbuckets; ii++) {
+        for (int k = 0; k < n_keys; k++) {
+            std::string key = "key_" + std::to_string(k);
+
+            // In the del_with_meta test we want to pretend a del_wm came from
+            // the past, so we want to ensure a delete doesn't get rejected
+            // by LWW conflict resolution, thus write all documents that are
+            // going to be deleted with set_with_meta, and write them way in the past.
+            // This will trigger threshold and increment drift stats... so we
+            // account for these later
+            ItemMetaData itm_meta;
+            itm_meta.cas = 1; // set to 1
+            set_with_meta(h, h1, key.data(), key.size(), NULL, 0, ii, &itm_meta,
+                          0, false, PROTOCOL_BINARY_RAW_BYTES, true, 0);
+            checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+                    "Expected success");
+        }
+    }
+
+    checkeq(uint64_t(0), get_ull_stat(h, h1, "ep_active_ahead_exceptions"),
+            "Expected ahead counter to match mutations");
+    checkeq(uint64_t(n_keys*n_vbuckets), get_ull_stat(h, h1, "ep_active_behind_exceptions"),
+            "Expected behind counter to match mutations");
+
+    // Del_with_meta n_keys to n_vbuckets
+    for (int ii = 0 ; ii < n_vbuckets; ii++) {
+        for (int k = 0; k < n_keys; k++) {
+            std::string key = "key_" + std::to_string(k);
+            ItemMetaData itm_meta;
+            itm_meta.cas = hlc.nextHLC();
+            if (ii == aheadVb) {
+                // Push this guy *far* ahead (1 year)
+                itm_meta.cas += 3154E10;
+            } else if(ii == behindVb) {
+                // just be sure it was already greater than 1 + driftthreshold
+                checkge(itm_meta.cas, uint64_t(1) + driftBehindThreshold,
+                        "HLC was already zero");
+                // set to be way way behind, but ahead of the documents we have set
+                itm_meta.cas = 2;
+            }
+            del_with_meta(h, h1, key.data(), key.size(), ii, &itm_meta,
+                          1, false, PROTOCOL_BINARY_RAW_BYTES);
+            checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+                    "Expected success");
+        }
+    }
+
+    // Bucket stats should report drift
+    checkge(get_ull_stat(h, h1, "ep_active_hlc_drift"), uint64_t(0),
+            "Expected drift above zero");
+    checkeq(uint64_t(n_keys*2), get_ull_stat(h, h1, "ep_active_hlc_drift_count"),
+            "Expected ahead counter to match mutations");
+
+    // and should report total exception of all VBs
+    checkeq(uint64_t(n_keys), get_ull_stat(h, h1, "ep_active_ahead_exceptions"),
+            "Expected ahead counter to match mutations");
+    checkeq(uint64_t(n_keys + (n_keys*n_vbuckets)), get_ull_stat(h, h1, "ep_active_behind_exceptions"),
+            "Expected behind counter to match mutations");
+
+    // Victim VBs should have exceptions
+    {
+        std::string vbAheadName = "vb_" + std::to_string(aheadVb);
+        std::string ahead_threshold_exceeded = vbAheadName + ":drift_ahead_threshold_exceeded";
+        std::string behind_threshold_exceeded = vbAheadName + ":drift_behind_threshold_exceeded";
+        std::string total_abs_drift = vbAheadName + ":total_abs_drift";
+        std::string details = "vbucket-details " + std::to_string(aheadVb);
+
+        checkeq(uint64_t(n_keys),
+                get_ull_stat(h, h1, ahead_threshold_exceeded.data(), details.data()),
+                "Expected ahead threshold to match mutations");
+        checkge(get_ull_stat(h, h1, total_abs_drift.data(), details.data()), uint64_t(0),
+                "Expected some drift");
+    }
+
+    {
+        std::string vbBehindName = "vb_" + std::to_string(behindVb);
+        std::string ahead_threshold_exceeded = vbBehindName + ":drift_ahead_threshold_exceeded";
+        std::string behind_threshold_exceeded = vbBehindName + ":drift_behind_threshold_exceeded";
+        std::string total_abs_drift = vbBehindName + ":total_abs_drift";
+        std::string details = "vbucket-details " + std::to_string(behindVb);
+
+        // *2 behind due to the initial set_with_meta
+        checkeq(uint64_t(n_keys*2), get_ull_stat(h, h1, behind_threshold_exceeded.data(), details.data()),
+                "Expected behind threshold to match mutations");
+        checkeq(uint64_t(0), get_ull_stat(h, h1, ahead_threshold_exceeded.data(), details.data()),
+                "Expected no ahead exceptions");
+        checkge(get_ull_stat(h, h1, total_abs_drift.data(), details.data()), uint64_t(0),
+                "Expected some drift");
+    }
+
+
+    return SUCCESS;
+}
 
 // Test manifest //////////////////////////////////////////////////////////////
 
@@ -1618,6 +1815,15 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test get_meta with item_eviction",
                  test_getMeta_with_item_eviction, test_setup, teardown,
                  "item_eviction_policy=full_eviction", prepare, cleanup),
+
+        TestCase("test set_with_meta and drift stats",
+                 test_set_with_meta_and_check_drift_stats, test_setup,
+                 teardown, "hlc_ahead_threshold_us=5000000;hlc_behind_threshold_us=0;conflict_resolution_type=lww",
+                 prepare, cleanup),
+        TestCase("test del_with_meta and drift stats",
+                 test_del_with_meta_and_check_drift_stats, test_setup,
+                 teardown, "hlc_ahead_threshold_us=0;hlc_behind_threshold_us=5000000;conflict_resolution_type=lww",
+                 prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };

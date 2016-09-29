@@ -485,8 +485,8 @@ void Warmup::createVBuckets(uint16_t shardId) {
                                  store.getEPEngine().getEpStats(),
                                  store.getEPEngine().getCheckpointConfig(),
                                  shard, vbs.highSeqno, vbs.lastSnapStart,
-                                 vbs.lastSnapEnd, table, cb, vbs.state, 1,
-                                 vbs.purgeSeqno, vbs.maxCas));
+                                 vbs.lastSnapEnd, table, cb, config,
+                                 vbs.state, 1, vbs.purgeSeqno, vbs.maxCas));
 
             if(vbs.state == vbucket_state_active && !cleanShutdown) {
                 if (static_cast<uint64_t>(vbs.highSeqno) == vbs.lastSnapEnd) {
