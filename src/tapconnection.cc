@@ -1248,6 +1248,9 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
                 }
                 addEvent_UNLOCKED(qi);
                 break;
+            case queue_op::flush:
+                // ignored
+                break;
             case queue_op::checkpoint_start:
                 {
                     it->second.currentCheckpointId = qi->getRevSeqno();
@@ -1281,8 +1284,6 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
                 {
                     ++open_checkpoint_count;
                 }
-                break;
-            default:
                 break;
             }
         }

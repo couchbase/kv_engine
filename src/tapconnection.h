@@ -150,13 +150,14 @@ public:
         case queue_op::flush:
             event_ = TAP_FLUSH;
             break;
+        case queue_op::empty:
+            // Ignored
+            break;
         case queue_op::checkpoint_start:
             event_ = TAP_CHECKPOINT_START;
             break;
         case queue_op::checkpoint_end:
             event_ = TAP_CHECKPOINT_END;
-            break;
-        default:
             break;
         }
     }

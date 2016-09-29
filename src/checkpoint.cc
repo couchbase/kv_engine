@@ -236,8 +236,7 @@ size_t Checkpoint::mergePrevCheckpoint(Checkpoint *pPrevCheckpoint) {
 
     for (; rit != pPrevCheckpoint->rend(); ++rit) {
         const std::string &key = (*rit)->getKey();
-        if ((*rit)->getOperation() != queue_op::del &&
-            (*rit)->getOperation() != queue_op::set) {
+        if ((*rit)->isCheckPointMetaItem()) {
             continue;
         }
         checkpoint_index::iterator it = keyIndex.find(key);

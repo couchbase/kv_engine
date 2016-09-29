@@ -660,27 +660,33 @@ public:
      * Should this item be persisted?
      */
     bool shouldPersist() const {
-        return (op == queue_op::set) ||
-               (op == queue_op::del);
+        return !isCheckPointMetaItem();
     }
 
     /*
      * Should this item be replicated (e.g. by DCP)
      */
     bool shouldReplicate() const {
-        return (op == queue_op::set) ||
-               (op == queue_op::del);
+        return !isCheckPointMetaItem();
     }
 
     void setOperation(queue_op o) {
         op = o;
     }
 
-    bool isCheckPointMetaItem(void) const {
-        if ((queue_op::set == op) || (queue_op::del == op)) {
-            return false;
+    bool isCheckPointMetaItem() const {
+        switch (op) {
+            case queue_op::set:
+            case queue_op::del:
+                return false;
+            case queue_op::flush:
+            case queue_op::empty:
+            case queue_op::checkpoint_start:
+            case queue_op::checkpoint_end:
+                return true;
         }
-        return true;
+        // Silence GCC warning
+        return false;
     }
 
     void setNRUValue(uint8_t nru_value) {
