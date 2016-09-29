@@ -967,7 +967,6 @@ protected:
      *        Note that the lock is released inside this function
      * @param seqno sequence number of the mutation
      * @param tapBackfill if the item is from backfill replication
-     * @param notifyReplicator whether or not to notify the replicator
      * @param genBySeqno whether or not to generate sequence number
      * @param setConflictMode set the conflict resolution mode
      */
@@ -976,7 +975,6 @@ protected:
                     LockHolder *plh,
                     uint64_t *seqno,
                     bool tapBackfill = false,
-                    bool notifyReplicator = true,
                     bool genBySeqno = true,
                     bool setConflictMode = true);
 
