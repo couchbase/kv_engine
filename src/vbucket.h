@@ -475,6 +475,9 @@ public:
 
     HashTable         ht;
     CheckpointManager checkpointManager;
+
+    // Struct for managing 'backfill' items - Items which have been added by
+    // an incoming TAP stream and need to be persisted to disk.
     struct {
         Mutex mutex;
         std::queue<queued_item> items;
