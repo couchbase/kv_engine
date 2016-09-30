@@ -172,17 +172,23 @@ void EventuallyPersistentStoreTest::store_item(uint16_t vbid,
 
 void EventuallyPersistentStoreTest::flush_vbucket_to_disk(uint16_t vbid) {
     int result;
-    const auto deadline = std::chrono::steady_clock::now() +
-                          std::chrono::seconds(5);
+    const auto time_limit = std::chrono::seconds(10);
+    const auto deadline = std::chrono::steady_clock::now() + time_limit;
 
     // Need to retry as warmup may not have completed.
+    bool flush_successful = false;
     do {
         result = store->flushVBucket(vbid);
         if (result != RETRY_FLUSH_VBUCKET) {
+            flush_successful = true;
             break;
         }
         std::this_thread::sleep_for(std::chrono::microseconds(100));
     } while (std::chrono::steady_clock::now() < deadline);
+
+    ASSERT_TRUE(flush_successful)
+        << "Hit timeout (" << time_limit.count() << " seconds) waiting for "
+           "warmup to complete while flushing VBucket.";
 
     ASSERT_EQ(1, result) << "Failed to flush the one item we have stored.";
 
