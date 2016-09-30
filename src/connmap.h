@@ -67,58 +67,27 @@ public:
     virtual void disconnect(const void *cookie) = 0;
 
     /**
-     * Call a function on each connection.
-     */
-    template <typename Fun>
-    void each(Fun f) {
-        LockHolder lh(connsLock);
-        each_UNLOCKED(f);
-    }
-
-    /**
-     * Call a function on each connection *without* a lock.
-     */
-    template <typename Fun>
-    void each_UNLOCKED(Fun f) {
-        std::for_each(all.begin(), all.end(), f);
-    }
-
-    /**
-     * Return the number of connections for which this predicate is true.
-     */
-    template <typename Fun>
-    size_t count_if(Fun f) {
-        LockHolder lh(connsLock);
-        return count_if_UNLOCKED(f);
-    }
-
-    /**
-     * Return the number of connections for which this predicate is
-     * true *without* a lock.
-     */
-    template <typename Fun>
-    size_t count_if_UNLOCKED(Fun f) {
-        return static_cast<size_t>(std::count_if(all.begin(), all.end(), f));
-    }
-
-    /**
      * Purge dead connections or identify paused connections that should send
      * NOOP messages to their destinations.
      */
     virtual void manageConnections() = 0;
 
-    connection_t findByName(const std::string &name);
+    virtual connection_t findByName(const std::string &name) = 0;
 
     virtual void shutdownAllConnections() = 0;
 
+    /**
+     * Returns true if a dead connections list is not maintained,
+     * or the list is empty.
+     */
     virtual bool isDeadConnectionsEmpty() {
         return true;
     }
 
-    bool isAllEmpty() {
-        LockHolder lh(connsLock);
-        return all.empty();
-    }
+    /**
+     * Returns true if there are existing connections.
+     */
+    virtual bool isConnections() = 0;
 
     void updateVBConnections(connection_t &conn,
                              const std::vector<uint16_t> &vbuckets);
@@ -148,8 +117,6 @@ public:
     }
 
 protected:
-
-    connection_t findByName_UNLOCKED(const std::string &name);
 
     // Synchronises notifying and releasing connections.
     // Guards modifications to connection_t objects in {map_} / {all}.

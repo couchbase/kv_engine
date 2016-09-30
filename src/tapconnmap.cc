@@ -607,6 +607,18 @@ void TapConnMap::removeTapCursors_UNLOCKED(TapProducer *tp) {
     }
 }
 
+connection_t TapConnMap::findByName(const std::string& name) {
+    LockHolder lh(connsLock);
+    return findByName_UNLOCKED(name);
+}
+
+connection_t TapConnMap::findByName_UNLOCKED(const std::string& name) {
+    const auto& iter = find_if(all.begin(), all.end(),
+                               [name] (const connection_t& c)
+                               {return c->getName() == name;});
+    return (iter == all.end()) ? connection_t() : *iter;
+}
+
 void CompleteBackfillTapOperation::perform(TapProducer *tc, void *) {
     tc->completeBackfill();
 }

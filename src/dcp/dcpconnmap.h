@@ -120,6 +120,24 @@ public:
 
     float getMinCompressionRatio();
 
+    connection_t findByName(const std::string &name);
+
+    bool isConnections() {
+        LockHolder lh(connsLock);
+        return !map_.empty();
+    }
+
+    /**
+     * Call a function on each DCP connection.
+     */
+    template <typename Fun>
+    void each(Fun f) {
+        LockHolder lh(connsLock);
+        for (auto& c : map_) {
+            f(c.second);
+        }
+    }
+
 protected:
     /*
      * deadConnections is protected (as opposed to private) because

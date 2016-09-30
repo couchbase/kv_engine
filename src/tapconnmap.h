@@ -202,6 +202,8 @@ public:
 
     bool mapped(connection_t &tc);
 
+    connection_t findByName(const std::string& name);
+
     /**
      * Perform a TapOperation for a named tap connection while holding
      * appropriate locks.
@@ -246,6 +248,20 @@ public:
         nextNoop_ = 0;
     }
 
+    bool isConnections() {
+           LockHolder lh(connsLock);
+           return !all.empty();
+       }
+
+    /**
+     * Call a function on each TAP connection.
+     */
+    template <typename Fun>
+    void each(Fun f) {
+        LockHolder lh(connsLock);
+        std::for_each(all.begin(), all.end(), f);
+    }
+
 private:
 
     /**
@@ -262,6 +278,8 @@ private:
     void removeTapCursors_UNLOCKED(TapProducer *tp);
 
     bool closeConnectionByName_UNLOCKED(const std::string &name);
+
+    connection_t findByName_UNLOCKED(const std::string& name);
 
     TAPSessionStats prevSessionStats;
     size_t noopInterval_;

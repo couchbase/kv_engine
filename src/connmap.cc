@@ -125,7 +125,7 @@ public:
         connmap->manageConnections();
         snooze(sleepTime);
         return !engine->getEpStats().isShutdown ||
-               !connmap->isAllEmpty() ||
+               connmap->isConnections() ||
                !connmap->isDeadConnectionsEmpty();
     }
 
@@ -166,22 +166,6 @@ ConnMap::~ConnMap() {
         connNotifier_->stop();
         delete connNotifier_;
     }
-}
-
-connection_t ConnMap::findByName(const std::string &name) {
-    LockHolder lh(connsLock);
-    return findByName_UNLOCKED(name);
-}
-
-connection_t ConnMap::findByName_UNLOCKED(const std::string&name) {
-    connection_t rv(NULL);
-    std::list<connection_t>::iterator iter;
-    for (iter = all.begin(); iter != all.end(); ++iter) {
-        if ((*iter)->getName() == name) {
-            rv = *iter;
-        }
-    }
-    return rv;
 }
 
 void ConnMap::notifyPausedConnection(connection_t conn, bool schedule) {
