@@ -55,12 +55,9 @@ void FailoverTable::createEntry(uint64_t high_seqno) {
     LockHolder lh(lock);
     // Our failover table represents only *our* branch of history.
     // We must remove branches we've diverged from.
-    table_t::iterator itr = table.begin();
-    for (; itr != table.end(); ++itr) {
-        if (itr->by_seqno > high_seqno) {
-            itr = table.erase(itr);
-        }
-    }
+    table.remove_if([high_seqno](const failover_entry_t& e) {
+                        return (e.by_seqno > high_seqno);
+                    });
 
     failover_entry_t entry;
     entry.vb_uuid = (provider.next() >> 16);
@@ -341,6 +338,11 @@ void FailoverTable::replaceFailoverLog(uint8_t* bytes, uint32_t length) {
     latest_uuid = table.front().vb_uuid;
 
     cacheTableJSON();
+}
+
+size_t FailoverTable::getNumEntries() const
+{
+    return table.size();
 }
 
 void FailoverTable::adjustSnapshotRange(uint64_t start_seqno,
