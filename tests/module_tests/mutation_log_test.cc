@@ -17,41 +17,109 @@
 
 #include "config.h"
 
-#include <signal.h>
-
 #include <algorithm>
+#include <fcntl.h>
+#include <gtest/gtest.h>
 #include <map>
+#include <platform/strerror.h>
 #include <set>
 #include <stdexcept>
+#include <sys/stat.h>
 #include <vector>
 
-#include "assert.h"
 #include "mutation_log.h"
 
-#define TMP_LOG_FILE "/tmp/mlt_test.log"
+// Windows doesn't have a truncate() function, implement one.
+#if defined(WIN32)
+int truncate(const char *path, off_t length) {
+    LARGE_INTEGER distance;
+    distance.u.HighPart = 0;
+    distance.u.LowPart = length;
 
-static void testUnconfigured() {
+    HANDLE fh = CreateFile(path, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+    if (fh == INVALID_HANDLE_VALUE) {
+        fprintf(stderr, "truncate: CreateFile failed with error: %s\n",
+                cb_strerror().c_str());
+        abort();
+    }
+
+    cb_assert(SetFilePointerEx(fh, distance, NULL, FILE_BEGIN) != 0);
+    cb_assert(SetEndOfFile(fh) != 0);
+
+    CloseHandle(fh);
+    return 0;
+}
+#endif
+
+// Bitfield of available file permissions.
+namespace FilePerms {
+    const int None = 0;
+#if defined(WIN32)
+    const int Read = _S_IREAD;
+    const int Write = _S_IWRITE;
+#else
+    const int Read = S_IRUSR;
+    const int Write = S_IWUSR;
+#endif
+}
+
+class MutationLogTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        // Generate a temporary log filename.
+        tmp_log_filename = "mlt_test.XXXXXX";
+        ASSERT_NE(nullptr, cb_mktemp(&tmp_log_filename[0]));
+    }
+
+    void TearDown() override {
+        remove(tmp_log_filename.c_str());
+    }
+
+    /**
+     * Sets the read/write permissions on the tmp log file (in a
+     * cross-platform way).
+     */
+    void set_file_perms(/*FilePerms*/int perms) {
+#if defined(WIN32)
+        if (_chmod(tmp_log_filename.c_str(), perms) != 0)
+        {
+#else
+        if (chmod(tmp_log_filename.c_str(), perms) != 0)
+        {
+#endif
+            std::cerr << "set_file_perms: chmod failed: " << cb_strerror() << std::endl;
+            abort();
+        }
+    }
+
+    // Storage for temporary log filename
+    std::string tmp_log_filename;
+};
+
+TEST_F(MutationLogTest, Unconfigured) {
     MutationLog ml("");
     ml.open();
-    cb_assert(!ml.isEnabled());
+    ASSERT_FALSE(ml.isEnabled());
     ml.newItem(3, "somekey", 931);
-    ml.delItem(3, "somekey");
-    ml.deleteAll(3);
     ml.commit1();
     ml.commit2();
     ml.flush();
 
-    cb_assert(ml.begin() == ml.end());
+    EXPECT_EQ(ml.begin(), ml.end());
 }
 
-static void testSyncSet() {
+TEST_F(MutationLogTest, SyncSet) {
 
     // Some basics
-    cb_assert((SYNC_COMMIT_1 | SYNC_COMMIT_2) == SYNC_FULL);
-    cb_assert((FLUSH_COMMIT_1 | FLUSH_COMMIT_2) == FLUSH_FULL);
+    static_assert((SYNC_COMMIT_1 | SYNC_COMMIT_2) == SYNC_FULL,
+                  "Incorrect value for SYNC_FULL");
+    static_assert((FLUSH_COMMIT_1 | FLUSH_COMMIT_2) == FLUSH_FULL,
+                  "Incorrect value for FLUSH_FULL");
     // No overlap
-    cb_assert((FLUSH_FULL & ~SYNC_FULL) == FLUSH_FULL);
-    cb_assert((SYNC_FULL & ~FLUSH_FULL) == SYNC_FULL);
+    static_assert((FLUSH_FULL & ~SYNC_FULL) == FLUSH_FULL,
+                  "FLUSH_FULL overlaps with SYNC_FULL");
+    static_assert((SYNC_FULL & ~FLUSH_FULL) == SYNC_FULL,
+                  "SYNC_FULL overlaps with FLUSH_FULL");
 
     //
     // Now the real tests.
@@ -59,433 +127,382 @@ static void testSyncSet() {
     MutationLog ml("");
     ml.open();
 
-    cb_assert(ml.setSyncConfig("off"));
-    cb_assert(ml.getSyncConfig() == 0);
+    EXPECT_TRUE(ml.setSyncConfig("off"));
+    EXPECT_EQ(0, ml.getSyncConfig());
 
-    cb_assert(ml.setSyncConfig("commit1"));
-    cb_assert(ml.getSyncConfig() == SYNC_COMMIT_1);
+    EXPECT_TRUE(ml.setSyncConfig("commit1"));
+    EXPECT_EQ(SYNC_COMMIT_1, ml.getSyncConfig());
 
-    cb_assert(ml.setSyncConfig("commit2"));
-    cb_assert(ml.getSyncConfig() == SYNC_COMMIT_2);
+    EXPECT_TRUE(ml.setSyncConfig("commit2"));
+    EXPECT_EQ(SYNC_COMMIT_2, ml.getSyncConfig());
 
-    cb_assert(ml.setSyncConfig("full"));
-    cb_assert(ml.getSyncConfig() == (SYNC_COMMIT_1|SYNC_COMMIT_2));
+    EXPECT_TRUE(ml.setSyncConfig("full"));
+    EXPECT_EQ(SYNC_COMMIT_1 | SYNC_COMMIT_2, ml.getSyncConfig());
 
-    cb_assert(!ml.setSyncConfig("otherwise"));
+    EXPECT_FALSE(ml.setSyncConfig("otherwise"));
 
     // reset
-    cb_assert(ml.setSyncConfig("off"));
-    cb_assert(ml.getSyncConfig() == 0);
+    EXPECT_TRUE(ml.setSyncConfig("off"));
+    EXPECT_EQ(0, ml.getSyncConfig());
 
     //
     // Flush tests
     //
-    cb_assert(ml.setFlushConfig("commit1"));
-    cb_assert(ml.getFlushConfig() == FLUSH_COMMIT_1);
+    EXPECT_TRUE(ml.setFlushConfig("commit1"));
+    EXPECT_EQ(FLUSH_COMMIT_1, ml.getFlushConfig());
 
-    cb_assert(ml.setFlushConfig("commit2"));
-    cb_assert(ml.getFlushConfig() == FLUSH_COMMIT_2);
+    EXPECT_TRUE(ml.setFlushConfig("commit2"));
+    EXPECT_EQ(FLUSH_COMMIT_2, ml.getFlushConfig());
 
-    cb_assert(ml.setFlushConfig("full"));
-    cb_assert(ml.getFlushConfig() == (FLUSH_COMMIT_1|FLUSH_COMMIT_2));
+    EXPECT_TRUE(ml.setFlushConfig("full"));
+    EXPECT_EQ(FLUSH_COMMIT_1 | FLUSH_COMMIT_2, ml.getFlushConfig());
 
-    cb_assert(!ml.setFlushConfig("otherwise"));
+    EXPECT_FALSE(ml.setFlushConfig("otherwise"));
 
     // reset
-    cb_assert(ml.setSyncConfig("off"));
-    cb_assert(ml.getSyncConfig() == 0);
-    cb_assert(ml.setFlushConfig("off"));
-    cb_assert(ml.getFlushConfig() == 0);
+    EXPECT_TRUE(ml.setSyncConfig("off"));
+    EXPECT_EQ(0, ml.getSyncConfig());
+    EXPECT_TRUE(ml.setFlushConfig("off"));
+    EXPECT_EQ(0, ml.getFlushConfig());
 
     //
     // Try both
     //
 
-    cb_assert(ml.setSyncConfig("commit1"));
-    cb_assert(ml.setFlushConfig("commit2"));
-    cb_assert(ml.getSyncConfig() == SYNC_COMMIT_1);
-    cb_assert(ml.getFlushConfig() == FLUSH_COMMIT_2);
+    EXPECT_TRUE(ml.setSyncConfig("commit1"));
+    EXPECT_TRUE(ml.setFlushConfig("commit2"));
+    EXPECT_EQ(SYNC_COMMIT_1, ml.getSyncConfig());
+    EXPECT_EQ(FLUSH_COMMIT_2, ml.getFlushConfig());
 
     // Swap them and apply in reverse order.
-    cb_assert(ml.setFlushConfig("commit1"));
-    cb_assert(ml.setSyncConfig("commit2"));
-    cb_assert(ml.getSyncConfig() == SYNC_COMMIT_2);
-    cb_assert(ml.getFlushConfig() == FLUSH_COMMIT_1);
+    EXPECT_TRUE(ml.setFlushConfig("commit1"));
+    EXPECT_TRUE(ml.setSyncConfig("commit2"));
+    EXPECT_EQ(SYNC_COMMIT_2, ml.getSyncConfig());
+    EXPECT_EQ(FLUSH_COMMIT_1, ml.getFlushConfig());
 }
 
-static void loaderFun(void *arg, uint16_t vb,
-                      const std::string &k, uint64_t rowid) {
-    std::map<std::string, uint64_t> *maps = reinterpret_cast<std::map<std::string, uint64_t> *>(arg);
-    maps[vb][k] = rowid;
+static bool loaderFun(void *arg, uint16_t vb,
+                      const std::string &k) {
+    std::set<std::string>* sets = reinterpret_cast<std::set<std::string> *>(arg);
+    sets[vb].insert(k);
+    return true;
 }
 
-static void testLogging() {
-    remove(TMP_LOG_FILE);
+TEST_F(MutationLogTest, Logging) {
+    remove(tmp_log_filename.c_str());
 
     {
-        MutationLog ml(TMP_LOG_FILE);
+        MutationLog ml(tmp_log_filename.c_str());
         ml.open();
 
-        ml.newItem(3, "key1", 1);
         ml.newItem(2, "key1", 2);
         ml.commit1();
         ml.commit2();
         ml.newItem(3, "key2", 3);
-        ml.delItem(3, "key1");
         ml.commit1();
         ml.commit2();
         // Remaining:   3:key2, 2:key1
 
-        cb_assert(ml.itemsLogged[ML_NEW] == 3);
-        cb_assert(ml.itemsLogged[ML_DEL] == 1);
-        cb_assert(ml.itemsLogged[ML_COMMIT1] == 2);
-        cb_assert(ml.itemsLogged[ML_COMMIT2] == 2);
+        EXPECT_EQ(2, ml.itemsLogged[ML_NEW]);
+        EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT1]);
+        EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT2]);
     }
 
     {
-        MutationLog ml(TMP_LOG_FILE);
+        MutationLog ml(tmp_log_filename.c_str());
         ml.open();
         MutationLogHarvester h(ml);
         h.setVBucket(1);
         h.setVBucket(2);
         h.setVBucket(3);
 
-        cb_assert(h.load());
+        EXPECT_TRUE(h.load());
 
-        cb_assert(h.getItemsSeen()[ML_NEW] == 3);
-        cb_assert(h.getItemsSeen()[ML_DEL] == 1);
-        cb_assert(h.getItemsSeen()[ML_COMMIT1] == 2);
-        cb_assert(h.getItemsSeen()[ML_COMMIT2] == 2);
+        EXPECT_EQ(2, h.getItemsSeen()[ML_NEW]);
+        EXPECT_EQ(2, h.getItemsSeen()[ML_COMMIT1]);
+        EXPECT_EQ(2, h.getItemsSeen()[ML_COMMIT2]);
 
         // Check stat copying
         ml.resetCounts(h.getItemsSeen());
 
-        cb_assert(ml.itemsLogged[ML_NEW] == 3);
-        cb_assert(ml.itemsLogged[ML_DEL] == 1);
-        cb_assert(ml.itemsLogged[ML_COMMIT1] == 2);
-        cb_assert(ml.itemsLogged[ML_COMMIT2] == 2);
+        EXPECT_EQ(2, ml.itemsLogged[ML_NEW]);
+        EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT1]);
+        EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT2]);
 
         // See if we got what we expect.
         std::map<std::string, uint64_t> maps[4];
         h.apply(&maps, loaderFun);
 
-        cb_assert(maps[0].size() == 0);
-        cb_assert(maps[1].size() == 0);
-        cb_assert(maps[2].size() == 1);
-        cb_assert(maps[3].size() == 1);
+        EXPECT_EQ(0, maps[0].size());
+        EXPECT_EQ(0, maps[1].size());
+        EXPECT_EQ(1, maps[2].size());
+        EXPECT_EQ(1, maps[3].size());
 
-        cb_assert(maps[2].find("key1") != maps[2].end());
-        cb_assert(maps[3].find("key2") != maps[3].end());
+        EXPECT_NE(maps[2].end(), maps[2].find("key1"));
+        EXPECT_NE(maps[3].end(), maps[3].find("key2"));
     }
-
-    remove(TMP_LOG_FILE);
 }
 
-static void testDelAll() {
-    remove(TMP_LOG_FILE);
+TEST_F(MutationLogTest, LoggingDirty) {
+    remove(tmp_log_filename.c_str());
 
     {
-        MutationLog ml(TMP_LOG_FILE);
+        MutationLog ml(tmp_log_filename.c_str());
         ml.open();
 
         ml.newItem(3, "key1", 1);
         ml.newItem(2, "key1", 2);
         ml.commit1();
         ml.commit2();
-        ml.newItem(3, "key2", 3);
-        ml.deleteAll(3);
-        ml.commit1();
-        ml.commit2();
-        // Remaining:   2:key1
-
-        cb_assert(ml.itemsLogged[ML_NEW] == 3);
-        cb_assert(ml.itemsLogged[ML_DEL] == 0);
-        cb_assert(ml.itemsLogged[ML_DEL_ALL] == 1);
-        cb_assert(ml.itemsLogged[ML_COMMIT1] == 2);
-        cb_assert(ml.itemsLogged[ML_COMMIT2] == 2);
-    }
-
-    {
-        MutationLog ml(TMP_LOG_FILE);
-        ml.open();
-        MutationLogHarvester h(ml);
-        h.setVBucket(1);
-        h.setVBucket(2);
-        h.setVBucket(3);
-
-        cb_assert(h.load());
-
-        cb_assert(h.getItemsSeen()[ML_NEW] == 3);
-        cb_assert(h.getItemsSeen()[ML_DEL_ALL] == 1);
-        cb_assert(h.getItemsSeen()[ML_COMMIT1] == 2);
-        cb_assert(h.getItemsSeen()[ML_COMMIT2] == 2);
-
-        // Check stat copying
-        ml.resetCounts(h.getItemsSeen());
-
-        cb_assert(ml.itemsLogged[ML_NEW] == 3);
-        cb_assert(ml.itemsLogged[ML_DEL_ALL] == 1);
-        cb_assert(ml.itemsLogged[ML_COMMIT1] == 2);
-        cb_assert(ml.itemsLogged[ML_COMMIT2] == 2);
-
-        // See if we got what we expect.
-        std::map<std::string, uint64_t> maps[4];
-        h.apply(&maps, loaderFun);
-
-        cb_assert(maps[0].size() == 0);
-        cb_assert(maps[1].size() == 0);
-        cb_assert(maps[2].size() == 1);
-        cb_assert(maps[3].size() == 0);
-
-        cb_assert(maps[2].find("key1") != maps[2].end());
-    }
-
-    remove(TMP_LOG_FILE);
-}
-
-static bool leftover_compare(mutation_log_uncommitted_t a,
-                             mutation_log_uncommitted_t b) {
-    if (a.vbucket != b.vbucket) {
-        return a.vbucket < b.vbucket;
-    }
-
-    if (a.key != b.key) {
-        return a.key < b.key;
-    }
-
-    if (a.type != b.type) {
-        return a.type < b.type;
-    }
-
-    return false;
-}
-
-static void testLoggingDirty() {
-    remove(TMP_LOG_FILE);
-
-    {
-        MutationLog ml(TMP_LOG_FILE);
-        ml.open();
-
-        ml.newItem(3, "key1", 1);
-        ml.newItem(2, "key1", 2);
-        ml.commit1();
-        ml.commit2();
-        // These two will be dropped from the normal loading path
+        // This will be dropped from the normal loading path
         // because there's no commit.
         ml.newItem(3, "key2", 3);
-        ml.delItem(3, "key1");
         // Remaining:   3:key1, 2:key1
 
-        cb_assert(ml.itemsLogged[ML_NEW] == 3);
-        cb_assert(ml.itemsLogged[ML_DEL] == 1);
-        cb_assert(ml.itemsLogged[ML_COMMIT1] == 1);
-        cb_assert(ml.itemsLogged[ML_COMMIT2] == 1);
+        EXPECT_EQ(3, ml.itemsLogged[ML_NEW]);
+        EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT1]);
+        EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT2]);
     }
 
     {
-        MutationLog ml(TMP_LOG_FILE);
+        MutationLog ml(tmp_log_filename.c_str());
         ml.open();
         MutationLogHarvester h(ml);
         h.setVBucket(1);
         h.setVBucket(2);
         h.setVBucket(3);
 
-        cb_assert(!h.load());
+        EXPECT_FALSE(h.load());
 
-        cb_assert(h.getItemsSeen()[ML_NEW] == 3);
-        cb_assert(h.getItemsSeen()[ML_DEL] == 1);
-        cb_assert(h.getItemsSeen()[ML_COMMIT1] == 1);
-        cb_assert(h.getItemsSeen()[ML_COMMIT2] == 1);
+        EXPECT_EQ(3, h.getItemsSeen()[ML_NEW]);
+        EXPECT_EQ(1, h.getItemsSeen()[ML_COMMIT1]);
+        EXPECT_EQ(1, h.getItemsSeen()[ML_COMMIT2]);
 
         // Check stat copying
         ml.resetCounts(h.getItemsSeen());
 
-        cb_assert(ml.itemsLogged[ML_NEW] == 3);
-        cb_assert(ml.itemsLogged[ML_DEL] == 1);
-        cb_assert(ml.itemsLogged[ML_COMMIT1] == 1);
-        cb_assert(ml.itemsLogged[ML_COMMIT2] == 1);
+        EXPECT_EQ(3, ml.itemsLogged[ML_NEW]);
+        EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT1]);
+        EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT2]);
 
         // See if we got what we expect.
         std::map<std::string, uint64_t> maps[4];
         h.apply(&maps, loaderFun);
 
-        cb_assert(maps[0].size() == 0);
-        cb_assert(maps[1].size() == 0);
-        cb_assert(maps[2].size() == 1);
-        cb_assert(maps[3].size() == 1);
+        EXPECT_EQ(0, maps[0].size());
+        EXPECT_EQ(0, maps[1].size());
+        EXPECT_EQ(1, maps[2].size());
+        EXPECT_EQ(1, maps[3].size());
 
-        cb_assert(maps[2].find("key1") != maps[2].end());
-        cb_assert(maps[3].find("key1") != maps[3].end());
-        cb_assert(maps[3].find("key2") == maps[3].end());
+        EXPECT_NE(maps[2].end(), maps[2].find("key1"));
+        EXPECT_NE(maps[3].end(), maps[3].find("key1"));
+        EXPECT_EQ(maps[3].end(), maps[3].find("key2"));
 
-        // Check the leftovers
-        std::vector<mutation_log_uncommitted_t> leftovers;
-        h.getUncommitted(leftovers);
-        std::sort(leftovers.begin(), leftovers.end(), leftover_compare);
-        cb_assert(leftovers.size() == 2);
-        cb_assert(leftovers[0].vbucket == 3);
-        cb_assert(leftovers[0].key == "key1");
-        cb_assert(leftovers[0].type == ML_DEL);
-        cb_assert(leftovers[1].vbucket == 3);
-        cb_assert(leftovers[1].key == "key2");
-        cb_assert(leftovers[1].type == ML_NEW);
-        cb_assert(leftovers[1].rowid == 3);
     }
-
-    remove(TMP_LOG_FILE);
 }
 
-static void testLoggingBadCRC() {
-    remove(TMP_LOG_FILE);
+TEST_F(MutationLogTest, LoggingBadCRC) {
+    remove(tmp_log_filename.c_str());
 
     {
-        MutationLog ml(TMP_LOG_FILE);
+        MutationLog ml(tmp_log_filename.c_str());
         ml.open();
 
-        ml.newItem(3, "key1", 1);
         ml.newItem(2, "key1", 2);
         ml.commit1();
         ml.commit2();
         ml.newItem(3, "key2", 3);
-        ml.delItem(3, "key1");
         ml.commit1();
         ml.commit2();
         // Remaining:   3:key2, 2:key1
 
-        cb_assert(ml.itemsLogged[ML_NEW] == 3);
-        cb_assert(ml.itemsLogged[ML_DEL] == 1);
-        cb_assert(ml.itemsLogged[ML_COMMIT1] == 2);
-        cb_assert(ml.itemsLogged[ML_COMMIT2] == 2);
+        EXPECT_EQ(2, ml.itemsLogged[ML_NEW]);
+        EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT1]);
+        EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT2]);
     }
 
     // Break the log
-    int file = open(TMP_LOG_FILE, O_RDWR, 0666);
-    cb_assert(lseek(file, 5000, SEEK_SET) == 5000);
+    int file = open(tmp_log_filename.c_str(), O_RDWR, FilePerms::Read | FilePerms::Write);
+    EXPECT_EQ(5000, lseek(file, 5000, SEEK_SET));
     uint8_t b;
-    cb_assert(read(file, &b, sizeof(b)) == 1);
-    cb_assert(lseek(file, 5000, SEEK_SET) == 5000);
+    EXPECT_EQ(1, read(file, &b, sizeof(b)));
+    EXPECT_EQ(5000, lseek(file, 5000, SEEK_SET));
     b = ~b;
-    cb_assert(write(file, &b, sizeof(b)) == 1);
+    EXPECT_EQ(1, write(file, &b, sizeof(b)));
+    close(file);
 
     {
-        MutationLog ml(TMP_LOG_FILE);
+        MutationLog ml(tmp_log_filename.c_str());
         ml.open();
         MutationLogHarvester h(ml);
         h.setVBucket(1);
         h.setVBucket(2);
         h.setVBucket(3);
 
-        try {
-            h.load();
-            abort();
-        } catch(MutationLog::CRCReadException &e) {
-            // expected
-        }
+        EXPECT_THROW(h.load(), MutationLog::CRCReadException);
 
-        cb_assert(h.getItemsSeen()[ML_NEW] == 0);
-        cb_assert(h.getItemsSeen()[ML_DEL] == 0);
-        cb_assert(h.getItemsSeen()[ML_COMMIT1] == 0);
-        cb_assert(h.getItemsSeen()[ML_COMMIT2] == 0);
+        EXPECT_EQ(0, h.getItemsSeen()[ML_NEW]);
+        EXPECT_EQ(0, h.getItemsSeen()[ML_COMMIT1]);
+        EXPECT_EQ(0, h.getItemsSeen()[ML_COMMIT2]);
 
         // Check stat copying
         ml.resetCounts(h.getItemsSeen());
 
-        cb_assert(ml.itemsLogged[ML_NEW] == 0);
-        cb_assert(ml.itemsLogged[ML_DEL] == 0);
-        cb_assert(ml.itemsLogged[ML_COMMIT1] == 0);
-        cb_assert(ml.itemsLogged[ML_COMMIT2] == 0);
+        EXPECT_EQ(0, ml.itemsLogged[ML_NEW]);
+        EXPECT_EQ(0, ml.itemsLogged[ML_COMMIT1]);
+        EXPECT_EQ(0, ml.itemsLogged[ML_COMMIT2]);
 
         // See if we got what we expect.
         std::map<std::string, uint64_t> maps[4];
         h.apply(&maps, loaderFun);
 
-        cb_assert(maps[0].size() == 0);
-        cb_assert(maps[1].size() == 0);
-        cb_assert(maps[2].size() == 0);
-        cb_assert(maps[3].size() == 0);
+        EXPECT_EQ(0, maps[0].size());
+        EXPECT_EQ(0, maps[1].size());
+        EXPECT_EQ(0, maps[2].size());
+        EXPECT_EQ(0, maps[3].size());
 
-        cb_assert(maps[2].find("key1") == maps[2].end());
-        cb_assert(maps[3].find("key2") == maps[3].end());
+        EXPECT_EQ(maps[2].end(), maps[2].find("key1"));
+        EXPECT_EQ(maps[3].end(), maps[3].find("key2"));
     }
-
-    remove(TMP_LOG_FILE);
 }
 
-static void testLoggingShortRead() {
-    remove(TMP_LOG_FILE);
+TEST_F(MutationLogTest, LoggingShortRead) {
+    remove(tmp_log_filename.c_str());
 
     {
-        MutationLog ml(TMP_LOG_FILE);
+        MutationLog ml(tmp_log_filename.c_str());
         ml.open();
 
-        ml.newItem(3, "key1", 1);
         ml.newItem(2, "key1", 2);
         ml.commit1();
         ml.commit2();
         ml.newItem(3, "key2", 3);
-        ml.delItem(3, "key1");
         ml.commit1();
         ml.commit2();
         // Remaining:   3:key2, 2:key1
 
-        cb_assert(ml.itemsLogged[ML_NEW] == 3);
-        cb_assert(ml.itemsLogged[ML_DEL] == 1);
-        cb_assert(ml.itemsLogged[ML_COMMIT1] == 2);
-        cb_assert(ml.itemsLogged[ML_COMMIT2] == 2);
+        EXPECT_EQ(2, ml.itemsLogged[ML_NEW]);
+        EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT1]);
+        EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT2]);
     }
 
     // Break the log
-    cb_assert(truncate(TMP_LOG_FILE, 5000) == 0);
+    EXPECT_EQ(0, truncate(tmp_log_filename.c_str(), 5000));
 
     {
-        MutationLog ml(TMP_LOG_FILE);
-        try {
-            ml.open();
-            MutationLogHarvester h(ml);
-            h.setVBucket(1);
-            h.setVBucket(2);
-            h.setVBucket(3);
+        MutationLog ml(tmp_log_filename.c_str());
 
-            h.load();
-            abort();
-        } catch(MutationLog::ShortReadException &e) {
-            // expected
-        }
+        ml.open();
+        MutationLogHarvester h(ml);
+        h.setVBucket(1);
+        h.setVBucket(2);
+        h.setVBucket(3);
+
+        EXPECT_THROW(h.load(), MutationLog::ShortReadException);
     }
 
     // Break the log harder (can't read even the initial block)
-    cb_assert(truncate(TMP_LOG_FILE, 4000) == 0);
+    // This should succeed as open() will call reset() to give us a usable
+    // mutation log.
+    EXPECT_EQ(0, truncate(tmp_log_filename.c_str(), 4000));
 
     {
-        MutationLog ml(TMP_LOG_FILE);
-        try {
-            ml.open();
-            abort();
-        } catch(MutationLog::ShortReadException &e) {
-            // expected
-        }
+        MutationLog ml(tmp_log_filename.c_str());
+        ml.open();
     }
-
-    remove(TMP_LOG_FILE);
 }
 
-static void testYUNOOPEN() {
-    int file = open(TMP_LOG_FILE, O_CREAT|O_RDWR, 0);
-    cb_assert(file >= 0);
-    close(file);
-    MutationLog ml(TMP_LOG_FILE);
-    try {
+TEST_F(MutationLogTest, YUNOOPEN) {
+    // Make file unreadable
+    set_file_perms(FilePerms::None);
+    MutationLog ml(tmp_log_filename.c_str());
+    EXPECT_THROW(ml.open(), MutationLog::ReadException);
+    // Restore permissions to be able to delete file.
+    set_file_perms(FilePerms::Read | FilePerms::Write);
+}
+
+// Test that the MutationLog::iterator class obeys expected iterator behaviour.
+TEST_F(MutationLogTest, Iterator) {
+    // Create a simple mutation log to work on.
+    {
+        MutationLog ml(tmp_log_filename.c_str());
         ml.open();
-        abort();
-    } catch(MutationLog::ReadException &e) {
-        std::string exp("Unable to open log file: Permission denied");
-        // This is kind of a soft assertion.  The actual text may vary.
-        if (e.what() != exp) {
-            std::cerr << "Expected ``" << exp << "'', got: " << e.what() << std::endl;
-        }
+        ml.newItem(0, "key1", 0);
+        ml.newItem(0, "key2", 1);
+        ml.newItem(0, "key3", 2);
+        ml.commit1();
+        ml.commit2();
+
+        EXPECT_EQ(3, ml.itemsLogged[ML_NEW]);
+        EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT1]);
+        EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT2]);
     }
-    cb_assert(remove(TMP_LOG_FILE) == 0);
+
+    // Now check the iterators.
+    MutationLog ml(tmp_log_filename.c_str());
+    ml.open();
+
+    // Can copy-construct.
+    auto iter = ml.begin();
+    EXPECT_EQ(ml.begin(), iter);
+
+    // Can copy-assign.
+    iter = ml.end();
+    EXPECT_EQ(ml.end(), iter);
+
+    // Can advance the correct number.
+    size_t count = 0;
+    for (auto iter2 = ml.begin(); iter2 != ml.end(); ++iter2) {
+        count++;
+    }
+    EXPECT_EQ(5, count);
+}
+
+TEST_F(MutationLogTest, BatchLoad) {
+    remove(tmp_log_filename.c_str());
+
+    {
+        MutationLog ml(tmp_log_filename.c_str());
+        ml.open();
+
+        // Add a number of items, then check that batch load only returns
+        // the requested number.
+        for (size_t ii = 0; ii < 10; ii++) {
+            ml.newItem(ii % 2, std::string("key") + std::to_string(ii), ii);
+        }
+        ml.commit1();
+        ml.commit2();
+
+        EXPECT_EQ(10, ml.itemsLogged[ML_NEW]);
+        EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT1]);
+        EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT2]);
+    }
+
+    {
+        MutationLog ml(tmp_log_filename.c_str());
+        ml.open();
+        MutationLogHarvester h(ml);
+        h.setVBucket(0);
+        h.setVBucket(1);
+
+        // Ask for 2 items, ensure we get just two.
+        auto next_it = h.loadBatch(ml.begin(), 2);
+        EXPECT_NE(next_it, ml.end());
+
+        std::map<std::string, uint64_t> maps[2];
+        h.apply(&maps, loaderFun);
+        EXPECT_EQ(2, maps[0].size() + maps[1].size());
+
+        // Ask for 10; should get the remainder (8).
+        next_it = h.loadBatch(next_it, 10);
+        cb_assert(next_it == ml.end());
+
+        for (auto& map : maps) {
+            map.clear();
+        }
+        h.apply(&maps, loaderFun);
+        EXPECT_EQ(8, maps[0].size() + maps[1].size());
+    }
 }
 
 // @todo
@@ -494,15 +511,12 @@ static void testYUNOOPEN() {
 //   Fix copy constructor bug
 //
 
-static void testReadOnly() {
-    MutationLog ml(TMP_LOG_FILE);
-    try {
-        ml.open(true);
-        abort();
-    } catch (MutationLog::FileNotFoundException &e) {
-    }
+TEST_F(MutationLogTest, ReadOnly) {
+    remove(tmp_log_filename.c_str());
+    MutationLog ml(tmp_log_filename.c_str());
+    EXPECT_THROW(ml.open(true), MutationLog::FileNotFoundException);
 
-    MutationLog m2(TMP_LOG_FILE);
+    MutationLog m2(tmp_log_filename);
     m2.open();
     m2.newItem(3, "key1", 1);
     m2.close();
@@ -511,24 +525,5 @@ static void testReadOnly() {
     ml.open(true);
 
     // But we should not be able to add items to a read only stream
-    try {
-        ml.newItem(4, "key2", 1);
-        abort();
-    } catch (MutationLog::WriteException &e) {
-    }
-}
-
-int main(int, char **) {
-    testReadOnly();
-    testUnconfigured();
-    testSyncSet();
-    testLogging();
-    testDelAll();
-    testLoggingDirty();
-    testLoggingBadCRC();
-    testLoggingShortRead();
-    testYUNOOPEN();
-
-    remove(TMP_LOG_FILE);
-    return 0;
+    EXPECT_THROW(ml.newItem(4, "key2", 1), MutationLog::WriteException);
 }

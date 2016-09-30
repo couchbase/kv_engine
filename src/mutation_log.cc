@@ -17,10 +17,11 @@
 
 #include "config.h"
 
-#include <sys/stat.h>
-
 #include <algorithm>
+#include <fcntl.h>
+#include <platform/strerror.h>
 #include <string>
+#include <sys/stat.h>
 #include <system_error>
 #include <utility>
 
@@ -300,24 +301,6 @@ void MutationLog::newItem(uint16_t vbucket, const std::string &key,
         MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer.get(),
                                                            rowid, ML_NEW,
                                                            vbucket, key);
-        writeEntry(mle);
-    }
-}
-
-void MutationLog::delItem(uint16_t vbucket, const std::string &key) {
-    if (isEnabled()) {
-        MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer.get(),
-                                                           0, ML_DEL, vbucket,
-                                                           key);
-        writeEntry(mle);
-    }
-}
-
-void MutationLog::deleteAll(uint16_t vbucket) {
-    if (isEnabled()) {
-        MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer.get(),
-                                                           0, ML_DEL_ALL,
-                                                           vbucket, "");
         writeEntry(mle);
     }
 }
@@ -738,12 +721,6 @@ static const char* logType(uint8_t t) {
     case ML_NEW:
         return "new";
         break;
-    case ML_DEL:
-        return "del";
-        break;
-    case ML_DEL_ALL:
-        return "delall";
-        break;
     case ML_COMMIT1:
         return "commit1";
         break;
@@ -758,12 +735,12 @@ static const char* logType(uint8_t t) {
 // Mutation log iterator
 // ----------------------------------------------------------------------
 
-MutationLog::iterator::iterator(const MutationLog& l, bool e)
+MutationLog::iterator::iterator(const MutationLog* l, bool e)
   : log(l),
     entryBuf(),
     buf(),
     p(nullptr),
-    offset(l.header().blockSize() * l.header().blockCount()),
+    offset(l->header().blockSize() * l->header().blockCount()),
     items(0),
     isEnd(e)
 {
@@ -779,8 +756,8 @@ MutationLog::iterator::iterator(const MutationLog::iterator& mit)
     isEnd(mit.isEnd)
 {
     if (mit.buf != NULL) {
-        buf.reset(new uint8_t[log.header().blockSize()]());
-        memcpy(buf.get(), mit.buf.get(), log.header().blockSize());
+        buf.reset(new uint8_t[log->header().blockSize()]());
+        memcpy(buf.get(), mit.buf.get(), log->header().blockSize());
         p = buf.get() + (mit.p - mit.buf.get());
     }
 
@@ -788,6 +765,32 @@ MutationLog::iterator::iterator(const MutationLog::iterator& mit)
         entryBuf.reset(new uint8_t[LOG_ENTRY_BUF_SIZE]());
         memcpy(entryBuf.get(), mit.entryBuf.get(), LOG_ENTRY_BUF_SIZE);
     }
+}
+
+MutationLog::iterator& MutationLog::iterator::operator=(const MutationLog::iterator& other)
+{
+    log = other.log;
+    if (other.buf != nullptr) {
+        buf.reset(new uint8_t[log->header().blockSize()]());
+        memcpy(buf.get(), other.buf.get(), log->header().blockSize());
+        p = buf.get() + (other.p - other.buf.get());
+    } else {
+        buf = nullptr;
+        p = nullptr;
+    }
+
+    if (other.entryBuf != nullptr) {
+        entryBuf.reset(new uint8_t[LOG_ENTRY_BUF_SIZE]());
+        memcpy(entryBuf.get(), other.entryBuf.get(), LOG_ENTRY_BUF_SIZE);
+    } else {
+        entryBuf = nullptr;
+    }
+
+    offset = other.offset;
+    items = other.items;
+    isEnd = other.isEnd;
+
+    return *this;
 }
 
 MutationLog::iterator::~iterator() {
@@ -814,15 +817,15 @@ MutationLog::iterator& MutationLog::iterator::operator++() {
     return *this;
 }
 
-bool MutationLog::iterator::operator==(const MutationLog::iterator& rhs) {
-    return log.fd() == rhs.log.fd()
+bool MutationLog::iterator::operator==(const MutationLog::iterator& rhs) const {
+    return log->fd() == rhs.log->fd()
         && (
             (isEnd == rhs.isEnd)
             || (offset == rhs.offset
                 && items == rhs.items));
 }
 
-bool MutationLog::iterator::operator!=(const MutationLog::iterator& rhs) {
+bool MutationLog::iterator::operator!=(const MutationLog::iterator& rhs) const {
     return ! operator==(rhs);
 }
 
@@ -835,34 +838,34 @@ const MutationLogEntry* MutationLog::iterator::operator*() {
 }
 
 size_t MutationLog::iterator::bufferBytesRemaining() {
-    return log.header().blockSize() - (p - buf.get());
+    return log->header().blockSize() - (p - buf.get());
 }
 
 void MutationLog::iterator::nextBlock() {
-    if (log.isEnabled() && !log.isOpen()) {
+    if (log->isEnabled() && !log->isOpen()) {
         throw std::logic_error("MutationLog::iterator::nextBlock: "
                 "log is enabled and not open");
     }
 
     if (buf == NULL) {
-        buf.reset(new uint8_t[log.header().blockSize()]());
+        buf.reset(new uint8_t[log->header().blockSize()]());
     }
     p = buf.get();
 
-    ssize_t bytesread = pread(log.fd(), buf.get(), log.header().blockSize(),
+    ssize_t bytesread = pread(log->fd(), buf.get(), log->header().blockSize(),
                               offset);
     if (bytesread < 1) {
         isEnd = true;
         return;
     }
-    if (bytesread != (ssize_t)(log.header().blockSize())) {
+    if (bytesread != (ssize_t)(log->header().blockSize())) {
         LOG(EXTENSION_LOG_WARNING, "FATAL: too few bytes read in access log"
-                "'%s': %s", log.getLogFile().c_str(), strerror(errno));
+                "'%s': %s", log->getLogFile().c_str(), strerror(errno));
         throw ShortReadException();
     }
     offset += bytesread;
 
-    uint32_t crc32(crc32buf(buf.get() + 2, log.header().blockSize() - 2));
+    uint32_t crc32(crc32buf(buf.get() + 2, log->header().blockSize() - 2));
     uint16_t computed_crc16(crc32 & 0xffff);
     uint16_t retrieved_crc16;
     memcpy(&retrieved_crc16, buf.get(), sizeof(retrieved_crc16));
@@ -892,55 +895,28 @@ void MutationLog::resetCounts(size_t *items) {
 bool MutationLogHarvester::load() {
     bool clean(false);
     std::set<uint16_t> shouldClear;
-    for (MutationLog::iterator it(mlog.begin()); it != mlog.end(); ++it) {
-        const MutationLogEntry *le = *it;
+    for (const MutationLogEntry* le : mlog) {
         ++itemsSeen[le->type()];
         clean = false;
 
         switch (le->type()) {
-        case ML_DEL:
-            // FALLTHROUGH
         case ML_NEW:
             if (vbid_set.find(le->vbucket()) != vbid_set.end()) {
-                loading[le->vbucket()][le->key()] =
-                                      std::make_pair(le->rowid(), le->type());
+                loading[le->vbucket()].emplace(le->key());
             }
             break;
-        case ML_COMMIT2: {
+        case ML_COMMIT2:
             clean = true;
-            for (const uint16_t vb :shouldClear) {
-                committed[vb].clear();
-            }
-            shouldClear.clear();
 
             for (const uint16_t vb : vbid_set) {
-                for (auto& copyit2 : loading[vb]) {
-
-                    mutation_log_event_t t = copyit2.second;
-
-                    switch (t.second) {
-                    case ML_NEW:
-                        committed[vb][copyit2.first] = t.first;
-                        break;
-                    case ML_DEL:
-                        committed[vb].erase(copyit2.first);
-                        break;
-                    default:
-                        abort();
-                    }
+                for (auto& item : loading[vb]) {
+                    committed[vb].emplace(item);
                 }
             }
-        }
             loading.clear();
             break;
         case ML_COMMIT1:
             // nothing in particular
-            break;
-        case ML_DEL_ALL:
-            if (vbid_set.find(le->vbucket()) != vbid_set.end()) {
-                loading[le->vbucket()].clear();
-                shouldClear.insert(le->vbucket());
-            }
             break;
         default:
             abort();
@@ -949,10 +925,42 @@ bool MutationLogHarvester::load() {
     return clean;
 }
 
+MutationLog::iterator MutationLogHarvester::loadBatch(
+        const MutationLog::iterator& start, size_t limit) {
+    if (limit == 0) {
+        limit = std::numeric_limits<size_t>::max();
+    }
+    auto it = start;
+    size_t count = 0;
+    committed.clear();
+    for (; it != mlog.end() && count < limit; ++it) {
+        const auto* le = *it;
+        ++itemsSeen[le->type()];
+
+        switch (le->type()) {
+        case ML_NEW:
+            if (vbid_set.find(le->vbucket()) != vbid_set.end()) {
+                committed[le->vbucket()].emplace(le->key());
+                count++;
+            }
+            break;
+
+        case ML_COMMIT2:
+            // We ignore COMMIT2 for Access log, was only relevent to the
+            // 'proper' mutation log.
+            break;
+
+        default:
+            // Just ignore anything else also.
+            break;
+        }
+    }
+    return it;
+}
+
 void MutationLogHarvester::apply(void *arg, mlCallback mlc) {
     for (const uint16_t vb : vbid_set) {
-        for (const auto& it2 : committed[vb]) {
-            const std::string& key = it2.first;
+        for (const auto& key : committed[vb]) {
             if (!mlc(arg, vb, key)) { // Stop loading from an access log
                 return;
             }
@@ -965,45 +973,26 @@ void MutationLogHarvester::apply(void *arg, mlCallbackWithQueue mlc) {
         throw std::logic_error("MutationLogHarvester::apply: Cannot apply "
                 "when engine is NULL");
     }
-    std::vector<std::pair<std::string, uint64_t> > fetches;
     for (const uint16_t vb : vbid_set) {
-
         RCPtr<VBucket> vbucket = engine->getEpStore()->getVBucket(vb);
         if (!vbucket) {
             continue;
         }
 
-        for (const auto& it2 : committed[vb]) {
-            // cannot use rowid from access log, so must read from hashtable
-            const std::string& key = it2.first;
-            StoredValue *v = NULL;
-            if ((v = vbucket->ht.find(key, false))) {
-                fetches.push_back(std::make_pair(it2.first, v->getBySeqno()));
+        // Remove any items which are no longer valid in the VBucket.
+        for (auto it = committed[vb].begin(); it != committed[vb].end(); ) {
+            if ((vbucket->ht.find(*it, false) == nullptr)) {
+                it = committed[vb].erase(it);
+            }
+            else {
+                ++it;
             }
         }
-        if (!mlc(vb, fetches, arg)) {
+
+        if (!mlc(vb, committed[vb], arg)) {
             return;
         }
-        fetches.clear();
-    }
-}
-
-void MutationLogHarvester::getUncommitted(
-                             std::vector<mutation_log_uncommitted_t> &uitems) {
-
-    for (const uint16_t vb : vbid_set) {
-        mutation_log_uncommitted_t leftover;
-        leftover.vbucket = vb;
-
-        for (const auto& copyit2 : loading[vb]) {
-
-            const mutation_log_event_t& t = copyit2.second;
-            leftover.key = copyit2.first;
-            leftover.rowid = t.first;
-            leftover.type = static_cast<mutation_log_type_t>(t.second);
-
-            uitems.push_back(leftover);
-        }
+        committed[vb].clear();
     }
 }
 

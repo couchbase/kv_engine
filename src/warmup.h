@@ -117,7 +117,7 @@ private:
 
 class Warmup {
 public:
-    Warmup(EventuallyPersistentStore& st);
+    Warmup(EventuallyPersistentStore& st, Configuration& config);
 
     void addToTaskSet(size_t taskId);
     void removeFromTaskSet(size_t taskId);
@@ -193,6 +193,7 @@ private:
     WarmupState state;
 
     EventuallyPersistentStore& store;
+    Configuration& config;
 
     // Unordered set to hold the current executing tasks
     std::mutex taskSetMutex;

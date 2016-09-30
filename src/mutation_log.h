@@ -15,31 +15,41 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_MUTATION_LOG_H_
-#define SRC_MUTATION_LOG_H_ 1
+#pragma once
+
+/**
+ * 'Mutation' Log
+ *
+ * The MutationLog is used to maintain a log of mutations which have occurred
+ * in one or more vbuckets. It only records the additions or removals of keys,
+ * and then only the key of the item (no value).
+ *
+ * The original intent of this class was to record a log in parallel with the
+ * normal couchstore snapshots, see docs/klog.org, however this has not been
+ * used since MB-7590 (March 2013).
+ *
+ * The current use of MutationLog is for the access.log. This is a slightly
+ * different use-case - periodically (default daily) the AccessScanner walks
+ * each vBucket's HashTable and records the set of keys currently resident.
+ * This doesn't make use of the MutationLog's commit functionality - its simply
+ * a list of keys which were resident. When we later come to read the Access log
+ * during warmup there's no guarantee that the keys listed still exist - the
+ * contents of the Access log is essentially just a hint / suggestion.
+ *
+ */
 
 #include "config.h"
 
-#include <fcntl.h>
-
 #include <array>
-#include <algorithm>
-#include <cstdio>
-#include <exception>
-#include <functional>
-#include <iterator>
-#include <limits>
-#include <numeric>
-#include <set>
+#include <cstring>
+#include <memory>
 #include <string>
-#include <utility>
+#include <unordered_map>
 #include <vector>
 
 #include <atomic>
 #include <platform/histogram.h>
-#include <platform/strerror.h>
 #include "utility.h"
-#include "common.h"
 
 #define ML_BUFLEN (128 * 1024 * 1024)
 
@@ -183,7 +193,11 @@ private:
 };
 
 enum mutation_log_type_t {
-    ML_NEW, ML_DEL, ML_DEL_ALL, ML_COMMIT1, ML_COMMIT2
+    ML_NEW = 0,
+    /* removed: ML_DEL = 1 */
+    /* removed: ML_DEL_ALL = 2 */
+    ML_COMMIT1 = 3,
+    ML_COMMIT2 = 4
 };
 
 #define MUTATION_LOG_TYPES 5
@@ -333,10 +347,6 @@ public:
 
     void newItem(uint16_t vbucket, const std::string &key, uint64_t rowid);
 
-    void delItem(uint16_t vbucket, const std::string &key);
-
-    void deleteAll(uint16_t vbucket);
-
     void commit1();
 
     void commit2();
@@ -459,13 +469,15 @@ public:
 
         iterator(const iterator& mit);
 
+        iterator& operator=(const iterator& other);
+
         ~iterator();
 
         iterator& operator++();
 
-        bool operator==(const iterator& rhs);
+        bool operator==(const iterator& rhs) const;
 
-        bool operator!=(const iterator& rhs);
+        bool operator!=(const iterator& rhs) const;
 
         const MutationLogEntry* operator*();
 
@@ -473,13 +485,13 @@ public:
 
         friend class MutationLog;
 
-        iterator(const MutationLog& l, bool e=false);
+        iterator(const MutationLog* l, bool e=false);
 
         void nextBlock();
         size_t bufferBytesRemaining();
         void prepItem();
 
-        const MutationLog& log;
+        const MutationLog* log;
         std::unique_ptr<uint8_t[]> entryBuf;
         std::unique_ptr<uint8_t[]> buf;
         uint8_t           *p;
@@ -492,7 +504,7 @@ public:
      * An iterator pointing to the beginning of the log file.
      */
     iterator begin() {
-        iterator it(iterator(*this));
+        iterator it(iterator(this));
         it.nextBlock();
         return it;
     }
@@ -501,7 +513,7 @@ public:
      * An iterator pointing at the end of the log file.
      */
     iterator end() {
-        return iterator(*this, true);
+        return iterator(this, true);
     }
 
     //! Items logged by type.
@@ -558,8 +570,8 @@ typedef std::pair<uint64_t, uint8_t> mutation_log_event_t;
  */
 typedef bool (*mlCallback)(void*, uint16_t, const std::string &);
 typedef bool (*mlCallbackWithQueue)(uint16_t,
-                    std::vector<std::pair<std::string, uint64_t> > &,
-                    void *arg);
+                                    const std::set<std::string>&,
+                                    void *arg);
 
 /**
  * Type for mutation log leftovers.
@@ -599,6 +611,20 @@ public:
     bool load();
 
     /**
+     * Load a batch of entries from the file, starting from the given iterator.
+     * Loaded entries are inserted into `committed`, which is cleared at the
+     * start of each call.
+     *
+     * @param start Iterator of where to start loading from.
+     * @param limit Limit of now many entries should be loaded. Zero means no
+     *              limit.
+     * @return iterator of where to resume in the log (if the end was not
+     *         reached), or MutationLog::iterator::end().
+     */
+    MutationLog::iterator loadBatch(const MutationLog::iterator& start,
+                                        size_t limit);
+
+    /**
      * Apply the processed log entries through the given function.
      */
     void apply(void *arg, mlCallback mlc);
@@ -616,22 +642,13 @@ public:
         return itemsSeen;
     }
 
-    /**
-     * Get the list of uncommitted keys and stuff from the log.
-     */
-    void getUncommitted(std::vector<mutation_log_uncommitted_t> &uitems);
-
 private:
 
     MutationLog &mlog;
     EventuallyPersistentEngine *engine;
     std::set<uint16_t> vbid_set;
 
-    std::unordered_map<uint16_t,
-                       std::unordered_map<std::string, uint64_t> > committed;
-    std::unordered_map<uint16_t,
-                       std::unordered_map<std::string, mutation_log_event_t> > loading;
+    std::unordered_map<uint16_t, std::set<std::string>> committed;
+    std::unordered_map<uint16_t, std::set<std::string>> loading;
     size_t itemsSeen[MUTATION_LOG_TYPES];
 };
-
-#endif  // SRC_MUTATION_LOG_H_
