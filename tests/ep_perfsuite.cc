@@ -1156,17 +1156,33 @@ static void perf_stat_latency_core(ENGINE_HANDLE *h,
                               ENGINE_HANDLE_V1 *h1,
                               int key_prefix,
                               int iterations,
-                              std::vector<hrtime_t> &get_timings) {
+                              std::vector<hrtime_t> &getstats_timings,
+                              std::vector<hrtime_t> &diskinfo_timings,
+                              std::vector<hrtime_t> &diskinfo_detail_timings) {
 
     const void* cookie = testHarness.create_cookie();
 
     for (int ii = 0; ii < iterations; ++ii) {
-        const hrtime_t start = gethrtime();
+        hrtime_t start = gethrtime();
         checkeq(ENGINE_SUCCESS,
                 h1->get_stats(h, cookie, nullptr, 0, add_stats),
-                "Failed to get stats");
-        const hrtime_t end = gethrtime();
-        get_timings.push_back(end - start);
+                "Failed to get stats - all");
+        hrtime_t end = gethrtime();
+        getstats_timings.push_back(end - start);
+
+        start = gethrtime();
+        checkeq(ENGINE_SUCCESS,
+                h1->get_stats(h, cookie, "diskinfo", 8, add_stats),
+                "Failed to get stats - diskinfo");
+        end = gethrtime();
+        diskinfo_timings.push_back(end - start);
+
+        start = gethrtime();
+        checkeq(ENGINE_SUCCESS,
+                h1->get_stats(h, cookie, "diskinfo-detail", 15, add_stats),
+                "Failed to get stats - diskinfo-detail");
+        end = gethrtime();
+        diskinfo_detail_timings.push_back(end - start);
     }
 
     testHarness.destroy_cookie(cookie);
@@ -1181,10 +1197,14 @@ static enum test_result perf_stat_latency(ENGINE_HANDLE *h,
     std::atomic<bool> setup_benchmark {false};
     std::atomic<bool> running_benchmark {true};
     std::vector<std::pair<std::string, std::vector<hrtime_t>*> > all_timings;
-    std::vector<hrtime_t> get_stats_timings;
+    std::vector<hrtime_t> getstats_timings;
+    std::vector<hrtime_t> diskinfo_timings;
+    std::vector<hrtime_t> diskinfo_detail_timings;
     std::vector<hrtime_t> insert_timings;
 
-    get_stats_timings.reserve(iterations);
+    getstats_timings.reserve(iterations);
+    diskinfo_timings.reserve(iterations);
+    diskinfo_detail_timings.reserve(iterations);
     insert_timings.reserve(iterations);
 
     // Only timing front-end performance, not considering persistence.
@@ -1202,7 +1222,8 @@ static enum test_result perf_stat_latency(ENGINE_HANDLE *h,
         }
 
         // run and measure on this thread.
-        perf_stat_latency_core(h, h1, 0, iterations, get_stats_timings);
+        perf_stat_latency_core(h, h1, 0, iterations, getstats_timings,
+                               diskinfo_timings, diskinfo_detail_timings);
 
         // Need to tell the thread performing sets to stop */
         running_benchmark = false;
@@ -1212,10 +1233,14 @@ static enum test_result perf_stat_latency(ENGINE_HANDLE *h,
 
     } else {
         // run and measure on this thread.
-        perf_stat_latency_core(h, h1, 0, iterations, get_stats_timings);
+        perf_stat_latency_core(h, h1, 0, iterations, getstats_timings,
+                               diskinfo_timings, diskinfo_detail_timings);
     }
 
-    all_timings.push_back(std::make_pair("AllStats", &get_stats_timings));
+    all_timings.push_back(std::make_pair("AllStats", &getstats_timings));
+    all_timings.push_back(std::make_pair("Diskinfo", &diskinfo_timings));
+    all_timings.push_back(std::make_pair("Diskinfo-detail",
+                                         &diskinfo_detail_timings));
     std::string description(std::string("Latency [") + title + "] - " +
                                    std::to_string(iterations) + " items (µs)");
     output_result(title, description, all_timings, "µs");

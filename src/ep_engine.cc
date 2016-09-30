@@ -4581,37 +4581,37 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDiskStats(const void *cookie,
                                                           ADD_STAT add_stat,
                                                           const char* stat_key,
                                                           int nkey) {
-    bool detailed = false;
+    DBFileInfo fileInfo = epstore->getFileStats(cookie);
+    add_casted_stat("ep_db_data_size", fileInfo.spaceUsed, add_stat, cookie);
+    add_casted_stat("ep_db_file_size", fileInfo.fileSize, add_stat, cookie);
+    return ENGINE_SUCCESS;
+}
 
-    if (nkey > 8) {
-        if (nkey == 15 && strncmp(stat_key + 9, "detail", nkey - 9) == 0) {
-            detailed = true;
-        } else {
-            return ENGINE_EINVAL;
-        }
-    }
-
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doDiskDetailStats(
+                                                           const void *cookie,
+                                                           ADD_STAT add_stat,
+                                                           const char* stat_key,
+                                                           int nkey) {
     class DiskStatVisitor : public VBucketVisitor {
     public:
-        DiskStatVisitor(const void *c, ADD_STAT a, bool d)
-            : cookie(c), add_stat(a), detailed(d) { }
+        DiskStatVisitor(const void *c, ADD_STAT a)
+            : cookie(c), add_stat(a) { }
 
         bool visitBucket(RCPtr<VBucket> &vb) {
-            if (detailed) {
-                char buf[32];
-                uint16_t vbid = vb->getId();
-                DBFileInfo dbInfo = vb->getShard()->getRWUnderlying()->getDbFileInfo(vbid);
+            char buf[32];
+            uint16_t vbid = vb->getId();
+            DBFileInfo dbInfo = vb->getShard()->getRWUnderlying()->
+                                                            getDbFileInfo(vbid);
 
-                try {
-                    checked_snprintf(buf, sizeof(buf), "vb_%d:data_size", vbid);
-                    add_casted_stat(buf, dbInfo.spaceUsed, add_stat, cookie);
-                    checked_snprintf(buf, sizeof(buf), "vb_%d:file_size", vbid);
-                    add_casted_stat(buf, dbInfo.fileSize, add_stat, cookie);
-                } catch (std::exception& error) {
-                    LOG(EXTENSION_LOG_WARNING,
-                        "DiskStatVisitor::visitBucket: Failed to build stat: %s",
-                        error.what());
-                }
+            try {
+                checked_snprintf(buf, sizeof(buf), "vb_%d:data_size", vbid);
+                add_casted_stat(buf, dbInfo.spaceUsed, add_stat, cookie);
+                checked_snprintf(buf, sizeof(buf), "vb_%d:file_size", vbid);
+                add_casted_stat(buf, dbInfo.fileSize, add_stat, cookie);
+            } catch (std::exception& error) {
+                LOG(EXTENSION_LOG_WARNING,
+                    "DiskStatVisitor::visitBucket: Failed to build stat: %s",
+                    error.what());
             }
             return false;
         }
@@ -4619,17 +4619,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDiskStats(const void *cookie,
     private:
         const void *cookie;
         ADD_STAT add_stat;
-        bool detailed;
     };
 
-    DiskStatVisitor dsv(cookie, add_stat, detailed);
+    DiskStatVisitor dsv(cookie, add_stat);
     epstore->visit(dsv);
 
-    DBFileInfo fileInfo = epstore->getFileStats(cookie);
-    if (!detailed) {
-        add_casted_stat("ep_db_data_size", fileInfo.spaceUsed, add_stat, cookie);
-        add_casted_stat("ep_db_file_size", fileInfo.fileSize, add_stat, cookie);
-    }
     return ENGINE_SUCCESS;
 }
 
@@ -4742,7 +4736,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     } else if (nkey == 4 && strncmp(stat_key, "info", 4) == 0) {
         add_casted_stat("info", get_stats_info(), add_stat, cookie);
         rv = ENGINE_SUCCESS;
-    } else if (nkey == 9 && strncmp(stat_key, "allocator", 9) ==0) {
+    } else if (nkey == 9 && strncmp(stat_key, "allocator", 9) == 0) {
         char buffer[64 * 1024];
         MemoryTracker::getInstance()->getDetailedStats(buffer, sizeof(buffer));
         add_casted_stat("detailed", buffer, add_stat, cookie);
@@ -4761,8 +4755,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         uint16_t vbucket_id(0);
         parseUint16(vbid.c_str(), &vbucket_id);
         rv = doTapVbTakeoverStats(cookie, add_stat, tStream, vbucket_id);
-    } else if (nkey > 15 && (strncmp(stat_key, "dcp-vbtakeover", 14) == 0 ||
-               strncmp(stat_key, "dcp-vbtakeover", 14) == 0)) {
+    } else if (nkey > 15 && strncmp(stat_key, "dcp-vbtakeover", 14) == 0) {
         std::string tStream;
         std::string vbid;
         std::string buffer(&stat_key[15], nkey - 15);
@@ -4787,7 +4780,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     } else if (nkey == 9 && strncmp(stat_key, "failovers", 9) == 0) {
         rv = doAllFailoverLogStats(cookie, add_stat);
     } else if (nkey >= 8 && strncmp(stat_key, "diskinfo", 8) == 0) {
-        return doDiskStats(cookie, add_stat, stat_key, nkey);
+        if (nkey == 8) {
+            return doDiskStats(cookie, add_stat, stat_key, nkey);
+        } else if (nkey == 15 && strncmp(stat_key + 9, "detail", 6) == 0) {
+            return doDiskDetailStats(cookie, add_stat, stat_key, nkey);
+        } else {
+            return ENGINE_EINVAL;
+        }
     }
 
     return rv;
