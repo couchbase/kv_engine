@@ -303,13 +303,14 @@ TEST_F(ConnectionTest, test_maybesendnoop_buffer_full) {
         mock_noop_return_engine_e2big, nullptr, nullptr};
 
     producer.setNoopEnabled(true);
-    producer.setNoopSendTime(21);
+    const auto send_time = ep_current_time() + 21;
+    producer.setNoopSendTime(send_time);
     ENGINE_ERROR_CODE ret = producer.maybeSendNoop(&producers);
     EXPECT_EQ(ENGINE_E2BIG, ret)
     << "maybeSendNoop not returning ENGINE_E2BIG";
     EXPECT_FALSE(producer.getNoopPendingRecv())
     << "Waiting for noop acknowledgement";
-    EXPECT_EQ(21, producer.getNoopSendTime())
+    EXPECT_EQ(send_time, producer.getNoopSendTime())
     << "SendTime has been updated";
     destroy_mock_cookie(cookie);
 }
@@ -321,13 +322,14 @@ TEST_F(ConnectionTest, test_maybesendnoop_send_noop) {
 
     std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(handle, engine_v1));
     producer.setNoopEnabled(true);
-    producer.setNoopSendTime(21);
+    const auto send_time = ep_current_time() + 21;
+    producer.setNoopSendTime(send_time);
     ENGINE_ERROR_CODE ret = producer.maybeSendNoop(producers.get());
     EXPECT_EQ(ENGINE_WANT_MORE, ret)
     << "maybeSendNoop not returning ENGINE_WANT_MORE";
     EXPECT_TRUE(producer.getNoopPendingRecv())
     << "Not waiting for noop acknowledgement";
-    EXPECT_NE(21, producer.getNoopSendTime())
+    EXPECT_NE(send_time, producer.getNoopSendTime())
     << "SendTime has not been updated";
     destroy_mock_cookie(cookie);
 }
@@ -339,21 +341,22 @@ TEST_F(ConnectionTest, test_maybesendnoop_noop_already_pending) {
 
     std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(handle, engine_v1));
     producer.setNoopEnabled(true);
-    producer.setNoopSendTime(21);
+    const auto send_time = ep_current_time() + 21;
+    producer.setNoopSendTime(send_time);
     ENGINE_ERROR_CODE ret = producer.maybeSendNoop(producers.get());
     EXPECT_EQ(ENGINE_WANT_MORE, ret)
     << "maybeSendNoop not returning ENGINE_WANT_MORE";
     EXPECT_TRUE(producer.getNoopPendingRecv())
     << "Not awaiting noop acknowledgement";
-    EXPECT_NE(21, producer.getNoopSendTime())
+    EXPECT_NE(send_time, producer.getNoopSendTime())
     << "SendTime has not been updated";
-    producer.setNoopSendTime(21);
+    producer.setNoopSendTime(send_time);
     ENGINE_ERROR_CODE ret2 = producer.maybeSendNoop(producers.get());
     EXPECT_EQ(ENGINE_DISCONNECT, ret2)
      << "maybeSendNoop not returning ENGINE_DISCONNECT";
     EXPECT_TRUE(producer.getNoopPendingRecv())
     << "Not waiting for noop acknowledgement";
-    EXPECT_EQ(21, producer.getNoopSendTime())
+    EXPECT_EQ(send_time, producer.getNoopSendTime())
     << "SendTime has been updated";
     destroy_mock_cookie(cookie);
 }
@@ -365,13 +368,14 @@ TEST_F(ConnectionTest, test_maybesendnoop_not_enabled) {
 
     std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(handle, engine_v1));
     producer.setNoopEnabled(false);
-    producer.setNoopSendTime(21);
+    const auto send_time = ep_current_time() + 21;
+    producer.setNoopSendTime(send_time);
     ENGINE_ERROR_CODE ret = producer.maybeSendNoop(producers.get());
     EXPECT_EQ(ENGINE_FAILED, ret)
     << "maybeSendNoop not returning ENGINE_FAILED";
     EXPECT_FALSE(producer.getNoopPendingRecv())
     << "Waiting for noop acknowledgement";
-    EXPECT_EQ(21, producer.getNoopSendTime())
+    EXPECT_EQ(send_time, producer.getNoopSendTime())
     << "SendTime has been updated";
     destroy_mock_cookie(cookie);
 }
