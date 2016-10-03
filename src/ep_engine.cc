@@ -3697,6 +3697,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
         replicaCountVisitor.getTotalHLCDriftExceptionCounters().behind,
         add_stat, cookie);
 
+    // A single total for ahead exceptions accross all active/replicas
+    add_casted_stat("ep_clock_cas_drift_threshold_exceeded",
+        activeCountVisitor.getTotalHLCDriftExceptionCounters().ahead +
+        replicaCountVisitor.getTotalHLCDriftExceptionCounters().ahead,
+        add_stat, cookie);
+
     return ENGINE_SUCCESS;
 }
 
