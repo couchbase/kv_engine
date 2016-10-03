@@ -6549,6 +6549,49 @@ static enum test_result test_mb20697(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+/* Check if vbucket reject ops are incremented on persistence failure */
+static enum test_result test_mb20744_check_incr_reject_ops(ENGINE_HANDLE* h,
+                                                           ENGINE_HANDLE_V1* h1) {
+
+    std::string dbname = get_dbname(testHarness.get_current_testcase()->cfg);
+    std::string filename = dbname +
+                           DIRECTORY_SEPARATOR_CHARACTER +
+                           "0.couch.1";
+
+    /* corrupt the couchstore file */
+    FILE *fp = fopen(filename.c_str(), "wb");
+
+    if (fp == nullptr) {
+        return FAIL;
+    }
+
+    char buf[2048];
+    memset(buf, 'x', sizeof(buf));
+
+    size_t numBytes = fwrite(buf, sizeof(char), sizeof(buf), fp);
+
+    fflush(fp);
+
+    checkeq(static_cast<unsigned long>(2048), static_cast<unsigned long>(numBytes),
+            "Bytes written should be equal to 2048");
+
+    checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET,"key", "somevalue",
+                                  NULL, 0, 0, 0), "store should have succeeded");
+
+    wait_for_stat_change(h, h1, "vb_active_ops_reject", 0);
+
+    checkeq(1, get_int_stat(h, h1, "vb_0:ops_reject", "vbucket-details 0"),
+            "Expected rejected ops to be equal to 1");
+
+    fclose(fp);
+
+    rmdb(filename.c_str());
+
+    CouchbaseDirectoryUtilities::mkdirp(dbname);
+
+    return SUCCESS;
+}
+
 static enum test_result test_mb20943_complete_pending_ops_on_vbucket_delete(
         ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
@@ -7103,6 +7146,9 @@ BaseTestCase testsuite_testcases[] = {
                  cleanup),
         TestCase("test_MB-test_mb20943_remove_pending_ops_on_vbucket_delete",
                  test_mb20943_complete_pending_ops_on_vbucket_delete,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test_mb20744_check_incr_reject_ops",
+                 test_mb20744_check_incr_reject_ops,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };
