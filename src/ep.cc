@@ -1145,8 +1145,7 @@ void EventuallyPersistentStore::snapshotVBuckets(VBSnapshotTask::Priority prio,
             : vbuckets(vb_map), shardId(sid) { }
         bool visitBucket(RCPtr<VBucket> &vb) {
             if (vbuckets.getShardByVbId(vb->getId())->getId() == shardId) {
-                snapshot_range_t range;
-                vb->getPersistedSnapshot(range);
+                const snapshot_range_t range = vb->getPersistedSnapshot();
                 std::string failovers = vb->failovers->toJSON();
                 uint64_t chkId = vbuckets.getPersistenceCheckpointId(vb->getId());
 
@@ -1239,8 +1238,7 @@ bool EventuallyPersistentStore::persistVBState(uint16_t vbid) {
     uint64_t chkId = vbMap.getPersistenceCheckpointId(vbid);
     std::string failovers = vb->failovers->toJSON();
 
-    snapshot_range_t range;
-    vb->getPersistedSnapshot(range);
+    const snapshot_range_t range = vb->getPersistedSnapshot();
     vbucket_state vb_state(vb->getState(), chkId, 0, vb->getHighSeqno(),
                            vb->getPurgeSeqno(), range.start, range.end,
                            vb->getMaxCas(), failovers);
@@ -1304,8 +1302,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         }
 
         if (to == vbucket_state_active && !transfer) {
-            snapshot_range_t range;
-            vb->getPersistedSnapshot(range);
+            const snapshot_range_t range = vb->getPersistedSnapshot();
             if (range.end == vbMap.getPersistenceSeqno(vbid)) {
                 vb->failovers->createEntry(range.end);
             } else {

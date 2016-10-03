@@ -4607,8 +4607,7 @@ void EventuallyPersistentEngine::addSeqnoVbStats(const void *cookie,
         checked_snprintf(buffer, sizeof(buffer), "vb_%d:purge_seqno",
                          vb->getId());
         add_casted_stat(buffer, vb->getPurgeSeqno(), add_stat, cookie);
-        snapshot_range_t range;
-        vb->getPersistedSnapshot(range);
+        const snapshot_range_t range = vb->getPersistedSnapshot();
         checked_snprintf(buffer, sizeof(buffer),
                          "vb_%d:last_persisted_snap_start",
                          vb->getId());

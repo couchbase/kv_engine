@@ -230,10 +230,9 @@ public:
         persisted_snapshot_end = end;
     }
 
-    void getPersistedSnapshot(snapshot_range_t& range) {
+    snapshot_range_t getPersistedSnapshot() const {
         LockHolder lh(snapshotMutex);
-        range.start = persisted_snapshot_start;
-        range.end = persisted_snapshot_end;
+        return {persisted_snapshot_start, persisted_snapshot_end};
     }
 
     uint64_t getMaxCas() {
@@ -539,7 +538,7 @@ private:
 
     /* snapshotMutex is used to update/read the pair {start, end} atomically,
        but not if reading a single field. */
-    Mutex snapshotMutex;
+    mutable Mutex snapshotMutex;
     uint64_t persisted_snapshot_start;
     uint64_t persisted_snapshot_end;
 
