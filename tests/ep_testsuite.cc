@@ -2750,34 +2750,19 @@ static enum test_result test_access_scanner_settings(ENGINE_HANDLE *h,
                    expected_time + ", actual: " + str.substr(11, 5));
     checkeq(0, str.substr(11, 5).compare(expected_time), err_msg.c_str());
 
-    // Update alog_sleep_time and ensure the update is successful
-    int update_by = 10;
-    time_t now = time(NULL);
-    struct tm curr = *(gmtime(&now));
-    curr.tm_min += update_by;
-#ifdef _MSC_VER
-    _mkgmtime(&curr);
-#else
-    timegm(&curr);
-#endif
-    char timeStr[20];
-    strftime(timeStr, 20, "%Y-%m-%d %H:%M:%S", &curr);
-    std::string targetTaskTime1(timeStr);
+    // Update alog_sleep_time by 10 mins and ensure the update is successful.
+    const std::chrono::minutes update_by{10};
+    std::string targetTaskTime1{make_time_string(std::chrono::system_clock::now() +
+                                                 update_by)};
 
     set_param(h, h1, protocol_binary_engine_param_flush, "alog_sleep_time",
-              std::to_string(update_by).c_str());
+              std::to_string(update_by.count()).c_str());
     str = get_str_stat(h, h1, "ep_access_scanner_task_time");
 
-    now = time(NULL);
-    curr = *(gmtime(&now));
-    curr.tm_min += update_by;
-#ifdef _MSC_VER
-    _mkgmtime(&curr);
-#else
-    timegm(&curr);
-#endif
-    strftime(timeStr, 20, "%Y-%m-%d %H:%M:%S", &curr);
-    std::string targetTaskTime2(timeStr);
+    // Recalculate now() + 10mins as upper bound on when the task should be
+    // scheduled.
+    std::string targetTaskTime2{make_time_string(std::chrono::system_clock::now() +
+                                                 update_by)};
 
     // ep_access_scanner_task_time should fall within the range of
     // targetTaskTime1 and targetTaskTime2
@@ -2810,12 +2795,13 @@ static enum test_result test_access_scanner(ENGINE_HANDLE *h,
     /* We do not want the access scanner task to be running while we initiate it
        explicitly below. Hence set the alog_task_time to about 1 ~ 2 hours
        from now */
-    time_t now = time(nullptr);
-    struct tm* tm_now = gmtime(&now);
+    const time_t now = time(nullptr);
+    struct tm tm_now;
+    cb_gmtime_r(&now, &tm_now);
 
     set_param(h, h1, protocol_binary_engine_param_flush, "alog_task_time",
-              (std::to_string(tm_now->tm_hour + 2)).c_str());
-    wait_for_stat_to_be(h, h1, "ep_alog_task_time", tm_now->tm_hour + 2);
+              (std::to_string(tm_now.tm_hour + 2)).c_str());
+    wait_for_stat_to_be(h, h1, "ep_alog_task_time", tm_now.tm_hour + 2);
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
