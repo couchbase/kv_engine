@@ -715,10 +715,16 @@ static enum test_result test_tap_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 
 static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint16_t vbid;
-    for (vbid = 0; vbid < 4; ++vbid) {
+    int num_vbstate_persist = get_int_stat(h, h1, "ep_persist_vbstate_total");
+
+    /* vb 0 is already set to active before the test begins. Start from vbid 1 */
+    for (vbid = 1; vbid < 4; ++vbid) {
         check(set_vbucket_state(h, h1, vbid, vbucket_state_active),
               "Failed to set vbucket state.");
     }
+
+    /* Ensure that all the vbucket states are persisted */
+    wait_for_stat_to_be(h, h1, "ep_persist_vbstate_total", num_vbstate_persist + 3);
 
     const int num_keys = 40;
     bool keys[num_keys];
