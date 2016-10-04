@@ -1589,12 +1589,14 @@ extern "C"
         protocol_binary_engine_param_flush = 1,  /* flusher-related param type */
         protocol_binary_engine_param_tap,        /* tap-related param type */
         protocol_binary_engine_param_checkpoint, /* checkpoint-related param type */
-        protocol_binary_engine_param_dcp         /* dcp param type */
+        protocol_binary_engine_param_dcp,        /* dcp param type */
+        protocol_binary_engine_param_vbucket     /* vbucket param type */
     } protocol_binary_engine_param_t;
 
     /**
      * CMD_SET_PARAM command message to set engine parameters.
-     * flush, tap, and checkpoint parameter types are currently supported.
+     * flush, tap, checkpoint, dcp and vbucket parameter types are currently
+     * supported.
      */
     typedef union {
         struct {
