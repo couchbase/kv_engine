@@ -51,6 +51,8 @@ def set_param(mc, type, key, val):
         engine_param = memcacheConstants.ENGINE_PARAM_TAP
     elif type == 'dcp_param':
         engine_param = memcacheConstants.ENGINE_PARAM_DCP
+    elif type == 'vbucket_param':
+        engine_param = memcacheConstants.ENGINE_PARAM_VBUCKET
     else:
         print 'Error: Bad parameter %s' % type
 

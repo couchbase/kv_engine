@@ -606,6 +606,32 @@ extern "C" {
         return rv;
     }
 
+    static protocol_binary_response_status setVbucketParam(
+                                                    EventuallyPersistentEngine *e,
+                                                    const char *keyz,
+                                                    const char *valz,
+                                                    std::string& msg) {
+        protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+        try {
+            if (strcmp(keyz, "hlc_drift_ahead_threshold_us") == 0) {
+                uint64_t v = std::strtoull(valz, nullptr, 10);
+                checkNumeric(valz);
+                e->getConfiguration().setHlcAheadThresholdUs(v);
+            } else if (strcmp(keyz, "hlc_drift_behind_threshold_us") == 0) {
+                uint64_t v = std::strtoull(valz, nullptr, 10);
+                checkNumeric(valz);
+                e->getConfiguration().setHlcBehindThresholdUs(v);
+            } else {
+                msg = "Unknown config param";
+                rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+            }
+        } catch (std::runtime_error& ex) {
+            msg = "Value out of range.";
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+        return rv;
+    }
+
     static protocol_binary_response_status evictKey(
                                                  EventuallyPersistentEngine *e,
                                                  protocol_binary_request_header
@@ -835,6 +861,9 @@ extern "C" {
             break;
         case protocol_binary_engine_param_dcp:
             rv = setDcpParam(e, keyz, valz, msg);
+            break;
+        case protocol_binary_engine_param_vbucket:
+            rv = setVbucketParam(e, keyz, valz, msg);
             break;
         default:
             rv = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;

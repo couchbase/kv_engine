@@ -33,6 +33,17 @@ class VBucketMap {
 friend class EventuallyPersistentStore;
 friend class Warmup;
 
+    class VBucketConfigChangeListener : public ValueChangedListener {
+    public:
+        VBucketConfigChangeListener(VBucketMap& vbucketMap)
+            : map(vbucketMap) {}
+
+        void sizeValueChanged(const std::string &key, size_t value) override;
+
+    private:
+        VBucketMap& map;
+    };
+
 public:
 
     // This class uses the same id_type as VBucket
@@ -63,6 +74,8 @@ public:
     KVShard* getShardByVbId(id_type id) const;
     KVShard* getShard(KVShard::id_type shardId) const;
     size_t getNumShards() const;
+    void setHLCDriftAheadThreshold(uint64_t threshold);
+    void setHLCDriftBehindThreshold(uint64_t threshold);
 
 private:
 

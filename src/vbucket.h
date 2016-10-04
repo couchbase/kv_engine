@@ -256,6 +256,14 @@ public:
         return hlc.getDriftExceptionCounters();
     }
 
+    void setHLCDriftAheadThreshold(uint64_t threshold) {
+        hlc.setDriftAheadThreshold(threshold);
+    }
+
+    void setHLCDriftBehindThreshold(uint64_t threshold) {
+        hlc.setDriftBehindThreshold(threshold);
+    }
+
     bool isTakeoverBackedUp() {
         return takeover_backed_up.load();
     }

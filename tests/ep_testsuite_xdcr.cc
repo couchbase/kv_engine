@@ -1735,6 +1735,30 @@ static enum test_result test_del_with_meta_and_check_drift_stats(ENGINE_HANDLE *
     return SUCCESS;
 }
 
+static enum test_result test_setting_drift_threshold(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+
+    std::vector<std::pair<std::string, std::string> > configData =
+        {{"ep_hlc_ahead_threshold_us", "hlc_drift_ahead_threshold_us"},
+         {"ep_hlc_behind_threshold_us", "hlc_drift_behind_threshold_us"}};
+
+    std::vector<std::pair<std::string, uint64_t> > values =
+        {{"0", 0}, {"1", 1}, {"-1", -1}, {"-0", 0},
+         {"18446744073709551615", 18446744073709551615ull}};
+
+    for (auto data : values) {
+        for (auto conf : configData) {
+            check(set_param(h, h1, protocol_binary_engine_param_vbucket,
+                    conf.second.data(), data.first.data()),
+                "Expected set_param success");
+
+            checkeq(data.second,
+                    get_ull_stat(h, h1, conf.first.data(), nullptr),
+                    "Expected the stat to change to the new value");
+        }
+    }
+    return SUCCESS;
+}
+
 // Test manifest //////////////////////////////////////////////////////////////
 
 const char *default_dbname = "./ep_testsuite_xdcr";
@@ -1823,6 +1847,10 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test del_with_meta and drift stats",
                  test_del_with_meta_and_check_drift_stats, test_setup,
                  teardown, "hlc_ahead_threshold_us=0;hlc_behind_threshold_us=5000000;conflict_resolution_type=lww",
+                 prepare, cleanup),
+        TestCase("test setting drift threshold",
+                 test_setting_drift_threshold, test_setup,
+                 teardown, nullptr,
                  prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)

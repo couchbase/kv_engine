@@ -122,6 +122,14 @@ public:
         return {driftAheadExceeded, driftBehindExceeded};
     }
 
+    void setDriftAheadThreshold(uint64_t threshold) {
+        driftAheadThreshold = threshold;
+    }
+
+    void setDriftBehindThreshold(uint64_t threshold) {
+        driftBehindThreshold = threshold;
+    }
+
     void addStats(const std::string& prefix, ADD_STAT add_stat, const void *c) const {
         add_prefixed_stat(prefix.data(), "max_cas", getMaxHLC(), add_stat, c);
         add_prefixed_stat(prefix.data(), "total_abs_drift", cummulativeDrift.load(), add_stat, c);

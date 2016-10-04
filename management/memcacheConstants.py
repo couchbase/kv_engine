@@ -106,6 +106,7 @@ ENGINE_PARAM_FLUSH      = 1
 ENGINE_PARAM_TAP        = 2
 ENGINE_PARAM_CHECKPOINT = 3
 ENGINE_PARAM_DCP        = 4
+ENGINE_PARAM_VBUCKET    = 5
 
 
 COMMAND_NAMES = dict(((globals()[k], k) for k in globals() if k.startswith("CMD_")))
