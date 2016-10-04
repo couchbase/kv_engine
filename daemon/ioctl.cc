@@ -28,20 +28,7 @@
 ENGINE_ERROR_CODE ioctl_get_property(const char* key, size_t keylen,
                                      size_t* value)
 {
-#if defined(HAVE_TCMALLOC)
-    if (strncmp("tcmalloc.aggressive_memory_decommit", key, keylen) == 0 &&
-        keylen == strlen("tcmalloc.aggressive_memory_decommit")) {
-        if (AllocHooks::get_allocator_property("tcmalloc.aggressive_memory_decommit",
-                                      value)) {
-            return ENGINE_SUCCESS;
-        } else {
-            return ENGINE_EINVAL;
-        }
-    } else
-#endif /* HAVE_TCMALLOC */
-    {
-        return ENGINE_EINVAL;
-    }
+    return ENGINE_EINVAL;
 }
 
 ENGINE_ERROR_CODE ioctl_set_property(Connection* c,
@@ -53,32 +40,6 @@ ENGINE_ERROR_CODE ioctl_set_property(Connection* c,
         AllocHooks::release_free_memory();
         LOG_NOTICE(c, "%u: IOCTL_SET: release_free_memory called", c->getId());
         return ENGINE_SUCCESS;
-#if defined(HAVE_TCMALLOC)
-    } else if (request_key == "tcmalloc.aggressive_memory_decommit") {
-
-        if (vallen > IOCTL_VAL_LENGTH) {
-            return ENGINE_EINVAL;
-        }
-
-        /* null-terminate value */
-        char val_buffer[IOCTL_VAL_LENGTH + 1]; /* +1 for terminating '\0' */
-        long int intval;
-
-        memcpy(val_buffer, value, vallen);
-        val_buffer[vallen] = '\0';
-        errno = 0;
-        intval = strtol(val_buffer, NULL, 10);
-
-        if (errno == 0 && AllocHooks::set_allocator_property("tcmalloc.aggressive_memory_decommit",
-                                                    intval)) {
-            LOG_NOTICE(c,
-                "%u: IOCTL_SET: 'tcmalloc.aggressive_memory_decommit' set to %ld",
-                c->getId(), intval);
-            return ENGINE_SUCCESS;
-        } else {
-            return ENGINE_EINVAL;
-        }
-#endif /* HAVE_TCMALLOC */
     } else if (request_key.find("trace.connection.") == 0) {
         return apply_connection_trace_mask(request_key,
                                            std::string(value, vallen));

@@ -2207,53 +2207,6 @@ TEST_P(McdTestappTest, IOCTL_Set) {
     }
 }
 
-#if defined(HAVE_TCMALLOC)
-TEST_P(McdTestappTest, IOCTL_TCMallocAggrDecommit) {
-    union {
-        protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } buffer;
-
-    /* tcmalloc.aggressive_memory_decommit should return zero or one. */
-    char cmd[] = "tcmalloc.aggressive_memory_decommit";
-    size_t value;
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_IOCTL_GET, cmd,
-                                  strlen(cmd),
-                                  NULL, 0);
-
-    safe_send(buffer.bytes, len, false);
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_IOCTL_GET,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-    EXPECT_GT(buffer.response.message.header.response.bodylen, 0);
-    value = atoi(buffer.bytes + sizeof(buffer.response));
-    cb_assert(value == 0 || value == 1);
-
-
-    /* Check that tcmalloc.aggressive_memory_decommit can be changed, and that
-       the value reads correctly. */
-    {
-        char value_buf[16];
-        size_t new_value = 1 - value; /* flip between 1 <-> 0 */
-        snprintf(value_buf, sizeof(value_buf), "%zd", new_value);
-
-        len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                               PROTOCOL_BINARY_CMD_IOCTL_SET, cmd, strlen(cmd),
-                               value_buf, strlen(value_buf));
-
-        safe_send(buffer.bytes, len, false);
-        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-        mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_IOCTL_SET,
-                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    }
-}
-#endif /* defined(HAVE_TCMALLOC) */
-
 TEST_P(McdTestappTest, Config_ValidateCurrentConfig) {
     union {
         protocol_binary_request_no_extras request;

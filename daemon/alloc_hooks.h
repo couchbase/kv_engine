@@ -5,12 +5,9 @@
 
 #include "alloc_hooks_dummy.h"
 #include "alloc_hooks_jemalloc.h"
-#include "alloc_hooks_tcmalloc.h"
 
 #if defined(HAVE_JEMALLOC)
 using AllocHooks = JemallocHooks;
-#elif defined(HAVE_TCMALLOC)
-using AllocHooks = TCMallocHooks;
 #else
 using AllocHooks = DummyAllocHooks;
 #endif

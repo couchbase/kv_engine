@@ -5,7 +5,6 @@ ADD_EXECUTABLE(engine_testapp engine_testapp.cc
                               $<TARGET_OBJECTS:memory_tracking>)
 TARGET_LINK_LIBRARIES(engine_testapp mcd_util platform
                       ${MALLOC_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
-APPEND_MALLOC_LINKER_FLAGS(engine_testapp)
 INSTALL(TARGETS engine_testapp
         RUNTIME DESTINATION bin)
 
