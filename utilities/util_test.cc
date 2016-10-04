@@ -336,14 +336,27 @@ TEST(ConfigParserTest, A) {
     EXPECT_EQ(1024u * 1024u * 1024u, size_val);
     items[1].found = false;
 
-    std::vector<std::pair<std::string, int> >suffixes = {{"k", 1024},
+    // Check negative and positive input
+    std::vector<std::pair<std::string, int> >suffixes = { { "k", 1024 },
                                                          {"m", 1024*1024},
                                                          {"g", 1024*1024*1024},
                                                          {"K", 1024},
                                                          {"M", 1024*1024},
                                                          {"G", 1024*1024*1024}};
-    // Check negative and positive input
-    for (ssize_t test_val : {-1000, -1, 0, 1, 1000}) {
+
+    /*
+     * This is a hack to work around problems with Visual Studio in
+     * debug builds. Initially the construct looked like:
+     *
+     *    for (ssize_t test_val : { -1000, -1, 0, 1, 1000 );
+     *
+     * but that results in
+     *
+     *    SEH exception with code 0xc0000005 thrown in the test body
+     */
+    const ssize_t values[5] = { -1000, -1, 0, 1, 1000 };
+    for (int ii = 0; ii < 5; ++ii) {
+        const ssize_t test_val = values[ii];
         for (auto suffix : suffixes) {
             std::string config = "ssize_t=" +
                                  std::to_string(test_val) + suffix.first;
