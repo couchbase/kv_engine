@@ -39,7 +39,7 @@ ENGINE_ERROR_CODE ioctlGetTracingConfig(Connection*,
                                         const StrToStrMap&,
                                         std::string& value) {
     std::lock_guard<std::mutex> lh(configMutex);
-    value = lastConfig.toString();
+    value = *lastConfig.toString();
     return ENGINE_SUCCESS;
 }
 
@@ -52,10 +52,13 @@ ENGINE_ERROR_CODE ioctlGetTracingDump(Connection*,
     }
 
     phosphor::TraceContext context = PHOSPHOR_INSTANCE.getTraceContext(lh);
-    if (!context.trace_buffer) {
+    if (context.getBuffer() == nullptr) {
         return ENGINE_EINVAL;
     }
-    value = phosphor::tools::JSONExport(context).read();
+    // TODO-PERF: This copies the phosphor::String into a std::string; which 
+    // for large dumps could be inefficient. Consider refactoring to remove
+    // the need to copy.
+    value = *phosphor::tools::JSONExport(context).read();
 
     return ENGINE_SUCCESS;
 }
