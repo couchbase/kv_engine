@@ -24,25 +24,6 @@
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
 
-static std::string get_working_current_directory() {
-    bool ok = false;
-    std::string result(4096, 0);
-#ifdef WIN32
-    ok = GetCurrentDirectory(result.size(), &result[0]) != 0;
-#else
-    ok = getcwd(&result[0], result.size()) != nullptr;
-#endif
-    /* memcached may throw a warning, but let's push through */
-    if (!ok) {
-        std::cerr << "Failed to determine current working directory: "
-                  << cb_strerror() << std::endl;
-        result = ".";
-    }
-    // Trim off any trailing \0 characters.
-    result.resize(strlen(result.c_str()));
-    return result;
-}
-
 McdEnvironment::McdEnvironment() {
     initialize_openssl();
 }
@@ -52,7 +33,7 @@ McdEnvironment::~McdEnvironment() {
 }
 
 void McdEnvironment::SetUp() {
-    cwd = get_working_current_directory();
+    cwd = cb::io::getcwd();
     SetupAuditFile();
     SetupIsaslPw();
 }
@@ -70,11 +51,11 @@ void McdEnvironment::SetupIsaslPw() {
 
 void McdEnvironment::SetupAuditFile() {
     try {
-        audit_file_name = cwd + "/" + generateTempFile("audit.cfg.XXXXXX");
-        audit_log_dir = cwd + "/" + generateTempFile("audit.log.XXXXXX");
+        audit_file_name = cwd + "/" + cb::io::mktemp("audit.cfg");
+        audit_log_dir = cwd + "/" + cb::io::mktemp("audit.log");
         const std::string descriptor = cwd + "/auditd";
-        EXPECT_TRUE(CouchbaseDirectoryUtilities::rmrf(audit_log_dir));
-        EXPECT_TRUE(CouchbaseDirectoryUtilities::mkdirp(audit_log_dir));
+        EXPECT_TRUE(cb::io::rmrf(audit_log_dir));
+        EXPECT_TRUE(cb::io::mkdirp(audit_log_dir));
 
         // Generate the auditd config file.
         audit_config.reset(cJSON_CreateObject());
@@ -100,31 +81,13 @@ void McdEnvironment::SetupAuditFile() {
 void McdEnvironment::TearDown() {
     // Cleanup Audit config file
     if (!audit_file_name.empty()) {
-        EXPECT_TRUE(CouchbaseDirectoryUtilities::rmrf(audit_file_name));
+        EXPECT_TRUE(cb::io::rmrf(audit_file_name));
     }
 
     // Cleanup Audit log directory
     if (!audit_log_dir.empty()) {
-        EXPECT_TRUE(CouchbaseDirectoryUtilities::rmrf(audit_log_dir));
+        EXPECT_TRUE(cb::io::rmrf(audit_log_dir));
     }
-}
-
-std::string McdEnvironment::generateTempFile(const char* pattern) {
-    char* file_pattern = strdup(pattern);
-    if (file_pattern == nullptr) {
-        throw std::bad_alloc();
-    }
-
-    if (cb_mktemp(file_pattern) == nullptr) {
-        throw std::runtime_error(
-            std::string("Failed to create temporary file with pattern: ") +
-            std::string(pattern));
-    }
-
-    std::string ret(file_pattern);
-    free(file_pattern);
-
-    return ret;
 }
 
 void McdEnvironment::rewriteAuditConfig() {

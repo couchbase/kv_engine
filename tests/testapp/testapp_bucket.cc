@@ -219,8 +219,8 @@ TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
     second_conn->selectBucket("bucket");
     auto connection = conn.clone();
 
-    auto cwd = mcd_env->getCurrentWorkingDirectory();
-    auto testfile = cwd + "/" + mcd_env->generateTempFile("lockfile.XXXXXX");
+    auto cwd = cb::io::getcwd();
+    auto testfile = cwd + "/" + cb::io::mktemp("lockfile");
 
     // Configure so that the engine will return ENGINE_EWOULDBLOCK and
     // not process any operation given to it.  This means the connection
@@ -258,7 +258,7 @@ TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
             }
 
             // resume the connection
-            CouchbaseDirectoryUtilities::rmrf(testfile);
+            cb::io::rmrf(testfile);
         }
     };
 

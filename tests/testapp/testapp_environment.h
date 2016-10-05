@@ -100,27 +100,6 @@ public:
      */
     void rewriteAuditConfig();
 
-    /**
-     * Get the name of the current working directory. This value is cached,
-     * and the logic will break if someone suddenly start adding tests
-     * changing the current working directory.
-     *
-     * @return the cached value of the current working directory.
-     */
-    const std::string& getCurrentWorkingDirectory() const {
-        return cwd;
-    }
-
-    /**
-     * Generate a temporary file based on a certain pattern by utilizing
-     * mkfile.
-     *
-     * @param pattern the pattern to use for the name of the temp file
-     * @return the new unique file name
-     * @throws std::exception upon failures
-     */
-    std::string generateTempFile(const char* pattern);
-
 private:
     void SetupAuditFile();
 

@@ -285,7 +285,7 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     cJSON *obj = nullptr;
     cJSON *obj_ssl = nullptr;
 
-    const std::string& cwd = mcd_env->getCurrentWorkingDirectory();
+    const std::string cwd = cb::io::getcwd();
     const std::string pem_path = cwd + CERTIFICATE_PATH(testapp.pem);
     const std::string cert_path = cwd + CERTIFICATE_PATH(testapp.cert);
 
@@ -2486,7 +2486,7 @@ TEST_P(McdTestappTest, Config_Reload_SSL) {
     cJSON *iface = cJSON_GetArrayItem(iface_list, 1);
     cJSON *ssl = cJSON_GetObjectItem(iface, "ssl");
 
-    const std::string cwd = mcd_env->getCurrentWorkingDirectory();
+    const std::string cwd = cb::io::getcwd();
     const std::string pem_path = cwd + CERTIFICATE_PATH(testapp2.pem);
     const std::string cert_path = cwd + CERTIFICATE_PATH(testapp2.cert);
 
@@ -4388,7 +4388,7 @@ int main(int argc, char **argv) {
     ** memcached binary to start. To work around that lets just do a
     ** chdir(dirname(argv[0])).
     */
-    auto testdir = CouchbaseDirectoryUtilities::dirname(argv[0]);
+    auto testdir = cb::io::dirname(argv[0]);
     if (chdir(testdir.c_str()) != 0) {
         std::cerr << "Failed to change directory to " << testdir << std::endl;
         exit(EXIT_FAILURE);
