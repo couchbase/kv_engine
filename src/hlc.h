@@ -108,6 +108,10 @@ public:
         atomic_setIfBigger(maxHLC, hlc);
     }
 
+    void forceMaxHLC(uint64_t hlc) {
+        maxHLC = hlc;
+    }
+
     uint64_t getMaxHLC() const {
         return maxHLC;
     }

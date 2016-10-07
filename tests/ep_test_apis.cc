@@ -687,11 +687,11 @@ protocol_binary_request_header* prepare_get_replica(ENGINE_HANDLE *h,
 }
 
 bool set_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, protocol_binary_engine_param_t paramtype,
-               const char *param, const char *val) {
+               const char *param, const char *val, uint16_t vb) {
     char ext[4];
     protocol_binary_request_header *pkt;
     encodeExt(ext, static_cast<uint32_t>(paramtype));
-    pkt = createPacket(PROTOCOL_BINARY_CMD_SET_PARAM, 0, 0, ext, sizeof(protocol_binary_engine_param_t), param,
+    pkt = createPacket(PROTOCOL_BINARY_CMD_SET_PARAM, vb, 0, ext, sizeof(protocol_binary_engine_param_t), param,
                        strlen(param), val, strlen(val));
 
     if (h1->unknown_command(h, NULL, pkt, add_response) != ENGINE_SUCCESS) {

@@ -4147,6 +4147,16 @@ void EventuallyPersistentStore::setCursorDroppingLowerUpperThresholds(
                     ((double)(config.getCursorDroppingUpperMark()) / 100)));
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentStore::forceMaxCas(uint16_t vbucket,
+                                                         uint64_t cas) {
+    RCPtr<VBucket> vb = vbMap.getBucket(vbucket);
+    if (vb) {
+        vb->forceMaxCas(cas);
+        return ENGINE_SUCCESS;
+    }
+    return ENGINE_NOT_MY_VBUCKET;
+}
+
 std::ostream& operator<<(std::ostream& os,
                          const EventuallyPersistentStore::Position& pos) {
     os << "vbucket:" << pos.vbucket_id;

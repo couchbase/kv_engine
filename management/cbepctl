@@ -41,7 +41,7 @@ def cmd(f):
     return g
 
 @cmd
-def set_param(mc, type, key, val):
+def set_param(mc, type, key, val, vbucket):
     engine_param = None
     if type == 'checkpoint_param':
         engine_param = memcacheConstants.ENGINE_PARAM_CHECKPOINT
@@ -75,7 +75,7 @@ def set_param(mc, type, key, val):
             val = str(int(float(_x_)*(_quota_)/100))
 
     try:
-        mc.set_param(key, val, engine_param)
+        mc.set_param(int(vbucket), key, val, engine_param)
         print 'set %s to %s' %(key, val)
     except mc_bin_client.MemcachedError, error:
         print 'Error: %s' % error.msg
@@ -250,11 +250,16 @@ Available params for "set":
     dcp_consumer_process_buffered_messages_batch_size - The number of items the
                                                         DCP processor will consume
                                                         in a single batch.
+  Available params for "set vbucket_param":
+    max_cas - Change the max_cas of a vbucket. The value and vbucket are specified as decimal
+              integers. The new-value is interpretted as an unsigned 64-bit integer.
+
+              cbepctl host:port -b default set vbucket_param max_cas <new-value> <vbucket-id>
 
     """)
 
     c.addCommand('drain', drain, "drain")
-    c.addCommand('set', set_param, 'set type param value')
+    c.addCommand('set', set_param, 'set type param value vbucket')
     c.addCommand('start', start, 'start')
     c.addCommand('stop', stop, 'stop')
     c.addFlag('-a', 'allBuckets', 'iterate over all buckets (requires admin u/p)')

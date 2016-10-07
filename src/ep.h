@@ -894,6 +894,12 @@ public:
     //Check if there were any out-of-memory errors during warmup
     bool isWarmupOOMFailure(void);
 
+    /*
+     * Change the max_cas of the specified vbucket to cas without any
+     * care for the data or ongoing operations...
+     */
+    ENGINE_ERROR_CODE forceMaxCas(uint16_t vbucket, uint64_t cas);
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be

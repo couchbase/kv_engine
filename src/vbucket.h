@@ -248,6 +248,10 @@ public:
         hlc.setMaxHLCAndTrackDrift(cas);
     }
 
+    void forceMaxCas(uint64_t cas) {
+        hlc.forceMaxHLC(cas);
+    }
+
     HLC::DriftStats getHLCDriftStats() const {
         return hlc.getDriftStats();
     }
