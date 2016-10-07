@@ -35,6 +35,12 @@
  */
 bool cb_stob(const std::string& s);
 
+/**
+ * Checks input to determine whether it is prefixed with 'prefix'.
+ */
+bool cb_isPrefix(const std::string& input,
+                 const std::string& prefix);
+
 class invalid_argument_bool : public std::invalid_argument {
 public:
     invalid_argument_bool(const std::string& msg) : std::invalid_argument(msg) {

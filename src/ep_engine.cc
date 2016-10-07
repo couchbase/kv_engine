@@ -4652,134 +4652,130 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         LOG(EXTENSION_LOG_DEBUG, "stats engine");
     }
 
+    const std::string statKey(stat_key, nkey);
+
     ENGINE_ERROR_CODE rv = ENGINE_KEY_ENOENT;
     if (stat_key == NULL) {
         rv = doEngineStats(cookie, add_stat);
-    } else if (nkey > 7 && strncmp(stat_key, "tapagg ", 7) == 0) {
-        rv = doConnAggStats(cookie, add_stat, stat_key + 7, nkey - 7,
-                            TAP_CONN);
-    } else if (nkey > 7 && strncmp(stat_key, "dcpagg ", 7) == 0) {
-        rv = doConnAggStats(cookie, add_stat, stat_key + 7, nkey - 7,
-                            DCP_CONN);
-    } else if (nkey == 3 && strncmp(stat_key, "tap", 3) == 0) {
+    } else if (nkey > 7 && cb_isPrefix(statKey, "tapagg ")) {
+        rv = doConnAggStats(cookie, add_stat, stat_key + 7, nkey - 7, TAP_CONN);
+    } else if (nkey > 7 && cb_isPrefix(statKey, "dcpagg ")) {
+        rv = doConnAggStats(cookie, add_stat, stat_key + 7, nkey - 7, DCP_CONN);
+    } else if (statKey == "tap") {
         rv = doTapStats(cookie, add_stat);
-    } else if (nkey == 3 && strncmp(stat_key, "dcp", 3) == 0) {
+    } else if (statKey == "dcp") {
         rv = doDcpStats(cookie, add_stat);
-    } else if (nkey == 4 && strncmp(stat_key, "hash", 3) == 0) {
+    } else if (statKey == "hash") {
         rv = doHashStats(cookie, add_stat);
-    } else if (nkey == 7 && strncmp(stat_key, "vbucket", 7) == 0) {
+    } else if (statKey == "vbucket") {
         rv = doVBucketStats(cookie, add_stat, stat_key, nkey, false, false);
-    } else if (nkey >= 15 && strncmp(stat_key, "vbucket-details", 15) == 0) {
+    } else if (cb_isPrefix(statKey, "vbucket-details")) {
         rv = doVBucketStats(cookie, add_stat, stat_key, nkey, false, true);
-    } else if (nkey >= 13 && strncmp(stat_key, "vbucket-seqno", 13) == 0) {
+    } else if (cb_isPrefix(statKey, "vbucket-seqno")) {
         rv = doSeqnoStats(cookie, add_stat, stat_key, nkey);
-    } else if (nkey == 12 && strncmp(stat_key, "prev-vbucket", 12) == 0) {
+    } else if (statKey == "prev-vbucket") {
         rv = doVBucketStats(cookie, add_stat, stat_key, nkey, true, false);
-    } else if (nkey >= 10 && strncmp(stat_key, "checkpoint", 10) == 0) {
+    } else if (cb_isPrefix(statKey, "checkpoint")) {
         rv = doCheckpointStats(cookie, add_stat, stat_key, nkey);
-    } else if (nkey == 7 && strncmp(stat_key, "timings", 7) == 0) {
+    } else if (statKey == "timings") {
         rv = doTimingStats(cookie, add_stat);
-    } else if (nkey == 10 && strncmp(stat_key, "dispatcher", 10) == 0) {
+    } else if (statKey == "dispatcher") {
         rv = doDispatcherStats(cookie, add_stat);
-    } else if (nkey == 9 && strncmp(stat_key, "scheduler", 9) == 0) {
+    } else if (statKey == "scheduler") {
         rv = doSchedulerStats(cookie, add_stat);
-    } else if (nkey == 8 && strncmp(stat_key, "runtimes", 8) == 0) {
+    } else if (statKey == "runtimes") {
         rv = doRunTimeStats(cookie, add_stat);
-    } else if (nkey == 6 && strncmp(stat_key, "memory", 6) == 0) {
+    } else if (statKey == "memory") {
         rv = doMemoryStats(cookie, add_stat);
-    } else if (nkey == 4 && strncmp(stat_key, "uuid", 4) == 0) {
+    } else if (statKey == "uuid") {
         add_casted_stat("uuid", configuration.getUuid(), add_stat, cookie);
         rv = ENGINE_SUCCESS;
-    } else if (nkey > 4 && strncmp(stat_key, "key ", 4) == 0) {
+    } else if (nkey > 4 && cb_isPrefix(statKey, "key ")) {
         std::string key;
         std::string vbid;
-        std::string s_key(&stat_key[4], nkey - 4);
+        std::string s_key(statKey.substr(4, nkey - 4));
         std::stringstream ss(s_key);
-
         ss >> key;
         ss >> vbid;
-        if (key.length() == 0) {
-            return rv;
-        }
         uint16_t vbucket_id(0);
         parseUint16(vbid.c_str(), &vbucket_id);
         // Non-validating, non-blocking version
         rv = doKeyStats(cookie, add_stat, vbucket_id, key, false);
-    } else if (nkey > 5 && strncmp(stat_key, "vkey ", 5) == 0) {
+    } else if (nkey > 5 && cb_isPrefix(statKey, "vkey ")) {
         std::string key;
         std::string vbid;
-        std::string s_key(&stat_key[5], nkey - 5);
+        std::string s_key(statKey.substr(5, nkey - 5));
         std::stringstream ss(s_key);
-
         ss >> key;
         ss >> vbid;
-        if (key.length() == 0) {
-            return rv;
-        }
         uint16_t vbucket_id(0);
         parseUint16(vbid.c_str(), &vbucket_id);
         // Validating version; blocks
         rv = doKeyStats(cookie, add_stat, vbucket_id, key, true);
-    } else if (nkey == 9 && strncmp(stat_key, "kvtimings", 9) == 0) {
+    } else if (statKey == "kvtimings") {
         getEpStore()->addKVStoreTimingStats(add_stat, cookie);
         rv = ENGINE_SUCCESS;
-    } else if (nkey == 7 && strncmp(stat_key, "kvstore", 7) == 0) {
+    } else if (statKey == "kvstore") {
         getEpStore()->addKVStoreStats(add_stat, cookie);
         rv = ENGINE_SUCCESS;
-    } else if (nkey == 6 && strncmp(stat_key, "warmup", 6) == 0) {
+    } else if (statKey == "warmup") {
         epstore->getWarmup()->addStats(add_stat, cookie);
         rv = ENGINE_SUCCESS;
-    } else if (nkey == 4 && strncmp(stat_key, "info", 4) == 0) {
+    } else if (statKey == "info") {
         add_casted_stat("info", get_stats_info(), add_stat, cookie);
         rv = ENGINE_SUCCESS;
-    } else if (nkey == 9 && strncmp(stat_key, "allocator", 9) == 0) {
+    } else if (statKey == "allocator") {
         char buffer[64 * 1024];
         MemoryTracker::getInstance(*getServerApiFunc()->alloc_hooks)->
                 getDetailedStats(buffer, sizeof(buffer));
         add_casted_stat("detailed", buffer, add_stat, cookie);
         rv = ENGINE_SUCCESS;
-    } else if (nkey == 6 && strncmp(stat_key, "config", 6) == 0) {
+    } else if (statKey == "config") {
         configuration.addStats(add_stat, cookie);
         rv = ENGINE_SUCCESS;
-    } else if (nkey > 15 && strncmp(stat_key, "tap-vbtakeover", 14) == 0) {
+    } else if (nkey > 15 && cb_isPrefix(statKey, "tap-vbtakeover")) {
         std::string tStream;
         std::string vbid;
-        std::string buffer(&stat_key[15], nkey - 15);
+        std::string buffer(statKey.substr(15, nkey - 15));
         std::stringstream ss(buffer);
         ss >> vbid;
         ss >> tStream;
-
         uint16_t vbucket_id(0);
         parseUint16(vbid.c_str(), &vbucket_id);
         rv = doTapVbTakeoverStats(cookie, add_stat, tStream, vbucket_id);
-    } else if (nkey > 15 && strncmp(stat_key, "dcp-vbtakeover", 14) == 0) {
+    } else if (nkey > 15 && cb_isPrefix(statKey, "dcp-vbtakeover")) {
         std::string tStream;
         std::string vbid;
-        std::string buffer(&stat_key[15], nkey - 15);
+        std::string buffer(statKey.substr(15, nkey - 15));
         std::stringstream ss(buffer);
         ss >> vbid;
         ss >> tStream;
-
         uint16_t vbucket_id(0);
         parseUint16(vbid.c_str(), &vbucket_id);
         rv = doDcpVbTakeoverStats(cookie, add_stat, tStream, vbucket_id);
-    } else if (nkey == 8 && strncmp(stat_key, "workload", 8) == 0) {
+    } else if (statKey == "workload") {
         return doWorkloadStats(cookie, add_stat);
-    } else if (nkey >= 10 && strncmp(stat_key, "failovers ", 10) == 0) {
-        std::string vbid;
-        std::string s_key(&stat_key[10], nkey - 10);
-        std::stringstream ss(s_key);
-
-        ss >> vbid;
-        uint16_t vbucket_id(0);
-        parseUint16(vbid.c_str(), &vbucket_id);
-        rv = doVbIdFailoverLogStats(cookie, add_stat, vbucket_id);
-    } else if (nkey == 9 && strncmp(stat_key, "failovers", 9) == 0) {
-        rv = doAllFailoverLogStats(cookie, add_stat);
-    } else if (nkey >= 8 && strncmp(stat_key, "diskinfo", 8) == 0) {
+    } else if (cb_isPrefix(statKey, "failovers")) {
+        if (nkey == 9) {
+            rv = doAllFailoverLogStats(cookie, add_stat);
+        } else if (statKey.compare(std::string("failovers").length(),
+                                   std::string(" ").length(),
+                                   " ") == 0) {
+            std::string vbid;
+            std::string s_key(statKey.substr(10, nkey - 10));
+            std::stringstream ss(s_key);
+            ss >> vbid;
+            uint16_t vbucket_id(0);
+            parseUint16(vbid.c_str(), &vbucket_id);
+            rv = doVbIdFailoverLogStats(cookie, add_stat, vbucket_id);
+        }
+    } else if (cb_isPrefix(statKey, "diskinfo")) {
         if (nkey == 8) {
             return doDiskStats(cookie, add_stat, stat_key, nkey);
-        } else if (nkey == 15 && strncmp(stat_key + 9, "detail", 6) == 0) {
+        } else if ((nkey == 15) &&
+                (statKey.compare(std::string("diskinfo").length() + 1,
+                                 std::string("detail").length(),
+                                 "detail") == 0)) {
             return doDiskDetailStats(cookie, add_stat, stat_key, nkey);
         } else {
             return ENGINE_EINVAL;

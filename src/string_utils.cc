@@ -26,3 +26,7 @@ bool cb_stob(const std::string& s) {
         throw invalid_argument_bool("Argument was not `true` or `false`");
     }
 }
+
+bool cb_isPrefix(const std::string& input, const std::string& prefix) {
+    return (input.compare(0, prefix.length(), prefix) == 0);
+}
