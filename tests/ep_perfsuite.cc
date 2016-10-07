@@ -42,6 +42,7 @@
 #include <mutex>
 #include <random>
 #include <thread>
+#include <unordered_map>
 
 #include "ep_testsuite_common.h"
 #include "ep_test_apis.h"
@@ -71,8 +72,18 @@ const size_t ITERATIONS =
     100000;
 #endif
 
-// Key of the sentinal document, used to detect the end of a run.
-const char SENTINAL_KEY[] = "__sentinal__";
+// Key of the sentinel document, used to detect the end of a run.
+const char SENTINEL_KEY[] = "__sentinel__";
+
+enum class StatRuntime {
+   Slow = true,
+   Fast = false
+ };
+
+enum class BackgroundWork {
+   None,
+   Sets
+ };
 
 template<typename T>
 struct Stats {
@@ -86,17 +97,68 @@ struct Stats {
     std::vector<T>* values;
 };
 
-struct StatOperationTimings {
-    StatOperationTimings(size_t iterations) {
-        engine.reserve(iterations);
-        diskinfo.reserve(iterations);
-        diskinfo_detail.reserve(iterations);
-    }
+static const int iterations_for_fast_stats = 1000;
+static const int iterations_for_slow_stats = 100;
 
-    std::vector<hrtime_t> engine;
-    std::vector<hrtime_t> diskinfo;
-    std::vector<hrtime_t> diskinfo_detail;
-};
+
+struct StatProperties {
+     const std::string key;
+     const StatRuntime runtime;
+     std::vector<hrtime_t> timings;
+ };
+
+
+/**
+  * The following table is used as input for each of the stats test.
+  * Each map entry specifies the test name, and then a StatProperities struct,
+  * which contains a key (used as input into the get_stats call),
+  * an enum stating whether the stat takes a long time to return (this
+  * is used to determine the number of iterations of get_stats to invoke),
+  * and finally a vector containing the latency timings for the stat.
+  */
+std::unordered_map<std::string, StatProperties> stat_tests =
+    {{"engine", {"", StatRuntime::Slow, {}} },
+     {"tapagg", {"tapagg _", StatRuntime::Fast, {}} },
+     {"dcpagg", {"dcpagg _", StatRuntime::Fast, {}} },
+     {"tap", {"tap", StatRuntime::Fast, {}} },
+     {"dcp", {"dcp", StatRuntime::Fast, {}} },
+     {"hash", {"hash", StatRuntime::Slow, {}} },
+     {"vbucket", {"vbucket", StatRuntime::Fast, {}} },
+     {"vb-details", {"vbucket-details", StatRuntime::Slow, {}} },
+     {"vb-details_vb0", {"vbucket-details 0", StatRuntime::Fast, {}} },
+     {"vb-seqno", {"vbucket-seqno", StatRuntime::Slow, {}} },
+     {"vb-seqno_vb0", {"vbucket-seqno 0", StatRuntime::Fast, {}} },
+     {"prev-vbucket", {"prev-vbucket", StatRuntime::Fast, {}} },
+     {"checkpoint", {"checkpoint", StatRuntime::Slow, {}} },
+     {"checkpoint_vb0", {"checkpoint 0", StatRuntime::Fast, {}} },
+     {"timings", {"timings", StatRuntime::Fast, {}} },
+     {"dispatcher", {"dispatcher", StatRuntime::Slow, {}} },
+     {"scheduler", {"scheduler", StatRuntime::Fast, {}} },
+     {"runtimes", {"runtimes", StatRuntime::Fast, {}} },
+     {"memory", {"memory", StatRuntime::Fast, {}} },
+     {"uuid", {"uuid", StatRuntime::Fast, {}} },
+     // We add a document with the key __sentinel__ to vbucket 0 at the
+     // start of the test and hence it is used for the key_vb0 stat.
+     {"key_vb0", {"key __sentinel__ 0", StatRuntime::Fast, {}} },
+     {"vkey_vb0", {"vkey __sentinel__ 0", StatRuntime::Fast, {}} },
+     {"kvtimings", {"kvtimings", StatRuntime::Slow, {}} },
+     {"kvstore", {"kvstore", StatRuntime::Fast, {}} },
+     {"warmup", {"warmup", StatRuntime::Fast, {}} },
+     {"info", {"info", StatRuntime::Fast, {}} },
+     {"allocator", {"allocator", StatRuntime::Slow, {}} },
+     {"config", {"config", StatRuntime::Fast, {}} },
+     {"tap-vbtakeover", {"tap-vbtakeover 0 tap-connection",
+                         StatRuntime::Fast, {}}
+     },
+     {"dcp-vbtakeover", {"dcp-vbtakeover 0 dcp-connection",
+                         StatRuntime::Fast, {}}
+     },
+     {"workload", {"workload", StatRuntime::Fast, {}} },
+     {"failovers_vb0", {"failovers 0", StatRuntime::Fast, {}} },
+     {"failovers", {"failovers", StatRuntime::Slow, {}} },
+     {"diskinfo", {"diskinfo", StatRuntime::Fast, {}} },
+     {"diskinfo-detail", {"diskinfo-detail", StatRuntime::Slow, {}} },
+    };
 
 static void fillLineWith(const char c, int spaces) {
     for (int i = 0; i < spaces; ++i) {
@@ -127,15 +189,15 @@ void renderToText(const std::string& name,
     }
 
     printf("\n\n                                Percentile           \n");
-    printf("  %-15s Median     95th     99th  Std Dev  Histogram of samples\n\n", "");
+    printf("  %-22s Median     95th     99th  Std Dev  Histogram of samples\n\n", "");
     // Finally, print out each set.
     for (const auto& stats : value_stats) {
         if (stats.median/1e6 < 1) {
-            printf("%-15s %8.03f %8.03f %8.03f %8.03f  ",
+            printf("%-22s %8.03f %8.03f %8.03f %8.03f  ",
                     stats.name.c_str(), stats.median/1e3, stats.pct95/1e3,
                     stats.pct99/1e3, stats.stddev/1e3);
         } else {
-            printf("%-8s (x1e3) %8.03f %8.03f %8.03f %8.03f  ",
+            printf("%-15s (x1e3) %8.03f %8.03f %8.03f %8.03f  ",
                     stats.name.c_str(), stats.median/1e6, stats.pct95/1e6,
                     stats.pct99/1e6, stats.stddev/1e6);
         }
@@ -165,7 +227,7 @@ void renderToText(const std::string& name,
         }
         putchar('\n');
     }
-    printf("%51s  %-14d %s %14d\n\n", "",
+    printf("%58s  %-14d %s %14d\n\n", "",
            int(spark_start/1e3), unit.c_str(), int(spark_end/1e3));
 }
 
@@ -246,19 +308,19 @@ void output_result(const std::string& name,
         break;
     }
 }
-/* Add a sentinal document (one with a the key SENTINAL_KEY).
+/* Add a sentinel document (one with a the key SENTINEL_KEY).
  * This can be used by TAP / DCP streams to reliably detect the end of
  * a run (sequence numbers are only supported by DCP, and
  * de-duplication complicates simply counting mutations).
  */
-static void add_sentinal_doc(ENGINE_HANDLE *h,
+static void add_sentinel_doc(ENGINE_HANDLE *h,
                              ENGINE_HANDLE_V1 *h1, uint16_t vbid) {
-    // Use ADD instead of SET as we only expect to mutate the sentinal
+    // Use ADD instead of SET as we only expect to mutate the sentinel
     // doc once per run.
     checkeq(ENGINE_SUCCESS,
-            storeCasVb11(h, h1, nullptr, OPERATION_ADD, SENTINAL_KEY,
+            storeCasVb11(h, h1, nullptr, OPERATION_ADD, SENTINEL_KEY,
                          nullptr, 0, /*flags*/0, /*out*/nullptr, 0, vbid),
-            "Failed to add sentinal document.");
+            "Failed to add sentinel document.");
 }
 
 /*****************************************************************************
@@ -367,7 +429,7 @@ static enum test_result perf_latency(ENGINE_HANDLE *h,
     perf_latency_core(h, h1, 0, num_docs, add_timings, get_timings,
                       replace_timings, delete_timings);
 
-    add_sentinal_doc(h, h1, /*vbid*/0);
+    add_sentinel_doc(h, h1, /*vbid*/0);
 
     std::vector<std::pair<std::string, std::vector<hrtime_t>*> > all_timings;
     all_timings.push_back(std::make_pair("Add", &add_timings));
@@ -725,7 +787,7 @@ static void perf_load_client(ENGINE_HANDLE* h,
         h1->release(h, NULL, it);
     }
 
-    add_sentinal_doc(h, h1, vbid);
+    add_sentinel_doc(h, h1, vbid);
 
     wait_for_flusher_to_settle(h, h1);
 }
@@ -812,7 +874,7 @@ static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
     }
 
     // We create a stream from 0 to MAX(seqno), and then rely on encountering the
-    // sentinal document to know when to finish.
+    // sentinel document to know when to finish.
     uint64_t rollback = 0;
     checkeq(h1->dcp.stream_req(h, cookie, 0, streamOpaque,
                                    vbid, 0, std::numeric_limits<uint64_t>::max(),
@@ -850,8 +912,8 @@ static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
             switch (dcp_last_op) {
                 case PROTOCOL_BINARY_CMD_DCP_MUTATION:
                 case PROTOCOL_BINARY_CMD_DCP_DELETION:
-                    // Check for sentinal (before adding to timings).
-                    if (dcp_last_key == SENTINAL_KEY) {
+                    // Check for sentinel (before adding to timings).
+                    if (dcp_last_key == SENTINEL_KEY) {
                         done = true;
                         break;
                     }
@@ -928,13 +990,13 @@ static void perf_tap_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
         case TAP_MUTATION:
             testHarness.unlock_cookie(cookie);
 
-            // Check for sentinal
+            // Check for sentinel
             item_info info;
             info.nvalue = 1;
             check(h1->get_item_info(h, NULL, item, &info),
                   "Failed to get item info for TAP mutation");
 
-            if (strncmp(SENTINAL_KEY, reinterpret_cast<const char*>(info.key),
+            if (strncmp(SENTINEL_KEY, reinterpret_cast<const char*>(info.key),
                         info.nkey) == 0) {
                 done = true;
             }
@@ -1136,61 +1198,85 @@ static enum test_result perf_latency_tap_impact(ENGINE_HANDLE *h,
 }
 
 static void perf_stat_latency_core(ENGINE_HANDLE *h,
-                              ENGINE_HANDLE_V1 *h1,
-                              int key_prefix,
-                              int iterations,
-                              StatOperationTimings& timings) {
+                                   ENGINE_HANDLE_V1 *h1,
+                                   int key_prefix,
+                                   StatRuntime statRuntime) {
+
+    const int iterations = (statRuntime == StatRuntime::Slow) ?
+            iterations_for_slow_stats : iterations_for_fast_stats;
 
     const void* cookie = testHarness.create_cookie();
+    testHarness.lock_cookie(cookie);
 
-    for (int ii = 0; ii < iterations; ++ii) {
-        hrtime_t start = gethrtime();
-        checkeq(ENGINE_SUCCESS,
-                h1->get_stats(h, cookie, nullptr, 0, add_stats),
-                "Failed to get stats - engine");
-        hrtime_t end = gethrtime();
-        timings.engine.push_back(end - start);
+    // For some of the stats we need to have a document stored, TAP and DCP
+    // connection
+    add_sentinel_doc(h, h1, 0);
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, 0, 0, DCP_OPEN_PRODUCER,
+                         (void*)"dcp-stream", 10),
+            "Failed dcp producer open connection");
 
-        start = gethrtime();
-        checkeq(ENGINE_SUCCESS,
-                h1->get_stats(h, cookie, "diskinfo", 8, add_stats),
-                "Failed to get stats - diskinfo");
-        end = gethrtime();
-        timings.diskinfo.push_back(end - start);
+    uint64_t backfill_age = htonll(0);
+    h1->get_tap_iterator(h, cookie, "tap-connection", 14,
+    TAP_CONNECT_FLAG_BACKFILL,
+                         &backfill_age, sizeof(backfill_age));
 
-        start = gethrtime();
-        checkeq(ENGINE_SUCCESS,
-                h1->get_stats(h, cookie, "diskinfo-detail", 15, add_stats),
-                "Failed to get stats - diskinfo-detail");
-        end = gethrtime();
-        timings.diskinfo_detail.push_back(end - start);
+    testHarness.unlock_cookie(cookie);
+
+    for (auto& stat : stat_tests) {
+        if (stat.second.runtime == statRuntime) {
+            for (int ii = 0; ii < iterations; ii++) {
+                hrtime_t start = gethrtime();
+                if (stat.first.compare("engine") == 0) {
+                    checkeq(ENGINE_SUCCESS,
+                            h1->get_stats(h, cookie, nullptr, 0, add_stats),
+                            "Failed to get engine stats");
+                } else {
+                    checkeq(ENGINE_SUCCESS,
+                            h1->get_stats(h, cookie, stat.second.key.c_str(),
+                                          stat.second.key.length(), add_stats),
+                            "Failed to get stats");
+                }
+
+                hrtime_t end = gethrtime();
+                stat.second.timings.push_back(end - start);
+            }
+        }
     }
-
     testHarness.destroy_cookie(cookie);
 }
 
 static enum test_result perf_stat_latency(ENGINE_HANDLE *h,
-                                     ENGINE_HANDLE_V1 *h1,
-                                     const char* title, size_t iterations,
-                                     bool background_sets) {
+                                          ENGINE_HANDLE_V1 *h1,
+                                          const char* title,
+                                          StatRuntime statRuntime,
+                                          BackgroundWork backgroundWork,
+                                          int active_vbuckets) {
     std::condition_variable cond_var;
     std::mutex m;
-    std::atomic<bool> setup_benchmark {false};
-    std::atomic<bool> running_benchmark {true};
+    std::atomic<bool> setup_benchmark { false };
+    std::atomic<bool> running_benchmark { true };
     std::vector<std::pair<std::string, std::vector<hrtime_t>*> > all_timings;
-    StatOperationTimings timings(iterations);
     std::vector<hrtime_t> insert_timings;
 
-    insert_timings.reserve(iterations);
+    insert_timings.reserve(iterations_for_fast_stats);
+
+    for (int vb = 0; vb < active_vbuckets; vb++) {
+        check(set_vbucket_state(h, h1, vb, vbucket_state_active),
+              "Failed set_vbucket_state for vbucket");
+    }
+    wait_for_stat_to_be(h, h1, "ep_persist_vbstate_total", active_vbuckets);
 
     // Only timing front-end performance, not considering persistence.
     stop_persistence(h, h1);
 
-    if (background_sets) {
-        std::thread load_thread{perf_background_sets, h, h1, /*vbid*/0,
-            iterations, Doc_format::JSON_RANDOM, std::ref(insert_timings),
-            std::ref(cond_var), std::ref(setup_benchmark),
-            std::ref(running_benchmark)};
+    if (backgroundWork == BackgroundWork::Sets) {
+        std::thread load_thread { perf_background_sets, h, h1, /*vbid*/0,
+                                  iterations_for_fast_stats,
+                                  Doc_format::JSON_RANDOM,
+                                  std::ref(insert_timings),
+                                  std::ref(cond_var), std::ref(setup_benchmark),
+                                  std::ref(running_benchmark) };
 
         std::unique_lock<std::mutex> lock(m);
         while (!setup_benchmark) {
@@ -1198,7 +1284,7 @@ static enum test_result perf_stat_latency(ENGINE_HANDLE *h,
         }
 
         // run and measure on this thread.
-        perf_stat_latency_core(h, h1, 0, iterations, timings);
+        perf_stat_latency_core(h, h1, 0, statRuntime);
 
         // Need to tell the thread performing sets to stop */
         running_benchmark = false;
@@ -1208,15 +1294,22 @@ static enum test_result perf_stat_latency(ENGINE_HANDLE *h,
 
     } else {
         // run and measure on this thread.
-        perf_stat_latency_core(h, h1, 0, iterations, timings);
+        perf_stat_latency_core(h, h1, 0, statRuntime);
     }
 
-    all_timings.emplace_back("Engine", &timings.engine);
-    all_timings.emplace_back("Diskinfo", &timings.diskinfo);
-    all_timings.emplace_back("Diskinfo-detail",
-                             &timings.diskinfo_detail);
+    for (auto& stat : stat_tests) {
+        if (statRuntime == stat.second.runtime) {
+            all_timings.emplace_back(stat.first,
+                                     &stat.second.timings);
+        }
+    }
+
+    const std::string iterations = (statRuntime == StatRuntime::Slow) ?
+    std::to_string(iterations_for_slow_stats)
+    : std::to_string(iterations_for_fast_stats);
+
     std::string description(std::string("Latency [") + title + "] - " +
-                                   std::to_string(iterations) + " items (µs)");
+                            iterations + " items (µs)");
     output_result(title, description, all_timings, "µs");
     return SUCCESS;
 }
@@ -1224,16 +1317,62 @@ static enum test_result perf_stat_latency(ENGINE_HANDLE *h,
 /* Benchmark the baseline stats (without any tasks running) of ep-engine */
 static enum test_result perf_stat_latency_baseline(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
-    const int iterations = 10000;
-    return perf_stat_latency(h, h1, "Baseline Stats", iterations, false);
+    return perf_stat_latency(h, h1, "Baseline Stats",
+                             StatRuntime::Fast, BackgroundWork::None, 1);
+}
+
+/* Benchmark the stats with 100 active vbuckets */
+static enum test_result perf_stat_latency_100vb(ENGINE_HANDLE *h,
+                                              ENGINE_HANDLE_V1 *h1) {
+    return perf_stat_latency(h, h1, "With 100 vbuckets",
+                             StatRuntime::Fast, BackgroundWork::None, 100);
 }
 
 /* Benchmark the stats with sets running on background thread */
-static enum test_result perf_stat_latency(ENGINE_HANDLE *h,
+static enum test_result perf_stat_latency_sets(ENGINE_HANDLE *h,
                                           ENGINE_HANDLE_V1 *h1) {
-    const int iterations = 10000;
-    return perf_stat_latency(h, h1, "With background sets", iterations, true);
+    return perf_stat_latency(h, h1, "With background sets",
+                             StatRuntime::Fast, BackgroundWork::Sets, 1);
 }
+
+/* Benchmark the stats with 100 active vbuckets and sets on background thread */
+static enum test_result perf_stat_latency_100vb_sets(ENGINE_HANDLE *h,
+                                              ENGINE_HANDLE_V1 *h1) {
+    return perf_stat_latency(h, h1, "With 100 vbuckets & background sets",
+                             StatRuntime::Fast, BackgroundWork::Sets, 100);
+}
+
+/* Benchmark the baseline slow stats (without any tasks running) of ep-engine */
+static enum test_result perf_slow_stat_latency_baseline(ENGINE_HANDLE *h,
+                                              ENGINE_HANDLE_V1 *h1) {
+    return perf_stat_latency(h, h1, "Baseline Slow Stats",
+                             StatRuntime::Slow, BackgroundWork::None, 1);
+}
+
+/* Benchmark the slow stats with 100 active vbuckets */
+static enum test_result perf_slow_stat_latency_100vb(ENGINE_HANDLE *h,
+                                              ENGINE_HANDLE_V1 *h1) {
+    return perf_stat_latency(h, h1, "With 100 vbuckets",
+                             StatRuntime::Slow, BackgroundWork::None, 100);
+}
+
+/* Benchmark the slow stats with sets running on background thread */
+static enum test_result perf_slow_stat_latency_sets(ENGINE_HANDLE *h,
+                                          ENGINE_HANDLE_V1 *h1) {
+    return perf_stat_latency(h, h1, "With background sets",
+                             StatRuntime::Slow, BackgroundWork::Sets, 1);
+}
+
+/** Benchmark the slow stats with 100 active vbuckets and sets on background
+ *  thread
+ */
+static enum test_result perf_slow_stat_latency_100vb_sets(ENGINE_HANDLE *h,
+                                              ENGINE_HANDLE_V1 *h1) {
+    return perf_stat_latency(h, h1, "With 100 vbuckets & background sets",
+                             StatRuntime::Slow, BackgroundWork::Sets, 100);
+}
+
+
 
 /*****************************************************************************
  * List of testcases
@@ -1297,10 +1436,31 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown,
                  "backend=couchdb;ht_size=393209",
                  prepare, cleanup),
-        TestCase("Stat latency with set executed in separate thread",
-                 perf_stat_latency, test_setup, teardown,
+        TestCase("Stat latency with 100 active vbuckets",
+                 perf_stat_latency_100vb, test_setup, teardown,
                  "backend=couchdb;ht_size=393209",
                  prepare, cleanup),
+        TestCase("Stat latency with set executed in separate thread",
+                 perf_stat_latency_sets, test_setup, teardown,
+                 "backend=couchdb;ht_size=393209",
+                 prepare, cleanup),
+        TestCase("Stat latency with 100 vbuckets & sets in separate thread",
+                 perf_stat_latency_100vb_sets, test_setup, teardown,
+                 "backend=couchdb;ht_size=393209",
+                 prepare, cleanup),
+        TestCase("Baseline Slow Stat latency", perf_slow_stat_latency_baseline,
+                 test_setup, teardown, "backend=couchdb;ht_size=393209",
+                 prepare, cleanup),
+        TestCase("Stat latency with 100 active vbuckets",
+                 perf_slow_stat_latency_100vb,
+                 test_setup, teardown, "backend=couchdb;ht_size=393209",
+                 prepare, cleanup),
+        TestCase("Stat latency with set executed in separate thread",
+                 perf_slow_stat_latency_sets, test_setup, teardown,
+                 "backend=couchdb;ht_size=393209", prepare, cleanup),
+        TestCase("Stat latency with 100 vbuckets & sets in separate thread",
+                 perf_slow_stat_latency_100vb_sets, test_setup, teardown,
+                 "backend=couchdb;ht_size=393209", prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL,
                  "backend=couchdb", prepare, cleanup)
