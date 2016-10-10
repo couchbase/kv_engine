@@ -67,28 +67,6 @@ void add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     storeItem(h, h1, OPERATION_ADD);
 }
 
-void decr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item* result_item = NULL;
-    uint64_t result;
-    hasError = h1->arithmetic(h, NULL, key, (int)strlen(key), false, false, 1, 0, expiry,
-                              &result_item, PROTOCOL_BINARY_RAW_BYTES, &result,
-                              0) != ENGINE_SUCCESS;
-    if (!hasError) {
-        h1->release(h, NULL, result_item);
-    }
-}
-
-void decrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item* result_item = NULL;
-    uint64_t result;
-    hasError = h1->arithmetic(h, NULL, key, (int)strlen(key), false, true, 1, 0, expiry,
-                              &result_item, PROTOCOL_BINARY_RAW_BYTES, &result,
-                              0) != ENGINE_SUCCESS;
-    if (!hasError) {
-        h1->release(h, NULL, result_item);
-    }
-}
-
 void flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     hasError = h1->flush(h, NULL, 0);
 }
@@ -102,29 +80,6 @@ void del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 void set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     storeItem(h, h1, OPERATION_SET);
 }
-
-void incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item* result_item = NULL;
-    uint64_t result;
-    hasError = h1->arithmetic(h, NULL, key, (int)strlen(key), true, false, 1, 0, expiry,
-                              &result_item, PROTOCOL_BINARY_RAW_BYTES, &result,
-                              0) != ENGINE_SUCCESS;
-    if (!hasError) {
-        h1->release(h, NULL, result_item);
-    }
-}
-
-void incrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item* result_item = NULL;
-    uint64_t result;
-    hasError = h1->arithmetic(h, NULL, key, (int)strlen(key), true, true, 1, 0, expiry,
-                              &result_item, PROTOCOL_BINARY_RAW_BYTES, &result,
-                              0) != ENGINE_SUCCESS;
-    if (!hasError) {
-        h1->release(h, NULL, result_item);
-    }
-}
-
 
 void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
     item_info info;

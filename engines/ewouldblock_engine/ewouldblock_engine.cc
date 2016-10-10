@@ -336,26 +336,6 @@ public:
         }
     }
 
-    static ENGINE_ERROR_CODE arithmetic(ENGINE_HANDLE* handle,
-                                        const void* cookie, const void* key,
-                                        const int nkey, const bool increment,
-                                        const bool create, const uint64_t delta,
-                                        const uint64_t initial,
-                                        const rel_time_t exptime, item **item,
-                                        uint8_t datatype, uint64_t *result,
-                                        uint16_t vbucket) {
-        EWB_Engine* ewb = to_engine(handle);
-        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
-        if (ewb->should_inject_error(Cmd::ARITHMETIC, cookie, err)) {
-            return err;
-        } else {
-            return ewb->real_engine->arithmetic(ewb->real_handle, cookie, key,
-                                                nkey, increment, create, delta,
-                                                initial, exptime, item,
-                                                datatype, result, vbucket);
-        }
-    }
-
     static ENGINE_ERROR_CODE flush(ENGINE_HANDLE* handle, const void* cookie,
                                    time_t when) {
         // Flush is a little different - it often returns EWOULDBLOCK, and
@@ -935,7 +915,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     ENGINE_HANDLE_V1::release = release;
     ENGINE_HANDLE_V1::get = get;
     ENGINE_HANDLE_V1::store = store;
-    ENGINE_HANDLE_V1::arithmetic = arithmetic;
     ENGINE_HANDLE_V1::flush = flush;
     ENGINE_HANDLE_V1::get_stats = get_stats;
     ENGINE_HANDLE_V1::reset_stats = reset_stats;

@@ -283,110 +283,6 @@ static enum test_result remove_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 /*
- * Make sure we can arithmetic operations to set the initial value of a key and
- * to then later increment that value
- */
-static enum test_result incr_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *test_item = NULL;
-    const char* key = "incr_test_key";
-    item *result_item;
-    uint64_t res = 0;
-    cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0,
-                        PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    cb_assert(h1->arithmetic(h, NULL, key, (int)strlen(key), true, true, 0, 1,
-           0, &result_item, PROTOCOL_BINARY_RAW_BYTES, &res, 0 ) == ENGINE_SUCCESS);
-    cb_assert(res == 1);
-    h1->release(h, NULL, result_item);
-
-    cb_assert(h1->arithmetic(h, NULL, key, (int)strlen(key), true, false, 1, 0,
-           0, &result_item, PROTOCOL_BINARY_RAW_BYTES, &res, 0 ) == ENGINE_SUCCESS);
-    cb_assert(res == 2);
-    h1->release(h, NULL, result_item);
-
-    h1->release(h, NULL, test_item);
-    return SUCCESS;
-}
-
-static void incr_test_main(void *arg) {
-    ENGINE_HANDLE *h = static_cast<ENGINE_HANDLE*>(arg);
-    ENGINE_HANDLE_V1 *h1 = static_cast<ENGINE_HANDLE_V1*>(arg);
-    const char* key = "incr_test_key";
-    item *result_item;
-    uint64_t res = 0;
-    int ii;
-
-    for (ii = 0; ii < 1000; ++ii) {
-        cb_assert(h1->arithmetic(h, NULL, key, (int)strlen(key), false, false, 1, 0,
-                              0, &result_item, PROTOCOL_BINARY_RAW_BYTES,
-                              &res, 0 ) == ENGINE_SUCCESS);
-        h1->release(h, NULL, result_item);
-    }
-}
-
-
-/*
- * Make sure we can arithmetic operations to set the initial value of a key and
- * to then later increment that value
- */
-static enum test_result mt_incr_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-#define max_threads 30
-    cb_thread_t tid[max_threads];
-    item *test_item = NULL;
-    const char* key = "incr_test_key";
-    item *result_item;
-    uint64_t res = 0;
-    int ii;
-
-    if (max_threads < 2) {
-        return SKIPPED;
-    }
-
-    cb_assert(h1->allocate(h, NULL, &test_item, key,
-                        strlen(key), 1, 0, 0,
-                        PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    cb_assert(h1->arithmetic(h, NULL, key, (int)strlen(key), true, true, 0, 1,
-                          0, &result_item, PROTOCOL_BINARY_RAW_BYTES,
-                          &res, 0 ) == ENGINE_SUCCESS);
-    h1->release(h, NULL, result_item);
-    h1->release(h, NULL, test_item);
-
-    for (ii = 0; ii < max_threads; ++ii) {
-        cb_assert(cb_create_thread(&tid[ii], incr_test_main, h, 0) == 0);
-    }
-
-    for (ii = 0; ii < max_threads; ++ii) {
-        cb_assert(cb_join_thread(tid[ii]) == 0);
-    }
-
-    return SUCCESS;
-}
-
-/*
- * Make sure we can arithmetic operations to set the initial value of a key and
- * to then later decrement that value
- */
-static enum test_result decr_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *test_item = NULL;
-    const char* key = "decr_test_key";
-    item *result_item;
-    uint64_t res = 0;
-    cb_assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0,
-                        PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    cb_assert(h1->arithmetic(h, NULL, key, (int)strlen(key), false, true, 0, 1,
-           0, &result_item, PROTOCOL_BINARY_RAW_BYTES, &res, 0 ) == ENGINE_SUCCESS);
-    cb_assert(res == 1);
-    h1->release(h, NULL, result_item);
-
-    cb_assert(h1->arithmetic(h, NULL, key, (int)strlen(key), false, false, 1, 0,
-           0, &result_item, PROTOCOL_BINARY_RAW_BYTES, &res, 0 ) == ENGINE_SUCCESS);
-    cb_assert(res == 0);
-    h1->release(h, NULL, result_item);
-
-    h1->release(h, NULL, test_item);
-    return SUCCESS;
-}
-
-/*
  * Make sure we can successfully perform a flush operation and that any item
  * stored before the flush can not be retrieved
  */
@@ -905,9 +801,6 @@ engine_test_t* get_tests(void) {
         TEST_CASE("expiry test", expiry_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("remove test", remove_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("release test", release_test, NULL, NULL, NULL, NULL, NULL),
-        TEST_CASE("incr test", incr_test, NULL, NULL, NULL, NULL, NULL),
-        TEST_CASE("mt incr test", mt_incr_test, NULL, NULL, NULL, NULL, NULL),
-        TEST_CASE("decr test", decr_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("flush test", flush_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("get item info test", get_item_info_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("set cas test", item_set_cas_test, NULL, NULL, NULL, NULL, NULL),

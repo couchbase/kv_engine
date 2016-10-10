@@ -241,33 +241,6 @@ static ENGINE_ERROR_CODE mock_store(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static ENGINE_ERROR_CODE mock_arithmetic(ENGINE_HANDLE* handle,
-                                         const void* cookie,
-                                         const void* key,
-                                         const int nkey,
-                                         const bool increment,
-                                         const bool create,
-                                         const uint64_t delta,
-                                         const uint64_t initial,
-                                         const rel_time_t exptime,
-                                         item  **result_item,
-                                         uint8_t datatype,
-                                         uint64_t *result,
-                                         uint16_t vbucket) {
-    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
-    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->arithmetic,
-                               get_engine_from_handle(handle),
-                               static_cast<const void*>(c),
-                               key, nkey, increment, create,
-                               delta, initial, exptime, result_item,
-                               datatype, result, vbucket);
-
-    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
-
-    check_and_destroy_mock_connstruct(c, cookie);
-    return ret;
-}
-
 static ENGINE_ERROR_CODE mock_flush(ENGINE_HANDLE* handle,
                                     const void* cookie, time_t when) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
@@ -758,7 +731,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
         mock_engine->me.release = mock_release;
         mock_engine->me.get = mock_get;
         mock_engine->me.store = mock_store;
-        mock_engine->me.arithmetic = mock_arithmetic;
         mock_engine->me.flush = mock_flush;
         mock_engine->me.get_stats = mock_get_stats;
         mock_engine->me.reset_stats = mock_reset_stats;

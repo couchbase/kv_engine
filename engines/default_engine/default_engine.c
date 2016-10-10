@@ -59,19 +59,6 @@ static ENGINE_ERROR_CODE default_store(ENGINE_HANDLE* handle,
                                        uint64_t *cas,
                                        ENGINE_STORE_OPERATION operation,
                                        uint16_t vbucket);
-static ENGINE_ERROR_CODE default_arithmetic(ENGINE_HANDLE* handle,
-                                            const void* cookie,
-                                            const void* key,
-                                            const int nkey,
-                                            const bool increment,
-                                            const bool create,
-                                            const uint64_t delta,
-                                            const uint64_t initial,
-                                            const rel_time_t exptime,
-                                            item **item,
-                                            uint8_t datatype,
-                                            uint64_t *result,
-                                            uint16_t vbucket);
 static ENGINE_ERROR_CODE default_flush(ENGINE_HANDLE* handle,
                                        const void* cookie, time_t when);
 static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
@@ -148,7 +135,6 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     engine->engine.get_stats = default_get_stats;
     engine->engine.reset_stats = default_reset_stats;
     engine->engine.store = default_store;
-    engine->engine.arithmetic = default_arithmetic;
     engine->engine.flush = default_flush;
     engine->engine.unknown_command = default_unknown_command;
     engine->engine.item_set_cas = item_set_cas;
@@ -432,27 +418,6 @@ static ENGINE_ERROR_CODE default_store(ENGINE_HANDLE* handle,
     VBUCKET_GUARD(engine, vbucket);
     return store_item(engine, get_real_item(item), cas, operation,
                       cookie);
-}
-
-static ENGINE_ERROR_CODE default_arithmetic(ENGINE_HANDLE* handle,
-                                            const void* cookie,
-                                            const void* key,
-                                            const int nkey,
-                                            const bool increment,
-                                            const bool create,
-                                            const uint64_t delta,
-                                            const uint64_t initial,
-                                            const rel_time_t exptime,
-                                            item **item,
-                                            uint8_t datatype,
-                                            uint64_t *result,
-                                            uint16_t vbucket) {
-   struct default_engine *engine = get_handle(handle);
-   VBUCKET_GUARD(engine, vbucket);
-
-   return arithmetic(engine, cookie, key, nkey, increment,
-                     create, delta, initial, engine->server.core->realtime(exptime),
-                     item, datatype, result);
 }
 
 static ENGINE_ERROR_CODE default_flush(ENGINE_HANDLE* handle,

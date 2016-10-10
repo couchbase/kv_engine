@@ -846,7 +846,6 @@ struct EngineGlue {
         interface.get_stats = get_stats;
         interface.reset_stats = reset_stats;
         interface.store = store;
-        interface.arithmetic = NULL;
         interface.flush = flush;
         interface.unknown_command = unknown_command;
         interface.tap_notify = tap_notify;

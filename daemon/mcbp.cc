@@ -272,6 +272,8 @@ protocol_binary_response_status engine_error_2_mcbp_protocol_error(
         return PROTOCOL_BINARY_RESPONSE_EBUSY;
     case ENGINE_AUTH_STALE:
         return PROTOCOL_BINARY_RESPONSE_AUTH_STALE;
+    case ENGINE_DELTA_BADVAL:
+        return PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL;
     default:
         ret = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }

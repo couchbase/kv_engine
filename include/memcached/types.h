@@ -56,6 +56,11 @@ extern "C" {
         ENGINE_NO_BUCKET = 0x10, /**< The connection isn't bound to an engine */
         ENGINE_EBUSY = 0x11, /**< Can't serve the request.. busy */
         ENGINE_AUTH_STALE = 0x12, /**< Auth data stale */
+        /**
+         * The value stored in the document is incompatible with the
+         * requested operation.
+         */
+        ENGINE_DELTA_BADVAL = 0x13,
         ENGINE_FAILED = 0xff  /**< Generic failue. */
     } ENGINE_ERROR_CODE;
 

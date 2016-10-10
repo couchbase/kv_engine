@@ -3971,176 +3971,392 @@ static void delete_executor(McbpConnection* c, void*) {
     }
 }
 
-static void arithmetic_executor(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_incr*>(binary_get_request(
-        c));
-    ENGINE_ERROR_CODE ret;
-    uint64_t delta;
-    uint64_t initial;
-    rel_time_t expiration;
-    char* key;
-    size_t nkey;
-    bool incr;
-    uint64_t result;
 
-    (void)packet;
+/**
+ * The ArithmeticCommandContext is responsible for implementing an
+ * increment and decrement operation.
+ *
+ * The rules are as follows:
+ *    * Increment may overflow and wrap
+ *    * Decrement always stop at 0
+ *    * If the variable isn't found, create it unless exptime is set to
+ *      0xffffffff
+ */
+class ArithmeticCommandContext : public CommandContext {
+public:
+    /**
+     * The internal state diagram for performing an arithmetic operation.
+     * We've got two different paths through the state diagram depending
+     * if the counter exists or not:
+     *
+     * If the document exists:
+     *
+     *    GetItem -> AllocateNewItem -> StoreItem -> SendResult -> Done
+     *
+     * If the document doesn't already exists:
+     *
+     *    GetItem -> CreateNewItem -> StoreNewItem -> SendResult -> Done
+     *
+     * Each state may terminate the state machine immediately if the
+     * underlying engine returns an error. In that case the error is
+     * sent back to the client.
+     *
+     * As a special note if StoreNewItem returns that the key exists (or
+     * StoreItem returns EEXISTS) there is a race condition. In that
+     * case we restart the operation. To avoid a potential race to run
+     * forever we give up after a 10 times.
+     */
+    enum class State {
+        GetItem,
+        CreateNewItem,
+        StoreNewItem,
+        AllocateNewItem,
+        StoreItem,
+        SendResult,
+        Reset,
+        Done
+    };
 
-    switch (c->getCmd()) {
-    case PROTOCOL_BINARY_CMD_INCREMENTQ:
-        c->setNoReply(true);
-        break;
-    case PROTOCOL_BINARY_CMD_INCREMENT:
-        c->setNoReply(false);
-        break;
-    case PROTOCOL_BINARY_CMD_DECREMENTQ:
-        c->setNoReply(true);
-        break;
-    case PROTOCOL_BINARY_CMD_DECREMENT:
-        c->setNoReply(false);
-        break;
-    default:
-        LOG_WARNING(c,
-                    "%u: arithmetic_executor: cmd (which is %d) is not a valid "
-                        "ARITHMETIC variant - closing connection", c->getCmd());
-        c->setState(conn_closing);
-        return;
+    ArithmeticCommandContext(McbpConnection& c,
+                             const protocol_binary_request_incr& req)
+        : connection(c),
+          key((char*)req.bytes + sizeof(req.bytes),
+              ntohs(req.message.header.request.keylen)),
+          request(req),
+          vbucket(ntohs(req.message.header.request.vbucket)),
+          cas(ntohll(req.message.header.request.cas)),
+          olditem(nullptr),
+          newitem(nullptr),
+          state(State::GetItem) {
     }
 
-    if (req->message.header.request.cas != 0) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
-        return;
+    ENGINE_ERROR_CODE step() {
+        ENGINE_ERROR_CODE ret;
+        do {
+            switch (state) {
+            case State::GetItem:
+                ret = getItem();
+                break;
+            case State::AllocateNewItem:
+                ret = allocateNewItem();
+                break;
+            case State::CreateNewItem:
+                ret = createNewItem();
+                break;
+            case State::StoreItem:
+                ret = storeItem();
+                break;
+            case State::StoreNewItem:
+                ret = storeNewItem();
+                break;
+            case State::SendResult:
+                ret = sendResult();
+                break;
+            case State::Reset:
+                ret = reset();
+                break;
+            case State::Done:
+                return ENGINE_SUCCESS;
+            }
+        } while (ret == ENGINE_SUCCESS);
+
+        if (ret != ENGINE_EWOULDBLOCK) {
+            SLAB_INCR(&connection, cmd_set, key, nkey);
+        }
+
+        return ret;
     }
 
-    /* fix byteorder in the request */
-    delta = ntohll(req->message.body.delta);
-    initial = ntohll(req->message.body.initial);
-    expiration = ntohl(req->message.body.expiration);
-    key = binary_get_key(c);
-    nkey = c->binary_header.request.keylen;
-    incr = (c->getCmd() == PROTOCOL_BINARY_CMD_INCREMENT ||
-            c->getCmd() == PROTOCOL_BINARY_CMD_INCREMENTQ);
+    ~ArithmeticCommandContext() {
+        reset();
+    }
 
-    if (settings.getVerbose() > 1) {
-        char buffer[1024];
-        ssize_t nw;
-        nw = key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
-                                     incr ? "INCR" : "DECR", key, nkey);
-        if (nw != -1) {
-            int nf = snprintf(buffer + nw, sizeof(buffer) - nw,
-                              " %" PRIu64 ", %" PRIu64 ", %" PRIu64 "\n",
-                              delta, initial, (uint64_t)expiration);
-            if (nf > 0 && nf < (sizeof(buffer) - nw)) {
-                LOG_DEBUG(c, "%s", buffer);
+private:
+    ENGINE_ERROR_CODE getItem() {
+        auto ret = bucket_get(&connection, &olditem, key.buf, key.len, vbucket);
+        if (ret == ENGINE_SUCCESS) {
+            oldItemInfo.info.clsid = 0;
+            oldItemInfo.info.nvalue = 1;
+
+            if (!bucket_get_item_info(&connection, olditem,
+                                      &oldItemInfo.info)) {
+                return ENGINE_FAILED;
+            }
+
+            uint64_t oldcas = oldItemInfo.info.cas;
+            if (cas != 0 && cas != oldcas) {
+                return ENGINE_KEY_EEXISTS;
+            }
+
+            if (mcbp::datatype::is_compressed(oldItemInfo.info.datatype)) {
+                try {
+                    if (!cb::compression::inflate(
+                        cb::compression::Algorithm::Snappy,
+                        (const char*)oldItemInfo.info.value[0].iov_base,
+                        oldItemInfo.info.value[0].iov_len,
+                        buffer)) {
+                        return ENGINE_FAILED;
+                    }
+                } catch (const std::bad_alloc&) {
+                    return ENGINE_ENOMEM;
+                }
+            }
+
+            // Move on to the next state
+            state = State::AllocateNewItem;
+        } else if (ret == ENGINE_KEY_ENOENT) {
+            if (ntohl(request.message.body.expiration) != 0xffffffff) {
+                state = State::CreateNewItem;
+                ret = ENGINE_SUCCESS;
+            } else {
+                if ((connection.getCmd() == PROTOCOL_BINARY_CMD_INCREMENT) ||
+                    (connection.getCmd() == PROTOCOL_BINARY_CMD_INCREMENTQ)) {
+                    STATS_INCR(&connection, incr_misses, key.buf, key.len);
+                } else {
+                    STATS_INCR(&connection, decr_misses, key.buf, key.len);
+                }
             }
         }
+
+        return ret;
     }
 
-    ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
+    ENGINE_ERROR_CODE createNewItem() {
+        const std::string value{std::to_string(ntohll(request.message.body.initial))};
+        result = ntohll(request.message.body.initial);
+        ENGINE_ERROR_CODE ret;
+        ret = bucket_allocate(&connection, &newitem, key.buf, key.len,
+                              value.size(), oldItemInfo.info.flags,
+                              ntohl(request.message.body.expiration),
+                              PROTOCOL_BINARY_RAW_BYTES);
 
-    item* item = NULL;
+        if (ret == ENGINE_SUCCESS) {
+            // copy the data over..
+            newItemInfo.info.clsid = 0;
+            newItemInfo.info.nvalue = 1;
+
+            if (!bucket_get_item_info(&connection, newitem,
+                                      &newItemInfo.info)) {
+                return ENGINE_FAILED;
+            }
+
+            memcpy(static_cast<char*>(newItemInfo.info.value[0].iov_base),
+                   value.data(), value.size());
+            state = State::StoreNewItem;
+        }
+        return ret;
+    }
+
+    ENGINE_ERROR_CODE storeNewItem() {
+        uint64_t ncas = cas;
+        auto ret = bucket_store(&connection, newitem, &ncas, OPERATION_ADD,
+                                vbucket);
+
+        if (ret == ENGINE_SUCCESS) {
+            connection.setCAS(ncas);
+            state = State::SendResult;
+        } else if (ret == ENGINE_KEY_EEXISTS && cas == 0) {
+            state = State::Reset;
+            ret = ENGINE_SUCCESS;
+        }
+
+        return ret;
+    }
+
+    ENGINE_ERROR_CODE allocateNewItem() {
+        // Set ptr to point to the beginning of the input buffer.
+        size_t oldsize = oldItemInfo.info.nbytes;
+        const char* ptr = static_cast<char*>(oldItemInfo.info.value[0].iov_base);
+        // If the input buffer was compressed we should use the temporary
+        // allocated buffer instead
+        if (buffer.len != 0) {
+            ptr = static_cast<char*>(buffer.data.get());
+            oldsize = buffer.len;
+        }
+
+        const std::string payload(ptr, oldsize);
+
+        uint64_t oldval;
+        if (!safe_strtoull(payload.c_str(), &oldval)) {
+            return ENGINE_DELTA_BADVAL;
+        }
+
+        uint64_t delta = ntohll(request.message.body.delta);
+
+        // perform the op ;)
+        if (request.message.header.request.opcode == PROTOCOL_BINARY_CMD_INCREMENT ||
+            request.message.header.request.opcode == PROTOCOL_BINARY_CMD_INCREMENTQ) {
+            // increment
+            oldval += delta;
+        } else {
+            if (oldval < delta) {
+                oldval = 0;
+            } else {
+                oldval -= delta;
+            }
+        }
+        result = oldval;
+        const std::string value = std::to_string(result);
+
+        auto ret = bucket_allocate(&connection, &newitem, key.buf, key.len,
+                                   value.size(),
+                                   oldItemInfo.info.flags,
+                                   ntohl(request.message.body.expiration),
+                                   PROTOCOL_BINARY_RAW_BYTES);
+
+        if (ret == ENGINE_SUCCESS) {
+            // copy the data over..
+            newItemInfo.info.clsid = 0;
+            newItemInfo.info.nvalue = 1;
+
+            if (!bucket_get_item_info(&connection, newitem,
+                                      &newItemInfo.info)) {
+                return ENGINE_FAILED;
+            }
+
+            memcpy(reinterpret_cast<char*>(newItemInfo.info.value[0].iov_base),
+                   value.data(),
+                   value.size());
+
+            bucket_item_set_cas(&connection, newitem, oldItemInfo.info.cas);
+
+            state = State::StoreItem;
+        }
+        return ret;
+    }
+
+    ENGINE_ERROR_CODE storeItem() {
+        uint64_t ncas = cas;
+        auto ret = bucket_store(&connection, newitem, &ncas, OPERATION_CAS,
+                                vbucket);
+
+        if (ret == ENGINE_SUCCESS) {
+            connection.setCAS(ncas);
+            state = State::SendResult;
+        } else if (ret == ENGINE_KEY_EEXISTS && cas == 0) {
+            state = State::Reset;
+            ret = ENGINE_SUCCESS;
+        }
+
+        return ret;
+    }
+
+    ENGINE_ERROR_CODE sendResult() {
+        update_topkeys(key.buf, key.len, &connection);
+        state = State::Done;
+
+        if (connection.isNoReply()) {
+            connection.setState(conn_new_cmd);
+            return ENGINE_SUCCESS;
+        }
+
+        if (connection.isSupportsMutationExtras()) {
+            newItemInfo.info.nvalue = 1;
+            if (!bucket_get_item_info(&connection, newitem,
+                                      &newItemInfo.info)) {
+                return ENGINE_FAILED;
+            }
+
+            // Response includes vbucket UUID and sequence number
+            // (in addition to value)
+            mutation_descr_t extras;
+            extras.vbucket_uuid = htonll(newItemInfo.info.vbucket_uuid);
+            extras.seqno = htonll(newItemInfo.info.seqno);
+            result = ntohll(result);
+
+            if (!mcbp_response_handler(nullptr, 0,
+                                       &extras, sizeof(extras),
+                                       &result, sizeof(result),
+                                       PROTOCOL_BINARY_RAW_BYTES,
+                                       PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                       connection.getCAS(),
+                                       connection.getCookie())) {
+                return ENGINE_FAILED;
+            }
+        } else {
+            result = htonll(result);
+            if (!mcbp_response_handler(nullptr, 0,
+                                       nullptr, 0,
+                                       &result, sizeof(result),
+                                       PROTOCOL_BINARY_RAW_BYTES,
+                                       PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                       connection.getCAS(),
+                                       connection.getCookie())) {
+                return ENGINE_FAILED;
+            }
+        }
+
+        mcbp_write_and_free(&connection, &connection.getDynamicBuffer());
+        return ENGINE_SUCCESS;
+    }
+
+    ENGINE_ERROR_CODE reset() {
+        if (olditem != nullptr) {
+            bucket_release_item(&connection, olditem);
+            olditem = nullptr;
+        }
+        if (newitem != nullptr) {
+            bucket_release_item(&connection, newitem);
+            newitem = nullptr;
+        }
+
+        if (buffer.len > 0) {
+            buffer.len = 0;
+            buffer.data.reset();
+        }
+        state = State::GetItem;
+        return ENGINE_SUCCESS;
+    }
+
+    McbpConnection& connection;
+    const const_sized_buffer key;
+    const protocol_binary_request_incr& request;
+    const uint64_t cas;
+    item* olditem;
+    item_info_holder oldItemInfo;
+    item* newitem;
+    item_info_holder newItemInfo;
+    cb::compression::Buffer buffer;
+    uint64_t result;
+    const uint16_t vbucket;
+    State state;
+};
+
+static void arithmetic_executor(McbpConnection* c, void* packet) {
+    if (c->getCommandContext() == nullptr) {
+        auto* req = reinterpret_cast<protocol_binary_request_incr*>(packet);
+        auto* context = new ArithmeticCommandContext(*c, *req);
+        c->setCommandContext(context);
+    }
+
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
+
     if (ret == ENGINE_SUCCESS) {
-        ret = c->getBucketEngine()->arithmetic(c->getBucketEngineAsV0(),
-                                               c->getCookie(),
-                                               key, (int)nkey, incr,
-                                               req->message.body.expiration !=
-                                               0xffffffff,
-                                               delta, initial, expiration,
-                                               &item,
-                                               c->binary_header.request.datatype,
-                                               &result,
-                                               c->binary_header.request.vbucket);
+        auto* context = reinterpret_cast<ArithmeticCommandContext*>(c->getCommandContext());
+        ret = context->step();
     }
 
     switch (ret) {
-    case ENGINE_SUCCESS: {
-        /* Lookup the item's info for necessary metadata. */
-        item_info info;
-        info.nvalue = 1;
-        if (!bucket_get_item_info(c, item, &info)) {
-            bucket_release_item(c, item);
-            LOG_WARNING(c, "%u: Failed to get item info", c->getId());
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
-            return;
-        }
-        c->setCAS(info.cas);
-
-        char* body_buf =
-            (c->write.buf + sizeof(protocol_binary_response_incr));
-        if (c->isSupportsMutationExtras()) {
-            /* Response includes vbucket UUID and sequence number (in addition
-             * to value) */
-            struct mutation_extras_plus_body {
-                mutation_descr_t extras;
-                uint64_t value;
-            };
-            auto* body = reinterpret_cast<mutation_extras_plus_body*>(body_buf);
-            body->extras.vbucket_uuid = htonll(info.vbucket_uuid);
-            body->extras.seqno = htonll(info.seqno);
-            body->value = htonll(result);
-            mcbp_write_response(c, body, sizeof(body->extras), 0,
-                                sizeof(*body));
-        } else {
-            /* Just send value back. */
-            uint64_t* const value_ptr = (uint64_t*)body_buf;
-            *value_ptr = htonll(result);
-            mcbp_write_response(c, value_ptr, 0, 0, sizeof(*value_ptr));
-        }
-
-        /* No further need for item; release it. */
-        bucket_release_item(c, item);
-
-        if (incr) {
-            STATS_INCR(c, incr_hits, key, nkey);
-        } else {
-            STATS_INCR(c, decr_hits, key, nkey);
-        }
-        update_topkeys(key, nkey, c);
-        break;
-    }
-    case ENGINE_KEY_EEXISTS:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
-        break;
-    case ENGINE_KEY_ENOENT:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
-        if ((c->getCmd() == PROTOCOL_BINARY_CMD_INCREMENT) ||
-            (c->getCmd() == PROTOCOL_BINARY_CMD_INCREMENTQ)) {
-            STATS_INCR(c, incr_misses, key, nkey);
-        } else {
-            STATS_INCR(c, decr_misses, key, nkey);
-        }
-        break;
-    case ENGINE_ENOMEM:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
-        break;
-    case ENGINE_TMPFAIL:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ETMPFAIL);
-        break;
-    case ENGINE_EINVAL:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL);
-        break;
-    case ENGINE_NOT_STORED:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_STORED);
-        break;
-    case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
-        break;
-    case ENGINE_ENOTSUP:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-        break;
-    case ENGINE_NOT_MY_VBUCKET:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
+    case ENGINE_SUCCESS:
         break;
     case ENGINE_EWOULDBLOCK:
+        c->setAiostat(ENGINE_EWOULDBLOCK);
         c->setEwouldblock(true);
-        break;
-    default:
-        LOG_WARNING(c,
-                    "%u: arithmetic_executor: unexpected response (0x%x) "
-                        "from engine->arithmetic()", ret);
+        return;
+    case ENGINE_DISCONNECT:
         c->setState(conn_closing);
-        break;
+        return;
+    default:
+        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+        return;
     }
+}
+
+static void arithmeticq_executor(McbpConnection* c, void* packet) {
+    c->setNoReply(true);
+    arithmetic_executor(c, packet);
 }
 
 static void get_cmd_timer_executor(McbpConnection* c, void* packet) {
@@ -4666,9 +4882,9 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors(void) {
     executors[PROTOCOL_BINARY_CMD_DELETEQ] = delete_executor;
     executors[PROTOCOL_BINARY_CMD_STAT] = stat_executor;
     executors[PROTOCOL_BINARY_CMD_INCREMENT] = arithmetic_executor;
-    executors[PROTOCOL_BINARY_CMD_INCREMENTQ] = arithmetic_executor;
+    executors[PROTOCOL_BINARY_CMD_INCREMENTQ] = arithmeticq_executor;
     executors[PROTOCOL_BINARY_CMD_DECREMENT] = arithmetic_executor;
-    executors[PROTOCOL_BINARY_CMD_DECREMENTQ] = arithmetic_executor;
+    executors[PROTOCOL_BINARY_CMD_DECREMENTQ] = arithmeticq_executor;
     executors[PROTOCOL_BINARY_CMD_GET_CMD_TIMER] = get_cmd_timer_executor;
     executors[PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN] = set_ctrl_token_executor;
     executors[PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN] = get_ctrl_token_executor;

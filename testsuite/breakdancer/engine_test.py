@@ -105,30 +105,6 @@ class Flush(Action):
 class Delay(Flush):
     pass
 
-class Incr(Action):
-
-    preconditions = [ExistsAsNumber()]
-    effect = ArithmeticEffect(1)
-    postconditions = [ExistsAsNumber()]
-
-class Decr(Action):
-
-    preconditions = [ExistsAsNumber()]
-    effect = ArithmeticEffect(-1)
-    postconditions = [ExistsAsNumber()]
-
-class IncrWithDefault(Action):
-
-    preconditions = [MaybeExistsAsNumber()]
-    effect = ArithmeticEffect(1)
-    postconditions = [ExistsAsNumber()]
-
-class DecrWithDefault(Action):
-
-    preconditions = [MaybeExistsAsNumber()]
-    effect = ArithmeticEffect(-1)
-    postconditions = [ExistsAsNumber()]
-
 ######################################################################
 # Driver
 ######################################################################

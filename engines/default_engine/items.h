@@ -235,20 +235,6 @@ ENGINE_ERROR_CODE store_item(struct default_engine *engine,
                              ENGINE_STORE_OPERATION operation,
                              const void *cookie);
 
-ENGINE_ERROR_CODE arithmetic(struct default_engine *engine,
-                             const void* cookie,
-                             const void* key,
-                             const int nkey,
-                             const bool increment,
-                             const bool create,
-                             const uint64_t delta,
-                             const uint64_t initial,
-                             const rel_time_t exptime,
-                             item **item,
-                             uint8_t datatype,
-                             uint64_t *result);
-
-
 /**
  * Run a single scrub loop for the engine.
  * @param engine handle to the storage engine
