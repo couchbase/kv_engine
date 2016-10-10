@@ -27,6 +27,7 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${CMAKE_CURRENT_BINARY_DIR})
 
 INCLUDE_DIRECTORIES(AFTER
+                    ${gmock_SOURCE_DIR}/include
                     ${gtest_SOURCE_DIR}/include)
 
 CHECK_INCLUDE_FILES("alloca.h" HAVE_ALLOCA_H)
@@ -245,7 +246,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
   ${FOREST_KVSTORE_SOURCE}
   $<TARGET_OBJECTS:memory_tracking>
   ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc)
-TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests couchstore cJSON dirutils forestdb gtest JSON_checker mcd_util platform
+TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests couchstore cJSON dirutils forestdb gmock gtest JSON_checker mcd_util platform
                       ${MALLOC_LIBRARIES})
 
 ADD_EXECUTABLE(ep-engine_atomic_ptr_test
