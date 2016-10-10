@@ -330,13 +330,14 @@ TEST_F(ConnectionTest, test_maybesendnoop_buffer_full) {
         mock_noop_return_engine_e2big, nullptr, nullptr};
 
     producer.setNoopEnabled(true);
-    producer.setNoopSendTime(21);
+    const auto send_time = ep_current_time() + 21;
+    producer.setNoopSendTime(send_time);
     ENGINE_ERROR_CODE ret = producer.maybeSendNoop(&producers);
     EXPECT_EQ(ENGINE_E2BIG, ret)
     << "maybeSendNoop not returning ENGINE_E2BIG";
     EXPECT_FALSE(producer.getNoopPendingRecv())
     << "Waiting for noop acknowledgement";
-    EXPECT_EQ(21, producer.getNoopSendTime())
+    EXPECT_EQ(send_time, producer.getNoopSendTime())
     << "SendTime has been updated";
     destroy_mock_cookie(cookie);
 }
@@ -348,13 +349,14 @@ TEST_F(ConnectionTest, test_maybesendnoop_send_noop) {
 
     std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(handle, engine_v1));
     producer.setNoopEnabled(true);
-    producer.setNoopSendTime(21);
+    const auto send_time = ep_current_time() + 21;
+    producer.setNoopSendTime(send_time);
     ENGINE_ERROR_CODE ret = producer.maybeSendNoop(producers.get());
     EXPECT_EQ(ENGINE_WANT_MORE, ret)
     << "maybeSendNoop not returning ENGINE_WANT_MORE";
     EXPECT_TRUE(producer.getNoopPendingRecv())
     << "Not waiting for noop acknowledgement";
-    EXPECT_NE(21, producer.getNoopSendTime())
+    EXPECT_NE(send_time, producer.getNoopSendTime())
     << "SendTime has not been updated";
     destroy_mock_cookie(cookie);
 }
@@ -367,28 +369,30 @@ TEST_F(ConnectionTest, test_maybesendnoop_noop_already_pending) {
 
     std::unique_ptr<dcp_message_producers> producers(
             get_dcp_producers(handle, engine_v1));
+    const auto send_time = ep_current_time();
     mock_time_travel(engine->getConfiguration().getDcpIdleTimeout() + 1);
     producer.setNoopEnabled(true);
-    producer.setNoopSendTime(0);
+    producer.setNoopSendTime(send_time);
     ENGINE_ERROR_CODE ret = producer.maybeSendNoop(producers.get());
     // Check to see if a noop was sent i.e. returned ENGINE_WANT_MORE
     EXPECT_EQ(ENGINE_WANT_MORE, ret)
         << "maybeSendNoop not returning ENGINE_WANT_MORE";
     EXPECT_TRUE(producer.getNoopPendingRecv())
         << "Not awaiting noop acknowledgement";
-    EXPECT_NE(0, producer.getNoopSendTime())
+    EXPECT_NE(send_time, producer.getNoopSendTime())
         << "SendTime has not been updated";
     ret = producer.maybeSendNoop(producers.get());
     // Check to see if a noop was not sent i.e. returned ENGINE_FAILED
     EXPECT_EQ(ENGINE_FAILED, ret)
         << "maybeSendNoop not returning ENGINE_FAILED";
-    producer.setLastReceiveTime(0);
+    producer.setLastReceiveTime(send_time);
     ret = producer.maybeDisconnect();
     // Check to see if we want to disconnect i.e. returned ENGINE_DISCONNECT
     EXPECT_EQ(ENGINE_DISCONNECT, ret)
         << "maybeDisconnect not returning ENGINE_DISCONNECT";
-    producer.setLastReceiveTime(engine->getConfiguration().
-                                getDcpIdleTimeout() + 1);
+    producer.setLastReceiveTime(send_time +
+                                engine->getConfiguration().getDcpIdleTimeout() +
+                                1);
     ret = producer.maybeDisconnect();
     // Check to see if we don't want to disconnect i.e. returned ENGINE_FAILED
     EXPECT_EQ(ENGINE_FAILED, ret)
@@ -405,13 +409,14 @@ TEST_F(ConnectionTest, test_maybesendnoop_not_enabled) {
 
     std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(handle, engine_v1));
     producer.setNoopEnabled(false);
-    producer.setNoopSendTime(21);
+    const auto send_time = ep_current_time() + 21;
+    producer.setNoopSendTime(send_time);
     ENGINE_ERROR_CODE ret = producer.maybeSendNoop(producers.get());
     EXPECT_EQ(ENGINE_FAILED, ret)
     << "maybeSendNoop not returning ENGINE_FAILED";
     EXPECT_FALSE(producer.getNoopPendingRecv())
     << "Waiting for noop acknowledgement";
-    EXPECT_EQ(21, producer.getNoopSendTime())
+    EXPECT_EQ(send_time, producer.getNoopSendTime())
     << "SendTime has been updated";
     destroy_mock_cookie(cookie);
 }
