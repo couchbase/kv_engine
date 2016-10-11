@@ -368,21 +368,6 @@ extern "C" {
             usleep(10);
         }
     }
-
-    static void conc_incr_thread(void *arg) {
-        struct handle_pair *hp = static_cast<handle_pair *>(arg);
-        uint64_t result = 0;
-
-        for (int i = 0; i < 10; i++) {
-            item *it = NULL;
-            checkeq(ENGINE_SUCCESS,
-                    hp->h1->arithmetic(hp->h, NULL, "key", 3, true, true, 1, 1,
-                                       0, &it, PROTOCOL_BINARY_RAW_BYTES,
-                                       &result, 0),
-                    "Failed arithmetic operation");
-            hp->h1->release(hp->h, NULL, it);
-        }
-    }
 }
 
 static enum test_result test_conc_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -412,52 +397,6 @@ static enum test_result test_conc_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_warmup_complete(h, h1);
 
     cb_assert(0 == get_int_stat(h, h1, "ep_warmup_dups"));
-
-    return SUCCESS;
-}
-
-static enum test_result test_conc_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    const int n_threads = 10;
-    cb_thread_t threads[n_threads];
-    struct handle_pair hp = {h, h1};
-    item *i = NULL;
-    checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET, "key", "0", &i),
-            "store failure");
-    h1->release(h, NULL, i);
-
-    for (int i = 0; i < n_threads; i++) {
-        int r = cb_create_thread(&threads[i], conc_incr_thread, &hp, 0);
-        cb_assert(r == 0);
-    }
-
-    for (int i = 0; i < n_threads; i++) {
-        int r = cb_join_thread(threads[i]);
-        cb_assert(r == 0);
-    }
-
-    check_key_value(h, h1, "key", "100", 3);
-
-    return SUCCESS;
-}
-
-static enum test_result test_conc_incr_new_itm (ENGINE_HANDLE *h,
-                                                ENGINE_HANDLE_V1 *h1) {
-    const int n_threads = 10;
-    cb_thread_t threads[n_threads];
-    struct handle_pair hp = {h, h1};
-
-    for (int i = 0; i < n_threads; i++) {
-        int r = cb_create_thread(&threads[i], conc_incr_thread, &hp, 0);
-        cb_assert(r == 0);
-    }
-
-    for (int i = 0; i < n_threads; i++) {
-        int r = cb_join_thread(threads[i]);
-        cb_assert(r == 0);
-    }
-
-    check_key_value(h, h1, "key", "100", 3);
 
     return SUCCESS;
 }
@@ -669,15 +608,9 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             last_datatype.load(),
             "Expected datatype to be RAW BYTES");
 
-    /* try an incr operation followed by a delete, both of which should fail */
+    /* try an delete operation which should fail */
     uint64_t cas = 0;
-    uint64_t result = 0;
     i = NULL;
-    checkeq(ENGINE_TMPFAIL,
-            h1->arithmetic(h, NULL, key, 2, true, false, 1, 1, 0,
-                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0),
-            "Incr failed");
-    h1->release(h, NULL, i);
 
     checkeq(ENGINE_TMPFAIL, del(h, h1, key, 0, 0), "Delete failed");
 
@@ -1009,157 +942,6 @@ static enum test_result test_replace(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(high_seqno + 1, info.seqno, "Expected valid sequence number");
 
     check_key_value(h, h1, "key", "somevalue", 9);
-    return SUCCESS;
-}
-
-static enum test_result test_incr_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    uint64_t result = 0;
-    item *i = NULL;
-    h1->arithmetic(h, NULL, "key", 3, true, false, 1, 0, 0,
-                   &i, PROTOCOL_BINARY_RAW_BYTES, &result,
-                   0);
-    h1->release(h, NULL, i);
-    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"),
-            "Expected to not find key");
-    return SUCCESS;
-}
-
-
-// The following test requires a configuration where the bloom filter is
-// disabled.  If the bloom filter is enabled it can check to see if the item
-// exists and therefore avoids creating a temporary item.
-
-static enum test_result test_incr_mb20425(ENGINE_HANDLE *h,
-                                          ENGINE_HANDLE_V1 *h1) {
-    uint64_t result = 0;
-    item *i = NULL;
-
-    checkeq(ENGINE_SUCCESS,
-            h1->arithmetic(h, NULL, "key", 3, true, true, 1, 1, 0, &i,
-                           PROTOCOL_BINARY_RAW_BYTES, &result, 0),
-            "Failed arithmetic operation");
-    h1->release(h, NULL, i);
-    checkeq(uint64_t(1), result,
-            "Failed to set initial value in arithmetic operation");
-    return SUCCESS;
-}
-
-static enum test_result test_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    const void *cookie = testHarness.create_cookie();
-    testHarness.set_datatype_support(cookie, true);
-
-    uint64_t result = 0;
-    item *i = NULL;
-    const char *key = "key";
-    const char *val = "1";
-    checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_ADD,key, val, &i,
-                  0, 0, 3600, checkUTF8JSON((const unsigned char *)val, 1)),
-            "Failed to add value.");
-    h1->release(h, NULL, i);
-
-    checkeq(ENGINE_SUCCESS,
-            h1->arithmetic(h, NULL, key, 3, true, false, 1, 1, 0,
-                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0),
-            "Failed to incr value.");
-    h1->release(h, NULL, i);
-
-    check_key_value(h, h1, key, "2", 1);
-
-    // Check datatype of counter
-    checkeq(ENGINE_SUCCESS,
-            h1->get(h, cookie, &i, key, 3, 0),
-            "Unable to get stored item");
-    item_info info;
-    info.nvalue = 1;
-    h1->get_item_info(h, cookie, i, &info);
-    h1->release(h, cookie, i);
-    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
-            info.datatype, "Invalid datatype");
-
-    testHarness.destroy_cookie(cookie);
-
-    return SUCCESS;
-}
-
-static enum test_result test_incr_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    const void *cookie = testHarness.create_cookie();
-    testHarness.set_datatype_support(cookie, false);
-
-    uint64_t result = 0;
-    item *i = NULL;
-    checkeq(ENGINE_SUCCESS,
-            h1->arithmetic(h, cookie, "key", 3, true, true, 1, 1, 0,
-                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0),
-            "Failed first arith");
-    h1->release(h, cookie, i);
-    checkeq(static_cast<uint64_t>(1), result, "Failed result verification.");
-
-    // Check datatype of counter
-    checkeq(ENGINE_SUCCESS,
-            h1->get(h, cookie, &i, "key", 3, 0),
-            "Unable to get stored item");
-    item_info info;
-    info.nvalue = 1;
-    h1->get_item_info(h, cookie, i, &info);
-    h1->release(h, cookie, i);
-    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
-            info.datatype,
-            "Invalid datatype");
-
-    checkeq(ENGINE_SUCCESS,
-            h1->arithmetic(h, cookie, "key", 3, true, false, 1, 1, 0,
-                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0),
-            "Failed second arith.");
-    h1->release(h, cookie, i);
-    checkeq(static_cast<uint64_t>(2), result,
-            "Failed second result verification.");
-
-    checkeq(ENGINE_SUCCESS,
-            h1->arithmetic(h, cookie, "key", 3, true, true, 1, 1, 0,
-                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0),
-            "Failed third arith.");
-    h1->release(h, cookie, i);
-    checkeq(static_cast<uint64_t>(3), result,
-            "Failed third result verification.");
-
-    check_key_value(h, h1, "key", "3", 1);
-
-    // Check datatype of counter
-    checkeq(ENGINE_SUCCESS,
-            h1->get(h, cookie, &i, "key", 3, 0),
-            "Unable to get stored item");
-    info.nvalue = 1;
-    h1->get_item_info(h, cookie, i, &info);
-    h1->release(h, cookie, i);
-    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
-            info.datatype,
-            "Invalid datatype");
-
-    testHarness.destroy_cookie(cookie);
-    return SUCCESS;
-}
-
-static enum test_result test_bug2799(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    uint64_t result = 0;
-    item *i = NULL;
-    checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_ADD, "key", "1", &i),
-            "Failed to add value.");
-    h1->release(h, NULL, i);
-
-    checkeq(ENGINE_SUCCESS,
-            h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
-                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0),
-            "Failed to incr value.");
-    h1->release(h, NULL, i);
-
-    check_key_value(h, h1, "key", "2", 1);
-
-    testHarness.time_travel(3617);
-
-    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"),
-            "Expected missing key");
     return SUCCESS;
 }
 
@@ -1733,13 +1515,8 @@ static enum test_result test_bug7023(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static enum test_result test_mb3169(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    uint64_t result(0);
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "set", "value", &i, 0, 0),
-            "Failed to store a value");
-    h1->release(h, NULL, i);
-    checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET, "incr", "0", &i, 0, 0),
             "Failed to store a value");
     h1->release(h, NULL, i);
     checkeq(ENGINE_SUCCESS,
@@ -1751,14 +1528,13 @@ static enum test_result test_mb3169(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             "Failed to store a value");
     h1->release(h, NULL, i);
 
-    wait_for_stat_to_be(h, h1, "ep_total_persisted", 4);
+    wait_for_stat_to_be(h, h1, "ep_total_persisted", 3);
 
     evict_key(h, h1, "set", 0, "Ejected.");
-    evict_key(h, h1, "incr", 0, "Ejected.");
     evict_key(h, h1, "delete", 0, "Ejected.");
     evict_key(h, h1, "get", 0, "Ejected.");
 
-    checkeq(4, get_int_stat(h, h1, "ep_num_non_resident"),
+    checkeq(3, get_int_stat(h, h1, "ep_num_non_resident"),
             "Expected four items to be resident");
 
     checkeq(ENGINE_SUCCESS,
@@ -1767,17 +1543,8 @@ static enum test_result test_mb3169(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
 
-    checkeq(3, get_int_stat(h, h1, "ep_num_non_resident"),
-          "Expected mutation to mark item resident");
-
-    checkeq(ENGINE_SUCCESS,
-            h1->arithmetic(h, NULL, "incr", 4, true, false, 1, 1, 0,
-                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0),
-            "Incr failed");
-    h1->release(h, NULL, i);
-
     checkeq(2, get_int_stat(h, h1, "ep_num_non_resident"),
-            "Expected incr to mark item resident");
+          "Expected mutation to mark item resident");
 
     checkeq(ENGINE_SUCCESS, del(h, h1, "delete", 0, 0),
             "Delete failed");
@@ -2155,10 +1922,6 @@ BaseTestCase testsuite_testcases[] = {
                  NULL, prepare, cleanup),
         TestCase("concurrent set", test_conc_set, test_setup,
                  teardown, NULL, prepare, cleanup),
-        TestCase("concurrent incr", test_conc_incr, test_setup,
-                 teardown, NULL, prepare, cleanup),
-        TestCase("test_conc_incr_new_itm", test_conc_incr_new_itm, test_setup,
-                 teardown, NULL, prepare, cleanup),
         TestCase("multi set", test_multi_set, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("set+get hit", test_set_get_hit, test_setup,
@@ -2191,16 +1954,6 @@ BaseTestCase testsuite_testcases[] = {
                  prepare, cleanup),
         TestCase("replace", test_replace, test_setup, teardown,
                  NULL, prepare, cleanup),
-        TestCase("incr miss", test_incr_miss, test_setup,
-                 teardown, NULL, prepare, cleanup),
-        TestCase("incr (MB-20425)", test_incr_mb20425, test_setup,
-                 teardown, "bfilter_enabled=false", prepare, cleanup),
-        TestCase("incr", test_incr, test_setup, teardown, NULL,
-                 prepare, cleanup),
-        TestCase("incr with default", test_incr_default,
-                 test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("incr expiry", test_bug2799, test_setup,
-                 teardown, NULL, prepare, cleanup),
         TestCase("test touch", test_touch, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("test touch (MB-7342)", test_touch_mb7342, test_setup, teardown,

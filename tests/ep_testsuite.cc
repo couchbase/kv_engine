@@ -646,49 +646,6 @@ static enum test_result test_vb_get_replica(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_wrong_vb_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    uint64_t result;
-    item *i = NULL;
-    int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
-    checkeq(ENGINE_NOT_MY_VBUCKET,
-            h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
-                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 1),
-            "Expected not my vbucket.");
-    h1->release(h, NULL, i);
-    wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
-    return SUCCESS;
-}
-
-static enum test_result test_vb_incr_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    const void *cookie = testHarness.create_cookie();
-    testHarness.set_ewouldblock_handling(cookie, false);
-    uint64_t result;
-    item *i = NULL;
-    check(set_vbucket_state(h, h1, 1, vbucket_state_pending),
-          "Failed to set vbucket state.");
-    checkeq(ENGINE_EWOULDBLOCK,
-            h1->arithmetic(h, cookie, "key", 3, true, false, 1, 1, 0,
-                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 1),
-            "Expected wouldblock.");
-    h1->release(h, NULL, i);
-    testHarness.destroy_cookie(cookie);
-    return SUCCESS;
-}
-
-static enum test_result test_vb_incr_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    uint64_t result;
-    item *i = NULL;
-    check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
-    int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
-    checkeq(ENGINE_NOT_MY_VBUCKET,
-            h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
-                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 1),
-            "Expected not my bucket.");
-    h1->release(h, NULL, i);
-    wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
-    return SUCCESS;
-}
-
 static enum test_result test_wrong_vb_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return test_wrong_vb_mutation(h, h1, OPERATION_SET);
 }
@@ -3713,27 +3670,6 @@ static enum test_result test_disk_gt_ram_paged_rm(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_disk_gt_ram_incr(ENGINE_HANDLE *h,
-                                              ENGINE_HANDLE_V1 *h1) {
-    uint64_t result = 0;
-    item *i = NULL;
-    wait_for_persisted_value(h, h1, "k1", "13");
-
-    evict_key(h, h1, "k1");
-
-    checkeq(ENGINE_SUCCESS,
-            h1->arithmetic(h, NULL, "k1", 2, true, false, 1, 1, 0,
-                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0),
-            "Failed to incr value.");
-    h1->release(h, NULL, i);
-
-    check_key_value(h, h1, "k1", "14", 2);
-
-    cb_assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
-
-    return SUCCESS;
-}
-
 static enum test_result test_disk_gt_ram_update_paged_out(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
     wait_for_persisted_value(h, h1, "k1", "some value");
@@ -3795,22 +3731,6 @@ extern "C" {
 
         delete td;
     }
-
-    static void bg_incr_thread(void *arg) {
-        ThreadData *td(static_cast<ThreadData*>(arg));
-
-        usleep(2600); // Exacerbate race condition.
-
-        uint64_t result = 0;
-        item *i = NULL;
-        checkeq(ENGINE_SUCCESS,
-                td->h1->arithmetic(td->h, NULL, "k1", 2, true, false, 1, 1, 0,
-                                   &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0),
-              "Failed to incr value.");
-        td->h1->release(td->h, NULL, i);
-
-        delete td;
-    }
 }
 
 static enum test_result test_disk_gt_ram_set_race(ENGINE_HANDLE *h,
@@ -3830,40 +3750,6 @@ static enum test_result test_disk_gt_ram_set_race(ENGINE_HANDLE *h,
 
     // Should have bg_fetched, but discarded the old value.
     cb_assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
-
-    cb_assert(cb_join_thread(tid) == 0);
-
-    return SUCCESS;
-}
-
-static enum test_result test_disk_gt_ram_incr_race(ENGINE_HANDLE *h,
-                                                   ENGINE_HANDLE_V1 *h1) {
-    wait_for_persisted_value(h, h1, "k1", "13");
-    cb_assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
-
-    set_param(h, h1, protocol_binary_engine_param_flush, "bg_fetch_delay", "3");
-
-    evict_key(h, h1, "k1");
-
-    cb_thread_t tid;
-    if (cb_create_thread(&tid, bg_incr_thread, new ThreadData(h, h1), 0) != 0) {
-        abort();
-    }
-
-    // Value is as it was before.
-    check_key_value(h, h1, "k1", "13", 2);
-
-    // Should have bg_fetched to retrieve it even with a concurrent
-    // incr.  We *may* at this point have also completed the incr.
-    // 1 == get only, 2 == get+incr.
-    cb_assert(get_int_stat(h, h1, "ep_bg_fetched") >= 1);
-
-    // Give incr time to finish (it's doing another background fetch)
-    wait_for_stat_change(h, h1, "ep_bg_fetched", 1);
-    wait_for_stat_change(h, h1, "ep_total_enqueued", 1);
-
-    // The incr mutated the value.
-    check_key_value(h, h1, "k1", "14", 2);
 
     cb_assert(cb_join_thread(tid) == 0);
 
@@ -5603,19 +5489,6 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
           "Expected to be able to getl on first try");
     curr_cas = last_cas;
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
-    prev_cas = curr_cas;
-
-    uint64_t result = 0;
-    checkeq(ENGINE_SUCCESS,
-            h1->arithmetic(h, NULL, "key2", 4, true, true, 1, 1, 0,
-                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0),
-            "Failed arithmetic operation");
-    h1->release(h, NULL, i);
-
-    check(get_item_info(h, h1, &info, "key2"), "Error in getting item info");
-    curr_cas = info.cas;
-    check(curr_cas > prev_cas, "CAS is not monotonically increasing");
-
     return SUCCESS;
 }
 
@@ -7168,11 +7041,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("disk>RAM delete paged-out", test_disk_gt_ram_delete_paged_out,
                  test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("disk>RAM paged-out incr", test_disk_gt_ram_incr,
-                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("disk>RAM set bgfetch race", test_disk_gt_ram_set_race,
-                 test_setup, teardown, NULL, prepare, cleanup, true),
-        TestCase("disk>RAM incr bgfetch race", test_disk_gt_ram_incr_race,
                  test_setup, teardown, NULL, prepare, cleanup, true),
         TestCase("disk>RAM delete bgfetch race", test_disk_gt_ram_rm_race,
                  test_setup, teardown, NULL, prepare, cleanup, true),
@@ -7189,19 +7058,7 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("disk>RAM delete paged-out (wal)",
                  test_disk_gt_ram_delete_paged_out, test_setup,
                  teardown, MULTI_DISPATCHER_CONFIG, prepare, cleanup),
-        TestCase("disk>RAM paged-out incr (wal)", test_disk_gt_ram_incr,
-                 test_setup, teardown, MULTI_DISPATCHER_CONFIG,
-                 prepare, cleanup),
-        TestCase("disk>RAM incr bgfetch race (wal)", test_disk_gt_ram_incr_race,
-                 test_setup, teardown, MULTI_DISPATCHER_CONFIG,
-                 prepare, cleanup, true),
         // vbucket negative tests
-        TestCase("vbucket incr (dead)", test_wrong_vb_incr,
-                 test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("vbucket incr (pending)", test_vb_incr_pending,
-                 test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("vbucket incr (replica)", test_vb_incr_replica,
-                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket get (dead)", test_wrong_vb_get,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket get (pending)", test_vb_get_pending,

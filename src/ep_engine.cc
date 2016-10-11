@@ -248,45 +248,6 @@ extern "C" {
         return err_code;
     }
 
-    static ENGINE_ERROR_CODE EvpArithmetic(ENGINE_HANDLE* handle,
-                                           const void* cookie,
-                                           const void* key,
-                                           const int nkey,
-                                           const bool increment,
-                                           const bool create,
-                                           const uint64_t delta,
-                                           const uint64_t initial,
-                                           const rel_time_t exptime,
-                                           item **itm,
-                                           uint8_t datatype,
-                                           uint64_t *result,
-                                           uint16_t vbucket)
-    {
-        if (!mcbp::datatype::is_valid(datatype)) {
-            LOG(EXTENSION_LOG_WARNING, "Invalid value for datatype "
-                " (Arithmetic)");
-            return ENGINE_EINVAL;
-        }
-
-        if (!mcbp::datatype::is_raw(datatype)) {
-            LOG(EXTENSION_LOG_WARNING, "Arithmetic operations can only be"
-                "performed on raw data!");
-            return ENGINE_EINVAL;
-        }
-
-        ENGINE_ERROR_CODE ecode = getHandle(handle)->arithmetic(cookie, key,
-                                                                nkey,
-                                                                increment,
-                                                                create, delta,
-                                                                initial,
-                                                                exptime, itm,
-                                                                datatype,
-                                                                result,
-                                                                vbucket);
-        releaseHandle(handle);
-        return ecode;
-    }
-
     static ENGINE_ERROR_CODE EvpFlush(ENGINE_HANDLE* handle,
                                       const void* cookie, time_t when)
     {
@@ -2012,7 +1973,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::get_stats = EvpGetStats;
     ENGINE_HANDLE_V1::reset_stats = EvpResetStats;
     ENGINE_HANDLE_V1::store = EvpStore;
-    ENGINE_HANDLE_V1::arithmetic = EvpArithmetic;
     ENGINE_HANDLE_V1::flush = EvpFlush;
     ENGINE_HANDLE_V1::unknown_command = EvpUnknownCommand;
     ENGINE_HANDLE_V1::get_tap_iterator = EvpGetTapIterator;
