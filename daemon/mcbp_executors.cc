@@ -259,11 +259,6 @@ void add_stat(const void* cookie, ADD_STAT add_stat_callback,
 /* return server specific stats only */
 static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
                                       McbpConnection* c) {
-#ifdef WIN32
-    long pid = GetCurrentProcessId();
-#else
-    long pid = (long)getpid();
-#endif
     rel_time_t now = mc_time_get_current_time();
 
     struct thread_stats thread_stats;
@@ -275,7 +270,7 @@ static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
     try {
         std::lock_guard<std::mutex> guard(stats_mutex);
 
-        add_stat(cookie, add_stat_callback, "pid", pid);
+        add_stat(cookie, add_stat_callback, "pid", long(cb_getpid()));
         add_stat(cookie, add_stat_callback, "uptime", now);
         add_stat(cookie, add_stat_callback, "stat_reset",
                  (const char*)reset_stats_time);
