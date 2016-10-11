@@ -859,7 +859,7 @@ private:
     void resetCursors(bool resetPersistenceCursor = true);
 
     void putCursorsInCollapsedChk(CursorIdToPositionMap& cursors,
-                                  std::list<Checkpoint*>::iterator chkItr);
+                                  const std::list<Checkpoint*>::iterator chkItr);
 
     queued_item createCheckpointItem(uint64_t id, uint16_t vbid,
                                      queue_op checkpoint_op);

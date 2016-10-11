@@ -1521,11 +1521,13 @@ void CheckpointManager::collapseCheckpoints(uint64_t id) {
 
 void CheckpointManager::
 putCursorsInCollapsedChk(CursorIdToPositionMap& cursors,
-                         std::list<Checkpoint*>::iterator chkItr) {
+                         const std::list<Checkpoint*>::iterator chkItr) {
     size_t i;
     Checkpoint *chk = *chkItr;
     auto cit = chk->begin();
     auto last = chk->begin();
+    // Stage 1 - iterate over the checkpoint items, checking if any of the
+    // cursors were positioned at that item.
     for (i = 0; cit != chk->end(); ++i, ++cit) {
         uint64_t id = chk->getMutationIdForKey((*cit)->getKey(),
                                                (*cit)->isCheckPointMetaItem());
@@ -1559,6 +1561,9 @@ putCursorsInCollapsedChk(CursorIdToPositionMap& cursors,
         }
     }
 
+    // For any remaining cursors which were not repositioned in stage 1,
+    // position either at the checkpoint start (if
+    // fromBeginningOnChkCollapse==true) or otherwise at the checkpoint end.
     for (auto& cur : cursors) {
         cursor_index::iterator cc = connCursors.find(cur.first);
         if (cc == connCursors.end()) {
