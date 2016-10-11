@@ -128,8 +128,8 @@ public:
         double lower = static_cast<double>(stats.mem_low_wat);
         double high = static_cast<double>(stats.mem_high_wat);
         if (vb->getState() == vbucket_state_active && current < high &&
-            store.cachedResidentRatio.activeRatio <
-            store.cachedResidentRatio.replicaRatio)
+            store.getActiveResidentRatio() <
+            store.getReplicaResidentRatio())
         {
             return false;
         }

@@ -4177,6 +4177,14 @@ void EventuallyPersistentStore::setCursorDroppingLowerUpperThresholds(
                     ((double)(config.getCursorDroppingUpperMark()) / 100)));
 }
 
+size_t EventuallyPersistentStore::getActiveResidentRatio() const {
+    return cachedResidentRatio.activeRatio.load();
+}
+
+size_t EventuallyPersistentStore::getReplicaResidentRatio() const {
+    return cachedResidentRatio.replicaRatio.load();
+}
+
 std::ostream& operator<<(std::ostream& os,
                          const EventuallyPersistentStore::Position& pos) {
     os << "vbucket:" << pos.vbucket_id;

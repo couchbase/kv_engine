@@ -919,6 +919,10 @@ public:
     //Check if there were any out-of-memory errors during warmup
     bool isWarmupOOMFailure(void);
 
+    size_t getActiveResidentRatio() const;
+
+    size_t getReplicaResidentRatio() const;
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be
@@ -1032,15 +1036,9 @@ protected:
     uint16_t decrCommitInterval(uint16_t shardId);
 
     friend class Warmup;
-    friend class Flusher;
-    friend class BGFetchCallback;
-    friend class VKeyStatBGFetchCallback;
     friend class PersistenceCallback;
-    friend class Deleter;
     friend class VBCBAdaptor;
     friend class VBucketVisitorTask;
-    friend class ItemPager;
-    friend class PagingVisitor;
 
     EventuallyPersistentEngine     &engine;
     EPStats                        &stats;
