@@ -54,7 +54,7 @@ namespace BucketValidator {
         }
 
         // Verify that the bucket name only consists of legal characters
-        for (int ii : name) {
+        for (const uint8_t ii : name) {
             if (!(isupper(ii) || islower(ii) || isdigit(ii))) {
                 switch (ii) {
                 case '_':

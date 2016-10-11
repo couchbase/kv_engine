@@ -17,20 +17,12 @@
 #include "pwconv.h"
 #include "user.h"
 
-#include <cJSON_utils.h>
+#include <fstream>
 #include <iterator>
-#include <platform/strerror.h>
+#include <platform/memorymap.h>
 #include <sstream>
-#include <vector>
 
-
-void cbsasl_pwconv(const std::string& ifile, const std::string& ofile) {
-    FILE* sfile = fopen(ifile.c_str(), "r");
-    if (sfile == nullptr) {
-        throw std::runtime_error(
-            "Failed to open [" + ifile + "]: " + cb_strerror());
-    }
-
+void cbsasl_pwconv(std::istream& is, std::ostream& os) {
     unique_cJSON_ptr root(cJSON_CreateObject());
     if (root.get() == nullptr) {
         throw std::bad_alloc();
@@ -46,45 +38,89 @@ void cbsasl_pwconv(const std::string& ifile, const std::string& ofile) {
      * Lines should look like...
      *   <NAME><whitespace><PASSWORD><whitespace><CONFIG><optional_whitespace>
      */
-    char up[128];
-    while (fgets(up, sizeof(up), sfile)) {
-        if (up[0] != '#') {
-            using std::istream_iterator;
-            using std::vector;
+    std::vector<char> up(1024);
 
-            std::istringstream iss(up);
-            vector<std::string> tokens{istream_iterator<std::string>{iss},
-                                       istream_iterator<std::string>{}};
+    while (is.getline(up.data(), up.size()).good()) {
+        using std::istream_iterator;
+        using std::vector;
 
-            if (tokens.empty()) {
-                // empty line
-                continue;
-            }
-            std::string passwd;
-            if (tokens.size() > 1) {
-                passwd = tokens[1];
-            }
+        std::istringstream iss(up.data());
+        vector<std::string> tokens{istream_iterator<std::string>{iss},
+                                   istream_iterator<std::string>{}};
 
-            Couchbase::User u(Couchbase::User(tokens[0], passwd));
-            cJSON_AddItemToArray(users, u.to_json().release());
+        if (tokens.empty()) {
+            // empty line
+            continue;
         }
+        std::string passwd;
+        if (tokens.size() > 1) {
+            passwd = tokens[1];
+        }
+
+        Couchbase::User u(Couchbase::User(tokens[0], passwd));
+        cJSON_AddItemToArray(users, u.to_json().release());
     }
 
-    fclose(sfile);
+    os << to_string(root, true) << std::endl;
+}
 
-    FILE* of = fopen(ofile.c_str(), "w");
-    if (of == nullptr) {
-        throw std::runtime_error(
-            "Failed to open [" + ofile + "]: " + cb_strerror());
+void cbsasl_pwconv(const std::string& ifile, const std::string& ofile) {
+    std::stringstream inputstream(cbsasl_read_password_file(ifile));
+    std::stringstream outputstream;
+
+    cbsasl_pwconv(inputstream, outputstream);
+
+    cbsasl_write_password_file(ofile, outputstream.str());
+}
+
+std::string cbsasl_read_password_file(const std::string& filename) {
+    Couchbase::MemoryMappedFile map(filename.c_str(), false, true);
+    map.open();
+    std::string ret(reinterpret_cast<char*>(map.getRoot()),
+                    map.getSize());
+    map.close();
+
+    // The password file may be encrypted
+    auto* env = getenv("COUCHBASE_CBSASL_SECRETS");
+    if (env == nullptr) {
+        return ret;
+    } else {
+        using namespace Couchbase;
+
+        unique_cJSON_ptr json(cJSON_Parse(env));
+        if (json.get() == nullptr) {
+            throw std::runtime_error("cbsasl_read_password_file: Invalid json"
+                                         " specified in COUCHBASE_CBSASL_SECRETS");
+        }
+
+        auto decoded = Crypto::decrypt(json.get(),
+                                       reinterpret_cast<const uint8_t*>(ret.data()),
+                                       ret.size());
+
+        return std::string{(const char*)decoded.data(), decoded.size()};
+    }
+}
+
+void cbsasl_write_password_file(const std::string& filename,
+                                const std::string& content) {
+    std::ofstream of(filename, std::ios::binary);
+
+    auto* env = getenv("COUCHBASE_CBSASL_SECRETS");
+    if (env == nullptr) {
+        of.write(content.data(), content.size());
+    } else {
+        unique_cJSON_ptr json(cJSON_Parse(env));
+        if (json.get() == nullptr) {
+            throw std::runtime_error("cbsasl_write_password_file: Invalid json"
+                                         " specified in COUCHBASE_CBSASL_SECRETS");
+        }
+        using namespace Couchbase;
+        auto enc = Crypto::encrypt(json.get(),
+                                   reinterpret_cast<const uint8_t*>(content.data()),
+                                   content.size());
+        of.write((const char*)enc.data(), enc.size());
     }
 
-    auto text = to_string(root, true);
-    auto nw = fprintf(of, "%s\n", text.c_str());
-    fclose(of);
-
-    if (nw < int(text.size())) {
-        std::string errmsg("Failed to write [" + ofile + "]: " + cb_strerror());
-        std::remove(ofile.c_str());
-        throw std::runtime_error(errmsg);
-    }
+    of.flush();
+    of.close();
 }

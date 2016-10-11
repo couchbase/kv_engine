@@ -15,30 +15,20 @@
  *   limitations under the License.
  */
 #include "password_database.h"
+#include "pwconv.h"
 
-#include <fstream>
 #include <cJSON_utils.h>
-#include <string>
 #include <memory>
+#include <string>
 
-static std::string readFile(const std::string& filename) {
-    std::ifstream myfile(filename.c_str());
-    if (myfile.is_open()) {
-        std::string str((std::istreambuf_iterator<char>(myfile)),
-                        std::istreambuf_iterator<char>());
-        myfile.close();
-        return str;
-    } else {
-        throw std::runtime_error("Failed to open: " + filename);
-    }
-}
 
 Couchbase::PasswordDatabase::PasswordDatabase(const std::string& content,
                                               bool file) {
     unique_cJSON_ptr unique_json;
 
     if (file) {
-        unique_json.reset(cJSON_Parse(readFile(content).c_str()));
+        auto c = cbsasl_read_password_file(content);
+        unique_json.reset(cJSON_Parse(c.c_str()));
     } else {
         unique_json.reset(cJSON_Parse(content.c_str()));
     }

@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <cJSON_utils.h>
 
 namespace Couchbase {
     namespace Crypto {
@@ -69,5 +70,115 @@ namespace Couchbase {
         CBSASL_PUBLIC_API
         std::vector<uint8_t> digest(const Algorithm algorithm,
                                     const std::vector<uint8_t>& data);
+
+
+        enum class Cipher {
+            AES_256_cbc
+        };
+
+        Cipher to_cipher(const std::string& str);
+
+        /**
+         * Encrypt the specified data by using a given cipher
+         *
+         * @param cipher The cipher to use
+         * @param key The key used for encryption
+         * @param ivec The IV to use for encryption
+         * @param data Pointer to the data to encrypt
+         * @param length the length of the data to encrypt
+         * @return The encrypted data
+         */
+        CBSASL_PUBLIC_API
+        std::vector<uint8_t> encrypt(const Cipher& cipher,
+                                     const std::vector<uint8_t>& key,
+                                     const std::vector<uint8_t>& iv,
+                                     const uint8_t* data,
+                                     size_t length);
+
+        /**
+         * Encrypt the specified data by using a given cipher
+         *
+         * @param cipher The cipher to use
+         * @param key The key used for encryption
+         * @param ivec The IV to use for encryption
+         * @param data The data to encrypt
+         * @return The encrypted data
+         */
+        CBSASL_PUBLIC_API
+        std::vector<uint8_t> encrypt(const Cipher& cipher,
+                                     const std::vector<uint8_t>& key,
+                                     const std::vector<uint8_t>& iv,
+                                     const std::vector<uint8_t>& data);
+
+        /**
+         * Encrypt the specified data
+         *
+         * {
+         *    "cipher" : "name of the cipher",
+         *    "key" : "base64 of the raw key",
+         *    "iv" : "base64 of the raw iv"
+         * }
+         *
+         * @param meta the json description of the encryption to use
+         * @param data Pointer to the data to encrypt
+         * @param length the length of the data to encrypt
+         * @return The encrypted data
+         */
+        CBSASL_PUBLIC_API
+        std::vector<uint8_t> encrypt(const cJSON* json,
+                                     const uint8_t* data,
+                                     size_t length);
+
+        /**
+         * Decrypt the specified data by using a given cipher
+         *
+         * @param cipher The cipher to use
+         * @param key The key used for encryption
+         * @param ivec The IV to use for encryption
+         * @param data pointer to the data to decrypt
+         * @param length the length of the data to decrypt
+         * @return The decrypted data
+         */
+        CBSASL_PUBLIC_API
+        std::vector<uint8_t> decrypt(const Cipher& cipher,
+                                     const std::vector<uint8_t>& key,
+                                     const std::vector<uint8_t>& iv,
+                                     const uint8_t* data,
+                                     size_t length);
+
+        /**
+         * Decrypt the specified data by using a given cipher
+         *
+         * @param cipher The cipher to use
+         * @param key The key used for encryption
+         * @param ivec The IV to use for encryption
+         * @param data The data to decrypt
+         * @return The decrypted data
+         */
+        CBSASL_PUBLIC_API
+        std::vector<uint8_t> decrypt(const Cipher& cipher,
+                                     const std::vector<uint8_t>& key,
+                                     const std::vector<uint8_t>& iv,
+                                     const std::vector<uint8_t>& data);
+
+        /**
+         * Decrypt the specified data
+         *
+         * {
+         *    "cipher" : "name of the cipher",
+         *    "key" : "base64 of the raw key",
+         *    "iv" : "base64 of the raw iv"
+         * }
+         *
+         * @param meta the json description of the encryption to use
+         * @param data Pointer to the data to decrypt
+         * @param length the length of the data to decrypt
+         * @return The decrypted data
+         */
+        CBSASL_PUBLIC_API
+        std::vector<uint8_t> decrypt(const cJSON* json,
+                                     const uint8_t* data,
+                                     size_t length);
+
     }
 }

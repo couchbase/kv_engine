@@ -36,22 +36,6 @@ using GetCallbackFunc = std::function<ENGINE_ERROR_CODE(
         std::string& value)>;
 
 /**
- * Callback for getting the TCMalloc aggressive decommit value
- */
-static ENGINE_ERROR_CODE getTCMallocAggrMemoryDecommit(Connection* c,
-                                                       const StrToStrMap&,
-                                                       std::string& value) {
-    size_t int_value;
-    if (AllocHooks::get_allocator_property(
-            "tcmalloc.aggressive_memory_decommit", &int_value)) {
-        value = std::to_string(int_value);
-        return ENGINE_SUCCESS;
-    } else {
-        return ENGINE_EINVAL;
-    }
-}
-
-/**
  * Function interface for ioctl_set callbacks
  */
 using SetCallbackFunc = std::function<ENGINE_ERROR_CODE(
@@ -71,30 +55,6 @@ static ENGINE_ERROR_CODE setReleaseFreeMemory(Connection* c,
 }
 
 /**
- * Callback for setting the TCMalloc aggressive decommit value
- */
-static ENGINE_ERROR_CODE setTCMallocAggrMemoryDecommit(Connection* c,
-                                                       const StrToStrMap&,
-                                                       const std::string& value) {
-    size_t intval;
-    try {
-        intval = std::stol(value);
-    } catch (const std::exception&) {
-        return ENGINE_EINVAL;
-    }
-
-    if (AllocHooks::set_allocator_property(
-            "tcmalloc.aggressive_memory_decommit", intval)) {
-        LOG_NOTICE(c,
-            "%u: IOCTL_SET: 'tcmalloc.aggressive_memory_decommit' set to %ld",
-            c->getId(), intval);
-        return ENGINE_SUCCESS;
-    } else {
-        return ENGINE_EINVAL;
-    }
-}
-
-/**
  * Callback for setting the trace status of a specific connection
  */
 static ENGINE_ERROR_CODE setTraceConnection(Connection* c,
@@ -108,7 +68,6 @@ static ENGINE_ERROR_CODE setTraceConnection(Connection* c,
 }
 
 static const std::unordered_map<std::string, GetCallbackFunc> ioctl_get_map {
-    {"tcmalloc.aggressive_memory_decommit", getTCMallocAggrMemoryDecommit},
     {"trace.config", ioctlGetTracingConfig},
     {"trace.status", ioctlGetTracingStatus},
     {"trace.dump", ioctlGetTracingDump},
@@ -135,7 +94,6 @@ ENGINE_ERROR_CODE ioctl_get_property(Connection* c,
 
 
 static const std::unordered_map<std::string, SetCallbackFunc> ioctl_set_map {
-    {"tcmalloc.aggressive_memory_decommit", setTCMallocAggrMemoryDecommit},
     {"release_free_memory", setReleaseFreeMemory},
     {"trace.connection", setTraceConnection},
     {"trace.config", ioctlSetTracingConfig},

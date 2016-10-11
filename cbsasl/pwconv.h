@@ -16,6 +16,8 @@
  */
 #pragma once
 
+#include <istream>
+#include <ostream>
 #include <string>
 
 /**
@@ -28,3 +30,40 @@
  * @throws std::bad_alloc for memory issues
  */
 void cbsasl_pwconv(const std::string& ifile, const std::string& ofile);
+
+/**
+ * Convert an isasl.pw style password stream to the json-style
+ * password stream
+ *
+ * @param ifile input stream
+ * @param ofile output stream
+ * @throws std::bad_alloc for memory issues
+ */
+void cbsasl_pwconv(std::istream& is, std::ostream& os);
+
+/**
+ * Read the password file from the specified filename.
+ *
+ * If the environment variable `COUCHBASE_CBSASL_SECRETS` is set it
+ * contains the cipher, key and iv to use to decrypt the file.
+ *
+ * @param filename the name of the file to read
+ * @return the content of the file
+ * @throws std::exception if an error occurs while reading or decrypting
+ *                        the content
+ */
+std::string cbsasl_read_password_file(const std::string& filename);
+
+/**
+ * Write the password data to the specified filename.
+ *
+ * If the environment variable `COUCHBASE_CBSASL_SECRETS` is set it
+ * contains the cipher, key and iv to use to encrypt the file.
+ *
+ * @param filename the name of the file to write
+ * @param content the data to write
+ * @throws std::exception if an error occurs while reading or encrypting
+ *                        the content
+ */
+void cbsasl_write_password_file(const std::string& filename,
+                                const std::string& content);

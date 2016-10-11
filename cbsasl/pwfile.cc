@@ -16,20 +16,11 @@
  */
 #include "pwfile.h"
 #include "password_database.h"
-#include "cbsasl_internal.h"
-#include "user.h"
 #include "pwconv.h"
 
-#include <cstring>
-#include <iterator>
 #include <mutex>
-#include <sstream>
-#include <stdexcept>
-#include <string>
-#include <unordered_map>
-#include <vector>
-#include <platform/strerror.h>
 #include <platform/timeutils.h>
+#include <sstream>
 
 class PasswordDatabaseManager {
 public:
@@ -66,12 +57,12 @@ bool find_user(const std::string& username, Couchbase::User& user) {
     return !user.isDummy();
 }
 
-cbsasl_error_t parse_user_db(const std::string content) {
+cbsasl_error_t parse_user_db(const std::string content, bool file) {
     try {
         using namespace Couchbase;
         auto start = gethrtime();
         std::unique_ptr<PasswordDatabase> db(
-            new PasswordDatabase(content, true));
+            new PasswordDatabase(content, file));
 
         std::string logmessage(
             "Loading [" + content + "] took " +
@@ -110,17 +101,20 @@ static cbsasl_error_t load_isasl_user_db(void) {
         return CBSASL_OK;
     }
 
-    std::string ofile(filename);
-    ofile.append(".pwconv");
+    std::string content;
+
     try {
-        cbsasl_pwconv(filename, ofile);
+        std::stringstream input(cbsasl_read_password_file(filename));
+        std::stringstream output;
+
+        cbsasl_pwconv(input, output);
+        content = output.str();
     } catch (std::runtime_error &e) {
         cbsasl_log(nullptr, cbsasl_loglevel_t::Error, e.what());
         return CBSASL_FAIL;
     }
 
-    auto ret = parse_user_db(ofile);
-    remove(ofile.c_str());
+    auto ret = parse_user_db(content, false);
 
     return ret;
 }
@@ -130,7 +124,7 @@ cbsasl_error_t load_user_db(void) {
         const char* filename = getenv("CBSASL_PWFILE");
 
         if (filename) {
-            return parse_user_db(filename);
+            return parse_user_db(filename, true);
         }
 
         return load_isasl_user_db();

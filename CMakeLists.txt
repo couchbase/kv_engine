@@ -107,18 +107,6 @@ ELSE (MEMORY_ALLOCATOR)
     SET(MALLOC_LIBRARIES "")
 ENDIF (MEMORY_ALLOCATOR)
 
-FUNCTION(APPEND_MALLOC_LINKER_FLAGS _target)
-    IF (("${COUCHBASE_MEMORY_ALLOCATOR}" STREQUAL "tcmalloc") AND WIN32)
-        SET(__ldflag "/INCLUDE:__tcmalloc")
-        GET_TARGET_PROPERTY(__existing_ldflags ${_target} LINK_FLAG)
-        IF (__existing_ldflags)
-            SET(__ldflags "${__existing_ldflags} ${__ldflags}")
-        ENDIF (__existing_ldflags)
-        SET_TARGET_PROPERTIES(memcached PROPERTIES LINK_FLAG
-                              "${__memcached_ldflags}")
-    ENDIF (("${COUCHBASE_MEMORY_ALLOCATOR}" STREQUAL "tcmalloc") AND WIN32)
-ENDFUNCTION()
-
 IF (BREAKPAD_FOUND)
     ADD_DEFINITIONS(-DHAVE_BREAKPAD)
     INCLUDE_DIRECTORIES(AFTER ${BREAKPAD_INCLUDE_DIR})
@@ -154,8 +142,7 @@ IF (BREAKPAD_FOUND)
 ENDIF (BREAKPAD_FOUND)
 
 
-IF (MEMORY_ALLOCATOR STREQUAL jemalloc OR MEMORY_ALLOCATOR STREQUAL tcmalloc OR
-    MEMORY_ALLOCATOR STREQUAL badmalloc)
+IF (MEMORY_ALLOCATOR STREQUAL jemalloc OR MEMORY_ALLOCATOR STREQUAL badmalloc)
     LIST(APPEND MEMORY_TRACKING_SRCS
          ${Memcached_SOURCE_DIR}/daemon/alloc_hooks_${MEMORY_ALLOCATOR}.cc)
 ELSE ()
