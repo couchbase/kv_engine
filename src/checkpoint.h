@@ -793,6 +793,17 @@ public:
 
 private:
 
+    // Pair of {sequence number, cursor at checkpoint start} used when
+    // updating cursor positions when collapsing checkpoints.
+    struct CursorPosition {
+        uint64_t seqno;
+        bool onCpktStart;
+    };
+
+    // Map of cursor name to position. Used when updating cursor positions
+    // when collapsing checkpoints.
+    using CursorIdToPositionMap = std::map<std::string, CursorPosition>;
+
     bool removeCursor_UNLOCKED(const std::string &name);
 
     bool registerCursor_UNLOCKED(
@@ -848,7 +859,7 @@ private:
 
     void resetCursors(bool resetPersistenceCursor = true);
 
-    void putCursorsInCollapsedChk(std::map<std::string, std::pair<uint64_t, bool> > &cursors,
+    void putCursorsInCollapsedChk(CursorIdToPositionMap& cursors,
                                   std::list<Checkpoint*>::iterator chkItr);
 
     queued_item createCheckpointItem(uint64_t id, uint16_t vbid,

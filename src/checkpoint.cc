@@ -878,7 +878,7 @@ void CheckpointManager::collapseClosedCheckpoints(
     // collapse those
     // closed checkpoints into one checkpoint to reduce the memory overhead.
     if (checkpointList.size() > 2) {
-        std::map<std::string, std::pair<uint64_t, bool> > slowCursors;
+        CursorIdToPositionMap slowCursors;
         std::set<std::string> fastCursors;
         std::list<Checkpoint*>::iterator lastClosedChk = checkpointList.end();
         --lastClosedChk; --lastClosedChk; // Move to the last closed chkpt.
@@ -923,8 +923,8 @@ void CheckpointManager::collapseClosedCheckpoints(
                     cursor_on_chk_start = true;
                 }
                 slowCursors[*nameItr] =
-                    std::make_pair((*rit)->getMutationIdForKey(key, isMetaItem),
-                                   cursor_on_chk_start);
+                    CursorPosition{(*rit)->getMutationIdForKey(key, isMetaItem),
+                                   cursor_on_chk_start};
             }
         }
         putCursorsInCollapsedChk(slowCursors, lastClosedChk);
@@ -1485,19 +1485,16 @@ void CheckpointManager::collapseCheckpoints(uint64_t id) {
                         "checkpointList is empty");
     }
 
-    std::map<std::string, std::pair<uint64_t, bool> > cursorMap;
-    cursor_index::iterator itr;
-    for (itr = connCursors.begin(); itr != connCursors.end(); itr++) {
-        Checkpoint* chk = *(itr->second.currentCheckpoint);
-        const std::string& key = (*(itr->second.currentPos))->getKey();
-        bool isMetaItem = (*(itr->second.currentPos))->isCheckPointMetaItem();
-        bool cursor_on_chk_start = false;
-        if ((*(itr->second.currentPos))->getOperation() == queue_op::checkpoint_start) {
-            cursor_on_chk_start = true;
-        }
-        cursorMap[itr->first.c_str()] =
-            std::make_pair(chk->getMutationIdForKey(key, isMetaItem),
-                           cursor_on_chk_start);
+    CursorIdToPositionMap cursorMap;
+    for (const auto itr : connCursors) {
+        const bool isMetaItem = (*(itr.second.currentPos))->isCheckPointMetaItem();
+        const bool cursor_on_chk_start = (*(itr.second.currentPos))->getOperation() ==
+                queue_op::checkpoint_start;
+
+        Checkpoint* chk = *(itr.second.currentCheckpoint);
+        const std::string& key = (*(itr.second.currentPos))->getKey();
+        cursorMap[itr.first] = CursorPosition{chk->getMutationIdForKey(key, isMetaItem),
+                                              cursor_on_chk_start};
     }
 
     setOpenCheckpointId_UNLOCKED(id);
@@ -1534,7 +1531,7 @@ void CheckpointManager::collapseCheckpoints(uint64_t id) {
 }
 
 void CheckpointManager::
-putCursorsInCollapsedChk(std::map<std::string, std::pair<uint64_t, bool> > &cursors,
+putCursorsInCollapsedChk(CursorIdToPositionMap& cursors,
                          std::list<Checkpoint*>::iterator chkItr) {
     size_t i;
     Checkpoint *chk = *chkItr;
@@ -1543,11 +1540,13 @@ putCursorsInCollapsedChk(std::map<std::string, std::pair<uint64_t, bool> > &curs
     for (i = 0; cit != chk->end(); ++i, ++cit) {
         uint64_t id = chk->getMutationIdForKey((*cit)->getKey(),
                                                (*cit)->isCheckPointMetaItem());
-        std::map<std::string, std::pair<uint64_t, bool> >::iterator mit = cursors.begin();
+        auto mit = cursors.begin();
         while (mit != cursors.end()) {
-            std::pair<uint64_t, bool> val = mit->second;
-            if (val.first < id || (val.first == id && val.second &&
-                (*last)->getOperation() == queue_op::checkpoint_start)) {
+            auto cursor_pos = mit->second;
+            if (cursor_pos.seqno < id ||
+                 (cursor_pos.seqno == id &&
+                  cursor_pos.onCpktStart &&
+                  (*last)->getOperation() == queue_op::checkpoint_start)) {
 
                 cursor_index::iterator cc = connCursors.find(mit->first);
                 if (cc == connCursors.end() ||
@@ -1571,9 +1570,8 @@ putCursorsInCollapsedChk(std::map<std::string, std::pair<uint64_t, bool> > &curs
         }
     }
 
-    std::map<std::string, std::pair<uint64_t, bool> >::iterator mit = cursors.begin();
-    for (; mit != cursors.end(); ++mit) {
-        cursor_index::iterator cc = connCursors.find(mit->first);
+    for (auto& cur : cursors) {
+        cursor_index::iterator cc = connCursors.find(cur.first);
         if (cc == connCursors.end()) {
             continue;
         }
