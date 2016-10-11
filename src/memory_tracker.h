@@ -38,7 +38,13 @@ class MemoryTracker {
 public:
     ~MemoryTracker();
 
-    static MemoryTracker* getInstance();
+    /* Creates the singleton instance of the MemoryTracker (if it doesn't exist).
+     * Thread-safe, so ok for multiple threads to attempt to create at the
+     * same time.
+     * @return The MemoryTracker singleton.
+     */
+    static MemoryTracker* getInstance(const ALLOCATOR_HOOKS_API& hook_api_);
+
     static void destroyInstance();
 
     void getAllocatorStats(std::map<std::string, size_t> &alloc_stats);
@@ -56,10 +62,17 @@ public:
     size_t getTotalHeapBytes();
 
 private:
-    MemoryTracker();
+    MemoryTracker(const ALLOCATOR_HOOKS_API& hooks_api_);
+
+    // Helper function for construction - connects the tracker
+    // to the memory allocator via alloc_hooks.
+    void connectHooks();
 
     // Function for the stats updater main loop.
     static void statsThreadMainLoop(void* arg);
+
+    static void NewHook(const void* ptr, size_t);
+    static void DeleteHook(const void* ptr);
 
     // Wheter or not we have the ability to accurately track memory allocations
     static bool tracking;
@@ -74,6 +87,10 @@ private:
     std::mutex mutex;
     // Condition variable used to signal shutdown to the stats thread.
     std::condition_variable shutdown_cv;
+
+    // Memory allocator hooks API to use (needed by New / Delete hook
+    // functions)
+    ALLOCATOR_HOOKS_API hooks_api;
 };
 
 #endif  // SRC_MEMORY_TRACKER_H_

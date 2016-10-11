@@ -17,7 +17,7 @@
 
 #include "config.h"
 
-#include <memcached/allocator_hooks.h>
+#include "mock_hooks_api.h"
 
 /*
  * A mock implementation of the getHooksApi() function (and associated
