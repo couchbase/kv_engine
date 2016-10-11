@@ -137,17 +137,27 @@ public:
           currentCheckpoint(),
           currentPos(),
           offset(0),
+          ckptMetaItemsRead(0),
           fromBeginningOnChkCollapse(false),
           sendCheckpointEndMetaItem(MustSendCheckpointEnd::YES) { }
 
+    /**
+     * @param offset_ Count of items (normal+meta) already read for *all*
+     *                checkpoints in the series.
+     * @param meta_items_read Count of meta_items already read for the
+     *                        given checkpoint.
+     */
     CheckpointCursor(const std::string &n,
                      std::list<Checkpoint*>::iterator checkpoint,
                      std::list<queued_item>::iterator pos,
-                     size_t os,
+                     size_t offset_,
+                     size_t meta_items_read,
                      bool beginningOnChkCollapse,
                      MustSendCheckpointEnd needsCheckpointEndMetaItem) :
         name(n), currentCheckpoint(checkpoint), currentPos(pos),
-        offset(os), fromBeginningOnChkCollapse(beginningOnChkCollapse),
+        offset(offset_),
+        ckptMetaItemsRead(meta_items_read),
+        fromBeginningOnChkCollapse(beginningOnChkCollapse),
         sendCheckpointEndMetaItem(needsCheckpointEndMetaItem) { }
 
     // We need to define the copy construct explicitly due to the fact
@@ -155,6 +165,7 @@ public:
     CheckpointCursor(const CheckpointCursor &other) :
         name(other.name), currentCheckpoint(other.currentCheckpoint),
         currentPos(other.currentPos), offset(other.offset.load()),
+        ckptMetaItemsRead(other.ckptMetaItemsRead),
         fromBeginningOnChkCollapse(other.fromBeginningOnChkCollapse),
         sendCheckpointEndMetaItem(other.sendCheckpointEndMetaItem) { }
 
@@ -163,11 +174,16 @@ public:
         currentCheckpoint = other.currentCheckpoint;
         currentPos = other.currentPos;
         offset.store(other.offset.load());
+        setMetaItemOffset(other.ckptMetaItemsRead);
         fromBeginningOnChkCollapse = other.fromBeginningOnChkCollapse;
         sendCheckpointEndMetaItem = other.sendCheckpointEndMetaItem;
         return *this;
     }
 
+    /**
+     * Decrement the offsets for this cursor.
+     * @param items Count of all items (meta and non-meta) to decrement by.
+     */
     void decrOffset(size_t decr);
 
     void decrPos();
@@ -177,16 +193,36 @@ public:
        the consumer. DCP cursors don't have this constraint */
     MustSendCheckpointEnd shouldSendCheckpointEndMetaItem() const;
 
+    /**
+     * Return the count of meta items processed (i.e. moved past) for the
+     * current checkpoint.
+     * This value is reset to zero when a new checkpoint
+     * is entered.
+     */
+    size_t getCurrentCkptMetaItemsRead() const;
+
+protected:
+    void incrMetaItemOffset(size_t incr) {
+        ckptMetaItemsRead += incr;
+    }
+
+    void setMetaItemOffset(size_t val) {
+        ckptMetaItemsRead = val;
+    }
+
 private:
     std::string                      name;
     std::list<Checkpoint*>::iterator currentCheckpoint;
     std::list<queued_item>::iterator currentPos;
 
     // The offset (in terms of items) this cursor is from the start of the
-    // cursors' current checkpoint. Used to calculate how many items this
-    // cursor has remaining by subtracting
+    // checkpoint list. Includes meta and non-meta items. Used to calculate
+    // how many items this cursor has remaining by subtracting
     // offset from CheckpointManager::numItems.
     AtomicValue<size_t>              offset;
+    // Count of the number of meta items which have been read (processed) for
+    // the *current* checkpoint.
+    size_t ckptMetaItemsRead;
     bool                             fromBeginningOnChkCollapse;
     MustSendCheckpointEnd            sendCheckpointEndMetaItem;
 
@@ -298,7 +334,10 @@ public:
                uint16_t vbid) :
         stats(st), checkpointId(id), snapStartSeqno(snapStart),
         snapEndSeqno(snapEnd), vbucketId(vbid), creationTime(ep_real_time()),
-        checkpointState(CHECKPOINT_OPEN), numItems(0), memOverhead(0),
+        checkpointState(CHECKPOINT_OPEN),
+        numItems(0),
+        numMetaItems(0),
+        memOverhead(0),
         effectiveMemUsage(0) {
         stats.memOverhead.fetch_add(memorySize());
         if (stats.memOverhead.load() >= GIGANTOR) {
@@ -334,12 +373,16 @@ public:
     }
 
     /**
-     * Return the number of items belonging to this checkpoint.
+     * Return the number of non-meta items belonging to this checkpoint.
      */
     size_t getNumItems() const {
         return numItems;
     }
 
+    /**
+     * Return the number of meta items (as defined by Item::isNonEmptyCheckpointMetaItem)
+     * in this checkpoint.
+     */
     size_t getNumMetaItems() const;
 
     /**
@@ -513,7 +556,10 @@ private:
     uint16_t                       vbucketId;
     rel_time_t                     creationTime;
     checkpoint_state               checkpointState;
+    /// Number of non-meta items (see Item::isCheckPointMetaItem).
     size_t                         numItems;
+    /// Number of meta items (see Item::isCheckPointMetaItem).
+    size_t numMetaItems;
     std::set<std::string>          cursors; // List of cursors with their unique names.
     // List is used for queueing mutations as vector incurs shift operations for deduplication.
     std::list<queued_item>         toWrite;
@@ -881,6 +927,9 @@ private:
     queued_item createCheckpointItem(uint64_t id, uint16_t vbid,
                                      queue_op checkpoint_op);
 
+    /**
+     * Return the number of meta Items remaining for this cursor.
+     */
     size_t getNumOfMetaItemsFromCursor(const CheckpointCursor &cursor) const;
 
     EPStats                 &stats;

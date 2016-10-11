@@ -689,6 +689,11 @@ public:
         return false;
     }
 
+    /// Returns true if this Item is a meta item, excluding queue_op::empty.
+    bool isNonEmptyCheckpointMetaItem() const {
+        return isCheckPointMetaItem() && (op != queue_op::empty);
+    }
+
     void setNRUValue(uint8_t nru_value) {
         nru = nru_value;
     }
