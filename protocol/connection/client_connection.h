@@ -93,6 +93,8 @@ public:
 
     virtual bool isAlreadyExists() const = 0;
 
+    virtual bool isNotMyVbucket() const = 0;
+
     virtual bool isNotFound() const = 0;
 
     virtual bool isNotStored() const = 0;

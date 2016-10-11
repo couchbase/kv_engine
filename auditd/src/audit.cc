@@ -216,15 +216,15 @@ bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
 
     switch (event_id) {
         case AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON:
-            if (config.is_auditd_enabled()) {
-                cJSON_AddTrueToObject(payload, "auditd_enabled");
-            } else {
-                cJSON_AddFalseToObject(payload, "auditd_enabled");
-            }
-            cJSON_AddStringToObject(payload, "descriptors_path", config.get_descriptors_path().c_str());
+            cJSON_AddBoolToObject(payload, "auditd_enabled",
+                                  config.is_auditd_enabled());
+            cJSON_AddStringToObject(payload, "descriptors_path",
+                                    config.get_descriptors_path().c_str());
             cJSON_AddStringToObject(payload, "hostname", hostname.c_str());
-            cJSON_AddStringToObject(payload, "log_path", config.get_log_directory().c_str());
-            cJSON_AddNumberToObject(payload, "rotate_interval", config.get_rotate_interval());
+            cJSON_AddStringToObject(payload, "log_path",
+                                    config.get_log_directory().c_str());
+            cJSON_AddNumberToObject(payload, "rotate_interval",
+                                    config.get_rotate_interval());
             cJSON_AddNumberToObject(payload, "version", 1.0);
             break;
 

@@ -160,6 +160,7 @@ bool AuditConfig::is_buffered(void) const {
 }
 
 void AuditConfig::set_log_directory(const std::string &directory) {
+    std::lock_guard<std::mutex> guard(log_path_mutex);
     /* Sanitize path */
     log_path = directory;
     sanitize_path(log_path);
@@ -171,11 +172,13 @@ void AuditConfig::set_log_directory(const std::string &directory) {
     }
 }
 
-const std::string &AuditConfig::get_log_directory(void) const {
+std::string AuditConfig::get_log_directory(void) const {
+    std::lock_guard<std::mutex> guard(log_path_mutex);
     return log_path;
 }
 
 void AuditConfig::set_descriptors_path(const std::string &directory) {
+    std::lock_guard<std::mutex> guard(descriptor_path_mutex);
     /* Sanitize path */
     descriptors_path = directory;
     sanitize_path(descriptors_path);
@@ -193,15 +196,18 @@ void AuditConfig::set_descriptors_path(const std::string &directory) {
     fclose(fp);
 }
 
-const std::string &AuditConfig::get_descriptors_path(void) const {
+std::string AuditConfig::get_descriptors_path(void) const {
+    std::lock_guard<std::mutex> guard(descriptor_path_mutex);
     return descriptors_path;
 }
 
 bool AuditConfig::is_event_sync(uint32_t id) {
+    std::lock_guard<std::mutex> guard(sync_mutex);
     return std::find(sync.begin(), sync.end(), id) != sync.end();
 }
 
 bool AuditConfig::is_event_disabled(uint32_t id) {
+    std::lock_guard<std::mutex> guard(disabled_mutex);
     return std::find(disabled.begin(), disabled.end(), id) != disabled.end();
 }
 
@@ -266,10 +272,12 @@ void AuditConfig::add_array(std::vector<uint32_t> &vec, cJSON *array, const char
 }
 
 void AuditConfig::set_sync(cJSON *array) {
+    std::lock_guard<std::mutex> guard(sync_mutex);
     add_array(sync, array, "sync");
 }
 
 void AuditConfig::set_disabled(cJSON *array) {
+    std::lock_guard<std::mutex> guard(disabled_mutex);
     add_array(disabled, array, "disabled");
 }
 
@@ -301,4 +309,34 @@ unique_cJSON_ptr AuditConfig::to_json() const {
     cJSON_AddItemToObject(root, "disabled", array);
 
     return ret;
+}
+
+void AuditConfig::initialize_config(const cJSON* json) {
+    AuditConfig other(json);
+
+    auditd_enabled = other.auditd_enabled;
+    rotate_interval = other.rotate_interval;
+    rotate_size = other.rotate_size;
+    buffered = other.buffered;
+    {
+        std::lock_guard<std::mutex> guard(log_path_mutex);
+        log_path = other.log_path;
+    }
+    {
+        std::lock_guard<std::mutex> guard(descriptor_path_mutex);
+        descriptors_path = other.descriptors_path;
+    }
+    {
+        std::lock_guard<std::mutex> guard(sync_mutex);
+        sync = other.sync;
+    }
+
+    {
+        std::lock_guard<std::mutex> guard(disabled_mutex);
+        disabled = other.disabled;
+    }
+
+    min_file_rotation_time = other.min_file_rotation_time;
+    max_file_rotation_time = other.max_file_rotation_time;
+    max_rotate_file_size = other.max_rotate_file_size;
 }

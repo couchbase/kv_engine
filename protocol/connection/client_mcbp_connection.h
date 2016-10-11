@@ -68,6 +68,10 @@ public:
         return reason == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
     }
 
+    bool isNotMyVbucket() const override {
+        return reason == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+    }
+
     bool isNotStored() const override {
         return reason == PROTOCOL_BINARY_RESPONSE_NOT_STORED;
     }

@@ -48,9 +48,10 @@
 #include "mcbpdestroybuckettask.h"
 #include "libevent_locking.h"
 
+#include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
 #include <platform/strerror.h>
-#include <phosphor/phosphor.h>
+#include <platform/sysinfo.h>
 
 #include <signal.h>
 #include <fcntl.h>
@@ -420,13 +421,8 @@ static int get_number_of_worker_threads(void) {
     int ret;
     char *override = getenv("MEMCACHED_NUM_CPUS");
     if (override == NULL) {
-#ifdef WIN32
-        SYSTEM_INFO sysinfo;
-        GetSystemInfo(&sysinfo);
-        ret = (int)sysinfo.dwNumberOfProcessors;
-#else
-        ret = (int)sysconf(_SC_NPROCESSORS_ONLN);
-#endif
+        ret = Couchbase::get_available_cpu_count();
+
         if (ret > 4) {
             ret = (int)(ret * 0.75f);
         }
