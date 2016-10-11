@@ -26,7 +26,7 @@
 #include "objectregistry.h"
 #include "utility.h"
 
-bool MemoryTracker::tracking = false;
+std::atomic<bool> MemoryTracker::tracking{false};
 std::atomic<MemoryTracker*> MemoryTracker::instance;
 std::mutex MemoryTracker::instance_mutex;
 

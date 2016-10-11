@@ -17,8 +17,6 @@
 
 #include "config.h"
 
-#include <signal.h>
-
 #include <algorithm>
 #include <set>
 #include <vector>
@@ -28,10 +26,6 @@
 #include "vbucket.h"
 
 #include <gtest/gtest.h>
-
-#ifdef _MSC_VER
-#define alarm(a)
-#endif
 
 #define NUM_TAP_THREADS 3
 #define NUM_SET_THREADS 4
@@ -51,15 +45,6 @@ struct thread_args {
 };
 
 extern "C" {
-static rel_time_t basic_current_time(void) {
-    return 0;
-}
-
-rel_time_t (*ep_current_time)() = basic_current_time;
-
-time_t ep_real_time() {
-    return time(NULL);
-}
 
 /**
  * Dummy callback to replace the flusher callback.
@@ -242,10 +227,6 @@ TEST_F(CheckpointTest, basic_chk_test) {
         checkpoint_manager->registerCursor(name, 1, false,
                                            MustSendCheckpointEnd::YES);
     }
-
-    // Start a timer so that the test can be killed if it doesn't finish in a
-    // reasonable amount of time
-    alarm(60);
 
     rc = cb_create_thread(&persistence_thread, launch_persistence_thread, &t_args, 0);
     EXPECT_EQ(0, rc);
@@ -759,15 +740,3 @@ TEST_F(CheckpointTest, CursorMovement) {
 
 }
 
-/* static storage for environment variable set by putenv(). */
-static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    putenv(allow_no_stats_env);
-
-    HashTable::setDefaultNumBuckets(5);
-    HashTable::setDefaultNumLocks(1);
-
-    return RUN_ALL_TESTS();
-}

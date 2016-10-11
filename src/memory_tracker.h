@@ -75,7 +75,7 @@ private:
     static void DeleteHook(const void* ptr);
 
     // Wheter or not we have the ability to accurately track memory allocations
-    static bool tracking;
+    static std::atomic<bool> tracking;
     // Singleton memory tracker and mutex guarding it's creation.
     static std::atomic<MemoryTracker*> instance;
     static std::mutex instance_mutex;

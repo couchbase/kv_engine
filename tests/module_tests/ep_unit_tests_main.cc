@@ -71,6 +71,9 @@ int main(int argc, char **argv) {
     // writing).
     HashTable::setDefaultNumLocks(Configuration().getHtLocks());
 
+    // Need to initialize ep_real_time and friends.
+    initialize_time_functions(get_mock_server_api()->core);
+
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

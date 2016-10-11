@@ -27,17 +27,6 @@
 #include <valgrind/valgrind.h>
 
 
-static time_t start_time;
-
-static time_t mock_abstime(const rel_time_t exptime) {
-    return start_time + exptime;
-}
-
-static rel_time_t mock_current_time(void) {
-    rel_time_t result = (rel_time_t)(time(NULL) - start_time);
-    return result;
-}
-
 /**
  * Dummy callback to replace the flusher callback.
  */
@@ -107,9 +96,38 @@ static size_t benchmarkDefragment(VBucket& vbucket, size_t passes,
     return size_t(visited / duration_s);
 }
 
-class DefragmenterBenchmarkTest : public ::testing::Test {
+class DefragmenterTest : public ::testing::Test {
 protected:
     static void SetUpTestCase() {
+
+        // Setup the MemoryTracker.
+        MemoryTracker::getInstance(*get_mock_server_api()->alloc_hooks);
+    }
+
+    static void TearDownTestCase() {
+        MemoryTracker::destroyInstance();
+    }
+
+    void SetUp() override {
+        // Setup object registry. As we do not create a full ep-engine, we
+        // use the "initial_tracking" for all memory tracking".
+        ObjectRegistry::setStats(&mem_used);
+    }
+
+    void TearDown() override {
+        ObjectRegistry::setStats(nullptr);
+    }
+
+    // Track of memory used (from ObjectRegistry).
+    std::atomic<size_t> mem_used{0};
+};
+
+
+class DefragmenterBenchmarkTest : public DefragmenterTest {
+protected:
+    static void SetUpTestCase() {
+        DefragmenterTest::SetUpTestCase();
+
         /* Create the vbucket */
         std::shared_ptr<Callback<uint16_t> > cb(new DummyCB());
         vbucket.reset(new VBucket(0, vbucket_state_active, stats, config,
@@ -118,6 +136,8 @@ protected:
 
     static void TearDownTestCase() {
         vbucket.reset();
+
+        DefragmenterTest::TearDownTestCase();
     }
 
     static EPStats stats;
@@ -207,18 +227,6 @@ static bool wait_for_mapped_below(size_t mapped_threshold,
     return true;
 }
 
-ALLOCATOR_HOOKS_API* getHooksApi(void) {
-    static ALLOCATOR_HOOKS_API hooksApi;
-    hooksApi.add_new_hook = mc_add_new_hook;
-    hooksApi.remove_new_hook = mc_remove_new_hook;
-    hooksApi.add_delete_hook = mc_add_delete_hook;
-    hooksApi.remove_delete_hook = mc_remove_delete_hook;
-    hooksApi.get_extra_stats_size = mc_get_extra_stats_size;
-    hooksApi.get_allocator_stats = mc_get_allocator_stats;
-    hooksApi.get_allocation_size = mc_get_allocation_size;
-    return &hooksApi;
-}
-
 // Create a number of documents, spanning at least two or more pages, then
 // delete most (but not all) of them - crucially ensure that one document from
 // each page is still present. This will result in the rest of that page
@@ -229,18 +237,10 @@ ALLOCATOR_HOOKS_API* getHooksApi(void) {
  * memory allocator.
  */
 #if defined(HAVE_JEMALLOC)
-TEST(DefragmenterTest, MappedMemory) {
+TEST_F(DefragmenterTest, MappedMemory) {
 #else
-TEST(DefragmenterTest, DISABLED_MappedMemory) {
+TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
 #endif
-
-    // Instantiate memory tracker (singleton created on-demand).
-    (void)MemoryTracker::getInstance(*get_mock_server_api()->alloc_hooks);
-
-    // Setup object registry. As we do not create a full ep-engine, we
-    // use the "initial_tracking" for all memory tracking".
-    std::atomic<size_t> mem_used(0);
-    ObjectRegistry::setStats(&mem_used);
 
     // Sanity check - need memory tracker to be able to check our memory usage.
     ASSERT_TRUE(MemoryTracker::trackingMemoryAllocations())
@@ -375,26 +375,4 @@ TEST(DefragmenterTest, DISABLED_MappedMemory) {
         << "estimate (" <<  expected_mapped << ") after the defragmentater "
         << "visited " << visitor.getVisitedCount() << " items "
         << "and moved " << visitor.getDefragCount() << " items!";
-
-    MemoryTracker::destroyInstance();
-}
-
-
-static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=1";
-
-int main(int argc, char** argv) {
-    /* Setup mock time functions */
-    start_time = time(0);
-    ep_abs_time = mock_abstime;
-    ep_current_time = mock_current_time;
-
-    putenv(allow_no_stats_env);
-
-    // Set number of hashtable locks equal to current JSON config default.
-    HashTable::setDefaultNumLocks(47);
-
-    init_alloc_hooks();
-
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }
