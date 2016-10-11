@@ -155,6 +155,14 @@ class FailoverTable {
      */
     size_t getNumEntries() const;
 
+    /**
+     * Returns total number of erroneous entries that were erased from the
+     * failover table.
+     *
+     * @return total number of entries
+     */
+    size_t getNumErroneousEntriesErased() const;
+
  private:
 
     bool loadFromJSON(cJSON *json);
@@ -174,9 +182,17 @@ class FailoverTable {
                              uint64_t &snap_start_seqno,
                              uint64_t &snap_end_seqno);
 
+    /**
+     * Remove any wrong entries in failover table
+     *
+     * called only in ctor, hence does not grab lock
+     */
+    void sanitizeFailoverTable();
+
     std::mutex lock;
     table_t table;
     size_t max_entries;
+    size_t erroneousEntriesErased;
     Couchbase::RandomGenerator provider;
     std::string cachedTableJSON;
     std::atomic<uint64_t> latest_uuid;

@@ -286,6 +286,25 @@ static void test_max_capacity() {
     cb_assert(table.getLatestEntry().by_seqno == max_seqno);
 }
 
+static void test_sanitize_failover_table()
+{
+    const int numErroneousEntries = 4, numCorrectEntries = 2;
+    std::string failover_json(/* Erroneous entry */
+                              "[{\"id\":0,\"seq\":0},"
+                              "{\"id\":1356861809263,\"seq\":100},"
+                              /* Erroneous entry */
+                              "{\"id\":227813077095126,\"seq\":200},"
+                              /* Erroneous entry */
+                              "{\"id\":227813077095128,\"seq\":300},"
+                              /* Erroneous entry */
+                              "{\"id\":0,\"seq\":50},"
+                              "{\"id\":160260368866392,\"seq\":0}]");
+    FailoverTable table(failover_json, 10 /* max_entries */);
+
+    cb_assert(numCorrectEntries == table.getNumEntries());
+    cb_assert(numErroneousEntries == table.getNumErroneousEntriesErased());
+}
+
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
@@ -297,5 +316,6 @@ int main(int argc, char **argv) {
     test_edgetests_failover_log();
     test_add_entry();
     test_max_capacity();
+    test_sanitize_failover_table();
     return 0;
 }

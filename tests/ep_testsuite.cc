@@ -6345,14 +6345,16 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
             {
                 "vb_0:0:id",
                 "vb_0:0:seq",
-                "vb_0:num_entries"
+                "vb_0:num_entries",
+                "vb_0:num_erroneous_entries_erased"
             }
         },
         {"failovers",
             {
                 "vb_0:0:id",
                 "vb_0:0:seq",
-                "vb_0:num_entries"
+                "vb_0:num_entries",
+                "vb_0:num_erroneous_entries_erased"
             }
         },
         {"diskinfo",

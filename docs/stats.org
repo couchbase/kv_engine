@@ -495,6 +495,18 @@ The stats below are listed for each vbucket.
 | last_persisted_snap_end       | The last persisted snapshot end seqno for  |
 |                               | the vbucket                                |
 
+** vBucket failover stats
+
+| Stats                         | Description                                |
+| ------------------------------+--------------------------------------------|
+| num_entries                   | Number of entries in the failover table of |
+|                               | this vbucket                               |
+| erroneous_entries_erased      | Number of erroneous entries erased in the  |
+|                               | failover table of this vbucket             |
+| n:id                          | vb_uuid of nth failover entry in the       |
+|                               | failover table of this vbucket             |
+| n:seq                         | seqno of nth failover entry in the         |
+|                               | failover table of this vbucket             |
 
 ** Tap stats
 
