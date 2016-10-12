@@ -100,85 +100,17 @@ cbsasl_error_t PlainServerBackend::start(cbsasl_conn_t* conn,
         return CBSASL_NOUSER;
     }
 
-    cbsasl_error_t ret;
-    if (try_auth(Mechanism::PLAIN, user, userpw, ret) ||
-        try_auth(Mechanism::SCRAM_SHA1, user, userpw, ret) ||
-        try_auth(Mechanism::SCRAM_SHA256, user, userpw, ret) ||
-        try_auth(Mechanism::SCRAM_SHA512, user, userpw, ret)) {
-        return ret;
-    }
-
-    return CBSASL_PWERR;
-}
-
-static std::vector<uint8_t> string2vector(const std::string& str) {
-    std::vector<uint8_t> ret(str.length());
-    std::memcpy(ret.data(), str.data(), ret.size());
-    return ret;
-}
-
-
-bool PlainServerBackend::try_auth(const Mechanism& mechanism,
-                                  const Couchbase::User& user,
-                                  const std::string& pw,
-                                  cbsasl_error_t& status) {
-    std::string storedPassword;
-    std::string userpw;
-
-    using namespace Couchbase::Crypto;
-
-    try {
-        auto& md = user.getPassword(mechanism);
-        storedPassword = md.getPassword();
-        std::string salt;
-        if (md.getSalt().length() > 0) {
-            salt = Couchbase::Base64::decode(md.getSalt());
-        }
-
-        switch (mechanism) {
-        case Mechanism::PLAIN:
-            userpw = pw;
-            break;
-        case Mechanism::SCRAM_SHA1: {
-            auto digest = PBKDF2_HMAC(Algorithm::SHA1, pw,
-                                      string2vector(salt),
-                                      md.getIterationCount());
-            userpw.assign((const char*)digest.data(), digest.size());
-        }
-            break;
-        case Mechanism::SCRAM_SHA256:{
-            auto digest = PBKDF2_HMAC(Algorithm::SHA256, pw,
-                                      string2vector(md.getSalt()),
-                                      md.getIterationCount());
-            userpw.assign((const char*)digest.data(), digest.size());
-        }
-            break;
-        case Mechanism::SCRAM_SHA512:{
-            auto digest = PBKDF2_HMAC(Algorithm::SHA512, pw,
-                                      string2vector(md.getSalt()),
-                                      md.getIterationCount());
-            userpw.assign((const char*)digest.data(), digest.size());
-        }
-            break;
-
-        default:
-            return false;
-        }
-    } catch (std::invalid_argument& err) {
-        // the password mechanism is not available
-        return false;
-    }
+    auto digest = Couchbase::Crypto::digest(Couchbase::Crypto::Algorithm::SHA1,
+                                            userpw);
+    auto storedPassword = user.getPassword(Mechanism::PLAIN).getPassword();
 
     if (cbsasl_secure_compare(storedPassword.data(), storedPassword.length(),
-                              userpw.data(), userpw.length()) != 0) {
-        status = CBSASL_PWERR;
+                              digest.data(), digest.length()) == 0) {
+        return CBSASL_OK;
     } else {
-        status = CBSASL_OK;
+        return CBSASL_PWERR;
     }
-
-    return true;
 }
-
 
 cbsasl_error_t PlainClientBackend::start(cbsasl_conn_t* conn, const char* input,
                                          unsigned inputlen, const char** output,

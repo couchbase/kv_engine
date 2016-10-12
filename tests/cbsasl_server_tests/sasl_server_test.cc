@@ -20,6 +20,7 @@
 #include "cbsasl/cbsasl_internal.h"
 
 #include <algorithm>
+#include <array>
 #include <gtest/gtest.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
@@ -28,9 +29,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-
-#define DIGEST_LENGTH 16
 
 const char* cbpwfile = "sasl_server_test.pw";
 

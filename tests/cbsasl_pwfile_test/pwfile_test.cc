@@ -76,15 +76,16 @@ protected:
 
 TEST_F(PasswordFileTest, VerifyExpectedUsers) {
     std::string password;
+    using namespace Couchbase::Crypto;
 
     ASSERT_TRUE(find_pw(user1, password));
-    ASSERT_EQ(pass1, password);
+    ASSERT_EQ(digest(Algorithm::SHA1, pass1), password);
 
     ASSERT_TRUE(find_pw(user2, password));
-    ASSERT_EQ(pass2, password);
+    ASSERT_EQ(digest(Algorithm::SHA1, pass2), password);
 
     ASSERT_TRUE(find_pw(user3, password));
-    ASSERT_EQ(pass3, password);
+    ASSERT_EQ(digest(Algorithm::SHA1, pass3), password);
 }
 
 TEST_F(PasswordFileTest, VerifyUserNotFound) {

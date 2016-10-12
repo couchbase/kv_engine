@@ -61,7 +61,7 @@ Couchbase::PasswordDatabase::PasswordDatabase(const std::string& content,
 
     // parse all of the users
     for (auto* u = users->child; u != nullptr; u = u->next) {
-        Couchbase::User user(u);
+        auto user = Couchbase::UserFactory::create(u);
         db[user.getUsername()] = user;
     }
 }

@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include <array>
-#include <cJSON.h>
 #include <cbsasl/cbcrypto.h>
 #include <cstdint>
 #include <string>
@@ -27,6 +25,8 @@
 #include "cbsasl_internal.h"
 
 namespace Couchbase {
+    class UserFactory;
+
     class User {
     public:
         /**
@@ -105,71 +105,23 @@ namespace Couchbase {
         };
 
         /**
-         * Create a dummy user entry.
-         *
-         * A dummy user object is used by SCRAM sasl authentication
-         * so that the "attacking" client would need to perform the
-         * full authentication step in order to authenticate towards
-         * the server instead of returning "no such user" if we failed
-         * to look up the user (to respond with the SALT and iteration
-         * count).
-         */
-        User() : dummy(true) {
+          * Create an empty user object
+          *
+          * A dummy user object is used by SCRAM sasl authentication
+          * so that the "attacking" client would need to perform the
+          * full authentication step in order to authenticate towards
+          * the server instead of returning "no such user" if we failed
+          * to look up the user (to respond with the SALT and iteration
+          * count).
+          *
+          * @param unm the username for the object (potentially empty)
+          * @param dmy should we create a dummy object or not
+          */
+        User(const std::string& unm = "", const bool dmy = true)
+            : username(unm),
+              dummy(dmy) {
 
         }
-
-        /**
-         * Create a new User object with the specified username / password
-         * combination. In addition we'll generate a new Salt and a
-         * salted SHA1 hashed password.
-         *
-         * @param unm the username to use
-         * @param passwd the password to use
-         */
-        User(const std::string& unm, const std::string& passwd);
-
-        /**
-         * Create a user entry and initialize it from the supplied
-         * JSON structure:
-         *
-         *       {
-         *            "n" : "username",
-         *            "sha512" : {
-         *                "h" : "base64 encoded sha512 hash of the password",
-         *                "s" : "base64 encoded salt",
-         *                "i" : iteration-count
-         *            },
-         *            "sha256" : {
-         *                "h" : "base64 encoded sha256 hash of the password",
-         *                "s" : "base64 encoded salt",
-         *                "i" : iteration-count
-         *            },
-         *            "sha1" : {
-         *                "h" : "base64 encoded sha1 hash of the password",
-         *                "s" : "base64 encoded salt",
-         *                "i" : iteration-count
-         *            },
-         *            "plain" : "base64 encoded plain text password"
-         *       }
-         *
-         * @param obj the object containing the JSON description
-         * @throws std::runtime_error if there is a syntax error
-         */
-        User(cJSON* obj);
-
-        /**
-         * Generate the secrets for a dummy object.
-         *
-         * We don't want to generate the secrets in the default constructor
-         * because it may be replaced with the real secrets if the user
-         * exists in the user database (generating secrets is quite
-         * expensice CPU wise)
-         *
-         * @param mech the mechanism trying to use this object (to avoid
-         *             running the "CPU expensive" PBKDF2 function for
-         *             all of the methods.
-         */
-        void generateSecrets(const Mechanism& mech);
 
         /**
          * Get the username for this entry
@@ -206,6 +158,8 @@ namespace Couchbase {
         std::string to_string() const;
 
     protected:
+        friend class UserFactory;
+
         void generateSecrets(const Mechanism& mech,
                              const std::string& passwd);
 
@@ -214,5 +168,72 @@ namespace Couchbase {
         std::string username;
 
         bool dummy;
+    };
+
+    /**
+     * The UserFactory class is used to generate a User Object from a
+     * username and plain text password.
+     */
+    class UserFactory {
+    public:
+
+        /**
+         * Construct a new user object
+         *
+         * @param name username
+         * @param pw password
+         *
+         * @return a newly created dummy object
+         */
+        static User create(const std::string& name, const std::string& pw);
+
+        /**
+         * Create a user entry and initialize it from the supplied
+         * JSON structure:
+         *
+         *       {
+         *            "n" : "username",
+         *            "sha512" : {
+         *                "h" : "base64 encoded sha512 hash of the password",
+         *                "s" : "base64 encoded salt",
+         *                "i" : iteration-count
+         *            },
+         *            "sha256" : {
+         *                "h" : "base64 encoded sha256 hash of the password",
+         *                "s" : "base64 encoded salt",
+         *                "i" : iteration-count
+         *            },
+         *            "sha1" : {
+         *                "h" : "base64 encoded sha1 hash of the password",
+         *                "s" : "base64 encoded salt",
+         *                "i" : iteration-count
+         *            },
+         *            "plain" : "base64 encoded hex version of sha1 hash
+         *                       of plain text password"
+         *       }
+         *
+         * @param obj the object containing the JSON description
+         * @throws std::runtime_error if there is a syntax error
+         */
+        static User create(const cJSON* obj);
+
+        /**
+         * Construct a dummy user object that may be used in authentication
+         *
+         * @param name username
+         * @param mech generate just the password for this mechanism
+         *
+         * @return a newly created dummy object
+         */
+        static User createDummy(const std::string& name,
+                                const Mechanism& mech);
+
+        /**
+         * Set the default iteration count to use (may be overridden by
+         * the cbsasl property function.
+         *
+         * @param count the new iteration count to use
+         */
+        static void setDefaultHmacIterationCount(int count);
     };
 }

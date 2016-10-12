@@ -21,7 +21,9 @@
 #include "cbsasl/cbsasl.h"
 #include "cbsasl/util.h"
 
+#include <cbsasl/mechanismfactory.h>
 #include <cstring>
+#include <iomanip>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -33,9 +35,18 @@
 #include <set>
 #include <sstream>
 #include <string>
-#include <cbsasl/mechanismfactory.h>
 
 typedef std::map<char, std::string> AttributeMap;
+
+static std::string hex_encode_nonce(const std::array<char, 8>& nonce) {
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+    for (const auto& c : nonce) {
+        ss << std::setw(2) << uint32_t(c);
+    }
+
+    return ss.str();
+}
 
 /**
  * Decode the attribute list into a set. The attribute list looks like:
@@ -291,8 +302,7 @@ ScramShaServerBackend::ScramShaServerBackend(const std::string& mech_name,
         throw std::bad_alloc();
     }
 
-    serverNonce.resize(nonce.size() * 2);
-    cbsasl_hex_encode((char*)serverNonce.data(), nonce.data(), nonce.size());
+    serverNonce = hex_encode_nonce(nonce);
 }
 
 cbsasl_error_t ScramShaServerBackend::start(cbsasl_conn_t* conn,
@@ -409,7 +419,7 @@ cbsasl_error_t ScramShaServerBackend::start(cbsasl_conn_t* conn,
     if (!find_user(username, user)) {
         cbsasl_log(conn, cbsasl_loglevel_t::Debug,
                    "User [" + username + "] doesn't exist.. using dummy");
-        user.generateSecrets(mechanism);
+        user = Couchbase::UserFactory::createDummy(username, mechanism);
     }
 
     const auto& passwordMeta = user.getPassword(mechanism);
@@ -517,8 +527,7 @@ ScramShaClientBackend::ScramShaClientBackend(const std::string& mech_name,
         throw std::bad_alloc();
     }
 
-    clientNonce.resize(nonce.size() * 2);
-    cbsasl_hex_encode((char*)clientNonce.data(), nonce.data(), nonce.size());
+    clientNonce = hex_encode_nonce(nonce);
 }
 
 cbsasl_error_t ScramShaClientBackend::start(cbsasl_conn_t* conn,

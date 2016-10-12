@@ -45,9 +45,9 @@ void generateSalt(std::vector<uint8_t>& bytes, std::string& salt) {
                               bytes.size()));
 }
 
-Couchbase::User::User(const std::string& unm, const std::string& passwd)
-    : username(unm),
-      dummy(false) {
+Couchbase::User Couchbase::UserFactory::create(const std::string& unm,
+                                               const std::string& passwd) {
+    User ret{unm, false};
 
     struct {
         Crypto::Algorithm algoritm;
@@ -65,47 +65,100 @@ Couchbase::User::User(const std::string& unm, const std::string& passwd)
         }
     };
 
-    PasswordMetaData pd(passwd);
-    password[Mechanism::PLAIN] = pd;
+    // generate a sha1 of the password
+    User::PasswordMetaData pd(Crypto::digest(Crypto::Algorithm::SHA1, passwd));
+    ret.password[Mechanism::PLAIN] = pd;
 
     for (const auto& info : algo_info) {
         if (Crypto::isSupported(info.algoritm)) {
-            generateSecrets(info.mech, passwd);
+            ret.generateSecrets(info.mech, passwd);
         }
     }
+
+    return ret;
 }
 
-Couchbase::User::User(cJSON* obj)
-    : dummy(false) {
+Couchbase::User Couchbase::UserFactory::createDummy(const std::string& unm,
+                                                    const Mechanism& mech) {
+    User ret{unm};
+
+    std::vector<uint8_t> salt;
+    std::string passwd;
+
+    switch (mech) {
+    case Mechanism::SCRAM_SHA512:
+        salt.resize(Crypto::SHA512_DIGEST_SIZE);
+        break;
+    case Mechanism::SCRAM_SHA256:
+        salt.resize(Crypto::SHA256_DIGEST_SIZE);
+        break;
+    case Mechanism::SCRAM_SHA1:
+        salt.resize(Crypto::SHA1_DIGEST_SIZE);
+        break;
+    case Mechanism::PLAIN:
+    case Mechanism::UNKNOWN:
+        throw std::logic_error("Couchbase::UserFactory::createDummy invalid algorithm");
+    }
+
+    if (salt.empty()) {
+        throw std::logic_error("Couchbase::UserFactory::createDummy invalid algorithm");
+    }
+
+    // Generate a random password
+    generateSalt(salt, passwd);
+
+    // Generate the secrets by using that random password
+    ret.generateSecrets(mech, passwd);
+
+    return ret;
+}
+
+Couchbase::User Couchbase::UserFactory::create(const cJSON* obj) {
     if (obj == nullptr) {
-        throw std::runtime_error("Couchbase::User::User: obj cannot be null");
+        throw std::runtime_error("Couchbase::UserFactory::create: obj cannot be null");
     }
 
     if (obj->type != cJSON_Object) {
-        throw std::runtime_error("Couchbase::User::User: Invalid object type");
+        throw std::runtime_error("Couchbase::UserFactory::create: Invalid object type");
     }
 
-    for (auto* o = obj->child; o != nullptr; o = o->next) {
+    auto* o = cJSON_GetObjectItem(const_cast<cJSON*>(obj), "n");
+    if (o == nullptr) {
+        throw std::runtime_error("Couchbase::UserFactory::create: missing mandatory label 'n'");
+    }
+    if (o->type != cJSON_String) {
+        throw std::runtime_error("Couchbase::UserFactory::create: 'n' must be a string");
+    }
+
+    User ret{o->valuestring, false};
+
+    for (o = obj->child; o != nullptr; o = o->next) {
         std::string label(o->string);
         if (label == "n") {
-            username.assign(o->valuestring);
+            // skip. we've already processed this
         } else if (label == "sha512") {
-            PasswordMetaData pd(o);
-            password[Mechanism::SCRAM_SHA512] = pd;
+            User::PasswordMetaData pd(o);
+            ret.password[Mechanism::SCRAM_SHA512] = pd;
         } else if (label == "sha256") {
-            PasswordMetaData pd(o);
-            password[Mechanism::SCRAM_SHA256] = pd;
+            User::PasswordMetaData pd(o);
+            ret.password[Mechanism::SCRAM_SHA256] = pd;
         } else if (label == "sha1") {
-            PasswordMetaData pd(o);
-            password[Mechanism::SCRAM_SHA1] = pd;
+            User::PasswordMetaData pd(o);
+            ret.password[Mechanism::SCRAM_SHA1] = pd;
         } else if (label == "plain") {
-            PasswordMetaData pd(Couchbase::Base64::decode(o->valuestring));
-            password[Mechanism::PLAIN] = pd;
+            User::PasswordMetaData pd(Couchbase::Base64::decode(o->valuestring));
+            ret.password[Mechanism::PLAIN] = pd;
         } else {
-            throw std::runtime_error("Couchbase::User::User: Invalid "
+            throw std::runtime_error("Couchbase::UserFactory::create: Invalid "
                                          "label \"" + label + "\" specified");
         }
     }
+
+    return ret;
+}
+
+void Couchbase::UserFactory::setDefaultHmacIterationCount(int count) {
+    IterationCount.store(count);
 }
 
 void cbsasl_set_hmac_iteration_count(cbsasl_getopt_fn getopt_fn,
@@ -126,41 +179,6 @@ void cbsasl_set_hmac_iteration_count(cbsasl_getopt_fn getopt_fn,
             }
         }
     }
-}
-
-void Couchbase::User::generateSecrets(const Mechanism& mech) {
-    if (!dummy) {
-        throw std::runtime_error("Couchbase::User::generateSecrets can't be "
-                                     "used on a real user object");
-    }
-
-    std::vector<uint8_t> salt;
-    std::string passwd;
-
-    switch (mech) {
-    case Mechanism::SCRAM_SHA512:
-        salt.resize(Crypto::SHA512_DIGEST_SIZE);
-        break;
-    case Mechanism::SCRAM_SHA256:
-        salt.resize(Crypto::SHA256_DIGEST_SIZE);
-        break;
-    case Mechanism::SCRAM_SHA1:
-        salt.resize(Crypto::SHA1_DIGEST_SIZE);
-        break;
-    case Mechanism::PLAIN:
-    case Mechanism::UNKNOWN:
-        throw std::logic_error("Couchbase::User::generateSecrets invalid algorithm");
-    }
-
-    if (salt.empty()) {
-        throw std::logic_error("Couchbase::User::generateSecrets invalid algorithm");
-    }
-
-    // Generate a random password
-    generateSalt(salt, passwd);
-
-    // Generate the secrets by using that random password
-    generateSecrets(mech, passwd);
 }
 
 void Couchbase::User::generateSecrets(const Mechanism& mech,
@@ -289,11 +307,7 @@ unique_cJSON_ptr Couchbase::User::to_json() const {
 }
 
 std::string Couchbase::User::to_string() const {
-    auto json = to_json();
-    char* ptr = cJSON_Print(json.get());
-    std::string ret(ptr);
-    cJSON_Free(ptr);
-    return ret;
+    return ::to_string(to_json(), false);
 }
 
 const Couchbase::User::PasswordMetaData& Couchbase::User::getPassword(

@@ -29,9 +29,12 @@
 #include <string>
 #include <utilities/protocol2text.h>
 #include <cbsasl/pwconv.h>
+#include <cbsasl/user.h>
 
 #include "programs/utilities.h"
 
+// Unfortunately cbsasl don't use namespace internally..
+namespace cbsasladm {
 /**
  * Small class used to wrap the ServerConnection details
  */
@@ -78,11 +81,13 @@ private:
     const std::string pass;
     const int secure;
 };
+}
 
 /**
  * Handle cbsasl refresh
  */
-static int handle_refresh(int argc, char**, ServerConnection& connection) {
+static int handle_refresh(int argc, char**,
+                          cbsasladm::ServerConnection& connection) {
     if (optind + 1 != argc) {
         std::cerr << "Error: cbsasl refresh don't take any arguments"
                   << std::endl;
@@ -116,7 +121,8 @@ static int handle_refresh(int argc, char**, ServerConnection& connection) {
 }
 
 
-int handle_pwconv(int argc, char** argv, ServerConnection& connection) {
+int handle_pwconv(int argc, char** argv,
+                  cbsasladm::ServerConnection& connection) {
     if (optind + 3 != argc) {
         std::cerr << "Usage: cbsasl pwconv inputfile outputfile" << std::endl;
         return EXIT_FAILURE;
@@ -154,7 +160,7 @@ int main(int argc, char **argv) {
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
-    while ((cmd = getopt(argc, argv, "h:p:su:P:")) != EOF) {
+    while ((cmd = getopt(argc, argv, "h:p:su:P:i:")) != EOF) {
         switch (cmd) {
         case 'h' :
             host = optarg;
@@ -176,6 +182,15 @@ int main(int argc, char **argv) {
         case 'P':
             pass = optarg;
             break;
+        case 'i':
+            try {
+                using namespace Couchbase;
+                UserFactory::setDefaultHmacIterationCount(std::stoi(optarg));
+            } catch (...) {
+                std::cerr << "Error: iteration count must be an integer"
+                          << std::endl;
+                return EXIT_FAILURE;
+            }
         default:
             fprintf(stderr,
                     "Usage: cbsasladm [-h host[:port]] [-p port] [-s] "
@@ -195,7 +210,7 @@ int main(int argc, char **argv) {
     }
 
     typedef int (* command_handler)(int argc, char** argv,
-                                    ServerConnection& connection);
+                                    cbsasladm::ServerConnection& connection);
     const std::map<std::string, command_handler> commands{
         {"refresh", handle_refresh},
         {"pwconv",  handle_pwconv}
@@ -203,7 +218,7 @@ int main(int argc, char **argv) {
 
     const auto& iter = commands.find(argv[optind]);
     if (iter != commands.end()) {
-        ServerConnection connection(host, port, user, pass, secure);
+        cbsasladm::ServerConnection connection(host, port, user, pass, secure);
         return iter->second(argc, argv, connection);
     } else {
         std::cerr << "Error: Unknown command" << std::endl;

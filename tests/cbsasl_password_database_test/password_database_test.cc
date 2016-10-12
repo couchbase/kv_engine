@@ -155,7 +155,7 @@ public:
 
 TEST_F(UserTest, TestNormalInit) {
     Couchbase::User u;
-    EXPECT_NO_THROW(u = Couchbase::User(root.get()));
+    EXPECT_NO_THROW(u = Couchbase::UserFactory::create(root.get()));
     EXPECT_EQ("username", u.getUsername());
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA512));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA256));
@@ -201,7 +201,7 @@ TEST_F(UserTest, TestNormalInit) {
 TEST_F(UserTest, TestNoPlaintext) {
     cJSON_DeleteItemFromObject(root.get(), "plain");
     Couchbase::User u;
-    EXPECT_NO_THROW(u = Couchbase::User(root.get()));
+    EXPECT_NO_THROW(u = Couchbase::UserFactory::create(root.get()));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA512));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA256));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA1));
@@ -212,7 +212,7 @@ TEST_F(UserTest, TestNoPlaintext) {
 TEST_F(UserTest, TestNoSha512) {
     cJSON_DeleteItemFromObject(root.get(), "sha512");
     Couchbase::User u;
-    EXPECT_NO_THROW(u = Couchbase::User(root.get()));
+    EXPECT_NO_THROW(u = Couchbase::UserFactory::create(root.get()));
     EXPECT_THROW(u.getPassword(Mechanism::SCRAM_SHA512),
                  std::invalid_argument);
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA256));
@@ -223,7 +223,7 @@ TEST_F(UserTest, TestNoSha512) {
 TEST_F(UserTest, TestNoSha256) {
     cJSON_DeleteItemFromObject(root.get(), "sha256");
     Couchbase::User u;
-    EXPECT_NO_THROW(u = Couchbase::User(root.get()));
+    EXPECT_NO_THROW(u = Couchbase::UserFactory::create(root.get()));
     EXPECT_THROW(u.getPassword(Mechanism::SCRAM_SHA256),
                  std::invalid_argument);
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA512));
@@ -234,7 +234,7 @@ TEST_F(UserTest, TestNoSha256) {
 TEST_F(UserTest, TestNoSha1) {
     cJSON_DeleteItemFromObject(root.get(), "sha1");
     Couchbase::User u;
-    EXPECT_NO_THROW(u = Couchbase::User(root.get()));
+    EXPECT_NO_THROW(u = Couchbase::UserFactory::create(root.get()));
     EXPECT_THROW(u.getPassword(Mechanism::SCRAM_SHA1),
                  std::invalid_argument);
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA512));
@@ -244,7 +244,8 @@ TEST_F(UserTest, TestNoSha1) {
 
 TEST_F(UserTest, InvalidLabel) {
     cJSON_AddStringToObject(root.get(), "gssapi", "foo");
-    EXPECT_THROW(Couchbase::User u(root.get()), std::runtime_error);
+    EXPECT_THROW(auto u = Couchbase::UserFactory::create(root.get()),
+                 std::runtime_error);
 }
 
 class PasswordDatabaseTest : public ::testing::Test {
@@ -254,19 +255,19 @@ public:
         auto* array = cJSON_CreateArray();
 
         cJSON_AddItemToArray(array,
-                             Couchbase::User("trond",
+                             Couchbase::UserFactory::create("trond",
                                              "secret1").to_json().release());
         cJSON_AddItemToArray(array,
-                             Couchbase::User("mike",
+                             Couchbase::UserFactory::create("mike",
                                              "secret2").to_json().release());
         cJSON_AddItemToArray(array,
-                             Couchbase::User("anne",
+                             Couchbase::UserFactory::create("anne",
                                              "secret3").to_json().release());
         cJSON_AddItemToArray(array,
-                             Couchbase::User("will",
+                             Couchbase::UserFactory::create("will",
                                              "secret4").to_json().release());
         cJSON_AddItemToArray(array,
-                             Couchbase::User("dave",
+                             Couchbase::UserFactory::create("dave",
                                              "secret5").to_json().release());
 
         cJSON_AddItemToObject(root.get(), "users", array);

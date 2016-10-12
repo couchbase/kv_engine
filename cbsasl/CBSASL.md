@@ -1,9 +1,9 @@
 # CBSASL - Couchbase SASL implementation
 
 cbsasl provides a minimalistic client and server implementation of SASL
-authentication. It tries to be "source compatible" with the SASL implementation
-provided on MacOSX and Solaris (except that we've prefixed our methods and
-constants with "cb")
+authentication. It tries to be "source compatible" with the SASL
+implementation provided on MacOSX and Solaris (except that we've
+prefixed our methods and constants with "cb")
 
 ## Supported authentication mechanisms
 
@@ -17,22 +17,32 @@ given the username/password restrictions in Couchbase.
 
 SCRAM-SHA512 and SCRAM-SHA256 is not supported on all platforms.
 
-### CRAM-MD5 (Deprecated in Watson)
+### PLAIN
 
-CRAM-MD5 authentication is deprecated as of Watson and will most likely be
-removed in Spock
-
-### PLAIN (Deprecated in Watson)
-
-PLAIN authentication is deprecated as of Watson and will most likely be
-removed/disabled in Spock
+The PLAIN authentication allows users for authenticating by providing
+the username and password in plain text. The server does however not
+store the plain text password, so we'll calculate a SHA1 hash of the
+password and compare with what we've got stored internally.
 
 ## Server
 
 The server should be initialized by calling `cbsasl_server_init` and shut
 down by calling `cbsasl_server_term`.
 
-### User database
+## Authentication backends
+
+### External authentication
+
+External authentication is provided through the use of `saslauthd`.
+In order to enable authentication through `saslauthd` the environment
+variable `CBAUTH_SOCKPATH` must be set to the location of the unix
+domain socket used to communicate with `saslauthd`.
+
+`PLAIN` authentication is the only supported authentication mechanism
+for external users (a user is considered as an external user if there
+is no entry for the user in the internal user database (see below))
+
+### Internal User database
 
 The user database is stored in JSON format with the following syntax:
 
@@ -55,9 +65,8 @@ The user database is stored in JSON format with the following syntax:
                      "s" : "base64 encoded salt",
                      "i" : iteration-count
                  },
-                 "plain" : "base64 encoded plain text password"
+                 "plain" : "base64 encoded hex version of sha1 hash
+                            of plain text password"
              }
          ]
      }
-
- When the support for CRAM-MD5 is removed we should remove the `plain` entry.

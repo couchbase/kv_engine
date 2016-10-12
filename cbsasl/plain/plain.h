@@ -33,26 +33,6 @@ public:
                                  unsigned inputlen,
                                  const char** output,
                                  unsigned* outputlen) override;
-
-protected:
-    /**
-     * Try to perform an authentication by using the password metadata
-     * for the specified mechanism.
-     *
-     * @param mechanism the mechanism to try to use the password data for
-     * @param user the user entry stored in the user database
-     * @param pw the user supplied passord
-     * @param status the status for the operation (CBSASL_OK / CBSASL_PWERR
-     *               depending if the password is correct or not)
-     * @return true if the user entry had password metadata for the selected
-     *              mechanism and we did try to compare the password.
-     *              false if we did not try to compare the password, and
-     *              another mechanism should be tried.
-     */
-    bool try_auth(const Mechanism& mechanism,
-                  const Couchbase::User& user,
-                  const std::string& pw,
-                  cbsasl_error_t& status);
 };
 
 class PlainClientBackend : public MechanismBackend {

@@ -35,6 +35,15 @@ if (NOT WIN32)
          testapp_saslauthd.cc)
 endif (NOT WIN32)
 
+ADD_EXECUTABLE(generate_test_cbsaslpw generate_test_cbsaslpw.cc
+               ${Memcached_SOURCE_DIR}/cbsasl/log.cc
+               ${Memcached_SOURCE_DIR}/cbsasl/pwconv.cc
+               ${Memcached_SOURCE_DIR}/cbsasl/pwconv.h
+               ${Memcached_SOURCE_DIR}/cbsasl/user.cc
+               ${Memcached_SOURCE_DIR}/cbsasl/user.h)
+TARGET_LINK_LIBRARIES(generate_test_cbsaslpw cbsasl cJSON platform
+                      ${OPENSSL_LIBRARIES})
+
 ADD_EXECUTABLE(memcached_testapp ${TESTAPP_SOURCES})
 
 ADD_DEPENDENCIES(memcached_testapp blackhole_logger default_engine

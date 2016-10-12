@@ -230,8 +230,3 @@ cbsasl_error_t cbsasl_getprop(cbsasl_conn_t* conn,
 
     return CBSASL_OK;
 }
-
-/* This function is added to keep the randgen static ;-) */
-cbsasl_error_t cbsasl_secure_random(char* dest, size_t len) {
-    return (cb_rand_get(randgen, dest, len) == 0) ? CBSASL_OK : CBSASL_FAIL;
-}

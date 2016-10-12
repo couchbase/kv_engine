@@ -180,5 +180,16 @@ namespace Couchbase {
                                      const uint8_t* data,
                                      size_t length);
 
+        /**
+         * Generate a digest of the provided string by using the specified
+         * algorithm and return it as textual string (hex)
+         *
+         * @param algorithm the algorithm to use
+         * @param data the data to generate the difest of
+         *
+         * @return the hex encoded version of the digest
+         */
+        CBSASL_PUBLIC_API
+        std::string digest(const Algorithm algorithm, const std::string& data);
     }
 }

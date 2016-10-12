@@ -17,9 +17,11 @@
 #include "config.h"
 #include <cbsasl/cbcrypto.h>
 
+#include <iomanip>
 #include <memory>
-#include <platform/base64.h>
 #include <openssl/evp.h>
+#include <platform/base64.h>
+#include <sstream>
 #include <stdexcept>
 
 #ifdef __APPLE__
@@ -593,4 +595,18 @@ std::vector<uint8_t> Couchbase::Crypto::decrypt(const cJSON* json,
 
     decodeJsonMeta(const_cast<cJSON*>(json), cipher, key, iv);
     return decrypt(cipher, key, iv, data, length);
+}
+
+std::string Couchbase::Crypto::digest(const Algorithm algorithm,
+                                      const std::string& passwd) {
+    std::vector<uint8_t> data(passwd.size());
+    memcpy(data.data(), passwd.data(), passwd.size());
+    auto digest = Couchbase::Crypto::digest(algorithm, data);
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+    for (const auto& c : digest) {
+        ss << std::setw(2) << uint32_t(c);
+    }
+
+    return ss.str();
 }

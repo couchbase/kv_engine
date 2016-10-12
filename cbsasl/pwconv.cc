@@ -57,7 +57,7 @@ void cbsasl_pwconv(std::istream& is, std::ostream& os) {
             passwd = tokens[1];
         }
 
-        Couchbase::User u(Couchbase::User(tokens[0], passwd));
+        auto u = Couchbase::UserFactory::create(tokens[0], passwd);
         cJSON_AddItemToArray(users, u.to_json().release());
     }
 
