@@ -218,19 +218,19 @@ TEST_F(SaslClientServerTest, PLAIN) {
 }
 
 TEST_F(SaslClientServerTest, SCRAM_SHA1) {
-    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA1)) {
+    if (cb::crypto::isSupported(cb::crypto::Algorithm::SHA1)) {
         test_auth("SCRAM-SHA1");
     }
 }
 
 TEST_F(SaslClientServerTest, SCRAM_SHA256) {
-    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA256)) {
+    if (cb::crypto::isSupported(cb::crypto::Algorithm::SHA256)) {
         test_auth("SCRAM-SHA256");
     }
 }
 
 TEST_F(SaslClientServerTest, SCRAM_SHA512) {
-    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA512)) {
+    if (cb::crypto::isSupported(cb::crypto::Algorithm::SHA512)) {
         test_auth("SCRAM-SHA512");
     }
 }

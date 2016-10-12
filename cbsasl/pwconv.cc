@@ -85,17 +85,15 @@ std::string cbsasl_read_password_file(const std::string& filename) {
     if (env == nullptr) {
         return ret;
     } else {
-        using namespace Couchbase;
-
         unique_cJSON_ptr json(cJSON_Parse(env));
         if (json.get() == nullptr) {
             throw std::runtime_error("cbsasl_read_password_file: Invalid json"
                                          " specified in COUCHBASE_CBSASL_SECRETS");
         }
 
-        auto decoded = Crypto::decrypt(json.get(),
-                                       reinterpret_cast<const uint8_t*>(ret.data()),
-                                       ret.size());
+        auto decoded = cb::crypto::decrypt(json.get(),
+                                           reinterpret_cast<const uint8_t*>(ret.data()),
+                                           ret.size());
 
         return std::string{(const char*)decoded.data(), decoded.size()};
     }
@@ -115,9 +113,9 @@ void cbsasl_write_password_file(const std::string& filename,
                                          " specified in COUCHBASE_CBSASL_SECRETS");
         }
         using namespace Couchbase;
-        auto enc = Crypto::encrypt(json.get(),
-                                   reinterpret_cast<const uint8_t*>(content.data()),
-                                   content.size());
+        auto enc = cb::crypto::encrypt(json.get(),
+                                       reinterpret_cast<const uint8_t*>(content.data()),
+                                       content.size());
         of.write((const char*)enc.data(), enc.size());
     }
 

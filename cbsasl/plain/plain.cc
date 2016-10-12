@@ -100,8 +100,7 @@ cbsasl_error_t PlainServerBackend::start(cbsasl_conn_t* conn,
         return CBSASL_NOUSER;
     }
 
-    auto digest = Couchbase::Crypto::digest(Couchbase::Crypto::Algorithm::SHA1,
-                                            userpw);
+    auto digest = cb::crypto::digest(cb::crypto::Algorithm::SHA1, userpw);
     auto storedPassword = user.getPassword(Mechanism::PLAIN).getPassword();
 
     if (cbsasl_secure_compare(storedPassword.data(), storedPassword.length(),

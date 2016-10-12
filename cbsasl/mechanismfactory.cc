@@ -107,8 +107,7 @@ public:
     }
 
     virtual bool isMechanismSupported() override {
-        using namespace Couchbase;
-        return Crypto::isSupported(Crypto::Algorithm::SHA512);
+        return cb::crypto::isSupported(cb::crypto::Algorithm::SHA512);
     }
 };
 
@@ -128,8 +127,7 @@ public:
     }
 
     virtual bool isMechanismSupported() override {
-        using namespace Couchbase;
-        return Crypto::isSupported(Crypto::Algorithm::SHA256);
+        return cb::crypto::isSupported(cb::crypto::Algorithm::SHA256);
     }
 };
 
@@ -149,8 +147,7 @@ public:
     }
 
     virtual bool isMechanismSupported() override {
-        using namespace Couchbase;
-        return Crypto::isSupported(Crypto::Algorithm::SHA1);
+        return cb::crypto::isSupported(cb::crypto::Algorithm::SHA1);
     }
 };
 

@@ -50,27 +50,28 @@ Couchbase::User Couchbase::UserFactory::create(const std::string& unm,
     User ret{unm, false};
 
     struct {
-        Crypto::Algorithm algoritm;
+        cb::crypto::Algorithm algoritm;
         Mechanism mech;
     } algo_info[] = {
         {
-            Crypto::Algorithm::SHA1,
+            cb::crypto::Algorithm::SHA1,
             Mechanism::SCRAM_SHA1
         }, {
-            Crypto::Algorithm::SHA256,
+            cb::crypto::Algorithm::SHA256,
             Mechanism::SCRAM_SHA256
         }, {
-            Crypto::Algorithm::SHA512,
+            cb::crypto::Algorithm::SHA512,
             Mechanism::SCRAM_SHA512
         }
     };
 
     // generate a sha1 of the password
-    User::PasswordMetaData pd(Crypto::digest(Crypto::Algorithm::SHA1, passwd));
+    User::PasswordMetaData pd(cb::crypto::digest(cb::crypto::Algorithm::SHA1,
+                                                 passwd));
     ret.password[Mechanism::PLAIN] = pd;
 
     for (const auto& info : algo_info) {
-        if (Crypto::isSupported(info.algoritm)) {
+        if (cb::crypto::isSupported(info.algoritm)) {
             ret.generateSecrets(info.mech, passwd);
         }
     }
@@ -87,13 +88,13 @@ Couchbase::User Couchbase::UserFactory::createDummy(const std::string& unm,
 
     switch (mech) {
     case Mechanism::SCRAM_SHA512:
-        salt.resize(Crypto::SHA512_DIGEST_SIZE);
+        salt.resize(cb::crypto::SHA512_DIGEST_SIZE);
         break;
     case Mechanism::SCRAM_SHA256:
-        salt.resize(Crypto::SHA256_DIGEST_SIZE);
+        salt.resize(cb::crypto::SHA256_DIGEST_SIZE);
         break;
     case Mechanism::SCRAM_SHA1:
-        salt.resize(Crypto::SHA1_DIGEST_SIZE);
+        salt.resize(cb::crypto::SHA1_DIGEST_SIZE);
         break;
     case Mechanism::PLAIN:
     case Mechanism::UNKNOWN:
@@ -186,20 +187,20 @@ void Couchbase::User::generateSecrets(const Mechanism& mech,
 
     std::vector<uint8_t> salt;
     std::string encodedSalt;
-    Crypto::Algorithm algorithm;
+    cb::crypto::Algorithm algorithm;
 
     switch (mech) {
     case Mechanism::SCRAM_SHA512:
-        salt.resize(Crypto::SHA512_DIGEST_SIZE);
-        algorithm = Crypto::Algorithm::SHA512;
+        salt.resize(cb::crypto::SHA512_DIGEST_SIZE);
+        algorithm = cb::crypto::Algorithm::SHA512;
         break;
     case Mechanism::SCRAM_SHA256:
-        salt.resize(Crypto::SHA256_DIGEST_SIZE);
-        algorithm = Crypto::Algorithm::SHA256;
+        salt.resize(cb::crypto::SHA256_DIGEST_SIZE);
+        algorithm = cb::crypto::Algorithm::SHA256;
         break;
     case Mechanism::SCRAM_SHA1:
-        salt.resize(Crypto::SHA1_DIGEST_SIZE);
-        algorithm = Crypto::Algorithm::SHA1;
+        salt.resize(cb::crypto::SHA1_DIGEST_SIZE);
+        algorithm = cb::crypto::Algorithm::SHA1;
         break;
     case Mechanism::PLAIN:
     case Mechanism::UNKNOWN:
@@ -211,7 +212,7 @@ void Couchbase::User::generateSecrets(const Mechanism& mech,
     }
 
     generateSalt(salt, encodedSalt);
-    auto digest = Crypto::PBKDF2_HMAC(algorithm, passwd, salt, IterationCount);
+    auto digest = cb::crypto::PBKDF2_HMAC(algorithm, passwd, salt, IterationCount);
 
     password[mech] =
         PasswordMetaData(std::string((const char*)digest.data(), digest.size()),

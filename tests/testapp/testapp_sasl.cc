@@ -37,21 +37,21 @@ TEST_P(SaslTest, SinglePLAIN) {
 }
 
 TEST_P(SaslTest, SingleSCRAM_SHA1) {
-    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA1)) {
+    if (cb::crypto::isSupported(cb::crypto::Algorithm::SHA1)) {
         MemcachedConnection& conn = getConnection();
         EXPECT_NO_THROW(conn.authenticate(bucket1, password1, "SCRAM-SHA1"));
     }
 }
 
 TEST_P(SaslTest, SingleSCRAM_SHA256) {
-    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA256)) {
+    if (cb::crypto::isSupported(cb::crypto::Algorithm::SHA256)) {
         MemcachedConnection& conn = getConnection();
         EXPECT_NO_THROW(conn.authenticate(bucket1, password1, "SCRAM-SHA256"));
     }
 }
 
 TEST_P(SaslTest, SingleSCRAM_SHA512) {
-    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA512)) {
+    if (cb::crypto::isSupported(cb::crypto::Algorithm::SHA512)) {
         MemcachedConnection& conn = getConnection();
         EXPECT_NO_THROW(conn.authenticate(bucket1, password1, "SCRAM-SHA512"));
     }
@@ -72,19 +72,19 @@ TEST_P(SaslTest, TestSaslMixFrom_PLAIN) {
 }
 
 TEST_P(SaslTest, TestSaslMixFrom_SCRAM_SHA1) {
-    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA1)) {
+    if (cb::crypto::isSupported(cb::crypto::Algorithm::SHA1)) {
         testMixStartingFrom("SCRAM-SHA1");
     }
 }
 
 TEST_P(SaslTest, TestSaslMixFrom_SCRAM_SHA256) {
-    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA256)) {
+    if (cb::crypto::isSupported(cb::crypto::Algorithm::SHA256)) {
         testMixStartingFrom("SCRAM-SHA256");
     }
 }
 
 TEST_P(SaslTest, TestSaslMixFrom_SCRAM_SHA512) {
-    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA512)) {
+    if (cb::crypto::isSupported(cb::crypto::Algorithm::SHA512)) {
         testMixStartingFrom("SCRAM-SHA512");
     }
 }
