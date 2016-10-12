@@ -16,7 +16,7 @@
  */
 #pragma once
 
-#include <cbsasl/cbcrypto.h>
+#include <cbcrypto/cbcrypto.h>
 #include <cstdint>
 #include <string>
 #include <vector>

@@ -9,6 +9,7 @@ INCLUDE(CheckCSourceCompiles)
 INCLUDE(CheckIncludeFiles)
 INCLUDE(CheckIncludeFileCXX)
 INCLUDE(CTest)
+INCLUDE(GenerateExportHeader)
 
 # The test program expects to find the output files in
 # the root directory (that's how we built them earlier)
@@ -101,6 +102,8 @@ INCLUDE_DIRECTORIES(AFTER
                     ${gtest_SOURCE_DIR}/include
                     ${phosphor_SOURCE_DIR}/include)
 
+INCLUDE_DIRECTORIES(AFTER ${PROJECT_BINARY_DIR}/include)
+
 IF (MEMORY_ALLOCATOR)
     INCLUDE_DIRECTORIES(AFTER ${MALLOC_INCLUDE_DIR})
 ELSE (MEMORY_ALLOCATOR)
@@ -167,10 +170,8 @@ ENDIF (WIN32)
 # We're using all of the sources to build up the server from one of
 # the unit tests so let's just stash them in a variable
 LIST(APPEND CBSASL_SOURCES
-     ${Memcached_SOURCE_DIR}/include/cbsasl/cbcrypto.h
      ${Memcached_SOURCE_DIR}/include/cbsasl/cbsasl.h
      ${Memcached_SOURCE_DIR}/include/cbsasl/visibility.h
-     ${Memcached_SOURCE_DIR}/cbsasl/cbcrypto.cc
      ${Memcached_SOURCE_DIR}/cbsasl/cbsasl_internal.h
      ${Memcached_SOURCE_DIR}/cbsasl/client.cc
      ${Memcached_SOURCE_DIR}/cbsasl/common.cc
@@ -203,6 +204,7 @@ if (NOT WIN32)
 endif (NOT WIN32)
 
 ADD_SUBDIRECTORY(etc)
+ADD_SUBDIRECTORY(cbcrypto)
 ADD_SUBDIRECTORY(cbsasl)
 ADD_SUBDIRECTORY(time)
 ADD_SUBDIRECTORY(support-files)

@@ -14,7 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include <cbsasl/cbcrypto.h>
+#include <cbcrypto/cbcrypto.h>
 #include "testapp_sasl.h"
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,

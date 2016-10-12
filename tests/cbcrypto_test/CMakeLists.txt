@@ -1,8 +1,9 @@
-ADD_EXECUTABLE(cbcrypto_test cbcrypto_test.cc
-               ${Memcached_SOURCE_DIR}/cbsasl/cbcrypto.cc
-               ${Memcached_SOURCE_DIR}/include/cbsasl/cbcrypto.h)
+ADD_EXECUTABLE(cbcrypto_test
+               cbcrypto_test.cc
+               ${Memcached_SOURCE_DIR}/include/cbcrypto/cbcrypto.h)
 
 TARGET_LINK_LIBRARIES(cbcrypto_test
+                      cbcrypto
                       platform
                       cJSON
                       gtest gtest_main

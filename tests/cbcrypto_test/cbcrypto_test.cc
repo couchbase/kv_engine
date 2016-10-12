@@ -27,7 +27,7 @@
 #include <stdexcept>
 #include <string>
 
-#include "cbsasl/cbcrypto.h"
+#include <cbcrypto/cbcrypto.h>
 
 std::vector<uint8_t> string2vector(const std::string& str) {
     std::vector<uint8_t> ret(str.size());

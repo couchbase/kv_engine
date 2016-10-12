@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 #include "config.h"
-#include <cbsasl/cbcrypto.h>
+#include <cbcrypto/cbcrypto.h>
 
 #include <iomanip>
 #include <memory>

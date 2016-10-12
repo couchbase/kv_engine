@@ -22,11 +22,14 @@
 #include <string>
 #include <vector>
 
+#include <cbcrypto/visibility.h>
+
+
 namespace cb {
 namespace crypto {
 enum class Algorithm { MD5, SHA1, SHA256, SHA512 };
 
-CBSASL_PUBLIC_API
+CBCRYPTO_PUBLIC_API
 bool isSupported(const Algorithm algorithm);
 
 const int MD5_DIGEST_SIZE = 16;
@@ -41,7 +44,7 @@ const int SHA512_DIGEST_SIZE = 64;
  * @throws std::invalid_argument - unsupported algorithm
  *         std::runtime_error - Failures generating the HMAC
  */
-CBSASL_PUBLIC_API
+CBCRYPTO_PUBLIC_API
 std::vector<uint8_t> HMAC(const Algorithm algorithm,
                           const std::vector<uint8_t>& key,
                           const std::vector<uint8_t>& data);
@@ -53,7 +56,7 @@ std::vector<uint8_t> HMAC(const Algorithm algorithm,
  * @throws std::invalid_argument - unsupported algorithm
  *         std::runtime_error - Failures generating the HMAC
  */
-CBSASL_PUBLIC_API
+CBCRYPTO_PUBLIC_API
 std::vector<uint8_t> PBKDF2_HMAC(const Algorithm algorithm,
                                  const std::string& pass,
                                  const std::vector<uint8_t>& salt,
@@ -62,7 +65,7 @@ std::vector<uint8_t> PBKDF2_HMAC(const Algorithm algorithm,
 /**
  * Generate a digest by using the requested algorithm
  */
-CBSASL_PUBLIC_API
+CBCRYPTO_PUBLIC_API
 std::vector<uint8_t> digest(const Algorithm algorithm,
                             const std::vector<uint8_t>& data);
 
@@ -80,7 +83,7 @@ Cipher to_cipher(const std::string& str);
  * @param length the length of the data to encrypt
  * @return The encrypted data
  */
-CBSASL_PUBLIC_API
+CBCRYPTO_PUBLIC_API
 std::vector<uint8_t> encrypt(const Cipher& cipher,
                              const std::vector<uint8_t>& key,
                              const std::vector<uint8_t>& iv,
@@ -96,7 +99,7 @@ std::vector<uint8_t> encrypt(const Cipher& cipher,
  * @param data The data to encrypt
  * @return The encrypted data
  */
-CBSASL_PUBLIC_API
+CBCRYPTO_PUBLIC_API
 std::vector<uint8_t> encrypt(const Cipher& cipher,
                              const std::vector<uint8_t>& key,
                              const std::vector<uint8_t>& iv,
@@ -116,7 +119,7 @@ std::vector<uint8_t> encrypt(const Cipher& cipher,
  * @param length the length of the data to encrypt
  * @return The encrypted data
  */
-CBSASL_PUBLIC_API
+CBCRYPTO_PUBLIC_API
 std::vector<uint8_t> encrypt(const cJSON* json,
                              const uint8_t* data,
                              size_t length);
@@ -131,7 +134,7 @@ std::vector<uint8_t> encrypt(const cJSON* json,
  * @param length the length of the data to decrypt
  * @return The decrypted data
  */
-CBSASL_PUBLIC_API
+CBCRYPTO_PUBLIC_API
 std::vector<uint8_t> decrypt(const Cipher& cipher,
                              const std::vector<uint8_t>& key,
                              const std::vector<uint8_t>& iv,
@@ -147,7 +150,7 @@ std::vector<uint8_t> decrypt(const Cipher& cipher,
  * @param data The data to decrypt
  * @return The decrypted data
  */
-CBSASL_PUBLIC_API
+CBCRYPTO_PUBLIC_API
 std::vector<uint8_t> decrypt(const Cipher& cipher,
                              const std::vector<uint8_t>& key,
                              const std::vector<uint8_t>& iv,
@@ -167,7 +170,7 @@ std::vector<uint8_t> decrypt(const Cipher& cipher,
  * @param length the length of the data to decrypt
  * @return The decrypted data
  */
-CBSASL_PUBLIC_API
+CBCRYPTO_PUBLIC_API
 std::vector<uint8_t> decrypt(const cJSON* json,
                              const uint8_t* data,
                              size_t length);
@@ -181,7 +184,7 @@ std::vector<uint8_t> decrypt(const cJSON* json,
  *
  * @return the hex encoded version of the digest
  */
-CBSASL_PUBLIC_API
+CBCRYPTO_PUBLIC_API
 std::string digest(const Algorithm algorithm, const std::string& data);
 }
 }

@@ -16,7 +16,7 @@
 
 #include <gtest/gtest.h>
 
-#include <cbsasl/cbcrypto.h>
+#include <cbcrypto/cbcrypto.h>
 #include <cbsasl/cbsasl.h>
 #include <cbsasl/password_database.h>
 #include <cbsasl/pwconv.h>

@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <array>
-#include <cbsasl/cbcrypto.h>
+#include <cbcrypto/cbcrypto.h>
 #include <platform/cb_malloc.h>
 
 const char* cbpwfile = "cbsasl_test.pw";
