@@ -105,6 +105,14 @@ Checkpoint::~Checkpoint() {
     }
 }
 
+size_t Checkpoint::getNumMetaItems() const {
+    if (checkpointState == CHECKPOINT_OPEN) {
+        return 1;
+    } else {
+        return 2;
+    }
+}
+
 void Checkpoint::setState(checkpoint_state state) {
     checkpointState = state;
 }
@@ -543,7 +551,9 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
             (*itr)->registerCursorName(name);
             break;
         } else {
-            skipped += (*itr)->getNumItems() + 2;
+            // Whole (closed) checkpoint skipped, increment by it's number
+            // of items + meta_items.
+            skipped += (*itr)->getNumItems() + (*itr)->getNumMetaItems();
         }
     }
 
@@ -622,7 +632,9 @@ bool CheckpointManager::registerCursor_UNLOCKED(
         size_t offset = 0;
         std::list<Checkpoint*>::iterator pos = checkpointList.begin();
         for (; pos != it; ++pos) {
-            offset += (*pos)->getNumItems() + 2;
+            // Increment offset for all previous (closed) checkpoints, adding
+            // in the meta items.
+            offset += (*pos)->getNumItems() + (*pos)->getNumMetaItems();
         }
 
         connCursors[name] = CheckpointCursor(name, it, (*it)->begin(), offset,
@@ -647,13 +659,14 @@ bool CheckpointManager::registerCursor_UNLOCKED(
             curr = map_it->second.currentPos;
             offset = map_it->second.offset;
         } else {
-            // Set the cursor's position to the begining of the checkpoint to
+            // Set the cursor's position to the beginning of the checkpoint to
             // start with
             curr = (*it)->begin();
             std::list<Checkpoint*>::iterator pos = checkpointList.begin();
             for (; pos != it; ++pos) {
-                offset += (*pos)->getNumItems() + 2;
-                // 2 is for checkpoint start and end items.
+                // Increment offset for all previous (closed) checkpoints, adding
+                // in the meta items.
+                offset += (*pos)->getNumItems() + (*pos)->getNumMetaItems();
             }
         }
 
@@ -794,7 +807,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
             break;
         } else {
             numUnrefItems += (*it)->getNumItems();
-            numMetaItems +=  2; // 2 is for checkpoint start and end items.
+            numMetaItems += (*it)->getNumMetaItems();
             ++numCheckpointsRemoved;
             if (checkpointConfig.canKeepClosedCheckpoints() &&
                 (checkpointList.size() - numCheckpointsRemoved) <=
@@ -904,7 +917,7 @@ void CheckpointManager::collapseClosedCheckpoints(
         for (; rit != checkpointList.rend(); ++rit) {
             size_t numAddedItems = (*lastClosedChk)->mergePrevCheckpoint(*rit);
             numDuplicatedItems += ((*rit)->getNumItems() - numAddedItems);
-            numMetaItems += 2; // checkpoint start and end meta items
+            numMetaItems += (*rit)->getNumMetaItems();
 
             std::set<std::string>::iterator nameItr =
                 (*rit)->getCursorNameList().begin();
@@ -1258,34 +1271,36 @@ size_t CheckpointManager::getNumItemsForCursor_UNLOCKED(const std::string &name)
     return remains;
 }
 
-size_t CheckpointManager::getNumOfMetaItemsFromCursor(CheckpointCursor &cursor) {
+size_t CheckpointManager::getNumOfMetaItemsFromCursor(const CheckpointCursor &cursor) const {
     // Get the number of meta items that can be skipped by a given cursor.
     size_t meta_items = 0;
-    std::list<Checkpoint*>::iterator curr_chk = cursor.currentCheckpoint;
-    for (; curr_chk != checkpointList.end(); ++curr_chk) {
+    for (auto curr_chk = cursor.currentCheckpoint;
+         curr_chk != checkpointList.end();
+         ++curr_chk) {
+
+        // If this is the cursor's current checkpoint, meta items remaining
+        // depends on how far along the current cursor position is.
         if (curr_chk == cursor.currentCheckpoint) {
-            std::list<queued_item>::iterator curr_pos = cursor.currentPos;
+            auto curr_pos = cursor.currentPos;
             ++curr_pos;
             if (curr_pos == (*curr_chk)->end()) {
+                // At the end of this checkpoint, no more meta items.
                 continue;
+
+            } else if ((*curr_pos)->getOperation() == queue_op::checkpoint_start) {
+                // At start marker.
+                meta_items += 1;
             }
-            if ((*curr_pos)->getOperation() == queue_op::checkpoint_start) {
-                if ((*curr_chk)->getState() == CHECKPOINT_CLOSED) {
-                    meta_items += 2;
-                } else {
-                    ++meta_items;
-                }
-            } else {
-                if ((*curr_chk)->getState() == CHECKPOINT_CLOSED) {
-                    ++meta_items;
-                }
-            }
-        } else {
+
+            // Within a checkpoint, not at the end. Will be an additional item
+            // if this checkpoint is closed (checkpoint_end).
             if ((*curr_chk)->getState() == CHECKPOINT_CLOSED) {
-                meta_items += 2;
-            } else {
-                ++meta_items;
+                meta_items += 1;
             }
+
+        } else {
+            // Not current checkpoint, meta items is total for that checkpoint.
+            meta_items += (*curr_chk)->getNumMetaItems();
         }
     }
     return meta_items;
@@ -1495,7 +1510,7 @@ void CheckpointManager::collapseCheckpoints(uint64_t id) {
         size_t numAddedItems = checkpointList.back()->
                                mergePrevCheckpoint(*rit);
         numDuplicatedItems += ((*rit)->getNumItems() - numAddedItems);
-        numMetaItems += 2; // checkpoint start and end meta items
+        numMetaItems += (*rit)->getNumMetaItems();
         delete *rit;
     }
     numItems.fetch_sub(numDuplicatedItems + numMetaItems);

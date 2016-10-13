@@ -184,7 +184,8 @@ private:
 
     // The offset (in terms of items) this cursor is from the start of the
     // cursors' current checkpoint. Used to calculate how many items this
-    // cursor has remaining.
+    // cursor has remaining by subtracting
+    // offset from CheckpointManager::numItems.
     AtomicValue<size_t>              offset;
     bool                             fromBeginningOnChkCollapse;
     MustSendCheckpointEnd            sendCheckpointEndMetaItem;
@@ -335,6 +336,8 @@ public:
         return numItems;
     }
 
+    size_t getNumMetaItems() const;
+
     /**
      * Return the current state of this checkpoint.
      */
@@ -426,7 +429,15 @@ public:
         return toWrite.begin();
     }
 
+    std::list<queued_item>::const_iterator begin() const {
+        return toWrite.begin();
+    }
+
     std::list<queued_item>::iterator end() {
+        return toWrite.end();
+    }
+
+    std::list<queued_item>::const_iterator end() const {
         return toWrite.end();
     }
 
@@ -864,7 +875,7 @@ private:
     queued_item createCheckpointItem(uint64_t id, uint16_t vbid,
                                      queue_op checkpoint_op);
 
-    size_t getNumOfMetaItemsFromCursor(CheckpointCursor &cursor);
+    size_t getNumOfMetaItemsFromCursor(const CheckpointCursor &cursor) const;
 
     EPStats                 &stats;
     CheckpointConfig        &checkpointConfig;
