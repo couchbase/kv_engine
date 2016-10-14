@@ -8,6 +8,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <errno.h>
+#include <mutex>
 #include <string.h>
 #include <strings.h>
 #include <stdlib.h>
@@ -29,6 +30,7 @@
 #include <memcached/engine.h>
 #include <memcached/syslog.h>
 #include <memcached/isotime.h>
+#include <platform/strerror.h>
 
 #include "extensions/protocol_extension.h"
 #include "file_logger_utilities.h"
@@ -99,6 +101,9 @@ static cb_cond_t space_cond;
 
 static char hostname[256];
 static pid_t pid;
+
+// mutex used to synchronize access to stderr
+std::mutex stderr_mutex;
 
 /* To avoid the logs beeing flooded by the same log messages we try to
  * de-duplicate the messages and instead print out:
@@ -233,11 +238,13 @@ static int format_log_entry(char* buffer, size_t buf_len, time_t time,
     }
 
     if (size_t(prefix_len + msglen) > (buf_len - 1)) {
-        // Message cropped.
-        std::cerr << "Message too big to fit in event. Full message: "
-                  << message;
-        std::cerr.flush();
-
+        {
+            std::lock_guard<std::mutex> guard(stderr_mutex);
+            // Message cropped.
+            std::cerr << "Message too big to fit in event. Full message: "
+                      << message;
+            std::cerr.flush();
+        }
         const char cropped[] = " [cut]";
         snprintf(buffer + (buf_len - sizeof(cropped)), sizeof(cropped),
                  "%s", cropped);
@@ -277,6 +284,7 @@ static void syslog_event_receiver(SyslogEvent *event) {
 
     if (severity >= current_log_level || severity >= stderr_output_level) {
         if (severity >= stderr_output_level) {
+            std::lock_guard<std::mutex> guard(stderr_mutex);
             std::cerr << buffer;
             std::cerr.flush();
         }
@@ -332,13 +340,16 @@ static void logger_log_wrapper(EXTENSION_LOG_LEVEL severity,
              */
             index = avail_char_in_msg - 1;
             if (event.msg[index] != '\n') {
-                fprintf(stderr, "Syslog message being truncated... too big \n");
+                std::lock_guard<std::mutex> guard(stderr_mutex);
+                std::cerr << "Syslog message being truncated... too big"
+                          << std::endl;
                 event.msg[index] = '\n';
             }
             event.msg[index + 1] = '\0';
         }
     } else {
-        fprintf(stderr, "Syslog message dropped... too big \n");
+        std::lock_guard<std::mutex> guard(stderr_mutex);
+        std::cerr << "Syslog message dropped... too big" << std::endl;
         return;
     }
 
@@ -359,8 +370,11 @@ static void logger_log_wrapper(EXTENSION_LOG_LEVEL severity,
     case EXTENSION_LOG_DETAIL:
         syslog_severity = SYSLOG_DEBUG;
         break;
-    default:
-        fprintf(stderr, "Unknown severity\n");
+    default: {
+            std::lock_guard<std::mutex> guard(stderr_mutex);
+            std::cerr << "Unknown severity: " << severity
+                      << " using SYSLOG_UNKNOWN" << std::endl;
+        }
         syslog_severity = SYSLOG_UNKNOWN;
     }
 
@@ -375,7 +389,9 @@ static void logger_log_wrapper(EXTENSION_LOG_LEVEL severity,
         event.time = (time_t)now.tv_sec;
         event.time_secfrac = (uint32_t)now.tv_usec;
     } else {
-        fprintf(stderr, "gettimeofday failed in file_logger.c: %s\n", strerror(errno));
+        std::lock_guard<std::mutex> guard(stderr_mutex);
+        std::cerr << "gettimeofday failed in file_logger.cc: " << cb_strerror()
+                  << std::endl;
         return;
     }
     /* Send the syslog event */
@@ -433,7 +449,8 @@ static FILE *rotate_logfile(FILE *old, const char *fnm) {
         fwrite(log_entry, 1, strlen(log_entry), old);
         fflush(old);
         // Send to stderr for good measure.
-        (void)fwrite(log_entry, sizeof(char), strlen(log_entry), stderr);
+        std::lock_guard<std::mutex> guard(stderr_mutex);
+        std::cerr << log_entry;
     }
     close_logfile(old);
     return new_log;
@@ -520,7 +537,8 @@ static void logger_thread_main(void* arg)
 
                     fwrite(log_entry, 1, strlen(log_entry), fp);
                     // Send to stderr for good measure.
-                    (void)fwrite(log_entry, sizeof(char), strlen(log_entry), stderr);
+                    std::lock_guard<std::mutex> guard(stderr_mutex);
+                    std::cerr << log_entry;
                 }
             }
 
@@ -655,7 +673,8 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
     pid = (pid_t)cb_getpid();
 
     if (gethostname(hostname, sizeof(hostname))) {
-        fprintf(stderr,"Could not get the hostname");
+        std::cerr << "Could not get the hostname: " << cb_strerror()
+                  << std::endl;
         strcpy(hostname,"unknown");
     }
 
@@ -706,7 +725,7 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
     buffers[1].data = reinterpret_cast<char*>(cb_malloc(buffersz));
 
     if (buffers[0].data == NULL || buffers[1].data == NULL || fname == NULL) {
-        fprintf(stderr, "Failed to allocate memory for the logger\n");
+        std::cerr << "Failed to allocate memory for the logger" << std::endl;
         cb_free(fname);
         cb_free(buffers[0].data);
         cb_free(buffers[1].data);
@@ -717,7 +736,8 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
 
     if (cb_create_named_thread(&tid, logger_thread_main, fname, 0,
                                "mc:file_logger") < 0) {
-        fprintf(stderr, "Failed to initialize the logger\n");
+        std::cerr << "Failed to create the logger backend thread: "
+                  << cb_strerror() << std::endl;
         cb_free(fname);
         cb_free(buffers[0].data);
         cb_free(buffers[1].data);
