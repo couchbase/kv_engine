@@ -346,32 +346,11 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
     return req;
 }
 
-void set_drift_counter_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                             int64_t initialDriftCount) {
-
-    protocol_binary_request_header *request;
-
-    int64_t driftCount = htonll(initialDriftCount);
-    uint8_t timeSync = 0x00;
-    uint8_t extlen = sizeof(driftCount) + sizeof(timeSync);
-    char *ext = new char[extlen];
-    memcpy(ext, (char *)&driftCount, sizeof(driftCount));
-    memcpy(ext + sizeof(driftCount), (char *)&timeSync, sizeof(timeSync));
-
-    request = createPacket(PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE,
-                           0, 0, ext, extlen);
-    h1->unknown_command(h, NULL, request, add_response);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-            "Expected success for CMD_SET_DRIFT_COUNTER_STATE");
-    cb_free(request);
-    delete[] ext;
-}
-
 void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const char *val, const size_t vallen,
                    const uint32_t vb, ItemMetaData *itemMeta,
                    bool skipConflictResolution, uint8_t datatype,
-                   bool includeExtMeta, int64_t adjustedTime) {
+                   bool includeExtMeta) {
     int blen = 0;
     char *ext;
     ExtendedMetaData *emd = NULL;
@@ -389,7 +368,7 @@ void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
         blen = 26;
         ext = new char[blen];
         encodeWithMetaExt(ext, itemMeta);
-        emd = new ExtendedMetaData(adjustedTime);
+        emd = new ExtendedMetaData();
         // nmeta added to ext below
     }
 
@@ -450,7 +429,7 @@ void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const uint32_t vb,
                    ItemMetaData *itemMeta, uint64_t cas_for_delete,
                    bool skipConflictResolution, bool includeExtMeta,
-                   int64_t adjustedTime, const void *cookie) {
+                   const void *cookie) {
     int blen = 0;
     char *ext;
     ExtendedMetaData *emd = NULL;
@@ -468,7 +447,7 @@ void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
         blen = 26;
         ext = new char[blen];
         encodeWithMetaExt(ext, itemMeta);
-        emd = new ExtendedMetaData(adjustedTime);
+        emd = new ExtendedMetaData();
         // nmeta added to ext below
     }
 
@@ -793,8 +772,7 @@ void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const char *val, const size_t vallen,
                    const uint32_t vb, ItemMetaData *itemMeta,
                    uint64_t cas_for_set, bool skipConflictResolution,
-                   uint8_t datatype, bool includeExtMeta,
-                   int64_t adjustedTime, const void *cookie) {
+                   uint8_t datatype, bool includeExtMeta, const void *cookie) {
     int blen = 0;
     char *ext;
     ExtendedMetaData *emd = NULL;
@@ -812,7 +790,7 @@ void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
         blen = 26;
         ext = new char[blen];
         encodeWithMetaExt(ext, itemMeta);
-        emd = new ExtendedMetaData(adjustedTime);
+        emd = new ExtendedMetaData();
         // nmeta added to ext below
     }
 

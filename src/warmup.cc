@@ -466,9 +466,6 @@ void Warmup::scheduleCreateVBuckets()
 void Warmup::createVBuckets(uint16_t shardId) {
     size_t maxEntries = store.getEPEngine().getMaxFailoverEntries();
     std::map<uint16_t, vbucket_state>& vbStates = shardVbStates[shardId];
-    Configuration& config = store.getEPEngine().getConfiguration();
-    time_sync_t timeSyncConfig =
-               VBucket::convertStrToTimeSyncConfig(config.getTimeSynchronization());
 
     std::map<uint16_t, vbucket_state>::iterator itr;
     for (itr = vbStates.begin(); itr != vbStates.end(); ++itr) {
@@ -490,10 +487,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
                                  store.getEPEngine().getCheckpointConfig(),
                                  shard, vbs.highSeqno, vbs.lastSnapStart,
                                  vbs.lastSnapEnd, table, cb, vbs.state, 1,
-                                 vbs.purgeSeqno, vbs.maxCas,
-                                 vbs.driftCounter));
-
-            vb->setTimeSyncConfig(timeSyncConfig);
+                                 vbs.purgeSeqno, vbs.maxCas));
 
             if(vbs.state == vbucket_state_active && !cleanShutdown) {
                 if (static_cast<uint64_t>(vbs.highSeqno) == vbs.lastSnapEnd) {

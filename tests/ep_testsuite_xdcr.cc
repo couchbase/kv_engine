@@ -404,8 +404,7 @@ static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     const void *cookie = testHarness.create_cookie();
 
     // delete an item with meta data
-    del_with_meta(h, h1, key1, keylen, 0, &itemMeta, 0, false, false,
-                  0, cookie);
+    del_with_meta(h, h1, key1, keylen, 0, &itemMeta, 0, false, false, cookie);
 
     check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
     check(last_seqno == high_seqno + 1, "Expected valid sequence number");
@@ -417,8 +416,7 @@ static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     testHarness.set_mutation_extras_handling(cookie, false);
 
     // delete an item with meta data
-    del_with_meta(h, h1, key2, keylen, 0, &itemMeta, 0, false, false,
-                  0, cookie);
+    del_with_meta(h, h1, key2, keylen, 0, &itemMeta, 0, false, false, cookie);
 
     check(last_uuid == vb_uuid, "Expected same vbucket uuid");
     check(last_seqno == high_seqno + 1, "Expected same sequence number");
@@ -829,7 +827,7 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
     // do set with meta with the correct cas value. should pass.
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set,
-                  false, 0, false, 0, cookie);
+                  false, 0, false, cookie);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
     check(last_seqno == high_seqno + 1, "Expected valid sequence number");
@@ -851,7 +849,7 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     itm_meta.revSeqno++;
     cas_for_set = last_meta.cas;
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set,
-                  false, 0, false, 0, cookie);
+                  false, 0, false, cookie);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_uuid == vb_uuid, "Expected same vbucket uuid");
     check(last_seqno == high_seqno + 1, "Expected same sequence number");
@@ -1379,14 +1377,14 @@ static enum test_result test_set_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
           "Expect zero setMeta ops");
 
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
-                  PROTOCOL_BINARY_RAW_BYTES, true, gethrtime());
+                  PROTOCOL_BINARY_RAW_BYTES, false);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     checkeq(0, get_int_stat(h, h1, "ep_bg_meta_fetched"),
             "Expected no bg meta fetchs, thanks to bloom filters");
 
     // Check all meta data is the same
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
-                  PROTOCOL_BINARY_RAW_BYTES, true, gethrtime());
+                  PROTOCOL_BINARY_RAW_BYTES, false);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
           "Expected set meta conflict resolution failure");
@@ -1394,7 +1392,7 @@ static enum test_result test_set_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
     // Check that an older cas fails
     itemMeta.cas = 0xdeadbeee;
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
-                  PROTOCOL_BINARY_RAW_BYTES, true, gethrtime());
+                  PROTOCOL_BINARY_RAW_BYTES, false);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(2, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
           "Expected set meta conflict resolution failure");
@@ -1402,7 +1400,7 @@ static enum test_result test_set_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
     // Check that a higher cas passes
     itemMeta.cas = 0xdeadbeff;
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
-                  PROTOCOL_BINARY_RAW_BYTES, true, gethrtime());
+                  PROTOCOL_BINARY_RAW_BYTES, false);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     return SUCCESS;
@@ -1488,13 +1486,13 @@ static enum test_result test_del_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
 
-    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true, gethrtime());
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "curr_items", 0);
 
     // Check all meta data is the same
-    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true, gethrtime());
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(1, get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail"),
           "Expected delete meta conflict resolution failure");
@@ -1502,7 +1500,7 @@ static enum test_result test_del_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
     // Check that higher rev seqno but lower cas fails
     itemMeta.cas = info.cas;
     itemMeta.revSeqno = 11;
-    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true, gethrtime());
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(2, get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail"),
           "Expected delete meta conflict resolution failure");
@@ -1510,57 +1508,8 @@ static enum test_result test_del_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
     // Check that a higher cas and lower rev seqno passes
     itemMeta.cas = info.cas + 2;
     itemMeta.revSeqno = 9;
-    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true, gethrtime());
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected sucess");
-
-    return SUCCESS;
-}
-
-static enum test_result test_adjusted_time_negative_tests(ENGINE_HANDLE *h,
-                                                          ENGINE_HANDLE_V1 *h1) {
-    protocol_binary_request_header *request;
-
-    /* GET_ADJUSTED_TIME with a non-existent vbucket: vbid 1 */
-    request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 1, 0, NULL, 0,
-                           NULL, 0, NULL, 0);
-    h1->unknown_command(h, NULL, request, add_response);
-    cb_free(request);
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
-            "Expected not my vbucket");
-
-    /* GET_ADJUSTED_TIME when time_synchronization is "disabled" */
-    request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
-                           NULL, 0, NULL, 0);
-    h1->unknown_command(h, NULL, request, add_response);
-    cb_free(request);
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, last_status.load(),
-            "Expected not supported response");
-
-    int64_t initialDriftCount = 1000;
-    uint8_t timeSync = 0x00;
-
-    int64_t driftCount = htonll(initialDriftCount);
-    uint8_t extlen = sizeof(driftCount) + sizeof(timeSync);
-    char *ext = new char[extlen];
-    memcpy(ext, (char *)&driftCount, sizeof(driftCount));
-    memcpy(ext + sizeof(driftCount), (char *)&timeSync, sizeof(timeSync));
-
-    /* SET_DRIFT_COUNTER_STATE with non-existent vbucket: vbid 1 */
-    request = createPacket(PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE,
-                           1, 0, ext, extlen);
-    h1->unknown_command(h, NULL, request, add_response);
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
-            "Expected not my vbucket");
-    cb_free(request);
-
-    /* SET_DRIFT_COUNTER_STATE when time_synchronization is "disabled" */
-    request = createPacket(PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE,
-                           0, 0, ext, extlen);
-    h1->unknown_command(h, NULL, request, add_response);
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, last_status.load(),
-            "Expected not supported");
-    cb_free(request);
-    delete[] ext;
 
     return SUCCESS;
 }
@@ -1599,8 +1548,7 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("get meta", test_get_meta, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("get meta with extras", test_get_meta_with_extras,
-                 test_setup, teardown,
-                 "time_synchronization=enabled_without_drift", prepare, cleanup),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("get meta deleted", test_get_meta_deleted,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("get meta nonexistent", test_get_meta_nonexistent,
@@ -1667,10 +1615,6 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("temp item deletion", test_temp_item_deletion,
                  test_setup, teardown,
                  "exp_pager_stime=1", prepare, cleanup),
-        TestCase("test getAdjustedTime, setDriftCounter apis negative tests",
-                 test_adjusted_time_negative_tests, test_setup, teardown,
-                 NULL, prepare, cleanup),
-
         TestCase("test get_meta with item_eviction",
                  test_getMeta_with_item_eviction, test_setup, teardown,
                  "item_eviction_policy=full_eviction", prepare, cleanup),

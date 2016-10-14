@@ -117,7 +117,6 @@ bool KVStore::updateCachedVBState(uint16_t vbid, const vbucket_state& newState) 
         vbState->lastSnapStart = newState.lastSnapStart;
         vbState->lastSnapEnd = newState.lastSnapEnd;
         vbState->maxCas = std::max(vbState->maxCas, newState.maxCas);
-        vbState->driftCounter = newState.driftCounter;
     } else {
         cachedVBStates[vbid] = new vbucket_state(newState);
         if (cachedVBStates[vbid]->state != vbucket_state_dead) {
@@ -304,7 +303,6 @@ std::string vbucket_state::toJSON() const {
               << ",\"snap_start\": \"" << lastSnapStart << "\""
               << ",\"snap_end\": \"" << lastSnapEnd << "\""
               << ",\"max_cas\": \"" << maxCas << "\""
-              << ",\"drift_counter\": \"" << driftCounter << "\""
               << "}";
 
     return jsonState.str();

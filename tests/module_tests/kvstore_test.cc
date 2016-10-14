@@ -183,8 +183,7 @@ protected:
 // Initializes a KVStore
 static void initialize_kv_store(KVStore* kvstore) {
     std::string failoverLog("");
-    vbucket_state state(vbucket_state_active, 0, 0, 0, 0, 0, 0, 0, 0,
-                        failoverLog);
+    vbucket_state state(vbucket_state_active, 0, 0, 0, 0, 0, 0, 0, failoverLog);
     kvstore->snapshotVBucket(0, state,
                             VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT);
 }
@@ -366,8 +365,7 @@ TEST(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
     std::string failoverLog("[]");
     vbucket_state state(vbucket_state_active, /*ckid*/0, /*maxDelSeqNum*/0,
                         /*highSeqno*/0, /*purgeSeqno*/0, /*lastSnapStart*/0,
-                        /*lastSnapEnd*/0, /*maxCas*/-1, /*driftCounter*/0,
-                        failoverLog);
+                        /*lastSnapEnd*/0, /*maxCas*/-1, failoverLog);
     EXPECT_TRUE(kvstore->snapshotVBucket(/*vbid*/0, state,
                                          VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT));
     EXPECT_EQ(~0ull, kvstore->listPersistedVbuckets()[0]->maxCas);
@@ -1173,7 +1171,7 @@ public:
         kvstore.reset(new MockCouchKVStore(config));
         StatsCallback sc;
         std::string failoverLog("");
-        vbucket_state state(vbucket_state_active, 0, 0, 0, 0, 0, 0, 0, 0,
+        vbucket_state state(vbucket_state_active, 0, 0, 0, 0, 0, 0, 0,
                             failoverLog);
         kvstore->snapshotVBucket(0, state,
                                  VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT);

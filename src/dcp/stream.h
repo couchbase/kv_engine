@@ -289,8 +289,6 @@ private:
 
     const char* getEndStreamStatusStr(end_stream_status_t status);
 
-    ExtendedMetaData* prepareExtendedMetaData(uint16_t vBucketId);
-
     bool isCurrentSnapshotCompleted() const;
 
     /* Drop the cursor registered with the checkpoint manager.

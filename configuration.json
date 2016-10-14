@@ -682,7 +682,7 @@
         },
         "time_synchronization": {
             "default": "disabled",
-            "descr": "Time synchronization setting for XDCR Last Write Wins (LWW) conflict resolution",
+            "descr": "No longer supported. This config parameter has no effect.",
             "type": "std::string",
             "validator": {
                 "enum": [

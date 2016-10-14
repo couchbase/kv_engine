@@ -52,16 +52,17 @@ enum cmd_meta_extras_type {
  */
 class ExtendedMetaData {
 public:
+    ExtendedMetaData()
+          : data(nullptr),
+            ret(ENGINE_SUCCESS),
+            len(0),
+            memoryAllocated(false) {}
+
     ExtendedMetaData(const void *meta, uint16_t nmeta);
-    ExtendedMetaData(int64_t adjusted_time);
     ~ExtendedMetaData();
 
     ENGINE_ERROR_CODE getStatus() {
         return ret;
-    }
-
-    int64_t getAdjustedTime() {
-        return adjustedTime;
     }
 
     std::pair<const char*, uint16_t> getExtMeta() {
@@ -69,11 +70,13 @@ public:
     }
 
 private:
+    /*
+    void encodeMeta(); is currently removed as there's no extmeta to encode.
+    Resurrect from history as required.
+    */
     void decodeMeta();
-    void encodeMeta();
 
     const char* data;
-    int64_t adjustedTime;
     ENGINE_ERROR_CODE ret;
     uint16_t len;
     bool memoryAllocated;

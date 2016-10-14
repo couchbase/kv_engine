@@ -22,19 +22,9 @@
 ExtendedMetaData::ExtendedMetaData(const void *meta, uint16_t nmeta) {
     len = nmeta;
     data = static_cast<const char*>(meta);
-    adjustedTime = 0;
     ret = ENGINE_SUCCESS;
     memoryAllocated = false;
     decodeMeta();
-}
-
-ExtendedMetaData::ExtendedMetaData(int64_t adjusted_time) {
-    len = 0;
-    data = NULL;
-    adjustedTime = adjusted_time;
-    ret = ENGINE_SUCCESS;
-    memoryAllocated = false;
-    encodeMeta();
 }
 
 ExtendedMetaData::~ExtendedMetaData() {
@@ -78,9 +68,7 @@ void ExtendedMetaData::decodeMeta() {
                 }
                 switch (type) {
                     case CMD_META_ADJUSTED_TIME:
-                        memcpy(&adjustedTime, data + offset, length);
-                        adjustedTime = ntohll(adjustedTime);
-                        break;
+                        // Ignoring adjusted_time
                     case CMD_META_CONFLICT_RES_MODE:
                         // MB-21143: Now ignoring conflict_res_mode
                         // 4.6 no longer sends, but older versions
@@ -98,40 +86,5 @@ void ExtendedMetaData::decodeMeta() {
         }
     } else {
         ret = ENGINE_EINVAL;
-    }
-}
-
-void ExtendedMetaData::encodeMeta() {
-    uint8_t version = META_EXT_VERSION_ONE;
-    uint8_t type;
-    int64_t adjusted_time = htonll(adjustedTime);
-    uint16_t length;
-    uint16_t nmeta = sizeof(version) + sizeof(type) + sizeof(length) +
-                sizeof(adjusted_time);
-
-    char* meta = new char[nmeta];
-    if (meta == NULL) {
-        ret = ENGINE_ENOMEM;
-    } else {
-        memoryAllocated = true;
-        uint32_t offset = 0;
-
-        memcpy(meta, &version, sizeof(version));
-        offset += sizeof(version);
-
-        type = CMD_META_ADJUSTED_TIME;
-        length = sizeof(adjusted_time);
-        length = htons(length);
-
-        memcpy(meta + offset, &type, sizeof(type));
-        offset += sizeof(type);
-
-        memcpy(meta + offset, &length, sizeof(length));
-        offset += sizeof(length);
-
-        memcpy(meta + offset, &adjusted_time, sizeof(adjusted_time));
-
-        data = (const char*)meta;
-        len = nmeta;
     }
 }
