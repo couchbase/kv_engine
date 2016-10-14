@@ -276,8 +276,9 @@ class MemcachedClient(object):
     def start_persistence(self):
         return self._doCmd(memcacheConstants.CMD_START_PERSISTENCE, '', '')
 
-    def set_param(self, key, val, type):
+    def set_param(self, vbucket, key, val, type):
         print "setting param:", key, val
+        self.vbucketId = vbucket
         type = struct.pack(memcacheConstants.SET_PARAM_FMT, type)
         return self._doCmd(memcacheConstants.CMD_SET_PARAM, key, val, type)
 

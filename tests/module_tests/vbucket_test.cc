@@ -52,7 +52,7 @@ protected:
                                   checkpoint_config, /*kvshard*/nullptr,
                                   /*lastSeqno*/1000, /*lastSnapStart*/0,
                                   /*lastSnapEnd*/0, /*table*/nullptr,
-                                  std::make_shared<DummyCB>()));
+                                  std::make_shared<DummyCB>(), config));
     }
 
     void TearDown() {
@@ -62,6 +62,7 @@ protected:
     std::unique_ptr<VBucket> vbucket;
     EPStats global_stats;
     CheckpointConfig checkpoint_config;
+    Configuration config;
 };
 
 // Measure performance of VBucket::getBGFetchItems - queue and then get

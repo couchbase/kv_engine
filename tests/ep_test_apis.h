@@ -196,7 +196,7 @@ prepare_get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                     vbucket_state_t state, bool makeinvalidkey = false) CB_MUST_USE_RESULT;
 
 bool set_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, protocol_binary_engine_param_t paramtype,
-               const char *param, const char *val);
+               const char *param, const char *val, uint16_t vb = 0);
 bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                        uint16_t vb, vbucket_state_t state);
 bool get_all_vb_seqnos(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,

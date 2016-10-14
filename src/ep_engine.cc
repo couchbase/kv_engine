@@ -606,6 +606,42 @@ extern "C" {
         return rv;
     }
 
+    static protocol_binary_response_status setVbucketParam(
+                                                    EventuallyPersistentEngine *e,
+                                                    uint16_t vbucket,
+                                                    const char *keyz,
+                                                    const char *valz,
+                                                    std::string& msg) {
+        protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+        try {
+            if (strcmp(keyz, "hlc_drift_ahead_threshold_us") == 0) {
+                uint64_t v = std::strtoull(valz, nullptr, 10);
+                checkNumeric(valz);
+                e->getConfiguration().setHlcAheadThresholdUs(v);
+            } else if (strcmp(keyz, "hlc_drift_behind_threshold_us") == 0) {
+                uint64_t v = std::strtoull(valz, nullptr, 10);
+                checkNumeric(valz);
+                e->getConfiguration().setHlcBehindThresholdUs(v);
+            } else if (strcmp(keyz, "max_cas") == 0) {
+                uint64_t v = std::strtoull(valz, nullptr, 10);
+                checkNumeric(valz);
+                LOG(EXTENSION_LOG_WARNING, "setVbucketParam max_cas=%" PRIu64 " "
+                                           "vbucket=%" PRIu16 "\n", v, vbucket);
+                if (e->getEpStore()->forceMaxCas(vbucket, v) != ENGINE_SUCCESS) {
+                    rv = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+                    msg = "Not my vbucket";
+                }
+            } else {
+                msg = "Unknown config param";
+                rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+            }
+        } catch (std::runtime_error& ex) {
+            msg = "Value out of range.";
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+        return rv;
+    }
+
     static protocol_binary_response_status evictKey(
                                                  EventuallyPersistentEngine *e,
                                                  protocol_binary_request_header
@@ -790,6 +826,7 @@ extern "C" {
         size_t keylen = ntohs(req->message.header.request.keylen);
         uint8_t extlen = req->message.header.request.extlen;
         size_t vallen = ntohl(req->message.header.request.bodylen);
+        uint16_t vbucket = ntohs(req->message.header.request.vbucket);
         protocol_binary_engine_param_t paramtype =
             static_cast<protocol_binary_engine_param_t>(ntohl(req->message.body.param_type));
 
@@ -835,6 +872,9 @@ extern "C" {
             break;
         case protocol_binary_engine_param_dcp:
             rv = setDcpParam(e, keyz, valz, msg);
+            break;
+        case protocol_binary_engine_param_vbucket:
+            rv = setVbucketParam(e, vbucket, keyz, valz, msg);
             break;
         default:
             rv = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
@@ -2978,6 +3018,22 @@ bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
         queueAge += vb->getQueueAge();
         pendingWrites += vb->dirtyQueuePendingWrites;
         rollbackItemCount += vb->getRollbackItemCount();
+
+        /*
+         * The bucket stat only reports the largest drift of the vbuckets.
+         */
+        auto driftStats = vb->getHLCDriftStats();
+        // If this vbucket's max is bigger than ours
+        if (driftStats.total > maxAbsHLCDrift.total) {
+            maxAbsHLCDrift = driftStats;
+        }
+
+        /*
+         * Total up the exceptions
+         */
+        auto driftExceptionCounters = vb->getHLCDriftExceptionCounters();
+        totalHLCDriftExceptionCounters.ahead += driftExceptionCounters.ahead;
+        totalHLCDriftExceptionCounters.behind += driftExceptionCounters.behind;
     }
 
     return false;
@@ -3563,6 +3619,35 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                                 EventuallyPersistentStore::KVSOption::RW)) {
         add_casted_stat("ep_block_cache_misses", value, add_stat, cookie);
     }
+
+    // Add stats for tracking HLC drift
+    add_casted_stat("ep_active_hlc_drift",
+        activeCountVisitor.getMaxAbsHLCDrift().total, add_stat, cookie);
+    add_casted_stat("ep_active_hlc_drift_count",
+        activeCountVisitor.getMaxAbsHLCDrift().updates, add_stat, cookie);
+    add_casted_stat("ep_replica_hlc_drift",
+        replicaCountVisitor.getMaxAbsHLCDrift().total, add_stat, cookie);
+    add_casted_stat("ep_replica_hlc_drift_count",
+        replicaCountVisitor.getMaxAbsHLCDrift().updates, add_stat, cookie);
+
+    add_casted_stat("ep_active_ahead_exceptions",
+        activeCountVisitor.getTotalHLCDriftExceptionCounters().ahead,
+        add_stat, cookie);
+    add_casted_stat("ep_active_behind_exceptions",
+        activeCountVisitor.getTotalHLCDriftExceptionCounters().behind,
+        add_stat, cookie);
+    add_casted_stat("ep_replica_ahead_exceptions",
+        replicaCountVisitor.getTotalHLCDriftExceptionCounters().ahead,
+        add_stat, cookie);
+    add_casted_stat("ep_replica_behind_exceptions",
+        replicaCountVisitor.getTotalHLCDriftExceptionCounters().behind,
+        add_stat, cookie);
+
+    // A single total for ahead exceptions accross all active/replicas
+    add_casted_stat("ep_clock_cas_drift_threshold_exceeded",
+        activeCountVisitor.getTotalHLCDriftExceptionCounters().ahead +
+        replicaCountVisitor.getTotalHLCDriftExceptionCounters().ahead,
+        add_stat, cookie);
 
     return ENGINE_SUCCESS;
 }

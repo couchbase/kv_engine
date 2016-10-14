@@ -69,7 +69,7 @@ protected:
                               checkpoint_config, /*kvshard*/NULL,
                               /*lastSeqno*/1000, /*lastSnapStart*/0,
                               /*lastSnapEnd*/0, /*table*/NULL,
-                              callback)) {
+                              callback, config)) {
         createManager();
     }
 
@@ -83,7 +83,7 @@ protected:
 
     EPStats global_stats;
     CheckpointConfig checkpoint_config;
-
+    Configuration config;
     std::shared_ptr<Callback<uint16_t> > callback;
     RCPtr<VBucket> vbucket;
     std::unique_ptr<CheckpointManager> manager;
@@ -193,7 +193,7 @@ TEST_F(CheckpointTest, basic_chk_test) {
     std::shared_ptr<Callback<uint16_t> > cb(new DummyCB());
     RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats,
                                        checkpoint_config, NULL, 0, 0, 0, NULL,
-                                       cb));
+                                       cb, config));
 
     CheckpointManager *checkpoint_manager = new CheckpointManager(global_stats, 0,
                                                                   checkpoint_config,
@@ -291,7 +291,7 @@ TEST_F(CheckpointTest, reset_checkpoint_id) {
     std::shared_ptr<Callback<uint16_t> > cb(new DummyCB());
     RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats,
                                        checkpoint_config, NULL, 0, 0, 0, NULL,
-                                       cb));
+                                       cb, config));
     CheckpointManager *manager =
         new CheckpointManager(global_stats, 0, checkpoint_config, 1, 0, 0, cb);
 

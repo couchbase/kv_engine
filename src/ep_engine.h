@@ -105,7 +105,8 @@ public:
         opsReject(0), queueSize(0),
         queueMemory(0), queueFill(0), queueDrain(0),
         pendingWrites(0), chkPersistRemaining(0),
-        queueAge(0), rollbackItemCount(0)
+        queueAge(0), rollbackItemCount(0), maxAbsHLCDrift(),
+        totalHLCDriftExceptionCounters()
     { }
 
     bool visitBucket(RCPtr<VBucket> &vb);
@@ -158,6 +159,9 @@ public:
 
     uint64_t getRollbackItemCount() { return rollbackItemCount; }
 
+    HLC::DriftStats getMaxAbsHLCDrift() {return maxAbsHLCDrift;}
+    HLC::DriftExceptions getTotalHLCDriftExceptionCounters() {return totalHLCDriftExceptionCounters;}
+
 private:
     EventuallyPersistentEngine &engine;
     vbucket_state_t desired_state;
@@ -187,6 +191,8 @@ private:
     size_t chkPersistRemaining;
     uint64_t queueAge;
     uint64_t rollbackItemCount;
+    HLC::DriftStats maxAbsHLCDrift;
+    HLC::DriftExceptions totalHLCDriftExceptionCounters;
 };
 
 /**

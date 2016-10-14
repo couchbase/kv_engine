@@ -193,3 +193,30 @@ KVShard* VBucketMap::getShard(KVShard::id_type shardId) const {
 size_t VBucketMap::getNumShards() const {
     return shards.size();
 }
+
+void VBucketMap::setHLCDriftAheadThreshold(uint64_t threshold) {
+    for (id_type id = 0; id < size; id++) {
+        auto vb = getBucket(id);
+        if (vb) {
+            vb->setHLCDriftAheadThreshold(threshold);
+        }
+    }
+}
+
+void VBucketMap::setHLCDriftBehindThreshold(uint64_t threshold) {
+    for (id_type id = 0; id < size; id++) {
+        auto vb = getBucket(id);
+        if (vb) {
+            vb->setHLCDriftBehindThreshold(threshold);
+        }
+    }
+}
+
+void VBucketMap::VBucketConfigChangeListener::sizeValueChanged(const std::string &key,
+                                                   size_t value) {
+    if (key == "hlc_drift_ahead_threshold_us") {
+        map.setHLCDriftAheadThreshold(value);
+    } else if (key == "hlc_drift_behind_threshold_us") {
+        map.setHLCDriftBehindThreshold(value);
+    }
+}

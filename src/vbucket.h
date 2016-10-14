@@ -24,6 +24,7 @@
 #include "checkpoint.h"
 #include "ep_types.h"
 #include "failover-table.h"
+#include "hlc.h"
 #include "kvstore.h"
 #include "hash_table.h"
 #include "stored-value.h"
@@ -150,6 +151,7 @@ public:
             uint64_t lastSnapEnd,
             FailoverTable *table,
             std::shared_ptr<Callback<id_type> > cb,
+            Configuration& config,
             vbucket_state_t initState = vbucket_state_dead,
             uint64_t chkId = 1,
             uint64_t purgeSeqno = 0,
@@ -190,11 +192,35 @@ public:
     }
 
     uint64_t getMaxCas() {
-        return max_cas;
+        return hlc.getMaxHLC();
     }
 
     void setMaxCas(uint64_t cas) {
-        atomic_setIfBigger(max_cas, cas);
+        hlc.setMaxHLC(cas);
+    }
+
+    void setMaxCasAndTrackDrift(uint64_t cas) {
+        hlc.setMaxHLCAndTrackDrift(cas);
+    }
+
+    void forceMaxCas(uint64_t cas) {
+        hlc.forceMaxHLC(cas);
+    }
+
+    HLC::DriftStats getHLCDriftStats() const {
+        return hlc.getDriftStats();
+    }
+
+    HLC::DriftExceptions getHLCDriftExceptionCounters() const {
+        return hlc.getDriftExceptionCounters();
+    }
+
+    void setHLCDriftAheadThreshold(uint64_t threshold) {
+        hlc.setDriftAheadThreshold(threshold);
+    }
+
+    void setHLCDriftBehindThreshold(uint64_t threshold) {
+        hlc.setDriftBehindThreshold(threshold);
     }
 
     bool isTakeoverBackedUp() {
@@ -359,7 +385,9 @@ public:
     size_t getFilterSize();
     size_t getNumOfKeysInFilter();
 
-    uint64_t nextHLCCas();
+    uint64_t nextHLCCas() {
+        return hlc.nextHLC();
+    }
 
     // Applicable only for FULL EVICTION POLICY
     bool isResidentRatioUnderThreshold(float threshold,
@@ -457,8 +485,6 @@ private:
     hrtime_t                        pendingOpsStart;
     EPStats                        &stats;
     uint64_t                        purge_seqno;
-
-    std::atomic<uint64_t>           max_cas;
     std::atomic<bool>               takeover_backed_up;
 
     std::mutex pendingBGFetchesLock;
@@ -480,6 +506,9 @@ private:
     BloomFilter *tempFilter;    // Used during compaction.
 
     std::atomic<uint64_t> rollbackItemCount;
+
+    HLC hlc;
+    std::string statPrefix;
 
     static size_t chkFlushTimeout;
 

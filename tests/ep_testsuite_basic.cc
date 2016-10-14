@@ -2103,6 +2103,27 @@ static enum test_result test_CBD_152(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result set_max_cas_mb21190(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    uint64_t max_cas = get_ull_stat(h, h1, "vb_0:max_cas", "vbucket-details 0");
+    std::string max_cas_str = std::to_string(max_cas+1);
+    set_param(h, h1, protocol_binary_engine_param_vbucket,
+              "max_cas", max_cas_str.data(), 0);
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Failed to set_param max_cas");
+    checkeq(max_cas + 1,
+            get_ull_stat(h, h1, "vb_0:max_cas", "vbucket-details 0"),
+            "max_cas didn't change");
+    set_param(h, h1, protocol_binary_engine_param_vbucket,
+              "max_cas", max_cas_str.data(), 1);
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
+            "Expected not my vbucket for vb 1");
+    set_param(h, h1, protocol_binary_engine_param_vbucket,
+              "max_cas", "JUNK", 0);
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+            "Expected EINVAL");
+    return SUCCESS;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Test manifest //////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -2233,6 +2254,8 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("flushall params", test_CBD_152, test_setup, teardown,
                  "flushall_enabled=true;max_vbuckets=16;"
                  "ht_size=7;ht_locks=3", prepare, cleanup),
+        TestCase("set max_cas MB21190", set_max_cas_mb21190, test_setup, teardown, nullptr,
+                 prepare, cleanup),
 
         // sentinel
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)

@@ -128,6 +128,7 @@ VBucket::VBucket(id_type i,
                  uint64_t lastSnapEnd,
                  FailoverTable *table,
                  std::shared_ptr<Callback<id_type> > cb,
+                 Configuration& config,
                  vbucket_state_t initState,
                  uint64_t chkId,
                  uint64_t purgeSeqno,
@@ -153,7 +154,6 @@ VBucket::VBucket(id_type i,
       initialState(initState),
       stats(st),
       purge_seqno(purgeSeqno),
-      max_cas(maxCas),
       takeover_backed_up(false),
       persisted_snapshot_start(lastSnapStart),
       persisted_snapshot_end(lastSnapEnd),
@@ -161,7 +161,11 @@ VBucket::VBucket(id_type i,
       shard(kvshard),
       bFilter(NULL),
       tempFilter(NULL),
-      rollbackItemCount(0)
+      rollbackItemCount(0),
+      hlc(maxCas,
+          config.getHlcAheadThresholdUs(),
+          config.getHlcBehindThresholdUs()),
+      statPrefix("vb_" + std::to_string(i))
 {
     backfill.isBackfillPhase = false;
     pendingOpsStart = 0;
@@ -177,7 +181,7 @@ VBucket::VBucket(id_type i,
         id, VBucket::toString(state), VBucket::toString(initialState),
         lastSeqno, lastSnapStart, lastSnapEnd,
         persisted_snapshot_start, persisted_snapshot_end,
-        max_cas.load());
+        getMaxCas());
 }
 
 VBucket::~VBucket() {
@@ -325,15 +329,12 @@ void VBucket::resetStats() {
 template <typename T>
 void VBucket::addStat(const char *nm, const T &val, ADD_STAT add_stat,
                       const void *c) {
-    std::stringstream name;
-    name << "vb_" << id;
+    std::string stat = statPrefix;
     if (nm != NULL) {
-        name << ":" << nm;
+        add_prefixed_stat(statPrefix, nm, val, add_stat, c);
+    } else {
+        add_casted_stat(statPrefix.data(), val, add_stat, c);
     }
-    std::stringstream value;
-    value << val;
-    std::string n = name.str();
-    add_casted_stat(n.data(), value.str().data(), add_stat, c);
 }
 
 size_t VBucket::queueBGFetchItem(const std::string &key,
@@ -663,20 +664,6 @@ size_t VBucket::getNumOfKeysInFilter() {
     }
 }
 
-uint64_t VBucket::nextHLCCas() {
-    hrtime_t now = gethrtime();
-    uint64_t now48bits = ((uint64_t)now) & ~((1 << 16) - 1);
-    uint64_t local_max_cas = max_cas.load();
-
-    if (now48bits > local_max_cas) {
-        atomic_setIfBigger(max_cas, now48bits);
-        return now48bits;
-    }
-
-    atomic_setIfBigger(max_cas, local_max_cas + 1);
-    return local_max_cas + 1;
-}
-
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
                        item_eviction_policy_t policy) {
     addStat(NULL, toString(state), add_stat, c);
@@ -689,18 +676,18 @@ void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
                 add_stat, c);
         addStat("ht_memory", ht.memorySize(), add_stat, c);
         addStat("ht_item_memory", ht.getItemMemory(), add_stat, c);
-        addStat("ht_cache_size", ht.cacheSize, add_stat, c);
+        addStat("ht_cache_size", ht.cacheSize.load(), add_stat, c);
         addStat("num_ejects", ht.getNumEjects(), add_stat, c);
-        addStat("ops_create", opsCreate, add_stat, c);
-        addStat("ops_update", opsUpdate, add_stat, c);
-        addStat("ops_delete", opsDelete, add_stat, c);
-        addStat("ops_reject", opsReject, add_stat, c);
-        addStat("queue_size", dirtyQueueSize, add_stat, c);
-        addStat("queue_memory", dirtyQueueMem, add_stat, c);
-        addStat("queue_fill", dirtyQueueFill, add_stat, c);
-        addStat("queue_drain", dirtyQueueDrain, add_stat, c);
+        addStat("ops_create", opsCreate.load(), add_stat, c);
+        addStat("ops_update", opsUpdate.load(), add_stat, c);
+        addStat("ops_delete", opsDelete.load(), add_stat, c);
+        addStat("ops_reject", opsReject.load(), add_stat, c);
+        addStat("queue_size", dirtyQueueSize.load(), add_stat, c);
+        addStat("queue_memory", dirtyQueueMem.load(), add_stat, c);
+        addStat("queue_fill", dirtyQueueFill.load(), add_stat, c);
+        addStat("queue_drain", dirtyQueueDrain.load(), add_stat, c);
         addStat("queue_age", getQueueAge(), add_stat, c);
-        addStat("pending_writes", dirtyQueuePendingWrites, add_stat, c);
+        addStat("pending_writes", dirtyQueuePendingWrites.load(), add_stat, c);
 
         try {
             DBFileInfo fileInfo = shard->getRWUnderlying()->getDbFileInfo(getId());
@@ -719,8 +706,8 @@ void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
                 add_stat, c);
         addStat("bloom_filter_size", getFilterSize(), add_stat, c);
         addStat("bloom_filter_key_count", getNumOfKeysInFilter(), add_stat, c);
-        addStat("max_cas", getMaxCas(), add_stat, c);
         addStat("rollback_item_count", getRollbackItemCount(), add_stat, c);
+        hlc.addStats(statPrefix, add_stat, c);
     }
 }
 

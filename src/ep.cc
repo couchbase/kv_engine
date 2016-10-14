@@ -1414,10 +1414,12 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         FailoverTable* ft = new FailoverTable(engine.getMaxFailoverEntries());
         KVShard* shard = vbMap.getShardByVbId(vbid);
         std::shared_ptr<Callback<uint16_t> > cb(new NotifyFlusherCB(shard));
+        Configuration& config = engine.getConfiguration();
         RCPtr<VBucket> newvb(new VBucket(vbid, to, stats,
                                          engine.getCheckpointConfig(),
-                                         shard, 0, 0, 0, ft, cb));
-        Configuration& config = engine.getConfiguration();
+                                         shard, 0, 0, 0, ft, cb,
+                                         config));
+
         if (config.isBfilterEnabled()) {
             // Initialize bloom filters upon vbucket creation during
             // bucket creation and rebalance
@@ -2231,7 +2233,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
         break;
     case WAS_DIRTY:
     case WAS_CLEAN:
-        vb->setMaxCas(v->getCas());
+        vb->setMaxCasAndTrackDrift(v->getCas());
         queueDirty(vb, v, &lh, seqno,
                    genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No,
                    GenerateCas::No);
@@ -2900,7 +2902,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
             v->setBySeqno(bySeqno);
         }
 
-        vb->setMaxCas(v->getCas());
+        vb->setMaxCasAndTrackDrift(v->getCas());
 
         if (tapBackfill) {
             tapQueueDirty(vb, v, lh, seqno,
@@ -4151,6 +4153,16 @@ size_t EventuallyPersistentStore::getActiveResidentRatio() const {
 
 size_t EventuallyPersistentStore::getReplicaResidentRatio() const {
     return cachedResidentRatio.replicaRatio.load();
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentStore::forceMaxCas(uint16_t vbucket,
+                                                         uint64_t cas) {
+    RCPtr<VBucket> vb = vbMap.getBucket(vbucket);
+    if (vb) {
+        vb->forceMaxCas(cas);
+        return ENGINE_SUCCESS;
+    }
+    return ENGINE_NOT_MY_VBUCKET;
 }
 
 std::ostream& operator<<(std::ostream& os,
