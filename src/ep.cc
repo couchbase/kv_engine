@@ -716,8 +716,7 @@ EventuallyPersistentStore::deleteExpiredItem(uint16_t vbid, std::string &key,
                     }
                 } else if (v->isExpired(startTime) && !v->isDeleted()) {
                     vb->ht.unlocked_softDelete(v, 0, getItemEvictionPolicy());
-                    v->setCas(vb->nextHLCCas());
-                    queueDirty(vb, v, &lh, NULL, false);
+                    queueDirty(vb, v, &lh, NULL);
                 }
             } else {
                 if (eviction_policy == FULL_EVICTION) {
@@ -734,8 +733,7 @@ EventuallyPersistentStore::deleteExpiredItem(uint16_t vbid, std::string &key,
                         v->setDeleted();
                         v->setRevSeqno(revSeqno);
                         vb->ht.unlocked_softDelete(v, 0, eviction_policy);
-                        v->setCas(vb->nextHLCCas());
-                        queueDirty(vb, v, &lh, NULL, false);
+                        queueDirty(vb, v, &lh, NULL);
                     }
                 }
             }
@@ -774,8 +772,7 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> &vb,
             if (queueExpired && vb->getState() == vbucket_state_active) {
                 incExpirationStat(vb, EXP_BY_ACCESS);
                 vb->ht.unlocked_softDelete(v, 0, eviction_policy);
-                v->setCas(vb->nextHLCCas());
-                queueDirty(vb, v, NULL, NULL, false);
+                queueDirty(vb, v, NULL, NULL);
             }
             return wantDeleted ? v : NULL;
         }
@@ -951,10 +948,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(Item &itm,
         // Even if the item was dirty, push it into the vbucket's open
         // checkpoint.
     case WAS_CLEAN:
-        itm.setCas(vb->nextHLCCas());
-        v->setCas(itm.getCas());
-        queueDirty(vb, v, &lh, &seqno);
+        // We keep lh held as we need to do v->getCas()
+        queueDirty(vb, v, nullptr, &seqno);
         itm.setBySeqno(seqno);
+        itm.setCas(v->getCas());
         break;
     case NEED_BG_FETCH:
     {   // CAS operation with non-resident item + full eviction.
@@ -1044,10 +1041,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(Item &itm,
         return ENGINE_EWOULDBLOCK;
     case ADD_SUCCESS:
     case ADD_UNDEL:
-        it.setCas(vb->nextHLCCas());
-        v->setCas(it.getCas());
-        queueDirty(vb, v, &lh, &seqno);
+        // We need to keep lh as we will do v->getCas()
+        queueDirty(vb, v, nullptr, &seqno);
         it.setBySeqno(seqno);
+        it.setCas(v->getCas());
         break;
     }
 
@@ -1110,10 +1107,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::replace(Item &itm,
                 // Even if the item was dirty, push it into the vbucket's open
                 // checkpoint.
             case WAS_CLEAN:
-                itm.setCas(vb->nextHLCCas());
-                v->setCas(itm.getCas());
-                queueDirty(vb, v, &lh, &seqno);
+                // Keep lh as we need to do v->getCas()
+                queueDirty(vb, v, nullptr, &seqno);
                 itm.setBySeqno(seqno);
+                itm.setCas(v->getCas());
                 break;
             case NEED_BG_FETCH:
             {
@@ -1199,7 +1196,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
         // FALLTHROUGH
     case WAS_CLEAN:
         vb->setMaxCas(v->getCas());
-        queueDirty(vb, v, &lh, NULL, true, genBySeqno);
+        tapQueueDirty(vb, v, lh, NULL,
+                      genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No);
         break;
     case INVALID_VBUCKET:
         ret = ENGINE_NOT_MY_VBUCKET;
@@ -2234,7 +2232,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
     case WAS_DIRTY:
     case WAS_CLEAN:
         vb->setMaxCas(v->getCas());
-        queueDirty(vb, v, &lh, seqno, false, genBySeqno);
+        queueDirty(vb, v, &lh, seqno,
+                   genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No,
+                   GenerateCas::No);
         break;
     case NOT_FOUND:
         ret = ENGINE_KEY_ENOENT;
@@ -2303,7 +2303,6 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
         if (exptime_mutated) {
             v->markDirty();
             v->setExptime(exptime);
-            v->setCas(vb->nextHLCCas());
             v->setRevSeqno(v->getRevSeqno()+1);
         }
 
@@ -2725,8 +2724,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     mutation_type_t delrv;
     delrv = vb->ht.unlocked_softDelete(v, *cas, eviction_policy);
     if (v && (delrv == NOT_FOUND || delrv == WAS_DIRTY || delrv == WAS_CLEAN)) {
-        v->setCas(vb->nextHLCCas());
-        *cas = v->getCas();
         if (itemMeta != nullptr) {
             itemMeta->revSeqno = v->getRevSeqno();
             itemMeta->cas = v->getCas();
@@ -2752,15 +2749,21 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
         break;
     case NOT_FOUND:
         ret = ENGINE_KEY_ENOENT;
-        if (v) {
-            queueDirty(vb, v, &lh, NULL, /*tapBackfill*/false);
-        }
-        break;
-    case WAS_DIRTY:
     case WAS_CLEAN:
-        queueDirty(vb, v, &lh, &seqno, /*tapBackfill*/false);
-        mutInfo->seqno = seqno;
-        mutInfo->vbucket_uuid = vb->failovers->getLatestUUID();
+    case WAS_DIRTY:
+        if (v) {
+            // Keep lh as we need to do v->getCas
+            queueDirty(vb, v, nullptr, &seqno);
+            *cas = v->getCas();
+        }
+
+        if (delrv != NOT_FOUND) {
+            mutInfo->seqno = seqno;
+            mutInfo->vbucket_uuid = vb->failovers->getLatestUUID();
+            if (itemMeta != nullptr) {
+                itemMeta->cas = v->getCas();
+            }
+        }
         break;
     case NEED_BG_FETCH:
         // We already figured out if a bg fetch is requred for a full-evicted
@@ -2898,7 +2901,15 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
         }
 
         vb->setMaxCas(v->getCas());
-        queueDirty(vb, v, &lh, seqno, tapBackfill, genBySeqno);
+
+        if (tapBackfill) {
+            tapQueueDirty(vb, v, lh, seqno,
+                          genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No);
+        } else {
+            queueDirty(vb, v, &lh, seqno,
+                       genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No,
+                       GenerateCas::No);
+        }
         break;
     case NEED_BG_FETCH:
         lh.unlock();
@@ -3400,26 +3411,21 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
                                            StoredValue* v,
                                            LockHolder *plh,
                                            uint64_t *seqno,
-                                           bool tapBackfill,
-                                           bool genBySeqno) {
+                                           const GenerateBySeqno generateBySeqno,
+                                           const GenerateCas generateCas) {
     if (vb) {
         queued_item qi(v->toItem(false, vb->getId()));
 
-        bool rv = tapBackfill ? vb->queueBackfillItem(qi, genBySeqno) :
-                                vb->checkpointManager.queueDirty(vb, qi,
-                                                                 genBySeqno);
+        bool rv = vb->checkpointManager.queueDirty(vb, qi,
+                                                   generateBySeqno, generateCas);
         v->setBySeqno(qi->getBySeqno());
-
-        /* During backfill on a TAP receiver we need to update the snapshot
-           range in the checkpoint. Has to be done here because in case of TAP
-           backfill, above, we use vb->queueBackfillItem() instead of
-           vb->checkpointManager.queueDirty() */
-        if (tapBackfill && genBySeqno) {
-            vb->checkpointManager.resetSnapshotRange();
-        }
 
         if (seqno) {
             *seqno = v->getBySeqno();
+        }
+
+        if (GenerateCas::Yes == generateCas) {
+            v->setCas(qi->getCas());
         }
 
         if (plh) {
@@ -3429,12 +3435,44 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
         if (rv) {
             KVShard* shard = vbMap.getShardByVbId(vb->getId());
             shard->getFlusher()->notifyFlushEvent();
-
         }
-        if (!tapBackfill) {
-            engine.getTapConnMap().notifyVBConnections(vb->getId());
-            engine.getDcpConnMap().notifyVBConnections(vb->getId(),
-                                                       qi->getBySeqno());
+
+        // Now notify replication
+        engine.getTapConnMap().notifyVBConnections(vb->getId());
+        engine.getDcpConnMap().notifyVBConnections(vb->getId(),
+                                                   qi->getBySeqno());
+    }
+}
+
+void EventuallyPersistentStore::tapQueueDirty(RCPtr<VBucket> &vb,
+                                              StoredValue* v,
+                                              LockHolder& plh,
+                                              uint64_t *seqno,
+                                              const GenerateBySeqno generateBySeqno) {
+    if (vb) {
+        queued_item qi(v->toItem(false, vb->getId()));
+
+        bool queued = vb->queueBackfillItem(qi, generateBySeqno);
+
+        v->setBySeqno(qi->getBySeqno());
+
+        /* During backfill on a TAP receiver we need to update the snapshot
+           range in the checkpoint. Has to be done here because in case of TAP
+           backfill, above, we use vb->queueBackfillItem() instead of
+           vb->checkpointManager.queueDirty() */
+        if (GenerateBySeqno::Yes == generateBySeqno) {
+            vb->checkpointManager.resetSnapshotRange();
+        }
+
+        if (seqno) {
+            *seqno = v->getBySeqno();
+        }
+
+        plh.unlock();
+
+        if (queued) {
+            KVShard* shard = vbMap.getShardByVbId(vb->getId());
+            shard->getFlusher()->notifyFlushEvent();
         }
     }
 }
@@ -3599,7 +3637,8 @@ void EventuallyPersistentStore::completeBGFetchForSingleItem(
                         // updated and queued
                         // Hence test the CAS value to be the same first.
                         // exptime mutated, schedule it into new checkpoint
-                        queueDirty(vb, v, &blh, NULL);
+                        queueDirty(vb, v, &blh, NULL, GenerateBySeqno::Yes,
+                                                      GenerateCas::No);
                     }
                 } else if (status == ENGINE_KEY_ENOENT) {
                     v->setNonExistent();
