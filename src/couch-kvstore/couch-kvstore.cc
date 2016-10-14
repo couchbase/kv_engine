@@ -203,7 +203,6 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
     }
     meta.setCas(it.getCas());
     meta.setFlags(it.getFlags());
-    meta.setConfResMode(it.getConflictResMode());
     if (del) {
         meta.setExptime(ep_real_time());
     } else {
@@ -222,7 +221,7 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
     dbDocInfo.db_seq = it.getBySeqno();
 
     // Now allocate space to hold the meta and get it ready for storage
-    dbDocInfo.rev_meta.size = MetaData::getMetaDataSize(MetaData::Version::V2);
+    dbDocInfo.rev_meta.size = MetaData::getMetaDataSize(MetaData::Version::V1);
     dbDocInfo.rev_meta.buf = meta.prepareAndGetForPersistence();
 
     dbDocInfo.rev_seq = it.getRevSeqno();
@@ -647,8 +646,7 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
     // Allocate latest metadata
     std::unique_ptr<MetaData> metadata;
     if (documentMetaData->getVersionInitialisedFrom() == MetaData::Version::V0) {
-        // Metadata doesn't have flex_meta_code, datatype and
-        // conflict_resolution_mode, provision space for
+        // Metadata doesn't have flex_meta_code/datatype. Provision space for
         // these paramenters.
         const unsigned char* data;
         bool ret;
@@ -678,20 +676,8 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
         // Setup flex code and datatype
         metadata->setFlexCode();
         metadata->setDataType(datatype);
-        // Setup conflict mode
-        metadata->setConfResMode(revision_seqno);
-    } else if (documentMetaData->getVersionInitialisedFrom() == MetaData::Version::V1) {
-        // Metadata doesn't have conflict_resolution_mode,
-        // Now create a blank latest metadata.
-        metadata = MetaDataFactory::createMetaData();
-
-        // Copy the metadata (this will copy all but conf-mode);
-        *metadata = *documentMetaData;
-
-        // Set the conflict resmode
-        metadata->setConfResMode(revision_seqno);
     } else {
-        // The metadata in the document is V2 and needs no changes.
+        // The metadata in the document is V1 and needs no changes.
         return 0;
     }
 
@@ -1511,9 +1497,6 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
                             docinfo->db_seq,
                             vbId);
 
-
-
-        it->setConflictResMode(metadata->getConfResMode());
         it->setRevSeqno(docinfo->rev_seq);
 
         if (docinfo->deleted) {
@@ -1570,8 +1553,6 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
                                     docinfo->db_seq,
                                     vbId,
                                     docinfo->rev_seq);
-
-                it->setConflictResMode(metadata->getConfResMode());
 
                 docValue = GetValue(it);
 
@@ -1678,8 +1659,6 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     if (docinfo->deleted) {
         it->setDeleted();
     }
-
-    it->setConflictResMode(metadata->getConfResMode());
 
     bool onlyKeys = (sctx->valFilter == ValueFilter::KEYS_ONLY) ? true : false;
     GetValue rv(it, ENGINE_SUCCESS, -1, onlyKeys);

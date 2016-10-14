@@ -30,8 +30,7 @@ protected:
      *
      * Each version extends the previous version, thus in memory you have
      * [V0] or
-     * [V0][V1] or
-     * [V0][V1][V2]
+     * [V0][V1].
      */
     class MetaDataV0 {
     public:
@@ -162,28 +161,18 @@ static_assert(sizeof(MetaDataV1) == 2,
     class MetaDataV2 {
     public:
         MetaDataV2()
-            : confResMode(revision_seqno) // equivalent to zero
+            : confResMode(0)
               {}
 
         void initialise(const char* raw) {
             confResMode = raw[0];
         }
 
-        void setConfResMode(conflict_resolution_mode mode) {
-            confResMode = static_cast<uint8_t>(mode);
-        }
-
-        conflict_resolution_mode getConfResMode() const {
-            return static_cast<conflict_resolution_mode>(confResMode);
-        }
-
-        void copyToBuf(char* raw) const {
-            raw[0] = confResMode;
-        }
-
     private:
         /*
          * V2 is a 1 byte extension storing the conflict resolution mode.
+         * This 1 byte extension is never stored out anymore, but may
+         * exist from down-level ep-engine.
          */
         uint8_t confResMode;
     };
@@ -196,7 +185,15 @@ public:
     enum class Version {
         V0, // Cas/Exptime/Flags
         V1, // Flex code and datatype
-        V2  // Conflict Resolution Mode
+        V2  // Conflict Resolution Mode - not stored, but can be read
+        /*
+         * !!MetaData Warning!!
+         * Sherlock began storing the V2 MetaData.
+         * Watson stops storing the V2 MetaData (now storing V1)
+         *
+         * Any new MetaData (e.g a V3) we wish to store may cause trouble if it
+         * has the size of V2, code assumes the version from the size.
+         */
     };
 
     MetaData () {}
@@ -208,6 +205,8 @@ public:
     MetaData(const sized_buf& in)
         : initVersion(Version::V0) {
 
+        // Expect metadata to be V0, V1 or V2.
+        // V2 part is ignored, but valid to find in storage.
         if (in.size < getMetaDataSize(Version::V0)
             || in.size > getMetaDataSize(Version::V2)) {
             throw std::invalid_argument("MetaData::MetaData in.size \"" +
@@ -226,13 +225,7 @@ public:
             initVersion = Version::V1;
         }
 
-        if (in.size ==
-            (sizeof(MetaDataV0) + sizeof(MetaDataV1) + sizeof(MetaDataV2))) {
-            // The size extends enough to include V2 meta, overlay that.
-            allMeta.v2.initialise(in.buf + sizeof(MetaDataV0) +
-                                  sizeof(MetaDataV1));
-            initVersion = Version::V2;
-        }
+        // Not initialising V2 from 'in' as V2 is ignored.
     }
 
     /*
@@ -240,15 +233,14 @@ public:
      * to a pre-allocated sized_buf ready for passing to couchstore.
      */
     void copyToBuf(sized_buf& out) const {
-        if (out.size != getMetaDataSize(Version::V2)) {
+        if (out.size != getMetaDataSize(Version::V1)) {
             throw std::invalid_argument("MetaData::copyToBuf out.size \"" +
                                         std::to_string(out.size) +
                                         "\" incorrect size.");
         }
-        // Copy the 3 meta data holders to the output buffer
+        // Copy the V0/V1 meta data holders to the output buffer
         allMeta.v0.copyToBuf(out.buf);
         allMeta.v1.copyToBuf(out.buf + sizeof(MetaDataV0));
-        allMeta.v2.copyToBuf(out.buf + sizeof(MetaDataV0) + sizeof(MetaDataV1));
     }
 
     /*
@@ -307,14 +299,6 @@ public:
 
     protocol_binary_datatype_t getDataType() const {
         return allMeta.v1.getDataType();
-    }
-
-    conflict_resolution_mode getConfResMode() const {
-        return allMeta.v2.getConfResMode();
-    }
-
-    void setConfResMode(conflict_resolution_mode mode) {
-        allMeta.v2.setConfResMode(mode);
     }
 
     Version getVersionInitialisedFrom() const {

@@ -158,7 +158,8 @@
             "type": "std::string",
             "validator": {
                 "enum": [
-                    "seqno"
+                    "seqno",
+                    "lww"
                 ]
             }
         },

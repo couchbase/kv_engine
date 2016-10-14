@@ -238,7 +238,6 @@ void TestDcpConsumer::run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
 
     bool done = false;
-    ExtendedMetaData *emd = NULL;
     bool exp_all_items_streamed = true;
     size_t num_stream_ends_received = 0;
     uint32_t bytes_read = 0;
@@ -295,17 +294,8 @@ void TestDcpConsumer::run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                     if (stats.time_sync_enabled) {
                         checkeq(static_cast<size_t>(16), dcp_last_meta.size(),
                                 "Expected extended meta in mutation packet");
-                    } else {
-                        checkeq(static_cast<size_t>(5), dcp_last_meta.size(),
-                                "Expected no extended metadata");
                     }
 
-                    emd = new ExtendedMetaData(dcp_last_meta.c_str(),
-                                               dcp_last_meta.size());
-                    checkeq(stats.exp_conflict_res,
-                            emd->getConflictResMode(),
-                            "Unexpected conflict resolution mode");
-                    delete emd;
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_DELETION:
                     cb_assert(vbid != static_cast<uint16_t>(-1));
@@ -326,18 +316,8 @@ void TestDcpConsumer::run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                         checkeq(static_cast<size_t>(16),
                                 dcp_last_meta.size(),
                                 "Expected adjusted time in mutation packet");
-                    } else {
-                        checkeq(static_cast<size_t>(5),
-                                dcp_last_meta.size(),
-                                "Expected no extended metadata");
                     }
 
-                    emd = new ExtendedMetaData(dcp_last_meta.c_str(),
-                                               dcp_last_meta.size());
-                    checkeq(stats.exp_conflict_res,
-                            emd->getConflictResMode(),
-                            "Unexpected conflict resolution mode");
-                    delete emd;
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_STREAM_END:
                     cb_assert(vbid != static_cast<uint16_t>(-1));
@@ -2559,8 +2539,7 @@ static enum test_result test_dcp_producer_stream_backfill_no_value(
     total_bytes = tdc1.getTotalBytes();
 
     /* basebytes mutation + nmeta (when no ext_meta is expected) */
-    const int packet_fixed_size = dcp_mutation_base_msg_bytes +
-                                  dcp_meta_size_none;
+    const int packet_fixed_size = dcp_mutation_base_msg_bytes;
     est_bytes += (num_items * packet_fixed_size);
     /* Add DCP_SNAPSHOT_MARKER bytes and DCP_STREAM_END bytes */
     est_bytes += (dcp_snapshot_marker_base_msg_bytes +
@@ -2628,8 +2607,7 @@ static enum test_result test_dcp_producer_stream_mem_no_value(
     total_bytes = tdc1.getTotalBytes();
 
     /* basebytes mutation + nmeta (when no ext_meta is expected) */
-    const int packet_fixed_size = dcp_mutation_base_msg_bytes +
-                                  dcp_meta_size_none;
+    const int packet_fixed_size = dcp_mutation_base_msg_bytes;
     est_bytes += ((end-start) * packet_fixed_size);
     /* Add DCP_SNAPSHOT_MARKER bytes and DCP_STREAM_END bytes */
     est_bytes += (dcp_snapshot_marker_base_msg_bytes +
@@ -4156,7 +4134,7 @@ static enum test_result test_dcp_consumer_mutate_with_time_sync(
 
     // Consume a DCP mutation with extended meta
     int64_t adjusted_time1 = gethrtime() * 2;
-    ExtendedMetaData *emd = new ExtendedMetaData(adjusted_time1, false);
+    ExtendedMetaData *emd = new ExtendedMetaData(adjusted_time1);
     cb_assert(emd && emd->getStatus() == ENGINE_SUCCESS);
     std::pair<const char*, uint16_t> meta = emd->getExtMeta();
     checkeq(ENGINE_SUCCESS,
@@ -4315,7 +4293,7 @@ static enum test_result test_dcp_consumer_delete_with_time_sync(
 
     // Consume an DCP deletion
     int64_t adjusted_time1 = gethrtime() * 2;
-    ExtendedMetaData *emd = new ExtendedMetaData(adjusted_time1, false);
+    ExtendedMetaData *emd = new ExtendedMetaData(adjusted_time1);
     cb_assert(emd && emd->getStatus() == ENGINE_SUCCESS);
     std::pair<const char*, uint16_t> meta = emd->getExtMeta();
     checkeq(ENGINE_SUCCESS,

@@ -710,8 +710,6 @@ static ForestMetaData forestMetaDecode(const fdb_doc *rdoc) {
            sizeof(forestMetaData.flags));
     memcpy(&forestMetaData.ext_meta, metadata + forestMetaOffset(ext_meta),
            EXT_META_LEN);
-    memcpy(&forestMetaData.confresmode, metadata + forestMetaOffset(confresmode),
-           CONFLICT_RES_META_LEN);
 
     forestMetaData.cas = ntohll(forestMetaData.cas);
     forestMetaData.rev_seqno = ntohll(forestMetaData.rev_seqno);
@@ -780,9 +778,6 @@ fdb_changes_decision ForestKVStore::recordChanges(fdb_kvs_handle* handle,
         it->setDeleted();
     }
 
-    it->setConflictResMode(
-                static_cast<enum conflict_resolution_mode>(meta.confresmode));
-
     bool onlyKeys = (sctx->valFilter == ValueFilter::KEYS_ONLY) ? true : false;
     GetValue rv(it, ENGINE_SUCCESS, -1, onlyKeys);
 
@@ -824,6 +819,7 @@ GetValue ForestKVStore::docToItem(fdb_kvs_handle* kvsHandle, fdb_doc* rdoc,
     forestMetaData = forestMetaDecode(rdoc);
 
     Item* it = NULL;
+
     if (metaOnly || (fetchDelete && rdoc->deleted)) {
         it = new Item((char *)rdoc->key, rdoc->keylen, forestMetaData.flags,
                       forestMetaData.exptime, NULL, 0, forestMetaData.ext_meta,
@@ -855,8 +851,6 @@ GetValue ForestKVStore::docToItem(fdb_kvs_handle* kvsHandle, fdb_doc* rdoc,
         st.io_read_bytes += (rdoc->keylen + valuelen);
     }
 
-    it->setConflictResMode(
-            static_cast<enum conflict_resolution_mode>(forestMetaData.confresmode));
     it->setRevSeqno(forestMetaData.rev_seqno);
 
     /* increment ep-engine IO stat num_read */
@@ -1167,7 +1161,6 @@ static void populateMetaData(const Item& itm, uint8_t* meta, bool deletion) {
     uint32_t flags = itm.getFlags();
     uint32_t exptime = itm.getExptime();
     uint32_t texptime = 0;
-    uint8_t confresmode = static_cast<uint8_t>(itm.getConflictResMode());
 
     if (deletion) {
         texptime = ep_real_time();
@@ -1190,9 +1183,6 @@ static void populateMetaData(const Item& itm, uint8_t* meta, bool deletion) {
         memcpy(meta + forestMetaOffset(ext_meta), itm.getExtMeta(),
                itm.getExtMetaLen());
     }
-
-    memcpy(meta + forestMetaOffset(confresmode), &confresmode,
-           CONFLICT_RES_META_LEN);
 }
 
 void ForestKVStore::set(const Item& itm, Callback<mutation_result>& cb) {

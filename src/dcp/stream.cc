@@ -351,8 +351,7 @@ bool ActiveStream::backfillReceived(Item* itm, backfill_source_t backfill_source
             bufferedBackfill.items++;
 
             pushToReadyQ(new MutationResponse(itm, opaque_,
-                              prepareExtendedMetaData(itm->getVBucketId(),
-                                                      itm->getConflictResMode())));
+                              prepareExtendedMetaData(itm->getVBucketId())));
 
             lastReadSeqno.store(itm->getBySeqno());
             lh.unlock();
@@ -804,8 +803,7 @@ void ActiveStream::processItems(std::vector<queued_item>& items) {
                 lastReadSeqnoUnSnapshotted = qi->getBySeqno();
 
                 mutations.push_back(new MutationResponse(qi, opaque_,
-                            prepareExtendedMetaData(qi->getVBucketId(),
-                                                    qi->getConflictResMode()),
+                            prepareExtendedMetaData(qi->getVBucketId()),
                             isSendMutationKeyOnlyEnabled() ? KEY_ONLY :
                                                              KEY_VALUE));
             } else if (qi->getOperation() == queue_op_checkpoint_start) {
@@ -1211,17 +1209,14 @@ uint64_t ActiveStream::getLastSentSeqno() {
     return lastSentSeqno.load();
 }
 
-ExtendedMetaData* ActiveStream::prepareExtendedMetaData(uint16_t vBucketId,
-                                                        uint8_t conflictResMode)
+ExtendedMetaData* ActiveStream::prepareExtendedMetaData(uint16_t vBucketId)
 {
     ExtendedMetaData *emd = NULL;
     if (producer->isExtMetaDataEnabled()) {
         RCPtr<VBucket> vb = engine->getVBucket(vBucketId);
         if (vb && vb->getTimeSyncConfig() == time_sync_t::ENABLED_WITH_DRIFT) {
             int64_t adjustedTime = gethrtime() + vb->getDriftCounter();
-            emd = new ExtendedMetaData(adjustedTime, conflictResMode);
-        } else {
-            emd = new ExtendedMetaData(conflictResMode);
+            emd = new ExtendedMetaData(adjustedTime);
         }
     }
     return emd;

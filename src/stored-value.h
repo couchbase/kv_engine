@@ -88,15 +88,6 @@ public:
         return !isDirty();
     }
 
-    void setConflictResMode(enum conflict_resolution_mode conflict_res_mode) {
-        conflictResMode = static_cast<uint8_t>(conflict_res_mode);
-    }
-
-
-    enum conflict_resolution_mode getConflictResMode(void) const {
-        return static_cast<enum conflict_resolution_mode>(conflictResMode);
-    }
-
     bool eligibleForEviction(item_eviction_policy_t policy) {
         if (policy == VALUE_ONLY) {
             return isResident() && isClean() && !isDeleted();
@@ -211,7 +202,6 @@ public:
             itm.setRevSeqno(revSeqno);
         }
 
-        conflictResMode = itm.getConflictResMode();
         nru = itm.getNRUValue();
 
         markDirty();
@@ -358,7 +348,7 @@ public:
     /**
      * Is this a temporary item created for a non-existent key?
      */
-     bool isTempNonExistentItem() {
+     bool isTempNonExistentItem() const {
          return bySeqno == state_non_existent_key;
 
      }
@@ -529,7 +519,6 @@ private:
         flags(itm.getFlags()),
         deleted(false),
         newCacheItem(true),
-        conflictResMode(itm.getConflictResMode()),
         nru(itm.getNRUValue()),
         keylen(itm.getNKey()) {
 
@@ -563,7 +552,6 @@ private:
     bool               _isDirty  :  1; // 1 bit
     bool               deleted   :  1;
     bool               newCacheItem : 1;
-    uint8_t            conflictResMode : 2;
     uint8_t            nru       :  2; //!< True if referenced since last sweep
     uint8_t            keylen;
     char               keybytes[1];    //!< The key itself.

@@ -407,8 +407,10 @@ EventuallyPersistentStore::EventuallyPersistentStore(
 
     stats.memOverhead = sizeof(EventuallyPersistentStore);
 
-    if (config.getConflictResolutionType().compare("seqno") == 0) {
-        conflictResolver = new ConflictResolution();
+    if (config.getConflictResolutionType().compare("lww") == 0) {
+        conflictResolver.reset(new LastWriteWinsResolution());
+    } else {
+        conflictResolver.reset(new RevisionSeqnoResolution());
     }
 
     stats.setMaxDataSize(config.getMaxSize());
@@ -579,7 +581,6 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     delete [] schedule_vbstate_persist;
     delete [] stats.schedulingHisto;
     delete [] stats.taskRuntimeHisto;
-    delete conflictResolver;
     delete warmupTask;
     defragmenterTask.reset();
 
@@ -1197,16 +1198,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
     case NOT_FOUND:
         // FALLTHROUGH
     case WAS_CLEAN:
-        /* set the conflict resolution mode from the extended meta data *
-         * Given that the mode is already set, we don't need to set the *
-         * conflict resolution mode in queueDirty */
-        if (emd) {
-            v->setConflictResMode(
-                 static_cast<enum conflict_resolution_mode>(
-                                      emd->getConflictResMode()));
-        }
         vb->setMaxCas(v->getCas());
-        queueDirty(vb, v, &lh, NULL, true, genBySeqno, false);
+        queueDirty(vb, v, &lh, NULL, true, genBySeqno);
         break;
     case INVALID_VBUCKET:
         ret = ENGINE_NOT_MY_VBUCKET;
@@ -2130,7 +2123,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(
             metadata.flags = v->getFlags();
             metadata.exptime = v->getExptime();
             metadata.revSeqno = v->getRevSeqno();
-            confResMode = v->getConflictResMode();
             return ENGINE_SUCCESS;
         }
     } else {
@@ -2204,14 +2196,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
                 return ENGINE_EWOULDBLOCK;
             }
 
-            enum conflict_resolution_mode confResMode = revision_seqno;
-            if (emd) {
-                confResMode = static_cast<enum conflict_resolution_mode>(
-                                                       emd->getConflictResMode());
-            }
-
-            if (!conflictResolver->resolve(vb, v, itm.getMetaData(), false,
-                                           confResMode)) {
+            if (!conflictResolver->resolve(*v, itm.getMetaData(), false)) {
                 ++stats.numOpsSetMetaResolutionFailed;
                 return ENGINE_KEY_EEXISTS;
             }
@@ -2256,16 +2241,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
         break;
     case WAS_DIRTY:
     case WAS_CLEAN:
-        /* set the conflict resolution mode from the extended meta data *
-         * Given that the mode is already set, we don't need to set the *
-         * conflict resolution mode in queueDirty */
-        if (emd) {
-            v->setConflictResMode(
-                      static_cast<enum conflict_resolution_mode>(
-                                            emd->getConflictResMode()));
-        }
         vb->setMaxCas(v->getCas());
-        queueDirty(vb, v, &lh, seqno, false, genBySeqno, false);
+        queueDirty(vb, v, &lh, seqno, false, genBySeqno);
         break;
     case NOT_FOUND:
         ret = ENGINE_KEY_ENOENT;
@@ -2859,13 +2836,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
                 return ENGINE_EWOULDBLOCK;
             }
 
-            enum conflict_resolution_mode confResMode = revision_seqno;
-            if (emd) {
-                confResMode = static_cast<enum conflict_resolution_mode>(
-                                                       emd->getConflictResMode());
-            }
-
-            if (!conflictResolver->resolve(vb, v, *itemMeta, true, confResMode)) {
+            if (!conflictResolver->resolve(*v, *itemMeta, true)) {
                 ++stats.numOpsDelMetaResolutionFailed;
                 return ENGINE_KEY_EEXISTS;
             }
@@ -2939,16 +2910,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
             v->setBySeqno(bySeqno);
         }
 
-        /* set the conflict resolution mode from the extended meta data *
-         * Given that the mode is already set, we don't need to set the *
-         * conflict resolution mode in queueDirty */
-        if (emd) {
-            v->setConflictResMode(
-               static_cast<enum conflict_resolution_mode>(
-                                         emd->getConflictResMode()));
-        }
         vb->setMaxCas(v->getCas());
-        queueDirty(vb, v, &lh, seqno, tapBackfill, genBySeqno, false);
+        queueDirty(vb, v, &lh, seqno, tapBackfill, genBySeqno);
         break;
     case NEED_BG_FETCH:
         lh.unlock();
@@ -3457,23 +3420,8 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
                                            LockHolder *plh,
                                            uint64_t *seqno,
                                            bool tapBackfill,
-                                           bool genBySeqno,
-                                           bool setConflictMode) {
+                                           bool genBySeqno) {
     if (vb) {
-        if (setConflictMode && (v->getConflictResMode() != last_write_wins) &&
-                vb->isTimeSyncEnabled()) {
-            time_sync_t timeSyncConfig = vb->getTimeSyncConfig();
-
-            /* Enable conflict resolution mode to last write wins in
-             * case the setting is (i) enabled_without_drift and for
-             * (ii) enabled_with_drift and a valid drift value is set
-             */
-            if (timeSyncConfig == time_sync_t::ENABLED_WITHOUT_DRIFT ||
-                    vb->getDriftCounter() != INITIAL_DRIFT) {
-                v->setConflictResMode(last_write_wins);
-            }
-        }
-
         queued_item qi(v->toItem(false, vb->getId()));
 
         bool rv = tapBackfill ? vb->queueBackfillItem(qi, genBySeqno) :
