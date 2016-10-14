@@ -50,6 +50,7 @@
 
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
+#include <platform/dirutils.h>
 #include <platform/strerror.h>
 #include <platform/sysinfo.h>
 
@@ -2452,39 +2453,30 @@ static void shutdown_parent_monitor() {
     parent_monitor.reset();
 }
 
-#ifdef WIN32
 static void set_max_filehandles(void) {
-    /* EMPTY */
-}
-#else
-static void set_max_filehandles(void) {
-    struct rlimit rlim;
+    const uint64_t maxfiles = settings.getMaxconns() +
+                            (3 * (settings.getNumWorkerThreads() + 2)) +
+                            1024;
 
-    if (getrlimit(RLIMIT_NOFILE, &rlim) != 0) {
-        FATAL_ERROR(EX_OSERR, "Failed to getrlimit number of files");
-    } else {
-        const rlim_t maxfiles = settings.getMaxconns() +
-            (3 * (settings.getNumWorkerThreads() + 2));
-        if (rlim.rlim_cur < maxfiles) {
-            rlim.rlim_cur = maxfiles;
-        }
-        if (rlim.rlim_max < rlim.rlim_cur) {
-            rlim.rlim_max = rlim.rlim_cur;
-        }
-        if (setrlimit(RLIMIT_NOFILE, &rlim) != 0) {
-            const char *fmt;
-            int req;
-            fmt = "WARNING: maxconns cannot be set to (%d) connections due to "
-                "system\nresource restrictions. Increase the number of file "
-                "descriptors allowed\nto the memcached user process.\n"
-                "The maximum number of connections is set to %d.\n";
-            req = settings.getMaxconns();
-            LOG_WARNING(NULL, fmt, req, settings.getMaxconns());
-        }
+    auto limit = cb::io::maximizeFileDescriptors(maxfiles);
+
+    if (limit < maxfiles) {
+        LOG_WARNING(NULL,
+                    "Failed to set the number of file descriptors "
+                    " to %" PRIu64 " due to system resource restrictions. "
+                    "This may cause the system to misbehave once you reach a "
+                    " high connection count as the system won't be able open"
+                    " new files on the system. The maximum number of file"
+                    " descriptors is currently set to %" PRIu64 ". The system "
+                    "is configured to allow %u number of client connections,"
+                    " and in addition to that the overhead of the worker "
+                    "threads is %u. Finally the backed database needs to "
+                    "open files to persist data.", int(maxfiles), int(limit),
+                    settings.getMaxconns(),
+                    (3 * (settings.getNumWorkerThreads() + 2)));
+
     }
 }
-
-#endif
 
 static void load_extensions(void) {
     for (const auto& ext : settings.getPendingExtensions()) {
