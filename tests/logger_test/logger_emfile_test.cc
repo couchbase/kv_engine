@@ -84,7 +84,7 @@ int main() {
 
     // Open the logger
     EXTENSION_ERROR_CODE ret = memcached_extensions_initialize(
-            "unit_test=true;loglevel=warning;cyclesize=50;"
+            "unit_test=true;cyclesize=50;"
             "buffersize=150;sleeptime=1;filename=log_test_emfile",
             get_server_api);
     cb_assert(ret == EXTENSION_SUCCESS);

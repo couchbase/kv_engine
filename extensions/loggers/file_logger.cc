@@ -43,7 +43,7 @@ static SERVER_HANDLE_V1 *sapi;
 static EXTENSION_LOG_LEVEL current_log_level = EXTENSION_LOG_NOTICE;
 
 /* All messages above the current level shall be sent to stderr immediately */
-static EXTENSION_LOG_LEVEL output_level = EXTENSION_LOG_NOTICE;
+static const EXTENSION_LOG_LEVEL stderr_output_level = EXTENSION_LOG_WARNING;
 
 /* To avoid the logfile to grow forever, we'll start logging to another
  * file when we've added a certain amount of data to the logfile. You may
@@ -275,8 +275,8 @@ static void syslog_event_receiver(SyslogEvent *event) {
                                            event->time, event->time_secfrac,
                                            severity, event->msg);
 
-    if (severity >= current_log_level || severity >= output_level) {
-        if (severity >= output_level) {
+    if (severity >= current_log_level || severity >= stderr_output_level) {
+        if (severity >= stderr_output_level) {
             std::cerr << buffer;
             std::cerr.flush();
         }
@@ -422,7 +422,7 @@ static FILE *rotate_logfile(FILE *old, const char *fnm) {
         std::string msg("Failed to open next logfile: " +
                         std::string(strerror(errno)) +
                         " - disabling file logging. Messages at '" +
-                        severity2string(output_level) +
+                        severity2string(stderr_output_level) +
                         "' or higher still output to babysitter log file\n");
         struct timeval now;
         cb_get_timeofday(&now);
@@ -660,8 +660,7 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
     }
 
     if (config != NULL) {
-        char *loglevel = NULL;
-        struct config_item items[7];
+        struct config_item items[6];
         int ii = 0;
         memset(&items, 0, sizeof(items));
 
@@ -680,11 +679,6 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
         items[ii].value.dt_size = &cyclesz;
         ++ii;
 
-        items[ii].key = "loglevel";
-        items[ii].datatype = DT_STRING;
-        items[ii].value.dt_string = &loglevel;
-        ++ii;
-
         items[ii].key = "sleeptime";
         items[ii].datatype = DT_SIZE;
         items[ii].value.dt_size = &sleeptime;
@@ -697,28 +691,11 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
 
         items[ii].key = NULL;
         ++ii;
-        cb_assert(ii == 7);
+        cb_assert(ii == 6);
 
         if (sapi->core->parse_config(config, items, stderr) != ENGINE_SUCCESS) {
             return EXTENSION_FATAL;
         }
-
-        if (loglevel != NULL) {
-            if (strcasecmp("warning", loglevel) == 0) {
-                output_level = EXTENSION_LOG_NOTICE;
-            } else if (strcasecmp("info", loglevel) == 0) {
-                output_level = EXTENSION_LOG_INFO;
-            } else if (strcasecmp("debug", loglevel) == 0) {
-                output_level = EXTENSION_LOG_DEBUG;
-            } else if (strcasecmp("detail", loglevel) == 0) {
-                output_level = EXTENSION_LOG_DETAIL;
-            } else {
-                fprintf(stderr, "Unknown loglevel: %s. Use warning/info/debug/detail\n",
-                        loglevel);
-                return EXTENSION_FATAL;
-            }
-        }
-        cb_free(loglevel);
     }
 
     if (fname == NULL) {
