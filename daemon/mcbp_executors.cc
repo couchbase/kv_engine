@@ -3206,6 +3206,7 @@ static void append_prepend_executor(McbpConnection* c,
     case ENGINE_KEY_ENOENT:
         // for some reason the return code for no key is not stored..
         ret = ENGINE_NOT_STORED;
+        // fall through
     default:
         mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
         return;
