@@ -191,6 +191,7 @@ int main(int argc, char **argv) {
                           << std::endl;
                 return EXIT_FAILURE;
             }
+            break;
         default:
             fprintf(stderr,
                     "Usage: cbsasladm [-h host[:port]] [-p port] [-s] "
