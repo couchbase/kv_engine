@@ -57,9 +57,8 @@ mock_connstruct::mock_connstruct()
       handle_ewouldblock(true),
       handle_mutation_extras(true),
       handle_datatype_support(true),
-      references(1),
-      dcp_xattr_support(false)
-{
+      dcp_xattr_support(false),
+      references(1) {
     cb_mutex_initialize(&mutex);
     cb_cond_initialize(&cond);
 }
