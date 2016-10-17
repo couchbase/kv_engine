@@ -682,7 +682,14 @@ static bool is_dcp_xattr_support(const void* void_cookie) {
 
 static void cbsasl_refresh_main(void *c)
 {
-    int rv = cbsasl_server_refresh();
+    int rv;
+
+    try {
+        rv = cbsasl_server_refresh();
+    } catch (...) {
+        rv = ENGINE_FAILED;
+    }
+
     if (rv == CBSASL_OK) {
         notify_io_complete(c, ENGINE_SUCCESS);
     } else {
