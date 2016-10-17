@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <platform/random.h>
 
 class PasswordMetaTest : public ::testing::Test {
 public:
@@ -331,15 +332,17 @@ public:
         cJSON_AddStringToObject(meta.get(), "cipher", "AES_256_cbc");
         std::string blob;
         blob.resize(EVP_CIPHER_key_length(EVP_aes_256_cbc()));
-        for (auto &a : blob) {
-            a = (char)rand();
-        }
+
+        Couchbase::RandomGenerator randomGenerator(true);
+        ASSERT_TRUE(randomGenerator.getBytes(const_cast<char*>(blob.data()),
+                                             blob.size()));
         cJSON_AddStringToObject(meta.get(), "key",
                                 Couchbase::Base64::encode(blob).c_str());
+
         blob.resize(EVP_CIPHER_iv_length(EVP_aes_256_cbc()));
-        for (auto &a : blob) {
-            a = (char)rand();
-        }
+        ASSERT_TRUE(randomGenerator.getBytes(const_cast<char*>(blob.data()),
+                                             blob.size()));
+
         cJSON_AddStringToObject(meta.get(), "iv",
                                 Couchbase::Base64::encode(blob).c_str());
 
