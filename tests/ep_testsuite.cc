@@ -2806,10 +2806,24 @@ static enum test_result test_access_scanner(ENGINE_HANDLE *h,
         std::string key("key" + std::to_string(num_items));
         ENGINE_ERROR_CODE ret = store(h, h1, NULL, OPERATION_SET,
                                       key.c_str(), "somevalue", &itm);
-        if (ret == ENGINE_SUCCESS) {
-            num_items++;
+        switch (ret) {
+            case ENGINE_SUCCESS:
+                num_items++;
+                h1->release(h, NULL, itm);
+                break;
+
+            case ENGINE_ENOMEM:
+            case ENGINE_TMPFAIL:
+                // Returned when at high watermark; simply retry the op.
+                h1->release(h, NULL, itm);
+                break;
+
+            default:
+                fprintf(stderr, "test_access_scanner: Unexpected result from store(): %d\n",
+                        ret);
+                abort();
         }
-        h1->release(h, NULL, itm);
+
     }
 
     wait_for_flusher_to_settle(h, h1);
