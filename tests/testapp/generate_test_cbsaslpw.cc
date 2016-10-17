@@ -37,7 +37,19 @@ int main(void) {
     isaslpw.close();
 
     Couchbase::UserFactory::setDefaultHmacIterationCount(10);
-    cbsasl_pwconv("isasl.pw", "cbsaslpw.json");
 
-    return EXIT_SUCCESS;
+    int exitcode = EXIT_SUCCESS;
+
+    try {
+        cbsasl_pwconv("isasl.pw", "cbsaslpw.json");
+    } catch (const std::exception &e) {
+        std::cerr << "FATAL: Failed to write cbsaslpw.json: " << e.what()
+                  << std::endl;
+        exitcode = EXIT_FAILURE;
+    }
+
+    // Remove the input file
+    std::remove("isasl.pw");
+
+    return exitcode;
 }
