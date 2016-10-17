@@ -585,6 +585,7 @@ std::string VBucket::getFilterStatusString() {
 }
 
 size_t VBucket::getFilterSize() {
+    LockHolder lh(bfMutex);
     if (bFilter) {
         return bFilter->getFilterSize();
     } else {
@@ -593,6 +594,7 @@ size_t VBucket::getFilterSize() {
 }
 
 size_t VBucket::getNumOfKeysInFilter() {
+    LockHolder lh(bfMutex);
     if (bFilter) {
         return bFilter->getNumOfKeysInFilter();
     } else {
