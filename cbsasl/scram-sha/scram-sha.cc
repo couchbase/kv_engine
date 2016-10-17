@@ -514,10 +514,16 @@ cbsasl_error_t ScramShaServerBackend::step(cbsasl_conn_t* conn,
 /********************************************************************
  * Client API
  *******************************************************************/
+// The iterationCount is initialized to 4k to mute Coverty from reporting
+// the variable to be used without initialization. The actual value
+// being used is received from the server as part of the first message
+// sent from the server (I picked 4k as a default value because thats
+// what the examples in the RFC used ;-)
 ScramShaClientBackend::ScramShaClientBackend(const std::string& mech_name,
                                              const Mechanism& mech,
                                              const cb::crypto::Algorithm algo)
-    : ScramShaBackend(mech_name, mech, algo) {
+    : ScramShaBackend(mech_name, mech, algo),
+      iterationCount(4096) {
     Couchbase::RandomGenerator randomGenerator(true);
 
     std::array<char, 8> nonce;
