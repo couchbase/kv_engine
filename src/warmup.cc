@@ -583,8 +583,12 @@ void Warmup::keyDumpforShard(uint16_t shardId)
                                                     DocumentFilter::NO_DELETES,
                                                     ValueFilter::KEYS_ONLY);
         if (ctx) {
-            kvstore->scan(ctx);
+            auto errorCode = kvstore->scan(ctx);
             kvstore->destroyScanContext(ctx);
+            if (errorCode == scan_again) { // ENGINE_ENOMEM
+                // skip loading remaining VBuckets as memory limit was reached
+                break;
+            }
         }
     }
 
