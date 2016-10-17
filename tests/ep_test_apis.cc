@@ -33,18 +33,31 @@
 
 #include "mock/mock_dcp.h"
 
+template<typename T> class HistogramStats;
+
 // Due to the limitations of the add_stats callback (essentially we cannot pass
-// a context into it) we instead have a single, global `vals` map. This mutex
-// is used to serialise modifications to it to allow multiple threads to request
-// stats.
-// There is also an optimized add_stats callback (add_individual_stat) which
-// checks for one stat (and hence doesn't have to keep a map of all of them).
-// the vals_mutex is also used for serializing acccess to it's data
-// (requested_stat_name and actual_stat_value).
+// a context into it) we instead have a single, global `vals` map. The
+// vals_mutex is to ensure serialised modifications to this data structure.
 std::mutex vals_mutex;
 statistic_map vals;
-std::string requested_stat_name;
-std::string actual_stat_value;
+
+// get_stat and get_histo_stat can only be called one at a time as they use
+// the three global variables (requested_stat_name, actual_stat_value and
+// histogram_stat_int_value).  Therefore the two functions need to acquire a
+// lock and keep it for the whole function duration.
+
+// The requested_stat_name and actual_stat_value are used in an optimized
+// add_stats callback (add_individual_stat) which checks for one stat
+// (and hence doesn't have to keep a map of all of them).
+struct {
+    std::mutex mutex;
+    std::string requested_stat_name;
+    std::string actual_stat_value;
+    /* HistogramStats<T>* is supported C++14 onwards.
+     * Until then use a separate ptr for each type.
+     */
+    HistogramStats<int>* histogram_stat_int_value;
+} get_stat_context;
 
 bool dump_stats = false;
 std::atomic<protocol_binary_response_status> last_status(
@@ -117,10 +130,6 @@ private:
     /* Total number of samples across all histogram bins */
     uint64_t total_count;
 };
-
-/* HistogramStats<T>* is supported C++14 onwards. Until then use a separate
-   ptr for each type */
-static HistogramStats<int>* histogram_stat_int_value;
 
 static void get_histo_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                   const char *statname, const char *statkey);
@@ -233,6 +242,7 @@ void add_stats(const char *key, const uint16_t klen, const char *val,
         std::cout << "stat[" << k << "] = " << v << std::endl;
     }
 
+    std::lock_guard<std::mutex> lh(vals_mutex);
     vals[k] = v;
 }
 
@@ -243,10 +253,11 @@ void add_stats(const char *key, const uint16_t klen, const char *val,
 void add_individual_stat(const char *key, const uint16_t klen, const char *val,
                const uint32_t vlen, const void *cookie) {
 
-    if (actual_stat_value.empty() &&
-        requested_stat_name.compare(0, requested_stat_name.size(),
-                                    key, klen) == 0) {
-        actual_stat_value = std::string(val, vlen);
+    if (get_stat_context.actual_stat_value.empty() &&
+            get_stat_context.requested_stat_name.compare(
+                    0, get_stat_context.requested_stat_name.size(),
+                    key, klen) == 0) {
+        get_stat_context.actual_stat_value = std::string(val, vlen);
     }
 }
 
@@ -255,13 +266,13 @@ void add_individual_histo_stat(const char *key, const uint16_t klen,
                                const void *cookie) {
     /* Convert key to string */
     std::string key_str(key, klen);
-    size_t pos1 = key_str.find(requested_stat_name);
+    size_t pos1 = key_str.find(get_stat_context.requested_stat_name);
     if (pos1 != std::string::npos)
     {
-        actual_stat_value.append(val, vlen);
+        get_stat_context.actual_stat_value.append(val, vlen);
         /* Parse start and end from the key.
            Key is in the format task_name_START,END (backfill_tasks_20,100) */
-        pos1 += requested_stat_name.length();
+        pos1 += get_stat_context.requested_stat_name.length();
         /* Find ',' to move to end of bin_start */
         size_t pos2 = key_str.find(',', pos1);
         if ((std::string::npos == pos2) || (pos1 >= pos2)) {
@@ -277,7 +288,8 @@ void add_individual_histo_stat(const char *key, const uint16_t klen,
             throw std::invalid_argument("Malformed histogram stat: " + key_str);
         }
         int end = std::stoi(std::string(key_str, pos1, pos2));
-        histogram_stat_int_value->add_bin(start, end, std::stoull(val));
+        get_stat_context.histogram_stat_int_value->add_bin(start, end,
+                                                           std::stoull(val));
     }
 }
 
@@ -1049,17 +1061,23 @@ bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     // Try up to three times to verify the bucket is missing.  Bucket
     // state changes are async.
-    std::lock_guard<std::mutex> lh(vals_mutex);
-    vals.clear();
+    {
+        std::lock_guard<std::mutex> lh(vals_mutex);
+        vals.clear();
+    }
+
     check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
           "Failed to get stats.");
 
-    if (vals.find(vbstr) == vals.end()) {
-        return true;
+    {
+        std::lock_guard<std::mutex> lh(vals_mutex);
+        if (vals.find(vbstr) == vals.end()) {
+            return true;
+        }
+
+        std::cerr << "Expected bucket missing, got " <<
+                vals[vbstr] << std::endl;
     }
-
-    std::cerr << "Expected bucket missing, got " << vals[vbstr] << std::endl;
-
     return false;
 }
 
@@ -1143,10 +1161,10 @@ bool get_stat(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
 template<>
 std::string get_stat(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
                      const char* statname, const char* statkey) {
-    std::lock_guard<std::mutex> lh(vals_mutex);
+    std::lock_guard<std::mutex> lh(get_stat_context.mutex);
 
-    requested_stat_name = statname;
-    actual_stat_value.clear();
+    get_stat_context.requested_stat_name = statname;
+    get_stat_context.actual_stat_value.clear();
 
     ENGINE_ERROR_CODE err = h1->get_stats(h, NULL, statkey,
                                           statkey == NULL ? 0 : strlen(statkey),
@@ -1156,7 +1174,7 @@ std::string get_stat(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
         throw engine_error(err);
     }
 
-    if (actual_stat_value.empty()) {
+    if (get_stat_context.actual_stat_value.empty()) {
         throw std::out_of_range(std::string("Failed to find requested statname '") +
                                 statname + "'");
     }
@@ -1164,7 +1182,8 @@ std::string get_stat(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
     // Here we are explictly forcing a copy of the object to work
     // around std::string copy-on-write data-race issues seen on some
     // versions of libstdc++ - see MB-18510 / MB-19688.
-    return std::string(actual_stat_value.begin(), actual_stat_value.end());
+    return std::string(get_stat_context.actual_stat_value.begin(),
+                       get_stat_context.actual_stat_value.end());
 }
 
 /// Backward-compatible functions (encode type name in function name).
@@ -1224,34 +1243,35 @@ uint64_t get_histo_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                         const char *statname, const char *statkey,
                         const Histo_stat_info histo_info)
 {
-    std::lock_guard<std::mutex> lh(vals_mutex);
+    std::lock_guard<std::mutex> lh(get_stat_context.mutex);
 
-    histogram_stat_int_value = new HistogramStats<int>();
+    get_stat_context.histogram_stat_int_value = new HistogramStats<int>();
     get_histo_stat(h, h1, statname, statkey);
 
     /* Get the necessary info from the histogram */
     uint64_t ret_val = 0;
     switch (histo_info) {
         case Histo_stat_info::TOTAL_COUNT:
-            ret_val = histogram_stat_int_value->total();
+            ret_val = get_stat_context.histogram_stat_int_value->total();
             break;
         case Histo_stat_info::NUM_BINS:
             ret_val =
-                    static_cast<uint64_t>(histogram_stat_int_value->num_bins());
+                    static_cast<uint64_t>(get_stat_context.
+                                          histogram_stat_int_value->num_bins());
             break;
     }
 
-    delete histogram_stat_int_value;
+    delete get_stat_context.histogram_stat_int_value;
     return ret_val;
 }
 
 static void get_histo_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                   const char *statname, const char *statkey)
 {
-    requested_stat_name = statname;
+    get_stat_context.requested_stat_name = statname;
     /* Histo stats for tasks are append as task_name_START,END.
        Hence append _ */
-    requested_stat_name.append("_");
+    get_stat_context.requested_stat_name.append("_");
 
     ENGINE_ERROR_CODE err = h1->get_stats(h, NULL, statkey,
                                           statkey == NULL ? 0 : strlen(statkey),
@@ -1266,9 +1286,10 @@ static void get_histo_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 statistic_map get_all_stats(ENGINE_HANDLE *h,ENGINE_HANDLE_V1 *h1,
                             const char *statset) {
-    std::lock_guard<std::mutex> lh(vals_mutex);
-
-    vals.clear();
+    {
+        std::lock_guard<std::mutex> lh(vals_mutex);
+        vals.clear();
+    }
     ENGINE_ERROR_CODE err = h1->get_stats(h, NULL, statset,
                                           statset == NULL ? 0 : strlen(statset),
                                           add_stats);
@@ -1277,6 +1298,7 @@ statistic_map get_all_stats(ENGINE_HANDLE *h,ENGINE_HANDLE_V1 *h1,
         throw engine_error(err);
     }
 
+    std::lock_guard<std::mutex> lh(vals_mutex);
     return vals;
 }
 
