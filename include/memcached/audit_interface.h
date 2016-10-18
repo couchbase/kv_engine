@@ -90,12 +90,6 @@ void process_auditd_stats(ADD_STAT add_stats, void *c);
 MEMCACHED_PUBLIC_API
 void audit_test_timetravel(time_t offset);
 
-MEMCACHED_PUBLIC_API
-std::string audit_generate_timestamp(void);
-
-MEMCACHED_PUBLIC_API
-void audit_set_audit_processed_listener(void (*listener)(void));
-
 #endif
 
 #endif /* MEMCACHED_AUDIT_INTERFACE_H */

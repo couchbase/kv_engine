@@ -554,7 +554,3 @@ bool Audit::clean_up(void) {
     }
     return true;
 }
-
-std::string audit_generate_timestamp(void) {
-    return ISOTime::generatetimestamp();
-}

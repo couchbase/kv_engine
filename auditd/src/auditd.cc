@@ -44,12 +44,6 @@ void process_auditd_stats(ADD_STAT add_stats, void *c) {
 
 }
 
-static void (*audit_processed_listener)(void) = NULL;
-void audit_set_audit_processed_listener(void (*listener)(void)) {
-    audit_processed_listener = listener;
-}
-
-
 static void consume_events(void *arg) {
     cb_mutex_enter(&audit.producer_consumer_lock);
     while (!audit.terminate_audit_daemon) {
@@ -76,9 +70,6 @@ static void consume_events(void *arg) {
             }
             audit.processeventqueue->pop();
             delete event;
-            if (audit_processed_listener) {
-                audit_processed_listener();
-            }
         }
         audit.auditfile.flush();
         cb_mutex_enter(&audit.producer_consumer_lock);
