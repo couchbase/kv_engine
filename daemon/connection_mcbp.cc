@@ -1205,6 +1205,12 @@ void McbpConnection::maybeLogSlowCommand(
         // to 30s for now.
         limit = std::chrono::seconds(30);
         break;
+    case PROTOCOL_BINARY_CMD_DELETE_BUCKET:
+        // All clients needs to be disconnected, and all internal tasks
+        // in the underlying bucket needs to be stopped. This may be
+        // slow, so lets bump the limit to 10 sec.
+        limit = std::chrono::seconds(10);
+        break;
     }
 
     if (elapsed > limit) {
