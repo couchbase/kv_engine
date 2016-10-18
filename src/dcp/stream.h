@@ -138,9 +138,10 @@ public:
         clear_UNLOCKED();
     }
 
-protected:
+    /// Return a string describing the given stream state.
+    static const char* stateName(stream_state_t st);
 
-    const char* stateName(stream_state_t st) const;
+protected:
 
     void clear_UNLOCKED();
 
@@ -234,7 +235,9 @@ public:
      */
     size_t getItemsRemaining();
 
-    uint64_t getLastSentSeqno();
+    uint64_t getLastReadSeqno() const;
+
+    uint64_t getLastSentSeqno() const;
 
     const Logger& getLogger() const;
 

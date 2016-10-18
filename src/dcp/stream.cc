@@ -114,7 +114,7 @@ uint64_t Stream::getReadyQueueMemory() {
     return readyQueueMemory.load(std::memory_order_relaxed);
 }
 
-const char * Stream::stateName(stream_state_t st) const {
+const char* Stream::stateName(stream_state_t st) {
     static const char * const stateNames[] = {
         "pending", "backfilling", "in-memory", "takeover-send", "takeover-wait",
         "reading", "dead"
@@ -1203,7 +1203,11 @@ size_t ActiveStream::getItemsRemaining() {
             readyQ_non_meta_items;
 }
 
-uint64_t ActiveStream::getLastSentSeqno() {
+uint64_t ActiveStream::getLastReadSeqno() const {
+    return lastReadSeqno.load();
+}
+
+uint64_t ActiveStream::getLastSentSeqno() const {
     return lastSentSeqno.load();
 }
 
