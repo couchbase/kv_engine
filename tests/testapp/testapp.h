@@ -39,8 +39,6 @@
 #include <protocol/connection/client_connection.h>
 #include "testapp_environment.h"
 
-enum test_return { TEST_SKIP, TEST_PASS, TEST_FAIL };
-
 enum class Transport {
     Plain,
     SSL,
@@ -233,10 +231,8 @@ void store_object_with_flags(const char *key, const char *value, uint32_t flags)
 void delete_object(const char *key, bool ignore_missing = false);
 
 /* Attempts to store an object with a datatype */
-enum test_return store_object_w_datatype(const char *key,
-                                         const void *data, size_t datalen,
-                                         bool deflate, bool json);
-
+void store_object_w_datatype(const char *key, const void *data, size_t datalen,
+                             bool deflate, bool json);
 
 // Enables / disables the MUTATION_SEQNO feature.
 void set_mutation_seqno_feature(bool enable);

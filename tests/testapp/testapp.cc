@@ -1171,7 +1171,7 @@ TEST_P(McdTestappTest, SetQ) {
     test_set_impl("test_setq", PROTOCOL_BINARY_CMD_SETQ);
 }
 
-static enum test_return test_add_impl(const char *key, uint8_t cmd) {
+static void test_add_impl(const char *key, uint8_t cmd) {
     uint64_t value = 0xdeadbeefdeadcafe;
     union {
         protocol_binary_request_no_extras request;
@@ -1208,8 +1208,6 @@ static enum test_return test_add_impl(const char *key, uint8_t cmd) {
                                   PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
 
     delete_object(key);
-
-    return TEST_PASS;
 }
 
 TEST_P(McdTestappTest, Add) {
@@ -1220,7 +1218,7 @@ TEST_P(McdTestappTest, AddQ) {
     test_add_impl("test_addq", PROTOCOL_BINARY_CMD_ADDQ);
 }
 
-static enum test_return test_replace_impl(const char* key, uint8_t cmd) {
+static void test_replace_impl(const char* key, uint8_t cmd) {
     uint64_t value = 0xdeadbeefdeadcafe;
     union {
         protocol_binary_request_no_extras request;
@@ -1260,8 +1258,6 @@ static enum test_return test_replace_impl(const char* key, uint8_t cmd) {
     }
 
     delete_object(key);
-
-    return TEST_PASS;
 }
 
 TEST_P(McdTestappTest, Replace) {
@@ -1272,7 +1268,7 @@ TEST_P(McdTestappTest, ReplaceQ) {
     test_replace_impl("test_replaceq", PROTOCOL_BINARY_CMD_REPLACEQ);
 }
 
-static enum test_return test_delete_impl(const char *key, uint8_t cmd) {
+static void test_delete_impl(const char *key, uint8_t cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -1308,8 +1304,6 @@ static enum test_return test_delete_impl(const char *key, uint8_t cmd) {
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response, cmd,
                                   PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
-
-    return TEST_PASS;
 }
 
 TEST_P(McdTestappTest, Delete) {
@@ -1320,7 +1314,7 @@ TEST_P(McdTestappTest, DeleteQ) {
     test_delete_impl("test_deleteq", PROTOCOL_BINARY_CMD_DELETEQ);
 }
 
-static enum test_return test_delete_cas_impl(const char *key, bool bad) {
+static void test_delete_cas_impl(const char *key, bool bad) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -1353,8 +1347,6 @@ static enum test_return test_delete_cas_impl(const char *key, bool bad) {
                                       PROTOCOL_BINARY_CMD_DELETE,
                                       PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
-
-    return TEST_PASS;
 }
 
 
@@ -1373,7 +1365,7 @@ TEST_P(McdTestappTest, DeleteMutationSeqno) {
     set_mutation_seqno_feature(false);
 }
 
-static enum test_return test_get_impl(const char *key, uint8_t cmd) {
+static void test_get_impl(const char *key, uint8_t cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -1418,7 +1410,6 @@ static enum test_return test_get_impl(const char *key, uint8_t cmd) {
     }
 
     delete_object(key);
-    return TEST_PASS;
 }
 
 TEST_P(McdTestappTest, Get) {
@@ -1429,7 +1420,7 @@ TEST_P(McdTestappTest, GetK) {
     test_get_impl("test_getk", PROTOCOL_BINARY_CMD_GETK);
 }
 
-static enum test_return test_getq_impl(const char *key, uint8_t cmd) {
+static void test_getq_impl(const char *key, uint8_t cmd) {
     const char *missing = "test_getq_missing";
     union {
         protocol_binary_request_no_extras request;
@@ -1463,20 +1454,17 @@ static enum test_return test_getq_impl(const char *key, uint8_t cmd) {
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     delete_object(key);
-    return TEST_PASS;
 }
 
 TEST_P(McdTestappTest, GetQ) {
-    EXPECT_EQ(TEST_PASS,
-              test_getq_impl("test_getq", PROTOCOL_BINARY_CMD_GETQ));
+    test_getq_impl("test_getq", PROTOCOL_BINARY_CMD_GETQ);
 }
 
 TEST_P(McdTestappTest, GetKQ) {
-    EXPECT_EQ(TEST_PASS,
-              test_getq_impl("test_getkq", PROTOCOL_BINARY_CMD_GETKQ));
+    test_getq_impl("test_getkq", PROTOCOL_BINARY_CMD_GETKQ);
 }
 
-static enum test_return test_incr_impl(const char* key, uint8_t cmd) {
+static void test_incr_impl(const char* key, uint8_t cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response_header;
@@ -1502,7 +1490,6 @@ static enum test_return test_incr_impl(const char* key, uint8_t cmd) {
     }
 
     delete_object(key);
-    return TEST_PASS;
 }
 
 TEST_P(McdTestappTest, Incr) {
@@ -1513,7 +1500,7 @@ TEST_P(McdTestappTest, IncrQ) {
     test_incr_impl("test_incrq", PROTOCOL_BINARY_CMD_INCREMENTQ);
 }
 
-static enum test_return test_incr_invalid_cas_impl(const char* key, uint8_t cmd) {
+static void test_incr_invalid_cas_impl(const char* key, uint8_t cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response_header;
@@ -1528,7 +1515,6 @@ static enum test_return test_incr_invalid_cas_impl(const char* key, uint8_t cmd)
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response_header, cmd,
                                   PROTOCOL_BINARY_RESPONSE_EINVAL);
-    return TEST_PASS;
 }
 
 TEST_P(McdTestappTest, InvalidCASIncr) {
@@ -1547,7 +1533,7 @@ TEST_P(McdTestappTest, InvalidCASDecrQ) {
     test_incr_invalid_cas_impl("test_decrq", PROTOCOL_BINARY_CMD_DECREMENTQ);
 }
 
-static enum test_return test_decr_impl(const char* key, uint8_t cmd) {
+static void test_decr_impl(const char* key, uint8_t cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response_header;
@@ -1580,7 +1566,6 @@ static enum test_return test_decr_impl(const char* key, uint8_t cmd) {
     }
 
     delete_object(key);
-    return TEST_PASS;
 }
 
 TEST_P(McdTestappTest, Decr) {
@@ -1931,7 +1916,7 @@ static void binary_hickup_recv_verification_thread(void *arg) {
     allow_closed_read = false;
 }
 
-static enum test_return test_pipeline_hickup_chunk(void *buffer, size_t buffersize) {
+static void test_pipeline_hickup_chunk(void *buffer, size_t buffersize) {
     off_t offset = 0;
     char *key[256] = {0};
     uint64_t value = 0xfeedfacedeadbeef;
@@ -2013,8 +1998,6 @@ static enum test_return test_pipeline_hickup_chunk(void *buffer, size_t buffersi
         }
     }
     safe_send(buffer, offset, true);
-
-    return TEST_PASS;
 }
 
 TEST_P(McdTestappTest, PipelineHickup)
@@ -2816,9 +2799,8 @@ void set_mutation_seqno_feature(bool enable) {
     set_feature(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO, enable);
 }
 
-enum test_return store_object_w_datatype(const char *key,
-                                         const void *data, size_t datalen,
-                                         bool deflate, bool json)
+void store_object_w_datatype(const char *key, const void *data, size_t datalen,
+                             bool deflate, bool json)
 {
     protocol_binary_request_no_extras request;
     int keylen = (int)strlen(key);
@@ -2854,7 +2836,6 @@ enum test_return store_object_w_datatype(const char *key,
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    return TEST_PASS;
 }
 
 static void get_object_w_datatype(const char *key,
@@ -3328,8 +3309,8 @@ static void adjust_memcached_clock(uint64_t clock_shift) {
    1. sleep(wait1) and key exists
    2. sleep(wait2) and key should now have expired.
 */
-static enum test_return test_expiry(const char* key, time_t expiry,
-                                    time_t wait1, int clock_shift) {
+static void test_expiry(const char* key, time_t expiry,
+                        time_t wait1, int clock_shift) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -3365,8 +3346,6 @@ static enum test_return test_expiry(const char* key, time_t expiry,
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-    return TEST_PASS;
 }
 
 TEST_P(McdTestappTest, ExpiryRelativeWithClockChangeBackwards) {

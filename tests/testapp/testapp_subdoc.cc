@@ -376,8 +376,7 @@ void store_object(const std::string& key,
     }
 
     set_datatype_feature(true);
-    cb_assert(store_object_w_datatype(key.c_str(), payload, payload_len,
-                                      compress, JSON) == TEST_PASS);
+    store_object_w_datatype(key.c_str(), payload, payload_len, compress, JSON);
     set_datatype_feature(false);
     if (compress) {
         cb_free(deflated);
