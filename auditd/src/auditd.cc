@@ -31,14 +31,6 @@
 #include "event.h"
 
 /**
- * In order to test the audit daemon we allow clients to get notifications
- * every time the audit daemon is done processing a scheduled event.
- *
- * The listener may be set by calling audit_set_audit_processed_listener
- */
-static void (* audit_processed_listener)() = nullptr;
-
-/**
  * The entry point for the thread used to drain the generated audit events
  *
  * @param arg not used
@@ -76,9 +68,6 @@ static void consume_events(void* arg) {
             }
             audit.processeventqueue->pop();
             delete event;
-            if (audit_processed_listener) {
-                audit_processed_listener();
-            }
         }
         audit.auditfile.flush();
         cb_mutex_enter(&audit.producer_consumer_lock);
@@ -250,9 +239,4 @@ void process_auditd_stats(Audit* handle,
     add_stats("dropped_events", (uint16_t)strlen("dropped_events"),
               num_of_dropped_events.str().c_str(),
               (uint32_t)num_of_dropped_events.str().length(), cookie);
-}
-
-MEMCACHED_PUBLIC_API
-void audit_set_audit_processed_listener(void (* listener)()) {
-    audit_processed_listener = listener;
 }

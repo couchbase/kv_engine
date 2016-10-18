@@ -133,13 +133,3 @@ MEMCACHED_PUBLIC_API
 void process_auditd_stats(Audit* handle,
                           ADD_STAT add_stats,
                           const void* cookie);
-
-/**
- * Register a callback function to be called every time an audit event
- * is consumed. It is needed by the unit tests to synchronize the audit
- * thread and the test thread.
- *
- * @param listener a function to be called every time an event is consumed
- */
-MEMCACHED_PUBLIC_API
-void audit_set_audit_processed_listener(void (* listener)(void));
