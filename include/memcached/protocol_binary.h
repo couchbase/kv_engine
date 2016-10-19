@@ -51,6 +51,9 @@
  * host order.
  */
 #ifdef __cplusplus
+#include <stdexcept>
+#include <string>
+
 extern "C"
 {
 #endif
@@ -1290,23 +1293,18 @@ extern "C"
     /**
      * Definition of hello's features.
      */
-    typedef enum {
-        PROTOCOL_BINARY_FEATURE_DATATYPE = 0x01,
-        PROTOCOL_BINARY_FEATURE_TLS = 0x2,
-        PROTOCOL_BINARY_FEATURE_TCPNODELAY = 0x03,
-        PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO = 0x04,
-        PROTOCOL_BINARY_FEATURE_TCPDELAY = 0x05
-    } protocol_binary_hello_features;
-
-    #define MEMCACHED_FIRST_HELLO_FEATURE 0x01
-    #define MEMCACHED_TOTAL_HELLO_FEATURES 0x05
-
-#define protocol_feature_2_text(a) \
-    (a == PROTOCOL_BINARY_FEATURE_DATATYPE) ? "Datatype" : \
-    (a == PROTOCOL_BINARY_FEATURE_TLS) ? "TLS" : \
-    (a == PROTOCOL_BINARY_FEATURE_TCPNODELAY) ? "TCP NODELAY" : \
-    (a == PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO) ? "Mutation seqno" : \
-    (a == PROTOCOL_BINARY_FEATURE_TCPDELAY) ? "TCP DELAY" : "Unknown"
+#ifdef __cplusplus
+namespace mcbp {
+enum class Feature : uint16_t {
+    DATATYPE = 0x01,
+    TLS = 0x2,
+    TCPNODELAY = 0x03,
+    MUTATION_SEQNO = 0x04,
+    TCPDELAY = 0x05
+};
+}
+using protocol_binary_hello_features_t = mcbp::Feature;
+#endif
 
     /**
      * The HELLO command is used by the client and the server to agree
@@ -2031,6 +2029,25 @@ extern "C"
         return protocol_binary_subdoc_flag(static_cast<uint8_t>(a)|
                                            static_cast<uint8_t>(b));
     }
+}
+
+namespace mcbp {
+inline std::string to_string(const Feature& feature) {
+    switch (feature) {
+    case Feature::DATATYPE:
+        return "Datatype";
+    case Feature::TLS:
+        return "TLS";
+    case Feature::TCPDELAY:
+        return "TCP DELAY";
+    case Feature::TCPNODELAY:
+        return "TCP NODELAY";
+    case Feature::MUTATION_SEQNO:
+        return "Mutation seqno";
+    }
+    throw std::invalid_argument("mcbp::to_string: unknown feature: " +
+                                std::to_string(uint16_t(feature)));
+}
 }
 #endif
 #endif /* PROTOCOL_BINARY_H */

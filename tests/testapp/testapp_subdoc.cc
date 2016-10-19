@@ -267,7 +267,7 @@ uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
     std::string value(val_ptr, val_ptr + vallen);
 
     if (expected_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        if (enabled_hello_features.count(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO) > 0) {
+        if (enabled_hello_features.count(mcbp::Feature::MUTATION_SEQNO) > 0) {
             EXPECT_EQ(16, header.response.extlen);
         } else {
             EXPECT_EQ(0u, header.response.extlen);

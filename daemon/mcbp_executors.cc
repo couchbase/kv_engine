@@ -3698,10 +3698,8 @@ static void process_hello_packet_executor(McbpConnection* c, void* packet) {
     uint32_t total = (ntohl(req->message.header.request.bodylen) - klen) / 2;
     uint32_t ii;
     char* curr = key + klen;
-    uint16_t out[MEMCACHED_TOTAL_HELLO_FEATURES];
-    int jj = 0;
+    std::vector<uint16_t> out;
     bool tcpdelay_handled = false;
-    memset((char*)out, 0, sizeof(out));
 
     /*
      * Disable all features the hello packet may enable, so that
@@ -3730,27 +3728,29 @@ static void process_hello_packet_executor(McbpConnection* c, void* packet) {
         curr += 2;
         in = ntohs(in);
 
-        switch (in) {
-        case PROTOCOL_BINARY_FEATURE_TLS:
+        auto feature = mcbp::Feature(in);
+
+        switch (feature) {
+        case mcbp::Feature::TLS:
             /* Not implemented */
             break;
-        case PROTOCOL_BINARY_FEATURE_DATATYPE:
+        case mcbp::Feature::DATATYPE:
             if (settings.isDatatypeSupport() && !c->isSupportsDatatype()) {
                 c->setSupportsDatatype(true);
                 added = true;
             }
             break;
 
-        case PROTOCOL_BINARY_FEATURE_TCPNODELAY:
-        case PROTOCOL_BINARY_FEATURE_TCPDELAY:
+        case mcbp::Feature::TCPNODELAY:
+        case mcbp::Feature::TCPDELAY:
             if (!tcpdelay_handled) {
-                c->setTcpNoDelay(in == PROTOCOL_BINARY_FEATURE_TCPNODELAY);
+                c->setTcpNoDelay(feature == mcbp::Feature::TCPNODELAY);
                 tcpdelay_handled = true;
                 added = true;
             }
             break;
 
-        case PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO:
+        case mcbp::Feature::MUTATION_SEQNO:
             if (!c->isSupportsMutationExtras()) {
                 c->setSupportsMutationExtras(true);
                 added = true;
@@ -3759,10 +3759,16 @@ static void process_hello_packet_executor(McbpConnection* c, void* packet) {
         }
 
         if (added) {
-            out[jj++] = htons(in);
+            out.push_back(htons(in));
+            int nw;
 
-            int nw = snprintf(log_buffer + offset, sizeof(log_buffer) - offset,
-                              "%s, ", protocol_feature_2_text(in));
+            try {
+                nw = snprintf(log_buffer + offset, sizeof(log_buffer) - offset,
+                              "%s, ", mcbp::to_string(feature).c_str());
+            } catch (...) {
+                nw = snprintf(log_buffer + offset, sizeof(log_buffer) - offset,
+                              "%04x, ", (unsigned int)in);
+            }
 
             if (nw < 0 || nw > sizeof(log_buffer) - offset) {
                 mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
@@ -3773,10 +3779,12 @@ static void process_hello_packet_executor(McbpConnection* c, void* packet) {
         }
     }
 
-    if (jj == 0) {
+    if (out.empty()) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
     } else {
-        mcbp_response_handler(NULL, 0, NULL, 0, out, 2 * jj,
+        mcbp_response_handler(nullptr, 0, nullptr, 0,
+                              out.data(),
+                              uint32_t(2 * out.size()),
                               PROTOCOL_BINARY_RAW_BYTES,
                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
                               0, c->getCookie());

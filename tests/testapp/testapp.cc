@@ -67,7 +67,7 @@ static BIO *bio = NULL;
 static BIO *ssl_bio_r = NULL;
 static BIO *ssl_bio_w = NULL;
 
-std::set<protocol_binary_hello_features> enabled_hello_features;
+std::set<protocol_binary_hello_features_t> enabled_hello_features;
 
 bool memcached_verbose = false;
 // State variable if we're running the memcached server in a
@@ -2689,9 +2689,9 @@ TEST_P(McdTestappTest, Hello) {
     uint16_t *ptr;
     size_t len;
 
-    features[0] = htons(PROTOCOL_BINARY_FEATURE_DATATYPE);
-    features[1] = htons(PROTOCOL_BINARY_FEATURE_TCPNODELAY);
-    features[2] = htons(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO);
+    features[0] = htons(uint16_t(mcbp::Feature::DATATYPE));
+    features[1] = htons(uint16_t(mcbp::Feature::TCPNODELAY));
+    features[2] = htons(uint16_t(mcbp::Feature::MUTATION_SEQNO));
 
     memset(buffer.bytes, 0, sizeof(buffer.bytes));
 
@@ -2708,11 +2708,11 @@ TEST_P(McdTestappTest, Hello) {
 
     EXPECT_EQ(6u, buffer.response.message.header.response.bodylen);
     ptr = (uint16_t*)(buffer.bytes + sizeof(buffer.response));
-    EXPECT_EQ(PROTOCOL_BINARY_FEATURE_DATATYPE, ntohs(*ptr));
+    EXPECT_EQ(uint16_t(mcbp::Feature::DATATYPE), ntohs(*ptr));
     ptr++;
-    EXPECT_EQ(PROTOCOL_BINARY_FEATURE_TCPNODELAY, ntohs(*ptr));
+    EXPECT_EQ(uint16_t(mcbp::Feature::TCPNODELAY), ntohs(*ptr));
     ptr++;
-    EXPECT_EQ(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO, ntohs(*ptr));
+    EXPECT_EQ(uint16_t(mcbp::Feature::MUTATION_SEQNO), ntohs(*ptr));
 
     features[0] = 0xffff;
     len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
@@ -2739,7 +2739,7 @@ TEST_P(McdTestappTest, Hello) {
                                   PROTOCOL_BINARY_RESPONSE_EINVAL);
 }
 
-static void set_feature(const protocol_binary_hello_features feature,
+static void set_feature(const protocol_binary_hello_features_t feature,
                         bool enable) {
 
     // First update the currently enabled features.
@@ -2764,7 +2764,7 @@ static void set_feature(const protocol_binary_hello_features feature,
 
     size_t bodylen = agentlen;
     for (auto feature : enabled_hello_features) {
-        const uint16_t wire_feature = htons(feature);
+        const uint16_t wire_feature = htons(uint16_t(feature));
         memcpy(body_ptr + bodylen,
                reinterpret_cast<const char*>(&wire_feature), sizeof(wire_feature));
         bodylen += sizeof(wire_feature);
@@ -2787,16 +2787,16 @@ static void set_feature(const protocol_binary_hello_features feature,
         uint16_t wire_feature;
         safe_recv(&wire_feature, sizeof(wire_feature));
         wire_feature = ntohs(wire_feature);
-        EXPECT_EQ(feature, wire_feature);
+        EXPECT_EQ(uint16_t(feature), wire_feature);
     }
 }
 
 void set_datatype_feature(bool enable) {
-    set_feature(PROTOCOL_BINARY_FEATURE_DATATYPE, enable);
+    set_feature(mcbp::Feature::DATATYPE, enable);
 }
 
 void set_mutation_seqno_feature(bool enable) {
-    set_feature(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO, enable);
+    set_feature(mcbp::Feature::MUTATION_SEQNO, enable);
 }
 
 void store_object_w_datatype(const char *key, const void *data, size_t datalen,

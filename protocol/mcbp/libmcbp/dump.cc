@@ -258,9 +258,16 @@ protected:
             memcpy(&feature, request.bytes + offset, 2);
             offset += 2;
             feature = ntohs(feature);
-            const char *txt = protocol_feature_2_text(feature);
+
+            std::string text;
+            try {
+                text = mcbp::to_string(mcbp::Feature(feature));
+            } catch (...) {
+                text = std::to_string(feature);
+            }
+
             out << "                 (" << first << "-"
-                << first + 1 <<"): " << txt << std::endl;
+                << first + 1 <<"): " << text << std::endl;
             first += 2;
         }
     }
@@ -377,9 +384,14 @@ protected:
             memcpy(&feature, response.bytes + offset, 2);
             offset += 2;
             feature = ntohs(feature);
-            const char *txt = protocol_feature_2_text(feature);
+            std::string text;
+            try {
+                text = mcbp::to_string(mcbp::Feature(feature));
+            } catch (...) {
+                text = std::to_string(feature);
+            }
             out << "                 (" << first << "-"
-            << first + 1 <<"): " << txt << std::endl;
+            << first + 1 <<"): " << text << std::endl;
             first += 2;
         }
     }

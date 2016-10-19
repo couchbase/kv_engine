@@ -689,15 +689,15 @@ void MemcachedBinprotConnection::setFeatures(const std::string& agent,
 
     std::vector<uint16_t> feat;
     if (requested[0]) {
-        feat.push_back(htons(PROTOCOL_BINARY_FEATURE_DATATYPE));
+        feat.push_back(htons(uint16_t(mcbp::Feature::DATATYPE)));
     }
 
     if (requested[1]) {
-        feat.push_back(htons(PROTOCOL_BINARY_FEATURE_TCPNODELAY));
+        feat.push_back(htons(uint16_t(mcbp::Feature::TCPNODELAY)));
     }
 
     if (requested[2]) {
-        feat.push_back(htons(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO));
+        feat.push_back(htons(uint16_t(mcbp::Feature::MUTATION_SEQNO)));
     }
 
     std::vector<uint8_t> data(feat.size() * sizeof(feat.at(0)));
@@ -726,14 +726,14 @@ void MemcachedBinprotConnection::setFeatures(const std::string& agent,
     memcpy(enabled.data(), (rsp + 1), rsp->message.header.response.bodylen);
     for (auto val : enabled) {
         val = ntohs(val);
-        switch (val) {
-        case PROTOCOL_BINARY_FEATURE_DATATYPE:
+        switch (mcbp::Feature(val)) {
+        case mcbp::Feature::DATATYPE:
             features[0] = true;
             break;
-        case PROTOCOL_BINARY_FEATURE_TCPNODELAY:
+        case mcbp::Feature::TCPNODELAY:
             features[1] = true;
             break;
-        case PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO:
+        case mcbp::Feature::MUTATION_SEQNO:
             features[2] = true;
             break;
         default:

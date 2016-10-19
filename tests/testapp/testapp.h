@@ -55,7 +55,7 @@ extern in_port_t port;
 extern pid_t server_pid;
 
 // Set of HELLO features which are currently enabled.
-extern std::set<protocol_binary_hello_features> enabled_hello_features;
+extern std::set<protocol_binary_hello_features_t> enabled_hello_features;
 
 // Base class for tests against just the "plain" socker (no SSL).
 class TestappTest : public ::testing::Test {

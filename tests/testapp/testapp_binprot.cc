@@ -257,7 +257,7 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
             /* extlen/bodylen are permitted to be either zero, or 16 if
              * MUTATION_SEQNO is enabled.
              */
-            if (enabled_hello_features.count(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO) > 0) {
+            if (enabled_hello_features.count(mcbp::Feature::MUTATION_SEQNO) > 0) {
                 EXPECT_EQ(16u, header->response.extlen);
                 EXPECT_EQ(16u, header->response.bodylen);
             } else {
@@ -278,7 +278,7 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
             /* extlen/bodylen are permitted to be either zero, or 16 if
              * MUTATION_SEQNO is enabled.
              */
-            if (enabled_hello_features.count(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO) > 0) {
+            if (enabled_hello_features.count(mcbp::Feature::MUTATION_SEQNO) > 0) {
                 EXPECT_EQ(16u, header->response.extlen);
                 EXPECT_EQ(16u, header->response.bodylen);
             } else {
@@ -291,7 +291,7 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
             EXPECT_EQ(0, header->response.keylen);
             /* extlen is permitted to be either zero, or 16 if MUTATION_SEQNO
              * is enabled. Similary, bodylen must be either 8 or 24. */
-            if (enabled_hello_features.count(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO) > 0) {
+            if (enabled_hello_features.count(mcbp::Feature::MUTATION_SEQNO) > 0) {
                 EXPECT_EQ(16, header->response.extlen);
                 EXPECT_EQ(24u, header->response.bodylen);
             } else {
@@ -349,7 +349,7 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
             /* extlen/bodylen are permitted to be either zero, or 16 if
              * MUTATION_SEQNO is enabled.
              */
-            if (enabled_hello_features.count(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO) > 0) {
+            if (enabled_hello_features.count(mcbp::Feature::MUTATION_SEQNO) > 0) {
                 EXPECT_EQ(16, header->response.extlen);
                 EXPECT_EQ(16u, header->response.bodylen);
             } else {
@@ -360,7 +360,7 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
             break;
         case PROTOCOL_BINARY_CMD_SUBDOC_COUNTER:
             EXPECT_EQ(0, header->response.keylen);
-            if (enabled_hello_features.count(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO) > 0) {
+            if (enabled_hello_features.count(mcbp::Feature::MUTATION_SEQNO) > 0) {
                 EXPECT_EQ(16, header->response.extlen);
                 EXPECT_GT(header->response.bodylen, 16u);
             } else {
@@ -382,7 +382,7 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
             /* extlen is either zero, or 16 if MUTATION_SEQNO is enabled.
              * bodylen is at least as big as extlen.
              */
-            if (enabled_hello_features.count(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO) > 0) {
+            if (enabled_hello_features.count(mcbp::Feature::MUTATION_SEQNO) > 0) {
                 EXPECT_EQ(16, header->response.extlen);
                 EXPECT_GE(header->response.bodylen, 16u);
             } else {

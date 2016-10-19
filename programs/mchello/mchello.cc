@@ -39,11 +39,13 @@ static void request_hello(BIO *bio, const char *key)
 {
     const std::string useragent("mchello v1.0");
     uint16_t nkey = uint16_t(useragent.length());
-    uint16_t features[MEMCACHED_TOTAL_HELLO_FEATURES];
-    uint32_t total = nkey + MEMCACHED_TOTAL_HELLO_FEATURES * 2;
-    for (unsigned int ii = 0; ii < MEMCACHED_TOTAL_HELLO_FEATURES; ++ii) {
-        features[ii] = htons(MEMCACHED_FIRST_HELLO_FEATURE + ii);
-    }
+    std::vector<uint16_t> features;
+    features.push_back(ntohs(uint16_t(mcbp::Feature::DATATYPE)));
+    features.push_back(ntohs(uint16_t(mcbp::Feature::MUTATION_SEQNO)));
+    features.push_back(ntohs(uint16_t(mcbp::Feature::TCPNODELAY)));
+    features.push_back(ntohs(uint16_t(mcbp::Feature::TLS)));
+
+    uint32_t total = nkey + uint32_t(features.size()) * 2;
 
     protocol_binary_request_hello req;
     memset(&req, 0, sizeof(req));
@@ -59,7 +61,7 @@ static void request_hello(BIO *bio, const char *key)
     memcpy(request.data() + offset, useragent.data(), useragent.length());
     offset += useragent.length();
 
-    memcpy(request.data() + offset, features, MEMCACHED_TOTAL_HELLO_FEATURES * 2);
+    memcpy(request.data() + offset, features.data(), features.size() * 2);
 
     sendCommand(bio, request);
     std::vector<uint8_t> response;
@@ -76,16 +78,15 @@ static void request_hello(BIO *bio, const char *key)
         return;
     }
 
-    if (total > sizeof(features)) {
-        total = sizeof(features);
-    }
-
-    memcpy(features, response.data() + sizeof(rsp->bytes), total);
+    features.resize(total/2);
+    memcpy(features.data(), response.data() + sizeof(rsp->bytes), total);
     total /= 2;
 
     std::cout << "The server accepted the following features:" << std::endl;
     for (unsigned int ii = 0; ii < total; ++ii) {
-        const char *text = protocol_feature_2_text(ntohs(features[ii]));
+        uint16_t val = uint16_t(features[ii]);
+        val = ntohs(val);
+        auto text = mcbp::to_string(mcbp::Feature(val));
         std::cout << "\t- " << text << std::endl;
     }
 }
