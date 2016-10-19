@@ -3410,6 +3410,8 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     // Verify initial case.
     verify_curr_items(h, h1, 0, "init");
 
+    const auto initial_enqueued = get_int_stat(h, h1, "ep_total_enqueued");
+
     // Verify set and add case
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_ADD,"k1", "v1", &i),
@@ -3424,7 +3426,8 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
             "Failed to fail to store an item.");
     h1->release(h, NULL, i);
     verify_curr_items(h, h1, 3, "three items stored");
-    cb_assert(3 == get_int_stat(h, h1, "ep_total_enqueued"));
+    checkeq(initial_enqueued + 3, get_int_stat(h, h1, "ep_total_enqueued"),
+            "Expected total_enqueued to increase by 3 after 3 new items");
 
     wait_for_flusher_to_settle(h, h1);
 
@@ -3617,46 +3620,46 @@ static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDL
 static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
                                                 ENGINE_HANDLE_V1 *h1) {
     // Check/grab initial state.
-    int overhead = get_int_stat(h, h1, "ep_overhead");
-
+    const auto initial_enqueued = get_int_stat(h, h1, "ep_total_enqueued");
     int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
+
     // Store some data and check post-set state.
     wait_for_persisted_value(h, h1, "k1", "some value");
     testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
-    cb_assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
-    cb_assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
+    checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"),
+            "Should start with zero bg fetches");
+    checkeq((initial_enqueued + 1),
+            get_int_stat(h, h1, "ep_total_enqueued"),
+            "Should have additional item enqueued after store");
     int kv_size = get_int_stat(h, h1, "ep_kv_size");
     int mem_used = get_int_stat(h, h1, "mem_used");
-    check(get_int_stat(h, h1, "ep_overhead") >= overhead,
-          "Fell below initial overhead.");
 
     // Evict the data.
     evict_key(h, h1, "k1");
 
     int kv_size2 = get_int_stat(h, h1, "ep_kv_size");
     int mem_used2 = get_int_stat(h, h1, "mem_used");
-    check(get_int_stat(h, h1, "ep_overhead") >= overhead,
-          "Fell below initial overhead.");
 
-    cb_assert(kv_size2 < kv_size);
-    cb_assert(mem_used2 < mem_used);
+    checkgt(kv_size, kv_size2, "kv_size should have decreased after eviction");
+    checkgt(mem_used, mem_used2, "mem_used should have decreased after eviction");
 
     // Reload the data.
     check_key_value(h, h1, "k1", "some value", 10);
 
     int kv_size3 = get_int_stat(h, h1, "ep_kv_size");
     int mem_used3 = get_int_stat(h, h1, "mem_used");
-    check(get_int_stat(h, h1, "ep_overhead") >= overhead,
-          "Fell below initial overhead.");
 
-    cb_assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
-    // Should not have marked the thing dirty.
-    cb_assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
+    checkeq(1, get_int_stat(h, h1, "ep_bg_fetched"),
+            "BG fetches should be one after reading an evicted key");
+    checkeq((initial_enqueued + 1), get_int_stat(h, h1, "ep_total_enqueued"),
+            "Item should not be marked dirty after reading an evicted key");
 
-    cb_assert(kv_size == kv_size3);
-    cb_assert(mem_used <= mem_used3);
+    checkeq(kv_size, kv_size3,
+            "kv_size should have returned to initial value after restoring evicted item");
+    checkle(mem_used, mem_used3,
+            "mem_used should have returned to initial value (or less) after restoring evicted item");
 
     itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     // Delete the value and make sure things return correctly.
@@ -3667,9 +3670,6 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
     testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
-    checkeq(overhead, get_int_stat(h, h1, "ep_overhead"),
-            "Fell below initial overhead.");
-
     return SUCCESS;
 }
 
@@ -3677,13 +3677,16 @@ static enum test_result test_disk_gt_ram_paged_rm(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
     // Check/grab initial state.
     int overhead = get_int_stat(h, h1, "ep_overhead");
+    const auto initial_enqueued = get_int_stat(h, h1, "ep_total_enqueued");
 
     // Store some data and check post-set state.
     wait_for_persisted_value(h, h1, "k1", "some value");
-    cb_assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
-    cb_assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
-    check(get_int_stat(h, h1, "ep_overhead") >= overhead,
-          "Fell below initial overhead.");
+    checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"),
+            "bg_fetched should initially be zero");
+    checkeq(initial_enqueued + 1, get_int_stat(h, h1, "ep_total_enqueued"),
+            "Expected total_enqueued to increase by 1 after storing 1 value");
+    checkge(get_int_stat(h, h1, "ep_overhead"), overhead,
+            "Fell below initial overhead.");
 
     // Evict the data.
     evict_key(h, h1, "k1");
@@ -3696,9 +3699,6 @@ static enum test_result test_disk_gt_ram_paged_rm(ENGINE_HANDLE *h,
     wait_for_stat_change(h, h1, "ep_total_persisted", numStored);
     testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
-
-    checkeq(overhead, get_int_stat(h, h1, "ep_overhead"),
-            "Fell below initial overhead.");
 
     return SUCCESS;
 }
@@ -3828,8 +3828,11 @@ static enum test_result test_disk_gt_ram_set_race(ENGINE_HANDLE *h,
 
 static enum test_result test_disk_gt_ram_incr_race(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
+    const auto initial_enqueued = get_int_stat(h, h1, "ep_total_enqueued");
+
     wait_for_persisted_value(h, h1, "k1", "13");
-    cb_assert(1 == get_int_stat(h, h1, "ep_total_enqueued"));
+    checkeq(initial_enqueued + 1, get_int_stat(h, h1, "ep_total_enqueued"),
+            "total_enqueued should have increaed by 1 after persisting");
 
     set_param(h, h1, protocol_binary_engine_param_flush, "bg_fetch_delay", "3");
 
