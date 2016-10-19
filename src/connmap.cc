@@ -1085,6 +1085,7 @@ void DcpConnMap::shutdownAllConnections() {
 
     if (connNotifier_ != NULL) {
         connNotifier_->stop();
+        manageConnections();
     }
 
     // Take a copy of the connection map (under lock), then using the

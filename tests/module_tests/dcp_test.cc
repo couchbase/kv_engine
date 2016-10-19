@@ -659,7 +659,9 @@ TEST_F(ConnectionTest, test_mb20716_connmap_notify_on_delete) {
     // 1. Simulate a bucket deletion.
     connMap.shutdownAllConnections();
 
-    EXPECT_EQ(1, notify_count)
+    // Can also get a second notify as part of manageConnections being called
+    // in shutdownAllConnections().
+    EXPECT_GE(notify_count, 1)
         << "expected one notify after shutting down all connections";
 
     // Restore notify_io_complete callback.
@@ -714,7 +716,7 @@ TEST_F(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
     // 2. Simulate a bucket deletion.
     connMap.shutdownAllConnections();
 
-    EXPECT_EQ(1, notify_count)
+    EXPECT_GE(notify_count, 1)
         << "expected one notify after shutting down all connections";
 
     // Restore notify_io_complete callback.
