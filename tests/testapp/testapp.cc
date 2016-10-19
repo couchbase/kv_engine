@@ -2685,13 +2685,14 @@ TEST_P(McdTestappTest, Hello) {
         char bytes[1024];
     } buffer;
     const char *useragent = "hello world";
-    uint16_t features[3];
+    uint16_t features[4];
     uint16_t *ptr;
     size_t len;
 
     features[0] = htons(uint16_t(mcbp::Feature::DATATYPE));
     features[1] = htons(uint16_t(mcbp::Feature::TCPNODELAY));
     features[2] = htons(uint16_t(mcbp::Feature::MUTATION_SEQNO));
+    features[3] = htons(uint16_t(mcbp::Feature::XATTR));
 
     memset(buffer.bytes, 0, sizeof(buffer.bytes));
 
@@ -2706,13 +2707,15 @@ TEST_P(McdTestappTest, Hello) {
                                   PROTOCOL_BINARY_CMD_HELLO,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    EXPECT_EQ(6u, buffer.response.message.header.response.bodylen);
+    EXPECT_EQ(8u, buffer.response.message.header.response.bodylen);
     ptr = (uint16_t*)(buffer.bytes + sizeof(buffer.response));
     EXPECT_EQ(uint16_t(mcbp::Feature::DATATYPE), ntohs(*ptr));
     ptr++;
     EXPECT_EQ(uint16_t(mcbp::Feature::TCPNODELAY), ntohs(*ptr));
     ptr++;
     EXPECT_EQ(uint16_t(mcbp::Feature::MUTATION_SEQNO), ntohs(*ptr));
+    ptr++;
+    EXPECT_EQ(uint16_t(mcbp::Feature::XATTR), ntohs(*ptr));
 
     features[0] = 0xffff;
     len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
@@ -2797,6 +2800,10 @@ void set_datatype_feature(bool enable) {
 
 void set_mutation_seqno_feature(bool enable) {
     set_feature(mcbp::Feature::MUTATION_SEQNO, enable);
+}
+
+void set_xattr_feature(bool enable) {
+    set_feature(mcbp::Feature::XATTR, enable);
 }
 
 void store_object_w_datatype(const char *key, const void *data, size_t datalen,

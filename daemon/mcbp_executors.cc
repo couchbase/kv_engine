@@ -3707,6 +3707,7 @@ static void process_hello_packet_executor(McbpConnection* c, void* packet) {
      */
     c->setSupportsDatatype(false);
     c->setSupportsMutationExtras(false);
+    c->setDcpXattrSupport(false);
 
     if (klen) {
         if (klen > 256) {
@@ -3756,6 +3757,11 @@ static void process_hello_packet_executor(McbpConnection* c, void* packet) {
                 added = true;
             }
             break;
+        case mcbp::Feature::XATTR:
+            if (!c->isDcpXattrSupport()) {
+                c->setDcpXattrSupport(true);
+                added = true;
+            }
         }
 
         if (added) {

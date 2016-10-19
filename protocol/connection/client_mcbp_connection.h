@@ -138,6 +138,8 @@ public:
 
     void setMutationSeqnoSupport(bool enable);
 
+    void setXattrSupport(bool enable);
+
     virtual std::string ioctl_get(const std::string& key) override;
 
     virtual void ioctl_set(const std::string& key,
@@ -148,7 +150,7 @@ public:
                                             uint32_t value,
                                             const std::string& key) override;
 
-    std::array<bool, 3> features;
+    std::array<bool, 4> features;
 
 protected:
     /**
@@ -161,5 +163,5 @@ protected:
      * @param feat the featureset to enable
      */
     void setFeatures(const std::string& agent,
-                     const std::array<bool, 3>& requested);
+                     const std::array<bool, 4>& requested);
 };

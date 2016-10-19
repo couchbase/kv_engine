@@ -1472,6 +1472,7 @@ The following features is defined:
 | 0x0003 | TCP Nodelay |
 | 0x0004 | Mutation seqno |
 | 0x0005 | TCP Delay |
+| 0x0006 | XATTR |
 
 * `Datatype` - The client understands the 'non-null' values in the
   [datatype field](#data-types). The server expects the client to fill
@@ -1484,6 +1485,9 @@ The following features is defined:
   for a mutation to the response packet used in mutations.
 * `TCP Delay` - The client requests the server to set TCP DELAY on the socket
   used by this connection.
+* `XATTR` - The client requests the server to add XATTRs to the stream for
+            commands where it makes sense (GetWithMeta, SetWithMeta,
+            DcpMutation etc)
 
 Response:
 

@@ -539,7 +539,7 @@ MutationInfo MemcachedBinprotConnection::mutate(const Document& doc,
 }
 
 void MemcachedBinprotConnection::setDatatypeSupport(bool enable) {
-    std::array<bool, 3> requested;
+    std::array<bool, 4> requested;
     std::copy(features.begin(), features.end(), requested.begin());
     requested[0] = enable;
     setFeatures("mcbp", requested);
@@ -550,7 +550,7 @@ void MemcachedBinprotConnection::setDatatypeSupport(bool enable) {
 }
 
 void MemcachedBinprotConnection::setMutationSeqnoSupport(bool enable) {
-    std::array<bool, 3> requested;
+    std::array<bool, 4> requested;
     std::copy(features.begin(), features.end(), requested.begin());
     requested[2] = enable;
     setFeatures("mcbp", requested);
@@ -559,6 +559,17 @@ void MemcachedBinprotConnection::setMutationSeqnoSupport(bool enable) {
         throw std::runtime_error("Failed to enable datatype");
     }
 
+}
+
+void MemcachedBinprotConnection::setXattrSupport(bool enable) {
+    std::array<bool, 4> requested;
+    std::copy(features.begin(), features.end(), requested.begin());
+    requested[3] = enable;
+    setFeatures("mcbp", requested);
+
+    if (enable && !features[3]) {
+        throw std::runtime_error("Failed to enable datatype");
+    }
 }
 
 unique_cJSON_ptr MemcachedBinprotConnection::stats(const std::string& subcommand) {
@@ -664,7 +675,7 @@ void MemcachedBinprotConnection::reloadAuditConfiguration() {
 void MemcachedBinprotConnection::hello(const std::string& userAgent,
                                        const std::string& userAgentVersion,
                                        const std::string& comment) {
-    std::array<bool, 3> requested;
+    std::array<bool, 4> requested;
     std::copy(features.begin(), features.end(), requested.begin());
     setFeatures(userAgent + " " + userAgentVersion, requested);
 
@@ -685,7 +696,7 @@ void MemcachedBinprotConnection::hello(const std::string& userAgent,
 }
 
 void MemcachedBinprotConnection::setFeatures(const std::string& agent,
-                                             const std::array<bool, 3>& requested) {
+                                             const std::array<bool, 4>& requested) {
 
     std::vector<uint16_t> feat;
     if (requested[0]) {
@@ -698,6 +709,10 @@ void MemcachedBinprotConnection::setFeatures(const std::string& agent,
 
     if (requested[2]) {
         feat.push_back(htons(uint16_t(mcbp::Feature::MUTATION_SEQNO)));
+    }
+
+    if (requested[3]) {
+        feat.push_back(htons(uint16_t(mcbp::Feature::XATTR)));
     }
 
     std::vector<uint8_t> data(feat.size() * sizeof(feat.at(0)));
@@ -735,6 +750,9 @@ void MemcachedBinprotConnection::setFeatures(const std::string& agent,
             break;
         case mcbp::Feature::MUTATION_SEQNO:
             features[2] = true;
+            break;
+        case mcbp::Feature::XATTR:
+            features[3] = true;
             break;
         default:
             throw std::runtime_error("Unsupported feature returned");

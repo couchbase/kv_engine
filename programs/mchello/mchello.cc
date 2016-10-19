@@ -44,6 +44,7 @@ static void request_hello(BIO *bio, const char *key)
     features.push_back(ntohs(uint16_t(mcbp::Feature::MUTATION_SEQNO)));
     features.push_back(ntohs(uint16_t(mcbp::Feature::TCPNODELAY)));
     features.push_back(ntohs(uint16_t(mcbp::Feature::TLS)));
+    features.push_back(ntohs(uint16_t(mcbp::Feature::XATTR)));
 
     uint32_t total = nkey + uint32_t(features.size()) * 2;
 
