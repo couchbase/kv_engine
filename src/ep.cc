@@ -619,7 +619,7 @@ bool EventuallyPersistentStore::startFlusher() {
 void EventuallyPersistentStore::stopFlusher() {
     for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
         Flusher *flusher = vbMap.shards[i]->getFlusher();
-        LOG(EXTENSION_LOG_WARNING, "Attempting to stop the flusher for "
+        LOG(EXTENSION_LOG_NOTICE, "Attempting to stop the flusher for "
             "shard:%" PRIu16, i);
         bool rv = flusher->stop(stats.forceShutdown);
         if (rv && !stats.forceShutdown) {
@@ -685,7 +685,7 @@ void EventuallyPersistentStore::stopBgFetcher() {
                 "Shutting down engine while there are still pending data "
                 "read for shard %d from database storage", i);
         }
-        LOG(EXTENSION_LOG_WARNING, "Stopping bg fetcher for shard:%" PRIu16, i);
+        LOG(EXTENSION_LOG_NOTICE, "Stopping bg fetcher for shard:%" PRIu16, i);
         bgfetcher->stop();
     }
 }
@@ -3568,7 +3568,7 @@ void EventuallyPersistentStore::stopWarmup(void)
 {
     // forcefully stop current warmup task
     if (isWarmingUp()) {
-        LOG(EXTENSION_LOG_WARNING, "Stopping warmup while engine is loading "
+        LOG(EXTENSION_LOG_NOTICE, "Stopping warmup while engine is loading "
             "data from underlying storage, shutdown = %s\n",
             stats.isShutdown ? "yes" : "no");
         warmupTask->stop();

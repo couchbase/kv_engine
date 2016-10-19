@@ -558,7 +558,7 @@ bool ExecutorPool::_stopTaskGroup(task_gid_t taskGID,
             TaskQueue *q = itr->second.second;
             if (task->getTaskable().getGID() == taskGID &&
                 (taskType == NO_TASK_TYPE || q->queueType == taskType)) {
-                LOG(EXTENSION_LOG_WARNING, "Stopping Task id %" PRIu64 " %s %s ",
+                LOG(EXTENSION_LOG_NOTICE, "Stopping Task id %" PRIu64 " %s %s ",
                     uint64_t(task->getId()),
                     task->getTaskable().getName().c_str(),
                     task->getDescription().c_str());

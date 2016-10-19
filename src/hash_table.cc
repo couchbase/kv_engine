@@ -141,7 +141,9 @@ void HashTable::resize() {
     } else if (prime_size_table[i] < static_cast<ssize_t>(defaultNumBuckets)) {
         // Was going to be smaller than the configured ht_size.
         new_size = defaultNumBuckets;
-    } else if (isCurrently(size, prime_size_table[i-1], prime_size_table[i])) {
+    } else if (0 == i) {
+        new_size = prime_size_table[i];
+    }else if (isCurrently(size, prime_size_table[i-1], prime_size_table[i])) {
         // If one of the candidate sizes is the current size, maintain
         // the current size in order to remain stable.
         new_size = size;
