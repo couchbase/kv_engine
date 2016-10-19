@@ -1105,7 +1105,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
         // FALLTHROUGH
     case WAS_CLEAN:
         vb->setMaxCas(v->getCas());
-        tapQueueDirty(vb, v, lh, NULL,
+        tapQueueDirty(*vb, v, lh, NULL,
                       genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No);
         break;
     case INVALID_VBUCKET:
@@ -3031,7 +3031,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
         vb->setMaxCasAndTrackDrift(v->getCas());
 
         if (tapBackfill) {
-            tapQueueDirty(vb, v, lh, seqno,
+            tapQueueDirty(*vb, v, lh, seqno,
                           genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No);
         } else {
             queueDirty(vb, v, &lh, seqno,
@@ -3527,7 +3527,7 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
     if (vb) {
         queued_item qi(v->toItem(false, vb->getId()));
 
-        bool rv = vb->checkpointManager.queueDirty(vb, qi,
+        bool rv = vb->checkpointManager.queueDirty(*vb, qi,
                                                    generateBySeqno, generateCas);
         v->setBySeqno(qi->getBySeqno());
 
@@ -3555,36 +3555,34 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
     }
 }
 
-void EventuallyPersistentStore::tapQueueDirty(RCPtr<VBucket> &vb,
+void EventuallyPersistentStore::tapQueueDirty(VBucket &vb,
                                               StoredValue* v,
                                               LockHolder& plh,
                                               uint64_t *seqno,
                                               const GenerateBySeqno generateBySeqno) {
-    if (vb) {
-        queued_item qi(v->toItem(false, vb->getId()));
+    queued_item qi(v->toItem(false, vb.getId()));
 
-        bool queued = vb->queueBackfillItem(qi, generateBySeqno);
+    bool queued = vb.queueBackfillItem(qi, generateBySeqno);
 
-        v->setBySeqno(qi->getBySeqno());
+    v->setBySeqno(qi->getBySeqno());
 
-        /* During backfill on a TAP receiver we need to update the snapshot
-           range in the checkpoint. Has to be done here because in case of TAP
-           backfill, above, we use vb->queueBackfillItem() instead of
-           vb->checkpointManager.queueDirty() */
-        if (GenerateBySeqno::Yes == generateBySeqno) {
-            vb->checkpointManager.resetSnapshotRange();
-        }
+    /* During backfill on a TAP receiver we need to update the snapshot
+       range in the checkpoint. Has to be done here because in case of TAP
+       backfill, above, we use vb.queueBackfillItem() instead of
+       vb.checkpointManager.queueDirty() */
+    if (GenerateBySeqno::Yes == generateBySeqno) {
+        vb.checkpointManager.resetSnapshotRange();
+    }
 
-        if (seqno) {
-            *seqno = v->getBySeqno();
-        }
+    if (seqno) {
+        *seqno = v->getBySeqno();
+    }
 
-        plh.unlock();
+    plh.unlock();
 
-        if (queued) {
-            KVShard* shard = vbMap.getShardByVbId(vb->getId());
-            shard->getFlusher()->notifyFlushEvent();
-        }
+    if (queued) {
+        KVShard* shard = vbMap.getShardByVbId(vb.getId());
+        shard->getFlusher()->notifyFlushEvent();
     }
 }
 

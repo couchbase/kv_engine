@@ -631,13 +631,12 @@ public:
 
     /**
      * Queue an item to be written to persistent layer.
-     * @param vbucket the vbucket that a new item is pushed into.
+     * @param vb the vbucket that a new item is pushed into.
      * @param qi item to be persisted.
      * @param generateBySeqno yes/no generate the seqno for the item
      * @return true if an item queued increases the size of persistence queue by 1.
      */
-    bool queueDirty(const RCPtr<VBucket> &vb,
-                    queued_item& qi,
+    bool queueDirty(VBucket& vb, queued_item& qi,
                     const GenerateBySeqno generateBySeqno,
                     const GenerateCas generateCas);
 

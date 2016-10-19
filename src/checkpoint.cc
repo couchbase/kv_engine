@@ -976,15 +976,11 @@ std::vector<std::string> CheckpointManager::getListOfCursorsToDrop() {
     return cursorsToDrop;
 }
 
-bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb,
-                                   queued_item& qi,
+bool CheckpointManager::queueDirty(VBucket& vb, queued_item& qi,
                                    const GenerateBySeqno generateBySeqno,
                                    const GenerateCas generateCas) {
     LockHolder lh(queueLock);
-    if (!vb) {
-        throw std::invalid_argument("CheckpointManager::queueDirty: vb must "
-                        "be non-NULL");
-    }
+
     bool canCreateNewCheckpoint = false;
     if (checkpointList.size() < checkpointConfig.getMaxCheckpoints() ||
         (checkpointList.size() == checkpointConfig.getMaxCheckpoints() &&
@@ -992,20 +988,20 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb,
         canCreateNewCheckpoint = true;
     }
 
-    if (vb->getState() == vbucket_state_active && canCreateNewCheckpoint) {
+    if (vb.getState() == vbucket_state_active && canCreateNewCheckpoint) {
         // Only the master active vbucket can create a next open checkpoint.
         checkOpenCheckpoint_UNLOCKED(false, true);
     }
 
     if (checkpointList.back()->getState() == CHECKPOINT_CLOSED) {
-        if (vb->getState() == vbucket_state_active) {
+        if (vb.getState() == vbucket_state_active) {
             addNewCheckpoint_UNLOCKED(checkpointList.back()->getId() + 1);
         } else {
             throw std::logic_error("CheckpointManager::queueDirty: vBucket "
                     "state (which is " +
-                    std::string(VBucket::toString(vb->getState())) +
+                    std::string(VBucket::toString(vb.getState())) +
                     ") is not active. This is not expected. vb:" +
-                    std::to_string(vb->getId()) +
+                    std::to_string(vb.getId()) +
                     " lastBySeqno:" + std::to_string(lastBySeqno) +
                     " genSeqno:" + to_string(generateBySeqno));
         }
@@ -1028,7 +1024,7 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb,
     // MB-20798: Allow the HLC to be created 'atomically' with the seqno as
     // we're holding the ::queueLock.
     if (GenerateCas::Yes == generateCas) {
-        qi->setCas(vb->nextHLCCas());
+        qi->setCas(vb.nextHLCCas());
     }
 
     uint64_t st = checkpointList.back()->getSnapshotStartSeqno();
@@ -1036,8 +1032,8 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb,
     if (!(st <= static_cast<uint64_t>(lastBySeqno) &&
           static_cast<uint64_t>(lastBySeqno) <= en)) {
         throw std::logic_error("CheckpointManager::queueDirty: lastBySeqno "
-                "not in snapshot range. vb:" + std::to_string(vb->getId()) +
-                " state:" + std::string(VBucket::toString(vb->getState())) +
+                "not in snapshot range. vb:" + std::to_string(vb.getId()) +
+                " state:" + std::string(VBucket::toString(vb.getState())) +
                 " snapshotStart:" + std::to_string(st) +
                 " lastBySeqno:" + std::to_string(lastBySeqno) +
                 " snapshotEnd:" + std::to_string(en) +
@@ -1053,7 +1049,7 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb,
     if (result != EXISTING_ITEM) {
         ++stats.totalEnqueued;
         ++stats.diskQueueSize;
-        vb->doStatsForQueueing(*qi, qi->size());
+        vb.doStatsForQueueing(*qi, qi->size());
 
         // Update the checkpoint's memory usage
         checkpointList.back()->incrementMemConsumption(qi->size());
