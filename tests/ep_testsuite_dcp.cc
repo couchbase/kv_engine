@@ -5426,35 +5426,6 @@ static enum test_result test_set_dcp_param(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_set_dcp_xattr(ENGINE_HANDLE *h,
-                                           ENGINE_HANDLE_V1 *h1)
-{
-    const auto *cookie = testHarness.create_cookie();
-    const std::string name("test_set_dcp_xattr");
-    uint32_t opaque = 0;
-    checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie, opaque, 0, DCP_OPEN_PRODUCER,
-                         (void*)name.data(), uint16_t(name.size())),
-            "Failed dcp producer open connection.");
-    const std::string param_name("enable_xattr_support");
-    const std::string enable("true");
-    const std::string disable("false");
-    checkeq(ENGINE_SUCCESS,
-            h1->dcp.control(h, cookie, ++opaque,
-                            param_name.c_str(), uint16_t(param_name.size()),
-                            enable.c_str(), uint16_t(enable.size())),
-            "Failed to enable xattr support");
-
-    checkeq(ENGINE_SUCCESS,
-            h1->dcp.control(h, cookie, ++opaque,
-                            param_name.c_str(), uint16_t(param_name.size()),
-                            disable.c_str(), uint16_t(enable.size())),
-            "Failed to disable xattr support");
-    testHarness.destroy_cookie(cookie);
-
-    return SUCCESS;
-}
-
 // Test manifest //////////////////////////////////////////////////////////////
 
 const char *default_dbname = "./ep_testsuite_dcp";
@@ -5698,7 +5669,5 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test_set_dcp_param",
                  test_set_dcp_param, test_setup, teardown, NULL,
                  prepare, cleanup),
-        TestCase("test enable dcp xattr", test_set_dcp_xattr, test_setup,
-                 teardown, nullptr, prepare, cleanup),
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };
