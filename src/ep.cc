@@ -2194,7 +2194,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(
                                                         const void *cookie,
                                                         ItemMetaData &metadata,
                                                         uint32_t &deleted,
-                                                        uint8_t &confResMode,
                                                         bool trackReferenced)
 {
     (void) cookie;

@@ -5390,29 +5390,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
                     (size_t)ntohs(request->message.header.request.keylen));
     uint16_t vbucket = ntohs(request->message.header.request.vbucket);
 
-
-    bool sendConfResMode = false;
-    uint8_t confResMode;
-
-    if (extlen == 1) {
-        uint8_t reqExtMeta;
-        memcpy(&reqExtMeta, request->bytes + sizeof(request->bytes), extlen);
-        if (reqExtMeta == 0x01) {
-            sendConfResMode = true;
-        }
-    }
-
     ItemMetaData metadata;
     uint32_t deleted;
 
     ENGINE_ERROR_CODE rv = epstore->getMetaData(key, vbucket, cookie,
-                                                metadata, deleted,
-                                                confResMode);
+                                                metadata, deleted);
 
     if (rv == ENGINE_SUCCESS) {
 
-        uint8_t meta[21];
-        uint8_t metalen = 20;
+        const uint8_t metalen = 20;
+        uint8_t meta[metalen];
         deleted = htonl(deleted);
         uint32_t flags = metadata.flags;
         uint32_t exp = htonl(metadata.exptime);
@@ -5422,11 +5409,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
         memcpy(meta + 4, &flags, 4);
         memcpy(meta + 8, &exp, 4);
         memcpy(meta + 12, &seqno, 8);
-
-        if (sendConfResMode) {
-            *(meta + metalen) = confResMode;
-            metalen++;
-        }
 
         rv = sendResponse(response, NULL, 0, (const void *)meta,
                           metalen, NULL, 0,
