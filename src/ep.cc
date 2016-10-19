@@ -3635,11 +3635,15 @@ bool EventuallyPersistentStore::maybeEnableTraffic()
 
     if (memoryUsed  >= stats.mem_low_wat) {
         LOG(EXTENSION_LOG_NOTICE,
-            "Total memory use reached to the low water mark, stop warmup");
+            "Total memory use reached to the low water mark, stop warmup"
+            ": memoryUsed (%f) >= low water mark (%" PRIu64 ")",
+            memoryUsed, uint64_t(stats.mem_low_wat.load()));
         return true;
     } else if (memoryUsed > (maxSize * stats.warmupMemUsedCap)) {
         LOG(EXTENSION_LOG_NOTICE,
-                "Enough MB of data loaded to enable traffic");
+                "Enough MB of data loaded to enable traffic"
+                ": memoryUsed (%f) > (maxSize(%f) * warmupMemUsedCap(%f))",
+                 memoryUsed, maxSize, stats.warmupMemUsedCap.load());
         return true;
     } else if (eviction_policy == VALUE_ONLY &&
                stats.warmedUpValues >=
@@ -3647,7 +3651,10 @@ bool EventuallyPersistentStore::maybeEnableTraffic()
         // Let ep-engine think we're done with the warmup phase
         // (we should refactor this into "enableTraffic")
         LOG(EXTENSION_LOG_NOTICE,
-            "Enough number of items loaded to enable traffic");
+            "Enough number of items loaded to enable traffic (value eviction)"
+            ": warmedUpValues(%" PRIu64 ") >= (warmedUpKeys(%" PRIu64 ") * "
+            "warmupNumReadCap(%f))",  uint64_t(stats.warmedUpValues.load()),
+            uint64_t(stats.warmedUpKeys.load()), stats.warmupNumReadCap.load());
         return true;
     } else if (eviction_policy == FULL_EVICTION &&
                stats.warmedUpValues >=
@@ -3657,7 +3664,11 @@ bool EventuallyPersistentStore::maybeEnableTraffic()
         // of warmed up values, therefore for honoring the min_item threshold
         // in this scenario, we can consider warmup's estimated item count.
         LOG(EXTENSION_LOG_NOTICE,
-            "Enough number of items loaded to enable traffic");
+            "Enough number of items loaded to enable traffic (full eviction)"
+            ": warmedUpValues(%" PRIu64 ") >= (warmup est items(%" PRIu64 ") * "
+            "warmupNumReadCap(%f))",  uint64_t(stats.warmedUpValues.load()),
+            uint64_t(warmupTask->getEstimatedItemCount()),
+            stats.warmupNumReadCap.load());
         return true;
     }
     return false;

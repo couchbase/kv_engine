@@ -53,6 +53,7 @@ static bool batchWarmupCallback(uint16_t vbId,
     if (!c->epstore->maybeEnableTraffic()) {
         vb_bgfetch_queue_t items2fetch;
         for (auto& key : fetches) {
+            // Deleted below via a unique_ptr in the next loop
             VBucketBGFetchItem *fit = new VBucketBGFetchItem(NULL, false);
             vb_bgfetch_item_ctx_t& bg_itm_ctx = items2fetch[key];
             bg_itm_ctx.isMetaOnly = false;
@@ -61,23 +62,41 @@ static bool batchWarmupCallback(uint16_t vbId,
 
         c->epstore->getROUnderlying(vbId)->getMulti(vbId, items2fetch);
 
-        vb_bgfetch_queue_t::iterator items = items2fetch.begin();
-        for (; items != items2fetch.end(); items++) {
-           vb_bgfetch_item_ctx_t& bg_itm_ctx = (*items).second;
-           VBucketBGFetchItem * fetchedItem = bg_itm_ctx.bgfetched_list.back();
-           GetValue &val = fetchedItem->value;
-           if (val.getStatus() == ENGINE_SUCCESS) {
-                c->loaded++;
-                c->cb.callback(val);
-           } else {
-                LOG(EXTENSION_LOG_WARNING,
-                "Warmup failed to load data for vBucket = %d"
-                " key = %s error = %X\n",
-                vbId,
-                    (*items).first.c_str(), val.getStatus());
-                c->error++;
-          }
-          delete fetchedItem;
+        // applyItem controls the  mode this loop operates in.
+        // true we will attempt the callback (attempt a HashTable insert)
+        // false we don't attempt the callback
+        // in both cases the loop must delete the VBucketBGFetchItem we
+        // allocated above.
+        bool applyItem = true;
+        for (auto items : items2fetch) {
+            vb_bgfetch_item_ctx_t& bg_itm_ctx = items.second;
+            std::unique_ptr<VBucketBGFetchItem> fetchedItem(bg_itm_ctx.bgfetched_list.back());
+            if (applyItem) {
+                GetValue &val = fetchedItem->value;
+                if (val.getStatus() == ENGINE_SUCCESS) {
+                    // NB: callback will delete the GetValue's Item
+                    c->cb.callback(val);
+                } else {
+                    LOG(EXTENSION_LOG_WARNING,
+                    "Warmup failed to load data for vBucket = %d"
+                    " key = %s error = %X\n",
+                    vbId, items.first.c_str(), val.getStatus());
+                    c->error++;
+                }
+
+                if (c->cb.getStatus() == ENGINE_SUCCESS) {
+                    c->loaded++;
+                } else {
+                    // Failed to apply an Item, so fail the rest
+                    applyItem = false;
+                }
+            } else {
+                // Providing that the status is SUCCESS, delete the Item
+                if (fetchedItem->value.getStatus() == ENGINE_SUCCESS) {
+                    delete fetchedItem->value.getValue();
+                }
+                c->skipped++;
+            }
         }
 
         return true;
@@ -198,13 +217,14 @@ std::ostream& operator <<(std::ostream &out, const WarmupState &state)
     out << state.toString();
     return out;
 }
-
 void LoadStorageKVPairCallback::callback(GetValue &val) {
-    Item *i = val.getValue();
+    // This callback method is responsible for deleting the Item
+    std::unique_ptr<Item> i(val.getValue());
     bool stopLoading = false;
     if (i != NULL && !epstore.getWarmup()->isComplete()) {
         RCPtr<VBucket> vb = vbuckets.getBucket(i->getVBucketId());
         if (!vb) {
+            setStatus(ENGINE_NOT_MY_VBUCKET);
             return;
         }
         bool succeeded(false);
@@ -253,7 +273,6 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
             }
         } while (!succeeded && retry-- > 0);
 
-        delete i;
         val.setValue(NULL);
 
         if (maybeEnableTraffic) {
@@ -282,7 +301,6 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         }
     } else {
         stopLoading = true;
-        delete i;
     }
 
     if (stopLoading) {
