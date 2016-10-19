@@ -183,27 +183,6 @@ extern "C" {
         PrivilegeAccess (* check_privilege)(const void* cookie,
                                             const Privilege privilege);
 
-        /**
-         * Enable (or disable) dcp xattr support for the connection
-         * identified by the specified cookie. By default all XATTRs
-         * will be stripped over a normal DCP producer stream unless
-         * the consumer explicitly enable it by sending the control
-         * message with 'enable_xattr_support" flag.
-         *
-         * @param cookie the cookie identifying the connection
-         * @param enable set to true to enable, false to disable.
-         */
-        void (* set_dcp_xattr_support)(const void* cookie, bool enable);
-
-        /**
-         * Check if DCP xattrs is supported on the connection identified
-         * by the specified cookie.
-         *
-         * @param cookie the cookie identifying the connection
-         * @return true if XATTRs will be sent over the DCP stream
-         */
-        bool (* is_dcp_xattr_support)(const void* cookie);
-
     } SERVER_COOKIE_API;
 
 #ifdef WIN32

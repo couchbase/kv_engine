@@ -22,7 +22,6 @@ struct mock_connstruct {
     bool handle_ewouldblock;
     bool handle_mutation_extras;
     bool handle_datatype_support;
-    bool dcp_xattr_support;
     cb_mutex_t mutex;
     cb_cond_t cond;
     int references;

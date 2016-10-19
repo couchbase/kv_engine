@@ -319,12 +319,12 @@ public:
      */
     void restartAuthentication();
 
-    bool isDcpXattrSupport() const {
-        return dcp_xattr_support;
+    bool isXattrSupport() const {
+        return xattr_support;
     }
 
-    void setDcpXattrSupport(bool dcp_xattr_support) {
-        Connection::dcp_xattr_support = dcp_xattr_support;
+    void setXattrSupport(bool xattr_support) {
+        Connection::xattr_support = xattr_support;
     }
 
 protected:
@@ -410,10 +410,10 @@ protected:
     bool trace_enabled;
 
     /**
-     * Is DCP XATTR supported for this connection or not (or will that be
+     * Is XATTR supported for this connection or not (or will that be
      * stripped off before sending on the wire)
      */
-     bool dcp_xattr_support;
+     bool xattr_support;
 };
 
 /**

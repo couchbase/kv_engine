@@ -57,7 +57,6 @@ mock_connstruct::mock_connstruct()
       handle_ewouldblock(true),
       handle_mutation_extras(true),
       handle_datatype_support(true),
-      dcp_xattr_support(false),
       references(1) {
     cb_mutex_initialize(&mutex);
     cb_cond_initialize(&cond);
@@ -159,16 +158,6 @@ static PrivilegeAccess mock_check_privilege(const void*,
                                        const Privilege) {
     // @todo allow for mocking privilege access
     return PrivilegeAccess::Ok;
-}
-
-static void mock_set_dcp_xattr_support(const void* cookie, bool enable) {
-    auto *c = (struct mock_connstruct *)cookie;
-    c->dcp_xattr_support = enable;
-}
-
-static bool mock_is_dcp_xattr_support(const void* cookie) {
-    auto *c = (struct mock_connstruct *)cookie;
-    return c->dcp_xattr_support;
 }
 
 /* time-sensitive callers can call it by hand with this, outside the
@@ -387,8 +376,6 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       server_cookie_api.release = mock_cookie_release;
       server_cookie_api.set_priority = mock_set_priority;
       server_cookie_api.check_privilege = mock_check_privilege;
-      server_cookie_api.set_dcp_xattr_support = mock_set_dcp_xattr_support;
-      server_cookie_api.is_dcp_xattr_support = mock_is_dcp_xattr_support;
       server_stat_api.evicting = mock_count_eviction;
 
       extension_api.register_extension = mock_register_extension;
