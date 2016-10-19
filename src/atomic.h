@@ -339,22 +339,63 @@ class LoggedAtomic {
 public:
     LoggedAtomic(T initial)
         : value(initial) {
-        std::cerr << "LoggedAtomic[" << this << "]::LoggedAtomic: " << value.load() << std::endl;
+        std::lock_guard<std::mutex> lock(stderr_mutex);
+        std::cerr << "LoggedAtomic[" << this << "]::LoggedAtomic: "
+                  << value.load() << std::endl;
 
     }
 
+    T operator=(T desired) {
+        std::lock_guard<std::mutex> lock(stderr_mutex);
+        value.store(desired);
+        std::cerr << "LoggedAtomic[" << this << "]::operator=: "
+                  << value.load() << std::endl;
+        return value.load();
+    }
+
     T load() const {
+        std::lock_guard<std::mutex> lock(stderr_mutex);
         auto result = value.load();
-        std::cerr << "LoggedAtomic[" << this << "]::load: " << result << std::endl;
+        std::cerr << "LoggedAtomic[" << this << "]::load: " << result
+                  << std::endl;
         return result;
     }
 
     void store(T desired) {
+        std::lock_guard<std::mutex> lock(stderr_mutex);
         value.store(desired);
-        std::cerr << "LoggedAtomic[" << this << "]::store: " << value.load() << std::endl;
+        std::cerr << "LoggedAtomic[" << this << "]::store: " << value.load()
+                  << std::endl;
+    }
+
+    operator T() const {
+        std::lock_guard<std::mutex> lock(stderr_mutex);
+        auto result = value.load();
+        std::cerr << "LoggedAtomic[" << this << "]::operator T: " << result
+                  << std::endl;
+        return result;
+    }
+
+    T fetch_add(T arg,
+                std::memory_order order = std::memory_order_seq_cst ) {
+        std::lock_guard<std::mutex> lock(stderr_mutex);
+        T result = value.fetch_add(arg, order);
+        std::cerr << "LoggedAtomic[" << this << "]::fetch_add(" << arg
+                  << "): " << result << std::endl;
+        return value.load();
+    }
+
+    T fetch_sub(T arg,
+                std::memory_order order = std::memory_order_seq_cst ) {
+        std::lock_guard<std::mutex> lock(stderr_mutex);
+        T result = value.fetch_sub(arg, order);
+        std::cerr << "LoggedAtomic[" << this << "]::fetch_sub(" << arg
+                  << "): " << result << std::endl;
+        return value.load();
     }
 
 protected:
+    mutable std::mutex stderr_mutex;
     std::atomic<T> value;
 };
 
