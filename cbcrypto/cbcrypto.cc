@@ -20,6 +20,7 @@
 #include <iomanip>
 #include <memory>
 #include <openssl/evp.h>
+#include <phosphor/phosphor.h>
 #include <platform/base64.h>
 #include <sstream>
 #include <stdexcept>
@@ -304,6 +305,7 @@ static std::vector<uint8_t> digest_sha512(const std::vector<uint8_t>& data) {
 std::vector<uint8_t> cb::crypto::HMAC(const Algorithm algorithm,
                                       const std::vector<uint8_t>& key,
                                       const std::vector<uint8_t>& data) {
+    TRACE_EVENT1("cbcrypto", "HMAC", "algorithm", int(algorithm));
     switch (algorithm) {
     case Algorithm::MD5:
         return HMAC_MD5(key, data);
@@ -323,6 +325,8 @@ std::vector<uint8_t> cb::crypto::PBKDF2_HMAC(const Algorithm algorithm,
                                              const std::string& pass,
                                              const std::vector<uint8_t>& salt,
                                              unsigned int iterationCount) {
+    TRACE_EVENT2("cbcrypto", "PBKDF2_HMAC", "algorithm", int(algorithm),
+                 "iteration", iterationCount);
     switch (algorithm) {
     case Algorithm::MD5:
         throw std::invalid_argument(
@@ -372,6 +376,7 @@ bool cb::crypto::isSupported(const Algorithm algorithm) {
 
 std::vector<uint8_t> cb::crypto::digest(const Algorithm algorithm,
                                         const std::vector<uint8_t>& data) {
+    TRACE_EVENT1("cbcrypto", "digest", "algorithm", int(algorithm));
     switch (algorithm) {
     case Algorithm::MD5:
         return digest_md5(data);
@@ -489,6 +494,7 @@ std::vector<uint8_t> cb::crypto::encrypt(const Cipher& cipher,
                                          const std::vector<uint8_t>& iv,
                                          const uint8_t* data,
                                          size_t length) {
+    TRACE_EVENT2("cbcrypto", "encrypt", "cipher", int(cipher), "size", length);
     unique_EVP_CIPHER_CTX_ptr ctx(EVP_CIPHER_CTX_new());
 
     auto* cip = getCipher(cipher, key, iv);
@@ -541,6 +547,7 @@ std::vector<uint8_t> cb::crypto::decrypt(const Cipher& cipher,
                                          const std::vector<uint8_t>& iv,
                                          const uint8_t* data,
                                          size_t length) {
+    TRACE_EVENT2("cbcrypto", "decrypt", "cipher", int(cipher), "size", length);
     unique_EVP_CIPHER_CTX_ptr ctx(EVP_CIPHER_CTX_new());
     auto* cip = getCipher(cipher, key, iv);
 
