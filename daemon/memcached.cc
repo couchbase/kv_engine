@@ -2440,19 +2440,6 @@ void log_errcode_error(EXTENSION_LOG_LEVEL severity,
     settings.extensions.logger->log(severity, cookie, prefix, errmsg.c_str());
 }
 
-std::unique_ptr<ParentMonitor> parent_monitor;
-
-static void setup_parent_monitor() {
-    char *env = getenv("MEMCACHED_PARENT_MONITOR");
-    if (env != NULL) {
-        parent_monitor.reset(new ParentMonitor(std::stoi(env)));
-    }
-}
-
-static void shutdown_parent_monitor() {
-    parent_monitor.reset();
-}
-
 static void set_max_filehandles(void) {
     const uint64_t maxfiles = settings.getMaxconns() +
                             (3 * (settings.getNumWorkerThreads() + 2)) +
@@ -2590,6 +2577,7 @@ extern "C" int memcached_main(int argc, char **argv) {
         }
     }
 #endif
+    std::unique_ptr<ParentMonitor> parent_monitor;
 
     install_backtrace_terminate_handler(settings.extensions.logger);
 
@@ -2718,7 +2706,11 @@ extern "C" int memcached_main(int argc, char **argv) {
     create_listen_sockets(true);
 
     /* Optional parent monitor */
-    setup_parent_monitor();
+    char *env = getenv("MEMCACHED_PARENT_MONITOR");
+    if (env != NULL) {
+        LOG_NOTICE(NULL, "Starting parent monitor");
+        parent_monitor.reset(new ParentMonitor(std::stoi(env)));
+    }
 
     if (!memcached_shutdown) {
         /* enter the event loop */
@@ -2736,8 +2728,10 @@ extern "C" int memcached_main(int argc, char **argv) {
     LOG_NOTICE(NULL, "Initiating graceful shutdown.");
     delete_all_buckets();
 
-    LOG_NOTICE(NULL, "Shutting down parent monitor");
-    shutdown_parent_monitor();
+    if (parent_monitor.get() != nullptr) {
+        LOG_NOTICE(NULL, "Shutting down parent monitor");
+        parent_monitor.reset();
+    }
 
     LOG_NOTICE(NULL, "Shutting down audit daemon");
     /* Close down the audit daemon cleanly */
