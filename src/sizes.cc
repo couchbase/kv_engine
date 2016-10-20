@@ -25,7 +25,6 @@
 #include "checkpoint.h"
 #include "common.h"
 #include "dcp/stream.h"
-#include "ep.h"
 #include <platform/histogram.h>
 #include "item.h"
 #include "stored-value.h"

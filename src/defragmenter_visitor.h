@@ -18,7 +18,7 @@
 #ifndef DEFRAGMENTER_VISITOR_H_
 #define DEFRAGMENTER_VISITOR_H_
 
-#include "ep.h"
+#include "kvbucket.h"
 
 class ProgressTracker;
 

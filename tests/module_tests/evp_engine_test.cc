@@ -44,7 +44,7 @@ void EventuallyPersistentEngineTest::SetUp() {
         << "Failed to initialize engine.";
 
     // Wait for warmup to complete.
-    while (engine->getEpStore()->isWarmingUp()) {
+    while (engine->getKVBucket()->isWarmingUp()) {
         usleep(10);
     }
 

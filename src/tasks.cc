@@ -39,7 +39,7 @@ bool FlusherTask::run() {
 
 bool VBSnapshotTask::run() {
     TRACE_EVENT("ep-engine/task", "VBSnapshotTask", shardID);
-    engine->getEpStore()->snapshotVBuckets(priority, shardID);
+    engine->getKVBucket()->snapshotVBuckets(priority, shardID);
     return false;
 }
 
@@ -52,29 +52,30 @@ DaemonVBSnapshotTask::DaemonVBSnapshotTask(EventuallyPersistentEngine *e,
 
 bool DaemonVBSnapshotTask::run() {
     TRACE_EVENT0("ep-engine/task", "DaemonVBSnapshotTask");
-    bool ret = engine->getEpStore()->scheduleVBSnapshot(VBSnapshotTask::Priority::LOW);
+    bool ret = engine->getKVBucket()->scheduleVBSnapshot(
+                                                VBSnapshotTask::Priority::LOW);
     snooze(VBSTATE_SNAPSHOT_FREQ);
     return ret;
 }
 
 bool VBStatePersistTask::run() {
     TRACE_EVENT("ep-engine/task", "VBPersistTask", vbid);
-    return engine->getEpStore()->persistVBState(vbid);
+    return engine->getKVBucket()->persistVBState(vbid);
 }
 
 bool VBDeleteTask::run() {
     TRACE_EVENT("ep-engine/task", "VBDeleteTask", vbucketId, cookie);
-    return !engine->getEpStore()->completeVBucketDeletion(vbucketId, cookie);
+    return !engine->getKVBucket()->completeVBucketDeletion(vbucketId, cookie);
 }
 
 bool CompactTask::run() {
     TRACE_EVENT("ep-engine/task", "CompactTask", compactCtx.db_file_id);
-    return engine->getEpStore()->doCompact(&compactCtx, cookie);
+    return engine->getKVBucket()->doCompact(&compactCtx, cookie);
 }
 
 bool StatSnap::run() {
     TRACE_EVENT0("ep-engine/task", "StatSnap");
-    engine->getEpStore()->snapshotStats();
+    engine->getKVBucket()->snapshotStats();
     if (runOnce) {
         return false;
     }
@@ -89,21 +90,21 @@ bool MultiBGFetcherTask::run() {
 
 bool FlushAllTask::run() {
     TRACE_EVENT0("ep-engine/task", "FlushAllTask");
-    engine->getEpStore()->reset();
+    engine->getKVBucket()->reset();
     return false;
 }
 
 bool VKeyStatBGFetchTask::run() {
     TRACE_EVENT("ep-engine/task", "VKeyStatBGFetchTask", cookie, vbucket);
-    engine->getEpStore()->completeStatsVKey(cookie, key, vbucket, bySeqNum);
+    engine->getKVBucket()->completeStatsVKey(cookie, key, vbucket, bySeqNum);
     return false;
 }
 
 
 bool SingleBGFetcherTask::run() {
     TRACE_EVENT("ep-engine/task", "SingleBGFetcherTask", cookie, vbucket);
-    engine->getEpStore()->completeBGFetch(key, vbucket, cookie, init,
-                                          metaFetch);
+    engine->getKVBucket()->completeBGFetch(key, vbucket, cookie, init,
+                                           metaFetch);
     return false;
 }
 

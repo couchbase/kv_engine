@@ -75,8 +75,8 @@ SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
 }
 
 void SynchronousEPEngine::setEPStore(EventuallyPersistentStore* store) {
-    cb_assert(epstore == nullptr);
-    epstore = store;
+    cb_assert(kvBucket == nullptr);
+    kvBucket = store;
 }
 
 void SynchronousEPEngine::initializeConnmaps() {
@@ -350,7 +350,7 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsEjected) {
 // Create then delete an item, checking we get keyStats reporting the item as
 // deleted.
 TEST_P(EPStoreEvictionTest, GetKeyStatsDeleted) {
-    auto& epstore = *engine->getEpStore();
+    auto& kvbucket = *engine->getKVBucket();
     key_stats kstats;
 
     store_item(0, "key", "value");
@@ -358,26 +358,26 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsDeleted) {
 
     // Should get ENOENT if we don't ask for deleted items.
     EXPECT_EQ(ENGINE_KEY_ENOENT,
-              epstore.getKeyStats("key", 0, cookie, kstats,
-                                  /*wantsDeleted*/false));
+              kvbucket.getKeyStats("key", 0, cookie, kstats,
+                                   /*wantsDeleted*/false));
 
     // Should get success (and item flagged as deleted) if we ask for deleted
     // items.
     EXPECT_EQ(ENGINE_SUCCESS,
-              epstore.getKeyStats("key", 0, cookie, kstats,
-                                  /*wantsDeleted*/true));
+              kvbucket.getKeyStats("key", 0, cookie, kstats,
+                                   /*wantsDeleted*/true));
     EXPECT_EQ(vbucket_state_active, kstats.vb_state);
     EXPECT_TRUE(kstats.logically_deleted);
 }
 
 // Check incorrect vbucket returns not-my-vbucket.
 TEST_P(EPStoreEvictionTest, GetKeyStatsNMVB) {
-    auto& epstore = *engine->getEpStore();
+    auto& kvbucket = *engine->getKVBucket();
     key_stats kstats;
 
     EXPECT_EQ(ENGINE_NOT_MY_VBUCKET,
-              epstore.getKeyStats("key", 1, cookie, kstats,
-                                  /*wantsDeleted*/false));
+              kvbucket.getKeyStats("key", 1, cookie, kstats,
+                                   /*wantsDeleted*/false));
 }
 
 // Replace tests //////////////////////////////////////////////////////////////

@@ -27,7 +27,7 @@ DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine* e,
                                    EPStats& stats_)
   : GlobalTask(e, TaskId::DefragmenterTask, false),
     stats(stats_),
-    epstore_position(engine->getEpStore()->startPosition()),
+    epstore_position(engine->getKVBucket()->startPosition()),
     visitor(NULL) {
 }
 
@@ -43,13 +43,13 @@ bool DefragmenterTask::run(void) {
         // reset the position.
         if (visitor == NULL) {
             visitor = new DefragmentVisitor(getAgeThreshold());
-            epstore_position = engine->getEpStore()->startPosition();
+            epstore_position = engine->getKVBucket()->startPosition();
         }
 
         // Print start status.
         std::stringstream ss;
         ss << getDescription() << " for bucket '" << engine->getName() << "'";
-        if (epstore_position == engine->getEpStore()->startPosition()) {
+        if (epstore_position == engine->getKVBucket()->startPosition()) {
             ss << " starting. ";
         } else {
             ss << " resuming from " << epstore_position << ", ";
@@ -72,8 +72,9 @@ bool DefragmenterTask::run(void) {
         visitor->clearStats();
 
         // Do it - set off the visitor.
-        epstore_position = engine->getEpStore()->pauseResumeVisit
-                (*visitor, epstore_position);
+        epstore_position = engine->getKVBucket()->pauseResumeVisit(
+                                                            *visitor,
+                                                            epstore_position);
         hrtime_t end = gethrtime();
 
         // Defrag complete. Restore thread caching.
@@ -89,7 +90,8 @@ bool DefragmenterTask::run(void) {
         alloc_hooks->release_free_memory();
 
         // Check if the visitor completed a full pass.
-        bool completed = (epstore_position == engine->getEpStore()->endPosition());
+        bool completed = (epstore_position ==
+                                    engine->getKVBucket()->endPosition());
 
         // Print status.
         ss.str("");

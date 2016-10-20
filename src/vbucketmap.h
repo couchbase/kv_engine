@@ -49,7 +49,7 @@ public:
     // This class uses the same id_type as VBucket
     typedef VBucket::id_type id_type;
 
-    VBucketMap(Configuration &config, EventuallyPersistentStore &store);
+    VBucketMap(Configuration& config, KVBucket& store);
     ~VBucketMap();
 
     ENGINE_ERROR_CODE addBucket(const RCPtr<VBucket> &b);

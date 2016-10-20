@@ -19,7 +19,7 @@
 
 #include "connmap.h"
 #include "dcp/dcpconnmap.h"
-#include "ep.h"
+#include "kvbucket.h"
 #include "ep_engine.h"
 #include "tapconnmap.h"
 
@@ -60,7 +60,7 @@ public:
      * @param bias active vbuckets eviction probability bias multiplier (0-1)
      * @param phase pointer to an item_pager_phase to be set
      */
-    PagingVisitor(EventuallyPersistentStore &s, EPStats &st, double pcnt,
+    PagingVisitor(KVBucket& s, EPStats &st, double pcnt,
                   std::shared_ptr<std::atomic<bool>> &sfin, pager_type_t caller,
                   bool pause, double bias,
                   std::atomic<item_pager_phase>* phase) :
@@ -231,7 +231,7 @@ private:
 
     std::list<std::pair<uint16_t, std::string> > expired;
 
-    EventuallyPersistentStore &store;
+    KVBucket& store;
     EPStats &stats;
     double percent;
     double activeBias;
@@ -256,7 +256,7 @@ ItemPager::ItemPager(EventuallyPersistentEngine *e, EPStats &st) :
 
 bool ItemPager::run(void) {
     TRACE_EVENT0("ep-engine/task", "ItemPager");
-    EventuallyPersistentStore *store = engine->getEpStore();
+    KVBucket* kvBucket = engine->getKVBucket();
     double current = static_cast<double>(stats.getTotalMemoryUsed());
     double upper = static_cast<double>(stats.mem_high_wat);
     double lower = static_cast<double>(stats.mem_low_wat);
@@ -269,7 +269,7 @@ bool ItemPager::run(void) {
     bool inverse = true;
     if (((current > upper) || doEvict) &&
         (*available).compare_exchange_strong(inverse, false)) {
-        if (store->getItemEvictionPolicy() == VALUE_ONLY) {
+        if (kvBucket->getItemEvictionPolicy() == VALUE_ONLY) {
             doEvict = true;
         }
 
@@ -287,11 +287,12 @@ bool ItemPager::run(void) {
         size_t activeEvictPerc = cfg.getPagerActiveVbPcnt();
         double bias = static_cast<double>(activeEvictPerc) / 50;
 
-        std::shared_ptr<PagingVisitor> pv(new PagingVisitor(*store, stats, toKill,
-                                                       available, ITEM_PAGER,
-                                                       false, bias, &phase));
-        store->visit(pv, "Item pager", NONIO_TASK_IDX,
-                     TaskId::ItemPagerVisitor);
+        std::shared_ptr<PagingVisitor> pv(new PagingVisitor(*kvBucket, stats,
+                                                            toKill, available,
+                                                            ITEM_PAGER, false,
+                                                            bias, &phase));
+        kvBucket->visit(pv, "Item pager", NONIO_TASK_IDX,
+                        TaskId::ItemPagerVisitor);
     }
 
     snooze(sleepTime);
@@ -344,17 +345,18 @@ ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine *e,
 
 bool ExpiredItemPager::run(void) {
     TRACE_EVENT0("ep-engine/task", "ExpiredItemPager");
-    EventuallyPersistentStore *store = engine->getEpStore();
+    KVBucket* kvBucket = engine->getKVBucket();
     bool inverse = true;
     if ((*available).compare_exchange_strong(inverse, false)) {
         ++stats.expiryPagerRuns;
 
-        std::shared_ptr<PagingVisitor> pv(new PagingVisitor(*store, stats, -1,
-                                                       available, EXPIRY_PAGER,
-                                                       true, 1, NULL));
+        std::shared_ptr<PagingVisitor> pv(new PagingVisitor(*kvBucket, stats,
+                                                            -1, available,
+                                                            EXPIRY_PAGER, true,
+                                                            1, NULL));
         // track spawned tasks for shutdown..
-        store->visit(pv, "Expired item remover", NONIO_TASK_IDX,
-                     TaskId::ExpiredItemPagerVisitor, 10);
+        kvBucket->visit(pv, "Expired item remover", NONIO_TASK_IDX,
+                        TaskId::ExpiredItemPagerVisitor, 10);
     }
     snooze(sleepTime);
     updateExpPagerTime(sleepTime);

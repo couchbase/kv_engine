@@ -371,7 +371,8 @@ EventuallyPersistentStore::EventuallyPersistentStore(
     bgFetchQueue(0),
     diskFlushAll(false), bgFetchDelay(0),
     backfillMemoryThreshold(0.95),
-    statsSnapshotTaskId(0), lastTransTimePerItem(0)
+    statsSnapshotTaskId(0), lastTransTimePerItem(0),
+    persistent(true)
 {
     cachedResidentRatio.activeRatio.store(0);
     cachedResidentRatio.replicaRatio.store(0);
@@ -4047,11 +4048,11 @@ public:
         RCPtr<VBucket> vb = engine.getVBucket(itm->getVBucketId());
         int bucket_num(0);
         RememberingCallback<GetValue> gcb;
-        engine.getEpStore()->getROUnderlying(itm->getVBucketId())->
-                                             getWithHeader(dbHandle,
-                                                           itm->getKey(),
-                                                           itm->getVBucketId(),
-                                                           gcb);
+        engine.getKVBucket()->getROUnderlying(
+                    itm->getVBucketId())->getWithHeader(dbHandle,
+                                                        itm->getKey(),
+                                                        itm->getVBucketId(),
+                                                        gcb);
         gcb.waitForValue();
         if (gcb.val.getStatus() == ENGINE_SUCCESS) {
             Item *it = gcb.val.getValue();
@@ -4068,8 +4069,8 @@ public:
             } else {
                 mutation_type_t mtype = vb->ht.set(*it, it->getCas(),
                                                    true, true,
-                                                   engine.getEpStore()->
-                                                        getItemEvictionPolicy());
+                                                   engine.getKVBucket()->
+                                                    getItemEvictionPolicy());
 
                 if (mtype == NOMEM) {
                     setStatus(ENGINE_ENOMEM);

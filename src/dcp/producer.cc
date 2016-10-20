@@ -291,7 +291,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
     }
 
     if (flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
-        end_seqno = engine_.getEpStore()->getLastPersistedSeqno(vbucket);
+        end_seqno = engine_.getKVBucket()->getLastPersistedSeqno(vbucket);
     }
 
     if (!notifyOnly && start_seqno > end_seqno) {

@@ -24,72 +24,7 @@
 #include "vbucket.h"
 #include "vbucketmap.h"
 #include "utility.h"
-
-class ExtendedMetaData;
-
-/**
- * vbucket-aware hashtable visitor.
- */
-class VBucketVisitor : public HashTableVisitor {
-public:
-
-    VBucketVisitor() : HashTableVisitor() { }
-
-    VBucketVisitor(const VBucketFilter &filter) :
-        HashTableVisitor(), vBucketFilter(filter) { }
-
-    /**
-     * Begin visiting a bucket.
-     *
-     * @param vb the vbucket we are beginning to visit
-     *
-     * @return true iff we want to walk the hashtable in this vbucket
-     */
-    virtual bool visitBucket(RCPtr<VBucket> &vb) {
-        if (vBucketFilter(vb->getId())) {
-            currentBucket = vb;
-            return true;
-        }
-        return false;
-    }
-
-    // This is unused in all implementations so far.
-    void visit(StoredValue* v) {
-        (void)v;
-        abort();
-    }
-
-    const VBucketFilter &getVBucketFilter() {
-        return vBucketFilter;
-    }
-
-    /**
-     * Called after all vbuckets have been visited.
-     */
-    virtual void complete() { }
-
-    /**
-     * Return true if visiting vbuckets should be paused temporarily.
-     */
-    virtual bool pauseVisitor() {
-        return false;
-    }
-
-protected:
-    VBucketFilter vBucketFilter;
-    RCPtr<VBucket> currentBucket;
-};
-
-// Forward declaration
-class BGFetchCallback;
-class ConflictResolution;
-class DefragmenterTask;
-class EventuallyPersistentStore;
-class Flusher;
-class MutationLog;
-class PauseResumeEPStoreVisitor;
-class PersistenceCallback;
-class Warmup;
+#include "kvbucket.h"
 
 /**
  * VBucket visitor callback adaptor.
@@ -154,61 +89,15 @@ class KVShard;
 
 typedef std::pair<uint16_t, ExTask> CompTaskEntry;
 
-/**
- * The following will be used to identify
- * the source of an item's expiration.
- */
-enum exp_type_t {
-    EXP_BY_PAGER,
-    EXP_BY_COMPACTOR,
-    EXP_BY_ACCESS
-};
-
-/**
- * The following options can be specified
- * for retrieving an item for get calls
- */
-enum get_options_t {
-    NONE             = 0x0000,  //no option
-    TRACK_STATISTICS = 0x0001,  //whether statistics need to be tracked or not
-    QUEUE_BG_FETCH   = 0x0002,  //whether a background fetch needs to be queued
-    HONOR_STATES     = 0x0004,  //whether a retrieval should depend on the state
-                                //of the vbucket
-    TRACK_REFERENCE  = 0x0008,  //whether NRU bit needs to be set for the item
-    DELETE_TEMP      = 0x0010,  //whether temporary items need to be deleted
-    HIDE_LOCKED_CAS  = 0x0020   //whether locked items should have their CAS
-                                //hidden (return -1).
-};
 
 /**
  * Manager of all interaction with the persistence.
  */
-class EventuallyPersistentStore {
+class EventuallyPersistentStore : public KVBucket {
 public:
 
-    /**
-     * Represents a position within the epStore, used when visiting items.
-     *
-     * Currently opaque (and constant), clients can pass them around but
-     * cannot reposition the iterator.
-     */
-    class Position {
-    public:
-        bool operator==(const Position& other) const {
-            return (vbucket_id == other.vbucket_id);
-        }
-
-    private:
-        Position(uint16_t vbucket_id_) : vbucket_id(vbucket_id_) {}
-
-        uint16_t vbucket_id;
-
-        friend class EventuallyPersistentStore;
-        friend std::ostream& operator<<(std::ostream& os, const Position& pos);
-    };
-
     EventuallyPersistentStore(EventuallyPersistentEngine &theEngine);
-    ~EventuallyPersistentStore();
+    virtual ~EventuallyPersistentStore();
 
     /**
      * Start necessary tasks.
@@ -842,16 +731,6 @@ public:
 
     void addKVStoreTimingStats(ADD_STAT add_stat, const void* cookie);
 
-    /**
-     * The following options will be used to identify
-     * the kind of KVStores to be considered for stat collection.
-     */
-    enum class KVSOption {
-        RO,          // RO KVStore
-        RW,          // RW KVStore
-        BOTH         // Both KVStores
-    };
-
     /* Given a named KVStore statistic, return the value of that statistic,
      * accumulated across any shards.
      *
@@ -938,6 +817,13 @@ public:
      * care for the data or ongoing operations...
      */
     ENGINE_ERROR_CODE forceMaxCas(uint16_t vbucket, uint64_t cas);
+
+    /*
+     * Returns true if the bucket persists items on disk
+     */
+    bool isPersistent() const {
+        return persistent;
+    }
 
 protected:
     // During the warmup phase we might want to enable external traffic
@@ -1130,24 +1016,9 @@ protected:
     std::mutex compactionLock;
     std::list<CompTaskEntry> compactionTasks;
 
+    /* Indicates if this bucket type does persists items on disk */
+    bool persistent;
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
-};
-
-/**
- * Base class for visiting an epStore with pause/resume support.
- */
-class PauseResumeEPStoreVisitor {
-public:
-    virtual ~PauseResumeEPStoreVisitor() {}
-
-    /**
-     * Visit a hashtable within an epStore.
-     *
-     * @param vbucket_id ID of the vbucket being visited.
-     * @param ht a reference to the hashtable.
-     * @return True if visiting should continue, otherwise false.
-     */
-    virtual bool visit(uint16_t vbucket_id, HashTable& ht) = 0;
 };
 
 #endif  // SRC_EP_H_

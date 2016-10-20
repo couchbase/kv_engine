@@ -21,6 +21,7 @@
 #include "config.h"
 
 #include "ep.h"
+#include "kvbucket.h"
 #include "tapconnection.h"
 #include "taskable.h"
 #include "vbucket.h"
@@ -209,7 +210,7 @@ private:
 };
 
 /**
- * memcached engine interface to the EventuallyPersistentStore.
+ * memcached engine interface to the KVBucket.
  */
 class EventuallyPersistentEngine : public ENGINE_HANDLE_V1 {
     friend class LookupCallback;
@@ -267,10 +268,9 @@ public:
                                  uint16_t vbucket,
                                  mutation_descr_t *mut_info)
     {
-        ENGINE_ERROR_CODE ret = epstore->deleteItem(key, cas,
-                                                    vbucket, cookie,
-                                                    false, // not force
-                                                    NULL, mut_info);
+        ENGINE_ERROR_CODE ret = kvBucket->deleteItem(key, cas, vbucket, cookie,
+                                                     false, // not force
+                                                     NULL, mut_info);
 
         if (ret == ENGINE_KEY_ENOENT || ret == ENGINE_NOT_MY_VBUCKET) {
             if (isDegradedMode()) {
@@ -299,7 +299,7 @@ public:
         BlockTimer timer(&stats.getCmdHisto);
         std::string k(static_cast<const char*>(key), nkey);
 
-        GetValue gv(epstore->get(k, vbucket, cookie, options));
+        GetValue gv(kvBucket->get(k, vbucket, cookie, options));
         ENGINE_ERROR_CODE ret = gv.getStatus();
 
         if (ret == ENGINE_SUCCESS) {
@@ -327,8 +327,8 @@ public:
 
     void resetStats() {
         stats.reset();
-        if (epstore) {
-            epstore->resetUnderlyingStats();
+        if (kvBucket) {
+            kvBucket->resetUnderlyingStats();
         }
     }
 
@@ -622,7 +622,7 @@ public:
         (void) msg_size;
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
         *msg = NULL;
-        if (!epstore->pauseFlusher()) {
+        if (!kvBucket->pauseFlusher()) {
             LOG(EXTENSION_LOG_INFO, "Unable to stop flusher");
             *msg = "Flusher not running.";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
@@ -634,7 +634,7 @@ public:
         (void) msg_size;
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
         *msg = NULL;
-        if (!epstore->resumeFlusher()) {
+        if (!kvBucket->resumeFlusher()) {
             LOG(EXTENSION_LOG_INFO, "Unable to start flusher");
             *msg = "Flusher not shut down.";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
@@ -643,17 +643,17 @@ public:
     }
 
     ENGINE_ERROR_CODE deleteVBucket(uint16_t vbid, const void* c = NULL) {
-        return epstore->deleteVBucket(vbid, c);
+        return kvBucket->deleteVBucket(vbid, c);
     }
 
     ENGINE_ERROR_CODE compactDB(uint16_t vbid,
                                 compaction_ctx c,
                                 const void *cookie = NULL) {
-        return epstore->scheduleCompaction(vbid, c, cookie);
+        return kvBucket->scheduleCompaction(vbid, c, cookie);
     }
 
     bool resetVBucket(uint16_t vbid) {
-        return epstore->resetVBucket(vbid);
+        return kvBucket->resetVBucket(vbid);
     }
 
     void setTapKeepAlive(uint32_t to) {
@@ -668,20 +668,21 @@ public:
                                              uint16_t vbucket,
                                              const char **msg,
                                              size_t *msg_size) {
-        return epstore->evictKey(key, vbucket, msg, msg_size);
+        return kvBucket->evictKey(key, vbucket, msg, msg_size);
     }
 
     GetValue getLocked(const std::string &key, uint16_t vbucket,
                        rel_time_t currentTime, uint32_t lockTimeout,
                        const void *cookie) {
-        return epstore->getLocked(key, vbucket, currentTime, lockTimeout, cookie);
+        return kvBucket->getLocked(key, vbucket, currentTime, lockTimeout,
+                                   cookie);
     }
 
     ENGINE_ERROR_CODE unlockKey(const std::string &key,
                                 uint16_t vbucket,
                                 uint64_t cas,
                                 rel_time_t currentTime) {
-        return epstore->unlockKey(key, vbucket, cas, currentTime);
+        return kvBucket->unlockKey(key, vbucket, cas, currentTime);
     }
 
     ENGINE_ERROR_CODE observe(const void* cookie,
@@ -693,11 +694,12 @@ public:
                                     ADD_RESPONSE response);
 
     RCPtr<VBucket> getVBucket(uint16_t vbucket) {
-        return epstore->getVBucket(vbucket);
+        return kvBucket->getVBucket(vbucket);
     }
 
-    ENGINE_ERROR_CODE setVBucketState(uint16_t vbid, vbucket_state_t to, bool transfer) {
-        return epstore->setVBucketState(vbid, to, transfer);
+    ENGINE_ERROR_CODE setVBucketState(uint16_t vbid, vbucket_state_t to,
+                                      bool transfer) {
+        return kvBucket->setVBucketState(vbid, to, transfer);
     }
 
     ~EventuallyPersistentEngine();
@@ -710,7 +712,7 @@ public:
         return stats;
     }
 
-    EventuallyPersistentStore* getEpStore() { return epstore; }
+    KVBucket* getKVBucket() { return kvBucket; }
 
     TapConnMap &getTapConnMap() { return *tapConnMap; }
 
@@ -769,7 +771,7 @@ public:
     }
 
     bool isDegradedMode() const {
-        return epstore->isWarmingUp() || !trafficEnabled.load();
+        return kvBucket->isWarmingUp() || !trafficEnabled.load();
     }
 
     WorkLoadPolicy &getWorkLoadPolicy(void) {
@@ -886,7 +888,7 @@ protected:
         if (haveEvidenceWeCanFreeMemory) {
             // Look for more evidence by seeing if we have resident items.
             VBucketCountVisitor countVisitor(*this, vbucket_state_active);
-            epstore->visit(countVisitor);
+            kvBucket->visit(countVisitor);
 
             haveEvidenceWeCanFreeMemory = countVisitor.getNonResident() <
                 countVisitor.getNumItems();
@@ -895,7 +897,7 @@ protected:
             ++stats.tmp_oom_errors;
             // Wake up the item pager task as memory usage
             // seems to have exceeded high water mark
-            getEpStore()->wakeUpItemPager();
+            getKVBucket()->wakeUpItemPager();
             return ENGINE_TMPFAIL;
         } else {
             ++stats.oom_errors;
@@ -1004,7 +1006,7 @@ protected:
     void initializeEngineCallbacks();
 
     SERVER_HANDLE_V1 *serverApi;
-    EventuallyPersistentStore *epstore;
+    KVBucket* kvBucket;
     WorkLoadPolicy *workload;
     bucket_priority_t workloadPriority;
 

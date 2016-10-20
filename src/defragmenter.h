@@ -20,7 +20,7 @@
 
 #include "config.h"
 
-#include "ep.h"
+#include "kvbucket.h"
 #include "tasks.h"
 
 class EPStats;
@@ -130,7 +130,7 @@ private:
     EPStats &stats;
 
     // Opaque marker indicating how far through the epStore we have visited.
-    EventuallyPersistentStore::Position epstore_position;
+    KVBucket::Position epstore_position;
 
     /// Visitor object in use.
     DefragmentVisitor* visitor;

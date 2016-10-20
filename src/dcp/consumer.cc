@@ -707,7 +707,8 @@ ENGINE_ERROR_CODE DcpConsumer::handleResponse(
 
 bool DcpConsumer::doRollback(uint32_t opaque, uint16_t vbid,
                              uint64_t rollbackSeqno) {
-    ENGINE_ERROR_CODE err = engine_.getEpStore()->rollback(vbid, rollbackSeqno);
+    ENGINE_ERROR_CODE err = engine_.getKVBucket()->rollback(vbid,
+                                                                 rollbackSeqno);
 
     switch (err) {
     case ENGINE_NOT_MY_VBUCKET:
@@ -925,9 +926,10 @@ void DcpConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body
             if (status == ENGINE_SUCCESS) {
                 RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
                 vb->failovers->replaceFailoverLog(body, bodylen);
-                EventuallyPersistentStore* st = engine_.getEpStore();
-                st->scheduleVBSnapshot(VBSnapshotTask::Priority::HIGH,
-                                st->getVBuckets().getShardByVbId(vbucket)->getId());
+                KVBucket* kvBucket = engine_.getKVBucket();
+                kvBucket->scheduleVBSnapshot(
+                    VBSnapshotTask::Priority::HIGH,
+                    kvBucket->getVBuckets().getShardByVbId(vbucket)->getId());
             }
             LOG(EXTENSION_LOG_INFO, "%s (vb %d) Add stream for opaque %" PRIu32
                 " %s with error code %d", logHeader(), vbucket, opaque,

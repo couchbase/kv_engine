@@ -974,7 +974,7 @@ void MutationLogHarvester::apply(void *arg, mlCallbackWithQueue mlc) {
                 "when engine is NULL");
     }
     for (const uint16_t vb : vbid_set) {
-        RCPtr<VBucket> vbucket = engine->getEpStore()->getVBucket(vb);
+        RCPtr<VBucket> vbucket = engine->getKVBucket()->getVBucket(vb);
         if (!vbucket) {
             continue;
         }

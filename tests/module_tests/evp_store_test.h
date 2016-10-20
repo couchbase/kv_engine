@@ -84,6 +84,8 @@ class MockEPStore : public EventuallyPersistentStore {
 public:
     MockEPStore(EventuallyPersistentEngine &theEngine);
 
+    virtual ~MockEPStore() {}
+
     VBucketMap& getVbMap();
 
     void public_stopWarmup() {

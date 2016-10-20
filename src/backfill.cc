@@ -24,7 +24,7 @@
 
 #include "atomic.h"
 #include "backfill.h"
-#include "ep.h"
+#include "kvbucket.h"
 #include "vbucket.h"
 
 class ItemResidentCallback : public Callback<CacheLookup> {
@@ -48,7 +48,8 @@ private:
 };
 
 void ItemResidentCallback::callback(CacheLookup &lookup) {
-    RCPtr<VBucket> vb = engine->getEpStore()->getVBucket(lookup.getVBucketId());
+    RCPtr<VBucket> vb = engine->getKVBucket()->getVBucket(
+                                                        lookup.getVBucketId());
     if (!vb) {
         setStatus(ENGINE_SUCCESS);
         return;
@@ -107,7 +108,7 @@ void BackfillDiskCallback::callback(GetValue &gv) {
 
 bool BackfillDiskLoad::run() {
     TRACE_EVENT0("ep-engine/task", "BackfillDiskload");
-    if (engine->getEpStore()->isMemoryUsageTooHigh()) {
+    if (engine->getKVBucket()->isMemoryUsageTooHigh()) {
         LOG(EXTENSION_LOG_INFO, "VBucket %d backfill task from disk is "
          "temporarily suspended  because the current memory usage is too high",
          vbucket);
@@ -116,7 +117,7 @@ bool BackfillDiskLoad::run() {
     }
 
     if (connMap.checkConnectivity(name) &&
-                               !engine->getEpStore()->isFlushAllScheduled()) {
+        !engine->getKVBucket()->isFlushAllScheduled()) {
         size_t num_items;
         size_t num_deleted;
         try {
@@ -173,15 +174,15 @@ std::string BackfillDiskLoad::getDescription() {
 bool BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
     if (VBucketVisitor::visitBucket(vb)) {
         item_eviction_policy_t policy =
-            engine->getEpStore()->getItemEvictionPolicy();
+                                engine->getKVBucket()->getItemEvictionPolicy();
         double num_items = static_cast<double>(vb->getNumItems(policy));
 
         if (num_items == 0) {
             return false;
         }
 
-        KVStore *underlying(engine->getEpStore()->
-                            getROUnderlying(vb->getId()));
+        KVStore *underlying(engine->getKVBucket()->getROUnderlying(
+                                                                vb->getId()));
         LOG(EXTENSION_LOG_INFO,
             "Schedule a full backfill from disk for vbucket %d.", vb->getId());
         ExTask task = new BackfillDiskLoad(name, engine, connMap,
@@ -239,7 +240,7 @@ bool BackFillVisitor::checkValidity() {
 
 bool BackfillTask::run(void) {
     TRACE_EVENT0("ep-engine/task", "BackFillTask");
-    engine->getEpStore()->visit(bfv, "Backfill task", NONIO_TASK_IDX,
-                                TaskId::BackfillVisitorTask, 1);
+    engine->getKVBucket()->visit(bfv, "Backfill task", NONIO_TASK_IDX,
+                                 TaskId::BackfillVisitorTask, 1);
     return false;
 }

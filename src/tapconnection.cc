@@ -423,7 +423,7 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets,
         diff = vbucketFilter.filter_diff(filter);
 
         const std::set<uint16_t> &vset = diff.getVBSet();
-        const VBucketMap &vbMap = engine_.getEpStore()->getVBuckets();
+        const VBucketMap &vbMap = engine_.getKVBucket()->getVBuckets();
         // Remove TAP cursors from the vbuckets that don't belong to the new vbucket filter.
         for (std::set<uint16_t>::const_iterator it = vset.begin(); it != vset.end(); ++it) {
             if (vbucketFilter(*it)) {
@@ -961,12 +961,12 @@ bool BGFetchCallback::run() {
     RememberingCallback<GetValue> gcb;
 
     EPStats &stats = epe.getEpStats();
-    EventuallyPersistentStore *epstore = epe.getEpStore();
-    if (epstore == nullptr) {
-        throw std::logic_error("BGFetchCallback::run: epstore is NULL");
+    KVBucket* kvBucket = epe.getKVBucket();
+    if (kvBucket == nullptr) {
+        throw std::logic_error("BGFetchCallback::run: kvBucket is NULL");
     }
 
-    epstore->getROUnderlying(vbucket)->get(key, vbucket, gcb, true);
+    kvBucket->getROUnderlying(vbucket)->get(key, vbucket, gcb, true);
     gcb.waitForValue();
 
     if (gcb.val.getStatus() != ENGINE_SUCCESS) {
@@ -1163,7 +1163,7 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
 
     std::set<uint16_t> vbs = vbucketFilter.getVBSet();
     if (vbs.empty()) {
-        auto vbuckets = engine_.getEpStore()->getVBuckets().getBuckets();
+        auto vbuckets = engine_.getKVBucket()->getVBuckets().getBuckets();
         for (auto vbid : vbuckets) {
             std::stringstream msg;
             msg << "sent_from_vb_" << vbid;
@@ -1223,7 +1223,7 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
     }
 
     if (queue->empty() && isBackfillCompleted_UNLOCKED()) {
-        const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
+        const VBucketMap &vbuckets = engine_.getKVBucket()->getVBuckets();
         uint16_t invalid_count = 0;
         uint16_t open_checkpoint_count = 0;
         uint16_t wait_for_ack_count = 0;
@@ -1327,7 +1327,7 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
 
 size_t TapProducer::getRemainingOnCheckpoints_UNLOCKED() {
     size_t numItems = 0;
-    const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
+    const VBucketMap &vbuckets = engine_.getKVBucket()->getVBuckets();
     std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.begin();
     for (; it != checkpointState_.end(); ++it) {
         uint16_t vbid = it->first;
@@ -1342,7 +1342,7 @@ size_t TapProducer::getRemainingOnCheckpoints_UNLOCKED() {
 
 bool TapProducer::hasNextFromCheckpoints_UNLOCKED() {
     bool hasNext = false;
-    const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
+    const VBucketMap &vbuckets = engine_.getKVBucket()->getVBuckets();
     std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.begin();
     for (; it != checkpointState_.end(); ++it) {
         uint16_t vbid = it->first;
@@ -1364,7 +1364,7 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
     }
 
     std::vector<uint16_t> new_vblist;
-    const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
+    const VBucketMap &vbuckets = engine_.getKVBucket()->getVBuckets();
     std::vector<uint16_t>::const_iterator vbit = vblist.begin();
     // Skip all the vbuckets that are (1) receiving backfill from their master nodes
     // or (2) already scheduled for backfill.
@@ -1426,7 +1426,9 @@ VBucketEvent TapProducer::checkDumpOrTakeOverCompletion() {
                 // implicit acks is less than the threshold.
                 logger.log(EXTENSION_LOG_NOTICE, "VBucket <%d> is going dead to "
                            "complete vbucket takeover", ev.vbucket);
-                engine_.getEpStore()->setVBucketState(ev.vbucket, vbucket_state_dead, false);
+                engine_.getKVBucket()->setVBucketState(ev.vbucket,
+                                                       vbucket_state_dead,
+                                                       false);
                 setTakeOverCompletionPhase(true);
             }
             if (ackLog_.size() > 1) {
@@ -1662,7 +1664,7 @@ void TapProducer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpo
 
     uint64_t current_time = (uint64_t)ep_real_time();
     std::vector<uint16_t> backfill_vbuckets;
-    const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
+    const VBucketMap &vbuckets = engine_.getKVBucket()->getVBuckets();
     for (VBucketMap::id_type vbid = 0; vbid < vbuckets.getSize(); ++vbid) {
         if (vbucketFilter(vbid)) {
             RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
@@ -1712,7 +1714,8 @@ void TapProducer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpo
             // backfill and skip the checkpoint cursor registration.
             if (dumpQueue) {
                 if (vb->getState() == vbucket_state_active &&
-                    vb->getNumItems(engine_.getEpStore()->getItemEvictionPolicy()) > 0) {
+                    vb->getNumItems(engine_.getKVBucket()->
+                                                getItemEvictionPolicy()) > 0) {
                     backfill_vbuckets.push_back(vbid);
                 }
                 continue;
@@ -1831,8 +1834,9 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
 
         // If there's a better version in memory, grab it,
         // else go with what we pulled from disk.
-        GetValue gv(engine_.getEpStore()->get(itm->getKey(), itm->getVBucketId(),
-                                              c, options));
+        GetValue gv(engine_.getKVBucket()->get(itm->getKey(),
+                                               itm->getVBucketId(), c,
+                                               options));
         if (gv.getStatus() == ENGINE_SUCCESS) {
             delete itm;
             itm = gv.getValue();
@@ -1869,8 +1873,9 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
 
         if (qi->getOperation() == queue_op_set) {
             get_options_t options = DELETE_TEMP;
-            GetValue gv(engine_.getEpStore()->get(qi->getKey(), qi->getVBucketId(),
-                                                  c, options));
+            GetValue gv(engine_.getKVBucket()->get(qi->getKey(),
+                                                   qi->getVBucketId(), c,
+                                                   options));
             ENGINE_ERROR_CODE r = gv.getStatus();
             if (r == ENGINE_SUCCESS) {
                 itm = gv.getValue();
@@ -1978,7 +1983,7 @@ void Consumer::addStats(ADD_STAT add_stat, const void *c) {
 }
 
 void Consumer::setBackfillPhase(bool isBackfill, uint16_t vbucket) {
-    const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
+    const VBucketMap &vbuckets = engine_.getKVBucket()->getVBuckets();
     RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
     if (!(vb && supportCheckpointSync_)) {
         return;
@@ -2002,7 +2007,7 @@ void Consumer::setBackfillPhase(bool isBackfill, uint16_t vbucket) {
 }
 
 bool Consumer::isBackfillPhase(uint16_t vbucket) {
-    const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
+    const VBucketMap &vbuckets = engine_.getKVBucket()->getVBuckets();
     RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
     if (vb && vb->isBackfillPhase()) {
         return true;
@@ -2029,7 +2034,7 @@ ENGINE_ERROR_CODE Consumer::setVBucketState(uint32_t opaque, uint16_t vbucket,
     // to prevent any potential data loss after fully switching from TAP to
     // DCP. Please refer to https://issues.couchbase.com/browse/MB-15837 for
     // more details.
-    return engine_.getEpStore()->setVBucketState(vbucket, state, false);
+    return engine_.getKVBucket()->setVBucketState(vbucket, state, false);
 }
 
 void Consumer::processedEvent(uint16_t event, ENGINE_ERROR_CODE ret)
@@ -2103,7 +2108,7 @@ void Consumer::processedEvent(uint16_t event, ENGINE_ERROR_CODE ret)
 }
 
 void Consumer::checkVBOpenCheckpoint(uint16_t vbucket) {
-    const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
+    const VBucketMap &vbuckets = engine_.getKVBucket()->getVBuckets();
     RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
     if (!vb || vb->getState() == vbucket_state_active) {
         return;
@@ -2120,7 +2125,7 @@ TapConsumer::TapConsumer(EventuallyPersistentEngine &engine, const void *cookie,
 
 bool TapConsumer::processCheckpointCommand(uint8_t event, uint16_t vbucket,
                                            uint64_t checkpointId) {
-    const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
+    const VBucketMap &vbuckets = engine_.getKVBucket()->getVBuckets();
     RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
     if (!vb) {
         return false;
@@ -2188,13 +2193,13 @@ ENGINE_ERROR_CODE TapConsumer::mutation(uint32_t opaque, const void* key,
                           &datatype, EXT_META_LEN, cas, -1,
                           vbucket, revSeqno, nru);
 
-    EventuallyPersistentStore* epstore = engine_.getEpStore();
+    KVBucket* kvBucket = engine_.getKVBucket();
     if (isBackfillPhase(vbucket)) {
-        ret = epstore->addTAPBackfillItem(*item, true);
+        ret = kvBucket->addTAPBackfillItem(*item, true);
     }
     else {
-        ret = epstore->setWithMeta(*item, 0, NULL, this, true, true, true,
-                                   NULL, true);
+        ret = kvBucket->setWithMeta(*item, 0, NULL, this, true, true, true,
+                                    NULL, true);
     }
 
     delete item;
@@ -2230,7 +2235,7 @@ ENGINE_ERROR_CODE TapConsumer::deletion(uint32_t opaque, const void* key,
     uint64_t delCas = 0;
     std::string key_str(static_cast<const char*>(key), nkey);
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    EventuallyPersistentStore* epstore = engine_.getEpStore();
+    KVBucket* kvBucket = engine_.getKVBucket();
 
     // MB-17517: Check for the incoming item's CAS validity.
     if (!Item::isValidCas(cas)) {
@@ -2246,9 +2251,9 @@ ENGINE_ERROR_CODE TapConsumer::deletion(uint32_t opaque, const void* key,
     }
 
     ItemMetaData itemMeta(cas, revSeqno, 0, 0);
-    ret = epstore->deleteWithMeta(key_str, &delCas, NULL, vbucket, this, true,
-                                  &itemMeta, isBackfillPhase(vbucket),
-                                  true, 0, NULL, true);
+    ret = kvBucket->deleteWithMeta(key_str, &delCas, NULL, vbucket, this, true,
+                                   &itemMeta, isBackfillPhase(vbucket),
+                                   true, 0, NULL, true);
 
     if (ret == ENGINE_KEY_ENOENT) {
         ret = ENGINE_SUCCESS;

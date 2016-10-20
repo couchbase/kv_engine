@@ -590,7 +590,7 @@ void TapConnMap::getExpiredConnections_UNLOCKED(std::list<connection_t> &deadCli
 void TapConnMap::removeTapCursors_UNLOCKED(TapProducer *tp) {
     // Remove all the checkpoint cursors belonging to the TAP connection.
     if (tp) {
-        const VBucketMap &vbuckets = engine.getEpStore()->getVBuckets();
+        const VBucketMap &vbuckets = engine.getKVBucket()->getVBuckets();
         // Remove all the cursors belonging to the TAP connection to be purged.
         for (VBucketMap::id_type vbid = 0; vbid < vbuckets.getSize(); ++vbid) {
             RCPtr<VBucket> vb = vbuckets.getBucket(vbid);

@@ -312,7 +312,7 @@ TEST_F(StreamTest, test_mb18625) {
 class ConnectionTest : public DCPTest {
 protected:
     ENGINE_ERROR_CODE set_vb_state(uint16_t vbid, vbucket_state_t state) {
-        return engine->getEpStore()->setVBucketState(vbid, state, true);
+        return engine->getKVBucket()->setVBucketState(vbid, state, true);
     }
 };
 

@@ -22,10 +22,8 @@
 
 #include <string>
 
-#include "ep.h"
+#include "kvbucket.h"
 #include "tasks.h"
-
-class EventuallyPersistentStore;
 
 /**
  * Look around at hash tables and verify they're all sized
@@ -34,7 +32,7 @@ class EventuallyPersistentStore;
 class HashtableResizerTask : public GlobalTask {
 public:
 
-    HashtableResizerTask(EventuallyPersistentStore *s, double sleepTime) :
+    HashtableResizerTask(KVBucket* s, double sleepTime) :
     GlobalTask(&s->getEPEngine(), TaskId::HashtableResizerTask, sleepTime, false),
     store(s) {}
 
@@ -45,7 +43,7 @@ public:
     }
 
 private:
-    EventuallyPersistentStore *store;
+    KVBucket* store;
 };
 
 #endif  // SRC_HTRESIZER_H_

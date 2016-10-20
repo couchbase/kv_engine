@@ -23,6 +23,7 @@
 #include <atomic>
 #include "utility.h"
 
+
 /**
  * Base class encapsulating individual couchstore(vbucket) into a
  * logical group representing underlying storage operations
@@ -53,13 +54,14 @@
  */
 class EventuallyPersistentStore;
 class Flusher;
+class KVBucket;
 
 class KVShard {
     friend class VBucketMap;
 public:
     // Identifier for a KVShard
     typedef uint16_t id_type;
-    KVShard(KVShard::id_type id, EventuallyPersistentStore &store);
+    KVShard(KVShard::id_type id, KVBucket& store);
     ~KVShard();
 
     KVStore *getRWUnderlying() { return rwUnderlying; }

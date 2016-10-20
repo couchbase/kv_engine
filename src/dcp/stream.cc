@@ -421,8 +421,8 @@ void ActiveStream::setVBucketStateAckRecieved() {
             transitionState(STREAM_TAKEOVER_SEND);
             lh.unlock();
 
-            engine->getEpStore()->setVBucketState(vb_, vbucket_state_dead,
-                                                  false, false);
+            engine->getKVBucket()->setVBucketState(vb_, vbucket_state_dead,
+                                                   false, false);
             RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
             producer->getLogger().log(EXTENSION_LOG_NOTICE,
                 "(vb %" PRIu16 ") Vbucket marked as dead, last sent seqno: %"
@@ -634,15 +634,15 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
                     backfillRemaining.load(std::memory_order_relaxed),
                     add_stat, cookie);
 
-    item_eviction_policy_t iep = engine->getEpStore()->getItemEvictionPolicy();
+    item_eviction_policy_t iep = engine->getKVBucket()->getItemEvictionPolicy();
     size_t vb_items = vb->getNumItems(iep);
     size_t chk_items = vb_items > 0 ?
                 vb->checkpointManager.getNumItemsForCursor(name_) : 0;
 
     size_t del_items = 0;
     try {
-        del_items = engine->getEpStore()->getRWUnderlying(vb_)->
-                                                        getNumPersistedDeletes(vb_);
+        del_items = engine->getKVBucket()->getRWUnderlying(vb_)->
+                                                    getNumPersistedDeletes(vb_);
     } catch (std::runtime_error& e) {
         producer->getLogger().log(EXTENSION_LOG_WARNING,
             "ActiveStream:addTakeoverStats: exception while getting num persisted "
@@ -781,7 +781,7 @@ void ActiveStream::getOutstandingItems(RCPtr<VBucket> &vb,
                                             (gethrtime() - _begin_) / 1000);
 
     if (vb->checkpointManager.getNumCheckpoints() > 1) {
-        engine->getEpStore()->wakeUpCheckpointRemover();
+        engine->getKVBucket()->wakeUpCheckpointRemover();
     }
 }
 
@@ -973,7 +973,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
                DCP_ADD_STREAM_FLAG_DISKONLY (the else part), end_seqno_ is
                set to last persisted seqno befor calling
                scheduleBackfill_UNLOCKED() */
-            backfillEnd = engine->getEpStore()->getLastPersistedSeqno(vb_);
+            backfillEnd = engine->getKVBucket()->getLastPersistedSeqno(vb_);
         } else {
             backfillEnd = end_seqno_;
         }
@@ -1685,15 +1685,17 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
 
     ENGINE_ERROR_CODE ret;
     if (vb->isBackfillPhase()) {
-        ret = engine->getEpStore()->addTAPBackfillItem(*mutation->getItem(),
-                                                       false,
-                                                       mutation->getExtMetaData());
+        ret = engine->getKVBucket()->addTAPBackfillItem(
+                                                    *mutation->getItem(),
+                                                    false,
+                                                    mutation->getExtMetaData());
     } else {
-        ret = engine->getEpStore()->setWithMeta(*mutation->getItem(), 0, NULL,
-                                                consumer->getCookie(), true,
-                                                true, false,
-                                                mutation->getExtMetaData(),
-                                                true);
+        ret = engine->getKVBucket()->setWithMeta(*mutation->getItem(), 0,
+                                                 NULL,
+                                                 consumer->getCookie(),
+                                                 true, true, false,
+                                                 mutation->getExtMetaData(),
+                                                 true);
     }
 
     if (ret != ENGINE_SUCCESS) {
@@ -1737,13 +1739,14 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
         meta.cas = Item::nextCas();
     }
 
-    ret = engine->getEpStore()->deleteWithMeta(deletion->getItem()->getKey(),
-                                               &delCas, NULL, deletion->getVBucket(),
-                                               consumer->getCookie(), true,
-                                               &meta, vb->isBackfillPhase(),
-                                               false, deletion->getBySeqno(),
-                                               deletion->getExtMetaData(),
-                                               true);
+    ret = engine->getKVBucket()->deleteWithMeta(deletion->getItem()->getKey(),
+                                                &delCas, NULL,
+                                                deletion->getVBucket(),
+                                                consumer->getCookie(), true,
+                                                &meta, vb->isBackfillPhase(),
+                                                false, deletion->getBySeqno(),
+                                                deletion->getExtMetaData(),
+                                                true);
     if (ret == ENGINE_KEY_ENOENT) {
         ret = ENGINE_SUCCESS;
     }
@@ -1788,7 +1791,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
 }
 
 void PassiveStream::processSetVBucketState(SetVBucketState* state) {
-    engine->getEpStore()->setVBucketState(vb_, state->getState(), true);
+    engine->getKVBucket()->setVBucketState(vb_, state->getState(), true);
 
     LockHolder lh (streamMutex);
     pushToReadyQ(new SetVBucketStateResponse(opaque_, ENGINE_SUCCESS));

@@ -24,7 +24,8 @@
 #include "flusher.h"
 #include "kvshard.h"
 
-KVShard::KVShard(uint16_t id, EventuallyPersistentStore &store) :
+/* [EPHE TODO]: Consider not using KVShard for ephemeral bucket */
+KVShard::KVShard(uint16_t id, KVBucket& store) :
     shardId(id), highPrioritySnapshot(false),
     lowPrioritySnapshot(false),
     kvConfig(store.getEPEngine().getConfiguration(), shardId),
@@ -48,8 +49,16 @@ KVShard::KVShard(uint16_t id, EventuallyPersistentStore &store) :
         commitInterval = config.getMaxVbuckets()/config.getMaxNumShards();
     }
 
-    flusher = new Flusher(&store, this, commitInterval);
-    bgFetcher = new BgFetcher(&store, this, stats);
+    /* [EPHE TODO]: Try to avoid dynamic cast */
+    EventuallyPersistentStore* epstore =
+                            dynamic_cast<EventuallyPersistentStore*>(&store);
+
+    if (epstore) {
+        /* We want Flusher and BgFetcher only in case of epstore not
+           ephemeral store */
+        flusher = new Flusher(epstore, this, commitInterval);
+        bgFetcher = new BgFetcher(epstore, this, stats);
+    }
 }
 
 KVShard::~KVShard() {

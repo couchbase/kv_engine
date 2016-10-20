@@ -19,12 +19,12 @@
 
 #include <vector>
 
-#include "ep.h"
+#include "kvbucket.h"
 #include "ep_engine.h"
 #include "vbucketmap.h"
 
-VBucketMap::VBucketMap(Configuration &config,
-                       EventuallyPersistentStore &store) :
+VBucketMap::VBucketMap(Configuration& config,
+                       KVBucket& store) :
     bucketDeletion(new std::atomic<bool>[config.getMaxVbuckets()]),
     bucketCreation(new std::atomic<bool>[config.getMaxVbuckets()]),
     persistenceCheckpointIds(new

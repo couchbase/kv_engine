@@ -21,7 +21,7 @@
 
 #include "checkpoint_remover.h"
 #include "dcp/dcpconnmap.h"
-#include "ep.h"
+#include "kvbucket.h"
 #include "ep_engine.h"
 #include "vbucket.h"
 #include "connmap.h"
@@ -36,7 +36,7 @@ public:
     /**
      * Construct a CheckpointVisitor.
      */
-    CheckpointVisitor(EventuallyPersistentStore *s, EPStats &st,
+    CheckpointVisitor(KVBucket* s, EPStats &st,
                       std::atomic<bool> &sfin)
         : store(s), stats(st), removed(0), taskStart(gethrtime()),
           wasHighMemoryUsage(s->isMemoryUsageTooHigh()), stateFinalizer(sfin) {}
@@ -83,7 +83,7 @@ public:
     }
 
 private:
-    EventuallyPersistentStore *store;
+    KVBucket* store;
     EPStats                   &stats;
     size_t                     removed;
     hrtime_t                   taskStart;
@@ -104,14 +104,15 @@ void ClosedUnrefCheckpointRemoverTask::cursorDroppingIfNeeded(void) {
         size_t amountOfMemoryToClear = stats.getTotalMemoryUsed() -
                                           stats.cursorDroppingLThreshold.load();
         size_t memoryCleared = 0;
-        EventuallyPersistentStore *store = engine->getEpStore();
+        KVBucket* kvBucket = engine->getKVBucket();
         // Get a list of active vbuckets sorted by memory usage
         // of their respective checkpoint managers.
-        auto vbuckets = store->getVBuckets().getActiveVBucketsSortedByChkMgrMem();
+        auto vbuckets =
+                   kvBucket->getVBuckets().getActiveVBucketsSortedByChkMgrMem();
         for (const auto& it: vbuckets) {
             if (memoryCleared < amountOfMemoryToClear) {
                 uint16_t vbid = it.first;
-                RCPtr<VBucket> vb = store->getVBucket(vbid);
+                RCPtr<VBucket> vb = kvBucket->getVBucket(vbid);
                 if (vb) {
                     // Get a list of cursors that can be dropped from the
                     // vbucket's checkpoint manager, so as to unreference
@@ -145,11 +146,12 @@ bool ClosedUnrefCheckpointRemoverTask::run(void) {
     bool inverse = true;
     if (available.compare_exchange_strong(inverse, false)) {
         cursorDroppingIfNeeded();
-        EventuallyPersistentStore *store = engine->getEpStore();
-        std::shared_ptr<CheckpointVisitor> pv(new CheckpointVisitor(store, stats,
-                                                               available));
-        store->visit(pv, "Checkpoint Remover", NONIO_TASK_IDX,
-                     TaskId::ClosedUnrefCheckpointRemoverVisitorTask);
+        KVBucket* kvBucket = engine->getKVBucket();
+        std::shared_ptr<CheckpointVisitor> pv(new CheckpointVisitor(kvBucket,
+                                                                    stats,
+                                                                    available));
+        kvBucket->visit(pv, "Checkpoint Remover", NONIO_TASK_IDX,
+                        TaskId::ClosedUnrefCheckpointRemoverVisitorTask);
     }
     snooze(sleepTime);
     return true;
