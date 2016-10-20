@@ -4,6 +4,8 @@ list(APPEND TESTAPP_SOURCES
      ${Memcached_SOURCE_DIR}/utilities/subdoc_encoder.cc
      testapp.cc
      testapp.h
+     testapp_arithmetic.cc
+     testapp_arithmetic.h
      testapp_audit.cc
      testapp_binprot.cc
      testapp_binprot.h
@@ -71,11 +73,16 @@ target_compile_options(memcached_testapp PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE})
 ADD_TEST(NAME memcached-basic-unit-tests-bulk
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp
-                    --gtest_filter=*-Transport/*:*PerfTest.*:ShutdownTest.*:RequireInitTest.*:*TransportProtocols*:*Greenstack*:AuditTest*:*ConnectionTimeout*)
+                    --gtest_filter=*-Transport/*:*PerfTest.*:ShutdownTest.*:RequireInitTest.*:*TransportProtocols*:*Greenstack*:AuditTest*:*ConnectionTimeout*:*ArithmeticTest*)
 
 ADD_TEST(NAME memcached-basic-unit-tests-require-init
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=RequireInitTest.*)
+
+# Run the Arithmetic tests
+ADD_TEST(NAME memcached-arithmetic-unit-tests
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND memcached_testapp --gtest_filter=ArithmeticTest.*)
 
 # Run the Audit tests
 ADD_TEST(NAME memcached-audit-unit-tests
@@ -136,6 +143,7 @@ ADD_TEST(NAME memcached-basic-perf-tests
 
 # Test timeouts. Roughly calibrated to be 2x what the expected time is on the
 # slowest Jenkins platform/config.
+SET_TESTS_PROPERTIES(memcached-arithmetic-unit-tests PROPERTIES TIMEOUT 60)
 SET_TESTS_PROPERTIES(memcached-audit-unit-tests PROPERTIES TIMEOUT 120)
 SET_TESTS_PROPERTIES(memcached-basic-perf-tests PROPERTIES TIMEOUT 400)
 SET_TESTS_PROPERTIES(memcached-basic-unit-tests-bulk PROPERTIES TIMEOUT 60)

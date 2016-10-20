@@ -77,6 +77,10 @@ public:
         return reason == Greenstack::Status::NoAccess;
     }
 
+    bool isDeltaBadval() const override {
+        throw std::runtime_error("Not implemented");
+    }
+
 private:
     Greenstack::Status reason;
 };

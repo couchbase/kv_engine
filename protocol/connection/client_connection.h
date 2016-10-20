@@ -100,6 +100,8 @@ public:
     virtual bool isNotStored() const = 0;
 
     virtual bool isAccessDenied() const = 0;
+
+    virtual bool isDeltaBadval() const = 0;
 };
 
 /**
@@ -327,6 +329,77 @@ public:
                            const std::string& value) {
         throw std::invalid_argument("Not implemented");
     }
+
+    /**
+     * Perform an arithmetic operation on a document (increment or decrement)
+     *
+     * You may use this method when operating on "small" delta values which
+     * fit into a signed 64 bit integer. If you for some reason need to
+     * incr / decr values above that you must use increment and decrement
+     * directly.
+     *
+     * @param key the document to operate on
+     * @param delta The value to increment / decrement
+     * @param initial Create with the initial value (exptime must be set to
+     *                != 0xffffffff)
+     * @param exptime The expiry time for the document
+     * @param info Where to store the mutation info.
+     * @return The new value for the counter
+     */
+    virtual uint64_t arithmetic(const std::string& key,
+                                int64_t delta,
+                                uint64_t initial = 0,
+                                rel_time_t exptime = 0,
+                                MutationInfo* info = nullptr) {
+        if (delta < 0) {
+            return decrement(key, uint64_t(std::abs(delta)), initial,
+                             exptime, info);
+        } else {
+            return increment(key, uint64_t(delta), initial, exptime, info);
+        }
+    }
+
+    /**
+     * Perform an increment operation on a document
+     *
+     * This method only exists in order to test the situations where you want
+     * to increment a value that wouldn't fit into a signed 64 bit integer.
+     *
+     * @param key the document to operate on
+     * @param delta The value to increment
+     * @param initial Create with the initial value (exptime must be set to
+     *                != 0xffffffff)
+     * @param exptime The expiry time for the document
+     * @param info Where to store the mutation info.
+     * @return The new value for the counter
+     */
+    virtual uint64_t increment(const std::string& key,
+                               uint64_t delta,
+                               uint64_t initial = 0,
+                               rel_time_t exptime = 0,
+                               MutationInfo* info = nullptr) {
+        throw std::invalid_argument("Not implemented");
+    }
+
+    /**
+     * Perform an decrement operation on a document
+     *
+     * @param key the document to operate on
+     * @param delta The value to increment / decrement
+     * @param initial Create with the initial value (exptime must be set to
+     *                != 0xffffffff)
+     * @param exptime The expiry time for the document
+     * @param info Where to store the mutation info.
+     * @return The new value for the counter
+     */
+    virtual uint64_t decrement(const std::string& key,
+                               uint64_t delta,
+                               uint64_t initial = 0,
+                               rel_time_t exptime = 0,
+                               MutationInfo* info = nullptr) {
+        throw std::invalid_argument("Not implemented");
+    }
+
 
 protected:
     /**

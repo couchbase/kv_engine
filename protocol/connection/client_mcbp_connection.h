@@ -80,6 +80,10 @@ public:
         return reason == PROTOCOL_BINARY_RESPONSE_EACCESS;
     }
 
+    bool isDeltaBadval() const override {
+        return reason == PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL;
+    }
+
 private:
     uint16_t reason;
 };
@@ -145,6 +149,18 @@ public:
     virtual void ioctl_set(const std::string& key,
                            const std::string& value) override;
 
+    virtual uint64_t increment(const std::string& key,
+                               uint64_t delta,
+                               uint64_t initial,
+                               rel_time_t exptime,
+                               MutationInfo* info) override;
+
+    virtual uint64_t decrement(const std::string& key,
+                               uint64_t delta,
+                               uint64_t initial,
+                               rel_time_t exptime,
+                               MutationInfo* info) override;
+
     virtual void configureEwouldBlockEngine(const EWBEngineMode& mode,
                                             ENGINE_ERROR_CODE err_code,
                                             uint32_t value,
@@ -153,6 +169,14 @@ public:
     std::array<bool, 4> features;
 
 protected:
+
+    uint64_t incr_decr(protocol_binary_command opcode,
+                       const std::string& key,
+                       uint64_t delta,
+                       uint64_t initial,
+                       rel_time_t exptime,
+                       MutationInfo* info);
+
     /**
      * Set the features on the server by using the MCBP hello command
      *

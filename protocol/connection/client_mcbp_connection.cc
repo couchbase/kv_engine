@@ -28,6 +28,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <include/memcached/protocol_binary.h>
 
 static const bool packet_dump = getenv("COUCHBASE_PACKET_DUMP") != nullptr;
 
@@ -792,4 +793,80 @@ void MemcachedBinprotConnection::ioctl_set(const std::string& key,
         throw BinprotConnectionError("ioctl_set \"" + key + "\" failed.",
                                      rsp->message.header.response.status);
     }
+}
+
+uint64_t MemcachedBinprotConnection::increment(const std::string& key,
+                                               uint64_t delta,
+                                               uint64_t initial,
+                                               rel_time_t exptime,
+                                               MutationInfo* info) {
+    return incr_decr(PROTOCOL_BINARY_CMD_INCREMENT, key, delta, initial,
+                     exptime, info);
+}
+
+uint64_t MemcachedBinprotConnection::decrement(const std::string& key,
+                                               uint64_t delta,
+                                               uint64_t initial,
+                                               rel_time_t exptime,
+                                               MutationInfo* info) {
+    return incr_decr(PROTOCOL_BINARY_CMD_DECREMENT, key, delta, initial,
+                     exptime, info);
+}
+
+uint64_t MemcachedBinprotConnection::incr_decr(protocol_binary_command opcode,
+                                               const std::string& key,
+                                               uint64_t delta, uint64_t initial,
+                                               rel_time_t exptime,
+                                               MutationInfo* info) {
+
+    // Data should be sent in network byte order
+    delta = htonll(delta);
+    initial = htonl(initial);
+    exptime = htonl(exptime);
+
+    std::vector<uint8_t> ext(sizeof(delta) + sizeof(initial) + sizeof(exptime));
+    memcpy(ext.data(), &delta, sizeof(delta));
+    memcpy(ext.data() + sizeof(delta), &initial, sizeof(initial));
+    memcpy(ext.data() + sizeof(delta) + sizeof(initial), &exptime,
+           sizeof(exptime));
+
+    Frame frame;
+    mcbp_raw_command(frame, opcode, ext, key, {});
+
+    sendFrame(frame);
+    recvFrame(frame);
+    auto* rsp = reinterpret_cast<protocol_binary_response_incr*>(frame.payload.data());
+    if (rsp->message.header.response.status !=
+        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        if (opcode == PROTOCOL_BINARY_CMD_INCREMENT) {
+            throw BinprotConnectionError("incr \"" + key + "\" failed.",
+                                         rsp->message.header.response.status);
+        } else {
+            throw BinprotConnectionError("decr \"" + key + "\" failed.",
+                                         rsp->message.header.response.status);
+        }
+    }
+
+    if (info != nullptr) {
+        // Reset all values to 0xff to indicate that they are not set
+        memset(info, 0xff, sizeof(*info));
+        info->cas = rsp->message.header.response.cas;
+    }
+
+    uint8_t* payload = rsp->bytes + sizeof(rsp->bytes);
+    if (rsp->message.header.response.extlen == 16) {
+        // It contains uuid and seqno
+        if (info != nullptr) {
+            uint64_t* dptr = reinterpret_cast<uint64_t*>(payload);
+            info->vbucketuuid = ntohll(dptr[0]);
+            info->seqno = ntohll(dptr[1]);
+        }
+        payload += 16;
+    } else if (rsp->message.header.response.extlen != 0) {
+        throw std::runtime_error("Unknown extsize return from incr/decr");
+    }
+
+    uint64_t ret;
+    memcpy(&ret, payload, sizeof(ret));
+    return ntohll(ret);
 }
