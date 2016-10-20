@@ -92,6 +92,16 @@ MustSendCheckpointEnd CheckpointCursor::shouldSendCheckpointEndMetaItem() const
     return sendCheckpointEndMetaItem;
 }
 
+std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c) {
+    os << "CheckpointCursor[" << &c << "] with"
+       << " name:" << c.name
+       << " currentCkpt:{id:" << (*c.currentCheckpoint)->getId()
+       << " state:" << to_string((*c.currentCheckpoint)->getState())
+       << "} currentPos:" << (*c.currentPos)->getBySeqno()
+       << " offset:" << c.offset.load();
+    return os;
+}
+
 Checkpoint::~Checkpoint() {
     LOG(EXTENSION_LOG_INFO,
         "Checkpoint %" PRIu64 " for vbucket %d is purged from memory",
@@ -315,7 +325,8 @@ std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
        << " items:[" << std::endl;
     for (const auto& e : c.toWrite) {
         os << "\t{" << e->getBySeqno() << ","
-           << to_string(e->getOperation()) << "}" << std::endl;
+           << to_string(e->getOperation()) << ","
+           << e->getKey() << "}" << std::endl;
     }
     os << "]";
     return os;
@@ -1099,6 +1110,10 @@ snapshot_range_t CheckpointManager::getAllItemsForCursor(
         range.end = (*it->second.currentCheckpoint)->getSnapshotEndSeqno();
     }
 
+    LOG(EXTENSION_LOG_DEBUG, "CheckpointManager::getAllItemsForCursor() "
+            "cursor:%s range:{%" PRIu64 ", %" PRIu64 "}",
+            name.c_str(), range.start, range.end);
+
     return range;
 }
 
@@ -1145,6 +1160,10 @@ bool CheckpointManager::incrCursor(CheckpointCursor &cursor) {
         return false;
     }
     return incrCursor(cursor);
+}
+
+void CheckpointManager::dump() const {
+    std::cerr << *this << std::endl;
 }
 
 void CheckpointManager::clear(RCPtr<VBucket> &vb, uint64_t seqno) {
@@ -1844,10 +1863,16 @@ void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {
 }
 
 std::ostream& operator <<(std::ostream& os, const CheckpointManager& m) {
-    os << "CheckpointManager[" << &m << "] with "
-       << m.getNumCheckpoints() << " checkpoints, " << m.getNumItems() << " items." << std::endl;
-    for (auto* c : m.checkpointList) {
+    os << "CheckpointManager[" << &m << "] with numItems:"
+       << m.getNumItems() << " checkpoints:" << m.checkpointList.size()
+       << std::endl;
+    for (const auto* c : m.checkpointList) {
         os << "    " << *c << std::endl;
     }
+    os << "    connCursors:[" << std::endl;
+    for (const auto cur : m.connCursors) {
+        os << "        " << cur.first << ": " << cur.second << std::endl;
+    }
+    os << "    ]" << std::endl;
     return os;
 }

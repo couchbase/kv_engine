@@ -935,6 +935,11 @@ bool CouchKVStore::snapshotVBucket(uint16_t vbucketId,
         }
     }
 
+    LOG(EXTENSION_LOG_DEBUG,
+        "CouchKVStore::snapshotVBucket: Snapshotted vbucket:%" PRIu16 " state:%s",
+        vbucketId,
+        vbstate.toJSON().c_str());
+
     st.snapshotHisto.add((gethrtime() - start) / 1000);
 
     return true;

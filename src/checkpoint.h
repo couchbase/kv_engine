@@ -189,7 +189,11 @@ private:
     AtomicValue<size_t>              offset;
     bool                             fromBeginningOnChkCollapse;
     MustSendCheckpointEnd            sendCheckpointEndMetaItem;
+
+    friend std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c);
 };
+
+std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c);
 
 /**
  * The cursor index maps checkpoint cursor names to checkpoint cursors
@@ -798,6 +802,8 @@ public:
         LockHolder lh(queueLock);
         return ++lastBySeqno;
     }
+
+    void dump() const;
 
     static const std::string pCursorName;
 
