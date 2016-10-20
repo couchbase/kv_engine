@@ -98,24 +98,24 @@ public:
 
     std::unique_ptr<MemcachedConnection> clone() override;
 
-    virtual std::string to_string() override;
+    std::string to_string() override;
 
-    virtual void authenticate(const std::string& username,
-                              const std::string& password,
-                              const std::string& mech) override;
+    void authenticate(const std::string& username,
+                      const std::string& password,
+                      const std::string& mech) override;
 
-    virtual void createBucket(const std::string& name,
-                              const std::string& config,
-                              const Greenstack::BucketType& type) override;
+    void createBucket(const std::string& name,
+                      const std::string& config,
+                      const Greenstack::BucketType& type) override;
 
 
-    virtual void deleteBucket(const std::string& name) override;
+    void deleteBucket(const std::string& name) override;
 
-    virtual void selectBucket(const std::string& name) override;
+    void selectBucket(const std::string& name) override;
 
-    virtual std::vector<std::string> listBuckets() override;
+    std::vector<std::string> listBuckets() override;
 
-    virtual Document get(const std::string& id, uint16_t vbucket) override;
+    Document get(const std::string& id, uint16_t vbucket) override;
 
     Frame encodeCmdGet(const std::string& id, uint16_t vbucket) override;
 
@@ -123,20 +123,20 @@ public:
 
     Frame encodeCmdDcpStreamReq() override;
 
-    virtual MutationInfo mutate(const Document& doc, uint16_t vbucket,
-                                const Greenstack::mutation_type_t type) override;
+    MutationInfo mutate(const Document& doc, uint16_t vbucket,
+                        const Greenstack::mutation_type_t type) override;
 
-    virtual unique_cJSON_ptr stats(const std::string& subcommand) override;
+    unique_cJSON_ptr stats(const std::string& subcommand) override;
 
-    virtual void reloadAuditConfiguration() override;
+    void reloadAuditConfiguration() override;
 
-    virtual void sendFrame(const Frame& frame) override;
+    void sendFrame(const Frame& frame) override;
 
-    virtual void recvFrame(Frame& frame) override;
+    void recvFrame(Frame& frame) override;
 
-    virtual void hello(const std::string& userAgent,
-                       const std::string& userAgentVersion,
-                       const std::string& comment) override;
+    void hello(const std::string& userAgent,
+               const std::string& userAgentVersion,
+               const std::string& comment) override;
 
     void setDatatypeSupport(bool enable);
 
@@ -144,27 +144,27 @@ public:
 
     void setXattrSupport(bool enable);
 
-    virtual std::string ioctl_get(const std::string& key) override;
+    std::string ioctl_get(const std::string& key) override;
 
-    virtual void ioctl_set(const std::string& key,
-                           const std::string& value) override;
+    void ioctl_set(const std::string& key,
+                   const std::string& value) override;
 
-    virtual uint64_t increment(const std::string& key,
-                               uint64_t delta,
-                               uint64_t initial,
-                               rel_time_t exptime,
-                               MutationInfo* info) override;
+    uint64_t increment(const std::string& key,
+                       uint64_t delta,
+                       uint64_t initial,
+                       rel_time_t exptime,
+                       MutationInfo* info) override;
 
-    virtual uint64_t decrement(const std::string& key,
-                               uint64_t delta,
-                               uint64_t initial,
-                               rel_time_t exptime,
-                               MutationInfo* info) override;
+    uint64_t decrement(const std::string& key,
+                       uint64_t delta,
+                       uint64_t initial,
+                       rel_time_t exptime,
+                       MutationInfo* info) override;
 
-    virtual void configureEwouldBlockEngine(const EWBEngineMode& mode,
-                                            ENGINE_ERROR_CODE err_code,
-                                            uint32_t value,
-                                            const std::string& key) override;
+    void configureEwouldBlockEngine(const EWBEngineMode& mode,
+                                    ENGINE_ERROR_CODE err_code,
+                                    uint32_t value,
+                                    const std::string& key) override;
 
     std::array<bool, 4> features;
 
