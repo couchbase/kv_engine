@@ -85,6 +85,8 @@ void SingleThreadedEPStoreTest::shutdownAndPurgeTasks() {
             }
         };
         runTasks(*task_executor->getLpTaskQ()[t]);
+        task_executor->stopTaskGroup(engine->getTaskable().getGID(), t,
+                                     engine->getEpStats().forceShutdown);
     }
 }
 
@@ -101,6 +103,8 @@ void SingleThreadedEPStoreTest::cancelAndPurgeTasks() {
             }
         };
         runTasks(*task_executor->getLpTaskQ()[t]);
+        task_executor->stopTaskGroup(engine->getTaskable().getGID(), t,
+                                     engine->getEpStats().forceShutdown);
     }
 }
 
