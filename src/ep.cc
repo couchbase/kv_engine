@@ -560,11 +560,11 @@ bool EventuallyPersistentStore::initialize() {
     return true;
 }
 
-EventuallyPersistentStore::~EventuallyPersistentStore() {
+void EventuallyPersistentStore::deinitialize() {
     stopWarmup();
     stopBgFetcher();
-    ExecutorPool::get()->stopTaskGroup(engine.getTaskable().getGID(), NONIO_TASK_IDX,
-                                       stats.forceShutdown);
+    ExecutorPool::get()->stopTaskGroup(engine.getTaskable().getGID(),
+                                       NONIO_TASK_IDX, stats.forceShutdown);
 
     ExecutorPool::get()->cancel(statsSnapshotTaskId);
 
@@ -576,7 +576,9 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
 
     ExecutorPool::get()->unregisterTaskable(engine.getTaskable(),
                                             stats.forceShutdown);
+}
 
+EventuallyPersistentStore::~EventuallyPersistentStore() {
     delete [] vb_mutexes;
     delete [] schedule_vbstate_persist;
     delete [] stats.schedulingHisto;

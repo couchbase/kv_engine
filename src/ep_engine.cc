@@ -6401,6 +6401,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sendNotMyVBucketResponse(
 }
 
 EventuallyPersistentEngine::~EventuallyPersistentEngine() {
+    epstore->deinitialize();
     delete epstore;
     delete workload;
     delete dcpConnMap_;

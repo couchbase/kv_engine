@@ -210,7 +210,17 @@ public:
     EventuallyPersistentStore(EventuallyPersistentEngine &theEngine);
     ~EventuallyPersistentStore();
 
+    /**
+     * Start necessary tasks.
+     * Client calling initialize must also call deinitialize before deleting
+     * the EventuallyPersistentStore instance
+     */
     bool initialize();
+
+    /**
+     * Stop tasks started in initialize()
+     */
+    void deinitialize();
 
     /**
      * Set an item in the store.
