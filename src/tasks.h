@@ -248,7 +248,7 @@ private:
 
 /**
  * A task for fetching items from disk.
- * This task is used if EventuallyPersistentStore::multiBGFetchEnabled is true.
+ * This task is used if EPBucket::multiBGFetchEnabled is true.
  */
 class BgFetcher;
 class MultiBGFetcherTask : public GlobalTask {
@@ -317,7 +317,7 @@ private:
 
 /**
  * A task that performs disk fetches for non-resident get requests.
- * This task is used if EventuallyPersistentStore::multiBGFetchEnabled is false.
+ * This task is used if EPBucket::multiBGFetchEnabled is false.
  */
 class SingleBGFetcherTask : public GlobalTask {
 public:

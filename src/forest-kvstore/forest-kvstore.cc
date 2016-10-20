@@ -621,7 +621,7 @@ ENGINE_ERROR_CODE ForestKVStore::forestErr2EngineErr(fdb_status errCode) {
     case FDB_RESULT_NO_DB_HEADERS:
     default:
         // same as the general error return code of
-        // EventuallyPersistentStore::getInternal
+        // EPBucket::getInternal
         return ENGINE_TMPFAIL;
     }
 }

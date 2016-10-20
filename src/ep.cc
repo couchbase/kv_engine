@@ -54,7 +54,7 @@
 
 class StatsValueChangeListener : public ValueChangedListener {
 public:
-    StatsValueChangeListener(EPStats &st, EventuallyPersistentStore &str)
+    StatsValueChangeListener(EPStats& st, EPBucket& str)
         : stats(st), store(str) {
         // EMPTY
     }
@@ -94,8 +94,8 @@ public:
     }
 
 private:
-    EPStats &stats;
-    EventuallyPersistentStore &store;
+    EPStats& stats;
+    EPBucket& store;
 };
 
 /**
@@ -105,7 +105,7 @@ private:
  */
 class EPStoreValueChangeListener : public ValueChangedListener {
 public:
-    EPStoreValueChangeListener(EventuallyPersistentStore &st) : store(st) {
+    EPStoreValueChangeListener(EPBucket& st) : store(st) {
     }
 
     virtual void sizeValueChanged(const std::string &key, size_t value) {
@@ -167,7 +167,7 @@ public:
     }
 
 private:
-    EventuallyPersistentStore &store;
+    EPBucket& store;
 };
 
 /**
@@ -176,7 +176,7 @@ private:
  */
 class BloomFilterCallback : public Callback<uint16_t&, std::string&, bool&> {
 public:
-    BloomFilterCallback(EventuallyPersistentStore& eps)
+    BloomFilterCallback(EPBucket& eps)
         : store(eps) {
     }
 
@@ -229,7 +229,7 @@ public:
 
 private:
     bool initTempFilter(uint16_t vbucketId);
-    EventuallyPersistentStore& store;
+    EPBucket& store;
 };
 
 bool BloomFilterCallback::initTempFilter(uint16_t vbucketId) {
@@ -296,7 +296,7 @@ bool BloomFilterCallback::initTempFilter(uint16_t vbucketId) {
 class ExpiredItemsCallback : public Callback<uint16_t&, std::string&, uint64_t&,
                                              time_t&> {
     public:
-        ExpiredItemsCallback(EventuallyPersistentStore& store)
+        ExpiredItemsCallback(EPBucket& store)
             : epstore(store) { }
 
         void callback(uint16_t& vbid, std::string& key, uint64_t& revSeqno,
@@ -308,7 +308,7 @@ class ExpiredItemsCallback : public Callback<uint16_t&, std::string&, uint64_t&,
         }
 
     private:
-        EventuallyPersistentStore& epstore;
+        EPBucket& epstore;
 };
 
 class VBucketMemoryDeletionTask : public GlobalTask {
@@ -363,7 +363,7 @@ private:
     RCPtr<VBucket> vbucket;
 };
 
-EventuallyPersistentStore::EventuallyPersistentStore(
+EPBucket::EPBucket(
     EventuallyPersistentEngine &theEngine) :
     engine(theEngine), stats(engine.getEpStats()),
     vbMap(theEngine.getConfiguration(), *this),
@@ -406,7 +406,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(
         schedule_vbstate_persist[i] = false;
     }
 
-    stats.memOverhead = sizeof(EventuallyPersistentStore);
+    stats.memOverhead = sizeof(EPBucket);
 
     if (config.getConflictResolutionType().compare("lww") == 0) {
         conflictResolver.reset(new LastWriteWinsResolution());
@@ -500,7 +500,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(
     warmupTask = new Warmup(*this, config);
 }
 
-bool EventuallyPersistentStore::initialize() {
+bool EPBucket::initialize() {
     // We should nuke everything unless we want warmup
     Configuration &config = engine.getConfiguration();
     if (!config.isWarmup()) {
@@ -561,7 +561,7 @@ bool EventuallyPersistentStore::initialize() {
     return true;
 }
 
-void EventuallyPersistentStore::deinitialize() {
+void EPBucket::deinitialize() {
     stopWarmup();
     stopBgFetcher();
     ExecutorPool::get()->stopTaskGroup(engine.getTaskable().getGID(),
@@ -579,7 +579,7 @@ void EventuallyPersistentStore::deinitialize() {
                                             stats.forceShutdown);
 }
 
-EventuallyPersistentStore::~EventuallyPersistentStore() {
+EPBucket::~EPBucket() {
     delete [] vb_mutexes;
     delete [] schedule_vbstate_persist;
     delete [] stats.schedulingHisto;
@@ -593,25 +593,25 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     }
 }
 
-const Flusher* EventuallyPersistentStore::getFlusher(uint16_t shardId) {
+const Flusher* EPBucket::getFlusher(uint16_t shardId) {
     return vbMap.shards[shardId]->getFlusher();
 }
 
-uint16_t EventuallyPersistentStore::getCommitInterval(uint16_t shardId) {
+uint16_t EPBucket::getCommitInterval(uint16_t shardId) {
     Flusher *flusher = vbMap.shards[shardId]->getFlusher();
     return flusher->getCommitInterval();
 }
 
-uint16_t EventuallyPersistentStore::decrCommitInterval(uint16_t shardId) {
+uint16_t EPBucket::decrCommitInterval(uint16_t shardId) {
     Flusher *flusher = vbMap.shards[shardId]->getFlusher();
     return flusher->decrCommitInterval();
 }
 
-Warmup* EventuallyPersistentStore::getWarmup(void) const {
+Warmup* EPBucket::getWarmup(void) const {
     return warmupTask;
 }
 
-bool EventuallyPersistentStore::startFlusher() {
+bool EPBucket::startFlusher() {
     for (uint16_t i = 0; i < vbMap.shards.size(); ++i) {
         Flusher *flusher = vbMap.shards[i]->getFlusher();
         flusher->start();
@@ -619,7 +619,7 @@ bool EventuallyPersistentStore::startFlusher() {
     return true;
 }
 
-void EventuallyPersistentStore::stopFlusher() {
+void EPBucket::stopFlusher() {
     for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
         Flusher *flusher = vbMap.shards[i]->getFlusher();
         LOG(EXTENSION_LOG_NOTICE, "Attempting to stop the flusher for "
@@ -631,7 +631,7 @@ void EventuallyPersistentStore::stopFlusher() {
     }
 }
 
-bool EventuallyPersistentStore::pauseFlusher() {
+bool EPBucket::pauseFlusher() {
     bool rv = true;
     for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
         Flusher *flusher = vbMap.shards[i]->getFlusher();
@@ -644,7 +644,7 @@ bool EventuallyPersistentStore::pauseFlusher() {
     return rv;
 }
 
-bool EventuallyPersistentStore::resumeFlusher() {
+bool EPBucket::resumeFlusher() {
     bool rv = true;
     for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
         Flusher *flusher = vbMap.shards[i]->getFlusher();
@@ -658,7 +658,7 @@ bool EventuallyPersistentStore::resumeFlusher() {
     return rv;
 }
 
-void EventuallyPersistentStore::wakeUpFlusher() {
+void EPBucket::wakeUpFlusher() {
     if (stats.diskQueueSize.load() == 0) {
         for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
             Flusher *flusher = vbMap.shards[i]->getFlusher();
@@ -667,7 +667,7 @@ void EventuallyPersistentStore::wakeUpFlusher() {
     }
 }
 
-bool EventuallyPersistentStore::startBgFetcher() {
+bool EPBucket::startBgFetcher() {
     for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
         BgFetcher *bgfetcher = vbMap.shards[i]->getBgFetcher();
         if (bgfetcher == NULL) {
@@ -680,7 +680,7 @@ bool EventuallyPersistentStore::startBgFetcher() {
     return true;
 }
 
-void EventuallyPersistentStore::stopBgFetcher() {
+void EPBucket::stopBgFetcher() {
     for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
         BgFetcher *bgfetcher = vbMap.shards[i]->getBgFetcher();
         if (multiBGFetchEnabled() && bgfetcher->pendingJob()) {
@@ -693,11 +693,9 @@ void EventuallyPersistentStore::stopBgFetcher() {
     }
 }
 
-void
-EventuallyPersistentStore::deleteExpiredItem(uint16_t vbid, std::string &key,
-                                             time_t startTime,
-                                             uint64_t revSeqno,
-                                             exp_type_t source) {
+void EPBucket::deleteExpiredItem(uint16_t vbid, std::string &key,
+                                 time_t startTime, uint64_t revSeqno,
+                                 exp_type_t source) {
     RCPtr<VBucket> vb = getVBucket(vbid);
     if (vb) {
         // Obtain reader access to the VB state change lock so that
@@ -745,10 +743,8 @@ EventuallyPersistentStore::deleteExpiredItem(uint16_t vbid, std::string &key,
     }
 }
 
-void
-EventuallyPersistentStore::deleteExpiredItems(std::list<std::pair<uint16_t,
-                                                        std::string> > &keys,
-                                              exp_type_t source) {
+void EPBucket::deleteExpiredItems(std::list<std::pair<uint16_t,
+                                  std::string> > &keys, exp_type_t source) {
     std::list<std::pair<uint16_t, std::string> >::iterator it;
     time_t startTime = ep_real_time();
     for (it = keys.begin(); it != keys.end(); it++) {
@@ -756,12 +752,12 @@ EventuallyPersistentStore::deleteExpiredItems(std::list<std::pair<uint16_t,
     }
 }
 
-StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> &vb,
-                                                        const std::string &key,
-                                                        int bucket_num,
-                                                        bool wantDeleted,
-                                                        bool trackReference,
-                                                        bool queueExpired) {
+StoredValue *EPBucket::fetchValidValue(RCPtr<VBucket> &vb,
+                                       const std::string &key,
+                                       int bucket_num,
+                                       bool wantDeleted,
+                                       bool trackReference,
+                                       bool queueExpired) {
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num, wantDeleted,
                                           trackReference);
     if (v && !v->isDeleted() && !v->isTempItem()) {
@@ -783,8 +779,7 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> &vb,
     return v;
 }
 
-bool EventuallyPersistentStore::isMetaDataResident(RCPtr<VBucket> &vb,
-                                                   const std::string &key) {
+bool EPBucket::isMetaDataResident(RCPtr<VBucket> &vb, const std::string &key) {
 
     if (!vb) {
         throw std::invalid_argument("EPStore::isMetaDataResident: vb is NULL");
@@ -801,11 +796,10 @@ bool EventuallyPersistentStore::isMetaDataResident(RCPtr<VBucket> &vb,
     }
 }
 
-protocol_binary_response_status EventuallyPersistentStore::evictKey(
-                                                        const std::string &key,
-                                                        uint16_t vbucket,
-                                                        const char **msg,
-                                                        size_t *msg_size) {
+protocol_binary_response_status EPBucket::evictKey(const std::string &key,
+                                                   uint16_t vbucket,
+                                                   const char **msg,
+                                                   size_t *msg_size) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || (vb->getState() != vbucket_state_active)) {
         return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
@@ -847,14 +841,13 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(
     return rv;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::addTempItemForBgFetch(
-                                                        LockHolder &lock,
-                                                        int bucket_num,
-                                                        const std::string &key,
-                                                        RCPtr<VBucket> &vb,
-                                                        const void *cookie,
-                                                        bool metadataOnly,
-                                                        bool isReplication) {
+ENGINE_ERROR_CODE EPBucket::addTempItemForBgFetch(LockHolder &lock,
+                                                  int bucket_num,
+                                                  const std::string &key,
+                                                  RCPtr<VBucket> &vb,
+                                                  const void *cookie,
+                                                  bool metadataOnly,
+                                                  bool isReplication) {
 
     add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
                                                 eviction_policy,
@@ -875,8 +868,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTempItemForBgFetch(
     return ENGINE_EWOULDBLOCK;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::set(Item &itm,
-                                                 const void *cookie) {
+ENGINE_ERROR_CODE EPBucket::set(Item &itm, const void *cookie) {
 
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb) {
@@ -976,8 +968,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(Item &itm,
     return ret;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::add(Item &itm,
-                                                 const void *cookie)
+ENGINE_ERROR_CODE EPBucket::add(Item &itm, const void *cookie)
 {
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb) {
@@ -1054,8 +1045,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(Item &itm,
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::replace(Item &itm,
-                                                     const void *cookie) {
+ENGINE_ERROR_CODE EPBucket::replace(Item &itm, const void *cookie) {
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -1145,10 +1135,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::replace(Item &itm,
     }
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
-                                                        Item &itm,
-                                                        bool genBySeqno,
-                                                        ExtendedMetaData *emd) {
+ENGINE_ERROR_CODE EPBucket::addTAPBackfillItem(Item &itm, bool genBySeqno,
+                                               ExtendedMetaData *emd) {
 
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb) {
@@ -1213,8 +1201,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
     return ret;
 }
 
-void EventuallyPersistentStore::snapshotVBuckets(VBSnapshotTask::Priority prio,
-                                                 uint16_t shardId) {
+void EPBucket::snapshotVBuckets(VBSnapshotTask::Priority prio,
+                                uint16_t shardId) {
 
     class VBucketStateVisitor : public VBucketVisitor {
     public:
@@ -1303,7 +1291,7 @@ void EventuallyPersistentStore::snapshotVBuckets(VBSnapshotTask::Priority prio,
     }
 }
 
-bool EventuallyPersistentStore::persistVBState(uint16_t vbid) {
+bool EPBucket::persistVBState(uint16_t vbid) {
     schedule_vbstate_persist[vbid] = false;
 
     RCPtr<VBucket> vb = getVBucket(vbid);
@@ -1357,11 +1345,9 @@ bool EventuallyPersistentStore::persistVBState(uint16_t vbid) {
     return false;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
-                                                           vbucket_state_t to,
-                                                           bool transfer,
-                                                           bool notify_dcp) {
-    TRACE_EVENT("ep-engine/EventuallyPersistentStore", "setVBucketState", vbid);
+ENGINE_ERROR_CODE EPBucket::setVBucketState(uint16_t vbid, vbucket_state_t to,
+                                            bool transfer, bool notify_dcp) {
+    TRACE_EVENT("ep-engine/EPBucket", "setVBucketState", vbid);
     // Lock to prevent a race condition between a failed update and add.
     LockHolder lh(vbsetMutex);
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
@@ -1448,7 +1434,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
     return ENGINE_SUCCESS;
 }
 
-bool EventuallyPersistentStore::scheduleVBSnapshot(VBSnapshotTask::Priority prio) {
+bool EPBucket::scheduleVBSnapshot(VBSnapshotTask::Priority prio) {
     KVShard *shard = NULL;
     if (prio == VBSnapshotTask::Priority::HIGH) {
         for (size_t i = 0; i < vbMap.shards.size(); ++i) {
@@ -1473,9 +1459,8 @@ bool EventuallyPersistentStore::scheduleVBSnapshot(VBSnapshotTask::Priority prio
     return true;
 }
 
-void EventuallyPersistentStore::scheduleVBSnapshot(VBSnapshotTask::Priority prio,
-                                                   uint16_t shardId,
-                                                   bool force) {
+void EPBucket::scheduleVBSnapshot(VBSnapshotTask::Priority prio,
+                                  uint16_t shardId, bool force) {
     KVShard *shard = vbMap.shards[shardId];
     if (prio == VBSnapshotTask::Priority::HIGH) {
         if (force || shard->setHighPriorityVbSnapshotFlag(true)) {
@@ -1490,8 +1475,8 @@ void EventuallyPersistentStore::scheduleVBSnapshot(VBSnapshotTask::Priority prio
     }
 }
 
-void EventuallyPersistentStore::scheduleVBStatePersist(VBStatePersistTask::Priority priority,
-                                                       uint16_t vbid) {
+void EPBucket::scheduleVBStatePersist(VBStatePersistTask::Priority priority,
+                                      uint16_t vbid) {
 
 
     bool inverse = false;
@@ -1505,8 +1490,7 @@ void EventuallyPersistentStore::scheduleVBStatePersist(VBStatePersistTask::Prior
     }
 }
 
-bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
-                                                        const void* cookie) {
+bool EPBucket::completeVBucketDeletion(uint16_t vbid, const void* cookie) {
     LockHolder lh(vbsetMutex);
 
     hrtime_t start_time(gethrtime());
@@ -1537,9 +1521,8 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
     return true;
 }
 
-void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
-                                                   const void* cookie,
-                                                   double delay) {
+void EPBucket::scheduleVBDeletion(RCPtr<VBucket> &vb, const void* cookie,
+                                  double delay) {
     ExTask delTask = new VBucketMemoryDeletionTask(engine, vb, delay);
     ExecutorPool::get()->schedule(delTask, NONIO_TASK_IDX);
 
@@ -1549,8 +1532,7 @@ void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
     }
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::deleteVBucket(uint16_t vbid,
-                                                           const void* c) {
+ENGINE_ERROR_CODE EPBucket::deleteVBucket(uint16_t vbid, const void* c) {
     // Lock to prevent a race condition between a failed update and add
     // (and delete).
     LockHolder lh(vbsetMutex);
@@ -1571,7 +1553,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteVBucket(uint16_t vbid,
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::checkForDBExistence(DBFileId db_file_id) {
+ENGINE_ERROR_CODE EPBucket::checkForDBExistence(DBFileId db_file_id) {
     std::string backend = engine.getConfiguration().getBackend();
     if (backend.compare("couchdb") == 0) {
         RCPtr<VBucket> vb = vbMap.getBucket(db_file_id);
@@ -1592,9 +1574,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::checkForDBExistence(DBFileId db_fil
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::scheduleCompaction(uint16_t vbid,
-                                                                compaction_ctx c,
-                                                                const void *cookie) {
+ENGINE_ERROR_CODE EPBucket::scheduleCompaction(uint16_t vbid, compaction_ctx c,
+                                               const void *cookie) {
     ENGINE_ERROR_CODE errCode = checkForDBExistence(c.db_file_id);
     if (errCode != ENGINE_SUCCESS) {
         return errCode;
@@ -1634,12 +1615,12 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::scheduleCompaction(uint16_t vbid,
    return ENGINE_EWOULDBLOCK;
 }
 
-uint16_t EventuallyPersistentStore::getDBFileId(const protocol_binary_request_compact_db& req) {
+uint16_t EPBucket::getDBFileId(const protocol_binary_request_compact_db& req) {
     KVStore *store = vbMap.shards[0]->getROUnderlying();
     return store->getDBFileId(req);
 }
 
-void EventuallyPersistentStore::compactInternal(compaction_ctx *ctx) {
+void EPBucket::compactInternal(compaction_ctx *ctx) {
     BloomFilterCBPtr filter(new BloomFilterCallback(*this));
     ctx->bloomFilterCallback = filter;
 
@@ -1671,8 +1652,7 @@ void EventuallyPersistentStore::compactInternal(compaction_ctx *ctx) {
     }
 }
 
-bool EventuallyPersistentStore::doCompact(compaction_ctx *ctx,
-                                          const void *cookie) {
+bool EPBucket::doCompact(compaction_ctx *ctx, const void *cookie) {
     ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
     StorageProperties storeProp = getStorageProperties();
     bool concWriteCompact = storeProp.hasConcWriteCompact();
@@ -1715,7 +1695,7 @@ bool EventuallyPersistentStore::doCompact(compaction_ctx *ctx,
     return false;
 }
 
-void EventuallyPersistentStore::updateCompactionTasks(DBFileId db_file_id) {
+void EPBucket::updateCompactionTasks(DBFileId db_file_id) {
     LockHolder lh(compactionLock);
     bool erased = false, woke = false;
     std::list<CompTaskEntry>::iterator it = compactionTasks.begin();
@@ -1737,7 +1717,7 @@ void EventuallyPersistentStore::updateCompactionTasks(DBFileId db_file_id) {
     }
 }
 
-bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
+bool EPBucket::resetVBucket(uint16_t vbid) {
     LockHolder lh(vbsetMutex);
     bool rv(false);
 
@@ -1786,7 +1766,7 @@ extern "C" {
     }
 }
 
-void EventuallyPersistentStore::snapshotStats() {
+void EPBucket::snapshotStats() {
     snapshot_stats_t snap;
     snap.engine = &engine;
     bool rv = engine.getStats(&snap, NULL, 0, add_stat) == ENGINE_SUCCESS &&
@@ -1803,7 +1783,7 @@ void EventuallyPersistentStore::snapshotStats() {
     getOneRWUnderlying()->snapshotStats(snap.smap);
 }
 
-DBFileInfo EventuallyPersistentStore::getFileStats(const void *cookie) {
+DBFileInfo EPBucket::getFileStats(const void *cookie) {
     uint16_t numShards = vbMap.getNumShards();
     DBFileInfo totalInfo;
 
@@ -1818,9 +1798,8 @@ DBFileInfo EventuallyPersistentStore::getFileStats(const void *cookie) {
 }
 
 
-void EventuallyPersistentStore::updateBGStats(const hrtime_t init,
-                                              const hrtime_t start,
-                                              const hrtime_t stop) {
+void EPBucket::updateBGStats(const hrtime_t init, const hrtime_t start,
+                             const hrtime_t stop) {
     if (stop >= start && start >= init) {
         // skip the measurement if the counter wrapped...
         ++stats.bgNumOperations;
@@ -1840,11 +1819,8 @@ void EventuallyPersistentStore::updateBGStats(const hrtime_t init,
     }
 }
 
-void EventuallyPersistentStore::completeBGFetch(const std::string &key,
-                                                uint16_t vbucket,
-                                                const void *cookie,
-                                                hrtime_t init,
-                                                bool isMeta) {
+void EPBucket::completeBGFetch(const std::string &key, uint16_t vbucket,
+                               const void *cookie, hrtime_t init, bool isMeta) {
     hrtime_t start(gethrtime());
     // Go find the data
     RememberingCallback<GetValue> gcb;
@@ -1874,9 +1850,10 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
     delete gcb.val.getValue();
 }
 
-void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
-                                 std::vector<bgfetched_item_t> &fetchedItems,
-                                 hrtime_t startTime)
+void EPBucket::completeBGFetchMulti(
+                                uint16_t vbId,
+                                std::vector<bgfetched_item_t> &fetchedItems,
+                                hrtime_t startTime)
 {
     RCPtr<VBucket> vb = getVBucket(vbId);
     if (vb) {
@@ -1902,10 +1879,8 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
     }
 }
 
-void EventuallyPersistentStore::bgFetch(const std::string &key,
-                                        uint16_t vbucket,
-                                        const void *cookie,
-                                        bool isMeta) {
+void EPBucket::bgFetch(const std::string &key, uint16_t vbucket,
+                       const void *cookie, bool isMeta) {
     if (multiBGFetchEnabled()) {
         RCPtr<VBucket> vb = getVBucket(vbucket);
         if (!vb) {
@@ -1937,11 +1912,9 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
     }
 }
 
-GetValue EventuallyPersistentStore::getInternal(const std::string &key,
-                                                uint16_t vbucket,
-                                                const void *cookie,
-                                                vbucket_state_t allowedState,
-                                                get_options_t options) {
+GetValue EPBucket::getInternal(const std::string &key, uint16_t vbucket,
+                               const void *cookie, vbucket_state_t allowedState,
+                               get_options_t options) {
 
     vbucket_state_t disallowedState = (allowedState == vbucket_state_active) ?
         vbucket_state_replica : vbucket_state_active;
@@ -2028,7 +2001,7 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
     }
 }
 
-GetValue EventuallyPersistentStore::getRandomKey() {
+GetValue EPBucket::getRandomKey() {
     VBucketMap::id_type max = vbMap.getSize();
 
     const long start = random() % max;
@@ -2067,13 +2040,12 @@ GetValue EventuallyPersistentStore::getRandomKey() {
 }
 
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(
-                                                        const std::string &key,
-                                                        uint16_t vbucket,
-                                                        const void *cookie,
-                                                        ItemMetaData &metadata,
-                                                        uint32_t &deleted,
-                                                        uint8_t &confResMode)
+ENGINE_ERROR_CODE EPBucket::getMetaData(const std::string &key,
+                                        uint16_t vbucket,
+                                        const void *cookie,
+                                        ItemMetaData &metadata,
+                                        uint32_t &deleted,
+                                        uint8_t &confResMode)
 {
     (void) cookie;
     RCPtr<VBucket> vb = getVBucket(vbucket);
@@ -2139,16 +2111,15 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(
     }
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
-                                                     Item &itm,
-                                                     uint64_t cas,
-                                                     uint64_t *seqno,
-                                                     const void *cookie,
-                                                     bool force,
-                                                     bool allowExisting,
-                                                     bool genBySeqno,
-                                                     ExtendedMetaData *emd,
-                                                     bool isReplication)
+ENGINE_ERROR_CODE EPBucket::setWithMeta(Item &itm,
+                                        uint64_t cas,
+                                        uint64_t *seqno,
+                                        const void *cookie,
+                                        bool force,
+                                        bool allowExisting,
+                                        bool genBySeqno,
+                                        ExtendedMetaData *emd,
+                                        bool isReplication)
 {
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb) {
@@ -2260,10 +2231,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
     return ret;
 }
 
-GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
-                                                    uint16_t vbucket,
-                                                    const void *cookie,
-                                                    time_t exptime)
+GetValue EPBucket::getAndUpdateTtl(const std::string &key, uint16_t vbucket,
+                                   const void *cookie, time_t exptime)
 {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb) {
@@ -2339,10 +2308,8 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
     }
 }
 
-ENGINE_ERROR_CODE
-EventuallyPersistentStore::statsVKey(const std::string &key,
-                                     uint16_t vbucket,
-                                     const void *cookie) {
+ENGINE_ERROR_CODE EPBucket::statsVKey(const std::string &key, uint16_t vbucket,
+                                      const void *cookie) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
@@ -2394,10 +2361,8 @@ EventuallyPersistentStore::statsVKey(const std::string &key,
     }
 }
 
-void EventuallyPersistentStore::completeStatsVKey(const void* cookie,
-                                                  std::string &key,
-                                                  uint16_t vbid,
-                                                  uint64_t bySeqNum) {
+void EPBucket::completeStatsVKey(const void* cookie, std::string &key,
+                                 uint16_t vbid, uint64_t bySeqNum) {
     RememberingCallback<GetValue> gcb;
 
     getROUnderlying(vbid)->get(key, vbid, gcb);
@@ -2441,11 +2406,9 @@ void EventuallyPersistentStore::completeStatsVKey(const void* cookie,
     engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
 }
 
-GetValue EventuallyPersistentStore::getLocked(const std::string &key,
-                                              uint16_t vbucket,
-                                              rel_time_t currentTime,
-                                              uint32_t lockTimeout,
-                                              const void *cookie) {
+GetValue EPBucket::getLocked(const std::string &key, uint16_t vbucket,
+                             rel_time_t currentTime, uint32_t lockTimeout,
+                             const void *cookie) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || vb->getState() != vbucket_state_active) {
         ++stats.numNotMyVBuckets;
@@ -2507,11 +2470,10 @@ GetValue EventuallyPersistentStore::getLocked(const std::string &key,
     }
 }
 
-ENGINE_ERROR_CODE
-EventuallyPersistentStore::unlockKey(const std::string &key,
-                                     uint16_t vbucket,
-                                     uint64_t cas,
-                                     rel_time_t currentTime)
+ENGINE_ERROR_CODE EPBucket::unlockKey(const std::string &key,
+                                      uint16_t vbucket,
+                                      uint64_t cas,
+                                      rel_time_t currentTime)
 {
 
     RCPtr<VBucket> vb = getVBucket(vbucket);
@@ -2552,12 +2514,11 @@ EventuallyPersistentStore::unlockKey(const std::string &key,
 }
 
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::getKeyStats(
-                                            const std::string &key,
-                                            uint16_t vbucket,
-                                            const void *cookie,
-                                            struct key_stats &kstats,
-                                            bool wantsDeleted)
+ENGINE_ERROR_CODE EPBucket::getKeyStats(const std::string &key,
+                                        uint16_t vbucket,
+                                        const void *cookie,
+                                        struct key_stats &kstats,
+                                        bool wantsDeleted)
 {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb) {
@@ -2602,9 +2563,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getKeyStats(
     }
 }
 
-std::string EventuallyPersistentStore::validateKey(const std::string &key,
-                                                   uint16_t vbucket,
-                                                   Item &diskItem) {
+std::string EPBucket::validateKey(const std::string &key, uint16_t vbucket,
+                                  Item &diskItem) {
     int bucket_num(0);
     RCPtr<VBucket> vb = getVBucket(vbucket);
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
@@ -2632,14 +2592,13 @@ std::string EventuallyPersistentStore::validateKey(const std::string &key,
 
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
-                                                        uint64_t *cas,
-                                                        uint16_t vbucket,
-                                                        const void *cookie,
-                                                        bool force,
-                                                        ItemMetaData *itemMeta,
-                                                        mutation_descr_t
-                                                        *mutInfo)
+ENGINE_ERROR_CODE EPBucket::deleteItem(const std::string &key,
+                                       uint64_t *cas,
+                                       uint16_t vbucket,
+                                       const void *cookie,
+                                       bool force,
+                                       ItemMetaData *itemMeta,
+                                       mutation_descr_t *mutInfo)
 {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || (vb->getState() == vbucket_state_dead && !force)) {
@@ -2778,19 +2737,18 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     return ret;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
-                                                     const std::string &key,
-                                                     uint64_t *cas,
-                                                     uint64_t *seqno,
-                                                     uint16_t vbucket,
-                                                     const void *cookie,
-                                                     bool force,
-                                                     ItemMetaData *itemMeta,
-                                                     bool tapBackfill,
-                                                     bool genBySeqno,
-                                                     uint64_t bySeqno,
-                                                     ExtendedMetaData *emd,
-                                                     bool isReplication)
+ENGINE_ERROR_CODE EPBucket::deleteWithMeta(const std::string &key,
+                                           uint64_t *cas,
+                                           uint64_t *seqno,
+                                           uint16_t vbucket,
+                                           const void *cookie,
+                                           bool force,
+                                           ItemMetaData *itemMeta,
+                                           bool tapBackfill,
+                                           bool genBySeqno,
+                                           uint64_t bySeqno,
+                                           ExtendedMetaData *emd,
+                                           bool isReplication)
 {
     RCPtr<VBucket> vb = getVBucket(vbucket);
 
@@ -2925,7 +2883,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
     return ret;
 }
 
-void EventuallyPersistentStore::reset() {
+void EPBucket::reset() {
     auto buckets = vbMap.getBuckets();
     for (auto vbid : buckets) {
         RCPtr<VBucket> vb = getVBucket(vbid);
@@ -2949,7 +2907,7 @@ void EventuallyPersistentStore::reset() {
  * Callback invoked after persisting an item from memory to disk.
  *
  * This class exists to create a closure around a few variables within
- * EventuallyPersistentStore::flushOne so that an object can be
+ * EPBucket::flushOne so that an object can be
  * requeued in case of failure to store in the underlying layer.
  */
 class PersistenceCallback : public Callback<mutation_result>,
@@ -2957,7 +2915,7 @@ class PersistenceCallback : public Callback<mutation_result>,
 public:
 
     PersistenceCallback(const queued_item &qi, RCPtr<VBucket> &vb,
-                        EventuallyPersistentStore& st, EPStats& s, uint64_t c)
+                        EPBucket& st, EPStats& s, uint64_t c)
         : queuedItem(qi), vbucket(vb), store(st), stats(s), cas(c) {
         if (!vb) {
             throw std::invalid_argument("PersistenceCallback(): vb is NULL");
@@ -3117,14 +3075,13 @@ private:
 
     const queued_item queuedItem;
     RCPtr<VBucket> vbucket;
-    EventuallyPersistentStore& store;
+    EPBucket& store;
     EPStats& stats;
     uint64_t cas;
     DISALLOW_COPY_AND_ASSIGN(PersistenceCallback);
 };
 
-bool EventuallyPersistentStore::scheduleFlushAllTask(const void* cookie,
-                                                     time_t when) {
+bool EPBucket::scheduleFlushAllTask(const void* cookie, time_t when) {
     bool inverse = false;
     if (diskFlushAll.compare_exchange_strong(inverse, true)) {
         flushAllTaskCtx.cookie = cookie;
@@ -3137,7 +3094,7 @@ bool EventuallyPersistentStore::scheduleFlushAllTask(const void* cookie,
     }
 }
 
-void EventuallyPersistentStore::setFlushAllComplete() {
+void EPBucket::setFlushAllComplete() {
     // Notify memcached about flushAll task completion, and
     // set diskFlushall flag to false
     if (flushAllTaskCtx.cookie) {
@@ -3149,7 +3106,7 @@ void EventuallyPersistentStore::setFlushAllComplete() {
     diskFlushAll.compare_exchange_strong(inverse, false);
 }
 
-void EventuallyPersistentStore::flushOneDeleteAll() {
+void EPBucket::flushOneDeleteAll() {
     for (VBucketMap::id_type i = 0; i < vbMap.getSize(); ++i) {
         RCPtr<VBucket> vb = getVBucket(i);
         if (vb) {
@@ -3162,7 +3119,7 @@ void EventuallyPersistentStore::flushOneDeleteAll() {
     setFlushAllComplete();
 }
 
-int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
+int EPBucket::flushVBucket(uint16_t vbid) {
     KVShard *shard = vbMap.getShardByVbId(vbid);
     if (diskFlushAll && !flushAllTaskCtx.delayFlushAll) {
         if (shard->getId() == EP_PRIMARY_SHARD) {
@@ -3320,7 +3277,7 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
     return items_flushed;
 }
 
-void EventuallyPersistentStore::commit(uint16_t shardId) {
+void EPBucket::commit(uint16_t shardId) {
     KVStore *rwUnderlying = getRWUnderlyingByShard(shardId);
     std::list<PersistenceCallback *>& pcbs = rwUnderlying->getPersistenceCbList();
     BlockTimer timer(&stats.diskCommitHisto, "disk_commit", stats.timingLog);
@@ -3362,9 +3319,8 @@ void EventuallyPersistentStore::commit(uint16_t shardId) {
     stats.cumulativeCommitTime.fetch_add(commit_time);
 }
 
-PersistenceCallback*
-EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
-                                            RCPtr<VBucket> &vb) {
+PersistenceCallback* EPBucket::flushOneDelOrSet(const queued_item &qi,
+                                                RCPtr<VBucket> &vb) {
 
     if (!vb) {
         stats.decrDiskQueueSize(1);
@@ -3412,12 +3368,12 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
     }
 }
 
-void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
-                                           StoredValue* v,
-                                           LockHolder *plh,
-                                           uint64_t *seqno,
-                                           const GenerateBySeqno generateBySeqno,
-                                           const GenerateCas generateCas) {
+void EPBucket::queueDirty(RCPtr<VBucket> &vb,
+                          StoredValue* v,
+                          LockHolder *plh,
+                          uint64_t *seqno,
+                          const GenerateBySeqno generateBySeqno,
+                          const GenerateCas generateCas) {
     if (vb) {
         queued_item qi(v->toItem(false, vb->getId()));
 
@@ -3449,11 +3405,11 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
     }
 }
 
-void EventuallyPersistentStore::tapQueueDirty(RCPtr<VBucket> &vb,
-                                              StoredValue* v,
-                                              LockHolder& plh,
-                                              uint64_t *seqno,
-                                              const GenerateBySeqno generateBySeqno) {
+void EPBucket::tapQueueDirty(RCPtr<VBucket> &vb,
+                             StoredValue* v,
+                             LockHolder& plh,
+                             uint64_t *seqno,
+                             const GenerateBySeqno generateBySeqno) {
     if (vb) {
         queued_item qi(v->toItem(false, vb->getId()));
 
@@ -3482,12 +3438,12 @@ void EventuallyPersistentStore::tapQueueDirty(RCPtr<VBucket> &vb,
     }
 }
 
-std::vector<vbucket_state *> EventuallyPersistentStore::loadVBucketState()
+std::vector<vbucket_state *> EPBucket::loadVBucketState()
 {
     return getOneROUnderlying()->listPersistedVbuckets();
 }
 
-void EventuallyPersistentStore::warmupCompleted() {
+void EPBucket::warmupCompleted() {
     // Run the vbucket state snapshot job once after the warmup
     scheduleVBSnapshot(VBSnapshotTask::Priority::HIGH);
 
@@ -3523,7 +3479,7 @@ void EventuallyPersistentStore::warmupCompleted() {
     statsSnapshotTaskId = iom->schedule(task, WRITER_TASK_IDX);
 }
 
-bool EventuallyPersistentStore::maybeEnableTraffic()
+bool EPBucket::maybeEnableTraffic()
 {
     // @todo rename.. skal vaere isTrafficDisabled elns
     double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
@@ -3559,15 +3515,15 @@ bool EventuallyPersistentStore::maybeEnableTraffic()
     return false;
 }
 
-bool EventuallyPersistentStore::isWarmingUp() {
+bool EPBucket::isWarmingUp() {
     return !warmupTask->isComplete();
 }
 
-bool EventuallyPersistentStore::isWarmupOOMFailure() {
+bool EPBucket::isWarmupOOMFailure() {
     return warmupTask->hasOOMFailure();
 }
 
-void EventuallyPersistentStore::stopWarmup(void)
+void EPBucket::stopWarmup(void)
 {
     // forcefully stop current warmup task
     if (isWarmingUp()) {
@@ -3578,9 +3534,10 @@ void EventuallyPersistentStore::stopWarmup(void)
     }
 }
 
-void EventuallyPersistentStore::completeBGFetchForSingleItem(
-        RCPtr<VBucket> vb, const std::string& key,
-        const hrtime_t startTime, VBucketBGFetchItem& fetched_item)
+void EPBucket::completeBGFetchForSingleItem(RCPtr<VBucket> vb,
+                                            const std::string& key,
+                                            const hrtime_t startTime,
+                                            VBucketBGFetchItem& fetched_item)
 {
     ENGINE_ERROR_CODE status = fetched_item.value.getStatus();
     Item *fetchedValue = fetched_item.value.getValue();
@@ -3678,18 +3635,17 @@ void EventuallyPersistentStore::completeBGFetchForSingleItem(
     engine.notifyIOComplete(fetched_item.cookie, status);
 }
 
-bool EventuallyPersistentStore::isMemoryUsageTooHigh() {
+bool EPBucket::isMemoryUsageTooHigh() {
     double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
     double maxSize = static_cast<double>(stats.getMaxDataSize());
     return memoryUsed > (maxSize * backfillMemoryThreshold);
 }
 
-void EventuallyPersistentStore::setBackfillMemoryThreshold(
-                                                double threshold) {
+void EPBucket::setBackfillMemoryThreshold(double threshold) {
     backfillMemoryThreshold = threshold;
 }
 
-void EventuallyPersistentStore::setExpiryPagerSleeptime(size_t val) {
+void EPBucket::setExpiryPagerSleeptime(size_t val) {
     LockHolder lh(expiryPager.mutex);
 
     ExecutorPool::get()->cancel(expiryPager.task);
@@ -3706,7 +3662,7 @@ void EventuallyPersistentStore::setExpiryPagerSleeptime(size_t val) {
     }
 }
 
-void EventuallyPersistentStore::setExpiryPagerTasktime(ssize_t val) {
+void EPBucket::setExpiryPagerTasktime(ssize_t val) {
     LockHolder lh(expiryPager.mutex);
     if (expiryPager.enabled) {
         ExecutorPool::get()->cancel(expiryPager.task);
@@ -3722,7 +3678,7 @@ void EventuallyPersistentStore::setExpiryPagerTasktime(ssize_t val) {
     }
 }
 
-void EventuallyPersistentStore::enableExpiryPager() {
+void EPBucket::enableExpiryPager() {
     LockHolder lh(expiryPager.mutex);
     if (!expiryPager.enabled) {
         expiryPager.enabled = true;
@@ -3737,7 +3693,7 @@ void EventuallyPersistentStore::enableExpiryPager() {
     }
 }
 
-void EventuallyPersistentStore::disableExpiryPager() {
+void EPBucket::disableExpiryPager() {
     LockHolder lh(expiryPager.mutex);
     if (expiryPager.enabled) {
         ExecutorPool::get()->cancel(expiryPager.task);
@@ -3747,7 +3703,7 @@ void EventuallyPersistentStore::disableExpiryPager() {
     }
 }
 
-void EventuallyPersistentStore::enableAccessScannerTask() {
+void EPBucket::enableAccessScannerTask() {
     LockHolder lh(accessScanner.mutex);
     if (!accessScanner.enabled) {
         accessScanner.enabled = true;
@@ -3772,7 +3728,7 @@ void EventuallyPersistentStore::enableAccessScannerTask() {
     }
 }
 
-void EventuallyPersistentStore::disableAccessScannerTask() {
+void EPBucket::disableAccessScannerTask() {
     LockHolder lh(accessScanner.mutex);
     if (accessScanner.enabled) {
         ExecutorPool::get()->cancel(accessScanner.task);
@@ -3783,8 +3739,7 @@ void EventuallyPersistentStore::disableAccessScannerTask() {
     }
 }
 
-void EventuallyPersistentStore::setAccessScannerSleeptime(size_t val,
-                                                          bool useStartTime) {
+void EPBucket::setAccessScannerSleeptime(size_t val, bool useStartTime) {
     LockHolder lh(accessScanner.mutex);
 
     if (accessScanner.enabled) {
@@ -3804,7 +3759,7 @@ void EventuallyPersistentStore::setAccessScannerSleeptime(size_t val,
     }
 }
 
-void EventuallyPersistentStore::resetAccessScannerStartTime() {
+void EPBucket::resetAccessScannerStartTime() {
     LockHolder lh(accessScanner.mutex);
 
     if (accessScanner.enabled) {
@@ -3819,7 +3774,7 @@ void EventuallyPersistentStore::resetAccessScannerStartTime() {
     }
 }
 
-void EventuallyPersistentStore::setAllBloomFilters(bool to) {
+void EPBucket::setAllBloomFilters(bool to) {
     for (VBucketMap::id_type vbid = 0; vbid < vbMap.getSize(); vbid++) {
         RCPtr<VBucket> vb = vbMap.getBucket(vbid);
         if (vb) {
@@ -3832,7 +3787,7 @@ void EventuallyPersistentStore::setAllBloomFilters(bool to) {
     }
 }
 
-void EventuallyPersistentStore::visit(VBucketVisitor &visitor)
+void EPBucket::visit(VBucketVisitor &visitor)
 {
     for (VBucketMap::id_type vbid = 0; vbid < vbMap.getSize(); ++vbid) {
         RCPtr<VBucket> vb = vbMap.getBucket(vbid);
@@ -3847,8 +3802,8 @@ void EventuallyPersistentStore::visit(VBucketVisitor &visitor)
     visitor.complete();
 }
 
-EventuallyPersistentStore::Position
-EventuallyPersistentStore::pauseResumeVisit(PauseResumeEPStoreVisitor& visitor,
+EPBucket::Position EPBucket::pauseResumeVisit(
+                                            PauseResumeEPStoreVisitor& visitor,
                                             Position& start_pos)
 {
     uint16_t vbid = start_pos.vbucket_id;
@@ -3862,24 +3817,22 @@ EventuallyPersistentStore::pauseResumeVisit(PauseResumeEPStoreVisitor& visitor,
         }
     }
 
-    return EventuallyPersistentStore::Position(vbid);
+    return EPBucket::Position(vbid);
 }
 
-EventuallyPersistentStore::Position
-EventuallyPersistentStore::startPosition() const
+EPBucket::Position EPBucket::startPosition() const
 {
-    return EventuallyPersistentStore::Position(0);
+    return EPBucket::Position(0);
 }
 
-EventuallyPersistentStore::Position
-EventuallyPersistentStore::endPosition() const
+EPBucket::Position EPBucket::endPosition() const
 {
-    return EventuallyPersistentStore::Position(vbMap.getSize());
+    return EPBucket::Position(vbMap.getSize());
 }
 
-VBCBAdaptor::VBCBAdaptor(EventuallyPersistentStore *s, TaskId id,
+VBCBAdaptor::VBCBAdaptor(EPBucket* s, TaskId id,
                          std::shared_ptr<VBucketVisitor> v,
-                         const char *l, double sleep) :
+                         const char* l, double sleep) :
     GlobalTask(&s->getEPEngine(), id, 0, false), store(s),
     visitor(v), label(l), sleepTime(sleep), currentvb(0)
 {
@@ -3916,9 +3869,9 @@ bool VBCBAdaptor::run(void) {
     return !isdone;
 }
 
-VBucketVisitorTask::VBucketVisitorTask(EventuallyPersistentStore *s,
+VBucketVisitorTask::VBucketVisitorTask(EPBucket* s,
                                        std::shared_ptr<VBucketVisitor> v,
-                                       uint16_t sh, const char *l,
+                                       uint16_t sh, const char* l,
                                        double sleep, bool shutdown)
     : GlobalTask(&(s->getEPEngine()), TaskId::VBucketVisitorTask, 0, shutdown),
       store(s), visitor(v), label(l), sleepTime(sleep), currentvb(0),
@@ -3956,7 +3909,7 @@ bool VBucketVisitorTask::run() {
     return !isDone;
 }
 
-void EventuallyPersistentStore::resetUnderlyingStats(void)
+void EPBucket::resetUnderlyingStats(void)
 {
     for (size_t i = 0; i < vbMap.shards.size(); i++) {
         KVShard *shard = vbMap.shards[i];
@@ -3970,8 +3923,7 @@ void EventuallyPersistentStore::resetUnderlyingStats(void)
     }
 }
 
-void EventuallyPersistentStore::addKVStoreStats(ADD_STAT add_stat,
-                                                const void* cookie) {
+void EPBucket::addKVStoreStats(ADD_STAT add_stat, const void* cookie) {
     for (size_t i = 0; i < vbMap.shards.size(); i++) {
         /* Add the different KVStore instances into a set and then
          * retrieve the stats from each instance separately. This
@@ -3989,8 +3941,7 @@ void EventuallyPersistentStore::addKVStoreStats(ADD_STAT add_stat,
     }
 }
 
-void EventuallyPersistentStore::addKVStoreTimingStats(ADD_STAT add_stat,
-                                                      const void* cookie) {
+void EPBucket::addKVStoreTimingStats(ADD_STAT add_stat, const void* cookie) {
     for (size_t i = 0; i < vbMap.shards.size(); i++) {
         std::set<KVStore*> underlyingSet;
         underlyingSet.insert(vbMap.shards[i]->getRWUnderlying());
@@ -4002,8 +3953,8 @@ void EventuallyPersistentStore::addKVStoreTimingStats(ADD_STAT add_stat,
     }
 }
 
-bool EventuallyPersistentStore::getKVStoreStat(const char* name, size_t& value,
-                                               KVSOption option) {
+bool EPBucket::getKVStoreStat(const char* name, size_t& value, KVSOption option)
+{
     value = 0;
     bool success = true;
     for (auto* shard : vbMap.shards) {
@@ -4022,11 +3973,11 @@ bool EventuallyPersistentStore::getKVStoreStat(const char* name, size_t& value,
     return success;
 }
 
-KVStore *EventuallyPersistentStore::getOneROUnderlying(void) {
+KVStore *EPBucket::getOneROUnderlying(void) {
     return vbMap.shards[EP_PRIMARY_SHARD]->getROUnderlying();
 }
 
-KVStore *EventuallyPersistentStore::getOneRWUnderlying(void) {
+KVStore *EPBucket::getOneRWUnderlying(void) {
     return vbMap.shards[EP_PRIMARY_SHARD]->getRWUnderlying();
 }
 
@@ -4096,9 +4047,7 @@ private:
     EventuallyPersistentEngine& engine;
 };
 
-ENGINE_ERROR_CODE
-EventuallyPersistentStore::rollback(uint16_t vbid,
-                                    uint64_t rollbackSeqno) {
+ENGINE_ERROR_CODE EPBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
     LockHolder lh(vb_mutexes[vbid], true /*tryLock*/);
     if (!lh.islocked()) {
         return ENGINE_TMPFAIL; // Reschedule a vbucket rollback task.
@@ -4129,20 +4078,19 @@ EventuallyPersistentStore::rollback(uint16_t vbid,
     return ENGINE_NOT_MY_VBUCKET;
 }
 
-void EventuallyPersistentStore::runDefragmenterTask() {
+void EPBucket::runDefragmenterTask() {
     defragmenterTask->run();
 }
 
-bool EventuallyPersistentStore::runAccessScannerTask() {
+bool EPBucket::runAccessScannerTask() {
     return ExecutorPool::get()->wake(accessScanner.task);
 }
 
-void EventuallyPersistentStore::runVbStatePersistTask(int vbid) {
+void EPBucket::runVbStatePersistTask(int vbid) {
     scheduleVBStatePersist(VBStatePersistTask::Priority::LOW, vbid);
 }
 
-void EventuallyPersistentStore::setCursorDroppingLowerUpperThresholds(
-                                                            size_t maxSize) {
+void EPBucket::setCursorDroppingLowerUpperThresholds(size_t maxSize) {
     Configuration &config = engine.getConfiguration();
     stats.cursorDroppingLThreshold.store(static_cast<size_t>(maxSize *
                     ((double)(config.getCursorDroppingLowerMark()) / 100)));
@@ -4150,16 +4098,15 @@ void EventuallyPersistentStore::setCursorDroppingLowerUpperThresholds(
                     ((double)(config.getCursorDroppingUpperMark()) / 100)));
 }
 
-size_t EventuallyPersistentStore::getActiveResidentRatio() const {
+size_t EPBucket::getActiveResidentRatio() const {
     return cachedResidentRatio.activeRatio.load();
 }
 
-size_t EventuallyPersistentStore::getReplicaResidentRatio() const {
+size_t EPBucket::getReplicaResidentRatio() const {
     return cachedResidentRatio.replicaRatio.load();
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::forceMaxCas(uint16_t vbucket,
-                                                         uint64_t cas) {
+ENGINE_ERROR_CODE EPBucket::forceMaxCas(uint16_t vbucket, uint64_t cas) {
     RCPtr<VBucket> vb = vbMap.getBucket(vbucket);
     if (vb) {
         vb->forceMaxCas(cas);
@@ -4168,8 +4115,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::forceMaxCas(uint16_t vbucket,
     return ENGINE_NOT_MY_VBUCKET;
 }
 
-std::ostream& operator<<(std::ostream& os,
-                         const EventuallyPersistentStore::Position& pos) {
+std::ostream& operator<<(std::ostream& os, const EPBucket::Position& pos) {
     os << "vbucket:" << pos.vbucket_id;
     return os;
 }

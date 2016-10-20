@@ -49,12 +49,12 @@ const double DEFAULT_MAX_SLEEP_TIME = 10.0;
 class KVShard;
 
 /**
- * Manage persistence of data for an EventuallyPersistentStore.
+ * Manage persistence of data for an EPBucket.
  */
 class Flusher {
 public:
 
-    Flusher(EventuallyPersistentStore *st, KVShard *k, uint16_t commitInt) :
+    Flusher(EPBucket* st, KVShard* k, uint16_t commitInt) :
         store(st), _state(initializing), taskId(0), minSleepTime(0.1),
         initCommitInterval(commitInt), currCommitInterval(commitInt),
         forceShutdownReceived(false), doHighPriority(false), numHighPriority(0),
@@ -114,7 +114,7 @@ private:
         return lpVbs.empty() && hpVbs.empty() && !pendingMutation.load();
     }
 
-    EventuallyPersistentStore   *store;
+    EPBucket* store;
     std::atomic<enum flusher_state> _state;
 
     // Used for serializaling attempts to start the flusher from

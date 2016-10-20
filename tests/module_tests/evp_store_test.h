@@ -16,7 +16,7 @@
  */
 
 /*
- * Unit tests for the EventuallyPersistentStore class.
+ * Unit tests for the EPBucket class.
  */
 
 #pragma once
@@ -48,7 +48,7 @@ class SynchronousEPEngine : public EventuallyPersistentEngine {
 public:
     SynchronousEPEngine(const std::string& extra_config);
 
-    void setEPStore(EventuallyPersistentStore* store);
+    void setEPStore(EPBucket* store);
 
     /* Allow us to call normally protected methods */
 
@@ -80,7 +80,7 @@ public:
 /* Subclass of EPStore to expose normally non-public members for test
  * purposes.
  */
-class MockEPStore : public EventuallyPersistentStore {
+class MockEPStore : public EPBucket {
 public:
     MockEPStore(EventuallyPersistentEngine &theEngine);
 
@@ -94,7 +94,7 @@ public:
 };
 
 /* Actual test fixture class */
-class EventuallyPersistentStoreTest : public ::testing::Test {
+class EPBucketTest : public ::testing::Test {
 protected:
     void SetUp() override;
 

@@ -34,12 +34,12 @@
 #include "tapconnmap.h"
 
 struct WarmupCookie {
-    WarmupCookie(EventuallyPersistentStore *s, Callback<GetValue>&c) :
+    WarmupCookie(EPBucket* s, Callback<GetValue>& c) :
         cb(c), epstore(s),
         loaded(0), skipped(0), error(0)
     { /* EMPTY */ }
-    Callback<GetValue> &cb;
-    EventuallyPersistentStore *epstore;
+    Callback<GetValue>& cb;
+    EPBucket* epstore;
     size_t loaded;
     size_t skipped;
     size_t error;
@@ -308,7 +308,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
 void LoadStorageKVPairCallback::purge() {
     class EmergencyPurgeVisitor : public VBucketVisitor {
     public:
-        EmergencyPurgeVisitor(EventuallyPersistentStore& store) :
+        EmergencyPurgeVisitor(EPBucket& store) :
             epstore(store) {}
 
         void visit(StoredValue *v) {
@@ -316,7 +316,7 @@ void LoadStorageKVPairCallback::purge() {
                                              epstore.getItemEvictionPolicy());
         }
     private:
-        EventuallyPersistentStore& epstore;
+        EPBucket& epstore;
     };
 
     auto vbucketIds(vbuckets.getBuckets());
@@ -357,7 +357,7 @@ void LoadValueCallback::callback(CacheLookup &lookup)
 //////////////////////////////////////////////////////////////////////////////
 
 
-Warmup::Warmup(EventuallyPersistentStore& st, Configuration& config_)
+Warmup::Warmup(EPBucket& st, Configuration& config_)
     : state(),
       store(st),
       config(config_),

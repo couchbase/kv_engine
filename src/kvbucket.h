@@ -31,7 +31,7 @@ class ExtendedMetaData;
 class BGFetchCallback;
 class ConflictResolution;
 class DefragmenterTask;
-class EventuallyPersistentStore;
+class EPBucket;
 class Flusher;
 class MutationLog;
 class PauseResumeEPStoreVisitor;
@@ -161,7 +161,7 @@ public:
 
         uint16_t vbucket_id;
 
-        friend class EventuallyPersistentStore;
+        friend class EPBucket;
         friend std::ostream& operator<<(std::ostream& os, const Position& pos);
     };
 
@@ -171,7 +171,7 @@ public:
     /**
      * Start necessary tasks.
      * Client calling initialize must also call deinitialize before deleting
-     * the EventuallyPersistentStore instance
+     * the EPBucket instance
      */
     virtual bool initialize() = 0;
 
@@ -582,7 +582,7 @@ public:
      *
      * @param visitor The visitor object.
      * @return The final epStore position visited; equal to
-     *         EventuallyPersistentStore::end() if all items were visited
+     *         EPBucket::end() if all items were visited
      *         otherwise the position to resume from.
      */
     virtual Position pauseResumeVisit(PauseResumeEPStoreVisitor& visitor,

@@ -27,7 +27,7 @@
 
 class ItemAccessVisitor : public VBucketVisitor {
 public:
-    ItemAccessVisitor(EventuallyPersistentStore &_store, EPStats &_stats,
+    ItemAccessVisitor(EPBucket& _store, EPStats& _stats,
                       uint16_t sh, std::atomic<bool> &sfin, AccessScanner &aS) :
         store(_store), stats(_stats), startTime(ep_real_time()),
         taskStart(gethrtime()), shardID(sh), stateFinalizer(sfin), as(aS)
@@ -162,8 +162,8 @@ private:
         }
     }
 
-    EventuallyPersistentStore &store;
-    EPStats &stats;
+    EPBucket& store;
+    EPStats& stats;
     rel_time_t startTime;
     hrtime_t taskStart;
     std::string prev;
@@ -178,7 +178,7 @@ private:
     AccessScanner &as;
 };
 
-AccessScanner::AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
+AccessScanner::AccessScanner(EPBucket&_store, EPStats &st,
                              double sleeptime, bool useStartTime,
                              bool completeBeforeShutdown)
     : GlobalTask(&_store.getEPEngine(), TaskId::AccessScanner, sleeptime,

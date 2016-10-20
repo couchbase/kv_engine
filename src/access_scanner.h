@@ -25,13 +25,13 @@
 #include "tasks.h"
 
 // Forward declaration.
-class EventuallyPersistentStore;
+class EPBucket;
 class AccessScannerValueChangeListener;
 
 class AccessScanner : public GlobalTask {
     friend class AccessScannerValueChangeListener;
 public:
-    AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
+    AccessScanner(EPBucket& _store, EPStats& st,
                   double sleeptime = 0,
                   bool useStartTime = false,
                   bool completeBeforeShutdown = false);
@@ -44,8 +44,8 @@ private:
     void updateAlogTime(double sleepSecs);
     void deleteAlogFile(const std::string& fileName);
 
-    EventuallyPersistentStore &store;
-    EPStats &stats;
+    EPBucket& store;
+    EPStats& stats;
     double sleepTime;
     std::string alogPath;
     std::atomic<bool> available;

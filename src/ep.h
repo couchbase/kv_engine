@@ -32,7 +32,7 @@
 class VBCBAdaptor : public GlobalTask {
 public:
 
-    VBCBAdaptor(EventuallyPersistentStore *s, TaskId id,
+    VBCBAdaptor(EPBucket* s, TaskId id,
                 std::shared_ptr<VBucketVisitor> v, const char *l,
                 double sleep=0);
 
@@ -46,7 +46,7 @@ public:
 
 private:
     std::queue<uint16_t>        vbList;
-    EventuallyPersistentStore  *store;
+    EPBucket  *store;
     std::shared_ptr<VBucketVisitor>  visitor;
     const char                 *label;
     double                      sleepTime;
@@ -62,7 +62,7 @@ private:
 class VBucketVisitorTask : public GlobalTask {
 public:
 
-    VBucketVisitorTask(EventuallyPersistentStore *s,
+    VBucketVisitorTask(EPBucket* s,
                        std::shared_ptr<VBucketVisitor> v, uint16_t sh,
                        const char *l, double sleep=0, bool shutdown=true);
 
@@ -76,7 +76,7 @@ public:
 
 private:
     std::queue<uint16_t>         vbList;
-    EventuallyPersistentStore   *store;
+    EPBucket* store;
     std::shared_ptr<VBucketVisitor>   visitor;
     const char                  *label;
     double                       sleepTime;
@@ -93,16 +93,16 @@ typedef std::pair<uint16_t, ExTask> CompTaskEntry;
 /**
  * Manager of all interaction with the persistence.
  */
-class EventuallyPersistentStore : public KVBucket {
+class EPBucket : public KVBucket {
 public:
 
-    EventuallyPersistentStore(EventuallyPersistentEngine &theEngine);
-    virtual ~EventuallyPersistentStore();
+    EPBucket(EventuallyPersistentEngine &theEngine);
+    virtual ~EPBucket();
 
     /**
      * Start necessary tasks.
      * Client calling initialize must also call deinitialize before deleting
-     * the EventuallyPersistentStore instance
+     * the EPBucket instance
      */
     bool initialize();
 
@@ -521,7 +521,7 @@ public:
      *
      * @param visitor The visitor object.
      * @return The final epStore position visited; equal to
-     *         EventuallyPersistentStore::end() if all items were visited
+     *         EPBucket::end() if all items were visited
      *         otherwise the position to resume from.
      */
     Position pauseResumeVisit(PauseResumeEPStoreVisitor& visitor,
@@ -1018,7 +1018,7 @@ protected:
 
     /* Indicates if this bucket type does persists items on disk */
     bool persistent;
-    DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);
+    DISALLOW_COPY_AND_ASSIGN(EPBucket);
 };
 
 #endif  // SRC_EP_H_

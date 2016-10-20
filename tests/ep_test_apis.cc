@@ -1411,7 +1411,7 @@ void wait_for_flusher_to_settle(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // complete - specifically so when in full eviction mode we have
     // waited for the item counts in each vBucket to be synced with
     // the number of items on disk. See
-    // EventuallyPersistentStore::commit().
+    // EPBucket::commit().
     sleepTime = initial_sleepTime;
     while (get_int_stat(h, h1, "ep_flusher_todo") > 0) {
         decayingSleep(&sleepTime);

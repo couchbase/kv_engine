@@ -73,7 +73,7 @@ private:
  */
 class LoadStorageKVPairCallback : public Callback<GetValue> {
 public:
-    LoadStorageKVPairCallback(EventuallyPersistentStore& ep,
+    LoadStorageKVPairCallback(EPBucket& ep,
                               bool _maybeEnableTraffic, int _warmupState)
         : vbuckets(ep.vbMap),
           stats(ep.getEPEngine().getEpStats()),
@@ -95,7 +95,7 @@ private:
 
     VBucketMap &vbuckets;
     EPStats    &stats;
-    EventuallyPersistentStore& epstore;
+    EPBucket& epstore;
     time_t      startTime;
     bool        hasPurged;
     bool        maybeEnableTraffic;
@@ -117,7 +117,7 @@ private:
 
 class Warmup {
 public:
-    Warmup(EventuallyPersistentStore& st, Configuration& config);
+    Warmup(EPBucket& st, Configuration& config);
 
     void addToTaskSet(size_t taskId);
     void removeFromTaskSet(size_t taskId);
@@ -192,7 +192,7 @@ private:
 
     WarmupState state;
 
-    EventuallyPersistentStore& store;
+    EPBucket& store;
     Configuration& config;
 
     // Unordered set to hold the current executing tasks
@@ -221,8 +221,7 @@ private:
 
 class WarmupInitialize : public GlobalTask {
 public:
-    WarmupInitialize(EventuallyPersistentStore &st,
-                     Warmup *w) :
+    WarmupInitialize(EPBucket& st, Warmup* w) :
         GlobalTask(&st.getEPEngine(), TaskId::WarmupInitialize, 0, false),
         _warmup(w) {
         _warmup->addToTaskSet(uid);
@@ -247,8 +246,7 @@ private:
 
 class WarmupCreateVBuckets : public GlobalTask {
 public:
-    WarmupCreateVBuckets(EventuallyPersistentStore &st,
-                         uint16_t sh, Warmup *w):
+    WarmupCreateVBuckets(EPBucket& st, uint16_t sh, Warmup *w):
         GlobalTask(&st.getEPEngine(), TaskId::WarmupCreateVBuckets, 0, false),
         _shardId(sh),
         _warmup(w) {
@@ -275,9 +273,9 @@ private:
 
 class WarmupEstimateDatabaseItemCount : public GlobalTask {
 public:
-    WarmupEstimateDatabaseItemCount(EventuallyPersistentStore &st,
-                                    uint16_t sh, Warmup *w):
-        GlobalTask(&st.getEPEngine(), TaskId::WarmupEstimateDatabaseItemCount, 0, false),
+    WarmupEstimateDatabaseItemCount(EPBucket& st, uint16_t sh, Warmup* w):
+        GlobalTask(&st.getEPEngine(), TaskId::WarmupEstimateDatabaseItemCount,
+                   0, false),
         _shardId(sh),
         _warmup(w) {
         _warmup->addToTaskSet(uid);
@@ -303,8 +301,7 @@ private:
 
 class WarmupKeyDump : public GlobalTask {
 public:
-    WarmupKeyDump(EventuallyPersistentStore &st,
-                  uint16_t sh, Warmup *w) :
+    WarmupKeyDump(EPBucket& st, uint16_t sh, Warmup* w) :
         GlobalTask(&st.getEPEngine(), TaskId::WarmupKeyDump, 0, false),
         _shardId(sh),
         _warmup(w) {
@@ -331,9 +328,9 @@ private:
 
 class WarmupCheckforAccessLog : public GlobalTask {
 public:
-    WarmupCheckforAccessLog(EventuallyPersistentStore &st,
-                            Warmup *w) :
-        GlobalTask(&st.getEPEngine(), TaskId::WarmupCheckforAccessLog, 0, false),
+    WarmupCheckforAccessLog(EPBucket& st, Warmup* w) :
+        GlobalTask(&st.getEPEngine(), TaskId::WarmupCheckforAccessLog, 0,
+                   false),
         _warmup(w) {
         _warmup->addToTaskSet(uid);
     }
@@ -357,8 +354,7 @@ private:
 
 class WarmupLoadAccessLog : public GlobalTask {
 public:
-    WarmupLoadAccessLog(EventuallyPersistentStore &st,
-                        uint16_t sh, Warmup *w) :
+    WarmupLoadAccessLog(EPBucket& st, uint16_t sh, Warmup* w) :
         GlobalTask(&st.getEPEngine(), TaskId::WarmupLoadAccessLog, 0, false),
         _shardId(sh),
         _warmup(w) {
@@ -385,8 +381,7 @@ private:
 
 class WarmupLoadingKVPairs : public GlobalTask {
 public:
-    WarmupLoadingKVPairs(EventuallyPersistentStore &st,
-                         uint16_t sh, Warmup *w) :
+    WarmupLoadingKVPairs(EPBucket& st, uint16_t sh, Warmup* w) :
         GlobalTask(&st.getEPEngine(), TaskId::WarmupLoadingKVPairs, 0, false),
         _shardId(sh),
         _warmup(w) {
@@ -413,8 +408,7 @@ private:
 
 class WarmupLoadingData : public GlobalTask {
 public:
-    WarmupLoadingData(EventuallyPersistentStore &st,
-                      uint16_t sh, Warmup *w) :
+    WarmupLoadingData(EPBucket& st, uint16_t sh, Warmup* w) :
         GlobalTask(&st.getEPEngine(), TaskId::WarmupLoadingData, 0, false),
         _shardId(sh),
         _warmup(w) {
@@ -441,8 +435,7 @@ private:
 
 class WarmupCompletion : public GlobalTask {
 public:
-    WarmupCompletion(EventuallyPersistentStore &st,
-                     Warmup *w) :
+    WarmupCompletion(EPBucket& st, Warmup* w) :
         GlobalTask(&st.getEPEngine(), TaskId::WarmupCompletion, 0, false),
         _warmup(w) {
         _warmup->addToTaskSet(uid);

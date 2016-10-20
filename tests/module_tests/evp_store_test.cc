@@ -16,7 +16,7 @@
  */
 
 /*
- * Unit tests for the EventuallyPersistentStore class.
+ * Unit tests for the EPBucket class.
  *
  * Note that these test do *not* have the normal Tasks running (BGFetcher,
  * flusher etc) as we do not initialise EPEngine. This means that such tasks
@@ -74,7 +74,7 @@ SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
     tapConfig = new TapConfig(*this);
 }
 
-void SynchronousEPEngine::setEPStore(EventuallyPersistentStore* store) {
+void SynchronousEPEngine::setEPStore(EPBucket* store) {
     cb_assert(kvBucket == nullptr);
     kvBucket = store;
 }
@@ -85,7 +85,7 @@ void SynchronousEPEngine::initializeConnmaps() {
 }
 
 MockEPStore::MockEPStore(EventuallyPersistentEngine &theEngine)
-    : EventuallyPersistentStore(theEngine) {
+    : EPBucket(theEngine) {
     // Perform a limited set of setup (normally done by EPStore::initialize) -
     // enough such that objects which are assumed to exist are present.
 
@@ -112,7 +112,7 @@ public:
     void snooze(const double secs) override {}
 };
 
-void EventuallyPersistentStoreTest::SetUp() {
+void EPBucketTest::SetUp() {
     // Paranoia - kill any existing files in case they are left over
     // from a previous run.
     CouchbaseDirectoryUtilities::rmrf(test_dbname);
@@ -140,7 +140,7 @@ void EventuallyPersistentStoreTest::SetUp() {
     cookie = create_mock_cookie();
 }
 
-void EventuallyPersistentStoreTest::TearDown() {
+void EPBucketTest::TearDown() {
     destroy_mock_cookie(cookie);
     destroy_mock_event_callbacks();
     engine->getDcpConnMap().manageConnections();
@@ -148,13 +148,13 @@ void EventuallyPersistentStoreTest::TearDown() {
     engine.reset();
 
     // Shutdown the ExecutorPool singleton (initialized when we create
-    // an EventuallyPersistentStore object). Must happen after engine
+    // an EPBucket object). Must happen after engine
     // has been destroyed (to allow the tasks the engine has
     // registered a chance to be unregistered).
     ExecutorPool::shutdown();
 }
 
-Item EventuallyPersistentStoreTest::make_item(uint16_t vbid,
+Item EPBucketTest::make_item(uint16_t vbid,
                                               const std::string& key,
                                               const std::string& value) {
     Item item(key.c_str(), key.size(), /*flags*/0, /*exp*/0, value.c_str(),
@@ -163,14 +163,14 @@ Item EventuallyPersistentStoreTest::make_item(uint16_t vbid,
     return item;
 }
 
-void EventuallyPersistentStoreTest::store_item(uint16_t vbid,
+void EPBucketTest::store_item(uint16_t vbid,
                                                const std::string& key,
                                                const std::string& value) {
     auto item = make_item(vbid, key, value);
     EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
 }
 
-void EventuallyPersistentStoreTest::flush_vbucket_to_disk(uint16_t vbid) {
+void EPBucketTest::flush_vbucket_to_disk(uint16_t vbid) {
     int result;
     const auto time_limit = std::chrono::seconds(10);
     const auto deadline = std::chrono::steady_clock::now() + time_limit;
@@ -204,7 +204,7 @@ void EventuallyPersistentStoreTest::flush_vbucket_to_disk(uint16_t vbid) {
     store->commit(vbid % numShards);
 }
 
-void EventuallyPersistentStoreTest::delete_item(uint16_t vbid,
+void EPBucketTest::delete_item(uint16_t vbid,
                                                 const std::string& key) {
     uint64_t cas = 0;
     mutation_descr_t mut_info;
@@ -213,7 +213,7 @@ void EventuallyPersistentStoreTest::delete_item(uint16_t vbid,
                                 /*itemMeta*/nullptr, &mut_info));
 }
 
-void EventuallyPersistentStoreTest::evict_key(uint16_t vbid,
+void EPBucketTest::evict_key(uint16_t vbid,
                                               const std::string& key) {
     const char* msg;
     size_t msg_size{sizeof(msg)};
@@ -234,7 +234,7 @@ void EventuallyPersistentStoreTest::evict_key(uint16_t vbid,
 // during shutdownAllConnections.
 // This test requires ThreadSanitizer or similar to validate;
 // there's no guarantee we'll actually deadlock on any given run.
-TEST_F(EventuallyPersistentStoreTest, test_mb20751_deadlock_on_disconnect_delete) {
+TEST_F(EPBucketTest, test_mb20751_deadlock_on_disconnect_delete) {
 
     // Create a new Dcp producer, reserving its cookie.
     get_mock_server_api()->cookie->reserve(cookie);
@@ -261,11 +261,11 @@ TEST_F(EventuallyPersistentStoreTest, test_mb20751_deadlock_on_disconnect_delete
     frontend_thread_handling_disconnect.join();
 }
 
-class EPStoreEvictionTest : public EventuallyPersistentStoreTest,
+class EPStoreEvictionTest : public EPBucketTest,
                              public ::testing::WithParamInterface<std::string> {
     void SetUp() override {
         config_string += std::string{"item_eviction_policy="} + GetParam();
-        EventuallyPersistentStoreTest::SetUp();
+        EPBucketTest::SetUp();
 
         // Have all the objects, activate vBucket zero so we can store data.
         store->setVBucketState(vbid, vbucket_state_active, false);
@@ -668,4 +668,4 @@ INSTANTIATE_TEST_CASE_P(FullAndValueEviction,
                         });
 
 
-const char EventuallyPersistentStoreTest::test_dbname[] = "ep_engine_ep_unit_tests_db";
+const char EPBucketTest::test_dbname[] = "ep_engine_ep_unit_tests_db";

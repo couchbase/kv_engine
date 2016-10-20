@@ -2198,7 +2198,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     checkpointConfig = new CheckpointConfig(*this);
     CheckpointConfig::addConfigChangeListener(*this);
 
-    kvBucket = new EventuallyPersistentStore(*this);
+    kvBucket = new EPBucket(*this);
 
     initializeEngineCallbacks();
 

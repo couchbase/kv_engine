@@ -16,7 +16,7 @@
  */
 
 /*
- * Unit tests for the EventuallyPersistentStore class.
+ * Unit tests for the EPBucket class.
  */
 
 #pragma once
@@ -25,11 +25,11 @@
 #include "fakes/fake_executorpool.h"
 
 /*
- * A subclass of EventuallyPersistentStoreTest which uses a fake ExecutorPool,
+ * A subclass of EPBucketTest which uses a fake ExecutorPool,
  * which will not spawn ExecutorThreads and hence not run any tasks
  * automatically in the background. All tasks must be manually run().
  */
-class SingleThreadedEPStoreTest : public EventuallyPersistentStoreTest {
+class SingleThreadedEPStoreTest : public EPBucketTest {
 public:
     /*
      * Run the next task from the taskQ

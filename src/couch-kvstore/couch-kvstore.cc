@@ -2168,7 +2168,7 @@ ENGINE_ERROR_CODE CouchKVStore::couchErr2EngineErr(couchstore_error_t errCode) {
     case COUCHSTORE_ERROR_NO_HEADER:
     default:
         // same as the general error return code of
-        // EventuallyPersistentStore::getInternal
+        // EPBucket::getInternal
         return ENGINE_TMPFAIL;
     }
 }

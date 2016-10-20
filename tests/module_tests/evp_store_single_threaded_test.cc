@@ -46,7 +46,7 @@ hrtime_t SingleThreadedEPStoreTest::runNextTask(TaskQueue& taskQ) {
 
 void SingleThreadedEPStoreTest::SetUp() {
     SingleThreadedExecutorPool::replaceExecutorPoolWithFake();
-    EventuallyPersistentStoreTest::SetUp();
+    EPBucketTest::SetUp();
 
     task_executor = reinterpret_cast<SingleThreadedExecutorPool*>
     (ExecutorPool::get());
@@ -54,7 +54,7 @@ void SingleThreadedEPStoreTest::SetUp() {
 
 void SingleThreadedEPStoreTest::TearDown() {
     shutdownAndPurgeTasks();
-    EventuallyPersistentStoreTest::TearDown();
+    EPBucketTest::TearDown();
 }
 
 void SingleThreadedEPStoreTest::setVBucketStateAndRunPersistTask(uint16_t vbid,

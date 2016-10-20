@@ -52,7 +52,7 @@
  *   -----------------------------------
  *
  */
-class EventuallyPersistentStore;
+class EPBucket;
 class Flusher;
 class KVBucket;
 

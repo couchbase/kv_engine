@@ -19,7 +19,7 @@
  * Unit test for DCP-related classes.
  *
  * Due to the way our classes are structured, most of the different DCP classes
- * need an instance of EventuallyPersistentStore & other related objects.
+ * need an instance of EPBucket& other related objects.
  */
 
 #include "connmap.h"

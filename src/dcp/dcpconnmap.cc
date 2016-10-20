@@ -259,7 +259,7 @@ void DcpConnMap::disconnect(const void *cookie) {
     // Note we shutdown the stream *not* under the connsLock; this is
     // because as part of closing a DcpConsumer stream we need to
     // acquire PassiveStream::buffer.bufMutex; and that could deadlock
-    // in EventuallyPersistentStore::setVBucketState, via
+    // in EPBucket::setVBucketState, via
     // PassiveStream::processBufferedMessages.
     if (conn) {
         DcpProducer* producer = dynamic_cast<DcpProducer*> (conn.get());

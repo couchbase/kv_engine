@@ -914,7 +914,7 @@ protected:
     }
 
     friend class BGFetchCallback;
-    friend class EventuallyPersistentStore;
+    friend class EPBucket;
 
     bool enableTraffic(bool enable) {
         bool inverse = !enable;
