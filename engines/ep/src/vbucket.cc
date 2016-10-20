@@ -225,7 +225,7 @@ VBucket::VBucket(Vbid i,
         conflictResolver.reset(new RevisionSeqnoResolution());
     }
 
-    backfill.isBackfillPhase = false;
+    backfill.wlock()->isBackfillPhase = false;
     pendingOpsStart = std::chrono::steady_clock::time_point();
     stats.coreLocal.get()->memOverhead.fetch_add(
             sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
@@ -338,20 +338,19 @@ VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
     }
 
     // Append any 'backfill' items (mutations added by a DCP stream).
-    bool backfillEmpty;
-    {
-        LockHolder lh(backfill.mutex);
-        size_t num_items = 0;
-        while (result.items.size() < approxLimit && !backfill.items.empty()) {
-            result.items.push_back(backfill.items.front());
-            backfill.items.pop();
+    size_t num_items = 0;
+    bool backfillEmpty = backfill.withWLock([&num_items, &result, approxLimit](
+                                                    auto& locked) {
+        while (result.items.size() < approxLimit && !locked.items.empty()) {
+            result.items.push_back(locked.items.front());
+            locked.items.pop();
             num_items++;
         }
-        backfillEmpty = backfill.items.empty();
-        stats.vbBackfillQueueSize.fetch_sub(num_items);
-        stats.coreLocal.get()->memOverhead.fetch_sub(num_items *
-                                                     sizeof(queued_item));
-    }
+        return locked.items.empty();
+    });
+    stats.vbBackfillQueueSize.fetch_sub(num_items);
+    stats.coreLocal.get()->memOverhead.fetch_sub(num_items *
+                                                 sizeof(queued_item));
 
     // Append up to approxLimit checkpoint items outstanding for the persistence
     // cursor, if we haven't yet hit the limit.

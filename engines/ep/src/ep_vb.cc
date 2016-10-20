@@ -477,13 +477,12 @@ bool EPVBucket::eligibleToPageOut(const HashTable::HashBucketLock& lh,
 
 void EPVBucket::queueBackfillItem(queued_item& qi,
                                   const GenerateBySeqno generateBySeqno) {
-    LockHolder lh(backfill.mutex);
     if (GenerateBySeqno::Yes == generateBySeqno) {
         qi->setBySeqno(checkpointManager->nextBySeqno());
     } else {
         checkpointManager->setBySeqno(qi->getBySeqno());
     }
-    backfill.items.push(qi);
+    backfill.wlock()->items.push(qi);
     ++stats.diskQueueSize;
     ++stats.vbBackfillQueueSize;
     ++stats.totalEnqueued;
