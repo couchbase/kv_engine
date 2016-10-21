@@ -59,21 +59,24 @@ void ParentMonitor::thread_main(void* arg) {
             return;
         } else {
             // Check our parent.
+            bool die = false;
+
 #ifdef WIN32
             if (WaitForSingleObject(monitor->handle, 0) != WAIT_TIMEOUT) {
-                std::cerr << "Parent process " << monitor->parent_pid
-                          << " died. Exiting" << std::endl;
-                std::cerr.flush();
-                ExitProcess(EXIT_FAILURE);
+                die = true;
             }
 #else
             if (kill(monitor->parent_pid, 0) == -1 && errno == ESRCH) {
+                die = true;
+            }
+#endif
+
+            if (die) {
                 std::cerr << "Parent process " << monitor->parent_pid
                           << " died. Exiting" << std::endl;
                 std::cerr.flush();
-                _exit(1);
+                _exit(EXIT_FAILURE);
             }
-#endif
         }
     }
 }
