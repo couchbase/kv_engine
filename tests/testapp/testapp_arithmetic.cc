@@ -106,11 +106,7 @@ TEST_P(ArithmeticTest, TestConcurrentAccess) {
     auto& conn = getConnection();
     auto conn1 = conn.clone();
     auto conn2 = conn.clone();
-#ifdef THREAD_SANITIZER
-    const int iterationCount = 1000;
-#else
-    const int iterationCount = 10000;
-#endif
+    const int iterationCount = 100;
     const int incrDelta = 7;
     const int decrDelta = -3;
 
@@ -123,6 +119,19 @@ TEST_P(ArithmeticTest, TestConcurrentAccess) {
 
     std::thread t1 {
         [&conn1, &doc, &iterationCount, incrDelta]() {
+            conn1->arithmetic(doc + "_t1", 0, 0);
+
+            // wait for the other thread to start
+            bool running = false;
+            while (!running) {
+                try {
+                    conn1->arithmetic(doc + "_t2", 1, 0, 0xffffffff);
+                    running = true;
+                } catch (const ConnectionError& error) {
+                    ASSERT_TRUE(error.isNotFound());
+                }
+            }
+
             for (int ii = 0; ii < iterationCount; ++ii) {
                 conn1->arithmetic(doc, incrDelta);
             }
@@ -131,12 +140,24 @@ TEST_P(ArithmeticTest, TestConcurrentAccess) {
 
     std::thread t2 {
         [&conn2, &doc, &iterationCount, &decrDelta]() {
+            conn2->arithmetic(doc + "_t2", 0, 0);
+            bool running = false;
+            while (!running) {
+                try {
+                    conn2->arithmetic(doc + "_t1", 1, 0, 0xffffffff);
+                    running = true;
+                } catch (const ConnectionError& error) {
+                    ASSERT_TRUE(error.isNotFound());
+                }
+            }
+
             for (int ii = 0; ii < iterationCount; ++ii) {
                 conn2->arithmetic(doc, decrDelta);
             }
         }
     };
 
+    // Wait for them to complete
     t1.join();
     t2.join();
 
