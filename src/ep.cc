@@ -2044,8 +2044,7 @@ ENGINE_ERROR_CODE EPBucket::getMetaData(const std::string &key,
                                         uint16_t vbucket,
                                         const void *cookie,
                                         ItemMetaData &metadata,
-                                        uint32_t &deleted,
-                                        uint8_t &confResMode)
+                                        uint32_t &deleted)
 {
     (void) cookie;
     RCPtr<VBucket> vb = getVBucket(vbucket);
