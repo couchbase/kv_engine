@@ -200,8 +200,7 @@ public:
                                   uint16_t vbucket,
                                   const void *cookie,
                                   ItemMetaData &metadata,
-                                  uint32_t &deleted,
-                                  uint8_t &confResMode);
+                                  uint32_t &deleted);
 
     /**
      * Set an item in the store.

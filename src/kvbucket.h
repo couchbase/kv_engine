@@ -257,14 +257,12 @@ public:
      * @param cookie the connection cookie
      * @param metadata where to store the meta informaion
      * @param deleted specifies whether or not the key is deleted
-     * @param confResMode specifies the Conflict Resolution mode for the item
      */
     virtual ENGINE_ERROR_CODE getMetaData(const std::string &key,
                                           uint16_t vbucket,
                                           const void *cookie,
                                           ItemMetaData &metadata,
-                                          uint32_t &deleted,
-                                          uint8_t &confResMode) = 0;
+                                          uint32_t &deleted) = 0;
 
     /**
      * Set an item in the store.
