@@ -585,6 +585,26 @@ TEST_F(HashTableTest, ItemAge) {
     EXPECT_EQ(1, v->getValue()->getAge());
 }
 
+/** Regression test for MB-21448 - if an attempt is made to perform a CAS
+ *  operation on a logically deleted item we should return NOT_FOUND
+ *  (aka KEY_ENOENT) and *not* INVALID_CAS (aka KEY_EEXISTS).
+ */
+TEST_F(HashTableTest, MB21448_UnlockedSetWithCASDeleted) {
+    // Setup - create a key and then delete it.
+    HashTable ht(global_stats, 5, 1);
+    std::string key("key");
+    Item item(key.data(), key.length(), 0, 0, "deleted", strlen("deleted"));
+    ASSERT_EQ(WAS_CLEAN, ht.set(item));
+    ASSERT_EQ(WAS_DIRTY, ht.softDelete("key", 0));
+
+    // Attempt to perform a set on a deleted key with a CAS.
+    Item replacement(key.data(), key.length(), 0, 0, "value", strlen("value"));
+    EXPECT_EQ(NOT_FOUND,
+              ht.set(replacement, /*cas*/10, /*allowExisting*/true,
+                     /*hasMetaData*/false))
+        << "When trying to replace-with-CAS a deleted item";
+}
+
 /* static storage for environment variable set by putenv().
  *
  * (This must be static as putenv() essentially 'takes ownership' of

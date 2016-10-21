@@ -1122,8 +1122,12 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
 
     // attempt set_with_meta. should fail since cas is no longer valid.
     set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &last_meta, last_cas, true);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
-          "Expected invalid cas error");
+
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
+            (std::string{"Expected invalid cas error (KEY_EXISTS or"
+                         " KEY_ENOENT), got: "} +
+             std::to_string(last_status.load())).c_str());
+
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
     check(temp == 0, "Expect zero op");
