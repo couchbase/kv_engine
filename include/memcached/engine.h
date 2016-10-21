@@ -160,9 +160,14 @@ extern "C" {
         ENGINE_FEATURE_MULTI_TENANCY,
         ENGINE_FEATURE_LRU, /* Cache implements an LRU */
         ENGINE_FEATURE_VBUCKET, /* Cache implements virtual buckets */
-        ENGINE_FEATURE_DATATYPE /**< uses datatype field */
+        ENGINE_FEATURE_DATATYPE, /**< uses datatype field */
+        /**
+         * The engine supports storing the items value into multiple
+         * chunks rather than a continous segment.
+         */
+        ENGINE_FEATURE_ITEM_IOVECTOR,
 
-#define LAST_REGISTERED_ENGINE_FEATURE ENGINE_FEATURE_DATATYPE
+#define LAST_REGISTERED_ENGINE_FEATURE ENGINE_FEATURE_ITEM_IOVECTOR
     } engine_feature_t;
 
     typedef struct {

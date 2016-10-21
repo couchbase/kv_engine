@@ -17,6 +17,7 @@ static const char * const feature_descriptions[] = {
     "LRU",
     "vbuckets",
     "datatype",
+    "item iovector"
 };
 
 struct engine_reference {

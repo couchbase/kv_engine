@@ -140,6 +140,7 @@ extern Connection *listen_conn;
 #include "trace.h"
 #include "buckets.h"
 #include <memcached/util.h>
+#include <include/memcached/types.h>
 
 /*
  * Functions to add / update the connection to libevent
@@ -317,9 +318,15 @@ static inline ENGINE_ERROR_CODE bucket_get_engine_vb_map(McbpConnection* c,
 
 static inline bool bucket_get_item_info(McbpConnection* c, const item* item_,
                                         item_info* item_info_) {
-    return c->getBucketEngine()->get_item_info(c->getBucketEngineAsV0(),
+    bool ret = c->getBucketEngine()->get_item_info(c->getBucketEngineAsV0(),
                                                c->getCookie(), item_,
                                                item_info_);
+    if (ret && item_info_->nvalue != 1) {
+        throw std::runtime_error(
+            "Engine tried to use more than 1 entry in the iovec which is not supported");
+    }
+
+    return ret;
 }
 
 static inline bool bucket_set_item_info(McbpConnection* c, item* item_,

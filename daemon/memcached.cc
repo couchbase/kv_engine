@@ -1755,6 +1755,10 @@ static void* get_extension(extension_type_t type)
     }
 }
 
+static size_t get_max_item_iovec_size() {
+    return 1;
+}
+
 static std::condition_variable shutdown_cv;
 static std::mutex shutdown_cv_mutex;
 static bool memcached_can_shutdown = false;
@@ -1838,6 +1842,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         core_api.get_current_time = mc_time_get_current_time;
         core_api.parse_config = parse_config;
         core_api.shutdown = shutdown_server;
+        core_api.get_max_item_iovec_size = get_max_item_iovec_size;
 
         server_cookie_api.store_engine_specific = store_engine_specific;
         server_cookie_api.get_engine_specific = get_engine_specific;

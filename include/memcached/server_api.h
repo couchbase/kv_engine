@@ -36,6 +36,15 @@ extern "C" {
          * Request the server to start a shutdown sequence.
          */
         void (*shutdown)(void);
+
+        /**
+         * Get the maximum size of an iovec the core supports receiving
+         * through the item_info structure. The underlying engine may
+         * support using more entries to hold its data internally, but
+         * when making the data available for the core it must fit
+         * within these limits.
+         */
+        size_t (*get_max_item_iovec_size)(void);
     } SERVER_CORE_API;
 
     typedef struct {

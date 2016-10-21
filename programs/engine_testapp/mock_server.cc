@@ -216,6 +216,10 @@ static int mock_parse_config(const char *str, struct config_item items[], FILE *
     return parse_config(str, items, error);
 }
 
+static size_t mock_get_max_item_iovec_size() {
+    return 1;
+}
+
 /**
  * SERVER STAT API FUNCTIONS
  */
@@ -363,6 +367,7 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       core_api.get_current_time = mock_get_current_time;
       core_api.abstime = mock_abstime;
       core_api.parse_config = mock_parse_config;
+      core_api.get_max_item_iovec_size = mock_get_max_item_iovec_size;
 
       server_cookie_api.store_engine_specific = mock_store_engine_specific;
       server_cookie_api.get_engine_specific = mock_get_engine_specific;
