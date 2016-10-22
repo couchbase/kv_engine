@@ -209,6 +209,17 @@ static void testGetVBucketsByState(void) {
     }
 }
 
+static void testVBucketSwapFilter(void) {
+    VBucket vb(new VBucket(0, vbucket_state_active, global_stats,
+                                  checkpoint_config), NULL);
+    vb.createFilter(1, 1.0);
+    cb_assert(vb.isTempFilterAvailable() == true);
+    cb_assert(vb.getFilterStatusString() != "DOESN'T EXIST");
+
+    vb.swapFilter();
+    cb_assert(vb.getFilterStatusString() != "DOESN'T EXIST");
+}
+
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
     putenv(cb_strdup("ALLOW_NO_STATS_UPDATE=yeah"));
@@ -223,4 +234,5 @@ int main(int argc, char **argv) {
     testVBucketFilter();
     testVBucketFilterFormatter();
     testGetVBucketsByState();
+    testVBucketSwapFilter();
 }
