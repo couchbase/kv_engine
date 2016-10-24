@@ -27,7 +27,6 @@
 
 #include <type_traits>
 
-static const double VBSTATE_SNAPSHOT_FREQ(300.0);
 static const double WORKLOAD_MONITOR_FREQ(5.0);
 
 GlobalTask::GlobalTask(Taskable& t,
@@ -78,10 +77,6 @@ static_assert(TaskPriority::MultiBGFetcherTask < TaskPriority::BGFetchCallback,
 
 static_assert(TaskPriority::BGFetchCallback == TaskPriority::VBDeleteTask,
               "BGFetchCallback not equal VBDeleteTask");
-
-static_assert(TaskPriority::VBStatePersistTaskHigh <
-              TaskPriority::VKeyStatBGFetchTask,
-              "VBStatePersistTaskHigh not less than VKeyStatBGFetchTask");
 
 static_assert(TaskPriority::VKeyStatBGFetchTask < TaskPriority::FlusherTask,
               "VKeyStatBGFetchTask not less than FlusherTask");
@@ -136,28 +131,6 @@ std::array<TaskId, static_cast<int>(TaskId::TASK_COUNT)> GlobalTask::allTaskIds 
 
 bool FlusherTask::run() {
     return flusher->step(this);
-}
-
-bool VBSnapshotTask::run() {
-    engine->getEpStore()->snapshotVBuckets(priority, shardID);
-    return false;
-}
-
-DaemonVBSnapshotTask::DaemonVBSnapshotTask(EventuallyPersistentEngine *e,
-                                           bool completeBeforeShutdown)
-    : GlobalTask(e, TaskId::DaemonVBSnapshotTask,
-                 VBSTATE_SNAPSHOT_FREQ, completeBeforeShutdown) {
-    desc = "Snapshotting vbucket states";
-}
-
-bool DaemonVBSnapshotTask::run() {
-    bool ret = engine->getEpStore()->scheduleVBSnapshot(VBSnapshotTask::Priority::LOW);
-    snooze(VBSTATE_SNAPSHOT_FREQ);
-    return ret;
-}
-
-bool VBStatePersistTask::run() {
-    return engine->getEpStore()->persistVBState(vbid);
 }
 
 bool VBDeleteTask::run() {

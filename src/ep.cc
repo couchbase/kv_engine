@@ -302,10 +302,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(
 
     size_t num_vbs = config.getMaxVbuckets();
     vb_mutexes = new Mutex[num_vbs];
-    schedule_vbstate_persist = new AtomicValue<bool>[num_vbs];
-    for (size_t i = 0; i < num_vbs; ++i) {
-        schedule_vbstate_persist[i] = false;
-    }
 
     stats.memOverhead = sizeof(EventuallyPersistentStore);
 
@@ -477,7 +473,6 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
                                             stats.forceShutdown);
 
     delete [] vb_mutexes;
-    delete [] schedule_vbstate_persist;
     delete [] stats.schedulingHisto;
     delete [] stats.taskRuntimeHisto;
     delete warmupTask;
@@ -1133,121 +1128,6 @@ class KVStatsCallback : public Callback<kvstats_ctx> {
         EventuallyPersistentStore *epstore;
 };
 
-void EventuallyPersistentStore::snapshotVBuckets(VBSnapshotTask::Priority prio,
-                                                 uint16_t shardId) {
-
-    class VBucketStateVisitor : public VBucketVisitor {
-    public:
-        VBucketStateVisitor(VBucketMap &vb_map, uint16_t sid)
-            : vbuckets(vb_map), shardId(sid) { }
-        bool visitBucket(RCPtr<VBucket> &vb) {
-            if (vbuckets.getShardByVbId(vb->getId())->getId() == shardId) {
-                states.insert(std::make_pair(vb->getId(),
-                                             vb->getVBucketState()));
-            }
-            return false;
-        }
-
-        void visit(StoredValue*) {
-            throw std::logic_error("VBucketStateVisitor:visit: Should never be called");
-        }
-
-        std::map<uint16_t, vbucket_state> states;
-
-    private:
-        VBucketMap &vbuckets;
-        uint16_t shardId;
-    };
-
-    KVShard *shard = vbMap.shards[shardId];
-    if (prio == VBSnapshotTask::Priority::LOW) {
-        shard->setLowPriorityVbSnapshotFlag(false);
-    } else {
-        shard->setHighPriorityVbSnapshotFlag(false);
-    }
-
-    KVStatsCallback kvcb(this);
-    VBucketStateVisitor v(vbMap, shard->getId());
-    visit(v);
-    hrtime_t start = gethrtime();
-
-    bool success = true;
-    vbucket_map_t::reverse_iterator iter = v.states.rbegin();
-    for (; iter != v.states.rend(); ++iter) {
-        LockHolder lh(vb_mutexes[iter->first], true /*tryLock*/);
-        if (!lh.islocked()) {
-            continue;
-        }
-        KVStore *rwUnderlying = getRWUnderlying(iter->first);
-        if (!rwUnderlying->snapshotVBucket(iter->first, iter->second,
-                    &kvcb)) {
-            LOG(EXTENSION_LOG_WARNING,
-                    "VBucket snapshot task failed!!! Rescheduling");
-            success = false;
-            break;
-        }
-
-        if (prio == VBSnapshotTask::Priority::HIGH) {
-            if (vbMap.setBucketCreation(iter->first, false)) {
-                LOG(EXTENSION_LOG_INFO, "VBucket %d created", iter->first);
-            }
-        }
-    }
-
-    if (!success) {
-        scheduleVBSnapshot(prio);
-    } else {
-        stats.snapshotVbucketHisto.add((gethrtime() - start) / 1000);
-    }
-}
-
-bool EventuallyPersistentStore::persistVBState(uint16_t vbid) {
-    schedule_vbstate_persist[vbid] = false;
-
-    RCPtr<VBucket> vb = getVBucket(vbid);
-    if (!vb) {
-        LOG(EXTENSION_LOG_WARNING,
-            "VBucket %d not exist!!! vb_state persistence task failed!!!", vbid);
-        return false;
-    }
-
-    bool inverse = false;
-    LockHolder lh(vb_mutexes[vbid], true /*tryLock*/);
-    if (!lh.islocked()) {
-        if (schedule_vbstate_persist[vbid].compare_exchange_strong(inverse,
-                                                                   true)) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    const hrtime_t start = gethrtime();
-
-    KVStatsCallback kvcb(this);
-
-    const vbucket_state vb_state(vb->getVBucketState());
-
-    KVStore *rwUnderlying = getRWUnderlying(vbid);
-    if (rwUnderlying->snapshotVBucket(vbid, vb_state, &kvcb)) {
-        stats.persistVBStateHisto.add((gethrtime() - start) / 1000);
-        if (vbMap.setBucketCreation(vbid, false)) {
-            LOG(EXTENSION_LOG_INFO, "VBucket %d created", vbid);
-        }
-    } else {
-        LOG(EXTENSION_LOG_WARNING,
-            "VBucket %d: vb_state persistence task failed!!! Rescheduling", vbid);
-
-        if (schedule_vbstate_persist[vbid].compare_exchange_strong(inverse,
-                                                                   true)) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-    return false;
-}
-
 ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
                                                            vbucket_state_t to,
                                                            bool transfer,
@@ -1335,31 +1215,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         return ENGINE_ERANGE;
     }
     return ENGINE_SUCCESS;
-}
-
-bool EventuallyPersistentStore::scheduleVBSnapshot(VBSnapshotTask::Priority prio) {
-    KVShard *shard = NULL;
-    if (prio == VBSnapshotTask::Priority::HIGH) {
-        for (size_t i = 0; i < vbMap.shards.size(); ++i) {
-            shard = vbMap.shards[i];
-            if (shard->setHighPriorityVbSnapshotFlag(true)) {
-                ExTask task = new VBSnapshotTaskHigh(&engine, i, true);
-                ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
-            }
-        }
-    } else {
-        for (size_t i = 0; i < vbMap.shards.size(); ++i) {
-            shard = vbMap.shards[i];
-            if (shard->setLowPriorityVbSnapshotFlag(true)) {
-                ExTask task = new VBSnapshotTaskLow(&engine, i, true);
-                ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
-            }
-        }
-    }
-    if (stats.isShutdown) {
-        return false;
-    }
-    return true;
 }
 
 void EventuallyPersistentStore::scheduleVBStatePersist() {

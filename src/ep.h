@@ -517,8 +517,6 @@ public:
         return vbMap.getPersistenceSeqno(vb);
     }
 
-    void snapshotVBuckets(VBSnapshotTask::Priority prio, uint16_t shardId);
-
     /* transfer should be set to true *only* if this vbucket is becoming master
      * as the result of the previous master cleanly handing off control. */
     ENGINE_ERROR_CODE setVBucketState(uint16_t vbid, vbucket_state_t state,
@@ -685,11 +683,6 @@ public:
     const StorageProperties getStorageProperties() const {
         return *storageProperties;
     }
-
-    /**
-     * schedule a vb_state snapshot task for all the shards.
-     */
-    bool scheduleVBSnapshot(VBSnapshotTask::Priority prio);
 
     /**
      * Schedule a vbstate persistence operation for all vbuckets.
@@ -1031,7 +1024,6 @@ protected:
     /* Array of mutexes for each vbucket
      * Used by flush operations: flushVB, deleteVB, compactVB, snapshotVB */
     Mutex                          *vb_mutexes;
-    AtomicValue<bool>              *schedule_vbstate_persist;
     std::vector<MutationLog*>       accessLog;
 
     AtomicValue<size_t> bgFetchQueue;

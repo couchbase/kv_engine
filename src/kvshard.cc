@@ -25,8 +25,7 @@
 #include "kvshard.h"
 
 KVShard::KVShard(uint16_t id, EventuallyPersistentStore &store) :
-    shardId(id), highPrioritySnapshot(false),
-    lowPrioritySnapshot(false),
+    shardId(id),
     kvConfig(store.getEPEngine().getConfiguration(), shardId),
     highPriorityCount(0)
 {
@@ -132,16 +131,6 @@ std::vector<VBucket::id_type> KVShard::getVBuckets() {
         }
     }
     return rv;
-}
-
-bool KVShard::setHighPriorityVbSnapshotFlag(bool highPriority) {
-    bool inverse = !highPriority;
-    return highPrioritySnapshot.compare_exchange_strong(inverse, highPriority);
-}
-
-bool KVShard::setLowPriorityVbSnapshotFlag(bool lowPriority) {
-    bool inverse = !lowPriority;
-    return lowPrioritySnapshot.compare_exchange_strong(inverse, lowPriority);
 }
 
 void NotifyFlusherCB::callback(uint16_t &vb) {
