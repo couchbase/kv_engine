@@ -1676,6 +1676,11 @@ queued_item CheckpointManager::createCheckpointItem(uint64_t id, uint16_t vbid,
         key = "dummy_key";
         bySeqno = lastBySeqno;
         break;
+    case queue_op::set_vbucket_state:
+        key = "set_vbucket_state";
+        bySeqno = lastBySeqno + 1;
+        break;
+
     default:
         throw std::invalid_argument("CheckpointManager::createCheckpointItem:"
                         "checkpoint_op (which is " +

@@ -74,6 +74,11 @@ enum class queue_op : uint8_t {
     /// (meta item) Marker for the end of a checkpoint. Only exists in closed
     /// checkpoints, where it is always the last item in the checkpoint.
     checkpoint_end,
+
+    /// (meta item) Marker to persist the VBucket's state (vbucket_state) to
+    /// disk. No data (value) associated with it, simply acts as a marker
+    /// to ensure a non-empty persistence queue.
+    set_vbucket_state,
 };
 
 /// Return a string representation of queue_op.
@@ -660,7 +665,20 @@ public:
      * Should this item be persisted?
      */
     bool shouldPersist() const {
-        return !isCheckPointMetaItem();
+        switch (op) {
+            case queue_op::set:
+            case queue_op::del:
+                return true;
+            case queue_op::flush:
+            case queue_op::empty:
+            case queue_op::checkpoint_start:
+            case queue_op::checkpoint_end:
+                return false;
+            case queue_op::set_vbucket_state:
+                return true;
+        }
+        // Silence GCC warning
+        return false;
     }
 
     /*
@@ -683,6 +701,7 @@ public:
             case queue_op::empty:
             case queue_op::checkpoint_start:
             case queue_op::checkpoint_end:
+            case queue_op::set_vbucket_state:
                 return true;
         }
         // Silence GCC warning

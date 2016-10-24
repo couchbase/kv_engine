@@ -1285,6 +1285,9 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
                     ++open_checkpoint_count;
                 }
                 break;
+            case queue_op::set_vbucket_state:
+                // Ignored by TAP
+                break;
             }
         }
 

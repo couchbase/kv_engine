@@ -159,6 +159,9 @@ public:
         case queue_op::checkpoint_end:
             event_ = TAP_CHECKPOINT_END;
             break;
+        case queue_op::set_vbucket_state:
+            // Ignored by TAP
+            break;
         }
     }
 
