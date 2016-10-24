@@ -2158,7 +2158,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     checkpointConfig = new CheckpointConfig(*this);
     CheckpointConfig::addConfigChangeListener(*this);
 
-    kvBucket = new EPBucket(*this);
+    const std::string bucketType = configuration.getBucketType();
+    if (bucketType == "persistent") {
+        kvBucket = new EPBucket(*this);
+    } else {
+        throw std::invalid_argument(bucketType + " is not a recognized bucket "
+                                    "type");
+    }
 
     initializeEngineCallbacks();
 

@@ -114,6 +114,17 @@
                 }
             }
         },
+        "bucket_type": {
+            "default": "persistent",
+            "descr": "Bucket type in the couchbase server",
+            "dynamic": false,
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                         "persistent"
+                        ]
+            }
+        },
         "compaction_exp_mem_threshold": {
             "default": "85",
             "desr": "Memory usage threshold after which compaction will not queue expired items for deletion",
