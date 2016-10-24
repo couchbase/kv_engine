@@ -77,12 +77,12 @@ protected:
     static void SetUpTestCase() {
         // create the test directory
         testdir = std::string("auditd-test-") + std::to_string(cb_getpid());
-        CouchbaseDirectoryUtilities::rmrf(testdir);
-        CouchbaseDirectoryUtilities::mkdirp(testdir);
+        cb::io::rmrf(testdir);
+        cb::io::mkdirp(testdir);
 
         // create the name of the configuration file to use
         cfgfile = "test_audit-" + std::to_string(cb_getpid()) + ".json";
-        CouchbaseDirectoryUtilities::rmrf(cfgfile);
+        cb::io::rmrf(cfgfile);
 
         // Start the audit daemon
         AUDIT_EXTENSION_DATA audit_extension_data;
@@ -97,8 +97,8 @@ protected:
 
     static void TearDownTestCase() {
         EXPECT_EQ(AUDIT_SUCCESS, shutdown_auditdaemon(auditHandle));
-        CouchbaseDirectoryUtilities::rmrf(testdir);
-        CouchbaseDirectoryUtilities::rmrf(cfgfile);
+        cb::io::rmrf(testdir);
+        cb::io::rmrf(cfgfile);
     }
 
     AuditConfig config;
@@ -110,14 +110,14 @@ protected:
         config.set_rotate_interval(900);
         config.set_log_directory(testdir);
         config.set_auditd_enabled(false);
-        CouchbaseDirectoryUtilities::rmrf(testdir);
-        CouchbaseDirectoryUtilities::mkdirp(testdir);
+        cb::io::rmrf(testdir);
+        cb::io::mkdirp(testdir);
     }
 
     void enable() {
         config.set_auditd_enabled(true);
-        CouchbaseDirectoryUtilities::rmrf(testdir);
-        CouchbaseDirectoryUtilities::mkdirp(testdir);
+        cb::io::rmrf(testdir);
+        cb::io::mkdirp(testdir);
         configure();
     }
 
@@ -135,8 +135,7 @@ protected:
     }
 
     void assertNumberOfFiles(size_t num) {
-        auto vec = CouchbaseDirectoryUtilities::findFilesContaining(testdir,
-                                                                    "");
+        auto vec = cb::io::findFilesContaining(testdir, "");
         ASSERT_EQ(num, vec.size());
     }
 

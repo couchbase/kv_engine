@@ -63,7 +63,7 @@ int main() {
 
     // Clean out any old files.
     std::vector<std::string> files;
-    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("log_test_emfile");
+    files = cb::io::findFilesWithPrefix("log_test_emfile");
     if (!files.empty()) {
         remove_files(files);
     }

@@ -266,7 +266,7 @@ TEST_F(SettingsTest, AuditFile) {
     }
 
     // But we should fail if the file don't exist
-    CouchbaseDirectoryUtilities::rmrf(pattern);
+    cb::io::rmrf(pattern);
     expectFail(obj);
 }
 
@@ -393,12 +393,12 @@ TEST_F(SettingsTest, InterfacesMissingSSLFiles) {
     }
 
     // We should fail if one of the files is missing
-    CouchbaseDirectoryUtilities::rmrf(key_pattern);
+    cb::io::rmrf(key_pattern);
     expectFail(root);
     fclose(fopen(key_pattern, "a"));
-    CouchbaseDirectoryUtilities::rmrf(cert_pattern);
+    cb::io::rmrf(cert_pattern);
     expectFail(root);
-    CouchbaseDirectoryUtilities::rmrf(key_pattern);
+    cb::io::rmrf(key_pattern);
 }
 
 TEST_F(SettingsTest, InterfacesInvalidSslEntry) {
@@ -449,7 +449,7 @@ TEST_F(SettingsTest, InterfacesInvalidSslEntry) {
     cJSON_AddItemToObject(root.get(), "interfaces", array.release());
     expectFail(root);
 
-    CouchbaseDirectoryUtilities::rmrf(pattern);
+    cb::io::rmrf(pattern);
 }
 
 TEST_F(SettingsTest, Extensions) {
@@ -751,8 +751,8 @@ TEST_F(SettingsTest, Breakpad) {
 
     char minidump_dir[] = {"minidump.XXXXXX"};
     EXPECT_NE(nullptr, cb_mktemp(minidump_dir));
-    CouchbaseDirectoryUtilities::rmrf(minidump_dir);
-    CouchbaseDirectoryUtilities::mkdirp(minidump_dir);
+    cb::io::rmrf(minidump_dir);
+    cb::io::mkdirp(minidump_dir);
 
     cJSON_AddTrueToObject(obj.get(), "enabled");
     cJSON_AddStringToObject(obj.get(), "minidump_dir", minidump_dir);
@@ -761,16 +761,16 @@ TEST_F(SettingsTest, Breakpad) {
     EXPECT_NO_THROW(BreakpadSettings settings(obj.get()));
 
     // But the minidump dir is mandatory
-    CouchbaseDirectoryUtilities::rmrf(minidump_dir);
+    cb::io::rmrf(minidump_dir);
     EXPECT_THROW(BreakpadSettings settings(obj.get()), std::invalid_argument);
-    CouchbaseDirectoryUtilities::mkdirp(minidump_dir);
+    cb::io::mkdirp(minidump_dir);
 
     cJSON_AddStringToObject(obj.get(), "content", "default");
     EXPECT_NO_THROW(BreakpadSettings settings(obj.get()));
     cJSON_ReplaceItemInObject(obj.get(), "content", cJSON_CreateString("foo"));
     EXPECT_THROW(BreakpadSettings settings(obj.get()), std::invalid_argument);
 
-    CouchbaseDirectoryUtilities::rmrf(minidump_dir);
+    cb::io::rmrf(minidump_dir);
 }
 
 TEST_F(SettingsTest, max_packet_size) {

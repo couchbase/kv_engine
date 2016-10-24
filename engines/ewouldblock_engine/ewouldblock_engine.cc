@@ -1080,7 +1080,7 @@ ENGINE_ERROR_CODE EWB_Engine::handleBlockMonitorFile(const void* cookie,
         return ENGINE_EINVAL;
     }
 
-    if (!CouchbaseDirectoryUtilities::isFile(file)) {
+    if (!cb::io::isFile(file)) {
         return ENGINE_KEY_ENOENT;
     }
 
@@ -1164,7 +1164,7 @@ void BlockMonitorThread::run() {
                 "Block monitor for file %s started", file.c_str());
 
     // @todo Use the file monitoring API's to avoid this "busy" loop
-    while (CouchbaseDirectoryUtilities::isFile(file)) {
+    while (cb::io::isFile(file)) {
         usleep(100);
     }
 

@@ -82,6 +82,6 @@ void remove_files(std::vector<std::string> &files) {
     for (std::vector<std::string>::iterator iter = files.begin();
          iter != files.end();
          ++iter) {
-        CouchbaseDirectoryUtilities::rmrf(*iter);
+        cb::io::rmrf(*iter);
     }
 }

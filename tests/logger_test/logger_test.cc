@@ -32,7 +32,7 @@
 class LoggerTest : public ::testing::Test {
 protected:
     virtual void SetUp() {
-        files = CouchbaseDirectoryUtilities::findFilesWithPrefix("logger_test");
+        files = cb::io::findFilesWithPrefix("logger_test");
 
         if (!files.empty()) {
             remove_files(files);
@@ -64,7 +64,7 @@ TEST_F(LoggerTest, MessageSizeBigWithNewLine) {
     logger->log(EXTENSION_LOG_DETAIL, nullptr, message);
     logger->shutdown(false);
 
-    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("logger_test");
+    files = cb::io::findFilesWithPrefix("logger_test");
     cb_assert(files.size() == 1);
     remove_files(files);
 }
@@ -79,7 +79,7 @@ TEST_F(LoggerTest, MessageSizeBigWithNoNewLine) {
     logger->log(EXTENSION_LOG_DETAIL, nullptr, message);
     logger->shutdown(false);
 
-    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("logger_test");
+    files = cb::io::findFilesWithPrefix("logger_test");
     cb_assert(files.size() == 1);
     remove_files(files);
 }
@@ -89,7 +89,7 @@ TEST_F(LoggerTest, MessageSizeSmallWithNewLine) {
     logger->log(EXTENSION_LOG_DETAIL, nullptr, "small_message\n");
     logger->shutdown(false);
 
-    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("logger_test");
+    files = cb::io::findFilesWithPrefix("logger_test");
     cb_assert(files.size() == 1);
     remove_files(files);
 }
@@ -99,7 +99,7 @@ TEST_F(LoggerTest, MessageSizeSmallWithNoNewLine) {
     logger->log(EXTENSION_LOG_DETAIL, nullptr, "small_message");
     logger->shutdown(false);
 
-    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("logger_test");
+    files = cb::io::findFilesWithPrefix("logger_test");
     cb_assert(files.size() == 1);
     remove_files(files);
 }
@@ -114,7 +114,7 @@ TEST_F(LoggerTest, Rotate) {
 
     logger->shutdown(false);
 
-    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("logger_test");
+    files = cb::io::findFilesWithPrefix("logger_test");
 
     // The cyclesize isn't a hard limit. We don't truncate entries that
     // won't fit to move to the next file. We'll rather dump the entire
@@ -156,10 +156,10 @@ TEST_F(LoggerTest, DISABLED_Dedupe) {
     std::string filename = create_filename("logger_test", "dedupe");
 
     std::vector<std::string> files;
-    files = CouchbaseDirectoryUtilities::findFilesWithPrefix(filename);
+    files = cb::io::findFilesWithPrefix(filename);
     if (!files.empty()) {
         remove_files(files);
-        files = CouchbaseDirectoryUtilities::findFilesWithPrefix(filename);
+        files = cb::io::findFilesWithPrefix(filename);
         if (!files.empty()) {
             std::cerr << "ERROR: Failed to remove all files: " << std::endl;
             for (auto f : files) {
@@ -187,7 +187,7 @@ TEST_F(LoggerTest, DISABLED_Dedupe) {
 
     logger->shutdown(false);
 
-    files = CouchbaseDirectoryUtilities::findFilesWithPrefix(filename);
+    files = cb::io::findFilesWithPrefix(filename);
     if (files.size() != 1) {
         std::cerr << "Expected one file, found " << files.size() << ":"
                   << std::endl;
@@ -249,10 +249,9 @@ protected:
     }
 
     void cleanup() {
-        using namespace CouchbaseDirectoryUtilities;
-        auto files = findFilesWithPrefix(prefix);
+        auto files = cb::io::findFilesWithPrefix(prefix);
         for (auto& file : files) {
-            rmrf(file);
+            cb::io::rmrf(file);
         }
     }
 

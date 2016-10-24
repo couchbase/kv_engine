@@ -18,11 +18,9 @@
 #include "file_logger_utilities.h"
 
 unsigned long find_first_logfile_id(const std::string& basename) {
-    using namespace CouchbaseDirectoryUtilities;
-
     unsigned long id = 0;
 
-    auto files = findFilesWithPrefix(basename);
+    auto files = cb::io::findFilesWithPrefix(basename);
     for (auto& file : files) {
         // the format of the name should be:
         // fnm.number.txt

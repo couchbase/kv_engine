@@ -132,7 +132,7 @@ bool initialize_engine_map(char **msg, EXTENSION_LOGGER_DESCRIPTOR *logger)
 
 BucketType module_to_bucket_type(const char *module)
 {
-    std::string nm = CouchbaseDirectoryUtilities::basename(module);
+    std::string nm = cb::io::basename(module);
     for (auto entry : map) {
         if (entry.second->getModule() == nm) {
             return entry.first;

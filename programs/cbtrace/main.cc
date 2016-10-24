@@ -419,7 +419,7 @@ public:
         memset(&timings, 0, sizeof(timings));
 
         std::vector<std::string> files;
-        files = CouchbaseDirectoryUtilities::findFilesWithPrefix(dir, "");
+        files = cb::io::findFilesWithPrefix(dir, "");
         int ii = 0;
         for (std::vector<std::string>::iterator iter = files.begin();
              iter != files.end();
@@ -618,7 +618,7 @@ private:
 static void analyze(const std::string& dir,
                     const std::list<uint8_t>& opcodes,
                     timings_t aggregated[0x100]) {
-    std::string name = CouchbaseDirectoryUtilities::basename(dir);
+    std::string name = cb::io::basename(dir);
     std::replace(name.begin(), name.end(), '#', ':');
     std::cout << "Decoding stream " << name << std::endl;
 
@@ -672,7 +672,7 @@ int main(int argc, char** argv) {
                 createCache(cachefile, argv[optind]);
             } catch (std::runtime_error& e) {
                 std::cerr << e.what() << std::endl;
-                if (!CouchbaseDirectoryUtilities::rmrf(cachefile)) {
+                if (!cb::io::rmrf(cachefile)) {
                     if (access(cachefile.c_str(), F_OK) != -1) {
                         std::cerr << "You should manually nuke " << cachefile
                         << std::endl;
@@ -685,8 +685,7 @@ int main(int argc, char** argv) {
         }
 
         std::vector<std::string> streams;
-        using namespace CouchbaseDirectoryUtilities;
-        streams = findFilesWithPrefix(cachefile, "");
+        streams = cb::io::findFilesWithPrefix(cachefile, "");
 
         timings_t aggregated[0x100];
         for (std::vector<std::string>::iterator iter = streams.begin();

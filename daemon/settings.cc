@@ -102,7 +102,7 @@ static void handle_audit_file(Settings& s, cJSON* obj) {
         throw std::invalid_argument("\"audit_file\" must be a string");
     }
 
-    if (!CouchbaseDirectoryUtilities::isFile(obj->valuestring)) {
+    if (!cb::io::isFile(obj->valuestring)) {
         throw_missing_file_exception("audit_file", obj);
     }
 
@@ -275,7 +275,7 @@ static void handle_root(Settings& s, cJSON* obj) {
         throw std::invalid_argument("\"root\" must be a string");
     }
 
-    if (!CouchbaseDirectoryUtilities::isDirectory(obj->valuestring)) {
+    if (!cb::io::isDirectory(obj->valuestring)) {
         throw_missing_file_exception("root", obj);
     }
 
@@ -623,7 +623,7 @@ static void handle_interface_ssl(struct interface& ifc, cJSON* obj) {
         throw std::invalid_argument("\"ssl:key\" must be a key");
     }
 
-    if (!CouchbaseDirectoryUtilities::isFile(key->valuestring)) {
+    if (!cb::io::isFile(key->valuestring)) {
         throw_missing_file_exception("ssl:key", key);
     }
 
@@ -631,7 +631,7 @@ static void handle_interface_ssl(struct interface& ifc, cJSON* obj) {
         throw std::invalid_argument("\"ssl:cert\" must be a key");
     }
 
-    if (!CouchbaseDirectoryUtilities::isFile(cert->valuestring)) {
+    if (!cb::io::isFile(cert->valuestring)) {
         throw_missing_file_exception("ssl:cert", cert);
     }
 
@@ -1093,7 +1093,7 @@ BreakpadSettings::BreakpadSettings(const cJSON* json) {
     } else {
         minidump_dir.assign(obj->valuestring);
         if (enabled) {
-            if (!CouchbaseDirectoryUtilities::isDirectory(minidump_dir)) {
+            if (!cb::io::isDirectory(minidump_dir)) {
                 throw_missing_file_exception("breakpad:minidump_dir", obj);
             }
         }

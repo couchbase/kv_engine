@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2015 Couchbase, Inc.
+ *     Copyright 2016 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ protected:
     static void SetUpTestCase() {
         testdir = std::string("auditconfig-test-") +
             std::to_string(cb_getpid());
-        CouchbaseDirectoryUtilities::mkdirp(testdir);
+        cb::io::mkdirp(testdir);
         // Create the audit_events.json file needed by the configuration
         std::string fname = testdir + std::string("/audit_events.json");
         FILE* fd = fopen(fname.c_str(), "w");
@@ -45,7 +45,7 @@ protected:
     }
 
     static void TearDownTestCase() {
-        CouchbaseDirectoryUtilities::rmrf(testdir);
+        cb::io::rmrf(testdir);
     }
 
     cJSON *json;
@@ -281,7 +281,7 @@ TEST_F(AuditConfigTest, TestGetSetSanitizeLogPathMixedSeparators) {
     std::string path = testdir + std::string("/mydir\\baddir");
     EXPECT_NO_THROW(config.set_log_directory(path));
     EXPECT_EQ(testdir + "\\mydir\\baddir", config.get_log_directory());
-    EXPECT_TRUE(CouchbaseDirectoryUtilities::rmrf(config.get_log_directory()))
+    EXPECT_TRUE(cb::io::rmrf(config.get_log_directory()))
         << "Failed to remove: " << config.get_log_directory()
         << ": " << strerror(errno) << std::endl;
 }
@@ -300,7 +300,7 @@ TEST_F(AuditConfigTest, TestCreateDirLogPath) {
     cJSON_ReplaceItemInObject(json, "log_path",
                               cJSON_CreateString(path.c_str()));
     EXPECT_NO_THROW(config.initialize_config(json));
-    EXPECT_TRUE(CouchbaseDirectoryUtilities::rmrf(config.get_log_directory()))
+    EXPECT_TRUE(cb::io::rmrf(config.get_log_directory()))
         << "Failed to remove: " << config.get_log_directory()
         << ": " << strerror(errno) << std::endl;
 }
@@ -319,10 +319,10 @@ TEST_F(AuditConfigTest, TestGetSetDescriptorsPath) {
 
 TEST_F(AuditConfigTest, TestSetMissingEventDescrFileDescriptorsPath) {
     std::string path = testdir + std::string("/foo");
-    CouchbaseDirectoryUtilities::mkdirp(path);
+    cb::io::mkdirp(path);
 
     EXPECT_THROW(config.set_descriptors_path(path), std::string);
-    EXPECT_TRUE(CouchbaseDirectoryUtilities::rmrf(path))
+    EXPECT_TRUE(cb::io::rmrf(path))
         << "Failed to remove: " << path
         << ": " << strerror(errno) << std::endl;
 }

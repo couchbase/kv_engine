@@ -35,17 +35,16 @@ public:
     void SetUp() {
         TestappClientTest::SetUp();
         auto& logdir = mcd_env->getAuditLogDir();
-        ASSERT_TRUE(CouchbaseDirectoryUtilities::rmrf(logdir));
-        CouchbaseDirectoryUtilities::mkdirp(logdir);
+        ASSERT_TRUE(cb::io::rmrf(logdir));
+        cb::io::mkdirp(logdir);
         setEnabled(true);
     }
 
     void TearDown() {
         setEnabled(false);
         auto& logdir = mcd_env->getAuditLogDir();
-        EXPECT_TRUE(
-            CouchbaseDirectoryUtilities::rmrf(mcd_env->getAuditLogDir()));
-        CouchbaseDirectoryUtilities::mkdirp(logdir);
+        EXPECT_TRUE(cb::io::rmrf(mcd_env->getAuditLogDir()));
+        cb::io::mkdirp(logdir);
         TestappClientTest::TearDown();
     }
 
@@ -79,7 +78,7 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
 
 std::vector<unique_cJSON_ptr> AuditTest::readAuditData() {
     std::vector<unique_cJSON_ptr> rval;
-    auto files = CouchbaseDirectoryUtilities::findFilesContaining(
+    auto files = cb::io::findFilesContaining(
         mcd_env->getAuditLogDir(),
         "audit.log");
     for (auto file : files) {
