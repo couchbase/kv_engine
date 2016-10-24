@@ -237,7 +237,8 @@ void FailoverTable::addStats(const void* cookie, uint16_t vbid,
         add_casted_stat(statname, table.size(), add_stat, cookie);
         checked_snprintf(statname, sizeof(statname),
                          "vb_%d:num_erroneous_entries_erased", vbid);
-        add_casted_stat(statname, table.size(), add_stat, cookie);
+        add_casted_stat(statname, getNumErroneousEntriesErased(), add_stat,
+                        cookie);
 
         table_t::iterator it;
         int entrycounter = 0;
