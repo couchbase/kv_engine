@@ -336,15 +336,16 @@ private:
     RCPtr<VBucket> vbucket;
 };
 
-KVBucket::KVBucket(
-    EventuallyPersistentEngine &theEngine) :
-    engine(theEngine), stats(engine.getEpStats()),
-    vbMap(theEngine.getConfiguration(), *this),
-    defragmenterTask(NULL),
-    diskFlushAll(false), bgFetchDelay(0),
-    backfillMemoryThreshold(0.95),
-    statsSnapshotTaskId(0), lastTransTimePerItem(0)
-{
+KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
+    : engine(theEngine),
+      stats(engine.getEpStats()),
+      vbMap(theEngine.getConfiguration(), *this),
+      defragmenterTask(NULL),
+      diskDeleteAll(false),
+      bgFetchDelay(0),
+      backfillMemoryThreshold(0.95),
+      statsSnapshotTaskId(0),
+      lastTransTimePerItem(0) {
     cachedResidentRatio.activeRatio.store(0);
     cachedResidentRatio.replicaRatio.store(0);
 
@@ -1237,7 +1238,7 @@ GetValue KVBucket::getInternal(const DocKey& key, uint16_t vbucket,
     }
 
     return vb->getInternal(
-            key, cookie, engine, bgFetchDelay, options, diskFlushAll);
+            key, cookie, engine, bgFetchDelay, options, diskDeleteAll);
 }
 
 GetValue KVBucket::getRandomKey() {
@@ -1900,12 +1901,12 @@ private:
     DISALLOW_COPY_AND_ASSIGN(PersistenceCallback);
 };
 
-bool KVBucket::scheduleFlushAllTask(const void* cookie) {
+bool KVBucket::scheduleDeleteAllTask(const void* cookie) {
     bool inverse = false;
-    if (diskFlushAll.compare_exchange_strong(inverse, true)) {
-        flushAllTaskCtx.cookie = cookie;
-        flushAllTaskCtx.delayFlushAll.compare_exchange_strong(inverse, true);
-        ExTask task = make_STRCPtr<FlushAllTask>(&engine);
+    if (diskDeleteAll.compare_exchange_strong(inverse, true)) {
+        deleteAllTaskCtx.cookie = cookie;
+        deleteAllTaskCtx.delay.compare_exchange_strong(inverse, true);
+        ExTask task = make_STRCPtr<DeleteAllTask>(&engine);
         ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
         return true;
     } else {
@@ -1913,16 +1914,16 @@ bool KVBucket::scheduleFlushAllTask(const void* cookie) {
     }
 }
 
-void KVBucket::setFlushAllComplete() {
-    // Notify memcached about flushAll task completion, and
+void KVBucket::setDeleteAllComplete() {
+    // Notify memcached about delete all task completion, and
     // set diskFlushall flag to false
-    if (flushAllTaskCtx.cookie) {
-        engine.notifyIOComplete(flushAllTaskCtx.cookie, ENGINE_SUCCESS);
+    if (deleteAllTaskCtx.cookie) {
+        engine.notifyIOComplete(deleteAllTaskCtx.cookie, ENGINE_SUCCESS);
     }
     bool inverse = false;
-    flushAllTaskCtx.delayFlushAll.compare_exchange_strong(inverse, true);
+    deleteAllTaskCtx.delay.compare_exchange_strong(inverse, true);
     inverse = true;
-    diskFlushAll.compare_exchange_strong(inverse, false);
+    diskDeleteAll.compare_exchange_strong(inverse, false);
 }
 
 void KVBucket::flushOneDeleteAll() {
@@ -1937,12 +1938,12 @@ void KVBucket::flushOneDeleteAll() {
     }
 
     --stats.diskQueueSize;
-    setFlushAllComplete();
+    setDeleteAllComplete();
 }
 
 int KVBucket::flushVBucket(uint16_t vbid) {
     KVShard *shard = vbMap.getShardByVbId(vbid);
-    if (diskFlushAll && !flushAllTaskCtx.delayFlushAll) {
+    if (diskDeleteAll && !deleteAllTaskCtx.delay) {
         if (shard->getId() == EP_PRIMARY_SHARD) {
             flushOneDeleteAll();
         } else {

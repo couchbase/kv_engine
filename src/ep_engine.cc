@@ -1766,19 +1766,23 @@ void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
     va_end(va);
 }
 
-
 EventuallyPersistentEngine::EventuallyPersistentEngine(
-                                    GET_SERVER_API get_server_api) :
-    clusterConfig(), kvBucket(nullptr), workload(NULL),
-    workloadPriority(NO_BUCKET_PRIORITY),
-    replicationThrottle(NULL), getServerApiFunc(get_server_api),
-    dcpConnMap_(NULL),
-    dcpFlowControlManager_(NULL),
-    tapConnMap(NULL) ,
-    tapConfig(NULL), checkpointConfig(NULL),
-    trafficEnabled(false), flushAllEnabled(false), startupTime(0),
-    taskable(this)
-{
+        GET_SERVER_API get_server_api)
+    : clusterConfig(),
+      kvBucket(nullptr),
+      workload(NULL),
+      workloadPriority(NO_BUCKET_PRIORITY),
+      replicationThrottle(NULL),
+      getServerApiFunc(get_server_api),
+      dcpConnMap_(NULL),
+      dcpFlowControlManager_(NULL),
+      tapConnMap(NULL),
+      tapConfig(NULL),
+      checkpointConfig(NULL),
+      trafficEnabled(false),
+      deleteAllEnabled(false),
+      startupTime(0),
+      taskable(this) {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
     ENGINE_HANDLE_V1::initialize = EvpInitialize;
@@ -1885,7 +1889,7 @@ public:
 
     virtual void booleanValueChanged(const std::string &key, bool value) {
         if (key.compare("flushall_enabled") == 0) {
-            engine.setFlushAll(value);
+            engine.setDeleteAll(value);
         }
     }
 private:
@@ -1945,7 +1949,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     configuration.addValueChangedListener("getl_max_timeout",
                                        new EpEngineValueChangeListener(*this));
 
-    flushAllEnabled = configuration.isFlushallEnabled();
+    deleteAllEnabled = configuration.isFlushallEnabled();
     configuration.addValueChangedListener("flushall_enabled",
                                        new EpEngineValueChangeListener(*this));
 
@@ -2081,7 +2085,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie){
-    if (!flushAllEnabled) {
+    if (!deleteAllEnabled) {
         return ENGINE_ENOTSUP;
     }
 
@@ -2095,23 +2099,23 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie){
 
     void* es = getEngineSpecific(cookie);
     if (es == NULL) {
-
-        // Check if diskFlushAll was false and set it to true
+        // Check if diskDeleteAll was false and set it to true
         // if yes, if the atomic variable weren't false, then
-        // we will assume that a flushAll has been scheduled
+        // we will assume that a deleteAll has been scheduled
         // already and return TMPFAIL.
-        if (kvBucket->scheduleFlushAllTask(cookie)) {
+        if (kvBucket->scheduleDeleteAllTask(cookie)) {
             storeEngineSpecific(cookie, this);
             return ENGINE_EWOULDBLOCK;
         } else {
-            LOG(EXTENSION_LOG_INFO, "Tried to trigger a bucket flush, but"
-                    "there seems to be a task running already!");
+            LOG(EXTENSION_LOG_INFO,
+                "Tried to trigger a bucket deleteAll, but"
+                "there seems to be a task running already!");
             return ENGINE_TMPFAIL;
         }
 
     } else {
         storeEngineSpecific(cookie, NULL);
-        LOG(EXTENSION_LOG_NOTICE, "Completed bucket flush operation");
+        LOG(EXTENSION_LOG_NOTICE, "Completed bucket deleteAll operation");
         return ENGINE_SUCCESS;
     }
 }
@@ -3026,8 +3030,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.vbucketDeletionFail, add_stat, cookie);
     add_casted_stat("ep_flush_duration_total",
                     epstats.cumulativeFlushTime, add_stat, cookie);
-    add_casted_stat("ep_flush_all", kvBucket->isFlushAllScheduled(), add_stat,
-                    cookie);
+    add_casted_stat(
+            "ep_flush_all", kvBucket->isDeleteAllScheduled(), add_stat, cookie);
     add_casted_stat("curr_items", activeCountVisitor.getNumItems(), add_stat,
                     cookie);
     add_casted_stat("curr_temp_items", activeCountVisitor.getNumTempItems(),

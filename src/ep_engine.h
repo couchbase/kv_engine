@@ -547,8 +547,8 @@ public:
         configuration.setTapKeepalive((size_t)to);
     }
 
-    void setFlushAll(bool enabled) {
-        flushAllEnabled = enabled;
+    void setDeleteAll(bool enabled) {
+        deleteAllEnabled = enabled;
     }
 
     protocol_binary_response_status evictKey(const DocKey& key,
@@ -928,7 +928,7 @@ protected:
     Configuration configuration;
     std::atomic<bool> trafficEnabled;
 
-    bool flushAllEnabled;
+    bool deleteAllEnabled;
     // a unique system generated token initialized at each time
     // ep_engine starts up.
     std::atomic<time_t> startupTime;

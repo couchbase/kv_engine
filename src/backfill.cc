@@ -117,7 +117,7 @@ bool BackfillDiskLoad::run() {
     }
 
     if (connMap.checkConnectivity(name) &&
-        !engine->getKVBucket()->isFlushAllScheduled()) {
+        !engine->getKVBucket()->isDeleteAllScheduled()) {
         size_t num_items;
         size_t num_deleted;
         try {

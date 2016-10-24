@@ -658,11 +658,11 @@ public:
 
     virtual size_t getTransactionTimePerItem() = 0;
 
-    virtual bool isFlushAllScheduled() = 0;
+    virtual bool isDeleteAllScheduled() = 0;
 
-    virtual bool scheduleFlushAllTask(const void* cookie) = 0;
+    virtual bool scheduleDeleteAllTask(const void* cookie) = 0;
 
-    virtual void setFlushAllComplete() = 0;
+    virtual void setDeleteAllComplete() = 0;
 
     virtual void setBackfillMemoryThreshold(double threshold) = 0;
 

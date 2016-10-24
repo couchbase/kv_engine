@@ -61,8 +61,8 @@ bool MultiBGFetcherTask::run() {
     return bgfetcher->run(this);
 }
 
-bool FlushAllTask::run() {
-    TRACE_EVENT0("ep-engine/task", "FlushAllTask");
+bool DeleteAllTask::run() {
+    TRACE_EVENT0("ep-engine/task", "DeleteAllTask");
     engine->getKVBucket()->reset();
     return false;
 }

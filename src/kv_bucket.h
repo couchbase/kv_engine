@@ -549,13 +549,13 @@ public:
         return lastTransTimePerItem.load();
     }
 
-    bool isFlushAllScheduled() {
-        return diskFlushAll.load();
+    bool isDeleteAllScheduled() {
+        return diskDeleteAll.load();
     }
 
-    bool scheduleFlushAllTask(const void* cookie);
+    bool scheduleDeleteAllTask(const void* cookie);
 
-    void setFlushAllComplete();
+    void setDeleteAllComplete();
 
     void setBackfillMemoryThreshold(double threshold);
 
@@ -858,12 +858,13 @@ protected:
     std::mutex                          *vb_mutexes;
     std::deque<MutationLog>       accessLog;
 
-    std::atomic<bool> diskFlushAll;
-    struct FlushAllTaskCtx {
-        FlushAllTaskCtx(): delayFlushAll(true), cookie(NULL) {}
-        std::atomic<bool> delayFlushAll;
+    std::atomic<bool> diskDeleteAll;
+    struct DeleteAllTaskCtx {
+        DeleteAllTaskCtx() : delay(true), cookie(NULL) {
+        }
+        std::atomic<bool> delay;
         const void* cookie;
-    } flushAllTaskCtx;
+    } deleteAllTaskCtx;
 
     std::mutex vbsetMutex;
     uint32_t bgFetchDelay;

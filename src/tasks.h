@@ -153,10 +153,11 @@ private:
 /**
  * A task that performs the bucket flush operation.
  */
-class FlushAllTask : public GlobalTask {
+class DeleteAllTask : public GlobalTask {
 public:
-    FlushAllTask(EventuallyPersistentEngine *e)
-        : GlobalTask(e, TaskId::FlushAllTask, 0, false) {}
+    DeleteAllTask(EventuallyPersistentEngine* e)
+        : GlobalTask(e, TaskId::FlushAllTask, 0, false) {
+    }
 
     bool run();
 

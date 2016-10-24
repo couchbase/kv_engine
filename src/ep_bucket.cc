@@ -61,8 +61,8 @@ void EPBucket::reset() {
 
     // Need to additionally update disk state
     bool inverse = true;
-    flushAllTaskCtx.delayFlushAll.compare_exchange_strong(inverse, false);
-    // Waking up (notifying) one flusher is good enough for diskFlushAll
+    deleteAllTaskCtx.delay.compare_exchange_strong(inverse, false);
+    // Waking up (notifying) one flusher is good enough for diskDeleteAll
     vbMap.getShard(EP_PRIMARY_SHARD)->getFlusher()->notifyFlushEvent();
 }
 
