@@ -36,7 +36,7 @@ public:
         TestappClientTest::SetUp();
         auto& logdir = mcd_env->getAuditLogDir();
         ASSERT_TRUE(CouchbaseDirectoryUtilities::rmrf(logdir));
-        ASSERT_TRUE(CouchbaseDirectoryUtilities::mkdirp(logdir));
+        CouchbaseDirectoryUtilities::mkdirp(logdir);
         setEnabled(true);
     }
 
@@ -45,7 +45,7 @@ public:
         auto& logdir = mcd_env->getAuditLogDir();
         EXPECT_TRUE(
             CouchbaseDirectoryUtilities::rmrf(mcd_env->getAuditLogDir()));
-        EXPECT_TRUE(CouchbaseDirectoryUtilities::mkdirp(logdir));
+        CouchbaseDirectoryUtilities::mkdirp(logdir);
         TestappClientTest::TearDown();
     }
 

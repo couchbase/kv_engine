@@ -78,7 +78,7 @@ protected:
         // create the test directory
         testdir = std::string("auditd-test-") + std::to_string(cb_getpid());
         CouchbaseDirectoryUtilities::rmrf(testdir);
-        ASSERT_TRUE(CouchbaseDirectoryUtilities::mkdirp(testdir));
+        CouchbaseDirectoryUtilities::mkdirp(testdir);
 
         // create the name of the configuration file to use
         cfgfile = "test_audit-" + std::to_string(cb_getpid()) + ".json";
@@ -111,13 +111,13 @@ protected:
         config.set_log_directory(testdir);
         config.set_auditd_enabled(false);
         CouchbaseDirectoryUtilities::rmrf(testdir);
-        ASSERT_TRUE(CouchbaseDirectoryUtilities::mkdirp(testdir));
+        CouchbaseDirectoryUtilities::mkdirp(testdir);
     }
 
     void enable() {
         config.set_auditd_enabled(true);
         CouchbaseDirectoryUtilities::rmrf(testdir);
-        ASSERT_TRUE(CouchbaseDirectoryUtilities::mkdirp(testdir));
+        CouchbaseDirectoryUtilities::mkdirp(testdir);
         configure();
     }
 

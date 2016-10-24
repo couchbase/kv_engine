@@ -164,10 +164,12 @@ void AuditConfig::set_log_directory(const std::string &directory) {
     /* Sanitize path */
     log_path = directory;
     sanitize_path(log_path);
-    if (!CouchbaseDirectoryUtilities::mkdirp(log_path)) {
+    try {
+        cb::io::mkdirp(log_path);
+    } catch (const std::runtime_error& error) {
         std::stringstream ss;
         ss << "error: failed to create log directory \""
-           << log_path << "\"";
+           << log_path << "\": " << error.what();
         throw ss.str();
     }
 }
