@@ -121,7 +121,7 @@ void TestappTest::CreateTestBucket()
     // to the server (and not one that might have been catched by the
     // idle-timer, but not yet noticed on the client side)
     conn.reconnect();
-    ASSERT_NO_THROW(conn.authenticate("_admin", "password", "PLAIN"));
+    conn.authenticate("_admin", "password", "PLAIN");
 
     char cfg[80];
     memset(cfg, 0, sizeof(cfg));
