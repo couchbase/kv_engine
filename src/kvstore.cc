@@ -31,8 +31,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-using namespace CouchbaseDirectoryUtilities;
-
 KVStoreConfig::KVStoreConfig(Configuration& config, uint16_t shardid)
     : KVStoreConfig(config.getMaxVbuckets(),
                     config.getMaxNumShards(),
@@ -82,13 +80,13 @@ KVStore *KVStoreFactory::create(KVStoreConfig &config, bool read_only) {
 }
 
 void KVStore::createDataDir(const std::string& dbname) {
-    if (!mkdirp(dbname.c_str())) {
-        if (errno != EEXIST) {
-            std::stringstream ss;
-            ss << "Failed to create data directory ["
-               << dbname << "]: " << strerror(errno);
-            throw std::runtime_error(ss.str());
-        }
+    try {
+        cb::io::mkdirp(dbname);
+    } catch (const std::system_error& error) {
+        std::stringstream ss;
+        ss << "Failed to create data directory ["
+           << dbname << "]: " << error.code().message();
+        throw std::runtime_error(ss.str());
     }
 }
 
