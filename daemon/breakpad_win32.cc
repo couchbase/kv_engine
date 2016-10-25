@@ -18,6 +18,7 @@
 #include "config.h"
 #include "breakpad.h"
 #include "client/windows/handler/exception_handler.h"
+#include "memcached.h"
 #include "memcached/extension_loggers.h"
 #include <platform/backtrace.h>
 #include <stdlib.h>
@@ -36,8 +37,9 @@ static bool dumpCallback(const wchar_t* dump_path, const wchar_t* minidump_id,
                          void* context, EXCEPTION_POINTERS* exinfo,
                          MDRawAssertionInfo* assertion, bool succeeded) {
     settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                    "Breakpad caught crash in memcached. Writing crash dump to "
-                                        "%S\\%S.dmp before terminating.",
+                                    "Breakpad caught crash in memcached version %s. Writing crash dump to "
+                                    "%S\\%S.dmp before terminating.",
+                                    get_server_version(),
                                     dump_path, minidump_id);
 
     settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,

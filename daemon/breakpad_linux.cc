@@ -18,6 +18,7 @@
 #include "config.h"
 #include "breakpad.h"
 #include "client/linux/handler/exception_handler.h"
+#include "memcached.h"
 #include "memcached/extension_loggers.h"
 #include <platform/backtrace.h>
 #include <stdlib.h>
@@ -35,8 +36,9 @@ static void write_to_logger(void* ctx, const char* frame) {
 static bool dumpCallback(const MinidumpDescriptor& descriptor,
                          void* context, bool succeeded) {
     settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                    "Breakpad caught crash in memcached. Writing crash dump to "
-                                        "%s before terminating.",
+                                    "Breakpad caught crash in memcached version %s. Writing crash dump to "
+                                    "%s before terminating.",
+                                    get_server_version(),
                                     descriptor.path());
 
     settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
