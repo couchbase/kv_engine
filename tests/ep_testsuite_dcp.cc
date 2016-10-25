@@ -2434,6 +2434,9 @@ static enum test_result test_dcp_producer_stream_backfill_no_value(
 
         case ENGINE_TMPFAIL:
             // TMPFAIL means we getting below 100%; retry.
+        case ENGINE_ENOMEM:
+            // We can treat ENOMEMs as TMPFAIL, that is, hope the memory usage
+            // will go down. If not, the test will time out eventually.
             break;
 
         default:

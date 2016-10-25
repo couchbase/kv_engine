@@ -330,7 +330,7 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
     lh.unlock();
     bool inverse = false;
     if (itemsReady.compare_exchange_strong(inverse, true)) {
-        producer->notifyStreamReady(vb_, false);
+        producer->notifyStreamReady(vb_);
     }
 }
 
@@ -356,7 +356,7 @@ bool ActiveStream::backfillReceived(Item* itm, backfill_source_t backfill_source
             lh.unlock();
             bool inverse = false;
             if (itemsReady.compare_exchange_strong(inverse, true)) {
-                producer->notifyStreamReady(vb_, false);
+                producer->notifyStreamReady(vb_);
             }
 
             if (backfill_source == BACKFILL_FROM_MEMORY) {
@@ -397,7 +397,7 @@ void ActiveStream::completeBackfill() {
     isBackfillTaskRunning.compare_exchange_strong(inverse, false);
     inverse = false;
     if (itemsReady.compare_exchange_strong(inverse, true)) {
-        producer->notifyStreamReady(vb_, false);
+        producer->notifyStreamReady(vb_);
     }
 }
 
@@ -405,7 +405,7 @@ void ActiveStream::snapshotMarkerAckReceived() {
     bool inverse = false;
     if (--waitForSnapshot == 0 &&
         itemsReady.compare_exchange_strong(inverse, true)) {
-        producer->notifyStreamReady(vb_, true);
+        producer->notifyStreamReady(vb_);
     }
 }
 
@@ -438,7 +438,7 @@ void ActiveStream::setVBucketStateAckRecieved() {
 
         bool inverse = false;
         if (itemsReady.compare_exchange_strong(inverse, true)) {
-            producer->notifyStreamReady(vb_, true);
+            producer->notifyStreamReady(vb_);
         }
     } else {
         producer->getLogger().log(EXTENSION_LOG_WARNING,
@@ -830,7 +830,7 @@ void ActiveStream::processItems(std::vector<queued_item>& items) {
 
     // Completed item processing - clear guard flag and notify producer.
     chkptItemsExtractionInProgress.store(false);
-    producer->notifyStreamReady(vb_, true);
+    producer->notifyStreamReady(vb_);
 }
 
 void ActiveStream::snapshot(std::deque<MutationResponse*>& items, bool mark) {
@@ -896,7 +896,7 @@ uint32_t ActiveStream::setDead(end_stream_status_t status) {
     bool inverse = false;
     if (status != END_STREAM_DISCONNECTED &&
         itemsReady.compare_exchange_strong(inverse, true)) {
-        producer->notifyStreamReady(vb_, true);
+        producer->notifyStreamReady(vb_);
     }
     return 0;
 }
@@ -905,7 +905,7 @@ void ActiveStream::notifySeqnoAvailable(uint64_t seqno) {
     if (state_ != STREAM_DEAD) {
         bool inverse = false;
         if (itemsReady.compare_exchange_strong(inverse, true)) {
-            producer->notifyStreamReady(vb_, true);
+            producer->notifyStreamReady(vb_);
         }
     }
 }
@@ -1162,7 +1162,7 @@ void ActiveStream::transitionState(stream_state_t newState) {
                 endStream(END_STREAM_OK);
                 bool inverse = false;
                 if (itemsReady.compare_exchange_strong(inverse, true)) {
-                    producer->notifyStreamReady(vb_, false);
+                    producer->notifyStreamReady(vb_);
                 }
             } else {
                 nextCheckpointItem();
@@ -1278,7 +1278,7 @@ uint32_t NotifierStream::setDead(end_stream_status_t status) {
             lh.unlock();
             bool inverse = false;
             if (itemsReady.compare_exchange_strong(inverse, true)) {
-                producer->notifyStreamReady(vb_, true);
+                producer->notifyStreamReady(vb_);
             }
         }
     }
@@ -1293,7 +1293,7 @@ void NotifierStream::notifySeqnoAvailable(uint64_t seqno) {
         lh.unlock();
         bool inverse = false;
         if (itemsReady.compare_exchange_strong(inverse, true)) {
-            producer->notifyStreamReady(vb_, true);
+            producer->notifyStreamReady(vb_);
         }
     }
 }

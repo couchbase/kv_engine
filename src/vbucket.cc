@@ -599,7 +599,7 @@ void VBucket::swapFilter() {
     // compaction.
 
     LockHolder lh(bfMutex);
-    if (bFilter) {
+    if (bFilter && tempFilter) {
         delete bFilter;
         bFilter = NULL;
     }

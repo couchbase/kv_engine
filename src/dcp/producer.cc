@@ -820,11 +820,11 @@ bool DcpProducer::handleSlowStream(uint16_t vbid,
             if (stream->getName().compare(name) == 0) {
                 ActiveStream* as = static_cast<ActiveStream*>(stream.get());
                 if (as) {
-                    LOG(EXTENSION_LOG_NOTICE, "%s Producer is handling slow "
-                        "stream for vbucket %" PRIu16 ", stream name '%s'"
+                    LOG(EXTENSION_LOG_NOTICE, "%s (vb %" PRIu16 ")  Producer "
+                        "is handling slow stream;"
                         " state:%s lastReadSeqno:%" PRIu64
                         " lastSentSeqno:%" PRIu64,
-                        logHeader(), vbid, name.c_str(),
+                        logHeader(), vbid,
                         Stream::stateName(as->getState()),
                         as->getLastReadSeqno(),
                         as->getLastSentSeqno());
@@ -955,7 +955,7 @@ void DcpProducer::setDisconnect(bool disconnect) {
     }
 }
 
-void DcpProducer::notifyStreamReady(uint16_t vbucket, bool schedule) {
+void DcpProducer::notifyStreamReady(uint16_t vbucket) {
     if (ready.pushUnique(vbucket)) {
         log.unpauseIfSpaceAvailable();
     }

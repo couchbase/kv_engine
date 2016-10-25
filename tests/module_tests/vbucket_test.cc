@@ -85,6 +85,15 @@ TEST_F(VBucketTest, GetBGFetchItemsPerformance) {
     }
 }
 
+// Check the existence of bloom filter after performing a
+// swap of existing filter with a temporary filter.
+TEST_F(VBucketTest, SwapFilter) {
+    vbucket->createFilter(1, 1.0);
+    ASSERT_FALSE(vbucket->isTempFilterAvailable());
+    ASSERT_NE("DOESN'T EXIST", vbucket->getFilterStatusString());
+    vbucket->swapFilter();
+    EXPECT_NE("DOESN'T EXIST", vbucket->getFilterStatusString());
+}
 
 class VBucketEvictionTest : public VBucketTest,
                             public ::testing::WithParamInterface<item_eviction_policy_t> {
