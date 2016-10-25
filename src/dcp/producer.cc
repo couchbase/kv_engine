@@ -917,7 +917,7 @@ void DcpProducer::setDisconnect(bool disconnect) {
     }
 }
 
-void DcpProducer::notifyStreamReady(uint16_t vbucket, bool schedule) {
+void DcpProducer::notifyStreamReady(uint16_t vbucket) {
     if (ready.pushUnique(vbucket)) {
         log.unpauseIfSpaceAvailable();
     }
