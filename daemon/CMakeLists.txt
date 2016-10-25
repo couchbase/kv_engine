@@ -99,6 +99,8 @@ ADD_LIBRARY(memcached_daemon STATIC
                net_buf.h
                parent_monitor.cc
                parent_monitor.h
+               protocol/mcbp/arithmetic_context.cc
+               protocol/mcbp/arithmetic_context.h
                runtime.cc
                runtime.h
                sasl_tasks.cc
