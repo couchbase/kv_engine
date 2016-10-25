@@ -54,7 +54,7 @@ static void subdoc_response(SubdocCmdContext* context);
 
 static protocol_binary_response_status
 subdoc_operate_one_path(Connection* c, SubdocCmdContext::OperationSpec& spec,
-                        const const_sized_buffer& in_doc,
+                        const const_char_buffer& in_doc,
                         uint64_t in_cas);
 
 // Debug - print details of the specified subdocument command.
@@ -90,7 +90,7 @@ static void subdoc_print_command(Connection* c, protocol_binary_command cmd,
 
 static SubdocCmdContext*
 subdoc_create_context(McbpConnection* c, const SubdocCmdTraits traits,
-                      const void* packet, const_sized_buffer value) {
+                      const void* packet, const_char_buffer value) {
 
     try {
         auto* context = new SubdocCmdContext(c, traits);
@@ -108,7 +108,7 @@ subdoc_create_context(McbpConnection* c, const SubdocCmdTraits traits,
 
             // Path is the first thing in the value; remainder is the operation
             // value.
-            const_sized_buffer path = value;
+            auto path = value;
             path.len = pathlen;
 
             // Decode as single path; add a single operation to the context.
@@ -148,8 +148,8 @@ subdoc_create_context(McbpConnection* c, const SubdocCmdTraits traits,
                 protocol_binary_command binprot_cmd;
                 protocol_binary_subdoc_flag flags;
                 size_t headerlen;
-                const_sized_buffer path;
-                const_sized_buffer spec_value;
+                const_char_buffer path;
+                const_char_buffer spec_value;
                 if (traits.is_mutator) {
                     auto* spec = reinterpret_cast<const protocol_binary_subdoc_multi_mutation_spec*>
                         (value.buf + offset);
@@ -298,7 +298,7 @@ static void subdoc_executor(McbpConnection *c, const void *packet,
         // due to EWOULDBLOCK).
         auto* context = dynamic_cast<SubdocCmdContext*>(c->getCommandContext());
         if (context == nullptr) {
-            const_sized_buffer value_buf{value, vallen};
+            const_char_buffer value_buf{value, vallen};
             context = subdoc_create_context(c, traits, packet, value_buf);
             c->setCommandContext(context);
         }
@@ -394,7 +394,7 @@ static void subdoc_executor(McbpConnection *c, const void *packet,
  */
 static protocol_binary_response_status
 get_document_for_searching(McbpConnection * c, const item* item,
-                           const_sized_buffer& document, uint64_t in_cas,
+                           const_char_buffer& document, uint64_t in_cas,
                            uint64_t& cas, uint32_t& flags) {
 
     item_info_holder info;
@@ -546,7 +546,7 @@ static bool subdoc_fetch(McbpConnection* c, SubdocCmdContext& ctx,
         // uncompress it so subjson can parse it.
         uint64_t doc_cas;
         uint32_t doc_flags;
-        const_sized_buffer doc;
+        const_char_buffer doc;
         protocol_binary_response_status status;
         status = get_document_for_searching(c, c->getItem(), doc, cas,
                                             doc_cas, doc_flags);
@@ -571,7 +571,7 @@ static bool subdoc_fetch(McbpConnection* c, SubdocCmdContext& ctx,
  */
 static protocol_binary_response_status
 subdoc_operate_one_path(Connection* c, SubdocCmdContext::OperationSpec& spec,
-                      const const_sized_buffer& in_doc, uint64_t in_cas) {
+                      const const_char_buffer& in_doc, uint64_t in_cas) {
 
     // Prepare the specified sub-document command.
     Subdoc::Operation* op = c->getThread()->subdoc_op;

@@ -136,7 +136,7 @@ protected:
 private:
 
     McbpConnection& connection;
-    const const_sized_buffer key;
+    const const_char_buffer key;
     const protocol_binary_request_incr& request;
     const uint64_t cas;
     item* olditem;

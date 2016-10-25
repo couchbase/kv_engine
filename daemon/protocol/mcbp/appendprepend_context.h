@@ -127,8 +127,8 @@ protected:
 private:
     McbpConnection& connection;
     const Mode mode;
-    const const_sized_buffer key;
-    const_sized_buffer value;
+    const const_char_buffer key;
+    const_char_buffer value;
     const uint16_t vbucket;
     const uint64_t cas;
 

@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2015 Couchbase, Inc.
+ *     Copyright 2016 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -19,29 +19,26 @@
 #include <cstddef>
 #include <functional>
 
-/* Struct repesenting a buffer of some known size. This is used to
+/* Struct representing a buffer of some known size. This is used to
  * refer to some existing region of memory which is owned elsewhere - i.e.
  * this object does not have ownership semantics.
  * A user should not free() the buf member themselves!
  */
+template <typename T>
 struct sized_buffer {
-    char* buf;
-    size_t len;
-};
+    sized_buffer()
+        : sized_buffer(nullptr, 0) {}
 
-/* Const variant of sized_buffer. */
-struct const_sized_buffer {
-    const_sized_buffer()
-        : buf(nullptr),
-          len(0) { }
-
-    const_sized_buffer(const char* buf_, size_t len_)
+    sized_buffer(T* buf_, size_t len_)
         : buf(buf_),
-          len(len_) { }
+          len(len_) {}
 
-    const char* buf;
+    T* buf;
     size_t len;
 };
+
+using char_buffer = sized_buffer<char>;
+using const_char_buffer = sized_buffer<const char>;
 
 /*
  * Specialization of std::hash<> for sized_buffer & const_sized_buffer.
@@ -51,15 +48,15 @@ static size_t hash_array(const T* base, size_t len);
 
 namespace std {
     template<>
-    struct hash<sized_buffer> {
-        size_t operator()(const sized_buffer& s) const {
+    struct hash<char_buffer> {
+        size_t operator()(const sized_buffer<char>& s) const {
             return hash_array<char>(s.buf, s.len);
         }
     };
 
     template<>
-    struct hash<const_sized_buffer> {
-        size_t operator()(const const_sized_buffer& s) const {
+    struct hash<const_char_buffer> {
+        size_t operator()(const const_char_buffer& s) const {
             return hash_array<char>(s.buf, s.len);
         }
     };

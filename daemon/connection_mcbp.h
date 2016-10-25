@@ -288,9 +288,9 @@ public:
      * Return the key of the currently processing command.
      * @return the buffer to the key.
      */
-    const_sized_buffer getKey() const {
+    const_char_buffer getKey() const {
         auto *pkt = reinterpret_cast<const char *>(getPacket(cookie));
-        const_sized_buffer ret;
+        const_char_buffer ret;
         ret.len = binary_header.request.keylen;
         ret.buf = pkt + sizeof binary_header.bytes + binary_header.request.extlen;
         return ret;

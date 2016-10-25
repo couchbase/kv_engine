@@ -106,7 +106,7 @@ TopKeys::Shard& TopKeys::getShard(size_t key_hash) {
 
 TopKeys::Shard::topkey_t*
 TopKeys::Shard::searchForKey(size_t key_hash,
-                             const const_sized_buffer& key) {
+                             const const_char_buffer& key) {
 
     for (auto& topkey : storage) {
         if (topkey.first.hash == key_hash) {
@@ -121,7 +121,7 @@ TopKeys::Shard::searchForKey(size_t key_hash,
     return nullptr;
 }
 
-bool TopKeys::Shard::updateKey(const const_sized_buffer& key,
+bool TopKeys::Shard::updateKey(const const_char_buffer& key,
                                size_t key_hash,
                                const rel_time_t ct) {
     try {
@@ -177,8 +177,8 @@ void TopKeys::updateKey(const void *key, size_t nkey,
     cb_assert(nkey > 0);
 
     try {
-        const_sized_buffer key_buf(static_cast<const char*>(key), nkey);
-        std::hash<const_sized_buffer> hash_fn;
+        const_char_buffer key_buf(static_cast<const char*>(key), nkey);
+        std::hash<const_char_buffer > hash_fn;
         const size_t key_hash = hash_fn(key_buf);
 
         getShard(key_hash).updateKey(key_buf, key_hash, operation_time);

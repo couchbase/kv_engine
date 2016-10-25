@@ -76,7 +76,7 @@ struct SubdocCmdContext : public CommandContext {
     // c). {intermediate_result} member of this object.
     // Either way, it should /not/ be cb_free()d.
     // TODO: Remove (b), and just use intermediate result.
-    const_sized_buffer in_doc;
+    const_char_buffer in_doc;
 
     // Temporary buffer used to hold the intermediate result document for
     // multi-path mutations. {in_doc} is then updated to point to this to use
@@ -131,13 +131,13 @@ struct SubdocCmdContext : public CommandContext {
         // Constructor for lookup operations (no value).
         OperationSpec(SubdocCmdTraits traits_,
                       protocol_binary_subdoc_flag flags,
-                      const_sized_buffer path_);
+                      const_char_buffer path_);
 
         // Constructor for operations requiring a value.
         OperationSpec(SubdocCmdTraits traits_,
                       protocol_binary_subdoc_flag flags,
-                      const_sized_buffer path_,
-                      const_sized_buffer value_);
+                      const_char_buffer path_,
+                      const_char_buffer value_);
 
         // Move constructor.
         OperationSpec(OperationSpec&& other);
@@ -146,11 +146,11 @@ struct SubdocCmdContext : public CommandContext {
         SubdocCmdTraits traits;
 
         // Path to operate on. Owned by the original request packet.
-        const_sized_buffer path;
+        const_char_buffer path;
 
         // [For mutations only] Value to apply to document. Owned by the
         // original request packet.
-        const_sized_buffer value;
+        const_char_buffer value;
 
         // Status code of the operation.
         protocol_binary_response_status status;
@@ -163,7 +163,7 @@ struct SubdocCmdContext : public CommandContext {
 
 SubdocCmdContext::OperationSpec::OperationSpec(SubdocCmdTraits traits_,
                                                protocol_binary_subdoc_flag flags,
-                                               const_sized_buffer path_)
+                                               const_char_buffer path_)
     : SubdocCmdContext::OperationSpec::OperationSpec(traits_, flags, path_,
                                                      {nullptr, 0}) {
 }
@@ -171,8 +171,8 @@ SubdocCmdContext::OperationSpec::OperationSpec(SubdocCmdTraits traits_,
 
 SubdocCmdContext::OperationSpec::OperationSpec(SubdocCmdTraits traits_,
                                                protocol_binary_subdoc_flag flags,
-                                               const_sized_buffer path_,
-                                               const_sized_buffer value_)
+                                               const_char_buffer path_,
+                                               const_char_buffer value_)
     : traits(traits_),
       path(path_),
       value(value_),

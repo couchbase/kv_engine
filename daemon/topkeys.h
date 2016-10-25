@@ -110,7 +110,7 @@ private:
         // updated.
         // On success returns true, If insufficient memory to create a
         // new item, returns false.
-        bool updateKey(const const_sized_buffer& key,
+        bool updateKey(const const_char_buffer& key,
                        size_t key_hash,
                        rel_time_t operation_time);
 
@@ -140,7 +140,7 @@ private:
 
         // Searches for the given key. If found returns a pointer to the
         // topkey_t, else returns NULL.
-        topkey_t* searchForKey(size_t hash, const const_sized_buffer& key);
+        topkey_t* searchForKey(size_t hash, const const_char_buffer& key);
 
         // Maxumum numbers of keys to be tracked per shard.
         unsigned int max_keys;
