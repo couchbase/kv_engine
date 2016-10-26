@@ -1533,17 +1533,39 @@ static enum test_result test_dcp_consumer_noop(ENGINE_HANDLE *h,
 
 static enum test_result test_dcp_producer_stream_req_partial(ENGINE_HANDLE *h,
                                                              ENGINE_HANDLE_V1 *h1) {
-    const int num_items = 200;
-    write_items(h, h1, num_items);
 
+    // Should start at checkpoint_id 2
+    const auto initial_ckpt_id = get_int_stat(h, h1, "vb_0:open_checkpoint_id",
+                                              "checkpoint");
+    checkeq(2, initial_ckpt_id, "Expected to start at checkpoint ID 2");
+
+    // Create two 'full' checkpoints by storing exactly 2 x 'chk_max_items'
+    // into the VBucket.
+    const auto max_ckpt_items = get_int_stat(h, h1, "ep_chk_max_items");
+
+    write_items(h, h1, max_ckpt_items);
     wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "ep_items_rm_from_checkpoints", max_ckpt_items);
+    checkeq(initial_ckpt_id + 1,
+            get_int_stat(h, h1, "vb_0:open_checkpoint_id", "checkpoint"),
+            "Expected #checkpoints to increase by 1 after storing items");
+
+    write_items(h, h1, max_ckpt_items, max_ckpt_items);
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "ep_items_rm_from_checkpoints", max_ckpt_items * 2);
+    checkeq(initial_ckpt_id + 2,
+            get_int_stat(h, h1, "vb_0:open_checkpoint_id", "checkpoint"),
+            "Expected #checkpoints to increase by 2 after storing 2x max_ckpt_items");
+
+    // Stop persistece (so the persistence cursor cannot advance into the
+    // deletions below, and hence de-dupe them with respect to the
+    // additions we just did).
     stop_persistence(h, h1);
 
-    // Ensure all 200 items are removed from the checkpoint queues
-    // to avoid any de-duplication with the delete ops that follow
-    wait_for_stat_to_be(h, h1, "ep_items_rm_from_checkpoints", 200);
-
-    for (int j = 0; j < (num_items / 2); ++j) {
+    // Now delete half of the keys. Given that we have reached the
+    // maximum checkpoint size above, all the deletes should be in a
+    // subsequent checkpoint.
+    for (int j = 0; j < max_ckpt_items; ++j) {
         std::stringstream ss;
         ss << "key" << j;
         checkeq(ENGINE_SUCCESS,
@@ -1551,18 +1573,25 @@ static enum test_result test_dcp_producer_stream_req_partial(ENGINE_HANDLE *h,
                 "Expected delete to succeed");
     }
 
-    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
-
     const void *cookie = testHarness.create_cookie();
 
+    // Verify that we recieve full checkpoints when we only ask for
+    // sequence numbers which lie within partial checkpoints.  We
+    // should have the following Checkpoints in existence:
+    //
+    //   {  1,100} - MUTATE(key0..key99), from disk.
+    //   {101,200} - MUTATE(key100.key199), from disk.
+    //   {201,300} - DELETE(key0..key99), in memory (as persistence has been stopped).
+    //
+    // We request a start and end which lie in the middle of checkpoints -
+    // start at 95 and end at 209. We should recieve to the end of
+    // complete checkpoints, i.e. from 95 all the way to 300.
     DcpStreamCtx ctx;
     ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     ctx.seqno = {95, 209};
     ctx.snapshot = {95, 95};
-    // Note that more than the expected number of items (mutations +
-    // deletions) will be sent, because of current design.
-    ctx.exp_mutations = 105;
-    ctx.exp_deletions = 100;
+    ctx.exp_mutations = 105; // 95 to 200
+    ctx.exp_deletions = 100; // 201 to 300
     ctx.exp_markers = 2;
 
     TestDcpConsumer tdc("unittest", cookie);
@@ -5480,7 +5509,10 @@ BaseTestCase testsuite_testcases[] = {
                  prepare, cleanup),
         TestCase("test producer stream request (partial)",
                  test_dcp_producer_stream_req_partial, test_setup, teardown,
-                 "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
+                 /* set chk_period to essentially infinity so it won't run
+                    during this test and create extra checkpoints we don't want.*/
+                 "chk_remover_stime=1;chk_max_items=100;"
+                 "chk_period=1000000", prepare, cleanup),
         TestCase("test producer stream request (full)",
                  test_dcp_producer_stream_req_full, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
