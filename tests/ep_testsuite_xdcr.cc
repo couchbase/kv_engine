@@ -1223,18 +1223,41 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "curr_items", 0);
 
-    check(get_meta(h, h1, k1), "Expected to get meta");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    check(last_deleted_flag, "Expected deleted flag to be set");
+    // Issue a get_meta for a deleted key. This will need to bring in a temp
+    // item into the hashtable as a placeholder for the (deleted) metadata
+    // which needs to be loaded from disk via BG fetch
+    // We need to temporarily disable the reader threads as to prevent the
+    // BGfetch from immediately running and removing our temp_item before
+    // we've had chance to validate its existence.
+    set_param(h, h1, protocol_binary_engine_param_flush,
+              "max_num_readers", "0");
+
+    // Tell the harness not to handle EWOULDBLOCK for us - we want it to
+    // be outstanding while we check the below stats.
+    const void *cookie = testHarness.create_cookie();
+    testHarness.set_ewouldblock_handling(cookie, false);
+
+    checkeq(false, get_meta(h, h1, k1, /*reqExtMeta*/false, cookie),
+            "Expected get_meta to fail (EWOULDBLOCK)");
+    checkeq(static_cast<protocol_binary_response_status>(ENGINE_EWOULDBLOCK),
+            last_status.load(), "Expected EWOULDBLOCK");
+
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
     checkeq(1, get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
 
-    // Do get_meta for a non-existing key
+    // Re-enable EWOULDBLOCK handling (and reader threads), and re-issue.
+    testHarness.set_ewouldblock_handling(cookie, true);
+    set_param(h, h1, protocol_binary_engine_param_flush,
+              "max_num_readers", "1");
+
+    check(get_meta(h, h1, k1, /*reqExtMeta*/false, cookie),
+          "Expected get_meta to succeed");
+    check(last_deleted_flag, "Expected deleted flag to be set");
+
+    // Do get_meta for a non-existing key.
     char const *k2 = "k2";
     check(!get_meta(h, h1, k2), "Expected get meta to return false");
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(), "Expected enoent");
-    checkeq(1, get_int_stat(h, h1, "curr_temp_items"),
-            "No additional bg fetches, thanks to bloom filters");
 
     // Trigger the expiry pager and verify that two temp items are deleted
     wait_for_stat_to_be(h, h1, "ep_expired_pager", 1);
@@ -1242,6 +1265,8 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
     checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
     h1->release(h, NULL, i);
+    testHarness.destroy_cookie(cookie);
+
     return SUCCESS;
 }
 

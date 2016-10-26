@@ -599,7 +599,7 @@ void getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
 }
 
 bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
-              bool reqExtMeta) {
+              bool reqExtMeta, const void* cookie) {
 
     protocol_binary_request_header *req;
     if (reqExtMeta) {
@@ -611,9 +611,14 @@ bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
                            NULL, 0, key, strlen(key));
     }
 
-    ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, req,
+    ENGINE_ERROR_CODE ret = h1->unknown_command(h, cookie, req,
                                                 add_response_get_meta);
-    check(ret == ENGINE_SUCCESS, "Expected get_meta call to be successful");
+    if (ret == ENGINE_EWOULDBLOCK) {
+        last_status = static_cast<protocol_binary_response_status>(ENGINE_EWOULDBLOCK);
+    } else {
+        check(ret == ENGINE_SUCCESS,
+              "Expected get_meta call to be successful");
+    }
     cb_free(req);
     if (last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         return true;
