@@ -566,7 +566,7 @@ private:
     // The persistence checkpoint ID for this vbucket.
     AtomicValue<uint64_t> persistenceCheckpointId;
 
-    static size_t chkFlushTimeout;
+    static std::atomic<size_t> chkFlushTimeout;
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };
