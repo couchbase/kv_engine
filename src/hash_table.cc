@@ -306,7 +306,9 @@ mutation_type_t HashTable::unlocked_set(StoredValue*& v, Item& itm,
             /* allow operation*/
             v->unlock();
         } else if (cas && cas != v->getCas()) {
-            if (v->isTempDeletedItem() || v->isTempNonExistentItem()) {
+            if (v->isTempDeletedItem() ||
+                v->isTempNonExistentItem() ||
+                v->isDeleted()) {
                 return NOT_FOUND;
             }
             return INVALID_CAS;
