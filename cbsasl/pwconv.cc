@@ -74,7 +74,8 @@ void cbsasl_pwconv(const std::string& ifile, const std::string& ofile) {
 }
 
 std::string cbsasl_read_password_file(const std::string& filename) {
-    cb::MemoryMappedFile map(filename.c_str(), false, true);
+    cb::MemoryMappedFile map(filename.c_str(),
+                             cb::MemoryMappedFile::Mode::RDONLY);
     map.open();
     std::string ret(reinterpret_cast<char*>(map.getRoot()),
                     map.getSize());
