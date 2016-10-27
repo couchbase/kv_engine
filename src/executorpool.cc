@@ -583,10 +583,10 @@ bool ExecutorPool::_stopTaskGroup(task_gid_t taskGID,
 bool ExecutorPool::stopTaskGroup(task_gid_t taskGID,
                                  task_type_t taskType,
                                  bool force) {
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-    bool rv = _stopTaskGroup(taskGID, taskType, force);
-    ObjectRegistry::onSwitchThread(epe);
-    return rv;
+    // Note: Stopping a task group is special - any memory allocations /
+    // deallocations made while unregistering *should* be accounted to the
+    // bucket in question - hence no `onSwitchThread(NULL)` call.
+    return _stopTaskGroup(taskGID, taskType, force);
 }
 
 void ExecutorPool::_unregisterTaskable(Taskable& taskable, bool force) {
