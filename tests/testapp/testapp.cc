@@ -814,7 +814,14 @@ void TestappTest::waitForShutdown(void) {
     pid_t ret = waitpid(server_pid, &status, 0);
     ASSERT_NE(reinterpret_cast<pid_t>(-1), ret)
         << "waitpid failed: " << strerror(errno);
-    EXPECT_TRUE(WIFEXITED(status));
+    EXPECT_TRUE(WIFEXITED(status))
+        << "waitpid status     : " << status << std::endl
+        << "WIFEXITED(status)  : " << WIFEXITED(status) << std::endl
+        << "WEXITSTATUS(status): " << WEXITSTATUS(status) << std::endl
+        << "WIFSIGNALED(status): " << WIFSIGNALED(status) << std::endl
+        << "WTERMSIG(status)   : " << WTERMSIG(status) << " ("
+        << strsignal(WTERMSIG(status)) << ")" << std::endl
+        << "WCOREDUMP(status)  : " << WCOREDUMP(status) << std::endl;
     EXPECT_EQ(0, WEXITSTATUS(status));
 #endif
     server_pid = reinterpret_cast<pid_t>(-1);
