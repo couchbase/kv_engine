@@ -872,7 +872,7 @@ private:
         for (const auto c : suspended_map) {
             if (c.second == cookie) {
                 auto logger = gsa()->log->get_logger();
-                logger->log(EXTENSION_LOG_NOTICE, nullptr,
+                logger->log(EXTENSION_LOG_DEBUG, nullptr,
                             "Connection %p with id %u should be suspended for engine %p",
                            c.second, c.first, this);
 
@@ -888,8 +888,9 @@ private:
             pending_io_ops.push(cookie);
         }
         auto logger = gsa()->log->get_logger();
-        logger->log(EXTENSION_LOG_WARNING, nullptr,
-                    "EWB_Engine: connection %p should be resumed for engine %p", cookie, this);
+        logger->log(EXTENSION_LOG_DEBUG, nullptr,
+                    "EWB_Engine: connection %p should be resumed for engine %p",
+                    cookie, this);
 
         condvar.notify_one();
     }
