@@ -1772,17 +1772,17 @@ void CreateBucketThread::create() {
                connection.getId(), name.c_str());
 
     if (!BucketValidator::validateBucketName(name, error)) {
-        LOG_WARNING(&connection,
-                    "%u Create bucket [%s] failed - Invalid bucket name",
-                    connection.getId(), name.c_str());
+        LOG_NOTICE(&connection,
+                   "%u Create bucket [%s] failed - Invalid bucket name",
+                   connection.getId(), name.c_str());
         result = ENGINE_EINVAL;
         return;
     }
 
     if (!BucketValidator::validateBucketType(type, error)) {
-        LOG_WARNING(&connection,
-                    "%u Create bucket [%s] failed - Invalid bucket type",
-                    connection.getId(), name.c_str());
+        LOG_NOTICE(&connection,
+                   "%u Create bucket [%s] failed - Invalid bucket type",
+                   connection.getId(), name.c_str());
         result = ENGINE_EINVAL;
         return;
     }
@@ -1805,7 +1805,8 @@ void CreateBucketThread::create() {
 
     if (found) {
         result = ENGINE_KEY_EEXISTS;
-        LOG_WARNING(&connection, "%u Create bucket [%s] failed - Already exists",
+        LOG_NOTICE(&connection,
+                   "%u Create bucket [%s] failed - Already exists",
                    connection.getId(), name.c_str());
     } else if (first_free == -1) {
         result = ENGINE_E2BIG;
