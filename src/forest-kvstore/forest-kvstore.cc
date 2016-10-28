@@ -1249,7 +1249,7 @@ ForestKVStore::getAllKeys(uint16_t vbid,
     if (status != FDB_RESULT_SUCCESS) {
         throw std::runtime_error("ForestKVStore::getAllKeys: iterator "
                    "initalization failed for vbucket id " + std::to_string(vbid) +
-                   " and start key:" + start_key.c_str());
+                   " and start key with size:" + std::to_string(start_key.size()));
     }
 
     fdb_doc* rdoc = NULL;
@@ -1272,7 +1272,7 @@ ForestKVStore::getAllKeys(uint16_t vbid,
             fdb_iterator_close(fdb_iter);
             throw std::runtime_error("ForestKVStore::getAllKeys: iterator "
                        "get failed for vbucket id " + std::to_string(vbid) +
-                       " and start key:" + start_key.c_str());
+                       " and start key with size:" + std::to_string(start_key.size()));
         }
         size_t keylen = static_cast<size_t>(rdoc->keylen);
         const uint8_t* key = reinterpret_cast<const uint8_t *>(rdoc->key);

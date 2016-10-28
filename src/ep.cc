@@ -706,8 +706,10 @@ void EPBucket::deleteExpiredItem(uint16_t vbid, std::string &key,
                     bool deleted = vb->ht.unlocked_del(key, bucket_num);
                     if (!deleted) {
                         throw std::logic_error("EPStore::deleteExpiredItem: "
-                                "Failed to delete key '" + key + "' from bucket "
-                                + std::to_string(bucket_num));
+                                               "Failed to delete seqno:" +
+                                               std::to_string(v->getBySeqno()) +
+                                               " from bucket " +
+                                               std::to_string(bucket_num));
                     }
                 } else if (v->isExpired(startTime) && !v->isDeleted()) {
                     vb->ht.unlocked_softDelete(v, 0, getItemEvictionPolicy());
@@ -1660,8 +1662,8 @@ void EPBucket::completeBGFetch(const std::string &key, uint16_t vbucket,
             VBucketBGFetchItem item{gcb.val, cookie, init, isMeta};
             completeBGFetchForSingleItem(vb, key, start, item);
         } else {
-            LOG(EXTENSION_LOG_INFO, "VBucket %d's file was deleted in the middle of"
-                " a bg fetch for key %s\n", vbucket, key.c_str());
+            LOG(EXTENSION_LOG_INFO, "vb:%" PRIu16 " file was deleted in the "
+                "middle of a bg fetch for key{%s}\n", vbucket, key.c_str());
             engine.notifyIOComplete(cookie, ENGINE_NOT_MY_VBUCKET);
         }
     }
@@ -2198,7 +2200,7 @@ void EPBucket::completeStatsVKey(const void* cookie, std::string &key,
                     v->unlocked_restoreValue(gcb.val.getValue(), vb->ht);
                     if (!v->isResident()) {
                         throw std::logic_error("EPStore::completeStatsVKey: "
-                            "storedvalue (which has key " + v->getKey() +
+                            "storedvalue (which has seqno:" + std::to_string(v->getBySeqno()) +
                             ") should be resident after calling restoreValue()");
                     }
                 } else if (gcb.val.getStatus() == ENGINE_KEY_ENOENT) {
@@ -2207,9 +2209,8 @@ void EPBucket::completeStatsVKey(const void* cookie, std::string &key,
                     // underlying kvstore couldn't fetch requested data
                     // log returned error and notify TMPFAIL to client
                     LOG(EXTENSION_LOG_WARNING,
-                        "Failed background fetch for vb=%d "
-                        "seq=%" PRId64 " key=%s", vbid, v->getBySeqno(),
-                        key.c_str());
+                        "Failed background fetch for vb:%" PRIu16
+                        ", seqno:%" PRIu64, vbid, v->getBySeqno());
                 }
             }
         }
@@ -2779,27 +2780,23 @@ public:
                                                        bucket_num, true,
                                                        false);
                 if (v) {
-                    std::stringstream ss;
-                    ss << "Persisting ``" << queuedItem->getKey() << "'' on vb"
-                       << queuedItem->getVBucketId() << " (rowid="
-                       << v->getBySeqno() << ") returned 0 updates\n";
-                    LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
+                    LOG(EXTENSION_LOG_WARNING,
+                        "PersistenceCallback::callback: Persisting on "
+                        "vb:%" PRIu16 ", seqno:%" PRIu64 " returned 0 updates",
+                        queuedItem->getVBucketId(), v->getBySeqno());
                 } else {
                     LOG(EXTENSION_LOG_WARNING,
-                        "Error persisting now missing ``%s'' from vb%d",
-                        queuedItem->getKey().c_str(),
+                        "PersistenceCallback::callback: Error persisting, a key"
+                        "is missing from vb:%" PRIu16,
                         queuedItem->getVBucketId());
                 }
 
                 vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
                 stats.decrDiskQueueSize(1);
             } else {
-                std::stringstream ss;
-                ss <<
-                "Fatal error in persisting SET ``" <<
-                queuedItem->getKey() << "'' on vb "
-                   << queuedItem->getVBucketId() << "!!! Requeue it...\n";
-                LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
+                LOG(EXTENSION_LOG_WARNING,
+                    "PersistenceCallback::callback: Fatal error in persisting "
+                    "SET on vb:%" PRIu16, queuedItem->getVBucketId());
                 redirty();
             }
         }
@@ -2837,7 +2834,7 @@ public:
                                                         bucket_num);
                 if (!deleted) {
                     throw std::logic_error("PersistenceCallback:callback: "
-                            "Failed to delete key '" + queuedItem->getKey() +
+                            "Failed to delete key with seqno:" + std::to_string(v->getBySeqno()) +
                             "' from bucket " + std::to_string(bucket_num));
                 }
 
@@ -2856,11 +2853,9 @@ public:
             stats.decrDiskQueueSize(1);
             vbucket->decrMetaDataDisk(*queuedItem);
         } else {
-            std::stringstream ss;
-            ss << "Fatal error in persisting DELETE ``" <<
-            queuedItem->getKey() << "'' on vb "
-               << queuedItem->getVBucketId() << "!!! Requeue it...\n";
-            LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
+            LOG(EXTENSION_LOG_WARNING,
+                "PersistenceCallback::callback: Fatal error in persisting "
+                "DELETE on vb:%" PRIu16, queuedItem->getVBucketId());
             redirty();
         }
     }
@@ -3450,7 +3445,7 @@ void EPBucket::completeBGFetchForSingleItem(RCPtr<VBucket> vb,
                     v->unlocked_restoreValue(fetchedValue, vb->ht);
                     if (!v->isResident()) {
                         throw std::logic_error("EPStore::completeBGFetchForSingleItem: "
-                            "storedvalue (which has key " + v->getKey() +
+                            "storedvalue (which has seqno " + std::to_string(v->getBySeqno()) +
                             ") should be resident after calling restoreValue()");
                     }
                     if (vb->getState() == vbucket_state_active &&
@@ -3478,8 +3473,9 @@ void EPBucket::completeBGFetchForSingleItem(RCPtr<VBucket> vb,
                     // underlying kvstore couldn't fetch requested data
                     // log returned error and notify TMPFAIL to client
                     LOG(EXTENSION_LOG_WARNING,
-                        "Failed background fetch for vb=%d "
-                        "key=%s", vb->getId(), key.c_str());
+                        "Failed background fetch for vb:%" PRIu16
+                        ", v:%p seqno:%" PRIu64, vb->getId(),
+                        static_cast<void*>(v), v ? v->getBySeqno() : 0);
                     status = ENGINE_TMPFAIL;
                 }
             }

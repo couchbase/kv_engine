@@ -58,7 +58,7 @@ public:
         if (log != NULL && v->isResident()) {
             if (v->isExpired(startTime) || v->isDeleted()) {
                 LOG(EXTENSION_LOG_INFO,
-                "INFO: Skipping expired/deleted item: %s",v->getKey().c_str());
+                "INFO: Skipping expired/deleted item: %" PRIu64, v->getBySeqno());
             } else {
                 accessed.push_back(std::make_pair(v->getBySeqno(), v->getKey()));
             }

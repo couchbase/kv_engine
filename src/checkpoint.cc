@@ -382,7 +382,9 @@ uint64_t Checkpoint::getMutationIdForKey(const std::string &key, bool isMeta)
     if (it != chkIdx.end()) {
         mid = it->second.mutation_id;
     } else {
-        LOG(EXTENSION_LOG_WARNING, "%s not found in chk index", key.c_str());
+        throw std::invalid_argument("key{" + key + "} not found in " +
+                                     std::string(isMeta ? "meta" : "key") +
+                                     " index");
     }
     return mid;
 }

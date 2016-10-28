@@ -69,11 +69,11 @@ void CacheCallback::callback(CacheLookup &lookup) {
         } catch (const std::bad_alloc&) {
             setStatus(ENGINE_ENOMEM);
             as->getLogger().log(EXTENSION_LOG_WARNING,
-                           "Alloc error when trying to create an "
-                "item copy from hash table. Item key %s; seqno %" PRIi64 "; "
-                "vb %u; isSendMutationKeyOnlyEnabled %d", v->getKey().c_str(),
-                v->getBySeqno(), lookup.getVBucketId(),
-                as->isSendMutationKeyOnlyEnabled());
+                                "Alloc error when trying to create an "
+                                "item copy from hash table. Item seqno:%" PRIi64
+                                ", vb:%" PRIu16 ", isSendMutationKeyOnlyEnabled"
+                                ":%d", v->getBySeqno(), lookup.getVBucketId(),
+                                as->isSendMutationKeyOnlyEnabled());
             return;
         }
         lh.unlock();
