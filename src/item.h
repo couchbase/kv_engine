@@ -761,17 +761,6 @@ std::ostream& operator<<(std::ostream& os, const Item& item);
 typedef SingleThreadedRCPtr<Item> queued_item;
 
 /**
- * Order queued_item objects pointed by std::shared_ptr by their keys.
- */
-class CompareQueuedItemsByKey {
-public:
-    CompareQueuedItemsByKey() {}
-    bool operator()(const queued_item &i1, const queued_item &i2) {
-        return i1->getKey() < i2->getKey();
-    }
-};
-
-/**
  * Order QueuedItem objects by their keys and by sequence numbers.
  */
 class CompareQueuedItemsBySeqnoAndKey {
