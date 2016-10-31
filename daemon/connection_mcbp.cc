@@ -434,8 +434,14 @@ McbpConnection::TransmitResult McbpConnection::transmit() {
         // if res == 0 or res == -1 and error is not EAGAIN or EWOULDBLOCK,
         // we have a real error, on which we close the connection
         if (res == -1) {
-            log_socket_error(EXTENSION_LOG_WARNING, this,
-                             "Failed to write, and not due to blocking: %s");
+            if (is_closed_conn(error)) {
+                LOG_NOTICE(nullptr,
+                           "%u: Failed to send data; peer closed the connection",
+                           getId());
+            } else {
+                log_socket_error(EXTENSION_LOG_WARNING, this,
+                                 "Failed to write, and not due to blocking: %s");
+            }
         } else {
             // sendmsg should return the number of bytes written, but we
             // sent 0 bytes. That shouldn't be possible unless we
