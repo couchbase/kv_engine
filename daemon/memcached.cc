@@ -720,7 +720,7 @@ bool conn_listening(ListenConnection *c)
     }
 
     int port_conns;
-    struct listening_port *port_instance;
+    ListeningPort *port_instance;
     int curr_conns = stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
     {
         std::lock_guard<std::mutex> guard(stats_mutex);
@@ -1047,18 +1047,20 @@ static SOCKET new_server_socket(struct addrinfo *ai, bool tcp_nodelay) {
  * @param family the address family for the port
  */
 static void add_listening_port(struct interface *interf, in_port_t port, sa_family_t family) {
+    std::lock_guard<std::mutex> guard(stats_mutex);
     auto *descr = get_listening_port_instance(port);
 
     if (descr == nullptr) {
-        listening_port newport;
+        ListeningPort newport(port,
+                              interf->host,
+                              interf->tcp_nodelay,
+                              interf->backlog,
+                              interf->management,
+                              interf->protocol);
 
-        newport.port = port;
         newport.curr_conns = 1;
         newport.maxconns = interf->maxconn;
 
-        if (interf->host != nullptr) {
-            newport.host = interf->host;
-        }
         if (interf->ssl.key == nullptr || interf->ssl.cert == nullptr) {
             newport.ssl.enabled = false;
         } else {
@@ -1066,7 +1068,6 @@ static void add_listening_port(struct interface *interf, in_port_t port, sa_fami
             newport.ssl.key = interf->ssl.key;
             newport.ssl.cert = interf->ssl.cert;
         }
-        newport.backlog = interf->backlog;
 
         if (family == AF_INET) {
             newport.ipv4 = true;
@@ -1075,10 +1076,6 @@ static void add_listening_port(struct interface *interf, in_port_t port, sa_fami
             newport.ipv4 = false;
             newport.ipv6 = true;
         }
-
-        newport.tcp_nodelay = interf->tcp_nodelay;
-        newport.management = interf->management;
-        newport.protocol = interf->protocol;
 
         stats.listening_ports.push_back(newport);
     } else {

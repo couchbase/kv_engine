@@ -47,7 +47,7 @@ public:
     GreenstackConnection(SOCKET sfd, event_base* b) = delete;
 
     GreenstackConnection(SOCKET sfd, event_base* b,
-                         const struct listening_port& ifc);
+                         const ListeningPort& ifc);
 
     virtual cJSON* toJSON() const override;
 

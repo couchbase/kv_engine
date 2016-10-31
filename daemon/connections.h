@@ -110,7 +110,7 @@ void conn_close(McbpConnection *c);
  * Return the TCP or domain socket listening_port structure that
  * has a given port number
  */
-struct listening_port *get_listening_port_instance(const in_port_t port);
+ListeningPort *get_listening_port_instance(const in_port_t port);
 
 /* Dump stats for the connection with the given fd number, or all connections
  * if fd is -1.

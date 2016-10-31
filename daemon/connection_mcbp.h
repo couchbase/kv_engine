@@ -202,7 +202,7 @@ public:
     McbpConnection() = delete;
     McbpConnection(SOCKET sfd, event_base* b);
 
-    McbpConnection(SOCKET sfd, event_base* b, const struct listening_port& ifc);
+    McbpConnection(SOCKET sfd, event_base* b, const ListeningPort& ifc);
 
     virtual ~McbpConnection();
 

@@ -944,7 +944,7 @@ McbpConnection::McbpConnection(SOCKET sfd, event_base *b)
 
 McbpConnection::McbpConnection(SOCKET sfd,
                                event_base* b,
-                               const struct listening_port& ifc)
+                               const ListeningPort& ifc)
     : Connection(sfd, b, ifc),
       stateMachine(new McbpStateMachine(conn_new_cmd)),
       tap_iterator(nullptr),

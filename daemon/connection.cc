@@ -78,7 +78,7 @@ Connection::Connection(SOCKET sfd, event_base* b)
 
 Connection::Connection(SOCKET sock,
                        event_base* b,
-                       const struct listening_port& interface)
+                       const ListeningPort& interface)
     : Connection(sock, b) {
     parent_port = interface.port;
     resolveConnectionName(false);

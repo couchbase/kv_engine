@@ -1311,7 +1311,7 @@ static bool dyna_validate_always_true(const struct settings *, cJSON*) {
 static void dyna_reconfig_iface_maxconns(const struct interface *new_if,
                                          struct interface *cur_if) {
     if (new_if->maxconn != cur_if->maxconn) {
-        struct listening_port *port = get_listening_port_instance(cur_if->port);
+        ListeningPort *port = get_listening_port_instance(cur_if->port);
         int old_maxconns = cur_if->maxconn;
         cur_if->maxconn = new_if->maxconn;
         port->maxconns = new_if->maxconn;

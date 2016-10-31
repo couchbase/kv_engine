@@ -122,8 +122,9 @@ const char* get_server_version(void) {
     return "";
 }
 
-struct listening_port *get_listening_port_instance(const in_port_t port) {
-    static struct listening_port l;
+ListeningPort *get_listening_port_instance(const in_port_t port) {
+    static ListeningPort l(11210, nullptr, false, 10, false,
+                                  Protocol::Memcached);
     return &l;
 }
 
