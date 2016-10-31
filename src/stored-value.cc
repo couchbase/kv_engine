@@ -169,7 +169,7 @@ bool StoredValue::hasAvailableSpace(EPStats &st, const Item &itm,
 }
 
 Item* StoredValue::toItem(bool lck, uint16_t vbucket) const {
-    Item* itm = new Item(getDocKey(), getFlags(), getExptime(), value,
+    Item* itm = new Item(key, getFlags(), getExptime(), value,
                          lck ? static_cast<uint64_t>(-1) : getCas(),
                          bySeqno, vbucket, getRevSeqno());
 
@@ -183,7 +183,7 @@ Item* StoredValue::toItem(bool lck, uint16_t vbucket) const {
 }
 
 Item* StoredValue::toValuelessItem(uint16_t vbucket) const {
-    return new Item(getDocKey(), getFlags(),
+    return new Item(key, getFlags(),
                     getExptime(), NULL /* valuePtr */, 0 /* valuelen */,
                     NULL /* ext_meta*/, 0 /* ext_len */, getCas(),
                     getBySeqno(), vbucket, getRevSeqno());

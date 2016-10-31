@@ -60,10 +60,8 @@ public:
                 LOG(EXTENSION_LOG_INFO,
                 "INFO: Skipping expired/deleted item: %" PRIu64, v->getBySeqno());
             } else {
-                // Collections: TODO - store namespace with StoredValue
                 accessed.push_back(std::make_pair(v->getBySeqno(),
-                                                  StoredDocKey(v->getKey(),
-                                                               DocNamespace::DefaultCollection)));
+                                                  StoredDocKey(v->getKey())));
             }
         }
     }

@@ -78,7 +78,7 @@ public:
             v->isExpired(startTime) && !v->isDeleted();
         if (isExpired || v->isTempNonExistentItem() || v->isTempDeletedItem()) {
             expired.push_back(std::make_pair(currentBucket->getId(),
-                                             StoredDocKey(v->getDocKey())));
+                                             StoredDocKey(v->getKey())));
             return;
         }
 
@@ -222,7 +222,7 @@ private:
 
     void doEviction(StoredValue *v) {
         item_eviction_policy_t policy = store.getItemEvictionPolicy();
-        StoredDocKey key(v->getDocKey());
+        StoredDocKey key(v->getKey());
 
         if (currentBucket->ht.unlocked_ejectItem(v, policy)) {
             ++ejected;

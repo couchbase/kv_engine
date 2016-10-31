@@ -240,7 +240,7 @@ TEST_P(StoredDocKeyTest, constructFromSerialisedDocKey) {
     EXPECT_EQ(key1, key2);
 
     // Key1 equals serialKey
-    EXPECT_EQ( *serialKey, key1);
+    EXPECT_EQ(*serialKey, key1);
 
     // Key 2 must equal serialKey (compare size, data, namespace)
     EXPECT_EQ(serialKey->size(), key2.size());
@@ -248,9 +248,10 @@ TEST_P(StoredDocKeyTest, constructFromSerialisedDocKey) {
     EXPECT_EQ(serialKey->getDocNamespace(), key2.getDocNamespace());
 }
 
-std::vector<DocNamespace> allDocNamespaces = {{DocNamespace::DefaultCollection,
-                                               DocNamespace::Collections,
-                                               DocNamespace::System}};
+static std::vector<DocNamespace> allDocNamespaces = {
+        {DocNamespace::DefaultCollection,
+         DocNamespace::Collections,
+         DocNamespace::System}};
 
 INSTANTIATE_TEST_CASE_P(
         DocNamespace,

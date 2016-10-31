@@ -65,7 +65,7 @@ public:
         } else {
             ++count;
             if (verify) {
-                StoredDocKey key = v->getDocKey();
+                StoredDocKey key(v->getKey());
                 value_t val = v->getValue();
                 EXPECT_STREQ(key.c_str(), val->to_s().c_str());
             }

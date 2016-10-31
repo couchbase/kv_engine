@@ -272,9 +272,8 @@ public:
      * the specified length.
      */
     static size_t len(size_t klen) {
-        // 13 == the exact empty record size as will be packed into
-        // the layout
-        return 13 + klen;
+        // the exact empty record size as will be packed into the layout
+        return sizeof(MutationLogEntry) + (klen - 1);
     }
 
     /**
@@ -282,16 +281,14 @@ public:
      * MutationLogEntry.
      */
     size_t len() const {
-        return len(keylen);
+        return len(_key.size());
     }
 
     /**
      * This entry's key.
      */
-    const DocKey key() const {
-        // Collections: TODO - Store the DocNamespace
-        return DocKey(reinterpret_cast<const uint8_t*>(_key), keylen,
-                      DocNamespace::DefaultCollection);
+    const SerialisedDocKey& key() const {
+        return _key;
     }
 
     /**
@@ -320,32 +317,31 @@ private:
 
     MutationLogEntry(uint64_t r, mutation_log_type_t t,
                      uint16_t vb, const DocKey& k)
-        : MutationLogEntry(r, t, vb) {
-        if (k.size() > std::numeric_limits<uint8_t>::max()) {
-            throw std::invalid_argument("MutationLogEntry(): key length "
-                    "(which is " + std::to_string(k.size()) +
-                    ") is greater than " +
-                    std::to_string(std::numeric_limits<uint8_t>::max()));
-        }
-        keylen = static_cast<uint8_t>(k.size());
-        memcpy(_key, k.data(), k.size());
+        :  _rowid(htonll(r)),
+          _vbucket(htons(vb)),
+          magic(MUTATION_LOG_MAGIC),
+          _type(static_cast<uint8_t>(t)),
+          pad(0),
+          _key(k) {
+          (void)pad;
+        // Assert that _key is the final member
+        static_assert(offsetof(MutationLogEntry, _key) ==
+                      (sizeof(MutationLogEntry) - sizeof(SerialisedDocKey)),
+                      "_key must be the final member of MutationLogEntry");
     }
 
     MutationLogEntry(uint64_t r, mutation_log_type_t t,
                      uint16_t vb)
-        : _rowid(htonll(r)),
-          _vbucket(htons(vb)),
-          magic(MUTATION_LOG_MAGIC),
-          _type(static_cast<uint8_t>(t)),
-          keylen(0) {
+        : MutationLogEntry(r, t, vb,
+                           {nullptr, 0, DocNamespace::DefaultCollection}) {
     }
 
     uint64_t _rowid;
     uint16_t _vbucket;
     uint8_t  magic;
     uint8_t  _type;
-    uint8_t  keylen;
-    char     _key[1];
+    uint8_t pad; // explicit padding to ensure _key is the final member
+    SerialisedDocKey _key;
 
     DISALLOW_COPY_AND_ASSIGN(MutationLogEntry);
 };

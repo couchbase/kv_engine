@@ -37,7 +37,7 @@ public:
 
     void operator delete(void* p) {
         ::operator delete(p);
-     }
+    }
 
     uint8_t getNRUValue();
 
@@ -110,41 +110,20 @@ public:
     }
 
     /**
-     * Get the pointer to the beginning of the key.
-     */
-    const char* getKeyBytes() const {
-        return keybytes;
-    }
-
-    /**
-     * Get the length of the key.
-     */
-    uint8_t getKeyLen() const {
-        return keylen;
-    }
-
-    /**
-     * True of this item is for the given key.
+     * True if this item is for the given key.
      *
      * @param k the key we're checking
      * @return true if this item's key is equal to k
      */
     bool hasKey(const DocKey& k) const {
-        return k.size() == getKeyLen()
-            && (std::memcmp(k.data(), getKeyBytes(), getKeyLen()) == 0);
+        return key == k;
     }
 
     /**
      * Get this item's key.
      */
-    const std::string getKey() const {
-        return std::string(getKeyBytes(), getKeyLen());
-    }
-
-    const DocKey getDocKey() const {
-        // Collections: TODO: store the namespace
-        return DocKey(reinterpret_cast<const uint8_t*>(getKeyBytes()),
-                      getKeyLen(), DocNamespace::DefaultCollection);
+    const SerialisedDocKey& getKey() const {
+        return key;
     }
 
     /**
@@ -354,15 +333,14 @@ public:
     /**
      * Is this a temporary item created for a non-existent key?
      */
-     bool isTempNonExistentItem() const {
+    bool isTempNonExistentItem() const {
          return bySeqno == state_non_existent_key;
-
-     }
+    }
 
     /**
      * Is this a temporary item created for a deleted key?
      */
-     bool isTempDeletedItem() {
+    bool isTempDeletedItem() {
          return bySeqno == state_deleted_key;
 
      }
@@ -380,11 +358,11 @@ public:
      * @return the amount of memory used by this item.
      */
     size_t size() {
-        return sizeof(StoredValue) + getKeyLen() + valuelen();
+        return sizeof(StoredValue) + key.size() + valuelen();
     }
 
     size_t metaDataSize() {
-        return sizeof(StoredValue) + getKeyLen();
+        return sizeof(StoredValue) + key.size();
     }
 
     /**
@@ -502,7 +480,7 @@ public:
     }
 
     size_t getObjectSize() const {
-        return (sizeof(StoredValue) - sizeof(keybytes)) + keylen;
+        return sizeof(*this) + key.getObjectSize();
     }
 
     /**
@@ -526,7 +504,7 @@ private:
         deleted(false),
         newCacheItem(true),
         nru(itm.getNRUValue()),
-        keylen(itm.getKey().size()) {
+        key(itm.getKey()) {
 
         if (setDirty) {
             markDirty();
@@ -542,6 +520,16 @@ private:
         increaseCacheSize(ht, size());
 
         ObjectRegistry::onCreateStoredValue(this);
+        static_assert(offsetof(StoredValue, key) ==
+                      (sizeof(StoredValue) - sizeof(key)),
+                      "key must be the final member of StoredValue");
+    }
+
+    /*
+     * Return how many bytes are need to store Item as a StoredValue
+     */
+    static size_t getRequiredStorage(const Item& item) {
+        return sizeof(StoredValue) + SerialisedDocKey::getObjectSize(item.getKey().size());
     }
 
     friend class HashTable;
@@ -559,8 +547,7 @@ private:
     bool               deleted   :  1;
     bool               newCacheItem : 1;
     uint8_t            nru       :  2; //!< True if referenced since last sweep
-    uint8_t            keylen;
-    char               keybytes[1];    //!< The key itself.
+    SerialisedDocKey key; //!< The key itself.
 
     static void increaseMetaDataSize(HashTable &ht, EPStats &st, size_t by);
     static void reduceMetaDataSize(HashTable &ht, EPStats &st, size_t by);
@@ -624,24 +611,14 @@ public:
 
 private:
 
-    StoredValue* newStoredValue(const Item &itm, StoredValue *n, HashTable &ht,
+    StoredValue* newStoredValue(const Item &itm,
+                                StoredValue *n,
+                                HashTable &ht,
                                 bool setDirty) {
-        // Do not consider the size of the char pointer (keybytes)
-        // that is used to hold the key
-        size_t base = sizeof(StoredValue) - sizeof(char);
-
-        const auto itemKeyLen = itm.getKey().size();
-        if (itemKeyLen >= 256) {
-            throw std::invalid_argument("StoredValueFactory::newStoredValue: "
-                    "item key length (which is " + std::to_string(itemKeyLen) +
-                    "is greater than 256");
-        }
-
-        size_t len = itemKeyLen + base;
-
-        StoredValue *t = new (::operator new(len))
-                         StoredValue(itm, n, *stats, ht, setDirty);
-        std::memcpy(t->keybytes, itm.getKey().data(), itm.getKey().size());
+        // Allocate a buffer to store the StoredValue and any trailing bytes
+        // that maybe required.
+        StoredValue *t = new (::operator new(StoredValue::getRequiredStorage(itm)))
+                              StoredValue(itm, n, *stats, ht, setDirty);
         return t;
     }
 

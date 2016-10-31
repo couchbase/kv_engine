@@ -202,7 +202,7 @@ void HashTable::resize(size_t newSize) {
             StoredValue *v = values[i];
             values[i] = v->next;
 
-            int newBucket = getBucketForHash(v->getDocKey().hash());
+            int newBucket = getBucketForHash(v->getKey().hash());
             v->next = newValues[newBucket];
             newValues[newBucket] = v;
         }
@@ -716,7 +716,7 @@ void HashTable::visit(HashTableVisitor &visitor) {
             if (v) {
                 // TODO: Perf: This check seems costly - do we think it's still
                 // worth keeping?
-                auto hashbucket = getBucketForHash(v->getDocKey().hash());
+                auto hashbucket = getBucketForHash(v->getKey().hash());
                 if (i != hashbucket) {
                     throw std::logic_error("HashTable::visit: inconsistency "
                             "between StoredValue's calculated hashbucket "
@@ -751,7 +751,7 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
             if (p) {
                 // TODO: Perf: This check seems costly - do we think it's still
                 // worth keeping?
-                auto hashbucket = getBucketForHash(p->getDocKey().hash());
+                auto hashbucket = getBucketForHash(p->getKey().hash());
                 if (i != hashbucket) {
                     throw std::logic_error("HashTable::visit: inconsistency "
                             "between StoredValue's calculated hashbucket "
@@ -893,7 +893,7 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
             StoredValue::reduceMetaDataSize(*this, stats,
                                             vptr->metaDataSize());
             StoredValue::reduceCacheSize(*this, vptr->size());
-            int bucket_num = getBucketForHash(vptr->getDocKey().hash());
+            int bucket_num = getBucketForHash(vptr->getKey().hash());
             StoredValue *v = values[bucket_num];
             // Remove the item from the hash table.
             if (v == vptr) {
