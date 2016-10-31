@@ -24,7 +24,7 @@
 
 
 GreenstackConnection::GreenstackConnection(SOCKET sfd, event_base* b,
-                                           const struct listening_port& ifc)
+                                           const ListeningPort& ifc)
     : Connection(sfd, b, ifc),
       connectionState(ConnectionState::ESTABLISHED) {
     if (ifc.protocol != Protocol::Greenstack) {

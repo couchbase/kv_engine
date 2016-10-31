@@ -53,7 +53,7 @@ static void conn_return_single_buffer(Connection *c, struct net_buf *thread_buf,
 static void conn_destructor(Connection *c);
 static Connection *allocate_connection(SOCKET sfd,
                                        event_base *base,
-                                       const struct listening_port &interface);
+                                       const ListeningPort &interface);
 
 static ListenConnection* allocate_listen_connection(SOCKET sfd,
                                                     event_base* base,
@@ -179,26 +179,26 @@ Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
                      struct event_base* base,
                      LIBEVENT_THREAD* thread) {
 
-    Connection *c = nullptr;
-
-    for (auto& interface : stats.listening_ports) {
-        if (parent_port == interface.port) {
-            c = allocate_connection(sfd, base, interface);
-            if (c == nullptr) {
-                return nullptr;
-            }
-
-            LOG_INFO(NULL, "%u: Using protocol: %s", c->getId(),
-                     to_string(c->getProtocol()));
-            break;
+    Connection* c;
+    {
+        std::lock_guard<std::mutex> guard(stats_mutex);
+        auto* interface = get_listening_port_instance(parent_port);
+        if (interface == nullptr) {
+            LOG_WARNING(NULL,
+                        "%u: failed to locate server port %u. Disconnecting",
+                        (unsigned int)sfd, parent_port);
+            return nullptr;
         }
+
+        c = allocate_connection(sfd, base, *interface);
     }
 
     if (c == nullptr) {
-        LOG_WARNING(NULL, "%u: failed to locate server port %u. Disconnecting",
-                    (unsigned int)sfd, parent_port);
         return nullptr;
     }
+
+    LOG_INFO(nullptr, "%u: Using protocol: %s", c->getId(),
+             to_string(c->getProtocol()));
 
     stats.total_conns++;
 
@@ -313,7 +313,7 @@ void conn_close(McbpConnection *c) {
     c->setState(conn_destroyed);
 }
 
-struct listening_port *get_listening_port_instance(const in_port_t port) {
+ListeningPort *get_listening_port_instance(const in_port_t port) {
     for (auto &instance : stats.listening_ports) {
         if (instance.port == port) {
             return &instance;
@@ -429,7 +429,7 @@ static void conn_destructor(Connection *c) {
  */
 static Connection *allocate_connection(SOCKET sfd,
                                        event_base *base,
-                                       const struct listening_port &interface) {
+                                       const ListeningPort &interface) {
     Connection *ret = nullptr;
 
     try {

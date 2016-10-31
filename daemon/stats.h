@@ -175,26 +175,80 @@ struct thread_stats {
 };
 
 /**
- * Listening port.
+ * A class representing the properties used by Listening port.
+ *
+ * This class differs from the "interface" class that it represents
+ * an actual port memcached have open. It contains some dynamic and
+ * some fixed properties
  */
-struct listening_port {
-    in_port_t port;
+class ListeningPort {
+public:
+    ListeningPort(const in_port_t port_,
+                  const std::string& host_,
+                  bool tcp_nodelay_,
+                  int backlog_,
+                  bool management_,
+                  const Protocol protocol_)
+        : port(port_),
+          curr_conns(1),
+          maxconns(0),
+          host(host_),
+          backlog(backlog_),
+          ipv6(false),
+          ipv4(false),
+          tcp_nodelay(tcp_nodelay_),
+          management(management_),
+          protocol(protocol_) {
+    }
+
+    /**
+     * The actual port number being used by this connection. Please note
+     * that you cannot configure the system to use the same port, but different
+     * hostnames.
+     */
+    const in_port_t port;
+
+    /** The current number of connections connected to this port */
     int curr_conns;
+
+    /** The maximum number of connections allowed for this port */
     int maxconns;
 
-    std::string host;
-    struct {
+    /** The hostname this port is bound to ("*" means all interfaces) */
+    const std::string host;
+
+    /** SSL related properties for the port */
+    struct ifc_ssl_info {
+        ifc_ssl_info()
+            : enabled(false) {
+        }
+
+        ifc_ssl_info(const ifc_ssl_info& o)
+            : enabled(o.enabled),
+              key(o.key),
+              cert(o.cert) {}
+
+        /** Is ssl enabled or not */
         bool enabled;
+        /** The name of the file containing the SSL key */
         std::string key;
+        /** The name of the file containing the certificate */
         std::string cert;
     } ssl;
 
+    /** The backlog size before the kernel will deny connect requests */
     int backlog;
+    /** Is IPv6 enabled for this port */
     bool ipv6;
+    /** Is IPv4 enabled for this port */
     bool ipv4;
+    /** Should TCP_NODELAY be enabled or not */
     bool tcp_nodelay;
-    bool management;
-    Protocol protocol;
+    // You can't change the purpose of a port dynamically (It is only
+    // used during startup
+    const bool management;
+    // we can't change the protocol dynamically
+    const Protocol protocol;
 };
 
 /**
@@ -216,7 +270,7 @@ struct stats {
     /** The number of times I reject a client */
     Couchbase::RelaxedAtomic<uint64_t> rejected_conns;
 
-    std::vector<listening_port> listening_ports;
+    std::vector<ListeningPort> listening_ports;
 };
 
 

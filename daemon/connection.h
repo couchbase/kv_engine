@@ -25,6 +25,7 @@
 #include <string>
 
 struct LIBEVENT_THREAD;
+class ListeningPort;
 
 /**
  * The structure representing a connection in memcached.
@@ -331,7 +332,7 @@ protected:
     Connection(SOCKET sfd, event_base* b);
 
     Connection(SOCKET sfd, event_base* b,
-               const struct listening_port& interface);
+               const ListeningPort& interface);
 
     /**
      * The actual socket descriptor used by this connection

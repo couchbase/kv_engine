@@ -819,7 +819,7 @@ bool conn_listening(ListenConnection *c)
     }
 
     int port_conns;
-    struct listening_port *port_instance;
+    ListeningPort *port_instance;
     int curr_conns = stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
     {
         std::lock_guard<std::mutex> guard(stats_mutex);
@@ -1143,18 +1143,20 @@ static SOCKET new_server_socket(struct addrinfo *ai, bool tcp_nodelay) {
  * @param family the address family for the port
  */
 static void add_listening_port(const struct interface *interf, in_port_t port, sa_family_t family) {
+    std::lock_guard<std::mutex> guard(stats_mutex);
     auto *descr = get_listening_port_instance(port);
 
     if (descr == nullptr) {
-        listening_port newport;
+        ListeningPort newport(port,
+                              interf->host,
+                              interf->tcp_nodelay,
+                              interf->backlog,
+                              interf->management,
+                              interf->protocol);
 
-        newport.port = port;
         newport.curr_conns = 1;
         newport.maxconns = interf->maxconn;
 
-        if (!interf->host.empty()) {
-            newport.host = interf->host;
-        }
         if (interf->ssl.key.empty() || interf->ssl.cert.empty()) {
             newport.ssl.enabled = false;
         } else {
@@ -1162,7 +1164,6 @@ static void add_listening_port(const struct interface *interf, in_port_t port, s
             newport.ssl.key = interf->ssl.key;
             newport.ssl.cert = interf->ssl.cert;
         }
-        newport.backlog = interf->backlog;
 
         if (family == AF_INET) {
             newport.ipv4 = true;
@@ -1171,10 +1172,6 @@ static void add_listening_port(const struct interface *interf, in_port_t port, s
             newport.ipv4 = false;
             newport.ipv6 = true;
         }
-
-        newport.tcp_nodelay = interf->tcp_nodelay;
-        newport.management = interf->management;
-        newport.protocol = interf->protocol;
 
         stats.listening_ports.push_back(newport);
     } else {
@@ -1907,17 +1904,17 @@ void CreateBucketThread::create() {
                connection.getId(), name.c_str());
 
     if (!BucketValidator::validateBucketName(name, error)) {
-        LOG_WARNING(&connection,
-                    "%u Create bucket [%s] failed - Invalid bucket name",
-                    connection.getId(), name.c_str());
+        LOG_NOTICE(&connection,
+                   "%u Create bucket [%s] failed - Invalid bucket name",
+                   connection.getId(), name.c_str());
         result = ENGINE_EINVAL;
         return;
     }
 
     if (!BucketValidator::validateBucketType(type, error)) {
-        LOG_WARNING(&connection,
-                    "%u Create bucket [%s] failed - Invalid bucket type",
-                    connection.getId(), name.c_str());
+        LOG_NOTICE(&connection,
+                   "%u Create bucket [%s] failed - Invalid bucket type",
+                   connection.getId(), name.c_str());
         result = ENGINE_EINVAL;
         return;
     }
@@ -1940,7 +1937,8 @@ void CreateBucketThread::create() {
 
     if (found) {
         result = ENGINE_KEY_EEXISTS;
-        LOG_WARNING(&connection, "%u Create bucket [%s] failed - Already exists",
+        LOG_NOTICE(&connection,
+                   "%u Create bucket [%s] failed - Already exists",
                    connection.getId(), name.c_str());
     } else if (first_free == -1) {
         result = ENGINE_E2BIG;
