@@ -507,7 +507,7 @@ extern "C"
                 return datatype <= highest;
             }
         }
-    };
+    }
 
 #else
     // The old style versions will go away as we move over to C++ everywhere
