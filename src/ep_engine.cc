@@ -3118,13 +3118,11 @@ bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
         rollbackItemCount += vb->getRollbackItemCount();
 
         /*
-         * The bucket stat only reports the largest drift of the vbuckets.
+         * The bucket stat reports the total drift of the vbuckets.
          */
-        auto driftStats = vb->getHLCDriftStats();
-        // If this vbucket's max is bigger than ours
-        if (driftStats.total > maxAbsHLCDrift.total) {
-            maxAbsHLCDrift = driftStats;
-        }
+        auto absHLCDrift = vb->getHLCDriftStats();
+        totalAbsHLCDrift.total += absHLCDrift.total;
+        totalAbsHLCDrift.updates += absHLCDrift.updates;
 
         /*
          * Total up the exceptions
@@ -3713,13 +3711,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 
     // Add stats for tracking HLC drift
     add_casted_stat("ep_active_hlc_drift",
-        activeCountVisitor.getMaxAbsHLCDrift().total, add_stat, cookie);
+        activeCountVisitor.getTotalAbsHLCDrift().total, add_stat, cookie);
     add_casted_stat("ep_active_hlc_drift_count",
-        activeCountVisitor.getMaxAbsHLCDrift().updates, add_stat, cookie);
+        activeCountVisitor.getTotalAbsHLCDrift().updates, add_stat, cookie);
     add_casted_stat("ep_replica_hlc_drift",
-        replicaCountVisitor.getMaxAbsHLCDrift().total, add_stat, cookie);
+        replicaCountVisitor.getTotalAbsHLCDrift().total, add_stat, cookie);
     add_casted_stat("ep_replica_hlc_drift_count",
-        replicaCountVisitor.getMaxAbsHLCDrift().updates, add_stat, cookie);
+        replicaCountVisitor.getTotalAbsHLCDrift().updates, add_stat, cookie);
 
     add_casted_stat("ep_active_ahead_exceptions",
         activeCountVisitor.getTotalHLCDriftExceptionCounters().ahead,
