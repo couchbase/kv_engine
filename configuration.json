@@ -309,6 +309,17 @@
             "descr": "True if we want to keep the closed checkpoints for each vbucket unless the memory usage is above high water mark",
             "type": "bool"
         },
+        "connection_manager_interval": {
+            "default": "2",
+            "descr": "How often connection manager task should be run (in seconds).",
+            "type": "size_t",
+            "dynamic": false,
+            "validator": {
+                "range": {
+                    "min": 2
+                }
+            }
+        },
         "max_checkpoints": {
             "default": "2",
             "type": "size_t"

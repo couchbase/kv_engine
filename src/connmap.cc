@@ -140,12 +140,15 @@ bool ConnNotifier::notifyConnections() {
 class ConnManager : public GlobalTask {
 public:
     ConnManager(EventuallyPersistentEngine *e, ConnMap *cmap)
-        : GlobalTask(e, TaskId::ConnManager, MIN_SLEEP_TIME, true),
-          engine(e), connmap(cmap) { }
+        : GlobalTask(e, TaskId::ConnManager,
+                     e->getConfiguration().getConnectionManagerInterval(),
+                     true),
+          engine(e), connmap(cmap),
+          snoozeTime(e->getConfiguration().getConnectionManagerInterval()) { }
 
     bool run(void) {
         connmap->manageConnections();
-        snooze(MIN_SLEEP_TIME);
+        snooze(snoozeTime);
         return !engine->getEpStats().isShutdown ||
                !connmap->isAllEmpty() ||
                !connmap->isDeadConnectionsEmpty();
@@ -158,6 +161,7 @@ public:
 private:
     EventuallyPersistentEngine *engine;
     ConnMap *connmap;
+    size_t snoozeTime;
 };
 
 class ConnMapValueChangeListener : public ValueChangedListener {
@@ -229,9 +233,11 @@ void ConnMap::notifyPausedConnection(connection_t conn, bool schedule) {
         if (tp && tp->isPaused() && conn->isReserved() &&
             tp->setNotificationScheduled(true)) {
             pendingNotifications.push(conn);
-            connNotifier_->notifyMutationEvent(); // Wake up the connection notifier so that
-                                                  // it can notify the event to a given
-                                                  // paused connection.
+            if (connNotifier_) {
+                // Wake up the connection notifier so that
+                // it can notify the event to a given paused connection.
+                connNotifier_->notifyMutationEvent();
+            }
         }
     } else {
         LockHolder rlh(releaseLock);
