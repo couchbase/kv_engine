@@ -23,7 +23,8 @@
 #include "ep_engine.h"
 #include "mutation_log.h"
 
-class ItemAccessVisitor : public VBucketVisitor {
+class ItemAccessVisitor : public VBucketVisitor,
+                          public HashTableVisitor {
 public:
     ItemAccessVisitor(EventuallyPersistentStore &_store, EPStats &_stats,
                       uint16_t sh, AtomicValue<bool> &sfin, AccessScanner &aS) :
@@ -51,7 +52,7 @@ public:
         }
     }
 
-    void visit(StoredValue *v) {
+    void visit(StoredValue *v) override {
         if (log != NULL && v->isResident()) {
             if (v->isExpired(startTime) || v->isDeleted()) {
                 LOG(EXTENSION_LOG_INFO,
@@ -72,17 +73,20 @@ public:
         accessed.clear();
     }
 
-    bool visitBucket(RCPtr<VBucket> &vb) {
+    void visitBucket(RCPtr<VBucket> &vb) override {
+        currentBucket = vb;
         update();
 
         if (log == NULL) {
-            return false;
+            return;
         }
 
-        return VBucketVisitor::visitBucket(vb);
+        if (vBucketFilter(vb->getId())) {
+            vb->ht.visit(*this);
+        }
     }
 
-    virtual void complete() {
+    void complete() override {
         update();
 
         if (log == nullptr) {
@@ -174,6 +178,7 @@ private:
     MutationLog *log;
     AtomicValue<bool> &stateFinalizer;
     AccessScanner &as;
+    RCPtr<VBucket> currentBucket;
 };
 
 AccessScanner::AccessScanner(EventuallyPersistentStore &_store, EPStats &st,

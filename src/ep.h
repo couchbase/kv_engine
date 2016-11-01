@@ -32,35 +32,32 @@ class ExtendedMetaData;
 
 /**
  * vbucket-aware hashtable visitor.
+ *
+ * The caller (e.g. EventuallyPersistentStore::visit) will call visitBucket()
+ * for each valid VBucket, finally calling complete() after all vBuckets have
+ * been visited.
+ *
+ * Callers *may* call the pauseVisitor() method periodically (typically between
+ * vBuckets) which should return true if visiting VBuckets should be paused
+ * temporarily (typically to break up long-running visitation tasks to allow
+ * other Tasks to run).
  */
-class VBucketVisitor : public HashTableVisitor {
+class VBucketVisitor {
 public:
 
-    VBucketVisitor() : HashTableVisitor() { }
+    VBucketVisitor() { }
 
-    VBucketVisitor(const VBucketFilter &filter) :
-        HashTableVisitor(), vBucketFilter(filter) { }
+    virtual ~VBucketVisitor() {}
+
+    VBucketVisitor(const VBucketFilter &filter)
+        : vBucketFilter(filter) { }
 
     /**
      * Begin visiting a bucket.
      *
      * @param vb the vbucket we are beginning to visit
-     *
-     * @return true iff we want to walk the hashtable in this vbucket
      */
-    virtual bool visitBucket(RCPtr<VBucket> &vb) {
-        if (vBucketFilter(vb->getId())) {
-            currentBucket = vb;
-            return true;
-        }
-        return false;
-    }
-
-    // This is unused in all implementations so far.
-    void visit(StoredValue* v) {
-        (void)v;
-        abort();
-    }
+    virtual void visitBucket(RCPtr<VBucket> &vb) = 0;
 
     const VBucketFilter &getVBucketFilter() {
         return vBucketFilter;
@@ -80,7 +77,6 @@ public:
 
 protected:
     VBucketFilter vBucketFilter;
-    RCPtr<VBucket> currentBucket;
 };
 
 // Forward declaration

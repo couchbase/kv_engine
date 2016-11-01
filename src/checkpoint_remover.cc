@@ -37,8 +37,7 @@ public:
         : store(s), stats(st), removed(0), taskStart(gethrtime()),
           wasHighMemoryUsage(s->isMemoryUsageTooHigh()), stateFinalizer(sfin) {}
 
-    bool visitBucket(RCPtr<VBucket> &vb) {
-        currentBucket = vb;
+    void visitBucket(RCPtr<VBucket> &vb) override {
         bool newCheckpointCreated = false;
         removed = vb->checkpointManager.removeClosedUnrefCheckpoints(vb,
                                                          newCheckpointCreated);
@@ -51,21 +50,17 @@ public:
                                         vb->getId(),
                                         vb->checkpointManager.getHighSeqno());
         }
-        update();
-        return false;
-    }
 
-    void update() {
         stats.itemsRemovedFromCheckpoints.fetch_add(removed);
         if (removed > 0) {
             LOG(EXTENSION_LOG_INFO,
                 "Removed %ld closed unreferenced checkpoints from VBucket %d",
-                removed, currentBucket->getId());
+                removed, vb->getId());
         }
         removed = 0;
     }
 
-    void complete() {
+    void complete() override {
         bool inverse = false;
         stateFinalizer.compare_exchange_strong(inverse, true);
 
