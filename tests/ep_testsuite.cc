@@ -2765,10 +2765,11 @@ static enum test_result test_access_scanner(ENGINE_HANDLE *h,
     const time_t now = time(nullptr);
     struct tm tm_now;
     cb_gmtime_r(&now, &tm_now);
+    const auto two_hours_hence = (tm_now.tm_hour + 2) % 24;
 
     set_param(h, h1, protocol_binary_engine_param_flush, "alog_task_time",
-              (std::to_string(tm_now.tm_hour + 2)).c_str());
-    wait_for_stat_to_be(h, h1, "ep_alog_task_time", tm_now.tm_hour + 2);
+              std::to_string(two_hours_hence).c_str());
+    wait_for_stat_to_be(h, h1, "ep_alog_task_time", two_hours_hence);
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
