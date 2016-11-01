@@ -22,6 +22,56 @@
 **/
 
 #ifdef __cplusplus
+
+#include <atomic>
+#include <mutex>
+#include <unordered_set>
+
+#include "scrubber_task.h"
+
+/**
+    Create/Delete of engines from one location.
+    Manages the scrubber task and handles global shutdown
+**/
+class EngineManager {
+public:
+
+    EngineManager();
+    ~EngineManager();
+
+    struct default_engine* createEngine();
+
+    /**
+        Delete engine struct
+    **/
+    void deleteEngine(struct default_engine* engine);
+
+    /**
+        Request that the scrubber destroy's this engine.
+        Scrubber will delete the object.
+    **/
+    void requestDestroyEngine(struct default_engine* engine);
+
+    /**
+        Request that the engine is scrubbed.
+    **/
+    void scrubEngine(struct default_engine* engine);
+
+    /**
+        Set the shutdown flag so that we can clean up
+        1) no new engine's can be created.
+        2) the scrubber can be notified to exit and joined.
+    **/
+    void shutdown();
+
+private:
+    ScrubberTask scrubberTask;
+    std::atomic<bool> shuttingdown;
+    std::mutex lock;
+    std::unordered_set<struct default_engine*> engines;
+
+};
+
 extern "C" {
 #endif
 
