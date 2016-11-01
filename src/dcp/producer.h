@@ -87,10 +87,6 @@ public:
 
     size_t getTotalBytes();
 
-    bool windowIsFull();
-
-    void flush();
-
     std::vector<uint16_t> getVBVector(void);
 
     /**
