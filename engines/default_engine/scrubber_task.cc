@@ -14,6 +14,8 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include "scrubber_task.h"
+
 #include "default_engine_internal.h"
 #include "engine_manager.h"
 
@@ -22,9 +24,11 @@ static void scrubber_task_main(void* arg) {
     task->run();
 }
 
-ScrubberTask::ScrubberTask(EngineManager* manager)
-    : shuttingdown(false),
+ScrubberTask::ScrubberTask(EngineManager& manager)
+    : state(State::Idle),
+      shuttingdown(false),
       engineManager(manager) {
+    std::unique_lock<std::mutex> lck(lock);
     if (cb_create_named_thread(&scrubberThread, &scrubber_task_main, this, 0,
                                "mc:item scrub") != 0) {
         throw std::runtime_error("Error creating 'mc:item scrub' thread");
@@ -32,9 +36,9 @@ ScrubberTask::ScrubberTask(EngineManager* manager)
 }
 
 void ScrubberTask::shutdown() {
+    std::unique_lock<std::mutex> lck(lock);
     shuttingdown = true;
     // Serialize with ::run
-    std::lock_guard<std::mutex> lck(lock);
     cvar.notify_one();
 }
 
@@ -42,9 +46,10 @@ void ScrubberTask::joinThread() {
     cb_join_thread(scrubberThread);
 }
 
-void ScrubberTask::placeOnWorkQueue(struct default_engine* engine, bool destroy) {
+void ScrubberTask::placeOnWorkQueue(struct default_engine* engine,
+                                    bool destroy) {
+    std::lock_guard<std::mutex> lck(lock);
     if (!shuttingdown) {
-        std::lock_guard<std::mutex> lck(lock);
         engine->scrubber.force_delete = destroy;
         workQueue.push_back(std::make_pair(engine, destroy));
         cvar.notify_one();
@@ -52,25 +57,23 @@ void ScrubberTask::placeOnWorkQueue(struct default_engine* engine, bool destroy)
 }
 
 void ScrubberTask::run() {
-    while (true) {
-        std::unique_lock<std::mutex> lck(lock);
+    std::unique_lock<std::mutex> lck(lock);
+    while (!shuttingdown) {
         if (!workQueue.empty()) {
             auto engine = workQueue.front();
             workQueue.pop_front();
+            state = State::Scrubbing;
             lck.unlock();
-
+            // Run the task without holding the lock
             item_scrubber_main(engine.first);
+            engineManager.notifyScrubComplete(engine.first, engine.second);
 
-            if (engine.second) {
-                destroy_engine_instance(engine.first);
-                engineManager->deleteEngine(engine.first);
-            }
-
-            lck.lock(); // relock so lck can safely unlock when destroyed at loop end.
-        } else if (!shuttingdown) {
-            cvar.wait(lck);
+            // relock so lck can safely unlock when destroyed at loop end.
+            lck.lock();
         } else {
-            return;
+            state = State::Idle;
+            cvar.wait(lck);
         }
     }
+    state = State::Stopped;
 }

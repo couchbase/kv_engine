@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2015 Couchbase, Inc
+ *     Copyright 2016 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -16,60 +16,86 @@
  */
 
 /**
-    Engine manager provides a C API for the managment of default_engine 'handles'.
-
-    Creation/Deletion and the item scrubber thread are all managed by this module.
-**/
+ * Engine manager provides a C API for the managment of default_engine
+ * 'handles'. Creation / Deletion and the item scrubber thread are all
+ * managed by this module.
+ */
 
 #ifdef __cplusplus
-
-#include <atomic>
+#include <condition_variable>
 #include <mutex>
 #include <unordered_set>
 
 #include "scrubber_task.h"
 
-/**
-    Create/Delete of engines from one location.
-    Manages the scrubber task and handles global shutdown
-**/
 class EngineManager {
 public:
 
     EngineManager();
     ~EngineManager();
 
+    /**
+     * Create a new instance of the default_engine
+     *
+     * @return the newly created instance or nullptr if we ran out of
+     *         resources (memory _or_ bucket id's)
+     */
     struct default_engine* createEngine();
 
     /**
-        Delete engine struct
-    **/
-    void deleteEngine(struct default_engine* engine);
-
-    /**
-        Request that the scrubber destroy's this engine.
-        Scrubber will delete the object.
-    **/
+     * Request that the scrubber destroy's this engine.
+     * Scrubber will delete the object.
+     */
     void requestDestroyEngine(struct default_engine* engine);
 
     /**
-        Request that the engine is scrubbed.
-    **/
+     *  Request that the engine is scrubbed.
+     */
     void scrubEngine(struct default_engine* engine);
 
     /**
-        Set the shutdown flag so that we can clean up
-        1) no new engine's can be created.
-        2) the scrubber can be notified to exit and joined.
-    **/
+     * Set the shutdown flag so that we can clean up
+     *    1) no new engine's can be created.
+     *    2) the scrubber can be notified to exit and joined.
+     */
     void shutdown();
 
-private:
-    ScrubberTask scrubberTask;
-    std::atomic<bool> shuttingdown;
-    std::mutex lock;
-    std::unordered_set<struct default_engine*> engines;
+    /**
+     * When the scrubber is done running the requested scrub task it
+     * will call this callback notifying that it is done.
+     *
+     * @param engine the requested engine
+     * @param destroy set to true if the engine should be destroyed
+     */
+    void notifyScrubComplete(struct default_engine* engine, bool destroy);
 
+protected:
+    /**
+     * Wait for the scrubber task to be idle. You <b>must</b> hold the
+     * mutex while calling this function.
+     */
+    void waitForScrubberToBeIdle(std::unique_lock<std::mutex>& lck);
+
+private:
+    /** single mutex protects all members */
+    std::mutex lock;
+
+    /** condition variable used from the scrubber to notify the engine */
+    std::condition_variable cond;
+
+    /** Handle to the scrubber task being used to preform the operations */
+    ScrubberTask scrubberTask;
+
+    /** Are we currently shutting down? (Note: We should refactor the clients
+     * using the class to ensure that this isn't a problem. Given that we can't
+     * restart the task it doesn't really make any sense if we have a race
+     * with one client trying to delete a bucket, and another one trying to
+     * shut down the object...
+     */
+    bool shuttingdown;
+
+    /** Handle of all of the instances created of default engine */
+    std::unordered_set<struct default_engine*> engines;
 };
 
 extern "C" {
