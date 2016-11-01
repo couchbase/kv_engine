@@ -239,7 +239,9 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                 }
             }
 
-            switch (vb->ht.insert(*i, policy, shouldEject(), val.isPartial())) {
+            const auto res = vb->ht.insert(*i, policy, shouldEject(),
+                                           val.isPartial());
+            switch (res) {
             case NOMEM:
                 if (retry == 2) {
                     if (hasPurged) {
@@ -269,7 +271,9 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                 succeeded = true;
                 break;
             default:
-                abort();
+                throw std::logic_error("LoadStorageKVPairCallback::callback: "
+                        "Unexpected result from HashTable::insert: " +
+                        std::to_string(res));
             }
         } while (!succeeded && retry-- > 0);
 
@@ -909,8 +913,7 @@ void Warmup::done()
 }
 
 void Warmup::step() {
-    try {
-        switch (state.getState()) {
+    switch (state.getState()) {
         case WarmupState::Initialize:
             scheduleInitialize();
             break;
@@ -939,15 +942,8 @@ void Warmup::step() {
             scheduleCompletion();
             break;
         default:
-            LOG(EXTENSION_LOG_WARNING,
-                "Internal error.. Illegal warmup state %d", state.getState());
-            abort();
-        }
-    } catch(std::runtime_error &e) {
-        std::stringstream ss;
-        ss << "Exception in warmup loop: " << e.what() << std::endl;
-        LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
-        abort();
+            throw std::logic_error("Warmup::step: illegal warmup state:" +
+                                   std::to_string(state.getState()));
     }
 }
 

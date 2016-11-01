@@ -148,7 +148,8 @@ int64_t getFileSize(file_handle_t fd) {
     if (GetFileSizeEx(fd, &li)) {
         return li.QuadPart;
     }
-    abort();
+    throw std::system_error(GetLastError(), std::system_category(),
+                            "getFileSize: failed");
 }
 
 #else
@@ -919,7 +920,8 @@ bool MutationLogHarvester::load() {
             // nothing in particular
             break;
         default:
-            abort();
+            throw std::logic_error("MutationLogHarvester::load: Invalid log "
+                    "entry type:" + std::to_string(le->type()));
         }
     }
     return clean;

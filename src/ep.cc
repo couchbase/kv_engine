@@ -757,12 +757,15 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTempItemForBgFetch(
     switch(rv) {
         case ADD_NOMEM:
             return ENGINE_ENOMEM;
+
         case ADD_EXISTS:
         case ADD_UNDEL:
         case ADD_SUCCESS:
         case ADD_TMP_AND_BG_FETCH:
             // Since the hashtable bucket is locked, we shouldn't get here
-            abort();
+            throw std::logic_error("EventuallyPersistentStore::addTempItemForBgFetch: "
+                    "Invalid result from addTempItem: " + std::to_string(rv));
+
         case ADD_BG_FETCH:
             lock.unlock();
             bgFetch(key, vb->getId(), cookie, metadataOnly);
@@ -1105,8 +1108,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
         ret = ENGINE_NOT_MY_VBUCKET;
         break;
     case NEED_BG_FETCH:
-        // SET on a non-active vbucket should not require a bg_metadata_fetch.
-        abort();
+        throw std::logic_error("EventuallyPersistentStore::addTAPBackfillItem: "
+                "SET on a non-active vbucket should not require a "
+                "bg_metadata_fetch.");
     }
 
     return ret;
@@ -2332,7 +2336,10 @@ EventuallyPersistentStore::statsVKey(const std::string &key,
             case ADD_SUCCESS:
             case ADD_TMP_AND_BG_FETCH:
                 // Since the hashtable bucket is locked, we shouldn't get here
-                abort();
+                throw std::logic_error("EventuallyPersistentStore::statsVKey: "
+                        "Invalid result from unlocked_addTempItem (" +
+                        std::to_string(rv) + ")");
+
             case ADD_BG_FETCH:
                 {
                     ++bgFetchQueue;
@@ -2729,7 +2736,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     case NEED_BG_FETCH:
         // We already figured out if a bg fetch is requred for a full-evicted
         // item above.
-        abort();
+        throw std::logic_error("EventuallyPersistentStore::deleteItem: "
+                "Unexpected NEEDS_BG_FETCH from unlocked_softDelete");
     }
     return ret;
 }

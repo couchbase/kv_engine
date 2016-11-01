@@ -82,8 +82,9 @@ static bool validTransition(enum flusher_state from,
     case stopped:
         return false;
     }
-    // THis should be impossible (unless someone added new states)
-    abort();
+    // This should be impossible (unless someone added new states)
+    throw std::logic_error("flusher::validTransition: called with invalid "
+                           "from:" + std::to_string(from));
 }
 
 const char * Flusher::stateName(enum flusher_state st) const {

@@ -27,7 +27,6 @@
 #include <math.h>
 #include <memcached/engine.h>
 #include <platform/platform.h>
-#include <cJSON.h>
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -268,16 +267,6 @@ bool sorted(ForwardIterator first, ForwardIterator last, Compare compare) {
         }
     }
     return is_sorted;
-}
-
-inline const std::string getJSONObjString(const cJSON *i) {
-    if (i == NULL) {
-        return "";
-    }
-    if (i->type != cJSON_String) {
-        abort();
-    }
-    return i->valuestring;
 }
 
 #endif  // SRC_COMMON_H_

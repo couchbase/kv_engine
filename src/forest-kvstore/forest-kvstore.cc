@@ -86,9 +86,9 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
         char *ptr = NULL;
         uint64_t revNum = strtoull(revNumStr.c_str(), &ptr, 10);
         if (revNum == 0) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Invalid revision number obtained for database file");
-            abort();
+            throw std::runtime_error("ForestKVStore: Invalid revision (" +
+                                     std::to_string(revNum) +
+                                     ") obtained for database file");
         }
 
         if (revNum > dbFileRevNum) {
@@ -111,10 +111,9 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
 
     status = fdb_open(&dbFileHandle, dbFile.str().c_str(), &fileConfig);
     if (status != FDB_RESULT_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Opening the database file instance failed with error: %s\n",
-            fdb_error_msg(status));
-        abort();
+        throw std::runtime_error(std::string("ForestKVStore: Opening the "
+                "database file instance failed with error:") +
+                fdb_error_msg(status));
     }
 
     fdb_kvs_handle *kvsHandle = NULL;
@@ -130,10 +129,9 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
     status = fdb_kvs_open_default(dbFileHandle, &vbStateHandle, &kvsConfig);
 
     if (status != FDB_RESULT_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Opening the vbucket state KV store instance failed "
-            "with error: %s\n", fdb_error_msg(status));
-        abort();
+        throw std::runtime_error(std::string("ForestKVStore: Opening the "
+                "vbucket state KV store instance failed with error:") +
+                fdb_error_msg(status));
     }
 
     cachedVBStates.reserve(maxVbuckets);
