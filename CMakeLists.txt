@@ -146,7 +146,7 @@ ADD_LIBRARY(ep SHARED
             src/defragmenter_visitor.cc
             src/ep.cc
             src/ep_engine.cc
-            src/ep_time.c
+            src/ep_time.cc
             src/executorpool.cc
             src/executorthread.cc
             src/ext_meta_parser.cc
@@ -215,7 +215,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
   src/defragmenter_visitor.cc
   src/ep.cc
   src/ep_engine.cc
-  src/ep_time.c
+  src/ep_time.cc
   src/executorpool.cc
   src/executorthread.cc
   src/ext_meta_parser.cc
@@ -356,7 +356,7 @@ ADD_LIBRARY(ep_testsuite SHARED
    tests/ep_testsuite.cc
    src/atomic.cc
    src/compress.cc
-   src/ep_time.c
+   src/ep_time.cc
    src/ext_meta_parser.cc
    src/item.cc
    src/testlogger.cc
