@@ -5008,7 +5008,7 @@ static enum test_result test_mb16357(ENGINE_HANDLE *h,
     // Load up vb0 with n items, expire in 1 second
     const int num_items = 1000;
 
-    write_items(h, h1, num_items, 0, "key-");
+    write_items(h, h1, num_items, 0, "key-", "value", /*expiration*/1);
 
     wait_for_flusher_to_settle(h, h1);
     testHarness.time_travel(3617); // force expiry pushing time forward.

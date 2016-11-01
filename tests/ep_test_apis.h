@@ -401,11 +401,19 @@ void set_degraded_mode(ENGINE_HANDLE *h,
                        const void* cookie,
                        bool enable);
 
-/* Helper function to write unique "num_items" starting from keyXX
-   (XX is start_seqno) */
+/**
+ * Helper function to write unique "num_items" starting from {key_prefix}XX,
+ * where XX is start_seqno.
+ * @param num_items Number of items to write
+ * @param start_seqno Sequence number to start from (inclusive).
+ * @param key_prefix Prefix for key names
+ * @param value Value for each item
+ * @param expiry Expiration time for each item.
+ */
 void write_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                  int num_items, int start_seqno = 0,
-                 const char *key_prefix = "key", const char *value = "data");
+                 const char *key_prefix = "key", const char *value = "data",
+                 uint32_t expiry = 0);
 
 /* Helper function to write unique items starting from keyXX until memory usage
    hits "mem_thresh_perc" (XX is start_seqno) */
