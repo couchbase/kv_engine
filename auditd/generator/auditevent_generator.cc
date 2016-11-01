@@ -33,6 +33,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <cJSON.h>
+#include <cJSON_utils.h>
 #include <strings.h>
 #include <getopt.h>
 #include "auditevent_generator.h"
@@ -430,9 +431,9 @@ int main(int argc, char **argv) {
         }
     }
 
-    cJSON *ptr;
+    unique_cJSON_ptr ptr;
     try {
-        ptr = load_file(input_file);
+        ptr.reset(load_file(input_file));
     } catch (std::string err) {
         std::cerr << err;
         exit(EXIT_FAILURE);
@@ -441,7 +442,7 @@ int main(int argc, char **argv) {
     std::list<Module*> modules;
 
     try {
-        validate_module_descriptors(ptr, modules, srcroot, objroot);
+        validate_module_descriptors(ptr.get(), modules, srcroot, objroot);
         for (auto iter = modules.begin(); iter != modules.end(); ++iter) {
             auto module = *iter;
             module->json = load_file(module->file);
@@ -452,15 +453,14 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    cJSON *event_id_arr = cJSON_CreateArray();
+    unique_cJSON_ptr event_id_arr(cJSON_CreateArray());
     if (event_id_arr == NULL) {
         error_exit(CREATE_JSON_ARRAY_ERROR, NULL);
     }
 
-    validate_modules(modules, event_id_arr);
+    validate_modules(modules, event_id_arr.get());
     create_master_file(modules, output_file);
 
-    cJSON_Delete(ptr);
     for (auto iter = modules.begin(); iter != modules.end(); ++iter) {
         auto module = *iter;
         try {
