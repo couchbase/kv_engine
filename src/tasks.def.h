@@ -56,13 +56,8 @@ TASK(BackfillVisitorTask, 8)
 TASK(VBDeleteTask, 1)
 TASK(RollbackTask, 1)
 TASK(CompactVBucketTask, 2)
-TASK(VBStatePersistTaskHigh, 2)
-TASK(VBSnapshotTaskHigh, 2)
 TASK(FlushAllTask, 3)
 TASK(FlusherTask, 5)
-TASK(VBStatePersistTaskLow, 9)
-TASK(VBSnapshotTaskLow, 9)
-TASK(DaemonVBSnapshotTask, 9)
 TASK(StatSnap, 9)
 
 // Non-IO tasks

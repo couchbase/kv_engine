@@ -1416,7 +1416,8 @@ DBFileInfo ForestKVStore::getAggrDbFileInfo() {
     return dbInfo;
 }
 
-bool ForestKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state& vbstate,
+bool ForestKVStore::snapshotVBucket(uint16_t vbucketId,
+                                    const vbucket_state& vbstate,
                                     VBStatePersist options) {
 
     hrtime_t start = gethrtime();

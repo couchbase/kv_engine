@@ -149,8 +149,6 @@ static enum test_result test_get_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_HANDL
 {
     char const *key = "k1";
 
-    // wait until the vb snapshot has run
-    wait_for_stat_change(h, h1, "ep_vb_snapshot_total", 0);
     // check the stat
     int temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 0, "Expect zero getMeta ops");
@@ -514,9 +512,6 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
     // check the stat
     checkeq(0, get_int_stat(h, h1, "ep_num_ops_del_meta"),
             "Expect zero setMeta ops");
-
-    // wait until the vb snapshot has run
-    wait_for_stat_change(h, h1, "ep_vb_snapshot_total", 0);
 
     // get metadata of nonexistent key
     check(!get_meta(h, h1, key), "Expected get meta to return false");
@@ -985,8 +980,6 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
     // check the stat
     checkeq(0, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Expect zero ops");
 
-    // wait until the vb snapshot has run
-    wait_for_stat_change(h, h1, "ep_vb_snapshot_total", 0);
     // get metadata for the key
     check(!get_meta(h, h1, key), "Expected get meta to return false");
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(), "Expected enoent");

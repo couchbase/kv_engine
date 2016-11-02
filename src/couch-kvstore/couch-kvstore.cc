@@ -899,7 +899,8 @@ vbucket_state * CouchKVStore::getVBucketState(uint16_t vbucketId) {
     return cachedVBStates[vbucketId];
 }
 
-bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
+bool CouchKVStore::setVBucketState(uint16_t vbucketId,
+                                   const vbucket_state &vbstate,
                                    VBStatePersist options,
                                    bool reset) {
     Db *db = NULL;
@@ -981,7 +982,8 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
     return true;
 }
 
-bool CouchKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
+bool CouchKVStore::snapshotVBucket(uint16_t vbucketId,
+                                   const vbucket_state &vbstate,
                                    VBStatePersist options) {
     if (isReadOnly()) {
         logger.log(EXTENSION_LOG_WARNING,
@@ -1003,6 +1005,11 @@ bool CouchKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
             return false;
         }
     }
+
+    LOG(EXTENSION_LOG_DEBUG,
+        "CouchKVStore::snapshotVBucket: Snapshotted vbucket:%" PRIu16 " state:%s",
+        vbucketId,
+        vbstate.toJSON().c_str());
 
     st.snapshotHisto.add((gethrtime() - start) / 1000);
 
@@ -2038,7 +2045,8 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db *db, uint16_t vbId) {
     return couchErr2EngineErr(errCode);
 }
 
-couchstore_error_t CouchKVStore::saveVBState(Db *db, vbucket_state &vbState) {
+couchstore_error_t CouchKVStore::saveVBState(Db *db,
+                                             const vbucket_state &vbState) {
     std::stringstream jsonState;
 
     jsonState << "{\"state\": \"" << VBucket::toString(vbState.state) << "\""

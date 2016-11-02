@@ -298,7 +298,8 @@ public:
      * @param options   - options used for persisting the state to disk
      * @return true if the snapshot is done successfully
      */
-    bool snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
+    bool snapshotVBucket(uint16_t vbucketId,
+                         const vbucket_state &vbstate,
                          VBStatePersist options) override;
 
      /**
@@ -416,7 +417,7 @@ protected:
     DbInfo getDbInfo(uint16_t vbid);
 
 protected:
-    bool setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
+    bool setVBucketState(uint16_t vbucketId, const vbucket_state &vbstate,
                          VBStatePersist options, bool reset=false);
 
     template <typename T>
@@ -445,7 +446,7 @@ protected:
     void commitCallback(std::vector<CouchRequest *> &committedReqs,
                         kvstats_ctx &kvctx,
                         couchstore_error_t errCode);
-    couchstore_error_t saveVBState(Db *db, vbucket_state &vbState);
+    couchstore_error_t saveVBState(Db *db, const vbucket_state &vbState);
     void setDocsCommitted(uint16_t docs);
     void closeDatabaseHandle(Db *db);
 

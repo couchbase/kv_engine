@@ -26,8 +26,7 @@
 
 /* [EPHE TODO]: Consider not using KVShard for ephemeral bucket */
 KVShard::KVShard(uint16_t id, KVBucket& store) :
-    shardId(id), highPrioritySnapshot(false),
-    lowPrioritySnapshot(false),
+    shardId(id),
     kvConfig(store.getEPEngine().getConfiguration(), shardId),
     highPriorityCount(0)
 {
@@ -35,7 +34,7 @@ KVShard::KVShard(uint16_t id, KVBucket& store) :
     Configuration &config = store.getEPEngine().getConfiguration();
     maxVbuckets = config.getMaxVbuckets();
 
-    vbuckets = new RCPtr<VBucket>[maxVbuckets];
+    vbuckets.resize(maxVbuckets);
 
     std::string backend = kvConfig.getBackend();
     uint16_t commitInterval = 1;
@@ -78,8 +77,6 @@ KVShard::~KVShard() {
     if (kvConfig.getBackend().compare("couchdb") == 0) {
         delete roUnderlying;
     }
-
-    delete[] vbuckets;
 }
 
 Flusher *KVShard::getFlusher() {
@@ -134,16 +131,6 @@ std::vector<VBucket::id_type> KVShard::getVBuckets() {
         }
     }
     return rv;
-}
-
-bool KVShard::setHighPriorityVbSnapshotFlag(bool highPriority) {
-    bool inverse = !highPriority;
-    return highPrioritySnapshot.compare_exchange_strong(inverse, highPriority);
-}
-
-bool KVShard::setLowPriorityVbSnapshotFlag(bool lowPriority) {
-    bool inverse = !lowPriority;
-    return lowPrioritySnapshot.compare_exchange_strong(inverse, lowPriority);
 }
 
 void NotifyFlusherCB::callback(uint16_t &vb) {

@@ -27,8 +27,6 @@ VBucketMap::VBucketMap(Configuration& config,
                        KVBucket& store) :
     bucketDeletion(new std::atomic<bool>[config.getMaxVbuckets()]),
     bucketCreation(new std::atomic<bool>[config.getMaxVbuckets()]),
-    persistenceCheckpointIds(new
-                             std::atomic<uint64_t>[config.getMaxVbuckets()]),
     persistenceSeqnos(new std::atomic<uint64_t>[config.getMaxVbuckets()]),
     size(config.getMaxVbuckets())
 {
@@ -41,7 +39,6 @@ VBucketMap::VBucketMap(Configuration& config,
     for (size_t i = 0; i < size; ++i) {
         bucketDeletion[i].store(false);
         bucketCreation[i].store(false);
-        persistenceCheckpointIds[i].store(0);
         persistenceSeqnos[i].store(0);
     }
 }
@@ -49,7 +46,6 @@ VBucketMap::VBucketMap(Configuration& config,
 VBucketMap::~VBucketMap() {
     delete[] bucketDeletion;
     delete[] bucketCreation;
-    delete[] persistenceCheckpointIds;
     delete[] persistenceSeqnos;
     while (!shards.empty()) {
         delete shards.back();
@@ -158,12 +154,23 @@ bool VBucketMap::setBucketCreation(id_type id, bool rv) {
 }
 
 uint64_t VBucketMap::getPersistenceCheckpointId(id_type id) const {
-    return persistenceCheckpointIds[id].load();
+    if (id < size) {
+        auto vb = getBucket(id);
+        if (vb) {
+            return vb->getPersistenceCheckpointId();
+        }
+    }
+    return {};
 }
 
 void VBucketMap::setPersistenceCheckpointId(id_type id,
                                             uint64_t checkpointId) {
-    persistenceCheckpointIds[id].store(checkpointId);
+    if (id < size) {
+        auto vb = getBucket(id);
+        if (vb) {
+            getBucket(id)->setPersistenceCheckpointId(checkpointId);
+        }
+    }
 }
 
 uint64_t VBucketMap::getPersistenceSeqno(id_type id) const {

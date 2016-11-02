@@ -88,10 +88,22 @@ static void checkgefn(T exp, T got, const char *msg, const char *file,
     }
 }
 
+template <typename T>
+static void checkgtfn(T exp, T got, const char *msg, const char *file,
+                      const int linenum) {
+    if (exp <= got) {
+        std::stringstream ss;
+        ss << "Expected `" << exp << "' to be greater than `" << got
+           << "' - " << msg;
+        abort_msg(ss.str().c_str(), "", file, linenum);
+    }
+}
+
 #define checkeq(a, b, c) checkeqfn(a, b, c, __FILE__, __LINE__)
 #define checkne(a, b, c) checknefn(a, b, c, __FILE__, __LINE__)
 #define checkle(a, b, c) checklefn(a, b, c, __FILE__, __LINE__)
 #define checkge(a, b, c) checkgefn(a, b, c, __FILE__, __LINE__)
+#define checkgt(a, b, c) checkgtfn(a, b, c, __FILE__, __LINE__)
 
 class BaseTestCase {
 public:

@@ -259,7 +259,7 @@ class ForestKVStore : public KVStore
      * @param options - options used for persisting state to disk
      * @return true if the snapshot is done successfully
      */
-    bool snapshotVBucket(uint16_t vbucketId, vbucket_state& vbstate,
+    bool snapshotVBucket(uint16_t vbucketId, const vbucket_state& vbstate,
                          VBStatePersist options) override;
 
     /**

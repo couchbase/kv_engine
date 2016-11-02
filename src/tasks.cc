@@ -29,38 +29,11 @@
 
 #include <phosphor/phosphor.h>
 
-static const double VBSTATE_SNAPSHOT_FREQ(300.0);
 static const double WORKLOAD_MONITOR_FREQ(5.0);
 
 bool FlusherTask::run() {
     TRACE_EVENT0("ep-engine/task", "FlusherTask");
     return flusher->step(this);
-}
-
-bool VBSnapshotTask::run() {
-    TRACE_EVENT("ep-engine/task", "VBSnapshotTask", shardID);
-    engine->getKVBucket()->snapshotVBuckets(priority, shardID);
-    return false;
-}
-
-DaemonVBSnapshotTask::DaemonVBSnapshotTask(EventuallyPersistentEngine *e,
-                                           bool completeBeforeShutdown)
-    : GlobalTask(e, TaskId::DaemonVBSnapshotTask,
-                 VBSTATE_SNAPSHOT_FREQ, completeBeforeShutdown) {
-    desc = "Snapshotting vbucket states";
-}
-
-bool DaemonVBSnapshotTask::run() {
-    TRACE_EVENT0("ep-engine/task", "DaemonVBSnapshotTask");
-    bool ret = engine->getKVBucket()->scheduleVBSnapshot(
-                                                VBSnapshotTask::Priority::LOW);
-    snooze(VBSTATE_SNAPSHOT_FREQ);
-    return ret;
-}
-
-bool VBStatePersistTask::run() {
-    TRACE_EVENT("ep-engine/task", "VBPersistTask", vbid);
-    return engine->getKVBucket()->persistVBState(vbid);
 }
 
 bool VBDeleteTask::run() {

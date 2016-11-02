@@ -159,7 +159,7 @@ public:
 
     ~VBucket();
 
-    int64_t getHighSeqno() {
+    int64_t getHighSeqno() const {
         return checkpointManager.getHighSeqno();
     }
 
@@ -171,7 +171,7 @@ public:
         return checkpointManager.getMemoryUsageOfUnrefCheckpoints();
     }
 
-    uint64_t getPurgeSeqno() {
+    uint64_t getPurgeSeqno() const {
         return purge_seqno;
     }
 
@@ -185,13 +185,12 @@ public:
         persisted_snapshot_end = end;
     }
 
-    void getPersistedSnapshot(snapshot_range_t& range) {
+    snapshot_range_t getPersistedSnapshot() const {
         LockHolder lh(snapshotMutex);
-        range.start = persisted_snapshot_start;
-        range.end = persisted_snapshot_end;
+        return {persisted_snapshot_start, persisted_snapshot_end};
     }
 
-    uint64_t getMaxCas() {
+    uint64_t getMaxCas() const {
         return hlc.getMaxHLC();
     }
 
@@ -242,6 +241,8 @@ public:
         initialState = initState;
     }
 
+    vbucket_state getVBucketState() const;
+
     bool addPendingOp(const void *cookie) {
         LockHolder lh(pendingOpLock);
         if (state != vbucket_state_pending) {
@@ -258,7 +259,7 @@ public:
         return true;
     }
 
-    void doStatsForQueueing(Item& item, size_t itemBytes);
+    void doStatsForQueueing(const Item& item, size_t itemBytes);
     void doStatsForFlushing(Item& item, size_t itemBytes);
     void incrMetaDataDisk(Item& qi);
     void decrMetaDataDisk(Item& qi);
@@ -427,6 +428,12 @@ public:
         return rollbackItemCount.load(std::memory_order_relaxed);
     }
 
+    // Return the persistence checkpoint ID
+    uint64_t getPersistenceCheckpointId() const;
+
+    // Set the persistence checkpoint ID to the given value.
+    void setPersistenceCheckpointId(uint64_t checkpointId);
+
     static const vbucket_state_t ACTIVE;
     static const vbucket_state_t REPLICA;
     static const vbucket_state_t PENDING;
@@ -434,6 +441,9 @@ public:
 
     HashTable         ht;
     CheckpointManager checkpointManager;
+
+    // Struct for managing 'backfill' items - Items which have been added by
+    // an incoming TAP stream and need to be persisted to disk.
     struct {
         std::mutex mutex;
         std::queue<queued_item> items;
@@ -492,7 +502,7 @@ private:
 
     /* snapshotMutex is used to update/read the pair {start, end} atomically,
        but not if reading a single field. */
-    std::mutex snapshotMutex;
+    mutable std::mutex snapshotMutex;
     uint64_t persisted_snapshot_start;
     uint64_t persisted_snapshot_end;
 
@@ -509,6 +519,8 @@ private:
 
     HLC hlc;
     std::string statPrefix;
+    // The persistence checkpoint ID for this vbucket.
+    std::atomic<uint64_t> persistenceCheckpointId;
 
     static size_t chkFlushTimeout;
 

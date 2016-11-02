@@ -401,10 +401,6 @@ EPBucket::EPBucket(
 
     size_t num_vbs = config.getMaxVbuckets();
     vb_mutexes = new std::mutex[num_vbs];
-    schedule_vbstate_persist = new std::atomic<bool>[num_vbs];
-    for (size_t i = 0; i < num_vbs; ++i) {
-        schedule_vbstate_persist[i] = false;
-    }
 
     stats.memOverhead = sizeof(EPBucket);
 
@@ -544,9 +540,6 @@ bool EPBucket::initialize() {
                                                    checkpointRemoverInterval);
     ExecutorPool::get()->schedule(chkTask, NONIO_TASK_IDX);
 
-    ExTask vbSnapshotTask = new DaemonVBSnapshotTask(&engine);
-    ExecutorPool::get()->schedule(vbSnapshotTask, WRITER_TASK_IDX);
-
     ExTask workloadMonitorTask = new WorkLoadMonitor(&engine, false);
     ExecutorPool::get()->schedule(workloadMonitorTask, NONIO_TASK_IDX);
 
@@ -581,7 +574,6 @@ void EPBucket::deinitialize() {
 
 EPBucket::~EPBucket() {
     delete [] vb_mutexes;
-    delete [] schedule_vbstate_persist;
     delete [] stats.schedulingHisto;
     delete [] stats.taskRuntimeHisto;
     delete warmupTask;
@@ -612,9 +604,8 @@ Warmup* EPBucket::getWarmup(void) const {
 }
 
 bool EPBucket::startFlusher() {
-    for (uint16_t i = 0; i < vbMap.shards.size(); ++i) {
-        Flusher *flusher = vbMap.shards[i]->getFlusher();
-        flusher->start();
+    for (auto* shard : vbMap.shards) {
+        shard->getFlusher()->start();
     }
     return true;
 }
@@ -1187,7 +1178,7 @@ ENGINE_ERROR_CODE EPBucket::addTAPBackfillItem(Item &itm, bool genBySeqno,
         // FALLTHROUGH
     case WAS_CLEAN:
         vb->setMaxCas(v->getCas());
-        tapQueueDirty(vb, v, lh, NULL,
+        tapQueueDirty(*vb, v, lh, NULL,
                       genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No);
         break;
     case INVALID_VBUCKET:
@@ -1201,153 +1192,10 @@ ENGINE_ERROR_CODE EPBucket::addTAPBackfillItem(Item &itm, bool genBySeqno,
     return ret;
 }
 
-void EPBucket::snapshotVBuckets(VBSnapshotTask::Priority prio,
-                                uint16_t shardId) {
-
-    class VBucketStateVisitor : public VBucketVisitor {
-    public:
-        VBucketStateVisitor(VBucketMap &vb_map, uint16_t sid)
-            : vbuckets(vb_map), shardId(sid) { }
-        bool visitBucket(RCPtr<VBucket> &vb) {
-            if (vbuckets.getShardByVbId(vb->getId())->getId() == shardId) {
-                snapshot_range_t range;
-                vb->getPersistedSnapshot(range);
-                std::string failovers = vb->failovers->toJSON();
-                uint64_t chkId = vbuckets.getPersistenceCheckpointId(vb->getId());
-
-                vbucket_state vb_state(vb->getState(), chkId, 0,
-                                       vb->getHighSeqno(), vb->getPurgeSeqno(),
-                                       range.start, range.end, vb->getMaxCas(),
-                                       failovers);
-                states.insert(std::pair<uint16_t, vbucket_state>(vb->getId(), vb_state));
-            }
-            return false;
-        }
-
-        void visit(StoredValue*) {
-            throw std::logic_error("VBucketStateVisitor:visit: Should never be called");
-        }
-
-        std::map<uint16_t, vbucket_state> states;
-
-    private:
-        VBucketMap &vbuckets;
-        uint16_t shardId;
-    };
-
-    KVShard *shard = vbMap.shards[shardId];
-    if (prio == VBSnapshotTask::Priority::LOW) {
-        shard->setLowPriorityVbSnapshotFlag(false);
-    } else {
-        shard->setHighPriorityVbSnapshotFlag(false);
-    }
-
-    VBucketStateVisitor v(vbMap, shard->getId());
-    visit(v);
-    hrtime_t start = gethrtime();
-
-    const uint16_t snapInterval = shard->getROUnderlying()->getNumVbsPerFile();
-    uint16_t currSnapInterval = snapInterval;
-    VBStatePersist persistOption = VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT;
-
-    bool success = true;
-    vbucket_map_t::reverse_iterator iter = v.states.rbegin();
-    for (; iter != v.states.rend(); ++iter) {
-        LockHolder lh(vb_mutexes[iter->first], true /*tryLock*/);
-        if (!lh.islocked()) {
-            continue;
-        }
-        KVStore *rwUnderlying = getRWUnderlying(iter->first);
-
-        currSnapInterval--;
-        if (!currSnapInterval) {
-            persistOption = VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT;
-        }
-
-        if (!rwUnderlying->snapshotVBucket(iter->first, iter->second,
-                                           persistOption)) {
-            LOG(EXTENSION_LOG_WARNING,
-                    "VBucket snapshot task failed!!! Rescheduling");
-            success = false;
-            break;
-        }
-
-        if (!currSnapInterval) {
-            currSnapInterval = snapInterval;
-            persistOption = VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT;
-        }
-
-        if (prio == VBSnapshotTask::Priority::HIGH) {
-            if (vbMap.setBucketCreation(iter->first, false)) {
-                LOG(EXTENSION_LOG_INFO, "VBucket %d created", iter->first);
-            }
-        }
-    }
-
-    if (!success) {
-        scheduleVBSnapshot(prio, shard->getId());
-    } else {
-        stats.snapshotVbucketHisto.add((gethrtime() - start) / 1000);
-    }
-}
-
-bool EPBucket::persistVBState(uint16_t vbid) {
-    schedule_vbstate_persist[vbid] = false;
-
-    RCPtr<VBucket> vb = getVBucket(vbid);
-    if (!vb) {
-        LOG(EXTENSION_LOG_WARNING,
-            "VBucket %d not exist!!! vb_state persistence task failed!!!", vbid);
-        return false;
-    }
-
-    bool inverse = false;
-    LockHolder lh(vb_mutexes[vbid], true /*tryLock*/);
-    if (!lh.islocked()) {
-        if (schedule_vbstate_persist[vbid].compare_exchange_strong(inverse,
-                                                                   true)) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    const hrtime_t start = gethrtime();
-
-    uint64_t chkId = vbMap.getPersistenceCheckpointId(vbid);
-    std::string failovers = vb->failovers->toJSON();
-
-    snapshot_range_t range;
-    vb->getPersistedSnapshot(range);
-    vbucket_state vb_state(vb->getState(), chkId, 0, vb->getHighSeqno(),
-                           vb->getPurgeSeqno(), range.start, range.end,
-                           vb->getMaxCas(), failovers);
-
-    KVStore *rwUnderlying = getRWUnderlying(vbid);
-    if (rwUnderlying->snapshotVBucket(vbid, vb_state,
-                                      VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT)) {
-        stats.persistVBStateHisto.add((gethrtime() - start) / 1000);
-
-        if (vbMap.setBucketCreation(vbid, false)) {
-            LOG(EXTENSION_LOG_INFO, "VBucket %d created", vbid);
-        }
-    } else {
-        LOG(EXTENSION_LOG_WARNING,
-            "VBucket %d: vb_state persistence task failed!!! Rescheduling", vbid);
-
-        if (schedule_vbstate_persist[vbid].compare_exchange_strong(inverse,
-                                                                   true)) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-    return false;
-}
-
-ENGINE_ERROR_CODE EPBucket::setVBucketState(uint16_t vbid, vbucket_state_t to,
-                                            bool transfer, bool notify_dcp) {
-    TRACE_EVENT("ep-engine/EPBucket", "setVBucketState", vbid);
+ENGINE_ERROR_CODE EPBucket::setVBucketState(uint16_t vbid,
+                                            vbucket_state_t to,
+                                            bool transfer,
+                                            bool notify_dcp) {
     // Lock to prevent a race condition between a failed update and add.
     LockHolder lh(vbsetMutex);
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
@@ -1383,8 +1231,7 @@ ENGINE_ERROR_CODE EPBucket::setVBucketState(uint16_t vbid, vbucket_state_t to,
         }
 
         if (to == vbucket_state_active && !transfer) {
-            snapshot_range_t range;
-            vb->getPersistedSnapshot(range);
+            const snapshot_range_t range = vb->getPersistedSnapshot();
             if (range.end == vbMap.getPersistenceSeqno(vbid)) {
                 vb->failovers->createEntry(range.end);
             } else {
@@ -1398,7 +1245,7 @@ ENGINE_ERROR_CODE EPBucket::setVBucketState(uint16_t vbid, vbucket_state_t to,
             ExTask notifyTask = new PendingOpsNotification(engine, vb);
             ExecutorPool::get()->schedule(notifyTask, NONIO_TASK_IDX);
         }
-        scheduleVBStatePersist(VBStatePersistTask::Priority::LOW, vbid);
+        scheduleVBStatePersist(vbid);
     } else if (vbid < vbMap.getSize()) {
         FailoverTable* ft = new FailoverTable(engine.getMaxFailoverEntries());
         KVShard* shard = vbMap.getShardByVbId(vbid);
@@ -1427,67 +1274,30 @@ ENGINE_ERROR_CODE EPBucket::setVBucketState(uint16_t vbid, vbucket_state_t to,
         vbMap.setPersistenceSeqno(vbid, 0);
         vbMap.setBucketCreation(vbid, true);
         lh.unlock();
-        scheduleVBStatePersist(VBStatePersistTask::Priority::HIGH, vbid);
+        scheduleVBStatePersist(vbid);
     } else {
         return ENGINE_ERANGE;
     }
     return ENGINE_SUCCESS;
 }
 
-bool EPBucket::scheduleVBSnapshot(VBSnapshotTask::Priority prio) {
-    KVShard *shard = NULL;
-    if (prio == VBSnapshotTask::Priority::HIGH) {
-        for (size_t i = 0; i < vbMap.shards.size(); ++i) {
-            shard = vbMap.shards[i];
-            if (shard->setHighPriorityVbSnapshotFlag(true)) {
-                ExTask task = new VBSnapshotTaskHigh(&engine, i, true);
-                ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
-            }
-        }
-    } else {
-        for (size_t i = 0; i < vbMap.shards.size(); ++i) {
-            shard = vbMap.shards[i];
-            if (shard->setLowPriorityVbSnapshotFlag(true)) {
-                ExTask task = new VBSnapshotTaskLow(&engine, i, true);
-                ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
-            }
-        }
-    }
-    if (stats.isShutdown) {
-        return false;
-    }
-    return true;
-}
-
-void EPBucket::scheduleVBSnapshot(VBSnapshotTask::Priority prio,
-                                  uint16_t shardId, bool force) {
-    KVShard *shard = vbMap.shards[shardId];
-    if (prio == VBSnapshotTask::Priority::HIGH) {
-        if (force || shard->setHighPriorityVbSnapshotFlag(true)) {
-            ExTask task = new VBSnapshotTaskHigh(&engine, shardId, true);
-            ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
-        }
-    } else {
-        if (force || shard->setLowPriorityVbSnapshotFlag(true)) {
-            ExTask task = new VBSnapshotTaskLow(&engine, shardId, true);
-            ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
-        }
+void EPBucket::scheduleVBStatePersist() {
+    for (auto vbid : vbMap.getBuckets()) {
+        scheduleVBStatePersist(vbid);
     }
 }
 
-void EPBucket::scheduleVBStatePersist(VBStatePersistTask::Priority priority,
-                                      uint16_t vbid) {
+void EPBucket::scheduleVBStatePersist(VBucket::id_type vbid) {
+    RCPtr<VBucket> vb = getVBucket(vbid);
 
-
-    bool inverse = false;
-    if (schedule_vbstate_persist[vbid].compare_exchange_strong(inverse, true)) {
-
-        if (priority == VBStatePersistTask::Priority::HIGH) {
-            ExecutorPool::get()->schedule(new VBStatePersistTaskHigh(&engine, vbid, true), WRITER_TASK_IDX);
-        } else {
-            ExecutorPool::get()->schedule(new VBStatePersistTaskLow(&engine, vbid, true), WRITER_TASK_IDX);
-        }
+    if (!vb) {
+        LOG(EXTENSION_LOG_WARNING,
+            "EPStore::scheduleVBStatePersist: vb:%" PRIu16
+            " does not not exist. Unable to schedule persistence.", vbid);
+        return;
     }
+
+    vb->checkpointManager.queueSetVBState(*vb);
 }
 
 bool EPBucket::completeVBucketDeletion(uint16_t vbid, const void* cookie) {
@@ -2865,7 +2675,7 @@ ENGINE_ERROR_CODE EPBucket::deleteWithMeta(const std::string &key,
         vb->setMaxCasAndTrackDrift(v->getCas());
 
         if (tapBackfill) {
-            tapQueueDirty(vb, v, lh, seqno,
+            tapQueueDirty(*vb, v, lh, seqno,
                           genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No);
         } else {
             queueDirty(vb, v, &lh, seqno,
@@ -3108,7 +2918,10 @@ void EPBucket::setFlushAllComplete() {
 void EPBucket::flushOneDeleteAll() {
     for (VBucketMap::id_type i = 0; i < vbMap.getSize(); ++i) {
         RCPtr<VBucket> vb = getVBucket(i);
-        if (vb) {
+        // Reset the vBucket if it's non-null and not already in the middle of
+        // being created / destroyed.
+        if (vb &&
+            !(vbMap.isBucketCreation(i) || vbMap.isBucketDeletion(i))) {
             LockHolder lh(vb_mutexes[vb->getId()]);
             getRWUnderlying(vb->getId())->reset(i);
         }
@@ -3129,12 +2942,8 @@ int EPBucket::flushVBucket(uint16_t vbid) {
         }
     }
 
-    if (vbMap.isBucketCreation(vbid)) {
-        return RETRY_FLUSH_VBUCKET;
-    }
-
     int items_flushed = 0;
-    hrtime_t flush_start = gethrtime();
+    const hrtime_t flush_start = gethrtime();
 
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (vb) {
@@ -3151,12 +2960,14 @@ int EPBucket::flushVBucket(uint16_t vbid) {
             vb->rejectQueue.pop();
         }
 
-        const std::string cursor(CheckpointManager::pCursorName);
+        // Append any 'backfill' items (mutations added by a TAP stream).
         vb->getBackfillItems(items);
 
-        hrtime_t _begin_ = gethrtime();
+        // Append all items outstanding for the persistence cursor.
         snapshot_range_t range;
-        range = vb->checkpointManager.getAllItemsForCursor(cursor, items);
+        hrtime_t _begin_ = gethrtime();
+        range = vb->checkpointManager.getAllItemsForCursor(
+                CheckpointManager::pCursorName, items);
         stats.persistenceCursorGetItemsHisto.add((gethrtime() - _begin_) / 1000);
 
         if (!items.empty()) {
@@ -3169,34 +2980,64 @@ int EPBucket::flushVBucket(uint16_t vbid) {
             rwUnderlying->optimizeWrites(items);
 
             Item *prev = NULL;
+            auto vbstate = vb->getVBucketState();
             uint64_t maxSeqno = 0;
-            uint64_t maxCas = 0;
-            uint64_t maxDeletedRevSeqno = 0;
+            range.start = std::max(range.start, vbstate.lastSnapStart);
+
+            bool mustCheckpointVBState = false;
             std::list<PersistenceCallback*>& pcbs = rwUnderlying->getPersistenceCbList();
-            std::vector<queued_item>::iterator it = items.begin();
 
-            for(; it != items.end(); ++it) {
+            for (const auto& item : items) {
 
-                if (!(*it)->shouldPersist()) {
+                if (!item->shouldPersist()) {
                     continue;
-                } else if (!prev || prev->getKey() != (*it)->getKey()) {
-                    prev = (*it).get();
+                }
+
+                if (item->getOperation() == queue_op::set_vbucket_state) {
+                    // No actual item explicitly persisted to (this op exists
+                    // to ensure a commit occurs with the current vbstate);
+                    // flag that we must trigger a snapshot even if there are
+                    // no 'real' items in the checkpoint.
+                    mustCheckpointVBState = true;
+
+                    // Update maxSeqno to ensure the snap {start,end} range
+                    // is correct if no other normal item is included in this
+                    // checkpoint.
+                    maxSeqno = std::max(maxSeqno, (uint64_t)item->getBySeqno());
+
+                    // Update queuing stats how this item has logically been
+                    // processed.
+                    stats.decrDiskQueueSize(1);
+                    vb->doStatsForFlushing(*item, item->size());
+
+                } else if (!prev || prev->getKey() != item->getKey()) {
+                    prev = item.get();
                     ++items_flushed;
-                    PersistenceCallback *cb = flushOneDelOrSet(*it, vb);
+                    PersistenceCallback *cb = flushOneDelOrSet(item, vb);
                     if (cb) {
                         pcbs.push_back(cb);
                     }
 
-                    maxSeqno = std::max(maxSeqno, (uint64_t)(*it)->getBySeqno());
-                    maxCas = std::max(maxCas, (uint64_t)(*it)->getCas());
-                    if ((*it)->isDeleted()) {
-                        maxDeletedRevSeqno = std::max(maxDeletedRevSeqno,
-                                                      (uint64_t)(*it)->getRevSeqno());
+                    maxSeqno = std::max(maxSeqno, (uint64_t)item->getBySeqno());
+                    vbstate.maxCas = std::max(vbstate.maxCas, item->getCas());
+                    if (item->isDeleted()) {
+                        vbstate.maxDeletedSeqno =
+                                std::max(vbstate.maxDeletedSeqno,
+                                         item->getRevSeqno());
                     }
                     ++stats.flusher_todo;
+
                 } else {
+                    // Item is the same key as the previous[1] one - don't need
+                    // to flush to disk.
+                    // [1] Previous here really means 'next' - optimizeWrites()
+                    //     above has actually re-ordered items such that items
+                    //     with the same key are ordered from high->low seqno.
+                    //     This means we only write the highest (i.e. newest)
+                    //     item for a given key, and discard any duplicate,
+                    //     older items.
                     stats.decrDiskQueueSize(1);
-                    vb->doStatsForFlushing(*(*it), (*it)->size());
+                    vb->doStatsForFlushing(*item, item->size());
                 }
             }
 
@@ -3210,20 +3051,33 @@ int EPBucket::flushVBucket(uint16_t vbid) {
                     }
                 }
 
-                std::string failovers = vb->failovers->toJSON();
-                vbucket_state vbState(vb->getState(),
-                                      vbMap.getPersistenceCheckpointId(vbid),
-                                      maxDeletedRevSeqno, vb->getHighSeqno(),
-                                      vb->getPurgeSeqno(), range.start,
-                                      range.end, maxCas, failovers);
+                // Update VBstate based on the changes we have just made,
+                // then tell the rwUnderlying the 'new' state
+                // (which will persisted as part of the commit() below).
+                vbstate.lastSnapStart = range.start;
+                vbstate.lastSnapEnd = range.end;
 
-                if (rwUnderlying->snapshotVBucket(vb->getId(), vbState,
-                                  VBStatePersist::VBSTATE_CACHE_UPDATE_ONLY) != true) {
+                // Do we need to trigger a persist of the state?
+                // If there are no "real" items to flush, and we encountered
+                // a set_vbucket_state meta-item.
+                auto options = VBStatePersist::VBSTATE_CACHE_UPDATE_ONLY;
+                if ((items_flushed == 0) && mustCheckpointVBState) {
+                    options = VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT;
+                }
+
+                if (rwUnderlying->snapshotVBucket(vb->getId(), vbstate,
+                                                  options) != true) {
                     return RETRY_FLUSH_VBUCKET;
+                }
+
+                if (vbMap.setBucketCreation(vbid, false)) {
+                    LOG(EXTENSION_LOG_INFO, "VBucket %" PRIu16 " created", vbid);
                 }
             }
 
-            /* Perform an explicit commit to disk if the commit interval reaches zero.
+            /* Perform an explicit commit to disk if the commit
+             * interval reaches zero and if there is a non-zero number
+             * of items to flush.
              * The commit interval varies based on the underlying store. For couchstore,
              * the commit interval is set 1, so a commit is performed on every
              * flushVBucket call. For forestdb, in order to be more optimized for SSDs,
@@ -3231,8 +3085,15 @@ int EPBucket::flushVBucket(uint16_t vbid) {
              * writes perfomed. Hence, a commit is not explicitly performed on
              * each flushVBucket call.
              */
-            if (decrCommitInterval(shard->getId()) == 0) {
+            if ((items_flushed > 0) &&
+                (decrCommitInterval(shard->getId()) == 0)) {
+
                 commit(shard->getId());
+
+                // Now the commit is complete, vBucket file must exist.
+                if (vbMap.setBucketCreation(vbid, false)) {
+                    LOG(EXTENSION_LOG_INFO, "VBucket %" PRIu16 " created", vbid);
+                }
             }
 
             hrtime_t flush_end = gethrtime();
@@ -3243,6 +3104,8 @@ int EPBucket::flushVBucket(uint16_t vbid) {
                                        static_cast<double>(items_flushed));
             stats.cumulativeFlushTime.fetch_add(trans_time);
             stats.flusher_todo.store(0);
+            stats.totalPersistVBState++;
+
             if (vb->rejectQueue.empty()) {
                 vb->setPersistedSnapshot(range.start, range.end);
                 uint64_t highSeqno = rwUnderlying->getLastPersistedSeqno(vbid);
@@ -3336,15 +3199,6 @@ PersistenceCallback* EPBucket::flushOneDelOrSet(const queued_item &qi,
     stats.dirtyAgeHighWat.store(std::max(stats.dirtyAge.load(),
                                          stats.dirtyAgeHighWat.load()));
 
-    // Wait until the vbucket database is created by the vbucket state
-    // snapshot task.
-    if (vbMap.isBucketCreation(qi->getVBucketId()) ||
-        vbMap.isBucketDeletion(qi->getVBucketId())) {
-        vb->rejectQueue.push(qi);
-        ++vb->opsReject;
-        return NULL;
-    }
-
     KVStore *rwUnderlying = getRWUnderlying(qi->getVBucketId());
     if (!deleted) {
         // TODO: Need to separate disk_insert from disk_update because
@@ -3376,7 +3230,7 @@ void EPBucket::queueDirty(RCPtr<VBucket> &vb,
     if (vb) {
         queued_item qi(v->toItem(false, vb->getId()));
 
-        bool rv = vb->checkpointManager.queueDirty(vb, qi,
+        bool rv = vb->checkpointManager.queueDirty(*vb, qi,
                                                    generateBySeqno, generateCas);
         v->setBySeqno(qi->getBySeqno());
 
@@ -3404,36 +3258,34 @@ void EPBucket::queueDirty(RCPtr<VBucket> &vb,
     }
 }
 
-void EPBucket::tapQueueDirty(RCPtr<VBucket> &vb,
-                             StoredValue* v,
-                             LockHolder& plh,
-                             uint64_t *seqno,
-                             const GenerateBySeqno generateBySeqno) {
-    if (vb) {
-        queued_item qi(v->toItem(false, vb->getId()));
+void EPBucket::tapQueueDirty(VBucket &vb,
+                                              StoredValue* v,
+                                              LockHolder& plh,
+                                              uint64_t *seqno,
+                                              const GenerateBySeqno generateBySeqno) {
+    queued_item qi(v->toItem(false, vb.getId()));
 
-        bool queued = vb->queueBackfillItem(qi, generateBySeqno);
+    bool queued = vb.queueBackfillItem(qi, generateBySeqno);
 
-        v->setBySeqno(qi->getBySeqno());
+    v->setBySeqno(qi->getBySeqno());
 
-        /* During backfill on a TAP receiver we need to update the snapshot
-           range in the checkpoint. Has to be done here because in case of TAP
-           backfill, above, we use vb->queueBackfillItem() instead of
-           vb->checkpointManager.queueDirty() */
-        if (GenerateBySeqno::Yes == generateBySeqno) {
-            vb->checkpointManager.resetSnapshotRange();
-        }
+    /* During backfill on a TAP receiver we need to update the snapshot
+       range in the checkpoint. Has to be done here because in case of TAP
+       backfill, above, we use vb.queueBackfillItem() instead of
+       vb.checkpointManager.queueDirty() */
+    if (GenerateBySeqno::Yes == generateBySeqno) {
+        vb.checkpointManager.resetSnapshotRange();
+    }
 
-        if (seqno) {
-            *seqno = v->getBySeqno();
-        }
+    if (seqno) {
+        *seqno = v->getBySeqno();
+    }
 
-        plh.unlock();
+    plh.unlock();
 
-        if (queued) {
-            KVShard* shard = vbMap.getShardByVbId(vb->getId());
-            shard->getFlusher()->notifyFlushEvent();
-        }
+    if (queued) {
+        KVShard* shard = vbMap.getShardByVbId(vb.getId());
+        shard->getFlusher()->notifyFlushEvent();
     }
 }
 
@@ -3443,8 +3295,9 @@ std::vector<vbucket_state *> EPBucket::loadVBucketState()
 }
 
 void EPBucket::warmupCompleted() {
-    // Run the vbucket state snapshot job once after the warmup
-    scheduleVBSnapshot(VBSnapshotTask::Priority::HIGH);
+    // Snapshot VBucket state after warmup to ensure Failover table is
+    // persisted.
+    scheduleVBStatePersist();
 
     if (engine.getConfiguration().getAlogPath().length() > 0) {
 
@@ -4097,7 +3950,7 @@ bool EPBucket::runAccessScannerTask() {
 }
 
 void EPBucket::runVbStatePersistTask(int vbid) {
-    scheduleVBStatePersist(VBStatePersistTask::Priority::LOW, vbid);
+    scheduleVBStatePersist(vbid);
 }
 
 void EPBucket::setCursorDroppingLowerUpperThresholds(size_t maxSize) {

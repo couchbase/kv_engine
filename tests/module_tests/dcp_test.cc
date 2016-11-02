@@ -207,6 +207,11 @@ TEST_F(StreamTest, test_mb17766) {
 // by de-duplication.
 TEST_F(StreamTest, MB17653_ItemsRemaining) {
 
+    auto& manager = engine->getKVBucket()->getVBucket(vbid)->checkpointManager;
+
+    ASSERT_EQ(1, manager.getNumOpenChkItems())
+        << "Expected one item before population (checkpoint_start)";
+
     // Create 10 mutations to the same key which, while increasing the high
     // seqno by 10 will result in de-duplication and hence only one actual
     // mutation being added to the checkpoint items.
@@ -214,6 +219,9 @@ TEST_F(StreamTest, MB17653_ItemsRemaining) {
     for (unsigned int ii = 0; ii < set_op_count; ii++) {
         store_item(vbid, "key", "value");
     }
+
+    ASSERT_EQ(2, manager.getNumOpenChkItems())
+        << "Expected 2 items after population (checkpoint_start & set)";
 
     setup_dcp_stream();
 

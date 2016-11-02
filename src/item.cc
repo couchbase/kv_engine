@@ -22,3 +22,20 @@
 
 std::atomic<uint64_t> Item::casCounter(1);
 const uint32_t Item::metaDataSize(2*sizeof(uint32_t) + 2*sizeof(uint64_t) + 2);
+
+
+std::string to_string(queue_op op) {
+    switch(op) {
+        case queue_op::set: return "set";
+        case queue_op::del: return "del";
+        case queue_op::flush: return "flush";
+        case queue_op::empty: return "empty";
+        case queue_op::checkpoint_start: return "checkpoint_start";
+        case queue_op::checkpoint_end: return "checkpoint_end";
+        case queue_op::set_vbucket_state: return "set_vbucket_state";
+    }
+    return "<" +
+            std::to_string(static_cast<std::underlying_type<queue_op>::type>(op)) +
+            ">";
+
+}

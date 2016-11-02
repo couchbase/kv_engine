@@ -121,7 +121,8 @@ static enum test_result test_checkpoint_deduplication(ENGINE_HANDLE *h, ENGINE_H
             h1->release(h, NULL, itm);
         }
     }
-    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoint_items", 4501, "checkpoint");
+    // 4500 keys + 1x checkpoint_start + 1x set_vbucket_state.
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoint_items", 4502, "checkpoint");
     return SUCCESS;
 }
 

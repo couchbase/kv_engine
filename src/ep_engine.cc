@@ -3269,11 +3269,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_db_data_size", fileInfo.spaceUsed, add_stat, cookie);
     add_casted_stat("ep_db_file_size", fileInfo.fileSize, add_stat, cookie);
 
-    add_casted_stat("ep_vb_snapshot_total",
-                    epstats.snapshotVbucketHisto.total(), add_stat, cookie);
-
     add_casted_stat("ep_persist_vbstate_total",
-                    epstats.persistVBStateHisto.total(), add_stat, cookie);
+                    epstats.totalPersistVBState, add_stat, cookie);
 
     add_casted_stat("ep_vb_total",
                     activeCountVisitor.getVBucketNumber() +
@@ -4345,10 +4342,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     add_casted_stat("disk_del", stats.diskDelHisto, add_stat, cookie);
     add_casted_stat("disk_vb_del", stats.diskVBDelHisto, add_stat, cookie);
     add_casted_stat("disk_commit", stats.diskCommitHisto, add_stat, cookie);
-    add_casted_stat("disk_vbstate_snapshot", stats.snapshotVbucketHisto,
-                    add_stat, cookie);
-    add_casted_stat("disk_persist_vbstate", stats.persistVBStateHisto,
-                    add_stat, cookie);
 
     add_casted_stat("item_alloc_sizes", stats.itemAllocSizeHisto,
                     add_stat, cookie);
@@ -4494,8 +4487,7 @@ void EventuallyPersistentEngine::addSeqnoVbStats(const void *cookie,
         checked_snprintf(buffer, sizeof(buffer), "vb_%d:purge_seqno",
                          vb->getId());
         add_casted_stat(buffer, vb->getPurgeSeqno(), add_stat, cookie);
-        snapshot_range_t range;
-        vb->getPersistedSnapshot(range);
+        const snapshot_range_t range = vb->getPersistedSnapshot();
         checked_snprintf(buffer, sizeof(buffer),
                          "vb_%d:last_persisted_snap_start",
                          vb->getId());

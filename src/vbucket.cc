@@ -282,7 +282,19 @@ void VBucket::setState(vbucket_state_t to) {
     }
 }
 
-void VBucket::doStatsForQueueing(Item& qi, size_t itemBytes)
+vbucket_state VBucket::getVBucketState() const {
+     auto persisted_range = getPersistedSnapshot();
+
+     return vbucket_state{getState(),
+                          getPersistenceCheckpointId(), 0, getHighSeqno(),
+                          getPurgeSeqno(),
+                          persisted_range.start, persisted_range.end,
+                          getMaxCas(), failovers->toJSON()};
+}
+
+
+
+void VBucket::doStatsForQueueing(const Item& qi, size_t itemBytes)
 {
     ++dirtyQueueSize;
     dirtyQueueMem.fetch_add(sizeof(Item));
@@ -493,6 +505,15 @@ size_t VBucket::getNumNonResidentItems(item_eviction_policy_t policy) {
                                ht.getNumInMemoryNonResItems();
         return num_items > num_res_items ? (num_items - num_res_items) : 0;
     }
+}
+
+
+uint64_t VBucket::getPersistenceCheckpointId() const {
+    return persistenceCheckpointId.load();
+}
+
+void VBucket::setPersistenceCheckpointId(uint64_t checkpointId) {
+    persistenceCheckpointId.store(checkpointId);
 }
 
 bool VBucket::isResidentRatioUnderThreshold(float threshold,

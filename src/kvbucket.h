@@ -462,9 +462,6 @@ public:
 
     virtual uint64_t getLastPersistedSeqno(uint16_t vb) = 0;
 
-    virtual void snapshotVBuckets(VBSnapshotTask::Priority prio,
-                                  uint16_t shardId) = 0;
-
     /* transfer should be set to true *only* if this vbucket is becoming master
      * as the result of the previous master cleanly handing off control. */
     virtual ENGINE_ERROR_CODE setVBucketState(uint16_t vbid,
@@ -651,27 +648,14 @@ public:
     virtual const StorageProperties getStorageProperties() const = 0;
 
     /**
-     * schedule a vb_state snapshot task for all the shards.
-     */
-    virtual bool scheduleVBSnapshot(VBSnapshotTask::Priority prio) = 0;
-
-    /**
      * schedule a vb_state snapshot task for a given shard.
      */
-    virtual void scheduleVBSnapshot(VBSnapshotTask::Priority prio,
-                                    uint16_t shardId,
-                                    bool force = false) = 0;
+    virtual void scheduleVBStatePersist() = 0;
 
     /**
      * Schedule a vbstate persistence task for a given vbucket.
      */
-    virtual void scheduleVBStatePersist(VBStatePersistTask::Priority prio,
-                                        uint16_t vbid) = 0;
-
-    /**
-     * Persist a vbucket's state.
-     */
-    virtual bool persistVBState(uint16_t vbid) = 0;
+    virtual void scheduleVBStatePersist(uint16_t vbid) = 0;
 
     virtual const VBucketMap &getVBuckets() = 0;
 

@@ -58,6 +58,7 @@ public:
         tooYoung(0),
         tooOld(0),
         totalPersisted(0),
+        totalPersistVBState(0),
         totalEnqueued(0),
         flushFailed(0),
         flushExpired(0),
@@ -228,6 +229,8 @@ public:
     std::atomic<size_t> tooOld;
     //! Number of items persisted.
     std::atomic<size_t> totalPersisted;
+    //! Number of times VBucket state persisted.
+    std::atomic<size_t> totalPersistVBState;
     //! Cumulative number of items added to the queue.
     std::atomic<size_t> totalEnqueued;
     //! Number of times an item flush failed.
@@ -548,12 +551,6 @@ public:
     //! Histogram of disk commits
     Histogram<hrtime_t> diskCommitHisto;
 
-    //! Histogram of setting vbucket state
-    Histogram<hrtime_t> snapshotVbucketHisto;
-
-    //! Histogram of persisting vbucket state
-    Histogram<hrtime_t> persistVBStateHisto;
-
     //! Histogram of mutation log compactor
     Histogram<hrtime_t> mlogCompactorHisto;
 
@@ -574,9 +571,11 @@ public:
     void reset() {
         tooYoung.store(0);
         tooOld.store(0);
+        totalPersistVBState.store(0);
         dirtyAge.store(0);
         dirtyAgeHighWat.store(0);
         commit_time.store(0);
+        cursorsDropped.store(0);
         pagerRuns.store(0);
         itemsRemovedFromCheckpoints.store(0);
         numValueEjects.store(0);
@@ -641,8 +640,6 @@ public:
         diskDelHisto.reset();
         diskVBDelHisto.reset();
         diskCommitHisto.reset();
-        snapshotVbucketHisto.reset();
-        persistVBStateHisto.reset();
         itemAllocSizeHisto.reset();
         dirtyAgeHisto.reset();
         mlogCompactorHisto.reset();

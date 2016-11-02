@@ -54,6 +54,8 @@ enum checkpoint_state {
     CHECKPOINT_CLOSED  //!< The checkpoint is not open.
 };
 
+const char* to_string(enum checkpoint_state);
+
 // List is used for queueing mutations as vector incurs shift operations for
 // deduplication.
 typedef std::list<queued_item> CheckpointQueue;
@@ -102,7 +104,30 @@ class CheckpointConfig;
 class VBucket;
 
 /**
- * A checkpoint cursor
+ * A checkpoint cursor, representing the current position in a Checkpoint
+ * series.
+ *
+ * CheckpointCursors are similar to STL-style iterators but for Checkpoints.
+ * A consumer (DCP, TAP, persistence) will have one CheckpointCursor, initially
+ * positioned at the first item they want. As they read items from the
+ * Checkpoint the Cursor is advanced, allowing them to continue from where
+ * they left off when they next attempt to read items.
+ *
+ * A CheckpointCursor has two main pieces of state:
+ *
+ * - currentCheckpoint - The current Checkpoint the cursor is operating on.
+ * - currentPos - the position with the current Checkpoint.
+ *
+ * When a CheckpointCursor reaches the end of Checkpoint, the CheckpointManager
+ * will move it to the next Checkpoint.
+ *
+ * To assist in accounting how many items remain in a Checkpoint series, a
+ * cursor also records its `offset` - the count of items (non-meta and meta) it
+ * has already 'consumed' from the Checkpoint series. Note that this `offset`
+ * count is not cumulative - when the CheckpointManager removes checkpoints
+ * the offset will be decremented. To put it another way - the number of items
+ * a CheckpointCursor has left to consume can be calcuated as
+ * `CheckpointManager::numItems - CheckpointCursor::offset`.
  */
 class CheckpointCursor {
     friend class CheckpointManager;
@@ -116,17 +141,27 @@ public:
           currentCheckpoint(),
           currentPos(),
           offset(0),
+          ckptMetaItemsRead(0),
           fromBeginningOnChkCollapse(false),
           sendCheckpointEndMetaItem(MustSendCheckpointEnd::YES) { }
 
+    /**
+     * @param offset_ Count of items (normal+meta) already read for *all*
+     *                checkpoints in the series.
+     * @param meta_items_read Count of meta_items already read for the
+     *                        given checkpoint.
+     */
     CheckpointCursor(const std::string &n,
                      std::list<Checkpoint*>::iterator checkpoint,
                      CheckpointQueue::iterator pos,
-                     size_t os,
+                     size_t offset_,
+                     size_t meta_items_read,
                      bool beginningOnChkCollapse,
                      MustSendCheckpointEnd needsCheckpointEndMetaItem) :
         name(n), currentCheckpoint(checkpoint), currentPos(pos), numVisits(0),
-        offset(os), fromBeginningOnChkCollapse(beginningOnChkCollapse),
+        offset(offset_),
+        ckptMetaItemsRead(meta_items_read),
+        fromBeginningOnChkCollapse(beginningOnChkCollapse),
         sendCheckpointEndMetaItem(needsCheckpointEndMetaItem) { }
 
     // We need to define the copy construct explicitly due to the fact
@@ -135,6 +170,7 @@ public:
         name(other.name), currentCheckpoint(other.currentCheckpoint),
         currentPos(other.currentPos), numVisits(other.numVisits.load()),
         offset(other.offset.load()),
+        ckptMetaItemsRead(other.ckptMetaItemsRead),
         fromBeginningOnChkCollapse(other.fromBeginningOnChkCollapse),
         sendCheckpointEndMetaItem(other.sendCheckpointEndMetaItem) { }
 
@@ -144,11 +180,16 @@ public:
         currentPos = other.currentPos;
         numVisits = other.numVisits.load();
         offset.store(other.offset.load());
+        setMetaItemOffset(other.ckptMetaItemsRead);
         fromBeginningOnChkCollapse = other.fromBeginningOnChkCollapse;
         sendCheckpointEndMetaItem = other.sendCheckpointEndMetaItem;
         return *this;
     }
 
+    /**
+     * Decrement the offsets for this cursor.
+     * @param items Count of all items (meta and non-meta) to decrement by.
+     */
     void decrOffset(size_t decr);
 
     void decrPos();
@@ -157,6 +198,23 @@ public:
        Currently TAP cursors require checkpoint end meta item to be sent to
        the consumer. DCP cursors don't have this constraint */
     MustSendCheckpointEnd shouldSendCheckpointEndMetaItem() const;
+
+    /**
+     * Return the count of meta items processed (i.e. moved past) for the
+     * current checkpoint.
+     * This value is reset to zero when a new checkpoint
+     * is entered.
+     */
+    size_t getCurrentCkptMetaItemsRead() const;
+
+protected:
+    void incrMetaItemOffset(size_t incr) {
+        ckptMetaItemsRead += incr;
+    }
+
+    void setMetaItemOffset(size_t val) {
+        ckptMetaItemsRead = val;
+    }
 
 private:
     std::string                      name;
@@ -167,12 +225,20 @@ private:
     std::atomic<size_t>              numVisits;
 
     // The offset (in terms of items) this cursor is from the start of the
-    // cursors' current checkpoint. Used to calculate how many items this
-    // cursor has remaining.
+    // checkpoint list. Includes meta and non-meta items. Used to calculate
+    // how many items this cursor has remaining by subtracting
+    // offset from CheckpointManager::numItems.
     std::atomic<size_t>              offset;
+    // Count of the number of meta items which have been read (processed) for
+    // the *current* checkpoint.
+    size_t ckptMetaItemsRead;
     bool                             fromBeginningOnChkCollapse;
     MustSendCheckpointEnd            sendCheckpointEndMetaItem;
+
+    friend std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c);
 };
+
+std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c);
 
 /**
  * The cursor index maps checkpoint cursor names to checkpoint cursors
@@ -206,6 +272,70 @@ enum queue_dirty_t {
 /**
  * Representation of a checkpoint used in the unified queue for persistence and
  * replication.
+ *
+ * Each Checkpoint consists of an ordered series of queued_item items, each
+ * of which either represents a 'real' user operation
+ * (queue_op::set & queue_op::del), or one of a range of meta-items
+ * (queue_op::checkpoint_start, queue_op::checkpoint_end, ...).
+ *
+ * A checkpoint may either be Open or Closed. Open checkpoints can still have
+ * new items appended to them, whereas Closed checkpoints cannot (and are
+ * logically immutable). A checkpoint begins life as an Open checkpoint, will
+ * have items added to it (including de-duplication if a key is added which
+ * already exists), and then once large/old enough it will be marked as Closed,
+ * and a new Open checkpoint created for new items.
+ *
+ * Consumers read items from Checkpoints by creating a CheckpointCursor
+ * (similar to an STL iterator), which they use to mark how far along the
+ * Checkpoint they are.
+ *
+ *
+ *     Checkpoint (closed)
+ *                               numItems: 5 (1x start, 2x set, 1x del, 1x end)
+ *
+ *              +-------+-------+-------+-------+-------+-------+
+ *              | empty | Start |  Set  |  Set  |  Del  |  End  |
+ *              +-------+-------+-------+-------+-------+-------+
+ *         seqno    0       1       1       2       3       3
+ *
+ *                  ^
+ *                  |
+ *                  |
+ *            CheckpointCursor
+ *             (initial pos)
+ *
+ *     Checkpoint (open)
+ *                               numItems: 4 (1x start, 1x set, 2x set)
+ *
+ *              +-------+-------+-------+-------+-------+
+ *              | empty | Start |  Del  |  Set  |  Set
+ *              +-------+-------+-------+-------+-------+
+ *         seqno    3       4       4       5       6
+ *
+ * A Checkpoint starts with an empty item, followed by a checkpoint_start,
+ * and then 0...N set and del items, finally finishing with a checkpoint_end if
+ * the Checkpoint is closed.
+ * The empty item exists because Checkpoints are structured such that
+ * CheckpointCursors are advanced _before_ dereferencing them, not _after_
+ * (this differs from STL iterators which are typically incremented after
+ * dereferencing them) - i.e. the pseudo-code for reading elements is:
+ *
+ *     getElements(CheckpointCursor& cur) {
+ *         std::vector<...> result;
+ *         while (incrCursorAndCheckValid(cur) {
+ *             result.push_back(*cur);
+ *         };
+ *         return result;
+ *     }
+ *
+ * As such we need to have a dummy element at the start of each Checkpoint, so
+ * after the first call to CheckpointManager::incrCursor() the cursor
+ * dereferences to the checkpoint_start element.
+ *
+ * Note that sequence numbers are only unique for normal operations (set & del) -
+ * for meta-items like checkpoint start/end they share the same sequence number
+ * as the associated op - for checkpoint_start that is the ID of the following
+ * op, for checkpoint_end the ID of the proceeding op.
  */
 class Checkpoint {
 public:
@@ -213,7 +343,10 @@ public:
                uint16_t vbid) :
         stats(st), checkpointId(id), snapStartSeqno(snapStart),
         snapEndSeqno(snapEnd), vbucketId(vbid), creationTime(ep_real_time()),
-        checkpointState(CHECKPOINT_OPEN), numItems(0), memOverhead(0),
+        checkpointState(CHECKPOINT_OPEN),
+        numItems(0),
+        numMetaItems(0),
+        memOverhead(0),
         effectiveMemUsage(0) {
         stats.memOverhead.fetch_add(memorySize());
         if (stats.memOverhead.load() >= GIGANTOR) {
@@ -249,11 +382,17 @@ public:
     }
 
     /**
-     * Return the number of items belonging to this checkpoint.
+     * Return the number of non-meta items belonging to this checkpoint.
      */
     size_t getNumItems() const {
         return numItems;
     }
+
+    /**
+     * Return the number of meta items (as defined by Item::isNonEmptyCheckpointMetaItem)
+     * in this checkpoint.
+     */
+    size_t getNumMetaItems() const;
 
     /**
      * Return the current state of this checkpoint.
@@ -346,7 +485,15 @@ public:
         return toWrite.begin();
     }
 
+    CheckpointQueue::const_iterator begin() const {
+        return toWrite.begin();
+    }
+
     CheckpointQueue::iterator end() {
+        return toWrite.end();
+    }
+
+    CheckpointQueue::const_iterator end() const {
         return toWrite.end();
     }
 
@@ -418,7 +565,10 @@ private:
     uint16_t                       vbucketId;
     rel_time_t                     creationTime;
     checkpoint_state               checkpointState;
+    /// Number of non-meta items (see Item::isCheckPointMetaItem).
     size_t                         numItems;
+    /// Number of meta items (see Item::isCheckPointMetaItem).
+    size_t numMetaItems;
     std::set<std::string>          cursors; // List of cursors with their unique names.
     CheckpointQueue                toWrite;
     checkpoint_index               keyIndex;
@@ -550,15 +700,20 @@ public:
 
     /**
      * Queue an item to be written to persistent layer.
-     * @param vbucket the vbucket that a new item is pushed into.
+     * @param vb the vbucket that a new item is pushed into.
      * @param qi item to be persisted.
      * @param generateBySeqno yes/no generate the seqno for the item
      * @return true if an item queued increases the size of persistence queue by 1.
      */
-    bool queueDirty(const RCPtr<VBucket> &vb,
-                    queued_item& qi,
+    bool queueDirty(VBucket& vb, queued_item& qi,
                     const GenerateBySeqno generateBySeqno,
                     const GenerateCas generateCas);
+
+    /*
+     * Queue writing of the VBucket's state to persistent layer.
+     * @param vb the vbucket that a new item is pushed into.
+     */
+    void queueSetVBState(VBucket& vb);
 
     /**
      * Return the next item to be sent to a given connection
@@ -693,7 +848,7 @@ public:
         lastBySeqno = seqno;
     }
 
-    int64_t getHighSeqno() {
+    int64_t getHighSeqno() const {
         LockHolder lh(queueLock);
         return lastBySeqno;
     }
@@ -708,9 +863,31 @@ public:
         return ++lastBySeqno;
     }
 
+    void dump() const;
+
     static const std::string pCursorName;
 
+protected:
+
+    // Helper method for queueing methods - update the global and per-VBucket
+    // stats after queueing a new item to a checkpoint.
+    // Must be called with queueLock held (LockHolder passed in as argument to
+    // 'prove' this).
+    void updateStatsForNewQueuedItem_UNLOCKED(const LockHolder&,
+                                     VBucket& vb, const queued_item& qi);
+
 private:
+
+    // Pair of {sequence number, cursor at checkpoint start} used when
+    // updating cursor positions when collapsing checkpoints.
+    struct CursorPosition {
+        uint64_t seqno;
+        bool onCpktStart;
+    };
+
+    // Map of cursor name to position. Used when updating cursor positions
+    // when collapsing checkpoints.
+    using CursorIdToPositionMap = std::map<std::string, CursorPosition>;
 
     bool removeCursor_UNLOCKED(const std::string &name);
 
@@ -767,13 +944,16 @@ private:
 
     void resetCursors(bool resetPersistenceCursor = true);
 
-    void putCursorsInCollapsedChk(std::map<std::string, std::pair<uint64_t, bool> > &cursors,
-                                  std::list<Checkpoint*>::iterator chkItr);
+    void putCursorsInCollapsedChk(CursorIdToPositionMap& cursors,
+                                  const std::list<Checkpoint*>::iterator chkItr);
 
     queued_item createCheckpointItem(uint64_t id, uint16_t vbid,
-                                     enum queue_operation checkpoint_op);
+                                     queue_op checkpoint_op);
 
-    size_t getNumOfMetaItemsFromCursor(CheckpointCursor &cursor);
+    /**
+     * Return the number of meta Items remaining for this cursor.
+     */
+    size_t getNumOfMetaItemsFromCursor(const CheckpointCursor &cursor) const;
 
     EPStats                 &stats;
     CheckpointConfig        &checkpointConfig;

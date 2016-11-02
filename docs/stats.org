@@ -352,7 +352,6 @@ For introductory information on stats within Couchbase, start with the
 | ep_diskqueue_fill        | Total enqueued items on disk queue             |
 | ep_diskqueue_drain       | Total drained items on disk queue              |
 | ep_diskqueue_pending     | Total bytes of pending writes                  |
-| ep_vb_snapshot_total     | Number of VB state snapshots persisted to disk |
 | ep_persist_vbstate_total | Total VB persist state to disk                 |
 | ep_meta_data_memory      | Total memory used by meta data                 |
 | ep_meta_data_disk        | Total disk used by meta data                   |
@@ -846,7 +845,6 @@ form to describe when time was spent doing various things:
 | disk_del                        | waiting for disk to delete an item             |
 | disk_vb_del                     | waiting for disk to delete a vbucket           |
 | disk_commit                     | waiting for a commit after a batch of updates  |
-| disk_vbstate_snapshot           | Time spent persisting vbucket state changes    |
 | item_alloc_sizes                | Item allocation size counters (in bytes)       |
 | persistence_cursor_get_all_items| Time spent in fetching all items by            |
 |                                 | persistence cursor from checkpoint queues      |
