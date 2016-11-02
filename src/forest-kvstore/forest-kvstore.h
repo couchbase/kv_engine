@@ -386,9 +386,10 @@ class ForestKVStore : public KVStore
      */
     DBFileInfo getAggrDbFileInfo() override;
 
-    ENGINE_ERROR_CODE getAllKeys(uint16_t vbid, std::string& start_key,
+    ENGINE_ERROR_CODE getAllKeys(uint16_t vbid,
+                                 const std::string& start_key,
                                  uint32_t count,
-                                 std::shared_ptr<Callback<uint16_t&, char*&> > cb) override;
+                                 std::shared_ptr<Callback<uint16_t&, char*&>> cb) override;
 
     ScanContext *initScanContext(std::shared_ptr<Callback<GetValue> > cb,
                                  std::shared_ptr<Callback<CacheLookup> > cl,

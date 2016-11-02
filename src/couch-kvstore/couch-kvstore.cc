@@ -162,10 +162,10 @@ public:
 };
 
 struct AllKeysCtx {
-    AllKeysCtx(std::shared_ptr<Callback<uint16_t&, char*&> > callback, uint32_t cnt)
+    AllKeysCtx(std::shared_ptr<Callback<uint16_t&, char*&>> callback, uint32_t cnt)
         : cb(callback), count(cnt) { }
 
-    std::shared_ptr<Callback<uint16_t&, char*&> > cb;
+    std::shared_ptr<Callback<uint16_t&, char*&>> cb;
     uint32_t count;
 };
 
@@ -2407,8 +2407,10 @@ int populateAllKeys(Db *db, DocInfo *docinfo, void *ctx) {
 }
 
 ENGINE_ERROR_CODE
-CouchKVStore::getAllKeys(uint16_t vbid, std::string &start_key, uint32_t count,
-                         std::shared_ptr<Callback<uint16_t&, char*&> > cb) {
+CouchKVStore::getAllKeys(uint16_t vbid,
+                         const std::string &start_key,
+                         uint32_t count,
+                         std::shared_ptr<Callback<uint16_t&, char*&>> cb) {
     Db *db = NULL;
     uint64_t rev = dbFileRevMap[vbid];
     couchstore_error_t errCode = openDB(vbid, rev, &db,

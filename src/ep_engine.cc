@@ -6042,37 +6042,28 @@ EventuallyPersistentEngine::getClusterConfig(const void* cookie,
 class AllKeysCallback : public Callback<uint16_t&, char*&> {
 public:
     AllKeysCallback() {
-        length = 0;
-        buffersize = (avgKeySize + sizeof(uint16_t)) * expNumKeys;
-        buffer = (char *) cb_malloc(buffersize);
-    }
-
-    ~AllKeysCallback() {
-        cb_free(buffer);
+        buffer.reserve((avgKeySize + sizeof(uint16_t)) * expNumKeys);
     }
 
     void callback(uint16_t& len, char*& buf) {
-        if (length + len + sizeof(uint16_t) > buffersize) {
-            buffersize *= 2;
-            char *temp = (char *) cb_malloc(buffersize);
-            memcpy (temp, buffer, length);
-            cb_free(buffer);
-            buffer = temp;
+        if (buffer.size() + len + sizeof(uint16_t) >
+            buffer.size()) {
+            // Reserve the 2x space for the copy-to buffer.
+            buffer.reserve(buffer.size()*2);
         }
-        len = htons(len);
-        memcpy (buffer + length, &len, sizeof(uint16_t));
-        len = ntohs(len);
-        memcpy (buffer + length + sizeof(uint16_t), buf, len);
-        length += len + sizeof(uint16_t);
+        uint16_t outlen = htons(len);
+        // insert 1 x u16
+        const auto* outlenPtr = reinterpret_cast<const char*>(&outlen);
+        buffer.insert(buffer.end(), outlenPtr, outlenPtr + sizeof(uint16_t));
+        // insert the char buffer
+        buffer.insert(buffer.end(), buf, buf+len);
     }
 
-    char* getAllKeysPtr() { return buffer; }
-    uint64_t getAllKeysLen() { return length; }
+    char* getAllKeysPtr() { return buffer.data(); }
+    uint64_t getAllKeysLen() { return buffer.size(); }
 
 private:
-    uint64_t length;
-    uint64_t buffersize;
-    char *buffer;
+    std::vector<char> buffer;
 
     static const int avgKeySize = 32;
     static const int expNumKeys = 1000;
@@ -6107,7 +6098,7 @@ public:
                                PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
                                cookie);
         } else {
-            std::shared_ptr<Callback<uint16_t&, char*&> > cb(new AllKeysCallback());
+            auto cb = std::make_shared<AllKeysCallback>();
             err = engine->getKVBucket()->getROUnderlying(vbid)->getAllKeys(
                                                     vbid, start_key, count, cb);
             if (err == ENGINE_SUCCESS) {

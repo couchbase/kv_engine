@@ -1228,8 +1228,10 @@ void ForestKVStore::get(const std::string& key, uint16_t vb,
 }
 
 ENGINE_ERROR_CODE
-ForestKVStore::getAllKeys(uint16_t vbid, std::string& start_key, uint32_t count,
-                         std::shared_ptr<Callback<uint16_t&, char*&> > cb) {
+ForestKVStore::getAllKeys(uint16_t vbid,
+                          const std::string& start_key,
+                          uint32_t count,
+                          std::shared_ptr<Callback<uint16_t&, char*&>> cb) {
 
     std::unique_ptr<ForestKvsHandle> fkvsHandle;
     try {
