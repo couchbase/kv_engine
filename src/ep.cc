@@ -957,9 +957,6 @@ ENGINE_ERROR_CODE EPBucket::set(Item &itm, const void *cookie) {
                                     cookie, true);
         break;
     }
-    case INVALID_VBUCKET:
-        ret = ENGINE_NOT_MY_VBUCKET;
-        break;
     }
 
     return ret;
@@ -1109,9 +1106,6 @@ ENGINE_ERROR_CODE EPBucket::replace(Item &itm, const void *cookie) {
                 ret = ENGINE_EWOULDBLOCK;
                 break;
             }
-            case INVALID_VBUCKET:
-                ret = ENGINE_NOT_MY_VBUCKET;
-                break;
         }
 
         return ret;
@@ -1185,9 +1179,6 @@ ENGINE_ERROR_CODE EPBucket::addTAPBackfillItem(Item &itm, bool genBySeqno,
         vb->setMaxCas(v->getCas());
         tapQueueDirty(*vb, v, lh, NULL,
                       genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No);
-        break;
-    case INVALID_VBUCKET:
-        ret = ENGINE_NOT_MY_VBUCKET;
         break;
     case NEED_BG_FETCH:
         throw std::logic_error("EventuallyPersistentStore::addTAPBackfillItem: "
@@ -2032,9 +2023,6 @@ ENGINE_ERROR_CODE EPBucket::setWithMeta(Item &itm,
     case IS_LOCKED:
         ret = ENGINE_KEY_EEXISTS;
         break;
-    case INVALID_VBUCKET:
-        ret = ENGINE_NOT_MY_VBUCKET;
-        break;
     case WAS_DIRTY:
     case WAS_CLEAN:
         vb->setMaxCasAndTrackDrift(v->getCas());
@@ -2533,9 +2521,6 @@ ENGINE_ERROR_CODE EPBucket::deleteItem(const std::string &key,
     case NOMEM:
         ret = ENGINE_ENOMEM;
         break;
-    case INVALID_VBUCKET:
-        ret = ENGINE_NOT_MY_VBUCKET;
-        break;
     case INVALID_CAS:
         ret = ENGINE_KEY_EEXISTS;
         break;
@@ -2677,9 +2662,6 @@ ENGINE_ERROR_CODE EPBucket::deleteWithMeta(const std::string &key,
     switch (delrv) {
     case NOMEM:
         ret = ENGINE_ENOMEM;
-        break;
-    case INVALID_VBUCKET:
-        ret = ENGINE_NOT_MY_VBUCKET;
         break;
     case INVALID_CAS:
         ret = ENGINE_KEY_EEXISTS;

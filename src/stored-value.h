@@ -571,10 +571,6 @@ private:
  * Mutation types as returned by store commands.
  */
 enum mutation_type_t {
-    /**
-     * Storage was attempted on a vbucket not managed by this node.
-     */
-    INVALID_VBUCKET,
     NOT_FOUND,                  //!< The item was not found for update
     INVALID_CAS,                //!< The wrong CAS identifier was sent for a CAS update
     WAS_CLEAN,                  //!< The item was clean before this mutation
