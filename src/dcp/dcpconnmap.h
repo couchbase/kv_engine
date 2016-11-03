@@ -97,13 +97,13 @@ public:
     void updateMaxActiveSnoozingBackfills(size_t maxDataSize);
 
     uint16_t getNumActiveSnoozingBackfills () {
-        SpinLockHolder lh(&numBackfillsLock);
-        return numActiveSnoozingBackfills;
+        std::lock_guard<std::mutex> lh(backfills.mutex);
+        return backfills.numActiveSnoozing;
     }
 
     uint16_t getMaxActiveSnoozingBackfills () {
-        SpinLockHolder lh(&numBackfillsLock);
-        return maxActiveSnoozingBackfills;
+        std::lock_guard<std::mutex> lh(backfills.mutex);
+        return backfills.maxActiveSnoozing;
     }
 
     ENGINE_ERROR_CODE addPassiveStream(ConnHandler& conn, uint32_t opaque,
@@ -167,11 +167,16 @@ protected:
      */
     static void cancelTasks(CookieToConnectionMap& map);
 
-    SpinLock numBackfillsLock;
     /* Db file memory */
     static const uint32_t dbFileMem;
-    uint16_t numActiveSnoozingBackfills;
-    uint16_t maxActiveSnoozingBackfills;
+
+    // Current and maximum number of backfills which are snoozing.
+    struct {
+        std::mutex mutex;
+        uint16_t numActiveSnoozing;
+        uint16_t maxActiveSnoozing;
+    } backfills;
+
     /* Max num of backfills we want to have irrespective of memory */
     static const uint16_t numBackfillsThreshold;
     /* Max percentage of memory we want backfills to occupy */

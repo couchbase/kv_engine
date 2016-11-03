@@ -36,7 +36,7 @@ const uint8_t DcpConnMap::numBackfillsMemThreshold = 1;
 DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
     : ConnMap(e),
       aggrDcpConsumerBufferSize(0) {
-    numActiveSnoozingBackfills = 0;
+    backfills.numActiveSnoozing = 0;
     updateMaxActiveSnoozingBackfills(engine.getEpStats().getMaxDataSize());
     minCompressionRatioForProducer.store(
                     engine.getConfiguration().getDcpMinCompressionRatio());
@@ -377,9 +377,9 @@ void DcpConnMap::notifyBackfillManagerTasks() {
 
 bool DcpConnMap::canAddBackfillToActiveQ()
 {
-    SpinLockHolder lh(&numBackfillsLock);
-    if (numActiveSnoozingBackfills < maxActiveSnoozingBackfills) {
-        ++numActiveSnoozingBackfills;
+    std::lock_guard<std::mutex> lh(backfills.mutex);
+    if (backfills.numActiveSnoozing < backfills.maxActiveSnoozing) {
+        ++backfills.numActiveSnoozing;
         return true;
     }
     return false;
@@ -387,12 +387,14 @@ bool DcpConnMap::canAddBackfillToActiveQ()
 
 void DcpConnMap::decrNumActiveSnoozingBackfills()
 {
-    SpinLockHolder lh(&numBackfillsLock);
-    if (numActiveSnoozingBackfills > 0) {
-        --numActiveSnoozingBackfills;
-    } else {
-        LOG(EXTENSION_LOG_WARNING, "ActiveSnoozingBackfills already zero!!!");
+    {
+        std::lock_guard<std::mutex> lh(backfills.mutex);
+        if (backfills.numActiveSnoozing > 0) {
+            --backfills.numActiveSnoozing;
+            return;
+        }
     }
+    LOG(EXTENSION_LOG_WARNING, "ActiveSnoozingBackfills already zero!!!");
 }
 
 void DcpConnMap::updateMaxActiveSnoozingBackfills(size_t maxDataSize)
@@ -400,13 +402,18 @@ void DcpConnMap::updateMaxActiveSnoozingBackfills(size_t maxDataSize)
     double numBackfillsMemThresholdPercent =
                          static_cast<double>(numBackfillsMemThreshold)/100;
     size_t max = maxDataSize * numBackfillsMemThresholdPercent / dbFileMem;
-    /* We must have atleast one active/snoozing backfill */
-    SpinLockHolder lh(&numBackfillsLock);
-    maxActiveSnoozingBackfills =
-        std::max(static_cast<size_t>(1),
-                 std::min(max, static_cast<size_t>(numBackfillsThreshold)));
+
+    uint16_t newMaxActive;
+    {
+        std::lock_guard<std::mutex> lh(backfills.mutex);
+        /* We must have atleast one active/snoozing backfill */
+        backfills.maxActiveSnoozing =
+                std::max(static_cast<size_t>(1),
+                         std::min(max, static_cast<size_t>(numBackfillsThreshold)));
+        newMaxActive = backfills.maxActiveSnoozing;
+    }
     LOG(EXTENSION_LOG_DEBUG, "Max active snoozing backfills set to %" PRIu16,
-        maxActiveSnoozingBackfills);
+        newMaxActive);
 }
 
 void DcpConnMap::addStats(ADD_STAT add_stat, const void *c) {
