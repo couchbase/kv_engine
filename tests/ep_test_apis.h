@@ -366,7 +366,7 @@ void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    bool skipConflictResolution = false,
                    uint8_t datatype = 0x00, bool includeExtMeta = false);
 bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
-              bool reqExtMeta = false);
+              bool reqExtMeta = false, const void* cookie = nullptr);
 void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const uint32_t vb,
                    ItemMetaData *itemMeta, uint64_t cas_for_delete = 0,
