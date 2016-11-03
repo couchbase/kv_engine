@@ -113,7 +113,8 @@ public:
 
     /**
      * Set an item in the store.
-     * @param item the item to set
+     * @param item the item to set. On success, this will have its seqno and
+     *             CAS updated.
      * @param cookie the cookie representing the client to store the item
      * @return the result of the store operation
      */
@@ -121,7 +122,8 @@ public:
 
     /**
      * Add an item in the store.
-     * @param item the item to add
+     * @param item the item to add. On success, this will have its seqno and
+     *             CAS updated.
      * @param cookie the cookie representing the client to store the item
      * @return the result of the operation
      */
@@ -129,7 +131,8 @@ public:
 
     /**
      * Replace an item in the store.
-     * @param item the item to replace
+     * @param item the item to replace. On success, this will have its seqno
+     *             and CAS updated.
      * @param cookie the cookie representing the client to store the item
      * @return the result of the operation
      */

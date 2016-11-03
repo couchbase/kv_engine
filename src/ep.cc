@@ -1016,7 +1016,6 @@ ENGINE_ERROR_CODE EPBucket::add(Item &itm, const void *cookie)
                                            /*isReplication*/false);
 
 
-    Item& it = const_cast<Item&>(itm);
     uint64_t seqno = 0;
     switch (atype) {
     case ADD_NOMEM:
@@ -1024,18 +1023,18 @@ ENGINE_ERROR_CODE EPBucket::add(Item &itm, const void *cookie)
     case ADD_EXISTS:
         return ENGINE_NOT_STORED;
     case ADD_TMP_AND_BG_FETCH:
-        return addTempItemForBgFetch(lh, bucket_num, it.getKey(), vb,
+        return addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
                                      cookie, true);
     case ADD_BG_FETCH:
         lh.unlock();
-        bgFetch(it.getKey(), vb->getId(), cookie, true);
+        bgFetch(itm.getKey(), vb->getId(), cookie, true);
         return ENGINE_EWOULDBLOCK;
     case ADD_SUCCESS:
     case ADD_UNDEL:
         // We need to keep lh as we will do v->getCas()
         queueDirty(vb, v, nullptr, &seqno);
-        it.setBySeqno(seqno);
-        it.setCas(v->getCas());
+        itm.setBySeqno(seqno);
+        itm.setCas(v->getCas());
         break;
     }
 
