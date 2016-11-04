@@ -825,7 +825,7 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
     uint64_t new_cas;
     ret = c->getBucketEngine()->store(handle, c,
                                   context->out_doc, &new_cas,
-                                  OPERATION_REPLACE, vbucket);
+                                  OPERATION_CAS, vbucket);
     switch (ret) {
     case ENGINE_SUCCESS:
         // Record the UUID / Seqno if MUTATION_SEQNO feature is enabled so
