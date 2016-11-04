@@ -1606,7 +1606,7 @@ static enum test_result test_set_with_meta_and_check_drift_stats(ENGINE_HANDLE *
     // Bucket stats should report drift
     checkge(get_ull_stat(h, h1, "ep_active_hlc_drift"), uint64_t(0),
             "Expected drift above zero");
-    checkeq(uint64_t(n_keys), get_ull_stat(h, h1, "ep_active_hlc_drift_count"),
+    checkeq(uint64_t(n_keys*n_vbuckets), get_ull_stat(h, h1, "ep_active_hlc_drift_count"),
             "Expected ahead counter to match mutations");
 
     // Victim VBs should have exceptions
@@ -1713,7 +1713,7 @@ static enum test_result test_del_with_meta_and_check_drift_stats(ENGINE_HANDLE *
     // Bucket stats should report drift
     checkge(get_ull_stat(h, h1, "ep_active_hlc_drift"), uint64_t(0),
             "Expected drift above zero");
-    checkeq(uint64_t(n_keys*2), get_ull_stat(h, h1, "ep_active_hlc_drift_count"),
+    checkeq(2*uint64_t(n_keys*n_vbuckets), get_ull_stat(h, h1, "ep_active_hlc_drift_count"),
             "Expected ahead counter to match mutations");
 
     // and should report total exception of all VBs

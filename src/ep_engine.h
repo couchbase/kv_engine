@@ -106,7 +106,7 @@ public:
         opsReject(0), queueSize(0),
         queueMemory(0), queueFill(0), queueDrain(0),
         pendingWrites(0), chkPersistRemaining(0),
-        queueAge(0), rollbackItemCount(0), maxAbsHLCDrift(),
+        queueAge(0), rollbackItemCount(0), totalAbsHLCDrift(),
         totalHLCDriftExceptionCounters()
     { }
 
@@ -160,7 +160,7 @@ public:
 
     uint64_t getRollbackItemCount() { return rollbackItemCount; }
 
-    HLC::DriftStats getMaxAbsHLCDrift() {return maxAbsHLCDrift;}
+    HLC::DriftStats getTotalAbsHLCDrift() {return totalAbsHLCDrift;}
     HLC::DriftExceptions getTotalHLCDriftExceptionCounters() {return totalHLCDriftExceptionCounters;}
 
 private:
@@ -192,7 +192,7 @@ private:
     size_t chkPersistRemaining;
     uint64_t queueAge;
     uint64_t rollbackItemCount;
-    HLC::DriftStats maxAbsHLCDrift;
+    HLC::DriftStats totalAbsHLCDrift;
     HLC::DriftExceptions totalHLCDriftExceptionCounters;
 };
 
