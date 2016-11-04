@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2015 Couchbase, Inc
+ *     Copyright 2016 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -16,182 +16,24 @@
  */
 
 /*
-    Engine manager provides methods for creating and deleting of engine handles/structs
-    and the creation and safe teardown of the scrubber thread.
-
-    Note: A single scrubber exists for the purposes of running a user requested scrub
-    and for background deletion of bucket items when a bucket is destroyed.
-*/
+ * Engine manager provides methods for creating and deleting of engine
+ * handles/structs and the creation and safe teardown of the scrubber thread.
+ *
+ *  Note: A single scrubber exists for the purposes of running a user requested
+ *  scrub and for background deletion of bucket items when a bucket is
+ *  destroyed.
+ */
 
 #include "engine_manager.h"
 #include "default_engine_internal.h"
-#include "items.h"
 
-
-#include <atomic>
-#include <condition_variable>
-#include <deque>
-#include <mutex>
-#include <string>
-#include <unordered_set>
+#include <chrono>
 #include <memory>
-
-/**
-    The scrubber task is charged with
-     1. removing items from memory
-     2. deleting engine structs
-
-    The common use-case is for bucket deletion performing tasks 1 and 2.
-    The start_scrub command only performs 1.
-
-    Global destruction can safely join the task and allow the engine to
-    safely unload the shared object.
-**/
-class EngineManager;
-
-class ScrubberTask {
-public:
-    ScrubberTask(EngineManager* manager);
-
-    /**
-        Shutdown the task
-    **/
-    void shutdown();
-
-    /**
-        Join the thread running the scrubber (to be called after shutdown).
-    **/
-    void joinThread();
-
-    /**
-        Place the engine on the threads work queue for item scrubbing.
-        bool destroy indicates if the engine should be deleted once scrubbed.
-    **/
-    void placeOnWorkQueue(struct default_engine* engine, bool destroy);
-
-    /**
-        Task's run loop method.
-    **/
-    void run();
-
-private:
-    /*
-       A queue of engine's to work on.
-       The second bool indicates if the engine is to be deleted when done.
-    */
-    std::deque<std::pair<struct default_engine*, bool> > workQueue;
-    std::atomic<bool> shuttingdown;
-    EngineManager* engineManager;
-    std::mutex lock;
-    std::condition_variable cvar;
-    cb_thread_t scrubberThread;
-};
-
-/**
-    Create/Delete of engines from one location.
-    Manages the scrubber task and handles global shutdown
-**/
-class EngineManager {
-public:
-
-    EngineManager();
-    ~EngineManager();
-
-    struct default_engine* createEngine();
-
-    /**
-        Delete engine struct
-    **/
-    void deleteEngine(struct default_engine* engine);
-
-    /**
-        Request that the scrubber destroy's this engine.
-        Scrubber will delete the object.
-    **/
-    void requestDestroyEngine(struct default_engine* engine);
-
-    /**
-        Request that the engine is scrubbed.
-    **/
-    void scrubEngine(struct default_engine* engine);
-
-    /**
-        Set the shutdown flag so that we can clean up
-        1) no new engine's can be created.
-        2) the scrubber can be notified to exit and joined.
-    **/
-    void shutdown();
-
-private:
-    ScrubberTask scrubberTask;
-    std::atomic<bool> shuttingdown;
-    std::mutex lock;
-    std::unordered_set<struct default_engine*> engines;
-
-};
 
 static std::unique_ptr<EngineManager> engineManager;
 
-static void scrubber_task_main(void* arg) {
-    ScrubberTask* task = reinterpret_cast<ScrubberTask*>(arg);
-    task->run();
-}
-
-ScrubberTask::ScrubberTask(EngineManager* manager)
-  : shuttingdown(false),
-    engineManager(manager) {
-    if (cb_create_named_thread(&scrubberThread, &scrubber_task_main, this, 0,
-                               "mc:item_scrub") != 0) {
-        throw std::runtime_error("Error creating 'mc:item_scrub' thread");
-    }
-}
-
-void ScrubberTask::shutdown() {
-    shuttingdown = true;
-    // Serialize with ::run
-    std::lock_guard<std::mutex> lck(lock);
-    cvar.notify_one();
-}
-
-void ScrubberTask::joinThread() {
-    cb_join_thread(scrubberThread);
-}
-
-void ScrubberTask::placeOnWorkQueue(struct default_engine* engine, bool destroy) {
-    if (!shuttingdown) {
-        std::lock_guard<std::mutex> lck(lock);
-        engine->scrubber.force_delete = destroy;
-        workQueue.push_back(std::make_pair(engine, destroy));
-        cvar.notify_one();
-    }
-}
-
-void ScrubberTask::run() {
-    while (true) {
-        std::unique_lock<std::mutex> lck(lock);
-        if (!workQueue.empty()) {
-            auto engine = workQueue.front();
-            workQueue.pop_front();
-            lck.unlock();
-
-            item_scrubber_main(engine.first);
-
-            if (engine.second) {
-                destroy_engine_instance(engine.first);
-                engineManager->deleteEngine(engine.first);
-            }
-
-            lck.lock(); // relock so lck can safely unlock when destroyed at loop end.
-        } else if (!shuttingdown) {
-            cvar.wait(lck);
-        } else {
-            return;
-        }
-    }
-}
-
 EngineManager::EngineManager()
-  : scrubberTask(this),
+  : scrubberTask(*this),
     shuttingdown(false) {}
 
 EngineManager::~EngineManager() {
@@ -199,15 +41,15 @@ EngineManager::~EngineManager() {
 }
 
 struct default_engine* EngineManager::createEngine() {
-    struct default_engine* newEngine = NULL;
-
-    if (!shuttingdown) {
-        newEngine = new struct default_engine();
+    std::lock_guard<std::mutex> lck(lock);
+    if (shuttingdown) {
+        return nullptr;
     }
 
-    if (newEngine) {
-        std::lock_guard<std::mutex> lck(lock);
+    try {
         static bucket_id_t bucket_id;
+
+        struct default_engine* newEngine = new struct default_engine();
         if (bucket_id + 1 == 0) {
             // We've used all of the available id's
             delete newEngine;
@@ -215,26 +57,48 @@ struct default_engine* EngineManager::createEngine() {
         }
         default_engine_constructor(newEngine, bucket_id++);
         engines.insert(newEngine);
+
+        return newEngine;
+    } catch (const std::bad_alloc&) {
+        return nullptr;
     }
-
-    return newEngine;
-}
-
-void EngineManager::deleteEngine(struct default_engine* engine) {
-    std::lock_guard<std::mutex> lck(lock);
-    engines.erase(engine);
-    delete engine;
 }
 
 void EngineManager::requestDestroyEngine(struct default_engine* engine) {
+    std::lock_guard<std::mutex> lck(lock);
     if (!shuttingdown) {
         scrubberTask.placeOnWorkQueue(engine, true);
     }
 }
 
 void EngineManager::scrubEngine(struct default_engine* engine) {
+    std::lock_guard<std::mutex> lck(lock);
     if (!shuttingdown) {
         scrubberTask.placeOnWorkQueue(engine, false);
+    }
+}
+
+void EngineManager::waitForScrubberToBeIdle(std::unique_lock<std::mutex>& lck) {
+    if (!lck.owns_lock()) {
+        throw std::logic_error("EngineManager::waitForScrubberToBeIdle: Lock must be held");
+    }
+
+    while (!scrubberTask.isIdle()) {
+        auto& task = scrubberTask;
+        // There is a race for the isIdle call, and I don't want to solve it
+        // by using a mutex as that would result in the use of trying to
+        // acquire multiple locks (which is a highway to deadlocks ;-)
+        //
+        // The scrubber does *not* hold the for the scrubber while calling
+        // notify on this condition variable.. And the state is then Scrubbing
+        // That means that this thread will wake, grab the mutex and check
+        // the state which is still Scrubbing and go back to sleep (depending
+        // on the scheduling order)..
+        cond.wait_for(lck,
+                      std::chrono::milliseconds(10),
+                      [&task] {
+            return task.isIdle();
+        });
     }
 }
 
@@ -242,13 +106,48 @@ void EngineManager::scrubEngine(struct default_engine* engine) {
  * Join the scrubber and delete any data which wasn't cleaned by clients
  */
 void EngineManager::shutdown() {
-    shuttingdown = true;
-    scrubberTask.shutdown();
-    scrubberTask.joinThread();
+    std::unique_lock<std::mutex> lck(lock);
+    if (!shuttingdown) {
+        shuttingdown = true;
+
+        // Wait until the scrubber is done with all of its tasks
+        waitForScrubberToBeIdle(lck);
+
+        // Do we have any engines defined?
+        if (!engines.empty()) {
+            // Tell it to go ahead and scrub all engines
+            for (auto engine : engines) {
+                scrubberTask.placeOnWorkQueue(engine, true);
+            }
+
+            // Wait for all of the engines to be deleted
+            auto& set = engines;
+            cond.wait(lck, [&set] {
+                return set.empty();
+            });
+
+            // wait for the scrubber to become idle again
+            waitForScrubberToBeIdle(lck);
+        }
+
+        scrubberTask.shutdown();
+        scrubberTask.joinThread();
+    }
+}
+
+void EngineManager::notifyScrubComplete(struct default_engine* engine,
+                                        bool destroy) {
+    if (destroy) {
+        destroy_engine_instance(engine);
+    }
+
     std::lock_guard<std::mutex> lck(lock);
-    for (auto engine : engines) {
+    if (destroy) {
+        engines.erase(engine);
         delete engine;
     }
+
+    cond.notify_one();
 }
 
 EngineManager& getEngineManager() {
@@ -277,5 +176,8 @@ void engine_manager_scrub_engine(struct default_engine* engine) {
 
 void engine_manager_shutdown() {
     // will block waiting for scrubber to finish
+    // Note that it would be tempting to just call reset on the unique_ptr,
+    // but then we could recreate the object on accident by calling
+    // one of the other functions which in turn call getEngineManager()
     getEngineManager().shutdown();
 }
