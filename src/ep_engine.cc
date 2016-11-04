@@ -189,6 +189,7 @@ extern "C" {
     {
         ENGINE_ERROR_CODE err_code = getHandle(handle)->itemDelete(cookie, key,
                                                                    cas, vbucket,
+                                                                   nullptr, nullptr,
                                                                    mut_info);
         releaseHandle(handle);
         return err_code;
@@ -209,16 +210,16 @@ extern "C" {
                                     uint16_t vbucket,
                                     DocumentState document_state)
     {
-        if (document_state != DocumentState::Alive) {
-            return ENGINE_ENOTSUP;
-        }
-
         get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
                                                            HONOR_STATES |
                                                            TRACK_REFERENCE |
                                                            DELETE_TEMP |
                                                            HIDE_LOCKED_CAS |
                                                            TRACK_STATISTICS);
+
+        if (document_state == DocumentState::Deleted) {
+            options = static_cast<get_options_t>(options | GET_DELETED_VALUE);
+        }
 
         ENGINE_ERROR_CODE err_code = getHandle(handle)->get(cookie, itm, key,
                                                             vbucket,
@@ -271,12 +272,35 @@ extern "C" {
                                       ENGINE_STORE_OPERATION operation,
                                       DocumentState document_state)
     {
-        if (document_state != DocumentState::Alive) {
-            return ENGINE_ENOTSUP;
-        }
+        ENGINE_ERROR_CODE err_code = ENGINE_SUCCESS;
+        switch (document_state) {
+            case DocumentState::Alive:
+            {
+                err_code = getHandle(handle)->store(cookie, itm, cas, operation);
+                break;
+            }
+            case DocumentState::Deleted:
+            {
+                Item* item = static_cast<Item*>(itm);
+                ItemMetaData itm_meta;
+                mutation_descr_t mut_info;
 
-        ENGINE_ERROR_CODE err_code = getHandle(handle)->store(cookie, itm, cas,
-                                                              operation);
+                /* Set the item as deleted */
+                item->setDeleted();
+                err_code = getHandle(handle)->itemDelete(cookie, item->getKey(), cas,
+                                                         item->getVBucketId(), item, &itm_meta,
+                                                         &mut_info);
+                if (err_code == ENGINE_SUCCESS) {
+                    item->setBySeqno(mut_info.seqno);
+                    item->setCas(itm_meta.cas);
+                    item->setFlags(itm_meta.flags);
+                    item->setExpTime(itm_meta.exptime);
+                }
+                break;
+            }
+            default:
+                return ENGINE_ENOTSUP;
+        }
         releaseHandle(handle);
         return err_code;
     }
@@ -1789,8 +1813,11 @@ extern "C" {
         itm_info->value[0].iov_base = const_cast<char*>(it->getData());
         itm_info->value[0].iov_len = it->getNBytes();
 
-        // @todo update when we add support for accessing deleted documents
-        itm_info->document_state = DocumentState::Alive;
+        if (it->isDeleted()) {
+            itm_info->document_state = DocumentState::Deleted;
+        } else {
+            itm_info->document_state = DocumentState::Alive;
+        }
         return true;
     }
 
@@ -5834,7 +5861,7 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
         mutation_descr_t mut_info;
         DocKey key(keyPtr, keylen, docNamespace);
         ret = kvBucket->deleteItem(key, &cas, vbucket, cookie, false,
-                                   &itm_meta, &mut_info);
+                                   nullptr, &itm_meta, &mut_info);
         if (ret == ENGINE_SUCCESS) {
             ++stats.numOpsDelRetMeta;
         }

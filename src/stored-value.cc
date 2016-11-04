@@ -62,7 +62,7 @@ uint8_t StoredValue::getNRUValue() {
 }
 
 bool StoredValue::unlocked_restoreValue(Item *itm, HashTable &ht) {
-    if (isResident() || isDeleted()) {
+    if (isResident()) {
         return false;
     }
 
@@ -84,7 +84,7 @@ bool StoredValue::unlocked_restoreValue(Item *itm, HashTable &ht) {
         bySeqno = itm->getBySeqno();
         nru = INITIAL_NRU_VALUE;
     }
-    deleted = false;
+    deleted = itm->isDeleted();
     value = itm->getValue();
     increaseCacheSize(ht, value->length());
     return true;

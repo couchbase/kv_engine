@@ -84,13 +84,14 @@ public:
      * Get the couchstore Doc instance of a document to be persisted
      *
      * @return pointer to the couchstore Doc instance of a document
+     *         or nullptr if the its a deleted item and doesn't have
+     *         a value.
      */
     void *getDbDoc(void) {
-        if (deleteItem) {
-            return NULL;
-        } else {
-            return &dbDoc;
+        if (deleteItem && value.get() == nullptr) {
+            return nullptr;
         }
+        return &dbDoc;
     }
 
     /**
@@ -388,7 +389,7 @@ public:
 
     couchstore_error_t fetchDoc(Db *db, DocInfo *docinfo,
                                 GetValue &docValue, uint16_t vbId,
-                                bool metaOnly, bool fetchDelete = false);
+                                bool metaOnly);
     ENGINE_ERROR_CODE couchErr2EngineErr(couchstore_error_t errCode);
 
     uint64_t getLastPersistedSeqno(uint16_t vbid);

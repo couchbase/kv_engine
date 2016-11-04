@@ -223,9 +223,13 @@ public:
      * Find the item with the given key.
      *
      * @param key the key to find
+     * @param trackReference whether to track the reference or not
+     * @param wantsDeleted whether a deleted value needs to be returned
+     *                     or not
      * @return a pointer to a StoredValue -- NULL if not found
      */
-    StoredValue *find(const DocKey& key, bool trackReference=true);
+    StoredValue *find(const DocKey& key, bool trackReference=true,
+                      bool wantsDeleted=false);
 
     /**
      * Find a resident item

@@ -247,15 +247,39 @@ public:
         }
     }
 
+    /**
+     * Delete a given key and value from the engine.
+     *
+     * @param cookie The cookie representing the connection
+     * @param key The key that needs to be deleted from the engine
+     * @param cas CAS value of the mutation that needs to be returned
+     *            back to the client
+     * @param vbucket vbucket id to which the deleted key corresponds to
+     * @param itm item pointer that contains a value that needs to be
+     *            stored along with a delete. A NULL pointer indicates
+     *            that no value needs to be stored with the delete.
+     * @param item_meta pointer to item meta data that needs to be
+     *                  as a result the delete. A NULL pointer indicates
+     *                  that no meta data needs to be returned.
+     * @param mut_info pointer to the mutation info that resulted from
+     *                 the delete.
+     *
+     * @returns ENGINE_SUCCESS if the delete was successful or
+     *          an error code indicating the error
+     */
     ENGINE_ERROR_CODE itemDelete(const void* cookie,
                                  const DocKey& key,
                                  uint64_t* cas,
                                  uint16_t vbucket,
+                                 Item* itm,
+                                 ItemMetaData *item_meta,
                                  mutation_descr_t *mut_info)
     {
-        ENGINE_ERROR_CODE ret = kvBucket->deleteItem(key, cas, vbucket, cookie,
-                                                     false, // not force
-                                                     NULL, mut_info);
+        ENGINE_ERROR_CODE ret = kvBucket->deleteItem(key, cas,
+                                                     vbucket, cookie,
+                                                     false, //not force
+                                                     itm, item_meta,
+                                                     mut_info);
 
         if (ret == ENGINE_KEY_ENOENT || ret == ENGINE_NOT_MY_VBUCKET) {
             if (isDegradedMode()) {

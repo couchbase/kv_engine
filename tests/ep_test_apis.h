@@ -222,7 +222,8 @@ ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                         const void *cookie, ENGINE_STORE_OPERATION op,
                         const char *key, const char *value, item **outitem,
                         uint64_t casIn = 0, uint16_t vb = 0,
-                        uint32_t exp = 3600, uint8_t datatype = 0x00);
+                        uint32_t exp = 3600, uint8_t datatype = 0x00,
+                        DocumentState docState = DocumentState::Alive);
 
 ENGINE_ERROR_CODE allocate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                            const void* cookie, item** outitem,
@@ -231,7 +232,7 @@ ENGINE_ERROR_CODE allocate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 ENGINE_ERROR_CODE get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       const void* cookie, item** item, const std::string& key,
-                      uint16_t vb);
+                      uint16_t vb, DocumentState docState = DocumentState::Alive);
 
 /* Stores the specified document; returning the new CAS value via
  * {out_cas}.
@@ -240,14 +241,16 @@ ENGINE_ERROR_CODE storeCasOut(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                               const void *cookie, const uint16_t vb,
                               const std::string& key, const std::string& value,
                               const protocol_binary_datatype_t datatype,
-                              item*& out_item, uint64_t& out_cas);
+                              item*& out_item, uint64_t& out_cas,
+                              DocumentState docState = DocumentState::Alive);
 
 ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                const void *cookie, ENGINE_STORE_OPERATION op,
                                const char *key, const char *value, size_t vlen,
                                uint32_t flags, item **outitem, uint64_t casIn,
                                uint16_t vb, uint32_t exp = 3600,
-                               uint8_t datatype = 0x00);
+                               uint8_t datatype = 0x00,
+                               DocumentState docState = DocumentState::Alive);
 void touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
            uint16_t vb, uint32_t exp);
 ENGINE_ERROR_CODE unl(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,

@@ -881,16 +881,17 @@ ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                         const void *cookie, ENGINE_STORE_OPERATION op,
                         const char *key, const char *value, item **outitem,
                         uint64_t casIn, uint16_t vb, uint32_t exp,
-                        uint8_t datatype) {
+                        uint8_t datatype, DocumentState docState) {
     return storeCasVb11(h, h1, cookie, op, key, value, strlen(value),
-                        9258, outitem, casIn, vb, exp, datatype);
+                        9258, outitem, casIn, vb, exp, datatype, docState);
 }
 
 ENGINE_ERROR_CODE storeCasOut(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                               const void *cookie, const uint16_t vb,
                               const std::string& key, const std::string& value,
                               const protocol_binary_datatype_t datatype,
-                              item*& out_item, uint64_t& out_cas) {
+                              item*& out_item, uint64_t& out_cas,
+                              DocumentState docState) {
     item *it = NULL;
     checkeq(ENGINE_SUCCESS,
             allocate(h, h1, NULL, &it, key, value.size(), 0, 0, datatype, vb),
@@ -901,7 +902,7 @@ ENGINE_ERROR_CODE storeCasOut(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(info.nvalue == 1, "iovectors not supported");
     memcpy(info.value[0].iov_base, value.data(), value.size());
     ENGINE_ERROR_CODE res = h1->store(h, NULL, it, &out_cas,
-                                      OPERATION_SET, DocumentState::Alive);
+                                      OPERATION_SET, docState);
     h1->release(h, NULL, it);
     return res;
 }
@@ -910,7 +911,8 @@ ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                const void *cookie, ENGINE_STORE_OPERATION op,
                                const char *key, const char *value, size_t vlen,
                                uint32_t flags, item **outitem, uint64_t casIn,
-                               uint16_t vb, uint32_t exp, uint8_t datatype) {
+                               uint16_t vb, uint32_t exp, uint8_t datatype,
+                               DocumentState docState) {
     item *it = NULL;
     uint64_t cas = 0;
 
@@ -930,7 +932,7 @@ ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     memcpy(info.value[0].iov_base, value, vlen);
     h1->item_set_cas(h, cookie, it, casIn);
 
-    rv = h1->store(h, cookie, it, &cas, op, DocumentState::Alive);
+    rv = h1->store(h, cookie, it, &cas, op, docState);
 
     if (outitem) {
         *outitem = it;
@@ -1535,7 +1537,7 @@ ENGINE_ERROR_CODE allocate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 ENGINE_ERROR_CODE get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       const void* cookie, item** item, const std::string& key,
-                      uint16_t vb) {
+                      uint16_t vb, DocumentState docState) {
     return h1->get(h, cookie, item, DocKey(key, testHarness.doc_namespace),
-                   vb, DocumentState::Alive);
+                   vb, docState);
 }

@@ -1746,13 +1746,14 @@ GetValue KVBucket::getInternal(const DocKey& key, uint16_t vbucket,
     }
 
     const bool trackReference = (options & TRACK_REFERENCE);
+    const bool getDeletedValue = (options & GET_DELETED_VALUE);
 
     int bucket_num(0);
     auto lh = vb->ht.getLockedBucket(key, &bucket_num);
     StoredValue *v = fetchValidValue(vb, key, bucket_num, true,
                                      trackReference);
     if (v) {
-        if (v->isDeleted()) {
+        if (v->isDeleted() && !getDeletedValue) {
             GetValue rv;
             return rv;
         }
@@ -1783,7 +1784,8 @@ GetValue KVBucket::getInternal(const DocKey& key, uint16_t vbucket,
                     v->getBySeqno(), false, v->getNRUValue());
         return rv;
     } else {
-        if (eviction_policy == VALUE_ONLY || diskFlushAll) {
+
+        if (!getDeletedValue && (eviction_policy == VALUE_ONLY || diskFlushAll)) {
             GetValue rv;
             return rv;
         }
@@ -1797,7 +1799,7 @@ GetValue KVBucket::getInternal(const DocKey& key, uint16_t vbucket,
             return GetValue(NULL, ec, -1, true);
         } else {
             // As bloomfilter predicted that item surely doesn't exist
-            // on disk, return ENONET, for getInternal().
+            // on disk, return ENOENT, for getInternal().
             GetValue rv;
             return rv;
         }
@@ -2397,6 +2399,7 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
                                        uint16_t vbucket,
                                        const void *cookie,
                                        bool force,
+                                       Item* itm,
                                        ItemMetaData *itemMeta,
                                        mutation_descr_t *mutInfo)
 {
@@ -2486,6 +2489,14 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
         v->unlock();
     }
     mutation_type_t delrv;
+
+    /* if an item containing a deleted value is present, set the value
+     * as part of the stored value so that a value is set as part of the
+     * delete.
+     */
+    if (itm && v) {
+        v->setValue(*itm, vb->ht, true);
+    }
     delrv = vb->ht.unlocked_softDelete(v, *cas, eviction_policy);
     if (v && (delrv == NOT_FOUND || delrv == WAS_DIRTY || delrv == WAS_CLEAN)) {
         if (itemMeta != nullptr) {
@@ -3396,19 +3407,16 @@ void KVBucket::completeBGFetchForSingleItem(RCPtr<VBucket> vb,
             bool restore = false;
             if (v && v->isResident()) {
                 status = ENGINE_SUCCESS;
-            } else if (v && v->isDeleted()) {
-                status = ENGINE_KEY_ENOENT;
             } else {
                 switch (eviction_policy) {
                     case VALUE_ONLY:
-                        if (v && !v->isResident() && !v->isDeleted()) {
+                        if (v && !v->isResident()) {
                             restore = true;
                         }
                         break;
                     case FULL_EVICTION:
                         if (v) {
-                            if (v->isTempInitialItem() ||
-                                (!v->isResident() && !v->isDeleted())) {
+                            if (v->isTempInitialItem() || !v->isResident()) {
                                 restore = true;
                             }
                         }

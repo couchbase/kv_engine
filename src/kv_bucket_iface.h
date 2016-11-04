@@ -51,8 +51,9 @@ enum get_options_t {
                                 //of the vbucket
     TRACK_REFERENCE  = 0x0008,  //whether NRU bit needs to be set for the item
     DELETE_TEMP      = 0x0010,  //whether temporary items need to be deleted
-    HIDE_LOCKED_CAS  = 0x0020   //whether locked items should have their CAS
+    HIDE_LOCKED_CAS  = 0x0020,  //whether locked items should have their CAS
                                 //hidden (return -1).
+    GET_DELETED_VALUE = 0x0040  //whether to retrieve value of a deleted item
 };
 
 /**
@@ -320,7 +321,10 @@ public:
      * @param cookie the cookie representing the client
      * @param force override access to the vbucket even if the state of the
      *              vbucket would deny mutations.
+     * @param itm item holding a deleted value. A NULL value is passed
+                  if an empty body is to be used for deletion.
      * @param itemMeta the pointer to the metadata memory.
+     * @param mutInfo mutation information
      *
      * (deleteWithMeta)
      * @param genBySeqno whether or not to generate sequence number
@@ -335,6 +339,7 @@ public:
                                          uint16_t vbucket,
                                          const void *cookie,
                                          bool force,
+                                         Item* itm,
                                          ItemMetaData *itemMeta,
                                          mutation_descr_t *mutInfo) = 0;
 
@@ -410,8 +415,8 @@ public:
      * @param vbucket the vbucket in which the key lived
      * @param cookie the cookie of the requestor
      * @param init the timestamp of when the request came in
-     * @param type whether the fetch is for a non-resident value or metadata of
-     *             a (possibly) deleted item
+     * @param isMeta whether the fetch is for a non-resident value or metadata of
+     *               a (possibly) deleted item
      */
     virtual void completeBGFetch(const DocKey& key,
                                  uint16_t vbucket,

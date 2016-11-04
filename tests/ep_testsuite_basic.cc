@@ -1330,6 +1330,55 @@ static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+/* Testing functionality to store a value for a deleted item
+ * and also retrieve the value of a deleted item
+ */
+static enum test_result test_delete_with_value(ENGINE_HANDLE *h,
+                                               ENGINE_HANDLE_V1 *h1) {
+    item *i = nullptr;
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, nullptr, OPERATION_SET, "key", "somevalue", &i),
+            "Failed set");
+    h1->release(h, nullptr, i);
+
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, nullptr, OPERATION_SET, "key", "deletevalue", &i,
+                  0, 0, 3600, 0x00, DocumentState::Deleted),
+            "Failed delete with value");
+
+    wait_for_flusher_to_settle(h, h1);
+
+    h1->release(h, nullptr, i);
+
+    checkeq(ENGINE_SUCCESS,
+            get(h, h1, nullptr, &i, "key", 0, DocumentState::Deleted),
+                "Failed to get value");
+
+    item_info info;
+    info.nvalue = 1;
+    if (!h1->get_item_info(h, nullptr, i, &info)){
+        abort();
+    }
+
+    checkeq(1, static_cast<int>(info.nvalue), "nvalue should be equal to 1");
+    checkeq(static_cast<uint8_t>(DocumentState::Deleted),
+            static_cast<uint8_t>(info.document_state),
+            "document must be in deleted state");
+
+    std::string buf(static_cast<char*>(info.value[0].iov_base),
+                    info.value[0].iov_len);
+
+    checkeq(0, buf.compare("deletevalue"), "Data mismatch");
+
+    h1->release(h, nullptr, i);
+
+    checkeq(ENGINE_KEY_ENOENT,
+            get(h, h1, nullptr, &i, "key", 0, DocumentState::Alive),
+                "Getting value should have failed");
+
+    return SUCCESS;
+}
+
 static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     // First try to delete something we know to not be there.
@@ -1999,6 +2048,8 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test mb5215", test_mb5215, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("delete", test_delete, test_setup, teardown,
+                 NULL, prepare, cleanup),
+        TestCase("delete with value", test_delete_with_value, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("set/delete", test_set_delete, test_setup,
                  teardown, NULL, prepare, cleanup),

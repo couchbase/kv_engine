@@ -215,14 +215,15 @@ void HashTable::resize(size_t newSize) {
     stats.memOverhead->fetch_add(memorySize());
 }
 
-StoredValue* HashTable::find(const DocKey& key, bool trackReference) {
+StoredValue* HashTable::find(const DocKey& key, bool trackReference,
+                             bool wantsDeleted) {
     if (!isActive()) {
         throw std::logic_error("HashTable::find: Cannot call on a "
                 "non-active object");
     }
     int bucket_num(0);
     std::unique_lock<std::mutex> lh = getLockedBucket(key, &bucket_num);
-    return unlocked_find(key, bucket_num, false, trackReference);
+    return unlocked_find(key, bucket_num, wantsDeleted, trackReference);
 }
 
 Item* HashTable::getRandomKey(long rnd) {

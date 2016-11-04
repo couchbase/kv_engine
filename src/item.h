@@ -627,7 +627,7 @@ public:
         return metaData;
     }
 
-    bool isDeleted() {
+    bool isDeleted() const {
         return op == queue_op::del;
     }
 

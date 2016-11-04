@@ -174,7 +174,7 @@ public:
         size_t currSize = size();
         reduceCacheSize(ht, currSize);
         value = itm.getValue();
-        deleted = false;
+        deleted = itm.isDeleted();
         flags = itm.getFlags();
         bySeqno = itm.getBySeqno();
 

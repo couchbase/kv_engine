@@ -215,7 +215,8 @@ void EPBucketTest::delete_item(uint16_t vbid, const StoredDocKey& key) {
     mutation_descr_t mut_info;
     EXPECT_EQ(ENGINE_SUCCESS,
               store->deleteItem(key, &cas, vbid, cookie, /*force*/false,
-                                /*itemMeta*/nullptr, &mut_info));
+                                /*Item*/nullptr, /*itemMeta*/nullptr,
+                                /*mutation_descr_t*/&mut_info));
 }
 
 void EPBucketTest::evict_key(uint16_t vbid, const StoredDocKey& key) {

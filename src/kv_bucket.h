@@ -243,29 +243,12 @@ public:
                                              const char **msg,
                                              size_t *msg_size);
 
-    /**
-     * delete an item in the store.
-     * @param key the key of the item
-     * @param cas the CAS ID for a CASed delete (0 to override)
-     * @param vbucket the vbucket for the key
-     * @param cookie the cookie representing the client
-     * @param force override access to the vbucket even if the state of the
-     *              vbucket would deny mutations.
-     * @param itemMeta the pointer to the metadata memory.
-     *
-     * (deleteWithMeta)
-     * @param genBySeqno whether or not to generate sequence number
-     * @param emd ExtendedMetaData class object that contains any ext meta
-     * @param isReplication set to true if we are to use replication
-     *                      throttle threshold
-     *
-     * @return the result of the delete operation
-     */
     ENGINE_ERROR_CODE deleteItem(const DocKey& key,
                                  uint64_t* cas,
                                  uint16_t vbucket,
                                  const void *cookie,
                                  bool force,
+                                 Item* itm,
                                  ItemMetaData *itemMeta,
                                  mutation_descr_t *mutInfo);
 
@@ -328,8 +311,8 @@ public:
      * @param key the key to be bg fetched
      * @param vbucket the vbucket in which the key lives
      * @param cookie the cookie of the requestor
-     * @param type whether the fetch is for a non-resident value or metadata of
-     *             a (possibly) deleted item
+     * @param isMeta whether the fetch is for a non-resident value or metadata of
+     *               a (possibly) deleted item
      */
     void bgFetch(const DocKey& key,
                  uint16_t vbucket,
@@ -343,8 +326,8 @@ public:
      * @param vbucket the vbucket in which the key lived
      * @param cookie the cookie of the requestor
      * @param init the timestamp of when the request came in
-     * @param type whether the fetch is for a non-resident value or metadata of
-     *             a (possibly) deleted item
+     * @param isMeta whether the fetch is for a non-resident value or metadata of
+     *               a (possibly) deleted item
      */
     void completeBGFetch(const DocKey& key,
                          uint16_t vbucket,

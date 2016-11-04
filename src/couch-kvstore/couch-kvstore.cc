@@ -199,7 +199,7 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
     dbDoc.id.size = it.getKey().size();
     if (it.getNBytes()) {
         dbDoc.data.buf = const_cast<char *>(value->getData());
-        dbDoc.data.size = it.getNBytes();;
+        dbDoc.data.size = it.getNBytes();
         datatype = it.getDataType();
     } else {
         dbDoc.data.buf = NULL;
@@ -213,14 +213,7 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
         meta.setExptime(it.getExptime());
     }
 
-    //For a deleted item, there is no extended meta data available
-    //as part of the item object, hence by default populate the
-    //data type to PROTOCOL_BINARY_RAW_BYTES
-    if (del) {
-        meta.setDataType(PROTOCOL_BINARY_RAW_BYTES);
-    } else if (it.getExtMetaLen()){
-        meta.setDataType(it.getDataType());
-    }
+    meta.setDataType(it.getDataType());
 
     dbDocInfo.db_seq = it.getBySeqno();
 
@@ -241,7 +234,7 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
     dbDocInfo.content_meta = getContentMeta(it);
 
     // Compress only those documents that aren't already compressed.
-    if (dbDoc.data.size > 0 && !deleteItem) {
+    if (dbDoc.data.size > 0) {
         if (datatype == PROTOCOL_BINARY_RAW_BYTES ||
                 datatype == PROTOCOL_BINARY_DATATYPE_JSON) {
             dbDocInfo.content_meta |= COUCH_DOC_IS_COMPRESSED;
@@ -446,7 +439,7 @@ void CouchKVStore::getWithHeader(void *dbHandle, const DocKey& key,
                     "couchstore_docinfo_by_id returned success but docInfo "
                     "is NULL");
         }
-        errCode = fetchDoc(db, docInfo, rv, vb, getMetaOnly, fetchDelete);
+        errCode = fetchDoc(db, docInfo, rv, vb, getMetaOnly);
         if (errCode != COUCHSTORE_SUCCESS) {
             logger.log(EXTENSION_LOG_WARNING,
                        "CouchKVStore::getWithHeader: fetchDoc error:%s [%s],"
@@ -1508,7 +1501,7 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string> &filenames,
 
 couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
                                           GetValue &docValue, uint16_t vbId,
-                                          bool metaOnly, bool fetchDelete) {
+                                          bool metaOnly) {
     couchstore_error_t errCode = COUCHSTORE_SUCCESS;
     std::unique_ptr<MetaData> metadata;
     try {
@@ -1517,7 +1510,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
         return COUCHSTORE_ERROR_DB_NO_LONGER_VALID;
     }
 
-    if (metaOnly || (fetchDelete && docinfo->deleted)) {
+    if (metaOnly) {
         uint8_t extMeta[EXT_META_LEN];
         extMeta[0] = metadata->getDataType();
         // Collections: TODO: Restore to stored namespace
@@ -1547,39 +1540,38 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
         errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc,
                                                    DECOMPRESS_DOC_BODIES);
         if (errCode == COUCHSTORE_SUCCESS) {
-            if (docinfo->deleted) {
-                // do not read a doc that is marked deleted, just return the
-                // error code as not found but still release the document body.
-                errCode = COUCHSTORE_ERROR_DOC_NOT_FOUND;
-            } else {
-                if (doc == nullptr) {
-                    throw std::logic_error("CouchKVStore::fetchDoc: doc is NULL");
-                }
-                if (doc->id.size > UINT16_MAX) {
-                    throw std::logic_error("CouchKVStore::fetchDoc: "
+            if (doc == nullptr) {
+                throw std::logic_error("CouchKVStore::fetchDoc: doc is NULL");
+            }
+
+            if (doc->id.size > UINT16_MAX) {
+                throw std::logic_error("CouchKVStore::fetchDoc: "
                             "doc->id.size (which is" +
                             std::to_string(doc->id.size) + ") is greater than "
                             + std::to_string(UINT16_MAX));
-                }
+            }
 
-                size_t valuelen = doc->data.size;
-                void *valuePtr = doc->data.buf;
+            size_t valuelen = doc->data.size;
+            void *valuePtr = doc->data.buf;
 
-                /**
-                 * Set Datatype correctly if data is being
-                 * read from couch files where datatype is
-                 * not supported.
-                 */
-                uint8_t extMeta = 0;
-                if (metadata->getVersionInitialisedFrom() == MetaData::Version::V0) {
-                    extMeta = determine_datatype(doc->data);
-                } else {
-                    extMeta = metadata->getDataType();
-                }
+            /**
+             * Set Datatype correctly if data is being
+             * read from couch files where datatype is
+             * not supported.
+             */
+            uint8_t extMeta = 0;
+            if (metadata->getVersionInitialisedFrom() == MetaData::Version::V0) {
+                extMeta = determine_datatype(doc->data);
+            } else {
+                extMeta = metadata->getDataType();
+            }
 
+            Item* it = nullptr;
+
+            try {
                 // Collections: TODO: Restore to stored namespace
-                Item* it = new Item(makeDocKey(docinfo->id,
-                                               DocNamespace::DefaultCollection),
+                it = new Item(makeDocKey(docinfo->id,
+                                         DocNamespace::DefaultCollection),
                                     metadata->getFlags(),
                                     metadata->getExptime(),
                                     valuePtr,
@@ -1590,14 +1582,22 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
                                     docinfo->db_seq,
                                     vbId,
                                     docinfo->rev_seq);
+             } catch(std::bad_alloc &) {
+                 couchstore_free_document(doc);
+                 return COUCHSTORE_ERROR_ALLOC_FAIL;
+             }
 
-                docValue = GetValue(it);
+             if (docinfo->deleted) {
+                 it->setDeleted();
+             }
 
-                // update ep-engine IO stats
-                ++st.io_num_read;
-                st.io_read_bytes += (docinfo->id.size + valuelen);
-            }
-            couchstore_free_document(doc);
+             docValue = GetValue(it);
+
+             // update ep-engine IO stats
+             ++st.io_num_read;
+             st.io_read_bytes += (docinfo->id.size + valuelen);
+
+             couchstore_free_document(doc);
         }
     }
     return errCode;

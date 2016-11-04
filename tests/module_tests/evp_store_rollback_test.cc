@@ -77,8 +77,10 @@ protected:
         mutation_descr_t mut_info;
         ASSERT_EQ(ENGINE_SUCCESS,
                   store->deleteItem(a, &cas, vbid, /*cookie*/nullptr,
-                                    /*force*/false, /*itemMeta*/nullptr,
-                                    &mut_info));
+                                    /*force*/false,
+                                    /*Item*/nullptr,
+                                    /*itemMeta*/nullptr,
+                                    /*mutation_descr_t*/&mut_info));
         if (flush_before_rollback) {
             ASSERT_EQ(1, store->flushVBucket(vbid));
         }

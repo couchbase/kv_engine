@@ -217,6 +217,18 @@ static void verifyFound(HashTable &h, const std::vector<StoredDocKey> &keys) {
     }
 }
 
+static void verifyValue(HashTable& ht, StoredDocKey& key, const char* value,
+                        bool trackReference, bool wantDeleted) {
+    StoredValue* v = ht.find(key, trackReference, wantDeleted);
+    EXPECT_NE(nullptr, v);
+    value_t val = v->getValue();
+    if (!value) {
+        EXPECT_EQ(nullptr, val.get());
+    } else {
+        EXPECT_STREQ(value, val->to_s().c_str());
+    }
+}
+
 static void testFind(HashTable &h) {
     const int nkeys = 1000;
 
@@ -595,7 +607,7 @@ TEST_F(HashTableTest, NRUDefault) {
     EXPECT_EQ(INITIAL_NRU_VALUE, v->getNRUValue());
 
     // Check that find() by default /does/ update NRU.
-    v = ht.find(key, /*trackReference*/true);
+    v = ht.find(key);
     EXPECT_NE(nullptr, v);
     EXPECT_EQ(INITIAL_NRU_VALUE - 1, v->getNRUValue());
 }
@@ -611,7 +623,7 @@ TEST_F(HashTableTest, NRUMinimum) {
     EXPECT_EQ(WAS_CLEAN, ht.set(item));
 
     // trackReferenced=false so we don't modify the NRU while validating it.
-    StoredValue* v(ht.find(key, /*trackReference*/false));
+    StoredValue* v(ht.find(key,/*trackReference*/false));
     EXPECT_NE(nullptr, v);
     EXPECT_EQ(MIN_NRU_VALUE, v->getNRUValue());
 }
@@ -634,6 +646,70 @@ TEST_F(HashTableTest, MB21448_UnlockedSetWithCASDeleted) {
               ht.set(replacement, /*cas*/10, /*allowExisting*/true,
                      /*hasMetaData*/false))
         << "When trying to replace-with-CAS a deleted item";
+}
+
+/** Test to check if an unlocked_softDelete performed on an
+ *  existing item with a new value results in a success
+ */
+TEST_F(HashTableTest, unlockedSoftDeleteWithValue) {
+    // Setup - create a key and then delete it with a value.
+    HashTable ht(global_stats, 5, 1);
+    StoredDocKey key = makeStoredDocKey("key");
+    Item stored_item(key, 0 , 0, "value", strlen("value"));
+    ASSERT_EQ(WAS_CLEAN, ht.set(stored_item));
+
+    StoredValue* v(ht.find(key, /*trackReference*/false));
+    EXPECT_NE(nullptr, v);
+
+    // Create an item and set its state to deleted
+    Item deleted_item(key, 0 , 0, "deletedvalue",
+                      strlen("deletedvalue"));
+    deleted_item.setDeleted();
+
+    // Set a new deleted value
+    v->setValue(deleted_item, ht, true);
+
+    ItemMetaData itm_meta;
+    EXPECT_EQ(WAS_DIRTY,ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));
+    verifyValue(ht, key, "deletedvalue",/*trackReference*/true, /*wantsDeleted*/true);
+}
+
+/** Test to check if an unlocked_softDelete performed on a
+ *  deleted item without a value and with a value
+ */
+TEST_F(HashTableTest, updateDeletedItem) {
+    // Setup - create a key and then delete it.
+    HashTable ht(global_stats, 5, 1);
+    StoredDocKey key = makeStoredDocKey("key");
+    Item stored_item(key, 0 , 0, "value", strlen("value"));
+    ASSERT_EQ(WAS_CLEAN, ht.set(stored_item));
+
+    StoredValue* v(ht.find(key, /*trackReference*/false));
+    EXPECT_NE(nullptr, v);
+
+    ItemMetaData itm_meta;
+    EXPECT_EQ(WAS_DIRTY, ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));
+    verifyValue(ht, key, nullptr,/*trackReference*/true, /*wantsDeleted*/true);
+
+    Item deleted_item(key, 0, 0, "deletedvalue", strlen("deletedvalue"));
+    deleted_item.setDeleted();
+
+    // Set a new deleted value
+    v->setValue(deleted_item, ht, true);
+
+    EXPECT_EQ(WAS_DIRTY,ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));
+    verifyValue(ht, key, "deletedvalue", /*trackReference*/true, /*wantDeleted*/true);
+
+    Item update_deleted_item(key, 0, 0, "updatedeletedvalue",
+                             strlen("updatedeletedvalue"));
+    update_deleted_item.setDeleted();
+
+    // Set a new deleted value
+    v->setValue(update_deleted_item, ht, true);
+
+    EXPECT_EQ(WAS_DIRTY,ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));
+    verifyValue(ht, key, "updatedeletedvalue",/*trackReference*/true,
+                /*wantsDeleted*/true);
 }
 
 /* static storage for environment variable set by putenv().
