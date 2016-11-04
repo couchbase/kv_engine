@@ -318,7 +318,13 @@ private:
     char data[1];
 
     DISALLOW_ASSIGN(Blob);
+
+    friend bool operator==(const Blob& lhs, const Blob& rhs);
+    friend std::ostream& operator<<(std::ostream& os, const Blob& b);
 };
+
+bool operator==(const Blob& lhs, const Blob& rhs);
+std::ostream& operator<<(std::ostream& os, const Blob& b);
 
 typedef SingleThreadedRCPtr<Blob> value_t;
 
@@ -344,6 +350,9 @@ public:
     uint32_t flags;
     time_t exptime;
 };
+
+bool operator==(const ItemMetaData& lhs, const ItemMetaData& rhs);
+std::ostream& operator<<(std::ostream& os, const ItemMetaData& md);
 
 /**
  * The Item structure we use to pass information between the memcached
@@ -766,7 +775,13 @@ private:
     static AtomicValue<uint64_t> casCounter;
     static const uint32_t metaDataSize;
     DISALLOW_ASSIGN(Item);
+
+    friend bool operator==(const Item& lhs, const Item& rhs);
+    friend std::ostream& operator<<(std::ostream& os, const Item& i);
 };
+
+bool operator==(const Item& lhs, const Item& rhs);
+std::ostream& operator<<(std::ostream& os, const Item& item);
 
 typedef SingleThreadedRCPtr<Item> queued_item;
 
