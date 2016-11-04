@@ -141,7 +141,8 @@ private:
 class EWB_Engine : public ENGINE_HANDLE_V1 {
 
 private:
-    enum class Cmd { NONE, GET_INFO, ALLOCATE, REMOVE, GET, STORE, ARITHMETIC,
+    enum class Cmd { NONE, GET_INFO, ALLOCATE, REMOVE, GET, STORE,
+                     CAS, ARITHMETIC,
                      FLUSH, GET_STATS, UNKNOWN_COMMAND };
 
     const char* to_string(Cmd cmd);
@@ -324,7 +325,8 @@ public:
                                    uint16_t vbucket) {
         EWB_Engine* ewb = to_engine(handle);
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
-        if (ewb->should_inject_error(Cmd::STORE, cookie, err)) {
+        Cmd opcode = (operation == OPERATION_CAS) ? Cmd::CAS : Cmd::STORE;
+        if (ewb->should_inject_error(opcode, cookie, err)) {
             return err;
         } else {
             return ewb->real_engine->store(ewb->real_handle, cookie, item, cas,
@@ -815,7 +817,7 @@ private:
             count(count_) {}
 
         bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) {
-            if (cmd == Cmd::STORE && (count > 0)) {
+            if (cmd == Cmd::CAS && (count > 0)) {
                 --count;
                 err = injected_error;
                 return true;
@@ -1045,6 +1047,7 @@ const char* EWB_Engine::to_string(const Cmd cmd) {
         "REMOVE",
         "GET",
         "STORE",
+        "CAS",
         "ARITHMETIC",
         "FLUSH",
         "GET_STATS",
