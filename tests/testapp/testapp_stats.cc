@@ -28,7 +28,7 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
 TEST_P(StatsTest, TestDefaultStats) {
     MemcachedConnection& conn = getConnection();
     unique_cJSON_ptr stats;
-    ASSERT_NO_THROW(stats = conn.stats(""));
+    stats = conn.stats("");
 
     // Don't expect the entire stats set, but we should at least have
     // the pid
@@ -46,9 +46,9 @@ TEST_P(StatsTest, DISABLED_StatsResetIsPrivileged) {
         EXPECT_TRUE(error.isAccessDenied());
     }
 
-    ASSERT_NO_THROW(conn.authenticate("_admin", "password", "PLAIN"));
-    ASSERT_NO_THROW(conn.stats("reset"));
-    ASSERT_NO_THROW(conn.reconnect());
+    conn.authenticate("_admin", "password", "PLAIN");
+    conn.stats("reset");
+    conn.reconnect();
     ASSERT_THROW(conn.stats("reset"), ConnectionError);
 }
 
@@ -56,7 +56,7 @@ TEST_P(StatsTest, TestReset) {
     MemcachedConnection& conn = getConnection();
     unique_cJSON_ptr stats;
 
-    ASSERT_NO_THROW(stats = conn.stats(""));
+    stats = conn.stats("");
     ASSERT_NE(nullptr, stats.get());
 
     auto* count = cJSON_GetObjectItem(stats.get(), "cmd_get");
@@ -68,7 +68,7 @@ TEST_P(StatsTest, TestReset) {
         EXPECT_THROW(conn.get("foo", 0), ConnectionError);
     }
 
-    ASSERT_NO_THROW(stats = conn.stats(""));
+    stats = conn.stats("");
     count = cJSON_GetObjectItem(stats.get(), "cmd_get");
     ASSERT_NE(nullptr, count);
     EXPECT_EQ(cJSON_Number, count->type);
@@ -77,7 +77,7 @@ TEST_P(StatsTest, TestReset) {
     // the cmd_get counter does work.. now check that reset sets it back..
     resetBucket();
 
-    ASSERT_NO_THROW(stats = conn.stats(""));
+    stats = conn.stats("");
     count = cJSON_GetObjectItem(stats.get(), "cmd_get");
     ASSERT_NE(nullptr, count);
     EXPECT_EQ(cJSON_Number, count->type);
@@ -85,9 +85,9 @@ TEST_P(StatsTest, TestReset) {
 
     // Just ensure that the "reset timings" is detected
     // @todo add a separate test case for cmd timings stats
-    ASSERT_NO_THROW(conn.authenticate("_admin", "password", "PLAIN"));
-    ASSERT_NO_THROW(conn.selectBucket("default"));
-    EXPECT_NO_THROW(stats = conn.stats("reset timings"));
+    conn.authenticate("_admin", "password", "PLAIN");
+    conn.selectBucket("default");
+    stats = conn.stats("reset timings");
 
     // Just ensure that the "reset bogus" is detected..
     try {
@@ -96,7 +96,7 @@ TEST_P(StatsTest, TestReset) {
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isInvalidArguments());
     }
-    ASSERT_NO_THROW(conn.reconnect());
+    conn.reconnect();
 }
 
 /**
@@ -110,7 +110,7 @@ TEST_P(StatsTest, Test_MB_17815) {
 
     unique_cJSON_ptr stats;
 
-    ASSERT_NO_THROW(stats = conn.stats(""));
+    stats = conn.stats("");
     auto* count = cJSON_GetObjectItem(stats.get(), "cmd_set");
     ASSERT_NE(nullptr, count);
     EXPECT_EQ(cJSON_Number, count->type);
@@ -130,8 +130,8 @@ TEST_P(StatsTest, Test_MB_17815) {
     std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
     cJSON_Free(ptr);
 
-    EXPECT_NO_THROW(conn.mutate(doc, 0, Greenstack::MutationType::Add));
-    ASSERT_NO_THROW(stats = conn.stats(""));
+    conn.mutate(doc, 0, Greenstack::MutationType::Add);
+    stats = conn.stats("");
     count = cJSON_GetObjectItem(stats.get(), "cmd_set");
     ASSERT_NE(nullptr, count);
     EXPECT_EQ(cJSON_Number, count->type);
@@ -182,10 +182,10 @@ TEST_P(StatsTest, DISABLED_TestAuditNoAccess) {
 
 TEST_P(StatsTest, TestAudit) {
     MemcachedConnection& conn = getConnection();
-    ASSERT_NO_THROW(conn.authenticate("_admin", "password", "PLAIN"));
+    conn.authenticate("_admin", "password", "PLAIN");
 
     unique_cJSON_ptr stats;
-    ASSERT_NO_THROW(stats = conn.stats("audit"));
+    stats = conn.stats("audit");
     EXPECT_NE(nullptr, stats.get());
     EXPECT_EQ(2, cJSON_GetArraySize(stats.get()));
 
@@ -198,7 +198,7 @@ TEST_P(StatsTest, TestAudit) {
     EXPECT_EQ(cJSON_Number, dropped->type);
     EXPECT_EQ(0, dropped->valueint);
 
-    ASSERT_NO_THROW(conn.reconnect());
+    conn.reconnect();
 }
 
 TEST_P(StatsTest, DISABLED_TestBucketDetailsNoAccess) {
@@ -218,7 +218,7 @@ TEST_P(StatsTest, TestBucketDetails) {
     conn.authenticate("_admin", "password", "PLAIN");
 
     unique_cJSON_ptr stats;
-    ASSERT_NO_THROW(stats = conn.stats("bucket_details"));
+    stats = conn.stats("bucket_details");
     ASSERT_NE(nullptr, stats.get());
     ASSERT_EQ(1, cJSON_GetArraySize(stats.get()));
     std::string key(stats.get()->child->string);
@@ -263,7 +263,7 @@ TEST_P(StatsTest, TestAggregate) {
 TEST_P(StatsTest, DISABLED_TestConnections) {
     MemcachedConnection& conn = getConnection();
     unique_cJSON_ptr stats;
-    ASSERT_NO_THROW(stats = conn.stats("connections"));
+    stats = conn.stats("connections");
     ASSERT_NE(nullptr, stats.get());
     // We have at _least_ 2 connections
     ASSERT_LE(2, cJSON_GetArraySize(stats.get()));
@@ -381,7 +381,7 @@ TEST_P(StatsTest, TestTopkeysJson) {
 TEST_P(StatsTest, TestSubdocExecute) {
     MemcachedConnection& conn = getConnection();
     unique_cJSON_ptr stats;
-    ASSERT_NO_THROW(stats = conn.stats("subdoc_execute"));
+    stats = conn.stats("subdoc_execute");
 
     // @todo inspect the content. for now just validate that we've got a
     //       single element in there..
