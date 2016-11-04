@@ -91,8 +91,8 @@ protected:
 
     void TearDown() override;
 
-    /* Stores an item into the given vbucket. */
-    void store_item(uint16_t vbid, const std::string& key,
+    // Stores an item into the given vbucket. Returns the item stored.
+    Item store_item(uint16_t vbid, const std::string& key,
                     const std::string& value);
 
     static const char test_dbname[];

@@ -147,13 +147,17 @@ void EventuallyPersistentStoreTest::TearDown() {
     ExecutorPool::shutdown();
 }
 
-void EventuallyPersistentStoreTest::store_item(uint16_t vbid,
+Item EventuallyPersistentStoreTest::store_item(uint16_t vbid,
                                                const std::string& key,
                                                const std::string& value) {
+    uint8_t ext_meta[EXT_META_LEN] = {PROTOCOL_BINARY_DATATYPE_JSON};
+
     Item item(key.c_str(), key.size(), /*flags*/0, /*exp*/0, value.c_str(),
-              value.size());
+              value.size(), ext_meta, sizeof(ext_meta));
     item.setVBucketId(vbid);
     EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+
+    return item;
 }
 
 

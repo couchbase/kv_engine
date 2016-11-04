@@ -3929,7 +3929,7 @@ public:
                     setStatus(ENGINE_SUCCESS);
                 }
             } else {
-                mutation_type_t mtype = vb->ht.set(*it, it->getCas(),
+                mutation_type_t mtype = vb->ht.set(*it, /*cas*/0,
                                                    true, true,
                                                    engine.getEpStore()->
                                                         getItemEvictionPolicy(),
