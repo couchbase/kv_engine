@@ -3922,7 +3922,6 @@ public:
             if (it->isDeleted()) {
                 LockHolder lh = vb->ht.getLockedBucket(it->getKey(),
                         &bucket_num);
-
                 bool ret = vb->ht.unlocked_del(it->getKey(), bucket_num);
                 if(!ret) {
                     setStatus(ENGINE_KEY_ENOENT);
@@ -3959,6 +3958,35 @@ private:
     EventuallyPersistentEngine& engine;
 };
 
+/*
+ * Purge all unpersisted items from the current checkpoint(s) and fixup
+ * the hashtable for any that are > the rollbackSeqno.
+ */
+void EventuallyPersistentStore::rollbackCheckpoint(RCPtr<VBucket> &vb,
+                                                   uint64_t rollbackSeqno) {
+    std::vector<queued_item> items;
+    vb->checkpointManager.getAllItemsForCursor(CheckpointManager::pCursorName,
+                                               items);
+    for (const auto& item : items) {
+        if (item->getBySeqno() > rollbackSeqno &&
+            !item->isCheckPointMetaItem()) {
+            RememberingCallback<GetValue> gcb;
+            getROUnderlying(vb->getId())->get(item->getKey(),
+                                                    vb->getId(),
+                                                    gcb);
+            gcb.waitForValue();
+
+            if (gcb.val.getStatus() == ENGINE_SUCCESS) {
+                vb->ht.set(*gcb.val.getValue(), 0, true);
+            } else {
+                vb->ht.del(item->getKey());
+            }
+
+            delete gcb.val.getValue();
+        }
+    }
+}
+
 ENGINE_ERROR_CODE
 EventuallyPersistentStore::rollback(uint16_t vbid,
                                     uint64_t rollbackSeqno) {
@@ -3968,28 +3996,34 @@ EventuallyPersistentStore::rollback(uint16_t vbid,
     }
 
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
-    uint64_t prevHighSeqno = static_cast<uint64_t>
-                                    (vb->checkpointManager.getHighSeqno());
-    if (rollbackSeqno != 0) {
-        std::shared_ptr<Rollback> cb(new Rollback(engine));
-        KVStore* rwUnderlying = vbMap.getShardByVbId(vbid)->getRWUnderlying();
-        RollbackResult result = rwUnderlying->rollback(vbid, rollbackSeqno, cb);
+    ReaderLockHolder rlh(vb->getStateLock());
+    if (vb->getState() == vbucket_state_replica) {
+        uint64_t prevHighSeqno = static_cast<uint64_t>
+                                        (vb->checkpointManager.getHighSeqno());
+        if (rollbackSeqno != 0) {
+            std::shared_ptr<Rollback> cb(new Rollback(engine));
+            KVStore* rwUnderlying = vbMap.getShardByVbId(vbid)->getRWUnderlying();
+            RollbackResult result = rwUnderlying->rollback(vbid, rollbackSeqno, cb);
 
-        if (result.success) {
-            vb->failovers->pruneEntries(result.highSeqno);
-            vb->checkpointManager.clear(vb, result.highSeqno);
-            vb->setPersistedSnapshot(result.snapStartSeqno, result.snapEndSeqno);
-            vb->incrRollbackItemCount(prevHighSeqno - result.highSeqno);
+            if (result.success) {
+                rollbackCheckpoint(vb, rollbackSeqno);
+                vb->failovers->pruneEntries(result.highSeqno);
+                vb->checkpointManager.clear(vb, result.highSeqno);
+                vb->setPersistedSnapshot(result.snapStartSeqno, result.snapEndSeqno);
+                vb->incrRollbackItemCount(prevHighSeqno - result.highSeqno);
+                return ENGINE_SUCCESS;
+            }
+        }
+
+        if (resetVBucket(vbid)) {
+            RCPtr<VBucket> newVb = vbMap.getBucket(vbid);
+            newVb->incrRollbackItemCount(prevHighSeqno);
             return ENGINE_SUCCESS;
         }
+        return ENGINE_NOT_MY_VBUCKET;
+    } else {
+        return ENGINE_EINVAL;
     }
-
-    if (resetVBucket(vbid)) {
-        RCPtr<VBucket> newVb = vbMap.getBucket(vbid);
-        newVb->incrRollbackItemCount(prevHighSeqno);
-        return ENGINE_SUCCESS;
-    }
-    return ENGINE_NOT_MY_VBUCKET;
 }
 
 void EventuallyPersistentStore::runDefragmenterTask() {

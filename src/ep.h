@@ -825,6 +825,21 @@ public:
         return eviction_policy;
     }
 
+    /*
+     * Request a rollback of the vbucket to the specified seqno.
+     * If the rollbackSeqno is not a checkpoint boundary, then the rollback
+     * will be to the nearest checkpoint.
+     * There are also cases where the rollback will be forced to 0.
+     * various failures or if the rollback is > 50% of the data.
+     *
+     * A check of the vbucket's high-seqno indicates if a rollback request
+     * was not honoured exactly.
+     *
+     * @param vbid The vbucket to rollback
+     * @rollbackSeqno The seqno to rollback to.
+     * @return ENGINE_EINVAL if VB is not replica, ENGINE_NOT_MY_VBUCKET if vbid
+     *         is not managed by this instance or ENGINE_SUCCESS.
+     */
     ENGINE_ERROR_CODE rollback(uint16_t vbid, uint64_t rollbackSeqno);
 
     void wakeUpItemPager() {
@@ -995,6 +1010,13 @@ protected:
     uint16_t getCommitInterval(uint16_t shardId);
 
     uint16_t decrCommitInterval(uint16_t shardId);
+
+    /*
+     * Helper method for the rollback function.
+     * Drain the VB's checkpoints looking for items which have a seqno
+     * above the rollbackSeqno and must be rolled back themselves.
+     */
+    void rollbackCheckpoint(RCPtr<VBucket> &vb, uint64_t rollbackSeqno);
 
     friend class Warmup;
     friend class Flusher;

@@ -486,6 +486,32 @@ public:
     scan_error_t scan(ScanContext* sctx);
 
     void destroyScanContext(ScanContext* ctx);
+private:
+    class DbHolder {
+    public:
+        DbHolder(CouchKVStore* kvs) : kvstore(kvs), db(nullptr) {}
+
+        DbHolder(const DbHolder&) = delete;
+        DbHolder(const DbHolder&&) = delete;
+        DbHolder operator=(const DbHolder&) = delete;
+
+
+        Db** getDbAddress() {
+            return &db;
+        }
+
+        Db* getDb() {
+            return db;
+        }
+
+        ~DbHolder() {
+            if (db) {
+                kvstore->closeDatabaseHandle(db);
+            }
+        }
+        CouchKVStore* kvstore;
+        Db* db;
+    };
 
 protected:
     bool setVBucketState(uint16_t vbucketId, const vbucket_state &vbstate,

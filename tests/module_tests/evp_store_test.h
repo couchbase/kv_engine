@@ -82,6 +82,12 @@ public:
     void public_stopWarmup() {
         stopWarmup();
     }
+
+    GetValue public_getInternal(const std::string& key, uint16_t vbucket,
+                                const void* cookie, vbucket_state_t allowedState,
+                                get_options_t options) {
+        return getInternal(key, vbucket, cookie, allowedState, options);
+    }
 };
 
 /* Actual test fixture class */
