@@ -1573,7 +1573,9 @@ static enum test_result test_set_with_meta_and_check_drift_stats(ENGINE_HANDLE *
     const int behindVb = n_vbuckets/3;
     checkne(aheadVb, behindVb, "Cannot have the same VB as ahead/behind");
 
-    HLC hlc(0/*init HLC*/, 0/*ahead threshold*/, 0/*behind threshold*/);
+    HLC hlc(0/*init HLC*/,
+            std::chrono::microseconds(0)/*ahead threshold*/,
+            std::chrono::microseconds(0)/*behind threshold*/);
 
     // grab the drift behind threshold
     uint64_t driftBehindThreshold = get_ull_stat(h, h1,
@@ -1655,7 +1657,9 @@ static enum test_result test_del_with_meta_and_check_drift_stats(ENGINE_HANDLE *
     const int behindVb = n_vbuckets/3;
     checkne(aheadVb, behindVb, "Cannot have the same VB as ahead/behind");
 
-    HLC hlc(0/*init HLC*/, 0/*ahead threshold*/, 0/*behind threshold*/);
+    HLC hlc(0/*init HLC*/,
+            std::chrono::microseconds(0)/*ahead threshold*/,
+            std::chrono::microseconds(0)/*behind threshold*/);
 
     // grab the drift behind threshold
     uint64_t driftBehindThreshold = get_ull_stat(h, h1,

@@ -336,11 +336,13 @@ For introductory information on stats within Couchbase, start with the
 | ep_cursors_dropped                 | Number of cursors dropped by the       |
 |                                    | checkpoint remover                     |
 | ep_active_hlc_drift                | The total absolute drift for all active|
-|                                    | vbuckets.                              |
+|                                    | vbuckets. This is microsecond          |
+|                                    | granularity.                           |
 | ep_active_hlc_drift_count          | The number of updates applied to       |
 |                                    | ep_active_hlc_drift.                   |
 | ep_replica_hlc_drift               | The total absolute drift for all       |
-|                                    | replica vbucket.                       |
+|                                    | replica vbuckets. This is microsecond  |
+|                                    | granularity.                           |
 | ep_replica_hlc_drift_count         | The number of updates applied to       |
 |                                    | ep_replica_hlc_drift.                  |
 | ep_active_ahead_exceptions         | The total number of ahead exceptions   |
@@ -491,18 +493,23 @@ The stats below are listed for each vbucket.
 | uuid                          | The current vbucket uuid                   |
 | rollback_item_count           | Num of items rolled back                   |
 | max_cas                       | Maximum CAS of all items in the vbucket.   |
+|                               | This is a hybrid logical clock value in    |
+|                               | nanoseconds.                               |
+| max_cas_str                   | max_cas as a time stamp string (seconds    |
+|                               | since epoch).                              |
 | total_abs_drift               | The accumulated absolute drift for this    |
-|                               | vbucket's hybrid logical clock.            |
+|                               | vbucket's hybrid logical clock in          |
+|                               | microseconds.                              |
 | total_abs_drift_count         | The number of updates applied to           |
 |                               | total_abs_drift.                           |
 | drift_ahead_threshold_exceeded| The number of HLC updates that had a value |
 |                               | ahead of the local HLC and were over the   |
 |                               | drift_ahead_threshold.                     |
-| drift_ahead_threshold         | The ahead threshold in us.                 |
+| drift_ahead_threshold         | The ahead threshold in ns.                 |
 |drift_behind_threshold_exceeded| The number of HLC updates that had a value |
 |                               | behind the local HLC and were over the     |
 |                               | drift_behind_threshold.                    |
-| drift_behind_threshold        | The behind threshold in us.                |
+| drift_behind_threshold        | The behind threshold in ns.                |
 | logical_clock_ticks           | How many times this vbucket's HLC has      |
 |                               | returned logical clock ticks.              |
 

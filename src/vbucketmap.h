@@ -74,8 +74,8 @@ public:
     KVShard* getShardByVbId(id_type id) const;
     KVShard* getShard(KVShard::id_type shardId) const;
     size_t getNumShards() const;
-    void setHLCDriftAheadThreshold(uint64_t threshold);
-    void setHLCDriftBehindThreshold(uint64_t threshold);
+    void setHLCDriftAheadThreshold(std::chrono::microseconds threshold);
+    void setHLCDriftBehindThreshold(std::chrono::microseconds threshold);
 
     // Returns the current state of the given vBucket.
     vbucket_state getVBucketState(VBucket::id_type id) const;

@@ -181,8 +181,8 @@ public:
         tempFilter(NULL),
         rollbackItemCount(0),
         hlc(maxCas,
-            config.getHlcAheadThresholdUs(),
-            config.getHlcBehindThresholdUs()),
+            std::chrono::microseconds(config.getHlcAheadThresholdUs()),
+            std::chrono::microseconds(config.getHlcBehindThresholdUs())),
         statPrefix("vb_" + std::to_string(i))
     {
         backfill.isBackfillPhase = false;
@@ -259,11 +259,11 @@ public:
         return hlc.getDriftExceptionCounters();
     }
 
-    void setHLCDriftAheadThreshold(uint64_t threshold) {
+    void setHLCDriftAheadThreshold(std::chrono::microseconds threshold) {
         hlc.setDriftAheadThreshold(threshold);
     }
 
-    void setHLCDriftBehindThreshold(uint64_t threshold) {
+    void setHLCDriftBehindThreshold(std::chrono::microseconds threshold) {
         hlc.setDriftBehindThreshold(threshold);
     }
 
