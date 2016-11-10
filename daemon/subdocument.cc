@@ -821,7 +821,7 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
 
     // And finally, store the new document.
     uint64_t new_cas;
-    auto new_op = context->needs_new_doc ? OPERATION_ADD : OPERATION_REPLACE;
+    auto new_op = context->needs_new_doc ? OPERATION_ADD : OPERATION_CAS;
     ret = bucket_store(c, context->out_doc, &new_cas, new_op, vbucket);
     switch (ret) {
     case ENGINE_SUCCESS:
