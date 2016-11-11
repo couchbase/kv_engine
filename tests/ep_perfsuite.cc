@@ -42,6 +42,7 @@
 #include <mutex>
 #include <random>
 #include <thread>
+#include <type_traits>
 #include <unordered_map>
 
 #include "ep_testsuite_common.h"
@@ -81,9 +82,23 @@ enum class StatRuntime {
  };
 
 enum class BackgroundWork {
-   None,
-   Sets
+   // Performing bitwise operations and so explicitly assigning values
+   None = 0x0,
+   Sets = 0x1,
+   Dcp = 0x2
  };
+
+inline BackgroundWork operator | (BackgroundWork lhs, BackgroundWork rhs) {
+    return static_cast<BackgroundWork> (
+            std::underlying_type<BackgroundWork>::type(lhs) |
+            std::underlying_type<BackgroundWork>::type(rhs));
+}
+
+inline BackgroundWork operator & (BackgroundWork lhs, BackgroundWork rhs) {
+    return static_cast<BackgroundWork> (
+            std::underlying_type<BackgroundWork>::type(lhs) &
+            std::underlying_type<BackgroundWork>::type(rhs));
+}
 
 template<typename T>
 struct Stats {
@@ -139,8 +154,8 @@ std::unordered_map<std::string, StatProperties> stat_tests =
      {"uuid", {"uuid", StatRuntime::Fast, {}} },
      // We add a document with the key __sentinel__ to vbucket 0 at the
      // start of the test and hence it is used for the key_vb0 stat.
-     {"key_vb0", {"key __sentinel__ 0", StatRuntime::Fast, {}} },
-     {"vkey_vb0", {"vkey __sentinel__ 0", StatRuntime::Fast, {}} },
+     {"key_vb0", {"key example_doc 0", StatRuntime::Fast, {}} },
+     {"vkey_vb0", {"vkey example_doc 0", StatRuntime::Fast, {}} },
      {"kvtimings", {"kvtimings", StatRuntime::Slow, {}} },
      {"kvstore", {"kvstore", StatRuntime::Fast, {}} },
      {"warmup", {"warmup", StatRuntime::Fast, {}} },
@@ -150,7 +165,7 @@ std::unordered_map<std::string, StatProperties> stat_tests =
      {"tap-vbtakeover", {"tap-vbtakeover 0 tap-connection",
                          StatRuntime::Fast, {}}
      },
-     {"dcp-vbtakeover", {"dcp-vbtakeover 0 dcp-connection",
+     {"dcp-vbtakeover", {"dcp-vbtakeover 0 DCP",
                          StatRuntime::Fast, {}}
      },
      {"workload", {"workload", StatRuntime::Fast, {}} },
@@ -1206,23 +1221,11 @@ static void perf_stat_latency_core(ENGINE_HANDLE *h,
             iterations_for_slow_stats : iterations_for_fast_stats;
 
     const void* cookie = testHarness.create_cookie();
-    testHarness.lock_cookie(cookie);
-
-    // For some of the stats we need to have a document stored, TAP and DCP
-    // connection
-    add_sentinel_doc(h, h1, 0);
+    // For some of the stats we need to have a document stored
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie, 0, 0, DCP_OPEN_PRODUCER,
-                         (void*)"dcp-stream", 10),
-            "Failed dcp producer open connection");
-
-    uint64_t backfill_age = htonll(0);
-    h1->get_tap_iterator(h, cookie, "tap-connection", 14,
-    TAP_CONNECT_FLAG_BACKFILL,
-                         &backfill_age, sizeof(backfill_age));
-
-    testHarness.unlock_cookie(cookie);
-
+            storeCasVb11(h, h1, nullptr, OPERATION_ADD, "example_doc", nullptr,
+                         0, /*flags*/0, /*out*/nullptr, 0, /*vbid*/0),
+                         "Failed to add example document.");;
     for (auto& stat : stat_tests) {
         if (stat.second.runtime == statRuntime) {
             for (int ii = 0; ii < iterations; ii++) {
@@ -1258,6 +1261,9 @@ static enum test_result perf_stat_latency(ENGINE_HANDLE *h,
     std::atomic<bool> running_benchmark { true };
     std::vector<std::pair<std::string, std::vector<hrtime_t>*> > all_timings;
     std::vector<hrtime_t> insert_timings;
+    std::vector<hrtime_t> ignored_send_times;
+    std::vector<size_t> ignored_send_bytes;
+    std::thread dcp_thread;
 
     insert_timings.reserve(iterations_for_fast_stats);
 
@@ -1270,13 +1276,20 @@ static enum test_result perf_stat_latency(ENGINE_HANDLE *h,
     // Only timing front-end performance, not considering persistence.
     stop_persistence(h, h1);
 
-    if (backgroundWork == BackgroundWork::Sets) {
+    if ((backgroundWork & BackgroundWork::Sets) == BackgroundWork::Sets) {
         std::thread load_thread { perf_background_sets, h, h1, /*vbid*/0,
                                   iterations_for_fast_stats,
                                   Doc_format::JSON_RANDOM,
                                   std::ref(insert_timings),
                                   std::ref(cond_var), std::ref(setup_benchmark),
                                   std::ref(running_benchmark) };
+
+        if ((backgroundWork & BackgroundWork::Dcp) == BackgroundWork::Dcp) {
+            std::thread local_dcp_thread{perf_dcp_client, h, h1, 0, "DCP",
+                /*opaque*/0x1, /*vb*/0, /*compressed*/false,
+                std::ref(ignored_send_times), std::ref(ignored_send_bytes)};
+            dcp_thread.swap(local_dcp_thread);
+        }
 
         std::unique_lock<std::mutex> lock(m);
         while (!setup_benchmark) {
@@ -1286,12 +1299,17 @@ static enum test_result perf_stat_latency(ENGINE_HANDLE *h,
         // run and measure on this thread.
         perf_stat_latency_core(h, h1, 0, statRuntime);
 
-        // Need to tell the thread performing sets to stop */
+        // Need to tell the thread performing sets to stop
         running_benchmark = false;
         load_thread.join();
-
-        all_timings.emplace_back("Sets (bg)", &insert_timings);
-
+        if ((backgroundWork & BackgroundWork::Dcp) == BackgroundWork::Dcp) {
+            // Need to tell the thread performing DCP to stop
+            add_sentinel_doc(h, h1, /*vbid*/0);
+            dcp_thread.join();
+            all_timings.emplace_back("Sets and DCP (bg)", &insert_timings);
+        } else {
+            all_timings.emplace_back("Sets (bg)", &insert_timings);
+        }
     } else {
         // run and measure on this thread.
         perf_stat_latency_core(h, h1, 0, statRuntime);
@@ -1328,11 +1346,15 @@ static enum test_result perf_stat_latency_100vb(ENGINE_HANDLE *h,
                              StatRuntime::Fast, BackgroundWork::None, 100);
 }
 
-/* Benchmark the stats with 100 active vbuckets and sets on background thread */
-static enum test_result perf_stat_latency_100vb_sets(ENGINE_HANDLE *h,
+/*
+ * Benchmark the stats with 100 active vbuckets.  And sets and DCP running on
+ * background thread.
+ */
+static enum test_result perf_stat_latency_100vb_sets_and_dcp(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
-    return perf_stat_latency(h, h1, "With 100 vbuckets & background sets",
-                             StatRuntime::Fast, BackgroundWork::Sets, 100);
+    return perf_stat_latency(h, h1, "With 100 vbuckets & background sets & DCP",
+                             StatRuntime::Fast, (BackgroundWork::Sets |
+                                     BackgroundWork::Dcp), 100);
 }
 
 /* Benchmark the baseline slow stats (without any tasks running) of ep-engine */
@@ -1349,16 +1371,16 @@ static enum test_result perf_slow_stat_latency_100vb(ENGINE_HANDLE *h,
                              StatRuntime::Slow, BackgroundWork::None, 100);
 }
 
-/** Benchmark the slow stats with 100 active vbuckets and sets on background
- *  thread
+/*
+ * Benchmark the slow stats with 100 active vbuckets.  And sets and DCP running
+ * on background thread.
  */
-static enum test_result perf_slow_stat_latency_100vb_sets(ENGINE_HANDLE *h,
-                                              ENGINE_HANDLE_V1 *h1) {
-    return perf_stat_latency(h, h1, "With 100 vbuckets & background sets",
-                             StatRuntime::Slow, BackgroundWork::Sets, 100);
+static enum test_result perf_slow_stat_latency_100vb_sets_and_dcp(
+                                      ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return perf_stat_latency(h, h1, "With 100 vbuckets & background sets & DCP",
+                             StatRuntime::Slow, (BackgroundWork::Sets |
+                                     BackgroundWork::Dcp), 100);
 }
-
-
 
 /*****************************************************************************
  * List of testcases
@@ -1426,8 +1448,9 @@ BaseTestCase testsuite_testcases[] = {
                  perf_stat_latency_100vb, test_setup, teardown,
                  "backend=couchdb;ht_size=393209",
                  prepare, cleanup),
-        TestCase("Stat latency with 100 vbuckets & sets in separate thread",
-                 perf_stat_latency_100vb_sets, test_setup, teardown,
+        TestCase("Stat latency with 100 vbuckets. Also sets & DCP traffic on "
+                 "separate thread",
+                 perf_stat_latency_100vb_sets_and_dcp, test_setup, teardown,
                  "backend=couchdb;ht_size=393209",
                  prepare, cleanup),
         TestCase("Baseline Slow Stat latency", perf_slow_stat_latency_baseline,
@@ -1437,9 +1460,10 @@ BaseTestCase testsuite_testcases[] = {
                  perf_slow_stat_latency_100vb,
                  test_setup, teardown, "backend=couchdb;ht_size=393209",
                  prepare, cleanup),
-        TestCase("Stat latency with 100 vbuckets & sets in separate thread",
-                 perf_slow_stat_latency_100vb_sets, test_setup, teardown,
-                 "backend=couchdb;ht_size=393209", prepare, cleanup),
+        TestCase("Stat latency with 100 vbuckets. Also sets & DCP traffic on "
+                 "separate thread",
+                 perf_slow_stat_latency_100vb_sets_and_dcp, test_setup,
+                 teardown, "backend=couchdb;ht_size=393209", prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL,
                  "backend=couchdb", prepare, cleanup)
