@@ -586,8 +586,8 @@ extern "C" {
             } else if (strcmp(keyz, "max_cas") == 0) {
                 uint64_t v = std::strtoull(valz, nullptr, 10);
                 checkNumeric(valz);
-                LOG(EXTENSION_LOG_WARNING, "setVbucketParam max_cas=%" PRIu64 " "
-                                           "vbucket=%" PRIu16 "\n", v, vbucket);
+                LOG(EXTENSION_LOG_WARNING, "setVbucketParam: max_cas:%" PRIu64 " "
+                                           "vb:%" PRIu16 "\n", v, vbucket);
                 if (e->getKVBucket()->forceMaxCas(vbucket, v) != ENGINE_SUCCESS)
                 {
                     rv = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
