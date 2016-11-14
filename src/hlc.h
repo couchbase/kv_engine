@@ -145,6 +145,15 @@ public:
         add_prefixed_stat(prefix.data(), "logical_clock_ticks", logicalClockTicks.load(), add_stat, c);
     }
 
+    void resetStats() {
+        // Don't clear max_cas or the threshold values.
+        cummulativeDrift = 0;
+        cummulativeDriftIncrements = 0;
+        driftAheadExceeded = 0;
+        driftBehindExceeded = 0;
+        logicalClockTicks = 0;
+    }
+
 private:
     /*
      * Returns 48-bit of t (bottom 16-bit zero)

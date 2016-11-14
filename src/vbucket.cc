@@ -336,6 +336,8 @@ void VBucket::resetStats() {
     dirtyQueueAge.store(0);
     dirtyQueuePendingWrites.store(0);
     dirtyQueueDrain.store(0);
+
+    hlc.resetStats();
 }
 
 template <typename T>
