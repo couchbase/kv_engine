@@ -107,7 +107,7 @@ std::ostream& operator <<(std::ostream &out, const VBucketFilter &filter)
     return out;
 }
 
-size_t VBucket::chkFlushTimeout = MIN_CHK_FLUSH_TIMEOUT;
+std::atomic<size_t> VBucket::chkFlushTimeout(MIN_CHK_FLUSH_TIMEOUT);
 
 const vbucket_state_t VBucket::ACTIVE =
                      static_cast<vbucket_state_t>(htonl(vbucket_state_active));
