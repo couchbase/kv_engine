@@ -2954,7 +2954,7 @@ void EventuallyPersistentEngine::queueBackfill(const VBucketFilter
     ExecutorPool::get()->schedule(backfillTask, NONIO_TASK_IDX);
 }
 
-bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
+void VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
     ++numVbucket;
     item_eviction_policy_t policy = engine.getKVBucket()->
                                                        getItemEvictionPolicy();
@@ -3001,18 +3001,14 @@ bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
         totalHLCDriftExceptionCounters.ahead += driftExceptionCounters.ahead;
         totalHLCDriftExceptionCounters.behind += driftExceptionCounters.behind;
     }
-
-    return false;
 }
 
-bool VBucketCountAggregator::visitBucket(RCPtr<VBucket> &vb) {
+void VBucketCountAggregator::visitBucket(RCPtr<VBucket> &vb) {
     std::map<vbucket_state_t, VBucketCountVisitor*>::iterator it;
     it = visitorMap.find(vb->getState());
     if ( it != visitorMap.end() ) {
         it->second->visitBucket(vb);
     }
-
-    return false;
 }
 
 void VBucketCountAggregator::addVisitor(VBucketCountVisitor* visitor) {
@@ -3677,10 +3673,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
             isPrevState(isPrevStateRequested),
             isDetailsRequested(detailsRequested) {}
 
-        bool visitBucket(RCPtr<VBucket> &vb) {
+        void visitBucket(RCPtr<VBucket> &vb) override {
             addVBStats(cookie, add_stat, vb, eps, isPrevState,
                        isDetailsRequested);
-            return false;
         }
 
         static void addVBStats(const void *cookie, ADD_STAT add_stat,
@@ -3747,7 +3742,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
         StatVBucketVisitor(const void *c, ADD_STAT a) : cookie(c),
                                                         add_stat(a) {}
 
-        bool visitBucket(RCPtr<VBucket> &vb) {
+        void visitBucket(RCPtr<VBucket> &vb) override {
             uint16_t vbid = vb->getId();
             char buf[32];
             try {
@@ -3793,7 +3788,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
                     "StatVBucketVisitor::visitBucket: Failed to build stat: %s",
                     error.what());
             }
-            return false;
         }
 
         const void *cookie;
@@ -3812,9 +3806,8 @@ public:
                           ADD_STAT a) : kvBucket(kvs), cookie(c),
                                         add_stat(a) {}
 
-    bool visitBucket(RCPtr<VBucket> &vb) {
+    void visitBucket(RCPtr<VBucket> &vb) override {
         addCheckpointStat(cookie, add_stat, kvBucket, vb);
-        return false;
     }
 
     static void addCheckpointStat(const void *cookie, ADD_STAT add_stat,
@@ -4280,10 +4273,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doAllFailoverLogStats(
     public:
         StatVBucketVisitor(const void *c, ADD_STAT a) :
             cookie(c), add_stat(a) {}
-        bool visitBucket(RCPtr<VBucket> &vb) {
+
+        void visitBucket(RCPtr<VBucket> &vb) override {
             vb->failovers->addStats(cookie, vb->getId(), add_stat);
-            return false;
         }
+
     private:
         const void *cookie;
         ADD_STAT add_stat;
@@ -4554,7 +4548,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDiskDetailStats(
         DiskStatVisitor(const void *c, ADD_STAT a)
             : cookie(c), add_stat(a) { }
 
-        bool visitBucket(RCPtr<VBucket> &vb) {
+        void visitBucket(RCPtr<VBucket> &vb) override {
             char buf[32];
             uint16_t vbid = vb->getId();
             DBFileInfo dbInfo = vb->getShard()->getRWUnderlying()->
@@ -4570,7 +4564,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDiskDetailStats(
                     "DiskStatVisitor::visitBucket: Failed to build stat: %s",
                     error.what());
             }
-            return false;
         }
 
     private:

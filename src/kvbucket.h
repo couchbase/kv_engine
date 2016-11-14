@@ -58,34 +58,20 @@ enum get_options_t {
 /**
  * vbucket-aware hashtable visitor.
  */
-class VBucketVisitor : public HashTableVisitor {
+class VBucketVisitor {
 public:
 
-    VBucketVisitor() : HashTableVisitor() { }
+    VBucketVisitor() { }
 
-    VBucketVisitor(const VBucketFilter &filter) :
-    HashTableVisitor(), vBucketFilter(filter) { }
+    VBucketVisitor(const VBucketFilter &filter)
+        : vBucketFilter(filter) { }
 
     /**
      * Begin visiting a bucket.
      *
      * @param vb the vbucket we are beginning to visit
-     *
-     * @return true iff we want to walk the hashtable in this vbucket
      */
-    virtual bool visitBucket(RCPtr<VBucket> &vb) {
-        if (vBucketFilter(vb->getId())) {
-            currentBucket = vb;
-            return true;
-        }
-        return false;
-    }
-
-    // This is unused in all implementations so far.
-    void visit(StoredValue* v) {
-        (void)v;
-        abort();
-    }
+    virtual void visitBucket(RCPtr<VBucket> &vb) = 0;
 
     const VBucketFilter &getVBucketFilter() {
         return vBucketFilter;
@@ -105,7 +91,6 @@ public:
 
 protected:
     VBucketFilter vBucketFilter;
-    RCPtr<VBucket> currentBucket;
 };
 
 /**
@@ -559,7 +544,7 @@ public:
     virtual size_t visit(std::shared_ptr<VBucketVisitor> visitor,
                          const char *lbl, task_type_t taskGroup, TaskId id,
                          double sleepTime=0) = 0;
-    
+
     /**
      * Visit the items in this epStore, starting the iteration from the
      * given startPosition and allowing the visit to be paused at any point.

@@ -30,14 +30,11 @@ static const double FREQUENCY(60.0);
  */
 class ResizingVisitor : public VBucketVisitor {
 public:
-
     ResizingVisitor() { }
 
-    bool visitBucket(RCPtr<VBucket> &vb) {
+    void visitBucket(RCPtr<VBucket> &vb) override {
         vb->ht.resize();
-        return false;
     }
-
 };
 
 bool HashtableResizerTask::run(void) {

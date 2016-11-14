@@ -110,12 +110,7 @@ public:
         totalHLCDriftExceptionCounters()
     { }
 
-    bool visitBucket(RCPtr<VBucket> &vb);
-
-    void visit(StoredValue* v) {
-        throw std::logic_error("VBucketCountVisitor:visit: Should never "
-                "be called");
-    }
+    void visitBucket(RCPtr<VBucket> &vb) override;
 
     vbucket_state_t getVBucketState() { return desired_state; }
 
@@ -202,7 +197,7 @@ private:
  */
 class VBucketCountAggregator : public VBucketVisitor  {
 public:
-    bool visitBucket(RCPtr<VBucket> &vb);
+    void visitBucket(RCPtr<VBucket> &vb) override;
 
     void addVisitor(VBucketCountVisitor* visitor);
 private:

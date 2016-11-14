@@ -89,19 +89,13 @@ public:
 
     virtual ~BackFillVisitor() {}
 
-    bool visitBucket(RCPtr<VBucket> &vb);
+    void visitBucket(RCPtr<VBucket> &vb) override;
 
-    void visit(StoredValue *v);
-
-    bool shouldContinue() {
-        return checkValidity();
-    }
-
-    void complete(void);
+    void complete(void) override;
 
 private:
 
-    bool pauseVisitor();
+    bool pauseVisitor() override;
 
     bool checkValidity();
 

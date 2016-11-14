@@ -3655,11 +3655,7 @@ void EPBucket::visit(VBucketVisitor &visitor)
     for (VBucketMap::id_type vbid = 0; vbid < vbMap.getSize(); ++vbid) {
         RCPtr<VBucket> vb = vbMap.getBucket(vbid);
         if (vb) {
-            bool wantData = visitor.visitBucket(vb);
-            // We could've lost this along the way.
-            if (wantData) {
-                vb->ht.visit(visitor);
-            }
+            visitor.visitBucket(vb);
         }
     }
     visitor.complete();
@@ -3718,9 +3714,7 @@ bool VBCBAdaptor::run(void) {
                 snooze(sleepTime);
                 return true;
             }
-            if (visitor->visitBucket(vb)) {
-                vb->ht.visit(*visitor);
-            }
+            visitor->visitBucket(vb);
         }
         vbList.pop();
     }
@@ -3758,9 +3752,7 @@ bool VBucketVisitorTask::run() {
                 snooze(sleepTime);
                 return true;
             }
-            if (visitor->visitBucket(vb)) {
-                vb->ht.visit(*visitor);
-            }
+            visitor->visitBucket(vb);
         }
         vbList.pop();
     }

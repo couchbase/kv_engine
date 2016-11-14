@@ -324,25 +324,35 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
 }
 
 void LoadStorageKVPairCallback::purge() {
-    class EmergencyPurgeVisitor : public VBucketVisitor {
+    class EmergencyPurgeVisitor : public VBucketVisitor,
+                                  public HashTableVisitor {
     public:
         EmergencyPurgeVisitor(EPBucket& store) :
             epstore(store) {}
 
-        void visit(StoredValue *v) {
+        void visitBucket(RCPtr<VBucket> &vb) override {
+            if (vBucketFilter(vb->getId())) {
+                currentBucket = vb;
+                vb->ht.visit(*this);
+            }
+        }
+
+        void visit(StoredValue *v) override {
             currentBucket->ht.unlocked_ejectItem(v,
                                              epstore.getItemEvictionPolicy());
         }
+
     private:
         EPBucket& epstore;
+        RCPtr<VBucket> currentBucket;
     };
 
     auto vbucketIds(vbuckets.getBuckets());
     EmergencyPurgeVisitor epv(epstore);
     for (auto vbid : vbucketIds) {
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
-        if (vb && epv.visitBucket(vb)) {
-            vb->ht.visit(epv);
+        if (vb) {
+            epv.visitBucket(vb);
         }
     }
     hasPurged = true;

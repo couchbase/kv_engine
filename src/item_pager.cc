@@ -44,7 +44,8 @@ enum pager_type_t {
  * As part of the ItemPager, visit all of the objects in memory and
  * eject some within a constrained probability
  */
-class PagingVisitor : public VBucketVisitor {
+class PagingVisitor : public VBucketVisitor,
+                      public HashTableVisitor {
 public:
 
     /**
@@ -71,7 +72,7 @@ public:
         wasHighMemoryUsage(s.isMemoryUsageTooHigh()),
         taskStart(gethrtime()), pager_phase(phase) {}
 
-    void visit(StoredValue *v) {
+    void visit(StoredValue *v) override {
         // Delete expired items for an active vbucket.
         bool isExpired = (currentBucket->getState() == vbucket_state_active) &&
             v->isExpired(startTime) && !v->isDeleted();
@@ -101,7 +102,7 @@ public:
         }
     }
 
-    bool visitBucket(RCPtr<VBucket> &vb) {
+    void visitBucket(RCPtr<VBucket> &vb) override {
         update();
 
         bool newCheckpointCreated = false;
@@ -120,7 +121,11 @@ public:
 
         // fast path for expiry item pager
         if (percent <= 0 || !pager_phase) {
-            return VBucketVisitor::visitBucket(vb);
+            if (vBucketFilter(vb->getId())) {
+                currentBucket = vb;
+                vb->ht.visit(*this);
+            }
+            return;
         }
 
         // skip active vbuckets if active resident ratio is lower than replica
@@ -131,16 +136,19 @@ public:
             store.getActiveResidentRatio() <
             store.getReplicaResidentRatio())
         {
-            return false;
+            return;
         }
 
         if (current > lower) {
             double p = (current - static_cast<double>(lower)) / current;
             adjustPercent(p, vb->getState());
-            return VBucketVisitor::visitBucket(vb);
+            if (vBucketFilter(vb->getId())) {
+                currentBucket = vb;
+                vb->ht.visit(*this);
+            }
+
         } else { // stop eviction whenever memory usage is below low watermark
             completePhase = false;
-            return false;
         }
     }
 
@@ -160,12 +168,12 @@ public:
         expired.clear();
     }
 
-    bool pauseVisitor() {
+    bool pauseVisitor() override {
         size_t queueSize = stats.diskQueueSize.load();
         return canPause && queueSize >= MAX_PERSISTENCE_QUEUE_SIZE;
     }
 
-    void complete() {
+    void complete() override {
         update();
 
         hrtime_t elapsed_time = (gethrtime() - taskStart) / 1000;
@@ -244,6 +252,7 @@ private:
     bool wasHighMemoryUsage;
     hrtime_t taskStart;
     std::atomic<item_pager_phase>* pager_phase;
+    RCPtr<VBucket> currentBucket;
 };
 
 ItemPager::ItemPager(EventuallyPersistentEngine *e, EPStats &st) :

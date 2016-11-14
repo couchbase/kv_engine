@@ -171,14 +171,14 @@ std::string BackfillDiskLoad::getDescription() {
     return rv.str();
 }
 
-bool BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
-    if (VBucketVisitor::visitBucket(vb)) {
+void BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
+    if (vBucketFilter(vb->getId())) {
         item_eviction_policy_t policy =
                                 engine->getKVBucket()->getItemEvictionPolicy();
         double num_items = static_cast<double>(vb->getNumItems(policy));
 
         if (num_items == 0) {
-            return false;
+            return;
         }
 
         KVStore *underlying(engine->getKVBucket()->getROUnderlying(
@@ -190,11 +190,6 @@ bool BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
                                           0, false);
         ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
     }
-    return false;
-}
-
-void BackFillVisitor::visit(StoredValue*) {
-    abort();
 }
 
 bool BackFillVisitor::pauseVisitor() {
