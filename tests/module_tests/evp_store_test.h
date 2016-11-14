@@ -104,8 +104,8 @@ protected:
     static Item make_item(uint16_t vbid, const std::string& key,
                           const std::string& value);
 
-    /* Stores an item into the given vbucket. */
-    void store_item(uint16_t vbid, const std::string& key,
+    // Stores an item into the given vbucket. Returns the item stored.
+    Item store_item(uint16_t vbid, const std::string& key,
                     const std::string& value);
 
     /* Flush the given vbucket to disk, so any outstanding dirty items are
