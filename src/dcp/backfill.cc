@@ -31,9 +31,8 @@ static std::string backfillStateToString(backfill_state_t state) {
             return "completing";
         case backfill_state_done:
             return "done";
-        default:
-            abort();
     }
+    return "<invalid>:" + std::to_string(state);
 }
 
 CacheCallback::CacheCallback(EventuallyPersistentEngine* e, stream_t &s)

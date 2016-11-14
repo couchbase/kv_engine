@@ -820,10 +820,6 @@ public:
         totalBackfillBacklogs += incr;
     }
 
-    virtual void flush() = 0;
-
-    virtual bool windowIsFull() = 0;
-
     const VBucketFilter &getVBucketFilter() {
         LockHolder lh(queueLock);
         return vbucketFilter;

@@ -915,9 +915,11 @@ DcpResponse* DcpProducer::getNextItem() {
                 case DCP_SET_VBUCKET:
                     break;
                 default:
-                    LOG(EXTENSION_LOG_WARNING, "%s Producer is attempting to write"
-                        " an unexpected event %d", logHeader(), op->getEvent());
-                    abort();
+                    throw std::logic_error(
+                            std::string("DcpProducer::getNextItem: "
+                            "Producer (") + logHeader() + ") is attempting to "
+                            "write an unexpected event:" +
+                            std::to_string(op->getEvent()));
             }
 
             ready.pushUnique(vbucket);
@@ -1058,14 +1060,6 @@ std::vector<uint16_t> DcpProducer::getVBVector() {
         vbvector.push_back(iter.first);
     });
     return vbvector;
-}
-
-bool DcpProducer::windowIsFull() {
-    abort(); // Not Implemented
-}
-
-void DcpProducer::flush() {
-    abort(); // Not Implemented
 }
 
 bool DcpProducer::bufferLogInsert(size_t bytes) {

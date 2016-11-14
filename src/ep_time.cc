@@ -16,23 +16,23 @@
  */
 
 #include "config.h"
+
 #include "ep_time.h"
-#include <stdlib.h>
+
+#include <stdexcept>
 
 static rel_time_t uninitialized_current_time(void) {
-    abort();
+    throw std::logic_error("unitialized_current_time called");
     return 0;
 }
 
 static time_t default_abs_time(rel_time_t notused) {
-    (void)notused;
-    abort();
+    throw std::logic_error("default_abs_time called");
     return 0;
 }
 
 static rel_time_t default_reltime(time_t notused) {
-    (void)notused;
-    abort();
+    throw std::logic_error("default_reltime called");
     return 0;
 }
 

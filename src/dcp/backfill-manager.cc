@@ -268,28 +268,31 @@ backfill_status_t BackfillManager::backfill() {
     scanBuffer.bytesRead = 0;
     scanBuffer.itemsRead = 0;
 
-    if (status == backfill_success) {
-        activeBackfills.push_back(backfill);
-    } else if (status == backfill_finished) {
-        lh.unlock();
-        delete backfill;
-        engine->getDcpConnMap().decrNumActiveSnoozingBackfills();
-    } else if (status == backfill_snooze) {
-        uint16_t vbid = backfill->getVBucketId();
-        RCPtr<VBucket> vb = engine->getVBucket(vbid);
-        if (vb) {
-            snoozingBackfills.push_back(
-                                std::make_pair(ep_current_time(), backfill));
-        } else {
+    switch (status) {
+        case backfill_success:
+            activeBackfills.push_back(backfill);
+            break;
+        case backfill_finished:
             lh.unlock();
-            LOG(EXTENSION_LOG_WARNING, "Deleting the backfill, as vbucket %d "
-                    "seems to have been deleted!", vbid);
-            backfill->cancel();
             delete backfill;
             engine->getDcpConnMap().decrNumActiveSnoozingBackfills();
+            break;
+        case backfill_snooze: {
+            uint16_t vbid = backfill->getVBucketId();
+            RCPtr<VBucket> vb = engine->getVBucket(vbid);
+            if (vb) {
+                snoozingBackfills.push_back(
+                        std::make_pair(ep_current_time(), backfill));
+            } else {
+                lh.unlock();
+                LOG(EXTENSION_LOG_WARNING, "Deleting the backfill, as vbucket %d "
+                    "seems to have been deleted!", vbid);
+                backfill->cancel();
+                delete backfill;
+                engine->getDcpConnMap().decrNumActiveSnoozingBackfills();
+            }
+            break;
         }
-    } else {
-        abort();
     }
 
     return backfill_success;
