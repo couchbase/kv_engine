@@ -346,7 +346,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         streams.insert(std::make_pair(vbucket, s));
     }
 
-    ready.pushUnique(vbucket);
+    notifyStreamReady(vbucket);
 
     if (add_vb_conn_map) {
         connection_t conn(this);

@@ -110,8 +110,11 @@ bool ConnNotifier::notifyConnections() {
 class ConnManager : public GlobalTask {
 public:
     ConnManager(EventuallyPersistentEngine *e, ConnMap *cmap)
-        : GlobalTask(e, TaskId::ConnManager, sleepTime, true),
-          engine(e), connmap(cmap) { }
+        : GlobalTask(e, TaskId::ConnManager,
+                     e->getConfiguration().getConnectionManagerInterval(),
+                     true),
+          engine(e), connmap(cmap),
+          snoozeTime(e->getConfiguration().getConnectionManagerInterval()) { }
 
     /**
      * The ConnManager task is used to run the manageConnections function
@@ -123,7 +126,7 @@ public:
     bool run(void) {
         TRACE_EVENT0("ep-engine/task", "ConnManager");
         connmap->manageConnections();
-        snooze(sleepTime);
+        snooze(snoozeTime);
         return !engine->getEpStats().isShutdown ||
                connmap->isConnections() ||
                !connmap->isDeadConnectionsEmpty();
@@ -137,6 +140,7 @@ private:
     static const double sleepTime;
     EventuallyPersistentEngine *engine;
     ConnMap *connmap;
+    size_t snoozeTime;
 };
 
 const double ConnManager::sleepTime = 1.0;
@@ -178,9 +182,11 @@ void ConnMap::notifyPausedConnection(connection_t conn, bool schedule) {
         if (tp && tp->isPaused() && conn->isReserved() &&
             tp->setNotificationScheduled(true)) {
             pendingNotifications.push(conn);
-            connNotifier_->notifyMutationEvent(); // Wake up the connection notifier so that
-                                                  // it can notify the event to a given
-                                                  // paused connection.
+            if (connNotifier_) {
+                // Wake up the connection notifier so that
+                // it can notify the event to a given paused connection.
+                connNotifier_->notifyMutationEvent();
+            }
         }
     } else {
         LockHolder rlh(releaseLock);

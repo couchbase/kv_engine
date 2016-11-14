@@ -1029,7 +1029,23 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
         } else {
             transitionState(STREAM_IN_MEMORY);
         }
-        itemsReady.store(true);
+        if (reschedule) {
+            /* Cursor was dropped, but we will not do backfill.
+               This may happen in a corner case where, the memory
+               usage is high due to other vbuckets and persistence cursor moves
+               ahead of replication cursor to new checkpoint open but does not
+               persist items yet.
+               Note: (1) We must not notify when we schedule backfill for the
+                         first time because the stream is not yet in producer
+                         conn list of streams 
+                     (2) It is not absolutely necessary to notify immediately
+                         as conn manager or an incoming items will cause a
+                         notification eventually, but wouldn't hurt to do so */
+            bool inverse = false;
+            if (itemsReady.compare_exchange_strong(inverse, true)) {
+                producer->notifyStreamReady(vb_);
+            }
+        }
     }
 }
 
@@ -1240,6 +1256,10 @@ void ActiveStream::dropCheckpointCursor_UNLOCKED()
     RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
     if (!vbucket) {
         endStream(END_STREAM_STATE);
+        bool inverse = false;
+        if (itemsReady.compare_exchange_strong(inverse, true)) {
+            producer->notifyStreamReady(vb_);
+        }
     }
     /* Drop the existing cursor */
     vbucket->checkpointManager.removeCursor(name_);
