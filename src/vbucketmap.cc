@@ -201,7 +201,7 @@ size_t VBucketMap::getNumShards() const {
     return shards.size();
 }
 
-void VBucketMap::setHLCDriftAheadThreshold(uint64_t threshold) {
+void VBucketMap::setHLCDriftAheadThreshold(std::chrono::microseconds threshold) {
     for (id_type id = 0; id < size; id++) {
         auto vb = getBucket(id);
         if (vb) {
@@ -210,7 +210,7 @@ void VBucketMap::setHLCDriftAheadThreshold(uint64_t threshold) {
     }
 }
 
-void VBucketMap::setHLCDriftBehindThreshold(uint64_t threshold) {
+void VBucketMap::setHLCDriftBehindThreshold(std::chrono::microseconds threshold) {
     for (id_type id = 0; id < size; id++) {
         auto vb = getBucket(id);
         if (vb) {
@@ -222,8 +222,8 @@ void VBucketMap::setHLCDriftBehindThreshold(uint64_t threshold) {
 void VBucketMap::VBucketConfigChangeListener::sizeValueChanged(const std::string &key,
                                                    size_t value) {
     if (key == "hlc_drift_ahead_threshold_us") {
-        map.setHLCDriftAheadThreshold(value);
+        map.setHLCDriftAheadThreshold(std::chrono::microseconds(value));
     } else if (key == "hlc_drift_behind_threshold_us") {
-        map.setHLCDriftBehindThreshold(value);
+        map.setHLCDriftBehindThreshold(std::chrono::microseconds(value));
     }
 }

@@ -22,6 +22,8 @@
 #include "atomic.h"
 #include "statwriter.h"
 
+#include <platform/checked_snprintf.h>
+
 /*
  * HLC manages a hybrid logical clock for 'time' stamping events.
  * The class only implements the send logic of the HLC algorithm.
@@ -51,19 +53,22 @@ public:
     /*
      * @param initHLC a HLC value to start from
      * @param aheadThresholdAhead threshold a peer can be ahead before we
-     *        increment driftAheadExceeded
+     *        increment driftAheadExceeded. Expressed in us.
      * @param behindThresholdhreshold a peer can be ahead before we
-     *        increment driftBehindExceeded
+     *        increment driftBehindExceeded. Expressed in us.
      */
-    HLC(uint64_t initHLC, uint64_t aheadThreshold, uint64_t behindThreshold)
+    HLC(uint64_t initHLC,
+        std::chrono::microseconds aheadThreshold,
+        std::chrono::microseconds behindThreshold)
         : maxHLC(initHLC),
           cummulativeDrift(0),
           cummulativeDriftIncrements(0),
           logicalClockTicks(0),
           driftAheadExceeded(0),
-          driftBehindExceeded(0),
-          driftAheadThreshold(aheadThreshold),
-          driftBehindThreshold(behindThreshold) {}
+          driftBehindExceeded(0) {
+        setDriftAheadThreshold(aheadThreshold);
+        setDriftBehindThreshold(behindThreshold);
+    }
 
     uint64_t nextHLC() {
         // Create a monotonic timestamp using part of the HLC algorithm by.
@@ -89,8 +94,12 @@ public:
         // Track the +/- difference between our time and their time
         int64_t difference = getMasked48(hlc) - timeNow;
 
-        // Accumulate the absolute drift
-        cummulativeDrift += std::abs(difference);
+        // Accumulate the absolute drift in microseconds not nanoseconds.
+        // E.g. 5s drift then has ~3.6 trillion updates before overflow vs 3.6
+        // million if we tracked in nanoseconds.
+        const auto ns = std::chrono::nanoseconds(std::abs(difference));
+        cummulativeDrift +=
+            std::chrono::duration_cast<std::chrono::microseconds>(ns).count();
         cummulativeDriftIncrements++;
 
         // If the difference is greater, count peer ahead exeception
@@ -126,23 +135,63 @@ public:
         return {driftAheadExceeded, driftBehindExceeded};
     }
 
-    void setDriftAheadThreshold(uint64_t threshold) {
-        driftAheadThreshold = threshold;
+    /*
+     * Set the drift threshold for ahead exception counting
+     * - externally we work in microseconds
+     * - internally we work in nanoseconds
+     */
+    void setDriftAheadThreshold(std::chrono::microseconds threshold) {
+        driftAheadThreshold =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(threshold).count();
     }
 
-    void setDriftBehindThreshold(uint64_t threshold) {
-        driftBehindThreshold = threshold;
+    /*
+     * Set the drift threshold for behind exception counting
+     * - externally we work in (u) microseconds
+     * - internally we work in nanoseconds
+     */
+    void setDriftBehindThreshold(std::chrono::microseconds threshold) {
+        driftBehindThreshold =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(threshold).count();
     }
 
     void addStats(const std::string& prefix, ADD_STAT add_stat, const void *c) const {
-        add_prefixed_stat(prefix.data(), "max_cas", getMaxHLC(), add_stat, c);
+        auto maxCas = getMaxHLC();
+        add_prefixed_stat(prefix.data(), "max_cas", maxCas, add_stat, c);
+
+        // Print max_cas as a UTC human readable string
+        auto nanoseconds = std::chrono::nanoseconds(maxCas);//duration
+        auto seconds = std::chrono::duration_cast<std::chrono::seconds>(nanoseconds);
+        time_t maxCasSeconds = seconds.count();
+
+        std::tm tm;
+        char timeString[100];
+        // Print as an ISO-8601 date format with nanosecond fractional part
+        if (cb_gmtime_r(&maxCasSeconds, &tm) == 0 &&
+            strftime(timeString, sizeof(timeString), "%Y-%m-%dT%H:%M:%S", &tm)) {
+            // Get the fractional nanosecond part
+            nanoseconds -= seconds;
+            try {
+                checked_snprintf(timeString, sizeof(timeString), "%s.%lld",
+                                 timeString, nanoseconds.count());
+            } catch (...) { /* genuinely do nothing, we will just see that the
+                        fraction is missing and max_cas is already printed */
+            }
+            add_prefixed_stat(prefix.data(), "max_cas_str", timeString, add_stat, c);
+        } else {
+            add_prefixed_stat(prefix.data(), "max_cas_str", "could not get string", add_stat, c);
+        }
+
         add_prefixed_stat(prefix.data(), "total_abs_drift", cummulativeDrift.load(), add_stat, c);
         add_prefixed_stat(prefix.data(), "total_abs_drift_count", cummulativeDriftIncrements.load(), add_stat, c);
         add_prefixed_stat(prefix.data(), "drift_ahead_threshold_exceeded", driftAheadExceeded.load(), add_stat, c);
-        add_prefixed_stat(prefix.data(), "drift_ahead_threshold", driftAheadThreshold.load(), add_stat, c);
         add_prefixed_stat(prefix.data(), "drift_behind_threshold_exceeded", driftBehindExceeded.load(), add_stat, c);
-        add_prefixed_stat(prefix.data(), "drift_behind_threshold", driftBehindThreshold.load(), add_stat, c);
         add_prefixed_stat(prefix.data(), "logical_clock_ticks", logicalClockTicks.load(), add_stat, c);
+
+        // These are printed "as is" so we know what is being compared. Do not convert to microseconds
+        add_prefixed_stat(prefix.data(), "drift_ahead_threshold", driftAheadThreshold.load(), add_stat, c);
+        add_prefixed_stat(prefix.data(), "drift_behind_threshold", driftBehindThreshold.load(), add_stat, c);
+
     }
 
     void resetStats() {
@@ -164,7 +213,7 @@ private:
 
     static int64_t getTime() {
         auto now = std::chrono::system_clock::now();
-        return std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
     }
 
     /*

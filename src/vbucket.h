@@ -214,11 +214,11 @@ public:
         return hlc.getDriftExceptionCounters();
     }
 
-    void setHLCDriftAheadThreshold(uint64_t threshold) {
+    void setHLCDriftAheadThreshold(std::chrono::microseconds threshold) {
         hlc.setDriftAheadThreshold(threshold);
     }
 
-    void setHLCDriftBehindThreshold(uint64_t threshold) {
+    void setHLCDriftBehindThreshold(std::chrono::microseconds threshold) {
         hlc.setDriftBehindThreshold(threshold);
     }
 
