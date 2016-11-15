@@ -284,7 +284,7 @@ protocol_binary_response_status engine_error_2_mcbp_protocol_error(
 bool mcbp_response_handler(const void* key, uint16_t keylen,
                            const void* ext, uint8_t extlen,
                            const void* body, uint32_t bodylen,
-                           uint8_t datatype, uint16_t status,
+                           protocol_binary_datatype_t datatype, uint16_t status,
                            uint64_t cas, const void* void_cookie)
 {
     protocol_binary_response_header header;

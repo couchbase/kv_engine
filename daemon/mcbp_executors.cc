@@ -2189,7 +2189,7 @@ static ENGINE_ERROR_CODE add_failover_log(vbucket_failover_t* entries,
 
     if (mcbp_response_handler(NULL, 0, NULL, 0, entries,
                               (uint32_t)(nentries * sizeof(vbucket_failover_t)),
-                              0,
+                              PROTOCOL_BINARY_RAW_BYTES,
                               PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
                               (void*)cookie)) {
         ret = ENGINE_SUCCESS;
@@ -2301,7 +2301,8 @@ static void dcp_stream_req_executor(McbpConnection* c, void* packet) {
         case ENGINE_ROLLBACK:
             rollback_seqno = htonll(rollback_seqno);
             if (mcbp_response_handler(NULL, 0, NULL, 0, &rollback_seqno,
-                                      sizeof(rollback_seqno), 0,
+                                      sizeof(rollback_seqno),
+                                      PROTOCOL_BINARY_RAW_BYTES,
                                       PROTOCOL_BINARY_RESPONSE_ROLLBACK, 0,
                                       c->getCookie())) {
                 mcbp_write_and_free(c, &c->getDynamicBuffer());
@@ -3941,7 +3942,8 @@ static void config_validate_executor(McbpConnection* c, void* packet) {
             /* problem(s). Send the errors back to the client. */
             char* error_string = cJSON_PrintUnformatted(errors);
             if (mcbp_response_handler(NULL, 0, NULL, 0, error_string,
-                                      (uint32_t)strlen(error_string), 0,
+                                      (uint32_t)strlen(error_string),
+                                      PROTOCOL_BINARY_RAW_BYTES,
                                       PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
                                       c->getCookie())) {
                 mcbp_write_and_free(c, &c->getDynamicBuffer());
@@ -4117,7 +4119,8 @@ static void list_bucket_executor(McbpConnection* c, void*) {
             }
 
             if (mcbp_response_handler(NULL, 0, NULL, 0, blob.data(),
-                                      uint32_t(blob.size()), 0,
+                                      uint32_t(blob.size()),
+                                      PROTOCOL_BINARY_RAW_BYTES,
                                       PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
                                       c->getCookie())) {
                 mcbp_write_and_free(c, &c->getDynamicBuffer());
