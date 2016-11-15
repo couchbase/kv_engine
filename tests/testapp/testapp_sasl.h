@@ -48,6 +48,13 @@ public:
 
 protected:
     void testMixStartingFrom(const std::string& mech);
+    void testIllegalLogin(const std::string &user, const std::string& mech);
+    void testUnknownUser(const std::string& mech) {
+            testIllegalLogin("wtf", mech);
+    }
+    void testWrongPassword(const std::string& mech) {
+            testIllegalLogin("_admin", mech);
+    }
 
     std::string name;
     std::vector<std::string> mechanisms;

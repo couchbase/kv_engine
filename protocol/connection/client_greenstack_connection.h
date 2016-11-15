@@ -73,6 +73,10 @@ public:
         return reason == Greenstack::Status::NotStored;
     }
 
+    bool isAuthError() const override {
+        return reason == Greenstack::Status::AuthenticationError;
+    }
+
 private:
     Greenstack::Status reason;
 };

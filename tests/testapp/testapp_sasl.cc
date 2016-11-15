@@ -62,6 +62,71 @@ TEST_P(SaslTest, SingleSCRAM_SHA512) {
     }
 }
 
+void SaslTest::testIllegalLogin(const std::string &user,
+                                const std::string& mech) {
+    MemcachedConnection& conn = getConnection();
+    try {
+        conn.authenticate(user, "wtf", mech);
+        FAIL() << "incorrect authentication should fail for user \""
+               << user << "\" with mech \"" << mech << "\"";
+    } catch (const ConnectionError &e) {
+        EXPECT_TRUE(e.isAuthError()) << e.what();
+    }
+    conn.reconnect();
+}
+
+TEST_P(SaslTest, UnknownUserPlain) {
+    testUnknownUser("PLAIN");
+}
+
+TEST_P(SaslTest, UnknownUserCramMd5) {
+    testUnknownUser("CRAM-MD5");
+}
+
+TEST_P(SaslTest, UnknownUserSCRAM_SHA1) {
+    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA1)) {
+        testUnknownUser("SCRAM-SHA1");
+    }
+}
+
+TEST_P(SaslTest, UnknownUserSCRAM_SHA256) {
+    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA256)) {
+        testUnknownUser("SCRAM-SHA256");
+    }
+}
+
+TEST_P(SaslTest, UnknownUserSCRAM_SHA512) {
+    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA512)) {
+        testUnknownUser("SCRAM-SHA512");
+    }
+}
+
+TEST_P(SaslTest, IncorrectPlain) {
+    testWrongPassword("PLAIN");
+}
+
+TEST_P(SaslTest, IncorrectCramMd5) {
+    testWrongPassword("CRAM-MD5");
+}
+
+TEST_P(SaslTest, IncorrectSCRAM_SHA1) {
+    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA1)) {
+        testWrongPassword("SCRAM-SHA1");
+    }
+}
+
+TEST_P(SaslTest, IncorrectSCRAM_SHA256) {
+    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA256)) {
+        testWrongPassword("SCRAM-SHA256");
+    }
+}
+
+TEST_P(SaslTest, IncorrectSCRAM_SHA512) {
+    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA512)) {
+        testWrongPassword("SCRAM-SHA512");
+    }
+}
+
 void SaslTest::testMixStartingFrom(const std::string& mechanism) {
     MemcachedConnection& conn = getConnection();
 

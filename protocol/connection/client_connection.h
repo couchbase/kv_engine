@@ -98,6 +98,8 @@ public:
     virtual bool isNotFound() const = 0;
 
     virtual bool isNotStored() const = 0;
+
+    virtual bool isAuthError() const = 0;
 };
 
 /**

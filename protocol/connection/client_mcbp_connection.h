@@ -76,6 +76,10 @@ public:
         return reason == PROTOCOL_BINARY_RESPONSE_NOT_STORED;
     }
 
+    bool isAuthError() const override {
+        return reason == PROTOCOL_BINARY_RESPONSE_AUTH_ERROR;
+    }
+
 private:
     uint16_t reason;
 };
