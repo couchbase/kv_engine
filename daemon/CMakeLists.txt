@@ -103,6 +103,8 @@ ADD_LIBRARY(memcached_daemon STATIC
                protocol/mcbp/appendprepend_context.h
                protocol/mcbp/arithmetic_context.cc
                protocol/mcbp/arithmetic_context.h
+               protocol/mcbp/dcp_mutation.cc
+               protocol/mcbp/dcp_mutation.h
                protocol/mcbp/utilities.cc
                protocol/mcbp/utilities.h
                runtime.cc
