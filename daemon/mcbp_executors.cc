@@ -37,6 +37,7 @@
 #include "mcbp_privileges.h"
 #include "protocol/mcbp/appendprepend_context.h"
 #include "protocol/mcbp/arithmetic_context.h"
+#include "protocol/mcbp/utilities.h"
 
 #include <memcached/audit_interface.h>
 #include <platform/cb_malloc.h>
@@ -1374,22 +1375,6 @@ static void process_bin_noop_response(McbpConnection* c) {
 /*******************************************************************************
  **                             DCP MESSAGE PRODUCERS                         **
  ******************************************************************************/
-
-static McbpConnection* cookie2mcbp(const void* void_cookie,
-                                   const char* function) {
-    const auto * cookie = reinterpret_cast<const Cookie *>(void_cookie);
-    if (cookie == nullptr) {
-        throw std::invalid_argument(std::string(function) +
-                                        ": cookie is nullptr");
-    }
-    cookie->validate();
-    auto* c = dynamic_cast<McbpConnection*>(cookie->connection);
-    if (c == nullptr) {
-        throw std::invalid_argument(std::string(function) +
-                                        ": connection is nullptr");
-    }
-    return c;
-}
 
 static ENGINE_ERROR_CODE dcp_message_get_failover_log(const void* void_cookie,
                                                       uint32_t opaque,
