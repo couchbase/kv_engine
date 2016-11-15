@@ -2115,7 +2115,7 @@ static enum test_result test_bug7023(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     for (int j = 0; j < 5; ++j) {
         check(set_vbucket_state(h, h1, 0, vbucket_state_dead),
               "Failed set set vbucket 0 dead.");
-        vbucketDelete(h, h1, 0);
+        vbucketDelete(h, h1, 0, "async=0");
         checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
                 last_status.load(),
                 "Expected vbucket deletion to work.");
