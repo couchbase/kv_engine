@@ -20,7 +20,7 @@
 #include "memcached.h"
 #include "utilities/protocol2text.h"
 
-#include <snappy-c.h>
+#include <platform/compress.h>
 
 static int get_clustermap_revno(const char *map, size_t mapsize) {
     /* Try to locate the "rev": field in the map. Unfortunately
@@ -287,9 +287,6 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
                            protocol_binary_datatype_t datatype, uint16_t status,
                            uint64_t cas, const void* void_cookie)
 {
-    protocol_binary_response_header header;
-    char *buf;
-
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
     if (cookie->connection == nullptr) {
@@ -298,36 +295,27 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     }
 
     McbpConnection* c = reinterpret_cast<McbpConnection*>(cookie->connection);
-    /* Look at append_bin_stats */
-    size_t needed;
-    bool need_inflate = false;
-    size_t inflated_length;
+    cb::compression::Buffer buffer;
+    const_char_buffer payload(static_cast<const char*>(body), bodylen);
 
     if (!c->isSupportsDatatype()) {
         if (mcbp::datatype::is_compressed(datatype)) {
-            need_inflate = true;
+            if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
+                                          payload.buf, payload.len, buffer)) {
+                std::string mykey(reinterpret_cast<const char*>(key), keylen);
+                LOG_WARNING(c,
+                            "<%u ERROR: Failed to inflate body, "
+                                "Key: %s may have an incorrect datatype",
+                            c->getId(), mykey.c_str());
+                return false;
+            }
+            payload.buf = buffer.data.get();
+            payload.len = buffer.len;
         }
-        /* We may silently drop the knowledge about a JSON item */
-        datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
-    needed = keylen + extlen + sizeof(protocol_binary_response_header);
-    if (need_inflate) {
-        if (snappy_uncompressed_length(reinterpret_cast<const char*>(body),
-                                       bodylen, &inflated_length) != SNAPPY_OK) {
-            LOG_WARNING(c,
-                        "<%u ERROR: Failed to inflate body, "
-                            "Key: %s may have an incorrect datatype, "
-                            "Datatype indicates that document is %s",
-                        c->getId(), (const char*)key,
-                        (datatype == PROTOCOL_BINARY_DATATYPE_COMPRESSED) ?
-                        "RAW_COMPRESSED" : "JSON_COMPRESSED");
-            return false;
-        }
-        needed += inflated_length;
-    } else {
-        needed += bodylen;
-    }
+    size_t needed = payload.len + keylen + extlen +
+                    sizeof(protocol_binary_response_header);
 
     auto &dbuf = c->getDynamicBuffer();
     if (!dbuf.grow(needed)) {
@@ -336,22 +324,23 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
         return false;
     }
 
-    buf = dbuf.getCurrent();
+    protocol_binary_response_header header;
     memset(&header, 0, sizeof(header));
     header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
     header.response.opcode = c->binary_header.request.opcode;
     header.response.keylen = (uint16_t)htons(keylen);
     header.response.extlen = extlen;
-    header.response.datatype = datatype;
-    header.response.status = (uint16_t)htons(status);
-    if (need_inflate) {
-        header.response.bodylen = htonl((uint32_t)(inflated_length + keylen + extlen));
+    if (!c->isSupportsDatatype()) {
+        header.response.datatype = PROTOCOL_BINARY_RAW_BYTES;
     } else {
-        header.response.bodylen = htonl(bodylen + keylen + extlen);
+        header.response.datatype = datatype;
     }
+    header.response.status = (uint16_t)htons(status);
+    header.response.bodylen = htonl(needed - sizeof(protocol_binary_response_header));
     header.response.opaque = c->getOpaque();
     header.response.cas = htonll(cas);
 
+    char *buf = dbuf.getCurrent();
     memcpy(buf, header.bytes, sizeof(header.response));
     buf += sizeof(header.response);
 
@@ -361,21 +350,12 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     }
 
     if (keylen > 0) {
-        cb_assert(key != NULL);
         memcpy(buf, key, keylen);
         buf += keylen;
     }
 
-    if (bodylen > 0) {
-        if (need_inflate) {
-            if (snappy_uncompress(reinterpret_cast<const char*>(body), bodylen,
-                                  buf, &inflated_length) != SNAPPY_OK) {
-                LOG_WARNING(c, "<%u Failed to inflate item", c->getId());
-                return false;
-            }
-        } else {
-            memcpy(buf, body, bodylen);
-        }
+    if (payload.len > 0) {
+        memcpy(buf, payload.buf, payload.len);
     }
 
     dbuf.moveOffset(needed);
