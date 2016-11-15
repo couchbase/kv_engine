@@ -23,6 +23,7 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/util.h>
 #include <platform/platform.h>
+#include <platform/processclock.h>
 #include <stdarg.h>
 
 #include <cstdio>
@@ -6496,10 +6497,12 @@ WorkLoadPolicy&  EpEngineTaskable::getWorkLoadPolicy(void) {
     return myEngine->getWorkLoadPolicy();
 }
 
-void EpEngineTaskable::logQTime(TaskId id, hrtime_t enqTime) {
+void EpEngineTaskable::logQTime(TaskId id,
+                                const ProcessClock::duration enqTime) {
     myEngine->getEpStore()->logQTime(id, enqTime);
 }
 
-void EpEngineTaskable::logRunTime(TaskId id, hrtime_t runTime) {
+void EpEngineTaskable::logRunTime(TaskId id,
+                                  const ProcessClock::duration runTime) {
     myEngine->getEpStore()->logRunTime(id, runTime);
 }

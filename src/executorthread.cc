@@ -17,6 +17,7 @@
 
 #include "config.h"
 
+#include <chrono>
 #include <queue>
 
 #include "common.h"
@@ -78,7 +79,7 @@ void ExecutorThread::run() {
             break;
         }
 
-        now = gethrtime();
+        updateCurrentTime();
         if (TaskQueue *q = manager->nextTask(*this, tick)) {
             EventuallyPersistentEngine *engine = currentTask->getEngine();
 
@@ -97,12 +98,14 @@ void ExecutorThread::run() {
 
             // Measure scheduling overhead as difference between the time
             // that the task wanted to wake up and the current time
-            hrtime_t woketime = currentTask->getWaketime();
-            currentTask->getTaskable().logQTime(currentTask->getTypeId(),
-                                                now > woketime ?
-                                                (now - woketime) / 1000 : 0);
-
-            taskStart = now;
+            const ProcessClock::time_point woketime =
+                    currentTask->getWaketime();
+            currentTask->
+            getTaskable().logQTime(currentTask->getTypeId(),
+                                   getCurTime() > woketime ?
+                                           getCurTime() - woketime :
+                                           ProcessClock::duration::zero());
+            updateTaskStart();
             rel_time_t startReltime = ep_current_time();
 
             LOG(EXTENSION_LOG_DEBUG,
@@ -115,7 +118,8 @@ void ExecutorThread::run() {
             bool again = currentTask->run();
 
             // Task done, log it ...
-            hrtime_t runtime((gethrtime() - taskStart) / 1000);
+            const ProcessClock::duration runtime(ProcessClock::now() -
+                                                 getTaskStart());
             currentTask->getTaskable().logRunTime(currentTask->getTypeId(),
                                                   runtime);
             if (engine) {
@@ -125,8 +129,8 @@ void ExecutorThread::run() {
             addLogEntry(currentTask->getTaskable().getName() +
                         currentTask->getDescription(),
                        q->getQueueType(), runtime, startReltime,
-                       (runtime >
-                       (hrtime_t)currentTask->maxExpectedDuration()));
+                       (runtime > std::chrono::seconds(
+                               currentTask->maxExpectedDuration())));
 
             if (engine) {
                 ObjectRegistry::onSwitchThread(engine);
@@ -138,25 +142,27 @@ void ExecutorThread::run() {
                 manager->doneWork(curTaskType);
                 manager->cancel(currentTask->uid, true);
             } else {
-                hrtime_t new_waketime;
                 // if a task has not set snooze, update its waketime to now
                 // before rescheduling for more accurate timing histograms
-                currentTask->updateWaketimeIfLessThan(now);
+                currentTask->updateWaketimeIfLessThan(getCurTime());
 
                 // release capacity back to TaskQueue ..
                 manager->doneWork(curTaskType);
-                new_waketime = q->reschedule(currentTask, curTaskType);
+                const ProcessClock::time_point new_waketime =
+                        q->reschedule(currentTask, curTaskType);
                 // record min waketime ...
-                if (new_waketime < waketime) {
-                    waketime = new_waketime;
+                if (new_waketime < getWaketime()) {
+                    setWaketime(new_waketime);
                 }
                 LOG(EXTENSION_LOG_DEBUG, "%s: Reschedule a task"
                         " \"%s\" id %" PRIu64 "[%" PRIu64 " %" PRIu64 " |%" PRIu64 "]",
                         name.c_str(),
                         currentTask->getDescription().c_str(),
-                        uint64_t(currentTask->getId()), uint64_t(new_waketime),
-                        uint64_t(currentTask->getWaketime()),
-                        uint64_t(waketime.load()));
+                        uint64_t(currentTask->getId()),
+                        uint64_t(to_ns_since_epoch(new_waketime).count()),
+                        uint64_t(to_ns_since_epoch(currentTask->getWaketime()).
+                                 count()),
+                        uint64_t(to_ns_since_epoch(getWaketime()).count()));
             }
         }
     }
@@ -173,7 +179,7 @@ void ExecutorThread::setCurrentTask(ExTask newTask) {
 
 void ExecutorThread::addLogEntry(const std::string &desc,
                                  const task_type_t taskType,
-                                 const hrtime_t runtime,
+                                 const ProcessClock::duration runtime,
                                  rel_time_t t, bool isSlowJob) {
     LockHolder lh(logMutex);
     TaskLogEntry tle(desc, taskType, runtime, t);

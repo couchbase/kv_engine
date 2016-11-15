@@ -26,6 +26,7 @@
 #include "vbucket.h"
 
 #include <memcached/engine.h>
+#include <platform/processclock.h>
 
 #include <string>
 
@@ -78,9 +79,9 @@ public:
 
     WorkLoadPolicy& getWorkLoadPolicy(void);
 
-    void logQTime(TaskId id, hrtime_t enqTime);
+    void logQTime(TaskId id, const ProcessClock::duration enqTime);
 
-    void logRunTime(TaskId id, hrtime_t runTime);
+    void logRunTime(TaskId id, const ProcessClock::duration runTime);
 
 private:
     EventuallyPersistentEngine* myEngine;

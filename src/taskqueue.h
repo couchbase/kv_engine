@@ -21,6 +21,8 @@
 
 #include <queue>
 
+#include <platform/processclock.h>
+
 #include "ringbuffer.h"
 #include "task_type.h"
 #include "tasks.h"
@@ -35,7 +37,7 @@ public:
 
     void schedule(ExTask &task);
 
-    hrtime_t reschedule(ExTask &task, task_type_t &curTaskType);
+    ProcessClock::time_point reschedule(ExTask &task, task_type_t &curTaskType);
 
     void checkPendingQueue(void);
 
@@ -59,13 +61,14 @@ public:
 
 private:
     void _schedule(ExTask &task);
-    hrtime_t _reschedule(ExTask &task, task_type_t &curTaskType);
+    ProcessClock::time_point _reschedule(ExTask &task,
+                                         task_type_t &curTaskType);
     void _checkPendingQueue(void);
     bool _fetchNextTask(ExecutorThread &thread, bool toSleep);
     void _wake(ExTask &task);
     bool _doSleep(ExecutorThread &thread, std::unique_lock<std::mutex>& lock);
     void _doWake_UNLOCKED(size_t &numToWake);
-    size_t _moveReadyTasks(hrtime_t tv);
+    size_t _moveReadyTasks(const ProcessClock::time_point tv);
     ExTask _popReadyTask(void);
 
     SyncObject mutex;

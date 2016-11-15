@@ -763,12 +763,16 @@ public:
         ++vb->numExpiredItems;
     }
 
-    void logQTime(TaskId taskType, hrtime_t enqTime) {
-        stats.schedulingHisto[static_cast<int>(taskType)].add(enqTime);
+    void logQTime(TaskId taskType, const ProcessClock::duration enqTime) {
+        const auto ns_count = std::chrono::duration_cast
+                <std::chrono::microseconds>(enqTime).count();
+        stats.schedulingHisto[static_cast<int>(taskType)].add(ns_count);
     }
 
-    void logRunTime(TaskId taskType, hrtime_t runTime) {
-        stats.taskRuntimeHisto[static_cast<int>(taskType)].add(runTime);
+    void logRunTime(TaskId taskType, const ProcessClock::duration runTime) {
+        const auto ns_count = std::chrono::duration_cast
+                <std::chrono::microseconds>(runTime).count();
+        stats.taskRuntimeHisto[static_cast<int>(taskType)].add(ns_count);
     }
 
     bool multiBGFetchEnabled() {

@@ -20,6 +20,8 @@
 #include "executorpool.h"
 #include "executorthread.h"
 
+#include <cmath>
+
 TaskQueue::TaskQueue(ExecutorPool *m, task_type_t t, const char *nm) :
     name(nm), queueType(t), manager(m), sleepers(0)
 {
@@ -76,8 +78,8 @@ void TaskQueue::_doWake_UNLOCKED(size_t &numToWake) {
 
 bool TaskQueue::_doSleep(ExecutorThread &t,
                          std::unique_lock<std::mutex>& lock) {
-    t.now = gethrtime();
-    if (t.now < t.waketime && manager->trySleep(queueType)) {
+    t.updateCurrentTime();
+    if (t.getCurTime() < t.getWaketime() && manager->trySleep(queueType)) {
         // Atomically switch from running to sleeping; iff we were previously
         // running.
         executor_state_t expected_state = EXECUTOR_RUNNING;
@@ -87,12 +89,12 @@ bool TaskQueue::_doSleep(ExecutorThread &t,
         }
         sleepers++;
         // zzz....
-        hrtime_t snooze_nsecs = t.waketime - t.now;
+        const auto snooze = t.getWaketime() - t.getCurTime();
 
-        if (snooze_nsecs > MIN_SLEEP_TIME * 1000000000) {
+        if (snooze > std::chrono::seconds((int)round(MIN_SLEEP_TIME))) {
             mutex.wait_for(lock, MIN_SLEEP_TIME);
         } else {
-            mutex.wait_for(lock, snooze_nsecs);
+            mutex.wait_for(lock, snooze);
         }
         // ... woke!
         sleepers--;
@@ -105,9 +107,9 @@ bool TaskQueue::_doSleep(ExecutorThread &t,
                                              EXECUTOR_RUNNING)) {
             return false;
         }
-        t.now = gethrtime();
+        t.updateCurrentTime();
     }
-    t.waketime = hrtime_t(-1);
+    t.setWaketime(ProcessClock::time_point(ProcessClock::time_point::max()));
     return true;
 }
 
@@ -119,11 +121,12 @@ bool TaskQueue::_fetchNextTask(ExecutorThread &t, bool toSleep) {
         return ret; // shutting down
     }
 
-    size_t numToWake = _moveReadyTasks(t.now);
+    size_t numToWake = _moveReadyTasks(t.getCurTime());
 
     if (!futureQueue.empty() && t.startIndex == queueType &&
-        futureQueue.top()->getWaketime() < t.waketime) {
-        t.waketime = futureQueue.top()->getWaketime(); // record earliest waketime
+        futureQueue.top()->getWaketime() < t.getWaketime()) {
+        // record earliest waketime
+        t.setWaketime(futureQueue.top()->getWaketime());
     }
 
     if (!readyQueue.empty() && readyQueue.top()->isdead()) {
@@ -163,7 +166,7 @@ bool TaskQueue::fetchNextTask(ExecutorThread &thread, bool toSleep) {
     return rv;
 }
 
-size_t TaskQueue::_moveReadyTasks(hrtime_t tv) {
+size_t TaskQueue::_moveReadyTasks(const ProcessClock::time_point tv) {
     if (!readyQueue.empty()) {
         return 0;
     }
@@ -195,8 +198,8 @@ void TaskQueue::_checkPendingQueue(void) {
     }
 }
 
-hrtime_t TaskQueue::_reschedule(ExTask &task, task_type_t &curTaskType) {
-    hrtime_t wakeTime;
+ProcessClock::time_point TaskQueue::_reschedule(ExTask &task, task_type_t &curTaskType) {
+    ProcessClock::time_point wakeTime;
     manager->doneWork(curTaskType);
 
     LockHolder lh(mutex);
@@ -205,15 +208,15 @@ hrtime_t TaskQueue::_reschedule(ExTask &task, task_type_t &curTaskType) {
     if (curTaskType == queueType) {
         wakeTime = futureQueue.top()->getWaketime();
     } else {
-        wakeTime = hrtime_t(-1);
+        wakeTime = ProcessClock::time_point::max();
     }
 
     return wakeTime;
 }
 
-hrtime_t TaskQueue::reschedule(ExTask &task, task_type_t &curTaskType) {
+ProcessClock::time_point TaskQueue::reschedule(ExTask &task, task_type_t &curTaskType) {
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-    hrtime_t rv = _reschedule(task, curTaskType);
+    const ProcessClock::time_point rv = _reschedule(task, curTaskType);
     ObjectRegistry::onSwitchThread(epe);
     return rv;
 }
@@ -243,7 +246,7 @@ void TaskQueue::schedule(ExTask &task) {
 
 void TaskQueue::_wake(ExTask &task) {
     size_t numReady = 0;
-    const hrtime_t now = gethrtime();
+    const ProcessClock::time_point now = ProcessClock::now();
 
     LockHolder lh(mutex);
     LOG(EXTENSION_LOG_DEBUG, "%s: Wake a task \"%s\" id %" PRIu64,

@@ -172,10 +172,6 @@ public:
         }
     }
 
-    void updateCurrentTime() {
-        now = gethrtime();
-    }
-
     ExTask& getCurrentTask() {
         return currentTask;
     }

@@ -20,7 +20,10 @@
 
 #include "config.h"
 
+#include <platform/processclock.h>
+
 #include <array>
+#include <chrono>
 #include <string>
 #include "atomic.h"
 #include "kvstore.h"
@@ -179,20 +182,32 @@ protected:
     static AtomicValue<size_t> task_id_counter;
     static size_t nextTaskId() { return task_id_counter.fetch_add(1); }
 
-    hrtime_t getWaketime() {
-        return waketime.load();
+    ProcessClock::time_point getWaketime() const {
+        const auto waketime_chrono = std::chrono::nanoseconds(waketime);
+        return ProcessClock::time_point(waketime_chrono);
     }
 
-    void updateWaketime(hrtime_t to) {
-        waketime.store(to);
+    void updateWaketime(const ProcessClock::time_point tp) {
+        waketime = to_ns_since_epoch(tp).count();
     }
 
-    void updateWaketimeIfLessThan(hrtime_t to) {
-        atomic_setIfBigger(waketime, to);
+    void updateWaketimeIfLessThan(const ProcessClock::time_point tp) {
+        const auto tp_ns = to_ns_since_epoch(tp).count();
+        if (tp_ns > waketime) {
+            waketime = tp_ns;
+        }
     }
 
 private:
-    AtomicValue<hrtime_t> waketime;      // used for priority_queue
+    /**
+     * We are using a uint64_t as opposed to ProcessTime::time_point because
+     * was want the access to be atomic without the use of a mutex.
+     * The reason for this is that the CompareByDueDate function has been shown
+     * to be pretty hot and we want to avoid the overhead of acquiring
+     * two mutexes (one for ExTask 1 and one for ExTask 2) for every invocation
+     * of the function.
+     */
+    std::atomic<int64_t> waketime; // used for priority_queue
 };
 
 typedef SingleThreadedRCPtr<GlobalTask> ExTask;

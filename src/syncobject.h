@@ -22,6 +22,7 @@
 
 #include "utility.h"
 
+#include <chrono>
 #include <condition_variable>
 
 /**
@@ -45,8 +46,8 @@ public:
     }
 
     void wait_for(std::unique_lock<std::mutex>& lock,
-                  const hrtime_t nanoSecs) {
-        cond.wait_for(lock, std::chrono::nanoseconds(nanoSecs));
+                  const std::chrono::nanoseconds nanoSecs) {
+        cond.wait_for(lock, nanoSecs);
     }
 
     void notify_all() {
