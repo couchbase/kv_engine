@@ -14,6 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include "config.h"
 #include "client_connection.h"
 #include "client_greenstack_connection.h"
 #include "client_mcbp_connection.h"
@@ -26,6 +27,7 @@
 #include <platform/strerror.h>
 #include <sstream>
 #include <stdexcept>
+#include <system_error>
 #include <string>
 #include <limits>
 
@@ -210,9 +212,8 @@ SOCKET new_socket(std::string& host, in_port_t port, sa_family_t family) {
                         &ai);
 
     if (error != 0) {
-        std::string msg("Failed to resolve address ");
-        msg.append(std::to_string(error));
-        throw std::runtime_error(msg);
+        throw std::system_error(error, std::system_category(),
+                                "Failed to resolve address \"" + host + "\"");
     }
 
     for (struct addrinfo* next = ai; next; next = next->ai_next) {
@@ -310,9 +311,9 @@ void MemcachedConnection::sendFramePlain(const Frame& frame) {
     while (offset < nbytes) {
         auto nw = send(sock, data + offset, nbytes - offset, 0);
         if (nw <= 0) {
-            std::string msg("Failed to send data: ");
-            msg.append(cb_strerror());
-            throw std::runtime_error(msg);
+            throw std::system_error(get_socket_error(),
+                                    std::system_category(),
+                                    "MemcachedConnection::sendFramePlain: failed to send data");
         } else {
             offset += nw;
         }
@@ -348,9 +349,16 @@ void MemcachedConnection::readPlain(Frame& frame, size_t bytes) {
     while (total < bytes) {
         auto nr = recv(sock, data + total, bytes - total, 0);
         if (nr <= 0) {
-            std::string msg("Failed to read data: ");
-            msg.append(cb_strerror());
-            throw std::runtime_error(msg);
+            auto error = get_socket_error();
+            if (nr == 0) {
+                // nr == 0 means that the other end closed the connection.
+                // Given that we expected to read more data, let's throw
+                // an connection reset exception
+                error = ECONNRESET;
+            }
+
+            throw std::system_error(error, std::system_category(),
+                                    "MemcachedConnection::readPlain: failed to read data");
         } else {
             total += nr;
         }

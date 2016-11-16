@@ -18,6 +18,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <string.h>
+#include <system_error>
 #include "testapp.h"
 
 static const int idle_time = 2;
@@ -75,13 +76,13 @@ protected:
             } else {
                 FAIL() << "The connection should have timed out";
             }
-        } catch (std::runtime_error& e) {
+        } catch (const std::system_error& e) {
             if (admin) {
                 FAIL() << "Admin connection should not time out";
-            } else {
-                std::string message(e.what());
-                EXPECT_EQ(0, message.find("Failed to read data:"));
             }
+
+            EXPECT_EQ(std::system_category(), e.code().category());
+            EXPECT_EQ(ECONNRESET, e.code().value());
         }
     }
 
