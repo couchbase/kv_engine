@@ -143,8 +143,8 @@ void ObjectRegistry::onCreateItem(const Item *pItem)
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
-       stats.memOverhead.fetch_add(pItem->size() - pItem->getValMemSize());
-       stats.numItem++;
+       stats.memOverhead->fetch_add(pItem->size() - pItem->getValMemSize());
+       ++(*stats.numItem);
    }
 }
 
@@ -153,8 +153,8 @@ void ObjectRegistry::onDeleteItem(const Item *pItem)
    EventuallyPersistentEngine *engine = th->get();
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
-       stats.memOverhead.fetch_sub(pItem->size() - pItem->getValMemSize());
-       stats.numItem--;
+       stats.memOverhead->fetch_sub(pItem->size() - pItem->getValMemSize());
+       ++(*stats.numItem);
    }
 }
 
@@ -187,7 +187,7 @@ bool ObjectRegistry::memoryAllocated(size_t mem) {
         return false;
     }
     EPStats &stats = engine->getEpStats();
-    stats.totalMemory.fetch_add(mem);
+    stats.totalMemory->fetch_add(mem);
     return true;
 }
 
@@ -200,6 +200,6 @@ bool ObjectRegistry::memoryDeallocated(size_t mem) {
         return false;
     }
     EPStats &stats = engine->getEpStats();
-    stats.totalMemory.fetch_sub(mem);
+    stats.totalMemory->fetch_sub(mem);
     return true;
 }

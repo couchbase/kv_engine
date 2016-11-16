@@ -146,7 +146,7 @@ VBucket::~VBucket() {
     // Clear out the bloomfilter(s)
     clearFilter();
 
-    stats.memOverhead.fetch_sub(sizeof(VBucket) + ht.memorySize() +
+    stats.memOverhead->fetch_sub(sizeof(VBucket) + ht.memorySize() +
                                 sizeof(CheckpointManager));
 
     LOG(EXTENSION_LOG_INFO, "Destroying vbucket %d\n", id);

@@ -304,7 +304,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(
     size_t num_vbs = config.getMaxVbuckets();
     vb_mutexes = new Mutex[num_vbs];
 
-    stats.memOverhead = sizeof(EventuallyPersistentStore);
+    *stats.memOverhead = sizeof(EventuallyPersistentStore);
 
     if (config.getConflictResolutionType().compare("lww") == 0) {
         conflictResolver.reset(new LastWriteWinsResolution());

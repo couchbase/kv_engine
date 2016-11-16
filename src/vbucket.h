@@ -187,7 +187,7 @@ public:
     {
         backfill.isBackfillPhase = false;
         pendingOpsStart = 0;
-        stats.memOverhead.fetch_add(sizeof(VBucket)
+        stats.memOverhead->fetch_add(sizeof(VBucket)
                                + ht.memorySize() + sizeof(CheckpointManager));
         LOG(EXTENSION_LOG_NOTICE,
             "VBucket: created vbucket:%" PRIu16 " with state:%s "
@@ -346,7 +346,7 @@ public:
         ++stats.diskQueueSize;
         ++stats.totalEnqueued;
         doStatsForQueueing(*qi, qi->size());
-        stats.memOverhead.fetch_add(sizeof(queued_item));
+        stats.memOverhead->fetch_add(sizeof(queued_item));
         return true;
     }
     void getBackfillItems(std::vector<queued_item> &items) {
@@ -356,7 +356,7 @@ public:
             items.push_back(backfill.items.front());
             backfill.items.pop();
         }
-        stats.memOverhead.fetch_sub(num_items * sizeof(queued_item));
+        stats.memOverhead->fetch_sub(num_items * sizeof(queued_item));
     }
     bool isBackfillPhase() {
         LockHolder lh(backfill.mutex);

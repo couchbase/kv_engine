@@ -887,7 +887,8 @@ protected:
      */
     ENGINE_ERROR_CODE memoryCondition() {
         // Do we think it's possible we could free something?
-        bool haveEvidenceWeCanFreeMemory(stats.getMaxDataSize() > stats.memOverhead);
+        bool haveEvidenceWeCanFreeMemory =
+            (stats.getMaxDataSize() > stats.memOverhead->load());
         if (haveEvidenceWeCanFreeMemory) {
             // Look for more evidence by seeing if we have resident items.
             VBucketCountVisitor countVisitor(*this, vbucket_state_active);

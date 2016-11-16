@@ -339,11 +339,11 @@ public:
         numMetaItems(0),
         memOverhead(0),
         effectiveMemUsage(0) {
-        stats.memOverhead.fetch_add(memorySize());
-        if (stats.memOverhead.load() >= GIGANTOR) {
+        stats.memOverhead->fetch_add(memorySize());
+        if (stats.memOverhead->load() >= GIGANTOR) {
             LOG(EXTENSION_LOG_WARNING,
                 "Checkpoint::Checkpoint: stats.memOverhead (which is %" PRId64
-                ") is greater than %" PRId64, uint64_t(stats.memOverhead.load()),
+                ") is greater than %" PRId64, uint64_t(stats.memOverhead->load()),
                 uint64_t(GIGANTOR));
         }
     }

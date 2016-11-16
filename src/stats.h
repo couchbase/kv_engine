@@ -25,6 +25,7 @@
 #include <map>
 
 #include "atomic.h"
+#include <platform/cacheline_padded.h>
 #include <platform/histogram.h>
 #include <platform/processclock.h>
 #include "memory_tracker.h"
@@ -177,9 +178,9 @@ public:
 
     size_t getTotalMemoryUsed() {
         if (memoryTrackerEnabled.load()) {
-            return totalMemory.load();
+            return totalMemory->load();
         }
-        return currentSize.load() + memOverhead.load();
+        return currentSize.load() + memOverhead->load();
     }
 
     bool decrDiskQueueSize(size_t decrementBy) {
@@ -310,11 +311,11 @@ public:
     //! Total size of StoredVal memory overhead
     AtomicValue<size_t> storedValOverhead;
     //! Amount of memory used to track items and what-not.
-    AtomicValue<size_t> memOverhead;
+    cb::CachelinePadded<AtomicValue<size_t>> memOverhead;
     //! Total number of Item objects
-    AtomicValue<size_t> numItem;
+    cb::CachelinePadded<AtomicValue<size_t>> numItem;
     //! The total amount of memory used by this bucket (From memory tracking)
-    AtomicValue<size_t> totalMemory;
+    cb::CachelinePadded<AtomicValue<size_t>> totalMemory;
     //! True if the memory usage tracker is enabled.
     AtomicValue<bool> memoryTrackerEnabled;
     //! Whether or not to force engine shutdown.
