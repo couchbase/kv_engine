@@ -302,7 +302,7 @@ public:
                           get_options_t options)
     {
         BlockTimer timer(&stats.getCmdHisto);
-        std::string k(static_cast<const char*>(key), nkey);
+        const const_sized_buffer k(static_cast<const char*>(key), nkey);
 
         GetValue gv(epstore->get(k, vbucket, cookie, options));
         ENGINE_ERROR_CODE ret = gv.getStatus();

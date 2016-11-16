@@ -649,7 +649,7 @@ EventuallyPersistentStore::deleteExpiredItems(std::list<std::pair<uint16_t,
 }
 
 StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> &vb,
-                                                        const std::string &key,
+                                                        const const_sized_buffer key,
                                                         int bucket_num,
                                                         bool wantDeleted,
                                                         bool trackReference,
@@ -745,7 +745,7 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(
 ENGINE_ERROR_CODE EventuallyPersistentStore::addTempItemForBgFetch(
                                                         LockHolder &lock,
                                                         int bucket_num,
-                                                        const std::string &key,
+                                                        const const_sized_buffer key,
                                                         RCPtr<VBucket> &vb,
                                                         const void *cookie,
                                                         bool metadataOnly,
@@ -1855,7 +1855,7 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
         uint64_t(fetchedItems.size()), vbId, gethrtime()/1000000);
 }
 
-void EventuallyPersistentStore::bgFetch(const std::string &key,
+void EventuallyPersistentStore::bgFetch(const const_sized_buffer key,
                                         uint16_t vbucket,
                                         const void *cookie,
                                         bool isMeta) {
@@ -1890,7 +1890,7 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
     }
 }
 
-GetValue EventuallyPersistentStore::getInternal(const std::string &key,
+GetValue EventuallyPersistentStore::getInternal(const const_sized_buffer key,
                                                 uint16_t vbucket,
                                                 const void *cookie,
                                                 vbucket_state_t allowedState,

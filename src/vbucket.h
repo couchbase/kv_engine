@@ -373,7 +373,8 @@ public:
      * Returns the number of pending background fetches after
      * adding the specified item.
      **/
-    size_t queueBGFetchItem(const std::string &key, VBucketBGFetchItem *fetch,
+    size_t queueBGFetchItem(const const_sized_buffer key,
+                            VBucketBGFetchItem *fetch,
                             BgFetcher *bgFetcher);
 
     bool hasPendingBGFetchItems(void) {
@@ -417,7 +418,7 @@ public:
     void createFilter(size_t key_count, double probability);
     void initTempFilter(size_t key_count, double probability);
     void addToFilter(const std::string &key);
-    bool maybeKeyExistsInFilter(const std::string &key);
+    bool maybeKeyExistsInFilter(const const_sized_buffer key);
     bool isTempFilterAvailable();
     void addToTempFilter(const std::string &key);
     void swapFilter();

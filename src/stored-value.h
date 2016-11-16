@@ -23,6 +23,7 @@
 #include "item_pager.h"
 #include "utility.h"
 
+#include "daemon/buffer.h"
 #include <platform/cb_malloc.h>
 
 // Forward declaration for StoredValue
@@ -132,8 +133,8 @@ public:
      * @param k the key we're checking
      * @return true if this item's key is equal to k
      */
-    bool hasKey(const std::string &k) const {
-        return k.length() == getKeyLen()
+    bool hasKey(const const_sized_buffer k) const {
+        return k.size() == getKeyLen()
             && (std::memcmp(k.data(), getKeyBytes(), getKeyLen()) == 0);
     }
 
@@ -966,7 +967,7 @@ public:
      * @param key the key to find
      * @return a pointer to a StoredValue -- NULL if not found
      */
-    StoredValue *find(const std::string &key, bool trackReference=true) {
+    StoredValue *find(const const_sized_buffer key, bool trackReference=true) {
         if (!isActive()) {
             throw std::logic_error("HashTable::find: Cannot call on a "
                     "non-active object");
@@ -1197,7 +1198,7 @@ public:
      * @return an indication of what happened
      */
     add_type_t unlocked_addTempItem(int &bucket_num,
-                                    const std::string &key,
+                                    const const_sized_buffer key,
                                     item_eviction_policy_t policy,
                                     bool isReplication = false);
 
@@ -1209,7 +1210,7 @@ public:
      * @param policy item eviction policy
      * @return an indicator of what the deletion did
      */
-    mutation_type_t softDelete(const std::string &key, uint64_t cas,
+    mutation_type_t softDelete(const const_sized_buffer key, uint64_t cas,
                                item_eviction_policy_t policy = VALUE_ONLY) {
         if (!isActive()) {
             throw std::logic_error("HashTable::softDelete: Cannot call on a "
@@ -1303,7 +1304,7 @@ public:
      *
      * @return a pointer to a StoredValue -- NULL if not found
      */
-    StoredValue *unlocked_find(const std::string &key, int bucket_num,
+    StoredValue *unlocked_find(const const_sized_buffer key, int bucket_num,
                                bool wantsDeleted=false, bool trackReference=true) {
         StoredValue *v = values[bucket_num];
         while (v) {
@@ -1412,6 +1413,10 @@ public:
         return getLockedBucket(hash(s.data(), s.size()), bucket);
     }
 
+    inline LockHolder getLockedBucket(const const_sized_buffer key, int *bucket) {
+        return getLockedBucket(hash(key.data(), key.size()), bucket);
+    }
+
     /**
      * Delete a key from the cache without trying to lock the cache first
      * (Please note that you <b>MUST</b> acquire the mutex before calling
@@ -1421,7 +1426,7 @@ public:
      * @param bucket_num the bucket to look in (must already be locked)
      * @return true if an object was deleted, false otherwise
      */
-    bool unlocked_del(const std::string &key, int bucket_num) {
+    bool unlocked_del(const const_sized_buffer key, int bucket_num) {
         if (!isActive()) {
             throw std::logic_error("HashTable::unlocked_del: Cannot call on a "
                     "non-active object");
@@ -1484,7 +1489,7 @@ public:
      * @param key the key to delete
      * @return true if the item existed before this call
      */
-    bool del(const std::string &key) {
+    bool del(const const_sized_buffer key) {
         int bucket_num(0);
         LockHolder lh = getLockedBucket(key, &bucket_num);
         return unlocked_del(key, bucket_num);

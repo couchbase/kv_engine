@@ -262,7 +262,7 @@ public:
      *
      * @return a GetValue representing the result of the request
      */
-    GetValue get(const std::string &key, uint16_t vbucket,
+    GetValue get(const const_sized_buffer key, uint16_t vbucket,
                  const void *cookie, get_options_t options) {
         return getInternal(key, vbucket, cookie, vbucket_state_active,
                            options);
@@ -280,7 +280,7 @@ public:
      *
      * @return a GetValue representing the result of the request
      */
-    GetValue getReplica(const std::string &key, uint16_t vbucket,
+    GetValue getReplica(const const_sized_buffer key, uint16_t vbucket,
                         const void *cookie,
                         get_options_t options = static_cast<get_options_t>(
                                                         QUEUE_BG_FETCH |
@@ -456,7 +456,7 @@ public:
      * @param type whether the fetch is for a non-resident value or metadata of
      *             a (possibly) deleted item
      */
-    void bgFetch(const std::string &key,
+    void bgFetch(const const_sized_buffer key,
                  uint16_t vbucket,
                  const void *cookie,
                  bool isMeta = false);
@@ -993,17 +993,17 @@ protected:
     PersistenceCallback* flushOneDelOrSet(const queued_item &qi,
                                           RCPtr<VBucket> &vb);
 
-    StoredValue *fetchValidValue(RCPtr<VBucket> &vb, const std::string &key,
+    StoredValue *fetchValidValue(RCPtr<VBucket> &vb, const const_sized_buffer key,
                                  int bucket_num, bool wantsDeleted=false,
                                  bool trackReference=true, bool queueExpired=true);
 
-    GetValue getInternal(const std::string &key, uint16_t vbucket,
+    GetValue getInternal(const const_sized_buffer key, uint16_t vbucket,
                          const void *cookie,
                          vbucket_state_t allowedState,
                          get_options_t options = TRACK_REFERENCE);
 
     ENGINE_ERROR_CODE addTempItemForBgFetch(LockHolder &lock, int bucket_num,
-                                            const std::string &key, RCPtr<VBucket> &vb,
+                                            const const_sized_buffer key, RCPtr<VBucket> &vb,
                                             const void *cookie, bool metadataOnly,
                                             bool isReplication = false);
 

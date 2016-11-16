@@ -287,11 +287,12 @@ void VBucket::addStat(const char *nm, const T &val, ADD_STAT add_stat,
     }
 }
 
-size_t VBucket::queueBGFetchItem(const std::string &key,
+size_t VBucket::queueBGFetchItem(const const_sized_buffer key,
                                  VBucketBGFetchItem *fetch,
                                  BgFetcher *bgFetcher) {
     LockHolder lh(pendingBGFetchesLock);
-    vb_bgfetch_item_ctx_t& bgfetch_itm_ctx = pendingBGFetches[key];
+    vb_bgfetch_item_ctx_t& bgfetch_itm_ctx =
+        pendingBGFetches[std::string(key.data(), key.size())];
 
     if (bgfetch_itm_ctx.bgfetched_list.empty()) {
         bgfetch_itm_ctx.isMetaOnly = true;
@@ -515,10 +516,10 @@ void VBucket::addToFilter(const std::string &key) {
     }
 }
 
-bool VBucket::maybeKeyExistsInFilter(const std::string &key) {
+bool VBucket::maybeKeyExistsInFilter(const const_sized_buffer key) {
     LockHolder lh(bfMutex);
     if (bFilter) {
-        return bFilter->maybeKeyExists(key.c_str(), key.length());
+        return bFilter->maybeKeyExists(key.data(), key.size());
     } else {
         // If filter doesn't exist, allow the BgFetch to go through.
         return true;
