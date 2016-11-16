@@ -39,11 +39,11 @@ struct SubdocCmdContext : public CommandContext {
     SubdocCmdContext(McbpConnection * connection, const SubdocCmdTraits traits_)
       : c(connection),
         traits(traits_),
-        in_doc({NULL, 0}),
+        in_doc(),
         in_cas(0),
         executed(false),
         out_doc_len(0),
-        out_doc(NULL),
+        out_doc(),
         response_val_len(0) { }
 
     virtual ~SubdocCmdContext() {

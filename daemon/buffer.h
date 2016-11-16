@@ -39,6 +39,18 @@ struct const_sized_buffer {
         : buf(buf_),
           len(len_) { }
 
+    const_sized_buffer(const std::string& str)
+        : buf(str.data()),
+          len(str.size()) { }
+
+    const char* data() const {
+        return buf;
+    }
+
+    size_t size() const {
+        return len;
+    }
+
     const char* buf;
     size_t len;
 };
