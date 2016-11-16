@@ -102,6 +102,8 @@ public:
     virtual bool isAccessDenied() const = 0;
 
     virtual bool isDeltaBadval() const = 0;
+
+    virtual bool isAuthError() const = 0;
 };
 
 /**

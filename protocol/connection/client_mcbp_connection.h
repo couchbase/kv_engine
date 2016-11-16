@@ -84,6 +84,10 @@ public:
         return reason == PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL;
     }
 
+    bool isAuthError() const override {
+        return reason == PROTOCOL_BINARY_RESPONSE_AUTH_ERROR;
+    }
+
 private:
     uint16_t reason;
 };

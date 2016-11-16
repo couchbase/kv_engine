@@ -81,6 +81,10 @@ public:
         throw std::runtime_error("Not implemented");
     }
 
+    bool isAuthError() const override {
+        return reason == Greenstack::Status::AuthenticationError;
+    }
+
 private:
     Greenstack::Status reason;
 };

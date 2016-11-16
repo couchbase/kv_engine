@@ -271,8 +271,8 @@ void MemcachedBinprotConnection::authenticate(const std::string& username,
 
     if (rsp->message.header.response.status !=
         PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw std::runtime_error(
-            "SASL_AUTH " + std::to_string(rsp->message.header.response.status));
+        throw BinprotConnectionError("Authentication failed: ",
+                                     rsp->message.header.response.status);
     }
 }
 
