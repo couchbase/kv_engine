@@ -636,17 +636,14 @@ void TapProducer::rollback() {
                     }
                     break;
                 default:
-                    logger.log(EXTENSION_LOG_WARNING,
-                               "Internal error in rollback(). Tap opaque "
-                               "value %d not implemented", val);
-                    abort();
+                    throw std::logic_error("TapProducer::rollback: Unexpected "
+                            "tap opaque command:" + std::to_string(val));
                 }
             }
             break;
         default:
-            logger.log(EXTENSION_LOG_WARNING, "Internal error in rollback()."
-                " Tap opcode value %d not implemented", i->event_);
-            abort();
+            throw std::logic_error("TapProducer::rollback: Unexpected tap "
+                    "event:" + std::to_string(i->event_));
         }
         ackLog_.erase(i);
         i = ackLog_.begin();
@@ -769,9 +766,8 @@ void TapProducer::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &
         }
         break;
     default:
-        logger.log(EXTENSION_LOG_WARNING, "Internal error in reschedule_UNLOCKED()."
-            " Tap opcode value %d not implemented", iter->event_);
-        abort();
+        throw std::logic_error("TapProducer::reschedule_UNLOCKED: Unexpected tap "
+                "event:" + std::to_string(iter->event_));
     }
 }
 
@@ -926,24 +922,39 @@ void TapProducer::encodeVBucketStateTransition(const VBucketEvent &ev, void **es
                                                uint16_t *nes, uint16_t *vbucket) const
 {
     *vbucket = ev.vbucket;
+    bool valid = false;
+    const vbucket_state_t* encoded_state;
+
     switch (ev.state) {
     case vbucket_state_active:
-        *es = const_cast<void*>(static_cast<const void*>(&VBucket::ACTIVE));
+        encoded_state = &VBucket::ACTIVE;
+        valid = true;
         break;
     case vbucket_state_replica:
-        *es = const_cast<void*>(static_cast<const void*>(&VBucket::REPLICA));
+        encoded_state = &VBucket::REPLICA;
+        valid = true;
         break;
     case vbucket_state_pending:
-        *es = const_cast<void*>(static_cast<const void*>(&VBucket::PENDING));
+        encoded_state = &VBucket::PENDING;
+        valid = true;
         break;
     case vbucket_state_dead:
-        *es = const_cast<void*>(static_cast<const void*>(&VBucket::DEAD));
+        encoded_state = &VBucket::DEAD;
+        valid = true;
         break;
-    default:
-        // Illegal vbucket state
-        abort();
     }
-    *nes = sizeof(vbucket_state_t);
+
+    if (valid) {
+        *es = const_cast<void*>(static_cast<const void*>(encoded_state));
+        *nes = sizeof(vbucket_state_t);
+        return;
+    }
+
+    throw std::logic_error("TapProducer::encodeVBucketStateTransition: "
+            "Invalid state field for VBucketEvent{"
+            "event:" + std::to_string(ev.event) +
+            " vbucket:" + std::to_string(ev.vbucket) +
+            " state:" + std::to_string(ev.state));
 }
 
 bool TapProducer::waitForCheckpointMsgAck() {
@@ -2045,9 +2056,8 @@ void Consumer::processedEvent(uint16_t event, ENGINE_ERROR_CODE ret)
 {
     switch (event) {
     case TAP_ACK:
-        logger.log(EXTENSION_LOG_WARNING,
-                   "Consumer should never recieve a tap ack");
-        abort();
+        throw std::logic_error("Consumer::processedEvent: should never "
+                "receive a TAP_ACK");
         break;
 
     case TAP_FLUSH:
