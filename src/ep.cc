@@ -1133,8 +1133,15 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
                                                            vbucket_state_t to,
                                                            bool transfer,
                                                            bool notify_dcp) {
-    // Lock to prevent a race condition between a failed update and add.
     LockHolder lh(vbsetMutex);
+    return setVBucketState_UNLOCKED(vbid, to, transfer, notify_dcp, lh);
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState_UNLOCKED(uint16_t vbid,
+                                                           vbucket_state_t to,
+                                                           bool transfer,
+                                                           bool notify_dcp,
+                                                           LockHolder& vbset) {
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (vb && to == vb->getState()) {
         return ENGINE_SUCCESS;
@@ -1176,7 +1183,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
             }
         }
 
-        lh.unlock();
         if (oldstate == vbucket_state_pending &&
             to == vbucket_state_active) {
             ExTask notifyTask = new PendingOpsNotification(engine, vb);
@@ -1204,13 +1210,11 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         uint64_t start_chk_id = (to == vbucket_state_active) ? 2 : 0;
         newvb->checkpointManager.setOpenCheckpointId(start_chk_id);
         if (vbMap.addBucket(newvb) == ENGINE_ERANGE) {
-            lh.unlock();
             return ENGINE_ERANGE;
         }
         vbMap.setPersistenceCheckpointId(vbid, 0);
         vbMap.setPersistenceSeqno(vbid, 0);
         vbMap.setBucketCreation(vbid, true);
-        lh.unlock();
         scheduleVBStatePersist(vbid);
     } else {
         return ENGINE_ERANGE;
@@ -1518,6 +1522,10 @@ void EventuallyPersistentStore::updateCompactionTasks(DBFileId db_file_id) {
 
 bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
     LockHolder lh(vbsetMutex);
+    return resetVBucket_UNLOCKED(vbid, lh);
+}
+
+bool EventuallyPersistentStore::resetVBucket_UNLOCKED(uint16_t vbid, LockHolder& vbset) {
     bool rv(false);
 
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
@@ -1525,13 +1533,13 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
         vbucket_state_t vbstate = vb->getState();
 
         vbMap.removeBucket(vbid);
-        lh.unlock();
 
         checkpointCursorInfoList cursors =
                                         vb->checkpointManager.getAllCursors();
         // Delete and recreate the vbucket database file
         scheduleVBDeletion(vb, NULL, 0);
-        setVBucketState(vbid, vbstate, false);
+        setVBucketState_UNLOCKED(vbid, vbstate,
+                                 false/*transfer*/, true/*notifyDcp*/, vbset);
 
         // Copy the all cursors from the old vbucket into the new vbucket
         RCPtr<VBucket> newvb = vbMap.getBucket(vbid);
@@ -3990,7 +3998,10 @@ void EventuallyPersistentStore::rollbackCheckpoint(RCPtr<VBucket> &vb,
 ENGINE_ERROR_CODE
 EventuallyPersistentStore::rollback(uint16_t vbid,
                                     uint64_t rollbackSeqno) {
+    LockHolder vbset(vbsetMutex);
+
     LockHolder lh(vb_mutexes[vbid], true /*tryLock*/);
+
     if (!lh.islocked()) {
         return ENGINE_TMPFAIL; // Reschedule a vbucket rollback task.
     }
@@ -4015,7 +4026,7 @@ EventuallyPersistentStore::rollback(uint16_t vbid,
             }
         }
 
-        if (resetVBucket(vbid)) {
+        if (resetVBucket_UNLOCKED(vbid, vbset)) {
             RCPtr<VBucket> newVb = vbMap.getBucket(vbid);
             newVb->incrRollbackItemCount(prevHighSeqno);
             return ENGINE_SUCCESS;

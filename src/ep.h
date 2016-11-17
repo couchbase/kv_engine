@@ -1018,6 +1018,12 @@ protected:
      */
     void rollbackCheckpoint(RCPtr<VBucket> &vb, int64_t rollbackSeqno);
 
+    bool resetVBucket_UNLOCKED(uint16_t vbid, LockHolder& vbset);
+
+    ENGINE_ERROR_CODE setVBucketState_UNLOCKED(uint16_t vbid, vbucket_state_t state,
+                                               bool transfer, bool notify_dcp,
+                                               LockHolder& vbset);
+
     friend class Warmup;
     friend class Flusher;
     friend class BGFetchCallback;
