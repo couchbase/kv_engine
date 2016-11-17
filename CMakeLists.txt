@@ -13,6 +13,8 @@ INCLUDE(CheckSymbolExists)
 INCLUDE(CheckTypeSize)
 INCLUDE(CTest)
 
+OPTION(EP_USE_FORESTDB "Enable support for ForestDB" ON)
+
 INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${CMAKE_CURRENT_SOURCE_DIR}
                            ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -23,9 +25,15 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${Memcached_SOURCE_DIR}
                            ${Memcached_SOURCE_DIR}/include
                            ${Couchstore_SOURCE_DIR}/include
-                           ${ForestDB_SOURCE_DIR}/include
                            ${phosphor_SOURCE_DIR}/include
                            ${CMAKE_CURRENT_BINARY_DIR})
+
+IF (EP_USE_FORESTDB)
+    INCLUDE_DIRECTORIES(AFTER ${ForestDB_SOURCE_DIR}/include)
+    SET(FOREST_KVSTORE_SOURCE src/forest-kvstore/forest-kvstore.cc)
+    SET(EP_FORESTDB_LIB forestdb)
+    ADD_DEFINITIONS(-DEP_USE_FORESTDB=1)
+ENDIF (EP_USE_FORESTDB)
 
 INCLUDE_DIRECTORIES(AFTER
                     ${gtest_SOURCE_DIR}/include
@@ -115,7 +123,6 @@ ADD_CUSTOM_COMMAND(OUTPUT
 SET(KVSTORE_SOURCE src/crc32.c src/kvstore.cc)
 SET(COUCH_KVSTORE_SOURCE src/couch-kvstore/couch-kvstore.cc
             src/couch-kvstore/couch-fs-stats.cc)
-SET(FOREST_KVSTORE_SOURCE src/forest-kvstore/forest-kvstore.cc)
 SET(OBJECTREGISTRY_SOURCE src/objectregistry.cc)
 SET(CONFIG_SOURCE src/configuration.cc
   ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.cc)
@@ -177,7 +184,7 @@ ADD_LIBRARY(ep SHARED
             ${CONFIG_SOURCE})
 
 SET_TARGET_PROPERTIES(ep PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep cJSON JSON_checker couchstore forestdb
+TARGET_LINK_LIBRARIES(ep cJSON JSON_checker couchstore ${EP_FORESTDB_LIB}
   dirutils platform phosphor ${LIBEVENT_LIBRARIES})
 
 # Single executable containing all class-level unit tests involving
@@ -254,7 +261,9 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
   ${FOREST_KVSTORE_SOURCE}
   $<TARGET_OBJECTS:memory_tracking>
   ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc)
-TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests couchstore cJSON dirutils forestdb gtest gmock JSON_checker mcd_util platform
+TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests couchstore cJSON dirutils
+                      ${EP_FORESTDB_LIB} gtest gmock JSON_checker mcd_util
+                      platform
                       phosphor ${MALLOC_LIBRARIES})
 
 ADD_EXECUTABLE(ep-engine_atomic_ptr_test
@@ -348,7 +357,8 @@ ADD_EXECUTABLE(ep-engine_kvstore_test
   ${FOREST_KVSTORE_SOURCE} ${CONFIG_SOURCE}
   $<TARGET_OBJECTS:couchstore_test_fileops>)
 TARGET_LINK_LIBRARIES(ep-engine_kvstore_test
-                      cJSON JSON_checker couchstore dirutils forestdb gmock gtest platform phosphor)
+                      cJSON JSON_checker couchstore dirutils ${EP_FORESTDB_LIB}
+                      gmock gtest platform phosphor)
 TARGET_INCLUDE_DIRECTORIES(ep-engine_kvstore_test
         PUBLIC
         ${Couchstore_SOURCE_DIR})

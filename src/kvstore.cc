@@ -23,7 +23,9 @@
 
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
+#ifdef EP_USE_FORESTDB
 #include "forest-kvstore/forest-kvstore.h"
+#endif
 #include "statwriter.h"
 #include "kvstore.h"
 #include "vbucket.h"
@@ -70,8 +72,10 @@ KVStore *KVStoreFactory::create(KVStoreConfig &config, bool read_only) {
     std::string backend = config.getBackend();
     if (backend.compare("couchdb") == 0) {
         ret = new CouchKVStore(config, read_only);
+#ifdef EP_USE_FORESTDB
     } else if (backend.compare("forestdb") == 0) {
         ret = new ForestKVStore(config);
+#endif
     } else {
         LOG(EXTENSION_LOG_WARNING, "Unknown backend: [%s]", backend.c_str());
     }

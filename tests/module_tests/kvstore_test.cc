@@ -1643,6 +1643,7 @@ TEST_F(CouchKVStoreMetaData, assignment) {
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, copy2->getDataType());
 }
 
+#ifdef EP_USE_FORESTDB
 // Test cases which run on both Couchstore and ForestDB
 INSTANTIATE_TEST_CASE_P(CouchstoreAndForestDB,
                         CouchAndForestTest,
@@ -1650,6 +1651,14 @@ INSTANTIATE_TEST_CASE_P(CouchstoreAndForestDB,
                         [] (const ::testing::TestParamInfo<std::string>& info) {
                             return info.param;
                         });
+#else
+INSTANTIATE_TEST_CASE_P(CouchstoreAndForestDB,
+                        CouchAndForestTest,
+                        ::testing::Values("couchdb"),
+                        [] (const ::testing::TestParamInfo<std::string>& info) {
+                            return info.param;
+                        });
+#endif
 
 static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
 
