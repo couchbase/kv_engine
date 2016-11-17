@@ -1225,15 +1225,17 @@ void McbpConnection::maybeLogSlowCommand(
 
         const char* opcode = memcached_opcode_2_text(cmd);
         if (opcode == NULL) {
-            LOG_WARNING(NULL, "%u: Slow 0x%0X operation on connection: %s (%s)",
+            LOG_WARNING(NULL, "%u: Slow 0x%0X operation on connection: %s (%s)"
+                        " opaque:0x%08x",
                         getId(), cmd,
                         Couchbase::hrtime2text(timings).c_str(),
-                        getDescription().c_str());
+                        getDescription().c_str(), getOpaque());
         } else {
-            LOG_WARNING(NULL, "%u: Slow %s operation on connection: %s (%s)",
+            LOG_WARNING(NULL, "%u: Slow %s operation on connection: %s (%s)"
+                        " opaque:0x%08x",
                         getId(), opcode,
                         Couchbase::hrtime2text(timings).c_str(),
-                        getDescription().c_str());
+                        getDescription().c_str(), getOpaque());
         }
     }
 }
