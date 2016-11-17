@@ -250,14 +250,10 @@ TEST_P(StatsTest, TestBucketDetails) {
 
 TEST_P(StatsTest, TestAggregate) {
     MemcachedConnection& conn = getConnection();
-    try {
-        auto stats = conn.stats("aggregate");
-        // Don't expect the entire stats set, but we should at least have
-        // the pid
-        EXPECT_NE(nullptr, cJSON_GetObjectItem(stats.get(), "pid"));
-    } catch (...) {
-        FAIL() << "Failed to fetch the aggregate stats";
-    }
+    auto stats = conn.stats("aggregate");
+    // Don't expect the entire stats set, but we should at least have
+    // the pid
+    EXPECT_NE(nullptr, cJSON_GetObjectItem(stats.get(), "pid"));
 }
 
 TEST_P(StatsTest, DISABLED_TestConnections) {
@@ -313,69 +309,61 @@ TEST_P(StatsTest, TestConnectionsInvalidNumber) {
 TEST_P(StatsTest, TestTopkeys) {
     MemcachedConnection& conn = getConnection();
 
-    try {
-        for (int ii = 0; ii < 10; ++ii) {
-            Document doc;
-            doc.info.cas = Greenstack::CAS::Wildcard;
-            doc.info.compression = Greenstack::Compression::None;
-            doc.info.datatype = Greenstack::Datatype::Json;
-            doc.info.flags = 0xcaffee;
-            doc.info.id = name;
-            char* ptr = cJSON_Print(memcached_cfg.get());
-            std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
-            cJSON_Free(ptr);
+    for (int ii = 0; ii < 10; ++ii) {
+        Document doc;
+        doc.info.cas = Greenstack::CAS::Wildcard;
+        doc.info.compression = Greenstack::Compression::None;
+        doc.info.datatype = Greenstack::Datatype::Json;
+        doc.info.flags = 0xcaffee;
+        doc.info.id = name;
+        char* ptr = cJSON_Print(memcached_cfg.get());
+        std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
+        cJSON_Free(ptr);
 
-            conn.mutate(doc, 0, Greenstack::MutationType::Set);
-        }
-
-        auto stats = conn.stats("topkeys");
-        cJSON* elem = cJSON_GetObjectItem(stats.get(), name.c_str());
-        EXPECT_NE(nullptr, elem);
-    } catch (...) {
-        FAIL() << "Failed to fetch the topkeys stats";
+        conn.mutate(doc, 0, Greenstack::MutationType::Set);
     }
+
+    auto stats = conn.stats("topkeys");
+    cJSON* elem = cJSON_GetObjectItem(stats.get(), name.c_str());
+    EXPECT_NE(nullptr, elem);
 }
 
 TEST_P(StatsTest, TestTopkeysJson) {
     MemcachedConnection& conn = getConnection();
 
-    try {
-        for (int ii = 0; ii < 10; ++ii) {
-            Document doc;
-            doc.info.cas = Greenstack::CAS::Wildcard;
-            doc.info.compression = Greenstack::Compression::None;
-            doc.info.datatype = Greenstack::Datatype::Json;
-            doc.info.flags = 0xcaffee;
-            doc.info.id = name;
-            char* ptr = cJSON_Print(memcached_cfg.get());
-            std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
-            cJSON_Free(ptr);
+    for (int ii = 0; ii < 10; ++ii) {
+        Document doc;
+        doc.info.cas = Greenstack::CAS::Wildcard;
+        doc.info.compression = Greenstack::Compression::None;
+        doc.info.datatype = Greenstack::Datatype::Json;
+        doc.info.flags = 0xcaffee;
+        doc.info.id = name;
+        char* ptr = cJSON_Print(memcached_cfg.get());
+        std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
+        cJSON_Free(ptr);
 
-            conn.mutate(doc, 0, Greenstack::MutationType::Set);
-        }
-
-        auto stats = conn.stats("topkeys_json");
-        auto* topkeys = cJSON_GetObjectItem(stats.get(), "topkeys_json");
-        ASSERT_NE(nullptr, topkeys);
-        unique_cJSON_ptr value(cJSON_Parse(topkeys->valuestring));
-        ASSERT_NE(nullptr, value.get());
-        bool found = false;
-        cJSON* items = cJSON_GetObjectItem(value.get(), "topkeys");
-        for (auto* child = items->child;
-             child != nullptr; child = child->next) {
-            auto* key = cJSON_GetObjectItem(child, "key");
-            ASSERT_NE(nullptr, key);
-            std::string val(key->valuestring);
-            if (name == val) {
-                found = true;
-                break;
-            }
-        }
-
-        EXPECT_TRUE(found);
-    } catch (...) {
-        FAIL() << "Failed to fetch the default number of stats";
+        conn.mutate(doc, 0, Greenstack::MutationType::Set);
     }
+
+    auto stats = conn.stats("topkeys_json");
+    auto* topkeys = cJSON_GetObjectItem(stats.get(), "topkeys_json");
+    ASSERT_NE(nullptr, topkeys);
+    unique_cJSON_ptr value(cJSON_Parse(topkeys->valuestring));
+    ASSERT_NE(nullptr, value.get());
+    bool found = false;
+    cJSON* items = cJSON_GetObjectItem(value.get(), "topkeys");
+    for (auto* child = items->child;
+         child != nullptr; child = child->next) {
+        auto* key = cJSON_GetObjectItem(child, "key");
+        ASSERT_NE(nullptr, key);
+        std::string val(key->valuestring);
+        if (name == val) {
+            found = true;
+            break;
+        }
+    }
+
+    EXPECT_TRUE(found);
 }
 
 TEST_P(StatsTest, TestSubdocExecute) {
