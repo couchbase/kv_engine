@@ -2582,7 +2582,7 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     itm_meta.exptime = info.exptime;
     itm_meta.flags = info.flags;
     set_with_meta(h, h1, key1, strlen(key1), val1, strlen(val1), 0, &itm_meta,
-                  last_cas, false, info.datatype, false, cookie);
+                  last_cas, 0, info.datatype, cookie);
 
     checkeq(ENGINE_SUCCESS,
             h1->get(h, cookie, &itm, key1, strlen(key1), 0),
@@ -2614,7 +2614,7 @@ static enum test_result test_datatype_with_unknown_command(ENGINE_HANDLE *h,
 
     //SET_WITH_META
     set_with_meta(h, h1, key, strlen(key), val, strlen(val), 0, &itm_meta,
-                  0, false, datatype, false, cookie);
+                  0, 0, datatype, cookie);
 
     checkeq(ENGINE_SUCCESS,
             h1->get(h, cookie, &itm, key, strlen(key), 0),

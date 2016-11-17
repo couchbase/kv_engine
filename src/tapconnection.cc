@@ -2202,7 +2202,9 @@ ENGINE_ERROR_CODE TapConsumer::mutation(uint32_t opaque, const void* key,
         ret = epstore->addTAPBackfillItem(*item, nru, true);
     }
     else {
-        ret = epstore->setWithMeta(*item, 0, NULL, this, true, true, nru, true,
+        ret = epstore->setWithMeta(*item, 0, NULL, this, true, true, nru,
+                                   GenerateBySeqno::Yes,
+                                   GenerateCas::No,
                                    NULL, true);
     }
 
@@ -2257,7 +2259,8 @@ ENGINE_ERROR_CODE TapConsumer::deletion(uint32_t opaque, const void* key,
     ItemMetaData itemMeta(cas, revSeqno, 0, 0);
     ret = epstore->deleteWithMeta(key_str, &delCas, NULL, vbucket, this, true,
                                   &itemMeta, isBackfillPhase(vbucket),
-                                  true, 0, NULL, true);
+                                  GenerateBySeqno::Yes, GenerateCas::No, 0,
+                                  NULL, true);
 
     if (ret == ENGINE_KEY_ENOENT) {
         ret = ENGINE_SUCCESS;

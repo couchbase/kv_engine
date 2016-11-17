@@ -1007,6 +1007,23 @@ protected:
     // server.
     void initializeEngineCallbacks();
 
+    /*
+     * Private helper method for decoding the options on set/del_with_meta.
+     * Tighly coupled to the logic of both those functions, it will
+     * take a request pointer and locate and validate any options within.
+     * @param request pointer to the set/del_with_meta request packet
+     * @param generateCas set to Yes if CAS regeneration is enabled.
+     * @param skipConflictResolution set to true if conflict resolution should
+     *        not be performed.
+     * @param keyOffset set to the number of bytes which are to be skipped to
+     *        locate the key.
+     */
+    protocol_binary_response_status decodeWithMetaOptions(
+                              protocol_binary_request_delete_with_meta* request,
+                              GenerateCas& generateCas,
+                              bool& skipConflictResolution,
+                              int& keyOffset);
+
     SERVER_HANDLE_V1 *serverApi;
     EventuallyPersistentStore *epstore;
     WorkLoadPolicy *workload;

@@ -1704,7 +1704,9 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     } else {
         ret = engine->getEpStore()->setWithMeta(*mutation->getItem(), 0, NULL,
                                                 consumer->getCookie(), true,
-                                                true, INITIAL_NRU_VALUE, false,
+                                                true, INITIAL_NRU_VALUE,
+                                                GenerateBySeqno::No,
+                                                GenerateCas::No,
                                                 mutation->getExtMetaData(),
                                                 true);
     }
@@ -1757,7 +1759,9 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
                                                &delCas, NULL, deletion->getVBucket(),
                                                consumer->getCookie(), true,
                                                &meta, vb->isBackfillPhase(),
-                                               false, deletion->getBySeqno(),
+                                               GenerateBySeqno::No,
+                                               GenerateCas::No,
+                                               deletion->getBySeqno(),
                                                deletion->getExtMetaData(),
                                                true);
     if (ret == ENGINE_KEY_ENOENT) {

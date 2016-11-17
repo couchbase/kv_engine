@@ -2104,7 +2104,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
                                                      bool force,
                                                      bool allowExisting,
                                                      uint8_t nru,
-                                                     bool genBySeqno,
+                                                     GenerateBySeqno genBySeqno,
+                                                     GenerateCas genCas,
                                                      ExtendedMetaData *emd,
                                                      bool isReplication)
 {
@@ -2195,9 +2196,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
     case WAS_DIRTY:
     case WAS_CLEAN:
         vb->setMaxCasAndTrackDrift(v->getCas());
-        queueDirty(vb, v, &lh, seqno,
-                   genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No,
-                   GenerateCas::No);
+        queueDirty(vb, v, &lh, seqno, genBySeqno, genCas);
         break;
     case NOT_FOUND:
         ret = ENGINE_KEY_ENOENT;
@@ -2751,7 +2750,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
                                                      bool force,
                                                      ItemMetaData *itemMeta,
                                                      bool tapBackfill,
-                                                     bool genBySeqno,
+                                                     GenerateBySeqno genBySeqno,
+                                                     GenerateCas generateCas,
                                                      uint64_t bySeqno,
                                                      ExtendedMetaData *emd,
                                                      bool isReplication)
@@ -2865,19 +2865,16 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
         break;
     case WAS_DIRTY:
     case WAS_CLEAN:
-        if (!genBySeqno) {
+        if (genBySeqno == GenerateBySeqno::No) {
             v->setBySeqno(bySeqno);
         }
 
         vb->setMaxCasAndTrackDrift(v->getCas());
 
         if (tapBackfill) {
-            tapQueueDirty(*vb, v, lh, seqno,
-                          genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No);
+            tapQueueDirty(*vb, v, lh, seqno, genBySeqno);
         } else {
-            queueDirty(vb, v, &lh, seqno,
-                       genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No,
-                       GenerateCas::No);
+            queueDirty(vb, v, &lh, seqno, genBySeqno, generateCas);
         }
         break;
     case NEED_BG_FETCH:
