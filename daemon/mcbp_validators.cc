@@ -132,7 +132,8 @@ static protocol_binary_response_status dcp_mutation_validator(const Cookie& cook
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != (2*sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(uint16_t)) + sizeof(uint8_t) ||
         req->message.header.request.keylen == 0 ||
-        req->message.header.request.bodylen == 0) {
+        req->message.header.request.bodylen == 0 ||
+        !mcbp::datatype::is_valid(req->message.header.request.datatype)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -418,11 +419,14 @@ static protocol_binary_response_status add_validator(const Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
     /* Must have extras and key, may have value */
+    auto datatype = req->message.header.request.datatype;
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 8 ||
         req->message.header.request.keylen == 0 ||
-        req->message.header.request.cas != 0) {
+        req->message.header.request.cas != 0 ||
+        mcbp::datatype::is_xattr(datatype) ||
+        !mcbp::datatype::is_valid(datatype)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -432,10 +436,13 @@ static protocol_binary_response_status set_replace_validator(const Cookie& cooki
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
     /* Must have extras and key, may have value */
+    auto datatype = req->message.header.request.datatype;
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 8 ||
-        req->message.header.request.keylen == 0) {
+        req->message.header.request.keylen == 0 ||
+        mcbp::datatype::is_xattr(datatype) ||
+        !mcbp::datatype::is_valid(datatype)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -445,10 +452,13 @@ static protocol_binary_response_status append_prepend_validator(const Cookie& co
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
     /* Must not have extras, must have key, may have value */
+    auto datatype = req->message.header.request.datatype;
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
-        req->message.header.request.keylen == 0) {
+        req->message.header.request.keylen == 0 ||
+        mcbp::datatype::is_xattr(datatype) ||
+        !mcbp::datatype::is_valid(datatype)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;

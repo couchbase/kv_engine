@@ -29,6 +29,7 @@
 #include "timings.h"
 #include "topkeys.h"
 #include "utilities/protocol2text.h"
+#include "xattr_utils.h"
 
 #include <platform/histogram.h>
 

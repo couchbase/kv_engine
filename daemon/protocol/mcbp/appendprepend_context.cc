@@ -16,6 +16,7 @@
  */
 #include "appendprepend_context.h"
 #include "../../mcbp.h"
+#include "../../xattr_utils.h"
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::step() {
     ENGINE_ERROR_CODE ret;
@@ -111,10 +112,15 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
         oldsize = buffer.len;
     }
 
+    // If the existing item had XATTRs we need to preserve the xattrs
+    protocol_binary_datatype_t datatype = PROTOCOL_BINARY_RAW_BYTES;
+    if (mcbp::datatype::is_xattr(oldItemInfo.info.datatype)) {
+        datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
+    }
     ENGINE_ERROR_CODE ret;
     ret = bucket_allocate(&connection, &newitem, key.buf, key.len,
                           oldsize + value.len, oldItemInfo.info.flags, 0,
-                          PROTOCOL_BINARY_RAW_BYTES);
+                          datatype);
     if (ret == ENGINE_SUCCESS) {
         // copy the data over..
         newItemInfo.info.nvalue = 1;
@@ -138,8 +144,16 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
             memcpy(newdata, src, oldsize);
             memcpy(newdata + oldsize, value.buf, value.len);
         } else {
-            memcpy(newdata, value.buf, value.len);
-            memcpy(newdata + value.len, src, oldsize);
+            // The xattrs should go first
+            size_t offset = 0;
+            if (mcbp::datatype::is_xattr(oldItemInfo.info.datatype)) {
+                offset = cb::xattr::get_body_offset({src, oldsize});
+                memcpy(newdata, src, offset);
+            }
+
+            memcpy(newdata + offset, value.buf, value.len);
+            memcpy(newdata + offset + value.len, src + offset,
+                   oldsize - offset);
         }
         bucket_item_set_cas(&connection, newitem, oldItemInfo.info.cas);
 

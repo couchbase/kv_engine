@@ -88,10 +88,11 @@ protected:
      * If the document is found we may move to the State::InflateItem if we
      * have to inflate the item before we can send it to the client (that
      * would happen if the document is compressed and the client can't handle
-     * that.
+     * that (or it contains xattrs which we need to strip off).
      *
-     * If the object isn't compressed (or the client won't freak out if we
-     * send compressed data) we'll progress into the State::SendResponse state.
+     * If the object isn't compressed (or it doesn't contain any xattrs and
+     * the client won't freak out if we send compressed data) we'll progress
+     * into the State::SendResponse state.
      *
      * @return ENGINE_EWOULDBLOCK if the underlying engine needs to block
      *         ENGINE_SUCCESS if we want to continue to run the state diagram

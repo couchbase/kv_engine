@@ -98,6 +98,11 @@ extern "C" {
         uint16_t nvalue; /** < IN: The number of elements available in value
                           * OUT: the number of elements used in value */
         const void *key;
+        /**
+         * If the xattr bit is set in datatype the first uint32_t contains
+         * the size of the extended attributes which follows next, and
+         * finally the actual document payload.
+         */
         struct iovec value[1];
     } item_info;
 

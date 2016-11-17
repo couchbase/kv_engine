@@ -16,6 +16,7 @@
  */
 #include "arithmetic_context.h"
 #include "../../mcbp.h"
+#include "../../xattr_utils.h"
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
     auto ret = bucket_get(&connection, &olditem, key.buf, key.len, vbucket);
@@ -117,7 +118,13 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
         oldsize = buffer.len;
     }
 
-    const std::string payload(ptr, oldsize);
+    // Preserve the XATTRs of the existing item if it had any
+    size_t xattrsize = 0;
+    if (mcbp::datatype::is_xattr(oldItemInfo.info.datatype)) {
+        xattrsize = cb::xattr::get_body_offset({ptr, oldsize});
+    }
+    ptr += xattrsize;
+    const std::string payload(ptr, oldsize - xattrsize);
 
     uint64_t oldval;
     if (!safe_strtoull(payload.c_str(), &oldval)) {
@@ -141,11 +148,17 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
     result = oldval;
     const std::string value = std::to_string(result);
 
-    auto ret = bucket_allocate(&connection, &newitem, key.buf, key.len,
-                               value.size(),
-                               oldItemInfo.info.flags,
-                               ntohl(request.message.body.expiration),
-                               PROTOCOL_BINARY_RAW_BYTES);
+    protocol_binary_datatype_t datatype = PROTOCOL_BINARY_RAW_BYTES;
+    if (xattrsize > 0) {
+        datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
+    }
+
+    ENGINE_ERROR_CODE ret;
+    ret = bucket_allocate(&connection, &newitem, key.buf, key.len,
+                          xattrsize + value.size(),
+                          oldItemInfo.info.flags,
+                          ntohl(request.message.body.expiration),
+                          datatype);
 
     if (ret == ENGINE_SUCCESS) {
         // copy the data over..
@@ -156,9 +169,16 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
             return ENGINE_FAILED;
         }
 
-        memcpy(reinterpret_cast<char*>(newItemInfo.info.value[0].iov_base),
-               value.data(),
-               value.size());
+        const char* src = (const char*)oldItemInfo.info.value[0].iov_base;
+        if (buffer.len != 0) {
+            src = buffer.data.get();
+        }
+
+        char* newdata = (char*)newItemInfo.info.value[0].iov_base;
+
+        // copy the xattr over;
+        memcpy(newdata, src, xattrsize);
+        memcpy(newdata + xattrsize, value.data(), value.size());
 
         bucket_item_set_cas(&connection, newitem, oldItemInfo.info.cas);
 

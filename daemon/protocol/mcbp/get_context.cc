@@ -18,6 +18,7 @@
 
 #include <daemon/debug_helpers.h>
 #include <daemon/mcbp.h>
+#include <daemon/xattr_utils.h>
 
 GetCommandContext::~GetCommandContext() {
     if (it != nullptr) {
@@ -53,7 +54,8 @@ ENGINE_ERROR_CODE GetCommandContext::getItem() {
 
         bool need_inflate = false;
         if (mcbp::datatype::is_compressed(info.info.datatype)) {
-            need_inflate = !connection.isSupportsDatatype();
+            need_inflate = mcbp::datatype::is_xattr(info.info.datatype) ||
+                           !connection.isSupportsDatatype();
         }
 
         if (need_inflate) {
@@ -89,6 +91,12 @@ ENGINE_ERROR_CODE GetCommandContext::inflateItem() {
 
 ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
     protocol_binary_datatype_t datatype = info.info.datatype;
+
+    if (mcbp::datatype::is_xattr(info.info.datatype)) {
+        payload = cb::xattr::get_body(payload);
+        datatype &= ~(PROTOCOL_BINARY_DATATYPE_XATTR);
+        datatype &= ~(PROTOCOL_BINARY_DATATYPE_COMPRESSED);
+    }
 
     if (!connection.isSupportsDatatype()) {
         datatype = PROTOCOL_BINARY_RAW_BYTES;

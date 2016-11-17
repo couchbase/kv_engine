@@ -144,7 +144,9 @@ ADD_LIBRARY(memcached_daemon STATIC
             topkeys.cc
             topkeys.h
             tracing.cc
-            tracing.h)
+            tracing.h
+            xattr_utils.cc
+            xattr_utils.h)
 
 ADD_DEPENDENCIES(memcached_daemon generate_audit_descriptors)
 
@@ -154,6 +156,7 @@ ENDIF (NOT WIN32)
 
 TARGET_LINK_LIBRARIES(memcached_daemon
                       auditd
+                      extmeta
                       mcd_util
                       greenstack
                       cbsasl

@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2015 Couchbase, Inc.
+ *     Copyright 2016 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include "debug_helpers.h"
 #include "memcached.h"
 #include "utilities/protocol2text.h"
+#include "xattr_utils.h"
 
 #include <platform/compress.h>
 
@@ -299,8 +300,10 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
                 std::string mykey(reinterpret_cast<const char*>(key), keylen);
                 LOG_WARNING(c,
                             "<%u ERROR: Failed to inflate body, "
-                                "Key: %s may have an incorrect datatype",
-                            c->getId(), mykey.c_str());
+                                "Key: %s may have an incorrect datatype, "
+                                "Datatype indicates that document is %s",
+                            c->getId(), mykey.c_str(),
+                            mcbp::datatype::to_string(datatype).c_str());
                 return false;
             }
             payload.buf = buffer.data.get();
@@ -308,8 +311,14 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
         }
     }
 
-    size_t needed = payload.len + keylen + extlen +
-                    sizeof(protocol_binary_response_header);
+    if (mcbp::datatype::is_xattr(datatype)) {
+        // We need to strip off the xattrs
+        payload = cb::xattr::get_body(payload);
+        datatype &= ~(PROTOCOL_BINARY_DATATYPE_XATTR);
+    }
+
+    const size_t needed = payload.len + keylen + extlen +
+                          sizeof(protocol_binary_response_header);
 
     auto &dbuf = c->getDynamicBuffer();
     if (!dbuf.grow(needed)) {

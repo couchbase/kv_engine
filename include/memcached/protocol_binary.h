@@ -53,7 +53,7 @@
 #ifdef __cplusplus
 #include <stdexcept>
 #include <string>
-
+#include <sstream>
 extern "C"
 {
 #endif
@@ -479,36 +479,6 @@ extern "C"
     #define PROTOCOL_BINARY_DATATYPE_JSON uint8_t(1)
     #define PROTOCOL_BINARY_DATATYPE_COMPRESSED uint8_t(2)
     #define PROTOCOL_BINARY_DATATYPE_XATTR uint8_t(4)
-
-    namespace mcbp {
-        namespace datatype {
-            inline bool is_raw(const protocol_binary_datatype_t datatype) {
-                return datatype == PROTOCOL_BINARY_RAW_BYTES;
-            }
-
-            inline bool is_json(const protocol_binary_datatype_t datatype) {
-                return (datatype & PROTOCOL_BINARY_DATATYPE_JSON) ==
-                       PROTOCOL_BINARY_DATATYPE_JSON;
-            }
-
-            inline bool is_compressed(const protocol_binary_datatype_t datatype) {
-                return (datatype & PROTOCOL_BINARY_DATATYPE_COMPRESSED) ==
-                       PROTOCOL_BINARY_DATATYPE_COMPRESSED;
-            }
-
-            inline bool is_xattr(const protocol_binary_datatype_t datatype) {
-                return (datatype & PROTOCOL_BINARY_DATATYPE_XATTR) ==
-                       PROTOCOL_BINARY_DATATYPE_XATTR;
-            }
-            inline bool is_valid(const protocol_binary_datatype_t datatype) {
-                static uint8_t highest = PROTOCOL_BINARY_DATATYPE_XATTR |
-                                         PROTOCOL_BINARY_DATATYPE_COMPRESSED |
-                                         PROTOCOL_BINARY_DATATYPE_JSON;
-                return datatype <= highest;
-            }
-        }
-    }
-
 #else
     // The old style versions will go away as we move over to C++ everywhere
     #define PROTOCOL_BINARY_RAW_BYTES ((uint8_t)0)
@@ -2065,5 +2035,63 @@ inline std::string to_string(const Feature& feature) {
                                 std::to_string(uint16_t(feature)));
 }
 }
+
+// Create a namespace to handle the Datatypes
+namespace mcbp {
+namespace datatype {
+inline bool is_raw(const protocol_binary_datatype_t datatype) {
+    return datatype == PROTOCOL_BINARY_RAW_BYTES;
+}
+
+inline bool is_json(const protocol_binary_datatype_t datatype) {
+    return (datatype & PROTOCOL_BINARY_DATATYPE_JSON) ==
+           PROTOCOL_BINARY_DATATYPE_JSON;
+}
+
+inline bool is_compressed(const protocol_binary_datatype_t datatype) {
+    return (datatype & PROTOCOL_BINARY_DATATYPE_COMPRESSED) ==
+           PROTOCOL_BINARY_DATATYPE_COMPRESSED;
+}
+
+inline bool is_xattr(const protocol_binary_datatype_t datatype) {
+    return (datatype & PROTOCOL_BINARY_DATATYPE_XATTR) ==
+           PROTOCOL_BINARY_DATATYPE_XATTR;
+}
+
+inline bool is_valid(const protocol_binary_datatype_t datatype) {
+    static uint8_t highest = PROTOCOL_BINARY_DATATYPE_XATTR |
+                             PROTOCOL_BINARY_DATATYPE_COMPRESSED |
+                             PROTOCOL_BINARY_DATATYPE_JSON;
+    return datatype <= highest;
+}
+
+inline std::string to_string(const protocol_binary_datatype_t datatype) {
+    if (is_valid(datatype)) {
+        if (is_raw(datatype)) {
+            return std::string{"raw"};
+        } else {
+            std::stringstream ss;
+            if (is_compressed(datatype)) {
+                ss << "compressed,";
+            }
+            if (is_json(datatype)) {
+                ss << "json,";
+            }
+            if (is_xattr(datatype)) {
+                ss << "xattr,";
+            }
+
+            // remove the last ','
+            std::string ret = ss.str();
+            ret.resize(ret.size() - 1);
+            return ret;
+        }
+    } else {
+        return std::string{"invalid"};
+    }
+}
+}
+}
+
 #endif
 #endif /* PROTOCOL_BINARY_H */
