@@ -53,9 +53,8 @@ TEST_P(BucketTest, TestMaxNameLength) {
     name.resize(100);
     std::fill(name.begin(), name.end(), 'a');
 
-    EXPECT_NO_THROW(connection.createBucket(name, "",
-                                            Greenstack::BucketType::Memcached));
-    EXPECT_NO_THROW(connection.deleteBucket(name));
+    connection.createBucket(name, "", Greenstack::BucketType::Memcached);
+    connection.deleteBucket(name);
 }
 
 TEST_P(BucketTest, TestEmptyName) {
@@ -99,9 +98,8 @@ TEST_P(BucketTest, TestInvalidCharacters) {
         }
 
         if (legal) {
-            EXPECT_NO_THROW(connection.createBucket(name, "",
-                                                    Greenstack::BucketType::Memcached));
-            EXPECT_NO_THROW(connection.deleteBucket(name));
+            connection.createBucket(name, "", Greenstack::BucketType::Memcached);
+            connection.deleteBucket(name);
         } else {
             try {
                 connection.createBucket(name, "",
@@ -131,7 +129,7 @@ TEST_P(BucketTest, TestMultipleBuckets) {
 
     for (--ii; ii > 0; --ii) {
         std::string name = "bucket-" + std::to_string(ii);
-        EXPECT_NO_THROW(connection.deleteBucket(name));
+        connection.deleteBucket(name);
     }
 }
 
@@ -421,15 +419,14 @@ TEST_P(BucketTest, TestBucketIsolationBuckets)
 
     for (int ii = 1; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
         std::string name = "bucket-" + std::to_string(ii);
-        EXPECT_NO_THROW(connection.selectBucket(name));
-        EXPECT_NO_THROW(connection.mutate(doc, 0,
-                                          Greenstack::MutationType::Add));
+        connection.selectBucket(name);
+        connection.mutate(doc, 0, Greenstack::MutationType::Add);
     }
 
     // Delete all buckets
     for (int ii = 1; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
         std::string name = "bucket-" + std::to_string(ii);
-        EXPECT_NO_THROW(connection.deleteBucket(name));
+        connection.deleteBucket(name);
     }
 }
 
@@ -443,7 +440,7 @@ TEST_P(BucketTest, TestMemcachedBucketBigObjects)
     ASSERT_NO_THROW(connection.createBucket(name,
                                             config,
                                             Greenstack::BucketType::Memcached));
-    EXPECT_NO_THROW(connection.selectBucket(name));
+    connection.selectBucket(name);
 
     Document doc;
     doc.info.cas = Greenstack::CAS::Wildcard;
@@ -455,7 +452,7 @@ TEST_P(BucketTest, TestMemcachedBucketBigObjects)
     // internal headers (this would be the key and the hash_item struct).
     doc.value.resize(item_max_size - name.length() - 100);
 
-    EXPECT_NO_THROW(connection.mutate(doc, 0, Greenstack::MutationType::Add));
-    EXPECT_NO_THROW(connection.get(name, 0));
-    EXPECT_NO_THROW(connection.deleteBucket(name));
+    connection.mutate(doc, 0, Greenstack::MutationType::Add);
+    connection.get(name, 0);
+    connection.deleteBucket(name);
 }

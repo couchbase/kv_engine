@@ -207,9 +207,7 @@ TEST_F(RequireInitTest, InitializeSuccess) {
     ASSERT_NO_THROW(portnumbers = loadJsonFile(portnumber_file));
     connectionMap.initialize(portnumbers.get());
     // And now we should have the SSL connection available
-    EXPECT_NO_THROW(connectionMap.getConnection(Protocol::Memcached, true,
-                                             AF_INET));
-
+    connectionMap.getConnection(Protocol::Memcached, true, AF_INET);
 
     EXPECT_EQ(0, remove(portnumber_file.c_str()));
 

@@ -62,7 +62,7 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
 TEST_P(SaslauthdTest, TestSuccessfulSaslauthd) {
     MemcachedConnection& conn = getConnection();
     std::thread saslauthd{[]() {
-        EXPECT_NO_THROW(authdMock->processOne());
+        authdMock->processOne();
     }};
 
     conn.authenticate("superman", "<3LoisLane<3", "PLAIN");
@@ -73,7 +73,7 @@ TEST_P(SaslauthdTest, TestIncorrectSaslauthd) {
     MemcachedConnection& conn = getConnection();
 
     std::thread saslauthd{[]() {
-        EXPECT_NO_THROW(authdMock->processOne());
+        authdMock->processOne();
     }};
 
     EXPECT_THROW(conn.authenticate("superman", "Lane<3", "PLAIN"),
@@ -86,7 +86,7 @@ TEST_P(SaslauthdTest, TestUnknownUser) {
     MemcachedConnection& conn = getConnection();
 
     std::thread saslauthd{[]() {
-        EXPECT_NO_THROW(authdMock->processOne());
+        authdMock->processOne();
     }};
 
     EXPECT_THROW(conn.authenticate("godzilla", "Lane<3", "PLAIN"),

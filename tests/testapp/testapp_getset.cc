@@ -47,7 +47,7 @@ TEST_P(GetSetTest, TestAdd) {
     std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
     cJSON_Free(ptr);
 
-    EXPECT_NO_THROW(conn.mutate(doc, 0, Greenstack::MutationType::Add));
+    conn.mutate(doc, 0, Greenstack::MutationType::Add);
 
     // Adding it one more time should fail
     try {
@@ -87,11 +87,10 @@ TEST_P(GetSetTest, TestReplace) {
         EXPECT_TRUE(error.isNotFound()) << error.what();
     }
 
-    EXPECT_NO_THROW(conn.mutate(doc, 0, Greenstack::MutationType::Add));
+    conn.mutate(doc, 0, Greenstack::MutationType::Add);
     // Replace this time should be fine!
     MutationInfo info;
-    EXPECT_NO_THROW(
-        info = conn.mutate(doc, 0, Greenstack::MutationType::Replace));
+    info = conn.mutate(doc, 0, Greenstack::MutationType::Replace);
 
     // Replace with invalid cas should fail
     doc.info.cas = info.cas + 1;
@@ -126,15 +125,15 @@ TEST_P(GetSetTest, TestSet) {
 
     // set should work even if a nonexisting document should fail
     doc.info.cas = Greenstack::CAS::Wildcard;
-    EXPECT_NO_THROW(conn.mutate(doc, 0, Greenstack::MutationType::Set));
+    conn.mutate(doc, 0, Greenstack::MutationType::Set);
 
     // And it should be possible to set it once more
     MutationInfo info;
-    EXPECT_NO_THROW(info = conn.mutate(doc, 0, Greenstack::MutationType::Set));
+    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
 
     // And it should be possible to set it with a CAS
     doc.info.cas = info.cas;
-    EXPECT_NO_THROW(info = conn.mutate(doc, 0, Greenstack::MutationType::Set));
+    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
 
     // Replace with invalid cas should fail
     doc.info.cas = info.cas + 1;
@@ -168,10 +167,10 @@ TEST_P(GetSetTest, TestGetSuccess) {
     std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
     cJSON_Free(ptr);
 
-    EXPECT_NO_THROW(conn.mutate(doc, 0, Greenstack::MutationType::Set));
+    conn.mutate(doc, 0, Greenstack::MutationType::Set);
 
     Document stored;
-    EXPECT_NO_THROW(stored = conn.get(name, 0));
+    stored = conn.get(name, 0);
 
     EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
@@ -191,12 +190,12 @@ TEST_P(GetSetTest, TestAppend) {
     doc.info.id = name;
     doc.value.push_back('a');
 
-    EXPECT_NO_THROW(conn.mutate(doc, 0, Greenstack::MutationType::Set));
+    conn.mutate(doc, 0, Greenstack::MutationType::Set);
     doc.value[0] = 'b';
-    EXPECT_NO_THROW(conn.mutate(doc, 0, Greenstack::MutationType::Append));
+    conn.mutate(doc, 0, Greenstack::MutationType::Append);
 
     Document stored;
-    EXPECT_NO_THROW(stored = conn.get(name, 0));
+    stored = conn.get(name, 0);
 
     EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
@@ -219,13 +218,13 @@ TEST_P(GetSetTest, TestAppendCasSuccess) {
     doc.value.push_back('a');
 
     MutationInfo info;
-    EXPECT_NO_THROW(info = conn.mutate(doc, 0, Greenstack::MutationType::Set));
+    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
     doc.value[0] = 'b';
     doc.info.cas = info.cas;
-    EXPECT_NO_THROW(conn.mutate(doc, 0, Greenstack::MutationType::Append));
+    conn.mutate(doc, 0, Greenstack::MutationType::Append);
 
     Document stored;
-    EXPECT_NO_THROW(stored = conn.get(name, 0));
+    stored = conn.get(name, 0);
 
     EXPECT_NE(info.cas, stored.info.cas);
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
@@ -248,7 +247,7 @@ TEST_P(GetSetTest, TestAppendCasMismatch) {
     doc.value.push_back('a');
 
     MutationInfo info;
-    EXPECT_NO_THROW(info = conn.mutate(doc, 0, Greenstack::MutationType::Set));
+    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
     doc.value[0] = 'b';
     doc.info.cas = info.cas + 1;
     try {
@@ -258,7 +257,7 @@ TEST_P(GetSetTest, TestAppendCasMismatch) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
     }
     Document stored;
-    EXPECT_NO_THROW(stored = conn.get(name, 0));
+    stored = conn.get(name, 0);
 
     EXPECT_EQ(info.cas, stored.info.cas);
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
@@ -279,12 +278,12 @@ TEST_P(GetSetTest, TestPrepend) {
     doc.info.id = name;
     doc.value.push_back('a');
 
-    EXPECT_NO_THROW(conn.mutate(doc, 0, Greenstack::MutationType::Set));
+    conn.mutate(doc, 0, Greenstack::MutationType::Set);
     doc.value[0] = 'b';
-    EXPECT_NO_THROW(conn.mutate(doc, 0, Greenstack::MutationType::Prepend));
+    conn.mutate(doc, 0, Greenstack::MutationType::Prepend);
 
     Document stored;
-    EXPECT_NO_THROW(stored = conn.get(name, 0));
+    stored = conn.get(name, 0);
 
     EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
@@ -306,13 +305,13 @@ TEST_P(GetSetTest, TestPrependCasSuccess) {
     doc.value.push_back('a');
 
     MutationInfo info;
-    EXPECT_NO_THROW(info = conn.mutate(doc, 0, Greenstack::MutationType::Set));
+    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
     doc.value[0] = 'b';
     doc.info.cas = info.cas;
-    EXPECT_NO_THROW(conn.mutate(doc, 0, Greenstack::MutationType::Prepend));
+    conn.mutate(doc, 0, Greenstack::MutationType::Prepend);
 
     Document stored;
-    EXPECT_NO_THROW(stored = conn.get(name, 0));
+    stored = conn.get(name, 0);
 
     EXPECT_NE(info.cas, stored.info.cas);
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
@@ -334,7 +333,7 @@ TEST_P(GetSetTest, TestPerpendCasMismatch) {
     doc.value.push_back('a');
 
     MutationInfo info;
-    EXPECT_NO_THROW(info = conn.mutate(doc, 0, Greenstack::MutationType::Set));
+    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
     doc.value[0] = 'b';
     doc.info.cas = info.cas + 1;
     try {
@@ -344,7 +343,7 @@ TEST_P(GetSetTest, TestPerpendCasMismatch) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
     }
     Document stored;
-    EXPECT_NO_THROW(stored = conn.get(name, 0));
+    stored = conn.get(name, 0);
 
     EXPECT_EQ(info.cas, stored.info.cas);
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
@@ -398,14 +397,14 @@ TEST_P(GetSetTest, TestAppendCompressedSource) {
     compress_vector(input, doc.value);
 
     MutationInfo info;
-    EXPECT_NO_THROW(info = conn.mutate(doc, 0, Greenstack::MutationType::Set));
+    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
     doc.value.resize(input.size());
     std::fill(doc.value.begin(), doc.value.end(), 'b');
     doc.info.compression = Greenstack::Compression::None;
 
     conn.mutate(doc, 0, Greenstack::MutationType::Append);
     Document stored;
-    EXPECT_NO_THROW(stored = conn.get(name, 0));
+    stored = conn.get(name, 0);
 
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
     EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
@@ -429,7 +428,7 @@ TEST_P(GetSetTest, TestAppendCompressedData) {
     doc.value.resize(1024);
     std::fill(doc.value.begin(), doc.value.end(), 'a');
     MutationInfo info;
-    EXPECT_NO_THROW(info = conn.mutate(doc, 0, Greenstack::MutationType::Set));
+    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
 
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'b');
@@ -438,7 +437,7 @@ TEST_P(GetSetTest, TestAppendCompressedData) {
     conn.mutate(doc, 0, Greenstack::MutationType::Append);
 
     Document stored;
-    EXPECT_NO_THROW(stored = conn.get(name, 0));
+    stored = conn.get(name, 0);
 
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
     EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
@@ -468,14 +467,14 @@ TEST_P(GetSetTest, TestAppendCompressedSourceAndData) {
     compress_vector(input, doc.value);
 
     MutationInfo info;
-    EXPECT_NO_THROW(info = conn.mutate(doc, 0, Greenstack::MutationType::Set));
+    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
 
     std::vector<char> append(1024);
     std::fill(append.begin(), append.end(), 'b');
     compress_vector(append, doc.value);
     conn.mutate(doc, 0, Greenstack::MutationType::Append);
     Document stored;
-    EXPECT_NO_THROW(stored = conn.get(name, 0));
+    stored = conn.get(name, 0);
 
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
     EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
@@ -503,14 +502,14 @@ TEST_P(GetSetTest, TestPrependCompressedSource) {
     compress_vector(input, doc.value);
 
     MutationInfo info;
-    EXPECT_NO_THROW(info = conn.mutate(doc, 0, Greenstack::MutationType::Set));
+    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
     doc.value.resize(input.size());
     std::fill(doc.value.begin(), doc.value.end(), 'b');
     doc.info.compression = Greenstack::Compression::None;
 
     conn.mutate(doc, 0, Greenstack::MutationType::Prepend);
     Document stored;
-    EXPECT_NO_THROW(stored = conn.get(name, 0));
+    stored = conn.get(name, 0);
 
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
     EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
@@ -534,7 +533,7 @@ TEST_P(GetSetTest, TestPrependCompressedData) {
     doc.value.resize(1024);
     std::fill(doc.value.begin(), doc.value.end(), 'a');
     MutationInfo info;
-    EXPECT_NO_THROW(info = conn.mutate(doc, 0, Greenstack::MutationType::Set));
+    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
 
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'b');
@@ -543,7 +542,7 @@ TEST_P(GetSetTest, TestPrependCompressedData) {
     conn.mutate(doc, 0, Greenstack::MutationType::Prepend);
 
     Document stored;
-    EXPECT_NO_THROW(stored = conn.get(name, 0));
+    stored = conn.get(name, 0);
 
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
     EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
@@ -570,14 +569,14 @@ TEST_P(GetSetTest, TestPrepepndCompressedSourceAndData) {
     compress_vector(input, doc.value);
 
     MutationInfo info;
-    EXPECT_NO_THROW(info = conn.mutate(doc, 0, Greenstack::MutationType::Set));
+    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
 
     std::vector<char> append(1024);
     std::fill(append.begin(), append.end(), 'b');
     compress_vector(append, doc.value);
     conn.mutate(doc, 0, Greenstack::MutationType::Prepend);
     Document stored;
-    EXPECT_NO_THROW(stored = conn.get(name, 0));
+    stored = conn.get(name, 0);
 
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
     EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);

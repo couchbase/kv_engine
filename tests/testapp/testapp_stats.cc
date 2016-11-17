@@ -288,7 +288,7 @@ TEST_P(StatsTest, DISABLED_TestConnections) {
 
     ASSERT_NE(-1, sock) << "Failed to locate a single connection object";
 
-    EXPECT_NO_THROW(stats = conn.stats("connections " + std::to_string(sock)));
+    stats = conn.stats("connections " + std::to_string(sock));
     ASSERT_NE(nullptr, stats.get());
     ASSERT_EQ(1, cJSON_GetArraySize(stats.get()));
     unique_cJSON_ptr json(cJSON_Parse(stats.get()->child->valuestring));
@@ -325,7 +325,7 @@ TEST_P(StatsTest, TestTopkeys) {
             std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
             cJSON_Free(ptr);
 
-            EXPECT_NO_THROW(conn.mutate(doc, 0, Greenstack::MutationType::Set));
+            conn.mutate(doc, 0, Greenstack::MutationType::Set);
         }
 
         auto stats = conn.stats("topkeys");
@@ -351,7 +351,7 @@ TEST_P(StatsTest, TestTopkeysJson) {
             std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
             cJSON_Free(ptr);
 
-            EXPECT_NO_THROW(conn.mutate(doc, 0, Greenstack::MutationType::Set));
+            conn.mutate(doc, 0, Greenstack::MutationType::Set);
         }
 
         auto stats = conn.stats("topkeys_json");

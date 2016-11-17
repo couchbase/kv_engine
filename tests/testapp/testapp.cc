@@ -4558,6 +4558,6 @@ uint64_t extract_single_stat(const stats_response_t& stats,
     auto iter = stats.find(name);
     EXPECT_NE(stats.end(), iter);
     uint64_t result = 0;
-    EXPECT_NO_THROW(result = std::stoul(iter->second));
+    result = std::stoul(iter->second);
     return result;
 }

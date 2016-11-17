@@ -33,27 +33,27 @@ static const std::string password2("secret");
 
 TEST_P(SaslTest, SinglePLAIN) {
     MemcachedConnection& conn = getConnection();
-    EXPECT_NO_THROW(conn.authenticate(bucket1, password1, "PLAIN"));
+    conn.authenticate(bucket1, password1, "PLAIN");
 }
 
 TEST_P(SaslTest, SingleSCRAM_SHA1) {
     if (cb::crypto::isSupported(cb::crypto::Algorithm::SHA1)) {
         MemcachedConnection& conn = getConnection();
-        EXPECT_NO_THROW(conn.authenticate(bucket1, password1, "SCRAM-SHA1"));
+        conn.authenticate(bucket1, password1, "SCRAM-SHA1");
     }
 }
 
 TEST_P(SaslTest, SingleSCRAM_SHA256) {
     if (cb::crypto::isSupported(cb::crypto::Algorithm::SHA256)) {
         MemcachedConnection& conn = getConnection();
-        EXPECT_NO_THROW(conn.authenticate(bucket1, password1, "SCRAM-SHA256"));
+        conn.authenticate(bucket1, password1, "SCRAM-SHA256");
     }
 }
 
 TEST_P(SaslTest, SingleSCRAM_SHA512) {
     if (cb::crypto::isSupported(cb::crypto::Algorithm::SHA512)) {
         MemcachedConnection& conn = getConnection();
-        EXPECT_NO_THROW(conn.authenticate(bucket1, password1, "SCRAM-SHA512"));
+        conn.authenticate(bucket1, password1, "SCRAM-SHA512");
     }
 }
 
@@ -119,8 +119,8 @@ void SaslTest::testMixStartingFrom(const std::string& mechanism) {
 
     for (const auto &mech : mechanisms) {
         conn.reconnect();
-        EXPECT_NO_THROW(conn.authenticate(bucket1, password1, mechanism));
-        EXPECT_NO_THROW(conn.authenticate(bucket2, password2, mech));
+        conn.authenticate(bucket1, password1, mechanism);
+        conn.authenticate(bucket2, password2, mech);
     }
 }
 

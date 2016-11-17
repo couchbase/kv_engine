@@ -64,7 +64,7 @@ protected:
         }
 
         unique_cJSON_ptr json;
-        EXPECT_NO_THROW(json = conn.stats(""));
+        json = conn.stats("");
         EXPECT_NE(nullptr, json.get());
 
         wait();
