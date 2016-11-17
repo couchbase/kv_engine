@@ -18,6 +18,7 @@
 
 #include <cstddef>
 #include <functional>
+#include <string>
 
 /* Struct repesenting a buffer of some known size. This is used to
  * refer to some existing region of memory which is owned elsewhere - i.e.
