@@ -3963,7 +3963,7 @@ private:
  * the hashtable for any that are > the rollbackSeqno.
  */
 void EventuallyPersistentStore::rollbackCheckpoint(RCPtr<VBucket> &vb,
-                                                   uint64_t rollbackSeqno) {
+                                                   int64_t rollbackSeqno) {
     std::vector<queued_item> items;
     vb->checkpointManager.getAllItemsForCursor(CheckpointManager::pCursorName,
                                                items);

@@ -1016,7 +1016,7 @@ protected:
      * Drain the VB's checkpoints looking for items which have a seqno
      * above the rollbackSeqno and must be rolled back themselves.
      */
-    void rollbackCheckpoint(RCPtr<VBucket> &vb, uint64_t rollbackSeqno);
+    void rollbackCheckpoint(RCPtr<VBucket> &vb, int64_t rollbackSeqno);
 
     friend class Warmup;
     friend class Flusher;
