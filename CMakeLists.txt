@@ -127,7 +127,7 @@ SET(OBJECTREGISTRY_SOURCE src/objectregistry.cc)
 SET(CONFIG_SOURCE src/configuration.cc
   ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.cc)
 
-ADD_LIBRARY(ep SHARED
+ADD_LIBRARY(ep_objs OBJECT
             src/access_scanner.cc
             src/atomic.cc
             src/backfill.cc
@@ -168,8 +168,6 @@ ADD_LIBRARY(ep SHARED
             src/murmurhash3.cc
             src/mutation_log.cc
             src/replicationthrottle.cc
-            src/sizes.cc
-            ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
             src/string_utils.cc
             src/stored-value.cc
             src/tapconnection.cc
@@ -179,9 +177,15 @@ ADD_LIBRARY(ep SHARED
             src/vbucket.cc
             src/vbucketmap.cc
             src/warmup.cc
-            ${KVSTORE_SOURCE} ${COUCH_KVSTORE_SOURCE}
-            ${FOREST_KVSTORE_SOURCE} ${OBJECTREGISTRY_SOURCE}
-            ${CONFIG_SOURCE})
+            ${OBJECTREGISTRY_SOURCE}
+            ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
+            ${CONFIG_SOURCE}
+            ${KVSTORE_SOURCE}
+            ${COUCH_KVSTORE_SOURCE}
+            ${FOREST_KVSTORE_SOURCE})
+SET_PROPERTY(TARGET ep_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
+
+ADD_LIBRARY(ep SHARED $<TARGET_OBJECTS:ep_objs>)
 
 SET_TARGET_PROPERTIES(ep PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep cJSON JSON_checker couchstore ${EP_FORESTDB_LIB}
@@ -192,75 +196,22 @@ TARGET_LINK_LIBRARIES(ep cJSON JSON_checker couchstore ${EP_FORESTDB_LIB}
 # (We end up compiling most of the src/ files of ep-engine for these unit tests,
 # so simpler / quicker just to link them into a single executable).
 ADD_EXECUTABLE(ep-engine_ep_unit_tests
-  tests/mock/mock_dcp.cc
-  tests/module_tests/checkpoint_test.cc
-  tests/module_tests/defragmenter_test.cc
-  tests/module_tests/ep_unit_tests_main.cc
-  tests/module_tests/dcp_test.cc
-  tests/module_tests/evp_engine_test.cc
-  tests/module_tests/evp_store_rollback_test.cc
-  tests/module_tests/evp_store_test.cc
-  tests/module_tests/evp_store_single_threaded_test.cc
-  tests/module_tests/mutation_log_test.cc
-  tests/module_tests/futurequeue_test.cc
-  tests/module_tests/stats_test.cc
-  src/access_scanner.cc
-  src/atomic.cc
-  src/backfill.cc
-  src/bgfetcher.cc
-  src/bloomfilter.cc
-  src/checkpoint.cc
-  src/checkpoint_remover.cc
-  src/conflict_resolution.cc
-  src/compress.cc
-  src/connmap.cc
-  src/dcp/backfill.cc
-  src/dcp/backfill-manager.cc
-  src/dcp/consumer.cc
-  src/dcp/dcpconnmap.cc
-  src/dcp/flow-control.cc
-  src/dcp/flow-control-manager.cc
-  src/dcp/producer.cc
-  src/dcp/response.cc
-  src/dcp/stream.cc
-  src/defragmenter.cc
-  src/defragmenter_visitor.cc
-  src/ep.cc
-  src/ep_engine.cc
-  src/ep_time.cc
-  src/executorpool.cc
-  src/executorthread.cc
-  src/ext_meta_parser.cc
-  src/failover-table.cc
-  src/flusher.cc
-  src/globaltask.cc
-  src/hash_table.cc
-  src/htresizer.cc
-  src/item.cc
-  src/item_pager.cc
-  src/kvshard.cc
-  src/logger.cc
-  src/memory_tracker.cc
-  src/murmurhash3.cc
-  src/mutation_log.cc
-  src/objectregistry.cc
-  src/tapconnection.cc
-  src/tapconnmap.cc
-  src/replicationthrottle.cc
-  src/stored-value.cc
-  src/string_utils.cc
-  src/tasks.cc
-  src/taskqueue.cc
-  src/vbucket.cc
-  src/vbucketmap.cc
-  src/warmup.cc
-  ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
-  ${CONFIG_SOURCE}
-  ${KVSTORE_SOURCE}
-  ${COUCH_KVSTORE_SOURCE}
-  ${FOREST_KVSTORE_SOURCE}
-  $<TARGET_OBJECTS:memory_tracking>
-  ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc)
+               tests/mock/mock_dcp.cc
+               tests/module_tests/checkpoint_test.cc
+               tests/module_tests/defragmenter_test.cc
+               tests/module_tests/ep_unit_tests_main.cc
+               tests/module_tests/dcp_test.cc
+               tests/module_tests/evp_engine_test.cc
+               tests/module_tests/evp_store_rollback_test.cc
+               tests/module_tests/evp_store_test.cc
+               tests/module_tests/evp_store_single_threaded_test.cc
+               tests/module_tests/mutation_log_test.cc
+               tests/module_tests/futurequeue_test.cc
+               tests/module_tests/stats_test.cc
+               $<TARGET_OBJECTS:ep_objs>
+               $<TARGET_OBJECTS:memory_tracking>
+               ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc)
+
 TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests couchstore cJSON dirutils
                       ${EP_FORESTDB_LIB} gtest gmock JSON_checker mcd_util
                       platform
