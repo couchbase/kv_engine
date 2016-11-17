@@ -3,6 +3,8 @@ ADD_LIBRARY(mc_client_connection STATIC
             client_connection.cc
             client_greenstack_connection.cc
             client_greenstack_connection.h
+            client_mcbp_commands.cc
+            client_mcbp_commands.h
             client_mcbp_connection.cc
             client_mcbp_connection.h)
 

@@ -27,99 +27,6 @@
 
 #include <memory>
 
-// Class representing a subdoc command; to assist in constructing / encoding one.
-class SubdocCmd : public TestCmdT<SubdocCmd> {
-public:
-    SubdocCmd() : TestCmdT() {}
-
-    explicit SubdocCmd(protocol_binary_command cmd_) {
-        setOp(cmd_);
-    }
-
-    // Old-style constructors
-    explicit SubdocCmd(protocol_binary_command cmd_, const std::string& key_,
-                       const std::string& path_)
-      : SubdocCmd(cmd_, key_, path_, "", SUBDOC_FLAG_NONE, 0) {}
-
-    // Constructor including a value.
-    explicit SubdocCmd(protocol_binary_command cmd_, const std::string& key_,
-                       const std::string& path_, const std::string& value_)
-      : SubdocCmd(cmd_, key_, path_, value_, SUBDOC_FLAG_NONE, 0) {}
-
-    // Constructor additionally including flags.
-    explicit SubdocCmd(protocol_binary_command cmd_, const std::string& key_,
-                       const std::string& path_, const std::string& value_,
-                       protocol_binary_subdoc_flag flags_)
-    : SubdocCmd(cmd_, key_, path_, value_, flags_, 0) {}
-
-    // Constructor additionally including CAS.
-    explicit SubdocCmd(protocol_binary_command cmd_, const std::string& key_,
-                       const std::string& path_, const std::string& value_,
-                       protocol_binary_subdoc_flag flags_, uint64_t cas_)
-        : TestCmdT() {
-        setOp(cmd_);
-        setKey(key_);
-        setPath(path_);
-        setValue(value_);
-        setFlags(flags_);
-        setCas(cas_);
-    }
-
-    SubdocCmd& setPath(const std::string& path_) {
-        path = path_;
-        return *this;
-    }
-
-    SubdocCmd& setValue(const std::string& value_) {
-        value = value_;
-        return *this;
-    }
-
-    SubdocCmd& setFlags(protocol_binary_subdoc_flag flags_) {
-        flags = flags_;
-        return *this;
-    }
-
-    virtual void encode(std::vector<char>& buf) const override;
-    using TestCmd::encode;
-
-    std::string path;
-    std::string value;
-    protocol_binary_subdoc_flag flags = SUBDOC_FLAG_NONE;
-};
-
-class SubdocSingleResponse : public TestResponse {
-public:
-    explicit SubdocSingleResponse(std::vector<char>&& buf) {
-        // Base constructor will call its own version of assign(), which is a
-        // bad thing.
-        assign(std::move(buf));
-    }
-
-    SubdocSingleResponse() : TestResponse() {}
-
-    const std::string& getValue() {
-        return value;
-    }
-
-    virtual void assign(std::vector<char>&& srcbuf) {
-        TestResponse::assign(std::move(srcbuf));
-        if (getBodylen() - getExtlen() > 0) {
-            value.assign(raw_packet.data() +
-                         sizeof (protocol_binary_response_header) + getExtlen(),
-                         raw_packet.data() + raw_packet.size());
-        }
-    }
-
-    virtual void clear() {
-        TestResponse::clear();
-        value.clear();
-    }
-
-private:
-    std::string value;
-};
-
 typedef std::pair<protocol_binary_response_status,
                   std::string> SubdocMultiLookupResult;
 
@@ -167,16 +74,16 @@ struct SubdocMultiMutationResult {
  * @param[out] resp Response object. Will be populated with response information
  * @return
  */
-::testing::AssertionResult subdoc_verify_cmd(const SubdocCmd& cmd,
+::testing::AssertionResult subdoc_verify_cmd(const BinprotSubdocCommand& cmd,
                                              protocol_binary_response_status expected_status,
                                              const std::string& expected_value,
-                                             SubdocSingleResponse& resp);
+                                             BinprotSubdocResponse& resp);
 
 // Overload which creates a temporary response object
-inline ::testing::AssertionResult subdoc_verify_cmd(const SubdocCmd& cmd,
+inline ::testing::AssertionResult subdoc_verify_cmd(const BinprotSubdocCommand& cmd,
                                                     protocol_binary_response_status err = PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                                     const std::string& value = "") {
-    SubdocSingleResponse resp;
+    BinprotSubdocResponse resp;
     return subdoc_verify_cmd(cmd, err, value, resp);
 }
 

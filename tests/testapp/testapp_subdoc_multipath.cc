@@ -309,9 +309,9 @@ TEST_P(McdTestappTest, SubdocMultiMutation_DictAddCAS) {
     store_object("dict", "{\"int\":1}");
 
     // Use SUBDOC_EXISTS to obtain the current CAS.
-    SubdocSingleResponse resp;
+    BinprotSubdocResponse resp;
     subdoc_verify_cmd(
-        SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS).setKey("dict").setPath("int"),
+        BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS).setKey("dict").setPath("int"),
         PROTOCOL_BINARY_RESPONSE_SUCCESS, "", resp);
     auto cas = resp.getCas();
 

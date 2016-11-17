@@ -17,9 +17,12 @@
 #pragma once
 
 #include <array>
+#include <unordered_set>
+
 #include "config.h"
 
 #include "client_connection.h"
+#include "client_mcbp_commands.h"
 
 inline std::string formatMcbpExceptionMsg(const std::string& prefix,
                                           uint16_t reason) {
@@ -46,6 +49,11 @@ public:
     explicit BinprotConnectionError(const std::string& prefix,
                                     uint16_t reason_)
         : BinprotConnectionError(prefix.c_str(), reason_) {
+    }
+
+    explicit BinprotConnectionError(const char *prefix,
+                                    const BinprotResponse& response)
+        : BinprotConnectionError(prefix, response.getStatus()) {
     }
 
     uint16_t getReason() const override {
@@ -97,7 +105,6 @@ public:
     MemcachedBinprotConnection(const std::string& host, in_port_t port,
                                sa_family_t family, bool ssl)
         : MemcachedConnection(host, port, family, ssl, Protocol::Memcached) {
-        std::fill(features.begin(), features.end(), false);
     }
 
     std::unique_ptr<MemcachedConnection> clone() override;
@@ -138,15 +145,25 @@ public:
 
     void recvFrame(Frame& frame) override;
 
+    void sendCommand(const BinprotCommand& command);
+
+    void recvResponse(BinprotResponse& response);
+
     void hello(const std::string& userAgent,
                const std::string& userAgentVersion,
                const std::string& comment) override;
 
-    void setDatatypeSupport(bool enable);
+    void setDatatypeSupport(bool enable) {
+        setFeature(mcbp::Feature::DATATYPE, enable);
+    }
 
-    void setMutationSeqnoSupport(bool enable);
+    void setMutationSeqnoSupport(bool enable) {
+        setFeature(mcbp::Feature::MUTATION_SEQNO, enable);
+    }
 
-    void setXattrSupport(bool enable);
+    void setXattrSupport(bool enable) {
+        setFeature(mcbp::Feature::XATTR, enable);
+    }
 
     std::string ioctl_get(const std::string& key) override;
 
@@ -170,9 +187,13 @@ public:
                                     uint32_t value,
                                     const std::string& key) override;
 
-    std::array<bool, 4> features;
+    bool hasFeature(mcbp::Feature feature) const {
+        return effective_features.find(uint16_t(feature))
+                != effective_features.end();
+    }
 
 protected:
+    typedef std::unordered_set<uint16_t> Featureset;
 
     uint64_t incr_decr(protocol_binary_command opcode,
                        const std::string& key,
@@ -188,8 +209,16 @@ protected:
      * from the server.
      *
      * @param agent the agent name provided by the client
-     * @param feat the featureset to enable
+     * @param feat the featureset to enable.
      */
-    void setFeatures(const std::string& agent,
-                     const std::array<bool, 4>& requested);
+    void applyFeatures(const std::string& agent, const Featureset& features);
+
+    /**
+     * Attempts to enable or disable a feature
+     * @param feature Feature to enable or disable
+     * @param enabled whether to enable or disable
+     */
+    void setFeature(mcbp::Feature feature, bool enabled);
+
+    Featureset effective_features;
 };

@@ -32,58 +32,6 @@
 
 static const bool packet_dump = getenv("COUCHBASE_PACKET_DUMP") != nullptr;
 
-static void mcbp_raw_command(Frame& frame,
-                             uint8_t cmd,
-                             const std::vector<uint8_t>& ext,
-                             const std::string& key,
-                             const std::vector<uint8_t>& value,
-                             uint64_t cas = 0,
-                             uint32_t opaque = 0xdeadbeef) {
-
-    auto& pay = frame.payload;
-    pay.resize(24 + ext.size() + key.size() + value.size());
-    auto* req = reinterpret_cast<protocol_binary_request_header*>(pay.data());
-    auto* buf = req->bytes;
-
-    req->request.magic = PROTOCOL_BINARY_REQ;
-    req->request.opcode = cmd;
-    req->request.extlen = static_cast<uint8_t>(ext.size());
-    req->request.keylen = htons(static_cast<uint16_t>(key.size()));
-    auto bodylen = value.size() + key.size() + ext.size();
-    req->request.bodylen = htonl(static_cast<uint32_t>(bodylen));
-    req->request.opaque = opaque;
-    req->request.cas = cas;
-
-    buf += sizeof(req->bytes);
-    memcpy(buf, ext.data(), ext.size());
-    buf += ext.size();
-    memcpy(buf, key.data(), key.size());
-    buf += key.size();
-    memcpy(buf, value.data(), value.size());
-}
-
-static void mcbp_storage_command(Frame& frame,
-                                 uint8_t cmd,
-                                 const std::string& id,
-                                 const std::vector<uint8_t>& value,
-                                 uint32_t flags,
-                                 uint32_t exp) {
-    frame.reset();
-    std::vector<uint8_t> ext;
-
-
-    if (cmd != PROTOCOL_BINARY_CMD_APPEND &&
-        cmd != PROTOCOL_BINARY_CMD_PREPEND) {
-        uint32_t fl = htonl(flags);
-        uint32_t expiry = htonl(exp);
-        ext.resize(8);
-        memcpy(ext.data(), &fl, sizeof(fl));
-        memcpy(ext.data() + sizeof(fl), &expiry, sizeof(expiry));
-    }
-
-    mcbp_raw_command(frame, cmd, ext, id, value);
-}
-
 /////////////////////////////////////////////////////////////////////////
 // SASL related functions
 /////////////////////////////////////////////////////////////////////////
@@ -117,6 +65,12 @@ static int sasl_get_password(cbsasl_conn_t* conn, void* context, int id,
 
     *psecret = ctx->secret;
     return CBSASL_OK;
+}
+
+static Frame to_frame(const BinprotCommand& command) {
+    Frame frame;
+    command.encode(frame.payload);
+    return frame;
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -178,6 +132,16 @@ void MemcachedBinprotConnection::recvFrame(Frame& frame) {
     }
 }
 
+void MemcachedBinprotConnection::sendCommand(const BinprotCommand& command) {
+    sendFrame(to_frame(command));
+}
+
+void MemcachedBinprotConnection::recvResponse(BinprotResponse& response) {
+    Frame frame;
+    recvFrame(frame);
+    response.assign(std::move(frame.payload));
+}
+
 void MemcachedBinprotConnection::authenticate(const std::string& username,
                                               const std::string& password,
                                               const std::string& mech) {
@@ -222,57 +186,37 @@ void MemcachedBinprotConnection::authenticate(const std::string& username,
             std::string("): ") + std::to_string(err));
     }
 
-    Frame request;
+    BinprotSaslAuthCommand authCommand;
+    authCommand.setChallenge(data, len);
+    authCommand.setMechanism(chosenmech);
+    sendCommand(authCommand);
 
-    std::vector<uint8_t> challenge(len);
-    memcpy(challenge.data(), data, len);
-    const std::string mechanism(chosenmech);
-    mcbp_raw_command(request, PROTOCOL_BINARY_CMD_SASL_AUTH,
-                     std::vector<uint8_t>(), mechanism, challenge);
+    BinprotResponse response;
+    recvResponse(response);
 
-    sendFrame(request);
-    Frame response;
-    recvFrame(response);
-    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(response.payload.data());
-
-    while (rsp->message.header.response.status ==
-           PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE) {
-        int datalen = rsp->message.header.response.bodylen -
-                      rsp->message.header.response.keylen -
-                      rsp->message.header.response.extlen;
-
-        int dataoffset = sizeof(rsp->bytes) +
-                         rsp->message.header.response.keylen +
-                         rsp->message.header.response.extlen;
-
+    while (response.getStatus() == PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE) {
+        auto respdata = response.getData();
         err = cbsasl_client_step(client,
-                                 reinterpret_cast<char*>(rsp->bytes +
-                                                         dataoffset),
-                                 datalen,
+                                 reinterpret_cast<const char *>(respdata.data()),
+                                 respdata.size(),
                                  NULL, &data, &len);
         if (err != CBSASL_OK && err != CBSASL_CONTINUE) {
             reconnect();
             throw std::runtime_error(
                 std::string("cbsasl_client_step: ") + std::to_string(err));
         }
-        request.reset();
 
-        challenge.resize(len);
-        memcpy(challenge.data(), data, len);
-        mcbp_raw_command(request, PROTOCOL_BINARY_CMD_SASL_STEP,
-                         std::vector<uint8_t>(), mechanism, challenge);
-
-        sendFrame(request);
-        recvFrame(response);
-        rsp = reinterpret_cast<protocol_binary_response_no_extras*>(response.payload.data());
+        BinprotSaslStepCommand stepCommand;
+        stepCommand.setMechanism(chosenmech);
+        stepCommand.setChallengeResponse(data, len);
+        sendCommand(stepCommand);
+        recvResponse(response);
     }
 
     cbsasl_dispose(&client);
 
-    if (rsp->message.header.response.status !=
-        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw BinprotConnectionError("Authentication failed: ",
-                                     rsp->message.header.response.status);
+    if (!response.isSuccess()) {
+        throw BinprotConnectionError("Authentication failed: ", response);
     }
 }
 
@@ -294,54 +238,37 @@ void MemcachedBinprotConnection::createBucket(const std::string& name,
         throw std::runtime_error("Not implemented");
     }
 
-    std::vector<uint8_t> payload;
-    payload.resize(module.length() + 1 + config.length());
-    memcpy(payload.data(), module.data(), module.length());
-    memcpy(payload.data() + module.length() + 1, config.data(),
-           config.length());
+    BinprotCreateBucketCommand command(name.c_str());
+    command.setConfig(module, config);
+    sendCommand(command);
 
-    Frame frame;
-    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_CREATE_BUCKET,
-                     std::vector<uint8_t>(), name, payload);
+    BinprotResponse response;
+    recvResponse(response);
 
-    sendFrame(frame);
-    recvFrame(frame);
-    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
-
-    if (rsp->message.header.response.status !=
-        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw BinprotConnectionError("Create bucket failed: ",
-                                     rsp->message.header.response.status);
+    if (!response.isSuccess()) {
+        throw BinprotConnectionError("Create bucket failed: ", response);
     }
 }
 
 void MemcachedBinprotConnection::deleteBucket(const std::string& name) {
-    Frame frame;
-    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_DELETE_BUCKET,
-                     std::vector<uint8_t>(), name, std::vector<uint8_t>());
-    sendFrame(frame);
-    recvFrame(frame);
-    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
+    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_DELETE_BUCKET, name);
+    sendCommand(command);
+    BinprotResponse response;
+    recvResponse(response);
 
-    if (rsp->message.header.response.status !=
-        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw BinprotConnectionError("Delete bucket failed: ",
-                                     rsp->message.header.response.status);
+    if (!response.isSuccess()) {
+        throw BinprotConnectionError("Delete bucket failed: ", response);
     }
 }
 
 void MemcachedBinprotConnection::selectBucket(const std::string& name) {
-    Frame frame;
-    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_SELECT_BUCKET,
-                     std::vector<uint8_t>(), name, std::vector<uint8_t>());
-    sendFrame(frame);
-    recvFrame(frame);
-    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
+    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_SELECT_BUCKET, name);
+    sendCommand(command);
+    BinprotResponse response;
+    recvResponse(response);
 
-    if (rsp->message.header.response.status !=
-        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw BinprotConnectionError("Select bucket failed: ",
-                                     rsp->message.header.response.status);
+    if (!response.isSuccess()) {
+        throw BinprotConnectionError("Select bucket failed: ", response);
     }
 }
 
@@ -364,23 +291,20 @@ std::string MemcachedBinprotConnection::to_string() {
 }
 
 std::vector<std::string> MemcachedBinprotConnection::listBuckets() {
-    Frame frame;
-    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_LIST_BUCKETS,
-                     std::vector<uint8_t>(), "", std::vector<uint8_t>());
-    sendFrame(frame);
-    recvFrame(frame);
-    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
+    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_LIST_BUCKETS);
+    sendCommand(command);
 
-    if (rsp->message.header.response.status !=
-        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw BinprotConnectionError("List bucket failed: ",
-                                     rsp->message.header.response.status);
+    BinprotResponse response;
+    recvResponse(response);
+
+    if (!response.isSuccess()) {
+        throw BinprotConnectionError("List bucket failed: ", response);
     }
 
     std::vector<std::string> ret;
-    std::string value((char*)(rsp + 1), rsp->message.header.response.bodylen);
+
     // the value contains a list of bucket names separated by space.
-    std::istringstream iss(value);
+    std::istringstream iss(response.getDataString());
     std::copy(std::istream_iterator<std::string>(iss),
               std::istream_iterator<std::string>(),
               std::back_inserter(ret));
@@ -390,50 +314,45 @@ std::vector<std::string> MemcachedBinprotConnection::listBuckets() {
 
 Document MemcachedBinprotConnection::get(const std::string& id,
                                          uint16_t vbucket) {
-    Frame frame = encodeCmdGet(id, vbucket);
-    sendFrame(frame);
+    BinprotGetCommand command;
+    command.setKey(id);
+    command.setVBucket(vbucket);
+    sendCommand(command);
 
-    recvFrame(frame);
-    auto* rsp = reinterpret_cast<protocol_binary_response_get*>(frame.payload.data());
+    BinprotGetResponse response;
+    recvResponse(response);
 
-    if (rsp->message.header.response.status !=
-        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    if (!response.isSuccess()) {
         throw BinprotConnectionError("Failed to get: " + id,
-                                     rsp->message.header.response.status);
+                                     response.getStatus());
     }
 
     Document ret;
-    ret.info.flags = ntohl(rsp->message.body.flags);
-    ret.info.cas = rsp->message.header.response.cas;
+    ret.info.flags = response.getDocumentFlags();
+    ret.info.cas = response.getCas();
     ret.info.id = id;
-    if (rsp->message.header.response.datatype & PROTOCOL_BINARY_DATATYPE_JSON) {
+    if (response.getDatatype() & PROTOCOL_BINARY_DATATYPE_JSON) {
         ret.info.datatype = Greenstack::Datatype::Json;
     } else {
         ret.info.datatype = Greenstack::Datatype::Raw;
     }
 
-    if (rsp->message.header.response.datatype &
-        PROTOCOL_BINARY_DATATYPE_COMPRESSED) {
+    if (response.getDatatype() & PROTOCOL_BINARY_DATATYPE_COMPRESSED) {
         ret.info.compression = Greenstack::Compression::Snappy;
     } else {
         ret.info.compression = Greenstack::Compression::None;
     }
-
-    ret.value.resize(rsp->message.header.response.bodylen - 4);
-    memcpy(ret.value.data(), rsp->bytes + 28, ret.value.size());
-
+    ret.value.assign(response.getData().data(),
+                     response.getData().data() + response.getData().size());
     return ret;
 }
 
 Frame MemcachedBinprotConnection::encodeCmdGet(const std::string& id,
                                                uint16_t vbucket) {
-    Frame frame;
-    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_GET, std::vector<uint8_t>(), id,
-                     std::vector<uint8_t>());
-    auto* req =
-            reinterpret_cast<protocol_binary_request_no_extras*>(frame.payload.data());
-    req->message.header.request.vbucket = htons(vbucket);
-    return frame;
+    BinprotGetCommand command;
+    command.setKey(id);
+    command.setVBucket(vbucket);
+    return to_frame(command);
 }
 
 /* Convenience function which will insert (copy) T into the given container. Only
@@ -446,21 +365,17 @@ void encode_to(std::vector<uint8_t>& container, const T& element) {
 }
 
 Frame MemcachedBinprotConnection::encodeCmdDcpOpen() {
-    Frame frame;
-
     // Encode extras
     std::vector<uint8_t> extras;
     encode_to(extras, htonl(0));
     encode_to(extras, uint32_t{DCP_OPEN_PRODUCER});
 
-    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_DCP_OPEN, extras,
-                     /*key*/"dcp", /*value*/{});
-
-    return frame;
+    return to_frame(BinprotGenericCommand(PROTOCOL_BINARY_CMD_DCP_OPEN)
+                    .setKey("dcp")
+                    .setExtras(extras));
 }
 
 Frame MemcachedBinprotConnection::encodeCmdDcpStreamReq() {
-    Frame frame;
 
     // Encode extras
     std::vector<uint8_t> extras;
@@ -472,149 +387,68 @@ Frame MemcachedBinprotConnection::encodeCmdDcpStreamReq() {
     encode_to(extras, htonll(std::numeric_limits<uint64_t>::min()));  // snap_start
     encode_to(extras, htonll(std::numeric_limits<uint64_t>::max()));  // snap_end
 
-    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_DCP_STREAM_REQ, extras,
-                     /*key*/{}, /*value*/{});
-
-    return frame;
+    return to_frame(BinprotGenericCommand(PROTOCOL_BINARY_CMD_DCP_STREAM_REQ)
+                    .setExtras(extras));
 }
 
 
 MutationInfo MemcachedBinprotConnection::mutate(const Document& doc,
                                                 uint16_t vbucket,
                                                 const Greenstack::mutation_type_t type) {
-    protocol_binary_command cmd;
-    switch (type) {
-    case Greenstack::MutationType::Add:
-        cmd = PROTOCOL_BINARY_CMD_ADD;
-        break;
-    case Greenstack::MutationType::Set:
-        cmd = PROTOCOL_BINARY_CMD_SET;
-        break;
-    case Greenstack::MutationType::Replace:
-        cmd = PROTOCOL_BINARY_CMD_REPLACE;
-        break;
-    case Greenstack::MutationType::Append:
-        cmd = PROTOCOL_BINARY_CMD_APPEND;
-        break;
-    case Greenstack::MutationType::Prepend:
-        cmd = PROTOCOL_BINARY_CMD_PREPEND;
-        break;
 
-    default:
-        throw std::runtime_error(
-            "Not implemented for MBCP: " + std::to_string(type));
-    }
+    BinprotMutationCommand command;
+    command.setDocumentInfo(doc.info);
+    command.setValue(doc.value);
+    command.setVBucket(vbucket);
+    command.setMutationType(type);
+    sendCommand(command);
 
-    Frame frame;
-    // @todo fix expirations
-    mcbp_storage_command(frame, cmd, doc.info.id, doc.value, doc.info.flags, 0);
-
-    auto* req = reinterpret_cast<protocol_binary_request_set*>(frame.payload.data());
-    if (doc.info.compression != Greenstack::Compression::None) {
-        if (doc.info.compression != Greenstack::Compression::Snappy) {
-            throw BinprotConnectionError("Invalid compression for MCBP",
-                                         PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-        }
-        req->message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_COMPRESSED;
-    }
-
-    if (doc.info.datatype != Greenstack::Datatype::Raw) {
-        req->message.header.request.datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
-    }
-
-    req->message.header.request.cas = doc.info.cas;
-    sendFrame(frame);
-
-    recvFrame(frame);
-    auto* rsp = reinterpret_cast<protocol_binary_response_set*>(frame.payload.data());
-    if (rsp->message.header.response.status !=
-        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    BinprotMutationResponse response;
+    recvResponse(response);
+    if (!response.isSuccess()) {
         throw BinprotConnectionError("Failed to store " + doc.info.id,
-                                     rsp->message.header.response.status);
+                                     response.getStatus());
     }
 
-    MutationInfo info;
-    info.cas = rsp->message.header.response.cas;
-    // @todo add the rest of the fields
-    return info;
-}
-
-void MemcachedBinprotConnection::setDatatypeSupport(bool enable) {
-    std::array<bool, 4> requested;
-    std::copy(features.begin(), features.end(), requested.begin());
-    requested[0] = enable;
-    setFeatures("mcbp", requested);
-
-    if (enable && !features[0]) {
-        throw std::runtime_error("Failed to enable datatype");
-    }
-}
-
-void MemcachedBinprotConnection::setMutationSeqnoSupport(bool enable) {
-    std::array<bool, 4> requested;
-    std::copy(features.begin(), features.end(), requested.begin());
-    requested[2] = enable;
-    setFeatures("mcbp", requested);
-
-    if (enable && !features[2]) {
-        throw std::runtime_error("Failed to enable datatype");
-    }
-
-}
-
-void MemcachedBinprotConnection::setXattrSupport(bool enable) {
-    std::array<bool, 4> requested;
-    std::copy(features.begin(), features.end(), requested.begin());
-    requested[3] = enable;
-    setFeatures("mcbp", requested);
-
-    if (enable && !features[3]) {
-        throw std::runtime_error("Failed to enable datatype");
-    }
+    return response.getMutationInfo();
 }
 
 unique_cJSON_ptr MemcachedBinprotConnection::stats(const std::string& subcommand) {
-    Frame frame;
-    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_STAT, std::vector<uint8_t>(),
-                     subcommand, std::vector<uint8_t>());
-    sendFrame(frame);
-    unique_cJSON_ptr ret(cJSON_CreateObject());
+    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_STAT, subcommand);
+    sendCommand(command);
 
+    unique_cJSON_ptr ret(cJSON_CreateObject());
     int counter = 0;
 
     while (true) {
-        recvFrame(frame);
-        auto* bytes = frame.payload.data();
-        auto* rsp = reinterpret_cast<protocol_binary_response_stats*>(bytes);
-        auto& header = rsp->message.header.response;
-        if (header.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-            throw BinprotConnectionError("Stats failed",
-                                         header.status);
+        BinprotResponse response;
+        recvResponse(response);
+
+        if (!response.isSuccess()) {
+            throw BinprotConnectionError("Stats failed", response);
         }
 
-        if (header.bodylen == 0) {
-            // The stats EOF packet
+        if (!response.getBodylen()) {
             break;
-        } else {
-            std::string key((const char*)(rsp + 1), header.keylen);
-            if (key.empty()) {
-                key = std::to_string(counter++);
-            }
-            std::string value((const char*)(rsp + 1) + header.keylen,
-                              header.bodylen - header.keylen);
+        }
 
-            if (value == "false") {
-                cJSON_AddFalseToObject(ret.get(), key.c_str());
-            } else if (value == "true") {
-                cJSON_AddTrueToObject(ret.get(), key.c_str());
-            } else {
-                try {
-                    int64_t val = std::stoll(value);
-                    cJSON_AddNumberToObject(ret.get(), key.c_str(), val);
-                } catch (...) {
-                    cJSON_AddStringToObject(ret.get(), key.c_str(),
-                                            value.c_str());
-                }
+        std::string key = response.getKeyString();
+        std::string value = response.getDataString();
+
+        if (key.empty()) {
+            key = std::to_string(counter++);
+        }
+
+        if (value == "false") {
+            cJSON_AddFalseToObject(ret.get(), key.c_str());
+        } else if (value == "true") {
+            cJSON_AddTrueToObject(ret.get(), key.c_str());
+        } else {
+            try {
+                int64_t val = std::stoll(value);
+                cJSON_AddNumberToObject(ret.get(), key.c_str(), val);
+            } catch (...) {
+                cJSON_AddStringToObject(ret.get(), key.c_str(), value.c_str());
             }
         }
     }
@@ -655,143 +489,103 @@ void MemcachedBinprotConnection::configureEwouldBlockEngine(
 }
 
 void MemcachedBinprotConnection::reloadAuditConfiguration() {
-    Frame frame;
-    mcbp_raw_command(frame,
-                     PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD,
-                     std::vector<uint8_t>(), "",
-                     std::vector<uint8_t>());
+    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD);
+    sendCommand(command);
+    BinprotResponse response;
+    recvResponse(response);
 
-    sendFrame(frame);
-    recvFrame(frame);
-
-    auto* bytes = frame.payload.data();
-    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(bytes);
-    auto& header = rsp->message.header.response;
-    if (header.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    if (!response.isSuccess()) {
         throw BinprotConnectionError("Failed to reload audit configuration",
-                                     header.status);
+                                     response);
     }
 }
 
 void MemcachedBinprotConnection::hello(const std::string& userAgent,
                                        const std::string& userAgentVersion,
                                        const std::string& comment) {
-    std::array<bool, 4> requested;
-    std::copy(features.begin(), features.end(), requested.begin());
-    setFeatures(userAgent + " " + userAgentVersion, requested);
 
-    Frame frame;
-    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_SASL_LIST_MECHS, {}, {}, {});
-    sendFrame(frame);
-    recvFrame(frame);
-    auto *rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
-    if (rsp->message.header.response.status !=
-        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    applyFeatures(userAgent + " " + userAgentVersion, effective_features);
+
+    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_SASL_LIST_MECHS);
+    sendCommand(command);
+
+    BinprotResponse response;
+    recvResponse(response);
+    if (!response.isSuccess()) {
         throw BinprotConnectionError("Failed to fetch sasl mechanisms",
-                                     rsp->message.header.response.status);
+                                     response);
     }
 
-    saslMechanisms.resize(rsp->message.header.response.bodylen);
-    saslMechanisms.assign((const char*)(rsp + 1),
-                          rsp->message.header.response.bodylen);
+    saslMechanisms.assign(reinterpret_cast<const char *>(response.getPayload()),
+                          response.getBodylen());
 }
 
-void MemcachedBinprotConnection::setFeatures(const std::string& agent,
-                                             const std::array<bool, 4>& requested) {
-
-    std::vector<uint16_t> feat;
-    if (requested[0]) {
-        feat.push_back(htons(uint16_t(mcbp::Feature::DATATYPE)));
+void MemcachedBinprotConnection::applyFeatures(const std::string& agent,
+                                               const Featureset& featureset) {
+    BinprotHelloCommand command(agent);
+    for (const auto& feature : featureset) {
+        command.enableFeature(mcbp::Feature(feature), true);
     }
 
-    if (requested[1]) {
-        feat.push_back(htons(uint16_t(mcbp::Feature::TCPNODELAY)));
+    sendCommand(command);
+
+    BinprotHelloResponse response;
+    recvResponse(response);
+
+    if (!response.isSuccess()) {
+        throw BinprotConnectionError("Failed to say hello", response);
     }
 
-    if (requested[2]) {
-        feat.push_back(htons(uint16_t(mcbp::Feature::MUTATION_SEQNO)));
+    effective_features.clear();
+    for (const auto& feature : response.getFeatures()) {
+        effective_features.insert(uint16_t(feature));
+    }
+}
+
+void MemcachedBinprotConnection::setFeature(mcbp::Feature feature,
+                                            bool enabled) {
+    Featureset currFeatures = effective_features;
+    if (enabled) {
+        currFeatures.insert(uint16_t(feature));
+    } else {
+        currFeatures.erase(uint16_t(feature));
     }
 
-    if (requested[3]) {
-        feat.push_back(htons(uint16_t(mcbp::Feature::XATTR)));
-    }
+    applyFeatures("mcbp", currFeatures);
 
-    std::vector<uint8_t> data(feat.size() * sizeof(feat.at(0)));
-    memcpy(data.data(), feat.data(), data.size());
-
-    Frame frame;
-    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_HELLO, {}, agent, data);
-
-    sendFrame(frame);
-    recvFrame(frame);
-    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
-    if (rsp->message.header.response.status !=
-        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw BinprotConnectionError("Failed to say hello",
-                                     rsp->message.header.response.status);
-    }
-
-    // Validate the result!
-    if ((rsp->message.header.response.bodylen & 1) != 0) {
-        throw BinprotConnectionError("Invalid response returned",
-                                     PROTOCOL_BINARY_RESPONSE_EINVAL);
-    }
-
-    std::vector<uint16_t> enabled;
-    enabled.resize(rsp->message.header.response.bodylen / 2);
-    memcpy(enabled.data(), (rsp + 1), rsp->message.header.response.bodylen);
-    for (auto val : enabled) {
-        val = ntohs(val);
-        switch (mcbp::Feature(val)) {
-        case mcbp::Feature::DATATYPE:
-            features[0] = true;
-            break;
-        case mcbp::Feature::TCPNODELAY:
-            features[1] = true;
-            break;
-        case mcbp::Feature::MUTATION_SEQNO:
-            features[2] = true;
-            break;
-        case mcbp::Feature::XATTR:
-            features[3] = true;
-            break;
-        default:
-            throw std::runtime_error("Unsupported feature returned");
-        }
+    if (enabled && !hasFeature(feature)) {
+        throw std::runtime_error("Failed to enable " +
+                                 mcbp::to_string(feature));
+    } else if (!enabled && hasFeature(feature)) {
+        throw std::runtime_error("Failed to disable " +
+                                 mcbp::to_string(feature));
     }
 }
 
 std::string MemcachedBinprotConnection::ioctl_get(const std::string& key) {
-    Frame frame;
-    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_IOCTL_GET, {}, key, {});
+    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_IOCTL_GET, key);
+    sendCommand(command);
 
-    sendFrame(frame);
-    recvFrame(frame);
-    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
-    if (rsp->message.header.response.status !=
-        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    BinprotResponse response;
+    recvResponse(response);
+    if (!response.isSuccess()) {
         throw BinprotConnectionError("ioctl_get \"" + key + "\" failed.",
-                                     rsp->message.header.response.status);
+                                     response.getStatus());
     }
-
-    return std::string{(const char*)(rsp + 1),
-                       rsp->message.header.response.bodylen};
+    return std::string(reinterpret_cast<const char *>(response.getPayload()),
+                       response.getBodylen());
 }
 
 void MemcachedBinprotConnection::ioctl_set(const std::string& key,
                                            const std::string& value) {
-    Frame frame;
-    std::vector<uint8_t> val(value.size());
-    memcpy(val.data(), value.data(), value.size());
-    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_IOCTL_SET, {}, key, val);
+    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_IOCTL_SET, key, value);
+    sendCommand(command);
 
-    sendFrame(frame);
-    recvFrame(frame);
-    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
-    if (rsp->message.header.response.status !=
-        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    BinprotResponse response;
+    recvResponse(response);
+    if (!response.isSuccess()) {
         throw BinprotConnectionError("ioctl_set \"" + key + "\" failed.",
-                                     rsp->message.header.response.status);
+                                     response.getStatus());
     }
 }
 
@@ -815,58 +609,35 @@ uint64_t MemcachedBinprotConnection::decrement(const std::string& key,
 
 uint64_t MemcachedBinprotConnection::incr_decr(protocol_binary_command opcode,
                                                const std::string& key,
-                                               uint64_t delta, uint64_t initial,
+                                               uint64_t delta,
+                                               uint64_t initial,
                                                rel_time_t exptime,
                                                MutationInfo* info) {
 
-    // Data should be sent in network byte order
-    delta = htonll(delta);
-    initial = htonl(initial);
-    exptime = htonl(exptime);
+    BinprotIncrDecrCommand command;
+    command.setOp(opcode)
+            .setKey(key)
+            .setDelta(delta)
+            .setInitialValue(initial)
+            .setExpiry(exptime);
 
-    std::vector<uint8_t> ext(sizeof(delta) + sizeof(initial) + sizeof(exptime));
-    memcpy(ext.data(), &delta, sizeof(delta));
-    memcpy(ext.data() + sizeof(delta), &initial, sizeof(initial));
-    memcpy(ext.data() + sizeof(delta) + sizeof(initial), &exptime,
-           sizeof(exptime));
+    sendCommand(command);
 
-    Frame frame;
-    mcbp_raw_command(frame, opcode, ext, key, {});
+    BinprotIncrDecrResponse response;
+    recvResponse(response);
 
-    sendFrame(frame);
-    recvFrame(frame);
-    auto* rsp = reinterpret_cast<protocol_binary_response_incr*>(frame.payload.data());
-    if (rsp->message.header.response.status !=
-        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    if (!response.isSuccess()) {
         if (opcode == PROTOCOL_BINARY_CMD_INCREMENT) {
             throw BinprotConnectionError("incr \"" + key + "\" failed.",
-                                         rsp->message.header.response.status);
+                                         response.getStatus());
         } else {
             throw BinprotConnectionError("decr \"" + key + "\" failed.",
-                                         rsp->message.header.response.status);
+                                         response.getStatus());
         }
     }
 
     if (info != nullptr) {
-        // Reset all values to 0xff to indicate that they are not set
-        memset(info, 0xff, sizeof(*info));
-        info->cas = rsp->message.header.response.cas;
+        *info = response.getMutationInfo();
     }
-
-    uint8_t* payload = rsp->bytes + sizeof(rsp->bytes);
-    if (rsp->message.header.response.extlen == 16) {
-        // It contains uuid and seqno
-        if (info != nullptr) {
-            uint64_t* dptr = reinterpret_cast<uint64_t*>(payload);
-            info->vbucketuuid = ntohll(dptr[0]);
-            info->seqno = ntohll(dptr[1]);
-        }
-        payload += 16;
-    } else if (rsp->message.header.response.extlen != 0) {
-        throw std::runtime_error("Unknown extsize return from incr/decr");
-    }
-
-    uint64_t ret;
-    memcpy(&ret, payload, sizeof(ret));
-    return ntohll(ret);
+    return response.getValue();
 }

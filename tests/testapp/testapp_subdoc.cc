@@ -37,67 +37,28 @@
 // that large and one bigger to test with.
 const int MAX_SUBDOC_PATH_COMPONENTS = 32;
 
-std::ostream& operator<<(std::ostream& os, const SubdocCmd& obj)
+std::ostream& operator<<(std::ostream& os, const BinprotSubdocCommand& obj)
 {
-    os << "[cmd:" << memcached_opcode_2_text(obj.cmd)
-       << " key:" << obj.key << " path:" << obj.path << " value:" << obj.value
-       << " flags:" << obj.flags << " cas:" << obj.cas << "]";
+    os << "[cmd:" << memcached_opcode_2_text(obj.getOp())
+       << " key:" << obj.getKey()
+       << " path:" << obj.getPath() << " value:" << obj.getValue()
+       << " flags:" << obj.getFlags() << " cas:" << obj.getCas() << "]";
     return os;
-}
-
-void SubdocCmd::encode(std::vector<char>& buf) const
-{
-    ASSERT_FALSE(key.empty()) << "Need a key";
-    ASSERT_LT(path.size(), std::numeric_limits<uint16_t>::max()) << "Path too long";
-
-    protocol_binary_request_subdocument request;
-    memset(&request, 0, sizeof(request));
-
-    // Expiry (optional) is encoded in extras. Only include if non-zero or
-    // if explicit encoding of zero was requested.
-    const bool include_expiry = (expiry != 0 || has_expiry);
-
-    // Populate the header.
-    const size_t extlen = sizeof(uint16_t) + // Path length
-            1 + // flags
-            (include_expiry ? sizeof(uint32_t) : 0);
-
-    fillHeader(request.message.header, path.size() + value.size(), extlen);
-
-    // Add extras: pathlen, flags, optional expiry
-    request.message.extras.pathlen = htons(path.size());
-    request.message.extras.subdoc_flags = flags;
-    buf.insert(buf.end(),
-               request.bytes, &request.bytes[0] + sizeof(request.bytes));
-
-    if (include_expiry) {
-        // As expiry is optional (and immediately follows subdoc_flags,
-        // i.e. unaligned) there's no field in the struct; so use low-level
-        // memcpy to populate it.
-        uint32_t encoded_expiry = htonl(expiry);
-        char *expbuf = reinterpret_cast<char*>(&encoded_expiry);
-        buf.insert(buf.end(), expbuf, expbuf + sizeof encoded_expiry);
-    }
-
-    // Add Body: key; path; value if applicable.
-    buf.insert(buf.end(), key.begin(), key.end());
-    buf.insert(buf.end(), path.begin(), path.end());
-    buf.insert(buf.end(), value.begin(), value.end());
 }
 
 /* Encodes and sends a sub-document command, without waiting for any response.
  */
-void send_subdoc_cmd(const SubdocCmd& cmd) {
-    std::vector<char> buf;
+void send_subdoc_cmd(const BinprotSubdocCommand& cmd) {
+    std::vector<uint8_t> buf;
     cmd.encode(buf);
     safe_send(buf.data(), buf.size(), false);
 }
 
-static void recv_subdoc_response(const SubdocCmd& cmd,
+static void recv_subdoc_response(const BinprotSubdocCommand& cmd,
                                  protocol_binary_response_status err,
-                                 SubdocSingleResponse& resp)
+                                 BinprotSubdocResponse& resp)
 {
-    std::vector<char> buf;
+    std::vector<uint8_t> buf;
     if (!safe_recv_packet(buf)) {
         ADD_FAILURE() << "Failed to recv subdoc response";
         return;
@@ -304,10 +265,10 @@ uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
     return header.response.cas;
 }
 
-::testing::AssertionResult subdoc_verify_cmd(const SubdocCmd& cmd,
+::testing::AssertionResult subdoc_verify_cmd(const BinprotSubdocCommand& cmd,
                                              protocol_binary_response_status err,
                                              const std::string& value,
-                                             SubdocSingleResponse& resp)
+                                             BinprotSubdocResponse& resp)
 {
     using ::testing::AssertionSuccess;
     using ::testing::AssertionFailure;
@@ -383,7 +344,7 @@ void store_object(const std::string& key,
 
 // Ensure the path p in the document k is equal to v
 #define EXPECT_SD_GET(k, p, v) EXPECT_SD_VALEQ(\
-    SubdocCmd().setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET).setKey(k).setPath(p), v)
+    BinprotSubdocCommand().setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET).setKey(k).setPath(p), v)
 
 // Ensure that the given error AND value are returned
 #define EXPECT_SUBDOC_CMD(cmd, err, val) EXPECT_PRED_FORMAT3(subdoc_pred_compat, cmd, err, val)
@@ -398,7 +359,7 @@ void test_subdoc_get_binary(bool compress, protocol_binary_command cmd) {
     store_object("binary", not_JSON);
 
     // a). Check that access fails with DOC_NOTJSON
-    EXPECT_SD_ERR(SubdocCmd(cmd, "binary", "[0]"), PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON);
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "binary", "[0]"), PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON);
 
     delete_object("binary");
 }
@@ -429,38 +390,38 @@ void test_subdoc_fetch_array_simple(bool compressed, protocol_binary_command cmd
     store_object("array", array, /*JSON*/true, compressed);
 
     // a). Check successful access to each array element.
-    EXPECT_SD_VALEQ(SubdocCmd(cmd, "array", "[0]"), "0");
-    EXPECT_SD_VALEQ(SubdocCmd(cmd, "array", "[1]"), "\"one\"");
-    EXPECT_SD_VALEQ(SubdocCmd(cmd, "array", "[2]"), "2.0");
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "array", "[0]"), "0");
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "array", "[1]"), "\"one\"");
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "array", "[2]"), "2.0");
 
     // b). Check successful access to last element (using -1).
-    EXPECT_SD_VALEQ(SubdocCmd(cmd, "array", "[-1]"), "2.0");
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "array", "[-1]"), "2.0");
 
     // c). Check -2 treated as invalid index (only -1 permitted).
-    EXPECT_SD_ERR(SubdocCmd(cmd, "array", "[-2]"),
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "array", "[-2]"),
         PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EINVAL);
     reconnect_to_server();
 
     // d). Check failure accessing out-of-range index.
-    EXPECT_SD_ERR(SubdocCmd(cmd, "array", "[3]"),
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "array", "[3]"),
         PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT);
-    EXPECT_SD_ERR(SubdocCmd(cmd, "array", "[9999]"),
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "array", "[9999]"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT);
 
     // e). Check failure accessing array as dict.
-    EXPECT_SD_ERR(SubdocCmd(cmd, "array", "missing_key"),
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "array", "missing_key"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH);
-    EXPECT_SD_ERR(SubdocCmd(cmd, "array", "[2].nothing_here"),
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "array", "[2].nothing_here"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH);
 
     // f). Check path longer than SUBDOC_PATH_MAX_LENGTH is invalid.
     std::string too_long_path(1024 + 1, '.');
-    EXPECT_SD_ERR(SubdocCmd(cmd, "array", too_long_path),
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "array", too_long_path),
                   PROTOCOL_BINARY_RESPONSE_EINVAL);
     reconnect_to_server();
 
     // g). Check that incorrect flags (i.e. non-zero) is invalid.
-    EXPECT_SD_ERR(SubdocCmd(cmd, "array", "[0]", "", SUBDOC_FLAG_MKDIR_P),
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "array", "[0]", "", SUBDOC_FLAG_MKDIR_P),
                   PROTOCOL_BINARY_RESPONSE_EINVAL);
     reconnect_to_server();
 
@@ -499,21 +460,21 @@ void test_subdoc_fetch_dict_simple(bool compressed,
     store_object("dict", dict, /*JSON*/true, compressed);
 
     // a). Check successful access to each dict element.
-    EXPECT_SD_VALEQ(SubdocCmd(cmd, "dict", "int"), "1");
-    EXPECT_SD_VALEQ(SubdocCmd(cmd, "dict", "string"), "\"two\"");
-    EXPECT_SD_VALEQ(SubdocCmd(cmd, "dict", "true"), "true");
-    EXPECT_SD_VALEQ(SubdocCmd(cmd, "dict", "false"), "false");
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "dict", "int"), "1");
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "dict", "string"), "\"two\"");
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "dict", "true"), "true");
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "dict", "false"), "false");
 
     // b). Check failure accessing non-existent keys.
-    EXPECT_SD_ERR(SubdocCmd(cmd, "dict", "missing_key"),
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "dict", "missing_key"),
                   PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT);
 
     // c). Check failure accessing object incorrectly (wrong type).
-    EXPECT_SD_ERR(SubdocCmd(cmd, "dict", "[0]"),
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "dict", "[0]"),
                   PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH);
-    EXPECT_SD_ERR(SubdocCmd(cmd, "dict", "[-1]"),
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "dict", "[-1]"),
                   PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH);
-    EXPECT_SD_ERR(SubdocCmd(cmd, "dict", "int.nothing_here"),
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "dict", "int.nothing_here"),
                   PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH);
 
     delete_object("dict");
@@ -572,22 +533,22 @@ void test_subdoc_fetch_dict_nested(bool compressed,
     cJSON_Free(dict_str);
 
     // a). Check successful access to individual nested components.
-    EXPECT_SD_VALEQ(SubdocCmd(cmd, "dict2", "name.title"), "\"Mr\"");
-    EXPECT_SD_VALEQ(SubdocCmd(cmd, "dict2", "name.first"), "\"Joseph\"");
-    EXPECT_SD_VALEQ(SubdocCmd(cmd, "dict2", "name.last"), "\"Bloggs\"");
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "dict2", "name.title"), "\"Mr\"");
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "dict2", "name.first"), "\"Joseph\"");
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "dict2", "name.last"), "\"Bloggs\"");
 
     // b). Check successful access to a whole sub-dictionary.
     char* name_str = cJSON_PrintUnformatted(name);
-    EXPECT_SD_VALEQ(SubdocCmd(cmd, "dict2", "name"), name_str);
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "dict2", "name"), name_str);
     cJSON_Free(name_str);
 
     // c). Check successful access to a whole sub-array.
     char* orders_str = cJSON_PrintUnformatted(orders);
-    EXPECT_SD_VALEQ(SubdocCmd(cmd, "dict2", "orders"), orders_str);
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "dict2", "orders"), orders_str);
     cJSON_Free(orders_str);
 
     // d). Check access to dict in array.
-    EXPECT_SD_VALEQ(SubdocCmd(cmd, "dict2", "orders[0].date"),
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "dict2", "orders[0].date"),
                     "\"2020-04-04T18:17:04Z\"");
 
     delete_object("dict2");
@@ -640,7 +601,7 @@ void test_subdoc_fetch_dict_deep(protocol_binary_command cmd) {
     for (int depth = 2; depth < MAX_SUBDOC_PATH_COMPONENTS; depth++) {
         valid_max_path += std::string(".") + std::to_string(depth);
     }
-    EXPECT_SD_VALEQ(SubdocCmd(cmd, "max_dict", valid_max_path), "{}");
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "max_dict", valid_max_path), "{}");
 
     delete_object("max_dict");
 
@@ -654,7 +615,7 @@ void test_subdoc_fetch_dict_deep(protocol_binary_command cmd) {
     for (int depth = 2; depth < MAX_SUBDOC_PATH_COMPONENTS + 1; depth++) {
         too_long_path += std::string(".") + std::to_string(depth);
     }
-    EXPECT_SD_ERR(SubdocCmd(cmd, "too_deep_dict", too_long_path),
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "too_deep_dict", too_long_path),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_E2BIG);
 
     delete_object("too_deep_dict");
@@ -702,7 +663,7 @@ void test_subdoc_fetch_array_deep(protocol_binary_command cmd) {
 
     std::string valid_max_path(make_nested_array_path(MAX_SUBDOC_PATH_COMPONENTS));
 
-    EXPECT_SD_VALEQ(SubdocCmd(cmd, "max_array", valid_max_path), "[]");
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(cmd, "max_array", valid_max_path), "[]");
     delete_object("max_array");
 
     // b). Accessing a deeper array should fail.
@@ -713,7 +674,7 @@ void test_subdoc_fetch_array_deep(protocol_binary_command cmd) {
 
     std::string too_long_path(make_nested_array_path(MAX_SUBDOC_PATH_COMPONENTS + 1));
 
-    EXPECT_SD_ERR(SubdocCmd(cmd, "too_deep_array", too_long_path),
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "too_deep_array", too_long_path),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_E2BIG);
     delete_object("too_deep_array");
 }
@@ -745,13 +706,13 @@ void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
             {"null", "null"}});
 
     // a). Attempt to add to non-existent document should fail.
-    EXPECT_SD_ERR(SubdocCmd(cmd, "dict", "int", "2"),
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "dict", "int", "2"),
                       PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
 
     // b). Attempt to add to non-JSON document should return ENOT_JSON
     const char not_JSON[] = "not; valid, JSON";
     store_object("binary", not_JSON, /*JSON*/false, compress);
-    EXPECT_SD_ERR(SubdocCmd(cmd, "binary", "int", "2"),
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "binary", "int", "2"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON);
     delete_object("binary");
 
@@ -761,14 +722,14 @@ void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
 
     // c). Addition of primitive types to the dict.
     for (const auto& kv : key_vals) {
-        EXPECT_SD_OK(SubdocCmd(cmd, "dict", kv.first, kv.second));
+        EXPECT_SD_OK(BinprotSubdocCommand(cmd, "dict", kv.first, kv.second));
         EXPECT_SD_GET("dict", kv.first, kv.second);
     }
 
     // d). Check that attempts to add keys which already exist fail for DICT_ADD,
     // and are permitted for DICT_UPSERT.
     for (const auto& kv : key_vals) {
-        SubdocCmd sd_cmd(cmd, "dict", kv.first, kv.second);
+        BinprotSubdocCommand sd_cmd(cmd, "dict", kv.first, kv.second);
         if (cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD) {
             EXPECT_SD_ERR(sd_cmd, PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS);
         } else { // DICT_UPSERT
@@ -781,7 +742,7 @@ void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
     // dict path fail.
     for (const auto& kv : key_vals) {
         auto key = "intermediate." + kv.first;
-        EXPECT_SD_ERR(SubdocCmd(cmd, "dict", key, kv.second),
+        EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "dict", key, kv.second),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT);
     }
 
@@ -789,7 +750,7 @@ void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
     // array path fail.
     for (const auto& kv : key_vals) {
         auto key = "intermediate_array[0]." + kv.first;
-        EXPECT_SD_ERR(SubdocCmd(cmd, "dict", key, kv.second),
+        EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "dict", key, kv.second),
                           PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT);
     }
 
@@ -797,7 +758,7 @@ void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
     // intermediate array paths are never automatically created).
     for (const auto& kv : key_vals) {
         auto key = "intermediate_array[0]." + kv.first;
-        EXPECT_SD_ERR(SubdocCmd(cmd, "dict", key, kv.second, SUBDOC_FLAG_MKDIR_P),
+        EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "dict", key, kv.second, SUBDOC_FLAG_MKDIR_P),
                           PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT);
     }
 
@@ -805,7 +766,7 @@ void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
     // succeed if the MKDIR_P flag is set.
     for (const auto& kv : key_vals) {
         auto key = "intermediate." + kv.first;
-        EXPECT_SD_OK(SubdocCmd(cmd, "dict", key, kv.second, SUBDOC_FLAG_MKDIR_P));
+        EXPECT_SD_OK(BinprotSubdocCommand(cmd, "dict", key, kv.second, SUBDOC_FLAG_MKDIR_P));
         EXPECT_SD_GET("dict", key, kv.second);
     }
 
@@ -826,29 +787,29 @@ void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
             {"bad_null", "nul"},
     });
     for (const auto& kv : invalid_key_vals) {
-        EXPECT_SD_ERR(SubdocCmd(cmd, "dict", kv.first, kv.second),
+        EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "dict", kv.first, kv.second),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_CANTINSERT);
     }
 
     // j). Check CAS support - cmd with correct CAS should succeed.
     // Get the current CAS.
-    SubdocSingleResponse resp;
-    EXPECT_SUBDOC_CMD_RESP(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, "dict", "int"),
+    BinprotSubdocResponse resp;
+    EXPECT_SUBDOC_CMD_RESP(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, "dict", "int"),
         PROTOCOL_BINARY_RESPONSE_SUCCESS, "", resp);
     uint64_t cas = resp.getCas();
     EXPECT_NE(0, cas);
-    EXPECT_SUBDOC_CMD_RESP(SubdocCmd(cmd, "dict", "new_int", "3", SUBDOC_FLAG_NONE, cas),
+    EXPECT_SUBDOC_CMD_RESP(BinprotSubdocCommand(cmd, "dict", "new_int", "3", SUBDOC_FLAG_NONE, cas),
         PROTOCOL_BINARY_RESPONSE_SUCCESS, "", resp);
 
     uint64_t new_cas = resp.getCas();
     EXPECT_NE(cas, new_cas);
 
     // k). CAS - cmd with old cas should fail.
-    EXPECT_SD_ERR(SubdocCmd(cmd, "dict", "new_int2", "4", SUBDOC_FLAG_NONE, cas),
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "dict", "new_int2", "4", SUBDOC_FLAG_NONE, cas),
                       PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
 
     // l). CAS - manually corrupted (off by one) cas should fail.
-    EXPECT_SD_ERR(SubdocCmd(cmd, "dict","new_int2", "4",
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "dict","new_int2", "4",
                             SUBDOC_FLAG_NONE, new_cas + 1),
                   PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
 
@@ -856,7 +817,7 @@ void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
 
     // m). Attempt to perform dict command on array should fail.
     store_object("array", "[1,2]", /*JSON*/true, compress);
-    EXPECT_SD_ERR(SubdocCmd(cmd, "array","foo", "\"bar\""),
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "array","foo", "\"bar\""),
                   PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH);
     delete_object("array");
 
@@ -865,7 +826,7 @@ void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
     // objects).
     store_object("dict", "\"string\"", /*JSON*/true, compress);
     for (const auto& kv : key_vals) {
-        EXPECT_SD_ERR(SubdocCmd(cmd, "dict", kv.first, kv.second),
+        EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "dict", kv.first, kv.second),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON);
     }
     delete_object("dict");
@@ -920,8 +881,8 @@ void McdTestappTest::test_subdoc_dict_add_cas(bool compress,
 
     // .. Yet a client request should succeed, as internal CAS failure should
     // be retried.
-    SubdocSingleResponse resp;
-    EXPECT_SUBDOC_CMD_RESP(SubdocCmd(cmd, "dict","new_int3", "3"),
+    BinprotSubdocResponse resp;
+    EXPECT_SUBDOC_CMD_RESP(BinprotSubdocCommand(cmd, "dict","new_int3", "3"),
         PROTOCOL_BINARY_RESPONSE_SUCCESS, "", resp);
     uint64_t new_cas = resp.getCas();
 
@@ -933,7 +894,7 @@ void McdTestappTest::test_subdoc_dict_add_cas(bool compress,
     ewouldblock_engine_configure(ENGINE_KEY_EEXISTS, EWBEngineMode::Sequence,
                                  0xfffffffc /* <3 MSBytes all-ones>, 0b11,111,100 */);
 
-    EXPECT_SD_ERR(SubdocCmd(cmd, "dict","new_int4", "4", SUBDOC_FLAG_NONE, new_cas),
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "dict","new_int4", "4", SUBDOC_FLAG_NONE, new_cas),
                   PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
 
     // Cleanup.
@@ -988,7 +949,7 @@ void test_subdoc_dict_add_upsert_deep(protocol_binary_command cmd) {
             {"null", "null"}});
     for (const auto& kv : primitive_key_vals) {
         const auto key = one_less_max_path + "." + kv.first;
-        EXPECT_SD_OK(SubdocCmd(cmd, "dict", key, kv.second));
+        EXPECT_SD_OK(BinprotSubdocCommand(cmd, "dict", key, kv.second));
         EXPECT_SD_GET("dict", key, kv.second);
     }
 
@@ -1020,30 +981,30 @@ void test_subdoc_delete_simple(bool compress) {
     store_object("dict", dict, /*JSON*/true, compress);
 
     // Attempts to delete non-existent elements should fail.
-    EXPECT_SD_ERR(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "dict", "bad_key"),
+    EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "dict", "bad_key"),
                   PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT);
 
     for (unsigned int ii = 0; ii < 8; ii++) {
         // Assert we can access it initially:
         std::string path(std::to_string(ii));
-        SubdocSingleResponse resp;
-        EXPECT_SUBDOC_CMD_RESP(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, "dict", path),
+        BinprotSubdocResponse resp;
+        EXPECT_SUBDOC_CMD_RESP(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, "dict", path),
                                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "",
                                          resp);
         uint64_t cas = resp.getCas();
 
         // Deleting with the wrong CAS should fail:
-        EXPECT_SD_ERR(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "dict",
+        EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "dict",
                                 path, "", SUBDOC_FLAG_NONE, cas + 1),
                       PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
 
-        EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, "dict",path));
+        EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, "dict",path));
 
         // Should be able to delete with no CAS specified.
-        EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "dict", path));
+        EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "dict", path));
 
         // ... and should no longer exist:
-        EXPECT_SD_ERR(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, "dict", path),
+        EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, "dict", path),
                           PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT);
     }
 
@@ -1069,33 +1030,33 @@ TEST_P(McdTestappTest, SubdocDelete_Array) {
     EXPECT_SD_GET("a", "[2]", "2");
 
     // a). Attempts to delete out of range elements should fail.
-    EXPECT_SD_ERR(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "a", "[5]"),
+    EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "a", "[5]"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT);
 
     // b). Test deleting at end of array.
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "a", "[4]"));
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "a", "[4]"));
     //     3rd element should still be 2; last element should now be 3.
     EXPECT_SD_GET("a", "[2]", "2");
     EXPECT_SD_GET("a", "[-1]", "3");
     validate_object("a", "[0,1,2,3]");
 
     // c). Test deleting at start of array; elements are shuffled down.
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "a", "[0]"));
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "a", "[0]"));
     //     3rd element should now be 3; last element should still be 3.
     EXPECT_SD_GET("a", "[2]", "3");
     EXPECT_SD_GET("a", "[-1]", "3");
     validate_object("a", "[1,2,3]");
 
     // d). Test deleting of last element using [-1].
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "a", "[-1]"));
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "a", "[-1]"));
     //     Last element should now be 2.
     EXPECT_SD_GET("a", "[-1]", "2");
     validate_object("a", "[1,2]");
 
     // e). Delete remaining elements.
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "a", "[0]"));
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "a", "[0]"));
     validate_object("a", "[2]");
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "a", "[0]"));
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "a", "[0]"));
     // Should have an empty array.
     validate_object("a", "[]");
 
@@ -1111,15 +1072,15 @@ TEST_P(McdTestappTest, SubdocDelete_ArrayNested) {
     EXPECT_SD_GET("b", "[1]", "[10,20,[100]]");
 
     // a). Delete nested array element
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "b", "[1][2][0]"));
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "b", "[1][2][0]"));
     EXPECT_SD_GET("b", "[1]", "[10,20,[]]");
 
     // b). Delete the (now empty) nested array.
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "b", "[1][2]"));
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "b", "[1][2]"));
     EXPECT_SD_GET("b", "[1]", "[10,20]");
 
     // c). Delete the next level up array.
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "b", "[1]"));
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "b", "[1]"));
     // element [1] should now be the dict.
     EXPECT_SD_GET("b", "[1]", "{\"key\":\"value\"}");
 
@@ -1145,7 +1106,7 @@ TEST_P(McdTestappTest, SubdocReplace_SimpleDict)
 
     // Replace the initial key with each primitive type:
     for (const auto& replace : JSON_VALUES) {
-        EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+        EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                                "a", "key", replace));
         EXPECT_SD_GET("a", "key", replace);
     }
@@ -1165,7 +1126,7 @@ TEST_P(McdTestappTest, SubdocReplace_SimpleArray)
 
     // Replace the first element with each primitive type:
     for (const auto& replace : JSON_VALUES) {
-        EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "a", "[0]",
+        EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "a", "[0]",
                                     replace));
         EXPECT_SD_GET("a", "[0]", replace);
     }
@@ -1190,19 +1151,19 @@ TEST_P(McdTestappTest, SubdocReplace_ArrayDeep)
 
     // a). Should be able to replace an element at the max depth.
     std::string new_value("\"deep\"");
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "a",
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "a",
         valid_max_path, new_value));
     EXPECT_SD_GET("a", valid_max_path, new_value);
 
     // b). But adding a nested array (taking the document over the maximum
     // depth) should fail.
-    EXPECT_SD_ERR(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "a",
+    EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "a",
                            valid_max_path, "[0]"),
                   PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_ETOODEEP);
 
 
     // c). Replace the whole deep array with a single toplevel element.
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "a", "[0]", "[]"));
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "a", "[0]", "[]"));
     EXPECT_SD_GET("a", "[0]", "[]");
     delete_object("a");
 }
@@ -1211,31 +1172,31 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_Simple)
 {
     // a). Empty array, append to it.
     store_object("a", "[]", /*JSON*/true, /*compress*/false);
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST)
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST)
         .setKey("a").setPath("").setValue("0"));
     EXPECT_SD_GET("a", "[0]", "0");
     validate_object("a", "[0]");
 
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST, "a",
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST, "a",
                            "", "1"));
     EXPECT_SD_GET("a", "[1]", "1");
     validate_object("a", "[0,1]");
 
-    SubdocSingleResponse resp;
+    BinprotSubdocResponse resp;
     EXPECT_SUBDOC_CMD_RESP(
-        SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST)
+        BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST)
         .setKey("a").setValue("2"), PROTOCOL_BINARY_RESPONSE_SUCCESS, "", resp);
     EXPECT_SD_GET("a", "[2]", "2");
     validate_object("a", "[0,1,2]");
 
     // b). Check that using the correct CAS succeeds.
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
                                 "a", "", "3", SUBDOC_FLAG_NONE, resp.getCas()));
     EXPECT_SD_GET("a", "[3]", "3"),
     validate_object("a", "[0,1,2,3]");
 
     // c). But using the wrong one fails.
-    EXPECT_SD_ERR(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+    EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
                             "a", "", "4", SUBDOC_FLAG_NONE, resp.getCas()),
                   PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
     validate_object("a", "[0,1,2,3]");
@@ -1245,7 +1206,7 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_Simple)
     store_object("b", "[]", /*JSON*/true, /*compress*/false);
     int index = 0;
     for (const auto& value : JSON_VALUES) {
-        EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+        EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
                                     "b", "", value));
         std::string path("[" + std::to_string(index) + "]");
         EXPECT_SD_GET("b", path, value);
@@ -1255,10 +1216,10 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_Simple)
 
     // e). Check we can append multiple values at once.
     store_object("c", "[]", /*JSON*/true, /*compress*/false);
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
                                 "c", "", "0,1"));
     validate_object("c", "[0,1]");
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
                                 "c", "", "\"two\",3.141,{\"four\":4}"));
     validate_object("c", "[0,1,\"two\",3.141,{\"four\":4}]");
 
@@ -1266,7 +1227,7 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_Simple)
 
     // f). Check MKDIR_P flag works.
     store_object("d", "{}", /*JSON*/true, /*compress*/false);
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
                                 "d", "foo", "0", SUBDOC_FLAG_MKDIR_P));
     delete_object("d");
 }
@@ -1276,13 +1237,13 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_Nested)
     // Operations on a nested array,
     // a). Begin with an empty nested array, append to it.
     store_object("a", "[[]]", /*JSON*/true, /*compress*/false);
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST, "a",
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST, "a",
                  "", "1"));
     EXPECT_SD_GET("a", "[0]", "[]");
     EXPECT_SD_GET("a", "[1]", "1");
     validate_object("a", "[[],1]");
 
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST, "a",
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST, "a",
                  "", "2"));
     EXPECT_SD_GET("a", "[2]", "2");
     validate_object("a", "[[],1,2]");
@@ -1294,29 +1255,29 @@ TEST_P(McdTestappTest, SubdocArrayPushFirst_Simple)
 {
     // a). Empty array, prepend to it.
     store_object("a", "[]", /*JSON*/true, /*compress*/false);
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST, "a", "", "0"));
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST, "a", "", "0"));
     EXPECT_SD_GET("a", "[0]", "0");
     validate_object("a", "[0]");
 
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST, "a", "", "1"));
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST, "a", "", "1"));
     EXPECT_SD_GET("a", "[0]", "1");
     validate_object("a", "[1,0]");
 
-    SubdocSingleResponse resp;
-    EXPECT_SUBDOC_CMD_RESP(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+    BinprotSubdocResponse resp;
+    EXPECT_SUBDOC_CMD_RESP(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
                                                "a", "", "2"),
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "", resp);
     EXPECT_SD_GET("a", "[0]", "2");
     validate_object("a", "[2,1,0]");
 
     // b). Check that using the correct CAS succeeds.
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
                            "a", "", "3", SUBDOC_FLAG_NONE, resp.getCas()));
     EXPECT_SD_GET("a", "[0]", "3");
     validate_object("a", "[3,2,1,0]");
 
     // c). But using the wrong one fails.
-    EXPECT_SUBDOC_CMD(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+    EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
                                 "a", "", "4", SUBDOC_FLAG_NONE, resp.getCas()),
                       PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "");
     validate_object("a", "[3,2,1,0]");
@@ -1325,7 +1286,7 @@ TEST_P(McdTestappTest, SubdocArrayPushFirst_Simple)
     // d). Check various other object types prepend successfully.
     store_object("b", "[]", /*JSON*/true, /*compress*/false);
     for (const auto& value : JSON_VALUES) {
-        EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+        EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
                                     "b", "", value));
         EXPECT_SD_GET("b", "[0]", value);
     }
@@ -1333,17 +1294,17 @@ TEST_P(McdTestappTest, SubdocArrayPushFirst_Simple)
 
     // e). Check we can prepend multiple values at once.
     store_object("c", "[]", /*JSON*/true, /*compress*/false);
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
                            "c", "", "0,1"));
     validate_object("c", "[0,1]");
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
                            "c", "", "\"two\",3.141,{\"four\":4}"));
     validate_object("c", "[\"two\",3.141,{\"four\":4},0,1]");
     delete_object("c");
 
     // f). Check MKDIR_P flag works.
     store_object("d", "{}", /*JSON*/true, /*compress*/false);
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
                            "d", "foo", "0", SUBDOC_FLAG_MKDIR_P));
     delete_object("d");
 }
@@ -1353,13 +1314,13 @@ TEST_P(McdTestappTest, SubdocArrayPushFirst_Nested)
     // Operations on a nested array.
     // a). Begin with an empty nested array, prepend to it.
     store_object("a", "[[]]", /*JSON*/true, /*compress*/false);
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST, "a",
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST, "a",
                            "", "1"));
     EXPECT_SD_GET("a", "[0]", "1");
     EXPECT_SD_GET("a", "[1]", "[]");
     validate_object("a", "[1,[]]");
 
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
                  "a","", "2"));
     EXPECT_SD_GET("a", "[0]", "2");
     validate_object("a", "[2,1,[]]");
@@ -1373,12 +1334,12 @@ TEST_P(McdTestappTest, SubdocArrayAddUnique_Simple)
     store_object("a", "[]", /*JSON*/true, /*compress*/false);
 
     // a). Add an element which doesn't already exist.
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
                            "a", "", "0"));
     validate_object("a", "[0]");
 
     // b). Add an element which does already exist.
-    EXPECT_SD_ERR(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+    EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
                             "a", "", "0"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS);
     validate_object("a", "[0]");
@@ -1387,7 +1348,7 @@ TEST_P(McdTestappTest, SubdocArrayAddUnique_Simple)
     // c). Larger array, add an element which already exists.
     std::string array("[0,1,2,3,4,5,6,7,8,9]");
     store_object("b", array, /*JSON*/true, /*compress*/false);
-    EXPECT_SD_ERR(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+    EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
                             "b", "", "6"),
                   PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS);
     validate_object("b", array.c_str());
@@ -1401,12 +1362,12 @@ TEST_P(McdTestappTest, SubdocArrayAddUnique_Simple)
         "false",
         "null"});
     for (const auto& v : valid_unique_values) {
-        EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+        EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
                                "b", "", v));
     }
     // ... and attempting to add a second time returns EEXISTS
     for (const auto& v : valid_unique_values) {
-        EXPECT_SD_ERR(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+        EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
                                 "b", "", v),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS);
     }
@@ -1418,7 +1379,7 @@ TEST_P(McdTestappTest, SubdocArrayAddUnique_Simple)
         "{\"foo\": \"bar\"}",
         "[0,1,2]"});
     for (const auto& v : invalid_unique_values) {
-        EXPECT_SUBDOC_CMD(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+        EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
                                     "b", "", v),
                           PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
     }
@@ -1428,13 +1389,13 @@ TEST_P(McdTestappTest, SubdocArrayAddUnique_Simple)
     // g). Attempts to add_unique to a array with non-primitive values should
     // fail.
     store_object("c", "[{\"a\":\"b\"}]", /*JSON*/true, /*compress*/false);
-    EXPECT_SD_ERR(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+    EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
                             "c", "", "1"),
                   PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH);
     delete_object("c");
 
     store_object("d", "[[1,2]]", /*JSON*/true, /*compress*/false);
-    EXPECT_SD_ERR(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+    EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
                             "d", "", "3"),
                   PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH);
     delete_object("d");
@@ -1446,25 +1407,25 @@ TEST_P(McdTestappTest, SubdocArrayInsert_Simple)
     store_object("a", "[]", /*JSON*/true, /*compress*/false);
 
     // a). Attempt to insert at position 0 should succeed.
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
                                 "a", "[0]", "2"));
     validate_object("a", "[2]");
 
     // b). Second insert at zero should succeed and shuffle existing element
     // down.
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
                                 "a", "[0]", "0"));
     validate_object("a", "[0,2]");
 
     // c). Insert at position 1 should shuffle down elements after, leave alone
     // elements before.
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
                            "a", "[1]", "1"));
     validate_object("a", "[0,1,2]");
 
     // d). Insert at len(array) should add to the end, without moving existing
     // elements.
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
                                 "a", "[3]", "3"));
     validate_object("a", "[0,1,2,3]");
 
@@ -1477,33 +1438,33 @@ TEST_P(McdTestappTest, SubdocArrayInsert_Invalid)
     store_object("a", "[]", /*JSON*/true, /*compress*/false);
 
     // a). Attempt to insert past the end of the (empty) array should fail.
-    EXPECT_SUBDOC_CMD(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+    EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
                                 "a", "[1]", "0"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, "");
     validate_object("a", "[]");
 
     // b). Insert at position '-1' is invalid.
-    EXPECT_SUBDOC_CMD(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+    EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
                                 "a", "[-1]", "3"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EINVAL, "");
     reconnect_to_server();
     validate_object("a", "[]");
 
     // c). MKDIR_P flag is not valid for ARRAY_INSERT
-    EXPECT_SUBDOC_CMD(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+    EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
                                 "a", "[0]", "1", SUBDOC_FLAG_MKDIR_P),
                       PROTOCOL_BINARY_RESPONSE_EINVAL, "");
     reconnect_to_server();
     validate_object("a", "[]");
 
     // d). A path larger than len(array) should fail.
-    EXPECT_SUBDOC_CMD(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+    EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
                                 "a", "[1]", "1"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, "");
     validate_object("a", "[]");
 
     // e). A path whose has component isn't an array subscript should fail.
-    EXPECT_SUBDOC_CMD(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+    EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
                                 "a", "[0].foo", "1"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EINVAL, "");
     reconnect_to_server();
@@ -1513,7 +1474,7 @@ TEST_P(McdTestappTest, SubdocArrayInsert_Invalid)
 
     // f). Attempt to insert to a dict should fail.
     store_object("b", "{}", /*JSON*/true, /*compress*/false);
-    EXPECT_SUBDOC_CMD(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+    EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
                                 "b", "[0]", "0"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
     validate_object("b", "{}");
@@ -1526,19 +1487,19 @@ TEST_P(McdTestappTest, SubdocGetCount)
     store_object("a", "[]", /*JSON*/true, /*compress*/false);
 
     // Get size. Should be 0
-    EXPECT_SD_VALEQ(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, "a", ""), "0");
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, "a", ""), "0");
 
     // Store it again, giving it some size
     store_object("a", "[1,2,3]", true, false);
-    EXPECT_SD_VALEQ(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, "a", ""), "3");
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, "a", ""), "3");
 
     // Check for mismatch
     store_object("a", "{\"k\":\"v\"}", true, false);
-    EXPECT_SD_ERR(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, "a", "k"),
+    EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, "a", "k"),
                   PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH);
 
     // Check for non-found
-    EXPECT_SD_ERR(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, "a", "n"),
+    EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, "a", "n"),
                   PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT);
     delete_object("a");
 }
@@ -1547,28 +1508,28 @@ void test_subdoc_counter_simple() {
     store_object("a", "{}", /*JSON*/true, /*compress*/false);
 
     // a). Check that empty document, empty path creates a new element.
-    EXPECT_SD_VALEQ(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                               "a", "key", "1"), "1");
     auto result = fetch_value("a");
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
     EXPECT_EQ("{\"key\":1}", result.second);
 
     // b). Check we can now increment it further.
-    EXPECT_SD_VALEQ(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                               "a", "key", "1"), "2");
     result = fetch_value("a");
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
     EXPECT_EQ("{\"key\":2}", result.second);
 
     // c). Decrement by 2; should go back to zero.
-    EXPECT_SD_VALEQ(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                                 "a", "key", "-2"), "0");
     result = fetch_value("a");
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
     EXPECT_EQ("{\"key\":0}", result.second);
 
     // d). Decrement by 1; should go negative.
-    EXPECT_SD_VALEQ(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                                 "a", "key", "-1"), "-1");
     result = fetch_value("a");
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
@@ -1603,7 +1564,7 @@ TEST_P(McdTestappTest, SubdocCounter_InvalidNotInt)
     for (auto& val : NOT_INTEGER) {
         const std::string doc("{\"key\":" + val + "}");
         store_object("a", doc, /*JSON*/true, /*compress*/false);
-        EXPECT_SD_ERR(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+        EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                                     "a", "key", "1"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH);
         auto result = fetch_value("a");
@@ -1625,7 +1586,7 @@ TEST_P(McdTestappTest, SubdocCounter_InvalidERange)
     for (auto& val : unrepresentable) {
         const std::string doc("{\"key\":" + val + "}");
         store_object("b", doc, /*JSON*/true, /*compress*/false);
-        EXPECT_SUBDOC_CMD(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+        EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                                     "b", "key", "1"),
                           PROTOCOL_BINARY_RESPONSE_SUBDOC_NUM_ERANGE, "");
         auto result = fetch_value("b");
@@ -1643,7 +1604,7 @@ TEST_P(McdTestappTest, SubdocCounter_Limits)
 
     store_object("a", "{\"key\":" + std::to_string(max - 1) + "}",
                  /*JSON*/true, /*compress*/false);
-    EXPECT_SD_VALEQ(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                                 "a", "key", "1"), std::to_string(max));
 
     auto result = fetch_value("a");
@@ -1651,7 +1612,7 @@ TEST_P(McdTestappTest, SubdocCounter_Limits)
     EXPECT_EQ("{\"key\":" + std::to_string(max) + "}", result.second);
 
     // b). A further increment by one should fail.
-    EXPECT_SUBDOC_CMD(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+    EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                                 "a", "key", "1"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_CANTINSERT, "");
 
@@ -1662,7 +1623,7 @@ TEST_P(McdTestappTest, SubdocCounter_Limits)
 
     store_object("b", "{\"key\":" + std::to_string(min + 1) + "}",
                  /*JSON*/true, /*compress*/false);
-    EXPECT_SD_VALEQ(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+    EXPECT_SD_VALEQ(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                               "b", "key", "-1"), std::to_string(min));
 
     result = fetch_value("b");
@@ -1670,7 +1631,7 @@ TEST_P(McdTestappTest, SubdocCounter_Limits)
     EXPECT_EQ("{\"key\":" + std::to_string(min) + "}", result.second);
 
     // b). A further decrement by one should fail.
-    EXPECT_SUBDOC_CMD(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+    EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                                 "b", "key", "-1"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_CANTINSERT, "");
 
@@ -1684,7 +1645,7 @@ TEST_P(McdTestappTest, SubdocCounter_InvalidIncr)
     store_object("a", doc, /*JSON*/true, /*compress*/false);
 
     for (auto& incr : NOT_INTEGER) {
-        EXPECT_SUBDOC_CMD(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+        EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                                     "a", "key", incr),
                           PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_EINVAL, "");
         auto result = fetch_value("a");
@@ -1694,7 +1655,7 @@ TEST_P(McdTestappTest, SubdocCounter_InvalidIncr)
     }
 
     // Cannot increment by zero.
-    EXPECT_SUBDOC_CMD(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+    EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                                 "a", "key", "0"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_EINVAL, "");
     auto result = fetch_value("a");
@@ -1720,21 +1681,21 @@ TEST_P(McdTestappTest, SubdocCASAutoRetry)
 
     // Issue a DICT_ADD without an explicit CAS. We should have an auto-retry
     // occur (and the command succeed).
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                                 "a", "key1", "1"));
 
     // 2. Now retry with MAXIMUM_ATTEMPTS-1 CAS mismatches - this should still
     // succeed.
     ewouldblock_engine_configure(ENGINE_SUCCESS, // not used for this mode
                                  EWBEngineMode::CasMismatch, 99);
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                            "a", "key2", "2"));
 
     // 3. Now with MAXIMUM_ATTEMPTS CAS mismatches - this should return TMPFAIL.
     ewouldblock_engine_configure(ENGINE_SUCCESS, // not used for this mode
                                  EWBEngineMode::CasMismatch,
                                  100);
-    EXPECT_SUBDOC_CMD(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+    EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                                 "a", "key3", "3"),
                       PROTOCOL_BINARY_RESPONSE_ETMPFAIL, "");
     delete_object("a");
@@ -1743,12 +1704,12 @@ TEST_P(McdTestappTest, SubdocCASAutoRetry)
 TEST_P(McdTestappTest, SubdocMkdoc_Array)
 {
     // Create new document (array)
-    ASSERT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+    ASSERT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
                            "a", "", "0", SUBDOC_FLAG_MKDOC));
     EXPECT_SD_GET("a", "[0]", "0");
 
     // Flag doesn't do anything if doc already exists
-    ASSERT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+    ASSERT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
                            "a", "", "1", SUBDOC_FLAG_MKDOC));
     EXPECT_SD_GET("a", "[1]", "1");
 
@@ -1757,17 +1718,17 @@ TEST_P(McdTestappTest, SubdocMkdoc_Array)
 
 TEST_P(McdTestappTest, SubdocMkdoc_Dict) {
     // Create new document (dictionary)
-    ASSERT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+    ASSERT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                            "a", "foo", "1", SUBDOC_FLAG_MKDOC));
     EXPECT_SD_GET("a", "foo", "1");
 
     // Flag doesn't do anything if doc already exists
-    ASSERT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+    ASSERT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                            "a", "bar", "2", SUBDOC_FLAG_MKDOC));
     EXPECT_SD_GET("a", "bar", "2");
 
     // Flag still has MKDIR_P semantics if needed
-    ASSERT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+    ASSERT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                            "a", "nested.path", "3", SUBDOC_FLAG_MKDOC));
     EXPECT_SD_GET("a", "nested.path", "3");
 
@@ -1776,10 +1737,10 @@ TEST_P(McdTestappTest, SubdocMkdoc_Dict) {
 
 TEST_P(McdTestappTest, SubdocMkdoc_Counter) {
     // Counter should also work (with a path) + MKDIR_P
-    ASSERT_SD_VALEQ(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+    ASSERT_SD_VALEQ(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                               "a", "counter.path", "42", SUBDOC_FLAG_MKDOC), "42");
     // Repeat should be OK
-    ASSERT_SD_VALEQ(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+    ASSERT_SD_VALEQ(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                               "a", "counter.path", "42", SUBDOC_FLAG_MKDOC), "84");
     delete_object("a");
 }
@@ -1793,13 +1754,13 @@ TEST_P(McdTestappTest, SubdocExpiry_Single)
     store_object("permanent", "[\"a\"]");
 
     // Expiry not permitted for SUBDOC_GET operations.
-    SubdocCmd get(PROTOCOL_BINARY_CMD_SUBDOC_GET, "ephemeral", "[0]");
+    BinprotSubdocCommand get(PROTOCOL_BINARY_CMD_SUBDOC_GET, "ephemeral", "[0]");
     get.setExpiry(666);
     EXPECT_SD_ERR(get, PROTOCOL_BINARY_RESPONSE_EINVAL);
     reconnect_to_server();
 
     // Perform a REPLACE operation, setting a expiry of 1s.
-    SubdocCmd replace(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "ephemeral", "[0]",
+    BinprotSubdocCommand replace(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "ephemeral", "[0]",
                       "\"b\"");
     EXPECT_SD_OK(replace.setExpiry(1));
 
@@ -1809,7 +1770,7 @@ TEST_P(McdTestappTest, SubdocExpiry_Single)
     EXPECT_EQ("[\"b\"]", result.second);
 
     // Perform a REPLACE, explicitly encoding an expiry of 0s.
-    SubdocCmd replace2(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "permanent", "[0]",
+    BinprotSubdocCommand replace2(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "permanent", "[0]",
                       "\"b\"");
     EXPECT_SD_OK(replace2.setExpiry(0));
 
@@ -1845,11 +1806,11 @@ TEST_P(McdTestappTest, SubdocGet_NotMyVbucket)
 
     // Should fail with NOT-MY-VBUCKET, and a non-zero length body including the
     // cluster config.
-    EXPECT_SUBDOC_CMD(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "array", "[0]"),
+    EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_GET, "array", "[0]"),
                       PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, "");
 
     // Second attempt should succced (as only next 1 engine op was set to fail).
-    EXPECT_SUBDOC_CMD(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "array", "[0]"),
+    EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_GET, "array", "[0]"),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "0");
 
     delete_object("array");
@@ -1869,12 +1830,12 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_NotMyVbucket)
 
     // Should fail with NOT-MY-VBUCKET, and a non-zero length body including the
     // cluster config.
-    EXPECT_SUBDOC_CMD(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+    EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
                                 "array", "", "1"),
                       PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, "");
 
     // Second attempt should succced (as only next 1 engine op was set to fail).
-    EXPECT_SUBDOC_CMD(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+    EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
                                 "array", "", "1"),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
 
@@ -1890,7 +1851,7 @@ TEST_P(McdTestappTest, SubdocFlags)
     const uint32_t flags = 0xcafebabe;
     store_object_with_flags("array", array, flags);
 
-    EXPECT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "array",
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "array",
                            "[0]", "1"));
 
     validate_object("array", "[1]");
@@ -1936,7 +1897,7 @@ static void test_subdoc_stats_command(protocol_binary_command cmd,
     auto bytes_before_subset = extract_single_stat(stats, traits.bytes_extracted_subset);
 
     // Perform the operation
-    EXPECT_SUBDOC_CMD(SubdocCmd(cmd, "doc", path, value),
+    EXPECT_SUBDOC_CMD(BinprotSubdocCommand(cmd, "doc", path, value),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, fragment);
 
     // Get subsequent stats, check stat increased by one.
@@ -2082,13 +2043,13 @@ TEST_F(WorkerConcurrencyTest, SubdocArrayPushLast_Concurrent) {
     sock = sock1;
 
     const size_t push_count = 100;
-    std::vector<char> send_buf;
+    std::vector<uint8_t> send_buf;
 
     // Build pipeline for the even commands.
     std::string expected_a;
     for (unsigned int i = 0; i < push_count; i += 2) {
         expected_a += std::to_string(i) + ",";
-        auto cmd = SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST, "a", "", std::to_string(i));
+        BinprotSubdocCommand cmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST, "a", "", std::to_string(i));
         cmd.encode(send_buf);
     }
     *current_sock = sock1;
@@ -2099,7 +2060,7 @@ TEST_F(WorkerConcurrencyTest, SubdocArrayPushLast_Concurrent) {
     std::string expected_b;
     for (unsigned int i = 1; i < push_count; i += 2) {
         expected_b += std::to_string(i) + ",";
-        auto cmd = SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+        BinprotSubdocCommand cmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
                              "b", "", std::to_string(i));
         cmd.encode(send_buf);
     }

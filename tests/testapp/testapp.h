@@ -22,7 +22,7 @@
 #include <cJSON_utils.h>
 
 #include "testapp_binprot.h"
-
+#include "protocol/connection/client_mcbp_connection.h"
 #include <memory>
 #include <stdint.h>
 #include <stdlib.h>
@@ -239,13 +239,13 @@ void set_mutation_seqno_feature(bool enable);
 
 /* Send the specified buffer+len to memcached. */
 void safe_send(const void* buf, size_t len, bool hickup);
-void safe_send(const TestCmd& cmd, bool hickup);
+void safe_send(const BinprotCommand& cmd, bool hickup);
 
 /* Attempts to receive size bytes into buf. Returns true if successful.
  */
 bool safe_recv_packet(void *buf, size_t size);
-bool safe_recv_packet(std::vector<char>& buf);
-bool safe_recv_packet(TestResponse& resp);
+bool safe_recv_packet(std::vector<uint8_t>& buf);
+bool safe_recv_packet(BinprotResponse& resp);
 
 /**
  * Combines safe_send and safe_recv_packet
@@ -253,7 +253,7 @@ bool safe_recv_packet(TestResponse& resp);
  * @param response Response to receive
  * @param status Expected status
  */
-bool safe_do_command(const TestCmd& cmd, TestResponse& response, uint16_t status);
+bool safe_do_command(const BinprotCommand& cmd, BinprotResponse& response, uint16_t status);
 
 int write_config_to_file(const std::string& config, const std::string& fname);
 

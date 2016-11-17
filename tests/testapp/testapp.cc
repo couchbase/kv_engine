@@ -991,8 +991,8 @@ void safe_send(const void* buf, size_t len, bool hickup)
     } while (offset < len);
 }
 
-void safe_send(const TestCmd& cmd, bool hickup) {
-    std::vector<char> buf;
+void safe_send(const BinprotCommand& cmd, bool hickup) {
+    std::vector<uint8_t> buf;
     cmd.encode(buf);
     safe_send(buf.data(), buf.size(), hickup);
 }
@@ -1085,14 +1085,14 @@ bool safe_recv_packet(void *buf, size_t size) {
     return safe_recv_packetT(info);
 }
 
-bool safe_recv_packet(std::vector<char>& buf) {
+bool safe_recv_packet(std::vector<uint8_t>& buf) {
     return safe_recv_packetT(buf);
 }
 
-bool safe_recv_packet(TestResponse& resp) {
+bool safe_recv_packet(BinprotResponse& resp) {
     resp.clear();
 
-    std::vector<char> buf;
+    std::vector<uint8_t> buf;
     if (!safe_recv_packet(buf)) {
         return false;
     }
@@ -1100,14 +1100,14 @@ bool safe_recv_packet(TestResponse& resp) {
     return true;
 }
 
-bool safe_do_command(const TestCmd& cmd, TestResponse& resp, uint16_t status) {
+bool safe_do_command(const BinprotCommand& cmd, BinprotResponse& resp, uint16_t status) {
     safe_send(cmd, false);
     if (!safe_recv_packet(resp)) {
         return false;
     }
 
     protocol_binary_response_no_extras mcresp;
-    mcresp.message.header = resp.getHeader();
+    mcresp.message.header = const_cast<const BinprotResponse&>(resp).getHeader();
     mcbp_validate_response_header(&mcresp, cmd.getOp(), status);
     return !::testing::Test::HasFailure();
 }
