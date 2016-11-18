@@ -745,7 +745,7 @@ void EPBucket::deleteExpiredItems(std::list<std::pair<uint16_t,
 }
 
 StoredValue *EPBucket::fetchValidValue(RCPtr<VBucket> &vb,
-                                       const std::string &key,
+                                       const const_char_buffer key,
                                        int bucket_num,
                                        bool wantDeleted,
                                        bool trackReference,
@@ -835,7 +835,7 @@ protocol_binary_response_status EPBucket::evictKey(const std::string &key,
 
 ENGINE_ERROR_CODE EPBucket::addTempItemForBgFetch(LockHolder &lock,
                                                   int bucket_num,
-                                                  const std::string &key,
+                                                  const const_char_buffer key,
                                                   RCPtr<VBucket> &vb,
                                                   const void *cookie,
                                                   bool metadataOnly,
@@ -1699,7 +1699,7 @@ void EPBucket::completeBGFetchMulti(
     }
 }
 
-void EPBucket::bgFetch(const std::string &key, uint16_t vbucket,
+void EPBucket::bgFetch(const const_char_buffer key, uint16_t vbucket,
                        const void *cookie, bool isMeta) {
     if (multiBGFetchEnabled()) {
         RCPtr<VBucket> vb = getVBucket(vbucket);
@@ -1732,7 +1732,7 @@ void EPBucket::bgFetch(const std::string &key, uint16_t vbucket,
     }
 }
 
-GetValue EPBucket::getInternal(const std::string &key, uint16_t vbucket,
+GetValue EPBucket::getInternal(const const_char_buffer key, uint16_t vbucket,
                                const void *cookie, vbucket_state_t allowedState,
                                get_options_t options) {
 

@@ -631,7 +631,7 @@ TEST_F(HashTableTest, MB21448_UnlockedSetWithCASDeleted) {
     std::string key("key");
     Item item(key.data(), key.length(), 0, 0, "deleted", strlen("deleted"));
     ASSERT_EQ(WAS_CLEAN, ht.set(item));
-    ASSERT_EQ(WAS_DIRTY, ht.softDelete("key", 0));
+    ASSERT_EQ(WAS_DIRTY, ht.softDelete(key, 0));
 
     // Attempt to perform a set on a deleted key with a CAS.
     Item replacement(key.data(), key.length(), 0, 0, "value", strlen("value"));

@@ -330,7 +330,7 @@ public:
      * @return an indication of what happened
      */
     add_type_t unlocked_addTempItem(int &bucket_num,
-                                    const std::string &key,
+                                    const const_char_buffer key,
                                     item_eviction_policy_t policy,
                                     bool isReplication = false);
 
@@ -342,7 +342,7 @@ public:
      * @param policy item eviction policy
      * @return an indicator of what the deletion did
      */
-    mutation_type_t softDelete(const std::string &key, uint64_t cas,
+    mutation_type_t softDelete(const const_char_buffer key, uint64_t cas,
                                item_eviction_policy_t policy = VALUE_ONLY);
 
     mutation_type_t unlocked_softDelete(StoredValue *v,
@@ -368,7 +368,7 @@ public:
      *
      * @return a pointer to a StoredValue -- NULL if not found
      */
-    StoredValue* unlocked_find(const std::string &key, int bucket_num,
+    StoredValue* unlocked_find(const const_char_buffer key, int bucket_num,
                                bool wantsDeleted=false,
                                bool trackReference=true);
 
@@ -462,6 +462,10 @@ public:
         return getLockedBucket(hash(s.data(), s.size()), bucket);
     }
 
+    inline LockHolder getLockedBucket(const const_char_buffer key, int *bucket) {
+        return getLockedBucket(hash(key.data(), key.size()), bucket);
+    }
+
     /**
      * Delete a key from the cache without trying to lock the cache first
      * (Please note that you <b>MUST</b> acquire the mutex before calling
@@ -471,7 +475,7 @@ public:
      * @param bucket_num the bucket to look in (must already be locked)
      * @return true if an object was deleted, false otherwise
      */
-    bool unlocked_del(const std::string &key, int bucket_num);
+    bool unlocked_del(const const_char_buffer key, int bucket_num);
 
     /**
      * Delete the item with the given key.
@@ -479,7 +483,7 @@ public:
      * @param key the key to delete
      * @return true if the item existed before this call
      */
-    bool del(const std::string &key) {
+    bool del(const const_char_buffer key) {
         int bucket_num(0);
         LockHolder lh = getLockedBucket(key, &bucket_num);
         return unlocked_del(key, bucket_num);

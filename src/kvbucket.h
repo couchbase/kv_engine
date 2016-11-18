@@ -209,7 +209,7 @@ public:
      *
      * @return a GetValue representing the result of the request
      */
-    virtual GetValue get(const std::string &key, uint16_t vbucket,
+    virtual GetValue get(const const_char_buffer key, uint16_t vbucket,
                          const void *cookie, get_options_t options) = 0;
 
     virtual GetValue getRandomKey(void) = 0;
@@ -224,7 +224,7 @@ public:
      *
      * @return a GetValue representing the result of the request
      */
-    virtual GetValue getReplica(const std::string &key, uint16_t vbucket,
+    virtual GetValue getReplica(const const_char_buffer key, uint16_t vbucket,
                                 const void *cookie,
                                 get_options_t options = static_cast<get_options_t>(
                                                                                    QUEUE_BG_FETCH |
@@ -395,7 +395,7 @@ public:
      * @param type whether the fetch is for a non-resident value or metadata of
      *             a (possibly) deleted item
      */
-    virtual void bgFetch(const std::string &key,
+    virtual void bgFetch(const const_char_buffer key,
                          uint16_t vbucket,
                          const void *cookie,
                          bool isMeta = false) = 0;
@@ -868,13 +868,13 @@ protected:
                                                   RCPtr<VBucket> &vb) = 0;
 
     virtual StoredValue *fetchValidValue(RCPtr<VBucket> &vb,
-                                         const std::string &key,
+                                         const const_char_buffer key,
                                          int bucket_num,
                                          bool wantsDeleted=false,
                                          bool trackReference=true,
                                          bool queueExpired=true) = 0;
 
-    virtual GetValue getInternal(const std::string &key, uint16_t vbucket,
+    virtual GetValue getInternal(const const_char_buffer key, uint16_t vbucket,
                                  const void *cookie,
                                  vbucket_state_t allowedState,
                                  get_options_t options = TRACK_REFERENCE) = 0;
@@ -882,7 +882,7 @@ protected:
     virtual ENGINE_ERROR_CODE addTempItemForBgFetch(
                                                 LockHolder &lock,
                                                 int bucket_num,
-                                                const std::string &key,
+                                                const const_char_buffer key,
                                                 RCPtr<VBucket> &vb,
                                                 const void *cookie,
                                                 bool metadataOnly,

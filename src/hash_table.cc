@@ -511,7 +511,7 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
 }
 
 add_type_t HashTable::unlocked_addTempItem(int &bucket_num,
-                                           const std::string &key,
+                                           const const_char_buffer key,
                                            item_eviction_policy_t policy,
                                            bool isReplication) {
 
@@ -522,7 +522,7 @@ add_type_t HashTable::unlocked_addTempItem(int &bucket_num,
     uint8_t ext_meta[1];
     uint8_t ext_len = EXT_META_LEN;
     *(ext_meta) = PROTOCOL_BINARY_RAW_BYTES;
-    Item itm(key.c_str(), key.length(), /*flags*/0, /*exp*/0, /*data*/NULL,
+    Item itm(key.data(), key.size(), /*flags*/0, /*exp*/0, /*data*/NULL,
              /*size*/0, ext_meta, ext_len, 0, StoredValue::state_temp_init);
 
     // if a temp item for a possibly deleted, set it non-resident by resetting
@@ -535,7 +535,7 @@ add_type_t HashTable::unlocked_addTempItem(int &bucket_num,
                         isReplication);
 }
 
-mutation_type_t HashTable::softDelete(const std::string &key, uint64_t cas,
+mutation_type_t HashTable::softDelete(const const_char_buffer key, uint64_t cas,
                                       item_eviction_policy_t policy) {
     if (!isActive()) {
         throw std::logic_error("HashTable::softDelete: Cannot call on a "
@@ -616,7 +616,7 @@ mutation_type_t HashTable::unlocked_softDelete(StoredValue *v,
     return rv;
 }
 
-StoredValue* HashTable::unlocked_find(const std::string &key, int bucket_num,
+StoredValue* HashTable::unlocked_find(const const_char_buffer key, int bucket_num,
                                       bool wantsDeleted, bool trackReference) {
     StoredValue *v = values[bucket_num];
     while (v) {
@@ -635,7 +635,7 @@ StoredValue* HashTable::unlocked_find(const std::string &key, int bucket_num,
     return NULL;
 }
 
-bool HashTable::unlocked_del(const std::string &key, int bucket_num) {
+bool HashTable::unlocked_del(const const_char_buffer key, int bucket_num) {
     if (!isActive()) {
         throw std::logic_error("HashTable::unlocked_del: Cannot call on a "
                 "non-active object");

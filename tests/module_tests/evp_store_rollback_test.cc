@@ -56,13 +56,14 @@ protected:
     void rollback_after_deletion_test(bool flush_before_rollback) {
         // Setup: Store an item then flush the vBucket (creating a checkpoint);
         // then delete the item and create a second checkpoint.
-        auto item_v1 = store_item(vbid, "a", "1");
+        std::string a("a");
+        auto item_v1 = store_item(vbid, a, "1");
         ASSERT_EQ(initial_seqno + 1, item_v1.getBySeqno());
         ASSERT_EQ(1, store->flushVBucket(vbid));
         uint64_t cas = item_v1.getCas();
         mutation_descr_t mut_info;
         ASSERT_EQ(ENGINE_SUCCESS,
-                  store->deleteItem("a", &cas, vbid, /*cookie*/nullptr,
+                  store->deleteItem(a, &cas, vbid, /*cookie*/nullptr,
                                     /*force*/false, /*itemMeta*/nullptr,
                                     &mut_info));
         if (flush_before_rollback) {
@@ -70,13 +71,13 @@ protected:
         }
         // Sanity-check - item should no longer exist.
         EXPECT_EQ(ENGINE_KEY_ENOENT,
-                  store->get("a", vbid, nullptr, {}).getStatus());
+                  store->get(a, vbid, nullptr, {}).getStatus());
 
         // Test - rollback to seqno of item_v1 and verify that the previous value
         // of the item has been restored.
         store->setVBucketState(vbid, vbucket_state_replica, false);
         ASSERT_EQ(ENGINE_SUCCESS, store->rollback(vbid, item_v1.getBySeqno()));
-        auto result = store->public_getInternal("a", vbid, /*cookie*/nullptr,
+        auto result = store->public_getInternal(a, vbid, /*cookie*/nullptr,
                                                 vbucket_state_replica, {});
         ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
         EXPECT_EQ(item_v1, *result.getValue())
@@ -92,14 +93,16 @@ protected:
     void rollback_after_mutation_test(bool flush_before_rollback) {
         // Setup: Store an item then flush the vBucket (creating a checkpoint);
         // then update the item with a new value and create a second checkpoint.
-        auto item_v1 = store_item(vbid, "a", "old");
+        std::string a("a");
+        auto item_v1 = store_item(vbid, a, "old");
         ASSERT_EQ(initial_seqno + 1, item_v1.getBySeqno());
         ASSERT_EQ(1, store->flushVBucket(vbid));
 
-        auto item2 = store_item(vbid, "a", "new");
+        auto item2 = store_item(vbid, a, "new");
         ASSERT_EQ(initial_seqno + 2, item2.getBySeqno());
 
-        store_item(vbid, "key", "meh");
+        std::string key("key");
+        store_item(vbid, key, "meh");
 
         if (flush_before_rollback) {
             EXPECT_EQ(2, store->flushVBucket(vbid));
@@ -113,7 +116,7 @@ protected:
 
         // a should have the value of 'old'
         {
-            auto result = store->get("a", vbid, nullptr, {});
+            auto result = store->get(a, vbid, nullptr, {});
             ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
             EXPECT_EQ(item_v1, *result.getValue())
                 << "Fetched item after rollback should match item_v1";
@@ -122,7 +125,7 @@ protected:
 
         // key should be gone
         {
-            auto result = store->get("key", vbid, nullptr, {});
+            auto result = store->get(key, vbid, nullptr, {});
             EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
                 << "A key set after the rollback point was found";
         }
@@ -172,7 +175,7 @@ protected:
         // These keys should be gone after the rollback
         for (int i = 0; i < 3; i++) {
             std::string key = "rollback-cp-" + std::to_string(i);
-            auto result = store->get(key.c_str(), vbid, nullptr, {});
+            auto result = store->get(key, vbid, nullptr, {});
             EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
                 << "A key set after the rollback point was found";
         }
@@ -180,7 +183,7 @@ protected:
         // These keys should be gone after the rollback
         for (int i = 0; i < 3; i++) {
             std::string key = "anotherkey_" + std::to_string(i);
-            auto result = store->get(key.c_str(), vbid, nullptr, {});
+            auto result = store->get(key, vbid, nullptr, {});
             EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
                 << "A key set after the rollback point was found";
         }

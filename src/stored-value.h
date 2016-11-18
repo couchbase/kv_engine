@@ -23,6 +23,7 @@
 #include "item_pager.h"
 #include "utility.h"
 
+#include "daemon/buffer.h"
 #include <platform/cb_malloc.h>
 
 // Forward declaration for StoredValue
@@ -129,8 +130,8 @@ public:
      * @param k the key we're checking
      * @return true if this item's key is equal to k
      */
-    bool hasKey(const std::string &k) const {
-        return k.length() == getKeyLen()
+    bool hasKey(const const_char_buffer k) const {
+        return k.size() == getKeyLen()
             && (std::memcmp(k.data(), getKeyBytes(), getKeyLen()) == 0);
     }
 

@@ -28,6 +28,7 @@
 #include <atomic>
 #include "globaltask.h"
 #include "kvstore.h"
+#include "daemon/buffer.h"
 
 /**
  * A task for persisting items to disk.
@@ -203,11 +204,11 @@ private:
  */
 class SingleBGFetcherTask : public GlobalTask {
 public:
-    SingleBGFetcherTask(EventuallyPersistentEngine *e, const std::string &k,
+    SingleBGFetcherTask(EventuallyPersistentEngine *e, const const_char_buffer k,
                        uint16_t vbid, const void *c, bool isMeta,
                        int sleeptime = 0, bool completeBeforeShutdown = false)
         : GlobalTask(e, TaskId::SingleBGFetcherTask, sleeptime, completeBeforeShutdown),
-          key(k),
+          key(k.data(), k.size()),
           vbucket(vbid),
           cookie(c),
           metaFetch(isMeta),
