@@ -947,12 +947,9 @@ static void subdoc_single_response(SubdocCmdContext* context) {
         context->response_val_len = mloc.length;
     }
 
-    if (mcbp_add_header(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, extlen,
-        /*keylen*/0, extlen + context->response_val_len,
-                        PROTOCOL_BINARY_RAW_BYTES) == -1) {
-        c->setState(conn_closing);
-        return;
-    }
+    mcbp_add_header(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, extlen,
+                    0 /*keylen*/, extlen + context->response_val_len,
+                    PROTOCOL_BINARY_RAW_BYTES);
     rsp->message.header.response.cas = htonll(c->getCAS());
 
     // Add mutation descr to response buffer if requested.
@@ -1040,13 +1037,9 @@ static void subdoc_multi_mutation_response(SubdocCmdContext* context) {
     }
 
     // Allocated required resource - build the header.
-    if (mcbp_add_header(c, context->overall_status, extlen, /*keylen*/0,
-                        extlen + response_buf_needed + iov_len,
-                        PROTOCOL_BINARY_RAW_BYTES)
-            == -1) {
-        c->setState(conn_closing);
-        return;
-    }
+    mcbp_add_header(c, context->overall_status, extlen, /*keylen*/0,
+                    extlen + response_buf_needed + iov_len,
+                    PROTOCOL_BINARY_RAW_BYTES);
     rsp->message.header.response.cas = htonll(c->getCAS());
 
     // Append extras if requested.
@@ -1119,12 +1112,8 @@ static void subdoc_multi_lookup_response(SubdocCmdContext* context) {
     }
 
     // Allocated required resource - build the header.
-    if (mcbp_add_header(c, context->overall_status, /*extlen*/0, /*keylen*/
-                        0, context->response_val_len, PROTOCOL_BINARY_RAW_BYTES)
-        == -1) {
-        c->setState(conn_closing);
-        return;
-    }
+    mcbp_add_header(c, context->overall_status, /*extlen*/0, /*keylen*/
+                    0, context->response_val_len, PROTOCOL_BINARY_RAW_BYTES);
     rsp->message.header.response.cas = htonll(c->getCAS());
 
     // Append the iovecs for each operation result.

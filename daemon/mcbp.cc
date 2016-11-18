@@ -113,11 +113,8 @@ void mcbp_write_response(McbpConnection* c,
                          int dlen) {
     if (!c->isNoReply() || c->getCmd() == PROTOCOL_BINARY_CMD_GET ||
         c->getCmd() == PROTOCOL_BINARY_CMD_GETK) {
-        if (mcbp_add_header(c, 0, extlen, keylen, dlen,
-                            PROTOCOL_BINARY_RAW_BYTES) == -1) {
-            c->setState(conn_closing);
-            return;
-        }
+        mcbp_add_header(c, 0, extlen, keylen, dlen,
+                            PROTOCOL_BINARY_RAW_BYTES);
         c->addIov(d, dlen);
         c->setState(conn_mwrite);
         c->setWriteAndGo(conn_new_cmd);
@@ -191,12 +188,12 @@ void mcbp_write_packet(McbpConnection* c, protocol_binary_response_status err) {
     }
 }
 
-int mcbp_add_header(McbpConnection* c,
-                    uint16_t err,
-                    uint8_t ext_len,
-                    uint16_t key_len,
-                    uint32_t body_len,
-                    uint8_t datatype) {
+void mcbp_add_header(McbpConnection* c,
+                     uint16_t err,
+                     uint8_t ext_len,
+                     uint16_t key_len,
+                     uint32_t body_len,
+                     uint8_t datatype) {
     protocol_binary_response_header* header;
 
     if (c == nullptr) {
@@ -204,10 +201,7 @@ int mcbp_add_header(McbpConnection* c,
             "mcbp_add_header: 'c' must be non-NULL");
     }
 
-    if (!c->addMsgHdr(true)) {
-        return -1;
-    }
-
+    c->addMsgHdr(true);
     header = (protocol_binary_response_header*)c->write.buf;
 
     header->response.magic = (uint8_t)PROTOCOL_BINARY_RES;
@@ -232,7 +226,7 @@ int mcbp_add_header(McbpConnection* c,
         }
     }
 
-    return c->addIov(c->write.buf, sizeof(header->response)) ? 0 : -1;
+    c->addIov(c->write.buf, sizeof(header->response));
 }
 
 protocol_binary_response_status engine_error_2_mcbp_protocol_error(

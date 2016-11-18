@@ -662,13 +662,7 @@ void ship_mcbp_tap_log(McbpConnection* c) {
     uint32_t bodylen;
     int ii = 0;
 
-    if (!c->addMsgHdr(true)) {
-        LOG_WARNING(c,
-                    "%u: Failed to create output headers. Shutting down tap "
-                        "connection", c->getId());
-        c->setState(conn_closing);
-        return;
-    }
+    c->addMsgHdr(true);
     /* @todo add check for buffer overflow of c->write.buf) */
     c->write.bytes = 0;
     c->write.curr = c->write.buf;
@@ -1751,15 +1745,7 @@ void ship_mcbp_dcp_log(McbpConnection* c) {
     // to be recorded.
     c->setStart(gethrtime());
 
-    if (!c->addMsgHdr(true)) {
-        LOG_WARNING(c,
-                    "%u: Failed to create output headers. Shutting down "
-                        "DCP connection",
-                    c->getId());
-        c->setState(conn_closing);
-        return;
-    }
-
+    c->addMsgHdr(true);
     c->write.bytes = 0;
     c->write.curr = c->write.buf;
     c->setEwouldblock(false);
@@ -4368,11 +4354,7 @@ int try_read_mcbp_command(McbpConnection* c) {
             return -1;
         }
 
-        if (!c->addMsgHdr(true)) {
-            c->setState(conn_closing);
-            return -1;
-        }
-
+        c->addMsgHdr(true);
         c->setCmd(c->binary_header.request.opcode);
         /* clear the returned cas value */
         c->setCAS(0);

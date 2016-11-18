@@ -25,12 +25,23 @@
 #include <memcached/protocol_binary.h>
 #include "connection_mcbp.h"
 
-int mcbp_add_header(McbpConnection* c,
-                    uint16_t err,
-                    uint8_t ext_len,
-                    uint16_t key_len,
-                    uint32_t body_len,
-                    uint8_t datatype);
+/**
+ * Add a header to the current memcached connection
+ *
+ * @param c the connection to add the header for
+ * @param err The error code to use
+ * @param ext_len The length of the ext field
+ * @param key_len The length of the key field
+ * @param body_len THe length of the body field
+ * @param datatype The datatype to inject into the header
+ * @throws std::bad_alloc
+ */
+void mcbp_add_header(McbpConnection* c,
+                     uint16_t err,
+                     uint8_t ext_len,
+                     uint16_t key_len,
+                     uint32_t body_len,
+                     uint8_t datatype);
 
 /* Form and send a response to a command over the binary protocol.
  * NOTE: Data from `d` is *not* immediately copied out (it's address is just

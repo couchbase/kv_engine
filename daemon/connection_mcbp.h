@@ -498,18 +498,18 @@ public:
      * Adds a message header to a connection.
      *
      * @param reset set to true to reset all message headers
-     * @return true on success, false on out-of-memory.
+     * @throws std::bad_alloc
      */
-    bool addMsgHdr(bool reset);
+    void addMsgHdr(bool reset);
 
     /**
      * Add a chunk of memory to the the IO vector to send
      *
      * @param buf pointer to the data to send
      * @param len number of bytes to send
-     * @return true if success, false on out-of-memory.
+     * @throws std::bad_alloc
      */
-    bool addIov(const void* buf, size_t len);
+    void addIov(const void* buf, size_t len);
 
     /**
      * Release all of the items we've saved a reference to
@@ -878,8 +878,10 @@ protected:
     /**
      * Ensures that there is room for another struct iovec in a connection's
      * iov list.
+     *
+     * @throws std::bad_alloc
      */
-    bool ensureIovSpace();
+    void ensureIovSpace();
 
     /**
      * Read data over the SSL connection

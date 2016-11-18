@@ -797,18 +797,14 @@ cJSON* SslContext::toJSON() const {
     return obj;
 }
 
-bool McbpConnection::addMsgHdr(bool reset) {
+void McbpConnection::addMsgHdr(bool reset) {
     if (reset) {
         msgcurr = 0;
         msglist.clear();
         iovused = 0;
     }
 
-    try {
-        msglist.emplace_back();
-    } catch (std::bad_alloc&) {
-        return false;
-    }
+    msglist.emplace_back();
 
     struct msghdr& msg = msglist.back();
 
@@ -820,27 +816,21 @@ bool McbpConnection::addMsgHdr(bool reset) {
 
     msgbytes = 0;
     STATS_MAX(this, msgused_high_watermark, msglist.size());
-
-    return true;
 }
 
-bool McbpConnection::addIov(const void* buf, size_t len) {
+void McbpConnection::addIov(const void* buf, size_t len) {
     if (len == 0) {
-        return true;
+        return;
     }
 
     struct msghdr* m = &msglist.back();
 
     /* We may need to start a new msghdr if this one is full. */
     if (m->msg_iovlen == IOV_MAX) {
-        if (!addMsgHdr(false)) {
-            return false;
-        }
+        addMsgHdr(false);
     }
 
-    if (!ensureIovSpace()) {
-        return false;
-    }
+    ensureIovSpace();
 
     // Update 'm' as we may have added an additional msghdr
     m = &msglist.back();
@@ -852,22 +842,16 @@ bool McbpConnection::addIov(const void* buf, size_t len) {
     ++iovused;
     STATS_MAX(this, iovused_high_watermark, getIovUsed());
     m->msg_iovlen++;
-
-    return true;
 }
 
-bool McbpConnection::ensureIovSpace() {
+void McbpConnection::ensureIovSpace() {
     if (iovused < iov.size()) {
         // There is still size in the list
-        return true;
+        return;
     }
 
     // Try to double the size of the array
-    try {
-        iov.resize(iov.size() * 2);
-    } catch (std::bad_alloc) {
-        return false;
-    }
+    iov.resize(iov.size() * 2);
 
     /* Point all the msghdr structures at the new list. */
     size_t ii;
@@ -876,8 +860,6 @@ bool McbpConnection::ensureIovSpace() {
         msglist[ii].msg_iov = &iov[iovnum];
         iovnum += msglist[ii].msg_iovlen;
     }
-
-    return true;
 }
 
 McbpConnection::McbpConnection(SOCKET sfd, event_base *b)

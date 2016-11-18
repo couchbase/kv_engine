@@ -379,11 +379,7 @@ bool conn_write(McbpConnection *c) {
      * list for TCP).
      */
     if (c->getIovUsed() == 0) {
-        if (!c->addIov(c->write.curr, c->write.bytes)) {
-            LOG_WARNING(c, "Couldn't build response, closing connection");
-            c->setState(conn_closing);
-            return true;
-        }
+        c->addIov(c->write.curr, c->write.bytes);
     }
 
     return conn_mwrite(c);
@@ -663,12 +659,9 @@ bool conn_sasl_auth(McbpConnection* c) {
     case CBSASL_CONTINUE:
         LOG_INFO(c, "%u: SASL continue", c->getId());
 
-        if (mcbp_add_header(c, PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE, 0, 0,
-                            task->getResponse_length(),
-                            PROTOCOL_BINARY_RAW_BYTES) == -1) {
-            c->setState(conn_closing);
-            return true;
-        }
+        mcbp_add_header(c, PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE, 0, 0,
+                        task->getResponse_length(),
+                        PROTOCOL_BINARY_RAW_BYTES);
         c->addIov(task->getResponse(), task->getResponse_length());
         c->setState(conn_mwrite);
         c->setWriteAndGo(conn_new_cmd);

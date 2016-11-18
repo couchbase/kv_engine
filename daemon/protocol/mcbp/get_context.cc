@@ -104,15 +104,10 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
         bodylen += keylen;
     }
 
-    if (mcbp_add_header(&connection,
-                        PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                        sizeof(rsp->message.body),
-                        keylen, bodylen, datatype) == -1) {
-        connection.setState(conn_closing);
-        LOG_WARNING(&connection, "%u: Failed to add header",
-                    connection.getId());
-        return ENGINE_DISCONNECT;
-    }
+    mcbp_add_header(&connection,
+                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                    sizeof(rsp->message.body),
+                    keylen, bodylen, datatype);
 
     rsp->message.header.response.cas = htonll(info.info.cas);
     /* add the flags */
@@ -142,13 +137,11 @@ ENGINE_ERROR_CODE GetCommandContext::noSuchItem() {
         connection.setState(conn_new_cmd);
     } else {
         if (shouldSendKey()) {
-            if (mcbp_add_header(&connection,
-                                PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
-                                0, uint16_t(key.len),
-                                uint32_t(key.len),
-                                PROTOCOL_BINARY_RAW_BYTES) == -1) {
-                return ENGINE_DISCONNECT;
-            }
+            mcbp_add_header(&connection,
+                            PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+                            0, uint16_t(key.len),
+                            uint32_t(key.len),
+                            PROTOCOL_BINARY_RAW_BYTES);
             connection.addIov(key.buf, key.len);
             connection.setState(conn_mwrite);
         } else {
