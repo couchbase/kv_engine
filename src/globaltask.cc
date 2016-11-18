@@ -67,16 +67,16 @@ GlobalTask::GlobalTask(EventuallyPersistentEngine *e,
 void GlobalTask::snooze(const double secs) {
     if (secs == INT_MAX) {
         setState(TASK_SNOOZED, TASK_RUNNING);
-        updateWaketime(hrtime_t(-1));
+        updateWaketime(ProcessClock::time_point::max());
         return;
     }
 
-    hrtime_t curTime = gethrtime();
+    const auto curTime = ProcessClock::now();
     if (secs) {
         setState(TASK_SNOOZED, TASK_RUNNING);
-        waketime.store(curTime + hrtime_t(secs * 1000000000));
+        updateWaketime(curTime + std::chrono::seconds((int)round(secs)));
     } else {
-        waketime.store(curTime);
+        updateWaketime(curTime);
     }
 }
 

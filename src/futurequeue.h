@@ -28,6 +28,7 @@
 
 #include <algorithm>
 #include <mutex>
+#include <platform/processclock.h>
 #include <queue>
 
 #include "tasks.h"
@@ -67,7 +68,7 @@ public:
      * maintained.
      * @returns true if 'task' is in the FutureQueue.
      */
-    bool updateWaketime(const ExTask& task, hrtime_t newTime) {
+    bool updateWaketime(const ExTask& task, ProcessClock::time_point newTime) {
         std::lock_guard<std::mutex> lock(queueMutex);
         task->updateWaketime(newTime);
         // After modifiying the task's wakeTime, rebuild the heap

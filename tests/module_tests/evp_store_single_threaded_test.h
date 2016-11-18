@@ -35,12 +35,13 @@ public:
      * Run the next task from the taskQ
      * The task must match the expectedTaskName parameter
      */
-    hrtime_t runNextTask(TaskQueue& taskQ, const std::string& expectedTaskName);
+    ProcessClock::time_point runNextTask(TaskQueue& taskQ,
+                                         const std::string& expectedTaskName);
 
     /*
      * Run the next task from the taskQ
      */
-    hrtime_t runNextTask(TaskQueue& taskQ);
+    ProcessClock::time_point runNextTask(TaskQueue& taskQ);
 
 protected:
     void SetUp() override;

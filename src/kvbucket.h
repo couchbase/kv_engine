@@ -683,9 +683,11 @@ public:
 
     virtual void incExpirationStat(RCPtr<VBucket> &vb, exp_type_t source) = 0;
 
-    virtual void logQTime(TaskId taskType, hrtime_t enqTime) = 0;
+    virtual void logQTime(TaskId taskType,
+                          const ProcessClock::duration enqTime) = 0;
 
-    virtual void logRunTime(TaskId taskType, hrtime_t runTime) = 0;
+    virtual void logRunTime(TaskId taskType,
+                            const ProcessClock::duration runTime) = 0;
 
     virtual bool multiBGFetchEnabled() = 0;
 

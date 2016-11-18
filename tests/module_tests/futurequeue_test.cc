@@ -43,7 +43,7 @@ public:
 };
 
 TEST_F(FutureQueueTest, initAssumptions) {
-    EXPECT_EQ(0, queue.size());
+    EXPECT_EQ(0u, queue.size());
     EXPECT_TRUE(queue.empty());
 }
 
@@ -52,7 +52,7 @@ TEST_F(FutureQueueTest, push1) {
                                  TaskId::PendingOpsNotification);
 
     queue.push(hpTask);
-    EXPECT_EQ(1, queue.size());
+    EXPECT_EQ(1u, queue.size());
     EXPECT_FALSE(queue.empty());
 
     EXPECT_EQ(TaskId::PendingOpsNotification, queue.top()->getTypeId());
@@ -62,8 +62,8 @@ TEST_F(FutureQueueTest, pushn) {
     ExTask hpTask = new TestTask(nullptr,
                                  TaskId::PendingOpsNotification);
 
-    const int n = 10;
-    for (int i = 0; i < n; i++) {
+    const size_t n = 10;
+    for (size_t i = 0; i < n; i++) {
         queue.push(hpTask);
     }
     EXPECT_EQ(n, queue.size());
@@ -82,7 +82,8 @@ TEST_F(FutureQueueTest, pushOrder) {
         hpTask = new TestTask(nullptr,
                               TaskId::PendingOpsNotification,
                               i);
-        hpTask->updateWaketime(hrtime_t(n - i));
+        const auto newtime = std::chrono::nanoseconds(n - i);
+        hpTask->updateWaketime(ProcessClock::time_point(newtime));
         queue.push(hpTask);
     }
 
@@ -105,7 +106,8 @@ TEST_F(FutureQueueTest, updateWaketime) {
         hpTask = new TestTask(nullptr,
                               TaskId::PendingOpsNotification,
                               i);
-        hpTask->updateWaketime(hrtime_t((n*2) - i));
+        const auto newtime = std::chrono::nanoseconds((n * 2) - i);
+        hpTask->updateWaketime(ProcessClock::time_point(newtime));
         queue.push(hpTask);
 
         if (i == n/2) {
@@ -121,7 +123,8 @@ TEST_F(FutureQueueTest, updateWaketime) {
               static_cast<TestTask*>(queue.top().get())->order);
 
     // Now update the n/2 task's time and expect it to become the front task
-    EXPECT_TRUE(queue.updateWaketime(middleTask, 0));
+    EXPECT_TRUE(queue.updateWaketime(middleTask,
+                                     ProcessClock::time_point::min()));
 
     // Now the middleTask is queue.top
     EXPECT_EQ(static_cast<TestTask*>(middleTask.get())->order,
@@ -143,7 +146,8 @@ TEST_F(FutureQueueTest, snooze) {
         hpTask = new TestTask(nullptr,
                               TaskId::PendingOpsNotification,
                               i);
-        hpTask->updateWaketime(hrtime_t((n*2) - i));
+        const auto newtime = std::chrono::nanoseconds((n * 2) - i);
+        hpTask->updateWaketime(ProcessClock::time_point(newtime));
         queue.push(hpTask);
     }
 
@@ -175,18 +179,20 @@ TEST_F(FutureQueueTest, snooze) {
 TEST_F(FutureQueueTest, taskNotInEmptyQueue) {
     ExTask task = new TestTask(nullptr, TaskId::PendingOpsNotification);
 
-    hrtime_t wake = task->getWaketime();
+    const auto wake = task->getWaketime();
     queue.snooze(task, 5.0);
     // snooze uses gethrtime so we'll only check that the tasks time changed.
     EXPECT_NE(wake, task->getWaketime());
 
-    EXPECT_EQ(0, queue.size());
+    EXPECT_EQ(0u, queue.size());
     EXPECT_TRUE(queue.empty());
 
-    EXPECT_FALSE(queue.updateWaketime(task, 5));
-    EXPECT_EQ(5, task->getWaketime());
+    const auto newtime = std::chrono::nanoseconds(5);
+    EXPECT_FALSE(queue.updateWaketime(task, ProcessClock::time_point(newtime)));
+    EXPECT_EQ(ProcessClock::time_point(std::chrono::nanoseconds(5)),
+              task->getWaketime());
 
-    EXPECT_EQ(0, queue.size());
+    EXPECT_EQ(0u, queue.size());
     EXPECT_TRUE(queue.empty());
 }
 
@@ -194,20 +200,21 @@ TEST_F(FutureQueueTest, taskNotInEmptyQueue) {
  * snooze/wake a task not in the queue
  */
 TEST_F(FutureQueueTest, taskNotInQueue) {
-    const int nTasks = 5;
-    for (int ii = 1; ii < nTasks; ii++) {
+    const size_t nTasks = 5;
+    for (size_t ii = 1; ii < nTasks; ii++) {
         ExTask t = new TestTask(nullptr, TaskId::PendingOpsNotification);
-        t->updateWaketime(1+ii);
+        const auto newtime = std::chrono::nanoseconds(1+ii);
+        t->updateWaketime(ProcessClock::time_point(newtime));
         queue.push(t);
     }
     // Finally push a task with an obvious ID value of -1
     ExTask task = new TestTask(nullptr, TaskId::PendingOpsNotification, -1);
-    task->updateWaketime(0);
+    task->updateWaketime(ProcessClock::time_point::min());
     queue.push(task);
 
     // Now operate with a new task not in the queue
     task = new TestTask(nullptr, TaskId::PendingOpsNotification);
-    hrtime_t wake = task->getWaketime();
+    const auto wake = task->getWaketime();
     EXPECT_FALSE(queue.snooze(task, 5.0));
 
     // snooze uses gethrtime so we'll only check that the tasks time changed.
@@ -218,8 +225,10 @@ TEST_F(FutureQueueTest, taskNotInQueue) {
     EXPECT_EQ(-1,
               static_cast<TestTask*>(queue.top().get())->order);
 
-    EXPECT_FALSE(queue.updateWaketime(task, 5));
-    EXPECT_EQ(5, task->getWaketime());
+    const auto newtime = std::chrono::nanoseconds(5);
+    EXPECT_FALSE(queue.updateWaketime(task, ProcessClock::time_point(newtime)));
+    EXPECT_EQ(ProcessClock::time_point(std::chrono::nanoseconds(5)),
+              task->getWaketime());
 
     EXPECT_EQ(nTasks, queue.size());
     EXPECT_FALSE(queue.empty());

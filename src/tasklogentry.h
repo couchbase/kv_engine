@@ -19,6 +19,9 @@
 
 #include "config.h"
 
+#include <platform/processclock.h>
+
+#include <chrono>
 #include <deque>
 #include <list>
 #include <map>
@@ -35,8 +38,11 @@ class TaskLogEntry {
 public:
 
     // This is useful for the ringbuffer to initialize
-    TaskLogEntry() : name("invalid"), duration(0) {}
-    TaskLogEntry(const std::string &n, task_type_t type, const hrtime_t d,
+    TaskLogEntry() : name("invalid"),
+                     duration(ProcessClock::duration::zero()) {}
+
+    TaskLogEntry(const std::string &n, task_type_t type,
+                 const ProcessClock::duration d,
                  rel_time_t t = 0)
         : name(n), taskType(type), ts(t), duration(d) {}
 
@@ -51,9 +57,9 @@ public:
      task_type_t getTaskType() const { return taskType; }
 
     /**
-     * Get the amount of time (in microseconds) this job ran.
+     * Get the duration this job took to run.
      */
-    hrtime_t getDuration() const { return duration; }
+    ProcessClock::duration getDuration() const { return duration; }
 
     /**
      * Get a timestamp indicating when this thing started.
@@ -64,7 +70,7 @@ private:
     std::string name;
     task_type_t taskType;
     rel_time_t ts;
-    hrtime_t duration;
+    ProcessClock::duration duration;
 };
 
 #endif  // SRC_TASKLOGENTRY_H_

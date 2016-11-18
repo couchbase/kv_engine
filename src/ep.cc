@@ -389,8 +389,9 @@ EPBucket::EPBucket(
     }
 
 
-    stats.schedulingHisto = new Histogram<hrtime_t>[GlobalTask::allTaskIds.size()];
-    stats.taskRuntimeHisto = new Histogram<hrtime_t>[GlobalTask::allTaskIds.size()];
+    const auto size = GlobalTask::allTaskIds.size();
+    stats.schedulingHisto = new Histogram<ProcessClock::duration::rep>[size];
+    stats.taskRuntimeHisto = new Histogram<ProcessClock::duration::rep>[size];
 
     for (size_t i = 0; i < GlobalTask::allTaskIds.size(); i++) {
         stats.schedulingHisto[i].reset();

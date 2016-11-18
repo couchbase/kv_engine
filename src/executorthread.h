@@ -20,14 +20,17 @@
 #include "config.h"
 
 #include <atomic>
+#include <chrono>
 #include <deque>
 #include <list>
 #include <map>
+#include <mutex>
 #include <queue>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include <platform/processclock.h>
 #include <relaxed_atomic.h>
 
 #include "objectregistry.h"
@@ -57,15 +60,39 @@ class ExecutorThread {
     friend class TaskQueue;
 public:
 
+    /* The AtomicProcessTime class provides an abstraction for ensuring that
+     * changes to a ProcessClock::time_point are atomic.  This is achieved by
+     * ensuring that all accesses are protected by a mutex.
+     */
+    class AtomicProcessTime {
+    public:
+        AtomicProcessTime() {}
+        AtomicProcessTime(const ProcessClock::time_point& tp) : timepoint(tp) {}
+
+        void setTimePoint(const ProcessClock::time_point& tp) {
+            std::lock_guard<std::mutex> lock(mutex);
+            timepoint = tp;
+        }
+
+        ProcessClock::time_point getTimePoint() const {
+            std::lock_guard<std::mutex> lock(mutex);
+            return timepoint;
+        }
+
+    private:
+        mutable std::mutex mutex;
+        ProcessClock::time_point timepoint;
+    };
+
     ExecutorThread(ExecutorPool *m, int startingQueue,
                    const std::string nm) : manager(m),
           startIndex(startingQueue), name(nm),
-          state(EXECUTOR_RUNNING), taskStart(0),
+          state(EXECUTOR_RUNNING),
+          now(ProcessClock::now()),
+          waketime(ProcessClock::time_point::max()),
+          taskStart(),
           currentTask(NULL), curTaskType(NO_TASK_TYPE),
-          tasklog(TASK_LOG_SIZE), slowjobs(TASK_LOG_SIZE) {
-              now = gethrtime();
-              waketime = hrtime_t(-1);
-    }
+          tasklog(TASK_LOG_SIZE), slowjobs(TASK_LOG_SIZE) {}
 
     ~ExecutorThread() {
         LOG(EXTENSION_LOG_INFO, "Executor killing %s", name.c_str());
@@ -106,13 +133,19 @@ public:
         }
     }
 
-    hrtime_t getTaskStart() const { return taskStart; }
+    ProcessClock::time_point getTaskStart() const {
+        return taskStart.getTimePoint();
+    }
+
+    void updateTaskStart(void) {
+        taskStart.setTimePoint(ProcessClock::now());
+    }
 
     const std::string getStateName();
 
     void addLogEntry(const std::string &desc, const task_type_t taskType,
-                     const hrtime_t runtime, rel_time_t startRelTime,
-                     bool isSlowJob);
+                     const ProcessClock::duration runtime,
+                     rel_time_t startRelTime, bool isSlowJob);
 
     const std::vector<TaskLogEntry> getLog() {
         LockHolder lh(logMutex);
@@ -124,9 +157,21 @@ public:
         return slowjobs.contents();
     }
 
-    const hrtime_t getWaketime(void) { return waketime; }
+    ProcessClock::time_point getWaketime() const {
+        return waketime.getTimePoint();
+    }
 
-    const hrtime_t getCurTime(void) { return now; }
+    void setWaketime(const ProcessClock::time_point tp) {
+        waketime.setTimePoint(tp);
+    }
+
+    ProcessClock::time_point getCurTime() const {
+        return now.getTimePoint();
+    }
+
+    void updateCurrentTime(void) {
+        now.setTimePoint(ProcessClock::now());
+    }
 
 protected:
 
@@ -136,10 +181,11 @@ protected:
     const std::string name;
     std::atomic<executor_state_t> state;
 
-    std::atomic<hrtime_t> now;  // record of current time
-    std::atomic<hrtime_t> waketime; // set to the earliest
-
-    Couchbase::RelaxedAtomic<hrtime_t> taskStart;
+    // record of current time
+    AtomicProcessTime now;
+    // record of the earliest time the task can be woken-up
+    AtomicProcessTime waketime;
+    AtomicProcessTime taskStart;
 
     std::mutex currentTaskMutex; // Protects currentTask
     ExTask currentTask;

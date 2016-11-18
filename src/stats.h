@@ -26,6 +26,7 @@
 
 #include <atomic>
 #include <platform/histogram.h>
+#include <platform/processclock.h>
 #include "memory_tracker.h"
 #include "utility.h"
 
@@ -558,10 +559,10 @@ public:
     Histogram<hrtime_t> getMultiHisto;
 
     // ! Histogram of various task wait times
-    Histogram<hrtime_t> *schedulingHisto;
+    Histogram<ProcessClock::duration::rep> *schedulingHisto;
 
     // ! Histogram of various task run times
-    Histogram<hrtime_t> *taskRuntimeHisto;
+    Histogram<ProcessClock::duration::rep> *taskRuntimeHisto;
 
     //! Checkpoint Cursor histograms
     Histogram<hrtime_t> persistenceCursorGetItemsHisto;

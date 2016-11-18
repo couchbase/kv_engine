@@ -26,9 +26,8 @@
 
 #include <thread>
 
-hrtime_t SingleThreadedEPStoreTest::runNextTask(TaskQueue& taskQ,
-                                                    const std::string&
-                                                    expectedTaskName) {
+ProcessClock::time_point SingleThreadedEPStoreTest::runNextTask(
+        TaskQueue& taskQ, const std::string& expectedTaskName) {
     CheckedExecutor executor(task_executor, taskQ);
 
     // Run the task
@@ -36,7 +35,7 @@ hrtime_t SingleThreadedEPStoreTest::runNextTask(TaskQueue& taskQ,
     return executor.completeCurrentTask();
 }
 
-hrtime_t SingleThreadedEPStoreTest::runNextTask(TaskQueue& taskQ) {
+ProcessClock::time_point SingleThreadedEPStoreTest::runNextTask(TaskQueue& taskQ) {
     CheckedExecutor executor(task_executor, taskQ);
 
     // Run the task
@@ -639,7 +638,7 @@ TEST_F(SingleThreadedEPStoreTest, MB20735_rescheduleWaketime) {
     ExTask hpTask = task;
     task_executor->schedule(hpTask, NONIO_TASK_IDX);
 
-    hrtime_t waketime = runNextTask(lpNonioQ,
+    ProcessClock::time_point waketime = runNextTask(lpNonioQ,
                                     "TestTask PendingOpsNotification");
     EXPECT_EQ(waketime, task->getWaketime()) <<
                            "Rescheduled to much later time!";

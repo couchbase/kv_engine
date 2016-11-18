@@ -20,7 +20,10 @@
 
 #include "config.h"
 
+#include <platform/processclock.h>
+
 #include <array>
+#include <chrono>
 #include <string>
 #include <atomic>
 #include "globaltask.h"

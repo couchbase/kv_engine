@@ -171,8 +171,8 @@ public:
         run();
     }
 
-    hrtime_t completeCurrentTask() {
-        hrtime_t min_waketime = 0;
+    ProcessClock::time_point completeCurrentTask() {
+        auto min_waketime = ProcessClock::time_point::min();
         manager->doneWork(curTaskType);
         if (rescheduled && !currentTask->isdead()) {
             min_waketime = queue.reschedule(currentTask);
@@ -184,10 +184,6 @@ public:
             checker(rescheduled);
         }
         return min_waketime;
-    }
-
-    void updateCurrentTime() {
-        now = gethrtime();
     }
 
     ExTask& getCurrentTask() {

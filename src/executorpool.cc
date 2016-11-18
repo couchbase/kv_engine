@@ -18,7 +18,9 @@
 #include "config.h"
 
 #include <algorithm>
+#include <chrono>
 #include <platform/checked_snprintf.h>
+#include <platform/processclock.h>
 #include <platform/sysinfo.h>
 #include <queue>
 #include <sstream>
@@ -740,8 +742,9 @@ static void showJobLog(const char *logname, const char *prefix,
                             cookie);
             checked_snprintf(statname, sizeof(statname), "%s:%s:%d:runtime",
                              prefix, logname, static_cast<int>(i));
-            add_casted_stat(statname, log[i].getDuration(), add_stat,
-                            cookie);
+            const auto duration_ms = std::chrono::duration_cast
+                    <std::chrono::microseconds>(log[i].getDuration()).count();
+            add_casted_stat(statname, duration_ms, add_stat, cookie);
         } catch (std::exception& error) {
             LOG(EXTENSION_LOG_WARNING,
                 "showJobLog: Failed to build stats: %s", error.what());
@@ -767,14 +770,17 @@ static void addWorkerStats(const char *prefix, ExecutorThread *t,
 
         if (strcmp(t->getStateName().c_str(), "running") == 0) {
             checked_snprintf(statname, sizeof(statname), "%s:runtime", prefix);
-            add_casted_stat(statname,
-                            (gethrtime() - t->getTaskStart()) / 1000, add_stat,
-                            cookie);
+            const auto duration = ProcessClock::now() - t->getTaskStart();
+            add_casted_stat(statname, std::chrono::duration_cast<
+                            std::chrono::microseconds>(duration).count(),
+                            add_stat, cookie);
         }
         checked_snprintf(statname, sizeof(statname), "%s:waketime", prefix);
-        add_casted_stat(statname, t->getWaketime(), add_stat, cookie);
+        add_casted_stat(statname, to_ns_since_epoch(t->getWaketime()).count(),
+                        add_stat, cookie);
         checked_snprintf(statname, sizeof(statname), "%s:cur_time", prefix);
-        add_casted_stat(statname, t->getCurTime(), add_stat, cookie);
+        add_casted_stat(statname, to_ns_since_epoch(t->getCurTime()).count(),
+                        add_stat, cookie);
     } catch (std::exception& error) {
         LOG(EXTENSION_LOG_WARNING,
             "addWorkerStats: Failed to build stats: %s", error.what());
