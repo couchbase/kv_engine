@@ -21,7 +21,8 @@
 
 #include "evp_store_test.h"
 
-class RollbackTest : public EPBucketTest
+class RollbackTest : public EPBucketTest,
+                     public ::testing::WithParamInterface<std::string>
 {
     void SetUp() override {
         EPBucketTest::SetUp();
@@ -46,28 +47,181 @@ class RollbackTest : public EPBucketTest
     }
 
 protected:
+    /**
+     * Test rollback after deleting an item.
+     * @param flush_before_rollback: Should the vbuckt be flushed to disk just
+     *        before the rollback (i.e. guaranteeing the in-memory state is in sync
+     *        with disk).
+     */
+    void rollback_after_deletion_test(bool flush_before_rollback) {
+        // Setup: Store an item then flush the vBucket (creating a checkpoint);
+        // then delete the item and create a second checkpoint.
+        auto item_v1 = store_item(vbid, "a", "1");
+        ASSERT_EQ(initial_seqno + 1, item_v1.getBySeqno());
+        ASSERT_EQ(1, store->flushVBucket(vbid));
+        uint64_t cas = item_v1.getCas();
+        mutation_descr_t mut_info;
+        ASSERT_EQ(ENGINE_SUCCESS,
+                  store->deleteItem("a", &cas, vbid, /*cookie*/nullptr,
+                                    /*force*/false, /*itemMeta*/nullptr,
+                                    &mut_info));
+        if (flush_before_rollback) {
+            ASSERT_EQ(1, store->flushVBucket(vbid));
+        }
+        // Sanity-check - item should no longer exist.
+        EXPECT_EQ(ENGINE_KEY_ENOENT,
+                  store->get("a", vbid, nullptr, {}).getStatus());
+
+        // Test - rollback to seqno of item_v1 and verify that the previous value
+        // of the item has been restored.
+        store->setVBucketState(vbid, vbucket_state_replica, false);
+        ASSERT_EQ(ENGINE_SUCCESS, store->rollback(vbid, item_v1.getBySeqno()));
+        auto result = store->public_getInternal("a", vbid, /*cookie*/nullptr,
+                                                vbucket_state_replica, {});
+        ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
+        EXPECT_EQ(item_v1, *result.getValue())
+            << "Fetched item after rollback should match item_v1";
+        delete result.getValue();
+
+        if (!flush_before_rollback) {
+            EXPECT_EQ(0, store->flushVBucket(vbid));
+        }
+    }
+
+    // Test rollback after modifying an item.
+    void rollback_after_mutation_test(bool flush_before_rollback) {
+        // Setup: Store an item then flush the vBucket (creating a checkpoint);
+        // then update the item with a new value and create a second checkpoint.
+        auto item_v1 = store_item(vbid, "a", "old");
+        ASSERT_EQ(initial_seqno + 1, item_v1.getBySeqno());
+        ASSERT_EQ(1, store->flushVBucket(vbid));
+
+        auto item2 = store_item(vbid, "a", "new");
+        ASSERT_EQ(initial_seqno + 2, item2.getBySeqno());
+
+        store_item(vbid, "key", "meh");
+
+        if (flush_before_rollback) {
+            EXPECT_EQ(2, store->flushVBucket(vbid));
+        }
+
+        // Test - rollback to seqno of item_v1 and verify that the previous value
+        // of the item has been restored.
+        store->setVBucketState(vbid, vbucket_state_replica, false);
+        ASSERT_EQ(ENGINE_SUCCESS, store->rollback(vbid, item_v1.getBySeqno()));
+        ASSERT_EQ(item_v1.getBySeqno(), store->getVBucket(vbid)->getHighSeqno());
+
+        // a should have the value of 'old'
+        {
+            auto result = store->get("a", vbid, nullptr, {});
+            ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
+            EXPECT_EQ(item_v1, *result.getValue())
+                << "Fetched item after rollback should match item_v1";
+            delete result.getValue();
+        }
+
+        // key should be gone
+        {
+            auto result = store->get("key", vbid, nullptr, {});
+            EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
+                << "A key set after the rollback point was found";
+        }
+
+        if (!flush_before_rollback) {
+            // The rollback should of wiped out any keys waiting for persistence
+            EXPECT_EQ(0, store->flushVBucket(vbid));
+        }
+    }
+
+    // This test passes, but note that if we warmed up, there is data loss.
+    void rollback_to_middle_test(bool flush_before_rollback) {
+        // create some more checkpoints just to see a few iterations
+        // of parts of the rollback function.
+
+        // need to store a certain number of keys because rollback
+        // 'bails' if the rollback is too much.
+        for (int i = 0; i < 6; i++) {
+            std::string key = "key_" + std::to_string(i);
+            store_item(vbid, key.c_str(), "dontcare");
+        }
+        // the roll back function will rewind disk to key7.
+        auto rollback_item = store_item(vbid, "key7", "dontcare");
+        ASSERT_EQ(7, store->flushVBucket(vbid));
+
+        // every key past this point will be lost from disk in a mid-point.
+        auto item_v1 = store_item(vbid, "rollback-cp-1", "keep-me");
+        auto item_v2 = store_item(vbid, "rollback-cp-2", "rollback to me");
+        store_item(vbid, "rollback-cp-3", "i'm gone");
+        auto rollback = item_v2.getBySeqno(); // ask to rollback to here.
+        ASSERT_EQ(3, store->flushVBucket(vbid));
+
+        for (int i = 0; i < 3; i++) {
+            std::string key = "anotherkey_" + std::to_string(i);
+            store_item(vbid, key.c_str(), "dontcare");
+        }
+
+        if (flush_before_rollback) {
+            ASSERT_EQ(3, store->flushVBucket(vbid));
+        }
+
+
+        // Rollback should succeed, but rollback to 0
+        store->setVBucketState(vbid, vbucket_state_replica, false);
+        EXPECT_EQ(ENGINE_SUCCESS, store->rollback(vbid, rollback));
+
+        // These keys should be gone after the rollback
+        for (int i = 0; i < 3; i++) {
+            std::string key = "rollback-cp-" + std::to_string(i);
+            auto result = store->get(key.c_str(), vbid, nullptr, {});
+            EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
+                << "A key set after the rollback point was found";
+        }
+
+        // These keys should be gone after the rollback
+        for (int i = 0; i < 3; i++) {
+            std::string key = "anotherkey_" + std::to_string(i);
+            auto result = store->get(key.c_str(), vbid, nullptr, {});
+            EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
+                << "A key set after the rollback point was found";
+        }
+
+        // Rolled back to the previous checkpoint
+        EXPECT_EQ(rollback_item.getBySeqno(),
+                  store->getVBucket(vbid)->getHighSeqno());
+    }
+
+protected:
     int64_t initial_seqno;
 };
 
-// Test rollback after modifying an item - regression test for MB-21587.
-TEST_F(RollbackTest, MB21587_RollbackAfterMutation) {
-
-    // Setup: Store an item then flush the vBucket (creating a checkpoint);
-    // then update the item with a new value and create a second checkpoint.
-    auto item_v1 = store_item(vbid, "a", "old");
-    ASSERT_EQ(initial_seqno + 1, item_v1.getBySeqno());
-    ASSERT_EQ(1, store->flushVBucket(vbid));
-
-    auto item2 = store_item(vbid, "a", "new");
-    ASSERT_EQ(initial_seqno + 2, item2.getBySeqno());
-    ASSERT_EQ(1, store->flushVBucket(vbid));
-
-    // Test - rollback to seqno of item_v1 and verify that the previous value
-    // of the item has been restored.
-    ASSERT_EQ(ENGINE_SUCCESS, store->rollback(vbid, initial_seqno + 1));
-    auto result = store->get("a", vbid, nullptr, {});
-    EXPECT_EQ(ENGINE_SUCCESS, result.getStatus());
-    EXPECT_EQ(item_v1, *result.getValue())
-        << "Fetched item after rollback should match item_v1";
-    delete result.getValue();
+TEST_P(RollbackTest, RollbackAfterMutation) {
+    rollback_after_mutation_test(/*flush_before_rollbaack*/true);
 }
+
+TEST_P(RollbackTest, RollbackAfterMutationNoFlush) {
+    rollback_after_mutation_test(/*flush_before_rollback*/false);
+}
+
+TEST_P(RollbackTest, RollbackAfterDeletion) {
+    rollback_after_deletion_test(/*flush_before_rollback*/true);
+}
+
+TEST_P(RollbackTest, RollbackAfterDeletionNoFlush) {
+    rollback_after_deletion_test(/*flush_before_rollback*/false);
+}
+
+TEST_P(RollbackTest, RollbackToMiddleOfACheckpoint) {
+    rollback_to_middle_test(true);
+}
+
+TEST_P(RollbackTest, RollbackToMiddleOfACheckpointNoFlush) {
+    rollback_to_middle_test(false);
+}
+
+// Test cases which run in both Full and Value eviction
+INSTANTIATE_TEST_CASE_P(FullAndValueEviction,
+                        RollbackTest,
+                        ::testing::Values("value_only", "full_eviction"),
+                        [] (const ::testing::TestParamInfo<std::string>& info) {
+                            return info.param;
+                        });

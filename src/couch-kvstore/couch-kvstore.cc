@@ -2278,24 +2278,22 @@ size_t CouchKVStore::getItemCount(uint16_t vbid) {
 
 RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
                                       std::shared_ptr<RollbackCB> cb) {
-
-    Db *db = NULL;
+    DbHolder db(this);
     DbInfo info;
     uint64_t fileRev = dbFileRevMap[vbid];
     std::stringstream dbFileName;
     dbFileName << dbname << "/" << vbid << ".couch." << fileRev;
     couchstore_error_t errCode;
 
-    errCode = openDB(vbid, fileRev, &db,
+    errCode = openDB(vbid, fileRev, db.getDbAddress(),
                      (uint64_t) COUCHSTORE_OPEN_FLAG_RDONLY);
 
     if (errCode == COUCHSTORE_SUCCESS) {
-        errCode = couchstore_db_info(db, &info);
+        errCode = couchstore_db_info(db.getDb(), &info);
         if (errCode != COUCHSTORE_SUCCESS) {
             logger.log(EXTENSION_LOG_WARNING,
                        "Failed to read DB info, name=%s",
                        dbFileName.str().c_str());
-            closeDatabaseHandle(db);
             return RollbackResult(false, 0, 0, 0);
         }
     } else {
@@ -2309,29 +2307,30 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
 
     //Count from latest seq no to 0
     uint64_t totSeqCount = 0;
-    errCode = couchstore_changes_count(db, 0, latestSeqno, &totSeqCount);
+    errCode = couchstore_changes_count(db.getDb(), 0, latestSeqno, &totSeqCount);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.log(EXTENSION_LOG_WARNING, "Failed to get changes count for "
                    "rollback vBucket = %d, rev = %" PRIu64 ", error=%s [%s]",
                    vbid, fileRev,  couchstore_strerror(errCode),
                    cb_strerror().c_str());
-        closeDatabaseHandle(db);
         return RollbackResult(false, 0, 0, 0);
     }
 
-    Db *newdb = NULL;
-    errCode = openDB(vbid, fileRev, &newdb, 0);
+    DbHolder newdb(this);
+    errCode = openDB(vbid, fileRev, newdb.getDbAddress(), 0);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.log(EXTENSION_LOG_WARNING,
                    "Failed to open database, name=%s",
                    dbFileName.str().c_str());
-        closeDatabaseHandle(db);
         return RollbackResult(false, 0, 0, 0);
     }
 
     while (info.last_sequence > rollbackSeqno) {
-        errCode = couchstore_rewind_db_header(newdb);
+        errCode = couchstore_rewind_db_header(newdb.getDb());
         if (errCode != COUCHSTORE_SUCCESS) {
+            // rewind_db_header cleans up (frees DB) on error; so
+            // reset db in DbHolder to prevent a double-free.
+            newdb.resetDb();
             logger.log(EXTENSION_LOG_WARNING,
                        "Failed to rewind Db pointer "
                        "for couch file with vbid: %u, whose "
@@ -2341,65 +2340,53 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
                        couchstore_strerror(errCode), cb_strerror().c_str());
             //Reset the vbucket and send the entire snapshot,
             //as a previous header wasn't found.
-            closeDatabaseHandle(db);
             return RollbackResult(false, 0, 0, 0);
         }
-        errCode = couchstore_db_info(newdb, &info);
+        errCode = couchstore_db_info(newdb.getDb(), &info);
         if (errCode != COUCHSTORE_SUCCESS) {
             logger.log(EXTENSION_LOG_WARNING,
                        "Failed to read DB info, name=%s",
                 dbFileName.str().c_str());
-            closeDatabaseHandle(db);
-            closeDatabaseHandle(newdb);
             return RollbackResult(false, 0, 0, 0);
         }
     }
 
     //Count from latest seq no to rollback seq no
     uint64_t rollbackSeqCount = 0;
-    errCode = couchstore_changes_count(db, info.last_sequence, latestSeqno,
+    errCode = couchstore_changes_count(db.getDb(), info.last_sequence, latestSeqno,
                                        &rollbackSeqCount);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.log(EXTENSION_LOG_WARNING, "Failed to get changes count for "
                    "rollback vBucket = %d, rev = %" PRIu64 ", error=%s [%s]",
                    vbid, fileRev, couchstore_strerror(errCode),
                    cb_strerror().c_str());
-        closeDatabaseHandle(db);
-        closeDatabaseHandle(newdb);
         return RollbackResult(false, 0, 0, 0);
     }
 
     if ((totSeqCount / 2) <= rollbackSeqCount) {
         //doresetVbucket flag set or rollback is greater than 50%,
         //reset the vbucket and send the entire snapshot
-        closeDatabaseHandle(db);
-        closeDatabaseHandle(newdb);
         return RollbackResult(false, 0, 0, 0);
     }
 
-    cb->setDbHeader(newdb);
-
+    cb->setDbHeader(newdb.getDb());
     std::shared_ptr<Callback<CacheLookup> > cl(new NoLookupCallback());
-    ScanContext* ctx = initScanContext(cb, cl, vbid, info.last_sequence + 1,
+    ScanContext* ctx = initScanContext(cb, cl, vbid, info.last_sequence+1,
                                        DocumentFilter::ALL_ITEMS,
                                        ValueFilter::KEYS_ONLY);
     scan_error_t error = scan(ctx);
     destroyScanContext(ctx);
 
     if (error != scan_success) {
-        closeDatabaseHandle(db);
-        closeDatabaseHandle(newdb);
         return RollbackResult(false, 0, 0, 0);
     }
 
-    readVBState(newdb, vbid);
+    readVBState(newdb.getDb(), vbid);
     cachedDeleteCount[vbid] = info.deleted_count;
     cachedDocCount[vbid] = info.doc_count;
 
-    closeDatabaseHandle(db);
-    //Append the rewinded header to the database file, before closing handle
-    errCode = couchstore_commit(newdb);
-    closeDatabaseHandle(newdb);
+    //Append the rewinded header to the database file
+    errCode = couchstore_commit(newdb.getDb());
 
     if (errCode != COUCHSTORE_SUCCESS) {
         return RollbackResult(false, 0, 0, 0);

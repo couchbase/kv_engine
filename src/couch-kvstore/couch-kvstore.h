@@ -513,6 +513,37 @@ protected:
      * Base fileops implementation to be wrapped by stat collecting fileops
      */
     FileOpsInterface& base_ops;
+
+private:
+    class DbHolder {
+    public:
+        DbHolder(CouchKVStore* kvs) : kvstore(kvs), db(nullptr) {}
+
+        DbHolder(const DbHolder&) = delete;
+        DbHolder(const DbHolder&&) = delete;
+        DbHolder operator=(const DbHolder&) = delete;
+
+
+        Db** getDbAddress() {
+            return &db;
+        }
+
+        Db* getDb() {
+            return db;
+        }
+
+        void resetDb() {
+            db = nullptr;
+        }
+
+        ~DbHolder() {
+            if (db) {
+                kvstore->closeDatabaseHandle(db);
+            }
+        }
+        CouchKVStore* kvstore;
+        Db* db;
+    };
 };
 
 #endif  // SRC_COUCH_KVSTORE_COUCH_KVSTORE_H_

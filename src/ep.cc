@@ -1199,6 +1199,14 @@ ENGINE_ERROR_CODE EPBucket::setVBucketState(uint16_t vbid,
                                             bool notify_dcp) {
     // Lock to prevent a race condition between a failed update and add.
     LockHolder lh(vbsetMutex);
+    return setVBucketState_UNLOCKED(vbid, to, transfer, notify_dcp, lh);
+}
+
+ENGINE_ERROR_CODE EPBucket::setVBucketState_UNLOCKED(uint16_t vbid,
+                                                     vbucket_state_t to,
+                                                     bool transfer,
+                                                     bool notify_dcp,
+                                                     LockHolder& vbset) {
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (vb && to == vb->getState()) {
         return ENGINE_SUCCESS;
@@ -1240,7 +1248,6 @@ ENGINE_ERROR_CODE EPBucket::setVBucketState(uint16_t vbid,
             }
         }
 
-        lh.unlock();
         if (oldstate == vbucket_state_pending &&
             to == vbucket_state_active) {
             ExTask notifyTask = new PendingOpsNotification(engine, vb);
@@ -1268,13 +1275,11 @@ ENGINE_ERROR_CODE EPBucket::setVBucketState(uint16_t vbid,
         uint64_t start_chk_id = (to == vbucket_state_active) ? 2 : 0;
         newvb->checkpointManager.setOpenCheckpointId(start_chk_id);
         if (vbMap.addBucket(newvb) == ENGINE_ERANGE) {
-            lh.unlock();
             return ENGINE_ERANGE;
         }
         vbMap.setPersistenceCheckpointId(vbid, 0);
         vbMap.setPersistenceSeqno(vbid, 0);
         vbMap.setBucketCreation(vbid, true);
-        lh.unlock();
         scheduleVBStatePersist(vbid);
     } else {
         return ENGINE_ERANGE;
@@ -1530,6 +1535,10 @@ void EPBucket::updateCompactionTasks(DBFileId db_file_id) {
 
 bool EPBucket::resetVBucket(uint16_t vbid) {
     LockHolder lh(vbsetMutex);
+    return resetVBucket_UNLOCKED(vbid, lh);
+}
+
+bool EPBucket::resetVBucket_UNLOCKED(uint16_t vbid, LockHolder& vbset) {
     bool rv(false);
 
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
@@ -1537,13 +1546,13 @@ bool EPBucket::resetVBucket(uint16_t vbid) {
         vbucket_state_t vbstate = vb->getState();
 
         vbMap.removeBucket(vbid);
-        lh.unlock();
 
         checkpointCursorInfoList cursors =
                                         vb->checkpointManager.getAllCursors();
         // Delete and recreate the vbucket database file
         scheduleVBDeletion(vb, NULL, 0);
-        setVBucketState(vbid, vbstate, false);
+        setVBucketState_UNLOCKED(vbid, vbstate,
+                                 false/*transfer*/, true/*notifyDcp*/, vbset);
 
         // Copy the all cursors from the old vbucket into the new vbucket
         RCPtr<VBucket> newvb = vbMap.getBucket(vbid);
@@ -3866,7 +3875,6 @@ public:
             if (it->isDeleted()) {
                 LockHolder lh = vb->ht.getLockedBucket(it->getKey(),
                         &bucket_num);
-
                 bool ret = vb->ht.unlocked_del(it->getKey(), bucket_num);
                 if(!ret) {
                     setStatus(ENGINE_KEY_ENOENT);
@@ -3903,35 +3911,73 @@ private:
     EventuallyPersistentEngine& engine;
 };
 
+/*
+ * Purge all unpersisted items from the current checkpoint(s) and fixup
+ * the hashtable for any that are > the rollbackSeqno.
+ */
+void EPBucket::rollbackCheckpoint(RCPtr<VBucket> &vb,
+                                  int64_t rollbackSeqno) {
+    std::vector<queued_item> items;
+    vb->checkpointManager.getAllItemsForCursor(CheckpointManager::pCursorName,
+                                               items);
+    for (const auto& item : items) {
+        if (item->getBySeqno() > rollbackSeqno &&
+            !item->isCheckPointMetaItem()) {
+            RememberingCallback<GetValue> gcb;
+            getROUnderlying(vb->getId())->get(item->getKey(),
+                                                    vb->getId(),
+                                                    gcb);
+            gcb.waitForValue();
+
+            if (gcb.val.getStatus() == ENGINE_SUCCESS) {
+                vb->ht.set(*gcb.val.getValue(), 0, true);
+            } else {
+                vb->ht.del(item->getKey());
+            }
+
+            delete gcb.val.getValue();
+        }
+    }
+}
+
 ENGINE_ERROR_CODE EPBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
+    LockHolder vbset(vbsetMutex);
+
     LockHolder lh(vb_mutexes[vbid], true /*tryLock*/);
+
     if (!lh.islocked()) {
         return ENGINE_TMPFAIL; // Reschedule a vbucket rollback task.
     }
 
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
-    uint64_t prevHighSeqno = static_cast<uint64_t>
-                                    (vb->checkpointManager.getHighSeqno());
-    if (rollbackSeqno != 0) {
-        std::shared_ptr<Rollback> cb(new Rollback(engine));
-        KVStore* rwUnderlying = vbMap.getShardByVbId(vbid)->getRWUnderlying();
-        RollbackResult result = rwUnderlying->rollback(vbid, rollbackSeqno, cb);
+    ReaderLockHolder rlh(vb->getStateLock());
+    if (vb->getState() == vbucket_state_replica) {
+        uint64_t prevHighSeqno = static_cast<uint64_t>
+                                        (vb->checkpointManager.getHighSeqno());
+        if (rollbackSeqno != 0) {
+            std::shared_ptr<Rollback> cb(new Rollback(engine));
+            KVStore* rwUnderlying = vbMap.getShardByVbId(vbid)->getRWUnderlying();
+            RollbackResult result = rwUnderlying->rollback(vbid, rollbackSeqno, cb);
 
-        if (result.success) {
-            vb->failovers->pruneEntries(result.highSeqno);
-            vb->checkpointManager.clear(vb, result.highSeqno);
-            vb->setPersistedSnapshot(result.snapStartSeqno, result.snapEndSeqno);
-            vb->incrRollbackItemCount(prevHighSeqno - result.highSeqno);
+            if (result.success) {
+                rollbackCheckpoint(vb, rollbackSeqno);
+                vb->failovers->pruneEntries(result.highSeqno);
+                vb->checkpointManager.clear(vb, result.highSeqno);
+                vb->setPersistedSnapshot(result.snapStartSeqno, result.snapEndSeqno);
+                vb->incrRollbackItemCount(prevHighSeqno - result.highSeqno);
+                return ENGINE_SUCCESS;
+            }
+        }
+
+        if (resetVBucket_UNLOCKED(vbid, vbset)) {
+            RCPtr<VBucket> newVb = vbMap.getBucket(vbid);
+            newVb->incrRollbackItemCount(prevHighSeqno);
             return ENGINE_SUCCESS;
         }
+        return ENGINE_NOT_MY_VBUCKET;
+    } else {
+        return ENGINE_EINVAL;
     }
-
-    if (resetVBucket(vbid)) {
-        RCPtr<VBucket> newVb = vbMap.getBucket(vbid);
-        newVb->incrRollbackItemCount(prevHighSeqno);
-        return ENGINE_SUCCESS;
-    }
-    return ENGINE_NOT_MY_VBUCKET;
 }
 
 void EPBucket::runDefragmenterTask() {
