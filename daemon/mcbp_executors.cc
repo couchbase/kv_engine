@@ -37,6 +37,7 @@
 #include "mcbp_privileges.h"
 #include "protocol/mcbp/appendprepend_context.h"
 #include "protocol/mcbp/arithmetic_context.h"
+#include "protocol/mcbp/get_context.h"
 #include "protocol/mcbp/dcp_mutation.h"
 #include "protocol/mcbp/utilities.h"
 
@@ -565,143 +566,35 @@ static void process_stat_settings(ADD_STAT add_stat_callback,
              std::to_string(settings.getMaxPacketSize()).c_str());
 }
 
-
-static void process_bin_get(McbpConnection* c) {
-    item* it;
-    protocol_binary_response_get* rsp = (protocol_binary_response_get*)c->write.buf;
-    char* key = binary_get_key(c);
-    size_t nkey = c->binary_header.request.keylen;
-    uint16_t keylen;
-    uint32_t bodylen;
-    int ii;
-    ENGINE_ERROR_CODE ret;
-    protocol_binary_datatype_t datatype;
-    bool need_inflate = false;
-
-    if (settings.getVerbose() > 1) {
-        char buffer[1024];
-        if (key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
-                                    "GET", key, nkey) != -1) {
-            LOG_DEBUG(c, "%s", buffer);
-        }
+static void process_bin_get(McbpConnection* c, void* packet) {
+    if (c->getCommandContext() == nullptr) {
+        auto* req = reinterpret_cast<protocol_binary_request_get*>(packet);
+        auto* context = new GetCommandContext(*c, req);
+        c->setCommandContext(context);
     }
 
-    ret = c->getAiostat();
+    ENGINE_ERROR_CODE ret = c->getAiostat();
     c->setAiostat(ENGINE_SUCCESS);
-    if (ret == ENGINE_SUCCESS) {
-        ret = bucket_get(c, &it, key, (int)nkey,
-                         c->binary_header.request.vbucket);
-    }
+    c->setEwouldblock(false);
 
-    item_info_holder info;
-    info.info.clsid = 0;
-    info.info.nvalue = IOV_MAX;
+    if (ret == ENGINE_SUCCESS) {
+        auto* context = reinterpret_cast<GetCommandContext*>(c->getCommandContext());
+        ret = context->step();
+    }
 
     switch (ret) {
     case ENGINE_SUCCESS:
-        STATS_HIT(c, get, key, nkey);
-
-        if (!bucket_get_item_info(c, it, &info.info)) {
-            bucket_release_item(c, it);
-            LOG_WARNING(c, "%u: Failed to get item info", c->getId());
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
-            break;
-        }
-
-        datatype = info.info.datatype;
-        if (!c->isSupportsDatatype()) {
-            if (mcbp::datatype::is_compressed(datatype)) {
-                need_inflate = true;
-            } else {
-                datatype = PROTOCOL_BINARY_RAW_BYTES;
-            }
-        }
-
-        keylen = 0;
-        bodylen = sizeof(rsp->message.body) + info.info.nbytes;
-
-        if ((c->getCmd() == PROTOCOL_BINARY_CMD_GETK) ||
-            (c->getCmd() == PROTOCOL_BINARY_CMD_GETKQ)) {
-            bodylen += (uint32_t)nkey;
-            keylen = (uint16_t)nkey;
-        }
-
-        if (need_inflate) {
-            if (info.info.nvalue != 1) {
-                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
-            } else if (mcbp_response_handler(key, keylen,
-                                             &info.info.flags, 4,
-                                             info.info.value[0].iov_base,
-                                             (uint32_t)info.info.value[0].iov_len,
-                                             datatype,
-                                             PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                             info.info.cas, c->getCookie())) {
-                mcbp_write_and_free(c, &c->getDynamicBuffer());
-                bucket_release_item(c, it);
-            } else {
-                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
-            }
-        } else {
-            if (mcbp_add_header(c, 0, sizeof(rsp->message.body),
-                                keylen, bodylen, datatype) == -1) {
-                c->setState(conn_closing);
-                return;
-            }
-            rsp->message.header.response.cas = htonll(info.info.cas);
-
-            /* add the flags */
-            rsp->message.body.flags = info.info.flags;
-            c->addIov(&rsp->message.body, sizeof(rsp->message.body));
-
-            if ((c->getCmd() == PROTOCOL_BINARY_CMD_GETK) ||
-                (c->getCmd() == PROTOCOL_BINARY_CMD_GETKQ)) {
-                c->addIov(info.info.key, nkey);
-            }
-
-            for (ii = 0; ii < info.info.nvalue; ++ii) {
-                c->addIov(info.info.value[ii].iov_base,
-                          info.info.value[ii].iov_len);
-            }
-            c->setState(conn_mwrite);
-            /* Remember this item so we can garbage collect it later */
-            c->setItem(it);
-        }
-        update_topkeys(key, nkey, c);
-        break;
-    case ENGINE_KEY_ENOENT:
-        STATS_MISS(c, get, key, nkey);
-        MEMCACHED_COMMAND_GET(c->getId(), key, nkey, -1, 0);
-
-        if (c->isNoReply()) {
-            c->setState(conn_new_cmd);
-        } else {
-            if ((c->getCmd() == PROTOCOL_BINARY_CMD_GETK) ||
-                (c->getCmd() == PROTOCOL_BINARY_CMD_GETKQ)) {
-                char* ofs =
-                    c->write.buf + sizeof(protocol_binary_response_header);
-                if (mcbp_add_header(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
-                                    0, (uint16_t)nkey,
-                                    (uint32_t)nkey,
-                                    PROTOCOL_BINARY_RAW_BYTES) == -1) {
-                    c->setState(conn_closing);
-                    return;
-                }
-                memcpy(ofs, key, nkey);
-                c->addIov(ofs, nkey);
-                c->setState(conn_mwrite);
-            } else {
-                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
-            }
-        }
         break;
     case ENGINE_EWOULDBLOCK:
+        c->setAiostat(ENGINE_EWOULDBLOCK);
         c->setEwouldblock(true);
-        break;
+        return;
     case ENGINE_DISCONNECT:
         c->setState(conn_closing);
-        break;
+        return;
     default:
         mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+        return;
     }
 }
 
@@ -2852,8 +2745,6 @@ static void prependq_executor(McbpConnection* c, void* packet) {
 
 
 static void get_executor(McbpConnection* c, void* packet) {
-    (void)packet;
-
     switch (c->getCmd()) {
     case PROTOCOL_BINARY_CMD_GETQ:
         c->setNoReply(true);
@@ -2875,7 +2766,7 @@ static void get_executor(McbpConnection* c, void* packet) {
         return;
     }
 
-    process_bin_get(c);
+    process_bin_get(c, packet);
 }
 
 /**
