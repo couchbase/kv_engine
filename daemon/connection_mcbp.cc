@@ -1249,10 +1249,12 @@ void McbpConnection::maybeLogSlowCommand(
             }
         }
 
-        LOG_WARNING(NULL, "%u: Slow %s operation on connection: %s (%s)%s",
+        LOG_WARNING(NULL, "%u: Slow %s operation on connection: %s (%s)%s"
+                    " opaque:0x%08x",
                     getId(), opcode,
                     Couchbase::hrtime2text(timings).c_str(),
-                    getDescription().c_str(), details.c_str());
+                    getDescription().c_str(), details.c_str(),
+                    getOpaque());
     }
 }
 
