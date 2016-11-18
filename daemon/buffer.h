@@ -33,6 +33,22 @@ struct sized_buffer {
         : buf(buf_),
           len(len_) {}
 
+    sized_buffer(const std::string& str)
+        : buf(str.data()),
+          len(str.size()) { }
+
+    T* data() {
+        return buf;
+    }
+
+    const T* data() const {
+        return buf;
+    }
+
+    size_t size() const {
+        return len;
+    }
+
     T* buf;
     size_t len;
 };
