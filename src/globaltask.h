@@ -151,9 +151,7 @@ public:
 
     void updateWaketimeIfLessThan(const ProcessClock::time_point tp) {
         const auto tp_ns = to_ns_since_epoch(tp).count();
-        if (tp_ns > waketime) {
-            waketime = tp_ns;
-        }
+        atomic_setIfBigger(waketime, tp_ns);
     }
 
     queue_priority_t getQueuePriority() const {
