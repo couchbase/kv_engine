@@ -1232,6 +1232,10 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
     set_param(h, h1, protocol_binary_engine_param_flush,
               "max_num_readers", "0");
 
+    // Disable nonio so that we have better control of the expirypager
+    set_param(h, h1, protocol_binary_engine_param_flush,
+              "max_num_nonio", "0");
+
     // Tell the harness not to handle EWOULDBLOCK for us - we want it to
     // be outstanding while we check the below stats.
     const void *cookie = testHarness.create_cookie();
@@ -1259,7 +1263,13 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
     check(!get_meta(h, h1, k2), "Expected get meta to return false");
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(), "Expected enoent");
 
+    // Ensure all bg fetches completed (two were requested)
+    wait_for_stat_to_be(h, h1, "ep_bg_meta_fetched", 2);
+
     // Trigger the expiry pager and verify that two temp items are deleted
+    set_param(h, h1, protocol_binary_engine_param_flush,
+              "max_num_nonio", "1");
+
     wait_for_stat_to_be(h, h1, "ep_expired_pager", 1);
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
     checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
