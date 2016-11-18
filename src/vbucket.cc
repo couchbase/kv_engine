@@ -169,7 +169,7 @@ VBucket::VBucket(id_type i,
 {
     backfill.isBackfillPhase = false;
     pendingOpsStart = 0;
-    stats.memOverhead.fetch_add(sizeof(VBucket)
+    stats.memOverhead->fetch_add(sizeof(VBucket)
                                 + ht.memorySize() + sizeof(CheckpointManager));
     LOG(EXTENSION_LOG_NOTICE,
         "VBucket: created vbucket:%" PRIu16 " with state:%s "
@@ -212,7 +212,7 @@ VBucket::~VBucket() {
     // Clear out the bloomfilter(s)
     clearFilter();
 
-    stats.memOverhead.fetch_sub(sizeof(VBucket) + ht.memorySize() +
+    stats.memOverhead->fetch_sub(sizeof(VBucket) + ht.memorySize() +
                                 sizeof(CheckpointManager));
 
     LOG(EXTENSION_LOG_INFO, "Destroying vbucket %d\n", id);

@@ -189,7 +189,7 @@ void HashTable::resize(size_t newSize) {
         return;
     }
 
-    stats.memOverhead.fetch_sub(memorySize());
+    stats.memOverhead->fetch_sub(memorySize());
     ++numResizes;
 
     // Set the new size so all the hashy stuff works.
@@ -213,7 +213,7 @@ void HashTable::resize(size_t newSize) {
     cb_free(values);
     values = newValues;
 
-    stats.memOverhead.fetch_add(memorySize());
+    stats.memOverhead->fetch_add(memorySize());
 }
 
 StoredValue* HashTable::find(const std::string &key, bool trackReference) {

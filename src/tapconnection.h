@@ -998,7 +998,7 @@ protected:
         if (supportsAck()) {
             TapLogElement log(seqno, qi);
             ackLog_.push_back(log);
-            stats.memOverhead.fetch_add(sizeof(TapLogElement));
+            stats.memOverhead->fetch_add(sizeof(TapLogElement));
         }
     }
 
@@ -1012,7 +1012,7 @@ protected:
             // add to the log!
             TapLogElement log(seqno, e);
             ackLog_.push_back(log);
-            stats.memOverhead.fetch_add(sizeof(TapLogElement));
+            stats.memOverhead->fetch_add(sizeof(TapLogElement));
         }
     }
 

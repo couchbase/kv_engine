@@ -111,11 +111,11 @@ Checkpoint::~Checkpoint() {
     LOG(EXTENSION_LOG_INFO,
         "Checkpoint %" PRIu64 " for vbucket %d is purged from memory",
         checkpointId, vbucketId);
-    stats.memOverhead.fetch_sub(memorySize());
-    if (stats.memOverhead.load() >= GIGANTOR) {
+    stats.memOverhead->fetch_sub(memorySize());
+    if (stats.memOverhead->load() >= GIGANTOR) {
         LOG(EXTENSION_LOG_WARNING,
             "Checkpoint::~Checkpoint: stats.memOverhead (which is %" PRId64
-            ") is greater than %" PRId64, uint64_t(stats.memOverhead.load()),
+            ") is greater than %" PRId64, uint64_t(stats.memOverhead->load()),
             uint64_t(GIGANTOR));
     }
 }
@@ -249,11 +249,11 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
             size_t newEntrySize = qi->getNKey() + sizeof(index_entry) +
                                   sizeof(queued_item);
             memOverhead += newEntrySize;
-            stats.memOverhead.fetch_add(newEntrySize);
-            if (stats.memOverhead.load() >= GIGANTOR) {
+            stats.memOverhead->fetch_add(newEntrySize);
+            if (stats.memOverhead->load() >= GIGANTOR) {
                 LOG(EXTENSION_LOG_WARNING,
                     "Checkpoint::queueDirty: stats.memOverhead (which is %" PRId64
-                    ") is greater than %" PRId64, uint64_t(stats.memOverhead.load()),
+                    ") is greater than %" PRId64, uint64_t(stats.memOverhead->load()),
                     uint64_t(GIGANTOR));
             }
         }
@@ -365,10 +365,10 @@ size_t Checkpoint::mergePrevCheckpoint(Checkpoint *pPrevCheckpoint) {
     setSnapshotStartSeqno(getLowSeqno());
 
     memOverhead += newEntryMemOverhead;
-    stats.memOverhead.fetch_add(newEntryMemOverhead);
+    stats.memOverhead->fetch_add(newEntryMemOverhead);
     LOG(EXTENSION_LOG_WARNING,
         "Checkpoint::mergePrevCheckpoint: stats.memOverhead (which is %" PRId64
-        ") is greater than %" PRId64, uint64_t(stats.memOverhead.load()),
+        ") is greater than %" PRId64, uint64_t(stats.memOverhead->load()),
         uint64_t(GIGANTOR));
     return numNewItems;
 }

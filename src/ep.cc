@@ -403,7 +403,7 @@ EPBucket::EPBucket(
     size_t num_vbs = config.getMaxVbuckets();
     vb_mutexes = new std::mutex[num_vbs];
 
-    stats.memOverhead = sizeof(EPBucket);
+    *stats.memOverhead = sizeof(EPBucket);
 
     if (config.getConflictResolutionType().compare("lww") == 0) {
         conflictResolver.reset(new LastWriteWinsResolution());

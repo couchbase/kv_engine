@@ -567,7 +567,7 @@ void TapProducer::clearQueues_UNLOCKED() {
     mem_overhead += (ackLog_.size() * sizeof(TapLogElement));
     ackLog_.clear();
 
-    stats.memOverhead.fetch_sub(mem_overhead);
+    stats.memOverhead->fetch_sub(mem_overhead);
 
     logger.log(EXTENSION_LOG_WARNING, "Clear the tap queues by force");
 }
@@ -650,7 +650,7 @@ void TapProducer::rollback() {
         ++ackLogSize;
     }
 
-    stats.memOverhead.fetch_sub(ackLogSize * sizeof(TapLogElement));
+    stats.memOverhead->fetch_sub(ackLogSize * sizeof(TapLogElement));
 
     seqnoReceived = seqno - 1;
     seqnoAckRequested = seqno - 1;
@@ -890,7 +890,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         ret = ENGINE_DISCONNECT;
     }
 
-    stats.memOverhead.fetch_sub(num_logs * sizeof(TapLogElement));
+    stats.memOverhead->fetch_sub(num_logs * sizeof(TapLogElement));
 
     return ret;
 }
@@ -1087,7 +1087,7 @@ void TapProducer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqu
         if (it != checkpointState_.end()) {
             ++(it->second.bgResultSize);
         }
-        stats.memOverhead.fetch_add(sizeof(Item *));
+        stats.memOverhead->fetch_add(sizeof(Item *));
     } else {
         delete itm;
     }
@@ -1112,7 +1112,7 @@ Item* TapProducer::nextBgFetchedItem_UNLOCKED() {
         --(it->second.bgResultSize);
     }
 
-    stats.memOverhead.fetch_sub(sizeof(Item *));
+    stats.memOverhead->fetch_sub(sizeof(Item *));
 
     return rv;
 }
@@ -1328,7 +1328,7 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
         } else {
             queueMemSize.store(0);
         }
-        stats.memOverhead.fetch_sub(sizeof(queued_item));
+        stats.memOverhead->fetch_sub(sizeof(queued_item));
         ++recordsFetched;
         return qi;
     }
@@ -1472,7 +1472,7 @@ bool TapProducer::addEvent_UNLOCKED(const queued_item &it) {
         queue->push_back(it);
         ++queueSize;
         queueMemSize.fetch_add(sizeof(queued_item));
-        stats.memOverhead.fetch_add(sizeof(queued_item));
+        stats.memOverhead->fetch_add(sizeof(queued_item));
         return wasEmpty;
     } else {
         return queue->empty();
