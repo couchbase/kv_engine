@@ -39,6 +39,9 @@ public:
         // empty
     }
 
+    virtual ~Frame() {
+    }
+
     void dump(std::ostream& out) const {
         dumpFrame(out);
         dumpPacketInfo(out);
