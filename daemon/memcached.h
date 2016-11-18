@@ -31,7 +31,6 @@
 #define KEY_MAX_LENGTH 250
 
 #define DATA_BUFFER_SIZE 2048
-#define UDP_MAX_PAYLOAD_SIZE 1400
 #define MAX_SENDBUF_SIZE (256 * 1024 * 1024)
 
 /** Initial size of list of items being returned by "get". */

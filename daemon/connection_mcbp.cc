@@ -825,57 +825,33 @@ bool McbpConnection::addMsgHdr(bool reset) {
 }
 
 bool McbpConnection::addIov(const void* buf, size_t len) {
-
-    size_t leftover;
-    bool limit_to_mtu;
-
     if (len == 0) {
         return true;
     }
 
-    do {
-        struct msghdr* m = &msglist.back();
+    struct msghdr* m = &msglist.back();
 
-        /*
-         * Limit the first payloads of TCP replies, to
-         * UDP_MAX_PAYLOAD_SIZE bytes.
-         */
-        limit_to_mtu = (1 == msglist.size());
-
-        /* We may need to start a new msghdr if this one is full. */
-        if (m->msg_iovlen == IOV_MAX ||
-            (limit_to_mtu && msgbytes >= UDP_MAX_PAYLOAD_SIZE)) {
-            if (!addMsgHdr(false)) {
-                return false;
-            }
-        }
-
-        if (!ensureIovSpace()) {
+    /* We may need to start a new msghdr if this one is full. */
+    if (m->msg_iovlen == IOV_MAX) {
+        if (!addMsgHdr(false)) {
             return false;
         }
+    }
 
-        /* If the fragment is too big to fit in the datagram, split it up */
-        if (limit_to_mtu && len + msgbytes > UDP_MAX_PAYLOAD_SIZE) {
-            leftover = len + msgbytes - UDP_MAX_PAYLOAD_SIZE;
-            len -= leftover;
-        } else {
-            leftover = 0;
-        }
+    if (!ensureIovSpace()) {
+        return false;
+    }
 
-        // Update 'm' as we may have added an additional msghdr
-        m = &msglist.back();
+    // Update 'm' as we may have added an additional msghdr
+    m = &msglist.back();
 
-        m->msg_iov[m->msg_iovlen].iov_base = (void*)buf;
-        m->msg_iov[m->msg_iovlen].iov_len = len;
+    m->msg_iov[m->msg_iovlen].iov_base = (void*)buf;
+    m->msg_iov[m->msg_iovlen].iov_len = len;
 
-        msgbytes += len;
-        ++iovused;
-        STATS_MAX(this, iovused_high_watermark, getIovUsed());
-        m->msg_iovlen++;
-
-        buf = ((char*)buf) + len;
-        len = leftover;
-    } while (leftover > 0);
+    msgbytes += len;
+    ++iovused;
+    STATS_MAX(this, iovused_high_watermark, getIovUsed());
+    m->msg_iovlen++;
 
     return true;
 }
