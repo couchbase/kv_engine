@@ -504,6 +504,12 @@ private:
             return db;
         }
 
+        Db* releaseDb() {
+            auto* result = db;
+            db = nullptr;
+            return result;
+        }
+
         ~DbHolder() {
             if (db) {
                 kvstore->closeDatabaseHandle(db);
