@@ -122,7 +122,15 @@ void EngineManager::shutdown() {
 
             // Wait for all of the engines to be deleted
             auto& set = engines;
-            cond.wait(lck, [&set] {
+            // Ideally we should use cond.wait() here, but I _HAVE_ seen
+            // this wait stuck on our commit validator
+            // builders on.. tata WINDOWS
+            // Given that it means that we need to log into the commit
+            // validator builders to manually kill the process in order for
+            // other builds to succeed we'll just timeout and recheck every
+            // once and a while until we figure out why we might miss a
+            // notification signal.
+            cond.wait_for(lck, std::chrono::milliseconds(100), [&set] {
                 return set.empty();
             });
 
