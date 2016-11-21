@@ -1591,7 +1591,7 @@ static enum test_result test_set_with_meta_and_check_drift_stats(ENGINE_HANDLE *
 
     // grab the drift behind threshold
     uint64_t driftBehindThreshold = get_ull_stat(h, h1,
-                                                 "ep_hlc_ahead_threshold_us",
+                                                 "ep_hlc_drift_ahead_threshold_us",
                                                  nullptr);
     // Create n keys
     const int n_keys = 5;
@@ -1675,7 +1675,7 @@ static enum test_result test_del_with_meta_and_check_drift_stats(ENGINE_HANDLE *
 
     // grab the drift behind threshold
     uint64_t driftBehindThreshold = get_ull_stat(h, h1,
-                                                 "ep_hlc_ahead_threshold_us",
+                                                 "ep_hlc_drift_ahead_threshold_us",
                                                  nullptr);
     // Create n keys * n_vbuckets
     const int n_keys = 5;
@@ -1776,8 +1776,8 @@ static enum test_result test_del_with_meta_and_check_drift_stats(ENGINE_HANDLE *
 static enum test_result test_setting_drift_threshold(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     std::vector<std::pair<std::string, std::string> > configData =
-        {{"ep_hlc_ahead_threshold_us", "hlc_drift_ahead_threshold_us"},
-         {"ep_hlc_behind_threshold_us", "hlc_drift_behind_threshold_us"}};
+        {{"ep_hlc_drift_ahead_threshold_us", "hlc_drift_ahead_threshold_us"},
+         {"ep_hlc_drift_behind_threshold_us", "hlc_drift_behind_threshold_us"}};
 
     std::vector<std::pair<std::string, uint64_t> > values =
         {{"0", 0}, {"1", 1}, {"-1", -1}, {"-0", 0},
@@ -1880,11 +1880,13 @@ BaseTestCase testsuite_testcases[] = {
 
         TestCase("test set_with_meta and drift stats",
                  test_set_with_meta_and_check_drift_stats, test_setup,
-                 teardown, "hlc_ahead_threshold_us=5000000;hlc_behind_threshold_us=0;conflict_resolution_type=lww",
+                 teardown, "hlc_drift_ahead_threshold_us=5000000;"
+                 "hlc_drift_behind_threshold_us=0;conflict_resolution_type=lww",
                  prepare, cleanup),
         TestCase("test del_with_meta and drift stats",
                  test_del_with_meta_and_check_drift_stats, test_setup,
-                 teardown, "hlc_ahead_threshold_us=0;hlc_behind_threshold_us=5000000;conflict_resolution_type=lww",
+                 teardown, "hlc_drift_ahead_threshold_us=0;"
+                 "hlc_drift_behind_threshold_us=5000000;conflict_resolution_type=lww",
                  prepare, cleanup),
         TestCase("test setting drift threshold",
                  test_setting_drift_threshold, test_setup,

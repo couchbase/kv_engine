@@ -163,8 +163,8 @@ VBucket::VBucket(id_type i,
       tempFilter(NULL),
       rollbackItemCount(0),
       hlc(maxCas,
-          std::chrono::microseconds(config.getHlcAheadThresholdUs()),
-          std::chrono::microseconds(config.getHlcBehindThresholdUs())),
+          std::chrono::microseconds(config.getHlcDriftAheadThresholdUs()),
+          std::chrono::microseconds(config.getHlcDriftBehindThresholdUs())),
       statPrefix("vb_" + std::to_string(i))
 {
     backfill.isBackfillPhase = false;

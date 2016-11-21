@@ -579,11 +579,11 @@ extern "C" {
             if (strcmp(keyz, "hlc_drift_ahead_threshold_us") == 0) {
                 uint64_t v = std::strtoull(valz, nullptr, 10);
                 checkNumeric(valz);
-                e->getConfiguration().setHlcAheadThresholdUs(v);
+                e->getConfiguration().setHlcDriftAheadThresholdUs(v);
             } else if (strcmp(keyz, "hlc_drift_behind_threshold_us") == 0) {
                 uint64_t v = std::strtoull(valz, nullptr, 10);
                 checkNumeric(valz);
-                e->getConfiguration().setHlcBehindThresholdUs(v);
+                e->getConfiguration().setHlcDriftBehindThresholdUs(v);
             } else if (strcmp(keyz, "max_cas") == 0) {
                 uint64_t v = std::strtoull(valz, nullptr, 10);
                 checkNumeric(valz);

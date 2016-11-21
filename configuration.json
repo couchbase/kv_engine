@@ -282,14 +282,14 @@
             "descr": "The maximum timeout for a getl lock in (s)",
             "type": "size_t"
         },
-        "hlc_ahead_threshold_us": {
+        "hlc_drift_ahead_threshold_us": {
             "default": "5000000",
-            "descr": "The μs threshold at which we will increment a vbucket's ahead counter.",
+            "descr": "The μs threshold of drift at which we will increment a vbucket's ahead counter.",
             "type": "size_t"
         },
-        "hlc_behind_threshold_us": {
+        "hlc_drift_behind_threshold_us": {
             "default": "5000000",
-            "descr": "The μs threshold at which we will increment a vbucket's behind counter.",
+            "descr": "The μs threshold of drift at which we will increment a vbucket's behind counter.",
             "type": "size_t"
         },
         "ht_locks": {
