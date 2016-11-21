@@ -2329,8 +2329,8 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
         errCode = couchstore_rewind_db_header(newdb.getDb());
         if (errCode != COUCHSTORE_SUCCESS) {
             // rewind_db_header cleans up (frees DB) on error; so
-            // reset db in DbHolder to prevent a double-free.
-            newdb.resetDb();
+            // release db in DbHolder to prevent a double-free.
+            newdb.releaseDb();
             logger.log(EXTENSION_LOG_WARNING,
                        "Failed to rewind Db pointer "
                        "for couch file with vbid: %u, whose "

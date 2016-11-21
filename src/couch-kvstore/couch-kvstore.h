@@ -532,8 +532,10 @@ private:
             return db;
         }
 
-        void resetDb() {
+        Db* releaseDb() {
+            auto* result = db;
             db = nullptr;
+            return result;
         }
 
         ~DbHolder() {
