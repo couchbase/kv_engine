@@ -474,6 +474,9 @@ bool conn_immediate_close(McbpConnection *c) {
 }
 
 bool conn_closing(McbpConnection *c) {
+    // Delete any attached command context
+    c->resetCommandContext();
+
     /* We don't want any network notifications anymore.. */
     c->unregisterEvent();
     safe_close(c->getSocketDescriptor());
