@@ -106,9 +106,9 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
         char *ptr = NULL;
         uint64_t revNum = strtoull(revNumStr.c_str(), &ptr, 10);
         if (revNum == 0) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Invalid revision number obtained for database file");
-            abort();
+            throw std::runtime_error("ForestKVStore: Invalid revision (" +
+                                     std::to_string(revNum) +
+                                     ") obtained for database file");
         }
 
         if (revNum > dbFileRevNum) {

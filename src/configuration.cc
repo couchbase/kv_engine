@@ -399,8 +399,10 @@ bool Configuration::parseConfiguration(const char *str,
                 case DT_FLOAT:
                     setParameter(items[ii].key, *items[ii].value.dt_float);
                     break;
-                default:
-                    abort();
+                case DT_CONFIGFILE:
+                    throw std::logic_error("Configuration::parseConfiguration: "
+                            "Unexpected DT_CONFIGFILE element after parse_config");
+                    break;
                 }
             }
 

@@ -20,6 +20,7 @@
 
 #include "config.h"
 
+#include <cJSON.h>
 #include <cstring>
 #include <map>
 #include <list>
@@ -969,6 +970,17 @@ protected:
     void *dbHandle;
 };
 
+inline const std::string getJSONObjString(const cJSON *i) {
+    if (i == NULL) {
+        return "";
+    }
+    if (i->type != cJSON_String) {
+        throw std::invalid_argument("getJSONObjString: type of object (" +
+                                    std::to_string(i->type) +
+                                    ") is not cJSON_String");
+    }
+    return i->valuestring;
+}
 
 
 #endif  // SRC_KVSTORE_H_

@@ -2377,11 +2377,12 @@ inline uint16_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie,
             *es = &connection->opaqueCommandCode;
             *nes = sizeof(connection->opaqueCommandCode);
             break;
+
         default:
-            LOG(EXTENSION_LOG_WARNING,
-                "%s Unknown VBucketEvent message type %d\n",
-                connection->logHeader(), ev.event);
-            abort();
+            throw std::logic_error("EventuallyPersistentEngine::doWalkTapQueue:"
+                    " Unknown VBucketEvent message type:" +
+                    std::to_string(ev.event) + " for connection:" +
+                    connection->logHeader());
         }
         return ev.event;
     }

@@ -1109,7 +1109,9 @@ ScanContext* CouchKVStore::initScanContext(std::shared_ptr<Callback<GetValue> > 
     if (errorCode != COUCHSTORE_SUCCESS) {
         logger.log(EXTENSION_LOG_WARNING, "Failed to read DB info for backfill");
         closeDatabaseHandle(db);
-        abort();
+        throw std::runtime_error("Failed to read DB info for backfill. vb:" +
+                                 std::to_string(vbid) + " rev:" +
+                                 std::to_string(rev));
     }
 
     uint64_t count = 0;
