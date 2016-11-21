@@ -635,14 +635,14 @@ public:
      *  Get the command context stored for this command
      */
     CommandContext* getCommandContext() const {
-        return commandContext;
+        return commandContext.get();
     }
 
     /**
      *  Set the command context stored for this command
      */
     void setCommandContext(CommandContext* cmd_context) {
-        McbpConnection::commandContext = cmd_context;
+        McbpConnection::commandContext.reset(cmd_context);
     }
 
     /**
@@ -651,10 +651,7 @@ public:
      * Release the allocated resources and set the command context to nullptr
      */
     void resetCommandContext() {
-        if (commandContext != nullptr) {
-            delete commandContext;
-            commandContext = nullptr;
-        }
+        commandContext.reset();
     }
     /**
      * Try to enable SSL for this connection
@@ -871,7 +868,7 @@ protected:
      *
      *  Between each command this is deleted and reset to nullptr.
      */
-    CommandContext* commandContext;
+    std::unique_ptr<CommandContext> commandContext;
 
     /**
      * The SSL context used by this connection (if enabled)
