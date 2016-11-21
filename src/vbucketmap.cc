@@ -168,7 +168,7 @@ void VBucketMap::setPersistenceCheckpointId(id_type id,
     if (id < size) {
         auto vb = getBucket(id);
         if (vb) {
-            getBucket(id)->setPersistenceCheckpointId(checkpointId);
+            vb->setPersistenceCheckpointId(checkpointId);
         }
     }
 }
