@@ -68,8 +68,9 @@ public:
     ArithmeticCommandContext(McbpConnection& c,
                              const protocol_binary_request_incr& req)
         : SteppableCommandContext(c),
-          key((char*)req.bytes + sizeof(req.bytes),
-              ntohs(req.message.header.request.keylen)),
+          key(req.bytes + sizeof(req.bytes),
+              ntohs(req.message.header.request.keylen),
+              DocNamespace::DefaultCollection),
           request(req),
           cas(ntohll(req.message.header.request.cas)),
           olditem(nullptr),
@@ -136,7 +137,7 @@ protected:
 
 private:
 
-    const const_char_buffer key;
+    const DocKey key;
     const protocol_binary_request_incr& request;
     const uint64_t cas;
     item* olditem;

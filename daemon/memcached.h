@@ -215,7 +215,7 @@ const char* get_server_version(void);
  */
 
 /* Increments topkeys count for a key when called by a valid operation. */
-void update_topkeys(const char *key, size_t nkey, McbpConnection *c);
+void update_topkeys(const DocKey& key, McbpConnection *c);
 
 
 void notify_thread_bucket_deletion(LIBEVENT_THREAD *me);
@@ -297,7 +297,8 @@ static inline ENGINE_ERROR_CODE bucket_unknown_command(McbpConnection* c,
                                                        ADD_RESPONSE response) {
     return c->getBucketEngine()->unknown_command(c->getBucketEngineAsV0(),
                                                  c->getCookie(),
-                                                 request, response);
+                                                 request, response,
+                                                 DocNamespace::DefaultCollection);
 }
 
 static inline void bucket_item_set_cas(McbpConnection* c, item* it, uint64_t cas) {
@@ -338,19 +339,17 @@ static inline bool bucket_set_item_info(McbpConnection* c, item* item_,
 static inline ENGINE_ERROR_CODE bucket_store(McbpConnection* c,
                                              item* item_,
                                              uint64_t* cas,
-                                             ENGINE_STORE_OPERATION operation,
-                                             uint16_t vbucket) {
+                                             ENGINE_STORE_OPERATION operation) {
     return c->getBucketEngine()->store(c->getBucketEngineAsV0(), c->getCookie(),
-                                       item_, cas, operation, vbucket);
+                                       item_, cas, operation);
 }
 
 static inline ENGINE_ERROR_CODE bucket_get(McbpConnection* c,
                                            item** item_,
-                                           const void* key,
-                                           const int nkey,
+                                           const DocKey& key,
                                            uint16_t vbucket) {
     return c->getBucketEngine()->get(c->getBucketEngineAsV0(), c->getCookie(),
-                                     item_, key, nkey, vbucket);
+                                     item_, key, vbucket);
 }
 
 static inline void bucket_release_item(McbpConnection* c, item* it) {
@@ -360,15 +359,15 @@ static inline void bucket_release_item(McbpConnection* c, item* it) {
 
 static inline ENGINE_ERROR_CODE bucket_allocate(McbpConnection* c,
                                                 item** it,
-                                                const void* key,
-                                                const size_t nkey,
+                                                const DocKey& key,
                                                 const size_t nbytes,
                                                 const int flags,
                                                 const rel_time_t exptime,
-                                                uint8_t datatype) {
+                                                uint8_t datatype,
+                                                uint16_t vbucket) {
     return c->getBucketEngine()->allocate(c->getBucketEngineAsV0(),
-                                          c->getCookie(), it, key, nkey,
-                                          nbytes, flags, exptime, datatype);
+                                          c->getCookie(), it, key, nbytes,
+                                          flags, exptime, datatype, vbucket);
 }
 
 /**

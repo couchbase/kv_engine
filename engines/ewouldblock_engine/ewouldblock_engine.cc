@@ -268,32 +268,32 @@ public:
     }
 
     static ENGINE_ERROR_CODE allocate(ENGINE_HANDLE* handle, const void* cookie,
-                                      item **item, const void* key,
-                                      const size_t nkey, const size_t nbytes,
-                                      const int flags, const rel_time_t exptime,
-                                      uint8_t datatype) {
+                                      item **item, const DocKey& key,
+                                      const size_t nbytes, const int flags,
+                                      const rel_time_t exptime,
+                                      uint8_t datatype, uint16_t vbucket) {
         EWB_Engine* ewb = to_engine(handle);
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         if (ewb->should_inject_error(Cmd::ALLOCATE, cookie, err)) {
             return err;
         } else {
             return ewb->real_engine->allocate(ewb->real_handle, cookie, item,
-                                              key, nkey, nbytes, flags, exptime,
-                                              datatype);
+                                              key, nbytes, flags, exptime,
+                                              datatype, vbucket);
         }
     }
 
     static ENGINE_ERROR_CODE remove(ENGINE_HANDLE* handle, const void* cookie,
-                                    const void* key, const size_t nkey,
-                                    uint64_t* cas, uint16_t vbucket,
+                                    const DocKey& key, uint64_t* cas,
+                                    uint16_t vbucket,
                                     mutation_descr_t* mut_info) {
         EWB_Engine* ewb = to_engine(handle);
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         if (ewb->should_inject_error(Cmd::REMOVE, cookie, err)) {
             return err;
         } else {
-            return ewb->real_engine->remove(ewb->real_handle, cookie, key, nkey,
-                                            cas, vbucket, mut_info);
+            return ewb->real_engine->remove(ewb->real_handle, cookie, key, cas,
+                                            vbucket, mut_info);
         }
     }
 
@@ -311,22 +311,20 @@ public:
     }
 
     static ENGINE_ERROR_CODE get(ENGINE_HANDLE* handle, const void* cookie,
-                                 item** item, const void* key, const int nkey,
-                                 uint16_t vbucket) {
+                                 item** item, const DocKey& key, uint16_t vbucket) {
         EWB_Engine* ewb = to_engine(handle);
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         if (ewb->should_inject_error(Cmd::GET, cookie, err)) {
             return err;
         } else {
             return ewb->real_engine->get(ewb->real_handle, cookie, item, key,
-                                         nkey, vbucket);
+                                         vbucket);
         }
     }
 
     static ENGINE_ERROR_CODE store(ENGINE_HANDLE* handle, const void *cookie,
                                    item* item, uint64_t *cas,
-                                   ENGINE_STORE_OPERATION operation,
-                                   uint16_t vbucket) {
+                                   ENGINE_STORE_OPERATION operation) {
         EWB_Engine* ewb = to_engine(handle);
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         Cmd opcode = (operation == OPERATION_CAS) ? Cmd::CAS : Cmd::STORE;
@@ -334,7 +332,7 @@ public:
             return err;
         } else {
             return ewb->real_engine->store(ewb->real_handle, cookie, item, cas,
-                                           operation, vbucket);
+                                           operation);
         }
     }
 
@@ -378,7 +376,8 @@ public:
     static ENGINE_ERROR_CODE unknown_command(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              protocol_binary_request_header *request,
-                                             ADD_RESPONSE response) {
+                                             ADD_RESPONSE response,
+                                             DocNamespace doc_namespace) {
         EWB_Engine* ewb = to_engine(handle);
 
         if (request->request.opcode == PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL) {
@@ -475,7 +474,8 @@ public:
                 return err;
             } else {
                 return ewb->real_engine->unknown_command(ewb->real_handle, cookie,
-                                                         request, response);
+                                                         request, response,
+                                                         doc_namespace);
             }
         }
     }

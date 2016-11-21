@@ -16,7 +16,7 @@
  */
 #pragma once
 
-#include "buffer.h"
+#include "memcached/buffer.h"
 
 #include <array>
 #include <platform/cbassert.h>

@@ -12,7 +12,7 @@ int expiry = 3600;
 bool hasError = false;
 struct test_harness testHarness;
 
-static const char *key = "key";
+static DocKey key("key", DocNamespace::DefaultCollection);
 
 bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     (void)h; (void)h1;
@@ -42,10 +42,8 @@ static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     item_info info;
 
     vlen = strlen(value);
-    rv = h1->allocate(h, cookie, &it,
-                      key, strlen(key),
-                      vlen, flags, expiry,
-                      PROTOCOL_BINARY_RAW_BYTES);
+    rv = h1->allocate(h, cookie, &it, key, vlen, flags, expiry,
+                      PROTOCOL_BINARY_RAW_BYTES, 0);
     cb_assert(rv == ENGINE_SUCCESS);
 
     info.nvalue = 1;
@@ -56,7 +54,7 @@ static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     memcpy(info.value[0].iov_base, value, vlen);
     h1->item_set_cas(h, cookie, it, 0);
 
-    rv = h1->store(h, cookie, it, &cas, op, 0);
+    rv = h1->store(h, cookie, it, &cas, op);
 
     hasError = rv != ENGINE_SUCCESS;
 
@@ -74,7 +72,7 @@ void flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 void del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 	uint64_t cas = 0;
 	mutation_descr_t mut_info;
-    hasError = h1->remove(h, NULL, key, strlen(key), &cas, 0, &mut_info) != ENGINE_SUCCESS;
+    hasError = h1->remove(h, NULL, key, &cas, 0, &mut_info) != ENGINE_SUCCESS;
 }
 
 void set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -84,7 +82,7 @@ void set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
     item_info info;
     item *i = NULL;
-    ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, (int)strlen(key), 0);
+    ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, 0);
     cb_assert(rv == ENGINE_SUCCESS);
 
     info.nvalue = 1;
@@ -111,7 +109,7 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
 
 void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i;
-    ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, (int)strlen(key), 0);
+    ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, 0);
     cb_assert(rv == ENGINE_KEY_ENOENT);
 }
 

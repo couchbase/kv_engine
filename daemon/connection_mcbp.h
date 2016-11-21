@@ -20,7 +20,7 @@
 
 #include "config.h"
 
-#include "buffer.h"
+#include "memcached/buffer.h"
 #include "dynamic_buffer.h"
 #include "log_macros.h"
 #include "net_buf.h"

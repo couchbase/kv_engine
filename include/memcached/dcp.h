@@ -6,6 +6,10 @@
 #error "Please include memcached/engine.h instead"
 #endif
 
+#include "memcached/protocol_binary.h"
+#include "memcached/types.h"
+#include "memcached/vbucket.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

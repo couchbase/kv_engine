@@ -121,20 +121,19 @@ static void destroy(ENGINE_HANDLE* handle, const bool force)
 static ENGINE_ERROR_CODE item_allocate(ENGINE_HANDLE* handle,
                                        const void* cookie,
                                        item **item,
-                                       const void* key,
-                                       const size_t nkey,
+                                       const DocKey& key,
                                        const size_t nbytes,
                                        const int flags,
                                        const rel_time_t exptime,
-                                       uint8_t datatype)
+                                       uint8_t datatype,
+                                       uint16_t vbucket)
 {
     return ENGINE_FAILED;
 }
 
 static ENGINE_ERROR_CODE item_delete(ENGINE_HANDLE* handle,
                                      const void* cookie,
-                                     const void* key,
-                                     const size_t nkey,
+                                     const DocKey& key,
                                      uint64_t* cas,
                                      uint16_t vbucket,
                                      mutation_descr_t* mut_info)
@@ -151,8 +150,7 @@ static void item_release(ENGINE_HANDLE* handle, const void *cookie,
 static ENGINE_ERROR_CODE get(ENGINE_HANDLE* handle,
                              const void* cookie,
                              item** item,
-                             const void* key,
-                             const int nkey,
+                             const DocKey& key,
                              uint16_t vbucket)
 {
     return ENGINE_FAILED;
@@ -171,8 +169,7 @@ static ENGINE_ERROR_CODE store(ENGINE_HANDLE* handle,
                                const void *cookie,
                                item* item,
                                uint64_t *cas,
-                               ENGINE_STORE_OPERATION operation,
-                               uint16_t vbucket)
+                               ENGINE_STORE_OPERATION operation)
 {
     return ENGINE_FAILED;
 }

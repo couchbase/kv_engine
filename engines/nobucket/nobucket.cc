@@ -94,15 +94,14 @@ private:
     }
 
     static ENGINE_ERROR_CODE item_allocate(ENGINE_HANDLE*, const void*,
-                                           item**, const void*, const size_t,
-                                           const size_t, const int,
-                                           const rel_time_t, uint8_t) {
+                                           item**, const DocKey&, const size_t,
+                                           const int, const rel_time_t,
+                                           uint8_t, uint16_t) {
         return ENGINE_NO_BUCKET;
     }
 
     static ENGINE_ERROR_CODE item_delete(ENGINE_HANDLE*, const void*,
-                                         const void*, const size_t,
-                                         uint64_t*, uint16_t,
+                                         const DocKey&, uint64_t*, uint16_t,
                                          mutation_descr_t*) {
         return ENGINE_NO_BUCKET;
     }
@@ -113,7 +112,7 @@ private:
     }
 
     static ENGINE_ERROR_CODE get(ENGINE_HANDLE*, const void*, item**,
-                                 const void*, const int, uint16_t) {
+                                 const DocKey&, uint16_t) {
         return ENGINE_NO_BUCKET;
     }
 
@@ -123,8 +122,7 @@ private:
     }
 
     static ENGINE_ERROR_CODE store(ENGINE_HANDLE*, const void*, item*,
-                                   uint64_t*, ENGINE_STORE_OPERATION,
-                                   uint16_t) {
+                                   uint64_t*, ENGINE_STORE_OPERATION) {
         return ENGINE_NO_BUCKET;
     }
 
@@ -137,7 +135,7 @@ private:
 
     static ENGINE_ERROR_CODE unknown_command(ENGINE_HANDLE*, const void*,
                                              protocol_binary_request_header*,
-                                             ADD_RESPONSE) {
+                                             ADD_RESPONSE, DocNamespace) {
         return ENGINE_NO_BUCKET;
     }
 

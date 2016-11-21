@@ -72,7 +72,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::inflateInputData() {
 }
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
-    auto ret = bucket_get(&connection, &olditem, key.buf, key.len, vbucket);
+    auto ret = bucket_get(&connection, &olditem, key, vbucket);
     if (ret == ENGINE_SUCCESS) {
         oldItemInfo.info.nvalue = 1;
 
@@ -118,9 +118,8 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
         datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
     }
     ENGINE_ERROR_CODE ret;
-    ret = bucket_allocate(&connection, &newitem, key.buf, key.len,
-                          oldsize + value.len, oldItemInfo.info.flags, 0,
-                          datatype);
+    ret = bucket_allocate(&connection, &newitem, key, oldsize + value.len,
+                          oldItemInfo.info.flags, 0, datatype, vbucket);
     if (ret == ENGINE_SUCCESS) {
         // copy the data over..
         newItemInfo.info.nvalue = 1;
@@ -164,11 +163,10 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
     uint64_t ncas = cas;
-    auto ret = bucket_store(&connection, newitem, &ncas, OPERATION_CAS,
-                            vbucket);
+    auto ret = bucket_store(&connection, newitem, &ncas, OPERATION_CAS);
 
     if (ret == ENGINE_SUCCESS) {
-        update_topkeys(key.buf, key.len, &connection);
+        update_topkeys(key, &connection);
         connection.setCAS(ncas);
         if (connection.isSupportsMutationExtras()) {
             newItemInfo.info.nvalue = 1;

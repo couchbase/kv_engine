@@ -41,8 +41,9 @@ public:
     GetCommandContext(McbpConnection& c,
                       protocol_binary_request_get* req)
         : SteppableCommandContext(c),
-          key((char*)req->bytes + sizeof(req->bytes),
-              ntohs(req->message.header.request.keylen)),
+          key(req->bytes + sizeof(req->bytes),
+              ntohs(req->message.header.request.keylen),
+              DocNamespace::DefaultCollection),
           vbucket(ntohs(req->message.header.request.vbucket)),
           it(nullptr),
           state(State::Initialize) {
@@ -133,7 +134,7 @@ protected:
     ENGINE_ERROR_CODE sendResponse();
 
 private:
-    const const_char_buffer key;
+    const DocKey key;
     const uint16_t vbucket;
 
     item* it;

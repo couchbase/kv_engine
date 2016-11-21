@@ -22,16 +22,15 @@ extern "C" {
     static ENGINE_ERROR_CODE item_allocate(ENGINE_HANDLE* handle,
                                            const void* cookie,
                                            item **itm,
-                                           const void* key,
-                                           const size_t nkey,
+                                           const DocKey& key,
                                            const size_t nbytes,
                                            const int flags,
                                            const rel_time_t exptime,
-                                           uint8_t datatype);
+                                           uint8_t datatype,
+                                           uint16_t vbucket);
     static ENGINE_ERROR_CODE item_delete(ENGINE_HANDLE* handle,
                                          const void* cookie,
-                                         const void* key,
-                                         const size_t nkey,
+                                         const DocKey& key,
                                          uint64_t* cas,
                                          uint16_t vbucket,
                                          mutation_descr_t* mut_info);
@@ -41,8 +40,7 @@ extern "C" {
     static ENGINE_ERROR_CODE get(ENGINE_HANDLE* handle,
                                  const void* cookie,
                                  item** item,
-                                 const void* key,
-                                 const int nkey,
+                                 const DocKey& key,
                                  uint16_t vbucket);
     static ENGINE_ERROR_CODE get_stats(ENGINE_HANDLE* handle,
                                        const void *cookie,
@@ -54,14 +52,14 @@ extern "C" {
                                    const void *cookie,
                                    item* item,
                                    uint64_t *cas,
-                                   ENGINE_STORE_OPERATION operation,
-                                   uint16_t vbucket);
+                                   ENGINE_STORE_OPERATION operation);
     static ENGINE_ERROR_CODE flush(ENGINE_HANDLE* handle,
                                    const void* cookie, time_t when);
     static ENGINE_ERROR_CODE unknown_command(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              protocol_binary_request_header *request,
-                                             ADD_RESPONSE response);
+                                             ADD_RESPONSE response,
+                                             DocNamespace doc_namespace);
 
     static ENGINE_ERROR_CODE tap_notify(ENGINE_HANDLE* handle,
                                         const void *cookie,
@@ -591,18 +589,18 @@ public:
 
     ENGINE_ERROR_CODE itemAllocate(const void* cookie,
                                    item **it,
-                                   const void* key,
-                                   const size_t nkey,
+                                   const DocKey& key,
                                    const size_t nbytes,
                                    const int flags,
                                    const rel_time_t exptime,
-                                   uint8_t datatype)
+                                   uint8_t datatype,
+                                   uint16_t vbucket)
     {
         // if ((random() % 10) == 1) {
         //     return dispatchNotification(cookie);
         // }
 
-        Item *itm = new Item(key, nkey, nbytes, flags, exptime,
+        Item *itm = new Item(key.buf, key.len, nbytes, flags, exptime,
                              datatype);
         if (itm == NULL) {
             return ENGINE_ENOMEM;
@@ -612,8 +610,7 @@ public:
     }
 
     ENGINE_ERROR_CODE itemDelete(const void* cookie,
-                                 const void* key,
-                                 const size_t nkey,
+                                 const DocKey& key,
                                  uint64_t cas,
                                  uint16_t vbucket)
     {
@@ -621,8 +618,9 @@ public:
         //     return dispatchNotification(cookie);
         // }
 
-        string k((const char*)key, nkey);
-        if (kvstore.del(k, cas)) {
+        if (kvstore.del(std::string(reinterpret_cast<const char*>(key.data()),
+                                    key.size()),
+                        cas)) {
             return ENGINE_SUCCESS;
         }
 
@@ -655,15 +653,15 @@ public:
 
     ENGINE_ERROR_CODE get(const void*cookie,
                           item** itm,
-                          const void* key,
-                          const int nkey,
+                          const DocKey& key,
                           uint16_t vbucket)
     {
         if ((rand() % 5) == 1) {
             return dispatchNotification(cookie);
         }
 
-        Item *it = kvstore.get(string((const char*)key, nkey));
+        Item *it = kvstore.get(std::string(reinterpret_cast<const char*>(key.data()),
+                                           key.size()));
         if (it == NULL) {
             return ENGINE_KEY_ENOENT;
         }
@@ -691,8 +689,7 @@ public:
     ENGINE_ERROR_CODE store(const void *cookie,
                             item* itm,
                             uint64_t *cas,
-                            ENGINE_STORE_OPERATION operation,
-                            uint16_t vbucket)
+                            ENGINE_STORE_OPERATION operation)
     {
         if ((rand() % 10) == 1) {
             return dispatchNotification(cookie);
@@ -903,27 +900,25 @@ static void destroy(ENGINE_HANDLE* handle, const bool force) {
 static ENGINE_ERROR_CODE item_allocate(ENGINE_HANDLE* handle,
                                        const void* cookie,
                                        item **itm,
-                                       const void* key,
-                                       const size_t nkey,
+                                       const DocKey& key,
                                        const size_t nbytes,
                                        const int flags,
                                        const rel_time_t exptime,
-                                       uint8_t datatype)
+                                       uint8_t datatype,
+                                       uint16_t vbucket)
 {
-    return getHandle(handle).itemAllocate(cookie, itm, key, nkey,
-                                           nbytes, flags, exptime,
-                                           datatype);
+    return getHandle(handle).itemAllocate(cookie, itm, key, nbytes, flags,
+                                          exptime, datatype, vbucket);
 }
 
 static ENGINE_ERROR_CODE item_delete(ENGINE_HANDLE* handle,
                                      const void* cookie,
-                                     const void* key,
-                                     const size_t nkey,
+                                     const DocKey& key,
                                      uint64_t* cas,
                                      uint16_t vbucket,
                                      mutation_descr_t* mut_info)
 {
-    return getHandle(handle).itemDelete(cookie, key, nkey, *cas, vbucket);
+    return getHandle(handle).itemDelete(cookie, key, *cas, vbucket);
 }
 
 static void item_release(ENGINE_HANDLE* handle, const void *cookie, item* it)
@@ -934,11 +929,10 @@ static void item_release(ENGINE_HANDLE* handle, const void *cookie, item* it)
 static ENGINE_ERROR_CODE get(ENGINE_HANDLE* handle,
                              const void* cookie,
                              item** item,
-                             const void* key,
-                             const int nkey,
+                             const DocKey& key,
                              uint16_t vbucket)
 {
-    return getHandle(handle).get(cookie, item, key, nkey, vbucket);
+    return getHandle(handle).get(cookie, item, key, vbucket);
 }
 
 static ENGINE_ERROR_CODE get_stats(ENGINE_HANDLE* handle,
@@ -959,10 +953,9 @@ static ENGINE_ERROR_CODE store(ENGINE_HANDLE* handle,
                                const void *cookie,
                                item* it,
                                uint64_t *cas,
-                               ENGINE_STORE_OPERATION operation,
-                               uint16_t vbucket)
+                               ENGINE_STORE_OPERATION operation)
 {
-    return getHandle(handle).store(cookie, it, cas, operation, vbucket);
+    return getHandle(handle).store(cookie, it, cas, operation);
 }
 
 static ENGINE_ERROR_CODE flush(ENGINE_HANDLE* handle,
@@ -974,7 +967,8 @@ static ENGINE_ERROR_CODE flush(ENGINE_HANDLE* handle,
 static ENGINE_ERROR_CODE unknown_command(ENGINE_HANDLE* handle,
                                          const void* cookie,
                                          protocol_binary_request_header *request,
-                                         ADD_RESPONSE response)
+                                         ADD_RESPONSE response,
+                                         DocNamespace doc_namespace)
 {
     return getHandle(handle).unknownCommand(cookie, request, response);
 }

@@ -18,9 +18,9 @@
 #include <gtest/gtest.h>
 #include <locale>
 
-#include "daemon/buffer.h"
 #include "daemon/xattr_key_validator.h"
 #include "daemon/subdocument_validators.h"
+#include "memcached/buffer.h"
 
 /**
  * Ensure that we don't accept empty keys

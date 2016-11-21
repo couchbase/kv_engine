@@ -31,7 +31,9 @@ ENGINE_ERROR_CODE GetCommandContext::initialize() {
         char buffer[1024];
         if (key_to_printable_buffer(buffer, sizeof(buffer),
                                     connection.getId(), true,
-                                    "GET", key.buf, key.len) != -1) {
+                                    "GET",
+                                    reinterpret_cast<const char*>(key.data()),
+                                    key.size()) != -1) {
             LOG_DEBUG(&connection, "%s", buffer);
         }
     }
@@ -40,7 +42,7 @@ ENGINE_ERROR_CODE GetCommandContext::initialize() {
 }
 
 ENGINE_ERROR_CODE GetCommandContext::getItem() {
-    auto ret = bucket_get(&connection, &it, key.buf, key.len, vbucket);
+    auto ret = bucket_get(&connection, &it, key, vbucket);
     if (ret == ENGINE_SUCCESS) {
         info.info.nvalue = 1;
         if (!bucket_get_item_info(&connection, it, &info.info)) {
@@ -130,7 +132,7 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
     connection.setState(conn_mwrite);
 
     STATS_HIT(&connection, get, key.buf, key.len);
-    update_topkeys(key.buf, key.len, &connection);
+    update_topkeys(key, &connection);
 
     state = State::Done;
     return ENGINE_SUCCESS;
@@ -139,7 +141,9 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
 ENGINE_ERROR_CODE GetCommandContext::noSuchItem() {
     STATS_MISS(&connection, get, key.buf, key.len);
 
-    MEMCACHED_COMMAND_GET(connection.getId(), key.buf, int(key.len), -1, 0);
+    MEMCACHED_COMMAND_GET(connection.getId(),
+                          reinterpret_cast<const char*>(key.data()),
+                          int(key.size()), -1, 0);
 
     if (connection.isNoReply()) {
         connection.setState(conn_new_cmd);

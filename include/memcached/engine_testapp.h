@@ -29,6 +29,7 @@ typedef struct test engine_test_t;
 struct test_harness {
     const char *engine_path;
     const char *default_engine_cfg;
+    DocNamespace doc_namespace;
     void(*reload_engine)(ENGINE_HANDLE **, ENGINE_HANDLE_V1 **,
                          const char *, const char *, bool, bool);
     OutputFormat output_format;

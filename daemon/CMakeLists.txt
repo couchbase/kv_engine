@@ -43,7 +43,6 @@ ADD_LIBRARY(memcached_daemon STATIC
             breakpad.h
             buckets.cc
             buckets.h
-            buffer.h
             cmdline.cc
             cmdline.h
             config_parse.cc

@@ -64,9 +64,11 @@ public:
                                 const Mode &mode_)
         : SteppableCommandContext(c),
           mode(mode_),
-          key((char*)req->bytes + sizeof(req->bytes),
-              ntohs(req->message.header.request.keylen)),
-          value(key.buf + key.len, ntohl(req->message.header.request.bodylen) - key.len),
+          key(req->bytes + sizeof(req->bytes),
+              ntohs(req->message.header.request.keylen),
+              DocNamespace::DefaultCollection),
+          value(reinterpret_cast<const char*>(key.data() + key.size()),
+                ntohl(req->message.header.request.bodylen) - key.size()),
           vbucket(ntohs(req->message.header.request.vbucket)),
           cas(ntohll(req->message.header.request.cas)),
           olditem(nullptr),
@@ -98,7 +100,7 @@ protected:
 
 private:
     const Mode mode;
-    const const_char_buffer key;
+    const DocKey key;
     const_char_buffer value;
     const uint16_t vbucket;
     const uint64_t cas;

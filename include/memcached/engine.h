@@ -6,20 +6,22 @@
 #include <stdbool.h>
 #endif
 
+#include <cstring>
 #include <sys/types.h>
 #include <stdint.h>
 #include <stdio.h>
 
-#include "memcached/types.h"
-#include "memcached/protocol_binary.h"
-#include "memcached/config_parser.h"
-#include "memcached/server_api.h"
-#include "memcached/callback.h"
 #include "memcached/allocator_hooks.h"
-#include "memcached/extension.h"
-#include "memcached/vbucket.h"
-#include "memcached/engine_common.h"
+#include "memcached/buffer.h"
+#include "memcached/callback.h"
+#include "memcached/config_parser.h"
 #include "memcached/dcp.h"
+#include "memcached/engine_common.h"
+#include "memcached/extension.h"
+#include "memcached/protocol_binary.h"
+#include "memcached/server_api.h"
+#include "memcached/types.h"
+#include "memcached/vbucket.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,10 +63,6 @@ extern "C" {
 #ifdef WIN32
 #undef interface
 #endif
-    struct item_observer_cb_data {
-        const void *key; /* THis isn't going to work from a memory management perspective */
-        size_t nkey;
-    };
 
     /* This is typedefed in types.h */
     struct server_handle_v1_t {
@@ -199,6 +197,69 @@ extern "C" {
     } engine_info;
 
     /**
+     * DocNamespace "Document Namespace"
+     * Meta-data that applies to every document stored in an engine.
+     *
+     * A document "key" with the flag DefaultCollection is not the same document
+     * as "key" with the Collections flag and so on...
+     *
+     * DefaultCollection: describes "legacy" documents stored in a bucket by
+     * clients that do not understand collections.
+     *
+     * Collections: describes documents that have a collection name as part of
+     * the key. E.g. "planet::earth" and "planet::mars" are documents belonging
+     * to a "planet" collection.
+     *
+     * System: describes documents that are created by the system for our own
+     * uses. This is only planned for use with the collection feature where
+     * special keys are interleaved in the users data stream to represent create
+     * and delete events. In future more generic "system documents" maybe
+     * created by the core but until such plans are more clear, ep-engine will
+     * deny the core from performing operations in the System DocNamespace.
+     * DocNamespace values are persisted ot the database and thus are fully
+     * described now ready for future use.
+     */
+    enum class DocNamespace : uint8_t {
+        DefaultCollection = 0,
+        Collections = 1,
+        System = 2
+    };
+
+    /**
+     * DocKey is a non-owning structure used to describe a document keys over
+     * the engine-API. All API commands working with "keys" must specify the
+     * data, length and the namespace with which the document applies to.
+     */
+    struct DocKey : public cb::const_byte_buffer {
+
+        /**
+         * Standard constructor - creates a view onto key/nkey
+         */
+        DocKey(const uint8_t* key, size_t nkey, DocNamespace ins)
+             : cb::const_byte_buffer(key, nkey),
+               doc_namespace(ins) {}
+
+        /**
+         * C-string constructor - only for use with null terminated strings and
+         * creates a view onto key/strlen(key).
+         */
+        DocKey(const char* key, DocNamespace ins)
+             : DocKey(reinterpret_cast<const uint8_t*>(key),
+               std::strlen(key), ins) {}
+
+        /**
+         * std::string constructor - creates a view onto the std::string internal
+         * C-string buffer - i.e. c_str() for size() bytes
+         */
+        DocKey(const std::string& key, DocNamespace ins)
+             : DocKey(reinterpret_cast<const uint8_t*>(key.data()),
+                      key.size(),
+                      ins) {}
+
+        DocNamespace doc_namespace;
+    };
+
+    /**
      * Definition of the first version of the engine interface
      */
     typedef struct engine_interface_v1 {
@@ -244,23 +305,23 @@ extern "C" {
          * @param cookie The cookie provided by the frontend
          * @param output variable that will receive the item
          * @param key the item's key
-         * @param nkey the length of the key
          * @param nbytes the number of bytes that will make up the
          *        value of this item.
          * @param flags the item's flags
          * @param exptime the maximum lifetime of this item
+         * @param vbucket virtual bucket to request allocation from
          *
          * @return ENGINE_SUCCESS if all goes well
          */
         ENGINE_ERROR_CODE (*allocate)(ENGINE_HANDLE* handle,
                                       const void* cookie,
                                       item **item,
-                                      const void* key,
-                                      const size_t nkey,
+                                      const DocKey& key,
                                       const size_t nbytes,
                                       const int flags,
                                       const rel_time_t exptime,
-                                      uint8_t datatype);
+                                      uint8_t datatype,
+                                      uint16_t vbucket);
 
         /**
          * Remove an item.
@@ -268,7 +329,6 @@ extern "C" {
          * @param handle the engine handle
          * @param cookie The cookie provided by the frontend
          * @param key the key identifying the item to be removed
-         * @param nkey the length of the key
          * @param vbucket the virtual bucket id
          * @param mut_info On a successful remove write the mutation details to
          *                 this address.
@@ -277,8 +337,7 @@ extern "C" {
          */
         ENGINE_ERROR_CODE (*remove)(ENGINE_HANDLE* handle,
                                     const void* cookie,
-                                    const void* key,
-                                    const size_t nkey,
+                                    const DocKey& key,
                                     uint64_t* cas,
                                     uint16_t vbucket,
                                     mutation_descr_t* mut_info);
@@ -302,7 +361,6 @@ extern "C" {
          * @param cookie The cookie provided by the frontend
          * @param item output variable that will receive the located item
          * @param key the key to look up
-         * @param nkey the length of the key
          * @param vbucket the virtual bucket id
          *
          * @return ENGINE_SUCCESS if all goes well
@@ -310,8 +368,7 @@ extern "C" {
         ENGINE_ERROR_CODE (*get)(ENGINE_HANDLE* handle,
                                  const void* cookie,
                                  item** item,
-                                 const void* key,
-                                 const int nkey,
+                                 const DocKey& key,
                                  uint16_t vbucket);
 
         /**
@@ -322,7 +379,6 @@ extern "C" {
          * @param item the item to store
          * @param cas the CAS value for conditional sets
          * @param operation the type of store operation to perform.
-         * @param vbucket the virtual bucket id
          *
          * @return ENGINE_SUCCESS if all goes well
          */
@@ -330,8 +386,7 @@ extern "C" {
                                    const void *cookie,
                                    item* item,
                                    uint64_t *cas,
-                                   ENGINE_STORE_OPERATION operation,
-                                   uint16_t vbucket);
+                                   ENGINE_STORE_OPERATION operation);
 
         /**
          * Flush the cache.
@@ -426,13 +481,15 @@ extern "C" {
          * @param cookie The cookie provided by the frontend
          * @param request pointer to request header to be filled in
          * @param response function to transmit data
+         * @param doc_namespace namespace the command applies to
          *
          * @return ENGINE_SUCCESS if all goes well
          */
         ENGINE_ERROR_CODE (*unknown_command)(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              protocol_binary_request_header *request,
-                                             ADD_RESPONSE response);
+                                             ADD_RESPONSE response,
+                                             DocNamespace doc_namespace);
 
         /* TAP operations */
 

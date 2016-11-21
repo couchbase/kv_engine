@@ -19,7 +19,7 @@
 
 #include "memcached.h"
 
-#include "buffer.h"
+#include "memcached/buffer.h"
 #include "subdocument_traits.h"
 
 #include <cstddef>

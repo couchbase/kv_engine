@@ -173,11 +173,12 @@ static void handle_binary_protocol_error(McbpConnection* c) {
  * Triggers topkeys_update (i.e., increments topkeys stats) if called by a
  * valid operation.
  */
-void update_topkeys(const char* key, size_t nkey, McbpConnection* c) {
+void update_topkeys(const DocKey& key, McbpConnection* c) {
 
     if (topkey_commands[c->binary_header.request.opcode]) {
         if (all_buckets[c->getBucketIndex()].topkeys != nullptr) {
-            all_buckets[c->getBucketIndex()].topkeys->updateKey(key, nkey,
+            all_buckets[c->getBucketIndex()].topkeys->updateKey(key.data(),
+                                                                key.size(),
                                                                 mc_time_get_current_time());
         }
     }
@@ -1017,10 +1018,11 @@ static void process_bin_unknown_packet(McbpConnection* c) {
         } else {
             c->setState(conn_new_cmd);
         }
-        const char* key = packet +
-                          sizeof(c->binary_header.request) +
-                          c->binary_header.request.extlen;
-        update_topkeys(key, c->binary_header.request.keylen, c);
+        update_topkeys(DocKey(reinterpret_cast<uint8_t*>(packet +
+                              sizeof(c->binary_header.request) +
+                              c->binary_header.request.extlen),
+                              c->binary_header.request.keylen,
+                              DocNamespace::DefaultCollection), c);
         break;
     }
     case ENGINE_EWOULDBLOCK:
@@ -2485,19 +2487,22 @@ static void add_set_replace_executor(McbpConnection* c, void* packet,
 
     if (c->getItem() == nullptr) {
         item* it;
-
+        DocKey allocate_key(reinterpret_cast<uint8_t*>(key), nkey,
+                            DocNamespace::DefaultCollection);
         if (ret == ENGINE_SUCCESS) {
             rel_time_t expiration = ntohl(req->message.body.expiration);
+
             ret = c->getBucketEngine()->allocate(c->getBucketEngineAsV0(), c->getCookie(),
-                                                 &it, key, nkey, vlen,
+                                                 &it, allocate_key, vlen,
                                                  req->message.body.flags,
                                                  expiration,
-                                                 req->message.header.request.datatype);
+                                                 req->message.header.request.datatype,
+                                                 ntohs(req->message.header.request.vbucket));
         }
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            update_topkeys(key, nkey, c);
+            update_topkeys(allocate_key, c);
             break;
         case ENGINE_EWOULDBLOCK:
             c->setEwouldblock(true);
@@ -2545,8 +2550,7 @@ static void add_set_replace_executor(McbpConnection* c, void* packet,
 
     if (ret == ENGINE_SUCCESS) {
         uint64_t cas = c->getCAS();
-        ret = bucket_store(c, c->getItem(), &cas, store_op,
-                           ntohs(req->message.header.request.vbucket));
+        ret = bucket_store(c, c->getItem(), &cas, store_op);
         if (ret == ENGINE_SUCCESS) {
             c->setCAS(cas);
         }
@@ -3366,9 +3370,12 @@ static void delete_executor(McbpConnection* c, void*) {
     c->setEwouldblock(false);
 
     mutation_descr_t mut_info;
+    DocKey remove_key(reinterpret_cast<const uint8_t*>(key), nkey,
+                      DocNamespace::DefaultCollection);
     if (ret == ENGINE_SUCCESS) {
         ret = c->getBucketEngine()->remove(c->getBucketEngineAsV0(),
-                                           c->getCookie(), key, nkey, &cas,
+                                           c->getCookie(), remove_key,
+                                           &cas,
                                            c->binary_header.request.vbucket,
                                            &mut_info);
     }
@@ -3388,7 +3395,7 @@ static void delete_executor(McbpConnection* c, void*) {
             mcbp_write_response(c, NULL, 0, 0, 0);
         }
         SLAB_INCR(c, delete_hits, key, nkey);
-        update_topkeys(key, nkey, c);
+        update_topkeys(remove_key, c);
         break;
     case ENGINE_KEY_EEXISTS:
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);

@@ -17,7 +17,7 @@
 #pragma once
 
 #include <cstring>
-#include "buffer.h"
+#include "memcached/buffer.h"
 
 namespace cb {
 /**

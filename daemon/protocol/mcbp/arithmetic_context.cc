@@ -19,7 +19,7 @@
 #include "../../xattr_utils.h"
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
-    auto ret = bucket_get(&connection, &olditem, key.buf, key.len, vbucket);
+    auto ret = bucket_get(&connection, &olditem, key, vbucket);
     if (ret == ENGINE_SUCCESS) {
         oldItemInfo.info.nvalue = 1;
 
@@ -70,10 +70,10 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::createNewItem() {
     const std::string value{std::to_string(ntohll(request.message.body.initial))};
     result = ntohll(request.message.body.initial);
     ENGINE_ERROR_CODE ret;
-    ret = bucket_allocate(&connection, &newitem, key.buf, key.len,
+    ret = bucket_allocate(&connection, &newitem, key,
                           value.size(), oldItemInfo.info.flags,
                           ntohl(request.message.body.expiration),
-                          PROTOCOL_BINARY_RAW_BYTES);
+                          PROTOCOL_BINARY_RAW_BYTES, vbucket);
 
     if (ret == ENGINE_SUCCESS) {
         // copy the data over..
@@ -93,8 +93,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::createNewItem() {
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::storeNewItem() {
     uint64_t ncas = cas;
-    auto ret = bucket_store(&connection, newitem, &ncas, OPERATION_ADD,
-                            vbucket);
+    auto ret = bucket_store(&connection, newitem, &ncas, OPERATION_ADD);
 
     if (ret == ENGINE_SUCCESS) {
         connection.setCAS(ncas);
@@ -154,11 +153,10 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
     }
 
     ENGINE_ERROR_CODE ret;
-    ret = bucket_allocate(&connection, &newitem, key.buf, key.len,
-                          xattrsize + value.size(),
+    ret = bucket_allocate(&connection, &newitem, key, xattrsize + value.size(),
                           oldItemInfo.info.flags,
                           ntohl(request.message.body.expiration),
-                          datatype);
+                          datatype, vbucket);
 
     if (ret == ENGINE_SUCCESS) {
         // copy the data over..
@@ -189,8 +187,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::storeItem() {
     uint64_t ncas = cas;
-    auto ret = bucket_store(&connection, newitem, &ncas, OPERATION_CAS,
-                            vbucket);
+    auto ret = bucket_store(&connection, newitem, &ncas, OPERATION_CAS);
 
     if (ret == ENGINE_SUCCESS) {
         connection.setCAS(ncas);
@@ -204,7 +201,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::storeItem() {
 }
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
-    update_topkeys(key.buf, key.len, &connection);
+    update_topkeys(key, &connection);
     state = State::Done;
 
     if (connection.isNoReply()) {

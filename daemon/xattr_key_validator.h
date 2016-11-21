@@ -16,7 +16,7 @@
  */
 #pragma once
 
-#include "buffer.h"
+#include "memcached/buffer.h"
 
 /**
  * Validate that a key is legal according to the XATTR spec

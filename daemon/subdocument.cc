@@ -383,7 +383,8 @@ static void subdoc_executor(McbpConnection *c, const void *packet,
 
             STATS_HIT(c, get, key, nkey);
         }
-        update_topkeys(key, keylen, c);
+        update_topkeys(DocKey(reinterpret_cast<const uint8_t*>(key),
+                              keylen, DocNamespace::DefaultCollection), c);
 
         return;
     } while (auto_retry && attempts < MAXIMUM_ATTEMPTS);
@@ -493,7 +494,9 @@ static bool subdoc_fetch(McbpConnection* c, SubdocCmdContext& ctx,
         item* initial_item;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = bucket_get(c, &initial_item, key, (int)keylen, vbucket);
+            DocKey get_key(reinterpret_cast<const uint8_t*>(key),
+                           keylen, DocNamespace::DefaultCollection);
+            ret = bucket_get(c, &initial_item, get_key, vbucket);
         }
 
         switch (ret) {
@@ -769,12 +772,15 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
         item *new_doc;
 
         if (ret == ENGINE_SUCCESS) {
+            DocKey allocate_key(reinterpret_cast<const uint8_t*>(key),
+                                keylen, DocNamespace::DefaultCollection);
             ret = c->getBucketEngine()->allocate(handle, c->getCookie(),
-                                                 &new_doc, key, keylen,
+                                                 &new_doc, allocate_key,
                                                  context->out_doc_len,
                                                  context->in_flags,
                                                  expiration,
-                                                 PROTOCOL_BINARY_DATATYPE_JSON);
+                                                 PROTOCOL_BINARY_DATATYPE_JSON,
+                                                 vbucket);
         }
 
         switch (ret) {
@@ -819,7 +825,7 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
     // And finally, store the new document.
     uint64_t new_cas;
     auto new_op = context->needs_new_doc ? OPERATION_ADD : OPERATION_CAS;
-    ret = bucket_store(c, context->out_doc, &new_cas, new_op, vbucket);
+    ret = bucket_store(c, context->out_doc, &new_cas, new_op);
     switch (ret) {
     case ENGINE_SUCCESS:
         // Record the UUID / Seqno if MUTATION_SEQNO feature is enabled so
