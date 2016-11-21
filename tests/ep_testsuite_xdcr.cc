@@ -1183,7 +1183,9 @@ static enum test_result test_exp_persisted_set_del(ENGINE_HANDLE *h,
     itm_meta.revSeqno = 2;
     itm_meta.cas = 2;
     set_with_meta(h, h1, "key3", 4, "val1", 4, 0, &itm_meta, last_meta.cas);
-    wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
+
+    // MB-21725 Depending on how fast the flusher is, we may see 1 or 2.
+    wait_for_stat_to_be_gte(h, h1, "ep_total_persisted", 1);
 
     itm_meta.revSeqno = 3;
     itm_meta.cas = 3;
