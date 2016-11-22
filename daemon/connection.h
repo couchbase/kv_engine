@@ -94,7 +94,7 @@ public:
     /**
      * Tell the connection to initiate it's shutdown logic
      */
-    virtual void initateShutdown() {
+    virtual void initiateShutdown() {
         throw std::runtime_error("Not implemented");
     }
 

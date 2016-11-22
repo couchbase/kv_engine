@@ -895,7 +895,7 @@ bool is_bucket_dying(Connection *c)
         LOG_NOTICE(c,
                    "%u The connected bucket is being deleted.. disconnecting",
                    c->getId());
-        c->initateShutdown();
+        c->initiateShutdown();
         return true;
     }
 
@@ -953,12 +953,12 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
                            c->getId());
             }
             if (!mcbp->reapplyEventmask()) {
-                c->initateShutdown();
+                c->initiateShutdown();
             }
         } else {
             LOG_NOTICE(c, "%u: Shutting down idle client %s", c->getId(),
                        c->getDescription().c_str());
-            c->initateShutdown();
+            c->initiateShutdown();
         }
     }
 
@@ -1631,7 +1631,7 @@ static void cookie_set_priority(const void* void_cookie, CONN_PRIORITY priority)
     LOG_WARNING(c,
                 "%u: cookie_set_priority: priority (which is %d) is not a "
                     "valid CONN_PRIORITY - closing connection", priority);
-    c->initateShutdown();
+    c->initiateShutdown();
 }
 
 static void count_eviction(const void *cookie, const void *key, int nkey) {

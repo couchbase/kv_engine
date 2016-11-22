@@ -1321,7 +1321,7 @@ void McbpConnection::runEventLoop(short which) {
     conn_return_buffers(this);
 }
 
-void McbpConnection::initateShutdown() {
+void McbpConnection::initiateShutdown() {
     setState(conn_closing);
 }
 

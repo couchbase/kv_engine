@@ -217,7 +217,7 @@ public:
     virtual ~McbpConnection();
 
 
-    virtual void initateShutdown() override;
+    virtual void initiateShutdown() override;
 
     virtual void signalIfIdle(bool logbusy, int workerthread) override;
 
