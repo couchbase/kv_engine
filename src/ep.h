@@ -224,7 +224,8 @@ public:
                                   const void *cookie,
                                   bool force,
                                   bool allowExisting,
-                                  bool genBySeqno = true,
+                                  GenerateBySeqno genBySeqno = GenerateBySeqno::Yes,
+                                  GenerateCas genCas = GenerateCas::No,
                                   ExtendedMetaData *emd = NULL,
                                   bool isReplication = false);
 
@@ -296,11 +297,12 @@ public:
                                      const void *cookie,
                                      bool force,
                                      ItemMetaData *itemMeta,
-                                     bool tapBackfill=false,
-                                     bool genBySeqno=true,
-                                     uint64_t bySeqno=0,
-                                     ExtendedMetaData *emd = NULL,
-                                     bool isReplication=false);
+                                     bool tapBackfill,
+                                     GenerateBySeqno genBySeqno,
+                                     GenerateCas generateCas,
+                                     uint64_t bySeqno,
+                                     ExtendedMetaData *emd,
+                                     bool isReplication);
 
     void reset();
 

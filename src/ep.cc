@@ -1940,7 +1940,8 @@ ENGINE_ERROR_CODE EPBucket::setWithMeta(Item &itm,
                                         const void *cookie,
                                         bool force,
                                         bool allowExisting,
-                                        bool genBySeqno,
+                                        GenerateBySeqno genBySeqno,
+                                        GenerateCas genCas,
                                         ExtendedMetaData *emd,
                                         bool isReplication)
 {
@@ -2031,9 +2032,7 @@ ENGINE_ERROR_CODE EPBucket::setWithMeta(Item &itm,
     case WAS_DIRTY:
     case WAS_CLEAN:
         vb->setMaxCasAndTrackDrift(v->getCas());
-        queueDirty(vb, v, &lh, seqno,
-                   genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No,
-                   GenerateCas::No);
+        queueDirty(vb, v, &lh, seqno, genBySeqno, genCas);
         break;
     case NOT_FOUND:
         ret = ENGINE_KEY_ENOENT;
@@ -2572,7 +2571,8 @@ ENGINE_ERROR_CODE EPBucket::deleteWithMeta(const std::string &key,
                                            bool force,
                                            ItemMetaData *itemMeta,
                                            bool tapBackfill,
-                                           bool genBySeqno,
+                                           GenerateBySeqno genBySeqno,
+                                           GenerateCas generateCas,
                                            uint64_t bySeqno,
                                            ExtendedMetaData *emd,
                                            bool isReplication)
@@ -2686,19 +2686,16 @@ ENGINE_ERROR_CODE EPBucket::deleteWithMeta(const std::string &key,
         break;
     case WAS_DIRTY:
     case WAS_CLEAN:
-        if (!genBySeqno) {
+        if (genBySeqno == GenerateBySeqno::No) {
             v->setBySeqno(bySeqno);
         }
 
         vb->setMaxCasAndTrackDrift(v->getCas());
 
         if (tapBackfill) {
-            tapQueueDirty(*vb, v, lh, seqno,
-                          genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No);
+            tapQueueDirty(*vb, v, lh, seqno, genBySeqno);
         } else {
-            queueDirty(vb, v, &lh, seqno,
-                       genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No,
-                       GenerateCas::No);
+            queueDirty(vb, v, &lh, seqno, genBySeqno, generateCas);
         }
         break;
     case NEED_BG_FETCH:

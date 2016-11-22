@@ -403,7 +403,7 @@ static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     const void *cookie = testHarness.create_cookie();
 
     // delete an item with meta data
-    del_with_meta(h, h1, key1, keylen, 0, &itemMeta, 0, false, false, cookie);
+    del_with_meta(h, h1, key1, keylen, 0, &itemMeta, 0/*cas*/, 0/*options*/, cookie);
 
     check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
     check(last_seqno == high_seqno + 1, "Expected valid sequence number");
@@ -415,7 +415,7 @@ static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     testHarness.set_mutation_extras_handling(cookie, false);
 
     // delete an item with meta data
-    del_with_meta(h, h1, key2, keylen, 0, &itemMeta, 0, false, false, cookie);
+    del_with_meta(h, h1, key2, keylen, 0, &itemMeta, 0/*cas*/, 0/*options*/, cookie);
 
     check(last_uuid == vb_uuid, "Expected same vbucket uuid");
     check(last_seqno == high_seqno + 1, "Expected same sequence number");
@@ -823,7 +823,7 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
     // do set with meta with the correct cas value. should pass.
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set,
-                  false, 0, false, cookie);
+                  0, 0, cookie);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
     check(last_seqno == high_seqno + 1, "Expected valid sequence number");
@@ -845,7 +845,7 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     itm_meta.revSeqno++;
     cas_for_set = last_meta.cas;
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set,
-                  false, 0, false, cookie);
+                  false, 0, cookie);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_uuid == vb_uuid, "Expected same vbucket uuid");
     check(last_seqno == high_seqno + 1, "Expected same sequence number");
@@ -1411,32 +1411,38 @@ static enum test_result test_set_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
     checkeq(0, get_int_stat(h, h1, "ep_num_ops_set_meta"),
           "Expect zero setMeta ops");
 
-    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
-                  PROTOCOL_BINARY_RAW_BYTES, false);
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0,
+                  FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     checkeq(0, get_int_stat(h, h1, "ep_bg_meta_fetched"),
             "Expected no bg meta fetchs, thanks to bloom filters");
 
     // Check all meta data is the same
-    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
-                  PROTOCOL_BINARY_RAW_BYTES, false);
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0,
+                  FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
           "Expected set meta conflict resolution failure");
 
     // Check that an older cas fails
     itemMeta.cas = 0xdeadbeee;
-    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
-                  PROTOCOL_BINARY_RAW_BYTES, false);
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0,
+                  FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(2, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
           "Expected set meta conflict resolution failure");
 
     // Check that a higher cas passes
     itemMeta.cas = 0xdeadbeff;
-    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
-                  PROTOCOL_BINARY_RAW_BYTES, false);
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0,
+                  FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+
+    // Check that we fail requests if the force flag is not set
+    itemMeta.cas = 0xdeadbeff + 1;
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0,
+                  0/*options*/);
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected EINVAL");
 
     return SUCCESS;
 }
@@ -1521,13 +1527,17 @@ static enum test_result test_del_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
 
-    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true);
+    // first check the command fails if no force is set
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, 0/*options*/);
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected EINVAL");
+
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "curr_items", 0);
 
     // Check all meta data is the same
-    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true);
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(1, get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail"),
           "Expected delete meta conflict resolution failure");
@@ -1535,7 +1545,7 @@ static enum test_result test_del_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
     // Check that higher rev seqno but lower cas fails
     itemMeta.cas = info.cas;
     itemMeta.revSeqno = 11;
-    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true);
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(2, get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail"),
           "Expected delete meta conflict resolution failure");
@@ -1543,7 +1553,7 @@ static enum test_result test_del_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
     // Check that a higher cas and lower rev seqno passes
     itemMeta.cas = info.cas + 2;
     itemMeta.revSeqno = 9;
-    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true);
+    del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected sucess");
 
     return SUCCESS;
@@ -1611,7 +1621,7 @@ static enum test_result test_set_with_meta_and_check_drift_stats(ENGINE_HANDLE *
                 itm_meta.cas = 1;
             }
             set_with_meta(h, h1, key.data(), key.size(), NULL, 0, ii, &itm_meta,
-                          0, false, PROTOCOL_BINARY_RAW_BYTES, true, 0);
+                          0, FORCE_ACCEPT_WITH_META_OPS);
             checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
                     "Expected success");
         }
@@ -1692,7 +1702,7 @@ static enum test_result test_del_with_meta_and_check_drift_stats(ENGINE_HANDLE *
             ItemMetaData itm_meta;
             itm_meta.cas = 1; // set to 1
             set_with_meta(h, h1, key.data(), key.size(), NULL, 0, ii, &itm_meta,
-                          0, false, PROTOCOL_BINARY_RAW_BYTES, true, 0);
+                          0, FORCE_ACCEPT_WITH_META_OPS);
             checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
                     "Expected success");
         }
@@ -1720,7 +1730,7 @@ static enum test_result test_del_with_meta_and_check_drift_stats(ENGINE_HANDLE *
                 itm_meta.cas = 2;
             }
             del_with_meta(h, h1, key.data(), key.size(), ii, &itm_meta,
-                          1, false, PROTOCOL_BINARY_RAW_BYTES);
+                          1, FORCE_ACCEPT_WITH_META_OPS);
             checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
                     "Expected success");
         }
@@ -1794,6 +1804,226 @@ static enum test_result test_setting_drift_threshold(ENGINE_HANDLE *h, ENGINE_HA
                     "Expected the stat to change to the new value");
         }
     }
+    return SUCCESS;
+}
+
+/*
+ * Perform set_with_meta and check CAS regeneration is ok.
+ */
+static enum test_result test_cas_regeneration(ENGINE_HANDLE *h,
+                                              ENGINE_HANDLE_V1 *h1) {
+
+    // First store a key from the past (small CAS).
+    ItemMetaData itemMeta;
+    itemMeta.revSeqno = 10;
+    itemMeta.cas = 0x1;
+    itemMeta.exptime = 0;
+    itemMeta.flags = 0xdeadbeef;
+    int force = 0;
+
+    if (strstr(testHarness.get_current_testcase()->cfg,
+               "conflict_resolution_type=lww") != nullptr) {
+        force = FORCE_ACCEPT_WITH_META_OPS;
+    }
+
+    // Set the key with a low CAS value
+    set_with_meta(h, h1, "key", 3, nullptr, 0, 0, &itemMeta, 0, force);
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+
+    check(get_meta(h, h1, "key"), "Failed to get_meta");
+
+    // CAS must be what we set.
+    checkeq(itemMeta.cas, last_meta.cas, "CAS is not the value we stored");
+
+    itemMeta.cas++;
+
+    // Check that the code requires skip
+    set_with_meta(h, h1, "key", 3, nullptr, 0, 0, &itemMeta, 0,
+                  REGENERATE_CAS/*but no skip*/);
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+            "Expected EINVAL");
+
+    set_with_meta(h, h1, "key", 3, nullptr, 0, 0, &itemMeta, 0,
+                  REGENERATE_CAS|SKIP_CONFLICT_RESOLUTION_FLAG);
+
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Expected success");
+
+    check(get_meta(h, h1, "key"), "Failed to get_meta");
+
+    uint64_t cas = last_meta.cas;
+    // Check item has a new CAS
+    checkne(itemMeta.cas, cas, "CAS was not regenerated");
+
+    itemMeta.cas++;
+    // All flags set should still regen the cas (lww and seqno)
+    set_with_meta(h, h1, "key", 3, nullptr, 0, 0, &itemMeta, 0,
+                  REGENERATE_CAS|SKIP_CONFLICT_RESOLUTION_FLAG|force);
+
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Expected success");
+
+    check(get_meta(h, h1, "key"), "Failed to get_meta");
+    // Check item has a new CAS
+    checkne(itemMeta.cas, last_meta.cas, "CAS was not regenerated");
+    checkne(cas, last_meta.cas, "CAS was not regenerated");
+    return SUCCESS;
+}
+
+/*
+ * Test that we can send options and nmeta
+ * The nmeta is just going to be ignored though, but should not fail
+ */
+static enum test_result test_cas_options_and_nmeta(ENGINE_HANDLE *h,
+                                                   ENGINE_HANDLE_V1 *h1) {
+    ItemMetaData itemMeta;
+    itemMeta.revSeqno = 10;
+    itemMeta.cas = 0x1;
+    itemMeta.exptime = 0;
+    itemMeta.flags = 0xdeadbeef;
+
+    // Watson (4.6) accepts valid encodings, but ignores them
+    std::vector<char> junkMeta = {-2,-1,2,3};
+
+    // Set the key and junk nmeta
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0,
+                  FORCE_ACCEPT_WITH_META_OPS, PROTOCOL_BINARY_RAW_BYTES,
+                  nullptr, junkMeta);
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected EINVAL");
+
+    // Set the key and junk nmeta that's quite large
+    junkMeta.resize(std::numeric_limits<uint16_t>::max());
+    set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0,
+                  FORCE_ACCEPT_WITH_META_OPS, PROTOCOL_BINARY_RAW_BYTES,
+                  nullptr, junkMeta);
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected EINVAL");
+
+    // Test that valid meta can be sent. It should be ignored and success
+    // returned
+    // Encodings which should not fail, see ext_meta_parser.cc
+#pragma pack(1)
+    struct adjusted_time_metadata {
+        uint8_t type;
+        uint16_t length;
+        int64_t value;
+    };
+    struct conf_res_metadata {
+        uint8_t type;
+        uint16_t length;
+        uint8_t value;
+    };
+    struct with_cas_metadata1 {
+        uint8_t version;
+        adjusted_time_metadata adjusted_time;
+    };
+    struct with_cas_metadata2 {
+        uint8_t version;
+        conf_res_metadata conf_res;
+    };
+    struct with_cas_metadata3 {
+        uint8_t version;
+        conf_res_metadata conf_res;
+        adjusted_time_metadata adjusted_time;
+    };
+    struct with_cas_metadata4 {
+        uint8_t version;
+        adjusted_time_metadata adjusted_time;
+        conf_res_metadata conf_res;
+    };
+#pragma pack()
+
+    {
+        with_cas_metadata1 validMetaData = {META_EXT_VERSION_ONE,
+                                            {CMD_META_ADJUSTED_TIME,
+                                             htons(sizeof(int64_t)), -1}};
+        std::vector<char> validMetaVector(reinterpret_cast<char*>(&validMetaData),
+                                          reinterpret_cast<char*>(&validMetaData) +
+                                          sizeof(validMetaData));
+
+        // Set the key with a low CAS value and real nmeta
+        set_with_meta(h, h1, "key1", 4, nullptr, 0, 0, &itemMeta, 0,
+                      FORCE_ACCEPT_WITH_META_OPS, PROTOCOL_BINARY_RAW_BYTES,
+                      nullptr, validMetaVector);
+        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+                "Expected success");
+
+        itemMeta.cas++;
+        del_with_meta(h, h1, "key1", 4, 0, &itemMeta, 0,
+                      FORCE_ACCEPT_WITH_META_OPS, nullptr, validMetaVector);
+        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+                "Expected success");
+    }
+
+    {
+        with_cas_metadata2 validMetaData = {META_EXT_VERSION_ONE,
+                                            {CMD_META_CONFLICT_RES_MODE,
+                                             htons(sizeof(uint8_t)), 0xff}};
+        std::vector<char> validMetaVector(reinterpret_cast<char*>(&validMetaData),
+                                          reinterpret_cast<char*>(&validMetaData) +
+                                          sizeof(validMetaData));
+
+        // Set the key with a low CAS value and real nmeta
+        set_with_meta(h, h1, "key2", 4, nullptr, 0, 0, &itemMeta, 0,
+                      FORCE_ACCEPT_WITH_META_OPS, PROTOCOL_BINARY_RAW_BYTES,
+                      nullptr, validMetaVector);
+        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+                "Expected success");
+
+        itemMeta.cas++;
+        del_with_meta(h, h1, "key2", 4, 0, &itemMeta, 0,
+                      FORCE_ACCEPT_WITH_META_OPS, nullptr, validMetaVector);
+        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+                "Expected success");
+    }
+
+    {
+        with_cas_metadata3 validMetaData = {META_EXT_VERSION_ONE,
+                                            {CMD_META_CONFLICT_RES_MODE,
+                                             htons(sizeof(uint8_t)), 0xff},
+                                            {CMD_META_ADJUSTED_TIME,
+                                             htons(sizeof(int64_t)), -1}};
+        std::vector<char> validMetaVector(reinterpret_cast<char*>(&validMetaData),
+                                          reinterpret_cast<char*>(&validMetaData) +
+                                          sizeof(validMetaData));
+
+        // Set the key with a low CAS value and real nmeta
+        set_with_meta(h, h1, "key3", 4, nullptr, 0, 0, &itemMeta, 0,
+                      FORCE_ACCEPT_WITH_META_OPS, PROTOCOL_BINARY_RAW_BYTES,
+                      nullptr, validMetaVector);
+        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+                "Expected success");
+
+        itemMeta.cas++;
+        del_with_meta(h, h1, "key3", 4, 0, &itemMeta, 0,
+                      FORCE_ACCEPT_WITH_META_OPS, nullptr, validMetaVector);
+        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+                "Expected success");
+    }
+
+    {
+        with_cas_metadata4 validMetaData = {META_EXT_VERSION_ONE,
+                                            {CMD_META_ADJUSTED_TIME,
+                                             htons(sizeof(int64_t)), -1},
+                                            {CMD_META_CONFLICT_RES_MODE,
+                                             htons(sizeof(uint8_t)), 0xff}};
+        std::vector<char> validMetaVector(reinterpret_cast<char*>(&validMetaData),
+                                          reinterpret_cast<char*>(&validMetaData) +
+                                          sizeof(validMetaData));
+
+        // Set the key with a low CAS value and real nmeta
+        set_with_meta(h, h1, "key4", 4, NULL, 0, 0, &itemMeta, 0,
+                      FORCE_ACCEPT_WITH_META_OPS, PROTOCOL_BINARY_RAW_BYTES,
+                      nullptr, validMetaVector);
+        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+                "Expected success");
+
+        itemMeta.cas++;
+        del_with_meta(h, h1, "key4", 4, 0, &itemMeta, 0,
+                      FORCE_ACCEPT_WITH_META_OPS, nullptr, validMetaVector);
+        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+                "Expected success");
+    }
+
     return SUCCESS;
 }
 
@@ -1891,6 +2121,18 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test setting drift threshold",
                  test_setting_drift_threshold, test_setup,
                  teardown, nullptr,
+                 prepare, cleanup),
+        TestCase("test CAS regeneration lww",
+                 test_cas_regeneration, test_setup, teardown,
+                 "conflict_resolution_type=lww",
+                 prepare, cleanup),
+        TestCase("test CAS regeneration seqno",
+                 test_cas_regeneration, test_setup, teardown,
+                 "conflict_resolution_type=seqno",
+                 prepare, cleanup),
+        TestCase("test CAS options and nmeta",
+                 test_cas_options_and_nmeta, test_setup, teardown,
+                 "conflict_resolution_type=lww",
                  prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)

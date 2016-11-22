@@ -2212,7 +2212,9 @@ ENGINE_ERROR_CODE TapConsumer::mutation(uint32_t opaque, const void* key,
         ret = kvBucket->addTAPBackfillItem(*item, true);
     }
     else {
-        ret = kvBucket->setWithMeta(*item, 0, NULL, this, true, true, true,
+        ret = kvBucket->setWithMeta(*item, 0, NULL, this, true, true,
+                                    GenerateBySeqno::Yes,
+                                    GenerateCas::No,
                                     NULL, true);
     }
 
@@ -2267,7 +2269,8 @@ ENGINE_ERROR_CODE TapConsumer::deletion(uint32_t opaque, const void* key,
     ItemMetaData itemMeta(cas, revSeqno, 0, 0);
     ret = kvBucket->deleteWithMeta(key_str, &delCas, NULL, vbucket, this, true,
                                    &itemMeta, isBackfillPhase(vbucket),
-                                   true, 0, NULL, true);
+                                   GenerateBySeqno::Yes, GenerateCas::No, 0,
+                                   NULL, true);
 
     if (ret == ENGINE_KEY_ENOENT) {
         ret = ENGINE_SUCCESS;

@@ -5289,6 +5289,49 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
     return rv;
 }
 
+protocol_binary_response_status EventuallyPersistentEngine::decodeWithMetaOptions(
+                              protocol_binary_request_delete_with_meta* request,
+                              GenerateCas& generateCas,
+                              bool& skipConflictResolution,
+                              int& keyOffset) {
+    uint8_t extlen = request->message.header.request.extlen;
+    keyOffset = 0;
+    bool forceFlag = false;
+    if (extlen == 28 || extlen == 30) {
+        uint32_t options;
+        memcpy(&options, request->bytes + sizeof(request->bytes),
+               sizeof(options));
+        options = ntohl(options);
+        keyOffset = 4; // 4 bytes for options
+
+        if (options & SKIP_CONFLICT_RESOLUTION_FLAG) {
+            skipConflictResolution = true;
+        }
+
+        if (options & FORCE_ACCEPT_WITH_META_OPS) {
+            forceFlag = true;
+        }
+
+        if (options & REGENERATE_CAS) {
+            generateCas = GenerateCas::Yes;
+        }
+    }
+
+    // Validate options
+    // If regenerate CAS then skip conflict resolution must be set
+    // If LWW force must be set
+    // If !LWW then force cannot be set).
+    if ((generateCas == GenerateCas::Yes && !skipConflictResolution) ||
+        (configuration.getConflictResolutionType() == "lww" && !forceFlag &&
+         generateCas == GenerateCas::No) ||
+        (forceFlag && (configuration.getConflictResolutionType() != "lww"))) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
                                 protocol_binary_request_set_with_meta *request,
                                 ADD_RESPONSE response)
@@ -5296,9 +5339,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
     uint8_t extlen = request->message.header.request.extlen;
     uint16_t keylen = ntohs(request->message.header.request.keylen);
-    if ((extlen != 24           // Packet without nmeta or options
-         && extlen != 28        // Packet with options but without nmeta
-         && extlen != 26)       // Packet with nmeta
+    // extlen, the size dicates what is encoded.
+    // 24 = no nmeta and no options
+    // 26 = nmeta
+    // 28 = options (4-byte field)
+    // 30 = options and nmeta (options followed by nmeta)
+    // so 27, 25 etc... are illegal
+    if ((extlen != 24 && extlen != 26 && extlen != 28  && extlen != 30)
         || keylen == 0) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
@@ -5324,39 +5371,39 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     uint64_t seqno = ntohll(request->message.body.seqno);
     uint64_t cas = ntohll(request->message.body.cas);
 
-    bool force = false;
-    ExtendedMetaData *emd = NULL;
+    bool skipConflictResolution = false;
+    GenerateCas generateCas = GenerateCas::No;
+    std::unique_ptr<ExtendedMetaData> emd;
+    int keyOffset = 0;
+    protocol_binary_response_status error = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    if ((error = decodeWithMetaOptions(request, generateCas,
+                                       skipConflictResolution, keyOffset)) !=
+        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES, error, 0, cookie);
+    }
 
-    if (extlen == 28) {
-        uint32_t options;
-        memcpy(&options, request->bytes + sizeof(request->bytes),
-               sizeof(options));
-        key += 4;       // 4 bytes for options
-        if (ntohl(options) & SKIP_CONFLICT_RESOLUTION_FLAG) {
-            force = true;
-        }
-    } else if (extlen == 26) {
-        uint16_t nmeta;
-        memcpy(&nmeta, request->bytes + sizeof(request->bytes),
-               sizeof(nmeta));
-        key += 2;       // 2 bytes for nmeta
+    if (extlen == 26 || extlen == 30) {
+        uint16_t nmeta = 0;
+        memcpy(&nmeta, key + keyOffset, sizeof(nmeta));
+        keyOffset += 2; // 2 bytes for nmeta
         nmeta = ntohs(nmeta);
         if (nmeta > 0) {
             // Correct the vallen
             vallen -= nmeta;
-            emd = new ExtendedMetaData(key + keylen + vallen, nmeta);
-
-            if (emd == NULL) {
+            try {
+                emd.reset(new ExtendedMetaData(key + keylen + keyOffset + vallen,
+                                               nmeta));
+            } catch (const std::bad_alloc&) {
                 return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                                    PROTOCOL_BINARY_RAW_BYTES,
-                                    PROTOCOL_BINARY_RESPONSE_ENOMEM, 0, cookie);
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_ENOMEM, 0, cookie);
             }
 
             if (emd->getStatus() == ENGINE_EINVAL) {
-                delete emd;
                 return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                                    PROTOCOL_BINARY_RAW_BYTES,
-                                    PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
             }
         }
     }
@@ -5370,7 +5417,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
                             PROTOCOL_BINARY_RESPONSE_E2BIG, 0, cookie);
     }
 
-    uint8_t *dta = key + keylen;
+    uint8_t* dta = key + keyOffset + keylen;
 
     if (!isDatatypeSupported(cookie)) {
         const int len = vallen;
@@ -5383,7 +5430,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     uint8_t ext_meta[1];
     uint8_t ext_len = EXT_META_LEN;
     *(ext_meta) = datatype;
-    Item *itm = new Item(key, keylen, flags, expiration, dta, vallen,
+    Item *itm = new Item(key + keyOffset, keylen, flags, expiration, dta, vallen,
                          ext_meta, ext_len, cas, -1, vbucket);
 
     if (itm == NULL) {
@@ -5412,10 +5459,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     ENGINE_ERROR_CODE ret = kvBucket->setWithMeta(*itm,
                                                   ntohll(request->
                                                     message.header.request.cas),
-                                                  &by_seqno, cookie, force,
-                                                  allowExisting, true, emd);
-
-    delete emd;
+                                                  &by_seqno, cookie,
+                                                  skipConflictResolution,
+                                                  allowExisting,
+                                                  GenerateBySeqno::Yes,
+                                                  generateCas,
+                                                  emd.get(), false);
 
     if (ret == ENGINE_SUCCESS) {
         ++stats.numOpsSetMeta;
@@ -5481,9 +5530,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
     uint16_t nkey = ntohs(request->message.header.request.keylen);
     uint8_t extlen = request->message.header.request.extlen;
-    if ((extlen != 24           // Packet without nmeta or options
-         && extlen != 28        // Packet with options but without nmeta
-         && extlen != 26)       // Packet with nmeta
+    // extlen, the size dicates what is encoded.
+    // 24 = no nmeta and no options
+    // 26 = nmeta
+    // 28 = options (4-byte field)
+    // 30 = options and nmeta (options followed by nmeta)
+    // so 27, 25 etc... are illegal
+    if ((extlen != 24 && extlen != 26 && extlen != 28  && extlen != 30)
         || nkey == 0) {
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
@@ -5498,8 +5551,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     }
 
     uint8_t opcode = request->message.header.request.opcode;
-    const char *key_ptr = reinterpret_cast<const char*>(request->bytes);
-    key_ptr += sizeof(request->bytes);
     uint16_t vbucket = ntohs(request->message.header.request.vbucket);
     uint64_t cas = ntohll(request->message.header.request.cas);
 
@@ -5508,41 +5559,46 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     uint64_t seqno = ntohll(request->message.body.seqno);
     uint64_t metacas = ntohll(request->message.body.cas);
 
-    bool force = false;
-    ExtendedMetaData *emd = NULL;
+    bool skipConflictResolution = false;
+    GenerateCas generateCas = GenerateCas::No;
+    std::unique_ptr<ExtendedMetaData> emd;
+    int keyOffset = 0;
+    protocol_binary_response_status error = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    if ((error = decodeWithMetaOptions(request, generateCas,
+                                      skipConflictResolution, keyOffset)) !=
+        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES, error, 0, cookie);
+    }
 
-    if (extlen == 28) {
-        uint32_t options;
-        memcpy(&options, request->bytes + sizeof(request->bytes),
-               sizeof(options));
-        key_ptr += 4;       // 4 bytes for options
-        if (ntohl(options) & SKIP_CONFLICT_RESOLUTION_FLAG) {
-            force = true;
-        }
-    } else if (extlen == 26) {
-        uint16_t nmeta;
+    if (extlen == 26 || extlen == 30) {
+        uint16_t nmeta = 0;
         memcpy(&nmeta, request->bytes + sizeof(request->bytes),
                sizeof(nmeta));
-        key_ptr += 2;       // 2 bytes for nmeta
+        keyOffset += 2; // 2 bytes for nmeta
         nmeta = ntohs(nmeta);
         if (nmeta > 0) {
-            emd = new ExtendedMetaData(key_ptr + nkey, nmeta);
-
-            if (emd == NULL ) {
+            try {
+                emd.reset(new ExtendedMetaData(request->bytes +
+                                               nkey +
+                                               keyOffset, nmeta));
+            } catch (const std::bad_alloc&) {
                 return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                                    PROTOCOL_BINARY_RAW_BYTES,
-                                    PROTOCOL_BINARY_RESPONSE_ENOMEM, 0, cookie);
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_ENOMEM, 0, cookie);
             }
 
             if (emd->getStatus() == ENGINE_EINVAL) {
-                delete emd;
                 return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                                    PROTOCOL_BINARY_RAW_BYTES,
-                                    PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
             }
         }
     }
 
+    const char *key_ptr = reinterpret_cast<const char*>(request->bytes +
+                                                        keyOffset +
+                                                        sizeof(request->bytes));
     std::string key(key_ptr, nkey);
 
     ItemMetaData itm_meta(metacas, seqno, flags, expiration);
@@ -5552,11 +5608,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     uint64_t vb_uuid = 0;
 
     ENGINE_ERROR_CODE ret = kvBucket->deleteWithMeta(key, &cas, &by_seqno,
-                                                     vbucket, cookie, force,
-                                                     &itm_meta, false, true, 0,
-                                                     emd);
-
-    delete emd;
+                                                     vbucket, cookie,
+                                                     skipConflictResolution,
+                                                     &itm_meta, false,
+                                                     GenerateBySeqno::Yes,
+                                                     generateCas, 0,
+                                                     emd.get(), false);
 
     if (ret == ENGINE_SUCCESS) {
         stats.numOpsDelMeta++;
