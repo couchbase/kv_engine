@@ -80,7 +80,7 @@ static char * fetch(BIO *bio,
         exit(EXIT_FAILURE);
     }
 
-    payload = get_response(bio, &response);
+    payload = static_cast<char*>(get_response(bio, &response));
     cb_assert(ntohs(response.message.header.response.status) == PROTOCOL_BINARY_RESPONSE_SUCCESS);
     cb_assert(payload != NULL);
     return payload;

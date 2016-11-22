@@ -1,4 +1,4 @@
-ADD_LIBRARY(blackhole_logger SHARED blackhole_logger.c)
+ADD_LIBRARY(blackhole_logger SHARED blackhole_logger.cc)
 SET_TARGET_PROPERTIES(blackhole_logger PROPERTIES PREFIX "")
 
 ADD_LIBRARY(file_logger SHARED file_logger.cc

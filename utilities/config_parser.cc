@@ -121,10 +121,10 @@ int parse_config(const char *str, struct config_item *items, FILE *error) {
             case DT_SIZE:
             case DT_SSIZE:
                {
-                  char *sfx = "kmgt";
+                  const char *sfx = "kmgt";
                   int multiplier = 1;
                   int m = 1;
-                  char *p;
+                  const char *p;
 
                   for (p = sfx; *p != '\0'; ++p) {
                      char *ptr = strchr(value, *p);

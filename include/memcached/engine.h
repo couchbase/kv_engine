@@ -37,7 +37,7 @@ extern "C" {
  *
  * Jump right into <a href="modules.html">the modules docs</a> to get started.
  *
- * \example default_engine.c
+ * \example default_engine.cc
  */
 
 /**

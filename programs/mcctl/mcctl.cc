@@ -48,7 +48,7 @@ static char *allocate(size_t size)
     if (size == 0) {
         return NULL;
     } else {
-        char *ret = cb_malloc(size + 1);
+        char *ret = static_cast<char*>(cb_malloc(size + 1));
         if (ret == NULL) {
             fprintf(stderr, "Failed to allocate %lu bytes of memory\n",
                     (unsigned long)size);
@@ -80,7 +80,7 @@ static void receive_stat_response(BIO *bio, struct statistic *st) {
     ensure_recv(bio, st->value, vallen);
 
     protocol_binary_response_status status;
-    status = ntohs(response.message.header.response.status);
+    status = protocol_binary_response_status(ntohs(response.message.header.response.status));
 
     if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         fprintf(stderr, "Error from server requesting stats: %s\n",
@@ -106,12 +106,11 @@ static int get_verbosity(BIO *bio)
     const char *settings = "settings";
     const uint16_t settingslen = (uint16_t)strlen(settings);
 
-    protocol_binary_request_stats request = {
-        .message.header.request.magic = PROTOCOL_BINARY_REQ,
-        .message.header.request.opcode = PROTOCOL_BINARY_CMD_STAT,
-        .message.header.request.keylen = htons(settingslen),
-        .message.header.request.bodylen = htonl(settingslen)
-    };
+    protocol_binary_request_stats request = {};
+    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_STAT;
+    request.message.header.request.keylen = htons(settingslen);
+    request.message.header.request.bodylen = htonl(settingslen);
 
     ensure_send(bio, &request, sizeof(request));
     ensure_send(bio, settings, settingslen);
@@ -153,12 +152,11 @@ static int get_verbosity(BIO *bio)
  */
 static int set_verbosity(BIO *bio, const char* value)
 {
-    protocol_binary_request_verbosity request = {
-        .message.header.request.magic = PROTOCOL_BINARY_REQ,
-        .message.header.request.opcode = PROTOCOL_BINARY_CMD_VERBOSITY,
-        .message.header.request.extlen = 4,
-        .message.header.request.bodylen = htonl(4)
-    };
+    protocol_binary_request_verbosity request = {};
+    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_VERBOSITY;
+    request.message.header.request.extlen = 4;
+    request.message.header.request.bodylen = htonl(4);
     uint32_t level;
 
     if (!safe_strtoul(value, &level)) {
@@ -190,7 +188,7 @@ static int set_verbosity(BIO *bio, const char* value)
     if (response.message.header.response.bodylen != 0) {
         char *buffer = NULL;
         uint32_t valuelen = ntohl(response.message.header.response.bodylen);
-        buffer = cb_malloc(valuelen);
+        buffer =  static_cast<char*>(cb_malloc(valuelen));
         if (buffer == NULL) {
             fprintf(stderr, "Failed to allocate memory for set response\n");
             exit(EXIT_FAILURE);
@@ -200,7 +198,7 @@ static int set_verbosity(BIO *bio, const char* value)
     }
 
     protocol_binary_response_status status;
-    status = htons(response.message.header.response.status);
+    status = protocol_binary_response_status(htons(response.message.header.response.status));
     if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         return EXIT_SUCCESS;
     }
@@ -249,14 +247,14 @@ static int ioctl_set(BIO *bio, const char *property, const char* value)
     ensure_recv(bio, &response, sizeof(response.bytes));
     if (response.message.header.response.bodylen != 0) {
         valuelen = ntohl(response.message.header.response.bodylen);
-        buffer = cb_malloc(valuelen);
+        buffer = static_cast<char*>(cb_malloc(valuelen));
         if (buffer == NULL) {
             fprintf(stderr, "Failed to allocate memory for set response\n");
             exit(EXIT_FAILURE);
         }
         ensure_recv(bio, buffer, valuelen);
     }
-    status = htons(response.message.header.response.status);
+    status = protocol_binary_response_status(htons(response.message.header.response.status));
     if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         result = 0;
     } else {
@@ -308,14 +306,14 @@ static int ioctl_get(BIO *bio, const char *property)
     ensure_recv(bio, &response, sizeof(response.bytes));
     if (response.message.header.response.bodylen != 0) {
         valuelen = ntohl(response.message.header.response.bodylen);
-        buffer = cb_malloc(valuelen);
+        buffer = static_cast<char*>(cb_malloc(valuelen));
         if (buffer == NULL) {
             fprintf(stderr, "Failed to allocate memory for get response\n");
             exit(EXIT_FAILURE);
         }
         ensure_recv(bio, buffer, valuelen);
     }
-    status = htons(response.message.header.response.status);
+    status = protocol_binary_response_status(htons(response.message.header.response.status));
     if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         result = 0;
     } else {

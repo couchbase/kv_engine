@@ -24,12 +24,13 @@ static struct assoc* global_assoc = NULL;
 /* assoc factory. returns one new assoc or NULL if out-of-memory */
 static struct assoc* assoc_consruct(int hashpower) {
     struct assoc* new_assoc = NULL;
-    new_assoc = cb_calloc(1, sizeof(struct assoc));
+    new_assoc = static_cast<struct assoc*>(cb_calloc(1, sizeof(struct assoc)));
     if (new_assoc) {
         new_assoc->hashpower = hashpower;
         cb_mutex_initialize(&new_assoc->lock);
-        new_assoc->primary_hashtable = cb_calloc(hashsize(hashpower),
-                                              sizeof(hash_item*));
+        new_assoc->primary_hashtable =
+            static_cast<hash_item**>(cb_calloc(hashsize(hashpower),
+                                               sizeof(hash_item*)));
 
         if (new_assoc->primary_hashtable == NULL) {
             /* rollback and return NULL */
@@ -138,8 +139,9 @@ static void assoc_maintenance_thread(void *arg);
 static void assoc_expand(struct default_engine *engine) {
     engine->assoc->old_hashtable = engine->assoc->primary_hashtable;
 
-    engine->assoc->primary_hashtable = cb_calloc(hashsize(engine->assoc->hashpower + 1),
-                                             sizeof(hash_item *));
+    engine->assoc->primary_hashtable =
+        static_cast<hash_item**>(cb_calloc(hashsize(engine->assoc->hashpower + 1),
+                                           sizeof(hash_item *)));
     if (engine->assoc->primary_hashtable) {
         int ret = 0;
         cb_thread_t tid;
@@ -153,7 +155,8 @@ static void assoc_expand(struct default_engine *engine) {
                                           engine, 1, "mc:assoc_maint")) != 0)
         {
             EXTENSION_LOGGER_DESCRIPTOR *logger;
-            logger = (void*)engine->server.extension->get_extension(EXTENSION_LOGGER);
+            logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
+                (engine->server.extension->get_extension(EXTENSION_LOGGER));
             logger->log(EXTENSION_LOG_WARNING, NULL,
                         "Can't create thread: %s\n", strerror(ret));
             engine->assoc->hashpower--;
@@ -224,7 +227,7 @@ void assoc_delete(struct default_engine *engine, uint32_t hash, const hash_key *
 int hash_bulk_move = DEFAULT_HASH_BULK_MOVE;
 
 static void assoc_maintenance_thread(void *arg) {
-    struct default_engine *engine = arg;
+    struct default_engine *engine = static_cast<struct default_engine*>(arg);
     bool done = false;
     do {
         int ii;
@@ -252,7 +255,8 @@ static void assoc_maintenance_thread(void *arg) {
                 cb_free(engine->assoc->old_hashtable);
                 if (engine->config.verbose > 1) {
                     EXTENSION_LOGGER_DESCRIPTOR *logger;
-                    logger = (void*)engine->server.extension->get_extension(EXTENSION_LOGGER);
+                    logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
+                        (engine->server.extension->get_extension(EXTENSION_LOGGER));
                     logger->log(EXTENSION_LOG_INFO, NULL,
                                 "Hash table expansion done\n");
                 }

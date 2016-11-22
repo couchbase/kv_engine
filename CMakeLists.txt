@@ -157,7 +157,7 @@ LIST(APPEND MEMORY_TRACKING_SRCS ${Memcached_SOURCE_DIR}/daemon/alloc_hooks.h)
 
 IF (APPLE)
     LIST(APPEND MEMORY_TRACKING_SRCS
-         ${Memcached_SOURCE_DIR}/daemon/darwin_zone.c
+         ${Memcached_SOURCE_DIR}/daemon/darwin_zone.cc
          ${Memcached_SOURCE_DIR}/daemon/darwin_zone.h)
 ENDIF (APPLE)
 
@@ -191,7 +191,7 @@ LIST(APPEND CBSASL_SOURCES
      ${Memcached_SOURCE_DIR}/cbsasl/scram-sha/stringutils.cc
      ${Memcached_SOURCE_DIR}/cbsasl/scram-sha/stringutils.h
      ${Memcached_SOURCE_DIR}/cbsasl/server.cc
-     ${Memcached_SOURCE_DIR}/cbsasl/strcmp.c
+     ${Memcached_SOURCE_DIR}/cbsasl/strcmp.cc
      ${Memcached_SOURCE_DIR}/cbsasl/strerror.cc
      ${Memcached_SOURCE_DIR}/cbsasl/user.cc
      ${Memcached_SOURCE_DIR}/cbsasl/user.h

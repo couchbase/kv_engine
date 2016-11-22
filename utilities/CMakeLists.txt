@@ -1,9 +1,9 @@
 ADD_LIBRARY(mcd_util SHARED
-            config_parser.c
-            engine_loader.c
-            extension_loggers.c
+            config_parser.cc
+            engine_loader.cc
+            extension_loggers.cc
             protocol2text.cc
-            util.c)
+            util.cc)
 TARGET_LINK_LIBRARIES(mcd_util platform)
 SET_TARGET_PROPERTIES(mcd_util PROPERTIES SOVERSION 1.0.0)
 INSTALL(TARGETS mcd_util
@@ -12,9 +12,9 @@ INSTALL(TARGETS mcd_util
         ARCHIVE DESTINATION lib)
 
 ADD_EXECUTABLE(utilities_testapp
-               config_parser.c
+               config_parser.cc
                string_utilities.cc
-               util.c
+               util.cc
                util_test.cc)
 TARGET_LINK_LIBRARIES(utilities_testapp gtest gtest_main gmock platform)
 ADD_TEST(NAME memcached-utilities-tests

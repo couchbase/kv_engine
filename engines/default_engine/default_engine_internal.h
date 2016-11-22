@@ -60,9 +60,6 @@ struct config {
    char *uuid;
 };
 
-MEMCACHED_PUBLIC_API
-void destroy_engine(void);
-
 /**
  * Statistic information collected by the default engine
  */
@@ -135,6 +132,9 @@ uint8_t item_get_clsid(const hash_item* item);
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+MEMCACHED_PUBLIC_API
+void destroy_engine(void);
 
 void default_engine_constructor(struct default_engine* engine, bucket_id_t id);
 void destroy_engine_instance(struct default_engine* engine);

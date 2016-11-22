@@ -65,7 +65,8 @@ static void *my_allocate(struct default_engine *e, size_t size) {
     /* Is threre room? */
     if (e->slabs.allocs.next == e->slabs.allocs.size) {
         size_t n = e->slabs.allocs.size + 1024;
-        void *p = cb_realloc(e->slabs.allocs.ptrs, n * sizeof(void*));
+        void** p = static_cast<void**>(cb_realloc(e->slabs.allocs.ptrs,
+                                                  n * sizeof(void*)));
         if (p == NULL) {
             return NULL;
         }
@@ -117,7 +118,8 @@ ENGINE_ERROR_CODE slabs_init(struct default_engine *engine,
         size = (unsigned int)(size * factor);
         if (engine->config.verbose > 1) {
             EXTENSION_LOGGER_DESCRIPTOR *logger;
-            logger = (void*)engine->server.extension->get_extension(EXTENSION_LOGGER);
+            logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
+                (engine->server.extension->get_extension(EXTENSION_LOGGER));
             logger->log(EXTENSION_LOG_INFO, NULL,
                         "slab class %3d: chunk size %9u perslab %7u\n",
                         i, engine->slabs.slabclass[i].size,
@@ -130,7 +132,8 @@ ENGINE_ERROR_CODE slabs_init(struct default_engine *engine,
     engine->slabs.slabclass[engine->slabs.power_largest].perslab = 1;
     if (engine->config.verbose > 1) {
         EXTENSION_LOGGER_DESCRIPTOR *logger;
-        logger = (void*)engine->server.extension->get_extension(EXTENSION_LOGGER);
+        logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
+            (engine->server.extension->get_extension(EXTENSION_LOGGER));
         logger->log(EXTENSION_LOG_INFO, NULL,
                     "slab class %3d: chunk size %9u perslab %7u\n",
                     i, engine->slabs.slabclass[i].size,
@@ -183,7 +186,8 @@ static int grow_slab_list (struct default_engine *engine, const unsigned int id)
     slabclass_t *p = &engine->slabs.slabclass[id];
     if (p->slabs == p->list_size) {
         unsigned int new_size =  (p->list_size != 0) ? p->list_size * 2 : 16;
-        void *new_list = cb_realloc(p->slab_list, new_size * sizeof(void *));
+        void** new_list = static_cast<void**>
+            (cb_realloc(p->slab_list, new_size * sizeof(void *)));
         if (new_list == 0) return 0;
         p->list_size = new_size;
         p->slab_list = new_list;
@@ -198,7 +202,7 @@ static int do_slabs_newslab(struct default_engine *engine, const unsigned int id
 
     if ((engine->slabs.mem_limit && engine->slabs.mem_malloced + len > engine->slabs.mem_limit && p->slabs > 0) ||
         (grow_slab_list(engine, id) == 0) ||
-        ((ptr = memory_allocate(engine, (size_t)len)) == 0)) {
+        ((ptr = static_cast<char*>(memory_allocate(engine, (size_t)len))) == 0)) {
 
         MEMCACHED_SLABS_SLABCLASS_ALLOCATE_FAILED(id);
         return 0;
@@ -285,7 +289,8 @@ static void do_slabs_free(struct default_engine *engine, void *ptr, const size_t
 
     if (p->sl_curr == p->sl_total) { /* need more space on the free list */
         int new_size = (p->sl_total != 0) ? p->sl_total * 2 : 16;  /* 16 is arbitrary */
-        void **new_slots = cb_realloc(p->slots, new_size * sizeof(void *));
+        void **new_slots = static_cast<void**>(cb_realloc(p->slots,
+                                               new_size * sizeof(void *)));
         if (new_slots == 0)
             return;
         p->slots = new_slots;
@@ -369,7 +374,8 @@ static void do_slabs_stats(struct default_engine *engine, ADD_STAT add_stats, co
                            p->sl_curr);
             add_statistics(cookie, add_stats, NULL, i, "free_chunks_end", "%u",
                            p->end_page_free);
-            add_statistics(cookie, add_stats, NULL, i, "mem_requested", "%"PRIu64,
+            add_statistics(cookie, add_stats, NULL, i, "mem_requested",
+                           "%" PRIu64,
                            (uint64_t)p->requested);
             total++;
         }
@@ -378,7 +384,7 @@ static void do_slabs_stats(struct default_engine *engine, ADD_STAT add_stats, co
     /* add overall slab stats and append terminator */
 
     add_statistics(cookie, add_stats, NULL, -1, "active_slabs", "%d", total);
-    add_statistics(cookie, add_stats, NULL, -1, "total_malloced", "%"PRIu64,
+    add_statistics(cookie, add_stats, NULL, -1, "total_malloced", "%" PRIu64,
                    (uint64_t)engine->slabs.mem_malloced);
 }
 
@@ -438,7 +444,8 @@ void slabs_adjust_mem_requested(struct default_engine *engine, unsigned int id, 
     cb_mutex_enter(&engine->slabs.lock);
     if (id < POWER_SMALLEST || id > engine->slabs.power_largest) {
         EXTENSION_LOGGER_DESCRIPTOR *logger;
-        logger = (void*)engine->server.extension->get_extension(EXTENSION_LOGGER);
+        logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
+            (engine->server.extension->get_extension(EXTENSION_LOGGER));
         logger->log(EXTENSION_LOG_WARNING, NULL,
                     "Internal error! Invalid slab class\n");
         cb_assert(false);

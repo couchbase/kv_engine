@@ -33,7 +33,7 @@ struct engine_reference {
         void* voidptr;
     } my_destroy_engine;
 
-    cb_dlhandle_t *handle;
+    cb_dlhandle_t handle;
 };
 
 void unload_engine(engine_reference* engine)
@@ -45,7 +45,7 @@ void unload_engine(engine_reference* engine)
     }
 }
 
-static void* find_symbol(cb_dlhandle_t *handle, const char* function, char** errmsg) {
+static void* find_symbol(cb_dlhandle_t handle, const char* function, char** errmsg) {
     return cb_dlsym(handle, function, errmsg);
 }
 
@@ -63,7 +63,7 @@ engine_reference* load_engine(const char* soname,
                                              NULL };
     const char* const destroy_functions[] = { "destroy_engine", NULL };
 
-    cb_dlhandle_t* handle = cb_dlopen(soname, &errmsg);
+    cb_dlhandle_t handle = cb_dlopen(soname, &errmsg);
 
     if (handle == NULL) {
         logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -107,7 +107,8 @@ engine_reference* load_engine(const char* soname,
     }
 
     // dlopen is success and we found all required symbols.
-    engine_reference* engine_ref = cb_calloc(1, sizeof(engine_reference));
+    engine_reference* engine_ref = static_cast<engine_reference*>
+        (cb_calloc(1, sizeof(engine_reference)));
     engine_ref->handle = handle;
     engine_ref->my_create_instance.voidptr = create_symbol;
     engine_ref->my_destroy_engine.voidptr = destroy_symbol;

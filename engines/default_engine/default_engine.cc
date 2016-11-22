@@ -86,7 +86,7 @@ static vbucket_state_t get_vbucket_state(struct default_engine *e,
                                          uint16_t vbid) {
     union vbucket_info_adapter vi;
     vi.c = e->vbucket_infos[vbid];
-    return vi.v.state;
+    return vbucket_state_t(vi.v.state);
 }
 
 static bool handled_vbucket(struct default_engine *e, uint16_t vbid) {
@@ -156,9 +156,9 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
         = ENGINE_FEATURE_DATATYPE;
 }
 
-ENGINE_ERROR_CODE create_instance(uint64_t interface,
-                                  GET_SERVER_API get_server_api,
-                                  ENGINE_HANDLE **handle) {
+extern "C" ENGINE_ERROR_CODE create_instance(uint64_t interface,
+                                             GET_SERVER_API get_server_api,
+                                             ENGINE_HANDLE **handle) {
    SERVER_HANDLE_V1 *api = get_server_api();
    struct default_engine *engine;
 
@@ -177,7 +177,7 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
    return ENGINE_SUCCESS;
 }
 
-void destroy_engine() {
+extern "C" void destroy_engine() {
     engine_manager_shutdown();
     assoc_destroy();
 }
@@ -351,17 +351,17 @@ static ENGINE_ERROR_CODE default_get_stats(ENGINE_HANDLE* handle,
       int len;
 
       cb_mutex_enter(&engine->stats.lock);
-      len = sprintf(val, "%"PRIu64, (uint64_t)engine->stats.evictions);
+      len = sprintf(val, "%" PRIu64, (uint64_t)engine->stats.evictions);
       add_stat("evictions", 9, val, len, cookie);
-      len = sprintf(val, "%"PRIu64, (uint64_t)engine->stats.curr_items);
+      len = sprintf(val, "%" PRIu64, (uint64_t)engine->stats.curr_items);
       add_stat("curr_items", 10, val, len, cookie);
-      len = sprintf(val, "%"PRIu64, (uint64_t)engine->stats.total_items);
+      len = sprintf(val, "%" PRIu64, (uint64_t)engine->stats.total_items);
       add_stat("total_items", 11, val, len, cookie);
-      len = sprintf(val, "%"PRIu64, (uint64_t)engine->stats.curr_bytes);
+      len = sprintf(val, "%" PRIu64, (uint64_t)engine->stats.curr_bytes);
       add_stat("bytes", 5, val, len, cookie);
-      len = sprintf(val, "%"PRIu64, engine->stats.reclaimed);
+      len = sprintf(val, "%" PRIu64, engine->stats.reclaimed);
       add_stat("reclaimed", 9, val, len, cookie);
-      len = sprintf(val, "%"PRIu64, (uint64_t)engine->config.maxbytes);
+      len = sprintf(val, "%" PRIu64, (uint64_t)engine->config.maxbytes);
       add_stat("engine_maxbytes", 15, val, len, cookie);
       cb_mutex_exit(&engine->stats.lock);
    } else if (strncmp(stat_key, "slabs", 5) == 0) {
@@ -391,13 +391,13 @@ static ENGINE_ERROR_CODE default_get_stats(ENGINE_HANDLE* handle,
       if (engine->scrubber.started != 0) {
          if (engine->scrubber.stopped != 0) {
             time_t diff = engine->scrubber.started - engine->scrubber.stopped;
-            len = sprintf(val, "%"PRIu64, (uint64_t)diff);
+            len = sprintf(val, "%" PRIu64, (uint64_t)diff);
             add_stat("scrubber:last_run", 17, val, len, cookie);
          }
 
-         len = sprintf(val, "%"PRIu64, engine->scrubber.visited);
+         len = sprintf(val, "%" PRIu64, engine->scrubber.visited);
          add_stat("scrubber:visited", 16, val, len, cookie);
-         len = sprintf(val, "%"PRIu64, engine->scrubber.cleaned);
+         len = sprintf(val, "%" PRIu64, engine->scrubber.cleaned);
          add_stat("scrubber:cleaned", 16, val, len, cookie);
       }
       cb_mutex_exit(&engine->scrubber.lock);
@@ -512,7 +512,9 @@ static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
        items[ii].key = NULL;
        ++ii;
        cb_assert(ii == 13);
-       ret = se->server.core->parse_config(cfg_str, items, stderr);
+       ret = ENGINE_ERROR_CODE(se->server.core->parse_config(cfg_str,
+                                                             items,
+                                                             stderr));
    }
 
    if (se->config.vb0) {
@@ -536,7 +538,7 @@ static bool set_vbucket(struct default_engine *e,
                         PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
     }
     memcpy(&state, &req->message.body.state, sizeof(state));
-    state = ntohl(state);
+    state = vbucket_state_t(ntohl(state));
 
     if (!is_valid_vbucket_state_t(state)) {
         const char *msg = "Invalid vbucket state";
@@ -557,7 +559,7 @@ static bool get_vbucket(struct default_engine *e,
                         ADD_RESPONSE response) {
     vbucket_state_t state;
     state = get_vbucket_state(e, ntohs(req->message.header.request.vbucket));
-    state = ntohl(state);
+    state = vbucket_state_t(ntohl(state));
 
     return response(NULL, 0, NULL, 0, &state, sizeof(state),
                     PROTOCOL_BINARY_RAW_BYTES,
@@ -603,7 +605,7 @@ static bool touch(struct default_engine *e, const void *cookie,
                         PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
     }
 
-    t = (void*)request;
+    t = reinterpret_cast<protocol_binary_request_touch*>(request);
     key = t->bytes + sizeof(t->bytes);
     exptime = ntohl(t->message.body.expiration);
     nkey = ntohs(request->request.keylen);
@@ -649,10 +651,14 @@ static ENGINE_ERROR_CODE default_unknown_command(ENGINE_HANDLE* handle,
         sent = rm_vbucket(e, cookie, request, response);
         break;
     case PROTOCOL_BINARY_CMD_SET_VBUCKET:
-        sent = set_vbucket(e, cookie, (void*)request, response);
+        sent = set_vbucket(e, cookie,
+                reinterpret_cast<protocol_binary_request_set_vbucket*>(request),
+                response);
         break;
     case PROTOCOL_BINARY_CMD_GET_VBUCKET:
-        sent = get_vbucket(e, cookie, (void*)request, response);
+        sent = get_vbucket(e, cookie,
+                reinterpret_cast<protocol_binary_request_get_vbucket*>(request),
+                response);
         break;
     case PROTOCOL_BINARY_CMD_TOUCH:
     case PROTOCOL_BINARY_CMD_GAT:
@@ -692,7 +698,7 @@ void item_set_cas(ENGINE_HANDLE *handle, const void *cookie,
 
 hash_key* item_get_key(const hash_item* item)
 {
-    char *ret = (void*)(item + 1);
+    const char *ret = reinterpret_cast<const char*>(item + 1);
     if (item->iflag & ITEM_WITH_CAS) {
         ret += sizeof(uint64_t);
     }
@@ -715,7 +721,7 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
                           const item* item, item_info *item_info)
 {
     hash_item* it = (hash_item*)item;
-    const hash_key* key = item_get_key(item);
+    const hash_key* key = item_get_key(it);
     if (item_info->nvalue < 1) {
         return false;
     }

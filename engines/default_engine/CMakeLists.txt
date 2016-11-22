@@ -1,15 +1,15 @@
 ADD_LIBRARY(default_engine SHARED
-            assoc.c
+            assoc.cc
             assoc.h
-            default_engine.c
+            default_engine.cc
             default_engine_internal.h
             engine_manager.cc
             engine_manager.h
-            items.c
+            items.cc
             items.h
             scrubber_task.cc
             scrubber_task.h
-            slabs.c
+            slabs.cc
             slabs.h)
 
 SET_TARGET_PROPERTIES(default_engine PROPERTIES PREFIX "")

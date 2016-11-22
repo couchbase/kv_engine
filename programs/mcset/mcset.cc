@@ -51,7 +51,7 @@ static int set_ascii(BIO *bio, const char *key, size_t size) {
 
     ensure_send(bio, &line, len);
     if (size > 0) {
-        char* value = cb_malloc(size);
+        char* value = static_cast<char*>(cb_malloc(size));
         if (value) {
             ensure_send(bio, value, (int)size);
             cb_free(value);
@@ -85,19 +85,18 @@ static int set_ascii(BIO *bio, const char *key, size_t size) {
 }
 
 static int set_binary(BIO *bio, const char *key, size_t size) {
-    protocol_binary_request_set request = {
-        .message.header.request.magic = PROTOCOL_BINARY_REQ,
-        .message.header.request.opcode = PROTOCOL_BINARY_CMD_SET,
-        .message.header.request.extlen = 8,
-        .message.header.request.keylen = htons((uint16_t)strlen(key)),
-        .message.header.request.bodylen = htonl(8 + strlen(key) + size),
-        .message.body.flags = 0,
-        .message.body.expiration = 0
-    };
+    protocol_binary_request_set request = {};
+    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_SET;
+    request.message.header.request.extlen = 8;
+    request.message.header.request.keylen = htons((uint16_t)strlen(key));
+    request.message.header.request.bodylen = htonl(8 + strlen(key) + size);
+    request.message.body.flags = 0;
+    request.message.body.expiration = 0;
     ensure_send(bio, &request, (int)sizeof(request.bytes));
     ensure_send(bio, key, strlen(key));
     if (size > 0) {
-        char* value = cb_malloc(size);
+        char* value = static_cast<char*>(cb_malloc(size));
         if (value) {
             ensure_send(bio, value, (int)size);
             cb_free(value);
@@ -113,7 +112,7 @@ static int set_binary(BIO *bio, const char *key, size_t size) {
     char *buffer = NULL;
     const uint32_t bodylen = ntohl(response.message.header.response.bodylen);
     if (bodylen > 0) {
-        if ((buffer = cb_malloc(bodylen + 1)) == NULL) {
+        if ((buffer = static_cast<char*>(cb_malloc(bodylen + 1))) == NULL) {
             fprintf(stderr, "Failed to allocate memory\n");
             exit(EXIT_FAILURE);
         }
@@ -124,7 +123,8 @@ static int set_binary(BIO *bio, const char *key, size_t size) {
     if (response.message.header.response.status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         fprintf(stdout, "Stored %s with %lu bytes\n", key, (unsigned long)size);
     } else {
-        uint16_t err = ntohs(response.message.header.response.status);
+        protocol_binary_response_status err =
+            protocol_binary_response_status(ntohs(response.message.header.response.status));
         fprintf(stderr, "Error from server: ");
         fprintf(stderr, "%s\n",  memcached_status_2_text(err));
         if (buffer != NULL) {
@@ -168,6 +168,7 @@ int main(int argc, char** argv) {
             tcp_nodelay = true;
             break;
         case 'h' :
+            cb_assert(optarg != NULL); // clang static (as per above comment)
             host = optarg;
             ptr = strchr(optarg, ':');
             if (ptr != NULL) {

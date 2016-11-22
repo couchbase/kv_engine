@@ -67,7 +67,7 @@ static void request_stat(BIO *bio, const char *key)
         const uint16_t keylen = ntohs(response.message.header.response.keylen);
         const uint32_t bodylen = ntohl(response.message.header.response.bodylen);
         if (bodylen > buffsize) {
-            if ((buffer = cb_realloc(buffer, bodylen)) == NULL) {
+            if ((buffer = static_cast<char*>(cb_realloc(buffer, bodylen))) == NULL) {
                 fprintf(stderr, "Failed to allocate memory\n");
                 exit(1);
             }
@@ -80,7 +80,8 @@ static void request_stat(BIO *bio, const char *key)
         if (response.message.header.response.status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             print(buffer, keylen, buffer + keylen, bodylen - keylen);
         } else {
-            uint16_t err = ntohs(response.message.header.response.status);
+            protocol_binary_response_status err =
+                protocol_binary_response_status(ntohs(response.message.header.response.status));
             fprintf(stderr, "Error from server requesting stat");
             if (keylen > 0) {
                 fprintf(stderr, " '%s': ", key);

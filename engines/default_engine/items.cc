@@ -142,7 +142,8 @@ hash_item *do_item_alloc(struct default_engine *engine,
         }
     }
 
-    if (it == NULL && (it = slabs_alloc(engine, ntotal, id)) == NULL) {
+    if (it == NULL &&
+        (it = static_cast<hash_item*>(slabs_alloc(engine, ntotal, id))) == NULL) {
         /*
         ** Could not find an expired item at the tail, and memory allocation
         ** failed. Try to evict some items!
@@ -195,7 +196,7 @@ hash_item *do_item_alloc(struct default_engine *engine,
                 break;
             }
         }
-        it = slabs_alloc(engine, ntotal, id);
+        it = static_cast<hash_item*>(slabs_alloc(engine, ntotal, id));
         if (it == 0) {
             engine->items.itemstats[id].outofmemory++;
             /* Last ditch effort. There is a very rare bug which causes
@@ -214,7 +215,7 @@ hash_item *do_item_alloc(struct default_engine *engine,
                     break;
                 }
             }
-            it = slabs_alloc(engine, ntotal, id);
+            it = static_cast<hash_item*>(slabs_alloc(engine, ntotal, id));
             if (it == 0) {
                 return NULL;
             }
@@ -439,7 +440,8 @@ static void do_item_stats_sizes(struct default_engine *engine,
 
     /* max 1MB object, divided into 32 bytes size buckets */
     const int num_buckets = 32768;
-    unsigned int *histogram = cb_calloc(num_buckets, sizeof(unsigned int));
+    unsigned int* histogram = static_cast<unsigned int*>
+        (cb_calloc(num_buckets, sizeof(unsigned int)));
 
     if (histogram != NULL) {
         int i;
@@ -489,7 +491,8 @@ hash_item *do_item_get(struct default_engine *engine,
 
     if (engine->config.verbose > 2) {
         EXTENSION_LOGGER_DESCRIPTOR *logger;
-        logger = (void*)engine->server.extension->get_extension(EXTENSION_LOGGER);
+        logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
+            (engine->server.extension->get_extension(EXTENSION_LOGGER));
         if (it == NULL) {
             logger->log(EXTENSION_LOG_DEBUG, NULL,
                         "> NOT FOUND in bucket %d, %s",
@@ -513,7 +516,8 @@ hash_item *do_item_get(struct default_engine *engine,
 
     if (it == NULL && was_found) {
         EXTENSION_LOGGER_DESCRIPTOR *logger;
-        logger = (void*)engine->server.extension->get_extension(EXTENSION_LOGGER);
+        logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
+            (engine->server.extension->get_extension(EXTENSION_LOGGER));
         logger->log(EXTENSION_LOG_DEBUG, NULL, " -nuked by flush");
         was_found--;
     }
@@ -525,7 +529,8 @@ hash_item *do_item_get(struct default_engine *engine,
 
     if (it == NULL && was_found) {
         EXTENSION_LOGGER_DESCRIPTOR *logger;
-        logger = (void*)engine->server.extension->get_extension(EXTENSION_LOGGER);
+        logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
+            (engine->server.extension->get_extension(EXTENSION_LOGGER));
         logger->log(EXTENSION_LOG_DEBUG, NULL, " -nuked by expire");
         was_found--;
     }
@@ -576,9 +581,10 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
         } else {
             if (engine->config.verbose > 1) {
                 EXTENSION_LOGGER_DESCRIPTOR *logger;
-                logger = (void*)engine->server.extension->get_extension(EXTENSION_LOGGER);
+                logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
+                    (engine->server.extension->get_extension(EXTENSION_LOGGER));
                 logger->log(EXTENSION_LOG_INFO, NULL,
-                        "CAS:  failure: expected %"PRIu64", got %"PRIu64"\n",
+                        "CAS:  failure: expected %" PRIu64", got %" PRIu64"\n",
                         item_get_cas(old_it),
                         item_get_cas(it));
             }
@@ -845,7 +851,8 @@ static ENGINE_ERROR_CODE item_scrub(struct default_engine *engine,
     if (engine->scrubber.force_delete && item->refcount > 0) {
         // warn that someone isn't releasing items before deleting their bucket.
         EXTENSION_LOGGER_DESCRIPTOR* logger;
-        logger = (void*)engine->server.extension->get_extension(EXTENSION_LOGGER);
+        logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
+            (engine->server.extension->get_extension(EXTENSION_LOGGER));
         logger->log(EXTENSION_LOG_WARNING, NULL,
                     "Bucket (%d) deletion is removing an item with refcount %d",
                      engine->bucket_id,
@@ -936,7 +943,7 @@ struct tap_client {
 static ENGINE_ERROR_CODE item_tap_iterfunc(struct default_engine *engine,
                                     hash_item *item,
                                     void *cookie) {
-    struct tap_client *client = cookie;
+    struct tap_client* client = static_cast<struct tap_client*>(cookie);
     client->it = item;
     ++client->it->refcount;
     return ENGINE_SUCCESS;
@@ -949,7 +956,8 @@ static tap_event_t do_item_tap_walker(struct default_engine *engine,
                                          uint16_t *vbucket)
 {
     ENGINE_ERROR_CODE r;
-    struct tap_client *client = engine->server.cookie->get_engine_specific(cookie);
+    struct tap_client *client =
+        static_cast<struct tap_client*>(engine->server.cookie->get_engine_specific(cookie));
     if (client == NULL) {
         return TAP_DISCONNECT;
     }
@@ -1004,7 +1012,8 @@ bool initialize_item_tap_walker(struct default_engine *engine,
 {
     bool linked = false;
     int ii;
-    struct tap_client *client = cb_calloc(1, sizeof(*client));
+    struct tap_client* client = static_cast<struct tap_client*>
+        (cb_calloc(1, sizeof(*client)));
     if (client == NULL) {
         return false;
     }
@@ -1047,7 +1056,8 @@ void link_dcp_walker(struct default_engine *engine,
 static ENGINE_ERROR_CODE item_dcp_iterfunc(struct default_engine *engine,
                                            hash_item *item,
                                            void *cookie) {
-    struct dcp_connection *connection = cookie;
+    struct dcp_connection* connection =
+        static_cast<struct dcp_connection*>(cookie);
     connection->it = item;
     ++connection->it->refcount;
     return ENGINE_SUCCESS;
@@ -1129,7 +1139,8 @@ static bool hash_key_create(hash_key* hkey,
 
     int hash_key_len = sizeof(bucket_id_t) + nkey;
     if (nkey > sizeof(hkey->key_storage.client_key)) {
-        hkey->header.full_key = cb_malloc(hash_key_len);
+        hkey->header.full_key =
+            static_cast<hash_key_data*>(cb_malloc(hash_key_len));
         if (hkey->header.full_key == NULL) {
             return false;
         }
