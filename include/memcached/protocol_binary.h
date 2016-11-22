@@ -1666,6 +1666,19 @@ using protocol_binary_hello_features_t = mcbp::Feature;
      */
 #define SKIP_CONFLICT_RESOLUTION_FLAG 0x01
 
+    /**
+     * This flag is used to indicate that the *_with_meta should be accepted
+     * regardless of the bucket config. LWW buckets require this.
+     */
+#define FORCE_ACCEPT_WITH_META_OPS 0x02
+
+    /**
+     * This flag asks that the server regenerates the CAS. The server requires
+     * that SKIP_CONFLICT_RESOLUTION_FLAG is set along with this option.
+     */
+#define REGENERATE_CAS 0x04
+
+
 #define SET_RET_META 1
 #define ADD_RET_META 2
 #define DEL_RET_META 3
