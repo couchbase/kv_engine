@@ -18,9 +18,11 @@
 #include "user.h"
 
 #include <fstream>
+#include <iostream>
 #include <iterator>
 #include <platform/memorymap.h>
 #include <sstream>
+
 
 void cbsasl_pwconv(std::istream& is, std::ostream& os) {
     unique_cJSON_ptr root(cJSON_CreateObject());
@@ -74,6 +76,19 @@ void cbsasl_pwconv(const std::string& ifile, const std::string& ofile) {
 }
 
 std::string cbsasl_read_password_file(const std::string& filename) {
+    if (filename == "-") {
+        std::string contents;
+        try {
+            contents.assign(std::istreambuf_iterator<char>{std::cin},
+                            std::istreambuf_iterator<char>());
+        } catch (const std::exception& ex) {
+            std::cerr << "Failed to read password database from stdin: "
+                      << ex.what() << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        return contents;
+    }
+
     cb::MemoryMappedFile map(filename.c_str(),
                              cb::MemoryMappedFile::Mode::RDONLY);
     map.open();
@@ -102,6 +117,12 @@ std::string cbsasl_read_password_file(const std::string& filename) {
 
 void cbsasl_write_password_file(const std::string& filename,
                                 const std::string& content) {
+    if (filename == "-") {
+        std::cout.write(content.data(), content.size());
+        std::cout.flush();
+        return;
+    }
+
     std::ofstream of(filename, std::ios::binary);
 
     auto* env = getenv("COUCHBASE_CBSASL_SECRETS");
