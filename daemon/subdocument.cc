@@ -87,122 +87,140 @@ static void subdoc_print_command(Connection* c, protocol_binary_command cmd,
 /*
  * Definitions
  */
+static void create_single_path_context(SubdocCmdContext* context,
+                                       McbpConnection* c,
+                                       const SubdocCmdTraits traits,
+                                       const void* packet,
+                                       const_char_buffer value) {
+    const protocol_binary_request_subdocument *req =
+        reinterpret_cast<const protocol_binary_request_subdocument*>(packet);
 
-static SubdocCmdContext*
-subdoc_create_context(McbpConnection* c, const SubdocCmdTraits traits,
-                      const void* packet, const_char_buffer value) {
+    const protocol_binary_subdoc_flag flags =
+        static_cast<protocol_binary_subdoc_flag>(req->message.extras.subdoc_flags);
+    const protocol_binary_command mcbp_cmd =
+        protocol_binary_command(req->message.header.request.opcode);
+    const uint16_t pathlen = ntohs(req->message.extras.pathlen);
 
+    // Path is the first thing in the value; remainder is the operation
+    // value.
+    auto path = value;
+    path.len = pathlen;
+
+    // Decode as single path; add a single operation to the context.
+    if (traits.request_has_value) {
+        // Adjust value to move past the path.
+        value.buf += pathlen;
+        value.len -= pathlen;
+
+        context->ops.emplace_back
+            (SubdocCmdContext::OperationSpec{traits, flags, path, value});
+    } else {
+        context->ops.emplace_back
+            (SubdocCmdContext::OperationSpec{traits, flags, path});
+    }
+
+    if (flags & SUBDOC_FLAG_MKDOC) {
+        context->jroot_type =
+            Subdoc::Util::get_root_type(traits.command, path.buf, path.len);
+    }
+
+    if (settings.getVerbose() > 1) {
+        const uint8_t extlen = req->message.header.request.extlen;
+        const char* key = (char*)packet + sizeof(req->message.header) + extlen;
+        const uint16_t keylen = ntohs(req->message.header.request.keylen);
+
+        subdoc_print_command(c, mcbp_cmd, key, keylen,
+                             path.buf, path.len, value.buf, value.len);
+    }
+}
+
+static void create_multi_path_context(SubdocCmdContext* context,
+                                      McbpConnection* c,
+                                      const SubdocCmdTraits traits,
+                                      const void* packet,
+                                      const_char_buffer value) {
+
+    // Decode each of lookup specs from the value into our command context.
+    size_t offset = 0;
+
+    while (offset < value.len) {
+        protocol_binary_command binprot_cmd;
+        protocol_binary_subdoc_flag flags;
+        size_t headerlen;
+        const_char_buffer path;
+        const_char_buffer spec_value;
+        if (traits.is_mutator) {
+            auto* spec = reinterpret_cast<const protocol_binary_subdoc_multi_mutation_spec*>
+                (value.buf + offset);
+            headerlen = sizeof(*spec);
+            binprot_cmd = protocol_binary_command(spec->opcode);
+            flags = protocol_binary_subdoc_flag(spec->flags);
+            path = {value.buf + offset + headerlen,
+                    htons(spec->pathlen)};
+            spec_value = {value.buf + offset + headerlen + path.len,
+                          htonl(spec->valuelen)};
+
+        } else {
+            auto* spec = reinterpret_cast<const protocol_binary_subdoc_multi_lookup_spec*>
+                (value.buf + offset);
+            headerlen = sizeof(*spec);
+            binprot_cmd = protocol_binary_command(spec->opcode);
+            flags = protocol_binary_subdoc_flag(spec->flags);
+            path = {value.buf + offset + headerlen,
+                    htons(spec->pathlen)};
+            spec_value = {nullptr, 0};
+        }
+
+        auto traits = get_subdoc_cmd_traits(binprot_cmd);
+        if ((flags & SUBDOC_FLAG_MKDOC) && context->jroot_type == 0) {
+            // Determine the root type
+            context->jroot_type =
+                Subdoc::Util::get_root_type(traits.command, path.buf, path.len);
+        }
+
+        context->ops.emplace_back
+            (SubdocCmdContext::OperationSpec{traits, flags, path,
+                                             spec_value});
+
+        offset += headerlen + path.len + spec_value.len;
+    }
+
+    if (settings.getVerbose() > 1) {
+        const protocol_binary_request_subdocument *req =
+            reinterpret_cast<const protocol_binary_request_subdocument*>(packet);
+
+        const protocol_binary_command mcbp_cmd =
+            protocol_binary_command(req->message.header.request.opcode);
+
+        const uint8_t extlen = req->message.header.request.extlen;
+        const char* key = (char*)packet + sizeof(req->message.header) + extlen;
+        const uint16_t keylen = ntohs(req->message.header.request.keylen);
+
+        const char path[] = "<multipath>";
+        subdoc_print_command(c, mcbp_cmd, key, keylen,
+                             path, strlen(path), value.buf, value.len);
+    }
+}
+
+
+static SubdocCmdContext* subdoc_create_context(McbpConnection* c,
+                                               const SubdocCmdTraits traits,
+                                               const void* packet,
+                                               const_char_buffer value) {
     try {
-        auto* context = new SubdocCmdContext(c, traits);
-
+        std::unique_ptr<SubdocCmdContext> context;
+        context.reset(new SubdocCmdContext(c, traits));
         switch (traits.path) {
-        case SubdocPath::SINGLE: {
-            const protocol_binary_request_subdocument *req =
-                    reinterpret_cast<const protocol_binary_request_subdocument*>(packet);
+        case SubdocPath::SINGLE:
+            create_single_path_context(context.get(), c, traits, packet, value);
+            break;
 
-            const protocol_binary_subdoc_flag flags =
-                    static_cast<protocol_binary_subdoc_flag>(req->message.extras.subdoc_flags);
-            const protocol_binary_command mcbp_cmd =
-                    protocol_binary_command(req->message.header.request.opcode);
-            const uint16_t pathlen = ntohs(req->message.extras.pathlen);
-
-            // Path is the first thing in the value; remainder is the operation
-            // value.
-            auto path = value;
-            path.len = pathlen;
-
-            // Decode as single path; add a single operation to the context.
-            if (traits.request_has_value) {
-                // Adjust value to move past the path.
-                value.buf += pathlen;
-                value.len -= pathlen;
-
-                context->ops.emplace_back
-                    (SubdocCmdContext::OperationSpec{traits, flags, path, value});
-            } else {
-                context->ops.emplace_back
-                    (SubdocCmdContext::OperationSpec{traits, flags, path});
-            }
-
-            if (flags & SUBDOC_FLAG_MKDOC) {
-                context->jroot_type =
-                        Subdoc::Util::get_root_type(traits.command, path.buf, path.len);
-            }
-
-            if (settings.getVerbose() > 1) {
-                const uint8_t extlen = req->message.header.request.extlen;
-                const char* key = (char*)packet + sizeof(req->message.header) + extlen;
-                const uint16_t keylen = ntohs(req->message.header.request.keylen);
-
-                subdoc_print_command(c, mcbp_cmd, key, keylen,
-                                     path.buf, path.len, value.buf, value.len);
-            }
+        case SubdocPath::MULTI:
+            create_multi_path_context(context.get(), c, traits, packet, value);
             break;
         }
 
-        case SubdocPath::MULTI: {
-            // Decode each of lookup specs from the value into our command context.
-            size_t offset = 0;
-
-            while (offset < value.len) {
-                protocol_binary_command binprot_cmd;
-                protocol_binary_subdoc_flag flags;
-                size_t headerlen;
-                const_char_buffer path;
-                const_char_buffer spec_value;
-                if (traits.is_mutator) {
-                    auto* spec = reinterpret_cast<const protocol_binary_subdoc_multi_mutation_spec*>
-                        (value.buf + offset);
-                    headerlen = sizeof(*spec);
-                    binprot_cmd = protocol_binary_command(spec->opcode);
-                    flags = protocol_binary_subdoc_flag(spec->flags);
-                    path = {value.buf + offset + headerlen,
-                                 htons(spec->pathlen)};
-                    spec_value = {value.buf + offset + headerlen + path.len,
-                                  htonl(spec->valuelen)};
-
-                } else {
-                    auto* spec = reinterpret_cast<const protocol_binary_subdoc_multi_lookup_spec*>
-                        (value.buf + offset);
-                    headerlen = sizeof(*spec);
-                    binprot_cmd = protocol_binary_command(spec->opcode);
-                    flags = protocol_binary_subdoc_flag(spec->flags);
-                    path = {value.buf + offset + headerlen,
-                            htons(spec->pathlen)};
-                    spec_value = {nullptr, 0};
-                }
-
-                auto traits = get_subdoc_cmd_traits(binprot_cmd);
-                if ((flags & SUBDOC_FLAG_MKDOC) && context->jroot_type == 0) {
-                    // Determine the root type
-                    context->jroot_type =
-                            Subdoc::Util::get_root_type(traits.command, path.buf, path.len);
-                }
-
-                context->ops.emplace_back
-                    (SubdocCmdContext::OperationSpec{traits, flags, path,
-                                                     spec_value});
-
-                offset += headerlen + path.len + spec_value.len;
-            }
-
-            if (settings.getVerbose() > 1) {
-                const protocol_binary_request_subdocument *req =
-                        reinterpret_cast<const protocol_binary_request_subdocument*>(packet);
-
-                const protocol_binary_command mcbp_cmd =
-                        protocol_binary_command(req->message.header.request.opcode);
-
-                const uint8_t extlen = req->message.header.request.extlen;
-                const char* key = (char*)packet + sizeof(req->message.header) + extlen;
-                const uint16_t keylen = ntohs(req->message.header.request.keylen);
-
-                const char path[] = "<multipath>";
-                subdoc_print_command(c, mcbp_cmd, key, keylen,
-                                     path, strlen(path), value.buf, value.len);
-            }
-        }}
-        return context;
+        return context.release();
     } catch (std::bad_alloc&) {
         return nullptr;
     }
