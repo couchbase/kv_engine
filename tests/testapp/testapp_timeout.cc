@@ -24,6 +24,18 @@
 static const int idle_time = 2;
 static const int wait_time = 3;
 
+static bool isConnReset(int ec) {
+    if (ec == ECONNABORTED || ec == ECONNRESET) {
+        return true;
+    }
+#ifdef WIN32
+    if (ec == WSAECONNABORTED || ec == WSAECONNRESET) {
+        return true;
+    }
+#endif
+    return false;
+}
+
 /**
  * The connection timeout tests tries to verify that the idle-timer
  * don't kill admin connections. Note that we don't have explicit tests
@@ -82,7 +94,7 @@ protected:
             }
 
             EXPECT_EQ(std::system_category(), e.code().category());
-            EXPECT_EQ(ECONNRESET, e.code().value());
+            EXPECT_TRUE(isConnReset(e.code().value()));
         }
     }
 
