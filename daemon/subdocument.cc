@@ -300,6 +300,10 @@ static void subdoc_executor(McbpConnection *c, const void *packet,
         if (context == nullptr) {
             const_char_buffer value_buf{value, vallen};
             context = subdoc_create_context(c, traits, packet, value_buf);
+            if (context == nullptr) {
+                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+                return;
+            }
             c->setCommandContext(context);
         }
 
