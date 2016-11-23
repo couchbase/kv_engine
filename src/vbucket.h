@@ -481,7 +481,7 @@ public:
     void addStats(bool details, ADD_STAT add_stat, const void *c,
                   item_eviction_policy_t policy);
 
-    size_t getNumItems(item_eviction_policy_t policy);
+    size_t getNumItems(item_eviction_policy_t policy) const;
 
     size_t getNumNonResidentItems(item_eviction_policy_t policy);
 

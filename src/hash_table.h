@@ -169,7 +169,7 @@ public:
      * Note that this will be equal to getNumItems() if
      * VALUE_ONLY_EVICTION is chosen as a cache management.
      */
-    size_t getNumItems(void) {
+    size_t getNumItems(void) const {
         return numTotalItems;
     }
 

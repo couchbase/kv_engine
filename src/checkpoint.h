@@ -743,7 +743,7 @@ public:
      * has yet to process (i.e. between the cursor's current position and the
      * end of the last checkpoint).
      */
-    size_t getNumItemsForCursor(const std::string &name);
+    size_t getNumItemsForCursor(const std::string &name) const;
 
     void clear(vbucket_state_t vbState) {
         LockHolder lh(queueLock);
@@ -910,7 +910,7 @@ private:
                             bool alwaysFromBeginning,
                             MustSendCheckpointEnd needsCheckpointEndMetaItem);
 
-    size_t getNumItemsForCursor_UNLOCKED(const std::string &name);
+    size_t getNumItemsForCursor_UNLOCKED(const std::string &name) const;
 
     void clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno);
 

@@ -5683,10 +5683,18 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
     }
 
     DcpProducer* producer = dynamic_cast<DcpProducer*>(conn.get());
-    if (!producer) {
+    if (producer) {
+        producer->addTakeoverStats(add_stat, cookie, *vb);
+    } else {
+        /**
+          * There is not a legitimate case where a connection is not a
+          * DcpProducer.  But just in case it does happen log the event and
+          * return ENGINE_KEY_ENOENT.
+          */
+        LOG(EXTENSION_LOG_WARNING, "doDcpVbTakeoverStats: connection %s for "
+            "vb:%" PRIu16 " is not a DcpProducer", dcpName.c_str(), vbid);
         return ENGINE_KEY_ENOENT;
     }
-    producer->addTakeoverStats(add_stat, cookie, vbid);
 
     return ENGINE_SUCCESS;
 }

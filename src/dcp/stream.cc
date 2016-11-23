@@ -637,13 +637,22 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
     }
 }
 
-void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
+void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie,
+                                    const VBucket& vb) {
     LockHolder lh(streamMutex);
 
-    RCPtr<VBucket> vb = engine->getVBucket(vb_);
     add_casted_stat("name", name_, add_stat, cookie);
-    if (!vb || state_ == STREAM_DEAD) {
-        add_casted_stat("status", "completed", add_stat, cookie);
+    if (state_ == STREAM_DEAD) {
+        /**
+         *  There is not a legitimate case where the stream is already dead.
+         *  ns-server cleans-up old streams towards the end of a vbucket move.
+         *
+         *  But just in case it does happen: log the event and return status of
+         *  does_not_exist to ensure rebalance does not hang.
+         */
+        LOG(EXTENSION_LOG_WARNING, "ActiveStream::addTakeoverStats: "
+            "Stream %s has the state of STREAM_DEAD", name_.c_str());
+        add_casted_stat("status", "does_not_exist", add_stat, cookie);
         add_casted_stat("estimate", 0, add_stat, cookie);
         add_casted_stat("backfillRemaining", 0, add_stat, cookie);
         return;
@@ -660,9 +669,9 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
                     add_stat, cookie);
 
     item_eviction_policy_t iep = engine->getKVBucket()->getItemEvictionPolicy();
-    size_t vb_items = vb->getNumItems(iep);
+    size_t vb_items = vb.getNumItems(iep);
     size_t chk_items = vb_items > 0 ?
-                vb->checkpointManager.getNumItemsForCursor(name_) : 0;
+                vb.checkpointManager.getNumItemsForCursor(name_) : 0;
 
     size_t del_items = 0;
     try {

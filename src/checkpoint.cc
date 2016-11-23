@@ -1440,14 +1440,15 @@ uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(bool forceCreation,
     return checkpoint_id;
 }
 
-size_t CheckpointManager::getNumItemsForCursor(const std::string &name) {
+size_t CheckpointManager::getNumItemsForCursor(const std::string &name) const {
     LockHolder lh(queueLock);
     return getNumItemsForCursor_UNLOCKED(name);
 }
 
-size_t CheckpointManager::getNumItemsForCursor_UNLOCKED(const std::string &name) {
+size_t CheckpointManager::getNumItemsForCursor_UNLOCKED(
+                                                const std::string &name) const {
     size_t remains = 0;
-    cursor_index::iterator it = connCursors.find(name);
+    cursor_index::const_iterator it = connCursors.find(name);
     if (it != connCursors.end()) {
         size_t offset = it->second.offset + getNumOfMetaItemsFromCursor(it->second);
         remains = (numItems > offset) ? numItems - offset : 0;

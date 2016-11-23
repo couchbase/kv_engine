@@ -794,17 +794,12 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
 }
 
 void DcpProducer::addTakeoverStats(ADD_STAT add_stat, const void* c,
-                                   uint16_t vbid) {
+                                   const VBucket& vb) {
 
-    auto stream = findStream(vbid);
+    auto stream = findStream(vb.getId());
     if (stream && stream->getType() == STREAM_ACTIVE) {
         ActiveStream* as = static_cast<ActiveStream*>(stream.get());
-        if (as) {
-            if (as->getState() == STREAM_DEAD) {
-                return;
-            }
-            as->addTakeoverStats(add_stat, c);
-        }
+        as->addTakeoverStats(add_stat, c, vb);
     }
 }
 

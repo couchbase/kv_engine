@@ -57,7 +57,7 @@ public:
 
     void addStats(ADD_STAT add_stat, const void *c);
 
-    void addTakeoverStats(ADD_STAT add_stat, const void* c, uint16_t vbid);
+    void addTakeoverStats(ADD_STAT add_stat, const void* c, const VBucket& vb);
 
     void aggregateQueueStats(ConnCounter& aggregator);
 

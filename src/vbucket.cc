@@ -541,7 +541,7 @@ size_t VBucket::getCheckpointFlushTimeout() {
     return chkFlushTimeout;
 }
 
-size_t VBucket::getNumItems(item_eviction_policy_t policy) {
+size_t VBucket::getNumItems(item_eviction_policy_t policy) const {
     if (policy == VALUE_ONLY) {
         return ht.getNumInMemoryItems();
     } else {
