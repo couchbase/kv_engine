@@ -17,6 +17,8 @@
 
 #include "config.h"
 
+#include <platform/make_unique.h>
+
 #include <vector>
 
 #include "kvbucket.h"
@@ -25,31 +27,11 @@
 
 VBucketMap::VBucketMap(Configuration& config,
                        KVBucket& store) :
-    bucketDeletion(new std::atomic<bool>[config.getMaxVbuckets()]),
-    bucketCreation(new std::atomic<bool>[config.getMaxVbuckets()]),
-    persistenceSeqnos(new std::atomic<uint64_t>[config.getMaxVbuckets()]),
-    size(config.getMaxVbuckets())
+                       size(config.getMaxVbuckets())
 {
     WorkLoadPolicy &workload = store.getEPEngine().getWorkLoadPolicy();
     for (size_t shardId = 0; shardId < workload.getNumShards(); shardId++) {
-        KVShard *shard = new KVShard(shardId, store);
-        shards.push_back(shard);
-    }
-
-    for (size_t i = 0; i < size; ++i) {
-        bucketDeletion[i].store(false);
-        bucketCreation[i].store(false);
-        persistenceSeqnos[i].store(0);
-    }
-}
-
-VBucketMap::~VBucketMap() {
-    delete[] bucketDeletion;
-    delete[] bucketCreation;
-    delete[] persistenceSeqnos;
-    while (!shards.empty()) {
-        delete shards.back();
-        shards.pop_back();
+        shards.push_back(std::make_unique<KVShard>(shardId, store));
     }
 }
 
@@ -86,7 +68,7 @@ void VBucketMap::removeBucket(id_type id) {
 std::vector<VBucketMap::id_type> VBucketMap::getBuckets(void) const {
     std::vector<id_type> rv;
     for (id_type i = 0; i < size; ++i) {
-        RCPtr<VBucket> b(getShardByVbId(i)->getBucket(i));
+        RCPtr<VBucket> b(getBucket(i));
         if (b) {
             rv.push_back(b->getId());
         }
@@ -99,7 +81,7 @@ std::vector<VBucketMap::id_type> VBucketMap::getBucketsSortedByState(void) const
     for (int state = vbucket_state_active;
          state <= vbucket_state_dead; ++state) {
         for (size_t i = 0; i < size; ++i) {
-            RCPtr<VBucket> b = getShardByVbId(i)->getBucket(i);
+            RCPtr<VBucket> b = getBucket(i);
             if (b && b->getState() == state) {
                 rv.push_back(b->getId());
             }
@@ -112,7 +94,7 @@ std::vector<std::pair<VBucketMap::id_type, size_t> >
 VBucketMap::getActiveVBucketsSortedByChkMgrMem(void) const {
     std::vector<std::pair<id_type, size_t> > rv;
     for (id_type i = 0; i < size; ++i) {
-        RCPtr<VBucket> b = getShardByVbId(i)->getBucket(i);
+        RCPtr<VBucket> b = getBucket(i);
         if (b && b->getState() == vbucket_state_active) {
             rv.push_back(std::make_pair(b->getId(), b->getChkMgrMemUsage()));
         }
@@ -130,57 +112,6 @@ VBucketMap::getActiveVBucketsSortedByChkMgrMem(void) const {
     return rv;
 }
 
-
-VBucketMap::id_type VBucketMap::getSize(void) const {
-    return size;
-}
-
-bool VBucketMap::isBucketDeletion(id_type id) const {
-    return bucketDeletion[id].load();
-}
-
-bool VBucketMap::setBucketDeletion(id_type id, bool delBucket) {
-    bool inverse = !delBucket;
-    return bucketDeletion[id].compare_exchange_strong(inverse, delBucket);
-}
-
-bool VBucketMap::isBucketCreation(id_type id) const {
-    return bucketCreation[id].load();
-}
-
-bool VBucketMap::setBucketCreation(id_type id, bool rv) {
-    bool inverse = !rv;
-    return bucketCreation[id].compare_exchange_strong(inverse, rv);
-}
-
-uint64_t VBucketMap::getPersistenceCheckpointId(id_type id) const {
-    if (id < size) {
-        auto vb = getBucket(id);
-        if (vb) {
-            return vb->getPersistenceCheckpointId();
-        }
-    }
-    return {};
-}
-
-void VBucketMap::setPersistenceCheckpointId(id_type id,
-                                            uint64_t checkpointId) {
-    if (id < size) {
-        auto vb = getBucket(id);
-        if (vb) {
-            vb->setPersistenceCheckpointId(checkpointId);
-        }
-    }
-}
-
-uint64_t VBucketMap::getPersistenceSeqno(id_type id) const {
-    return persistenceSeqnos[id].load();
-}
-
-void VBucketMap::setPersistenceSeqno(id_type id, uint64_t seqno) {
-    persistenceSeqnos[id].store(seqno);
-}
-
 void VBucketMap::addBuckets(const std::vector<VBucket*> &newBuckets) {
     std::vector<VBucket*>::const_iterator it;
     for (it = newBuckets.begin(); it != newBuckets.end(); ++it) {
@@ -190,11 +121,11 @@ void VBucketMap::addBuckets(const std::vector<VBucket*> &newBuckets) {
 }
 
 KVShard* VBucketMap::getShardByVbId(id_type id) const {
-    return shards[id % shards.size()];
+    return shards[id % shards.size()].get();
 }
 
 KVShard* VBucketMap::getShard(KVShard::id_type shardId) const {
-    return shards[shardId];
+    return shards[shardId].get();
 }
 
 size_t VBucketMap::getNumShards() const {

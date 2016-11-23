@@ -165,7 +165,11 @@ VBucket::VBucket(id_type i,
       hlc(maxCas,
           std::chrono::microseconds(config.getHlcDriftAheadThresholdUs()),
           std::chrono::microseconds(config.getHlcDriftBehindThresholdUs())),
-      statPrefix("vb_" + std::to_string(i))
+      statPrefix("vb_" + std::to_string(i)),
+      persistenceCheckpointId(0),
+      bucketCreation(false),
+      bucketDeletion(false),
+      persistenceSeqno(0)
 {
     backfill.isBackfillPhase = false;
     pendingOpsStart = 0;

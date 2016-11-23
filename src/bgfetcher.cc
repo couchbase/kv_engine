@@ -109,19 +109,19 @@ bool BgFetcher::run(GlobalTask *task) {
     }
 
     for (const uint16_t vbId : bg_vbs) {
-        if (store->getVBuckets().isBucketCreation(vbId)) {
-            // Requeue the bg fetch task if a vbucket DB file is not
-            // created yet.
-            {
-                LockHolder lh(queueMutex);
-                pendingVbs.insert(vbId);
-            }
-            bool inverse = false;
-            pendingFetch.compare_exchange_strong(inverse, true);
-            continue;
-        }
         RCPtr<VBucket> vb = shard->getBucket(vbId);
         if (vb) {
+            // Requeue the bg fetch task if vbucket DB file is not created yet.
+            if (vb->isBucketCreation()) {
+                {
+                    LockHolder lh(queueMutex);
+                    pendingVbs.insert(vbId);
+                }
+                bool inverse = false;
+                pendingFetch.compare_exchange_strong(inverse, true);
+                continue;
+            }
+
             auto items = vb->getBGFetchItems();
             if (items.size() > 0) {
                 num_fetched_items += doFetch(vbId, items);

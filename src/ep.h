@@ -406,11 +406,21 @@ public:
     }
 
     uint64_t getLastPersistedCheckpointId(uint16_t vb) {
-        return vbMap.getPersistenceCheckpointId(vb);
+        auto vbucket = vbMap.getBucket(vb);
+        if (vbucket) {
+            return vbucket->getPersistenceCheckpointId();
+        } else {
+            return 0;
+        }
     }
 
     uint64_t getLastPersistedSeqno(uint16_t vb) {
-        return vbMap.getPersistenceSeqno(vb);
+        auto vbucket = vbMap.getBucket(vb);
+        if (vbucket) {
+            return vbucket->getPersistenceSeqno();
+        } else {
+            return 0;
+        }
     }
 
     /* transfer should be set to true *only* if this vbucket is becoming master

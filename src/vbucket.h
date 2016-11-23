@@ -30,6 +30,7 @@
 #include "stored-value.h"
 #include "utility.h"
 
+#include <atomic>
 #include <queue>
 
 class BgFetcher;
@@ -229,6 +230,35 @@ public:
     void setTakeoverBackedUpState(bool to) {
         bool inverse = !to;
         takeover_backed_up.compare_exchange_strong(inverse, to);
+    }
+
+    // States whether the VBucket is in the process of being created
+    bool isBucketCreation() const {
+        return bucketCreation.load();
+    }
+
+    bool setBucketCreation(bool rv) {
+        bool inverse = !rv;
+        return bucketCreation.compare_exchange_strong(inverse, rv);
+    }
+
+    // States whether the VBucket is in the process of being deleted
+    bool isBucketDeletion() const {
+        return bucketDeletion.load();
+    }
+
+    bool setBucketDeletion(bool delBucket) {
+        bool inverse = !delBucket;
+        return bucketDeletion.compare_exchange_strong(inverse, delBucket);
+    }
+
+    // Returns the last persisted sequence number for the VBucket
+    uint64_t getPersistenceSeqno() const {
+        return persistenceSeqno.load();
+    }
+
+    void setPersistenceSeqno(uint64_t seqno) {
+        persistenceSeqno.store(seqno);
     }
 
     id_type getId() const { return id; }
@@ -522,6 +552,11 @@ private:
     std::string statPrefix;
     // The persistence checkpoint ID for this vbucket.
     std::atomic<uint64_t> persistenceCheckpointId;
+    // Flag to indicate the bucket is being created
+    std::atomic<bool> bucketCreation;
+    // Flag to indicate the bucket is being deleted
+    std::atomic<bool> bucketDeletion;
+    std::atomic<uint64_t> persistenceSeqno;
 
     static std::atomic<size_t> chkFlushTimeout;
 

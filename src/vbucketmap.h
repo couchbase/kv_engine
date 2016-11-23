@@ -50,7 +50,6 @@ public:
     typedef VBucket::id_type id_type;
 
     VBucketMap(Configuration& config, KVBucket& store);
-    ~VBucketMap();
 
     ENGINE_ERROR_CODE addBucket(const RCPtr<VBucket> &b);
     void removeBucket(id_type id);
@@ -59,18 +58,10 @@ public:
 
     // Returns the size of the map, i.e. the total number of VBuckets it can
     // contain.
-    id_type getSize() const;
+    id_type getSize() const {return size;}
     std::vector<id_type> getBuckets(void) const;
     std::vector<id_type> getBucketsSortedByState(void) const;
     std::vector<std::pair<id_type, size_t> > getActiveVBucketsSortedByChkMgrMem(void) const;
-    bool isBucketDeletion(id_type id) const;
-    bool setBucketDeletion(id_type id, bool delBucket);
-    bool isBucketCreation(id_type id) const;
-    bool setBucketCreation(id_type id, bool rv);
-    uint64_t getPersistenceCheckpointId(id_type id) const;
-    void setPersistenceCheckpointId(id_type id, uint64_t checkpointId);
-    uint64_t getPersistenceSeqno(id_type id) const;
-    void setPersistenceSeqno(id_type id, uint64_t seqno);
     KVShard* getShardByVbId(id_type id) const;
     KVShard* getShard(KVShard::id_type shardId) const;
     size_t getNumShards() const;
@@ -79,10 +70,8 @@ public:
 
 private:
 
-    std::vector<KVShard*> shards;
-    std::atomic<bool> *bucketDeletion;
-    std::atomic<bool> *bucketCreation;
-    std::atomic<uint64_t> *persistenceSeqnos;
+    std::vector<std::unique_ptr<KVShard>> shards;
+
     const id_type size;
 
     DISALLOW_COPY_AND_ASSIGN(VBucketMap);

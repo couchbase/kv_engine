@@ -4465,10 +4465,7 @@ void EventuallyPersistentEngine::addSeqnoVbStats(const void *cookie,
         add_casted_stat(buffer, vb->getHighSeqno(), add_stat, cookie);
         checked_snprintf(buffer, sizeof(buffer), "vb_%d:last_persisted_seqno",
                          vb->getId());
-        add_casted_stat(
-                    buffer,
-                    kvBucket->getVBuckets().getPersistenceSeqno(vb->getId()),
-                    add_stat, cookie);
+        add_casted_stat(buffer, vb->getPersistenceSeqno(), add_stat, cookie);
         checked_snprintf(buffer, sizeof(buffer), "vb_%d:uuid", vb->getId());
         add_casted_stat(buffer, entry.vb_uuid, add_stat, cookie);
         checked_snprintf(buffer, sizeof(buffer), "vb_%d:purge_seqno",
@@ -4892,8 +4889,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
        }
 
        format_type = 1;
-       last_persisted_seqno = htonll(kvBucket->getVBuckets().
-                                                    getPersistenceSeqno(vb_id));
+       last_persisted_seqno = htonll(vb->getPersistenceSeqno());
        current_seqno = htonll(vb->getHighSeqno());
        latest_uuid = htonll(entry.vb_uuid);
        vb_id = htons(vb_id);
@@ -4909,8 +4905,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
        result.write((char*) &failover_highseqno, sizeof(uint64_t));
     } else {
         format_type = 0;
-        last_persisted_seqno = htonll(kvBucket->getVBuckets().
-                                                    getPersistenceSeqno(vb_id));
+        last_persisted_seqno = htonll(vb->getPersistenceSeqno());
         current_seqno = htonll(vb->getHighSeqno());
         vb_id   =  htons(vb_id);
         vb_uuid =  htonll(vb_uuid);
@@ -5163,8 +5158,7 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
         seqno = ntohll(seqno);
         void *es = getEngineSpecific(cookie);
         if (!es) {
-            uint16_t persisted_seqno =
-                        kvBucket->getVBuckets().getPersistenceSeqno(vbucket);
+            uint16_t persisted_seqno = vb->getPersistenceSeqno();
             if (seqno > persisted_seqno) {
                 vb->addHighPriorityVBEntry(seqno, cookie, true);
                 storeEngineSpecific(cookie, this);
@@ -6097,7 +6091,8 @@ public:
     bool run() {
         TRACE_EVENT0("ep-engine/task", "FetchAllKeysTask");
         ENGINE_ERROR_CODE err;
-        if (engine->getKVBucket()->getVBuckets().isBucketCreation(vbid)) {
+        if (engine->getKVBucket()->getVBuckets().
+                getBucket(vbid)->isBucketCreation()) {
             // Returning an empty packet with a SUCCESS response as
             // there aren't any keys during the vbucket file creation.
             err = sendResponse(response, NULL, 0, NULL, 0, NULL, 0,

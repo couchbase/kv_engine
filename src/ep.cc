@@ -580,7 +580,7 @@ Warmup* EPBucket::getWarmup(void) const {
 }
 
 bool EPBucket::startFlusher() {
-    for (auto* shard : vbMap.shards) {
+    for (const auto& shard : vbMap.shards) {
         shard->getFlusher()->start();
     }
     return true;
@@ -1212,7 +1212,7 @@ ENGINE_ERROR_CODE EPBucket::setVBucketState_UNLOCKED(uint16_t vbid,
 
         if (to == vbucket_state_active && !transfer) {
             const snapshot_range_t range = vb->getPersistedSnapshot();
-            if (range.end == vbMap.getPersistenceSeqno(vbid)) {
+            if (range.end == vb->getPersistenceSeqno()) {
                 vb->failovers->createEntry(range.end);
             } else {
                 vb->failovers->createEntry(range.start);
@@ -1248,9 +1248,9 @@ ENGINE_ERROR_CODE EPBucket::setVBucketState_UNLOCKED(uint16_t vbid,
         if (vbMap.addBucket(newvb) == ENGINE_ERANGE) {
             return ENGINE_ERANGE;
         }
-        vbMap.setPersistenceCheckpointId(vbid, 0);
-        vbMap.setPersistenceSeqno(vbid, 0);
-        vbMap.setBucketCreation(vbid, true);
+        // When the VBucket is constructed we initialize
+        // persistenceSeqno(0) && persistenceCheckpointId(0)
+        newvb->setBucketCreation(true);
         scheduleVBStatePersist(vbid);
     } else {
         return ENGINE_ERANGE;
@@ -1284,19 +1284,21 @@ bool EPBucket::completeVBucketDeletion(uint16_t vbid, const void* cookie) {
         LockHolder lh(vbsetMutex);
         RCPtr<VBucket> vb = vbMap.getBucket(vbid);
         bucketDeleting = !vb ||
-          vb->getState() == vbucket_state_dead ||
-          vbMap.isBucketDeletion(vbid);
-    }
+                vb->getState() == vbucket_state_dead ||
+                vb->isBucketDeletion();
 
-    if (bucketDeleting) {
-        LockHolder vlh(vb_mutexes[vbid]);
-        if (!getRWUnderlying(vbid)->delVBucket(vbid)) {
-            return false;
+        if (bucketDeleting) {
+            LockHolder vlh(vb_mutexes[vbid]);
+            if (!getRWUnderlying(vbid)->delVBucket(vbid)) {
+                return false;
+            }
+            if (vb) {
+                vb->setBucketDeletion(false);
+                vb->setBucketCreation(false);
+                vb->setPersistenceSeqno(0);
+            }
+            ++stats.vbucketDeletions;
         }
-        vbMap.setBucketDeletion(vbid, false);
-        vbMap.setBucketCreation(vbid, false);
-        vbMap.setPersistenceSeqno(vbid, 0);
-        ++stats.vbucketDeletions;
     }
 
     hrtime_t spent(gethrtime() - start_time);
@@ -1317,7 +1319,7 @@ void EPBucket::scheduleVBDeletion(RCPtr<VBucket> &vb, const void* cookie,
     ExTask delTask = new VBucketMemoryDeletionTask(engine, vb, delay);
     ExecutorPool::get()->schedule(delTask, NONIO_TASK_IDX);
 
-    if (vbMap.setBucketDeletion(vb->getId(), true)) {
+    if (vb->setBucketDeletion(true)) {
         ExTask task = new VBDeleteTask(&engine, vb->getId(), cookie);
         ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
     }
@@ -2841,7 +2843,7 @@ public:
 private:
 
     void redirty() {
-        if (store.vbMap.isBucketDeletion(vbucket->getId())) {
+        if (vbucket->isBucketDeletion()) {
             vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
             stats.decrDiskQueueSize(1);
             return;
@@ -2892,8 +2894,7 @@ void EPBucket::flushOneDeleteAll() {
         RCPtr<VBucket> vb = getVBucket(i);
         // Reset the vBucket if it's non-null and not already in the middle of
         // being created / destroyed.
-        if (vb &&
-            !(vbMap.isBucketCreation(i) || vbMap.isBucketDeletion(i))) {
+        if (vb && !(vb->isBucketCreation() || vb->isBucketDeletion())) {
             LockHolder lh(vb_mutexes[vb->getId()]);
             getRWUnderlying(vb->getId())->reset(i);
         }
@@ -3037,7 +3038,7 @@ int EPBucket::flushVBucket(uint16_t vbid) {
                     return RETRY_FLUSH_VBUCKET;
                 }
 
-                if (vbMap.setBucketCreation(vbid, false)) {
+                if (vb->setBucketCreation(false)) {
                     LOG(EXTENSION_LOG_INFO, "VBucket %" PRIu16 " created", vbid);
                 }
             }
@@ -3058,7 +3059,7 @@ int EPBucket::flushVBucket(uint16_t vbid) {
                 commit(shard->getId());
 
                 // Now the commit is complete, vBucket file must exist.
-                if (vbMap.setBucketCreation(vbid, false)) {
+                if (vb->setBucketCreation(false)) {
                     LOG(EXTENSION_LOG_INFO, "VBucket %" PRIu16 " created", vbid);
                 }
             }
@@ -3077,8 +3078,8 @@ int EPBucket::flushVBucket(uint16_t vbid) {
                 vb->setPersistedSnapshot(range.start, range.end);
                 uint64_t highSeqno = rwUnderlying->getLastPersistedSeqno(vbid);
                 if (highSeqno > 0 &&
-                    highSeqno != vbMap.getPersistenceSeqno(vbid)) {
-                    vbMap.setPersistenceSeqno(vbid, highSeqno);
+                    highSeqno != vb->getPersistenceSeqno()) {
+                    vb->setPersistenceSeqno(highSeqno);
                 }
             }
         }
@@ -3091,12 +3092,12 @@ int EPBucket::flushVBucket(uint16_t vbid) {
 
         if (vb->rejectQueue.empty()) {
             vb->checkpointManager.itemsPersisted();
-            uint64_t seqno = vbMap.getPersistenceSeqno(vbid);
+            uint64_t seqno = vb->getPersistenceSeqno();
             uint64_t chkid = vb->checkpointManager.getPersistenceCursorPreChkId();
             vb->notifyOnPersistence(engine, seqno, true);
             vb->notifyOnPersistence(engine, chkid, false);
-            if (chkid > 0 && chkid != vbMap.getPersistenceCheckpointId(vbid)) {
-                vbMap.setPersistenceCheckpointId(vbid, chkid);
+            if (chkid > 0 && chkid != vb->getPersistenceCheckpointId()) {
+                vb->setPersistenceCheckpointId(chkid);
             }
         } else {
             return RETRY_FLUSH_VBUCKET;
@@ -3735,7 +3736,7 @@ bool VBucketVisitorTask::run() {
 void EPBucket::resetUnderlyingStats(void)
 {
     for (size_t i = 0; i < vbMap.shards.size(); i++) {
-        KVShard *shard = vbMap.shards[i];
+        KVShard *shard = vbMap.shards[i].get();
         shard->getRWUnderlying()->resetStats();
         shard->getROUnderlying()->resetStats();
     }
@@ -3780,7 +3781,7 @@ bool EPBucket::getKVStoreStat(const char* name, size_t& value, KVSOption option)
 {
     value = 0;
     bool success = true;
-    for (auto* shard : vbMap.shards) {
+    for (const auto& shard : vbMap.shards) {
         size_t per_shard_value;
 
         if (option == KVSOption::RO || option == KVSOption::BOTH) {
