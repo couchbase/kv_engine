@@ -6401,11 +6401,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sendNotMyVBucketResponse(
 
 EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     kvBucket->deinitialize();
+    LOG(EXTENSION_LOG_NOTICE, "~EPEngine: Completed deinitialize.");
     delete kvBucket;
+    LOG(EXTENSION_LOG_NOTICE, "~EPEngine: Deleted KvBucket.");
     delete workload;
     delete dcpConnMap_;
+    LOG(EXTENSION_LOG_NOTICE, "~EPEngine: Deleted dcpConnMap_.");
     delete dcpFlowControlManager_;
     delete tapConnMap;
+    LOG(EXTENSION_LOG_NOTICE, "~EPEngine: Deleted tapConnMap_.");
     delete tapConfig;
     delete checkpointConfig;
     delete replicationThrottle;
