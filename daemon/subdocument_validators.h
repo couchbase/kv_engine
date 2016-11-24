@@ -30,6 +30,9 @@ class Cookie;
 /* Maximum sub-document path length */
 const size_t SUBDOC_PATH_MAX_LENGTH = 1024;
 
+// Maximum length for an xattr key
+const size_t SUBDOC_MAX_XATTR_LENGTH = 16;
+
 /* Possible valid extras lengths for single-path commands. */
 
 // Extras is either pathlen + subdoc_flags ...
