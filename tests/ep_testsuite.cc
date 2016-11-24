@@ -3386,7 +3386,7 @@ static enum test_result test_all_keys_api_during_bucket_creation(
     return SUCCESS;
 }
 
-static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_curr_items_add_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
     // Verify initial case.
@@ -3411,48 +3411,74 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     checkeq(initial_enqueued + 3, get_int_stat(h, h1, "ep_total_enqueued"),
             "Expected total_enqueued to increase by 3 after 3 new items");
 
+    return SUCCESS;
+}
+
+static enum test_result test_curr_items_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+
+    // Verify initial case.
+    verify_curr_items(h, h1, 0, "init");
+
+    // Store some items
+    write_items(h, h1, 3);
     wait_for_flusher_to_settle(h, h1);
 
     // Verify delete case.
-    checkeq(ENGINE_SUCCESS, del(h, h1, "k1", 0, 0),
+    checkeq(ENGINE_SUCCESS, del(h, h1, "key1", 0, 0),
             "Failed remove with value.");
 
     wait_for_stat_change(h, h1, "curr_items", 3);
     verify_curr_items(h, h1, 2, "one item deleted - persisted");
 
-    // Verify flush case (remove the two remaining from above)
-    set_degraded_mode(h, h1, NULL, true);
-    checkeq(ENGINE_SUCCESS, h1->flush(h, NULL, 0),
+    return SUCCESS;
+}
+
+static enum test_result test_curr_items_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+
+    // Verify initial case.
+    verify_curr_items(h, h1, 0, "init");
+
+    // Store some items
+    write_items(h, h1, 3);
+    wait_for_flusher_to_settle(h, h1);
+
+    // Verify flush case.
+    set_degraded_mode(h, h1, nullptr, true);
+    checkeq(ENGINE_SUCCESS, h1->flush(h, nullptr, 0),
             "Failed to flush");
-    set_degraded_mode(h, h1, NULL, false);
+    set_degraded_mode(h, h1, nullptr, false);
     verify_curr_items(h, h1, 0, "flush");
 
+    return SUCCESS;
+}
+
+
+static enum test_result test_curr_items_dead(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+
+    // Verify initial case.
+    verify_curr_items(h, h1, 0, "init");
+
+    // Store some items
+    write_items(h, h1, 3);
+    wait_for_flusher_to_settle(h, h1);
+
     // Verify dead vbucket case.
-    checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i),
-            "Failed to fail to store an item.");
-    h1->release(h, NULL, i);
-    checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i),
-            "Failed to fail to store an item.");
-    h1->release(h, NULL, i);
-    checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET,"k3", "v3", &i),
-            "Failed to fail to store an item.");
-    h1->release(h, NULL, i);
-    check(set_vbucket_state(h, h1, 0, vbucket_state_dead), "Failed set vbucket 0 state.");
+    check(set_vbucket_state(h, h1, 0, vbucket_state_dead),
+          "Failed set vbucket 0 state to dead");
 
     verify_curr_items(h, h1, 0, "dead vbucket");
     checkeq(0, get_int_stat(h, h1, "curr_items_tot"),
             "Expected curr_items_tot to be 0 with a dead vbucket");
 
     // Then resurrect.
-    check(set_vbucket_state(h, h1, 0, vbucket_state_active), "Failed set vbucket 0 state.");
+    check(set_vbucket_state(h, h1, 0, vbucket_state_active),
+          "Failed set vbucket 0 state to active");
 
     verify_curr_items(h, h1, 3, "resurrected vbucket");
 
     // Now completely delete it.
-    check(set_vbucket_state(h, h1, 0, vbucket_state_dead), "Failed set vbucket 0 state.");
+    check(set_vbucket_state(h, h1, 0, vbucket_state_dead),
+          "Failed set vbucket 0 state to dead (2)");
     vbucketDelete(h, h1, 0);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected success deleting vbucket.");
@@ -6974,8 +7000,14 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("diskinfo stats", test_stats_diskinfo,
                  test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("stats curr_items", test_curr_items, test_setup,
-                 teardown, NULL, prepare, cleanup),
+        TestCase("stats curr_items ADD SET", test_curr_items_add_set,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("stats curr_items DELETE", test_curr_items_delete,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("stats curr_items FLUSH", test_curr_items_flush,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("stats curr_items vbucket_state_dead", test_curr_items_dead,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("startup token stat", test_cbd_225, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("ep workload stats", test_workload_stats,
