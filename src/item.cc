@@ -87,7 +87,7 @@ std::ostream& operator<<(std::ostream& os, const ItemMetaData& md) {
 
 bool operator==(const Blob& lhs, const Blob& rhs) {
     return (lhs.size == rhs.size) &&
-           (lhs.extMetaLen == lhs.extMetaLen) &&
+           (lhs.extMetaLen == rhs.extMetaLen) &&
            (lhs.age == rhs.age) &&
            (memcmp(lhs.data, rhs.data, lhs.size) == 0);
 }
