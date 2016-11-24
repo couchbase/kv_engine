@@ -794,6 +794,7 @@ void ExecutorPool::doWorkerStat(EventuallyPersistentEngine *engine,
     }
 
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    LockHolder lh(tMutex);
     //TODO: implement tracking per engine stats ..
     for (size_t tidx = 0; tidx < threadQ.size(); ++tidx) {
         addWorkerStats(threadQ[tidx]->getName().c_str(), threadQ[tidx],
