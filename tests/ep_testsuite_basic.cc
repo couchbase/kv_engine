@@ -28,6 +28,7 @@
 #include <platform/cbassert.h>
 #include <JSON_checker.h>
 
+#include <array>
 
 #define WHITESPACE_DB "whitespace sucks.db"
 
@@ -2531,6 +2532,72 @@ static enum test_result set_max_cas_mb21190(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     return SUCCESS;
 }
 
+static enum test_result warmup_mb21769(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    // Validate some VB data post warmup
+    // VB 0 will be empty
+    // VB 1 will not be empty
+    // VB 2 will not be empty and will have had set_state as the final ops
+
+    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+          "Failed to set vbucket state for vb1");
+    check(set_vbucket_state(h, h1, 2, vbucket_state_active),
+          "Failed to set vbucket state for vb2");
+
+    const int num_items = 10;
+    write_items(h, h1, num_items, 0, "vb1", "value", 0/*expiry*/, 1/*vb*/);
+    write_items(h, h1, num_items, 0, "vb2", "value", 0/*expiry*/, 2/*vb*/);
+    wait_for_flusher_to_settle(h, h1);
+
+    // flip replica to active to drive more _local writes
+    check(set_vbucket_state(h, h1, 2, vbucket_state_replica),
+          "Failed to set vbucket state (replica) for vb2");
+    wait_for_flusher_to_settle(h, h1);
+
+    check(set_vbucket_state(h, h1, 2, vbucket_state_active),
+          "Failed to set vbucket state (replica) for vb2");
+    wait_for_flusher_to_settle(h, h1);
+
+    // Force a shutdown so the warmup will create failover entries
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, true);
+
+    wait_for_warmup_complete(h, h1);
+
+    // values of interested stats for each VB
+    std::array<uint64_t, 3> high_seqnos = {{0, num_items, num_items}};
+    std::array<uint64_t, 3> snap_starts = {{0, num_items, num_items}};
+    std::array<uint64_t, 3> snap_ends = {{0, num_items, num_items}};
+    // we will check the seqno of the 0th entry of each vbucket's failover table
+    std::array<uint64_t, 3> failover_entry0 = {{0, num_items, num_items}};
+
+    for (uint64_t vb = 0; vb <= 2; vb++) {
+        std::string vb_prefix = "vb_" + std::to_string(vb) + ":";
+        std::string high_seqno = vb_prefix + "high_seqno";
+        std::string snap_start = vb_prefix + "last_persisted_snap_start";
+        std::string snap_end = vb_prefix + "last_persisted_snap_end";
+        std::string fail0 = vb_prefix + "0:seq";
+        std::string vb_group_key = "vbucket-seqno " + std::to_string(vb);
+        std::string failovers_key = "failovers " + std::to_string(vb);
+
+        checkeq(high_seqnos[vb],
+                get_ull_stat(h, h1, high_seqno.c_str(), vb_group_key.c_str()),
+                std::string("high_seqno incorrect vb:" + std::to_string(vb)).c_str());
+        checkeq(snap_starts[vb],
+                get_ull_stat(h, h1, snap_start.c_str(), vb_group_key.c_str()),
+                std::string("snap_start incorrect vb:" + std::to_string(vb)).c_str());
+        checkeq(snap_ends[vb],
+                get_ull_stat(h, h1, snap_end.c_str(), vb_group_key.c_str()),
+                std::string("snap_end incorrect vb:" + std::to_string(vb)).c_str());
+        checkeq(failover_entry0[vb],
+                get_ull_stat(h, h1, fail0.c_str(), failovers_key.c_str()),
+                std::string("failover table entry 0 is incorrect vb:" + std::to_string(vb)).c_str());
+    }
+
+    return SUCCESS;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Test manifest //////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -2675,6 +2742,8 @@ BaseTestCase testsuite_testcases[] = {
                  "flushall_enabled=true;max_vbuckets=16;"
                  "ht_size=7;ht_locks=3", prepare, cleanup),
         TestCase("set max_cas MB21190", set_max_cas_mb21190, test_setup, teardown, nullptr,
+                 prepare, cleanup),
+        TestCase("warmup_mb21769", warmup_mb21769, test_setup, teardown, nullptr,
                  prepare, cleanup),
 
         // sentinel

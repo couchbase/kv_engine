@@ -3197,11 +3197,6 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                     // no 'real' items in the checkpoint.
                     mustCheckpointVBState = true;
 
-                    // Update maxSeqno to ensure the snap {start,end} range
-                    // is correct if no other normal item is included in this
-                    // checkpoint.
-                    maxSeqno = std::max(maxSeqno, (uint64_t)item->getBySeqno());
-
                     // Update queuing stats how this item has logically been
                     // processed.
                     stats.decrDiskQueueSize(1);

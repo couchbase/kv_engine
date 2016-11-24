@@ -1413,7 +1413,7 @@ void validate_store_resp(ENGINE_ERROR_CODE ret, int& num_items)
 
 void write_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, int num_items,
                  int start_seqno, const char *key_prefix, const char *value,
-                 uint32_t expiry)
+                 uint32_t expiry, uint16_t vb)
 {
     int j = 0;
     while (1) {
@@ -1423,7 +1423,7 @@ void write_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, int num_items,
         item *i = nullptr;
         std::string key(key_prefix + std::to_string(j + start_seqno));
         ENGINE_ERROR_CODE ret = store(h, h1, nullptr, OPERATION_SET,
-                                      key.c_str(), value, &i, /*cas*/0, /*vb*/0,
+                                      key.c_str(), value, &i, /*cas*/0, vb,
                                       expiry);
         h1->release(h, nullptr, i);
         validate_store_resp(ret, j);
