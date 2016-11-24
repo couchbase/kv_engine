@@ -211,10 +211,6 @@ void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                      const char* key, const char* val, size_t vlen,
                      uint16_t vbucket = 0);
 
-// Fetches the CAS of the specified key.
-uint64_t get_CAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                 const std::string& key);
-
 // Creates a TAP connection, returning the cookie associated with the
 // newly created connection.
 const void* createTapConn(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,

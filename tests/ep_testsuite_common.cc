@@ -157,7 +157,7 @@ bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // warmup is complete, notify ep engine that it must now enable
     // data traffic
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
           "Failed to enable data traffic");
     cb_free(pkt);
 
@@ -345,22 +345,6 @@ void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     checkeq(static_cast<uint16_t>(1), info.nvalue, "Unexpected info.nvalue");
     checkeq(vlen, info.value[0].iov_len, "Value length mismatch");
     check(memcmp(info.value[0].iov_base, val, vlen) == 0, "Data mismatch");
-}
-
-uint64_t get_CAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                 const std::string& key) {
-    item *i = NULL;
-    checkeq(ENGINE_SUCCESS,
-            h1->get(h, NULL, &i, key.c_str(), key.size(), /*vBucket*/0),
-            "Failed to get key");
-
-    item_info info;
-    info.nvalue = 1;
-    check(h1->get_item_info(h, NULL, i, &info),
-          "Failed to get item info for key");
-    h1->release(h, NULL, i);
-
-    return info.cas;
 }
 
 const void* createTapConn(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,

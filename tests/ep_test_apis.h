@@ -168,7 +168,13 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
 
 // Basic Operations
 ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
-                      uint64_t cas, uint16_t vbucket, const void* cookie = NULL);
+                      uint64_t cas, uint16_t vbucket,
+                      const void* cookie = nullptr);
+
+ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
+                      uint64_t* cas, uint16_t vbucket, const void* cookie,
+                      mutation_descr_t* mut_info);
+
 void disable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void enable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
@@ -210,6 +216,15 @@ ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                         const char *key, const char *value, item **outitem,
                         uint64_t casIn = 0, uint16_t vb = 0,
                         uint32_t exp = 3600, uint8_t datatype = 0x00);
+
+ENGINE_ERROR_CODE allocate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                           const void* cookie, item** outitem,
+                           const std::string& key, size_t nbytes, int flags,
+                           rel_time_t exptime, uint8_t datatype, uint16_t vb);
+
+ENGINE_ERROR_CODE get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                      const void* cookie, item** item, const std::string& key,
+                      uint16_t vb);
 
 /* Stores the specified document; returning the new CAS value via
  * {out_cas}.
@@ -415,6 +430,10 @@ void set_degraded_mode(ENGINE_HANDLE *h,
                        ENGINE_HANDLE_V1 *h1,
                        const void* cookie,
                        bool enable);
+
+// Fetches the CAS of the specified key.
+uint64_t get_CAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                 const std::string& key);
 
 /**
  * Helper function to write unique "num_items" starting from {key_prefix}XX,

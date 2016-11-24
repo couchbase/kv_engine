@@ -153,12 +153,12 @@ extern "C" {
     static ENGINE_ERROR_CODE EvpItemAllocate(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              item **itm,
-                                             const void* key,
-                                             const size_t nkey,
+                                             const DocKey& key,
                                              const size_t nbytes,
                                              const int flags,
                                              const rel_time_t exptime,
-                                             uint8_t datatype)
+                                             uint8_t datatype,
+                                             uint16_t vbucket)
     {
         if (!mcbp::datatype::is_valid(datatype)) {
             LOG(EXTENSION_LOG_WARNING, "Invalid value for datatype "
@@ -168,26 +168,25 @@ extern "C" {
 
         ENGINE_ERROR_CODE err_code = getHandle(handle)->itemAllocate(cookie,
                                                                      itm, key,
-                                                                     nkey,
                                                                      nbytes,
                                                                      flags,
                                                                      exptime,
-                                                                     datatype);
+                                                                     datatype,
+                                                                     vbucket);
         releaseHandle(handle);
         return err_code;
     }
 
     static ENGINE_ERROR_CODE EvpItemDelete(ENGINE_HANDLE* handle,
                                            const void* cookie,
-                                           const void* key,
-                                           const size_t nkey,
+                                           const DocKey& key,
                                            uint64_t* cas,
                                            uint16_t vbucket,
                                            mutation_descr_t *mut_info)
     {
         ENGINE_ERROR_CODE err_code = getHandle(handle)->itemDelete(cookie, key,
-                                                                   nkey, cas,
-                                                                   vbucket, mut_info);
+                                                                   cas, vbucket,
+                                                                   mut_info);
         releaseHandle(handle);
         return err_code;
     }
@@ -203,8 +202,7 @@ extern "C" {
     static ENGINE_ERROR_CODE EvpGet(ENGINE_HANDLE* handle,
                                     const void* cookie,
                                     item** itm,
-                                    const void* key,
-                                    const int nkey,
+                                    const DocKey& key,
                                     uint16_t vbucket)
     {
         get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
@@ -215,7 +213,7 @@ extern "C" {
                                                            TRACK_STATISTICS);
 
         ENGINE_ERROR_CODE err_code = getHandle(handle)->get(cookie, itm, key,
-                                                            nkey, vbucket,
+                                                            vbucket,
                                                             options);
         releaseHandle(handle);
         return err_code;
@@ -239,12 +237,10 @@ extern "C" {
                                       const void *cookie,
                                       item* itm,
                                       uint64_t *cas,
-                                      ENGINE_STORE_OPERATION operation,
-                                      uint16_t vbucket)
+                                      ENGINE_STORE_OPERATION operation)
     {
         ENGINE_ERROR_CODE err_code = getHandle(handle)->store(cookie, itm, cas,
-                                                              operation,
-                                                              vbucket);
+                                                              operation);
         releaseHandle(handle);
         return err_code;
     }
@@ -1127,7 +1123,8 @@ extern "C" {
                                        EventuallyPersistentEngine *h,
                                        const void* cookie,
                                        protocol_binary_request_header *request,
-                                       ADD_RESPONSE response)
+                                       ADD_RESPONSE response,
+                                       DocNamespace doc_namespace)
     {
         protocol_binary_response_status res =
                                       PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
@@ -1394,11 +1391,13 @@ extern "C" {
                                                const void* cookie,
                                                protocol_binary_request_header
                                                                       *request,
-                                               ADD_RESPONSE response)
+                                               ADD_RESPONSE response,
+                                               DocNamespace doc_namespace)
     {
         ENGINE_ERROR_CODE err_code = processUnknownCommand(getHandle(handle),
-                                                           cookie,
-                                                           request, response);
+                                                           cookie, request,
+                                                           response,
+                                                           doc_namespace);
         releaseHandle(handle);
         return err_code;
     }
@@ -2244,13 +2243,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(const void *cookie,
                                                     item* itm,
                                                     uint64_t *cas,
                                                     ENGINE_STORE_OPERATION
-                                                                     operation,
-                                                    uint16_t vbucket) {
+                                                                     operation) {
     BlockTimer timer(&stats.storeCmdHisto);
     ENGINE_ERROR_CODE ret;
     Item *it = static_cast<Item*>(itm);
-
-    it->setVBucketId(vbucket);
 
     switch (operation) {
     case OPERATION_CAS:

@@ -49,13 +49,13 @@ static enum test_result test_alloc_limit(ENGINE_HANDLE *h,
     item *it = NULL;
     ENGINE_ERROR_CODE rv;
 
-    rv = h1->allocate(h, NULL, &it, "key", 3, 20 * 1024 * 1024, 0, 0,
-                      PROTOCOL_BINARY_RAW_BYTES);
+    rv = allocate(h, h1, NULL, &it, "key", 20 * 1024 * 1024, 0, 0,
+                      PROTOCOL_BINARY_RAW_BYTES, 0);
     checkeq(ENGINE_SUCCESS, rv, "Allocated 20MB item");
     h1->release(h, NULL, it);
 
-    rv = h1->allocate(h, NULL, &it, "key", 3, (20 * 1024 * 1024) + 1, 0, 0,
-                      PROTOCOL_BINARY_RAW_BYTES);
+    rv = allocate(h, h1, NULL, &it, "key", (20 * 1024 * 1024) + 1, 0, 0,
+                      PROTOCOL_BINARY_RAW_BYTES, 0);
     checkeq(ENGINE_E2BIG, rv, "Object too big");
 
     return SUCCESS;
@@ -646,8 +646,8 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *it = NULL;
 
     checkeq(ENGINE_SUCCESS,
-            h1->allocate(h, NULL, &it, ekey, strlen(ekey), strlen(edata), 0, 2,
-                         PROTOCOL_BINARY_RAW_BYTES),
+            allocate(h, h1, NULL, &it, ekey, strlen(edata), 0, 2,
+                     PROTOCOL_BINARY_RAW_BYTES, 0),
             "Allocation Failed");
 
     item_info info;
@@ -658,7 +658,7 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     memcpy(info.value[0].iov_base, edata, strlen(edata));
 
     checkeq(ENGINE_SUCCESS,
-            h1->store(h, NULL, it, &cas, OPERATION_SET, 0),
+            h1->store(h, NULL, it, &cas, OPERATION_SET),
            "Failed to Store item");
     check_key_value(h, h1, ekey, edata, strlen(edata));
     h1->release(h, NULL, it);
@@ -775,8 +775,8 @@ static enum test_result test_set_with_cas_non_existent(ENGINE_HANDLE *h,
     item *i = NULL;
 
     checkeq(ENGINE_SUCCESS,
-            h1->allocate(h, NULL, &i, key, strlen(key), 10, 0, 0,
-            PROTOCOL_BINARY_RAW_BYTES),
+            allocate(h, h1, NULL, &i, key, 10, 0, 0,
+            PROTOCOL_BINARY_RAW_BYTES, 0),
             "Allocation failed.");
 
     Item *it = reinterpret_cast<Item*>(i);
@@ -784,7 +784,7 @@ static enum test_result test_set_with_cas_non_existent(ENGINE_HANDLE *h,
 
     uint64_t cas = 0;
     checkeq(ENGINE_KEY_ENOENT,
-            h1->store(h, NULL, i, &cas, OPERATION_SET, 0),
+            h1->store(h, NULL, i, &cas, OPERATION_SET),
             "Expected not found");
     h1->release(h, NULL, i);
 
@@ -889,7 +889,7 @@ static enum test_result test_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check_key_value(h, h1, "key", "somevalue", 9);
 
     checkeq(ENGINE_SUCCESS,
-            h1->get(h, NULL, &i, "key", 3, 0),
+            get(h, h1, NULL, &i, "key", 0),
             "Failed to get value.");
 
     item_info info;
@@ -956,7 +956,7 @@ static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     protocol_binary_request_header *request;
     request = createPacket(PROTOCOL_BINARY_CMD_TOUCH, 0, 0, NULL, 0, "akey", 4);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(h, NULL, request, add_response),
+            h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace),
             "Failed to call touch");
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
             "Testing invalid arguments");
@@ -1012,7 +1012,7 @@ static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     // The item should have expired now...
     checkeq(ENGINE_KEY_ENOENT,
-            h1->get(h, NULL, &itm, "mykey", 5, 0), "Item should be gone");
+            get(h, h1, NULL, &itm, "mykey", 0), "Item should be gone");
     return SUCCESS;
 }
 
@@ -1071,7 +1071,7 @@ static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     protocol_binary_request_header *request;
     request = createPacket(PROTOCOL_BINARY_CMD_GAT, 0, 0, NULL, 0, "akey", 4);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(h, NULL, request, add_response),
+            h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace),
             "Failed to call gat");
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
             "Testing invalid arguments");
@@ -1119,7 +1119,7 @@ static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     // The item should have expired now...
     checkeq(ENGINE_KEY_ENOENT,
-            h1->get(h, NULL, &itm, "mykey", 5, 0), "Item should be gone");
+            get(h, h1, NULL, &itm, "mykey", 0), "Item should be gone");
     return SUCCESS;
 }
 
@@ -1133,7 +1133,7 @@ static enum test_result test_gatq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     protocol_binary_request_header *request;
     request = createPacket(PROTOCOL_BINARY_CMD_GATQ, 0, 0, NULL, 0, "akey", 4);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(h, NULL, request, add_response),
+            h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace),
             "Failed to call gatq");
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL,
             last_status.load(), "Testing invalid arguments");
@@ -1184,7 +1184,7 @@ static enum test_result test_gatq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     // The item should have expired now...
     checkeq(ENGINE_KEY_ENOENT,
-            h1->get(h, NULL, &itm, "mykey", 5, 0),
+            get(h, h1, NULL, &itm, "mykey", 0),
             "Item should be gone");
     return SUCCESS;
 }
@@ -1212,7 +1212,7 @@ static enum test_result test_gat_locked(ENGINE_HANDLE *h,
 
     testHarness.time_travel(11);
     checkeq(ENGINE_KEY_ENOENT,
-            h1->get(h, NULL, &itm, "key", 3, 0),
+            get(h, h1, NULL, &itm, "key", 0),
             "Expected value to be expired");
 
     return SUCCESS;
@@ -1240,7 +1240,7 @@ static enum test_result test_touch_locked(ENGINE_HANDLE *h,
 
     testHarness.time_travel(11);
     checkeq(ENGINE_KEY_ENOENT,
-            h1->get(h, NULL, &itm, "key", 3, 0),
+            get(h, h1, NULL, &itm, "key", 0),
             "Expected value to be expired");
 
     return SUCCESS;
@@ -1275,7 +1275,7 @@ static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *statkey = "key coolkey 0";
     int newExpTime;
     checkeq(ENGINE_SUCCESS,
-            h1->get(h, NULL, &itm, "coolkey", 7, 0),
+            get(h, h1, NULL, &itm, "coolkey", 0),
             "Missing key");
     h1->release(h, NULL, itm);
     newExpTime = get_int_stat(h, h1, "key_exptime", statkey);
@@ -1296,7 +1296,7 @@ static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_warmup_complete(h, h1);
 
     checkeq(ENGINE_SUCCESS,
-            h1->get(h, NULL, &itm, "coolkey", 7, 0),
+            get(h, h1, NULL, &itm, "coolkey", 0),
             "Missing key");
     h1->release(h, NULL, itm);
     newExpTime = get_int_stat(h, h1, "key_exptime", statkey);
@@ -1327,7 +1327,7 @@ static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
-    checkeq(ENGINE_SUCCESS, h1->remove(h, NULL, "key", 3, &cas, 0, &mut_info),
+    checkeq(ENGINE_SUCCESS, del(h, h1, "key", &cas, 0, nullptr, &mut_info),
             "Failed remove with value.");
     check(orig_cas != cas, "Expected CAS to be updated on delete");
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
@@ -1433,7 +1433,7 @@ static enum test_result test_get_delete_missing_file(ENGINE_HANDLE *h, ENGINE_HA
     rmdb(dbname.c_str());
 
     item *i = NULL;
-    ENGINE_ERROR_CODE errorCode = h1->get(h, NULL, &i, key, strlen(key), 0);
+    ENGINE_ERROR_CODE errorCode = get(h, h1, NULL, &i, key, 0);
     h1->release(h, NULL, i);
 
     // ep engine must be unaware of well-being of the db file as long as
@@ -1442,7 +1442,7 @@ static enum test_result test_get_delete_missing_file(ENGINE_HANDLE *h, ENGINE_HA
 
     i = NULL;
     evict_key(h, h1, key);
-    errorCode = h1->get(h, NULL, &i, key, strlen(key), 0);
+    errorCode = get(h, h1, NULL, &i, key, 0);
     h1->release(h, NULL, i);
 
     // ep engine must be now aware of the ill-fated db file where

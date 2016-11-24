@@ -4466,7 +4466,7 @@ static enum test_result test_dcp_last_items_purged(ENGINE_HANDLE *h,
     uint64_t cas = 0;
     uint32_t high_seqno = 0;
     const int num_items = 3;
-    char key[][3] = {"k1", "k2", "k3"};
+    const char* key[3] = {"k1", "k2", "k3"};
 
     memset(&info, 0, sizeof(info));
 
@@ -4483,8 +4483,7 @@ static enum test_result test_dcp_last_items_purged(ENGINE_HANDLE *h,
     /* Delete last 2 items */
     for (int count = 1; count < num_items; count++){
         checkeq(ENGINE_SUCCESS,
-                h1->remove(h, NULL, key[count], strlen(key[count]), &cas, 0,
-                           &mut_info),
+                del(h, h1, key[count], &cas, 0/*vb*/, nullptr/*cookie*/, &mut_info),
                 "Failed remove with value.");
         cas = 0;
     }
@@ -4530,7 +4529,7 @@ static enum test_result test_dcp_rollback_after_purge(ENGINE_HANDLE *h,
     uint64_t cas = 0;
     uint32_t high_seqno = 0;
     const int num_items = 3;
-    char key[][3] = {"k1", "k2", "k3"};
+    const char* key[3] = {"k1", "k2", "k3"};
 
     memset(&info, 0, sizeof(info));
 
@@ -4566,8 +4565,7 @@ static enum test_result test_dcp_rollback_after_purge(ENGINE_HANDLE *h,
     /* Delete last 2 items */
     for (int count = 1; count < num_items; count++){
         checkeq(ENGINE_SUCCESS,
-                h1->remove(h, NULL, key[count], strlen(key[count]), &cas, 0,
-                           &mut_info),
+                del(h, h1, key[count], &cas, 0/*vb*/, nullptr/*cookie*/, &mut_info),
                 "Failed remove with value.");
         cas = 0;
     }

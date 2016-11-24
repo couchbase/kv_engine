@@ -216,19 +216,19 @@ public:
 
     ENGINE_ERROR_CODE itemAllocate(const void* cookie,
                                    item** itm,
-                                   const void* key,
-                                   const size_t nkey,
+                                   const DocKey& key,
                                    const size_t nbytes,
                                    const int flags,
                                    const rel_time_t exptime,
-                                   uint8_t datatype)
+                                   uint8_t datatype,
+                                   uint16_t vbucket)
     {
         (void)cookie;
         if (nbytes > maxItemSize) {
             return ENGINE_E2BIG;
         }
 
-        if(!hasAvailableSpace(sizeof(Item) + sizeof(Blob) + nkey + nbytes)) {
+        if(!hasAvailableSpace(sizeof(Item) + sizeof(Blob) + key.size() + nbytes)) {
             return memoryCondition();
         }
 
@@ -237,8 +237,8 @@ public:
         uint8_t ext_meta[1];
         uint8_t ext_len = EXT_META_LEN;
         *(ext_meta) = datatype;
-        *itm = new Item(key, nkey, flags, expiretime, NULL, nbytes, ext_meta,
-                        ext_len);
+        *itm = new Item(key.data(), key.size(), flags, expiretime, NULL, nbytes,
+                        ext_meta, ext_len, 0/*cas*/, -1/*seq*/, vbucket);
         if (*itm == NULL) {
             return memoryCondition();
         } else {
@@ -248,13 +248,12 @@ public:
     }
 
     ENGINE_ERROR_CODE itemDelete(const void* cookie,
-                                 const void* key,
-                                 const size_t nkey,
+                                 const DocKey& key,
                                  uint64_t* cas,
                                  uint16_t vbucket,
                                  mutation_descr_t *mut_info)
     {
-        std::string k(static_cast<const char*>(key), nkey);
+        std::string k(reinterpret_cast<const char*>(key.data()), key.size());
         return itemDelete(cookie, k, cas, vbucket, mut_info);
     }
 
@@ -287,14 +286,12 @@ public:
 
     ENGINE_ERROR_CODE get(const void* cookie,
                           item** itm,
-                          const void* key,
-                          const int nkey,
+                          const DocKey& key,
                           uint16_t vbucket,
                           get_options_t options)
     {
         BlockTimer timer(&stats.getCmdHisto);
-        const const_char_buffer k(static_cast<const char*>(key), nkey);
-
+        const_char_buffer k(reinterpret_cast<const char*>(key.data()), key.size());
         GetValue gv(kvBucket->get(k, vbucket, cookie, options));
         ENGINE_ERROR_CODE ret = gv.getStatus();
 
@@ -331,8 +328,7 @@ public:
     ENGINE_ERROR_CODE store(const void *cookie,
                             item* itm,
                             uint64_t *cas,
-                            ENGINE_STORE_OPERATION operation,
-                            uint16_t vbucket);
+                            ENGINE_STORE_OPERATION operation);
 
     ENGINE_ERROR_CODE flush(const void *cookie, time_t when);
 

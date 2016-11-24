@@ -375,14 +375,14 @@ void changeVBFilter(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, std::string name,
     protocol_binary_request_header *request;
     request = createPacket(PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER, 0, 0, NULL, 0, name.c_str(),
                        name.length(), value.str().data(), value.str().length());
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
           "Failed to change the TAP VB filter.");
     cb_free(request);
 }
 
 void createCheckpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     protocol_binary_request_header *request = createPacket(PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT);
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
           "Failed to create a new checkpoint.");
     cb_free(request);
 }
@@ -390,7 +390,15 @@ void createCheckpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                       uint64_t cas, uint16_t vbucket, const void* cookie) {
     mutation_descr_t mut_info;
-    return h1->remove(h, cookie, key, strlen(key), &cas, vbucket, &mut_info);
+    return h1->remove(h, cookie, DocKey(key, testHarness.doc_namespace),
+                      &cas, vbucket, &mut_info);
+}
+
+ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
+                      uint64_t* cas, uint16_t vbucket, const void* cookie,
+                      mutation_descr_t* mut_info) {
+    return h1->remove(h, cookie, DocKey(key, testHarness.doc_namespace),
+                      cas, vbucket, mut_info);
 }
 
 void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
@@ -421,7 +429,7 @@ void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                        ext.get(), blen, key, keylen, NULL, 0,
                        PROTOCOL_BINARY_RAW_BYTES, nmeta.data(), nmeta.size());
 
-    check(h1->unknown_command(h, cookie, pkt, add_response_set_del_meta) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, cookie, pkt, add_response_set_del_meta, testHarness.doc_namespace) == ENGINE_SUCCESS,
           "Expected to be able to delete with meta");
     cb_free(pkt);
 }
@@ -434,7 +442,7 @@ void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                                                        NULL, 0, key, strlen(key));
     pkt->request.vbucket = htons(vbucketId);
 
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
           "Failed to evict key.");
 
     cb_free(pkt);
@@ -478,7 +486,7 @@ ENGINE_ERROR_CODE checkpointPersistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     protocol_binary_request_header *request;
     request = createPacket(PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE, vb, 0, NULL, 0, NULL, 0,
                            (const char *)&checkpoint_id, sizeof(uint64_t));
-    ENGINE_ERROR_CODE rv = h1->unknown_command(h, NULL, request, add_response);
+    ENGINE_ERROR_CODE rv = h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace);
     cb_free(request);
     return rv;
 }
@@ -491,7 +499,7 @@ ENGINE_ERROR_CODE seqnoPersistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     protocol_binary_request_header* request =
         createPacket(PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE, vbucket, 0, buffer, 8);
 
-    ENGINE_ERROR_CODE rv = h1->unknown_command(h, NULL, request, add_response);
+    ENGINE_ERROR_CODE rv = h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace);
     cb_free(request);
     return rv;
 }
@@ -505,7 +513,7 @@ void gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
     encodeExt(ext, exp);
     request = createPacket(opcode, vb, 0, ext, 4, key, keylen);
 
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
           "Failed to call gat");
     cb_free(request);
 }
@@ -513,7 +521,7 @@ void gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
 bool get_item_info(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item_info *info,
                    const char* key, uint16_t vb) {
     item *i = NULL;
-    if (h1->get(h, NULL, &i, key, strlen(key), vb) != ENGINE_SUCCESS) {
+    if (get(h, h1, NULL, &i, key, vb) != ENGINE_SUCCESS) {
         return false;
     }
     info->nvalue = 1;
@@ -549,7 +557,7 @@ void getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
     encodeExt(ext, lock_timeout);
     request = createPacket(PROTOCOL_BINARY_CMD_GET_LOCKED, vb, 0, ext, 4, key, keylen);
 
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
           "Failed to call getl");
     cb_free(request);
 }
@@ -568,7 +576,8 @@ bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
     }
 
     ENGINE_ERROR_CODE ret = h1->unknown_command(h, cookie, req,
-                                                add_response_get_meta);
+                                                add_response_get_meta,
+                                                testHarness.doc_namespace);
     if (ret == ENGINE_EWOULDBLOCK) {
         last_status = static_cast<protocol_binary_response_status>(ENGINE_EWOULDBLOCK);
     } else {
@@ -597,7 +606,7 @@ void observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     protocol_binary_request_header *request;
     request = createPacket(PROTOCOL_BINARY_CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0,
                            value.str().data(), value.str().length());
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
           "Observe call failed");
     cb_free(request);
 }
@@ -611,7 +620,7 @@ void observe_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     request = createPacket(PROTOCOL_BINARY_CMD_OBSERVE_SEQNO, vb_id, 0, NULL, 0,
                            NULL, 0, data.str().data(), data.str().length());
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
           "Observe_seqno call failed");
     cb_free(request);
 }
@@ -620,7 +629,7 @@ void get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
                  uint16_t vbid) {
     protocol_binary_request_header *pkt;
     pkt = createPacket(PROTOCOL_BINARY_CMD_GET_REPLICA, vbid, 0, NULL, 0, key, strlen(key));
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
                               "Get Replica Failed");
     cb_free(pkt);
 }
@@ -655,7 +664,7 @@ bool set_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, protocol_binary_engine_pa
     pkt = createPacket(PROTOCOL_BINARY_CMD_SET_PARAM, vb, 0, ext, sizeof(protocol_binary_engine_param_t), param,
                        strlen(param), val, strlen(val));
 
-    if (h1->unknown_command(h, NULL, pkt, add_response) != ENGINE_SUCCESS) {
+    if (h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace) != ENGINE_SUCCESS) {
         cb_free(pkt);
         return false;
     }
@@ -672,7 +681,7 @@ bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     encodeExt(ext, static_cast<uint32_t>(state));
     pkt = createPacket(PROTOCOL_BINARY_CMD_SET_VBUCKET, vb, 0, ext, 4);
 
-    if (h1->unknown_command(h, NULL, pkt, add_response) != ENGINE_SUCCESS) {
+    if (h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace) != ENGINE_SUCCESS) {
         return false;
     }
 
@@ -692,7 +701,7 @@ bool get_all_vb_seqnos(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         pkt = createPacket(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS);
     }
 
-    check(h1->unknown_command(h, cookie, pkt, add_response) ==
+    check(h1->unknown_command(h, cookie, pkt, add_response, testHarness.doc_namespace) ==
           ENGINE_SUCCESS, "Error in getting all vb info");
 
     cb_free(pkt);
@@ -758,7 +767,7 @@ static void store_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     pkt = createPacket(cmd, vb, cas_for_store, ext.get(), blen, key, keylen,
                        val, vallen, datatype, nmeta.data(), nmeta.size());
 
-    check(h1->unknown_command(h, cookie, pkt, add_response_set_del_meta) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, cookie, pkt, add_response_set_del_meta, testHarness.doc_namespace) == ENGINE_SUCCESS,
           "Expected to be able to store with meta");
     cb_free(pkt);
 }
@@ -795,7 +804,7 @@ void return_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
     protocol_binary_request_header *pkt;
     pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, vb, cas, ext, 12, key, keylen, val,
                        vallen, datatype);
-    check(h1->unknown_command(h, cookie, pkt, add_response_ret_meta)
+    check(h1->unknown_command(h, cookie, pkt, add_response_ret_meta, testHarness.doc_namespace)
               == ENGINE_SUCCESS, "Expected to be able to store ret meta");
     cb_free(pkt);
 }
@@ -825,7 +834,7 @@ void del_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
 
 void disable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
           "Failed to send data traffic command to the server");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Failed to disable data traffic");
@@ -834,7 +843,7 @@ void disable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 void enable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
           "Failed to send data traffic command to the server");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Failed to enable data traffic");
@@ -843,7 +852,7 @@ void enable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 void start_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_START_PERSISTENCE);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
           "Failed to stop persistence.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Error starting persistence.");
@@ -860,7 +869,7 @@ void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     }
 
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_STOP_PERSISTENCE);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
           "Failed to stop persistence.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Error stopping persistence.");
@@ -882,15 +891,15 @@ ENGINE_ERROR_CODE storeCasOut(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                               const protocol_binary_datatype_t datatype,
                               item*& out_item, uint64_t& out_cas) {
     item *it = NULL;
-    check(h1->allocate(h, NULL, &it, key.c_str(), key.size(), value.size(), 0,
-                       0, datatype) == ENGINE_SUCCESS,
-          "Allocation failed.");
+    checkeq(ENGINE_SUCCESS,
+            allocate(h, h1, NULL, &it, key, value.size(), 0, 0, datatype, vb),
+           "Allocation failed.");
     item_info info;
     info.nvalue = 1;
     check(h1->get_item_info(h, h1, it, &info), "Unable to get item_info");
     check(info.nvalue == 1, "iovectors not supported");
     memcpy(info.value[0].iov_base, value.data(), value.size());
-    ENGINE_ERROR_CODE res = h1->store(h, NULL, it, &out_cas, OPERATION_SET, vb);
+    ENGINE_ERROR_CODE res = h1->store(h, NULL, it, &out_cas, OPERATION_SET);
     h1->release(h, NULL, it);
     return res;
 }
@@ -903,10 +912,8 @@ ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     item *it = NULL;
     uint64_t cas = 0;
 
-    ENGINE_ERROR_CODE rv = h1->allocate(h, cookie, &it,
-                                        key, strlen(key),
-                                        vlen, flags, exp,
-                                        datatype);
+    ENGINE_ERROR_CODE rv = allocate(h, h1, cookie, &it, key, vlen, flags, exp,
+                                    datatype, vb);
     if (rv != ENGINE_SUCCESS) {
         return rv;
     }
@@ -921,7 +928,7 @@ ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     memcpy(info.value[0].iov_base, value, vlen);
     h1->item_set_cas(h, cookie, it, casIn);
 
-    rv = h1->store(h, cookie, it, &cas, op, vb);
+    rv = h1->store(h, cookie, it, &cas, op);
 
     if (outitem) {
         *outitem = it;
@@ -940,7 +947,7 @@ void touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
     encodeExt(ext, exp);
     request = createPacket(PROTOCOL_BINARY_CMD_TOUCH, vb, 0, ext, 4, key, keylen);
 
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
           "Failed to call touch");
     cb_free(request);
 }
@@ -951,7 +958,7 @@ void unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
     protocol_binary_request_header *request;
     request = createPacket(PROTOCOL_BINARY_CMD_UNLOCK_KEY, vb, cas, NULL, 0, key, keylen);
 
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
           "Failed to call unl");
     cb_free(request);
 }
@@ -984,7 +991,7 @@ void compact_db(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     protocol_binary_request_header *pkt =
         createPacket(PROTOCOL_BINARY_CMD_COMPACT_DB, vbid, 0, args, argslen,  NULL, 0,
                      NULL, 0);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
           "Failed to request compact vbucket");
     cb_free(pkt);
 }
@@ -995,7 +1002,7 @@ void vbucketDelete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
     protocol_binary_request_header *pkt =
         createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, vb, 0, NULL, 0, NULL, 0,
                      args, argslen);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+    check(h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
           "Failed to request delete bucket");
     cb_free(pkt);
 }
@@ -1003,7 +1010,7 @@ void vbucketDelete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
 ENGINE_ERROR_CODE verify_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                              const char* key, uint16_t vbucket) {
     item *i = NULL;
-    ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, strlen(key), vbucket);
+    ENGINE_ERROR_CODE rv = get(h, h1, NULL, &i, key, vbucket);
     if (rv == ENGINE_SUCCESS) {
         h1->release(h, NULL, i);
     }
@@ -1043,7 +1050,7 @@ bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
     protocol_binary_request_header *pkt;
     pkt = createPacket(PROTOCOL_BINARY_CMD_GET_VBUCKET, vb, 0);
 
-    ENGINE_ERROR_CODE errcode = h1->unknown_command(h, NULL, pkt, add_response);
+    ENGINE_ERROR_CODE errcode = h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace);
     cb_free(pkt);
     if (errcode != ENGINE_SUCCESS) {
         if (!mute) {
@@ -1404,7 +1411,7 @@ void set_degraded_mode(ENGINE_HANDLE *h,
         pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC, 0, 0);
     }
 
-    ENGINE_ERROR_CODE errcode = h1->unknown_command(h, NULL, pkt, add_response);
+    ENGINE_ERROR_CODE errcode = h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace);
     cb_free(pkt);
     if (errcode != ENGINE_SUCCESS) {
         std::cerr << "Failed to set degraded mode to " << enable
@@ -1495,4 +1502,37 @@ int write_items_upto_mem_perc(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         validate_store_resp(ret, num_items);
     }
     return num_items;
+}
+
+
+uint64_t get_CAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                 const std::string& key) {
+    item *i = NULL;
+    checkeq(ENGINE_SUCCESS,
+            get(h, h1, nullptr, &i, key, 0),
+            "get_CAS: Failed to get key");
+
+    item_info info;
+    info.nvalue = 1;
+    check(h1->get_item_info(h, NULL, i, &info),
+          "get_CAS: Failed to get item info for key");
+    h1->release(h, NULL, i);
+
+    return info.cas;
+}
+
+ENGINE_ERROR_CODE allocate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                           const void* cookie, item** outitem,
+                           const std::string& key, size_t nbytes, int flags,
+                           rel_time_t exptime, uint8_t datatype, uint16_t vb) {
+    return h1->allocate(h, cookie, outitem,
+                        DocKey(key, testHarness.doc_namespace),
+                        nbytes, flags, exptime, datatype, vb);
+}
+
+ENGINE_ERROR_CODE get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                      const void* cookie, item** item, const std::string& key,
+                      uint16_t vb) {
+    return h1->get(h, cookie, item, DocKey(key, testHarness.doc_namespace),
+                   vb);
 }

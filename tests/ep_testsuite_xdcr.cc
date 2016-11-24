@@ -180,7 +180,7 @@ static enum test_result test_get_meta_with_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     check(get_meta(h, h1, key1), "Expected to get meta");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     checkeq(ENGINE_SUCCESS,
-            h1->get(h, NULL, &i, key1, strlen(key1), 0), "Expected get success");
+            get(h, h1, NULL, &i, key1, 0), "Expected get success");
     h1->release(h, NULL, i);
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
@@ -195,7 +195,7 @@ static enum test_result test_get_meta_with_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V
             "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
     checkeq(ENGINE_KEY_ENOENT,
-            h1->get(h, NULL, &i, key1, strlen(key1), 0), "Expected enoent");
+            get(h, h1, NULL, &i, key1, 0), "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     checkeq(2, temp, "Expect more getMeta ops");
@@ -205,7 +205,7 @@ static enum test_result test_get_meta_with_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
             "Expected enoent");
     checkeq(ENGINE_KEY_ENOENT,
-            h1->get(h, NULL, &i, key2, strlen(key2), 0), "Expected enoent");
+            get(h, h1, NULL, &i, key2, 0), "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     checkeq(3, temp, "Expected one extra getMeta ops");
@@ -859,7 +859,7 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
     // Make sure the item expiration was processed correctly
     testHarness.time_travel(301);
-    checkeq(ENGINE_KEY_ENOENT, h1->get(h, NULL, &i, key, keylen, 0),
+    checkeq(ENGINE_KEY_ENOENT, get(h, h1, NULL, &i, key, 0),
             "Failed to get value.");
 
     h1->release(h, NULL, i);

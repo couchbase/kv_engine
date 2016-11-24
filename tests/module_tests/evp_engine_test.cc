@@ -66,10 +66,11 @@ void EventuallyPersistentEngineTest::store_item(uint16_t vbid,
                                                 const std::string& key,
                                                 const std::string& value) {
     Item item(key.c_str(), key.size(), /*flags*/0, /*exp*/0, value.c_str(),
-              value.size());
+              value.size(), nullptr/*extmeta*/, 0/*extlen*/, 0/*cas*/,
+              -1/*seqno*/, vbid);
     uint64_t cas;
     EXPECT_EQ(ENGINE_SUCCESS,
-              engine->store(NULL, &item, &cas, OPERATION_SET, vbid));
+              engine->store(NULL, &item, &cas, OPERATION_SET));
 }
 
 const char EventuallyPersistentEngineTest::test_dbname[] = "ep_engine_ep_unit_tests_db";

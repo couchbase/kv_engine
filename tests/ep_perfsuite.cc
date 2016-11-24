@@ -374,7 +374,7 @@ static void perf_latency_core(ENGINE_HANDLE *h,
         item* item = NULL;
         const hrtime_t start = gethrtime();
         checkeq(ENGINE_SUCCESS,
-                h1->get(h, cookie, &item, key.c_str(), key.size(), 0),
+                get(h, h1, cookie, &item, key, 0),
                 "Failed to get a value");
         const hrtime_t end = gethrtime();
         get_timings.push_back(end - start);

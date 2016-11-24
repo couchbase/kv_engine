@@ -28,7 +28,7 @@
 #include <atomic>
 #include "globaltask.h"
 #include "kvstore.h"
-#include "daemon/buffer.h"
+#include <memcached/buffer.h>
 
 /**
  * A task for persisting items to disk.
