@@ -283,34 +283,34 @@ void DcpConnMap::disconnect(const void *cookie) {
 
 void DcpConnMap::manageConnections() {
     std::list<connection_t> release;
-
-    LockHolder lh(connsLock);
-    while (!deadConnections.empty()) {
-        connection_t conn = deadConnections.front();
-        release.push_back(conn);
-        deadConnections.pop_front();
-    }
-
-    // Collect the list of connections that need to be signaled.
     std::list<connection_t> toNotify;
-    std::map<const void*, connection_t>::iterator iter;
-    for (iter = map_.begin(); iter != map_.end(); ++iter) {
-        connection_t conn = iter->second;
-        Notifiable *tp = dynamic_cast<Notifiable*>(conn.get());
-        if (tp && (tp->isPaused() || conn->doDisconnect()) &&
-            conn->isReserved()) {
-            /**
-             * Note: We want to send a notify even if we have sent one
-             * previously i.e. tp->sentNotify() == true.  The reason for this
-             * is manageConnections is used to notify idle connections once a
-             * second.  This results in the step function being invoked,
-             * which in turn may result in a dcp noop message being sent.
-             */
-            toNotify.push_back(iter->second);
+    
+    {
+        LockHolder lh(connsLock);
+        while (!deadConnections.empty()) {
+            connection_t conn = deadConnections.front();
+            release.push_back(conn);
+            deadConnections.pop_front();
+        }
+
+        // Collect the list of connections that need to be signaled.
+        std::map<const void*, connection_t>::iterator iter;
+        for (iter = map_.begin(); iter != map_.end(); ++iter) {
+            connection_t conn = iter->second;
+            Notifiable *tp = dynamic_cast<Notifiable*>(conn.get());
+            if (tp && (tp->isPaused() || conn->doDisconnect()) &&
+                conn->isReserved()) {
+                /**
+                 * Note: We want to send a notify even if we have sent one
+                 * previously i.e. tp->sentNotify() == true.  The reason for this
+                 * is manageConnections is used to notify idle connections once a
+                 * second.  This results in the step function being invoked,
+                 * which in turn may result in a dcp noop message being sent.
+                 */
+                toNotify.push_back(iter->second);
+            }
         }
     }
-
-    lh.unlock();
 
     LockHolder rlh(releaseLock);
     std::list<connection_t>::iterator it;

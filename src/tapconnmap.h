@@ -218,7 +218,7 @@ public:
     template <typename V>
     bool performOp(const std::string &name, TapOperation<V> &tapop, V arg) {
         bool ret(true);
-        LockHolder lh(connsLock);
+        std::unique_lock<std::mutex> lh(connsLock);
 
         connection_t tc = findByName_UNLOCKED(name);
         if (tc.get()) {

@@ -222,7 +222,7 @@ StoredValue* HashTable::find(const std::string &key, bool trackReference) {
                 "non-active object");
     }
     int bucket_num(0);
-    LockHolder lh = getLockedBucket(key, &bucket_num);
+    std::unique_lock<std::mutex> lh = getLockedBucket(key, &bucket_num);
     return unlocked_find(key, bucket_num, false, trackReference);
 }
 
@@ -246,7 +246,7 @@ mutation_type_t HashTable::set(Item &val, uint64_t cas,
                                bool allowExisting, bool hasMetaData,
                                item_eviction_policy_t policy) {
     int bucket_num(0);
-    LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
+    std::unique_lock<std::mutex> lh = getLockedBucket(val.getKey(), &bucket_num);
     StoredValue *v = unlocked_find(val.getKey(), bucket_num, true, false);
     return unlocked_set(v, val, cas, allowExisting, hasMetaData, policy);
 }
@@ -362,7 +362,7 @@ mutation_type_t HashTable::insert(Item &itm, item_eviction_policy_t policy,
     }
 
     int bucket_num(0);
-    LockHolder lh = getLockedBucket(itm.getKey(), &bucket_num);
+    std::unique_lock<std::mutex> lh = getLockedBucket(itm.getKey(), &bucket_num);
     StoredValue *v = unlocked_find(itm.getKey(), bucket_num, true, false);
 
     if (v == NULL) {
@@ -422,7 +422,7 @@ add_type_t HashTable::add(Item &val, item_eviction_policy_t policy,
                 "non-active object");
     }
     int bucket_num(0);
-    LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
+    std::unique_lock<std::mutex> lh = getLockedBucket(val.getKey(), &bucket_num);
     StoredValue *v = unlocked_find(val.getKey(), bucket_num, true, false);
     return unlocked_add(bucket_num, v, val, policy, isDirty,
                         /*maybeKeyExists*/true, /*isReplication*/false);
@@ -542,7 +542,7 @@ mutation_type_t HashTable::softDelete(const const_char_buffer key, uint64_t cas,
                 "non-active object");
     }
     int bucket_num(0);
-    LockHolder lh = getLockedBucket(key, &bucket_num);
+    std::unique_lock<std::mutex> lh = getLockedBucket(key, &bucket_num);
     StoredValue *v = unlocked_find(key, bucket_num, false, false);
     return unlocked_softDelete(v, cas, policy);
 }
@@ -700,7 +700,7 @@ void HashTable::visit(HashTableVisitor &visitor) {
     // Acquire one (any) of the mutexes before incrementing {visitors}, this
     // prevents any race between this visitor and the HashTable resizer.
     // See comments in pauseResumeVisit() for further details.
-    LockHolder lh(mutexes[0]);
+    std::unique_lock<std::mutex> lh(mutexes[0]);
     VisitorTracker vt(&visitors);
     lh.unlock();
 
@@ -734,7 +734,6 @@ void HashTable::visit(HashTableVisitor &visitor) {
             }
             ++visited;
         }
-        lh.unlock();
         aborted = !visitor.shouldContinue();
     }
 }
@@ -797,7 +796,7 @@ HashTable::pauseResumeVisit(PauseResumeHashTableVisitor& visitor,
     // inside the inner for() loop. To prevent this race, we explicitly acquire
     // (any) mutex, increment {visitors} and then release the mutex. This
     //avoids the race as if visitors >0 then Resizer will not attempt to resize.
-    LockHolder lh(mutexes[0]);
+    std::unique_lock<std::mutex> lh(mutexes[0]);
     VisitorTracker vt(&visitors);
     lh.unlock();
 
@@ -936,7 +935,7 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
 }
 
 Item *HashTable::getRandomKeyFromSlot(int slot) {
-    LockHolder lh = getLockedBucket(slot);
+    std::unique_lock<std::mutex> lh = getLockedBucket(slot);
     StoredValue *v = values[slot];
 
     while (v) {

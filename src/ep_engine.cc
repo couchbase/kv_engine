@@ -6142,16 +6142,15 @@ ENGINE_ERROR_CODE
 EventuallyPersistentEngine::getAllKeys(const void* cookie,
                                 protocol_binary_request_get_keys *request,
                                 ADD_RESPONSE response) {
-
-    LockHolder lh(lookupMutex);
-    std::unordered_map<const void*, ENGINE_ERROR_CODE>::iterator it =
-        allKeysLookups.find(cookie);
-    if (it != allKeysLookups.end()) {
-        ENGINE_ERROR_CODE err = it->second;
-        allKeysLookups.erase(it);
-        return err;
+    {
+        LockHolder lh(lookupMutex);
+        auto it = allKeysLookups.find(cookie);
+        if (it != allKeysLookups.end()) {
+            ENGINE_ERROR_CODE err = it->second;
+            allKeysLookups.erase(it);
+            return err;
+        }
     }
-    lh.unlock();
 
     uint16_t vbucket = ntohs(request->message.header.request.vbucket);
     RCPtr<VBucket> vb = getVBucket(vbucket);

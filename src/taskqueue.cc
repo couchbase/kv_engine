@@ -213,17 +213,20 @@ ProcessClock::time_point TaskQueue::reschedule(ExTask &task) {
 }
 
 void TaskQueue::_schedule(ExTask &task) {
-    LockHolder lh(mutex);
-
-    futureQueue.push(task);
-
-    LOG(EXTENSION_LOG_DEBUG, "%s: Schedule a task \"%s\" id %" PRIu64,
-        name.c_str(), task->getDescription().c_str(), uint64_t(task->getId()));
-
+    TaskQueue* sleepQ;
     size_t numToWake = 1;
-    TaskQueue *sleepQ = manager->getSleepQ(queueType);
-    _doWake_UNLOCKED(numToWake);
-    lh.unlock();
+
+    {
+        LockHolder lh(mutex);
+
+        futureQueue.push(task);
+
+        LOG(EXTENSION_LOG_DEBUG, "%s: Schedule a task \"%s\" id %" PRIu64,
+            name.c_str(), task->getDescription().c_str(), uint64_t(task->getId()));
+
+        sleepQ = manager->getSleepQ(queueType);
+        _doWake_UNLOCKED(numToWake);
+    }
     if (this != sleepQ) {
         sleepQ->doWake(numToWake);
     }
@@ -237,43 +240,44 @@ void TaskQueue::schedule(ExTask &task) {
 
 void TaskQueue::_wake(ExTask &task) {
     const ProcessClock::time_point now = ProcessClock::now();
-
-    LockHolder lh(mutex);
-    LOG(EXTENSION_LOG_DEBUG, "%s: Wake a task \"%s\" id %" PRIu64,
-        name.c_str(), task->getDescription().c_str(), uint64_t(task->getId()));
-
-    std::queue<ExTask> notReady;
-    // Wake thread-count-serialized tasks too
-    for (std::list<ExTask>::iterator it = pendingQueue.begin();
-         it != pendingQueue.end();) {
-        ExTask tid = *it;
-        if (tid->getId() == task->getId() || tid->isdead()) {
-            notReady.push(tid);
-            it = pendingQueue.erase(it);
-        } else {
-            it++;
-        }
-    }
-
-    futureQueue.updateWaketime(task, now);
-    task->setState(TASK_RUNNING, TASK_SNOOZED);
-
+    TaskQueue* sleepQ;
     // One task is being made ready regardless of the queue it's in.
     size_t readyCount = 1;
-    while (!notReady.empty()) {
-        ExTask tid = notReady.front();
-        if (tid->getWaketime() <= now || tid->isdead()) {
-            readyCount++;
+    {
+        LockHolder lh(mutex);
+        LOG(EXTENSION_LOG_DEBUG, "%s: Wake a task \"%s\" id %" PRIu64,
+            name.c_str(), task->getDescription().c_str(), uint64_t(task->getId()));
+
+        std::queue<ExTask> notReady;
+        // Wake thread-count-serialized tasks too
+        for (std::list<ExTask>::iterator it = pendingQueue.begin();
+             it != pendingQueue.end();) {
+            ExTask tid = *it;
+            if (tid->getId() == task->getId() || tid->isdead()) {
+                notReady.push(tid);
+                it = pendingQueue.erase(it);
+            } else {
+                it++;
+            }
         }
 
-        // MB-18453: Only push to the futureQueue
-        futureQueue.push(tid);
-        notReady.pop();
-    }
+        futureQueue.updateWaketime(task, now);
+        task->setState(TASK_RUNNING, TASK_SNOOZED);
 
-    _doWake_UNLOCKED(readyCount);
-    TaskQueue *sleepQ = manager->getSleepQ(queueType);
-    lh.unlock();
+        while (!notReady.empty()) {
+            ExTask tid = notReady.front();
+            if (tid->getWaketime() <= now || tid->isdead()) {
+                readyCount++;
+            }
+
+            // MB-18453: Only push to the futureQueue
+            futureQueue.push(tid);
+            notReady.pop();
+        }
+
+        _doWake_UNLOCKED(readyCount);
+        sleepQ = manager->getSleepQ(queueType);
+    }
     if (this != sleepQ) {
         sleepQ->doWake(readyCount);
     }

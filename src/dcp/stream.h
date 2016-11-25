@@ -265,6 +265,8 @@ protected:
 
 private:
 
+    DcpResponse* next(std::lock_guard<std::mutex>& lh);
+
     void transitionState(stream_state_t newState);
 
     DcpResponse* backfillPhase();

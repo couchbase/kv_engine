@@ -410,8 +410,8 @@ public:
      * @param bucket the bucket to lock
      * @return a locked LockHolder
      */
-    inline LockHolder getLockedBucket(int bucket) {
-        LockHolder rv(mutexes[mutexForBucket(bucket)]);
+    inline std::unique_lock<std::mutex> getLockedBucket(int bucket) {
+        std::unique_lock<std::mutex> rv(mutexes[mutexForBucket(bucket)]);
         return rv;
     }
 
@@ -423,14 +423,14 @@ public:
      * @param bucket output parameter to receive a bucket
      * @return a locked LockHolder
      */
-    inline LockHolder getLockedBucket(int h, int *bucket) {
+    inline std::unique_lock<std::mutex> getLockedBucket(int h, int *bucket) {
         while (true) {
             if (!isActive()) {
                 throw std::logic_error("HashTable::getLockedBucket: "
                         "Cannot call on a non-active object");
             }
             *bucket = getBucketForHash(h);
-            LockHolder rv(mutexes[mutexForBucket(*bucket)]);
+            std::unique_lock<std::mutex> rv(mutexes[mutexForBucket(*bucket)]);
             if (*bucket == getBucketForHash(h)) {
                 return rv;
             }
@@ -446,7 +446,7 @@ public:
      * @param bucket output parameter to receive a bucket
      * @return a locked LockHolder
      */
-    inline LockHolder getLockedBucket(const char *s, size_t n, int *bucket) {
+    inline std::unique_lock<std::mutex> getLockedBucket(const char *s, size_t n, int *bucket) {
         return getLockedBucket(hash(s, n), bucket);
     }
 
@@ -458,11 +458,11 @@ public:
      * @param bucket output parameter to receive a bucket
      * @return a locked LockHolder
      */
-    inline LockHolder getLockedBucket(const std::string &s, int *bucket) {
+    inline std::unique_lock<std::mutex> getLockedBucket(const std::string &s, int *bucket) {
         return getLockedBucket(hash(s.data(), s.size()), bucket);
     }
 
-    inline LockHolder getLockedBucket(const const_char_buffer key, int *bucket) {
+    inline std::unique_lock<std::mutex> getLockedBucket(const const_char_buffer key, int *bucket) {
         return getLockedBucket(hash(key.data(), key.size()), bucket);
     }
 
@@ -485,7 +485,7 @@ public:
      */
     bool del(const const_char_buffer key) {
         int bucket_num(0);
-        LockHolder lh = getLockedBucket(key, &bucket_num);
+        std::unique_lock<std::mutex> lh = getLockedBucket(key, &bucket_num);
         return unlocked_del(key, bucket_num);
     }
 

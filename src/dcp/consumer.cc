@@ -899,15 +899,16 @@ DcpResponse* DcpConsumer::getNextItem() {
 }
 
 void DcpConsumer::notifyStreamReady(uint16_t vbucket) {
-    LockHolder lh(readyMutex);
-    std::list<uint16_t>::iterator iter =
-        std::find(ready.begin(), ready.end(), vbucket);
-    if (iter != ready.end()) {
-        return;
+    {
+        std::lock_guard<std::mutex> lh(readyMutex);
+        auto iter = std::find(ready.begin(), ready.end(), vbucket);
+        if (iter != ready.end()) {
+            return;
+        }
+
+        ready.push_back(vbucket);
     }
 
-    ready.push_back(vbucket);
-    lh.unlock();
 
     notifyPaused(/*schedule*/true);
 }

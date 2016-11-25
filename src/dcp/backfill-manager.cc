@@ -211,7 +211,7 @@ void BackfillManager::bytesSent(uint32_t bytes) {
 }
 
 backfill_status_t BackfillManager::backfill() {
-    LockHolder lh(lock);
+    std::unique_lock<std::mutex> lh(lock);
 
     if (activeBackfills.empty() && snoozingBackfills.empty()
         && pendingBackfills.empty()) {

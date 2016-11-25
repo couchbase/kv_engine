@@ -371,7 +371,7 @@ void LoadValueCallback::callback(CacheLookup &lookup)
         }
 
         int bucket_num(0);
-        LockHolder lh = vb->ht.getLockedBucket(lookup.getKey(), &bucket_num);
+        auto lh = vb->ht.getLockedBucket(lookup.getKey(), &bucket_num);
 
         StoredValue *v = vb->ht.unlocked_find(lookup.getKey(), bucket_num);
         if (v && v->isResident()) {
@@ -448,16 +448,18 @@ void Warmup::start(void)
 
 void Warmup::stop(void)
 {
-    LockHolder lh(taskSetMutex);
-    if (!taskSet.empty()) {
+    {
+        LockHolder lh(taskSetMutex);
+        if(taskSet.empty()) {
+            return;
+        }
         for (auto id : taskSet) {
             ExecutorPool::get()->cancel(id);
         }
         taskSet.clear();
-        lh.unlock();
-        transition(WarmupState::Done, true);
-        done();
     }
+    transition(WarmupState::Done, true);
+    done();
 }
 
 void Warmup::scheduleInitialize()

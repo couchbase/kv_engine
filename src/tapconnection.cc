@@ -775,7 +775,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
                                           uint16_t status,
                                           const std::string &msg)
 {
-    LockHolder lh(queueLock);
+    std::unique_lock<std::mutex> lh(queueLock);
     std::list<TapLogElement>::iterator iter = ackLog_.begin();
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 

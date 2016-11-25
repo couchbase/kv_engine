@@ -165,85 +165,93 @@ std::ostream& operator <<(std::ostream &out, const Configuration &config) {
 }
 
 void Configuration::setParameter(const std::string &key, bool value) {
-    LockHolder lh(mutex);
-    std::map<std::string, value_t>::iterator validator = attributes.find(key);
-    if (validator != attributes.end()) {
-        if (validator->second.validator != NULL) {
-            validator->second.validator->validateBool(key, value);
+    std::vector<ValueChangedListener*> copy;
+    {
+        std::lock_guard<std::mutex> lh(mutex);
+        auto validator = attributes.find(key);
+        if (validator != attributes.end()) {
+            if (validator->second.validator != NULL) {
+                validator->second.validator->validateBool(key, value);
+            }
         }
+        attributes[key].datatype = DT_BOOL;
+        attributes[key].val.v_bool = value;
+        copy = attributes[key].changeListener;
     }
-    attributes[key].datatype = DT_BOOL;
-    attributes[key].val.v_bool = value;
-    std::vector<ValueChangedListener*> copy(attributes[key].changeListener);
-    lh.unlock();
-    std::vector<ValueChangedListener*>::iterator iter;
-    for (iter = copy.begin(); iter != copy.end(); ++iter) {
+
+    for (auto iter = copy.begin(); iter != copy.end(); ++iter) {
         (*iter)->booleanValueChanged(key, value);
     }
 }
 
 void Configuration::setParameter(const std::string &key, size_t value) {
-    LockHolder lh(mutex);
-    std::map<std::string, value_t>::iterator validator = attributes.find(key);
-    if (validator != attributes.end()) {
-        if (validator->second.validator != NULL) {
-            validator->second.validator->validateSize(key, value);
+    std::vector<ValueChangedListener*> copy;
+    {
+        std::lock_guard<std::mutex> lh(mutex);
+        auto validator = attributes.find(key);
+        if (validator != attributes.end()) {
+            if (validator->second.validator != NULL) {
+                validator->second.validator->validateSize(key, value);
+            }
         }
-    }
-    attributes[key].datatype = DT_SIZE;
-    if (key.compare("cache_size") == 0) {
-        attributes["max_size"].val.v_size = value;
-    } else {
-        attributes[key].val.v_size = value;
+        attributes[key].datatype = DT_SIZE;
+        if (key.compare("cache_size") == 0) {
+            attributes["max_size"].val.v_size = value;
+        } else {
+            attributes[key].val.v_size = value;
+        }
+
+        copy = attributes[key].changeListener;
     }
 
-    std::vector<ValueChangedListener*> copy(attributes[key].changeListener);
-    lh.unlock();
-    std::vector<ValueChangedListener*>::iterator iter;
-    for (iter = copy.begin(); iter != copy.end(); ++iter) {
+    for (auto iter = copy.begin(); iter != copy.end(); ++iter) {
         (*iter)->sizeValueChanged(key, value);
     }
 }
 
 void Configuration::setParameter(const std::string &key, ssize_t value) {
-    LockHolder lh(mutex);
-    std::map<std::string, value_t>::iterator validator = attributes.find(key);
-    if (validator != attributes.end()) {
-        if (validator->second.validator != NULL) {
-            validator->second.validator->validateSSize(key, value);
+    std::vector<ValueChangedListener*> copy;
+    {
+        std::lock_guard<std::mutex> lh(mutex);
+        auto validator = attributes.find(key);
+        if (validator != attributes.end()) {
+            if (validator->second.validator != NULL) {
+                validator->second.validator->validateSSize(key, value);
+            }
         }
-    }
-    attributes[key].datatype = DT_SSIZE;
-    if (key.compare("cache_size") == 0) {
-        attributes["max_size"].val.v_ssize = value;
-    } else {
-        attributes[key].val.v_ssize = value;
+        attributes[key].datatype = DT_SSIZE;
+        if (key.compare("cache_size") == 0) {
+            attributes["max_size"].val.v_ssize = value;
+        } else {
+            attributes[key].val.v_ssize = value;
+        }
+
+        copy = attributes[key].changeListener;
     }
 
-    std::vector<ValueChangedListener*> copy(attributes[key].changeListener);
-    lh.unlock();
-    std::vector<ValueChangedListener*>::iterator iter;
-    for (iter = copy.begin(); iter != copy.end(); ++iter) {
+    for (auto iter = copy.begin(); iter != copy.end(); ++iter) {
         (*iter)->sizeValueChanged(key, value);
     }
 }
 
 void Configuration::setParameter(const std::string &key, float value) {
-    LockHolder lh(mutex);
+    std::vector<ValueChangedListener*> copy;
+    {
+        std::lock_guard<std::mutex> lh(mutex);
 
-    std::map<std::string, value_t>::iterator validator = attributes.find(key);
-    if (validator != attributes.end()) {
-        if (validator->second.validator != NULL) {
-            validator->second.validator->validateFloat(key, value);
+        auto validator = attributes.find(key);
+        if (validator != attributes.end()) {
+            if (validator->second.validator != NULL) {
+                validator->second.validator->validateFloat(key, value);
+            }
         }
+
+        attributes[key].datatype = DT_FLOAT;
+        attributes[key].val.v_float = value;
+        copy = attributes[key].changeListener;
     }
 
-    attributes[key].datatype = DT_FLOAT;
-    attributes[key].val.v_float = value;
-    std::vector<ValueChangedListener*> copy(attributes[key].changeListener);
-    lh.unlock();
-    std::vector<ValueChangedListener*>::iterator iter;
-    for (iter = copy.begin(); iter != copy.end(); ++iter) {
+    for (auto iter = copy.begin(); iter != copy.end(); ++iter) {
         (*iter)->floatValueChanged(key, value);
     }
 }
@@ -258,28 +266,30 @@ void Configuration::setParameter(const std::string &key,
 }
 
 void Configuration::setParameter(const std::string &key, const char *value) {
-    LockHolder lh(mutex);
-    std::map<std::string, value_t>::iterator validator = attributes.find(key);
-    if (validator != attributes.end()) {
-        if (validator->second.validator != NULL) {
-            validator->second.validator->validateString(key, value);
+    std::vector<ValueChangedListener*> copy;
+    {
+        std::lock_guard<std::mutex> lh(mutex);
+        auto validator = attributes.find(key);
+        if (validator != attributes.end()) {
+            if (validator->second.validator != NULL) {
+                validator->second.validator->validateString(key, value);
+            }
         }
+
+        if (attributes.find(key) != attributes.end() && attributes[key].datatype
+                                                        == DT_STRING) {
+            cb_free((void*) attributes[key].val.v_string);
+        }
+        attributes[key].datatype = DT_STRING;
+        attributes[key].val.v_string = NULL;
+        if (value != NULL) {
+            attributes[key].val.v_string = cb_strdup(value);
+        }
+
+        copy = attributes[key].changeListener;
     }
 
-    if (attributes.find(key) != attributes.end() && attributes[key].datatype
-            == DT_STRING) {
-        cb_free((void*)attributes[key].val.v_string);
-    }
-    attributes[key].datatype = DT_STRING;
-    attributes[key].val.v_string = NULL;
-    if (value != NULL) {
-        attributes[key].val.v_string = cb_strdup(value);
-    }
-
-    std::vector<ValueChangedListener*> copy(attributes[key].changeListener);
-    lh.unlock();
-    std::vector<ValueChangedListener*>::iterator iter;
-    for (iter = copy.begin(); iter != copy.end(); ++iter) {
+    for (auto iter = copy.begin(); iter != copy.end(); ++iter) {
         (*iter)->stringValueChanged(key, value);
     }
 }

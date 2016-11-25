@@ -840,7 +840,7 @@ protected:
      */
     virtual void queueDirty(RCPtr<VBucket> &vb,
                             StoredValue* v,
-                            LockHolder *plh,
+                            std::unique_lock<std::mutex>* plh,
                             uint64_t *seqno,
                             const GenerateBySeqno generateBySeqno =
                                                         GenerateBySeqno::Yes,
@@ -882,7 +882,7 @@ protected:
                                  get_options_t options = TRACK_REFERENCE) = 0;
 
     virtual ENGINE_ERROR_CODE addTempItemForBgFetch(
-                                                LockHolder &lock,
+                                                std::unique_lock<std::mutex>& lock,
                                                 int bucket_num,
                                                 const const_char_buffer key,
                                                 RCPtr<VBucket> &vb,

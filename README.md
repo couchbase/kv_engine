@@ -22,28 +22,29 @@ A condition-variable is also available called `SyncObject`
 
 These primitives are managed via RAII wrappers - [locks.h](./src/locks.h).
 
-1. `LockHolder` - for acquiring a `std::mutex` or `SyncObject`.
+1. `LockHolder` - a deprecated alias for std::lock_guard
 2. `MultiLockHolder` - for acquiring an array of `std::mutex` or `SyncObject`.
 3. `WriterLockHolder` - for acquiring write access to a `RWLock`.
 4. `ReaderLockHolder` - for acquiring read access to a `RWLock`.
 5. `SpinLockHolder` - for acquiring a `SpinLock`.
 
 ### Mutex
-The general style is to create a `LockHolder` when you need to acquire a
-`std::mutex`, the constructor will acquire and when the `LockHolder` goes out of
+The general style is to create a `std::lock_guard` when you need to acquire a
+`std::mutex`, the constructor will acquire and when the `lock_guard` goes out of
 scope, the destructor will release the `std::mutex`. For certain use-cases the
-caller can explicitly lock/unlock a `std::mutex` via the `LockHolder` class.
+caller can explicitly lock/unlock a `std::mutex` via the `std::unique_lock`
+class.
 
 ```c++
 std::mutex mutex;
 void example1() {
-    LockHolder lockHolder(&mutex);
+    std::lock_guard<std::mutex> lockHolder(mutex);
     ...
     return;
 }
 
 void example2() {
-    LockHolder lockHolder(&mutex);
+    std::unique_lock<std::mutex> lockHolder(mutex);
     ...
     lockHolder.unlock();
     ...

@@ -220,7 +220,7 @@ VBucket::~VBucket() {
 
 void VBucket::fireAllOps(EventuallyPersistentEngine &engine,
                          ENGINE_ERROR_CODE code) {
-    LockHolder lh(pendingOpLock);
+    std::unique_lock<std::mutex> lh(pendingOpLock);
 
     if (pendingOpsStart > 0) {
         hrtime_t now = gethrtime();
@@ -391,7 +391,7 @@ void VBucket::addHighPriorityVBEntry(uint64_t id, const void *cookie,
 void VBucket::notifyOnPersistence(EventuallyPersistentEngine &e,
                                   uint64_t idNum,
                                   bool isBySeqno) {
-    LockHolder lh(hpChksMutex);
+    std::unique_lock<std::mutex> lh(hpChksMutex);
     std::map<const void*, ENGINE_ERROR_CODE> toNotify;
     std::list<HighPriorityVBEntry>::iterator entry = hpChks.begin();
 
@@ -450,18 +450,19 @@ void VBucket::notifyOnPersistence(EventuallyPersistentEngine &e,
 }
 
 void VBucket::notifyAllPendingConnsFailed(EventuallyPersistentEngine &e) {
-    LockHolder lh(hpChksMutex);
     std::map<const void*, ENGINE_ERROR_CODE> toNotify;
-    std::list<HighPriorityVBEntry>::iterator entry = hpChks.begin();
-    while (entry != hpChks.end()) {
-        toNotify[entry->cookie] = ENGINE_TMPFAIL;
-        e.storeEngineSpecific(entry->cookie, NULL);
-        entry = hpChks.erase(entry);
-        if (shard) {
-            --shard->highPriorityCount;
+    {
+        LockHolder lh(hpChksMutex);
+        std::list<HighPriorityVBEntry>::iterator entry = hpChks.begin();
+        while (entry != hpChks.end()) {
+            toNotify[entry->cookie] = ENGINE_TMPFAIL;
+            e.storeEngineSpecific(entry->cookie, NULL);
+            entry = hpChks.erase(entry);
+            if (shard) {
+                --shard->highPriorityCount;
+            }
         }
     }
-    lh.unlock();
 
     std::map<const void*, ENGINE_ERROR_CODE>::iterator itr = toNotify.begin();
     for (; itr != toNotify.end(); ++itr) {

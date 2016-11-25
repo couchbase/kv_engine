@@ -56,7 +56,7 @@ void ItemResidentCallback::callback(CacheLookup &lookup) {
     }
 
     int bucket_num(0);
-    LockHolder lh = vb->ht.getLockedBucket(lookup.getKey(), &bucket_num);
+    auto lh = vb->ht.getLockedBucket(lookup.getKey(), &bucket_num);
     StoredValue *v = vb->ht.unlocked_find(lookup.getKey(), bucket_num);
     if (v && v->isResident() && v->getBySeqno() == lookup.getBySeqno()) {
         Item* it = v->toItem(false, lookup.getVBucketId());

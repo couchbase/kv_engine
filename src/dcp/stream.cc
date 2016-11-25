@@ -227,8 +227,11 @@ ActiveStream::~ActiveStream() {
 }
 
 DcpResponse* ActiveStream::next() {
-    LockHolder lh(streamMutex);
+    std::lock_guard<std::mutex> lh(streamMutex);
+    return next(lh);
+}
 
+DcpResponse* ActiveStream::next(std::lock_guard<std::mutex>& lh) {
     stream_state_t initState = state_;
 
     DcpResponse* response = NULL;
@@ -272,8 +275,7 @@ DcpResponse* ActiveStream::next() {
     stream_state_t newState = state_;
 
     if (newState != STREAM_DEAD && newState != state_ && !response) {
-        lh.unlock();
-        return next();
+        return next(lh);
     }
 
     itemsReady.store(response ? true : false);
@@ -281,53 +283,53 @@ DcpResponse* ActiveStream::next() {
 }
 
 void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
-    LockHolder lh(streamMutex);
-    uint64_t chkCursorSeqno = endSeqno;
+    {
+        LockHolder lh(streamMutex);
+        uint64_t chkCursorSeqno = endSeqno;
 
-    if (state_ != STREAM_BACKFILLING) {
-        return;
-    }
+        if (state_ != STREAM_BACKFILLING) {
+            return;
+        }
 
-    startSeqno = std::min(snap_start_seqno_, startSeqno);
-    firstMarkerSent = true;
+        startSeqno = std::min(snap_start_seqno_, startSeqno);
+        firstMarkerSent = true;
 
-    RCPtr<VBucket> vb = engine->getVBucket(vb_);
-    // An atomic read of vbucket state without acquiring the
-    // reader lock for state should suffice here.
-    if (vb && vb->getState() == vbucket_state_replica) {
-        if (end_seqno_ > endSeqno) {
-            /* We possibly have items in the open checkpoint
-               (incomplete snapshot) */
-            snapshot_info_t info = vb->checkpointManager.getSnapshotInfo();
-            producer->getLogger().log(EXTENSION_LOG_NOTICE,
-                "(vb %" PRIu16 ") Merging backfill and memory snapshot for a "
-                "replica vbucket, backfill start seqno %" PRIu64 ", "
-                "backfill end seqno %" PRIu64 ", "
-                "snapshot end seqno after merge %" PRIu64,
-                vb_, startSeqno, endSeqno, info.range.end);
-            endSeqno = info.range.end;
+        RCPtr<VBucket> vb = engine->getVBucket(vb_);
+        // An atomic read of vbucket state without acquiring the
+        // reader lock for state should suffice here.
+        if (vb && vb->getState() == vbucket_state_replica) {
+            if (end_seqno_ > endSeqno) {
+                /* We possibly have items in the open checkpoint
+                   (incomplete snapshot) */
+                snapshot_info_t info = vb->checkpointManager.getSnapshotInfo();
+                producer->getLogger().log(EXTENSION_LOG_NOTICE,
+                    "(vb %" PRIu16 ") Merging backfill and memory snapshot for a "
+                    "replica vbucket, backfill start seqno %" PRIu64 ", "
+                    "backfill end seqno %" PRIu64 ", "
+                    "snapshot end seqno after merge %" PRIu64,
+                    vb_, startSeqno, endSeqno, info.range.end);
+                endSeqno = info.range.end;
+            }
+        }
+
+        producer->getLogger().log(EXTENSION_LOG_NOTICE,
+            "(vb %" PRIu16 ") Sending disk snapshot with start seqno %" PRIu64
+            " and end seqno %" PRIu64, vb_, startSeqno, endSeqno);
+        pushToReadyQ(new SnapshotMarker(opaque_, vb_, startSeqno, endSeqno,
+                                        MARKER_FLAG_DISK));
+        lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
+
+        if (!vb) {
+            endStream(END_STREAM_STATE);
+        } else if (!(flags_ & DCP_ADD_STREAM_FLAG_DISKONLY)) {
+            // Only re-register the cursor if we still need to get memory snapshots
+            CursorRegResult result =
+                vb->checkpointManager.registerCursorBySeqno(
+                                                    name_, chkCursorSeqno,
+                                                    MustSendCheckpointEnd::NO);
+            curChkSeqno = result.first;
         }
     }
-
-    producer->getLogger().log(EXTENSION_LOG_NOTICE,
-        "(vb %" PRIu16 ") Sending disk snapshot with start seqno %" PRIu64
-        " and end seqno %" PRIu64, vb_, startSeqno, endSeqno);
-    pushToReadyQ(new SnapshotMarker(opaque_, vb_, startSeqno, endSeqno,
-                                    MARKER_FLAG_DISK));
-    lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
-
-    if (!vb) {
-        endStream(END_STREAM_STATE);
-    } else if (!(flags_ & DCP_ADD_STREAM_FLAG_DISKONLY)) {
-        // Only re-register the cursor if we still need to get memory snapshots
-        CursorRegResult result =
-            vb->checkpointManager.registerCursorBySeqno(
-                                                name_, chkCursorSeqno,
-                                                MustSendCheckpointEnd::NO);
-        curChkSeqno = result.first;
-    }
-
-    lh.unlock();
     bool inverse = false;
     if (itemsReady.compare_exchange_strong(inverse, true)) {
         producer->notifyStreamReady(vb_);
@@ -340,7 +342,7 @@ bool ActiveStream::backfillReceived(Item* itm, backfill_source_t backfill_source
     }
 
     if (itm->shouldReplicate()) {
-        LockHolder lh(streamMutex);
+        std::unique_lock<std::mutex> lh(streamMutex);
         if (state_ == STREAM_BACKFILLING) {
             if (!producer->recordBackfillManagerBytesRead(itm->size())) {
                 delete itm;
@@ -410,7 +412,7 @@ void ActiveStream::snapshotMarkerAckReceived() {
 }
 
 void ActiveStream::setVBucketStateAckRecieved() {
-    LockHolder lh(streamMutex);
+    std::unique_lock<std::mutex> lh(streamMutex);
     if (state_ == STREAM_TAKEOVER_WAIT) {
         if (takeoverState == vbucket_state_pending) {
             producer->getLogger().log(EXTENSION_LOG_INFO,
@@ -1290,7 +1292,7 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e, dcp_producer_t p,
 }
 
 uint32_t NotifierStream::setDead(end_stream_status_t status) {
-    LockHolder lh(streamMutex);
+    std::unique_lock<std::mutex> lh(streamMutex);
     if (state_ != STREAM_DEAD) {
         transitionState(STREAM_DEAD);
         if (status != END_STREAM_DISCONNECTED) {
@@ -1306,7 +1308,7 @@ uint32_t NotifierStream::setDead(end_stream_status_t status) {
 }
 
 void NotifierStream::notifySeqnoAvailable(uint64_t seqno) {
-    LockHolder lh(streamMutex);
+    std::unique_lock<std::mutex> lh(streamMutex);
     if (state_ != STREAM_DEAD && start_seqno_ < seqno) {
         pushToReadyQ(new StreamEndResponse(opaque_, END_STREAM_OK, vb_));
         transitionState(STREAM_DEAD);
@@ -1413,7 +1415,7 @@ uint32_t PassiveStream::setDead(end_stream_status_t status) {
     /* Hold buffer lock so that we clear out all items before we set the stream
        to dead state. We do not want to add any new message to the buffer or
        process any items in the buffer once we set the stream state to dead. */
-    std::lock_guard<std::mutex> lg(buffer.bufMutex);
+    std::unique_lock<std::mutex> lg(buffer.bufMutex);
     uint32_t unackedBytes = clearBuffer_UNLOCKED();
     bool killed = false;
 
@@ -1436,7 +1438,7 @@ uint32_t PassiveStream::setDead(end_stream_status_t status) {
 }
 
 void PassiveStream::acceptStream(uint16_t status, uint32_t add_opaque) {
-    LockHolder lh(streamMutex);
+    std::unique_lock<std::mutex> lh(streamMutex);
     if (state_ == STREAM_PENDING) {
         if (status == ENGINE_SUCCESS) {
             transitionState(STREAM_READING);
@@ -1472,13 +1474,13 @@ void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
         ", snap start seqno %" PRIu64 ", and snap end seqno %" PRIu64,
         vb_, new_opaque, start_seqno, end_seqno_,
         snap_start_seqno_, snap_end_seqno_);
-
-    LockHolder lh(streamMutex);
-    last_seqno.store(start_seqno);
-    pushToReadyQ(new StreamRequest(vb_, new_opaque, flags_, start_seqno,
-                                  end_seqno_, vb_uuid_, snap_start_seqno_,
-                                  snap_end_seqno_));
-    lh.unlock();
+    {
+        LockHolder lh(streamMutex);
+        last_seqno.store(start_seqno);
+        pushToReadyQ(new StreamRequest(vb_, new_opaque, flags_, start_seqno,
+                                      end_seqno_, vb_uuid_, snap_start_seqno_,
+                                      snap_end_seqno_));
+    }
     bool inverse = false;
     if (itemsReady.compare_exchange_strong(inverse, true)) {
         consumer->notifyStreamReady(vb_);
@@ -1815,10 +1817,10 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
 
 void PassiveStream::processSetVBucketState(SetVBucketState* state) {
     engine->getKVBucket()->setVBucketState(vb_, state->getState(), true);
-
-    LockHolder lh (streamMutex);
-    pushToReadyQ(new SetVBucketStateResponse(opaque_, ENGINE_SUCCESS));
-    lh.unlock();
+    {
+        LockHolder lh (streamMutex);
+        pushToReadyQ(new SetVBucketStateResponse(opaque_, ENGINE_SUCCESS));
+    }
     bool inverse = false;
     if (itemsReady.compare_exchange_strong(inverse, true)) {
         consumer->notifyStreamReady(vb_);
@@ -1843,9 +1845,10 @@ void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno) {
         }
 
         if (cur_snapshot_ack) {
-            LockHolder lh(streamMutex);
-            pushToReadyQ(new SnapshotMarkerResponse(opaque_, ENGINE_SUCCESS));
-            lh.unlock();
+            {
+                LockHolder lh(streamMutex);
+                pushToReadyQ(new SnapshotMarkerResponse(opaque_, ENGINE_SUCCESS));
+            }
             bool inverse = false;
             if (itemsReady.compare_exchange_strong(inverse, true)) {
                 consumer->notifyStreamReady(vb_);

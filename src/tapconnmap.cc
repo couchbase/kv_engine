@@ -214,7 +214,7 @@ void TapConnMap::manageConnections() {
 
     std::list<connection_t> deadClients;
 
-    LockHolder lh(connsLock);
+    std::unique_lock<std::mutex> lh(connsLock);
     // We should pause unless we purged some connections or
     // all queues have items.
     getExpiredConnections_UNLOCKED(deadClients);
@@ -426,7 +426,7 @@ bool TapConnMap::changeVBucketFilter(const std::string &name,
                                      const std::vector<uint16_t> &vbuckets,
                                      const std::map<uint16_t, uint64_t> &checkpoints) {
     bool rv = false;
-    LockHolder lh(connsLock);
+    std::unique_lock<std::mutex> lh(connsLock);
     connection_t tc = findByName_UNLOCKED(name);
     if (tc.get()) {
         TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
@@ -481,14 +481,14 @@ void TapConnMap::shutdownAllConnections() {
     if (connNotifier_ != NULL) {
         connNotifier_->stop();
     }
+    std::vector<connection_t> toRelease;
 
-    LockHolder lh(connsLock);
-    std::vector<connection_t> toRelease(all.begin(), all.end());
-
-    all.clear();
-    map_.clear();
-
-    lh.unlock();
+    {
+        LockHolder lh(connsLock);
+        toRelease = std::vector<connection_t>(all.begin(), all.end());
+        all.clear();
+        map_.clear();
+    }
 
     LockHolder rlh(releaseLock);
     for (auto &ii : toRelease) {

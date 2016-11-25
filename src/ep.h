@@ -877,7 +877,7 @@ protected:
      */
     void queueDirty(RCPtr<VBucket> &vb,
                     StoredValue* v,
-                    LockHolder *plh,
+                    std::unique_lock<std::mutex> *plh,
                     uint64_t *seqno,
                     const GenerateBySeqno generateBySeqno = GenerateBySeqno::Yes,
                     const GenerateCas generateCas = GenerateCas::Yes);
@@ -896,7 +896,7 @@ protected:
      */
     void tapQueueDirty(VBucket& vb,
                        StoredValue* v,
-                       LockHolder& plh,
+                       std::unique_lock<std::mutex>& plh,
                        uint64_t *seqno,
                        const GenerateBySeqno generateBySeqno);
 
@@ -922,7 +922,7 @@ protected:
         }
 
         int bucket_num(0);
-        LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
+        auto lh = vb->ht.getLockedBucket(key, &bucket_num);
         StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true);
 
         if (v) {
@@ -944,9 +944,12 @@ protected:
                          vbucket_state_t allowedState,
                          get_options_t options = TRACK_REFERENCE);
 
-    ENGINE_ERROR_CODE addTempItemForBgFetch(LockHolder &lock, int bucket_num,
-                                            const const_char_buffer key, RCPtr<VBucket> &vb,
-                                            const void *cookie, bool metadataOnly,
+    ENGINE_ERROR_CODE addTempItemForBgFetch(std::unique_lock<std::mutex>& lock,
+                                            int bucket_num,
+                                            const const_char_buffer key,
+                                            RCPtr<VBucket> &vb,
+                                            const void *cookie,
+                                            bool metadataOnly,
                                             bool isReplication = false);
 
     uint16_t getCommitInterval(uint16_t shardId);

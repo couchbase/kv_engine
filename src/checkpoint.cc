@@ -879,7 +879,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
                                               bool &newOpenCheckpointCreated) {
 
     // This function is executed periodically by the non-IO dispatcher.
-    LockHolder lh(queueLock);
+    std::unique_lock<std::mutex> lh(queueLock);
     if (!vbucket) {
         throw std::invalid_argument("CheckpointManager::removeCloseUnrefCheckpoints:"
                         " vbucket must be non-NULL");

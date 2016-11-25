@@ -57,7 +57,7 @@ void CacheCallback::callback(CacheLookup &lookup) {
     }
 
     int bucket_num(0);
-    LockHolder lh = vb->ht.getLockedBucket(lookup.getKey(), &bucket_num);
+    auto lh = vb->ht.getLockedBucket(lookup.getKey(), &bucket_num);
     StoredValue *v = vb->ht.unlocked_find(lookup.getKey(), bucket_num, false, false);
     if (v && v->isResident() && v->getBySeqno() == lookup.getBySeqno()) {
         ActiveStream* as = static_cast<ActiveStream*>(stream_.get());
