@@ -18,6 +18,7 @@
 
 #include <platform/compress.h>
 #include "../../memcached.h"
+#include "steppable_command_context.h"
 
 /**
  * The ArithmeticCommandContext is responsible for implementing an
@@ -29,7 +30,7 @@
  *    * If the variable isn't found, create it unless exptime is set to
  *      0xffffffff
  */
-class ArithmeticCommandContext : public CommandContext {
+class ArithmeticCommandContext : public SteppableCommandContext {
 public:
     /**
      * The internal state diagram for performing an arithmetic operation.
@@ -66,7 +67,7 @@ public:
 
     ArithmeticCommandContext(McbpConnection& c,
                              const protocol_binary_request_incr& req)
-        : connection(c),
+        : SteppableCommandContext(c),
           key((char*)req.bytes + sizeof(req.bytes),
               ntohs(req.message.header.request.keylen)),
           request(req),
@@ -77,7 +78,12 @@ public:
           state(State::GetItem) {
     }
 
-    ENGINE_ERROR_CODE step() {
+    ~ArithmeticCommandContext() {
+        reset();
+    }
+
+protected:
+    ENGINE_ERROR_CODE step() override {
         ENGINE_ERROR_CODE ret;
         do {
             switch (state) {
@@ -114,11 +120,6 @@ public:
         return ret;
     }
 
-    ~ArithmeticCommandContext() {
-        reset();
-    }
-
-protected:
     ENGINE_ERROR_CODE getItem();
 
     ENGINE_ERROR_CODE createNewItem();
@@ -135,7 +136,6 @@ protected:
 
 private:
 
-    McbpConnection& connection;
     const const_char_buffer key;
     const protocol_binary_request_incr& request;
     const uint64_t cas;

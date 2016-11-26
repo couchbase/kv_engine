@@ -18,6 +18,7 @@
 
 #include <platform/compress.h>
 #include "../../memcached.h"
+#include "steppable_command_context.h"
 
 /**
  * The AppendPrependCommandContext is a state machine used by the memcached
@@ -27,7 +28,7 @@
  * same document will be detected by the CAS store operation returning EEXISTS,
  * and we just retry the operation.
  */
-class AppendPrependCommandContext : public CommandContext {
+class AppendPrependCommandContext : public SteppableCommandContext {
 public:
     /**
      * The internal state machine used to implement the append / prepend
@@ -61,7 +62,7 @@ public:
     AppendPrependCommandContext(McbpConnection& c,
                                 protocol_binary_request_append* req,
                                 const Mode &mode_)
-        : connection(c),
+        : SteppableCommandContext(c),
           mode(mode_),
           key((char*)req->bytes + sizeof(req->bytes),
               ntohs(req->message.header.request.keylen)),
@@ -78,42 +79,13 @@ public:
         }
     }
 
-    ENGINE_ERROR_CODE step() {
-        ENGINE_ERROR_CODE ret;
-        do {
-            switch (state) {
-            case State::InflateInputData:
-                ret = inflateInputData();
-                break;
-            case State::GetItem:
-                ret = getItem();
-                break;
-            case State::AllocateNewItem:
-                ret = allocateNewItem();
-                break;
-            case State::StoreItem:
-                ret = storeItem();
-                break;
-            case State::Reset:
-                ret = reset();
-                break;
-            case State::Done:
-                return ENGINE_SUCCESS;
-            }
-        } while (ret == ENGINE_SUCCESS);
-
-        if (ret != ENGINE_EWOULDBLOCK) {
-            SLAB_INCR(&connection, cmd_set, key, nkey);
-        }
-
-        return ret;
-    }
-
-    ~AppendPrependCommandContext() override {
+    ~AppendPrependCommandContext() {
         reset();
     }
 
 protected:
+    ENGINE_ERROR_CODE step() override;
+
     ENGINE_ERROR_CODE inflateInputData();
 
     ENGINE_ERROR_CODE getItem();
@@ -125,7 +97,6 @@ protected:
     ENGINE_ERROR_CODE reset();
 
 private:
-    McbpConnection& connection;
     const Mode mode;
     const const_char_buffer key;
     const_char_buffer value;

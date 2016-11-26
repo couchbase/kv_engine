@@ -17,6 +17,43 @@
 #include "appendprepend_context.h"
 #include "../../mcbp.h"
 
+ENGINE_ERROR_CODE AppendPrependCommandContext::step() {
+    ENGINE_ERROR_CODE ret;
+    do {
+        switch (state) {
+        case State::InflateInputData:
+            ret = inflateInputData();
+            break;
+        case State::GetItem:
+            ret = getItem();
+            break;
+        case State::AllocateNewItem:
+            ret = allocateNewItem();
+            break;
+        case State::StoreItem:
+            ret = storeItem();
+            break;
+        case State::Reset:
+            ret = reset();
+            break;
+        case State::Done:
+            return ENGINE_SUCCESS;
+        }
+    } while (ret == ENGINE_SUCCESS);
+
+    if (ret != ENGINE_EWOULDBLOCK) {
+        SLAB_INCR(&connection, cmd_set, key, nkey);
+    }
+
+    if (ret == ENGINE_KEY_ENOENT) {
+        // for some reason the return code for no key is not stored so we need
+        // to remap that error code..
+        ret = ENGINE_NOT_STORED;
+    }
+
+    return ret;
+}
+
 ENGINE_ERROR_CODE AppendPrependCommandContext::inflateInputData() {
     try {
         if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,

@@ -39,6 +39,7 @@
 #include "protocol/mcbp/arithmetic_context.h"
 #include "protocol/mcbp/get_context.h"
 #include "protocol/mcbp/dcp_mutation.h"
+#include "protocol/mcbp/steppable_command_context.h"
 #include "protocol/mcbp/utilities.h"
 
 #include <memcached/audit_interface.h>
@@ -569,33 +570,10 @@ static void process_stat_settings(ADD_STAT add_stat_callback,
 static void process_bin_get(McbpConnection* c, void* packet) {
     if (c->getCommandContext() == nullptr) {
         auto* req = reinterpret_cast<protocol_binary_request_get*>(packet);
-        auto* context = new GetCommandContext(*c, req);
-        c->setCommandContext(context);
+        c->setCommandContext(new GetCommandContext(*c, req));
     }
 
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
-
-    if (ret == ENGINE_SUCCESS) {
-        auto* context = reinterpret_cast<GetCommandContext*>(c->getCommandContext());
-        ret = context->step();
-    }
-
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        break;
-    case ENGINE_EWOULDBLOCK:
-        c->setAiostat(ENGINE_EWOULDBLOCK);
-        c->setEwouldblock(true);
-        return;
-    case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
-        return;
-    default:
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-        return;
-    }
+    c->getSteppableCommandContext().drive();
 }
 
 static void append_bin_stats(const char* key, const uint16_t klen,
@@ -2672,37 +2650,10 @@ static void append_prepend_executor(McbpConnection* c,
                                     const AppendPrependCommandContext::Mode mode) {
     if (c->getCommandContext() == nullptr) {
         auto* req = reinterpret_cast<protocol_binary_request_append*>(packet);
-        auto* context = new AppendPrependCommandContext(*c, req, mode);
-        c->setCommandContext(context);
+        c->setCommandContext(new AppendPrependCommandContext(*c, req, mode));
     }
 
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
-
-    if (ret == ENGINE_SUCCESS) {
-        auto* context = reinterpret_cast<AppendPrependCommandContext*>(c->getCommandContext());
-        ret = context->step();
-    }
-
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        break;
-    case ENGINE_EWOULDBLOCK:
-        c->setAiostat(ENGINE_EWOULDBLOCK);
-        c->setEwouldblock(true);
-        return;
-    case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
-        return;
-    case ENGINE_KEY_ENOENT:
-        // for some reason the return code for no key is not stored..
-        ret = ENGINE_NOT_STORED;
-        // fall through
-    default:
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-        return;
-    }
+    c->getSteppableCommandContext().drive();
 }
 
 static void append_executor(McbpConnection* c, void* packet) {
@@ -3464,33 +3415,10 @@ static void delete_executor(McbpConnection* c, void*) {
 static void arithmetic_executor(McbpConnection* c, void* packet) {
     if (c->getCommandContext() == nullptr) {
         auto* req = reinterpret_cast<protocol_binary_request_incr*>(packet);
-        auto* context = new ArithmeticCommandContext(*c, *req);
-        c->setCommandContext(context);
+        c->setCommandContext(new ArithmeticCommandContext(*c, *req));
     }
 
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
-
-    if (ret == ENGINE_SUCCESS) {
-        auto* context = reinterpret_cast<ArithmeticCommandContext*>(c->getCommandContext());
-        ret = context->step();
-    }
-
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        break;
-    case ENGINE_EWOULDBLOCK:
-        c->setAiostat(ENGINE_EWOULDBLOCK);
-        c->setEwouldblock(true);
-        return;
-    case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
-        return;
-    default:
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-        return;
-    }
+    c->getSteppableCommandContext().drive();
 }
 
 static void arithmeticq_executor(McbpConnection* c, void* packet) {

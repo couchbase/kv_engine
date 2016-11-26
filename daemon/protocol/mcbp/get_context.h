@@ -18,12 +18,13 @@
 
 #include <platform/compress.h>
 #include "../../memcached.h"
+#include "steppable_command_context.h"
 
 /**
  * The GetCommandContext is a state machine used by the memcached
  * core to implement the Get operation
  */
-class GetCommandContext : public CommandContext {
+class GetCommandContext : public SteppableCommandContext {
 public:
     // The internal states. Look at the function headers below to
     // for the functions with the same name to figure out what each
@@ -39,7 +40,7 @@ public:
 
     GetCommandContext(McbpConnection& c,
                       protocol_binary_request_get* req)
-        : connection(c),
+        : SteppableCommandContext(c),
           key((char*)req->bytes + sizeof(req->bytes),
               ntohs(req->message.header.request.keylen)),
           vbucket(ntohs(req->message.header.request.vbucket)),
@@ -47,6 +48,9 @@ public:
           state(State::Initialize) {
     }
 
+    ~GetCommandContext() override;
+
+protected:
     /**
      * Keep running the state machine.
      *
@@ -54,11 +58,8 @@ public:
      *         the connections state to one of the appropriate states (send
      *         data, or start processing the next command)
      */
-    ENGINE_ERROR_CODE step();
+    ENGINE_ERROR_CODE step() override;
 
-    ~GetCommandContext() override;
-
-protected:
     /**
      * We've got 4 different permutations of the retrieval commands where
      * two of them returns the key as part of the response.
@@ -131,7 +132,6 @@ protected:
     ENGINE_ERROR_CODE sendResponse();
 
 private:
-    McbpConnection& connection;
     const const_char_buffer key;
     const uint16_t vbucket;
 

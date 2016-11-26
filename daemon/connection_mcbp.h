@@ -27,9 +27,11 @@
 #include "settings.h"
 #include "statemachine_mcbp.h"
 
-#include <cJSON.h>
 #include <cbsasl/cbsasl.h>
 #include <chrono>
+#include <cJSON.h>
+#include <daemon/protocol/mcbp/command_context.h>
+#include <daemon/protocol/mcbp/steppable_command_context.h>
 #include <memcached/openssl.h>
 #include <memory>
 #include <platform/cb_malloc.h>
@@ -183,20 +185,6 @@ protected:
     size_t totalRecv;
     // Total number of bytes sent to the network
     size_t totalSend;
-};
-
-/**
- *  A command may need to store command specific context during the duration
- *  of a command (you might for instance want to keep state between multiple
- *  calls that returns EWOULDBLOCK).
- *
- *  The implementation of such commands should subclass this class and
- *  allocate an instance and store in the commands commandContext member (which
- *  will be deleted and set to nullptr between each command being processed).
- */
-class CommandContext {
-public:
-    virtual ~CommandContext() { };
 };
 
 class SaslCommandContext : public CommandContext {
@@ -636,6 +624,26 @@ public:
      */
     CommandContext* getCommandContext() const {
         return commandContext.get();
+    }
+
+    /**
+     * Get the command context which SHOULD be a steppable command context
+     *
+     * @return the context object
+     * @throws std::logic_error if the object is non-existent or the wrong type
+     */
+    SteppableCommandContext& getSteppableCommandContext() const {
+        auto* context = commandContext.get();
+        if (context == nullptr) {
+            throw std::logic_error(
+                "McbpConnection::getSteppableCommandContext(): context should not be nullptr");
+        }
+        auto* ret = dynamic_cast<SteppableCommandContext*>(context);
+        if (ret == nullptr) {
+            throw std::logic_error(
+                "McbpConnection::getSteppableCommandContext(): context is not steppable");
+        }
+        return *ret;
     }
 
     /**
