@@ -357,3 +357,7 @@ PrivilegeAccess Connection::checkPrivilege(const Privilege& privilege) const {
 
     throw std::logic_error("Unknown privilege requested");
 }
+
+Bucket& Connection::getBucket() const {
+    return all_buckets[getBucketIndex()];
+}

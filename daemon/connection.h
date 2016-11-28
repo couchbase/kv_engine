@@ -26,6 +26,7 @@
 
 struct LIBEVENT_THREAD;
 class ListeningPort;
+class Bucket;
 
 /**
  * The structure representing a connection in memcached.
@@ -270,6 +271,8 @@ public:
     void setBucketIndex(int bucketIndex) {
         Connection::bucketIndex.store(bucketIndex, std::memory_order_relaxed);
     }
+
+    Bucket& getBucket() const;
 
     ENGINE_HANDLE_V1* getBucketEngine() const {
         return bucketEngine;
