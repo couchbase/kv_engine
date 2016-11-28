@@ -204,11 +204,11 @@ class Connection;
 extern const char* getBucketName(const Connection* c);
 
 /**
- * All of the buckets are stored in the following vector. It is to be
- * treated as an array whos size is set at runtime. Once set it never
- * changes
+ * All of the buckets are stored in the following array. Index 0 is reserved
+ * for the "no bucket" where all connections start off (unless there is a
+ * bucket named "default").
  */
-extern std::vector<Bucket> all_buckets;
+extern std::array<Bucket, COUCHBASE_MAX_NUM_BUCKETS + 1> all_buckets;
 
 /**
  * Call a function on each ready bucket.

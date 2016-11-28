@@ -43,8 +43,7 @@ Settings::Settings()
       topkeys_size(0),
       stdin_listen(false),
       exit_on_connection_close(false),
-      maxconns(0),
-      max_buckets(0) {
+      maxconns(0) {
 
     verbose.store(0);
     connection_idle_time.reset();

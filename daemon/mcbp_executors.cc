@@ -2764,7 +2764,7 @@ static void process_bucket_details(McbpConnection* c) {
     cJSON* obj = cJSON_CreateObject();
 
     cJSON* array = cJSON_CreateArray();
-    for (int ii = 0; ii < settings.getMaxBuckets(); ++ii) {
+    for (int ii = 0; ii < all_buckets.size(); ++ii) {
         cJSON* o = get_bucket_details(ii);
         if (o != NULL) {
             cJSON_AddItemToArray(array, o);
@@ -3528,7 +3528,7 @@ static void get_cmd_timer_executor(McbpConnection* c, void* packet) {
         mcbp_write_and_free(c, &c->getDynamicBuffer());
     } else if (cookie_is_admin(c->getCookie())) {
         bool found = false;
-        for (int ii = 1; ii < settings.getMaxBuckets() && !found; ++ii) {
+        for (int ii = 1; ii < all_buckets.size() && !found; ++ii) {
             // Need the lock to get the bucket state and name
             cb_mutex_enter(&all_buckets[ii].mutex);
             if ((all_buckets[ii].state == BucketState::Ready) &&

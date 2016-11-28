@@ -392,24 +392,6 @@ public:
     }
 
     /**
-     * Get the maximum number of buckets the server may use
-     *
-     * @return the maximum number of buckets
-     */
-    int getMaxBuckets() const {
-        return max_buckets;
-    }
-
-    /**
-     * Set the maximum number of buckets the server may use
-     *
-     * @param max the max number
-     */
-    void setMaxBuckets(int max) {
-        max_buckets = max;
-    }
-
-    /**
      * Get the root directory of the couchbase installation
      *
      * This allows the process to locate files in <code>etc/security</code> and
@@ -968,14 +950,6 @@ public:
         EXTENSION_LOGGER_DESCRIPTOR *logger;
         EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *binary;
     } extensions;
-
-private:
-
-    /* @todo fix config of this! (not dynamic as of now), I guess
-     * @todo I should just move into a C++ file and stick it in
-     * @todo std::list
-     */
-    int max_buckets; /* the maximum number of buckets */
 };
 
 extern Settings settings;

@@ -90,7 +90,7 @@ static EXTENSION_LOG_LEVEL get_log_level(void);
  * All of the buckets in couchbase is stored in this array.
  */
 static cb_mutex_t buckets_lock;
-std::vector<Bucket> all_buckets;
+std::array<Bucket, COUCHBASE_MAX_NUM_BUCKETS + 1> all_buckets;
 
 static ENGINE_HANDLE* v1_handle_2_handle(ENGINE_HANDLE_V1* v1) {
     return reinterpret_cast<ENGINE_HANDLE*>(v1);
@@ -210,7 +210,7 @@ bool associate_bucket(Connection *c, const char *name) {
 
     /* Try to associate with the named bucket */
     /* @todo add auth checks!!! */
-    for (int ii = 1; ii < settings.getMaxBuckets() && !found; ++ii) {
+    for (int ii = 1; ii < all_buckets.size() && !found; ++ii) {
         Bucket &b = all_buckets.at(ii);
         cb_mutex_enter(&b.mutex);
         if (b.state == BucketState::Ready && strcmp(b.name, name) == 0) {
@@ -359,12 +359,12 @@ static void register_callback(ENGINE_HANDLE *eh,
         if (eh == nullptr) {
             throw std::invalid_argument("register_callback: 'eh' must be non-NULL");
         }
-        for (idx = 0; idx < settings.getMaxBuckets(); ++idx) {
+        for (idx = 0; idx < all_buckets.size(); ++idx) {
             if ((void *)eh == (void *)all_buckets[idx].engine) {
                 break;
             }
         }
-        if (idx == settings.getMaxBuckets()) {
+        if (idx == all_buckets.size()) {
             throw std::invalid_argument("register_callback: eh (which is" +
                     std::to_string(reinterpret_cast<uintptr_t>(eh)) +
                     ") is not a engine associated with a bucket");
@@ -388,7 +388,7 @@ static void register_callback(ENGINE_HANDLE *eh,
 
 static void free_callbacks() {
     // free per-bucket callbacks.
-    for (int idx = 0; idx < settings.getMaxBuckets(); ++idx) {
+    for (int idx = 0; idx < all_buckets.size(); ++idx) {
         for (auto& type_vec : all_buckets[idx].engine_event_handlers) {
             type_vec.clear();
         }
@@ -529,8 +529,6 @@ static void settings_init(void) {
     settings.setMaxPacketSize(30 * 1024 * 1024);
 
     settings.setRequireInit(false);
-    // (we need entry 0 in the list to represent "no bucket")
-    settings.setMaxBuckets(COUCHBASE_MAX_NUM_BUCKETS + 1);
     settings.setAdmin("_admin");
     settings.setDedupeNmvbMaps(false);
 
@@ -1942,7 +1940,7 @@ void CreateBucketThread::create() {
     bool found = false;
 
     cb_mutex_enter(&buckets_lock);
-    for (ii = 0; ii < settings.getMaxBuckets() && !found; ++ii) {
+    for (ii = 0; ii < all_buckets.size() && !found; ++ii) {
         cb_mutex_enter(&all_buckets[ii].mutex);
         if (first_free == -1 && all_buckets[ii].state == BucketState::None) {
             first_free = ii;
@@ -2067,7 +2065,7 @@ void CreateBucketThread::run()
 }
 
 void notify_thread_bucket_deletion(LIBEVENT_THREAD *me) {
-    for (int ii = 0; ii < settings.getMaxBuckets(); ++ii) {
+    for (int ii = 0; ii < all_buckets.size(); ++ii) {
         bool destroy = false;
         cb_mutex_enter(&all_buckets[ii].mutex);
         if (all_buckets[ii].state == BucketState::Destroying) {
@@ -2096,7 +2094,7 @@ void DestroyBucketThread::destroy() {
             : std::to_string(connection->getId())};
 
     int idx = 0;
-    for (int ii = 0; ii < settings.getMaxBuckets(); ++ii) {
+    for (int ii = 0; ii < all_buckets.size(); ++ii) {
         cb_mutex_enter(&all_buckets[ii].mutex);
         if (name == all_buckets[ii].name) {
             idx = ii;
@@ -2216,7 +2214,6 @@ void DestroyBucketThread::run() {
 
 static void initialize_buckets(void) {
     cb_mutex_initialize(&buckets_lock);
-    all_buckets.resize(settings.getMaxBuckets());
 
     int numthread = settings.getNumWorkerThreads() + 1;
     for (auto &b : all_buckets) {
@@ -2317,7 +2314,7 @@ void delete_all_buckets() {
          * Start at one (not zero) because zero is reserved for "no bucket".
          * The "no bucket" has a state of BucketState::Ready but no name.
          */
-        for (int ii = 1; ii < settings.getMaxBuckets() && done; ++ii) {
+        for (int ii = 1; ii < all_buckets.size() && done; ++ii) {
             cb_mutex_enter(&all_buckets[ii].mutex);
             if (all_buckets[ii].state == BucketState::Ready) {
                 name.assign(all_buckets[ii].name);
