@@ -43,30 +43,23 @@ public:
      * @param m beginning of an array of locks
      * @param n the number of locks to lock
      */
-    MultiLockHolder(std::mutex *m, size_t n) : mutexes(m),
-                                          locked(new bool[n]),
-                                          n_locks(n) {
-        std::fill_n(locked, n_locks, false);
+    MultiLockHolder(std::mutex* m, size_t n)
+        : mutexes(m),
+          n_locks(n) {
         lock();
     }
 
     ~MultiLockHolder() {
         unlock();
-        delete[] locked;
     }
 
+private:
     /**
      * Relock the series after having manually unlocked it.
      */
     void lock() {
         for (size_t i = 0; i < n_locks; i++) {
-            if (locked[i]) {
-                throw std::logic_error("MultiLockHolder::lock: mutex " +
-                                       std::to_string(i) +
-                                       " is already locked");
-            }
             mutexes[i].lock();
-            locked[i] = true;
         }
     }
 
@@ -75,17 +68,12 @@ public:
      */
     void unlock() {
         for (size_t i = 0; i < n_locks; i++) {
-            if (locked[i]) {
-                locked[i] = false;
-                mutexes[i].unlock();
-            }
+            mutexes[i].unlock();
         }
     }
 
-private:
-    std::mutex  *mutexes;
-    bool   *locked;
-    size_t  n_locks;
+    std::mutex* mutexes;
+    size_t n_locks;
 
     DISALLOW_COPY_AND_ASSIGN(MultiLockHolder);
 };
