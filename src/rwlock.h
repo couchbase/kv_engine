@@ -16,9 +16,13 @@
  */
 #pragma once
 
-#include "platform/platform.h"
+#include <platform/platform.h>
+#include <string>
 
 #include "utility.h"
+
+class ReaderLock;
+class WriterLock;
 
 /**
  *   Reader/Write lock abstraction for platform provided cb_rw_lock
@@ -35,20 +39,57 @@ public:
         cb_rw_lock_destroy(&lock);
     }
 
-    int readerLock() {
-        return cb_rw_reader_enter(&lock);
+    /**
+     * Returns a `ReaderLock` reference which implements BasicLockable
+     * to allow managing the reader lock with a std::lock_guard
+     */
+    ReaderLock& reader();
+
+    operator ReaderLock&() {
+        return reader();
     }
 
-    int readerUnlock() {
-        return cb_rw_reader_exit(&lock);
+    /**
+     * Returns a `WriterLock` reference which implements BasicLockable
+     * to allow managing the writer lock with a std::lock_guard
+     */
+    WriterLock& writer();
+
+    operator WriterLock&() {
+        return writer();
     }
 
-    int writerLock() {
-        return cb_rw_writer_enter(&lock);
+protected:
+    void readerLock() {
+        auto locked = cb_rw_reader_enter(&lock);
+        if (locked != 0) {
+            throw std::runtime_error(std::to_string(locked) +
+                                     " returned by cb_rw_reader_enter()");
+        }
     }
 
-    int writerUnlock() {
-        return cb_rw_writer_exit(&lock);
+    void readerUnlock() {
+        int unlocked = cb_rw_reader_exit(&lock);
+        if (unlocked != 0) {
+            throw std::runtime_error(std::to_string(unlocked) +
+                                     " returned by cb_rw_reader_exit()");
+        }
+    }
+
+    void writerLock() {
+        int locked = cb_rw_writer_enter(&lock);
+        if (locked != 0) {
+            throw std::runtime_error(std::to_string(locked) +
+                                     " returned by cb_rw_writer_enter()");
+        }
+    }
+
+    void writerUnlock() {
+        int unlocked = cb_rw_writer_exit(&lock);
+        if (unlocked != 0) {
+            throw std::runtime_error(std::to_string(unlocked) +
+                                     " returned by cb_rw_writer_exit()");
+        }
     }
 
 private:
@@ -56,3 +97,39 @@ private:
 
     DISALLOW_COPY_AND_ASSIGN(RWLock);
 };
+
+/**
+ * BasicLockable abstraction around the reader lock of an RWLock
+ */
+class ReaderLock : public RWLock {
+public:
+    void lock() {
+        readerLock();
+    }
+
+    void unlock() {
+        readerUnlock();
+    }
+};
+
+/**
+ * BasicLockable abstraction around the writer lock of an RWLock
+ */
+class WriterLock : public RWLock {
+public:
+    void lock() {
+        writerLock();
+    }
+
+    void unlock() {
+        writerUnlock();
+    }
+};
+
+inline ReaderLock& RWLock::reader() {
+    return static_cast<ReaderLock&>(*this);
+}
+
+inline WriterLock& RWLock::writer() {
+    return static_cast<WriterLock&>(*this);
+}

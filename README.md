@@ -24,9 +24,7 @@ These primitives are managed via RAII wrappers - [locks.h](./src/locks.h).
 
 1. `LockHolder` - a deprecated alias for std::lock_guard
 2. `MultiLockHolder` - for acquiring an array of `std::mutex` or `SyncObject`.
-3. `WriterLockHolder` - for acquiring write access to a `RWLock`.
-4. `ReaderLockHolder` - for acquiring read access to a `RWLock`.
-5. `SpinLockHolder` - for acquiring a `SpinLock`.
+3. `SpinLockHolder` - for acquiring a `SpinLock`.
 
 ### Mutex
 The general style is to create a `std::lock_guard` when you need to acquire a
@@ -73,23 +71,24 @@ void foo() {
 ### RWLock
 
 `RWLock` allows many readers to acquire it and exclusive access for a writer.
-`ReadLockHolder` acquires the lock for a reader and `WriteLockHolder` acquires
-the lock for a writer. Neither classes enable manual lock/unlock, all
-acquisitions and release are performed via the constructor and destructor.
+Like a std::mutex `RWLock` can be used with a std::lock_guard. The RWLock can
+either be explicitly casted to a `ReaderLock` / `WriterLock` through its
+`reader()` and `writer()` member functions or you can rely on the implicit
+conversions used by the `lock_guard` constructor.
 
 ```c++
 RWLock rwLock;
 Object thing;
 
 void foo1() {
-    ReaderLockHolder rlh(&rwLock);
+    std::lock_guard<ReaderLock> rlh(rwLock);
     if (thing.getData()) {
     ...
     }
 }
 
 void foo2() {
-    WriterLockHolder wlh(&rwLock);
+    std::lock_guard<WriterLock> wlh(rwLock);
     thing.setData(...);
 }
 ```

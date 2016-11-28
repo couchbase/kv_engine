@@ -81,33 +81,17 @@ private:
     static_assert(false, "MultiLockHolder: missing variable name for scoped lock.")
 
 // RAII Reader lock
+// deprecated, prefer std::lock_guard<ReaderLock> rlh(rwLock.reader())
 class ReaderLockHolder {
 public:
     typedef RWLock mutex_type;
 
     ReaderLockHolder(RWLock& lock)
-      :  rwLock(lock) {
-        int locked = rwLock.readerLock();
-        if (locked != 0) {
-            char exceptionMsg[64];
-            snprintf(exceptionMsg, sizeof(exceptionMsg),
-                     "%d returned by readerLock()", locked);
-            throw std::runtime_error(exceptionMsg);
-        }
-    }
-
-    ~ReaderLockHolder() {
-        int unlocked = rwLock.readerUnlock();
-        if (unlocked != 0) {
-            char exceptionMsg[64];
-            snprintf(exceptionMsg, sizeof(exceptionMsg),
-                     "%d returned by readerUnlock()", unlocked);
-            throw std::runtime_error(exceptionMsg);
-        }
+        : lh(lock) {
     }
 
 private:
-    RWLock& rwLock;
+    std::lock_guard<ReaderLock> lh;
 
     DISALLOW_COPY_AND_ASSIGN(ReaderLockHolder);
 };
@@ -115,33 +99,17 @@ private:
     static_assert(false, "ReaderLockHolder: missing variable name for scoped lock.")
 
 // RAII Writer lock
+// deprecated, prefer std::lock_guard<WriterLock> wlh(rwLock.writer())
 class WriterLockHolder {
 public:
     typedef RWLock mutex_type;
 
     WriterLockHolder(RWLock& lock)
-      :  rwLock(lock) {
-        int locked = rwLock.writerLock();
-        if (locked != 0) {
-            char exceptionMsg[64];
-            snprintf(exceptionMsg, sizeof(exceptionMsg),
-                     "%d returned by writerLock()", locked);
-            throw std::runtime_error(exceptionMsg);
-        }
-    }
-
-    ~WriterLockHolder() {
-        int unlocked = rwLock.writerUnlock();
-        if (unlocked != 0) {
-            char exceptionMsg[64];
-            snprintf(exceptionMsg, sizeof(exceptionMsg),
-                     "%d returned by writerUnlock()", unlocked);
-            throw std::runtime_error(exceptionMsg);
-        }
+        : lh(lock) {
     }
 
 private:
-    RWLock& rwLock;
+    std::lock_guard<WriterLock> lh;
 
     DISALLOW_COPY_AND_ASSIGN(WriterLockHolder);
 };
