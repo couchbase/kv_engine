@@ -441,6 +441,8 @@ get_document_for_searching(McbpConnection * c, const item* item,
     // Set CAS - same irrespective of datatype.
     cas = info.info.cas;
     flags = info.info.flags;
+    document.buf = static_cast<char*>(info.info.value[0].iov_base);
+    document.len = info.info.value[0].iov_len;
 
     if (!mcbp::datatype::is_json(info.info.datatype)) {
         // No good; need to have JSON
@@ -449,63 +451,34 @@ get_document_for_searching(McbpConnection * c, const item* item,
 
     if (mcbp::datatype::is_compressed(info.info.datatype)) {
         // Need to expand before attempting to extract from it.
-        const char* compressed_buf =
-            static_cast<const char*>(info.info.value[0].iov_base);
-        const size_t compressed_len = info.info.value[0].iov_len;
-        size_t uncompressed_len;
+        auto* ctx = static_cast<SubdocCmdContext*>(c->getCommandContext());
+        try {
+            using namespace cb::compression;
+            if (!inflate(Algorithm::Snappy, document.buf, document.len,
+                         ctx->inflated_doc_buffer)) {
+                char clean_key[KEY_MAX_LENGTH + 32];
+                if (buf_to_printable_buffer(clean_key, sizeof(clean_key),
+                                            static_cast<const char*>(info.info.key),
+                                            info.info.nkey) != -1) {
+                    LOG_WARNING(c,
+                                "<%u ERROR: Failed to determine inflated body"
+                                    " size. Key: '%s' may have an "
+                                    "incorrect datatype of COMPRESSED_JSON.",
+                                c->getId(), clean_key);
+                }
 
-        if (snappy_uncompressed_length(compressed_buf, compressed_len,
-                                       &uncompressed_len) != SNAPPY_OK) {
-            char clean_key[KEY_MAX_LENGTH + 32];
-            if (buf_to_printable_buffer(clean_key, sizeof(clean_key),
-                                        static_cast<const char*>(info.info.key),
-                                        info.info.nkey) != -1) {
-                LOG_WARNING(c,
-                            "<%u ERROR: Failed to determine inflated body"
-                                " size. Key: '%s' may have an "
-                                "incorrect datatype of COMPRESSED_JSON.",
-                            c->getId(), clean_key);
+                return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
             }
-            return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
+        } catch (const std::bad_alloc&) {
+            return PROTOCOL_BINARY_RESPONSE_ENOMEM;
         }
 
-        // We use the connections' dynamic buffer to uncompress into; this
-        // will later be used as the the send buffer for the subset of the
-        // document we send.
-        if (!c->growDynamicBuffer(uncompressed_len)) {
-            LOG_WARNING(c,
-                        "<%u ERROR: Failed to grow dynamic buffer to %"
-                            PRIu64 "for uncompressing document.",
-                        c->getId(), uncompressed_len);
-            return PROTOCOL_BINARY_RESPONSE_E2BIG;
-        }
-
-        auto &dbuf = c->getDynamicBuffer();
-        char* buffer = dbuf.getCurrent();
-        if (snappy_uncompress(compressed_buf, compressed_len, buffer,
-                              &uncompressed_len) != SNAPPY_OK) {
-            char clean_key[KEY_MAX_LENGTH + 32];
-            if (buf_to_printable_buffer(clean_key, sizeof(clean_key),
-                                        static_cast<const char*>(info.info.key),
-                                        info.info.nkey) != -1) {
-                LOG_WARNING(c,
-                            "<%u ERROR: Failed to inflate body. Key: '%s'"
-                                " may have an incorrect datatype of "
-                                "COMPRESSED_JSON.", c->getId(), clean_key);
-            }
-            return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
-        }
-        dbuf.moveOffset(uncompressed_len);
         // Update document to point to the uncompressed version in the buffer.
-        document.buf = buffer;
-        document.len = uncompressed_len;
-        return PROTOCOL_BINARY_RESPONSE_SUCCESS;
-    } else {
-        // Good to go using original buffer.
-        document.buf = static_cast<char*>(info.info.value[0].iov_base);
-        document.len = info.info.value[0].iov_len;
-        return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+        document.buf = ctx->inflated_doc_buffer.data.get();
+        document.len = ctx->inflated_doc_buffer.len;
     }
+
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
 // Fetch the item to operate on from the engine.

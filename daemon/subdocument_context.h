@@ -24,6 +24,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <platform/compress.h>
 
 /** Subdoc command context. An instance of this exists for the lifetime of
  *  each subdocument command, and it used to hold information which needs to
@@ -71,12 +72,17 @@ struct SubdocCmdContext : public CommandContext {
 
     // The expanded input JSON document. This may either refer to:
     // a). The raw engine item iovec
-    // b). The connections' DynamicBuffer if the JSON document had to be
-    //     decompressed.
+    // b). The 'inflated_doc_buffer' if the input document had to be
+    //     inflated.
     // c). {intermediate_result} member of this object.
     // Either way, it should /not/ be cb_free()d.
     // TODO: Remove (b), and just use intermediate result.
     const_char_buffer in_doc;
+
+    // Temporary buffer to hold the inflated content in case of the
+    // document in the engine being compressed
+    cb::compression::Buffer inflated_doc_buffer;
+
 
     // Temporary buffer used to hold the intermediate result document for
     // multi-path mutations. {in_doc} is then updated to point to this to use
