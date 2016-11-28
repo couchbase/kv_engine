@@ -658,101 +658,102 @@ subdoc_operate_one_path(Connection* c, SubdocCmdContext::OperationSpec& spec,
 // Returns true if the command was successful (and execution should continue),
 // else false.
 static bool subdoc_operate(SubdocCmdContext* context) {
+    if (context->executed) {
+        return true;
+    }
 
-    if (!context->executed) {
-        GenericBlockTimer<TimingHistogram, 0> bt(
-                &all_buckets[context->c->getBucketIndex()].subjson_operation_times);
+    GenericBlockTimer<TimingHistogram, 0> bt(
+            &all_buckets[context->c->getBucketIndex()].subjson_operation_times);
 
-        context->overall_status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    context->overall_status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
-        // 2. Perform each of the operations on document.
-        for (auto op = context->ops.begin(); op != context->ops.end(); op++) {
-            op->status = subdoc_operate_one_path(context->c, *op, context->in_doc,
-                                                 context->in_cas);
+    // 2. Perform each of the operations on document.
+    for (auto op = context->ops.begin(); op != context->ops.end(); op++) {
+        op->status = subdoc_operate_one_path(context->c, *op, context->in_doc,
+                                             context->in_cas);
 
-            switch (context->traits.path) {
-            case SubdocPath::SINGLE:
-                if (op->status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-                    // Failure of a (the only) op stops execution and returns an
-                    // error to the client.
-                    mcbp_write_packet(context->c, op->status);
-                    return false;
-                }
-                break;
+        switch (context->traits.path) {
+        case SubdocPath::SINGLE:
+            if (op->status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+                // Failure of a (the only) op stops execution and returns an
+                // error to the client.
+                mcbp_write_packet(context->c, op->status);
+                return false;
+            }
+            break;
 
-            case SubdocPath::MULTI:
-                if (op->status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-                    if (context->traits.is_mutator) {
-                        // Unless this is the last operation, we need to make
-                        // the result document be input for the next operation.
-                        auto last_op = std::prev(context->ops.end());
-                        if (op == last_op) {
-                            continue;
-                        }
-
-                        // Determine how much space we now need.
-                        size_t new_doc_len = 0;
-                        for (auto& loc : op->result.newdoc()) {
-                            new_doc_len += loc.length;
-                        }
-
-                        // TODO-PERF: We need to create a contiguous input
-                        // region for the next subjson call, from the set of
-                        // iovecs in the result. We can't simply write into
-                        // the dynamic_buffer, as that may be the underlying
-                        // storage for iovecs from the result. Ideally we'd
-                        // either permit subjson to take an iovec as input, or
-                        // permit subjson to take all the multipaths at once.
-                        // For now we make a contiguous region in a temporary
-                        // std::vector, and point in_doc at that.
-                        std::unique_ptr<char[]> intermediate_doc;
-                        try {
-                            intermediate_doc.reset(new char[new_doc_len]);
-                        } catch (const std::bad_alloc&) {
-                            // Insufficient memory - unable to continue.
-                            mcbp_write_packet(context->c,
-                                              PROTOCOL_BINARY_RESPONSE_ENOMEM);
-                            return false;
-                        }
-
-                        size_t offset = 0;
-                        for (auto& loc : op->result.newdoc()) {
-                            std::memcpy(intermediate_doc.get() + offset,
-                                        loc.at, loc.length);
-                            offset += loc.length;
-                        }
-
-                        // Copying complete - safe to delete the old temp_doc
-                        // (even if it was the source of some of the newdoc
-                        // iovecs).
-                        context->temp_doc.swap(intermediate_doc);
-                        context->in_doc = {context->temp_doc.get(),
-                                           new_doc_len};
-
-                    } else { // lookup
-                        // nothing to do.
-                    }
-                } else {
-                    context->overall_status
-                        = PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE;
-                    if (context->traits.is_mutator) {
-                        // For mutations, this stops the operation - however as
-                        // we need to respond with a body indicating the index
-                        // which failed we return true indicating 'success'.
-                        return true;
-                    } else {
-                        // For lookup; an operation failing doesn't stop us
-                        // continuing with the rest of the operations
-                        // - continue with the next operation.
+        case SubdocPath::MULTI:
+            if (op->status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+                if (context->traits.is_mutator) {
+                    // Unless this is the last operation, we need to make
+                    // the result document be input for the next operation.
+                    auto last_op = std::prev(context->ops.end());
+                    if (op == last_op) {
                         continue;
                     }
-                }
-                break;
-            }
-        }
 
-        context->executed = true;
+                    // Determine how much space we now need.
+                    size_t new_doc_len = 0;
+                    for (auto& loc : op->result.newdoc()) {
+                        new_doc_len += loc.length;
+                    }
+
+                    // TODO-PERF: We need to create a contiguous input
+                    // region for the next subjson call, from the set of
+                    // iovecs in the result. We can't simply write into
+                    // the dynamic_buffer, as that may be the underlying
+                    // storage for iovecs from the result. Ideally we'd
+                    // either permit subjson to take an iovec as input, or
+                    // permit subjson to take all the multipaths at once.
+                    // For now we make a contiguous region in a temporary
+                    // std::vector, and point in_doc at that.
+                    std::unique_ptr<char[]> intermediate_doc;
+                    try {
+                        intermediate_doc.reset(new char[new_doc_len]);
+                    } catch (const std::bad_alloc&) {
+                        // Insufficient memory - unable to continue.
+                        mcbp_write_packet(context->c,
+                                          PROTOCOL_BINARY_RESPONSE_ENOMEM);
+                        return false;
+                    }
+
+                    size_t offset = 0;
+                    for (auto& loc : op->result.newdoc()) {
+                        std::memcpy(intermediate_doc.get() + offset,
+                                    loc.at, loc.length);
+                        offset += loc.length;
+                    }
+
+                    // Copying complete - safe to delete the old temp_doc
+                    // (even if it was the source of some of the newdoc
+                    // iovecs).
+                    context->temp_doc.swap(intermediate_doc);
+                    context->in_doc = {context->temp_doc.get(),
+                                       new_doc_len};
+
+                } else { // lookup
+                    // nothing to do.
+                }
+            } else {
+                context->overall_status
+                    = PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE;
+                if (context->traits.is_mutator) {
+                    // For mutations, this stops the operation - however as
+                    // we need to respond with a body indicating the index
+                    // which failed we return true indicating 'success'.
+                    return true;
+                } else {
+                    // For lookup; an operation failing doesn't stop us
+                    // continuing with the rest of the operations
+                    // - continue with the next operation.
+                    continue;
+                }
+            }
+            break;
+        }
     }
+
+    context->executed = true;
 
     return true;
 }
