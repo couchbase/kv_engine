@@ -105,43 +105,14 @@ public:
     SpinLock();
     ~SpinLock();
 
-    void acquire(void);
-    void release(void);
+    void lock(void);
+    void unlock(void);
 
 private:
     bool tryAcquire(void);
 
-    std::atomic_flag lock;
+    std::atomic_flag lck;
     DISALLOW_COPY_AND_ASSIGN(SpinLock);
-};
-
-/**
- * Safe LockHolder for SpinLock instances.
- */
-class SpinLockHolder {
-public:
-    SpinLockHolder(SpinLock *theLock) : sl(theLock) {
-        lock();
-    }
-
-    ~SpinLockHolder() {
-        unlock();
-    }
-
-    void lock() {
-        sl->acquire();
-        locked = true;
-    }
-
-    void unlock() {
-        if (locked) {
-            sl->release();
-            locked = false;
-        }
-    }
-private:
-    SpinLock *sl;
-    bool locked;
 };
 
 template <class T> class RCPtr;
@@ -228,7 +199,7 @@ public:
 
 private:
     C *gimme() const {
-        SpinLockHolder lh(&lock);
+        std::lock_guard<SpinLock> lh(lock);
         if (value) {
             static_cast<RCValue *>(value)->_rc_incref();
         }
@@ -236,9 +207,11 @@ private:
     }
 
     void swap(C *newValue) {
-        SpinLockHolder lh(&lock);
-        C *tmp(value.exchange(newValue));
-        lh.unlock();
+        C* tmp;
+        {
+            std::lock_guard<SpinLock> lh(lock);
+            tmp = value.exchange(newValue);
+        }
         if (tmp != NULL && static_cast<RCValue *>(tmp)->_rc_decref() == 0) {
             delete tmp;
         }

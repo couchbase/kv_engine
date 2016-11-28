@@ -234,7 +234,7 @@ void ConnMap::updateVBConnections(connection_t &conn,
 
     for (std::set<uint16_t>::const_iterator it = vset.begin(); it != vset.end(); ++it) {
         size_t lock_num = (*it) % vbConnLockNum;
-        SpinLockHolder lh (&vbConnLocks[lock_num]);
+        std::lock_guard<SpinLock> lh(vbConnLocks[lock_num]);
         // Remove the connection that is no longer for a given vbucket
         if (!tp->vbucketFilter.empty() && tp->vbucketFilter(*it)) {
             std::list<connection_t> &vb_conns = vbConns[*it];
@@ -261,7 +261,7 @@ void ConnMap::removeVBConnections(connection_t &conn) {
     const std::set<uint16_t> &vset = tp->vbucketFilter.getVBSet();
     for (std::set<uint16_t>::const_iterator it = vset.begin(); it != vset.end(); ++it) {
         size_t lock_num = (*it) % vbConnLockNum;
-        SpinLockHolder lh (&vbConnLocks[lock_num]);
+        std::lock_guard<SpinLock> lh(vbConnLocks[lock_num]);
         std::list<connection_t> &vb_conns = vbConns[*it];
         std::list<connection_t>::iterator itr = vb_conns.begin();
         for (; itr != vb_conns.end(); ++itr) {
@@ -279,7 +279,7 @@ void ConnMap::addVBConnByVBId(connection_t &conn, int16_t vbid) {
     }
 
     size_t lock_num = vbid % vbConnLockNum;
-    SpinLockHolder lh (&vbConnLocks[lock_num]);
+    std::lock_guard<SpinLock> lh(vbConnLocks[lock_num]);
     std::list<connection_t> &vb_conns = vbConns[vbid];
     vb_conns.push_back(conn);
 }
@@ -301,6 +301,6 @@ void ConnMap::removeVBConnByVBId_UNLOCKED(connection_t &conn, int16_t vbid) {
 
 void ConnMap::removeVBConnByVBId(connection_t &conn, int16_t vbid) {
     size_t lock_num = vbid % vbConnLockNum;
-    SpinLockHolder lh (&vbConnLocks[lock_num]);
+    std::lock_guard<SpinLock> lh(vbConnLocks[lock_num]);
     removeVBConnByVBId_UNLOCKED(conn, vbid);
 }

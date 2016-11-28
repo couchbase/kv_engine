@@ -24,7 +24,6 @@ These primitives are managed via RAII wrappers - [locks.h](./src/locks.h).
 
 1. `LockHolder` - a deprecated alias for std::lock_guard
 2. `MultiLockHolder` - for acquiring an array of `std::mutex` or `SyncObject`.
-3. `SpinLockHolder` - for acquiring a `SpinLock`.
 
 ### Mutex
 The general style is to create a `std::lock_guard` when you need to acquire a
@@ -134,7 +133,7 @@ The RAII pattern is just like for a mutex.
 ```c++
 SpinLock spinLock;
 void example1() {
-    SpinLockHolder lockHolder(&spinLock);
+    std::lock_guard<SpinLock> lockHolder(&spinLock);
     ...
     return;
 }

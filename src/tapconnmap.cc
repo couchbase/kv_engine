@@ -276,7 +276,7 @@ void TapConnMap::manageConnections() {
 void TapConnMap::notifyVBConnections(uint16_t vbid)
 {
     size_t lock_num = vbid % vbConnLockNum;
-    SpinLockHolder lh(&vbConnLocks[lock_num]);
+    std::lock_guard<SpinLock> lh(vbConnLocks[lock_num]);
 
     std::list<connection_t> &conns = vbConns[vbid];
     std::list<connection_t>::iterator it = conns.begin();
@@ -288,7 +288,6 @@ void TapConnMap::notifyVBConnections(uint16_t vbid)
             connNotifier_->notifyMutationEvent();
         }
     }
-    lh.unlock();
 }
 
 void TapConnMap::incrBackfillRemaining(const std::string &name,

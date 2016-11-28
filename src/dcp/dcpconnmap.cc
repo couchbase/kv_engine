@@ -193,7 +193,7 @@ void DcpConnMap::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state,
 bool DcpConnMap::handleSlowStream(uint16_t vbid,
                                   const std::string &name) {
     size_t lock_num = vbid % vbConnLockNum;
-    SpinLockHolder lh(&vbConnLocks[lock_num]);
+    std::lock_guard<SpinLock> lh(vbConnLocks[lock_num]);
     std::list<connection_t> &vb_conns = vbConns[vbid];
 
     std::list<connection_t>::iterator itr = vb_conns.begin();
@@ -340,7 +340,7 @@ void DcpConnMap::removeVBConnections(connection_t &conn) {
     DcpProducer *prod = static_cast<DcpProducer*>(tp);
     for (const auto vbid : prod->getVBVector()) {
         size_t lock_num = vbid % vbConnLockNum;
-        SpinLockHolder lh (&vbConnLocks[lock_num]);
+        std::lock_guard<SpinLock> lh(vbConnLocks[lock_num]);
         std::list<connection_t> &vb_conns = vbConns[vbid];
         std::list<connection_t>::iterator itr = vb_conns.begin();
         for (; itr != vb_conns.end(); ++itr) {
@@ -354,7 +354,7 @@ void DcpConnMap::removeVBConnections(connection_t &conn) {
 
 void DcpConnMap::notifyVBConnections(uint16_t vbid, uint64_t bySeqno) {
     size_t lock_num = vbid % vbConnLockNum;
-    SpinLockHolder lh(&vbConnLocks[lock_num]);
+    std::lock_guard<SpinLock> lh(vbConnLocks[lock_num]);
 
     std::list<connection_t> &conns = vbConns[vbid];
     std::list<connection_t>::iterator it = conns.begin();
