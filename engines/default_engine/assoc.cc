@@ -12,6 +12,7 @@
 #include <platform/cb_malloc.h>
 #include <platform/platform.h>
 #include <platform/crc32c.h>
+#include <platform/strerror.h>
 
 #include "default_engine_internal.h"
 
@@ -158,7 +159,7 @@ static void assoc_expand(struct default_engine *engine) {
             logger = static_cast<EXTENSION_LOGGER_DESCRIPTOR*>
                 (engine->server.extension->get_extension(EXTENSION_LOGGER));
             logger->log(EXTENSION_LOG_WARNING, NULL,
-                        "Can't create thread: %s\n", strerror(ret));
+                        "Can't create thread: %s", cb_strerror().c_str());
             engine->assoc->hashpower--;
             engine->assoc->expanding = false;
             cb_free(engine->assoc->primary_hashtable);

@@ -559,8 +559,6 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
     hash_item *old_it = do_item_get(engine, key);
     ENGINE_ERROR_CODE stored = ENGINE_NOT_STORED;
 
-    hash_item *new_it = NULL;
-
     if (old_it != NULL && operation == OPERATION_ADD) {
         /* add only adds a nonexistent item, but promote to head of LRU */
         do_item_update(engine, old_it);
@@ -605,10 +603,6 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
 
     if (old_it != NULL) {
         do_item_release(engine, old_it);         /* release our reference */
-    }
-
-    if (new_it != NULL) {
-        do_item_release(engine, new_it);
     }
 
     if (stored == ENGINE_SUCCESS) {
