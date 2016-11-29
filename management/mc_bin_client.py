@@ -410,6 +410,15 @@ class MemcachedClient(object):
                 done = True
         return rv
 
+    def get_random_key(self):
+        opaque=self.r.randint(0, 2**32)
+        self._sendCmd(memcacheConstants.CMD_GET_RANDOM_KEY, '', '', opaque)
+        cmd, opaque, cas, klen, extralen, data = self._handleKeyedResponse(None)
+        rv = {}
+        if klen:
+            rv[data[4:klen+4]] = data[klen:]
+        return rv
+
     def noop(self):
         """Send a noop command."""
         return self._doCmd(memcacheConstants.CMD_NOOP, '', '')

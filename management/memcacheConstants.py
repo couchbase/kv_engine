@@ -83,6 +83,7 @@ CMD_DELETE_VBUCKET = 0x3f
 
 CMD_GET_LOCKED = 0x94
 CMD_COMPACT_DB = 0xb3
+CMD_GET_RANDOM_KEY = 0xb6
 
 # event IDs for the SYNC command responses
 CMD_SYNC_EVENT_PERSISTED  = 1
