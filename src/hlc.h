@@ -165,19 +165,23 @@ public:
         time_t maxCasSeconds = seconds.count();
 
         std::tm tm;
-        char timeString[100];
+        char timeString[30]; // Need to store 1970-12-31T23:23:59
         // Print as an ISO-8601 date format with nanosecond fractional part
         if (cb_gmtime_r(&maxCasSeconds, &tm) == 0 &&
             strftime(timeString, sizeof(timeString), "%Y-%m-%dT%H:%M:%S", &tm)) {
             // Get the fractional nanosecond part
             nanoseconds -= seconds;
+            char finalString[40];// Needs to store 1970-12-31T23:23:59.999999999
+            const char* maxCasStr = finalString;
             try {
-                checked_snprintf(timeString, sizeof(timeString), "%s.%lld",
+                checked_snprintf(finalString, sizeof(finalString), "%s.%lld",
                                  timeString, nanoseconds.count());
-            } catch (...) { /* genuinely do nothing, we will just see that the
-                        fraction is missing and max_cas is already printed */
+            } catch (...) {
+                // snprint fail, point at timeString which at least has the
+                // majority of the time data.
+                maxCasStr = timeString;
             }
-            add_prefixed_stat(prefix.data(), "max_cas_str", timeString, add_stat, c);
+            add_prefixed_stat(prefix.data(), "max_cas_str", maxCasStr, add_stat, c);
         } else {
             add_prefixed_stat(prefix.data(), "max_cas_str", "could not get string", add_stat, c);
         }
