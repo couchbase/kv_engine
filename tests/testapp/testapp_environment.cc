@@ -86,7 +86,7 @@ void McdEnvironment::TearDown() {
 
     // Cleanup Audit log directory
     if (!audit_log_dir.empty()) {
-        EXPECT_TRUE(cb::io::rmrf(audit_log_dir));
+        EXPECT_TRUE(cb::io::rmrf(audit_log_dir)) << cb_strerror();
     }
 }
 
