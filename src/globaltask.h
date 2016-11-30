@@ -150,7 +150,7 @@ public:
     }
 
     void updateWaketimeIfLessThan(const ProcessClock::time_point tp) {
-        const auto tp_ns = to_ns_since_epoch(tp).count();
+        const int64_t tp_ns = to_ns_since_epoch(tp).count();
         atomic_setIfBigger(waketime, tp_ns);
     }
 
