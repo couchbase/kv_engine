@@ -184,6 +184,7 @@ IF (ENABLE_DTRACE)
                                      -G
                                      -s ${Memcached_SOURCE_DIR}/memcached_dtrace.d
                                      *.o
+                                     protocol/mcbp/*.o
                            WORKING_DIRECTORY ${Memcached_BINARY_DIR}/daemon/CMakeFiles/memcached_daemon.dir)
         SET_TARGET_PROPERTIES(memcached PROPERTIES LINK_FLAGS
                               "${Memcached_BINARY_DIR}/daemon/CMakeFiles/memcached_daemon.dir/memcached_dtrace.o")

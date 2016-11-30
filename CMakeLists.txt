@@ -80,6 +80,7 @@ ADD_CUSTOM_COMMAND(OUTPUT ${Memcached_BINARY_DIR}/memcached_dtrace.h
                    ${DTRACE} -h
                    -s ${Memcached_SOURCE_DIR}/memcached_dtrace.d
                    -o ${Memcached_BINARY_DIR}/memcached_dtrace.h
+                   && sed -itmp "s/, *char \\*/, const char \\*/g" ${Memcached_BINARY_DIR}/memcached_dtrace.h
                    DEPENDS
                    memcached_dtrace.d
                    COMMENT "Generating DTrace probe header file"
