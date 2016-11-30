@@ -750,11 +750,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, getMulti_open_doc_with_docinfo) {
     populate_items(1);
     vb_bgfetch_queue_t itms(make_bgfetch_queue());
     {
-        /* Establish Logger expectation */
-        EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger, mlog(Ge(EXTENSION_LOG_WARNING),
-                                 VCE(COUCHSTORE_ERROR_READ))
-                   ).Times(1).RetiresOnSaturation();
+        /* Check preconditions */
+        ASSERT_EQ(0, kvstore->getKVStoreStat().numGetFailure);
 
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, pread(_, _, _, _, _))
@@ -762,6 +759,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, getMulti_open_doc_with_docinfo) {
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(5).RetiresOnSaturation();
         kvstore->getMulti(0, itms);
 
+        EXPECT_EQ(1, kvstore->getKVStoreStat().numGetFailure);
     }
 }
 

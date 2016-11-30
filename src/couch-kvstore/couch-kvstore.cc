@@ -2111,11 +2111,6 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
     couchstore_error_t errCode = cbCtx->cks.fetchDoc(db, docinfo, returnVal,
                                                      cbCtx->vbId, meta_only);
     if (errCode != COUCHSTORE_SUCCESS && !meta_only) {
-        cbCtx->cks.logger.log(EXTENSION_LOG_WARNING,
-                              "Failed to fetch data from database, vBucket=%d "
-                              "key=%s error=%s [%s]", cbCtx->vbId,
-                              keyStr.c_str(), couchstore_strerror(errCode),
-                              couchkvstore_strerrno(db, errCode).c_str());
         st.numGetFailure++;
     }
 
