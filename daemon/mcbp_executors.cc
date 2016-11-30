@@ -2468,7 +2468,6 @@ static void add_set_replace_executor(McbpConnection* c, void* packet,
     uint16_t nkey = ntohs(req->message.header.request.keylen);
     uint32_t vlen = ntohl(req->message.header.request.bodylen) - nkey - extlen;
     item_info_holder info;
-    info.info.clsid = 0;
     info.info.nvalue = 1;
 
     if (req->message.header.request.cas != 0) {

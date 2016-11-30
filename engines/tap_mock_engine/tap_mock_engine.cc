@@ -162,7 +162,6 @@ public:
         info->exptime = exptime;
         info->nbytes = (uint32_t)nbytes;
         info->flags = flags;
-        info->clsid = 0;
         info->nkey = (uint16_t)key.length();
         cb_assert(info->nvalue > 0);
         info->nvalue = 1;

@@ -731,7 +731,6 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
     item_info->exptime = it->exptime;
     item_info->nbytes = it->nbytes;
     item_info->flags = it->flags;
-    item_info->clsid = it->slabs_clsid;
     item_info->nkey = hash_key_get_client_key_len(key);
     item_info->nvalue = 1;
     item_info->key = hash_key_get_client_key(key);

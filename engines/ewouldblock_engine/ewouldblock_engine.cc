@@ -506,7 +506,6 @@ public:
             item_info->nbytes = ewb->dcp_mutation_item.value.size();
             item_info->flags = 0;
             item_info->datatype = PROTOCOL_BINARY_RAW_BYTES;
-            item_info->clsid = 0;
             item_info->nkey = ewb->dcp_mutation_item.key.size();
             item_info->nvalue = 1;
             item_info->key = ewb->dcp_mutation_item.key.c_str();

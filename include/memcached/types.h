@@ -94,7 +94,6 @@ extern "C" {
         uint32_t nbytes; /**< The total size of the data (in bytes) */
         uint32_t flags; /**< Flags associated with the item (in network byte order)*/
         uint8_t datatype;
-        uint8_t clsid; /** class id for the object */
         uint16_t nkey; /**< The total length of the key (in bytes) */
         uint16_t nvalue; /** < IN: The number of elements available in value
                           * OUT: the number of elements used in value */

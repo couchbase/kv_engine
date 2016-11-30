@@ -73,7 +73,6 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::inflateInputData() {
 ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
     auto ret = bucket_get(&connection, &olditem, key.buf, key.len, vbucket);
     if (ret == ENGINE_SUCCESS) {
-        oldItemInfo.info.clsid = 0;
         oldItemInfo.info.nvalue = 1;
 
         if (!bucket_get_item_info(&connection, olditem,
@@ -118,7 +117,6 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
                           PROTOCOL_BINARY_RAW_BYTES);
     if (ret == ENGINE_SUCCESS) {
         // copy the data over..
-        newItemInfo.info.clsid = 0;
         newItemInfo.info.nvalue = 1;
 
         if (!bucket_get_item_info(&connection, newitem,
