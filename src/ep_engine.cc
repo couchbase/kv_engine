@@ -1909,7 +1909,6 @@ extern "C" {
         itm_info->nbytes = it->getNBytes();
         itm_info->datatype = it->getDataType();
         itm_info->flags = it->getFlags();
-        itm_info->clsid = 0;
         itm_info->nkey = static_cast<uint16_t>(it->getNKey());
         itm_info->nvalue = 1;
         itm_info->key = it->getKey().c_str();
