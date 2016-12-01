@@ -4612,9 +4612,15 @@ static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
         std::string key(ss.str());
 
         item *i;
-        checkeq(ENGINE_SUCCESS,
-                h1->get(h, NULL, &i, key.c_str(), key.length(), 0),
-                "Failed to get value.");
+        // Given we're in a high watermark scenario, may (temporarily) fail
+        // to allocate memory for the response, so retry in that case.
+        ENGINE_ERROR_CODE result;
+        do {
+            result = h1->get(h, nullptr, &i, key.c_str(), key.length(), 0);
+        } while (result == ENGINE_ENOMEM);
+
+        checkeq(ENGINE_SUCCESS, result,
+                "Failed to get value after hitting high watermark.");
         h1->release(h, NULL, i);
     }
 
