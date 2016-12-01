@@ -884,9 +884,12 @@ TEST_F(CheckpointTest, SeqnoAndHLCOrdering) {
     const int n_items = 1000;
 
     // configure so we can store a large number of items
+    // configure with 1 checkpoint to ensure the time-based closing
+    // does not split the items over many checkpoints and muddy the final
+    // data checks.
     checkpoint_config = CheckpointConfig(DEFAULT_CHECKPOINT_PERIOD,
                                          n_threads*n_items,
-                                         /*numCheckpoints*/2,
+                                         /*numCheckpoints*/1,
                                          /*itemBased*/true,
                                          /*keepClosed*/false,
                                          /*enableMerge*/false);
