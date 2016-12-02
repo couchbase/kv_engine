@@ -18,8 +18,8 @@
 #include "xattr_utils.h"
 #include "xattr_key_validator.h"
 
-#include <cJSON_utils.h>
 #include <unordered_set>
+#include <cJSON_utils.h>
 
 namespace cb {
 namespace xattr {
@@ -33,7 +33,7 @@ namespace xattr {
  * @throws std::underflow_error if there isn't a '\0' in the buffer
  */
 static cb::const_char_buffer trim_string(cb::const_char_buffer blob) {
-    const auto *end = (const char*)std::memchr(blob.buf, '\0', blob.len);
+    const auto* end = (const char*)std::memchr(blob.buf, '\0', blob.len);
     if (end == nullptr) {
         throw std::out_of_range("trim_string: no '\\0' in the input buffer");
     }
@@ -120,12 +120,27 @@ uint32_t get_body_offset(const const_char_buffer& payload) {
     return ntohl(*lenptr) + sizeof(uint32_t);
 }
 
+uint32_t get_body_offset(const char_buffer& payload) {
+    const uint32_t* lenptr = reinterpret_cast<const uint32_t*>(payload.buf);
+    return ntohl(*lenptr) + sizeof(uint32_t);
+}
+
 const_char_buffer get_body(const const_char_buffer& payload) {
     auto offset = get_body_offset(payload);
     return {payload.buf + offset, payload.len - offset};
 }
 
+char_buffer get_body(const char_buffer& payload) {
+    auto offset = get_body_offset(payload);
+    return {payload.buf + offset, payload.len - offset};
+}
+
 const_char_buffer get_xattr(const const_char_buffer& payload) {
+    const uint32_t* lenptr = reinterpret_cast<const uint32_t*>(payload.buf);
+    return {payload.buf + sizeof(uint32_t), *lenptr};
+}
+
+char_buffer get_xattr(const char_buffer& payload) {
     const uint32_t* lenptr = reinterpret_cast<const uint32_t*>(payload.buf);
     return {payload.buf + sizeof(uint32_t), *lenptr};
 }

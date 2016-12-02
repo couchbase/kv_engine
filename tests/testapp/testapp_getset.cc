@@ -97,6 +97,19 @@ TEST_P(GetSetTest, TestReplace) {
     }
 }
 
+TEST_P(GetSetTest, DISABLED_TestReplaceWithXattr) {
+    // The current code does not preserve XATTRs yet
+    auto& conn = getConnection();
+    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
+    const auto mutation_cas = getXattr("meta.cas");
+    EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas);
+    conn.mutate(document, 0, Greenstack::MutationType::Replace);
+    // The xattr should have been preserved, and the macro should not
+    // be expanded more than once..
+    EXPECT_EQ(mutation_cas, getXattr("meta.cas"));
+}
+
 TEST_P(GetSetTest, TestSet) {
     MemcachedConnection& conn = getConnection();
     // Set should fail if the key doesn't exists and we're using CAS
@@ -175,6 +188,38 @@ TEST_P(GetSetTest, TestAppend) {
     EXPECT_EQ(document.value, stored.value);
 }
 
+TEST_P(GetSetTest, TestAppendWithXattr) {
+    // The current code does not preserve XATTRs
+    auto& conn = getConnection();
+    document.info.datatype = Greenstack::Datatype::Raw;
+    document.value.clear();
+    document.value.push_back('a');
+    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
+    const auto mutation_cas = getXattr("meta.cas");
+    EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas);
+
+    document.value[0] = 'b';
+    conn.mutate(document, 0, Greenstack::MutationType::Append);
+
+    // The xattr should have been preserved, and the macro should not
+    // be expanded more than once..
+    EXPECT_EQ(mutation_cas, getXattr("meta.cas"));
+
+    const auto stored = conn.get(name, 0);
+
+    // And the rest of the doc should look the same
+    EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
+    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
+    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(document.info.flags, stored.info.flags);
+    EXPECT_EQ(document.info.id, stored.info.id);
+    document.value[0] = 'a';
+    document.value.push_back('b');
+    EXPECT_EQ(document.value, stored.value);
+}
+
+
 TEST_P(GetSetTest, TestAppendCasSuccess) {
     MemcachedConnection& conn = getConnection();
     document.info.datatype = Greenstack::Datatype::Raw;
@@ -241,6 +286,36 @@ TEST_P(GetSetTest, TestPrepend) {
     EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
     EXPECT_EQ(document.info.compression, stored.info.compression);
     EXPECT_EQ(document.info.datatype, stored.info.datatype);
+    EXPECT_EQ(document.info.flags, stored.info.flags);
+    EXPECT_EQ(document.info.id, stored.info.id);
+    document.value.push_back('a');
+    EXPECT_EQ(document.value, stored.value);
+}
+
+TEST_P(GetSetTest, TestPrependWithXattr) {
+    // The current code does not preserve XATTRs
+    auto& conn = getConnection();
+    document.info.datatype = Greenstack::Datatype::Raw;
+    document.value.clear();
+    document.value.push_back('a');
+    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
+    const auto mutation_cas = getXattr("meta.cas");
+    EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas);
+
+    document.value[0] = 'b';
+    conn.mutate(document, 0, Greenstack::MutationType::Prepend);
+
+    // The xattr should have been preserved, and the macro should not
+    // be expanded more than once..
+    EXPECT_EQ(mutation_cas, getXattr("meta.cas"));
+
+    const auto stored = conn.get(name, 0);
+
+    // And the rest of the doc should look the same
+    EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
+    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
+    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     document.value.push_back('a');

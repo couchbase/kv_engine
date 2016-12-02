@@ -56,13 +56,16 @@ public:
         in_cas(0),
         in_flags(0),
         in_datatype(PROTOCOL_BINARY_RAW_BYTES),
+        in_document_state(DocumentState::Alive),
         executed(false),
         jroot_type(JSONSL_T_ROOT),
         needs_new_doc(false),
         out_doc_len(0),
         out_doc(),
         response_val_len(0),
-        currentPhase(Phase::XATTR) {}
+        do_macro_expansion(false),
+        do_allow_deleted_docs(false),
+        currentPhase(Phase::XATTR){}
 
     virtual ~SubdocCmdContext() {
         if (out_doc != NULL) {
@@ -72,12 +75,53 @@ public:
         }
     }
 
+    ENGINE_ERROR_CODE pre_link_document(item_info& info) override;
+
+    /**
+     * Get the padded value we want to use for values with macro expansion.
+     * Note that the macro name must be evaluated elsewhere as this method
+     * expect the input value to be one of the legal macros.
+     *
+     * @param macro the name of the macro to return the padded value for
+     * @return the buffer we want to pass on to subdoc instead of the macro
+     *         name
+     */
+    cb::const_char_buffer get_padded_macro(const cb::const_char_buffer macro);
+
+    /**
+     * Generate a cas padding we may use to substitute "${Mutation.CAS}" with.
+     * it needs to be wide enough so that we can do an in-place replacement
+     * with the actual CAS in the pre_link_document callback.
+     *
+     * We can't really use a hardcoded value (as we would limit the user
+     * for what they could inject in their documents, and we don't want to
+     * suddenly replace user data with a cas value ;).
+     *
+     * This method tries to generate a string, and then scans through the
+     * supplied payload to ensure that it isn't present there before
+     * scanning through all of the values in the xattr modidications to
+     * ensure that it isn't part of any of them either.
+     *
+     * You might think: oh, why don't you just store the pointers to where
+     * in the blob we injected the macro? The problem with that is that
+     * there isn't any restrictions on the order you may specify the
+     * mutations in a multiop, so that you could move the stuff around;
+     * replace it; delete it. That means that you would have to go
+     * through and relocate all of these offsets after each mutation.
+     * Not impossible, but I don't think it would simplify the logic
+     * that much ;-)
+     *
+     * @param payload the JSON value for the xattr to perform macro
+     *                substitution in
+     */
+    void generate_cas_padding(const cb::const_char_buffer payload);
+
     Operations& getOperations(const Phase phase) {
         switch (phase) {
         case Phase::Body:
-            return body_operations;
+            return operations[0];
         case Phase::XATTR:
-            return xattr_operations;
+            return operations[1];
         }
         throw std::invalid_argument("SubdocCmdContext::getOperations() invalid phase");
     }
@@ -135,6 +179,10 @@ public:
     // is used to set the new documents datatype.
     protocol_binary_datatype_t in_datatype;
 
+    // The state of the document currently held in `in_doc`. This is used
+    // to to set the new documents state.
+    DocumentState in_document_state;
+
     // True if this operation has been successfully executed (via subjson)
     // and we have valid result.
     bool executed;
@@ -167,6 +215,13 @@ public:
     // Size in bytes of the response value to send back to the client.
     size_t response_val_len;
 
+    // Set to true if one (or more) of the xattr operation wants to do
+    // macro expansion.
+    bool do_macro_expansion;
+
+    // Set to true if we want to operate on deleted documents
+    bool do_allow_deleted_docs;
+
     /* Specification of a single path operation. Encapsulates both the request
      * parameters, and (later) the result of the operation.
      */
@@ -174,12 +229,12 @@ public:
     public:
         // Constructor for lookup operations (no value).
         OperationSpec(SubdocCmdTraits traits_,
-                      protocol_binary_subdoc_flag flags,
+                      protocol_binary_subdoc_flag flags_,
                       const_char_buffer path_);
 
         // Constructor for operations requiring a value.
         OperationSpec(SubdocCmdTraits traits_,
-                      protocol_binary_subdoc_flag flags,
+                      protocol_binary_subdoc_flag flags_,
                       const_char_buffer path_,
                       const_char_buffer value_);
 
@@ -188,6 +243,9 @@ public:
 
         // The traits of this individual Operation.
         SubdocCmdTraits traits;
+
+        // The flags set for this individual Operation
+        protocol_binary_subdoc_flag flags;
 
         // Path to operate on. Owned by the original request packet.
         const_char_buffer path;
@@ -204,51 +262,39 @@ public:
         Subdoc::Result result;
     };
 
+    /**
+     * Get the xattr key being accessed in this context. Only one
+     * xattr key is allowed in each multi op
+     *
+     * @return the key
+     */
+    cb::const_byte_buffer get_xattr_key() {
+        return xattr_key;
+    }
+
+    /**
+     * Set the xattr key being accessed in this context. Only one
+     * xattr key is allowed in each multi op
+     *
+     * @param key the key to be accessed
+     */
+    void set_xattr_key(const cb::const_byte_buffer& key) {
+        xattr_key = key;
+    }
 
 private:
-    // Paths to operate on, one per path in the original request.
-    Operations body_operations;
-    Operations xattr_operations;
+    // The array containing all of the operations requested by the user.
+    // Each element in the array contains the operations which should be
+    // run in each phase. Use `getOperations()` to get the correct entry
+    // in this array as that method contains the logic of where each
+    // phase lives.
+    std::array<Operations, 2> operations;
 
     // The phase we're currently operating in
     Phase currentPhase;
+
+    // The xattr key being accessed in this command
+    cb::const_byte_buffer xattr_key;
+
+    std::string padded_cas_macro;
 }; // class SubdocCmdContext
-
-SubdocCmdContext::OperationSpec::OperationSpec(SubdocCmdTraits traits_,
-                                               protocol_binary_subdoc_flag flags,
-                                               const_char_buffer path_)
-    : SubdocCmdContext::OperationSpec::OperationSpec(traits_, flags, path_,
-                                                     {nullptr, 0}) {
-}
-
-
-SubdocCmdContext::OperationSpec::OperationSpec(SubdocCmdTraits traits_,
-                                               protocol_binary_subdoc_flag flags,
-                                               const_char_buffer path_,
-                                               const_char_buffer value_)
-    : traits(traits_),
-      path(path_),
-      value(value_),
-      status(PROTOCOL_BINARY_RESPONSE_EINTERNAL) {
-    if ((flags & (SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_MKDOC))) {
-        traits.command = Subdoc::Command
-                        (traits.command | Subdoc::Command::FLAG_MKDIR_P);
-    }
-}
-
-
-SubdocCmdContext::OperationSpec::OperationSpec(OperationSpec&& other)
-    : traits(other.traits),
-      path(std::move(other.path)),
-      value(std::move(other.value)) {}
-
-uint64_t SubdocCmdContext::getOperationValueBytesTotal() const {
-    uint64_t result = 0;
-    for (auto& op : xattr_operations) {
-        result += op.value.len;
-    }
-    for (auto& op : body_operations) {
-        result += op.value.len;
-    }
-    return result;
-}

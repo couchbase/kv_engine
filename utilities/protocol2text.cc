@@ -264,7 +264,9 @@ static const std::map<protocol_binary_response_status, std::string> statusmap {
     {PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
         "Subdoc: Invalid combination for multi-path command"},
     {PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE,
-        "Subdoc: One or more paths in a multi-path command failed"}
+        "Subdoc: One or more paths in a multi-path command failed"},
+    {PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED,
+        "Subdoc: Operation completed successfully on a deleted document"},
 };
 
 const char *memcached_status_2_text(protocol_binary_response_status status) {

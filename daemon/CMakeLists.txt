@@ -131,6 +131,7 @@ ADD_LIBRARY(memcached_daemon STATIC
             subdocument.cc
             subdocument.h
             subdocument_context.h
+            subdocument_context.cc
             subdocument_traits.cc
             subdocument_traits.h
             subdocument_validators.cc

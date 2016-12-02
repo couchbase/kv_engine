@@ -398,6 +398,8 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
     } else if (status == PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE) {
         // Subdoc: Even though the some paths may have failed; actual document
         // was successfully accessed so CAS may be valid.
+    } else if (status == PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED) {
+        EXPECT_NE(0u, header->response.cas);
     } else {
         EXPECT_EQ(0u, header->response.cas);
         EXPECT_EQ(0, header->response.extlen);

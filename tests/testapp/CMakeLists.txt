@@ -18,6 +18,7 @@ list(APPEND TESTAPP_SOURCES
      testapp_getset.cc
      testapp_greenstack.cc
      testapp_greenstack.h
+     testapp_remove.cc
      testapp_require_init.cc
      testapp_sasl.cc
      testapp_sasl.h
@@ -28,7 +29,9 @@ list(APPEND TESTAPP_SOURCES
      testapp_subdoc.cc
      testapp_subdoc_multipath.cc
      testapp_subdoc_perf.cc
-     testapp_timeout.cc)
+     testapp_timeout.cc
+     testapp_xattr.cc
+     testapp_xattr.h)
 
 if (NOT WIN32)
     list(APPEND TESTAPP_SOURCES

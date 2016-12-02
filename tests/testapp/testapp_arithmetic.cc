@@ -260,3 +260,38 @@ TEST_P(ArithmeticTest, TestOperateOnStoredDocument) {
         }
     }
 }
+
+TEST_P(ArithmeticTest, TestDocWithXattr) {
+    auto& conn = getConnection();
+    conn.increment(name, 1);
+
+    // Add an xattr
+    {
+        BinprotSubdocCommand cmd;
+        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
+        cmd.setKey(name);
+        cmd.setPath("meta.author");
+        cmd.setValue("\"Trond Norbye\"");
+        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH);
+
+        BinprotResponse resp;
+        safe_do_command(cmd, resp, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    }
+
+    // Perform the normal operation
+    EXPECT_EQ(1, conn.increment(name, 1));
+
+    // The xattr should have been preserved!
+    {
+        BinprotSubdocCommand cmd;
+        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
+        cmd.setKey(name);
+        cmd.setPath("meta.author");
+        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH);
+
+        BinprotSubdocResponse resp;
+        safe_do_command(cmd, resp, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+        EXPECT_EQ("\"Trond Norbye\"", resp.getValue());
+    }
+}

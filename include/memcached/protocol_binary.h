@@ -199,6 +199,11 @@ extern "C"
          * structures for details. */
         PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE = 0xcc,
 
+        /**
+         * The operation completed successfully, but operated on a deleted
+         * document.
+         */
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED = 0xcd
     } protocol_binary_response_status;
 
     /**

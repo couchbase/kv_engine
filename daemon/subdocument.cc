@@ -27,9 +27,11 @@
 #include "timings.h"
 #include "topkeys.h"
 #include "utilities/protocol2text.h"
+#include "xattr_key_validator.h"
 #include "xattr_utils.h"
 
 #include <platform/histogram.h>
+#include <daemon/xattr/blob.h>
 
 static const std::array<SubdocCmdContext::Phase, 2> phases{{SubdocCmdContext::Phase::XATTR,
                                                             SubdocCmdContext::Phase::Body}};
@@ -41,7 +43,6 @@ static const std::array<SubdocCmdContext::Phase, 2> phases{{SubdocCmdContext::Ph
 /*
  * Declarations
  */
-
 static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
                          ENGINE_ERROR_CODE ret, const char* key,
                          size_t keylen, uint16_t vbucket, uint64_t cas);
@@ -53,10 +54,6 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                                        const char* key, size_t keylen,
                                        uint16_t vbucket, uint32_t expiration);
 static void subdoc_response(SubdocCmdContext& context);
-
-static protocol_binary_response_status
-subdoc_operate_one_path(Connection& c, SubdocCmdContext::OperationSpec& spec,
-                        const const_char_buffer& in_doc);
 
 // Debug - print details of the specified subdocument command.
 static void subdoc_print_command(Connection& c, protocol_binary_command cmd,
@@ -112,6 +109,26 @@ static void create_single_path_context(SubdocCmdContext& context,
                                           SubdocCmdContext::Phase::XATTR :
                                           SubdocCmdContext::Phase::Body;
     auto& ops = context.getOperations(phase);
+
+    if (xattr) {
+        size_t xattr_keylen;
+        is_valid_xattr_key({(const uint8_t*)path.buf, path.len}, xattr_keylen);
+        context.set_xattr_key({(const uint8_t*)path.buf, xattr_keylen});
+        if (xattr_keylen < path.len) {
+            // Swallow the '.'
+            ++xattr_keylen;
+        }
+        path.buf += xattr_keylen;
+        path.len -= xattr_keylen;
+    }
+
+    if (flags & SUBDOC_FLAG_EXPAND_MACROS) {
+        context.do_macro_expansion = true;
+    }
+
+    if (flags & SUBDOC_FLAG_ACCESS_DELETED) {
+        context.do_allow_deleted_docs = true;
+    }
 
     // Decode as single path; add a single operation to the context.
     if (traits.request_has_value) {
@@ -184,10 +201,31 @@ static void create_multi_path_context(SubdocCmdContext& context,
                 Subdoc::Util::get_root_type(traits.command, path.buf, path.len);
         }
 
+        if (flags & SUBDOC_FLAG_EXPAND_MACROS) {
+            context.do_macro_expansion = true;
+        }
+
+        if (flags & SUBDOC_FLAG_ACCESS_DELETED) {
+            context.do_allow_deleted_docs = true;
+        }
+
         const bool xattr = (flags & SUBDOC_FLAG_XATTR_PATH);
+        if (xattr) {
+            size_t xattr_keylen;
+            is_valid_xattr_key({(const uint8_t*)path.buf, path.len}, xattr_keylen);
+            context.set_xattr_key({(const uint8_t*)path.buf, xattr_keylen});
+            if (xattr_keylen < path.len) {
+                // Swallow the '.'
+                ++xattr_keylen;
+            }
+            path.buf += xattr_keylen;
+            path.len -= xattr_keylen;
+        }
+
         const SubdocCmdContext::Phase phase = xattr ?
                                               SubdocCmdContext::Phase::XATTR :
                                               SubdocCmdContext::Phase::Body;
+
         auto& ops = context.getOperations(phase);
         ops.emplace_back(SubdocCmdContext::OperationSpec{traits, flags, path,
                                                          spec_value});
@@ -418,6 +456,7 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
  * @param[out] cas      Upon success, the returned document's CAS.
  * @param[out] flags    Upon success, the returned document's flags.
  * @param[out] datatype    Upon success, the returned document's datatype.
+ * @param[out[ document_state Upon success, the returned document's state
  *
  * Returns true if a buffer could be prepared, updating {document} with the
  * address and size of the document and {cas} with the cas.
@@ -428,7 +467,8 @@ static protocol_binary_response_status
 get_document_for_searching(McbpConnection& c, const item* item,
                            const_char_buffer& document, uint64_t in_cas,
                            uint64_t& cas, uint32_t& flags,
-                           protocol_binary_datatype_t& datatype) {
+                           protocol_binary_datatype_t& datatype,
+                           DocumentState& document_state) {
 
     item_info_holder info;
     info.info.nvalue = IOV_MAX;
@@ -455,6 +495,7 @@ get_document_for_searching(McbpConnection& c, const item* item,
     document.buf = static_cast<char*>(info.info.value[0].iov_base);
     document.len = info.info.value[0].iov_len;
     datatype = info.info.datatype;
+    document_state = info.info.document_state;
 
     if (mcbp::datatype::is_compressed(info.info.datatype)) {
         // Need to expand before attempting to extract from it.
@@ -502,7 +543,13 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
         if (ret == ENGINE_SUCCESS) {
             DocKey get_key(reinterpret_cast<const uint8_t*>(key),
                            keylen, DocNamespace::DefaultCollection);
-            ret = bucket_get(&c, &initial_item, get_key, vbucket);
+            DocumentState state = DocumentState::Alive;
+            if (ctx.do_allow_deleted_docs) {
+                state = static_cast<DocumentState>(
+                    uint8_t(DocumentState::Alive) |
+                    uint8_t(DocumentState::Deleted));
+            }
+            ret = bucket_get(&c, &initial_item, get_key, vbucket, state);
             ret = ctx.connection.remapErrorCode(ret);
         }
 
@@ -557,7 +604,8 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
         protocol_binary_response_status status;
         status = get_document_for_searching(c, c.getItem(), doc, cas,
                                             doc_cas, doc_flags,
-                                            ctx.in_datatype);
+                                            ctx.in_datatype,
+                                            ctx.in_document_state);
 
         if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             // Failed. Note c.item and c.commandContext will both be freed for
@@ -575,19 +623,26 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
     return true;
 }
 
-/** Perform the operation specified by {spec} to one path in the document.
+/**
+ * Perform the operation specified by {spec} to one path in the document.
  */
 static protocol_binary_response_status
-subdoc_operate_one_path(Connection& c, SubdocCmdContext::OperationSpec& spec,
-                      const const_char_buffer& in_doc) {
+subdoc_operate_one_path(SubdocCmdContext& context, SubdocCmdContext::OperationSpec& spec,
+                        const const_char_buffer& in_doc) {
 
     // Prepare the specified sub-document command.
-    Subdoc::Operation* op = c.getThread()->subdoc_op;
+    Subdoc::Operation* op = context.connection.getThread()->subdoc_op;
     op->clear();
     op->set_result_buf(&spec.result);
     op->set_code(spec.traits.command);
     op->set_doc(in_doc.buf, in_doc.len);
-    op->set_value(spec.value.buf, spec.value.len);
+
+    if (spec.flags & SUBDOC_FLAG_EXPAND_MACROS) {
+        auto padded_macro = context.get_padded_macro(spec.value);
+        op->set_value(padded_macro.buf, padded_macro.len);
+    } else {
+        op->set_value(spec.value.buf, spec.value.len);
+    }
 
     // ... and execute it.
     Subdoc::Error subdoc_res = op->op_exec(spec.path.buf, spec.path.len);
@@ -634,21 +689,11 @@ subdoc_operate_one_path(Connection& c, SubdocCmdContext::OperationSpec& spec,
 
     default:
         // TODO: handle remaining errors.
-        LOG_DEBUG(&c, "Unexpected response from subdoc: %d (0x%x)",
+        LOG_DEBUG(&context.connection,
+                  "Unexpected response from subdoc: %d (0x%x)",
                   subdoc_res, subdoc_res);
         return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
-}
-
-static bool do_xattr_phase(SubdocCmdContext& context) {
-    context.setCurrentPhase(SubdocCmdContext::Phase::XATTR);
-    if (!context.getOperations().empty()) {
-        mcbp_write_packet(&context.connection,
-                          PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    }
-
-    // Not implemented yet
-    return true;
 }
 
 /**
@@ -659,6 +704,8 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
  * @param doc the document to operate on
  * @param temp_buffer where to store the data for our temporary buffer
  *                    allocations if we need to change the doc.
+ * @param modified set to true upon return if any modifications happened
+ *                 to the input document.
  * @return true if we should continue processing this request,
  *         false if we've sent the error packet and should temrinate
  *               execution for this request
@@ -666,23 +713,29 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
  * @throws std::bad_alloc if allocation fails
  */
 static bool operate_single_json(SubdocCmdContext& context,
-                                cb::const_char_buffer &doc,
-                                std::unique_ptr<char[]>& temp_buffer) {
+                                cb::const_char_buffer& doc,
+                                std::unique_ptr<char[]>& temp_buffer,
+                                bool& modified) {
+    modified = false;
     auto& operations = context.getOperations();
 
     // 2. Perform each of the operations on document.
     for (auto op = operations.begin(); op != operations.end(); op++) {
-        op->status = subdoc_operate_one_path(context.connection, *op, doc);
+        op->status = subdoc_operate_one_path(context, *op, doc);
 
         if (op->status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             if (context.traits.is_mutator) {
+                modified = true;
                 // Determine how much space we now need.
                 size_t new_doc_len = 0;
                 for (auto& loc : op->result.newdoc()) {
                     new_doc_len += loc.length;
                 }
 
-                std::unique_ptr<char[]> temp(new char[new_doc_len]);
+                // Allocate an extra byte to make sure we can zero term it
+                // (in case we want to use cJSON_Parse() ;-)
+                std::unique_ptr<char[]> temp(new char[new_doc_len + 1]);
+                temp[new_doc_len] = '\0';
 
                 size_t offset = 0;
                 for (auto& loc : op->result.newdoc()) {
@@ -694,7 +747,7 @@ static bool operate_single_json(SubdocCmdContext& context,
                 // (even if it was the source of some of the newdoc
                 // iovecs).
                 temp_buffer.swap(temp);
-                doc.buf = context.temp_doc.get();
+                doc.buf = temp_buffer.get();
                 doc.len = new_doc_len;
             } else { // lookup
                 // nothing to do.
@@ -730,6 +783,86 @@ static bool operate_single_json(SubdocCmdContext& context,
     return true;
 }
 
+/**
+ * Parse the XATTR blob and only operate on the single xattr
+ * requested
+ *
+ * @param context The command context for this operation
+ * @return true if success and that we may progress to the
+ *              next phase
+ */
+static bool do_xattr_phase(SubdocCmdContext& context) {
+    context.setCurrentPhase(SubdocCmdContext::Phase::XATTR);
+    if (context.getOperations().empty()) {
+        return true;
+    }
+
+    auto bodysize = context.in_doc.len;
+    auto bodyoffset = 0;
+
+    if (mcbp::datatype::is_xattr(context.in_datatype)) {
+        bodyoffset = cb::xattr::get_body_offset(context.in_doc);;
+        bodysize -= bodyoffset;
+    }
+
+    cb::byte_buffer blob_buffer{(uint8_t*)context.in_doc.buf,
+                                    (size_t)bodyoffset};
+
+    cb::xattr::Blob xattr_blob(blob_buffer);
+    auto key = context.get_xattr_key();
+    auto value_buf = xattr_blob.get(key);
+
+    std::unique_ptr<uint8_t[]> xattr_buffer;
+    if (value_buf.len == 0) {
+        // @todo is this the right thing to do?
+        xattr_buffer.reset(new uint8_t[2]);
+        xattr_buffer[0] = '{';
+        xattr_buffer[1] = '}';
+        value_buf = { xattr_buffer.get(), 2};
+    }
+
+    std::unique_ptr<char[]> temp_doc;
+    cb::const_char_buffer document{(const char*)value_buf.buf, value_buf.len};
+    context.generate_cas_padding(document);
+
+    bool modified;
+    if (!operate_single_json(context, document, temp_doc, modified)) {
+        // Something failed..
+        return false;
+    }
+
+    if (context.overall_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        return true;
+    }
+
+    // We didn't change anything in the document so just drop everything
+    if (!modified) {
+        return true;
+    }
+
+    // Time to rebuild the full document.
+    xattr_blob.set(key, {(const uint8_t*)document.buf, document.len});
+    const auto new_xattr = xattr_blob.finalize();
+    auto total = new_xattr.len + bodysize;
+
+    std::unique_ptr<char[]> full_document(new char[total]);;
+    std::copy(new_xattr.buf, new_xattr.buf + new_xattr.len, full_document.get());
+    std::copy(context.in_doc.buf + bodyoffset, context.in_doc.buf + bodyoffset + bodysize,
+              full_document.get() + new_xattr.len);
+
+    context.temp_doc.swap(full_document);
+    context.in_doc = { context.temp_doc.get(), total };
+
+    if (new_xattr.len == 0) {
+        context.in_datatype &= ~PROTOCOL_BINARY_DATATYPE_XATTR;
+
+    } else {
+        context.in_datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
+    }
+
+    return true;
+}
+
 static bool do_body_phase(SubdocCmdContext& context) {
     context.setCurrentPhase(SubdocCmdContext::Phase::Body);
 
@@ -737,10 +870,9 @@ static bool do_body_phase(SubdocCmdContext& context) {
         return true;
     }
 
-    if (mcbp::datatype::is_xattr(context.in_datatype)) {
-        mcbp_write_packet(&context.connection,
-                          PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-        return false;
+    // We might have an error from the xattr phase...
+    if (context.overall_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        return true;
     }
 
     if (!mcbp::datatype::is_json(context.in_datatype)) {
@@ -750,9 +882,54 @@ static bool do_body_phase(SubdocCmdContext& context) {
         return false;
     }
 
-    return operate_single_json(context, context.in_doc, context.temp_doc);
-}
+    size_t xattrsize = 0;
+    cb::const_char_buffer document {context.in_doc.buf,
+                                    context.in_doc.len};
 
+    if (mcbp::datatype::is_xattr(context.in_datatype)) {
+        // We shouldn't have any documents like that!
+        xattrsize = cb::xattr::get_body_offset(document);
+        document.buf += xattrsize;
+        document.len -= xattrsize;
+    }
+
+    std::unique_ptr<char[]> temp_doc;
+    bool modified;
+
+    if (!operate_single_json(context, document, temp_doc, modified)) {
+        return false;
+    }
+
+    if (context.overall_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        return true;
+    }
+
+    // We didn't change anything in the document so just drop everything
+    if (!modified) {
+        return true;
+    }
+
+    // There isn't any xattrs associated with the document. We shouldn't
+    // reallocate and move things around but just reuse the temporary
+    // buffer we've already created.
+    if (xattrsize == 0) {
+        context.temp_doc.swap(temp_doc);
+        context.in_doc = { context.temp_doc.get(), document.len };
+        return true;
+    }
+
+    // Time to rebuild the full document.
+    auto total = xattrsize + document.len;
+    std::unique_ptr<char[]> full_document(new char[total]);;
+
+    memcpy(full_document.get(), context.in_doc.buf, xattrsize);
+    memcpy(full_document.get() + xattrsize, document.buf, document.len);
+
+    context.temp_doc.swap(full_document);
+    context.in_doc = { context.temp_doc.get(), total };
+
+    return true;
+}
 
 // Operate on the document as specified by the command context.
 // Returns true if the command was successful (and execution should continue),
@@ -873,7 +1050,8 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
     // And finally, store the new document.
     uint64_t new_cas;
     auto new_op = context.needs_new_doc ? OPERATION_ADD : OPERATION_CAS;
-    ret = bucket_store(&connection, context.out_doc, &new_cas, new_op);
+    ret = bucket_store(&connection, context.out_doc, &new_cas, new_op,
+                       context.in_document_state);
     ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
@@ -984,7 +1162,11 @@ static void subdoc_single_response(SubdocCmdContext& context) {
         context.response_val_len = mloc.length;
     }
 
-    mcbp_add_header(&connection, PROTOCOL_BINARY_RESPONSE_SUCCESS, extlen,
+    auto status_code = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    if (context.in_document_state == DocumentState::Deleted) {
+        status_code = PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED;
+    }
+    mcbp_add_header(&connection, status_code, extlen,
                     0 /*keylen*/, extlen + context.response_val_len,
                     PROTOCOL_BINARY_RAW_BYTES);
     rsp->message.header.response.cas = htonll(connection.getCAS());
@@ -1076,8 +1258,14 @@ static void subdoc_multi_mutation_response(SubdocCmdContext& context) {
         return;
     }
 
+    auto status_code = context.overall_status;
+    if ((status_code == PROTOCOL_BINARY_RESPONSE_SUCCESS) &&
+        (context.in_document_state == DocumentState::Deleted)) {
+        status_code = PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED;
+    }
+
     // Allocated required resource - build the header.
-    mcbp_add_header(&connection, context.overall_status, extlen, /*keylen*/0,
+    mcbp_add_header(&connection, status_code, extlen, /*keylen*/0,
                     extlen + response_buf_needed + iov_len,
                     PROTOCOL_BINARY_RAW_BYTES);
     rsp->message.header.response.cas = htonll(connection.getCAS());
@@ -1162,7 +1350,12 @@ static void subdoc_multi_lookup_response(SubdocCmdContext& context) {
     }
 
     // Allocated required resource - build the header.
-    mcbp_add_header(&connection, context.overall_status, /*extlen*/0, /*keylen*/
+    auto status_code = context.overall_status;
+    if ((status_code == PROTOCOL_BINARY_RESPONSE_SUCCESS) &&
+        (context.in_document_state == DocumentState::Deleted)) {
+        status_code = PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED;
+    }
+    mcbp_add_header(&connection, status_code, /*extlen*/0, /*keylen*/
                     0, context.response_val_len, PROTOCOL_BINARY_RAW_BYTES);
     rsp->message.header.response.cas = htonll(connection.getCAS());
 
