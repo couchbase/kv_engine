@@ -6039,24 +6039,24 @@ EventuallyPersistentEngine::getClusterConfig(const void* cookie,
  * This initially allocated buffersize is doubled whenever the length
  * of the buffer holding all the keys, crosses the buffersize.
  */
-class AllKeysCallback : public Callback<uint16_t&, char*&> {
+class AllKeysCallback : public Callback<const DocKey&> {
 public:
     AllKeysCallback() {
         buffer.reserve((avgKeySize + sizeof(uint16_t)) * expNumKeys);
     }
 
-    void callback(uint16_t& len, char*& buf) {
-        if (buffer.size() + len + sizeof(uint16_t) >
+    void callback(const DocKey& key) {
+        if (buffer.size() + key.size() + sizeof(uint16_t) >
             buffer.size()) {
             // Reserve the 2x space for the copy-to buffer.
             buffer.reserve(buffer.size()*2);
         }
-        uint16_t outlen = htons(len);
+        uint16_t outlen = htons(key.size());
         // insert 1 x u16
         const auto* outlenPtr = reinterpret_cast<const char*>(&outlen);
         buffer.insert(buffer.end(), outlenPtr, outlenPtr + sizeof(uint16_t));
         // insert the char buffer
-        buffer.insert(buffer.end(), buf, buf+len);
+        buffer.insert(buffer.end(), key.data(), key.data()+key.size());
     }
 
     char* getAllKeysPtr() { return buffer.data(); }

@@ -1231,7 +1231,7 @@ ENGINE_ERROR_CODE
 ForestKVStore::getAllKeys(uint16_t vbid,
                           const std::string& start_key,
                           uint32_t count,
-                          std::shared_ptr<Callback<uint16_t&, char*&>> cb) {
+                          std::shared_ptr<Callback<const DocKey&>> cb) {
 
     std::unique_ptr<ForestKvsHandle> fkvsHandle;
     try {
@@ -1274,9 +1274,10 @@ ForestKVStore::getAllKeys(uint16_t vbid,
                        "get failed for vbucket id " + std::to_string(vbid) +
                        " and start key:" + start_key.c_str());
         }
-        uint16_t keylen = static_cast<uint16_t>(rdoc->keylen);
-        char* key = static_cast<char *>(rdoc->key);
-        cb->callback(keylen, key);
+        size_t keylen = static_cast<size_t>(rdoc->keylen);
+        const uint8_t* key = reinterpret_cast<const uint8_t *>(rdoc->key);
+        // Collection: Currently only create the key in the DefaultCollection
+        cb->callback(DocKey(key, keylen, DocNamespace::DefaultCollection));
 
         if (fdb_iterator_next(fdb_iter) != FDB_RESULT_SUCCESS) {
             break;

@@ -1045,7 +1045,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, readVBState_open_local_document) {
 TEST_F(CouchKVStoreErrorInjectionTest, getAllKeys_all_docs) {
     populate_items(1);
 
-    auto adcb(std::make_shared<CustomCallback<uint16_t&, char*&>>());
+    auto adcb(std::make_shared<CustomCallback<const DocKey&>>());
     std::string start("");
     {
         /* Establish Logger expectation */
