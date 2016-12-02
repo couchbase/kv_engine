@@ -344,8 +344,7 @@ EPBucket::EPBucket(
     bgFetchQueue(0),
     diskFlushAll(false), bgFetchDelay(0),
     backfillMemoryThreshold(0.95),
-    statsSnapshotTaskId(0), lastTransTimePerItem(0),
-    persistent(true)
+    statsSnapshotTaskId(0), lastTransTimePerItem(0)
 {
     cachedResidentRatio.activeRatio.store(0);
     cachedResidentRatio.replicaRatio.store(0);

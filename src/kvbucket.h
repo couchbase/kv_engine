@@ -785,11 +785,6 @@ public:
      */
     virtual ENGINE_ERROR_CODE forceMaxCas(uint16_t vbucket, uint64_t cas) = 0;
 
-    /*
-     * Returns true if the bucket persists items on disk
-     */
-    virtual bool isPersistent() const = 0;
-
 protected:
 
     // Methods called during warmup

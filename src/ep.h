@@ -832,13 +832,6 @@ public:
      */
     ENGINE_ERROR_CODE forceMaxCas(uint16_t vbucket, uint64_t cas);
 
-    /*
-     * Returns true if the bucket persists items on disk
-     */
-    bool isPersistent() const {
-        return persistent;
-    }
-
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be
@@ -1043,8 +1036,6 @@ protected:
     std::mutex compactionLock;
     std::list<CompTaskEntry> compactionTasks;
 
-    /* Indicates if this bucket type does persists items on disk */
-    bool persistent;
     DISALLOW_COPY_AND_ASSIGN(EPBucket);
 };
 
