@@ -55,6 +55,7 @@ public:
         in_doc(),
         in_cas(0),
         in_flags(0),
+        in_datatype(PROTOCOL_BINARY_RAW_BYTES),
         executed(false),
         jroot_type(JSONSL_T_ROOT),
         needs_new_doc(false),
@@ -129,6 +130,10 @@ public:
     // Flags of the input document. Required so we can set the same flags to
     // to the new document, so flags are unchanged by subdoc.
     uint32_t in_flags;
+
+    // The datatype for the document currently held in `in_doc`. This
+    // is used to set the new documents datatype.
+    protocol_binary_datatype_t in_datatype;
 
     // True if this operation has been successfully executed (via subjson)
     // and we have valid result.

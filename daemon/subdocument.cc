@@ -417,6 +417,7 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
  * @param      in_cas   Input CAS to use
  * @param[out] cas      Upon success, the returned document's CAS.
  * @param[out] flags    Upon success, the returned document's flags.
+ * @param[out] datatype    Upon success, the returned document's datatype.
  *
  * Returns true if a buffer could be prepared, updating {document} with the
  * address and size of the document and {cas} with the cas.
@@ -426,7 +427,8 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
 static protocol_binary_response_status
 get_document_for_searching(McbpConnection& c, const item* item,
                            const_char_buffer& document, uint64_t in_cas,
-                           uint64_t& cas, uint32_t& flags) {
+                           uint64_t& cas, uint32_t& flags,
+                           protocol_binary_datatype_t& datatype) {
 
     item_info_holder info;
     info.info.nvalue = IOV_MAX;
@@ -452,11 +454,7 @@ get_document_for_searching(McbpConnection& c, const item* item,
     flags = info.info.flags;
     document.buf = static_cast<char*>(info.info.value[0].iov_base);
     document.len = info.info.value[0].iov_len;
-
-    if (!mcbp::datatype::is_json(info.info.datatype)) {
-        // No good; need to have JSON
-        return PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON;
-    }
+    datatype = info.info.datatype;
 
     if (mcbp::datatype::is_compressed(info.info.datatype)) {
         // Need to expand before attempting to extract from it.
@@ -485,6 +483,7 @@ get_document_for_searching(McbpConnection& c, const item* item,
         // Update document to point to the uncompressed version in the buffer.
         document.buf = ctx->inflated_doc_buffer.data.get();
         document.len = ctx->inflated_doc_buffer.len;
+        datatype &= ~PROTOCOL_BINARY_DATATYPE_COMPRESSED;
     }
 
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -531,6 +530,7 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
 
             // Indicate that a new document is required:
             ctx.needs_new_doc = true;
+            ctx.in_datatype = PROTOCOL_BINARY_DATATYPE_JSON;
             return true;
 
         case ENGINE_EWOULDBLOCK:
@@ -555,7 +555,8 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
         const_char_buffer doc;
         protocol_binary_response_status status;
         status = get_document_for_searching(c, c.getItem(), doc, cas,
-                                            doc_cas, doc_flags);
+                                            doc_cas, doc_flags,
+                                            ctx.in_datatype);
 
         if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             // Failed. Note c.item and c.commandContext will both be freed for
@@ -651,6 +652,23 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
 
 static bool do_body_phase(SubdocCmdContext& context) {
     context.setCurrentPhase(SubdocCmdContext::Phase::Body);
+
+    if (context.getOperations().empty()) {
+        return true;
+    }
+
+    if (mcbp::datatype::is_xattr(context.in_datatype)) {
+        mcbp_write_packet(&context.connection,
+                          PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+        return false;
+    }
+
+    if (!mcbp::datatype::is_json(context.in_datatype)) {
+        // No good; need to have JSON
+        mcbp_write_packet(&context.connection,
+                          PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON);
+        return false;
+    }
 
     // 2. Perform each of the operations on document.
     for (auto op = context.getOperations().begin(); op != context.getOperations().end(); op++) {
@@ -812,7 +830,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                                                  context.out_doc_len,
                                                  context.in_flags,
                                                  expiration,
-                                                 PROTOCOL_BINARY_DATATYPE_JSON,
+                                                 context.in_datatype,
                                                  vbucket);
         }
 
