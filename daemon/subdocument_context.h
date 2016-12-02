@@ -37,8 +37,8 @@ struct SubdocCmdContext : public CommandContext {
     class OperationSpec;
     typedef std::vector<OperationSpec> Operations;
 
-    SubdocCmdContext(McbpConnection * connection, const SubdocCmdTraits traits_)
-      : c(connection),
+    SubdocCmdContext(McbpConnection& connection_, const SubdocCmdTraits traits_)
+      : connection(connection_),
         traits(traits_),
         in_doc(),
         in_cas(0),
@@ -52,8 +52,9 @@ struct SubdocCmdContext : public CommandContext {
 
     virtual ~SubdocCmdContext() {
         if (out_doc != NULL) {
-            auto engine = c->getBucketEngine();
-            engine->release(reinterpret_cast<ENGINE_HANDLE*>(engine), c, out_doc);
+            auto engine = connection.getBucketEngine();
+            engine->release(reinterpret_cast<ENGINE_HANDLE*>(engine),
+                            &connection, out_doc);
         }
     }
 
@@ -62,7 +63,7 @@ struct SubdocCmdContext : public CommandContext {
 
     // Cookie this command is associated with. Needed for the destructor
     // to release items.
-    McbpConnection* c;
+    McbpConnection& connection;
 
     // The traits for this command.
     SubdocCmdTraits traits;

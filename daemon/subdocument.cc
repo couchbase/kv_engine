@@ -17,8 +17,6 @@
 
 #include "subdocument.h"
 
-#include <snappy-c.h>
-
 #include "connections.h"
 #include "debug_helpers.h"
 #include "mcbp.h"
@@ -41,32 +39,32 @@
  * Declarations
  */
 
-static bool subdoc_fetch(McbpConnection* c, SubdocCmdContext& ctx,
+static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
                          ENGINE_ERROR_CODE ret, const char* key,
                          size_t keylen, uint16_t vbucket, uint64_t cas);
 
-static bool subdoc_operate(SubdocCmdContext* context);
+static bool subdoc_operate(SubdocCmdContext& context);
 
-static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
+static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                                        ENGINE_ERROR_CODE ret,
                                        const char* key, size_t keylen,
                                        uint16_t vbucket, uint32_t expiration);
-static void subdoc_response(SubdocCmdContext* context);
+static void subdoc_response(SubdocCmdContext& context);
 
 static protocol_binary_response_status
-subdoc_operate_one_path(Connection* c, SubdocCmdContext::OperationSpec& spec,
+subdoc_operate_one_path(Connection& c, SubdocCmdContext::OperationSpec& spec,
                         const const_char_buffer& in_doc,
                         uint64_t in_cas);
 
 // Debug - print details of the specified subdocument command.
-static void subdoc_print_command(Connection* c, protocol_binary_command cmd,
+static void subdoc_print_command(Connection& c, protocol_binary_command cmd,
                                  const char* key, const uint16_t keylen,
                                  const char* path, const uint16_t pathlen,
                                  const char* value, const uint32_t vallen) {
     char clean_key[KEY_MAX_LENGTH + 32];
     char clean_path[SUBDOC_PATH_MAX_LENGTH];
     char clean_value[80]; // only print the first few characters of the value.
-    if ((key_to_printable_buffer(clean_key, sizeof(clean_key), c->getId(), true,
+    if ((key_to_printable_buffer(clean_key, sizeof(clean_key), c.getId(), true,
                                  memcached_opcode_2_text(cmd), key, keylen)
                     != -1)
                     && (buf_to_printable_buffer(clean_path, sizeof(clean_path),
@@ -76,11 +74,11 @@ static void subdoc_print_command(Connection* c, protocol_binary_command cmd,
                         && (buf_to_printable_buffer(clean_value,
                                                     sizeof(clean_value), value,
                                                     vallen) != -1)) {
-            LOG_DEBUG(c, "%s path:'%s' value:'%s'",
+            LOG_DEBUG(&c, "%s path:'%s' value:'%s'",
                       clean_key, clean_path, clean_value);
         } else {
             // key & path only
-            LOG_DEBUG(c, "%s path:'%s'", clean_key, clean_path);
+            LOG_DEBUG(&c, "%s path:'%s'", clean_key, clean_path);
         }
     }
 }
@@ -88,8 +86,8 @@ static void subdoc_print_command(Connection* c, protocol_binary_command cmd,
 /*
  * Definitions
  */
-static void create_single_path_context(SubdocCmdContext* context,
-                                       McbpConnection* c,
+static void create_single_path_context(SubdocCmdContext& context,
+                                       McbpConnection& c,
                                        const SubdocCmdTraits traits,
                                        const void* packet,
                                        const_char_buffer value) {
@@ -113,15 +111,15 @@ static void create_single_path_context(SubdocCmdContext* context,
         value.buf += pathlen;
         value.len -= pathlen;
 
-        context->ops.emplace_back
+        context.ops.emplace_back
             (SubdocCmdContext::OperationSpec{traits, flags, path, value});
     } else {
-        context->ops.emplace_back
+        context.ops.emplace_back
             (SubdocCmdContext::OperationSpec{traits, flags, path});
     }
 
     if (flags & SUBDOC_FLAG_MKDOC) {
-        context->jroot_type =
+        context.jroot_type =
             Subdoc::Util::get_root_type(traits.command, path.buf, path.len);
     }
 
@@ -135,8 +133,8 @@ static void create_single_path_context(SubdocCmdContext* context,
     }
 }
 
-static void create_multi_path_context(SubdocCmdContext* context,
-                                      McbpConnection* c,
+static void create_multi_path_context(SubdocCmdContext& context,
+                                      McbpConnection& c,
                                       const SubdocCmdTraits traits,
                                       const void* packet,
                                       const_char_buffer value) {
@@ -173,13 +171,13 @@ static void create_multi_path_context(SubdocCmdContext* context,
         }
 
         auto traits = get_subdoc_cmd_traits(binprot_cmd);
-        if ((flags & SUBDOC_FLAG_MKDOC) && context->jroot_type == 0) {
+        if ((flags & SUBDOC_FLAG_MKDOC) && context.jroot_type == 0) {
             // Determine the root type
-            context->jroot_type =
+            context.jroot_type =
                 Subdoc::Util::get_root_type(traits.command, path.buf, path.len);
         }
 
-        context->ops.emplace_back
+        context.ops.emplace_back
             (SubdocCmdContext::OperationSpec{traits, flags, path,
                                              spec_value});
 
@@ -204,7 +202,7 @@ static void create_multi_path_context(SubdocCmdContext* context,
 }
 
 
-static SubdocCmdContext* subdoc_create_context(McbpConnection* c,
+static SubdocCmdContext* subdoc_create_context(McbpConnection& c,
                                                const SubdocCmdTraits traits,
                                                const void* packet,
                                                const_char_buffer value) {
@@ -213,11 +211,11 @@ static SubdocCmdContext* subdoc_create_context(McbpConnection* c,
         context.reset(new SubdocCmdContext(c, traits));
         switch (traits.path) {
         case SubdocPath::SINGLE:
-            create_single_path_context(context.get(), c, traits, packet, value);
+            create_single_path_context(*context.get(), c, traits, packet, value);
             break;
 
         case SubdocPath::MULTI:
-            create_multi_path_context(context.get(), c, traits, packet, value);
+            create_multi_path_context(*context.get(), c, traits, packet, value);
             break;
         }
 
@@ -269,7 +267,7 @@ uint32_t subdoc_decode_expiration(const protocol_binary_request_header* header,
  * @param packet request packet.
  * @param traits Traits associated with the specific command.
  */
-static void subdoc_executor(McbpConnection *c, const void *packet,
+static void subdoc_executor(McbpConnection& c, const void *packet,
                             const SubdocCmdTraits traits) {
 
     // 0. Parse the request and log it if debug enabled.
@@ -293,8 +291,8 @@ static void subdoc_executor(McbpConnection *c, const void *packet,
     // We potentially need to make multiple attempts at this as the engine may
     // return EWOULDBLOCK if not initially resident, hence initialise ret to
     // c->aiostat.
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
+    ENGINE_ERROR_CODE ret = c.getAiostat();
+    c.setAiostat(ENGINE_SUCCESS);
 
     // If client didn't specify a CAS, we still use CAS internally to check
     // that we are updating the same version of the document as was fetched.
@@ -315,15 +313,15 @@ static void subdoc_executor(McbpConnection *c, const void *packet,
         // 0. If we don't already have a command context, allocate one
         // (we may already have one if this is an auto_retry or a re-execution
         // due to EWOULDBLOCK).
-        auto* context = dynamic_cast<SubdocCmdContext*>(c->getCommandContext());
+        auto* context = dynamic_cast<SubdocCmdContext*>(c.getCommandContext());
         if (context == nullptr) {
             const_char_buffer value_buf{value, vallen};
             context = subdoc_create_context(c, traits, packet, value_buf);
             if (context == nullptr) {
-                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+                mcbp_write_packet(&c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
                 return;
             }
-            c->setCommandContext(context);
+            c.setCommandContext(context);
         }
 
         // 1. Attempt to fetch from the engine the document to operate on. Only
@@ -335,27 +333,27 @@ static void subdoc_executor(McbpConnection *c, const void *packet,
         }
 
         // 2. Perform the operation specified by CMD. Again, return if it fails.
-        if (!subdoc_operate(context)) {
+        if (!subdoc_operate(*context)) {
             return;
         }
 
         // 3. Update the document in the engine (mutations only).
-        ret = subdoc_update(context, ret, key, keylen, vbucket, expiration);
+        ret = subdoc_update(*context, ret, key, keylen, vbucket, expiration);
         if (ret == ENGINE_KEY_EEXISTS) {
             if (auto_retry) {
                 // Retry the operation. Reset the command context and related
                 // state, so start from the beginning again.
                 ret = ENGINE_SUCCESS;
-                if (c->getItem() != nullptr) {
-                    bucket_release_item(c, c->getItem());
-                    c->setItem(nullptr);
+                if (c.getItem() != nullptr) {
+                    bucket_release_item(&c, c.getItem());
+                    c.setItem(nullptr);
                 }
 
-                c->resetCommandContext();
+                c.resetCommandContext();
                 continue;
             } else {
                 // No auto-retry - return status back to client and return.
-                mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+                mcbp_write_packet(&c, engine_error_2_mcbp_protocol_error(ret));
                 return;
             }
         } else if (ret != ENGINE_SUCCESS) {
@@ -363,29 +361,28 @@ static void subdoc_executor(McbpConnection *c, const void *packet,
         }
 
         // 4. Form a response and send it back to the client.
-        subdoc_response(context);
+        subdoc_response(*context);
 
         // Update stats. Treat all mutations as 'cmd_set', all accesses as 'cmd_get',
         // in addition to specific subdoc counters. (This is mainly so we
         // see subdoc commands in the GUI, which used cmd_set / cmd_get).
-        auto* thread_stats = get_thread_stats(c);
+        auto* thread_stats = get_thread_stats(&c);
         if (context->traits.is_mutator) {
             thread_stats->cmd_subdoc_mutation++;
             thread_stats->bytes_subdoc_mutation_total += context->out_doc_len;
             thread_stats->bytes_subdoc_mutation_inserted +=
                     context->getOperationValueBytesTotal();
 
-            SLAB_INCR(c, cmd_set, key, keylen);
+            SLAB_INCR(&c, cmd_set, key, keylen);
         } else {
             thread_stats->cmd_subdoc_lookup++;
             thread_stats->bytes_subdoc_lookup_total += context->in_doc.len;
             thread_stats->bytes_subdoc_lookup_extracted += context->response_val_len;
 
-            STATS_HIT(c, get, key, nkey);
+            STATS_HIT(&c, get, key, nkey);
         }
         update_topkeys(DocKey(reinterpret_cast<const uint8_t*>(key),
-                              keylen, DocNamespace::DefaultCollection), c);
-
+                              keylen, DocNamespace::DefaultCollection), &c);
         return;
     } while (auto_retry && attempts < MAXIMUM_ATTEMPTS);
 
@@ -394,12 +391,12 @@ static void subdoc_executor(McbpConnection *c, const void *packet,
     const protocol_binary_command mcbp_cmd =
             protocol_binary_command(header->request.opcode);
 
-    LOG_WARNING(c,
+    LOG_WARNING(&c,
          "%u: Subdoc: Hit maximum number of auto-retry attempts (%d) when "
          "attempting to perform op %s for client %s - returning TMPFAIL",
-         c->getId(), MAXIMUM_ATTEMPTS, memcached_opcode_2_text(mcbp_cmd),
-         c->getDescription().c_str());
-    mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ENGINE_TMPFAIL));
+         c.getId(), MAXIMUM_ATTEMPTS, memcached_opcode_2_text(mcbp_cmd),
+         c.getDescription().c_str());
+    mcbp_write_packet(&c, engine_error_2_mcbp_protocol_error(ENGINE_TMPFAIL));
 }
 
 /* Gets a flat, uncompressed JSON document ready for performing a subjson
@@ -417,21 +414,21 @@ static void subdoc_executor(McbpConnection *c, const void *packet,
  * obtained.
  */
 static protocol_binary_response_status
-get_document_for_searching(McbpConnection * c, const item* item,
+get_document_for_searching(McbpConnection& c, const item* item,
                            const_char_buffer& document, uint64_t in_cas,
                            uint64_t& cas, uint32_t& flags) {
 
     item_info_holder info;
     info.info.nvalue = IOV_MAX;
 
-    if (!bucket_get_item_info(c, item, &info.info)) {
-        LOG_WARNING(c, "%u: Failed to get item info", c->getId());
+    if (!bucket_get_item_info(&c, item, &info.info)) {
+        LOG_WARNING(&c, "%u: Failed to get item info", c.getId());
         return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
 
     // Need to have the complete document in a single iovec.
     if (info.info.nvalue != 1) {
-        LOG_WARNING(c, "%u: More than one iovec in document", c->getId());
+        LOG_WARNING(&c, "%u: More than one iovec in document", c.getId());
         return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
 
@@ -453,7 +450,7 @@ get_document_for_searching(McbpConnection * c, const item* item,
 
     if (mcbp::datatype::is_compressed(info.info.datatype)) {
         // Need to expand before attempting to extract from it.
-        auto* ctx = static_cast<SubdocCmdContext*>(c->getCommandContext());
+        auto* ctx = static_cast<SubdocCmdContext*>(c.getCommandContext());
         try {
             using namespace cb::compression;
             if (!inflate(Algorithm::Snappy, document.buf, document.len,
@@ -462,11 +459,11 @@ get_document_for_searching(McbpConnection * c, const item* item,
                 if (buf_to_printable_buffer(clean_key, sizeof(clean_key),
                                             static_cast<const char*>(info.info.key),
                                             info.info.nkey) != -1) {
-                    LOG_WARNING(c,
+                    LOG_WARNING(&c,
                                 "<%u ERROR: Failed to determine inflated body"
                                     " size. Key: '%s' may have an "
                                     "incorrect datatype of COMPRESSED_JSON.",
-                                c->getId(), clean_key);
+                                c.getId(), clean_key);
                 }
 
                 return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
@@ -486,24 +483,24 @@ get_document_for_searching(McbpConnection * c, const item* item,
 // Fetch the item to operate on from the engine.
 // Returns true if the command was successful (and execution should continue),
 // else false.
-static bool subdoc_fetch(McbpConnection* c, SubdocCmdContext& ctx,
+static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
                          ENGINE_ERROR_CODE ret, const char* key,
                          size_t keylen, uint16_t vbucket, uint64_t cas) {
 
-    if (c->getItem() == NULL && !ctx.needs_new_doc) {
+    if (c.getItem() == NULL && !ctx.needs_new_doc) {
         item* initial_item;
 
         if (ret == ENGINE_SUCCESS) {
             DocKey get_key(reinterpret_cast<const uint8_t*>(key),
                            keylen, DocNamespace::DefaultCollection);
-            ret = bucket_get(c, &initial_item, get_key, vbucket);
+            ret = bucket_get(&c, &initial_item, get_key, vbucket);
         }
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            // We have the item; assign to c->item (so we'll start from step 2
+            // We have the item; assign to c.item (so we'll start from step 2
             // next time).
-            c->setItem(initial_item);
+            c.setItem(initial_item);
             ctx.needs_new_doc = false;
             break;
 
@@ -518,7 +515,7 @@ static bool subdoc_fetch(McbpConnection* c, SubdocCmdContext& ctx,
             } else if (ctx.jroot_type == JSONSL_T_OBJECT) {
                 ctx.in_doc = {"{}", 2};
             } else {
-                mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+                mcbp_write_packet(&c, engine_error_2_mcbp_protocol_error(ret));
                 return false;
             }
 
@@ -527,15 +524,15 @@ static bool subdoc_fetch(McbpConnection* c, SubdocCmdContext& ctx,
             return true;
 
         case ENGINE_EWOULDBLOCK:
-            c->setEwouldblock(true);
+            c.setEwouldblock(true);
             return false;
 
         case ENGINE_DISCONNECT:
-            c->setState(conn_closing);
+            c.setState(conn_closing);
             return false;
 
         default:
-            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+            mcbp_write_packet(&c, engine_error_2_mcbp_protocol_error(ret));
             return false;
         }
     }
@@ -547,13 +544,13 @@ static bool subdoc_fetch(McbpConnection* c, SubdocCmdContext& ctx,
         uint32_t doc_flags;
         const_char_buffer doc;
         protocol_binary_response_status status;
-        status = get_document_for_searching(c, c->getItem(), doc, cas,
+        status = get_document_for_searching(c, c.getItem(), doc, cas,
                                             doc_cas, doc_flags);
 
         if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-            // Failed. Note c->item and c->commandContext will both be freed for
+            // Failed. Note c.item and c.commandContext will both be freed for
             // us as part of preparing for the next command.
-            mcbp_write_packet(c, status);
+            mcbp_write_packet(&c, status);
             return false;
         }
 
@@ -569,11 +566,11 @@ static bool subdoc_fetch(McbpConnection* c, SubdocCmdContext& ctx,
 /** Perform the operation specified by {spec} to one path in the document.
  */
 static protocol_binary_response_status
-subdoc_operate_one_path(Connection* c, SubdocCmdContext::OperationSpec& spec,
+subdoc_operate_one_path(Connection& c, SubdocCmdContext::OperationSpec& spec,
                       const const_char_buffer& in_doc, uint64_t in_cas) {
 
     // Prepare the specified sub-document command.
-    Subdoc::Operation* op = c->getThread()->subdoc_op;
+    Subdoc::Operation* op = c.getThread()->subdoc_op;
     op->clear();
     op->set_result_buf(&spec.result);
     op->set_code(spec.traits.command);
@@ -625,7 +622,7 @@ subdoc_operate_one_path(Connection* c, SubdocCmdContext::OperationSpec& spec,
 
     default:
         // TODO: handle remaining errors.
-        LOG_DEBUG(c, "Unexpected response from subdoc: %d (0x%x)",
+        LOG_DEBUG(&c, "Unexpected response from subdoc: %d (0x%x)",
                   subdoc_res, subdoc_res);
         return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
@@ -634,37 +631,38 @@ subdoc_operate_one_path(Connection* c, SubdocCmdContext::OperationSpec& spec,
 // Operate on the document as specified by the command context.
 // Returns true if the command was successful (and execution should continue),
 // else false.
-static bool subdoc_operate(SubdocCmdContext* context) {
-    if (context->executed) {
+static bool subdoc_operate(SubdocCmdContext& context) {
+    if (context.executed) {
         return true;
     }
 
     GenericBlockTimer<TimingHistogram, 0> bt(
-            &all_buckets[context->c->getBucketIndex()].subjson_operation_times);
+            &all_buckets[context.connection.getBucketIndex()].subjson_operation_times);
 
-    context->overall_status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    context.overall_status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
     // 2. Perform each of the operations on document.
-    for (auto op = context->ops.begin(); op != context->ops.end(); op++) {
-        op->status = subdoc_operate_one_path(context->c, *op, context->in_doc,
-                                             context->in_cas);
+    for (auto op = context.ops.begin(); op != context.ops.end(); op++) {
+        op->status = subdoc_operate_one_path(context.connection, *op,
+                                             context.in_doc,
+                                             context.in_cas);
 
-        switch (context->traits.path) {
+        switch (context.traits.path) {
         case SubdocPath::SINGLE:
             if (op->status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
                 // Failure of a (the only) op stops execution and returns an
                 // error to the client.
-                mcbp_write_packet(context->c, op->status);
+                mcbp_write_packet(&context.connection, op->status);
                 return false;
             }
             break;
 
         case SubdocPath::MULTI:
             if (op->status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-                if (context->traits.is_mutator) {
+                if (context.traits.is_mutator) {
                     // Unless this is the last operation, we need to make
                     // the result document be input for the next operation.
-                    auto last_op = std::prev(context->ops.end());
+                    auto last_op = std::prev(context.ops.end());
                     if (op == last_op) {
                         continue;
                     }
@@ -689,7 +687,7 @@ static bool subdoc_operate(SubdocCmdContext* context) {
                         intermediate_doc.reset(new char[new_doc_len]);
                     } catch (const std::bad_alloc&) {
                         // Insufficient memory - unable to continue.
-                        mcbp_write_packet(context->c,
+                        mcbp_write_packet(&context.connection,
                                           PROTOCOL_BINARY_RESPONSE_ENOMEM);
                         return false;
                     }
@@ -704,17 +702,16 @@ static bool subdoc_operate(SubdocCmdContext* context) {
                     // Copying complete - safe to delete the old temp_doc
                     // (even if it was the source of some of the newdoc
                     // iovecs).
-                    context->temp_doc.swap(intermediate_doc);
-                    context->in_doc = {context->temp_doc.get(),
-                                       new_doc_len};
+                    context.temp_doc.swap(intermediate_doc);
+                    context.in_doc = {context.temp_doc.get(), new_doc_len};
 
                 } else { // lookup
                     // nothing to do.
                 }
             } else {
-                context->overall_status
+                context.overall_status
                     = PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE;
-                if (context->traits.is_mutator) {
+                if (context.traits.is_mutator) {
                     // For mutations, this stops the operation - however as
                     // we need to respond with a body indicating the index
                     // which failed we return true indicating 'success'.
@@ -730,7 +727,7 @@ static bool subdoc_operate(SubdocCmdContext* context) {
         }
     }
 
-    context->executed = true;
+    context.executed = true;
 
     return true;
 }
@@ -739,17 +736,17 @@ static bool subdoc_operate(SubdocCmdContext* context) {
 // to the document.
 // Returns true if the update was successful (and execution should continue),
 // else false.
-ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
-                                ENGINE_ERROR_CODE ret, const char* key,
-                                size_t keylen, uint16_t vbucket,
-                                uint32_t expiration) {
-    auto* const c = context->c;
-    auto* handle = reinterpret_cast<ENGINE_HANDLE*>(c->getBucketEngine());
+static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
+                                       ENGINE_ERROR_CODE ret, const char* key,
+                                       size_t keylen, uint16_t vbucket,
+                                       uint32_t expiration) {
+    auto& connection = context.connection;
+    auto* handle = reinterpret_cast<ENGINE_HANDLE*>(connection.getBucketEngine());
 
-    if (!context->traits.is_mutator) {
+    if (!context.traits.is_mutator) {
         // No update required - just make sure we have the correct cas to use
         // for response.
-        c->setCAS(context->in_cas);
+        connection.setCAS(context.in_cas);
         return ENGINE_SUCCESS;
     }
 
@@ -757,27 +754,27 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
     // paths succeeded - otherwise the document is unchanged (and we continue
     // to subdoc_response() to send information back to the client on what
     // succeeded/failed.
-    if (context->overall_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    if (context.overall_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         return ENGINE_SUCCESS;
     }
 
     // Calculate the updated document length - use the last operation result.
-    context->out_doc_len = 0;
-    for (auto& loc : context->ops.back().result.newdoc()) {
-        context->out_doc_len += loc.length;
+    context.out_doc_len = 0;
+    for (auto& loc : context.ops.back().result.newdoc()) {
+        context.out_doc_len += loc.length;
     }
 
     // Allocate a new item of this size.
-    if (context->out_doc == NULL) {
+    if (context.out_doc == NULL) {
         item *new_doc;
 
         if (ret == ENGINE_SUCCESS) {
             DocKey allocate_key(reinterpret_cast<const uint8_t*>(key),
                                 keylen, DocNamespace::DefaultCollection);
-            ret = c->getBucketEngine()->allocate(handle, c->getCookie(),
+            ret = connection.getBucketEngine()->allocate(handle, connection.getCookie(),
                                                  &new_doc, allocate_key,
-                                                 context->out_doc_len,
-                                                 context->in_flags,
+                                                 context.out_doc_len,
+                                                 context.in_flags,
                                                  expiration,
                                                  PROTOCOL_BINARY_DATATYPE_JSON,
                                                  vbucket);
@@ -786,37 +783,37 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
         switch (ret) {
         case ENGINE_SUCCESS:
             // Save the allocated document in the cmd context.
-            context->out_doc = new_doc;
+            context.out_doc = new_doc;
             break;
 
         case ENGINE_EWOULDBLOCK:
-            c->setEwouldblock(true);
+            connection.setEwouldblock(true);
             return ret;
 
         case ENGINE_DISCONNECT:
-            c->setState(conn_closing);
+            connection.setState(conn_closing);
             return ret;
 
         default:
-            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+            mcbp_write_packet(&connection, engine_error_2_mcbp_protocol_error(ret));
             return ret;
         }
 
         // To ensure we only replace the version of the document we
         // just appended to; set the CAS to the one retrieved from.
-        bucket_item_set_cas(c, new_doc, context->in_cas);
+        bucket_item_set_cas(&connection, new_doc, context.in_cas);
 
         // Obtain the item info (and it's iovectors)
         item_info new_doc_info;
         new_doc_info.nvalue = IOV_MAX;
-        if (!bucket_get_item_info(c, new_doc, &new_doc_info)) {
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
+        if (!bucket_get_item_info(&connection, new_doc, &new_doc_info)) {
+            mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             return ENGINE_FAILED;
         }
 
         // Copy the new document into the item.
         char* write_ptr = static_cast<char*>(new_doc_info.value[0].iov_base);
-        for (auto& loc : context->ops.back().result.newdoc()) {
+        for (auto& loc : context.ops.back().result.newdoc()) {
             std::copy(loc.at, loc.at + loc.length, write_ptr);
             write_ptr += loc.length;
         }
@@ -824,26 +821,26 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
 
     // And finally, store the new document.
     uint64_t new_cas;
-    auto new_op = context->needs_new_doc ? OPERATION_ADD : OPERATION_CAS;
-    ret = bucket_store(c, context->out_doc, &new_cas, new_op);
+    auto new_op = context.needs_new_doc ? OPERATION_ADD : OPERATION_CAS;
+    ret = bucket_store(&connection, context.out_doc, &new_cas, new_op);
     switch (ret) {
     case ENGINE_SUCCESS:
         // Record the UUID / Seqno if MUTATION_SEQNO feature is enabled so
         // we can include it in the response.
-        if (c->isSupportsMutationExtras()) {
+        if (connection.isSupportsMutationExtras()) {
             item_info info;
             info.nvalue = 1;
-            if (!bucket_get_item_info(c, context->out_doc, &info)) {
-                LOG_WARNING(c, "%u: Subdoc: Failed to get item info",
-                            c->getId());
-                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
+            if (!bucket_get_item_info(&connection, context.out_doc, &info)) {
+                LOG_WARNING(&connection, "%u: Subdoc: Failed to get item info",
+                            connection.getId());
+                mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
                 return ENGINE_FAILED;
             }
-            context->vbucket_uuid = info.vbucket_uuid;
-            context->sequence_no = info.seqno;
+            context.vbucket_uuid = info.vbucket_uuid;
+            context.sequence_no = info.seqno;
         }
 
-        c->setCAS(new_cas);
+        connection.setCAS(new_cas);
         break;
 
     case ENGINE_KEY_EEXISTS:
@@ -852,15 +849,15 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
         break;
 
     case ENGINE_EWOULDBLOCK:
-        c->setEwouldblock(true);
+        connection.setEwouldblock(true);
         break;
 
     case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
+        connection.setState(conn_closing);
         break;
 
     default:
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+        mcbp_write_packet(&connection, engine_error_2_mcbp_protocol_error(ret));
         break;
     }
 
@@ -871,11 +868,11 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
  * given buffer.
  * @param descr Buffer to write to. Must be 16 bytes in size.
  */
-static void encode_mutation_descr(SubdocCmdContext* context, char* buffer)
+static void encode_mutation_descr(SubdocCmdContext& context, char* buffer)
 {
     mutation_descr_t descr;
-    descr.seqno = htonll(context->sequence_no);
-    descr.vbucket_uuid = htonll(context->vbucket_uuid);
+    descr.seqno = htonll(context.sequence_no);
+    descr.vbucket_uuid = htonll(context.vbucket_uuid);
     std::memcpy(buffer, &descr, sizeof(descr));
 }
 
@@ -908,59 +905,59 @@ static size_t encode_multi_mutation_result_spec(uint8_t index,
 
 /* Construct and send a response to a single-path request back to the client.
  */
-static void subdoc_single_response(SubdocCmdContext* context) {
-    auto* const c = context->c;
+static void subdoc_single_response(SubdocCmdContext& context) {
+    auto& connection = context.connection;
 
     protocol_binary_response_subdocument* rsp =
-            reinterpret_cast<protocol_binary_response_subdocument*>(c->write.buf);
+            reinterpret_cast<protocol_binary_response_subdocument*>(connection.write.buf);
 
     // Calculate extras size
-    const bool include_mutation_dscr = (c->isSupportsMutationExtras() &&
-                                        context->traits.is_mutator);
+    const bool include_mutation_dscr = (connection.isSupportsMutationExtras() &&
+                                        context.traits.is_mutator);
     const size_t extlen = include_mutation_dscr ? sizeof(mutation_descr_t)
                                                 : 0;
 
     const char* value = NULL;
-    context->response_val_len = 0;
-    if (context->traits.response_has_value) {
-        auto mloc = context->ops[0].result.matchloc();
+    context.response_val_len = 0;
+    if (context.traits.response_has_value) {
+        auto mloc = context.ops[0].result.matchloc();
         value = mloc.at;
-        context->response_val_len = mloc.length;
+        context.response_val_len = mloc.length;
     }
 
-    mcbp_add_header(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, extlen,
-                    0 /*keylen*/, extlen + context->response_val_len,
+    mcbp_add_header(&connection, PROTOCOL_BINARY_RESPONSE_SUCCESS, extlen,
+                    0 /*keylen*/, extlen + context.response_val_len,
                     PROTOCOL_BINARY_RAW_BYTES);
-    rsp->message.header.response.cas = htonll(c->getCAS());
+    rsp->message.header.response.cas = htonll(connection.getCAS());
 
     // Add mutation descr to response buffer if requested.
     if (include_mutation_dscr) {
-        DynamicBuffer& response_buf = c->getDynamicBuffer();
+        DynamicBuffer& response_buf = connection.getDynamicBuffer();
         if (!response_buf.grow(extlen)) {
             // Unable to form complete response.
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+            mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_ENOMEM);
             return;
         }
         char* const extras_ptr = response_buf.getCurrent();
         encode_mutation_descr(context, extras_ptr);
         response_buf.moveOffset(extlen);
 
-        c->addIov(extras_ptr, extlen);
+        connection.addIov(extras_ptr, extlen);
     }
 
-    if (context->traits.response_has_value) {
-        c->addIov(value, context->response_val_len);
+    if (context.traits.response_has_value) {
+        connection.addIov(value, context.response_val_len);
     }
 
-    c->setState(conn_mwrite);
+    connection.setState(conn_mwrite);
 }
 
 /* Construct and send a response to a multi-path mutation back to the client.
  */
-static void subdoc_multi_mutation_response(SubdocCmdContext* context) {
-    auto* const c = context->c;
+static void subdoc_multi_mutation_response(SubdocCmdContext& context) {
+    auto& connection = context.connection;
     protocol_binary_response_subdocument* rsp =
-            reinterpret_cast<protocol_binary_response_subdocument*>(c->write.buf);
+            reinterpret_cast<protocol_binary_response_subdocument*>(connection.write.buf);
 
     // MULTI_MUTATION: On success, zero to N multi_mutation_result_spec objects
     // (one for each spec which wants to return a value), with optional 16byte
@@ -968,17 +965,17 @@ static void subdoc_multi_mutation_response(SubdocCmdContext* context) {
     //
     // On failure body indicates the index and status code of the first failing
     // spec.
-    DynamicBuffer& response_buf = c->getDynamicBuffer();
+    DynamicBuffer& response_buf = connection.getDynamicBuffer();
     size_t extlen = 0;
     char* extras_ptr = nullptr;
 
     // Encode mutation extras into buffer if success & they were requested.
-    if (context->overall_status == PROTOCOL_BINARY_RESPONSE_SUCCESS &&
-            c->isSupportsMutationExtras()) {
+    if (context.overall_status == PROTOCOL_BINARY_RESPONSE_SUCCESS &&
+            connection.isSupportsMutationExtras()) {
         extlen = sizeof(mutation_descr_t);
         if (!response_buf.grow(extlen)) {
             // Unable to form complete response.
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+            mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_ENOMEM);
             return;
         }
         extras_ptr = response_buf.getCurrent();
@@ -990,11 +987,11 @@ static void subdoc_multi_mutation_response(SubdocCmdContext* context) {
     // size to encode into the header.
     size_t response_buf_needed;
     size_t iov_len = 0;
-    if (context->overall_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    if (context.overall_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         // on success, one per each non-zero length result.
         response_buf_needed = 0;
-        for (size_t ii = 0; ii < context->ops.size(); ii++) {
-            const auto& op = context->ops[ii];
+        for (size_t ii = 0; ii < context.ops.size(); ii++) {
+            const auto& op = context.ops[ii];
             const auto mloc = op.result.matchloc();
             if (op.traits.response_has_value && mloc.length > 0) {
                 response_buf_needed += sizeof(uint8_t) + sizeof(uint16_t) +
@@ -1013,34 +1010,34 @@ static void subdoc_multi_mutation_response(SubdocCmdContext* context) {
     // 2. actual value - this already resides in the Subdoc::Result.
     if (!response_buf.grow(response_buf_needed)) {
         // Unable to form complete response.
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+        mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_ENOMEM);
         return;
     }
 
     // Allocated required resource - build the header.
-    mcbp_add_header(c, context->overall_status, extlen, /*keylen*/0,
+    mcbp_add_header(&connection, context.overall_status, extlen, /*keylen*/0,
                     extlen + response_buf_needed + iov_len,
                     PROTOCOL_BINARY_RAW_BYTES);
-    rsp->message.header.response.cas = htonll(c->getCAS());
+    rsp->message.header.response.cas = htonll(connection.getCAS());
 
     // Append extras if requested.
     if (extlen > 0) {
-        c->addIov(reinterpret_cast<void*>(extras_ptr), extlen);
+        connection.addIov(reinterpret_cast<void*>(extras_ptr), extlen);
     }
 
     // Append the iovecs for each operation result.
-    for (size_t ii = 0; ii < context->ops.size(); ii++) {
-        const auto& op = context->ops[ii];
+    for (size_t ii = 0; ii < context.ops.size(); ii++) {
+        const auto& op = context.ops[ii];
         // Successful - encode all non-zero length results.
-        if (context->overall_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        if (context.overall_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             const auto mloc = op.result.matchloc();
             if (op.traits.response_has_value && mloc.length > 0) {
                 char* header = response_buf.getCurrent();
                 size_t header_sz =
                         encode_multi_mutation_result_spec(ii, op, header);
 
-                c->addIov(reinterpret_cast<void*>(header), header_sz);
-                c->addIov(mloc.at, mloc.length);
+                connection.addIov(reinterpret_cast<void*>(header), header_sz);
+                connection.addIov(mloc.at, mloc.length);
 
                 response_buf.moveOffset(header_sz);
             }
@@ -1051,7 +1048,7 @@ static void subdoc_multi_mutation_response(SubdocCmdContext* context) {
                 size_t header_sz =
                         encode_multi_mutation_result_spec(ii, op, header);
 
-                c->addIov(reinterpret_cast<void*>(header), header_sz);
+                connection.addIov(reinterpret_cast<void*>(header), header_sz);
                 response_buf.moveOffset(header_sz);
 
                 // Only the first unsuccessful op is reported.
@@ -1059,46 +1056,46 @@ static void subdoc_multi_mutation_response(SubdocCmdContext* context) {
             }
         }
     }
-    c->setState(conn_mwrite);
+    connection.setState(conn_mwrite);
 }
 
 /* Construct and send a response to a multi-path lookup back to the client.
  */
-static void subdoc_multi_lookup_response(SubdocCmdContext* context) {
-    auto* const c = context->c;
+static void subdoc_multi_lookup_response(SubdocCmdContext& context) {
+    auto& connection = context.connection;
     protocol_binary_response_subdocument* rsp =
-            reinterpret_cast<protocol_binary_response_subdocument*>(c->write.buf);
+            reinterpret_cast<protocol_binary_response_subdocument*>(connection.write.buf);
 
     // Calculate the value length - sum of all the operation results.
-    context->response_val_len = 0;
-    for (auto& op : context->ops) {
+    context.response_val_len = 0;
+    for (auto& op : context.ops) {
         // 16bit status, 32bit resultlen, variable-length result.
         size_t result_size = sizeof(uint16_t) + sizeof(uint32_t);
         if (op.traits.response_has_value) {
             result_size += op.result.matchloc().length;
         }
-        context->response_val_len += result_size;
+        context.response_val_len += result_size;
     }
 
     // We need two iovecs per operation result:
     // 1. status (uin16_t) & vallen (uint32_t). Use the dynamicBuffer for this
     // 2. actual value - this already resides either in the original document
     //                   (for lookups) or stored in the Subdoc::Result.
-    DynamicBuffer& response_buf = c->getDynamicBuffer();
-    size_t needed = (sizeof(uint16_t) + sizeof(uint32_t)) * context->ops.size();
+    DynamicBuffer& response_buf = connection.getDynamicBuffer();
+    size_t needed = (sizeof(uint16_t) + sizeof(uint32_t)) * context.ops.size();
     if (!response_buf.grow(needed)) {
         // Unable to form complete response.
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+        mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_ENOMEM);
         return;
     }
 
     // Allocated required resource - build the header.
-    mcbp_add_header(c, context->overall_status, /*extlen*/0, /*keylen*/
-                    0, context->response_val_len, PROTOCOL_BINARY_RAW_BYTES);
-    rsp->message.header.response.cas = htonll(c->getCAS());
+    mcbp_add_header(&connection, context.overall_status, /*extlen*/0, /*keylen*/
+                    0, context.response_val_len, PROTOCOL_BINARY_RAW_BYTES);
+    rsp->message.header.response.cas = htonll(connection.getCAS());
 
     // Append the iovecs for each operation result.
-    for (auto& op : context->ops) {
+    for (auto& op : context.ops) {
         auto mloc = op.result.matchloc();
 
         // Header is always included. Result value included if the response for
@@ -1112,26 +1109,26 @@ static void subdoc_multi_lookup_response(SubdocCmdContext* context) {
         }
         *reinterpret_cast<uint32_t*>(header + sizeof(uint16_t)) = result_len;
 
-        c->addIov(reinterpret_cast<void*>(header), header_sz);
+        connection.addIov(reinterpret_cast<void*>(header), header_sz);
 
         if (result_len != 0) {
-            c->addIov(mloc.at, mloc.length);
+            connection.addIov(mloc.at, mloc.length);
         }
         response_buf.moveOffset(header_sz);
     }
 
-    c->setState(conn_mwrite);
+    connection.setState(conn_mwrite);
 }
 
 // Respond back to the user as appropriate to the specific command.
-void subdoc_response(SubdocCmdContext* context) {
-    switch (context->traits.path) {
+static void subdoc_response(SubdocCmdContext& context) {
+    switch (context.traits.path) {
     case SubdocPath::SINGLE:
         subdoc_single_response(context);
         return;
 
     case SubdocPath::MULTI:
-        if (context->traits.is_mutator) {
+        if (context.traits.is_mutator) {
             subdoc_multi_mutation_response(context);
         } else {
             subdoc_multi_lookup_response(context);
@@ -1140,77 +1137,77 @@ void subdoc_response(SubdocCmdContext* context) {
     }
 
     // Shouldn't get here - invalid traits.path
-    auto* const c = context->c;
-    mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
-    c->setState(conn_closing);
+    auto& connection = context.connection;
+    mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
+    connection.setState(conn_closing);
 }
 
 void subdoc_get_executor(McbpConnection* c, void* packet) {
-    return subdoc_executor(c, packet,
+    return subdoc_executor(*c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>());
 }
 
 void subdoc_exists_executor(McbpConnection* c, void* packet) {
-    return subdoc_executor(c, packet,
+    return subdoc_executor(*c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>());
 }
 
 void subdoc_dict_add_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(c, packet,
+    return subdoc_executor(*c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>());
 }
 
 void subdoc_dict_upsert_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(c, packet,
+    return subdoc_executor(*c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>());
 }
 
 void subdoc_delete_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(c, packet,
+    return subdoc_executor(*c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DELETE>());
 }
 
 void subdoc_replace_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(c, packet,
+    return subdoc_executor(*c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>());
 }
 
 void subdoc_array_push_last_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(c, packet,
+    return subdoc_executor(*c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>());
 }
 
 void subdoc_array_push_first_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(c, packet,
+    return subdoc_executor(*c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>());
 }
 
 void subdoc_array_insert_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(c, packet,
+    return subdoc_executor(*c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>());
 }
 
 void subdoc_array_add_unique_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(c, packet,
+    return subdoc_executor(*c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>());
 }
 
 void subdoc_counter_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(c, packet,
+    return subdoc_executor(*c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>());
 }
 
 void subdoc_get_count_executor(McbpConnection *c, void *packet) {
-    return subdoc_executor(c, packet,
+    return subdoc_executor(*c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT>());
 }
 
 void subdoc_multi_lookup_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(c, packet,
+    return subdoc_executor(*c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>());
 }
 
 void subdoc_multi_mutation_executor(McbpConnection* c, void *packet) {
-    return subdoc_executor(c, packet,
+    return subdoc_executor(*c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION>());
 }
