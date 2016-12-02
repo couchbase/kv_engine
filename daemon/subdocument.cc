@@ -650,6 +650,85 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
     return true;
 }
 
+/**
+ * Run through all of the subdoc operations for the current phase on
+ * a single JSON document.
+ *
+ * @param context The context object for this operation
+ * @param doc the document to operate on
+ * @param temp_buffer where to store the data for our temporary buffer
+ *                    allocations if we need to change the doc.
+ * @return true if we should continue processing this request,
+ *         false if we've sent the error packet and should temrinate
+ *               execution for this request
+ *
+ * @throws std::bad_alloc if allocation fails
+ */
+static bool operate_single_json(SubdocCmdContext& context,
+                                cb::const_char_buffer &doc,
+                                std::unique_ptr<char[]>& temp_buffer) {
+    auto& operations = context.getOperations();
+
+    // 2. Perform each of the operations on document.
+    for (auto op = operations.begin(); op != operations.end(); op++) {
+        op->status = subdoc_operate_one_path(context.connection, *op, doc);
+
+        if (op->status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            if (context.traits.is_mutator) {
+                // Determine how much space we now need.
+                size_t new_doc_len = 0;
+                for (auto& loc : op->result.newdoc()) {
+                    new_doc_len += loc.length;
+                }
+
+                std::unique_ptr<char[]> temp(new char[new_doc_len]);
+
+                size_t offset = 0;
+                for (auto& loc : op->result.newdoc()) {
+                    std::memcpy(temp.get() + offset, loc.at, loc.length);
+                    offset += loc.length;
+                }
+
+                // Copying complete - safe to delete the old temp_doc
+                // (even if it was the source of some of the newdoc
+                // iovecs).
+                temp_buffer.swap(temp);
+                doc.buf = context.temp_doc.get();
+                doc.len = new_doc_len;
+            } else { // lookup
+                // nothing to do.
+            }
+        } else {
+            switch (context.traits.path) {
+            case SubdocPath::SINGLE:
+                // Failure of a (the only) op stops execution and returns an
+                // error to the client.
+                mcbp_write_packet(&context.connection, op->status);
+                return false;
+
+            case SubdocPath::MULTI:
+                context.overall_status
+                    = PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE;
+                if (context.traits.is_mutator) {
+                    // For mutations, this stops the operation - however as
+                    // we need to respond with a body indicating the index
+                    // which failed we return true indicating 'success'.
+                    return true;
+                } else {
+                    // For lookup; an operation failing doesn't stop us
+                    // continuing with the rest of the operations
+                    // - continue with the next operation.
+                    continue;
+                }
+
+                break;
+            }
+        }
+    }
+
+    return true;
+}
+
 static bool do_body_phase(SubdocCmdContext& context) {
     context.setCurrentPhase(SubdocCmdContext::Phase::Body);
 
@@ -670,92 +749,7 @@ static bool do_body_phase(SubdocCmdContext& context) {
         return false;
     }
 
-    // 2. Perform each of the operations on document.
-    for (auto op = context.getOperations().begin(); op != context.getOperations().end(); op++) {
-        op->status = subdoc_operate_one_path(context.connection, *op,
-                                             context.in_doc);
-
-        switch (context.traits.path) {
-        case SubdocPath::SINGLE:
-            if (op->status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-                // Failure of a (the only) op stops execution and returns an
-                // error to the client.
-                mcbp_write_packet(&context.connection, op->status);
-                return false;
-            }
-            break;
-
-        case SubdocPath::MULTI:
-            if (op->status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-                if (context.traits.is_mutator) {
-                    // Unless this is the last operation, we need to make
-                    // the result document be input for the next operation.
-                    auto last_op = std::prev(context.getOperations().end());
-                    if (op == last_op) {
-                        continue;
-                    }
-
-                    // Determine how much space we now need.
-                    size_t new_doc_len = 0;
-                    for (auto& loc : op->result.newdoc()) {
-                        new_doc_len += loc.length;
-                    }
-
-                    // TODO-PERF: We need to create a contiguous input
-                    // region for the next subjson call, from the set of
-                    // iovecs in the result. We can't simply write into
-                    // the dynamic_buffer, as that may be the underlying
-                    // storage for iovecs from the result. Ideally we'd
-                    // either permit subjson to take an iovec as input, or
-                    // permit subjson to take all the multipaths at once.
-                    // For now we make a contiguous region in a temporary
-                    // std::vector, and point in_doc at that.
-                    std::unique_ptr<char[]> intermediate_doc;
-                    try {
-                        intermediate_doc.reset(new char[new_doc_len]);
-                    } catch (const std::bad_alloc&) {
-                        // Insufficient memory - unable to continue.
-                        mcbp_write_packet(&context.connection,
-                                          PROTOCOL_BINARY_RESPONSE_ENOMEM);
-                        return false;
-                    }
-
-                    size_t offset = 0;
-                    for (auto& loc : op->result.newdoc()) {
-                        std::memcpy(intermediate_doc.get() + offset,
-                                    loc.at, loc.length);
-                        offset += loc.length;
-                    }
-
-                    // Copying complete - safe to delete the old temp_doc
-                    // (even if it was the source of some of the newdoc
-                    // iovecs).
-                    context.temp_doc.swap(intermediate_doc);
-                    context.in_doc = {context.temp_doc.get(), new_doc_len};
-
-                } else { // lookup
-                    // nothing to do.
-                }
-            } else {
-                context.overall_status
-                    = PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE;
-                if (context.traits.is_mutator) {
-                    // For mutations, this stops the operation - however as
-                    // we need to respond with a body indicating the index
-                    // which failed we return true indicating 'success'.
-                    return true;
-                } else {
-                    // For lookup; an operation failing doesn't stop us
-                    // continuing with the rest of the operations
-                    // - continue with the next operation.
-                    continue;
-                }
-            }
-            break;
-        }
-    }
-
-    return true;
+    return operate_single_json(context, context.in_doc, context.temp_doc);
 }
 
 
@@ -771,9 +765,17 @@ static bool subdoc_operate(SubdocCmdContext& context) {
             &all_buckets[context.connection.getBucketIndex()].subjson_operation_times);
 
     context.overall_status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-    if (do_xattr_phase(context) && do_body_phase(context)) {
-        context.executed = true;
-        return true;
+
+    try {
+        if (do_xattr_phase(context) && do_body_phase(context)) {
+            context.executed = true;
+            return true;
+        }
+    } catch (const std::bad_alloc&) {
+        // Insufficient memory - unable to continue.
+        mcbp_write_packet(&context.connection,
+                          PROTOCOL_BINARY_RESPONSE_ENOMEM);
+        return false;
     }
 
     return false;
@@ -812,19 +814,15 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         return ENGINE_SUCCESS;
     }
 
-    // Calculate the updated document length - use the last operation result.
-    context.out_doc_len = 0;
-    for (auto& loc : context.getOperations().back().result.newdoc()) {
-        context.out_doc_len += loc.length;
-    }
-
     // Allocate a new item of this size.
     if (context.out_doc == NULL) {
         item *new_doc;
 
         if (ret == ENGINE_SUCCESS) {
+            context.out_doc_len = context.in_doc.len;
             DocKey allocate_key(reinterpret_cast<const uint8_t*>(key),
                                 keylen, DocNamespace::DefaultCollection);
+            // Calculate the updated document length - use the last operation result.
             ret = connection.getBucketEngine()->allocate(handle, connection.getCookie(),
                                                  &new_doc, allocate_key,
                                                  context.out_doc_len,
@@ -867,10 +865,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
 
         // Copy the new document into the item.
         char* write_ptr = static_cast<char*>(new_doc_info.value[0].iov_base);
-        for (auto& loc : context.getOperations().back().result.newdoc()) {
-            std::copy(loc.at, loc.at + loc.length, write_ptr);
-            write_ptr += loc.length;
-        }
+        std::memcpy(write_ptr, context.in_doc.buf, context.in_doc.len);
     }
 
     // And finally, store the new document.
