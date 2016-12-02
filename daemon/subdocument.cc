@@ -53,8 +53,7 @@ static void subdoc_response(SubdocCmdContext& context);
 
 static protocol_binary_response_status
 subdoc_operate_one_path(Connection& c, SubdocCmdContext::OperationSpec& spec,
-                        const const_char_buffer& in_doc,
-                        uint64_t in_cas);
+                        const const_char_buffer& in_doc);
 
 // Debug - print details of the specified subdocument command.
 static void subdoc_print_command(Connection& c, protocol_binary_command cmd,
@@ -567,7 +566,7 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
  */
 static protocol_binary_response_status
 subdoc_operate_one_path(Connection& c, SubdocCmdContext::OperationSpec& spec,
-                      const const_char_buffer& in_doc, uint64_t in_cas) {
+                      const const_char_buffer& in_doc) {
 
     // Prepare the specified sub-document command.
     Subdoc::Operation* op = c.getThread()->subdoc_op;
@@ -644,8 +643,7 @@ static bool subdoc_operate(SubdocCmdContext& context) {
     // 2. Perform each of the operations on document.
     for (auto op = context.ops.begin(); op != context.ops.end(); op++) {
         op->status = subdoc_operate_one_path(context.connection, *op,
-                                             context.in_doc,
-                                             context.in_cas);
+                                             context.in_doc);
 
         switch (context.traits.path) {
         case SubdocPath::SINGLE:
