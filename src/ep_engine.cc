@@ -44,6 +44,7 @@
 #include "backfill.h"
 #include "dcp/flow-control-manager.h"
 #include "ep_engine.h"
+#include "ephemeral_bucket.h"
 #include "failover-table.h"
 #include "flusher.h"
 #include "connmap.h"
@@ -1819,7 +1820,7 @@ extern "C" {
     }
 
     /**
-     * The only public interface to the eventually persistance engine.
+     * The only public interface to the eventually persistent engine.
      * Allocate a new instance and initialize it
      * @param interface the highest interface the server supports (we only
      *                  support interface 1)
@@ -2159,6 +2160,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     const std::string bucketType = configuration.getBucketType();
     if (bucketType == "persistent") {
         kvBucket = new KVBucket(*this);
+    } else if (bucketType == "ephemeral") {
+        kvBucket = new EphemeralBucket(*this);
     } else {
         throw std::invalid_argument(bucketType + " is not a recognized bucket "
                                     "type");

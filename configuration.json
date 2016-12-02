@@ -121,6 +121,7 @@
             "type": "std::string",
             "validator": {
                 "enum": [
+                         "ephemeral",
                          "persistent"
                         ]
             }
