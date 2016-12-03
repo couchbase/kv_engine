@@ -125,7 +125,6 @@ private:
     double                   minSleepTime;
     uint16_t                 initCommitInterval;
     uint16_t                 currCommitInterval;
-    rel_time_t               flushStart;
     std::atomic<bool> forceShutdownReceived;
     std::queue<uint16_t> hpVbs;
     std::queue<uint16_t> lpVbs;

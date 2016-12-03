@@ -31,15 +31,13 @@
 
 #include <memcached/extension.h>
 
-// Stolen from http://google-styleguide.googlecode.com/svn/trunk/cppguide.xml
 // A macro to disallow the copy constructor and operator= functions
-// This should be used in the private: declarations for a class
 #define DISALLOW_COPY_AND_ASSIGN(TypeName)      \
-    TypeName(const TypeName&);                  \
-    void operator=(const TypeName&)
+    TypeName(const TypeName&) = delete;         \
+    void operator=(const TypeName&) = delete
 
 #define DISALLOW_ASSIGN(TypeName)               \
-    void operator=(const TypeName&)
+    void operator=(const TypeName&) = delete
 
 
 // Utility functions implemented in various modules.
