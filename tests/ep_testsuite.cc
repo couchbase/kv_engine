@@ -2823,7 +2823,9 @@ static enum test_result test_access_scanner(ENGINE_HANDLE *h,
     wait_for_stat_to_be(h, h1, "ep_num_access_scanner_runs", num_shards);
 
     /* This time since resident ratio is < 95% access log should be generated */
-    checkeq(0, access(name.c_str(), F_OK), "access log file should exist");
+    checkeq(0, access(name.c_str(), F_OK),
+            (std::string("access log file (") + name +
+             ") should exist (got errno:" + std::to_string(errno)).c_str());
 
     /* Increase resident ratio by deleting items */
     vbucketDelete(h, h1, 0);
