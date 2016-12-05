@@ -2729,18 +2729,22 @@ static enum test_result test_access_scanner(ENGINE_HANDLE *h,
     cb_gmtime_r(&now, &tm_now);
     const auto two_hours_hence = (tm_now.tm_hour + 2) % 24;
 
-    set_param(h, h1, protocol_binary_engine_param_flush, "alog_task_time",
-              std::to_string(two_hours_hence).c_str());
-    wait_for_stat_to_be(h, h1, "ep_alog_task_time", two_hours_hence);
+    const auto alog_task_time = std::string("alog_task_time=") +
+            std::to_string(two_hours_hence);
 
     const auto newconfig = std::string(testHarness.get_current_testcase()->cfg)
-                           + alog_path;
+                           + alog_path + ";" + alog_task_time;
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               newconfig.c_str(),
                               true, false);
     wait_for_warmup_complete(h, h1);
+
+    /* Check that alog_task_time was correctly updated. */
+    checkeq(get_int_stat(h, h1, "ep_alog_task_time"),
+            two_hours_hence,
+            "Failed to set alog_task_time to 2 hours in the future");
 
     checkeq(ENGINE_SUCCESS,
             h1->get_stats(h, NULL, NULL, 0, add_stats),
