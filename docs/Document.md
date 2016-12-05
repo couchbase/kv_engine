@@ -120,17 +120,13 @@ The 0x00 byte after the key saves us from storing a key length,
 and the trailing 0x00 is just for convenience to allow us to use
 string functions to search in them.
 
-The following dump shows the encoding of:
-
-  * `_sync` with the value of `{"cas":"deadbeefcafefeed"}`
-  * `meta` with the value of `{"author":"Trond Norbye","content-type":"application/octet-stream"}"`
-
+Example
 
       Byte/     0       |       1       |       2       |       3       |
          /              |               |               |               |
         |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
         +---------------+---------------+---------------+---------------+
-       0| 0x00          | 0x00          | 0x00          | 0x76          |
+       0| 0x00          | 0x00          | 0x00          | 0x72          |
         +---------------+---------------+---------------+---------------+
        4| 0x00          | 0x00          | 0x00          | 0x21          |
         +---------------+---------------+---------------+---------------+
@@ -190,3 +186,6 @@ The following dump shows the encoding of:
         +---------------+---------------+---------------+---------------+
      116| 0x7d ('}')    | 0x00          |
         +---------------+---------------+
+
+     _sync with the value of {"cas":"deadbeefcafefeed"}
+     meta with the value of {"author":"Trond Norbye","content-type":"application/octet-stream"}"
