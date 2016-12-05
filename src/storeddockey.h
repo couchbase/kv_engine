@@ -17,12 +17,16 @@
 #pragma once
 
 #include <iostream>
+#include <limits>
+#include <memory>
 #include <string>
 #include <type_traits>
 
 #include <memcached/dockey.h>
 
 #include "ep_types.h"
+
+class SerialisedDocKey;
 
 /**
  * StoredDocKey is a container for key data
@@ -147,3 +151,121 @@ struct hash<StoredDocKey> {
     }
 };
 }
+
+class MutationLogEntry;
+class StoredValue;
+
+/**
+ * SerialisedDocKey maintains the key data in an allocation that is not owned by
+ * the class. The class is essentially immutable, providing a "view" onto the
+ * larger block.
+ *
+ * For example where a StoredDocKey needs to exist as part of a bigger block of
+ * data, SerialisedDocKey is the class to use.
+ *
+ * A limited number of classes are friends and only those classes can construct
+ * a SerialisedDocKey.
+ */
+class SerialisedDocKey : public DocKeyInterface<SerialisedDocKey> {
+public:
+    /**
+     * The copy constructor is deleted due to the bytes living outside of the
+     * object.
+     */
+    SerialisedDocKey(const SerialisedDocKey& obj) = delete;
+
+    const uint8_t* data() const {
+        return bytes;
+    }
+
+    size_t size() const {
+        return length;
+    }
+
+    DocNamespace getDocNamespace() const {
+        return docNamespace;
+    }
+
+    bool operator==(const DocKey rhs) const {
+        return size() == rhs.size() &&
+               getDocNamespace() == rhs.getDocNamespace() &&
+               std::memcmp(data(), rhs.data(), size()) == 0;
+    }
+
+    /**
+     * Return how many bytes are (or need to be) allocated to this object
+     */
+    size_t getObjectSize() const {
+        return getObjectSize(length);
+    }
+
+    /**
+     * Return how many bytes are needed to store the DocKey
+     * @param key a DocKey that needs to be stored in a SerialisedDocKey
+     */
+    static size_t getObjectSize(const DocKey key) {
+        return getObjectSize(key.size());
+    }
+
+    /**
+     * Create a SerialisedDocKey and return a unique_ptr to the object.
+     * Note that the allocation is bigger than sizeof(SerialisedDocKey)
+     * @param key a DocKey to be stored as a SerialisedDocKey
+     */
+    struct SerialisedDocKeyDelete {
+        void operator()(SerialisedDocKey* p) {
+            p->~SerialisedDocKey();
+            delete[] reinterpret_cast<uint8_t*>(p);
+        }
+    };
+
+    static std::unique_ptr<SerialisedDocKey, SerialisedDocKeyDelete> make(
+            const DocKey key) {
+        std::unique_ptr<SerialisedDocKey, SerialisedDocKeyDelete> rval(
+                reinterpret_cast<SerialisedDocKey*>(
+                        new uint8_t[getObjectSize(key)]));
+        new (rval.get()) SerialisedDocKey(key);
+        return rval;
+    }
+
+protected:
+    /**
+     * These following classes are "white-listed". They know how to allocate
+     * and construct this object so are allowed access to the constructor.
+     */
+    friend class MutationLogEntry;
+    friend class StoredValue;
+
+    SerialisedDocKey() : length(0), bytes() {
+    }
+
+    /**
+     * Create a SerialisedDocKey from a DocKey. Protected constructor as this
+     * must be used by friends who know how to pre-allocate the object storage.
+     * throws length_error if DocKey::len exceeds 255
+     * @param key a DocKey to be stored
+     */
+    SerialisedDocKey(const DocKey key)
+        : length(key.size()), docNamespace(key.getDocNamespace()) {
+        if (length > std::numeric_limits<uint8_t>::max()) {
+            throw std::length_error(
+                    "SerialisedDocKey(const DocKey key) " +
+                    std::to_string(length) +
+                    "exceeds std::numeric_limits<uint8_t>::max()");
+        }
+        // Copy the data into bytes, which should be allocated into a larger
+        // buffer.
+        std::memcpy(bytes, key.data(), key.size());
+    }
+
+    static size_t getObjectSize(size_t len) {
+        return sizeof(SerialisedDocKey) + len - sizeof(SerialisedDocKey().bytes);
+    }
+
+    uint8_t length;
+    DocNamespace docNamespace;
+    uint8_t bytes[1];
+};
+
+static_assert(std::is_standard_layout<SerialisedDocKey>::value,
+              "SeralisedDocKey: must satisfy is_standard_layout");

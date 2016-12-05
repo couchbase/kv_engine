@@ -26,6 +26,8 @@ class StoredDocKeyTestCombi : public ::testing::TestWithParam<
                                       std::tuple<DocNamespace, DocNamespace>> {
 };
 
+class SerialisedDocKeyTest : public ::testing::TestWithParam<DocNamespace> {};
+
 TEST_P(StoredDocKeyTest, constructors) {
     // C-string/std::string
     StoredDocKey key1("key", GetParam());
@@ -96,12 +98,16 @@ TEST_P(StoredDocKeyTestCombi, hash) {
     StoredDocKey key2("key1", std::get<1>(GetParam()));
     DocKey docKey1(key1);
     DocKey docKey2(key2);
+    auto serialKey1 = SerialisedDocKey::make(key1);
+    auto serialKey2 = SerialisedDocKey::make(key2);
     if (std::get<0>(GetParam()) != std::get<1>(GetParam())) {
         EXPECT_NE(key1.hash(), key2.hash());
         EXPECT_NE(docKey1.hash(), docKey2.hash());
+        EXPECT_NE(serialKey1->hash(), serialKey2->hash());
     } else {
         EXPECT_EQ(key1.hash(), key2.hash());
         EXPECT_EQ(docKey1.hash(), docKey2.hash());
+        EXPECT_EQ(serialKey1->hash(), serialKey2->hash());
     }
 }
 
@@ -211,6 +217,37 @@ TEST_P(StoredDocKeyTestCombi, map) {
     }
 }
 
+TEST_P(SerialisedDocKeyTest, constructor) {
+    StoredDocKey key("key", GetParam());
+    auto serialKey = SerialisedDocKey::make(key);
+    EXPECT_EQ(strlen("key"), serialKey->size());
+    EXPECT_EQ(0, std::memcmp("key", serialKey->data(), serialKey->size()));
+    EXPECT_EQ(GetParam(), serialKey->getDocNamespace());
+}
+
+TEST_P(SerialisedDocKeyTest, equals) {
+    StoredDocKey key("key", GetParam());
+    auto serialKey = SerialisedDocKey::make(key);
+    EXPECT_EQ(*serialKey, key);
+}
+
+TEST_P(StoredDocKeyTest, constructFromSerialisedDocKey) {
+    StoredDocKey key1("key", GetParam());
+    auto serialKey = SerialisedDocKey::make(key1);
+    StoredDocKey key2(*serialKey);
+
+    // Check key2 equals key1
+    EXPECT_EQ(key1, key2);
+
+    // Key1 equals serialKey
+    EXPECT_EQ( *serialKey, key1);
+
+    // Key 2 must equal serialKey (compare size, data, namespace)
+    EXPECT_EQ(serialKey->size(), key2.size());
+    EXPECT_EQ(0, std::memcmp("key", key2.data(), sizeof("key")));
+    EXPECT_EQ(serialKey->getDocNamespace(), key2.getDocNamespace());
+}
+
 std::vector<DocNamespace> allDocNamespaces = {{DocNamespace::DefaultCollection,
                                                DocNamespace::Collections,
                                                DocNamespace::System}};
@@ -223,6 +260,12 @@ INSTANTIATE_TEST_CASE_P(
 
 INSTANTIATE_TEST_CASE_P(DocNamespace,
                         StoredDocKeyTest,
+                        ::testing::Values(DocNamespace::DefaultCollection,
+                                          DocNamespace::Collections,
+                                          DocNamespace::System), );
+
+INSTANTIATE_TEST_CASE_P(DocNamespace,
+                        SerialisedDocKeyTest,
                         ::testing::Values(DocNamespace::DefaultCollection,
                                           DocNamespace::Collections,
                                           DocNamespace::System), );
