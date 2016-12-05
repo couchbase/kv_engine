@@ -169,6 +169,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/mutation_log.cc
             src/replicationthrottle.cc
             src/string_utils.cc
+            src/storeddockey.cc
             src/stored-value.cc
             src/tapconnection.cc
             src/tapconnmap.cc
@@ -208,6 +209,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
                tests/module_tests/mutation_log_test.cc
                tests/module_tests/futurequeue_test.cc
                tests/module_tests/stats_test.cc
+               tests/module_tests/storeddockey_test.cc
                $<TARGET_OBJECTS:ep_objs>
                $<TARGET_OBJECTS:memory_tracking>
                ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc)
@@ -262,6 +264,7 @@ ADD_EXECUTABLE(ep-engine_hash_table_test
   src/compress.cc
   src/hash_table.cc
   src/item.cc
+  src/storeddockey.cc
   src/stored-value.cc
   src/testlogger.cc
   ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
@@ -330,6 +333,7 @@ ADD_EXECUTABLE(ep-engine_vbucket_test
   src/hash_table.cc
   src/item.cc
   src/murmurhash3.cc
+  src/storeddockey.cc
   src/stored-value.cc
   src/testlogger.cc
   src/vbucket.cc
@@ -369,6 +373,7 @@ ADD_LIBRARY(ep_testsuite SHARED
    src/ep_time.cc
    src/ext_meta_parser.cc
    src/item.cc
+   src/storeddockey.cc
    src/testlogger.cc
    tests/ep_testsuite_common.cc
    tests/ep_test_apis.cc
