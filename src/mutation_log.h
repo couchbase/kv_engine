@@ -224,6 +224,15 @@ public:
         return new (buf) MutationLogEntry(r, t, vb, k);
     }
 
+    static MutationLogEntry* newEntry(uint8_t *buf,
+                                      uint64_t r, mutation_log_type_t t,
+                                      uint16_t vb) {
+        if (t != ML_COMMIT1 && t != ML_COMMIT2) {
+            throw std::invalid_argument("MutationLogEntry::newEntry: invalid type");
+        }
+        return new (buf) MutationLogEntry(r, t, vb);
+    }
+
     /**
      * Initialize a new entry using the contents of the given buffer.
      *
@@ -309,16 +318,24 @@ private:
 
     MutationLogEntry(uint64_t r, mutation_log_type_t t,
                      uint16_t vb, const std::string &k)
-        : _rowid(htonll(r)), _vbucket(htons(vb)), magic(MUTATION_LOG_MAGIC),
-          _type(static_cast<uint8_t>(t)),
-          keylen(static_cast<uint8_t>(k.length())) {
-        if (k.length() > std::numeric_limits<uint8_t>::max()) {
+        : MutationLogEntry(r, t, vb) {
+        if (k.size() > std::numeric_limits<uint8_t>::max()) {
             throw std::invalid_argument("MutationLogEntry(): key length "
-                    "(which is " + std::to_string(k.length()) +
+                    "(which is " + std::to_string(k.size()) +
                     ") is greater than " +
                     std::to_string(std::numeric_limits<uint8_t>::max()));
         }
-        memcpy(_key, k.data(), k.length());
+        keylen = static_cast<uint8_t>(k.size());
+        memcpy(_key, k.data(), k.size());
+    }
+
+    MutationLogEntry(uint64_t r, mutation_log_type_t t,
+                     uint16_t vb)
+        : _rowid(htonll(r)),
+          _vbucket(htons(vb)),
+          magic(MUTATION_LOG_MAGIC),
+          _type(static_cast<uint8_t>(t)),
+          keylen(0) {
     }
 
     uint64_t _rowid;

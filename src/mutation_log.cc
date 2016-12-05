@@ -322,8 +322,7 @@ void MutationLog::sync() {
 void MutationLog::commit1() {
     if (isEnabled()) {
         MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer.get(),
-                                                           0, ML_COMMIT1, 0,
-                                                           "");
+                                                           0, ML_COMMIT1, 0);
         writeEntry(mle);
 
         if ((getSyncConfig() & FLUSH_COMMIT_1) != 0) {
@@ -338,8 +337,7 @@ void MutationLog::commit1() {
 void MutationLog::commit2() {
     if (isEnabled()) {
         MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer.get(),
-                                                           0, ML_COMMIT2, 0,
-                                                           "");
+                                                           0, ML_COMMIT2, 0);
         writeEntry(mle);
 
         if ((getSyncConfig() & FLUSH_COMMIT_2) != 0) {
@@ -1016,6 +1014,6 @@ std::ostream& operator <<(std::ostream &out, const MutationLogEntry &mle) {
         << ", magic=0x" << std::hex << static_cast<uint16_t>(mle.magic)
         << std::dec
         << ", type=" << logType(mle.type())
-        << ", key=``" << mle.key() << "''";
+        << ", key=``" << mle.key().data() << "''";
     return out;
 }
