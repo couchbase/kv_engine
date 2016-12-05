@@ -26,7 +26,7 @@
 #include "vbucketmap.h"
 
 VBucketMap::VBucketMap(Configuration& config,
-                       KVBucket& store) :
+                       KVBucketIface& store) :
                        size(config.getMaxVbuckets())
 {
     WorkLoadPolicy &workload = store.getEPEngine().getWorkLoadPolicy();

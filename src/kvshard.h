@@ -54,14 +54,14 @@
  */
 class EPBucket;
 class Flusher;
-class KVBucket;
+class KVBucketIface;
 
 class KVShard {
     friend class VBucketMap;
 public:
     // Identifier for a KVShard
     typedef uint16_t id_type;
-    KVShard(KVShard::id_type id, KVBucket& store);
+    KVShard(KVShard::id_type id, KVBucketIface& store);
     ~KVShard();
 
     KVStore *getRWUnderlying() { return rwUnderlying; }

@@ -36,7 +36,7 @@ public:
     /**
      * Construct a CheckpointVisitor.
      */
-    CheckpointVisitor(KVBucket* s, EPStats &st,
+    CheckpointVisitor(KVBucketIface* s, EPStats &st,
                       std::atomic<bool> &sfin)
         : store(s), stats(st), removed(0), taskStart(gethrtime()),
           wasHighMemoryUsage(s->isMemoryUsageTooHigh()), stateFinalizer(sfin) {}
@@ -78,7 +78,7 @@ public:
     }
 
 private:
-    KVBucket* store;
+    KVBucketIface* store;
     EPStats                   &stats;
     size_t                     removed;
     hrtime_t                   taskStart;
@@ -99,7 +99,7 @@ void ClosedUnrefCheckpointRemoverTask::cursorDroppingIfNeeded(void) {
         size_t amountOfMemoryToClear = stats.getTotalMemoryUsed() -
                                           stats.cursorDroppingLThreshold.load();
         size_t memoryCleared = 0;
-        KVBucket* kvBucket = engine->getKVBucket();
+        KVBucketIface* kvBucket = engine->getKVBucket();
         // Get a list of active vbuckets sorted by memory usage
         // of their respective checkpoint managers.
         auto vbuckets =
@@ -141,7 +141,7 @@ bool ClosedUnrefCheckpointRemoverTask::run(void) {
     bool inverse = true;
     if (available.compare_exchange_strong(inverse, false)) {
         cursorDroppingIfNeeded();
-        KVBucket* kvBucket = engine->getKVBucket();
+        KVBucketIface* kvBucket = engine->getKVBucket();
         std::shared_ptr<CheckpointVisitor> pv(new CheckpointVisitor(kvBucket,
                                                                     stats,
                                                                     available));

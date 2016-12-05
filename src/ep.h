@@ -94,7 +94,7 @@ typedef std::pair<uint16_t, ExTask> CompTaskEntry;
 /**
  * Manager of all interaction with the persistence.
  */
-class EPBucket : public KVBucket {
+class EPBucket : public KVBucketIface {
 public:
 
     EPBucket(EventuallyPersistentEngine &theEngine);

@@ -130,7 +130,7 @@ private:
     EPStats &stats;
 
     // Opaque marker indicating how far through the epStore we have visited.
-    KVBucket::Position epstore_position;
+    KVBucketIface::Position epstore_position;
 
     /// Visitor object in use.
     DefragmentVisitor* visitor;

@@ -972,7 +972,7 @@ bool BGFetchCallback::run() {
     RememberingCallback<GetValue> gcb;
 
     EPStats &stats = epe.getEpStats();
-    KVBucket* kvBucket = epe.getKVBucket();
+    KVBucketIface* kvBucket = epe.getKVBucket();
     if (kvBucket == nullptr) {
         throw std::logic_error("BGFetchCallback::run: kvBucket is NULL");
     }
@@ -2210,7 +2210,7 @@ ENGINE_ERROR_CODE TapConsumer::mutation(uint32_t opaque, const void* key,
                           &datatype, EXT_META_LEN, cas, -1,
                           vbucket, revSeqno, nru);
 
-    KVBucket* kvBucket = engine_.getKVBucket();
+    KVBucketIface* kvBucket = engine_.getKVBucket();
     if (isBackfillPhase(vbucket)) {
         ret = kvBucket->addTAPBackfillItem(*item, true);
     }
@@ -2254,7 +2254,7 @@ ENGINE_ERROR_CODE TapConsumer::deletion(uint32_t opaque, const void* key,
     uint64_t delCas = 0;
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    KVBucket* kvBucket = engine_.getKVBucket();
+    KVBucketIface* kvBucket = engine_.getKVBucket();
 
     // MB-17517: Check for the incoming item's CAS validity.
     if (!Item::isValidCas(cas)) {

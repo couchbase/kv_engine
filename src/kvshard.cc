@@ -25,7 +25,7 @@
 #include "kvshard.h"
 
 /* [EPHE TODO]: Consider not using KVShard for ephemeral bucket */
-KVShard::KVShard(uint16_t id, KVBucket& store) :
+KVShard::KVShard(uint16_t id, KVBucketIface& store) :
     shardId(id),
     kvConfig(store.getEPEngine().getConfiguration(), shardId),
     highPriorityCount(0)

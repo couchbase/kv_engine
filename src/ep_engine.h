@@ -587,7 +587,7 @@ public:
         return stats;
     }
 
-    KVBucket* getKVBucket() { return kvBucket; }
+    KVBucketIface* getKVBucket() { return kvBucket; }
 
     TapConnMap &getTapConnMap() { return *tapConnMap; }
 
@@ -899,7 +899,7 @@ protected:
                               int& keyOffset);
 
     SERVER_HANDLE_V1 *serverApi;
-    KVBucket* kvBucket;
+    KVBucketIface* kvBucket;
     WorkLoadPolicy *workload;
     bucket_priority_t workloadPriority;
 

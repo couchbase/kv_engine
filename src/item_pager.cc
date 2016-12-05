@@ -61,7 +61,7 @@ public:
      * @param bias active vbuckets eviction probability bias multiplier (0-1)
      * @param phase pointer to an item_pager_phase to be set
      */
-    PagingVisitor(KVBucket& s, EPStats &st, double pcnt,
+    PagingVisitor(KVBucketIface& s, EPStats &st, double pcnt,
                   std::shared_ptr<std::atomic<bool>> &sfin, pager_type_t caller,
                   bool pause, double bias,
                   std::atomic<item_pager_phase>* phase) :
@@ -239,7 +239,7 @@ private:
 
     std::list<std::pair<uint16_t, StoredDocKey> > expired;
 
-    KVBucket& store;
+    KVBucketIface& store;
     EPStats &stats;
     double percent;
     double activeBias;
@@ -265,7 +265,7 @@ ItemPager::ItemPager(EventuallyPersistentEngine *e, EPStats &st) :
 
 bool ItemPager::run(void) {
     TRACE_EVENT0("ep-engine/task", "ItemPager");
-    KVBucket* kvBucket = engine->getKVBucket();
+    KVBucketIface* kvBucket = engine->getKVBucket();
     double current = static_cast<double>(stats.getTotalMemoryUsed());
     double upper = static_cast<double>(stats.mem_high_wat);
     double lower = static_cast<double>(stats.mem_low_wat);
@@ -354,7 +354,7 @@ ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine *e,
 
 bool ExpiredItemPager::run(void) {
     TRACE_EVENT0("ep-engine/task", "ExpiredItemPager");
-    KVBucket* kvBucket = engine->getKVBucket();
+    KVBucketIface* kvBucket = engine->getKVBucket();
     bool inverse = true;
     if ((*available).compare_exchange_strong(inverse, false)) {
         ++stats.expiryPagerRuns;

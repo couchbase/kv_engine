@@ -32,7 +32,7 @@
 class HashtableResizerTask : public GlobalTask {
 public:
 
-    HashtableResizerTask(KVBucket* s, double sleepTime) :
+    HashtableResizerTask(KVBucketIface* s, double sleepTime) :
     GlobalTask(&s->getEPEngine(), TaskId::HashtableResizerTask, sleepTime, false),
     store(s) {}
 
@@ -43,7 +43,7 @@ public:
     }
 
 private:
-    KVBucket* store;
+    KVBucketIface* store;
 };
 
 #endif  // SRC_HTRESIZER_H_

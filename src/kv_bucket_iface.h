@@ -121,12 +121,12 @@ public:
 };
 
 /**
- * This is the base class that manages the bucket behavior in the kv engine.
+ * This is the abstract base class that manages the bucket behavior in
+ * ep-engine.
  * Different bucket types can be derived from this class.
- *
  */
 
-class KVBucket {
+class KVBucketIface {
 public:
 
     /**
@@ -150,8 +150,8 @@ public:
         friend std::ostream& operator<<(std::ostream& os, const Position& pos);
     };
 
-    KVBucket() {}
-    virtual ~KVBucket() {}
+    KVBucketIface() {}
+    virtual ~KVBucketIface() {}
 
     /**
      * Start necessary tasks.

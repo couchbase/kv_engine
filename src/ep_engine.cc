@@ -993,7 +993,7 @@ extern "C" {
                                        const char **msg,
                                        protocol_binary_response_status *res,
                                        DocNamespace docNamespace) {
-        KVBucket* kvb = e->getKVBucket();
+        KVBucketIface* kvb = e->getKVBucket();
         protocol_binary_request_no_extras *req =
             (protocol_binary_request_no_extras*)request;
         int keylen = ntohs(req->message.header.request.keylen);
@@ -3551,27 +3551,27 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     // to ns_sever at the top-level.
     size_t value = 0;
     if (kvBucket->getKVStoreStat("io_total_read_bytes", value,
-                                 KVBucket::KVSOption::BOTH)) {
+                                 KVBucketIface::KVSOption::BOTH)) {
         add_casted_stat("ep_io_total_read_bytes",  value, add_stat, cookie);
     }
     if (kvBucket->getKVStoreStat("io_total_write_bytes", value,
-                                 KVBucket::KVSOption::BOTH)) {
+                                 KVBucketIface::KVSOption::BOTH)) {
         add_casted_stat("ep_io_total_write_bytes",  value, add_stat, cookie);
     }
     if (kvBucket->getKVStoreStat("io_compaction_read_bytes", value,
-                                 KVBucket::KVSOption::BOTH)) {
+                                 KVBucketIface::KVSOption::BOTH)) {
         add_casted_stat("ep_io_compaction_read_bytes",  value, add_stat, cookie);
     }
     if (kvBucket->getKVStoreStat("io_compaction_write_bytes", value,
-                                 KVBucket::KVSOption::BOTH)) {
+                                 KVBucketIface::KVSOption::BOTH)) {
         add_casted_stat("ep_io_compaction_write_bytes",  value, add_stat, cookie);
     }
     if (kvBucket->getKVStoreStat("Block_cache_hits", value,
-                                 KVBucket::KVSOption::RW)) {
+                                 KVBucketIface::KVSOption::RW)) {
         add_casted_stat("ep_block_cache_hits", value, add_stat, cookie);
     }
     if (kvBucket->getKVStoreStat("Block_cache_misses", value,
-                                 KVBucket::KVSOption::RW)) {
+                                 KVBucketIface::KVSOption::RW)) {
         add_casted_stat("ep_block_cache_misses", value, add_stat, cookie);
     }
 
@@ -3661,7 +3661,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
                                                        bool details) {
     class StatVBucketVisitor : public VBucketVisitor {
     public:
-        StatVBucketVisitor(KVBucket* store,
+        StatVBucketVisitor(KVBucketIface* store,
                            const void *c, ADD_STAT a,
                            bool isPrevStateRequested, bool detailsRequested) :
             eps(store), cookie(c), add_stat(a),
@@ -3675,7 +3675,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
 
         static void addVBStats(const void *cookie, ADD_STAT add_stat,
                                RCPtr<VBucket> &vb,
-                               KVBucket* store,
+                               KVBucketIface* store,
                                bool isPrevStateRequested,
                                bool detailsRequested) {
             if (!vb) {
@@ -3700,7 +3700,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
         }
 
     private:
-        KVBucket* eps;
+        KVBucketIface* eps;
         const void *cookie;
         ADD_STAT add_stat;
         bool isPrevState;
@@ -3797,7 +3797,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
 
 class StatCheckpointVisitor : public VBucketVisitor {
 public:
-    StatCheckpointVisitor(KVBucket* kvs, const void *c,
+    StatCheckpointVisitor(KVBucketIface* kvs, const void *c,
                           ADD_STAT a) : kvBucket(kvs), cookie(c),
                                         add_stat(a) {}
 
@@ -3806,7 +3806,7 @@ public:
     }
 
     static void addCheckpointStat(const void *cookie, ADD_STAT add_stat,
-                                  KVBucket* eps,
+                                  KVBucketIface* eps,
                                   RCPtr<VBucket> &vb) {
         if (!vb) {
             return;
@@ -3830,7 +3830,7 @@ public:
         }
     }
 
-    KVBucket* kvBucket;
+    KVBucketIface* kvBucket;
     const void *cookie;
     ADD_STAT add_stat;
 };
