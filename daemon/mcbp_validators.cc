@@ -840,6 +840,35 @@ static protocol_binary_response_status get_collections_validator(const Cookie& c
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
+static protocol_binary_response_status mutate_with_meta_validator(const Cookie& cookie) {
+    auto req = static_cast<protocol_binary_request_get_meta*>(McbpConnection::getPacket(cookie));
+
+    const uint32_t extlen = req->message.header.request.extlen;
+    const uint32_t keylen = ntohs(req->message.header.request.keylen);
+    const uint32_t bodylen = ntohl(req->message.header.request.bodylen);
+    const auto datatype = req->message.header.request.datatype;
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        keylen == 0 || (keylen + extlen) > bodylen ||
+        !mcbp::datatype::is_valid(datatype)) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
+    // extlen, the size dicates what is encoded.
+    switch (extlen) {
+    case 24: // no nmeta and no options
+    case 26: // nmeta
+    case 28: // options (4-byte field)
+    case 30: // options and nmeta (options followed by nmeta)
+        break;
+    default:
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
 void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& chains) {
     chains.push_unique(PROTOCOL_BINARY_CMD_DCP_OPEN, dcp_open_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_DCP_ADD_STREAM, dcp_add_stream_validator);
@@ -933,6 +962,12 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
 
     chains.push_unique(PROTOCOL_BINARY_CMD_GET_META, get_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_GETQ_META, get_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_SET_WITH_META, mutate_with_meta_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_SETQ_WITH_META, mutate_with_meta_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_ADD_WITH_META, mutate_with_meta_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_ADDQ_WITH_META, mutate_with_meta_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_DEL_WITH_META, mutate_with_meta_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_DELQ_WITH_META, mutate_with_meta_validator);
 }
 
 /**
