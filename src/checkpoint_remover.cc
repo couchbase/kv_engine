@@ -21,7 +21,7 @@
 
 #include "checkpoint_remover.h"
 #include "dcp/dcpconnmap.h"
-#include "kvbucket.h"
+#include "kv_bucket_iface.h"
 #include "ep_engine.h"
 #include "vbucket.h"
 #include "connmap.h"

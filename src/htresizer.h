@@ -22,7 +22,7 @@
 
 #include <string>
 
-#include "kvbucket.h"
+#include "kv_bucket_iface.h"
 #include "tasks.h"
 
 /**

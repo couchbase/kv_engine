@@ -25,7 +25,7 @@
 #include "vbucket.h"
 #include "vbucketmap.h"
 #include "utility.h"
-#include "kvbucket.h"
+#include "kv_bucket_iface.h"
 
 /**
  * VBucket visitor callback adaptor.

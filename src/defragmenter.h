@@ -20,7 +20,7 @@
 
 #include "config.h"
 
-#include "kvbucket.h"
+#include "kv_bucket_iface.h"
 #include "tasks.h"
 
 class EPStats;

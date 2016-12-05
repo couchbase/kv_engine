@@ -21,8 +21,8 @@
 #include "config.h"
 
 #include "ep.h"
+#include "kv_bucket_iface.h"
 #include "storeddockey.h"
-#include "kvbucket.h"
 #include "tapconnection.h"
 #include "taskable.h"
 #include "vbucket.h"

@@ -24,7 +24,7 @@
 
 #include "atomic.h"
 #include "backfill.h"
-#include "kvbucket.h"
+#include "kv_bucket_iface.h"
 #include "vbucket.h"
 
 class ItemResidentCallback : public Callback<CacheLookup> {

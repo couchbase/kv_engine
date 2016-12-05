@@ -21,7 +21,7 @@
 
 #include <vector>
 
-#include "kvbucket.h"
+#include "kv_bucket_iface.h"
 #include "ep_engine.h"
 #include "vbucketmap.h"
 

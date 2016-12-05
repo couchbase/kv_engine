@@ -19,7 +19,7 @@
 
 #include "connmap.h"
 #include "dcp/dcpconnmap.h"
-#include "kvbucket.h"
+#include "kv_bucket_iface.h"
 #include "ep_engine.h"
 #include "tapconnmap.h"
 
