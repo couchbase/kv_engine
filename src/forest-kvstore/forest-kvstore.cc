@@ -626,7 +626,7 @@ ENGINE_ERROR_CODE ForestKVStore::forestErr2EngineErr(fdb_status errCode) {
     }
 }
 
-void ForestKVStore::getWithHeader(void* handle, const std::string& key,
+void ForestKVStore::getWithHeader(void* handle, const DocKey& key,
                                   uint16_t vb, Callback<GetValue>& cb,
                                   bool fetchDelete) {
     fdb_kvs_handle* kvsHandle = static_cast<fdb_kvs_handle*>(handle);
@@ -645,8 +645,8 @@ void ForestKVStore::getWithHeader(void* handle, const std::string& key,
 
     fdb_doc rdoc;
     memset(&rdoc, 0, sizeof(rdoc));
-    rdoc.key = const_cast<char *>(key.c_str());
-    rdoc.keylen = key.length();
+    rdoc.key = const_cast<char *>(reinterpret_cast<const char*>(key.data()));
+    rdoc.keylen = key.size();
 
     if (!getMetaOnly) {
         status = fdb_get(kvsHandle, &rdoc);
@@ -658,13 +658,13 @@ void ForestKVStore::getWithHeader(void* handle, const std::string& key,
         if (!getMetaOnly) {
             LOG(EXTENSION_LOG_WARNING,
                 "ForestKVStore::getWithHeader: Failed to retrieve metadata from "
-                "database, vbucketId:%d key:%s error:%s\n",
-                vb, key.c_str(), fdb_error_msg(status));
+                "database, vb:%d key{%.*s} error:%s\n",
+                vb, int(key.size()), key.data(), fdb_error_msg(status));
         } else {
             LOG(EXTENSION_LOG_WARNING,
                 "ForestKVStore::getWithHeader: Failed to retrieve key value from database,"
-                "vbucketId:%d key:%s error:%s deleted:%s", vb, key.c_str(),
-                fdb_error_msg(status), rdoc.deleted ? "yes" : "no");
+                "vb:%d key{%.*s} error:%s deleted:%s", vb, int(key.size()),
+                key.data(), fdb_error_msg(status), rdoc.deleted ? "yes" : "no");
         }
         ++st.numGetFailure;
     } else {
@@ -677,7 +677,7 @@ void ForestKVStore::getWithHeader(void* handle, const std::string& key,
 
     st.readTimeHisto.add((gethrtime() - start) / 1000);
     if (status == FDB_RESULT_SUCCESS) {
-        st.readSizeHisto.add(key.length() + rv.getValue()->getNBytes());
+        st.readSizeHisto.add(key.size() + rv.getValue()->getNBytes());
     }
 
     rv.setStatus(forestErr2EngineErr(status));
@@ -718,7 +718,11 @@ fdb_changes_decision ForestKVStore::recordChanges(fdb_kvs_handle* handle,
     const uint64_t byseqno = doc->seqnum;
     const uint16_t vbucketId = sctx->vbid;
 
-    std::string docKey((char*)doc->key, doc->keylen);
+    // Collections: TODO: restore to stored namespace
+    StoredDocKey docKey(reinterpret_cast<uint8_t*>(doc->key), doc->keylen,
+                      DocNamespace::DefaultCollection);
+    // DocKey TODO; CacheLookup in this case doesn't really need StoredDocKey
+    // until we create the Item below.
     CacheLookup lookup(docKey, byseqno, vbucketId);
 
     std::shared_ptr<Callback<CacheLookup> > lookup_cb = sctx->lookup;
@@ -755,15 +759,9 @@ fdb_changes_decision ForestKVStore::recordChanges(fdb_kvs_handle* handle,
         valueLen = doc->bodylen;
     }
 
-    Item* it = new Item(doc->key, doc->keylen,
-                        meta.flags,
-                        meta.exptime,
-                        valuePtr, valueLen,
-                        meta.ext_meta, EXT_META_LEN,
-                        meta.cas,
-                        byseqno,
-                        vbucketId,
-                        meta.rev_seqno);
+    Item* it = new Item(docKey, meta.flags, meta.exptime, valuePtr, valueLen,
+                        meta.ext_meta, EXT_META_LEN, meta.cas, byseqno,
+                        vbucketId, meta.rev_seqno);
     if (doc->deleted) {
         it->setDeleted();
     }
@@ -811,9 +809,11 @@ GetValue ForestKVStore::docToItem(fdb_kvs_handle* kvsHandle, fdb_doc* rdoc,
     Item* it = NULL;
 
     if (metaOnly || (fetchDelete && rdoc->deleted)) {
-        it = new Item((char *)rdoc->key, rdoc->keylen, forestMetaData.flags,
-                      forestMetaData.exptime, NULL, 0, forestMetaData.ext_meta,
-                      EXT_META_LEN, forestMetaData.cas,
+        // Collections: TODO: restore to stored namespace
+        it = new Item(DocKey(reinterpret_cast<uint8_t*>(rdoc->key),
+                             rdoc->keylen, DocNamespace::DefaultCollection),
+                      forestMetaData.flags, forestMetaData.exptime, NULL, 0,
+                      forestMetaData.ext_meta, EXT_META_LEN, forestMetaData.cas,
                       (uint64_t)rdoc->seqnum, vbId);
         if (rdoc->deleted) {
             it->setDeleted();
@@ -832,9 +832,11 @@ GetValue ForestKVStore::docToItem(fdb_kvs_handle* kvsHandle, fdb_doc* rdoc,
             ext_meta[0] = PROTOCOL_BINARY_RAW_BYTES;
         }
 
-        it = new Item((char *)rdoc->key, rdoc->keylen, forestMetaData.flags,
-                      forestMetaData.exptime, valuePtr, valuelen,
-                      ext_meta, EXT_META_LEN, forestMetaData.cas,
+        // Collections: TODO: restore to stored namespace
+        it = new Item(DocKey(reinterpret_cast<uint8_t*>(rdoc->key),
+                             rdoc->keylen, DocNamespace::DefaultCollection),
+                      forestMetaData.flags, forestMetaData.exptime, valuePtr,
+                      valuelen, ext_meta, EXT_META_LEN, forestMetaData.cas,
                       (uint64_t)rdoc->seqnum, vbId);
 
         /* update ep-engine IO stat read_bytes */
@@ -858,7 +860,7 @@ void ForestKVStore::commitCallback(std::vector<ForestRequest *> &committedReqs) 
 
     for (size_t index = 0; index < commitSize; index++) {
         size_t dataSize = committedReqs[index]->getDataSize();
-        size_t keySize = committedReqs[index]->getKey().length();
+        size_t keySize = committedReqs[index]->getKey().size();
         /* update ep stats */
         ++st.io_num_write;
         st.io_write_bytes += (keySize + dataSize);
@@ -1198,8 +1200,9 @@ void ForestKVStore::set(const Item& itm, Callback<mutation_result>& cb) {
     memset(meta, 0, sizeof(meta));
     populateMetaData(itm, meta, false);
 
-    setDoc.key = const_cast<char *>(itm.getKey().c_str());
-    setDoc.keylen = itm.getNKey();
+    // Collections: TODO: Store the namespace
+    setDoc.key = const_cast<char*>(reinterpret_cast<const char*>(itm.getKey().data()));
+    setDoc.keylen = itm.getKey().size();
     setDoc.meta = meta;
     setDoc.metalen = sizeof(meta);
     setDoc.body = const_cast<char *>(itm.getData());
@@ -1211,7 +1214,7 @@ void ForestKVStore::set(const Item& itm, Callback<mutation_result>& cb) {
     status = fdb_set(kvsHandle, &setDoc);
     if (status != FDB_RESULT_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING, "ForestKVStore::set: fdb_set failed "
-            "for key: %s and vbucketId: %" PRIu16 " with error: %s",
+            "for key{%s} and vb:%" PRIu16 " with error:%s",
             req->getKey().c_str(), req->getVBucketId(), fdb_error_msg(status));
         req->setStatus(getMutationStatus(status));
     }
@@ -1221,7 +1224,7 @@ void ForestKVStore::set(const Item& itm, Callback<mutation_result>& cb) {
     pendingReqsQ.push_back(req);
 }
 
-void ForestKVStore::get(const std::string& key, uint16_t vb,
+void ForestKVStore::get(const DocKey& key, uint16_t vb,
                         Callback<GetValue>& cb, bool fetchDelete) {
     getWithHeader(getOrCreateKvsHandle(vb, handleType::READER), key, vb,
                   cb, fetchDelete);
@@ -1229,7 +1232,7 @@ void ForestKVStore::get(const std::string& key, uint16_t vb,
 
 ENGINE_ERROR_CODE
 ForestKVStore::getAllKeys(uint16_t vbid,
-                          const std::string& start_key,
+                          const DocKey start_key,
                           uint32_t count,
                           std::shared_ptr<Callback<const DocKey&>> cb) {
 
@@ -1244,7 +1247,7 @@ ForestKVStore::getAllKeys(uint16_t vbid,
 
     fdb_iterator* fdb_iter = NULL;
     fdb_status status = fdb_iterator_init(fkvsHandle->getKvsHandle(), &fdb_iter,
-                                          start_key.c_str(), strlen(start_key.c_str()),
+                                          start_key.data(), start_key.size(),
                                           NULL, 0, FDB_ITR_NO_DELETES);
     if (status != FDB_RESULT_SUCCESS) {
         throw std::runtime_error("ForestKVStore::getAllKeys: iterator "
@@ -1302,12 +1305,12 @@ void ForestKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t& itms) {
             gcb.val.setPartial();
         }
 
-        const std::string& key = (*itr).first;
+        const auto& key = (*itr).first;
         get(key, vb, gcb);
         ENGINE_ERROR_CODE status = gcb.val.getStatus();
         if (status != ENGINE_SUCCESS) {
             LOG(EXTENSION_LOG_WARNING, "ForestKVStore::getMulti: Failed to "
-                "retrieve key: %s", key.c_str());
+                "retrieve key{%s}", key.c_str());
         }
 
         std::list<VBucketBGFetchItem *>& fetches = bg_itm_ctx.bgfetched_list;
@@ -1319,7 +1322,7 @@ void ForestKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t& itms) {
         }
 
         if (status == ENGINE_SUCCESS) {
-            st.readSizeHisto.add(gcb.val.getValue()->getNKey() +
+            st.readSizeHisto.add(gcb.val.getValue()->getKey().size() +
                                  gcb.val.getValue()->getNBytes());
         }
     }
@@ -1345,8 +1348,9 @@ void ForestKVStore::del(const Item& itm, Callback<int>& cb) {
     memset(meta, 0, sizeof(meta));
     populateMetaData(itm, meta, true);
 
-    delDoc.key = const_cast<char *>(itm.getKey().c_str());
-    delDoc.keylen = itm.getNKey();
+    // Collections: TODO: Use namespaced key
+    delDoc.key = const_cast<char*>(reinterpret_cast<const char*>(itm.getKey().data()));
+    delDoc.keylen = itm.getKey().size();
     delDoc.meta = meta;
     delDoc.metalen = sizeof(meta);
     delDoc.deleted = true;
@@ -1356,7 +1360,7 @@ void ForestKVStore::del(const Item& itm, Callback<int>& cb) {
     status = fdb_del(kvsHandle, &delDoc);
     if (status != FDB_RESULT_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING, "ForesKVStore::del: fdb_del failed "
-            "for key: %s and vbucketId: %" PRIu16 " with error: %s",
+            "for key{%s} and vb:%" PRIu16 " with error: %s",
             req->getKey().c_str(), req->getVBucketId(), fdb_error_msg(status));
         req->setStatus(getMutationStatus(status));
     }
@@ -1652,7 +1656,9 @@ fdb_compact_decision ForestKVStore::compaction_cb(fdb_file_handle* fhandle,
 
     ForestMetaData forestMetaData = forestMetaDecode(doc);
 
-    std::string key((char *)doc->key, doc->keylen);
+    // Collections: TODO: restore to stored namespace
+    StoredDocKey key(reinterpret_cast<uint8_t*>(doc->key), doc->keylen,
+                   DocNamespace::DefaultCollection);
     if (doc->deleted) {
         uint64_t max_purge_seq = 0;
         auto it = comp_ctx->max_purged_seq.find(vbid);

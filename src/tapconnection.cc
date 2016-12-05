@@ -773,7 +773,7 @@ void TapProducer::reschedule_UNLOCKED(const std::list<TapLogElement>::iterator &
 
 ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
                                           uint16_t status,
-                                          const std::string &msg)
+                                          const DocKey& key)
 {
     std::unique_lock<std::mutex> lh(queueLock);
     std::list<TapLogElement>::iterator iter = ackLog_.begin();
@@ -866,8 +866,8 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         }
         ++numTapNack;
         logger.log(EXTENSION_LOG_DEBUG,
-                   "Received temporary TAP nack (#%u): Code: %u (%s)",
-                   seqnoReceived, status, msg.c_str());
+                   "Received temporary TAP nack (#%u): Code: %u key{%.*s}",
+                   seqnoReceived, status, int(key.size()), key.data());
 
         // Reschedule _this_ sequence number..
         if (iter != ackLog_.end()) {
@@ -882,8 +882,8 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
         ackLog_.erase(ackLog_.begin(), iter);
         ++numTapNack;
         logger.log(EXTENSION_LOG_WARNING,
-                   "Received negative TAP ack (#%u): Code: %u (%s)",
-                   seqnoReceived, status, msg.c_str());
+                   "Received negative TAP ack (#%u): Code: %u key{%.*s}",
+                   seqnoReceived, status, int(key.size()), key.data());
         setDisconnect(true);
         setExpiryTime(0);
         transmitted[iter->vbucket_]--;
@@ -1038,7 +1038,7 @@ const char *TapProducer::opaqueCmdToString(uint32_t opaque_code) {
     return "unknown";
 }
 
-void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id, uint16_t vb) {
+void TapProducer::queueBGFetch_UNLOCKED(const StoredDocKey& key, uint64_t id, uint16_t vb) {
     ExTask task = new BGFetchCallback(engine(), getName(), key, vb,
                                       getConnectionToken(), 0);
     ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
@@ -1818,8 +1818,8 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
         }
         *vbucket = checkpoint_msg->getVBucketId();
         uint64_t cid = htonll(checkpoint_msg->getRevSeqno());
-        const std::string& key = checkpoint_msg->getKey();
-        itm = new Item(key.data(), key.length(), /*flags*/0, /*exp*/0,
+        const StoredDocKey& key = checkpoint_msg->getKey();
+        itm = new Item(key, /*flags*/0, /*exp*/0,
                        &cid, sizeof(cid), /*ext_meta*/NULL, /*ext_len*/0,
                        /*cas*/0, /*seqno*/-1,
                        checkpoint_msg->getVBucketId());
@@ -1902,7 +1902,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
                 ret = TAP_MUTATION;
             } else if (r == ENGINE_KEY_ENOENT) {
                 // Item was deleted and set a message type to tap_deletion.
-                itm = new Item(qi->getKey().c_str(), qi->getNKey(),
+                itm = new Item(qi->getKey(),
                                /*flags*/0, /*exp*/0,
                                /*data*/NULL, /*size*/0,
                                /*ext_meta*/NULL, /*ext_len*/0,
@@ -1935,7 +1935,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
             }
             ++stats.numTapFGFetched;
         } else if (qi->getOperation() == queue_op::del) {
-            itm = new Item(qi->getKey().c_str(), qi->getNKey(),
+            itm = new Item(qi->getKey(),
                            /*flags*/0, /*exp*/0,
                            /*data*/NULL, /*size*/0,
                            /*ext_meta*/NULL, /*ext_len*/0,
@@ -2203,7 +2203,10 @@ ENGINE_ERROR_CODE TapConsumer::mutation(uint32_t opaque, const void* key,
         cas = Item::nextCas();
     }
 
-    Item *item = new Item(key, nkey, flags, exptime, value, nvalue,
+    // TAP has no concept of collections - DefaultCollection only.
+    Item *item = new Item(DocKey(static_cast<const uint8_t*>(key), nkey,
+                                 DocNamespace::DefaultCollection),
+                          flags, exptime, value, nvalue,
                           &datatype, EXT_META_LEN, cas, -1,
                           vbucket, revSeqno, nru);
 
@@ -2249,7 +2252,7 @@ ENGINE_ERROR_CODE TapConsumer::deletion(uint32_t opaque, const void* key,
                                         uint64_t revSeqno, const void* meta,
                                         uint16_t nmeta) {
     uint64_t delCas = 0;
-    std::string key_str(static_cast<const char*>(key), nkey);
+
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     KVBucket* kvBucket = engine_.getKVBucket();
 
@@ -2267,7 +2270,10 @@ ENGINE_ERROR_CODE TapConsumer::deletion(uint32_t opaque, const void* key,
     }
 
     ItemMetaData itemMeta(cas, revSeqno, 0, 0);
-    ret = kvBucket->deleteWithMeta(key_str, &delCas, NULL, vbucket, this, true,
+    // TAP has no concept of collections - DefaultCollection only.
+    ret = kvBucket->deleteWithMeta(DocKey(static_cast<const uint8_t*>(key), nkey,
+                                          DocNamespace::DefaultCollection),
+                                   &delCas, NULL, vbucket, this, true,
                                    &itemMeta, isBackfillPhase(vbucket),
                                    GenerateBySeqno::Yes, GenerateCas::No, 0,
                                    NULL, true);

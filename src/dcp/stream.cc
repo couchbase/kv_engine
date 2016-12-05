@@ -1039,7 +1039,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
                persist items yet.
                Note: (1) We must not notify when we schedule backfill for the
                          first time because the stream is not yet in producer
-                         conn list of streams 
+                         conn list of streams
                      (2) It is not absolutely necessary to notify immediately
                          as conn manager or an incoming items will cause a
                          notification eventually, but wouldn't hurt to do so */

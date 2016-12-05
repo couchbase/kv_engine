@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <limits>
 
+#include "makestoreddockey.h"
 #include "threadtests.h"
 
 #include <gtest/gtest.h>
@@ -64,9 +65,9 @@ public:
         } else {
             ++count;
             if (verify) {
-                std::string key = v->getKey();
+                StoredDocKey key = v->getDocKey();
                 value_t val = v->getValue();
-                EXPECT_EQ(0, key.compare(val->to_s()));
+                EXPECT_STREQ(key.c_str(), val->to_s().c_str());
             }
         }
     }
@@ -81,22 +82,22 @@ static int count(HashTable &h, bool verify=true) {
     return c.count;
 }
 
-static void store(HashTable &h, const std::string &k) {
-    Item i(k.data(), k.length(), 0, 0, k.c_str(), k.length());
+static void store(HashTable &h, const StoredDocKey& k) {
+    Item i(k, 0, 0, k.data(), k.size());
     EXPECT_EQ(WAS_CLEAN, h.set(i));
 }
 
-static void storeMany(HashTable &h, std::vector<std::string> &keys) {
+static void storeMany(HashTable &h, std::vector<StoredDocKey> &keys) {
     for (const auto& key : keys) {
         store(h, key);
     }
 }
 
-static void addMany(HashTable &h, std::vector<std::string> &keys,
+static void addMany(HashTable &h, std::vector<StoredDocKey> &keys,
                     add_type_t expect) {
     item_eviction_policy_t policy = VALUE_ONLY;
     for (const auto& k : keys) {
-        Item i(k.data(), k.length(), 0, 0, k.c_str(), k.length());
+        Item i(k, 0, 0, k.data(), k.size());
         add_type_t v = h.add(i, policy);
         EXPECT_EQ(expect, v);
     }
@@ -116,19 +117,19 @@ static const char *toString(add_type_t a) {
     return NULL;
 }
 
-static void add(HashTable &h, const std::string &k, add_type_t expect,
+static void add(HashTable &h, const StoredDocKey& k, add_type_t expect,
                 int expiry=0) {
-    Item i(k.data(), k.length(), 0, expiry, k.c_str(), k.length());
+    Item i(k, 0, expiry, k.data(), k.size());
     item_eviction_policy_t policy = VALUE_ONLY;
     add_type_t v = h.add(i, policy);
     EXPECT_EQ(expect, v);
 }
 
-static std::vector<std::string> generateKeys(int num, int start=0) {
-    std::vector<std::string> rv;
+static std::vector<StoredDocKey> generateKeys(int num, int start=0) {
+    std::vector<StoredDocKey> rv;
 
     for (int i = start; i < num; i++) {
-        rv.push_back(std::to_string(i));
+        rv.push_back(makeStoredDocKey(std::to_string(i)));
     }
 
     return rv;
@@ -151,8 +152,7 @@ TEST_F(HashTableTest, Size) {
     HashTable h(global_stats, /*size*/0, /*locks*/1);
     ASSERT_EQ(0, count(h));
 
-    std::string k = "testkey";
-    store(h, k);
+    store(h, makeStoredDocKey("testkey"));
 
     EXPECT_EQ(1, count(h));
 }
@@ -161,7 +161,7 @@ TEST_F(HashTableTest, SizeTwo) {
     HashTable h(global_stats, /*size*/0, /*locks*/1);
     ASSERT_EQ(0, count(h));
 
-    std::vector<std::string> keys = generateKeys(5);
+    auto keys = generateKeys(5);
     storeMany(h, keys);
     EXPECT_EQ(5, count(h));
 
@@ -175,7 +175,7 @@ TEST_F(HashTableTest, ReverseDeletions) {
     ASSERT_EQ(0, count(h));
     const int nkeys = 1000;
 
-    std::vector<std::string> keys = generateKeys(nkeys);
+    auto keys = generateKeys(nkeys);
     storeMany(h, keys);
     EXPECT_EQ(nkeys, count(h));
 
@@ -197,7 +197,7 @@ TEST_F(HashTableTest, ForwardDeletions) {
     ASSERT_EQ(0, count(h));
     const int nkeys = 1000;
 
-    std::vector<std::string> keys = generateKeys(nkeys);
+    auto keys = generateKeys(nkeys);
     storeMany(h, keys);
     EXPECT_EQ(nkeys, count(h));
 
@@ -209,9 +209,8 @@ TEST_F(HashTableTest, ForwardDeletions) {
     EXPECT_EQ(initialSize, global_stats.currentSize.load());
 }
 
-static void verifyFound(HashTable &h, const std::vector<std::string> &keys) {
-    std::string missingKey = "aMissingKey";
-    EXPECT_FALSE(h.find(missingKey));
+static void verifyFound(HashTable &h, const std::vector<StoredDocKey> &keys) {
+    EXPECT_FALSE(h.find(makeStoredDocKey("aMissingKey")));
 
     for (const auto& key : keys) {
         EXPECT_TRUE(h.find(key));
@@ -221,7 +220,7 @@ static void verifyFound(HashTable &h, const std::vector<std::string> &keys) {
 static void testFind(HashTable &h) {
     const int nkeys = 1000;
 
-    std::vector<std::string> keys = generateKeys(nkeys);
+    auto keys = generateKeys(nkeys);
     storeMany(h, keys);
 
     verifyFound(h, keys);
@@ -234,7 +233,7 @@ TEST_F(HashTableTest, Find) {
 
 TEST_F(HashTableTest, AddExpiry) {
     HashTable h(global_stats, 5, 1);
-    std::string k("aKey");
+    StoredDocKey k = makeStoredDocKey("aKey");
 
     add(h, k, ADD_SUCCESS, ep_real_time() + 5);
     add(h, k, ADD_EXISTS, ep_real_time() + 5);
@@ -256,7 +255,7 @@ TEST_F(HashTableTest, AddExpiry) {
 TEST_F(HashTableTest, Resize) {
     HashTable h(global_stats, 5, 3);
 
-    std::vector<std::string> keys = generateKeys(1000);
+    auto keys = generateKeys(1000);
     storeMany(h, keys);
 
     verifyFound(h, keys);
@@ -280,7 +279,7 @@ TEST_F(HashTableTest, Resize) {
 class AccessGenerator : public Generator<bool> {
 public:
 
-    AccessGenerator(const std::vector<std::string> &k,
+    AccessGenerator(const std::vector<StoredDocKey> &k,
                     HashTable &h) : keys(k), ht(h), size(10000) {
         std::random_shuffle(keys.begin(), keys.end());
     }
@@ -302,7 +301,7 @@ private:
         size = size == 1000 ? 3000 : 1000;
     }
 
-    std::vector<std::string>  keys;
+    std::vector<StoredDocKey>  keys;
     HashTable                &ht;
     std::atomic<size_t>       size;
 };
@@ -310,7 +309,7 @@ private:
 TEST_F(HashTableTest, ConcurrentAccessResize) {
     HashTable h(global_stats, 5, 3);
 
-    std::vector<std::string> keys = generateKeys(2000);
+    auto keys = generateKeys(2000);
     h.resize(keys.size());
     storeMany(h, keys);
 
@@ -326,7 +325,7 @@ TEST_F(HashTableTest, AutoResize) {
 
     ASSERT_EQ(5, h.getSize());
 
-    std::vector<std::string> keys = generateKeys(1000);
+    auto keys = generateKeys(1000);
     storeMany(h, keys);
 
     verifyFound(h, keys);
@@ -340,10 +339,10 @@ TEST_F(HashTableTest, Add) {
     HashTable h(global_stats, 5, 1);
     const int nkeys = 1000;
 
-    std::vector<std::string> keys = generateKeys(nkeys);
+    auto keys = generateKeys(nkeys);
     addMany(h, keys, ADD_SUCCESS);
 
-    std::string missingKey = "aMissingKey";
+    StoredDocKey missingKey = makeStoredDocKey("aMissingKey");
     EXPECT_FALSE(h.find(missingKey));
 
     for (const auto& key : keys) {
@@ -361,7 +360,7 @@ TEST_F(HashTableTest, Add) {
     EXPECT_FALSE(h.find(keys[0]));
     EXPECT_EQ(nkeys - 1, count(h));
 
-    Item i(keys[0].data(), keys[0].length(), 0, 0, "newtest", 7);
+    Item i(keys[0], 0, 0, "newtest", 7);
     item_eviction_policy_t policy = VALUE_ONLY;
     EXPECT_EQ(ADD_UNDEL, h.add(i, policy));
     EXPECT_EQ(nkeys, count(h, false));
@@ -371,7 +370,7 @@ TEST_F(HashTableTest, DepthCounting) {
     HashTable h(global_stats, 5, 1);
     const int nkeys = 5000;
 
-    std::vector<std::string> keys = generateKeys(nkeys);
+    auto keys = generateKeys(nkeys);
     storeMany(h, keys);
 
     HashTableDepthStatVisitor depthCounter;
@@ -381,11 +380,9 @@ TEST_F(HashTableTest, DepthCounting) {
 }
 
 TEST_F(HashTableTest, PoisonKey) {
-    std::string k("A\\NROBs_oc)$zqJ1C.9?XU}Vn^(LW\"`+K/4lykF[ue0{ram;fvId6h=p&Zb3T~SQ]82'ixDP");
-
     HashTable h(global_stats, 5, 1);
 
-    store(h, k);
+    store(h, makeStoredDocKey("A\\NROBs_oc)$zqJ1C.9?XU}Vn^(LW\"`+K/4lykF[ue0{ram;fvId6h=p&Zb3T~SQ]82'ixDP"));
     EXPECT_EQ(1, count(h));
 }
 
@@ -396,12 +393,12 @@ TEST_F(HashTableTest, SizeStats) {
     ASSERT_EQ(0, ht.cacheSize.load());
     size_t initialSize = global_stats.currentSize.load();
 
-    const std::string k("somekey");
+    StoredDocKey k = makeStoredDocKey("somekey");
     const size_t itemSize(16 * 1024);
     char *someval(static_cast<char*>(cb_calloc(1, itemSize)));
     EXPECT_TRUE(someval);
 
-    Item i(k.data(), k.length(), 0, 0, someval, itemSize);
+    Item i(k, 0, 0, someval, itemSize);
 
     EXPECT_EQ(WAS_CLEAN, ht.set(i));
 
@@ -421,12 +418,12 @@ TEST_F(HashTableTest, SizeStatsFlush) {
     ASSERT_EQ(0, ht.cacheSize.load());
     size_t initialSize = global_stats.currentSize.load();
 
-    const std::string k("somekey");
+    StoredDocKey k = makeStoredDocKey("somekey");
     const size_t itemSize(16 * 1024);
     char *someval(static_cast<char*>(cb_calloc(1, itemSize)));
     EXPECT_TRUE(someval);
 
-    Item i(k.data(), k.length(), 0, 0, someval, itemSize);
+    Item i(k, 0, 0, someval, itemSize);
 
     EXPECT_EQ(WAS_CLEAN, ht.set(i));
 
@@ -446,12 +443,12 @@ TEST_F(HashTableTest, SizeStatsSoftDel) {
     ASSERT_EQ(0, ht.cacheSize.load());
     size_t initialSize = global_stats.currentSize.load();
 
-    const std::string k("somekey");
+    const StoredDocKey k = makeStoredDocKey("somekey");
     const size_t itemSize(16 * 1024);
     char *someval(static_cast<char*>(cb_calloc(1, itemSize)));
     EXPECT_TRUE(someval);
 
-    Item i(k.data(), k.length(), 0, 0, someval, itemSize);
+    Item i(k, 0, 0, someval, itemSize);
 
     EXPECT_EQ(WAS_CLEAN, ht.set(i));
 
@@ -472,12 +469,12 @@ TEST_F(HashTableTest, SizeStatsSoftDelFlush) {
     ASSERT_EQ(0, ht.cacheSize.load());
     size_t initialSize = global_stats.currentSize.load();
 
-    const std::string k("somekey");
+    StoredDocKey k = makeStoredDocKey("somekey");
     const size_t itemSize(16 * 1024);
     char *someval(static_cast<char*>(cb_calloc(1, itemSize)));
     EXPECT_TRUE(someval);
 
-    Item i(k.data(), k.length(), 0, 0, someval, itemSize);
+    Item i(k, 0, 0, someval, itemSize);
 
     EXPECT_EQ(WAS_CLEAN, ht.set(i));
 
@@ -498,23 +495,22 @@ TEST_F(HashTableTest, SizeStatsEject) {
     ASSERT_EQ(0, ht.cacheSize.load());
     size_t initialSize = global_stats.currentSize.load();
 
-    const std::string k("somekey");
-    std::string kstring(k);
+    StoredDocKey key = makeStoredDocKey("somekey");
     const size_t itemSize(16 * 1024);
     char *someval(static_cast<char*>(cb_calloc(1, itemSize)));
     EXPECT_TRUE(someval);
 
-    Item i(k.data(), k.length(), 0, 0, someval, itemSize);
+    Item i(key, 0, 0, someval, itemSize);
 
     EXPECT_EQ(WAS_CLEAN, ht.set(i));
 
     item_eviction_policy_t policy = VALUE_ONLY;
-    StoredValue *v(ht.find(kstring));
+    StoredValue *v(ht.find(key));
     EXPECT_TRUE(v);
     v->markClean();
     EXPECT_TRUE(ht.unlocked_ejectItem(v, policy));
 
-    ht.del(k);
+    ht.del(key);
 
     EXPECT_EQ(0, ht.memSize.load());
     EXPECT_EQ(0, ht.cacheSize.load());
@@ -530,18 +526,17 @@ TEST_F(HashTableTest, SizeStatsEjectFlush) {
     ASSERT_EQ(0, ht.cacheSize.load());
     size_t initialSize = global_stats.currentSize.load();
 
-    const std::string k("somekey");
-    std::string kstring(k);
+    StoredDocKey key = makeStoredDocKey("somekey");
     const size_t itemSize(16 * 1024);
     char *someval(static_cast<char*>(cb_calloc(1, itemSize)));
     EXPECT_TRUE(someval);
 
-    Item i(k.data(), k.length(), 0, 0, someval, itemSize);
+    Item i(key, 0, 0, someval, itemSize);
 
     EXPECT_EQ(WAS_CLEAN, ht.set(i));
 
     item_eviction_policy_t policy = VALUE_ONLY;
-    StoredValue *v(ht.find(kstring));
+    StoredValue *v(ht.find(key));
     EXPECT_TRUE(v);
     v->markClean();
     EXPECT_TRUE(ht.unlocked_ejectItem(v, policy));
@@ -558,8 +553,8 @@ TEST_F(HashTableTest, SizeStatsEjectFlush) {
 TEST_F(HashTableTest, ItemAge) {
     // Setup
     HashTable ht(global_stats, 5, 1);
-    std::string key("key");
-    Item item(key.data(), key.length(), 0, 0, "value", strlen("value"));
+    StoredDocKey key = makeStoredDocKey("key");
+    Item item(key, 0, 0, "value", strlen("value"));
     EXPECT_EQ(WAS_CLEAN, ht.set(item));
 
     // Test
@@ -579,7 +574,7 @@ TEST_F(HashTableTest, ItemAge) {
     EXPECT_EQ(0, v->getValue()->getAge());
 
     // Check changing age when new value is used.
-    Item item2(key.data(), key.length(), 0, 0, "value2", strlen("value2"));
+    Item item2(key, 0, 0, "value2", strlen("value2"));
     item2.getValue()->incrementAge();
     v->setValue(item2, ht, false);
     EXPECT_EQ(1, v->getValue()->getAge());
@@ -589,9 +584,9 @@ TEST_F(HashTableTest, ItemAge) {
 TEST_F(HashTableTest, NRUDefault) {
     // Setup
     HashTable ht(global_stats, 5, 1);
-    std::string key("key");
+    StoredDocKey key = makeStoredDocKey("key");
 
-    Item item(key.data(), key.length(), 0, 0, "value", strlen("value"));
+    Item item(key, 0, 0, "value", strlen("value"));
     EXPECT_EQ(WAS_CLEAN, ht.set(item));
 
     // trackReferenced=false so we don't modify the NRU while validating it.
@@ -609,9 +604,9 @@ TEST_F(HashTableTest, NRUDefault) {
 TEST_F(HashTableTest, NRUMinimum) {
     // Setup
     HashTable ht(global_stats, 5, 1);
-    std::string key("key");
+    StoredDocKey key = makeStoredDocKey("key");
 
-    Item item(key.data(), key.length(), 0, 0, "value", strlen("value"));
+    Item item(key, 0, 0, "value", strlen("value"));
     item.setNRUValue(MIN_NRU_VALUE);
     EXPECT_EQ(WAS_CLEAN, ht.set(item));
 
@@ -628,13 +623,13 @@ TEST_F(HashTableTest, NRUMinimum) {
 TEST_F(HashTableTest, MB21448_UnlockedSetWithCASDeleted) {
     // Setup - create a key and then delete it.
     HashTable ht(global_stats, 5, 1);
-    std::string key("key");
-    Item item(key.data(), key.length(), 0, 0, "deleted", strlen("deleted"));
+    StoredDocKey key = makeStoredDocKey("key");
+    Item item(key, 0, 0, "deleted", strlen("deleted"));
     ASSERT_EQ(WAS_CLEAN, ht.set(item));
     ASSERT_EQ(WAS_DIRTY, ht.softDelete(key, 0));
 
     // Attempt to perform a set on a deleted key with a CAS.
-    Item replacement(key.data(), key.length(), 0, 0, "value", strlen("value"));
+    Item replacement(key, 0, 0, "value", strlen("value"));
     EXPECT_EQ(NOT_FOUND,
               ht.set(replacement, /*cas*/10, /*allowExisting*/true,
                      /*hasMetaData*/false))

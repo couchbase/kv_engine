@@ -125,7 +125,7 @@ public:
      *
      * @return key of a document to be persisted
      */
-    const std::string& getKey(void) const {
+    const StoredDocKey& getKey(void) const {
         return key;
     }
 
@@ -241,10 +241,10 @@ public:
      * @param fetchDelete True if we want to retrieve a deleted item if it not
      *        purged yet.
      */
-    void get(const std::string &key, uint16_t vb, Callback<GetValue> &cb,
+    void get(const DocKey& key, uint16_t vb, Callback<GetValue> &cb,
              bool fetchDelete = false) override;
 
-    void getWithHeader(void *dbHandle, const std::string &key,
+    void getWithHeader(void *dbHandle, const DocKey& key,
                        uint16_t vb, Callback<GetValue> &cb,
                        bool fetchDelete = false) override;
 
@@ -396,7 +396,7 @@ public:
     /**
      * Get all_docs API, to return the list of all keys in the store
      */
-    ENGINE_ERROR_CODE getAllKeys(uint16_t vbid, const std::string &start_key,
+    ENGINE_ERROR_CODE getAllKeys(uint16_t vbid, const DocKey start_key,
                                  uint32_t count,
                                  std::shared_ptr<Callback<const DocKey&>> cb) override;
 

@@ -61,7 +61,7 @@ size_t BgFetcher::doFetch(VBucket::id_type vbId,
 
     std::vector<bgfetched_item_t> fetchedItems;
     for (const auto& fetch : itemsToFetch) {
-        const std::string& key = fetch.first;
+        auto& key = fetch.first;
         const vb_bgfetch_item_ctx_t& bg_item_ctx = fetch.second;
 
         for (const auto& itm : bg_item_ctx.bgfetched_list) {

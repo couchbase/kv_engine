@@ -173,7 +173,7 @@ public:
  */
 class VKeyStatBGFetchTask : public GlobalTask {
 public:
-    VKeyStatBGFetchTask(EventuallyPersistentEngine *e, const std::string &k,
+    VKeyStatBGFetchTask(EventuallyPersistentEngine *e, const DocKey& k,
                         uint16_t vbid, uint64_t s, const void *c, int sleeptime = 0,
                         bool completeBeforeShutdown = false)
         : GlobalTask(e, TaskId::VKeyStatBGFetchTask, sleeptime, completeBeforeShutdown),
@@ -185,14 +185,13 @@ public:
     bool run();
 
     std::string getDescription() {
-        std::stringstream ss;
-        ss << "Fetching item from disk for vkey stat:  " << key<<" vbucket "
-           <<vbucket;
-        return ss.str();
+        std::string s = "Fetching item from disk for vkey stat: key{" +
+                        std::string(key.c_str()) + "} vb:" + std::to_string(vbucket);
+        return s;
     }
 
 private:
-    std::string                      key;
+    StoredDocKey                     key;
     uint16_t                         vbucket;
     uint64_t                         bySeqNum;
     const void                      *cookie;
@@ -204,11 +203,11 @@ private:
  */
 class SingleBGFetcherTask : public GlobalTask {
 public:
-    SingleBGFetcherTask(EventuallyPersistentEngine *e, const const_char_buffer k,
+    SingleBGFetcherTask(EventuallyPersistentEngine *e, const DocKey& k,
                        uint16_t vbid, const void *c, bool isMeta,
                        int sleeptime = 0, bool completeBeforeShutdown = false)
         : GlobalTask(e, TaskId::SingleBGFetcherTask, sleeptime, completeBeforeShutdown),
-          key(k.data(), k.size()),
+          key(k),
           vbucket(vbid),
           cookie(c),
           metaFetch(isMeta),
@@ -217,13 +216,14 @@ public:
     bool run();
 
     std::string getDescription() {
-        std::stringstream ss;
-        ss << "Fetching item from disk:  " << key<<" vbucket "<<vbucket;
-        return ss.str();
+        std::string s = "Fetching item from disk: key{" +
+                        std::string(key.c_str()) + "}, vb:" +
+                        std::to_string(vbucket);
+        return s;
     }
 
 private:
-    const std::string          key;
+    const StoredDocKey         key;
     uint16_t                   vbucket;
     const void                *cookie;
     bool                       metaFetch;

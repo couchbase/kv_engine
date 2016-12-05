@@ -18,7 +18,7 @@
 #pragma once
 
 #include "config.h"
-
+#include "storeddockey.h"
 #include "stored-value.h"
 
 class HashTableStatVisitor;
@@ -29,8 +29,8 @@ class PauseResumeHashTableVisitor;
 /**
  * A container of StoredValue instances.
  *
- * The HashTable class is an unordered, associative array which maps keys
- * (a binary std::string) to StoredValue.
+ * The HashTable class is an unordered, associative array which maps StoredDocKeys
+ * to StoredValue.
  *
  * It supports a limited degreee of concurrent access - the underlying
  * HashTable buckets are guarded by N ht_locks; where N is typically of the
@@ -223,7 +223,7 @@ public:
      * @param key the key to find
      * @return a pointer to a StoredValue -- NULL if not found
      */
-    StoredValue *find(const std::string &key, bool trackReference=true);
+    StoredValue *find(const DocKey& key, bool trackReference=true);
 
     /**
      * Find a resident item
@@ -330,7 +330,7 @@ public:
      * @return an indication of what happened
      */
     add_type_t unlocked_addTempItem(int &bucket_num,
-                                    const const_char_buffer key,
+                                    const DocKey& key,
                                     item_eviction_policy_t policy,
                                     bool isReplication = false);
 
@@ -342,7 +342,7 @@ public:
      * @param policy item eviction policy
      * @return an indicator of what the deletion did
      */
-    mutation_type_t softDelete(const const_char_buffer key, uint64_t cas,
+    mutation_type_t softDelete(const DocKey& key, uint64_t cas,
                                item_eviction_policy_t policy = VALUE_ONLY);
 
     mutation_type_t unlocked_softDelete(StoredValue *v,
@@ -368,41 +368,9 @@ public:
      *
      * @return a pointer to a StoredValue -- NULL if not found
      */
-    StoredValue* unlocked_find(const const_char_buffer key, int bucket_num,
+    StoredValue* unlocked_find(const DocKey& key, int bucket_num,
                                bool wantsDeleted=false,
                                bool trackReference=true);
-
-    /**
-     * Compute a hash for the given string.
-     *
-     * @param str the beginning of the string
-     * @param len the number of bytes in the string
-     *
-     * @return the hash value
-     */
-    inline int hash(const char *str, const size_t len) {
-        if (!isActive()) {
-            throw std::logic_error("HashTable::hash: Cannot call on a "
-                    "non-active object");
-        }
-        int h=5381;
-
-        for(size_t i=0; i < len; i++) {
-            h = ((h << 5) + h) ^ str[i];
-        }
-
-        return h;
-    }
-
-    /**
-     * Compute a hash for the given string.
-     *
-     * @param s the string
-     * @return the hash value
-     */
-    inline int hash(const std::string &s) {
-        return hash(s.data(), s.length());
-    }
 
     /**
      * Get a lock holder holding a lock for the given bucket
@@ -441,29 +409,16 @@ public:
      * Get a lock holder holding a lock for the bucket for the hash of
      * the given key.
      *
-     * @param s the start of the key
-     * @param n the size of the key
-     * @param bucket output parameter to receive a bucket
-     * @return a locked LockHolder
-     */
-    inline std::unique_lock<std::mutex> getLockedBucket(const char *s, size_t n, int *bucket) {
-        return getLockedBucket(hash(s, n), bucket);
-    }
-
-    /**
-     * Get a lock holder holding a lock for the bucket for the hash of
-     * the given key.
-     *
      * @param s the key
      * @param bucket output parameter to receive a bucket
      * @return a locked LockHolder
      */
-    inline std::unique_lock<std::mutex> getLockedBucket(const std::string &s, int *bucket) {
-        return getLockedBucket(hash(s.data(), s.size()), bucket);
-    }
-
-    inline std::unique_lock<std::mutex> getLockedBucket(const const_char_buffer key, int *bucket) {
-        return getLockedBucket(hash(key.data(), key.size()), bucket);
+    inline std::unique_lock<std::mutex> getLockedBucket(const DocKey& key, int *bucket) {
+        if (!isActive()) {
+            throw std::logic_error("HashTable::getLockedBucket: Cannot call on a "
+                    "non-active object");
+        }
+        return getLockedBucket(key.hash(), bucket);
     }
 
     /**
@@ -475,15 +430,15 @@ public:
      * @param bucket_num the bucket to look in (must already be locked)
      * @return true if an object was deleted, false otherwise
      */
-    bool unlocked_del(const const_char_buffer key, int bucket_num);
+    bool unlocked_del(const DocKey& key, int bucket_num);
 
     /**
      * Delete the item with the given key.
      *
-     * @param key the key to delete
+     * @param key the storage key of the value to delete
      * @return true if the item existed before this call
      */
-    bool del(const const_char_buffer key) {
+    bool del(const DocKey& key) {
         int bucket_num(0);
         std::unique_lock<std::mutex> lh = getLockedBucket(key, &bucket_num);
         return unlocked_del(key, bucket_num);

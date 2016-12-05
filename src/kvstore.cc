@@ -311,7 +311,7 @@ std::string vbucket_state::toJSON() const {
 }
 
 IORequest::IORequest(uint16_t vbId, MutationRequestCallback &cb , bool del,
-                     const std::string &itmKey)
+                     const DocKey itmKey)
     : vbucketId(vbId), deleteItem(del), key(itmKey) {
 
     if (del) {

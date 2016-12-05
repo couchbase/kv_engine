@@ -18,6 +18,7 @@
 #include "defragmenter_visitor.h"
 
 #include "daemon/alloc_hooks.h"
+#include "makestoreddockey.h"
 #include "programs/engine_testapp/mock_server.h"
 
 #include <gtest/gtest.h>
@@ -51,10 +52,8 @@ static size_t populateVbucket(VBucket& vbucket, size_t ndocs) {
     char value[256];
     hrtime_t start = gethrtime();
     for (size_t i = 0; i < ndocs; i++) {
-        std::stringstream ss;
-        ss << "key" << i;
-        const std::string key = ss.str();
-        Item item(key.c_str(), key.length(), 0, 0, value, sizeof(value));
+        std::string key = "key" + std::to_string(i);
+        Item item(makeStoredDocKey(key), 0, 0, value, sizeof(value));
         vbucket.ht.add(item, VALUE_ONLY);
     }
     hrtime_t end = gethrtime();
@@ -272,7 +271,7 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
         char key[16];
         snprintf(key, sizeof(key), "%d", i);
 
-        Item item(key, strlen(key), 0, 0, data.data(), data.size());;
+        Item item(makeStoredDocKey(key), 0, 0, data.data(), data.size());;
         vbucket.ht.add(item, VALUE_ONLY);
     }
 
@@ -295,8 +294,7 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
 
         // Build a map of pages to keys
         for (unsigned int i = 0; i < num_docs; i++ ) {
-            std::string key(std::to_string(i));
-            auto* item = vbucket.ht.find(key);
+            auto* item = vbucket.ht.find(makeStoredDocKey(std::to_string(i)));
             ASSERT_NE(nullptr, item);
 
             const uintptr_t page =
@@ -311,9 +309,7 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
             // Free all but one document on this page.
             while (kv->second.size() > 1) {
                 auto doc_id = kv->second.back();
-                std::string key(std::to_string(doc_id));
-
-                ASSERT_TRUE(vbucket.ht.del(key));
+                ASSERT_TRUE(vbucket.ht.del(makeStoredDocKey(std::to_string(doc_id))));
                 kv->second.pop_back();
                 num_remaining--;
             }

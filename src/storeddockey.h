@@ -55,7 +55,7 @@ public:
      * Create a StoredDocKey from a DocKey
      * @param key DocKey that is to be copied-in
      */
-    StoredDocKey(const DocKey key)
+    StoredDocKey(const DocKey& key)
         : StoredDocKey(key.data(), key.size(), key.getDocNamespace()) {
     }
 

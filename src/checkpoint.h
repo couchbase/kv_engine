@@ -89,7 +89,7 @@ enum class MustSendCheckpointEnd {
 /**
  * The checkpoint index maps a key to a checkpoint index_entry.
  */
-typedef std::unordered_map<std::string, index_entry> checkpoint_index;
+typedef std::unordered_map<StoredDocKey, index_entry> checkpoint_index;
 
 /**
  * List of pairs containing checkpoint cursor name and corresponding flag
@@ -505,7 +505,7 @@ public:
         return toWrite.rend();
     }
 
-    bool keyExists(const std::string &key);
+    bool keyExists(const DocKey& key);
 
     /**
      * Return the memory overhead of this checkpoint instance, except for the memory used by
@@ -531,7 +531,7 @@ public:
      * @param isMetaKey indicates if the key is a checkpoint meta item
      * @return the mutation id for a given key
      */
-    uint64_t getMutationIdForKey(const std::string &key, bool isMetaKey);
+    uint64_t getMutationIdForKey(const DocKey& key, bool isMetaKey);
 
     /**
      * Function invoked by the cursor-dropper which checks if the
@@ -556,6 +556,11 @@ public:
     size_t getMemConsumption() {
         return effectiveMemUsage;
     }
+
+    static const StoredDocKey DummyKey;
+    static const StoredDocKey CheckpointStartKey;
+    static const StoredDocKey CheckpointEndKey;
+    static const StoredDocKey SetVBucketStateKey;
 
 private:
     EPStats                       &stats;

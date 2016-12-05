@@ -209,10 +209,10 @@ class ForestKVStore : public KVStore
      * @param fetchDelete True if we want to retrieve a deleted item if it not
      *        purged yet.
      */
-    void get(const std::string& key, uint16_t vb, Callback<GetValue>& cb,
+    void get(const DocKey& key, uint16_t vb, Callback<GetValue>& cb,
              bool fetchDelete = false) override;
 
-    void getWithHeader(void* handle, const std::string& key,
+    void getWithHeader(void* handle, const DocKey& key,
                        uint16_t vb, Callback<GetValue>& cb,
                        bool fetchDelete = false) override;
 
@@ -387,7 +387,7 @@ class ForestKVStore : public KVStore
     DBFileInfo getAggrDbFileInfo() override;
 
     ENGINE_ERROR_CODE getAllKeys(uint16_t vbid,
-                                 const std::string& start_key,
+                                 const DocKey start_key,
                                  uint32_t count,
                                  std::shared_ptr<Callback<const DocKey&>> cb) override;
 

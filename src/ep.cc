@@ -174,13 +174,13 @@ private:
  * Callback class used by EpStore, for adding relevant keys
  * to bloomfilter during compaction.
  */
-class BloomFilterCallback : public Callback<uint16_t&, std::string&, bool&> {
+class BloomFilterCallback : public Callback<uint16_t&, const DocKey&, bool&> {
 public:
     BloomFilterCallback(EPBucket& eps)
         : store(eps) {
     }
 
-    void callback(uint16_t& vbucketId, std::string& key, bool& isDeleted) {
+    void callback(uint16_t& vbucketId, const DocKey& key, bool& isDeleted) {
         RCPtr<VBucket> vb = store.getVBucket(vbucketId);
         if (vb) {
             /* Check if a temporary filter has been initialized. If not,
@@ -293,17 +293,17 @@ bool BloomFilterCallback::initTempFilter(uint16_t vbucketId) {
     return true;
 }
 
-class ExpiredItemsCallback : public Callback<uint16_t&, std::string&, uint64_t&,
+class ExpiredItemsCallback : public Callback<uint16_t&, const DocKey&, uint64_t&,
                                              time_t&> {
     public:
         ExpiredItemsCallback(EPBucket& store)
             : epstore(store) { }
 
-        void callback(uint16_t& vbid, std::string& key, uint64_t& revSeqno,
+        void callback(uint16_t& vbid, const DocKey& key, uint64_t& revSeqno,
                       time_t& startTime) {
             if (epstore.compactionCanExpireItems()) {
                 epstore.deleteExpiredItem(vbid, key, startTime, revSeqno,
-                                              EXP_BY_COMPACTOR);
+                                          EXP_BY_COMPACTOR);
             }
         }
 
@@ -687,7 +687,7 @@ void EPBucket::stopBgFetcher() {
     }
 }
 
-void EPBucket::deleteExpiredItem(uint16_t vbid, std::string &key,
+void EPBucket::deleteExpiredItem(uint16_t vbid, const DocKey& key,
                                  time_t startTime, uint64_t revSeqno,
                                  exp_type_t source) {
     RCPtr<VBucket> vb = getVBucket(vbid);
@@ -740,16 +740,16 @@ void EPBucket::deleteExpiredItem(uint16_t vbid, std::string &key,
 }
 
 void EPBucket::deleteExpiredItems(std::list<std::pair<uint16_t,
-                                  std::string> > &keys, exp_type_t source) {
+                                  StoredDocKey> > &keys, exp_type_t source) {
     std::list<std::pair<uint16_t, std::string> >::iterator it;
     time_t startTime = ep_real_time();
-    for (it = keys.begin(); it != keys.end(); it++) {
-        deleteExpiredItem(it->first, it->second, startTime, 0, source);
+    for (const auto& it : keys) {
+        deleteExpiredItem(it.first, it.second, startTime, 0, source);
     }
 }
 
 StoredValue *EPBucket::fetchValidValue(RCPtr<VBucket> &vb,
-                                       const const_char_buffer key,
+                                       const DocKey& key,
                                        int bucket_num,
                                        bool wantDeleted,
                                        bool trackReference,
@@ -775,7 +775,7 @@ StoredValue *EPBucket::fetchValidValue(RCPtr<VBucket> &vb,
     return v;
 }
 
-bool EPBucket::isMetaDataResident(RCPtr<VBucket> &vb, const std::string &key) {
+bool EPBucket::isMetaDataResident(RCPtr<VBucket> &vb, const DocKey& key) {
 
     if (!vb) {
         throw std::invalid_argument("EPStore::isMetaDataResident: vb is NULL");
@@ -792,7 +792,7 @@ bool EPBucket::isMetaDataResident(RCPtr<VBucket> &vb, const std::string &key) {
     }
 }
 
-protocol_binary_response_status EPBucket::evictKey(const std::string &key,
+protocol_binary_response_status EPBucket::evictKey(const DocKey& key,
                                                    uint16_t vbucket,
                                                    const char **msg,
                                                    size_t *msg_size) {
@@ -839,7 +839,7 @@ protocol_binary_response_status EPBucket::evictKey(const std::string &key,
 
 ENGINE_ERROR_CODE EPBucket::addTempItemForBgFetch(std::unique_lock<std::mutex>& lock,
                                                   int bucket_num,
-                                                  const const_char_buffer key,
+                                                  const DocKey& key,
                                                   RCPtr<VBucket> &vb,
                                                   const void *cookie,
                                                   bool metadataOnly,
@@ -1642,7 +1642,7 @@ void EPBucket::updateBGStats(const hrtime_t init, const hrtime_t start,
     }
 }
 
-void EPBucket::completeBGFetch(const std::string &key, uint16_t vbucket,
+void EPBucket::completeBGFetch(const DocKey& key, uint16_t vbucket,
                                const void *cookie, hrtime_t init, bool isMeta) {
     hrtime_t start(gethrtime());
     // Go find the data
@@ -1663,7 +1663,8 @@ void EPBucket::completeBGFetch(const std::string &key, uint16_t vbucket,
             completeBGFetchForSingleItem(vb, key, start, item);
         } else {
             LOG(EXTENSION_LOG_INFO, "vb:%" PRIu16 " file was deleted in the "
-                "middle of a bg fetch for key{%s}\n", vbucket, key.c_str());
+                "middle of a bg fetch for key{%.*s}\n", vbucket, int(key.size()),
+                key.data());
             engine.notifyIOComplete(cookie, ENGINE_NOT_MY_VBUCKET);
         }
     }
@@ -1702,7 +1703,7 @@ void EPBucket::completeBGFetchMulti(
     }
 }
 
-void EPBucket::bgFetch(const const_char_buffer key, uint16_t vbucket,
+void EPBucket::bgFetch(const DocKey& key, uint16_t vbucket,
                        const void *cookie, bool isMeta) {
     if (multiBGFetchEnabled()) {
         RCPtr<VBucket> vb = getVBucket(vbucket);
@@ -1735,7 +1736,7 @@ void EPBucket::bgFetch(const const_char_buffer key, uint16_t vbucket,
     }
 }
 
-GetValue EPBucket::getInternal(const const_char_buffer key, uint16_t vbucket,
+GetValue EPBucket::getInternal(const DocKey& key, uint16_t vbucket,
                                const void *cookie, vbucket_state_t allowedState,
                                get_options_t options) {
 
@@ -1863,7 +1864,7 @@ GetValue EPBucket::getRandomKey() {
 }
 
 
-ENGINE_ERROR_CODE EPBucket::getMetaData(const std::string &key,
+ENGINE_ERROR_CODE EPBucket::getMetaData(const DocKey& key,
                                         uint16_t vbucket,
                                         const void *cookie,
                                         ItemMetaData &metadata,
@@ -2049,7 +2050,7 @@ ENGINE_ERROR_CODE EPBucket::setWithMeta(Item &itm,
     return ret;
 }
 
-GetValue EPBucket::getAndUpdateTtl(const std::string &key, uint16_t vbucket,
+GetValue EPBucket::getAndUpdateTtl(const DocKey& key, uint16_t vbucket,
                                    const void *cookie, time_t exptime)
 {
     RCPtr<VBucket> vb = getVBucket(vbucket);
@@ -2126,7 +2127,7 @@ GetValue EPBucket::getAndUpdateTtl(const std::string &key, uint16_t vbucket,
     }
 }
 
-ENGINE_ERROR_CODE EPBucket::statsVKey(const std::string &key, uint16_t vbucket,
+ENGINE_ERROR_CODE EPBucket::statsVKey(const DocKey& key, uint16_t vbucket,
                                       const void *cookie) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb) {
@@ -2182,7 +2183,7 @@ ENGINE_ERROR_CODE EPBucket::statsVKey(const std::string &key, uint16_t vbucket,
     }
 }
 
-void EPBucket::completeStatsVKey(const void* cookie, std::string &key,
+void EPBucket::completeStatsVKey(const void* cookie, const DocKey& key,
                                  uint16_t vbid, uint64_t bySeqNum) {
     RememberingCallback<GetValue> gcb;
 
@@ -2226,7 +2227,7 @@ void EPBucket::completeStatsVKey(const void* cookie, std::string &key,
     engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
 }
 
-GetValue EPBucket::getLocked(const std::string &key, uint16_t vbucket,
+GetValue EPBucket::getLocked(const DocKey& key, uint16_t vbucket,
                              rel_time_t currentTime, uint32_t lockTimeout,
                              const void *cookie) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
@@ -2290,7 +2291,7 @@ GetValue EPBucket::getLocked(const std::string &key, uint16_t vbucket,
     }
 }
 
-ENGINE_ERROR_CODE EPBucket::unlockKey(const std::string &key,
+ENGINE_ERROR_CODE EPBucket::unlockKey(const DocKey& key,
                                       uint16_t vbucket,
                                       uint64_t cas,
                                       rel_time_t currentTime)
@@ -2334,7 +2335,7 @@ ENGINE_ERROR_CODE EPBucket::unlockKey(const std::string &key,
 }
 
 
-ENGINE_ERROR_CODE EPBucket::getKeyStats(const std::string &key,
+ENGINE_ERROR_CODE EPBucket::getKeyStats(const DocKey& key,
                                         uint16_t vbucket,
                                         const void *cookie,
                                         struct key_stats &kstats,
@@ -2383,7 +2384,7 @@ ENGINE_ERROR_CODE EPBucket::getKeyStats(const std::string &key,
     }
 }
 
-std::string EPBucket::validateKey(const std::string &key, uint16_t vbucket,
+std::string EPBucket::validateKey(const DocKey& key, uint16_t vbucket,
                                   Item &diskItem) {
     int bucket_num(0);
     RCPtr<VBucket> vb = getVBucket(vbucket);
@@ -2412,7 +2413,7 @@ std::string EPBucket::validateKey(const std::string &key, uint16_t vbucket,
 
 }
 
-ENGINE_ERROR_CODE EPBucket::deleteItem(const std::string &key,
+ENGINE_ERROR_CODE EPBucket::deleteItem(const DocKey& key,
                                        uint64_t *cas,
                                        uint16_t vbucket,
                                        const void *cookie,
@@ -2555,7 +2556,7 @@ ENGINE_ERROR_CODE EPBucket::deleteItem(const std::string &key,
     return ret;
 }
 
-ENGINE_ERROR_CODE EPBucket::deleteWithMeta(const std::string &key,
+ENGINE_ERROR_CODE EPBucket::deleteWithMeta(const DocKey& key,
                                            uint64_t *cas,
                                            uint64_t *seqno,
                                            uint16_t vbucket,
@@ -3392,7 +3393,7 @@ void EPBucket::stopWarmup(void)
 }
 
 void EPBucket::completeBGFetchForSingleItem(RCPtr<VBucket> vb,
-                                            const std::string& key,
+                                            const DocKey& key,
                                             const hrtime_t startTime,
                                             VBucketBGFetchItem& fetched_item)
 {
@@ -3908,8 +3909,8 @@ void EPBucket::rollbackCheckpoint(RCPtr<VBucket> &vb,
             !item->isCheckPointMetaItem()) {
             RememberingCallback<GetValue> gcb;
             getROUnderlying(vb->getId())->get(item->getKey(),
-                                                    vb->getId(),
-                                                    gcb);
+                                              vb->getId(),
+                                              gcb);
             gcb.waitForValue();
 
             if (gcb.val.getStatus() == ENGINE_SUCCESS) {

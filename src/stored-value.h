@@ -129,7 +129,7 @@ public:
      * @param k the key we're checking
      * @return true if this item's key is equal to k
      */
-    bool hasKey(const const_char_buffer k) const {
+    bool hasKey(const DocKey& k) const {
         return k.size() == getKeyLen()
             && (std::memcmp(k.data(), getKeyBytes(), getKeyLen()) == 0);
     }
@@ -139,6 +139,12 @@ public:
      */
     const std::string getKey() const {
         return std::string(getKeyBytes(), getKeyLen());
+    }
+
+    const DocKey getDocKey() const {
+        // Collections: TODO: store the namespace
+        return DocKey(reinterpret_cast<const uint8_t*>(getKeyBytes()),
+                      getKeyLen(), DocNamespace::DefaultCollection);
     }
 
     /**
@@ -520,7 +526,7 @@ private:
         deleted(false),
         newCacheItem(true),
         nru(itm.getNRUValue()),
-        keylen(itm.getNKey()) {
+        keylen(itm.getKey().size()) {
 
         if (setDirty) {
             markDirty();
@@ -624,18 +630,18 @@ private:
         // that is used to hold the key
         size_t base = sizeof(StoredValue) - sizeof(char);
 
-        const std::string &key = itm.getKey();
-        if (key.length() >= 256) {
+        const auto itemKeyLen = itm.getKey().size();
+        if (itemKeyLen >= 256) {
             throw std::invalid_argument("StoredValueFactory::newStoredValue: "
-                    "item key length (which is " + std::to_string(key.length()) +
+                    "item key length (which is " + std::to_string(itemKeyLen) +
                     "is greater than 256");
         }
 
-        size_t len = key.length() + base;
+        size_t len = itemKeyLen + base;
 
         StoredValue *t = new (::operator new(len))
                          StoredValue(itm, n, *stats, ht, setDirty);
-        std::memcpy(t->keybytes, key.data(), key.length());
+        std::memcpy(t->keybytes, itm.getKey().data(), itm.getKey().size());
         return t;
     }
 

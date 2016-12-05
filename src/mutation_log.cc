@@ -296,8 +296,7 @@ void MutationLog::disable() {
     }
 }
 
-void MutationLog::newItem(uint16_t vbucket, const std::string &key,
-                          uint64_t rowid) {
+void MutationLog::newItem(uint16_t vbucket, const DocKey& key, uint64_t rowid) {
     if (isEnabled()) {
         MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer.get(),
                                                            rowid, ML_NEW,

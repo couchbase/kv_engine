@@ -60,15 +60,17 @@ public:
                 LOG(EXTENSION_LOG_INFO,
                 "INFO: Skipping expired/deleted item: %" PRIu64, v->getBySeqno());
             } else {
-                accessed.push_back(std::make_pair(v->getBySeqno(), v->getKey()));
+                // Collections: TODO - store namespace with StoredValue
+                accessed.push_back(std::make_pair(v->getBySeqno(),
+                                                  StoredDocKey(v->getKey(),
+                                                               DocNamespace::DefaultCollection)));
             }
         }
     }
 
     void update() {
         if (log != NULL) {
-            std::list<std::pair<uint64_t, std::string> >::iterator it;
-            for (it = accessed.begin(); it != accessed.end(); ++it) {
+            for (auto it = accessed.begin(); it != accessed.end(); ++it) {
                 log->newItem(currentBucket->getId(), it->second, it->first);
             }
         }
@@ -175,7 +177,7 @@ private:
     std::string name;
     uint16_t shardID;
 
-    std::list<std::pair<uint64_t, std::string> > accessed;
+    std::list<std::pair<uint64_t, StoredDocKey> > accessed;
 
     MutationLog *log;
     std::atomic<bool> &stateFinalizer;

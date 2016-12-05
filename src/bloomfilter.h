@@ -46,8 +46,8 @@ public:
     bfilter_status_t getStatus();
     std::string getStatusString();
 
-    void addKey(const char *key, size_t keylen);
-    bool maybeKeyExists(const char *key, uint32_t keylen);
+    void addKey(const DocKey& key);
+    bool maybeKeyExists(const DocKey& key);
 
     size_t getNumOfKeysInFilter();
     size_t getFilterSize();

@@ -480,16 +480,16 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             if (m->getExtMetaData()) {
                 std::pair<const char*, uint16_t> meta = m->getExtMetaData()->getExtMeta();
                 ret = producers->deletion(getCookie(), m->getOpaque(),
-                                          m->getItem()->getKey().c_str(),
-                                          m->getItem()->getNKey(),
+                                          m->getItem()->getKey().data(),
+                                          m->getItem()->getKey().size(),
                                           m->getItem()->getCas(),
                                           m->getVBucket(), m->getBySeqno(),
                                           m->getRevSeqno(),
                                           meta.first, meta.second);
             } else {
                 ret = producers->deletion(getCookie(), m->getOpaque(),
-                                          m->getItem()->getKey().c_str(),
-                                          m->getItem()->getNKey(),
+                                          m->getItem()->getKey().data(),
+                                          m->getItem()->getKey().size(),
                                           m->getItem()->getCas(),
                                           m->getVBucket(), m->getBySeqno(),
                                           m->getRevSeqno(),

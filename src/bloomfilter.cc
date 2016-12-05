@@ -15,6 +15,8 @@
  *   limitations under the License.
  */
 
+#include <memcached/engine.h>
+
 #include "bloomfilter.h"
 #include "murmurhash3.h"
 
@@ -103,13 +105,14 @@ std::string BloomFilter::getStatusString() {
     return "UNKNOWN";
 }
 
-void BloomFilter::addKey(const char *key, size_t keylen) {
+// Collections: TODO - we need to hash the DocNamespace:key
+void BloomFilter::addKey(const DocKey& key) {
     if (status == BFILTER_COMPACTING || status == BFILTER_ENABLED) {
         bool overlap = true;
         uint32_t i;
         uint64_t result;
         for (i = 0; i < noOfHashes; i++) {
-            MURMURHASH_3(key, keylen, i, &result);
+            MURMURHASH_3(key.data(), key.size(), i, &result);
             if (overlap && bitArray[result % filterSize] == 0) {
                 overlap = false;
             }
@@ -121,12 +124,13 @@ void BloomFilter::addKey(const char *key, size_t keylen) {
     }
 }
 
-bool BloomFilter::maybeKeyExists(const char *key, uint32_t keylen) {
+// Collections: TODO - we need to hash the DocNamespace:key
+bool BloomFilter::maybeKeyExists(const DocKey& key) {
     if (status == BFILTER_COMPACTING || status == BFILTER_ENABLED) {
         uint32_t i;
         uint64_t result;
         for (i = 0; i < noOfHashes; i++) {
-            MURMURHASH_3(key, keylen, i, &result);
+            MURMURHASH_3(key.data(), key.size(), i, &result);
             if (bitArray[result % filterSize] == 0) {
                 // The key does NOT exist.
                 return false;

@@ -21,6 +21,7 @@
 #include "config.h"
 
 #include "ep.h"
+#include "storeddockey.h"
 #include "kvbucket.h"
 #include "tapconnection.h"
 #include "taskable.h"
@@ -237,7 +238,7 @@ public:
         uint8_t ext_meta[1];
         uint8_t ext_len = EXT_META_LEN;
         *(ext_meta) = datatype;
-        *itm = new Item(key.data(), key.size(), flags, expiretime, NULL, nbytes,
+        *itm = new Item(key, flags, expiretime, nullptr, nbytes,
                         ext_meta, ext_len, 0/*cas*/, -1/*seq*/, vbucket);
         if (*itm == NULL) {
             return memoryCondition();
@@ -249,16 +250,6 @@ public:
 
     ENGINE_ERROR_CODE itemDelete(const void* cookie,
                                  const DocKey& key,
-                                 uint64_t* cas,
-                                 uint16_t vbucket,
-                                 mutation_descr_t *mut_info)
-    {
-        std::string k(reinterpret_cast<const char*>(key.data()), key.size());
-        return itemDelete(cookie, k, cas, vbucket, mut_info);
-    }
-
-    ENGINE_ERROR_CODE itemDelete(const void* cookie,
-                                 const std::string &key,
                                  uint64_t* cas,
                                  uint16_t vbucket,
                                  mutation_descr_t *mut_info)
@@ -291,8 +282,7 @@ public:
                           get_options_t options)
     {
         BlockTimer timer(&stats.getCmdHisto);
-        const_char_buffer k(reinterpret_cast<const char*>(key.data()), key.size());
-        GetValue gv(kvBucket->get(k, vbucket, cookie, options));
+        GetValue gv(kvBucket->get(key, vbucket, cookie, options));
         ENGINE_ERROR_CODE ret = gv.getStatus();
 
         if (ret == ENGINE_SUCCESS) {
@@ -378,23 +368,28 @@ public:
 
     ENGINE_ERROR_CODE touch(const void* cookie,
                             protocol_binary_request_header *request,
-                            ADD_RESPONSE response);
+                            ADD_RESPONSE response,
+                            DocNamespace docNamespace);
 
     ENGINE_ERROR_CODE getMeta(const void* cookie,
                               protocol_binary_request_get_meta *request,
-                              ADD_RESPONSE response);
+                              ADD_RESPONSE response,
+                              DocNamespace docNamespace);
 
     ENGINE_ERROR_CODE setWithMeta(const void* cookie,
                                  protocol_binary_request_set_with_meta *request,
-                                 ADD_RESPONSE response);
+                                 ADD_RESPONSE response,
+                                 DocNamespace docNamespace);
 
     ENGINE_ERROR_CODE deleteWithMeta(const void* cookie,
                               protocol_binary_request_delete_with_meta *request,
-                              ADD_RESPONSE response);
+                              ADD_RESPONSE response,
+                              DocNamespace docNamespace);
 
     ENGINE_ERROR_CODE returnMeta(const void* cookie,
                                  protocol_binary_request_return_meta *request,
-                                 ADD_RESPONSE response);
+                                 ADD_RESPONSE response,
+                                 DocNamespace docNamespace);
 
     ENGINE_ERROR_CODE setClusterConfig(const void* cookie,
                             protocol_binary_request_set_cluster_config *request,
@@ -406,7 +401,8 @@ public:
 
     ENGINE_ERROR_CODE getAllKeys(const void* cookie,
                                 protocol_binary_request_get_keys *request,
-                                ADD_RESPONSE response);
+                                ADD_RESPONSE response,
+                                DocNamespace docNamespace);
 
     /**
      * Visit the objects and add them to the tap/dcp connecitons queue.
@@ -542,21 +538,21 @@ public:
         flushAllEnabled = enabled;
     }
 
-    protocol_binary_response_status evictKey(const std::string &key,
+    protocol_binary_response_status evictKey(const DocKey& key,
                                              uint16_t vbucket,
                                              const char **msg,
                                              size_t *msg_size) {
         return kvBucket->evictKey(key, vbucket, msg, msg_size);
     }
 
-    GetValue getLocked(const std::string &key, uint16_t vbucket,
+    GetValue getLocked(const DocKey& key, uint16_t vbucket,
                        rel_time_t currentTime, uint32_t lockTimeout,
                        const void *cookie) {
         return kvBucket->getLocked(key, vbucket, currentTime, lockTimeout,
                                    cookie);
     }
 
-    ENGINE_ERROR_CODE unlockKey(const std::string &key,
+    ENGINE_ERROR_CODE unlockKey(const DocKey& key,
                                 uint16_t vbucket,
                                 uint64_t cas,
                                 rel_time_t currentTime) {
@@ -565,7 +561,8 @@ public:
 
     ENGINE_ERROR_CODE observe(const void* cookie,
                               protocol_binary_request_header *request,
-                              ADD_RESPONSE response);
+                              ADD_RESPONSE response,
+                              DocNamespace docNamespace);
 
     ENGINE_ERROR_CODE observe_seqno(const void* cookie,
                                     protocol_binary_request_header *request,
@@ -752,7 +749,7 @@ protected:
     ENGINE_ERROR_CODE processTapAck(const void *cookie,
                                     uint32_t seqno,
                                     uint16_t status,
-                                    const std::string &msg);
+                                    const DocKey& key);
 
     /**
      * Report the state of a memory condition when out of memory.
@@ -821,7 +818,7 @@ protected:
     ENGINE_ERROR_CODE doRunTimeStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doDispatcherStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doKeyStats(const void *cookie, ADD_STAT add_stat,
-                                 uint16_t vbid, std::string &key, bool validate=false);
+                                 uint16_t vbid, const DocKey& key, bool validate=false);
     ENGINE_ERROR_CODE doTapVbTakeoverStats(const void *cookie,
                                            ADD_STAT add_stat,
                                            std::string& key,
@@ -852,7 +849,7 @@ protected:
             if (it->second != NULL) {
                 LOG(EXTENSION_LOG_DEBUG,
                     "Cleaning up old lookup result for '%s'",
-                    it->second->getKey().c_str());
+                    it->second->getKey().data());
                 delete it->second;
             } else {
                 LOG(EXTENSION_LOG_DEBUG, "Cleaning up old null lookup result");

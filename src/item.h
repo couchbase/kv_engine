@@ -23,6 +23,7 @@
 #include <memcached/engine.h>
 #include <stdio.h>
 #include <string.h>
+#include <utility>
 
 #include <cstring>
 #include <string>
@@ -365,7 +366,7 @@ public:
      * Used when a value already exists, and the Item should refer to that
      * value.
      */
-    Item(const std::string &k, const uint32_t fl, const time_t exp,
+    Item(const DocKey& k, const uint32_t fl, const time_t exp,
          const value_t &val, uint64_t theCas = 0,  int64_t i = -1,
          uint16_t vbid = 0, uint64_t sno = 1,
          uint8_t nru_value = INITIAL_NRU_VALUE) :
@@ -385,8 +386,7 @@ public:
     }
 
     /* Constructor (new value).
-     * {k, nk}   specify the item's key, k must be non-null and point to an
-     *           array of bytes of length nk, where nk must be >0.
+     * k         specify the item's DocKey.
      * fl        Item flags.
      * exp       Item expiry.
      * {dta, nb} specify the item's value. nb specifies how much memory will be
@@ -395,13 +395,13 @@ public:
      *           then no data is copied in.
      *  The remaining arguments specify various optional attributes.
      */
-    Item(const void *k, uint16_t nk, const uint32_t fl, const time_t exp,
+    Item(const DocKey& k, const uint32_t fl, const time_t exp,
          const void *dta, const size_t nb, uint8_t* ext_meta = NULL,
          uint8_t ext_len = 0, uint64_t theCas = 0, int64_t i = -1,
          uint16_t vbid = 0, uint64_t sno = 1,
          uint8_t nru_value = INITIAL_NRU_VALUE) :
         metaData(theCas, sno, fl, exp),
-        key(static_cast<const char*>(k), nk),
+        key(k),
         bySeqno(i),
         queuedTime(ep_current_time()),
         vbucketId(vbid),
@@ -415,7 +415,7 @@ public:
         ObjectRegistry::onCreateItem(this);
     }
 
-    Item(const std::string &k, const uint16_t vb,
+    Item(const DocKey& k, const uint16_t vb,
          queue_op o, const uint64_t revSeq,
          const int64_t bySeq, uint8_t nru_value = INITIAL_NRU_VALUE) :
         metaData(),
@@ -515,7 +515,7 @@ public:
         return value;
     }
 
-    const std::string &getKey() const {
+    const StoredDocKey& getKey() const {
         return key;
     }
 
@@ -525,10 +525,6 @@ public:
 
     void setBySeqno(int64_t to) {
         bySeqno.store(to);
-    }
-
-    int getNKey() const {
-        return static_cast<int>(key.length());
     }
 
     uint32_t getNBytes() const {
@@ -735,7 +731,7 @@ private:
 
     ItemMetaData metaData;
     value_t value;
-    std::string key;
+    StoredDocKey key;
 
     // bySeqno is atomic because it (rarely) needs to be changed after
     // the item has been added to a Checkpoint - for meta-items in
