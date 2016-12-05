@@ -930,6 +930,9 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_TAP_FLUSH, tap_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_TAP_OPAQUE, tap_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET, tap_validator);
+
+    chains.push_unique(PROTOCOL_BINARY_CMD_GET_META, get_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_GETQ_META, get_validator);
 }
 
 /**

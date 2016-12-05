@@ -50,8 +50,51 @@ namespace BinaryProtocolValidator {
         return rv;
     }
 
+    enum class GetOpcodes : uint8_t {
+        Get = PROTOCOL_BINARY_CMD_GET,
+        GetQ = PROTOCOL_BINARY_CMD_GETQ,
+        GetK = PROTOCOL_BINARY_CMD_GETK,
+        GetKQ = PROTOCOL_BINARY_CMD_GETKQ,
+        GetMeta = PROTOCOL_BINARY_CMD_GET_META,
+        GetQMeta = PROTOCOL_BINARY_CMD_GETQ_META
+    };
+
+    std::string to_string(const GetOpcodes& opcode) {
+#ifdef JETBRAINS_CLION_IDE
+        // CLion don't properly parse the output when the
+        // output gets written as the string instead of the
+        // number. This makes it harder to debug the tests
+        // so let's just disable it while we're waiting
+        // for them to supply a fix.
+        // See https://youtrack.jetbrains.com/issue/CPP-6039
+        return std::to_string(static_cast<int>(opcode));
+#else
+        switch (opcode) {
+        case GetOpcodes::Get:
+            return "Get";
+        case GetOpcodes::GetQ:
+            return "GetQ";
+        case GetOpcodes::GetK:
+            return "GetK";
+        case GetOpcodes::GetKQ:
+            return "GetKQ";
+        case GetOpcodes::GetMeta:
+            return "GetMeta";
+        case GetOpcodes::GetQMeta:
+            return "GetQMeta";
+        }
+        throw std::invalid_argument("to_string: unknown opcode");
+#endif
+    }
+
+    std::ostream& operator << (std::ostream& os, const GetOpcodes& o) {
+        os << to_string(o);
+        return os;
+    };
+
     // Test the validators for GET, GETQ, GETK, GETKQ
-    class GetValidatorTest : public ValidatorTest {
+    class GetValidatorTest : public ValidatorTest,
+                             public ::testing::WithParamInterface<GetOpcodes> {
         virtual void SetUp() override {
             ValidatorTest::SetUp();
             memset(&request, 0, sizeof(request));
@@ -63,56 +106,49 @@ namespace BinaryProtocolValidator {
         }
 
     protected:
-        int validate(protocol_binary_command opcode) {
+        int validate() {
+            auto opcode = (protocol_binary_command)GetParam();
             return ValidatorTest::validate(opcode, static_cast<void*>(&request));
         }
         protocol_binary_request_get request;
     };
 
-    TEST_F(GetValidatorTest, CorrectMessage) {
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_GET));
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_GETQ));
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_GETK));
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_GETKQ));
+    TEST_P(GetValidatorTest, CorrectMessage) {
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
 
-    TEST_F(GetValidatorTest, InvalidMagic) {
+    TEST_P(GetValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GET));
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETQ));
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETK));
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETKQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
-    TEST_F(GetValidatorTest, InvalidExtlen) {
+    TEST_P(GetValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 21;
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GET));
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETQ));
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETK));
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETKQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
-    TEST_F(GetValidatorTest, NoKey) {
+    TEST_P(GetValidatorTest, NoKey) {
         // key != bodylen
         request.message.header.request.keylen = 0;
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GET));
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETQ));
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETK));
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETKQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
-    TEST_F(GetValidatorTest, InvalidDatatype) {
+    TEST_P(GetValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GET));
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETQ));
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETK));
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETKQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
-    TEST_F(GetValidatorTest, InvalidCas) {
+    TEST_P(GetValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GET));
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETQ));
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETK));
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETKQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
+
+    INSTANTIATE_TEST_CASE_P(GetOpcodes,
+                            GetValidatorTest,
+                            ::testing::Values(GetOpcodes::Get,
+                                              GetOpcodes::GetQ,
+                                              GetOpcodes::GetK,
+                                              GetOpcodes::GetKQ,
+                                              GetOpcodes::GetMeta,
+                                              GetOpcodes::GetQMeta),
+                                ::testing::PrintToStringParamName());
 
     // Test ADD & ADDQ
     class AddValidatorTest : public ValidatorTest {
