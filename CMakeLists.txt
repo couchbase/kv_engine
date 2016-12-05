@@ -560,40 +560,30 @@ INSTALL(TARGETS ep
 
 
 # Defines a testsuite which runs in full and value eviction variants.
-FUNCTION(ADD_TESTSUITE value_evict_name full_evict_name testsuite_so timeout)
+FUNCTION(ADD_TESTSUITE name timeout)
   SET(_cmdline
-      ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so -T ${testsuite_so})
-  ADD_TEST(NAME ${value_evict_name}
-         COMMAND ${_cmdline} -v -e "dbname=./${value_evict_name}")
-  ADD_TEST(NAME ${full_evict_name}
-         COMMAND ${_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./${full_evict_name}")
-  SET_TESTS_PROPERTIES(${value_evict_name} PROPERTIES TIMEOUT ${timeout})
-  SET_TESTS_PROPERTIES(${full_evict_name} PROPERTIES TIMEOUT ${timeout})
+    ${CMAKE_BINARY_DIR}/memcached/engine_testapp
+        -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so
+        -T ${CMAKE_CURRENT_BINARY_DIR}/${name}.so)
+  ADD_TEST(NAME ${name}.value_eviction
+         COMMAND ${_cmdline} -v -e "dbname=./${name}.value_eviction.db")
+  ADD_TEST(NAME ${name}.full_eviction
+         COMMAND ${_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./${name}.full_eviction.db")
+  SET_TESTS_PROPERTIES(${name}.value_eviction PROPERTIES TIMEOUT ${timeout})
+  SET_TESTS_PROPERTIES(${name}.full_eviction PROPERTIES TIMEOUT ${timeout})
 ENDFUNCTION()
 
-ADD_TESTSUITE(ep-engine_engine_tests ep-engine_full_eviction_tests
-              ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite.so
-              1800)
+ADD_TESTSUITE(ep_testsuite 1800)
 
-ADD_TESTSUITE(ep-engine_basic_tests ep-engine_full_eviction_basic
-              ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_basic.so
-              600)
+ADD_TESTSUITE(ep_testsuite_basic 600)
 
-ADD_TESTSUITE(ep-engine_dcp_tests ep-engine_full_eviction_dcp
-              ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_dcp.so
-              1200)
+ADD_TESTSUITE(ep_testsuite_dcp 1200)
 
-ADD_TESTSUITE(ep-engine_value_eviction_tap ep-engine_full_eviction_tap
-              ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_tap.so
-              180)
+ADD_TESTSUITE(ep_testsuite_tap 180)
 
-ADD_TESTSUITE(ep-engine_value_eviction_checkpoint ep-engine_full_eviction_checkpoint
-              ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_checkpoint.so
-              120)
+ADD_TESTSUITE(ep_testsuite_checkpoint 120)
 
-ADD_TESTSUITE(ep-engine_value_eviction_xdcr ep-engine_full_eviction_xdcr
-              ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_xdcr.so
-              120)
+ADD_TESTSUITE(ep_testsuite_xdcr 120)
 
 # ================================ PERF_TESTS ================================ #
 SET(_ep_perfsuite_cmdline ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so -T ${CMAKE_CURRENT_BINARY_DIR}/ep_perfsuite.so -v)
@@ -606,8 +596,8 @@ ADD_CUSTOM_TARGET(test-perfsuite
                           ep
                           ep_perfsuite
                   VERBATIM)
-ADD_TEST(NAME ep-engine_perfsuite
-         COMMAND ${_ep_perfsuite_cmdline} -e "dbname=./value_eviction_perf")
+ADD_TEST(NAME ep_perfsuite.value_eviction
+         COMMAND ${_ep_perfsuite_cmdline} -e "dbname=./ep_perfsuite.value_eviction.db")
 
 # ============================================================================ #
 
