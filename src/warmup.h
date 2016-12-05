@@ -19,7 +19,7 @@
 
 #include "config.h"
 
-#include "ep.h"
+#include "kv_bucket.h"
 #include "ep_engine.h"
 #include "utility.h"
 

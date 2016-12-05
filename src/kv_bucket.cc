@@ -37,7 +37,7 @@
 #include "conflict_resolution.h"
 #include "dcp/dcpconnmap.h"
 #include "defragmenter.h"
-#include "ep.h"
+#include "kv_bucket.h"
 #include "ep_engine.h"
 #include "ext_meta_parser.h"
 #include "failover-table.h"

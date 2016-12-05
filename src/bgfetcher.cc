@@ -21,7 +21,7 @@
 #include <vector>
 
 #include "bgfetcher.h"
-#include "ep.h"
+#include "kv_bucket.h"
 #include "kvshard.h"
 #include "executorthread.h"
 

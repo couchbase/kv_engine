@@ -20,8 +20,7 @@
 
 #include "config.h"
 
-#include "ep.h"
-#include "kv_bucket_iface.h"
+#include "kv_bucket.h"
 #include "storeddockey.h"
 #include "tapconnection.h"
 #include "taskable.h"

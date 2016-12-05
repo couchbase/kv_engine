@@ -17,8 +17,8 @@
 
 #include "config.h"
 
-#include <ep.h>
 #include <item.h>
+#include <kv_bucket.h>
 #include <platform/cb_malloc.h>
 #include <signal.h>
 #include <stats.h>

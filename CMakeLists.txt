@@ -151,7 +151,6 @@ ADD_LIBRARY(ep_objs OBJECT
             src/dcp/stream.cc
             src/defragmenter.cc
             src/defragmenter_visitor.cc
-            src/ep.cc
             src/ep_engine.cc
             src/ep_time.cc
             src/executorpool.cc
@@ -165,6 +164,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/item.cc
             src/item_pager.cc
             src/logger.cc
+            src/kv_bucket.cc
             src/kvshard.cc
             src/memory_tracker.cc
             src/murmurhash3.cc
