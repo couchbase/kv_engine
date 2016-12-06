@@ -21,8 +21,10 @@
 
 #include "memcached/buffer.h"
 #include "subdocument_traits.h"
+#include "xattr_utils.h"
 
 #include <cstddef>
+#include <iomanip>
 #include <memory>
 #include <platform/compress.h>
 
@@ -32,7 +34,17 @@
  *  engine functions return EWOULDBLOCK and hence the executor needs to be
  *  retried.
  */
-struct SubdocCmdContext : public CommandContext {
+class SubdocCmdContext : public CommandContext {
+public:
+    /**
+     * All subdoc access happens in two phases... First we'll run through
+     * all of the operations on the extended attributes, then we'll run
+     * over all of the ones in the body.
+     */
+    enum class Phase : uint8_t {
+        XATTR,
+        Body
+    };
 
     class OperationSpec;
     typedef std::vector<OperationSpec> Operations;
@@ -48,7 +60,8 @@ struct SubdocCmdContext : public CommandContext {
         needs_new_doc(false),
         out_doc_len(0),
         out_doc(),
-        response_val_len(0) { }
+        response_val_len(0),
+        currentPhase(Phase::XATTR) {}
 
     virtual ~SubdocCmdContext() {
         if (out_doc != NULL) {
@@ -56,6 +69,28 @@ struct SubdocCmdContext : public CommandContext {
             engine->release(reinterpret_cast<ENGINE_HANDLE*>(engine),
                             &connection, out_doc);
         }
+    }
+
+    Operations& getOperations(const Phase phase) {
+        switch (phase) {
+        case Phase::Body:
+            return body_operations;
+        case Phase::XATTR:
+            return xattr_operations;
+        }
+        throw std::invalid_argument("SubdocCmdContext::getOperations() invalid phase");
+    }
+
+    Operations& getOperations() {
+        return getOperations(currentPhase);
+    }
+
+    Phase getCurrentPhase() {
+        return currentPhase;
+    }
+
+    void setCurrentPhase(Phase phase) {
+        currentPhase = phase;
     }
 
     // Returns the total size of all Operation values (bytes).
@@ -67,9 +102,6 @@ struct SubdocCmdContext : public CommandContext {
 
     // The traits for this command.
     SubdocCmdTraits traits;
-
-    // Paths to operate on, one per path in the original request.
-    Operations ops;
 
     // The expanded input JSON document. This may either refer to:
     // a). The raw engine item iovec
@@ -166,6 +198,15 @@ struct SubdocCmdContext : public CommandContext {
         // operations which return a result).
         Subdoc::Result result;
     };
+
+
+private:
+    // Paths to operate on, one per path in the original request.
+    Operations body_operations;
+    Operations xattr_operations;
+
+    // The phase we're currently operating in
+    Phase currentPhase;
 }; // class SubdocCmdContext
 
 SubdocCmdContext::OperationSpec::OperationSpec(SubdocCmdTraits traits_,
@@ -198,7 +239,10 @@ SubdocCmdContext::OperationSpec::OperationSpec(OperationSpec&& other)
 
 uint64_t SubdocCmdContext::getOperationValueBytesTotal() const {
     uint64_t result = 0;
-    for (auto& op : ops) {
+    for (auto& op : xattr_operations) {
+        result += op.value.len;
+    }
+    for (auto& op : body_operations) {
         result += op.value.len;
     }
     return result;

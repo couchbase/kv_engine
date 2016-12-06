@@ -31,6 +31,9 @@
 
 #include <platform/histogram.h>
 
+static const std::array<SubdocCmdContext::Phase, 2> phases{{SubdocCmdContext::Phase::XATTR,
+                                                            SubdocCmdContext::Phase::Body}};
+
 /******************************************************************************
  * Subdocument executors
  *****************************************************************************/
@@ -104,17 +107,22 @@ static void create_single_path_context(SubdocCmdContext& context,
     auto path = value;
     path.len = pathlen;
 
+    const bool xattr = (flags & SUBDOC_FLAG_XATTR_PATH);
+    const SubdocCmdContext::Phase phase = xattr ?
+                                          SubdocCmdContext::Phase::XATTR :
+                                          SubdocCmdContext::Phase::Body;
+    auto& ops = context.getOperations(phase);
+
     // Decode as single path; add a single operation to the context.
     if (traits.request_has_value) {
         // Adjust value to move past the path.
         value.buf += pathlen;
         value.len -= pathlen;
 
-        context.ops.emplace_back
-            (SubdocCmdContext::OperationSpec{traits, flags, path, value});
+        ops.emplace_back(SubdocCmdContext::OperationSpec{traits, flags,
+                                                         path, value});
     } else {
-        context.ops.emplace_back
-            (SubdocCmdContext::OperationSpec{traits, flags, path});
+        ops.emplace_back(SubdocCmdContext::OperationSpec{traits, flags, path});
     }
 
     if (flags & SUBDOC_FLAG_MKDOC) {
@@ -176,10 +184,13 @@ static void create_multi_path_context(SubdocCmdContext& context,
                 Subdoc::Util::get_root_type(traits.command, path.buf, path.len);
         }
 
-        context.ops.emplace_back
-            (SubdocCmdContext::OperationSpec{traits, flags, path,
-                                             spec_value});
-
+        const bool xattr = (flags & SUBDOC_FLAG_XATTR_PATH);
+        const SubdocCmdContext::Phase phase = xattr ?
+                                              SubdocCmdContext::Phase::XATTR :
+                                              SubdocCmdContext::Phase::Body;
+        auto& ops = context.getOperations(phase);
+        ops.emplace_back(SubdocCmdContext::OperationSpec{traits, flags, path,
+                                                         spec_value});
         offset += headerlen + path.len + spec_value.len;
     }
 
@@ -627,21 +638,22 @@ subdoc_operate_one_path(Connection& c, SubdocCmdContext::OperationSpec& spec,
     }
 }
 
-// Operate on the document as specified by the command context.
-// Returns true if the command was successful (and execution should continue),
-// else false.
-static bool subdoc_operate(SubdocCmdContext& context) {
-    if (context.executed) {
-        return true;
+static bool do_xattr_phase(SubdocCmdContext& context) {
+    context.setCurrentPhase(SubdocCmdContext::Phase::XATTR);
+    if (!context.getOperations().empty()) {
+        mcbp_write_packet(&context.connection,
+                          PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     }
 
-    GenericBlockTimer<TimingHistogram, 0> bt(
-            &all_buckets[context.connection.getBucketIndex()].subjson_operation_times);
+    // Not implemented yet
+    return true;
+}
 
-    context.overall_status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+static bool do_body_phase(SubdocCmdContext& context) {
+    context.setCurrentPhase(SubdocCmdContext::Phase::Body);
 
     // 2. Perform each of the operations on document.
-    for (auto op = context.ops.begin(); op != context.ops.end(); op++) {
+    for (auto op = context.getOperations().begin(); op != context.getOperations().end(); op++) {
         op->status = subdoc_operate_one_path(context.connection, *op,
                                              context.in_doc);
 
@@ -660,7 +672,7 @@ static bool subdoc_operate(SubdocCmdContext& context) {
                 if (context.traits.is_mutator) {
                     // Unless this is the last operation, we need to make
                     // the result document be input for the next operation.
-                    auto last_op = std::prev(context.ops.end());
+                    auto last_op = std::prev(context.getOperations().end());
                     if (op == last_op) {
                         continue;
                     }
@@ -725,9 +737,28 @@ static bool subdoc_operate(SubdocCmdContext& context) {
         }
     }
 
-    context.executed = true;
-
     return true;
+}
+
+
+// Operate on the document as specified by the command context.
+// Returns true if the command was successful (and execution should continue),
+// else false.
+static bool subdoc_operate(SubdocCmdContext& context) {
+    if (context.executed) {
+        return true;
+    }
+
+    GenericBlockTimer<TimingHistogram, 0> bt(
+            &all_buckets[context.connection.getBucketIndex()].subjson_operation_times);
+
+    context.overall_status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    if (do_xattr_phase(context) && do_body_phase(context)) {
+        context.executed = true;
+        return true;
+    }
+
+    return false;
 }
 
 // Update the engine with whatever modifications the subdocument command made
@@ -739,6 +770,13 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                                        size_t keylen, uint16_t vbucket,
                                        uint32_t expiration) {
     auto& connection = context.connection;
+
+    if (context.getCurrentPhase() == SubdocCmdContext::Phase::XATTR) {
+        LOG_WARNING(&connection,
+                    "Internal error: We should not reach subdoc_update in the xattr phase");
+        return ENGINE_FAILED;
+    }
+
     auto* handle = reinterpret_cast<ENGINE_HANDLE*>(connection.getBucketEngine());
 
     if (!context.traits.is_mutator) {
@@ -758,7 +796,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
 
     // Calculate the updated document length - use the last operation result.
     context.out_doc_len = 0;
-    for (auto& loc : context.ops.back().result.newdoc()) {
+    for (auto& loc : context.getOperations().back().result.newdoc()) {
         context.out_doc_len += loc.length;
     }
 
@@ -811,7 +849,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
 
         // Copy the new document into the item.
         char* write_ptr = static_cast<char*>(new_doc_info.value[0].iov_base);
-        for (auto& loc : context.ops.back().result.newdoc()) {
+        for (auto& loc : context.getOperations().back().result.newdoc()) {
             std::copy(loc.at, loc.at + loc.length, write_ptr);
             write_ptr += loc.length;
         }
@@ -918,7 +956,14 @@ static void subdoc_single_response(SubdocCmdContext& context) {
     const char* value = NULL;
     context.response_val_len = 0;
     if (context.traits.response_has_value) {
-        auto mloc = context.ops[0].result.matchloc();
+        // The value may have been created in the xattr or the body phase
+        // so it should only be one, so if it isn't an xattr it should be
+        // in the body
+        SubdocCmdContext::Phase phase = SubdocCmdContext::Phase::XATTR;
+        if (context.getOperations(phase).empty()) {
+            phase = SubdocCmdContext::Phase::Body;
+        }
+        auto mloc = context.getOperations(phase)[0].result.matchloc();
         value = mloc.at;
         context.response_val_len = mloc.length;
     }
@@ -988,13 +1033,16 @@ static void subdoc_multi_mutation_response(SubdocCmdContext& context) {
     if (context.overall_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         // on success, one per each non-zero length result.
         response_buf_needed = 0;
-        for (size_t ii = 0; ii < context.ops.size(); ii++) {
-            const auto& op = context.ops[ii];
-            const auto mloc = op.result.matchloc();
-            if (op.traits.response_has_value && mloc.length > 0) {
-                response_buf_needed += sizeof(uint8_t) + sizeof(uint16_t) +
-                                       sizeof(uint32_t);
-                iov_len += mloc.length;
+        for (auto phase : phases) {
+            for (size_t ii = 0;
+                 ii < context.getOperations(phase).size(); ii++) {
+                const auto& op = context.getOperations(phase)[ii];
+                const auto mloc = op.result.matchloc();
+                if (op.traits.response_has_value && mloc.length > 0) {
+                    response_buf_needed += sizeof(uint8_t) + sizeof(uint16_t) +
+                                           sizeof(uint32_t);
+                    iov_len += mloc.length;
+                }
             }
         }
     } else {
@@ -1024,33 +1072,38 @@ static void subdoc_multi_mutation_response(SubdocCmdContext& context) {
     }
 
     // Append the iovecs for each operation result.
-    for (size_t ii = 0; ii < context.ops.size(); ii++) {
-        const auto& op = context.ops[ii];
-        // Successful - encode all non-zero length results.
-        if (context.overall_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-            const auto mloc = op.result.matchloc();
-            if (op.traits.response_has_value && mloc.length > 0) {
-                char* header = response_buf.getCurrent();
-                size_t header_sz =
-                        encode_multi_mutation_result_spec(ii, op, header);
+    size_t index = 0;
+    for (auto phase : phases) {
+        for (size_t ii = 0; ii < context.getOperations(phase).size(); ii++, index++) {
+            const auto& op = context.getOperations(phase)[ii];
+            // Successful - encode all non-zero length results.
+            if (context.overall_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+                const auto mloc = op.result.matchloc();
+                if (op.traits.response_has_value && mloc.length > 0) {
+                    char* header = response_buf.getCurrent();
+                    size_t header_sz =
+                        encode_multi_mutation_result_spec(index, op, header);
 
-                connection.addIov(reinterpret_cast<void*>(header), header_sz);
-                connection.addIov(mloc.at, mloc.length);
+                    connection.addIov(reinterpret_cast<void*>(header),
+                                      header_sz);
+                    connection.addIov(mloc.at, mloc.length);
 
-                response_buf.moveOffset(header_sz);
-            }
-        } else {
-            // Failure - encode first unsuccessful path index and status.
-            if (op.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-                char* header = response_buf.getCurrent();
-                size_t header_sz =
-                        encode_multi_mutation_result_spec(ii, op, header);
+                    response_buf.moveOffset(header_sz);
+                }
+            } else {
+                // Failure - encode first unsuccessful path index and status.
+                if (op.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+                    char* header = response_buf.getCurrent();
+                    size_t header_sz =
+                        encode_multi_mutation_result_spec(index, op, header);
 
-                connection.addIov(reinterpret_cast<void*>(header), header_sz);
-                response_buf.moveOffset(header_sz);
+                    connection.addIov(reinterpret_cast<void*>(header),
+                                      header_sz);
+                    response_buf.moveOffset(header_sz);
 
-                // Only the first unsuccessful op is reported.
-                break;
+                    // Only the first unsuccessful op is reported.
+                    break;
+                }
             }
         }
     }
@@ -1066,13 +1119,15 @@ static void subdoc_multi_lookup_response(SubdocCmdContext& context) {
 
     // Calculate the value length - sum of all the operation results.
     context.response_val_len = 0;
-    for (auto& op : context.ops) {
-        // 16bit status, 32bit resultlen, variable-length result.
-        size_t result_size = sizeof(uint16_t) + sizeof(uint32_t);
-        if (op.traits.response_has_value) {
-            result_size += op.result.matchloc().length;
+    for (auto phase : phases) {
+        for (auto& op : context.getOperations(phase)) {
+            // 16bit status, 32bit resultlen, variable-length result.
+            size_t result_size = sizeof(uint16_t) + sizeof(uint32_t);
+            if (op.traits.response_has_value) {
+                result_size += op.result.matchloc().length;
+            }
+            context.response_val_len += result_size;
         }
-        context.response_val_len += result_size;
     }
 
     // We need two iovecs per operation result:
@@ -1080,7 +1135,10 @@ static void subdoc_multi_lookup_response(SubdocCmdContext& context) {
     // 2. actual value - this already resides either in the original document
     //                   (for lookups) or stored in the Subdoc::Result.
     DynamicBuffer& response_buf = connection.getDynamicBuffer();
-    size_t needed = (sizeof(uint16_t) + sizeof(uint32_t)) * context.ops.size();
+    size_t needed = (sizeof(uint16_t) + sizeof(uint32_t)) *
+        (context.getOperations(SubdocCmdContext::Phase::XATTR).size() +
+         context.getOperations(SubdocCmdContext::Phase::Body).size());
+
     if (!response_buf.grow(needed)) {
         // Unable to form complete response.
         mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_ENOMEM);
@@ -1093,26 +1151,29 @@ static void subdoc_multi_lookup_response(SubdocCmdContext& context) {
     rsp->message.header.response.cas = htonll(connection.getCAS());
 
     // Append the iovecs for each operation result.
-    for (auto& op : context.ops) {
-        auto mloc = op.result.matchloc();
+    for (auto phase : phases) {
+        for (auto& op : context.getOperations(phase)) {
+            auto mloc = op.result.matchloc();
 
-        // Header is always included. Result value included if the response for
-        // this command has a value (e.g. not for EXISTS).
-        char* header = response_buf.getCurrent();
-        const size_t header_sz = sizeof(uint16_t) + sizeof(uint32_t);
-        *reinterpret_cast<uint16_t*>(header) = htons(op.status);
-        uint32_t result_len = 0;
-        if (op.traits.response_has_value) {
-            result_len = htonl(uint32_t(mloc.length));
+            // Header is always included. Result value included if the response for
+            // this command has a value (e.g. not for EXISTS).
+            char* header = response_buf.getCurrent();
+            const size_t header_sz = sizeof(uint16_t) + sizeof(uint32_t);
+            *reinterpret_cast<uint16_t*>(header) = htons(op.status);
+            uint32_t result_len = 0;
+            if (op.traits.response_has_value) {
+                result_len = htonl(uint32_t(mloc.length));
+            }
+            *reinterpret_cast<uint32_t*>(header +
+                                         sizeof(uint16_t)) = result_len;
+
+            connection.addIov(reinterpret_cast<void*>(header), header_sz);
+
+            if (result_len != 0) {
+                connection.addIov(mloc.at, mloc.length);
+            }
+            response_buf.moveOffset(header_sz);
         }
-        *reinterpret_cast<uint32_t*>(header + sizeof(uint16_t)) = result_len;
-
-        connection.addIov(reinterpret_cast<void*>(header), header_sz);
-
-        if (result_len != 0) {
-            connection.addIov(mloc.at, mloc.length);
-        }
-        response_buf.moveOffset(header_sz);
     }
 
     connection.setState(conn_mwrite);
