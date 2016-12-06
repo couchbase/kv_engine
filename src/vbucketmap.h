@@ -30,7 +30,7 @@
  * A map of known vbuckets.
  */
 class VBucketMap {
-friend class EPBucket;
+friend class KVBucket;
 friend class Warmup;
 
     class VBucketConfigChangeListener : public ValueChangedListener {

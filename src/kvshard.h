@@ -52,7 +52,7 @@
  *   -----------------------------------
  *
  */
-class EPBucket;
+class KVBucket;
 class Flusher;
 class KVBucketIface;
 

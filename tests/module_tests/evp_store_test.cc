@@ -77,7 +77,7 @@ SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
     tapConfig = new TapConfig(*this);
 }
 
-void SynchronousEPEngine::setEPStore(EPBucket* store) {
+void SynchronousEPEngine::setEPStore(KVBucket* store) {
     cb_assert(kvBucket == nullptr);
     kvBucket = store;
 }
@@ -88,7 +88,7 @@ void SynchronousEPEngine::initializeConnmaps() {
 }
 
 MockEPStore::MockEPStore(EventuallyPersistentEngine &theEngine)
-    : EPBucket(theEngine) {
+    : KVBucket(theEngine) {
     // Perform a limited set of setup (normally done by EPStore::initialize) -
     // enough such that objects which are assumed to exist are present.
 

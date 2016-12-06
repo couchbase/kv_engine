@@ -31,7 +31,7 @@ class ExtendedMetaData;
 class BGFetchCallback;
 class ConflictResolution;
 class DefragmenterTask;
-class EPBucket;
+class KVBucket;
 class Flusher;
 class MutationLog;
 class PauseResumeEPStoreVisitor;
@@ -146,7 +146,7 @@ public:
 
         uint16_t vbucket_id;
 
-        friend class EPBucket;
+        friend class KVBucket;
         friend std::ostream& operator<<(std::ostream& os, const Position& pos);
     };
 

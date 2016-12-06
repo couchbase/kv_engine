@@ -2156,7 +2156,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     const std::string bucketType = configuration.getBucketType();
     if (bucketType == "persistent") {
-        kvBucket = new EPBucket(*this);
+        kvBucket = new KVBucket(*this);
     } else {
         throw std::invalid_argument(bucketType + " is not a recognized bucket "
                                     "type");

@@ -55,7 +55,7 @@
 
 class StatsValueChangeListener : public ValueChangedListener {
 public:
-    StatsValueChangeListener(EPStats& st, EPBucket& str)
+    StatsValueChangeListener(EPStats& st, KVBucket& str)
         : stats(st), store(str) {
         // EMPTY
     }
@@ -96,7 +96,7 @@ public:
 
 private:
     EPStats& stats;
-    EPBucket& store;
+    KVBucket& store;
 };
 
 /**
@@ -106,7 +106,7 @@ private:
  */
 class EPStoreValueChangeListener : public ValueChangedListener {
 public:
-    EPStoreValueChangeListener(EPBucket& st) : store(st) {
+    EPStoreValueChangeListener(KVBucket& st) : store(st) {
     }
 
     virtual void sizeValueChanged(const std::string &key, size_t value) {
@@ -168,7 +168,7 @@ public:
     }
 
 private:
-    EPBucket& store;
+    KVBucket& store;
 };
 
 /**
@@ -177,7 +177,7 @@ private:
  */
 class BloomFilterCallback : public Callback<uint16_t&, const DocKey&, bool&> {
 public:
-    BloomFilterCallback(EPBucket& eps)
+    BloomFilterCallback(KVBucket& eps)
         : store(eps) {
     }
 
@@ -230,7 +230,7 @@ public:
 
 private:
     bool initTempFilter(uint16_t vbucketId);
-    EPBucket& store;
+    KVBucket& store;
 };
 
 bool BloomFilterCallback::initTempFilter(uint16_t vbucketId) {
@@ -297,7 +297,7 @@ bool BloomFilterCallback::initTempFilter(uint16_t vbucketId) {
 class ExpiredItemsCallback : public Callback<uint16_t&, const DocKey&, uint64_t&,
                                              time_t&> {
     public:
-        ExpiredItemsCallback(EPBucket& store)
+        ExpiredItemsCallback(KVBucket& store)
             : epstore(store) { }
 
         void callback(uint16_t& vbid, const DocKey& key, uint64_t& revSeqno,
@@ -309,7 +309,7 @@ class ExpiredItemsCallback : public Callback<uint16_t&, const DocKey&, uint64_t&
         }
 
     private:
-        EPBucket& epstore;
+        KVBucket& epstore;
 };
 
 class PendingOpsNotification : public GlobalTask {
@@ -336,7 +336,7 @@ private:
     RCPtr<VBucket> vbucket;
 };
 
-EPBucket::EPBucket(
+KVBucket::KVBucket(
     EventuallyPersistentEngine &theEngine) :
     engine(theEngine), stats(engine.getEpStats()),
     vbMap(theEngine.getConfiguration(), *this),
@@ -375,7 +375,7 @@ EPBucket::EPBucket(
     size_t num_vbs = config.getMaxVbuckets();
     vb_mutexes = new std::mutex[num_vbs];
 
-    *stats.memOverhead = sizeof(EPBucket);
+    *stats.memOverhead = sizeof(KVBucket);
 
     if (config.getConflictResolutionType().compare("lww") == 0) {
         conflictResolver.reset(new LastWriteWinsResolution());
@@ -469,7 +469,7 @@ EPBucket::EPBucket(
     warmupTask = new Warmup(*this, config);
 }
 
-bool EPBucket::initialize() {
+bool KVBucket::initialize() {
     // We should nuke everything unless we want warmup
     Configuration &config = engine.getConfiguration();
     if (!config.isWarmup()) {
@@ -528,7 +528,7 @@ bool EPBucket::initialize() {
     return true;
 }
 
-void EPBucket::deinitialize() {
+void KVBucket::deinitialize() {
     stopWarmup();
     stopBgFetcher();
     ExecutorPool::get()->stopTaskGroup(engine.getTaskable().getGID(),
@@ -547,7 +547,7 @@ void EPBucket::deinitialize() {
                                             stats.forceShutdown);
 }
 
-EPBucket::~EPBucket() {
+KVBucket::~KVBucket() {
     delete [] vb_mutexes;
     delete [] stats.schedulingHisto;
     delete [] stats.taskRuntimeHisto;
@@ -560,32 +560,32 @@ EPBucket::~EPBucket() {
     }
 }
 
-const Flusher* EPBucket::getFlusher(uint16_t shardId) {
+const Flusher* KVBucket::getFlusher(uint16_t shardId) {
     return vbMap.shards[shardId]->getFlusher();
 }
 
-uint16_t EPBucket::getCommitInterval(uint16_t shardId) {
+uint16_t KVBucket::getCommitInterval(uint16_t shardId) {
     Flusher *flusher = vbMap.shards[shardId]->getFlusher();
     return flusher->getCommitInterval();
 }
 
-uint16_t EPBucket::decrCommitInterval(uint16_t shardId) {
+uint16_t KVBucket::decrCommitInterval(uint16_t shardId) {
     Flusher *flusher = vbMap.shards[shardId]->getFlusher();
     return flusher->decrCommitInterval();
 }
 
-Warmup* EPBucket::getWarmup(void) const {
+Warmup* KVBucket::getWarmup(void) const {
     return warmupTask;
 }
 
-bool EPBucket::startFlusher() {
+bool KVBucket::startFlusher() {
     for (const auto& shard : vbMap.shards) {
         shard->getFlusher()->start();
     }
     return true;
 }
 
-void EPBucket::stopFlusher() {
+void KVBucket::stopFlusher() {
     for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
         Flusher *flusher = vbMap.shards[i]->getFlusher();
         LOG(EXTENSION_LOG_NOTICE, "Attempting to stop the flusher for "
@@ -597,7 +597,7 @@ void EPBucket::stopFlusher() {
     }
 }
 
-bool EPBucket::pauseFlusher() {
+bool KVBucket::pauseFlusher() {
     bool rv = true;
     for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
         Flusher *flusher = vbMap.shards[i]->getFlusher();
@@ -610,7 +610,7 @@ bool EPBucket::pauseFlusher() {
     return rv;
 }
 
-bool EPBucket::resumeFlusher() {
+bool KVBucket::resumeFlusher() {
     bool rv = true;
     for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
         Flusher *flusher = vbMap.shards[i]->getFlusher();
@@ -624,7 +624,7 @@ bool EPBucket::resumeFlusher() {
     return rv;
 }
 
-void EPBucket::wakeUpFlusher() {
+void KVBucket::wakeUpFlusher() {
     if (stats.diskQueueSize.load() == 0) {
         for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
             Flusher *flusher = vbMap.shards[i]->getFlusher();
@@ -633,7 +633,7 @@ void EPBucket::wakeUpFlusher() {
     }
 }
 
-bool EPBucket::startBgFetcher() {
+bool KVBucket::startBgFetcher() {
     for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
         BgFetcher *bgfetcher = vbMap.shards[i]->getBgFetcher();
         if (bgfetcher == NULL) {
@@ -646,7 +646,7 @@ bool EPBucket::startBgFetcher() {
     return true;
 }
 
-void EPBucket::stopBgFetcher() {
+void KVBucket::stopBgFetcher() {
     for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
         BgFetcher *bgfetcher = vbMap.shards[i]->getBgFetcher();
         if (multiBGFetchEnabled() && bgfetcher->pendingJob()) {
@@ -659,7 +659,7 @@ void EPBucket::stopBgFetcher() {
     }
 }
 
-void EPBucket::deleteExpiredItem(uint16_t vbid, const DocKey& key,
+void KVBucket::deleteExpiredItem(uint16_t vbid, const DocKey& key,
                                  time_t startTime, uint64_t revSeqno,
                                  exp_type_t source) {
     RCPtr<VBucket> vb = getVBucket(vbid);
@@ -711,7 +711,7 @@ void EPBucket::deleteExpiredItem(uint16_t vbid, const DocKey& key,
     }
 }
 
-void EPBucket::deleteExpiredItems(std::list<std::pair<uint16_t,
+void KVBucket::deleteExpiredItems(std::list<std::pair<uint16_t,
                                   StoredDocKey> > &keys, exp_type_t source) {
     std::list<std::pair<uint16_t, std::string> >::iterator it;
     time_t startTime = ep_real_time();
@@ -720,7 +720,7 @@ void EPBucket::deleteExpiredItems(std::list<std::pair<uint16_t,
     }
 }
 
-StoredValue *EPBucket::fetchValidValue(RCPtr<VBucket> &vb,
+StoredValue *KVBucket::fetchValidValue(RCPtr<VBucket> &vb,
                                        const DocKey& key,
                                        int bucket_num,
                                        bool wantDeleted,
@@ -747,7 +747,7 @@ StoredValue *EPBucket::fetchValidValue(RCPtr<VBucket> &vb,
     return v;
 }
 
-bool EPBucket::isMetaDataResident(RCPtr<VBucket> &vb, const DocKey& key) {
+bool KVBucket::isMetaDataResident(RCPtr<VBucket> &vb, const DocKey& key) {
 
     if (!vb) {
         throw std::invalid_argument("EPStore::isMetaDataResident: vb is NULL");
@@ -764,7 +764,7 @@ bool EPBucket::isMetaDataResident(RCPtr<VBucket> &vb, const DocKey& key) {
     }
 }
 
-protocol_binary_response_status EPBucket::evictKey(const DocKey& key,
+protocol_binary_response_status KVBucket::evictKey(const DocKey& key,
                                                    uint16_t vbucket,
                                                    const char **msg,
                                                    size_t *msg_size) {
@@ -809,7 +809,7 @@ protocol_binary_response_status EPBucket::evictKey(const DocKey& key,
     return rv;
 }
 
-ENGINE_ERROR_CODE EPBucket::addTempItemForBgFetch(std::unique_lock<std::mutex>& lock,
+ENGINE_ERROR_CODE KVBucket::addTempItemForBgFetch(std::unique_lock<std::mutex>& lock,
                                                   int bucket_num,
                                                   const DocKey& key,
                                                   RCPtr<VBucket> &vb,
@@ -839,7 +839,7 @@ ENGINE_ERROR_CODE EPBucket::addTempItemForBgFetch(std::unique_lock<std::mutex>& 
     return ENGINE_EWOULDBLOCK;
 }
 
-ENGINE_ERROR_CODE EPBucket::set(Item &itm, const void *cookie) {
+ENGINE_ERROR_CODE KVBucket::set(Item &itm, const void *cookie) {
 
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb) {
@@ -936,7 +936,7 @@ ENGINE_ERROR_CODE EPBucket::set(Item &itm, const void *cookie) {
     return ret;
 }
 
-ENGINE_ERROR_CODE EPBucket::add(Item &itm, const void *cookie)
+ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
 {
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb) {
@@ -1012,7 +1012,7 @@ ENGINE_ERROR_CODE EPBucket::add(Item &itm, const void *cookie)
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EPBucket::replace(Item &itm, const void *cookie) {
+ENGINE_ERROR_CODE KVBucket::replace(Item &itm, const void *cookie) {
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -1099,7 +1099,7 @@ ENGINE_ERROR_CODE EPBucket::replace(Item &itm, const void *cookie) {
     }
 }
 
-ENGINE_ERROR_CODE EPBucket::addTAPBackfillItem(Item &itm, bool genBySeqno,
+ENGINE_ERROR_CODE KVBucket::addTAPBackfillItem(Item &itm, bool genBySeqno,
                                                ExtendedMetaData *emd) {
 
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
@@ -1163,7 +1163,7 @@ ENGINE_ERROR_CODE EPBucket::addTAPBackfillItem(Item &itm, bool genBySeqno,
     return ret;
 }
 
-ENGINE_ERROR_CODE EPBucket::setVBucketState(uint16_t vbid,
+ENGINE_ERROR_CODE KVBucket::setVBucketState(uint16_t vbid,
                                             vbucket_state_t to,
                                             bool transfer,
                                             bool notify_dcp) {
@@ -1172,7 +1172,7 @@ ENGINE_ERROR_CODE EPBucket::setVBucketState(uint16_t vbid,
     return setVBucketState_UNLOCKED(vbid, to, transfer, notify_dcp, lh);
 }
 
-ENGINE_ERROR_CODE EPBucket::setVBucketState_UNLOCKED(uint16_t vbid,
+ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(uint16_t vbid,
                                                      vbucket_state_t to,
                                                      bool transfer,
                                                      bool notify_dcp,
@@ -1257,13 +1257,13 @@ ENGINE_ERROR_CODE EPBucket::setVBucketState_UNLOCKED(uint16_t vbid,
     return ENGINE_SUCCESS;
 }
 
-void EPBucket::scheduleVBStatePersist() {
+void KVBucket::scheduleVBStatePersist() {
     for (auto vbid : vbMap.getBuckets()) {
         scheduleVBStatePersist(vbid);
     }
 }
 
-void EPBucket::scheduleVBStatePersist(VBucket::id_type vbid) {
+void KVBucket::scheduleVBStatePersist(VBucket::id_type vbid) {
     RCPtr<VBucket> vb = getVBucket(vbid);
 
     if (!vb) {
@@ -1276,7 +1276,7 @@ void EPBucket::scheduleVBStatePersist(VBucket::id_type vbid) {
     vb->checkpointManager.queueSetVBState(*vb);
 }
 
-bool EPBucket::completeVBucketDeletion(uint16_t vbid, const void* cookie) {
+bool KVBucket::completeVBucketDeletion(uint16_t vbid, const void* cookie) {
     hrtime_t start_time(gethrtime());
     bool bucketDeleting;
     {
@@ -1313,7 +1313,7 @@ bool EPBucket::completeVBucketDeletion(uint16_t vbid, const void* cookie) {
     return true;
 }
 
-void EPBucket::scheduleVBDeletion(RCPtr<VBucket> &vb, const void* cookie,
+void KVBucket::scheduleVBDeletion(RCPtr<VBucket> &vb, const void* cookie,
                                   double delay) {
     ExTask delTask = new VBucketMemoryDeletionTask(engine, vb, delay);
     ExecutorPool::get()->schedule(delTask, NONIO_TASK_IDX);
@@ -1324,7 +1324,7 @@ void EPBucket::scheduleVBDeletion(RCPtr<VBucket> &vb, const void* cookie,
     }
 }
 
-ENGINE_ERROR_CODE EPBucket::deleteVBucket(uint16_t vbid, const void* c) {
+ENGINE_ERROR_CODE KVBucket::deleteVBucket(uint16_t vbid, const void* c) {
     // Lock to prevent a race condition between a failed update and add
     // (and delete).
     RCPtr<VBucket> vb;
@@ -1346,7 +1346,7 @@ ENGINE_ERROR_CODE EPBucket::deleteVBucket(uint16_t vbid, const void* c) {
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EPBucket::checkForDBExistence(DBFileId db_file_id) {
+ENGINE_ERROR_CODE KVBucket::checkForDBExistence(DBFileId db_file_id) {
     std::string backend = engine.getConfiguration().getBackend();
     if (backend.compare("couchdb") == 0) {
         RCPtr<VBucket> vb = vbMap.getBucket(db_file_id);
@@ -1367,7 +1367,7 @@ ENGINE_ERROR_CODE EPBucket::checkForDBExistence(DBFileId db_file_id) {
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EPBucket::scheduleCompaction(uint16_t vbid, compaction_ctx c,
+ENGINE_ERROR_CODE KVBucket::scheduleCompaction(uint16_t vbid, compaction_ctx c,
                                                const void *cookie) {
     ENGINE_ERROR_CODE errCode = checkForDBExistence(c.db_file_id);
     if (errCode != ENGINE_SUCCESS) {
@@ -1408,12 +1408,12 @@ ENGINE_ERROR_CODE EPBucket::scheduleCompaction(uint16_t vbid, compaction_ctx c,
    return ENGINE_EWOULDBLOCK;
 }
 
-uint16_t EPBucket::getDBFileId(const protocol_binary_request_compact_db& req) {
+uint16_t KVBucket::getDBFileId(const protocol_binary_request_compact_db& req) {
     KVStore *store = vbMap.shards[0]->getROUnderlying();
     return store->getDBFileId(req);
 }
 
-void EPBucket::compactInternal(compaction_ctx *ctx) {
+void KVBucket::compactInternal(compaction_ctx *ctx) {
     BloomFilterCBPtr filter(new BloomFilterCallback(*this));
     ctx->bloomFilterCallback = filter;
 
@@ -1445,7 +1445,7 @@ void EPBucket::compactInternal(compaction_ctx *ctx) {
     }
 }
 
-bool EPBucket::doCompact(compaction_ctx *ctx, const void *cookie) {
+bool KVBucket::doCompact(compaction_ctx *ctx, const void *cookie) {
     ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
     StorageProperties storeProp = getStorageProperties();
     bool concWriteCompact = storeProp.hasConcWriteCompact();
@@ -1488,7 +1488,7 @@ bool EPBucket::doCompact(compaction_ctx *ctx, const void *cookie) {
     return false;
 }
 
-void EPBucket::updateCompactionTasks(DBFileId db_file_id) {
+void KVBucket::updateCompactionTasks(DBFileId db_file_id) {
     LockHolder lh(compactionLock);
     bool erased = false, woke = false;
     std::list<CompTaskEntry>::iterator it = compactionTasks.begin();
@@ -1510,12 +1510,12 @@ void EPBucket::updateCompactionTasks(DBFileId db_file_id) {
     }
 }
 
-bool EPBucket::resetVBucket(uint16_t vbid) {
+bool KVBucket::resetVBucket(uint16_t vbid) {
     LockHolder lh(vbsetMutex);
     return resetVBucket_UNLOCKED(vbid, lh);
 }
 
-bool EPBucket::resetVBucket_UNLOCKED(uint16_t vbid, LockHolder& vbset) {
+bool KVBucket::resetVBucket_UNLOCKED(uint16_t vbid, LockHolder& vbset) {
     bool rv(false);
 
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
@@ -1563,7 +1563,7 @@ extern "C" {
     }
 }
 
-void EPBucket::snapshotStats() {
+void KVBucket::snapshotStats() {
     snapshot_stats_t snap;
     snap.engine = &engine;
     bool rv = engine.getStats(&snap, NULL, 0, add_stat) == ENGINE_SUCCESS &&
@@ -1580,7 +1580,7 @@ void EPBucket::snapshotStats() {
     getOneRWUnderlying()->snapshotStats(snap.smap);
 }
 
-DBFileInfo EPBucket::getFileStats(const void *cookie) {
+DBFileInfo KVBucket::getFileStats(const void *cookie) {
     uint16_t numShards = vbMap.getNumShards();
     DBFileInfo totalInfo;
 
@@ -1595,7 +1595,7 @@ DBFileInfo EPBucket::getFileStats(const void *cookie) {
 }
 
 
-void EPBucket::updateBGStats(const hrtime_t init, const hrtime_t start,
+void KVBucket::updateBGStats(const hrtime_t init, const hrtime_t start,
                              const hrtime_t stop) {
     if (stop >= start && start >= init) {
         // skip the measurement if the counter wrapped...
@@ -1616,7 +1616,7 @@ void EPBucket::updateBGStats(const hrtime_t init, const hrtime_t start,
     }
 }
 
-void EPBucket::completeBGFetch(const DocKey& key, uint16_t vbucket,
+void KVBucket::completeBGFetch(const DocKey& key, uint16_t vbucket,
                                const void *cookie, hrtime_t init, bool isMeta) {
     hrtime_t start(gethrtime());
     // Go find the data
@@ -1648,7 +1648,7 @@ void EPBucket::completeBGFetch(const DocKey& key, uint16_t vbucket,
     delete gcb.val.getValue();
 }
 
-void EPBucket::completeBGFetchMulti(
+void KVBucket::completeBGFetchMulti(
                                 uint16_t vbId,
                                 std::vector<bgfetched_item_t> &fetchedItems,
                                 hrtime_t startTime)
@@ -1677,7 +1677,7 @@ void EPBucket::completeBGFetchMulti(
     }
 }
 
-void EPBucket::bgFetch(const DocKey& key, uint16_t vbucket,
+void KVBucket::bgFetch(const DocKey& key, uint16_t vbucket,
                        const void *cookie, bool isMeta) {
     if (multiBGFetchEnabled()) {
         RCPtr<VBucket> vb = getVBucket(vbucket);
@@ -1710,7 +1710,7 @@ void EPBucket::bgFetch(const DocKey& key, uint16_t vbucket,
     }
 }
 
-GetValue EPBucket::getInternal(const DocKey& key, uint16_t vbucket,
+GetValue KVBucket::getInternal(const DocKey& key, uint16_t vbucket,
                                const void *cookie, vbucket_state_t allowedState,
                                get_options_t options) {
 
@@ -1799,7 +1799,7 @@ GetValue EPBucket::getInternal(const DocKey& key, uint16_t vbucket,
     }
 }
 
-GetValue EPBucket::getRandomKey() {
+GetValue KVBucket::getRandomKey() {
     VBucketMap::id_type max = vbMap.getSize();
 
     const long start = random() % max;
@@ -1838,7 +1838,7 @@ GetValue EPBucket::getRandomKey() {
 }
 
 
-ENGINE_ERROR_CODE EPBucket::getMetaData(const DocKey& key,
+ENGINE_ERROR_CODE KVBucket::getMetaData(const DocKey& key,
                                         uint16_t vbucket,
                                         const void *cookie,
                                         ItemMetaData &metadata,
@@ -1908,7 +1908,7 @@ ENGINE_ERROR_CODE EPBucket::getMetaData(const DocKey& key,
     }
 }
 
-ENGINE_ERROR_CODE EPBucket::setWithMeta(Item &itm,
+ENGINE_ERROR_CODE KVBucket::setWithMeta(Item &itm,
                                         uint64_t cas,
                                         uint64_t *seqno,
                                         const void *cookie,
@@ -2024,7 +2024,7 @@ ENGINE_ERROR_CODE EPBucket::setWithMeta(Item &itm,
     return ret;
 }
 
-GetValue EPBucket::getAndUpdateTtl(const DocKey& key, uint16_t vbucket,
+GetValue KVBucket::getAndUpdateTtl(const DocKey& key, uint16_t vbucket,
                                    const void *cookie, time_t exptime)
 {
     RCPtr<VBucket> vb = getVBucket(vbucket);
@@ -2101,7 +2101,7 @@ GetValue EPBucket::getAndUpdateTtl(const DocKey& key, uint16_t vbucket,
     }
 }
 
-ENGINE_ERROR_CODE EPBucket::statsVKey(const DocKey& key, uint16_t vbucket,
+ENGINE_ERROR_CODE KVBucket::statsVKey(const DocKey& key, uint16_t vbucket,
                                       const void *cookie) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb) {
@@ -2157,7 +2157,7 @@ ENGINE_ERROR_CODE EPBucket::statsVKey(const DocKey& key, uint16_t vbucket,
     }
 }
 
-void EPBucket::completeStatsVKey(const void* cookie, const DocKey& key,
+void KVBucket::completeStatsVKey(const void* cookie, const DocKey& key,
                                  uint16_t vbid, uint64_t bySeqNum) {
     RememberingCallback<GetValue> gcb;
 
@@ -2201,7 +2201,7 @@ void EPBucket::completeStatsVKey(const void* cookie, const DocKey& key,
     engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
 }
 
-GetValue EPBucket::getLocked(const DocKey& key, uint16_t vbucket,
+GetValue KVBucket::getLocked(const DocKey& key, uint16_t vbucket,
                              rel_time_t currentTime, uint32_t lockTimeout,
                              const void *cookie) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
@@ -2265,7 +2265,7 @@ GetValue EPBucket::getLocked(const DocKey& key, uint16_t vbucket,
     }
 }
 
-ENGINE_ERROR_CODE EPBucket::unlockKey(const DocKey& key,
+ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
                                       uint16_t vbucket,
                                       uint64_t cas,
                                       rel_time_t currentTime)
@@ -2309,7 +2309,7 @@ ENGINE_ERROR_CODE EPBucket::unlockKey(const DocKey& key,
 }
 
 
-ENGINE_ERROR_CODE EPBucket::getKeyStats(const DocKey& key,
+ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
                                         uint16_t vbucket,
                                         const void *cookie,
                                         struct key_stats &kstats,
@@ -2358,7 +2358,7 @@ ENGINE_ERROR_CODE EPBucket::getKeyStats(const DocKey& key,
     }
 }
 
-std::string EPBucket::validateKey(const DocKey& key, uint16_t vbucket,
+std::string KVBucket::validateKey(const DocKey& key, uint16_t vbucket,
                                   Item &diskItem) {
     int bucket_num(0);
     RCPtr<VBucket> vb = getVBucket(vbucket);
@@ -2387,7 +2387,7 @@ std::string EPBucket::validateKey(const DocKey& key, uint16_t vbucket,
 
 }
 
-ENGINE_ERROR_CODE EPBucket::deleteItem(const DocKey& key,
+ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
                                        uint64_t *cas,
                                        uint16_t vbucket,
                                        const void *cookie,
@@ -2530,7 +2530,7 @@ ENGINE_ERROR_CODE EPBucket::deleteItem(const DocKey& key,
     return ret;
 }
 
-ENGINE_ERROR_CODE EPBucket::deleteWithMeta(const DocKey& key,
+ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
                                            uint64_t *cas,
                                            uint64_t *seqno,
                                            uint16_t vbucket,
@@ -2671,7 +2671,7 @@ ENGINE_ERROR_CODE EPBucket::deleteWithMeta(const DocKey& key,
     return ret;
 }
 
-void EPBucket::reset() {
+void KVBucket::reset() {
     auto buckets = vbMap.getBuckets();
     for (auto vbid : buckets) {
         RCPtr<VBucket> vb = getVBucket(vbid);
@@ -2695,7 +2695,7 @@ void EPBucket::reset() {
  * Callback invoked after persisting an item from memory to disk.
  *
  * This class exists to create a closure around a few variables within
- * EPBucket::flushOne so that an object can be
+ * KVBucket::flushOne so that an object can be
  * requeued in case of failure to store in the underlying layer.
  */
 class PersistenceCallback : public Callback<mutation_result>,
@@ -2703,7 +2703,7 @@ class PersistenceCallback : public Callback<mutation_result>,
 public:
 
     PersistenceCallback(const queued_item &qi, RCPtr<VBucket> &vb,
-                        EPBucket& st, EPStats& s, uint64_t c)
+                        KVBucket& st, EPStats& s, uint64_t c)
         : queuedItem(qi), vbucket(vb), store(st), stats(s), cas(c) {
         if (!vb) {
             throw std::invalid_argument("PersistenceCallback(): vb is NULL");
@@ -2857,13 +2857,13 @@ private:
 
     const queued_item queuedItem;
     RCPtr<VBucket> vbucket;
-    EPBucket& store;
+    KVBucket& store;
     EPStats& stats;
     uint64_t cas;
     DISALLOW_COPY_AND_ASSIGN(PersistenceCallback);
 };
 
-bool EPBucket::scheduleFlushAllTask(const void* cookie) {
+bool KVBucket::scheduleFlushAllTask(const void* cookie) {
     bool inverse = false;
     if (diskFlushAll.compare_exchange_strong(inverse, true)) {
         flushAllTaskCtx.cookie = cookie;
@@ -2876,7 +2876,7 @@ bool EPBucket::scheduleFlushAllTask(const void* cookie) {
     }
 }
 
-void EPBucket::setFlushAllComplete() {
+void KVBucket::setFlushAllComplete() {
     // Notify memcached about flushAll task completion, and
     // set diskFlushall flag to false
     if (flushAllTaskCtx.cookie) {
@@ -2888,7 +2888,7 @@ void EPBucket::setFlushAllComplete() {
     diskFlushAll.compare_exchange_strong(inverse, false);
 }
 
-void EPBucket::flushOneDeleteAll() {
+void KVBucket::flushOneDeleteAll() {
     for (VBucketMap::id_type i = 0; i < vbMap.getSize(); ++i) {
         RCPtr<VBucket> vb = getVBucket(i);
         // Reset the vBucket if it's non-null and not already in the middle of
@@ -2903,7 +2903,7 @@ void EPBucket::flushOneDeleteAll() {
     setFlushAllComplete();
 }
 
-int EPBucket::flushVBucket(uint16_t vbid) {
+int KVBucket::flushVBucket(uint16_t vbid) {
     KVShard *shard = vbMap.getShardByVbId(vbid);
     if (diskFlushAll && !flushAllTaskCtx.delayFlushAll) {
         if (shard->getId() == EP_PRIMARY_SHARD) {
@@ -3106,7 +3106,7 @@ int EPBucket::flushVBucket(uint16_t vbid) {
     return items_flushed;
 }
 
-void EPBucket::commit(uint16_t shardId) {
+void KVBucket::commit(uint16_t shardId) {
     KVStore *rwUnderlying = getRWUnderlyingByShard(shardId);
     std::list<PersistenceCallback *>& pcbs = rwUnderlying->getPersistenceCbList();
     BlockTimer timer(&stats.diskCommitHisto, "disk_commit", stats.timingLog);
@@ -3148,7 +3148,7 @@ void EPBucket::commit(uint16_t shardId) {
     stats.cumulativeCommitTime.fetch_add(commit_time);
 }
 
-PersistenceCallback* EPBucket::flushOneDelOrSet(const queued_item &qi,
+PersistenceCallback* KVBucket::flushOneDelOrSet(const queued_item &qi,
                                                 RCPtr<VBucket> &vb) {
 
     if (!vb) {
@@ -3188,7 +3188,7 @@ PersistenceCallback* EPBucket::flushOneDelOrSet(const queued_item &qi,
     }
 }
 
-void EPBucket::queueDirty(RCPtr<VBucket> &vb,
+void KVBucket::queueDirty(RCPtr<VBucket> &vb,
                           StoredValue* v,
                           std::unique_lock<std::mutex>* plh,
                           uint64_t *seqno,
@@ -3225,7 +3225,7 @@ void EPBucket::queueDirty(RCPtr<VBucket> &vb,
     }
 }
 
-void EPBucket::tapQueueDirty(VBucket &vb,
+void KVBucket::tapQueueDirty(VBucket &vb,
                              StoredValue* v,
                              std::unique_lock<std::mutex>& plh,
                              uint64_t *seqno,
@@ -3256,12 +3256,12 @@ void EPBucket::tapQueueDirty(VBucket &vb,
     }
 }
 
-std::vector<vbucket_state *> EPBucket::loadVBucketState()
+std::vector<vbucket_state *> KVBucket::loadVBucketState()
 {
     return getOneROUnderlying()->listPersistedVbuckets();
 }
 
-void EPBucket::warmupCompleted() {
+void KVBucket::warmupCompleted() {
     // Snapshot VBucket state after warmup to ensure Failover table is
     // persisted.
     scheduleVBStatePersist();
@@ -3299,7 +3299,7 @@ void EPBucket::warmupCompleted() {
     statsSnapshotTaskId = iom->schedule(task, WRITER_TASK_IDX);
 }
 
-bool EPBucket::maybeEnableTraffic()
+bool KVBucket::maybeEnableTraffic()
 {
     // @todo rename.. skal vaere isTrafficDisabled elns
     double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
@@ -3346,15 +3346,15 @@ bool EPBucket::maybeEnableTraffic()
     return false;
 }
 
-bool EPBucket::isWarmingUp() {
+bool KVBucket::isWarmingUp() {
     return !warmupTask->isComplete();
 }
 
-bool EPBucket::isWarmupOOMFailure() {
+bool KVBucket::isWarmupOOMFailure() {
     return warmupTask->hasOOMFailure();
 }
 
-void EPBucket::stopWarmup(void)
+void KVBucket::stopWarmup(void)
 {
     // forcefully stop current warmup task
     if (isWarmingUp()) {
@@ -3365,7 +3365,7 @@ void EPBucket::stopWarmup(void)
     }
 }
 
-void EPBucket::completeBGFetchForSingleItem(RCPtr<VBucket> vb,
+void KVBucket::completeBGFetchForSingleItem(RCPtr<VBucket> vb,
                                             const DocKey& key,
                                             const hrtime_t startTime,
                                             VBucketBGFetchItem& fetched_item)
@@ -3466,17 +3466,17 @@ void EPBucket::completeBGFetchForSingleItem(RCPtr<VBucket> vb,
     engine.notifyIOComplete(fetched_item.cookie, status);
 }
 
-bool EPBucket::isMemoryUsageTooHigh() {
+bool KVBucket::isMemoryUsageTooHigh() {
     double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
     double maxSize = static_cast<double>(stats.getMaxDataSize());
     return memoryUsed > (maxSize * backfillMemoryThreshold);
 }
 
-void EPBucket::setBackfillMemoryThreshold(double threshold) {
+void KVBucket::setBackfillMemoryThreshold(double threshold) {
     backfillMemoryThreshold = threshold;
 }
 
-void EPBucket::setExpiryPagerSleeptime(size_t val) {
+void KVBucket::setExpiryPagerSleeptime(size_t val) {
     LockHolder lh(expiryPager.mutex);
 
     ExecutorPool::get()->cancel(expiryPager.task);
@@ -3493,7 +3493,7 @@ void EPBucket::setExpiryPagerSleeptime(size_t val) {
     }
 }
 
-void EPBucket::setExpiryPagerTasktime(ssize_t val) {
+void KVBucket::setExpiryPagerTasktime(ssize_t val) {
     LockHolder lh(expiryPager.mutex);
     if (expiryPager.enabled) {
         ExecutorPool::get()->cancel(expiryPager.task);
@@ -3509,7 +3509,7 @@ void EPBucket::setExpiryPagerTasktime(ssize_t val) {
     }
 }
 
-void EPBucket::enableExpiryPager() {
+void KVBucket::enableExpiryPager() {
     LockHolder lh(expiryPager.mutex);
     if (!expiryPager.enabled) {
         expiryPager.enabled = true;
@@ -3524,7 +3524,7 @@ void EPBucket::enableExpiryPager() {
     }
 }
 
-void EPBucket::disableExpiryPager() {
+void KVBucket::disableExpiryPager() {
     LockHolder lh(expiryPager.mutex);
     if (expiryPager.enabled) {
         ExecutorPool::get()->cancel(expiryPager.task);
@@ -3534,7 +3534,7 @@ void EPBucket::disableExpiryPager() {
     }
 }
 
-void EPBucket::enableAccessScannerTask() {
+void KVBucket::enableAccessScannerTask() {
     LockHolder lh(accessScanner.mutex);
     if (!accessScanner.enabled) {
         accessScanner.enabled = true;
@@ -3559,7 +3559,7 @@ void EPBucket::enableAccessScannerTask() {
     }
 }
 
-void EPBucket::disableAccessScannerTask() {
+void KVBucket::disableAccessScannerTask() {
     LockHolder lh(accessScanner.mutex);
     if (accessScanner.enabled) {
         ExecutorPool::get()->cancel(accessScanner.task);
@@ -3570,7 +3570,7 @@ void EPBucket::disableAccessScannerTask() {
     }
 }
 
-void EPBucket::setAccessScannerSleeptime(size_t val, bool useStartTime) {
+void KVBucket::setAccessScannerSleeptime(size_t val, bool useStartTime) {
     LockHolder lh(accessScanner.mutex);
 
     if (accessScanner.enabled) {
@@ -3590,7 +3590,7 @@ void EPBucket::setAccessScannerSleeptime(size_t val, bool useStartTime) {
     }
 }
 
-void EPBucket::resetAccessScannerStartTime() {
+void KVBucket::resetAccessScannerStartTime() {
     LockHolder lh(accessScanner.mutex);
 
     if (accessScanner.enabled) {
@@ -3605,7 +3605,7 @@ void EPBucket::resetAccessScannerStartTime() {
     }
 }
 
-void EPBucket::setAllBloomFilters(bool to) {
+void KVBucket::setAllBloomFilters(bool to) {
     for (VBucketMap::id_type vbid = 0; vbid < vbMap.getSize(); vbid++) {
         RCPtr<VBucket> vb = vbMap.getBucket(vbid);
         if (vb) {
@@ -3618,7 +3618,7 @@ void EPBucket::setAllBloomFilters(bool to) {
     }
 }
 
-void EPBucket::visit(VBucketVisitor &visitor)
+void KVBucket::visit(VBucketVisitor &visitor)
 {
     for (VBucketMap::id_type vbid = 0; vbid < vbMap.getSize(); ++vbid) {
         RCPtr<VBucket> vb = vbMap.getBucket(vbid);
@@ -3629,7 +3629,7 @@ void EPBucket::visit(VBucketVisitor &visitor)
     visitor.complete();
 }
 
-EPBucket::Position EPBucket::pauseResumeVisit(
+KVBucket::Position KVBucket::pauseResumeVisit(
                                             PauseResumeEPStoreVisitor& visitor,
                                             Position& start_pos)
 {
@@ -3644,20 +3644,20 @@ EPBucket::Position EPBucket::pauseResumeVisit(
         }
     }
 
-    return EPBucket::Position(vbid);
+    return KVBucket::Position(vbid);
 }
 
-EPBucket::Position EPBucket::startPosition() const
+KVBucket::Position KVBucket::startPosition() const
 {
-    return EPBucket::Position(0);
+    return KVBucket::Position(0);
 }
 
-EPBucket::Position EPBucket::endPosition() const
+KVBucket::Position KVBucket::endPosition() const
 {
-    return EPBucket::Position(vbMap.getSize());
+    return KVBucket::Position(vbMap.getSize());
 }
 
-VBCBAdaptor::VBCBAdaptor(EPBucket* s, TaskId id,
+VBCBAdaptor::VBCBAdaptor(KVBucket* s, TaskId id,
                          std::shared_ptr<VBucketVisitor> v,
                          const char* l, double sleep) :
     GlobalTask(&s->getEPEngine(), id, 0, false), store(s),
@@ -3694,7 +3694,7 @@ bool VBCBAdaptor::run(void) {
     return !isdone;
 }
 
-VBucketVisitorTask::VBucketVisitorTask(EPBucket* s,
+VBucketVisitorTask::VBucketVisitorTask(KVBucket* s,
                                        std::shared_ptr<VBucketVisitor> v,
                                        uint16_t sh, const char* l,
                                        double sleep, bool shutdown)
@@ -3732,7 +3732,7 @@ bool VBucketVisitorTask::run() {
     return !isDone;
 }
 
-void EPBucket::resetUnderlyingStats(void)
+void KVBucket::resetUnderlyingStats(void)
 {
     for (size_t i = 0; i < vbMap.shards.size(); i++) {
         KVShard *shard = vbMap.shards[i].get();
@@ -3746,7 +3746,7 @@ void EPBucket::resetUnderlyingStats(void)
     }
 }
 
-void EPBucket::addKVStoreStats(ADD_STAT add_stat, const void* cookie) {
+void KVBucket::addKVStoreStats(ADD_STAT add_stat, const void* cookie) {
     for (size_t i = 0; i < vbMap.shards.size(); i++) {
         /* Add the different KVStore instances into a set and then
          * retrieve the stats from each instance separately. This
@@ -3764,7 +3764,7 @@ void EPBucket::addKVStoreStats(ADD_STAT add_stat, const void* cookie) {
     }
 }
 
-void EPBucket::addKVStoreTimingStats(ADD_STAT add_stat, const void* cookie) {
+void KVBucket::addKVStoreTimingStats(ADD_STAT add_stat, const void* cookie) {
     for (size_t i = 0; i < vbMap.shards.size(); i++) {
         std::set<KVStore*> underlyingSet;
         underlyingSet.insert(vbMap.shards[i]->getRWUnderlying());
@@ -3776,7 +3776,7 @@ void EPBucket::addKVStoreTimingStats(ADD_STAT add_stat, const void* cookie) {
     }
 }
 
-bool EPBucket::getKVStoreStat(const char* name, size_t& value, KVSOption option)
+bool KVBucket::getKVStoreStat(const char* name, size_t& value, KVSOption option)
 {
     value = 0;
     bool success = true;
@@ -3796,11 +3796,11 @@ bool EPBucket::getKVStoreStat(const char* name, size_t& value, KVSOption option)
     return success;
 }
 
-KVStore *EPBucket::getOneROUnderlying(void) {
+KVStore *KVBucket::getOneROUnderlying(void) {
     return vbMap.shards[EP_PRIMARY_SHARD]->getROUnderlying();
 }
 
-KVStore *EPBucket::getOneRWUnderlying(void) {
+KVStore *KVBucket::getOneRWUnderlying(void) {
     return vbMap.shards[EP_PRIMARY_SHARD]->getRWUnderlying();
 }
 
@@ -3872,7 +3872,7 @@ private:
  * Purge all unpersisted items from the current checkpoint(s) and fixup
  * the hashtable for any that are > the rollbackSeqno.
  */
-void EPBucket::rollbackCheckpoint(RCPtr<VBucket> &vb,
+void KVBucket::rollbackCheckpoint(RCPtr<VBucket> &vb,
                                   int64_t rollbackSeqno) {
     std::vector<queued_item> items;
     vb->checkpointManager.getAllItemsForCursor(CheckpointManager::pCursorName,
@@ -3897,7 +3897,7 @@ void EPBucket::rollbackCheckpoint(RCPtr<VBucket> &vb,
     }
 }
 
-ENGINE_ERROR_CODE EPBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
+ENGINE_ERROR_CODE KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
     LockHolder vbset(vbsetMutex);
 
     std::unique_lock<std::mutex> lh(vb_mutexes[vbid], std::try_to_lock);
@@ -3938,19 +3938,19 @@ ENGINE_ERROR_CODE EPBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
     }
 }
 
-void EPBucket::runDefragmenterTask() {
+void KVBucket::runDefragmenterTask() {
     defragmenterTask->run();
 }
 
-bool EPBucket::runAccessScannerTask() {
+bool KVBucket::runAccessScannerTask() {
     return ExecutorPool::get()->wake(accessScanner.task);
 }
 
-void EPBucket::runVbStatePersistTask(int vbid) {
+void KVBucket::runVbStatePersistTask(int vbid) {
     scheduleVBStatePersist(vbid);
 }
 
-void EPBucket::setCursorDroppingLowerUpperThresholds(size_t maxSize) {
+void KVBucket::setCursorDroppingLowerUpperThresholds(size_t maxSize) {
     Configuration &config = engine.getConfiguration();
     stats.cursorDroppingLThreshold.store(static_cast<size_t>(maxSize *
                     ((double)(config.getCursorDroppingLowerMark()) / 100)));
@@ -3958,15 +3958,15 @@ void EPBucket::setCursorDroppingLowerUpperThresholds(size_t maxSize) {
                     ((double)(config.getCursorDroppingUpperMark()) / 100)));
 }
 
-size_t EPBucket::getActiveResidentRatio() const {
+size_t KVBucket::getActiveResidentRatio() const {
     return cachedResidentRatio.activeRatio.load();
 }
 
-size_t EPBucket::getReplicaResidentRatio() const {
+size_t KVBucket::getReplicaResidentRatio() const {
     return cachedResidentRatio.replicaRatio.load();
 }
 
-ENGINE_ERROR_CODE EPBucket::forceMaxCas(uint16_t vbucket, uint64_t cas) {
+ENGINE_ERROR_CODE KVBucket::forceMaxCas(uint16_t vbucket, uint64_t cas) {
     RCPtr<VBucket> vb = vbMap.getBucket(vbucket);
     if (vb) {
         vb->forceMaxCas(cas);
@@ -3975,7 +3975,7 @@ ENGINE_ERROR_CODE EPBucket::forceMaxCas(uint16_t vbucket, uint64_t cas) {
     return ENGINE_NOT_MY_VBUCKET;
 }
 
-std::ostream& operator<<(std::ostream& os, const EPBucket::Position& pos) {
+std::ostream& operator<<(std::ostream& os, const KVBucket::Position& pos) {
     os << "vbucket:" << pos.vbucket_id;
     return os;
 }

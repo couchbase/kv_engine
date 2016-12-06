@@ -30,7 +30,7 @@
 #include "vbucket.h"
 
 // Forward declarations.
-class EPBucket;
+class KVBucket;
 class KVShard;
 class GlobalTask;
 
@@ -48,7 +48,7 @@ public:
      * @param k  The shard to which this background fetcher belongs
      * @param st reference to statistics
      */
-    BgFetcher(EPBucket* s, KVShard* k, EPStats &st) :
+    BgFetcher(KVBucket* s, KVShard* k, EPStats &st) :
         store(s), shard(k), taskId(0), stats(st), pendingFetch(false) {}
     ~BgFetcher() {
         LockHolder lh(queueMutex);
@@ -75,7 +75,7 @@ private:
     size_t doFetch(VBucket::id_type vbId, vb_bgfetch_queue_t& items);
     void clearItems(VBucket::id_type vbId, const vb_bgfetch_queue_t& items);
 
-    EPBucket* store;
+    KVBucket* store;
     KVShard* shard;
     size_t taskId;
     std::mutex queueMutex;

@@ -49,7 +49,7 @@ KVShard::KVShard(uint16_t id, KVBucketIface& store) :
     }
 
     /* [EPHE TODO]: Try to avoid dynamic cast */
-    EPBucket* epstore = dynamic_cast<EPBucket*>(&store);
+    KVBucket* epstore = dynamic_cast<KVBucket*>(&store);
 
     if (epstore) {
         /* We want Flusher and BgFetcher only in case of epstore not

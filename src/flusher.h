@@ -54,7 +54,7 @@ class KVShard;
 class Flusher {
 public:
 
-    Flusher(EPBucket* st, KVShard* k, uint16_t commitInt) :
+    Flusher(KVBucket* st, KVShard* k, uint16_t commitInt) :
         store(st), _state(initializing), taskId(0), minSleepTime(0.1),
         initCommitInterval(commitInt), currCommitInterval(commitInt),
         forceShutdownReceived(false), doHighPriority(false), numHighPriority(0),
@@ -114,7 +114,7 @@ private:
         return lpVbs.empty() && hpVbs.empty() && !pendingMutation.load();
     }
 
-    EPBucket* store;
+    KVBucket* store;
     std::atomic<enum flusher_state> _state;
 
     // Used for serializaling attempts to start the flusher from

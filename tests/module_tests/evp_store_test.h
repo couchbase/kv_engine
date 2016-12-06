@@ -48,7 +48,7 @@ class SynchronousEPEngine : public EventuallyPersistentEngine {
 public:
     SynchronousEPEngine(const std::string& extra_config);
 
-    void setEPStore(EPBucket* store);
+    void setEPStore(KVBucket* store);
 
     /* Allow us to call normally protected methods */
 
@@ -80,7 +80,7 @@ public:
 /* Subclass of EPStore to expose normally non-public members for test
  * purposes.
  */
-class MockEPStore : public EPBucket {
+class MockEPStore : public KVBucket {
 public:
     MockEPStore(EventuallyPersistentEngine &theEngine);
 

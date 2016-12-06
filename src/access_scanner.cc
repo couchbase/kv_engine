@@ -28,7 +28,7 @@
 class ItemAccessVisitor : public VBucketVisitor,
                           public HashTableVisitor {
 public:
-    ItemAccessVisitor(EPBucket& _store, EPStats& _stats,
+    ItemAccessVisitor(KVBucket& _store, EPStats& _stats,
                       uint16_t sh, std::atomic<bool> &sfin, AccessScanner &aS) :
         store(_store), stats(_stats), startTime(ep_real_time()),
         taskStart(gethrtime()), shardID(sh), stateFinalizer(sfin), as(aS)
@@ -166,7 +166,7 @@ private:
         }
     }
 
-    EPBucket& store;
+    KVBucket& store;
     EPStats& stats;
     rel_time_t startTime;
     hrtime_t taskStart;
@@ -183,7 +183,7 @@ private:
     RCPtr<VBucket> currentBucket;
 };
 
-AccessScanner::AccessScanner(EPBucket&_store, EPStats &st,
+AccessScanner::AccessScanner(KVBucket&_store, EPStats &st,
                              double sleeptime, bool useStartTime,
                              bool completeBeforeShutdown)
     : GlobalTask(&_store.getEPEngine(), TaskId::AccessScanner, sleeptime,
