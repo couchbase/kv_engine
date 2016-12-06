@@ -676,6 +676,33 @@ static PrivilegeAccess check_privilege(const void* void_cookie,
     return cookie->connection->checkPrivilege(privilege);
 }
 
+static ENGINE_ERROR_CODE pre_link_document(const void* void_cookie,
+                                           item_info& info) {
+    // Sanity check that people aren't calling the method with a bogus
+    // cookie
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    cookie->validate();
+
+    // Greenstack operates in directly in the command context pattern. Given
+    // that greenstack is currently on a hold we don't bother adding the
+    // code for that yet.
+    if (cookie->connection == nullptr) {
+        throw std::logic_error("pre_link_document: connection can't be null");
+    }
+
+    auto* connection = dynamic_cast<McbpConnection*>(cookie->connection);
+    if (connection == nullptr) {
+        throw std::logic_error("pre_link_document: connection must be MCBP");
+    }
+
+    auto* context = connection->getCommandContext();
+    if (context != nullptr) {
+        return context->pre_link_document(info);
+    }
+
+    return ENGINE_SUCCESS;
+}
+
 static void cbsasl_refresh_main(void *c)
 {
     int rv;
@@ -1847,6 +1874,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
     static SERVER_CALLBACK_API callback_api;
     static ALLOCATOR_HOOKS_API hooks_api;
     static SERVER_HANDLE_V1 rv;
+    static SERVER_DOCUMENT_API document_api;
 
     if (!init) {
         init = 1;
@@ -1896,6 +1924,9 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         hooks_api.release_free_memory = AllocHooks::release_free_memory;
         hooks_api.enable_thread_cache = AllocHooks::enable_thread_cache;
 
+        document_api.pre_link = pre_link_document;
+
+
         rv.interface = 1;
         rv.core = &core_api;
         rv.stat = &server_stat_api;
@@ -1904,6 +1935,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         rv.log = &server_log_api;
         rv.cookie = &server_cookie_api;
         rv.alloc_hooks = &hooks_api;
+        rv.document = &document_api;
     }
 
     // @trondn fixme!!!

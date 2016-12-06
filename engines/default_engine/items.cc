@@ -8,6 +8,7 @@
 #include <time.h>
 #include <inttypes.h>
 
+#include <memcached/server_api.h>
 #include <platform/cb_malloc.h>
 #include <platform/crc32c.h>
 #include "default_engine_internal.h"
@@ -24,12 +25,16 @@ static hash_item *do_item_alloc(struct default_engine *engine,
                                 uint8_t datatype);
 static hash_item *do_item_get(struct default_engine *engine,
                               const hash_key* key);
-static int do_item_link(struct default_engine *engine, hash_item *it);
+static int do_item_link(struct default_engine *engine,
+                        const void* cookie,
+                        hash_item *it);
 static void do_item_unlink(struct default_engine *engine, hash_item *it);
 static void do_item_release(struct default_engine *engine, hash_item *it);
 static void do_item_update(struct default_engine *engine, hash_item *it);
-static int do_item_replace(struct default_engine *engine,
-                            hash_item *it, hash_item *new_it);
+static int do_item_replace(struct default_engine* engine,
+                           const void* cookie,
+                           hash_item* it,
+                           hash_item* new_it);
 static void item_free(struct default_engine *engine, hash_item *it);
 
 static bool hash_key_create(hash_key* hkey,
@@ -297,7 +302,9 @@ static void item_unlink_q(struct default_engine *engine, hash_item *it) {
     return;
 }
 
-int do_item_link(struct default_engine *engine, hash_item *it) {
+int do_item_link(struct default_engine *engine,
+                 const void* cookie,
+                 hash_item *it) {
     const hash_key* key = item_get_key(it);
     MEMCACHED_ITEM_LINK(hash_key_get_client_key(key), hash_key_get_client_key_len(key), it->nbytes);
     cb_assert((it->iflag & (ITEM_LINKED|ITEM_SLABBED)) == 0);
@@ -314,8 +321,26 @@ int do_item_link(struct default_engine *engine, hash_item *it) {
     engine->stats.total_items += 1;
     cb_mutex_exit(&engine->stats.lock);
 
+    auto cas = get_cas_id();
+
     /* Allocate a new CAS ID on link. */
-    item_set_cas(NULL, NULL, it, get_cas_id());
+    item_set_cas(NULL, NULL, it, cas);
+
+    item_info info = {};
+    info.cas = cas;
+    info.exptime = it->exptime;
+    info.nbytes = it->nbytes;
+    info.flags = it->flags;
+    info.nkey = hash_key_get_client_key_len(key);
+    info.nvalue = 1;
+    info.key = hash_key_get_client_key(key);
+    info.value[0].iov_base = item_get_data(it);
+    info.value[0].iov_len = it->nbytes;
+    info.datatype = it->datatype;
+
+    if (engine->server.document->pre_link(cookie, info) != ENGINE_SUCCESS) {
+        return 0;
+    }
 
     item_link_q(engine, it);
 
@@ -373,7 +398,9 @@ void do_item_update(struct default_engine *engine, hash_item *it) {
 }
 
 int do_item_replace(struct default_engine *engine,
-                    hash_item *it, hash_item *new_it) {
+                    const void* cookie,
+                    hash_item *it,
+                    hash_item *new_it) {
     MEMCACHED_ITEM_REPLACE(hash_key_get_client_key(item_get_key(it)),
                            hash_key_get_client_key_len(item_get_key(it)),
                            it->nbytes,
@@ -383,7 +410,7 @@ int do_item_replace(struct default_engine *engine,
     cb_assert((it->iflag & ITEM_SLABBED) == 0);
 
     do_item_unlink(engine, it);
-    return do_item_link(engine, new_it);
+    return do_item_link(engine, cookie, new_it);
 }
 
 static void do_item_stats(struct default_engine *engine,
@@ -574,7 +601,7 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
             /* cas validates */
             /* it and old_it may belong to different classes. */
             /* I'm updating the stats for the one that's getting pushed out */
-            do_item_replace(engine, old_it, it);
+            do_item_replace(engine, cookie, old_it, it);
             stored = ENGINE_SUCCESS;
         } else {
             if (engine->config.verbose > 1) {
@@ -590,14 +617,14 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
         }
     } else {
         if (stored == ENGINE_NOT_STORED) {
-            if (old_it != NULL) {
-                do_item_replace(engine, old_it, it);
-            } else {
-                do_item_link(engine, it);
-            }
-
-            *stored_item = it;
             stored = ENGINE_SUCCESS;
+            if (old_it != NULL) {
+                do_item_replace(engine, cookie, old_it, it);
+            } else {
+                if (do_item_link(engine, cookie, it) == 0) {
+                    stored = ENGINE_FAILED;
+                }
+            }
         }
     }
 

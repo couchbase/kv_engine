@@ -194,6 +194,34 @@ extern "C" {
 
     } SERVER_COOKIE_API;
 
+    struct SERVER_DOCUMENT_API {
+        /**
+         * This callback is called from the underlying engine right before
+         * it is linked into the list of available documents (it is currently
+         * not visible to anyone). The engine should have validated all
+         * properties set in the document by the client and the core, and
+         * assigned a new CAS number for the document (and sequence number if
+         * the underlying engine use those).
+         *
+         * The callback may at this time do post processing of the document
+         * content (it is allowed to modify the content data, but not
+         * reallocate or change the size of the data in any way).
+         *
+         * Given that the engine MAY HOLD LOCKS when calling this function
+         * the core is *NOT* allowed to acquire *ANY* locks (except for doing
+         * some sort of memory allocation for a temporary buffer).
+         *
+         * @param cookie The cookie provided to the engine for the storage
+         *               command which may (which may hold more context)
+         * @param info the items underlying data
+         * @return ENGINE_SUCCESS means that the underlying engine should
+         *                        proceed to link the item. All other
+         *                        error codes means that the engine should
+         *                        *NOT* link the item
+         */
+        ENGINE_ERROR_CODE (*pre_link)(const void* cookie, item_info& info);
+    };
+
 #ifdef WIN32
 #undef interface
 #endif

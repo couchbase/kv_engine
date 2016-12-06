@@ -75,6 +75,7 @@ extern "C" {
         SERVER_LOG_API *log;
         SERVER_COOKIE_API *cookie;
         ALLOCATOR_HOOKS_API *alloc_hooks;
+        SERVER_DOCUMENT_API* document;
     };
 
     typedef enum { TAP_MUTATION = 1,

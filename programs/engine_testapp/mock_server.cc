@@ -160,6 +160,11 @@ static PrivilegeAccess mock_check_privilege(const void*,
     return PrivilegeAccess::Ok;
 }
 
+static ENGINE_ERROR_CODE mock_pre_link_document(const void* cookie,
+                                                item_info& info) {
+    return ENGINE_SUCCESS;
+}
+
 /* time-sensitive callers can call it by hand with this, outside the
    normal ever-1-second timer */
 static rel_time_t mock_get_current_time(void) {
@@ -360,6 +365,8 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
    static SERVER_LOG_API log_api;
    static ALLOCATOR_HOOKS_API hooks_api;
    static SERVER_HANDLE_V1 rv;
+   static SERVER_DOCUMENT_API document_api;
+
    static int init;
    if (!init) {
       init = 1;
@@ -405,6 +412,8 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       hooks_api.release_free_memory = AllocHooks::release_free_memory;
       hooks_api.enable_thread_cache = AllocHooks::enable_thread_cache;
 
+      document_api.pre_link = mock_pre_link_document;
+
       rv.interface = 1;
       rv.core = &core_api;
       rv.stat = &server_stat_api;
@@ -413,6 +422,7 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       rv.log = &log_api;
       rv.cookie = &server_cookie_api;
       rv.alloc_hooks = &hooks_api;
+      rv.document = &document_api;
    }
 
    return &rv;

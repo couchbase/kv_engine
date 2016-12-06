@@ -16,6 +16,8 @@
  */
 #pragma once
 
+#include <memcached/types.h>
+
 /**
  *  A command may need to store command specific context during the duration
  *  of a command (you might for instance want to keep state between multiple
@@ -28,4 +30,14 @@
 class CommandContext {
 public:
     virtual ~CommandContext(){};
+
+    /**
+     * The `pre_link_document()` is a hook called from the underlying engine
+     * as part of the `store()` method in the engine API. See the `pre_link()`
+     * method in the `SERVER_DOCUMENT_API` provided by the server for a
+     * detailed description.
+     */
+    virtual ENGINE_ERROR_CODE pre_link_document(item_info&) {
+        return ENGINE_SUCCESS;
+    }
 };
