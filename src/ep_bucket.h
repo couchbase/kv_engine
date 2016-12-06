@@ -32,6 +32,10 @@ class EPBucket : public KVBucket {
 public:
     EPBucket(EventuallyPersistentEngine& theEngine);
 
+    bool initialize() override;
+
+    void deinitialize() override;
+
     protocol_binary_response_status evictKey(const DocKey& key,
                                              uint16_t vbucket,
                                              const char **msg,

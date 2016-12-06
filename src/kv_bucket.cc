@@ -468,11 +468,6 @@ bool KVBucket::initialize() {
         reset();
     }
 
-    if (!startFlusher()) {
-        LOG(EXTENSION_LOG_WARNING,
-            "FATAL: Failed to create and start flushers");
-        return false;
-    }
     if (!startBgFetcher()) {
         LOG(EXTENSION_LOG_WARNING,
            "FATAL: Failed to create and start bgfetchers");
@@ -537,8 +532,6 @@ void KVBucket::deinitialize() {
         LockHolder lh(accessScanner.mutex);
         ExecutorPool::get()->cancel(accessScanner.task);
     }
-
-    stopFlusher();
 
     ExecutorPool::get()->unregisterTaskable(engine.getTaskable(),
                                             stats.forceShutdown);

@@ -23,6 +23,23 @@ EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
     : KVBucket(theEngine) {
 }
 
+bool EPBucket::initialize() {
+    KVBucket::initialize();
+
+    if (!startFlusher()) {
+        LOG(EXTENSION_LOG_WARNING,
+            "FATAL: Failed to create and start flushers");
+        return false;
+    }
+    return true;
+}
+
+void EPBucket::deinitialize() {
+    stopFlusher();
+
+    KVBucket::deinitialize();
+}
+
 protocol_binary_response_status EPBucket::evictKey(const DocKey& key,
                                                    uint16_t vbucket,
                                                    const char** msg,
