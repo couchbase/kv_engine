@@ -319,8 +319,8 @@ static enum test_result get_item_info_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     cb_assert(h1->get_item_info(h, NULL, test_item, &ii) == true);
     assert_equal(cas, ii.cas);
     assert_equal(0u, ii.flags);
-    cb_assert(strcmp(reinterpret_cast<const char*>(key.buf), static_cast<const char*>(ii.key)) == 0);
-    assert_equal(uint16_t(key.len), ii.nkey);
+    cb_assert(strcmp(reinterpret_cast<const char*>(key.data()), static_cast<const char*>(ii.key)) == 0);
+    assert_equal(uint16_t(key.size()), ii.nkey);
     assert_equal(1u, ii.nbytes);
     // exptime is a rel_time_t; i.e. seconds since server started. Therefore can only
     // check that the returned value is at least as large as the value
@@ -490,16 +490,16 @@ static enum test_result touch_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     memset(r.buffer, 0, sizeof(r));
     r.touch.message.header.request.magic = PROTOCOL_BINARY_REQ;
     r.touch.message.header.request.opcode = PROTOCOL_BINARY_CMD_TOUCH;
-    r.touch.message.header.request.keylen = htons((uint16_t)key.len);
+    r.touch.message.header.request.keylen = htons((uint16_t)key.size());
     r.touch.message.header.request.extlen = 4;
     r.touch.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     r.touch.message.header.request.vbucket = 0;
-    r.touch.message.header.request.bodylen = htonl((uint32_t)key.len + 4);
+    r.touch.message.header.request.bodylen = htonl((uint32_t)key.size() + 4);
     r.touch.message.header.request.opaque = 0xdeadbeef;
     r.touch.message.header.request.cas = 0;
     r.touch.message.body.expiration = htonl(10);
 
-    memcpy(r.buffer + sizeof(r.touch.bytes), key.buf, key.len);
+    memcpy(r.buffer + sizeof(r.touch.bytes), key.data(), key.size());
     ret = h1->unknown_command(h, NULL, &r.touch.message.header, response_handler, test_harness.doc_namespace);
     cb_assert(ret == ENGINE_SUCCESS);
     cb_assert(last_response != NULL);
@@ -530,7 +530,7 @@ static enum test_result touch_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     /* Verify that it doesn't accept bogus packets. extlen is mandatory */
     r.touch.message.header.request.extlen = 0;
-    r.touch.message.header.request.bodylen = htonl((uint32_t)key.len);
+    r.touch.message.header.request.bodylen = htonl((uint32_t)key.size());
     ret = h1->unknown_command(h, NULL, &r.touch.message.header, response_handler, test_harness.doc_namespace);
     cb_assert(ret == ENGINE_SUCCESS);
     cb_assert(last_response != NULL);
@@ -563,16 +563,16 @@ static enum test_result gat_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     memset(r.buffer, 0, sizeof(r));
     r.gat.message.header.request.magic = PROTOCOL_BINARY_REQ;
     r.gat.message.header.request.opcode = PROTOCOL_BINARY_CMD_GAT;
-    r.gat.message.header.request.keylen = htons((uint16_t)key.len);
+    r.gat.message.header.request.keylen = htons((uint16_t)key.size());
     r.gat.message.header.request.extlen = 4;
     r.gat.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     r.gat.message.header.request.vbucket = 0;
-    r.gat.message.header.request.bodylen = htonl((uint32_t)key.len + 4);
+    r.gat.message.header.request.bodylen = htonl((uint32_t)key.size() + 4);
     r.gat.message.header.request.opaque = 0xdeadbeef;
     r.gat.message.header.request.cas = 0;
     r.gat.message.body.expiration = htonl(10);
 
-    memcpy(r.buffer + sizeof(r.gat.bytes), key.buf, key.len);
+    memcpy(r.buffer + sizeof(r.gat.bytes), key.data(), key.size());
     ret = h1->unknown_command(h, NULL, &r.gat.message.header, response_handler, test_harness.doc_namespace);
     cb_assert(ret == ENGINE_SUCCESS);
     cb_assert(last_response != NULL);
@@ -603,7 +603,7 @@ static enum test_result gat_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     /* Verify that it doesn't accept bogus packets. extlen is mandatory */
     r.gat.message.header.request.extlen = 0;
-    r.gat.message.header.request.bodylen = htonl((uint32_t)key.len);
+    r.gat.message.header.request.bodylen = htonl((uint32_t)key.size());
     ret = h1->unknown_command(h, NULL, &r.gat.message.header, response_handler, test_harness.doc_namespace);
     cb_assert(ret == ENGINE_SUCCESS);
     cb_assert(last_response != NULL);
@@ -636,16 +636,16 @@ static enum test_result gatq_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     memset(r.buffer, 0, sizeof(r));
     r.gat.message.header.request.magic = PROTOCOL_BINARY_REQ;
     r.gat.message.header.request.opcode = PROTOCOL_BINARY_CMD_GATQ;
-    r.gat.message.header.request.keylen = htons((uint16_t)key.len);
+    r.gat.message.header.request.keylen = htons((uint16_t)key.size());
     r.gat.message.header.request.extlen = 4;
     r.gat.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     r.gat.message.header.request.vbucket = 0;
-    r.gat.message.header.request.bodylen = htonl((uint32_t)key.len + 4);
+    r.gat.message.header.request.bodylen = htonl((uint32_t)key.size() + 4);
     r.gat.message.header.request.opaque = 0xdeadbeef;
     r.gat.message.header.request.cas = 0;
     r.gat.message.body.expiration = htonl(10);
 
-    memcpy(r.buffer + sizeof(r.gat.bytes), key.buf, key.len);
+    memcpy(r.buffer + sizeof(r.gat.bytes), key.data(), key.size());
     ret = h1->unknown_command(h, NULL, &r.gat.message.header, response_handler, test_harness.doc_namespace);
     cb_assert(ret == ENGINE_SUCCESS);
 
@@ -673,7 +673,7 @@ static enum test_result gatq_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     /* Verify that it doesn't accept bogus packets. extlen is mandatory */
     r.gat.message.header.request.extlen = 0;
-    r.gat.message.header.request.bodylen = htonl((uint32_t)key.len);
+    r.gat.message.header.request.bodylen = htonl((uint32_t)key.size());
     ret = h1->unknown_command(h, NULL, &r.gat.message.header, response_handler, test_harness.doc_namespace);
     cb_assert(ret == ENGINE_SUCCESS);
     cb_assert(last_response != NULL);

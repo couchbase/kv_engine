@@ -600,7 +600,7 @@ public:
         //     return dispatchNotification(cookie);
         // }
 
-        Item *itm = new Item(key.buf, key.len, nbytes, flags, exptime,
+        Item *itm = new Item(key.data(), key.size(), nbytes, flags, exptime,
                              datatype);
         if (itm == NULL) {
             return ENGINE_ENOMEM;

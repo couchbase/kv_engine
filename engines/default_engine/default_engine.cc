@@ -256,7 +256,7 @@ static ENGINE_ERROR_CODE default_item_allocate(ENGINE_HANDLE* handle,
    struct default_engine* engine = get_handle(handle);
    VBUCKET_GUARD(engine, vbucket);
 
-   size_t ntotal = sizeof(hash_item) + key.len + nbytes;
+   size_t ntotal = sizeof(hash_item) + key.size() + nbytes;
    if (engine->config.use_cas) {
       ntotal += sizeof(uint64_t);
    }
@@ -269,7 +269,7 @@ static ENGINE_ERROR_CODE default_item_allocate(ENGINE_HANDLE* handle,
       return ENGINE_E2BIG;
    }
 
-   it = item_alloc(engine, key.buf, key.len, flags,
+   it = item_alloc(engine, key.data(), key.size(), flags,
                    engine->server.core->realtime(exptime),
                    (uint32_t)nbytes, cookie, datatype);
 
@@ -293,7 +293,7 @@ static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
 
    VBUCKET_GUARD(engine, vbucket);
 
-   it = item_get(engine, cookie, key.buf, key.len);
+   it = item_get(engine, cookie, key.data(), key.size());
    if (it == NULL) {
       return ENGINE_KEY_ENOENT;
    }
@@ -328,7 +328,7 @@ static ENGINE_ERROR_CODE default_get(ENGINE_HANDLE* handle,
    struct default_engine *engine = get_handle(handle);
    VBUCKET_GUARD(engine, vbucket);
 
-   *item = item_get(engine, cookie, key.buf, key.len);
+   *item = item_get(engine, cookie, key.data(), key.size());
    if (*item != NULL) {
       return ENGINE_SUCCESS;
    } else {

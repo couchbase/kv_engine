@@ -12,10 +12,10 @@
 #include <stdio.h>
 
 #include "memcached/allocator_hooks.h"
-#include "memcached/buffer.h"
 #include "memcached/callback.h"
 #include "memcached/config_parser.h"
 #include "memcached/dcp.h"
+#include "memcached/dockey.h"
 #include "memcached/engine_common.h"
 #include "memcached/extension.h"
 #include "memcached/protocol_binary.h"
@@ -196,69 +196,6 @@ extern "C" {
          */
         feature_info features[1];
     } engine_info;
-
-    /**
-     * DocNamespace "Document Namespace"
-     * Meta-data that applies to every document stored in an engine.
-     *
-     * A document "key" with the flag DefaultCollection is not the same document
-     * as "key" with the Collections flag and so on...
-     *
-     * DefaultCollection: describes "legacy" documents stored in a bucket by
-     * clients that do not understand collections.
-     *
-     * Collections: describes documents that have a collection name as part of
-     * the key. E.g. "planet::earth" and "planet::mars" are documents belonging
-     * to a "planet" collection.
-     *
-     * System: describes documents that are created by the system for our own
-     * uses. This is only planned for use with the collection feature where
-     * special keys are interleaved in the users data stream to represent create
-     * and delete events. In future more generic "system documents" maybe
-     * created by the core but until such plans are more clear, ep-engine will
-     * deny the core from performing operations in the System DocNamespace.
-     * DocNamespace values are persisted ot the database and thus are fully
-     * described now ready for future use.
-     */
-    enum class DocNamespace : uint8_t {
-        DefaultCollection = 0,
-        Collections = 1,
-        System = 2
-    };
-
-    /**
-     * DocKey is a non-owning structure used to describe a document keys over
-     * the engine-API. All API commands working with "keys" must specify the
-     * data, length and the namespace with which the document applies to.
-     */
-    struct DocKey : public cb::const_byte_buffer {
-
-        /**
-         * Standard constructor - creates a view onto key/nkey
-         */
-        DocKey(const uint8_t* key, size_t nkey, DocNamespace ins)
-             : cb::const_byte_buffer(key, nkey),
-               doc_namespace(ins) {}
-
-        /**
-         * C-string constructor - only for use with null terminated strings and
-         * creates a view onto key/strlen(key).
-         */
-        DocKey(const char* key, DocNamespace ins)
-             : DocKey(reinterpret_cast<const uint8_t*>(key),
-               std::strlen(key), ins) {}
-
-        /**
-         * std::string constructor - creates a view onto the std::string internal
-         * C-string buffer - i.e. c_str() for size() bytes
-         */
-        DocKey(const std::string& key, DocNamespace ins)
-             : DocKey(reinterpret_cast<const uint8_t*>(key.data()),
-                      key.size(),
-                      ins) {}
-
-        DocNamespace doc_namespace;
-    };
 
     /**
      * Definition of the first version of the engine interface

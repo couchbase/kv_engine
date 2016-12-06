@@ -110,7 +110,7 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
     uint32_t bodylen = sizeof(rsp->message.body) + payload.len;
 
     if (shouldSendKey()) {
-        keylen = uint16_t(key.len);
+        keylen = uint16_t(key.size());
         bodylen += keylen;
     }
 
@@ -151,10 +151,10 @@ ENGINE_ERROR_CODE GetCommandContext::noSuchItem() {
         if (shouldSendKey()) {
             mcbp_add_header(&connection,
                             PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
-                            0, uint16_t(key.len),
-                            uint32_t(key.len),
+                            0, uint16_t(key.size()),
+                            uint32_t(key.size()),
                             PROTOCOL_BINARY_RAW_BYTES);
-            connection.addIov(key.buf, key.len);
+            connection.addIov(key.data(), key.size());
             connection.setState(conn_mwrite);
         } else {
             mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
