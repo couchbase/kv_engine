@@ -4,6 +4,7 @@ add_executable(memcached_mcbp_test
                mcbp_test.cc
                mcbp_test_meta.cc
                mcbp_test_subdoc.cc
+               mcbp_test_subdoc_xattr.cc
                xattr_blob_validator_test.cc
                xattr_key_validator_test.cc
                ${PROJECT_SOURCE_DIR}/daemon/mcbp_validators.cc

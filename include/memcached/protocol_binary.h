@@ -501,19 +501,40 @@ extern "C"
     } protocol_binary_flexmeta;
 
     /**
-     * Definitions of sub-document flags.
+     * Definitions of sub-document flags (this is a bitmap)
      */
     typedef enum {
-        /* No flags set */
+        /** No flags set */
         SUBDOC_FLAG_NONE = 0x0,
 
-        /* (Mutation) Should non-existent intermediate paths be created? */
+        /** (Mutation) Should non-existent intermediate paths be created? */
         SUBDOC_FLAG_MKDIR_P = 0x01,
 
-        /* (Mutation) Create the document if it does not exist. Implies
+        /**
+         * (Mutation) Create the document if it does not exist. Implies
          * SUBDOC_FLAG_MKDIR_P.
          */
-        SUBDOC_FLAG_MKDOC = 0x02
+        SUBDOC_FLAG_MKDOC = 0x02,
+
+        /**
+         * If set, the path refers to an Extended Attribute (XATTR).
+         * If clear, the path refers to a path inside the document body.
+         */
+         SUBDOC_FLAG_XATTR_PATH = 0x04,
+
+        /**
+         * Allow access to XATTRs for deleted documents (instead of
+         * returning KEY_ENOENT).
+         */
+        SUBDOC_FLAG_ACCESS_DELETED = 0x8,
+
+        /**
+         * Expand macro values inside extended attributes. The request is
+         * invalid if this flag is set without SUBDOC_FLAG_XATTR_PATH being
+         * set.
+         */
+        SUBDOC_FLAG_EXPAND_MACROS = 0x10,
+
     } protocol_binary_subdoc_flag;
 
     /**

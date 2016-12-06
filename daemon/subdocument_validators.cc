@@ -23,6 +23,62 @@
 #include "subdocument_validators.h"
 #include "subdocument_traits.h"
 
+#include "xattr_key_validator.h"
+
+static bool validate_macro(const cb::const_byte_buffer& value) {
+    static cb::const_byte_buffer doc_cas{(const uint8_t*)"\"${Mutation.CAS}\"",
+                                         17};
+    return ((value.len == doc_cas.len) &&
+            std::memcmp(value.buf, doc_cas.buf, doc_cas.len) == 0);
+}
+
+/**
+ * Validate the xattr related settings that may be passed to the command.
+ *
+ * Check that the combination of flags is legal (you need xattr in order to
+ * do macro expansion etc), and that the key conforms to the rules (and that
+ * all keys refers the same xattr bulk).
+ *
+ * @param flags The flag section provided
+ * @param path The full path (including the key)
+ * @param value The value passed (if it is a macro this must be a legal macro)
+ * @param xattr_key The xattr key in use (if xattr_key.len != 0) otherwise it
+ *                  the current key is stored so that we can check that the
+ *                  next key refers the same key..
+ * @return True if everything is correct, false otherwise
+ */
+static inline bool validate_xattr_section(protocol_binary_subdoc_flag flags,
+                                          cb::const_byte_buffer path,
+                                          cb::const_byte_buffer value,
+                                          cb::const_byte_buffer& xattr_key) {
+    if ((flags & SUBDOC_FLAG_XATTR_PATH) == 0) {
+        // XATTR flag isn't set... just bail out
+        return !((flags & SUBDOC_FLAG_EXPAND_MACROS) ||
+                 (flags & SUBDOC_FLAG_ACCESS_DELETED));
+    }
+
+    size_t key_length;
+    if (!is_valid_xattr_key(path, key_length)) {
+        return false;
+    }
+
+    if (xattr_key.len == 0) {
+        xattr_key.buf = path.buf;
+        xattr_key.len = key_length;
+    } else if (xattr_key.len != key_length ||
+               std::memcmp(xattr_key.buf, path.buf, key_length) != 0) {
+        return false;
+    }
+
+    if (flags & SUBDOC_FLAG_EXPAND_MACROS) {
+        if (!validate_macro(value)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 static protocol_binary_response_status subdoc_validator(const Cookie& cookie, const SubdocCmdTraits traits) {
     auto req = reinterpret_cast<const protocol_binary_request_subdocument*>(McbpConnection::getPacket(cookie));
     const protocol_binary_request_header* header = &req->message.header;
@@ -57,6 +113,20 @@ static protocol_binary_response_status subdoc_validator(const Cookie& cookie, co
 
     // Check only valid flags are specified.
     if ((subdoc_flags & ~traits.valid_flags) != 0) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    cb::const_byte_buffer path{req->message.header.bytes +
+                               sizeof(req->message.header.bytes) +
+                               keylen + extlen,
+                               pathlen};
+    cb::const_byte_buffer macro{req->message.header.bytes +
+                                sizeof(req->message.header.bytes) +
+                                keylen + extlen + pathlen,
+                                valuelen};
+    cb::const_byte_buffer xattr_key;
+
+    if (!validate_xattr_section(subdoc_flags, path, macro, xattr_key)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -130,9 +200,25 @@ protocol_binary_response_status subdoc_get_count_validator(const Cookie& cookie)
     return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT>());
 }
 
-static protocol_binary_response_status
-is_valid_multipath_spec(const char* ptr, const SubdocMultiCmdTraits traits,
-                        size_t& spec_len) {
+/**
+ * Validate the multipath spec. This may be a multi mutation or lookup
+ *
+ * @param ptr Pointer to the first byte of the encoded spec
+ * @param traits The traits to use to validate the spec
+ * @param spec_len [OUT] The number of bytes used by this spec
+ * @param xattr [OUT] Did this spec reference an extended attribute
+ * @param xattr_key [IN/OUT] The current extended attribute key. If its `len`
+ *                  field is `0` we've not seen an extended attribute key yet
+ *                  and the encoded key may be anything. If it's already set
+ *                  the key `must` be the same.
+ * @return PROTOCOL_BINARY_RESPONSE_SUCCESS if everything is correct, or an
+ *         error to return to the client otherwise
+ */
+static protocol_binary_response_status is_valid_multipath_spec(const char* ptr,
+                                                               const SubdocMultiCmdTraits traits,
+                                                               size_t& spec_len,
+                                                               bool& xattr,
+                                                               cb::const_byte_buffer& xattr_key) {
 
     // Decode the operation spec from the body. Slightly different struct
     // depending on LOOKUP/MUTATION.
@@ -160,6 +246,8 @@ is_valid_multipath_spec(const char* ptr, const SubdocMultiCmdTraits traits,
         valuelen = 0;
     }
 
+    xattr = (flags & SUBDOC_FLAG_XATTR_PATH);
+
     SubdocCmdTraits op_traits = get_subdoc_cmd_traits(opcode);
 
     if (op_traits.command == Subdoc::Command::INVALID) {
@@ -179,8 +267,22 @@ is_valid_multipath_spec(const char* ptr, const SubdocMultiCmdTraits traits,
     if (pathlen > SUBDOC_PATH_MAX_LENGTH) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-    if (!op_traits.allow_empty_path && (pathlen == 0)) {
+
+    cb::const_byte_buffer path{reinterpret_cast<const uint8_t*>(ptr) + headerlen,
+                               pathlen};
+
+    cb::const_byte_buffer macro{reinterpret_cast<const uint8_t*>(ptr) +
+                                headerlen + pathlen,
+                                valuelen};
+
+    if (!validate_xattr_section(flags, path, macro, xattr_key)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    if (!xattr) {
+        if (!op_traits.allow_empty_path && (pathlen == 0)) {
+            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
     }
 
     // Check value length
@@ -201,8 +303,8 @@ is_valid_multipath_spec(const char* ptr, const SubdocMultiCmdTraits traits,
 
 // Multi-path commands are a bit special - don't use the subdoc_validator<>
 // for them.
-static protocol_binary_response_status
-subdoc_multi_validator(const Cookie& cookie, const SubdocMultiCmdTraits traits)
+static protocol_binary_response_status subdoc_multi_validator(const Cookie& cookie,
+                                                              const SubdocMultiCmdTraits traits)
 {
     auto req = static_cast<protocol_binary_request_header*>(McbpConnection::getPacket(cookie));
 
@@ -232,26 +334,42 @@ subdoc_multi_validator(const Cookie& cookie, const SubdocMultiCmdTraits traits)
     }
 
     // 2. Check that the lookup operation specs are valid.
+    //    As an "optimization" you can't mix and match the xattr and the
+    //    normal paths given that they operate on different segments of
+    //    the packet. Let's force the client to sort all of the xattrs
+    //    operations _first_.
+    bool xattrs_allowed = true;
     const char* const body_ptr = reinterpret_cast<const char*>(McbpConnection::getPacket(cookie)) +
                                  sizeof(*req);
     const size_t keylen = ntohs(req->request.keylen);
     const size_t bodylen = ntohl(req->request.bodylen);
     size_t body_validated = keylen + req->request.extlen;
     unsigned int path_index;
+
+    cb::const_byte_buffer xattr_key;
+
     for (path_index = 0;
          (path_index < PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) &&
          (body_validated < bodylen);
          path_index++) {
 
         size_t spec_len = 0;
-        protocol_binary_response_status status =
-                        is_valid_multipath_spec(body_ptr + body_validated,
-                                                traits, spec_len);
-        body_validated += spec_len;
-
+        bool is_xattr;
+        const auto status = is_valid_multipath_spec(body_ptr + body_validated,
+                                                    traits, spec_len,
+                                                    is_xattr, xattr_key);
         if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             return status;
         }
+
+        if (xattrs_allowed) {
+            xattrs_allowed = is_xattr;
+        } else if (is_xattr) {
+            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+
+        body_validated += spec_len;
+
     }
 
     // Only valid if we found at least one path and the validated

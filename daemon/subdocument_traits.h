@@ -72,7 +72,7 @@ SubdocCmdTraits get_traits();
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>() {
     return {Subdoc::Command::GET,
-            SUBDOC_FLAG_NONE,
+            SUBDOC_FLAG_NONE|SUBDOC_FLAG_XATTR_PATH|SUBDOC_FLAG_ACCESS_DELETED,
             /*request_has_value*/false,
             /*allow_empty_path*/false,
             /*response_has_value*/true,
@@ -83,7 +83,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>() {
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>() {
     return {Subdoc::Command::EXISTS,
-            SUBDOC_FLAG_NONE,
+            SUBDOC_FLAG_NONE|SUBDOC_FLAG_XATTR_PATH|SUBDOC_FLAG_ACCESS_DELETED,
             /*request_has_value*/false,
             /*allow_empty_path*/false,
             /*response_has_value*/false,
@@ -94,7 +94,8 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>() {
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>() {
     return {Subdoc::Command::DICT_ADD,
-            SUBDOC_FLAG_MKDIR_P|SUBDOC_FLAG_MKDOC,
+            SUBDOC_FLAG_MKDIR_P|SUBDOC_FLAG_MKDOC|SUBDOC_FLAG_XATTR_PATH|
+                SUBDOC_FLAG_ACCESS_DELETED|SUBDOC_FLAG_EXPAND_MACROS,
             /*request_has_value*/true,
             /*allow_empty_path*/false,
             /*response_has_value*/false,
@@ -105,7 +106,8 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>() {
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>() {
     return {Subdoc::Command::DICT_UPSERT,
-            SUBDOC_FLAG_MKDIR_P|SUBDOC_FLAG_MKDOC,
+            SUBDOC_FLAG_MKDIR_P|SUBDOC_FLAG_MKDOC|SUBDOC_FLAG_XATTR_PATH|
+                SUBDOC_FLAG_ACCESS_DELETED|SUBDOC_FLAG_EXPAND_MACROS,
             /*request_has_value*/true,
             /*allow_empty_path*/false,
             /*response_has_value*/false,
@@ -116,7 +118,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>() {
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DELETE>() {
     return {Subdoc::Command::REMOVE,
-            SUBDOC_FLAG_NONE,
+            SUBDOC_FLAG_NONE|SUBDOC_FLAG_XATTR_PATH|SUBDOC_FLAG_ACCESS_DELETED,
             /*request_has_value*/false,
             /*allow_empty_path*/false,
             /*response_has_value*/false,
@@ -127,7 +129,8 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DELETE>() {
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>() {
     return {Subdoc::Command::REPLACE,
-            SUBDOC_FLAG_NONE,
+            SUBDOC_FLAG_NONE|SUBDOC_FLAG_XATTR_PATH|
+                SUBDOC_FLAG_ACCESS_DELETED|SUBDOC_FLAG_EXPAND_MACROS,
             /*request_has_value*/true,
             /*allow_empty_path*/false,
             /*response_has_value*/false,
@@ -138,7 +141,8 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>() {
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>() {
     return {Subdoc::Command::ARRAY_APPEND,
-            SUBDOC_FLAG_MKDIR_P|SUBDOC_FLAG_MKDOC,
+            SUBDOC_FLAG_MKDIR_P|SUBDOC_FLAG_MKDOC|SUBDOC_FLAG_XATTR_PATH|
+                SUBDOC_FLAG_ACCESS_DELETED|SUBDOC_FLAG_EXPAND_MACROS,
             /*request_has_value*/true,
             /*allow_empty_path*/true,
             /*response_has_value*/false,
@@ -149,7 +153,8 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>() 
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>() {
     return {Subdoc::Command::ARRAY_PREPEND,
-            SUBDOC_FLAG_MKDIR_P|SUBDOC_FLAG_MKDOC,
+            SUBDOC_FLAG_MKDIR_P|SUBDOC_FLAG_MKDOC|SUBDOC_FLAG_XATTR_PATH|
+                SUBDOC_FLAG_ACCESS_DELETED|SUBDOC_FLAG_EXPAND_MACROS,
             /*request_has_value*/true,
             /*allow_empty_path*/true,
             /*response_has_value*/false,
@@ -160,7 +165,8 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>()
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>() {
     return {Subdoc::Command::ARRAY_INSERT,
-            SUBDOC_FLAG_NONE,
+            SUBDOC_FLAG_NONE|SUBDOC_FLAG_XATTR_PATH|
+                SUBDOC_FLAG_ACCESS_DELETED|SUBDOC_FLAG_EXPAND_MACROS,
             /*request_has_value*/true,
             /*allow_empty_path*/false,
             /*response_has_value*/false,
@@ -171,7 +177,8 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>() {
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>() {
     return {Subdoc::Command::ARRAY_ADD_UNIQUE,
-            SUBDOC_FLAG_MKDIR_P|SUBDOC_FLAG_MKDOC,
+            SUBDOC_FLAG_MKDIR_P|SUBDOC_FLAG_MKDOC|SUBDOC_FLAG_XATTR_PATH|
+                SUBDOC_FLAG_ACCESS_DELETED,
             /*request_has_value*/true,
             /*allow_empty_path*/true,
             /*response_has_value*/false,
@@ -182,7 +189,8 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>()
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>() {
     return {Subdoc::Command::COUNTER,
-            SUBDOC_FLAG_MKDIR_P|SUBDOC_FLAG_MKDOC,
+            SUBDOC_FLAG_MKDIR_P|SUBDOC_FLAG_MKDOC|SUBDOC_FLAG_XATTR_PATH|
+                SUBDOC_FLAG_ACCESS_DELETED,
             /*request_has_value*/true,
             /*allow_empty_path*/false,
             /*response_has_value*/true,
@@ -193,7 +201,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>() {
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT>() {
     return {Subdoc::Command::GET_COUNT,
-            SUBDOC_FLAG_NONE,
+            SUBDOC_FLAG_NONE|SUBDOC_FLAG_XATTR_PATH|SUBDOC_FLAG_ACCESS_DELETED,
             /*request_has_value*/false,
             /*allow_empty_path*/true,
             /*response_has_value*/true,
@@ -204,7 +212,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT>() {
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>() {
     return {Subdoc::Command::INVALID,
-            SUBDOC_FLAG_NONE,
+            SUBDOC_FLAG_NONE|SUBDOC_FLAG_XATTR_PATH|SUBDOC_FLAG_ACCESS_DELETED,
             /*request_has_value*/true,
             /*allow_empty_path*/true,
             /*response_has_value*/true,
