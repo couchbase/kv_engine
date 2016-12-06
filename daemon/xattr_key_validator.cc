@@ -82,7 +82,7 @@ int get_utf8_char_width(const uint8_t* ptr, size_t avail) {
     throw encoding_error("get_char_width: Invalid utf8 encoding");
 }
 
-bool is_valid_xattr_key(const_char_buffer path) {
+bool is_valid_xattr_key(cb::const_byte_buffer path, size_t& key_length) {
     // Check for the random list of reserved leading characters.
     size_t dot = path.len;
     bool system = false;
@@ -90,14 +90,14 @@ bool is_valid_xattr_key(const_char_buffer path) {
     try {
         const auto length = path.len;
         size_t offset = 0;
-        const uint8_t* ptr = reinterpret_cast<const uint8_t*>(path.buf);
+        const uint8_t* ptr = path.buf;
 
         while (offset < length) {
             auto width = get_utf8_char_width(ptr, length - offset);
             if (width == 1) {
                 if (offset == 0) {
-                    if (std::ispunct(path.buf[0], loc) ||
-                        std::iscntrl(path.buf[0], loc)) {
+                    if (std::ispunct(static_cast<char>(path.buf[0]), loc) ||
+                        std::iscntrl(static_cast<char>(path.buf[0]), loc)) {
 
                         if (path.buf[0] == '_') {
                             system = true;
@@ -128,5 +128,6 @@ bool is_valid_xattr_key(const_char_buffer path) {
         return false;
     }
 
+    key_length = dot;
     return true;
 }

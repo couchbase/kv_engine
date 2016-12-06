@@ -22,11 +22,16 @@
 #include "daemon/subdocument_validators.h"
 #include "memcached/buffer.h"
 
+static bool is_valid_xattr_key(cb::const_char_buffer path) {
+    return is_valid_xattr_key({reinterpret_cast<const uint8_t*>(path.buf),
+                              path.len});
+}
+
 /**
  * Ensure that we don't accept empty keys
  */
 TEST(XattrKeyValidator, Empty) {
-    EXPECT_FALSE(is_valid_xattr_key({nullptr, 0}));
+    EXPECT_FALSE(is_valid_xattr_key({(uint8_t*)nullptr, 0}));
     EXPECT_FALSE(is_valid_xattr_key({".", 1}));
 }
 

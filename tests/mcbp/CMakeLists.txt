@@ -4,12 +4,15 @@ add_executable(memcached_mcbp_test
                mcbp_test.cc
                mcbp_test_meta.cc
                mcbp_test_subdoc.cc
+               xattr_blob_validator_test.cc
                xattr_key_validator_test.cc
                ${PROJECT_SOURCE_DIR}/daemon/mcbp_validators.cc
                ${PROJECT_SOURCE_DIR}/daemon/subdocument_traits.cc
                ${PROJECT_SOURCE_DIR}/daemon/subdocument_validators.cc
                ${PROJECT_SOURCE_DIR}/daemon/xattr_key_validator.cc
                ${PROJECT_SOURCE_DIR}/daemon/xattr_key_validator.h
+               ${PROJECT_SOURCE_DIR}/daemon/xattr_utils.cc
+               ${PROJECT_SOURCE_DIR}/daemon/xattr_utils.h
                ${PROJECT_SOURCE_DIR}/utilities/protocol2text.cc
                ${PROJECT_SOURCE_DIR}/utilities/subdoc_encoder.cc)
 target_link_libraries(memcached_mcbp_test platform gtest gtest_main memcached_daemon)

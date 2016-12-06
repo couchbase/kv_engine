@@ -16,8 +16,7 @@
  */
 #pragma once
 
-#include <cstring>
-#include "memcached/buffer.h"
+#include <platform/sized_buffer.h>
 
 namespace cb {
 /**
@@ -28,6 +27,19 @@ namespace cb {
  * actual body.
  */
 namespace xattr {
+
+/**
+ * Validate that the first content of a blob contains a valid XATTR
+ * encoded blob. The motivation behind this function is to ensure that
+ * we don't crash if someone provides an illegal blob via DCP or SetWithMeta
+ *
+ * @param blob the blob to validate
+ * @return true if the blob contains a valid xattr encoded blob (and
+ *              that it is safe to use the rest of the methods in
+ *              cb::xattr to access them
+ */
+ bool validate(const cb::const_char_buffer& blob);
+
 /**
  * Get the offset of the body into the specified payload
  *
@@ -35,7 +47,7 @@ namespace xattr {
  * @return The number of bytes into the payload where the body lives
  *         (the body size == payload.len - the returned value)
  */
-uint32_t get_body_offset(const const_char_buffer& payload);
+uint32_t get_body_offset(const cb::const_char_buffer& payload);
 
 /**
  * Get the segment where the actual body lives
@@ -43,7 +55,7 @@ uint32_t get_body_offset(const const_char_buffer& payload);
  * @param payload the document blob as it is stored in the engine
  * @return a buffer representing the body blob
  */
-const_char_buffer get_body(const const_char_buffer& payload);
+cb::const_char_buffer get_body(const cb::const_char_buffer& payload);
 
 /**
  * Get the segment where the xattr lives
@@ -51,7 +63,7 @@ const_char_buffer get_body(const const_char_buffer& payload);
  * @param payload the document blob as it is stored in the engine
  * @return a buffer representing the xattr blob
  */
-const_char_buffer get_xattr(const const_char_buffer& payload);
+cb::const_char_buffer get_xattr(const cb::const_char_buffer& payload);
 
 }
 }

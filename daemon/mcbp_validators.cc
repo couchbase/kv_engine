@@ -22,6 +22,7 @@
 #include "buckets.h"
 #include "memcached.h"
 #include "subdocument_validators.h"
+#include "xattr_utils.h"
 
 /******************************************************************************
  *                         Package validators                                 *
@@ -126,15 +127,37 @@ static protocol_binary_response_status dcp_snapshot_marker_validator(const Cooki
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
+static bool is_valid_xattr_blob(const protocol_binary_request_header& header) {
+    const uint32_t extlen{header.request.extlen};
+    const uint32_t keylen{ntohs(header.request.keylen)};
+    const uint32_t bodylen{ntohl(header.request.bodylen)};
+
+    auto* ptr = reinterpret_cast<const char*>(header.bytes);
+    ptr += sizeof(header.bytes) + extlen + keylen;
+
+    cb::const_char_buffer xattr{ptr, bodylen - keylen - extlen};
+    return cb::xattr::validate(xattr);
+}
+
 static protocol_binary_response_status dcp_mutation_validator(const Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_dcp_mutation*>(McbpConnection::getPacket(cookie));
+    const auto datatype = req->message.header.request.datatype;
+
+    const uint32_t extlen{req->message.header.request.extlen};
+    const uint32_t keylen{ntohs(req->message.header.request.keylen)};
+    const uint32_t bodylen{ntohl(req->message.header.request.bodylen)};
+
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.extlen != (2*sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(uint16_t)) + sizeof(uint8_t) ||
-        req->message.header.request.keylen == 0 ||
-        req->message.header.request.bodylen == 0 ||
-        !mcbp::datatype::is_valid(req->message.header.request.datatype)) {
+        extlen != (2*sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(uint16_t)) + sizeof(uint8_t) ||
+        keylen == 0 || bodylen == 0 || (keylen + extlen) > bodylen ||
+        !mcbp::datatype::is_valid(datatype)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    if (mcbp::datatype::is_xattr(datatype) &&
+        !is_valid_xattr_blob(req->message.header)) {
+        return PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL;
     }
 
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -864,6 +887,11 @@ static protocol_binary_response_status mutate_with_meta_validator(const Cookie& 
         break;
     default:
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    if (mcbp::datatype::is_xattr(datatype) &&
+        !is_valid_xattr_blob(req->message.header)) {
+        return PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL;
     }
 
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;

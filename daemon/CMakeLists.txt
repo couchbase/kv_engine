@@ -144,6 +144,8 @@ ADD_LIBRARY(memcached_daemon STATIC
             topkeys.h
             tracing.cc
             tracing.h
+            xattr_key_validator.cc
+            xattr_key_validator.h
             xattr_utils.cc
             xattr_utils.h)
 

@@ -67,6 +67,9 @@ extern "C"
         PROTOCOL_BINARY_RES = 0x81
     } protocol_binary_magic;
 
+/** The provided XATTRs are invalid */
+#define PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL PROTOCOL_BINARY_RESPONSE_EINVAL
+
     /**
      * Definition of the valid response status numbers.
      *
