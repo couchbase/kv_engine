@@ -606,20 +606,13 @@ public:
 
     typedef std::shared_ptr<Callback<uint16_t> > FlusherCallback;
 
-    CheckpointManager(EPStats &st, uint16_t vbucket, CheckpointConfig &config,
-                      int64_t lastSeqno, uint64_t lastSnapStart,
+    CheckpointManager(EPStats& st,
+                      uint16_t vbucket,
+                      CheckpointConfig& config,
+                      int64_t lastSeqno,
+                      uint64_t lastSnapStart,
                       uint64_t lastSnapEnd,
-                      FlusherCallback cb) :
-        stats(st), checkpointConfig(config), vbucketId(vbucket), numItems(0),
-        lastBySeqno(lastSeqno), lastClosedChkBySeqno(lastSeqno),
-        isCollapsedCheckpoint(false),
-        pCursorPreCheckpointId(0),
-        flusherCB(cb) {
-        LockHolder lh(queueLock);
-        addNewCheckpoint_UNLOCKED(1, lastSnapStart, lastSnapEnd);
-            registerCursor_UNLOCKED("persistence", 1, false,
-                                    MustSendCheckpointEnd::NO);
-    }
+                      FlusherCallback cb);
 
     ~CheckpointManager();
 
