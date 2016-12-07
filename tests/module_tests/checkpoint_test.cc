@@ -525,7 +525,11 @@ TYPED_TEST(CheckpointTest, ItemBasedCheckpointCreation) {
                                                /*numCheckpoints*/ 2,
                                                /*itemBased*/ true,
                                                /*keepClosed*/ false,
-                                               /*enableMerge*/ false);
+                                               /*enableMerge*/ false,
+                                               /*persistenceEnabled*/ true);
+    // TODO: ^^ Consider a variant for Ephemeral testing -
+    // persistenceEnabled:false
+
     this->createManager();
 
     // Sanity check initial state.
@@ -725,7 +729,11 @@ TYPED_TEST(CheckpointTest, ItemsForCheckpointCursor) {
                                                /*numCheckpoints*/ 2,
                                                /*itemBased*/ true,
                                                /*keepClosed*/ false,
-                                               /*enableMerge*/ false);
+                                               /*enableMerge*/ false,
+                                               /*persistenceEnabled*/ true);
+    // TODO: ^^ Consider a variant for Ephemeral testing -
+    // persistenceEnabled:false
+
     this->createManager();
 
     /* Sanity check initial state */
@@ -773,7 +781,11 @@ TYPED_TEST(CheckpointTest, CursorMovement) {
                                                /*numCheckpoints*/ 2,
                                                /*itemBased*/ true,
                                                /*keepClosed*/ false,
-                                               /*enableMerge*/ false);
+                                               /*enableMerge*/ false,
+                                               /*persistenceEnabled*/true);
+    // TODO: ^^ Consider a variant for Ephemeral testing -
+    // persistenceEnabled:false
+
     this->createManager();
 
     /* Sanity check initial state */
@@ -881,7 +893,10 @@ TYPED_TEST(CheckpointTest, CursorMovementReplicaMerge) {
                                                /*numCheckpoints*/ 2,
                                                /*itemBased*/ true,
                                                /*keepClosed*/ false,
-                                               /*enableMerge*/ true);
+                                               /*enableMerge*/ true,
+                                               /*persistenceEnabled*/true);
+    // TODO: ^^ Consider a variant for Ephemeral testing -
+    // persistenceEnabled:false
 
     // Add items such that we have a checkpoint at half-capacity.
     for (unsigned int ii = 0; ii < MIN_CHECKPOINT_ITEMS / 2; ii++) {
@@ -1005,7 +1020,11 @@ TYPED_TEST(CheckpointTest, SeqnoAndHLCOrdering) {
                                                /*numCheckpoints*/ 1,
                                                /*itemBased*/ true,
                                                /*keepClosed*/ false,
-                                               /*enableMerge*/ false);
+                                               /*enableMerge*/ false,
+                                               /*persistenceEnabled*/true);
+    // TODO: ^^ Consider a variant for Ephemeral testing -
+    // persistenceEnabled:false
+
     this->createManager();
 
     /* Sanity check initial state */

@@ -437,7 +437,10 @@ CheckpointManager::CheckpointManager(EPStats& st,
       flusherCB(cb) {
     LockHolder lh(queueLock);
     addNewCheckpoint_UNLOCKED(1, lastSnapStart, lastSnapEnd);
-    registerCursor_UNLOCKED("persistence", 1, false, MustSendCheckpointEnd::NO);
+    if (checkpointConfig.isPersistenceEnabled()) {
+        registerCursor_UNLOCKED(
+                "persistence", 1, false, MustSendCheckpointEnd::NO);
+    }
 }
 
 CheckpointManager::~CheckpointManager() {
@@ -932,11 +935,22 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
     size_t numMetaItems = 0;
     size_t numCheckpointsRemoved = 0;
     std::list<Checkpoint*> unrefCheckpointList;
-    std::list<Checkpoint*>::iterator it = checkpointList.begin();
-    for (; it != checkpointList.end(); ++it) {
+    // Iterate through the current checkpoints (from oldest to newest), checking
+    // if the checkpoint can be removed.
+    auto it = checkpointList.begin();
+    // Note terminating condition - we stop at one before the last checkpoint -
+    // we must leave at least one checkpoint in existence.
+    for (;
+         it != checkpointList.end() && std::next(it) != checkpointList.end();
+         ++it) {
+
         removeInvalidCursorsOnCheckpoint(*it);
+
+        // When we encounter the first checkpoint which has cursor(s) in it,
+        // or if the persistence cursor is still operating, stop.
         if ((*it)->getNumberOfCursors() > 0 ||
-            (*it)->getId() > pCursorPreCheckpointId) {
+                (checkpointConfig.isPersistenceEnabled() &&
+                 (*it)->getId() > pCursorPreCheckpointId)) {
             break;
         } else {
             numUnrefItems += (*it)->getNumItems();
@@ -1116,7 +1130,9 @@ void CheckpointManager::updateStatsForNewQueuedItem_UNLOCKED(const LockHolder&,
                                                              VBucket& vb,
                                                              const queued_item& qi) {
     ++stats.totalEnqueued;
-    ++stats.diskQueueSize;
+    if (checkpointConfig.isPersistenceEnabled()) {
+        ++stats.diskQueueSize;
+    }
     vb.doStatsForQueueing(*qi, qi->size());
     // Update the checkpoint's memory usage
     checkpointList.back()->incrementMemConsumption(qi->size());
@@ -1836,9 +1852,11 @@ uint64_t CheckpointManager::getPersistenceCursorPreChkId() {
 
 void CheckpointManager::itemsPersisted() {
     LockHolder lh(queueLock);
-    CheckpointCursor& persistenceCursor = connCursors[pCursorName];
-    std::list<Checkpoint*>::iterator itr = persistenceCursor.currentCheckpoint;
-    pCursorPreCheckpointId = ((*itr)->getId() > 0) ? (*itr)->getId() - 1 : 0;
+    auto persistenceCursor = connCursors.find(pCursorName);
+    if (persistenceCursor != connCursors.end()) {
+        auto itr = persistenceCursor->second.currentCheckpoint;
+        pCursorPreCheckpointId = ((*itr)->getId() > 0) ? (*itr)->getId() - 1 : 0;
+    }
 }
 
 size_t CheckpointManager::getMemoryUsage_UNLOCKED() {
@@ -1903,6 +1921,7 @@ CheckpointConfig::CheckpointConfig(EventuallyPersistentEngine &e) {
     itemNumBasedNewCheckpoint = config.isItemNumBasedNewChk();
     keepClosedCheckpoints = config.isKeepClosedChks();
     enableChkMerge = config.isEnableChkMerge();
+    persistenceEnabled = config.getBucketType() == "persistent";
 }
 
 bool CheckpointConfig::validateCheckpointMaxItemsParam(size_t

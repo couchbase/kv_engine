@@ -1004,18 +1004,20 @@ public:
           maxCheckpoints(DEFAULT_MAX_CHECKPOINTS),
           itemNumBasedNewCheckpoint(true),
           keepClosedCheckpoints(false),
-          enableChkMerge(false)
+          enableChkMerge(false),
+          persistenceEnabled(true)
     { /* empty */ }
 
     CheckpointConfig(rel_time_t period, size_t max_items, size_t max_ckpts,
                      bool item_based_new_ckpt, bool keep_closed_ckpts,
-                     bool enable_ckpt_merge)
+                     bool enable_ckpt_merge, bool persistence_enabled)
         : checkpointPeriod(period),
           checkpointMaxItems(max_items),
           maxCheckpoints(max_ckpts),
           itemNumBasedNewCheckpoint(item_based_new_ckpt),
           keepClosedCheckpoints(keep_closed_ckpts),
-          enableChkMerge(enable_ckpt_merge) {}
+          enableChkMerge(enable_ckpt_merge),
+          persistenceEnabled(persistence_enabled) {}
 
     CheckpointConfig(EventuallyPersistentEngine &e);
 
@@ -1041,6 +1043,10 @@ public:
 
     bool isCheckpointMergeSupported() const {
         return enableChkMerge;
+    }
+
+    bool isPersistenceEnabled() const {
+        return persistenceEnabled;
     }
 
 protected:
@@ -1084,6 +1090,9 @@ private:
     bool keepClosedCheckpoints;
     // Flag indicating if merging closed checkpoints is enabled or not.
     bool enableChkMerge;
+
+    // Flag indicating if persistence is enabled.
+    bool persistenceEnabled;
 };
 
 #endif  // SRC_CHECKPOINT_H_

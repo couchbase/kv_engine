@@ -6185,8 +6185,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "vb_0:bloom_filter",
                 "vb_0:bloom_filter_key_count",
                 "vb_0:bloom_filter_size",
-                "vb_0:db_data_size",
-                "vb_0:db_file_size",
                 "vb_0:drift_ahead_threshold",
                 "vb_0:drift_ahead_threshold_exceeded",
                 "vb_0:drift_behind_threshold",
@@ -6262,9 +6260,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "vb_0:num_open_checkpoint_items",
                 "vb_0:open_checkpoint_id",
                 "vb_0:persisted_checkpoint_id",
-                "vb_0:persistence:cursor_checkpoint_id",
-                "vb_0:persistence:cursor_seqno",
-                "vb_0:persistence:num_visits",
                 "vb_0:state"
             }
         },
@@ -6279,9 +6274,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "vb_0:num_open_checkpoint_items",
                 "vb_0:open_checkpoint_id",
                 "vb_0:persisted_checkpoint_id",
-                "vb_0:persistence:cursor_checkpoint_id",
-                "vb_0:persistence:cursor_seqno",
-                "vb_0:persistence:num_visits",
                 "vb_0:state"
             }
         },
@@ -6761,6 +6753,21 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
         // 'diskinfo and 'diskinfo detail' keys should be present now.
         statsKeys["diskinfo"] = {"ep_db_data_size", "ep_db_file_size"};
         statsKeys["diskinfo detail"] = {"vb_0:data_size", "vb_0:file_size"};
+
+        // Add stats which are only available for persistent buckets:
+        static const char* persistence_stats[] = {
+            "vb_0:persistence:cursor_checkpoint_id",
+            "vb_0:persistence:cursor_seqno",
+            "vb_0:persistence:num_visits"
+        };
+        for (auto& stat : persistence_stats) {
+            statsKeys.at("checkpoint").push_back(stat);
+            statsKeys.at("checkpoint 0").push_back(stat);
+        }
+
+        auto& vb_details = statsKeys.at("vbucket-details 0");
+        vb_details.push_back("vb_0:db_data_size");
+        vb_details.push_back("vb_0:db_file_size");
     }
 
     bool error = false;
@@ -6788,8 +6795,8 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
 
         if (entry.second.size() != vals.size()) {
             fprintf(stderr,
-                    "Incorrect number of stats returned for stat group %s: %lu != %lu\n"
-                    " Unaccounted for stat keys:\n",
+                    "Incorrect number of stats returned for stat group %s - expected:%lu actual:%lu\n"
+                    " Unexpected stats:\n",
                     entry.first.c_str(), (unsigned long)entry.second.size(),
                     (unsigned long)vals.size());
             error = true;
