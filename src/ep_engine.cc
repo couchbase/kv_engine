@@ -1980,9 +1980,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::get_item_info = EvpGetItemInfo;
     ENGINE_HANDLE_V1::set_item_info = EvpSetItemInfo;
     ENGINE_HANDLE_V1::get_engine_vb_map = EvpGetClusterConfig;
-    ENGINE_HANDLE_V1::get_stats_struct = NULL;
-    ENGINE_HANDLE_V1::aggregate_stats = NULL;
-
 
     ENGINE_HANDLE_V1::dcp.step = EvpDcpStep;
     ENGINE_HANDLE_V1::dcp.open = EvpDcpOpen;
