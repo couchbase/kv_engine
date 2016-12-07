@@ -241,15 +241,18 @@ typedef std::map<const std::string, CheckpointCursor> cursor_index;
  */
 enum queue_dirty_t {
     /*
-     * The item exists on the right hand side of the persistence cursor. The
-     * item will be deduplicated and doesn't change the size of the checkpoint.
+     * The item exists on the right hand side of the persistence cursor - i.e.
+     * the persistence cursor has not yet processed this key.
+     * The item will be deduplicated and doesn't change the size of the checkpoint.
      */
     EXISTING_ITEM,
 
     /**
-     * The item exists on the left hand side of the persistence cursor. It will
-     * be dedeuplicated and moved the to right hand side, but the item needs
-     * to be re-persisted.
+     * The item exists on the left hand side of the persistence cursor - i.e.
+     * the persistence cursor has already processed one (or more) instances of
+     * this key.
+     * It will be dedeuplicated and moved the to right hand side, but the item
+     * needs to be re-persisted.
      */
     PERSIST_AGAIN,
 

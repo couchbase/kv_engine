@@ -166,7 +166,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
         if (it != keyIndex.end()) {
             rv = EXISTING_ITEM;
             std::list<queued_item>::iterator currPos = it->second.position;
-            uint64_t currMutationId = it->second.mutation_id;
+            const int64_t currMutationId{it->second.mutation_id};
 
             // Given the key already exists, need to check all cursors in this
             // Checkpoint and see if the existing item for this key is to
@@ -200,7 +200,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
                     // decrement if the the existing item is strictly less than
                     // the cursor, as meta-items can share a seqno with
                     // a non-meta item but are logically before them.
-                    uint64_t cursor_mutation_id = cursor_item_idx->second.mutation_id;
+                    int64_t cursor_mutation_id{cursor_item_idx->second.mutation_id};
                     if (cursor_item->isCheckPointMetaItem()) {
                         --cursor_mutation_id;
                     }
