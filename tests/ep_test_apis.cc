@@ -1393,9 +1393,11 @@ void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                   vbucketId),
             "Failed to store an item.");
 
-    // Wait for persistence...
-    wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_change(h, h1, "ep_commit_num", commitNum);
+    if (isPersistentBucket(h, h1)) {
+        // Wait for persistence...
+        wait_for_flusher_to_settle(h, h1);
+        wait_for_stat_change(h, h1, "ep_commit_num", commitNum);
+    }
     h1->release(h, NULL, i);
 }
 

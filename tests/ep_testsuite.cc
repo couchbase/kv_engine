@@ -7069,7 +7069,7 @@ BaseTestCase testsuite_testcases[] = {
                  teardown, NULL, prepare, cleanup),
         TestCase("expiration on compaction", test_expiration_on_compaction,
                  test_setup, teardown, "exp_pager_enabled=false",
-                 prepare, cleanup),
+                 prepare_ep_bucket, cleanup),
         TestCase("expiration on warmup", test_expiration_on_warmup,
                  test_setup, teardown, "exp_pager_stime=1", prepare, cleanup),
         TestCase("expiry_duplicate_warmup", test_bug3454, test_setup,
@@ -7094,7 +7094,7 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test observe no data", test_observe_no_data, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("test observe single key", test_observe_single_key, test_setup, teardown,
-                 NULL, prepare, cleanup),
+                 NULL, prepare_ep_bucket, cleanup),
         TestCase("test observe on temp item", test_observe_temp_item, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("test observe multi key", test_observe_multi_key, test_setup, teardown,
@@ -7483,6 +7483,6 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test_mb20744_check_incr_reject_ops",
                  test_mb20744_check_incr_reject_ops,
-                 test_setup, teardown, NULL, prepare, cleanup),
+                 test_setup, teardown, NULL, prepare_ep_bucket, cleanup),
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };

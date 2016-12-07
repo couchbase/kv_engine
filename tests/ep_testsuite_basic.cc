@@ -74,6 +74,8 @@ static enum test_result test_memory_tracking(ENGINE_HANDLE *h,
     }
 }
 
+// TODO: Ephemeral: Should refactor this into storage and memory tests,
+// enable the memory checks for ephemeral.
 static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(10240000, get_int_stat(h, h1, "ep_max_size"), "Max size not at 10MB");
     set_param(h, h1, protocol_binary_engine_param_flush, "mutation_mem_threshold", "95");
@@ -335,19 +337,21 @@ static enum test_result test_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         }
     }
 
-    wait_for_flusher_to_settle(h, h1);
+    if (isPersistentBucket(h, h1)) {
+        wait_for_flusher_to_settle(h, h1);
 
-    std::stringstream error1, error2;
-    error1 << "Expected ep_total_persisted >= num_keys (" << num_keys << ")";
-    error2 << "Expected ep_total_persisted <= num_sets*num_keys ("
-           << num_sets*num_keys << ")";
+        std::stringstream error1, error2;
+        error1 << "Expected ep_total_persisted >= num_keys (" << num_keys << ")";
+        error2 << "Expected ep_total_persisted <= num_sets*num_keys ("
+               << num_sets*num_keys << ")";
 
-    // The flusher could of ran > 1 times. We can only assert
-    // that we persisted between num_keys and upto num_keys*num_sets
-    check(get_int_stat(h, h1, "ep_total_persisted") >= num_keys,
-          error1.str().c_str());
-    check(get_int_stat(h, h1, "ep_total_persisted") <= num_sets*num_keys,
-          error2.str().c_str());
+        // The flusher could of ran > 1 times. We can only assert
+        // that we persisted between num_keys and upto num_keys*num_sets
+        check(get_int_stat(h, h1, "ep_total_persisted") >= num_keys,
+              error1.str().c_str());
+        check(get_int_stat(h, h1, "ep_total_persisted") <= num_sets*num_keys,
+              error2.str().c_str());
+    }
     return SUCCESS;
 }
 
@@ -1974,7 +1978,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown,
                  "max_size=10240000;ht_locks=1;ht_size=3;"
                  "chk_remover_stime=1;chk_period=60",
-                 prepare, cleanup),
+                 prepare_ep_bucket, cleanup),
         TestCase("test max_size - water_mark changes",
                  test_max_size_and_water_marks_settings,
                  test_setup, teardown,
