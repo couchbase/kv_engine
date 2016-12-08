@@ -254,7 +254,6 @@ public:
             // For engine interface functions which cannot return EWOULDBLOCK,
             // and we otherwise don't want to interpose, we can simply use the
             // real_engine's functions directly.
-            ewb->ENGINE_HANDLE_V1::get_stats_struct = ewb->real_engine->get_stats_struct;
             ewb->ENGINE_HANDLE_V1::item_set_cas = ewb->real_engine->item_set_cas;
             ewb->ENGINE_HANDLE_V1::set_item_info = ewb->real_engine->set_item_info;
         }
@@ -362,11 +361,6 @@ public:
     static void reset_stats(ENGINE_HANDLE* handle, const void* cookie) {
         EWB_Engine* ewb = to_engine(handle);
         return ewb->real_engine->reset_stats(ewb->real_handle, cookie);
-    }
-
-    static void* get_stats_struct(ENGINE_HANDLE* handle, const void* cookie) {
-        EWB_Engine* ewb = to_engine(handle);
-        return ewb->real_engine->get_stats_struct(ewb->real_handle, cookie);
     }
 
     /* Handle 'unknown_command'. In additional to wrapping calls to the
@@ -920,7 +914,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     ENGINE_HANDLE_V1::flush = flush;
     ENGINE_HANDLE_V1::get_stats = get_stats;
     ENGINE_HANDLE_V1::reset_stats = reset_stats;
-    ENGINE_HANDLE_V1::aggregate_stats = NULL;
     ENGINE_HANDLE_V1::unknown_command = unknown_command;
     ENGINE_HANDLE_V1::tap_notify = NULL;
     ENGINE_HANDLE_V1::get_tap_iterator = NULL;
@@ -928,7 +921,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     ENGINE_HANDLE_V1::get_item_info = get_item_info;
     ENGINE_HANDLE_V1::set_item_info = set_item_info;
     ENGINE_HANDLE_V1::get_engine_vb_map = get_engine_vb_map;
-    ENGINE_HANDLE_V1::get_stats_struct = NULL;
     ENGINE_HANDLE_V1::set_log_level = NULL;
 
     ENGINE_HANDLE_V1::dcp = {};
