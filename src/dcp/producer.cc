@@ -199,7 +199,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    if (vb->checkpointManager.getOpenCheckpointId() == 0) {
+    if (vb->isBackfillPhase()) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
             "this vbucket is in backfill state", logHeader(), vbucket);
         return ENGINE_TMPFAIL;
