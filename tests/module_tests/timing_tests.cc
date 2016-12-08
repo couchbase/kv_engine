@@ -112,7 +112,7 @@ static ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     memcpy(info.value[0].iov_base, value, vlen);
     h1->item_set_cas(h, cookie, it, casIn);
 
-    rv = h1->store(h, cookie, it, &cas, op);
+    rv = h1->store(h, cookie, it, &cas, op, DocumentState::Alive);
 
     if (outitem) {
         *outitem = it;

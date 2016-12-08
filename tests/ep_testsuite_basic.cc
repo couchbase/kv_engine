@@ -658,7 +658,7 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     memcpy(info.value[0].iov_base, edata, strlen(edata));
 
     checkeq(ENGINE_SUCCESS,
-            h1->store(h, NULL, it, &cas, OPERATION_SET),
+            h1->store(h, NULL, it, &cas, OPERATION_SET, DocumentState::Alive),
            "Failed to Store item");
     check_key_value(h, h1, ekey, edata, strlen(edata));
     h1->release(h, NULL, it);
@@ -784,7 +784,7 @@ static enum test_result test_set_with_cas_non_existent(ENGINE_HANDLE *h,
 
     uint64_t cas = 0;
     checkeq(ENGINE_KEY_ENOENT,
-            h1->store(h, NULL, i, &cas, OPERATION_SET),
+            h1->store(h, NULL, i, &cas, OPERATION_SET, DocumentState::Alive),
             "Expected not found");
     h1->release(h, NULL, i);
 

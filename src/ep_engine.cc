@@ -203,8 +203,13 @@ extern "C" {
                                     const void* cookie,
                                     item** itm,
                                     const DocKey& key,
-                                    uint16_t vbucket)
+                                    uint16_t vbucket,
+                                    DocumentState document_state)
     {
+        if (document_state != DocumentState::Alive) {
+            return ENGINE_ENOTSUP;
+        }
+
         get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
                                                            HONOR_STATES |
                                                            TRACK_REFERENCE |
@@ -237,8 +242,13 @@ extern "C" {
                                       const void *cookie,
                                       item* itm,
                                       uint64_t *cas,
-                                      ENGINE_STORE_OPERATION operation)
+                                      ENGINE_STORE_OPERATION operation,
+                                      DocumentState document_state)
     {
+        if (document_state != DocumentState::Alive) {
+            return ENGINE_ENOTSUP;
+        }
+
         ENGINE_ERROR_CODE err_code = getHandle(handle)->store(cookie, itm, cas,
                                                               operation);
         releaseHandle(handle);
@@ -1913,6 +1923,9 @@ extern "C" {
         itm_info->key = it->getKey().c_str();
         itm_info->value[0].iov_base = const_cast<char*>(it->getData());
         itm_info->value[0].iov_len = it->getNBytes();
+
+        // @todo update when we add support for accessing deleted documents
+        itm_info->document_state = DocumentState::Alive;
         return true;
     }
 

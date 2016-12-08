@@ -774,7 +774,7 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    rv = h1->store(h, NULL, it, &cas, OPERATION_SET);
+    rv = h1->store(h, NULL, it, &cas, OPERATION_SET, DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, h1, key, data, strlen(data));
     h1->release(h, NULL, it);
@@ -821,7 +821,7 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    rv = h1->store(h, NULL, it, &cas, OPERATION_SET);
+    rv = h1->store(h, NULL, it, &cas, OPERATION_SET, DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, h1, key, data, strlen(data));
     h1->release(h, NULL, it);
@@ -908,7 +908,7 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    rv = h1->store(h, NULL, it, &cas, OPERATION_SET);
+    rv = h1->store(h, NULL, it, &cas, OPERATION_SET, DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, h1, key, data, strlen(data));
     h1->release(h, NULL, it);
@@ -971,7 +971,7 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    rv = h1->store(h, NULL, it, &cas, OPERATION_SET);
+    rv = h1->store(h, NULL, it, &cas, OPERATION_SET, DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, h1, key, data, strlen(data));
     h1->release(h, NULL, it);
@@ -995,7 +995,7 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     cas = 0;
     // Add a new item with the same key.
-    rv = h1->store(h, NULL, it, &cas, OPERATION_ADD);
+    rv = h1->store(h, NULL, it, &cas, OPERATION_ADD, DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Add failed.");
     check_key_value(h, h1, key, data, strlen(data));
     h1->release(h, NULL, it);
@@ -1037,7 +1037,7 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    rv = h1->store(h, NULL, it, &cas, OPERATION_SET);
+    rv = h1->store(h, NULL, it, &cas, OPERATION_SET, DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, h1, key, data, strlen(data));
     h1->release(h, NULL, it);
@@ -1057,7 +1057,7 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     int pager_runs = get_int_stat(h, h1, "ep_num_expiry_pager_runs");
     cas = 0;
-    rv = h1->store(h, NULL, it, &cas, OPERATION_SET);
+    rv = h1->store(h, NULL, it, &cas, OPERATION_SET, DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, h1, key, new_data, strlen(new_data));
     h1->release(h, NULL, it);

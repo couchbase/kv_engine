@@ -899,7 +899,8 @@ ENGINE_ERROR_CODE storeCasOut(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(h1->get_item_info(h, h1, it, &info), "Unable to get item_info");
     check(info.nvalue == 1, "iovectors not supported");
     memcpy(info.value[0].iov_base, value.data(), value.size());
-    ENGINE_ERROR_CODE res = h1->store(h, NULL, it, &out_cas, OPERATION_SET);
+    ENGINE_ERROR_CODE res = h1->store(h, NULL, it, &out_cas,
+                                      OPERATION_SET, DocumentState::Alive);
     h1->release(h, NULL, it);
     return res;
 }
@@ -928,7 +929,7 @@ ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     memcpy(info.value[0].iov_base, value, vlen);
     h1->item_set_cas(h, cookie, it, casIn);
 
-    rv = h1->store(h, cookie, it, &cas, op);
+    rv = h1->store(h, cookie, it, &cas, op, DocumentState::Alive);
 
     if (outitem) {
         *outitem = it;
@@ -1534,5 +1535,5 @@ ENGINE_ERROR_CODE get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       const void* cookie, item** item, const std::string& key,
                       uint16_t vb) {
     return h1->get(h, cookie, item, DocKey(key, testHarness.doc_namespace),
-                   vb);
+                   vb, DocumentState::Alive);
 }
