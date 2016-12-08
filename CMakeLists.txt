@@ -151,6 +151,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/dcp/stream.cc
             src/defragmenter.cc
             src/defragmenter_visitor.cc
+            src/ep_bucket.cc
             src/ep_engine.cc
             src/ep_time.cc
             src/ephemeral_bucket.cc

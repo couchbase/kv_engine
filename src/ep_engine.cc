@@ -42,13 +42,14 @@
 #include <memcached/server_api.h>
 
 #include "backfill.h"
+#include "common.h"
+#include "connmap.h"
 #include "dcp/flow-control-manager.h"
+#include "ep_bucket.h"
 #include "ep_engine.h"
 #include "ephemeral_bucket.h"
 #include "failover-table.h"
 #include "flusher.h"
-#include "connmap.h"
-#include "common.h"
 #include "htresizer.h"
 #include "logger.h"
 #include "memory_tracker.h"
@@ -2007,7 +2008,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     const std::string bucketType = configuration.getBucketType();
     if (bucketType == "persistent") {
-        kvBucket = new KVBucket(*this);
+        kvBucket = new EPBucket(*this);
     } else if (bucketType == "ephemeral") {
         kvBucket = new EphemeralBucket(*this);
     } else {

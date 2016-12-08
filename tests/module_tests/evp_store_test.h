@@ -23,7 +23,7 @@
 
 #include "config.h"
 
-#include "kv_bucket.h"
+#include "ep_bucket.h"
 #include "ep_engine.h"
 #include "item.h"
 
@@ -80,7 +80,7 @@ public:
 /* Subclass of EPStore to expose normally non-public members for test
  * purposes.
  */
-class MockEPStore : public KVBucket {
+class MockEPStore : public EPBucket {
 public:
     MockEPStore(EventuallyPersistentEngine &theEngine);
 

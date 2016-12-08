@@ -87,8 +87,8 @@ void SynchronousEPEngine::initializeConnmaps() {
     tapConnMap->initialize(TAP_CONN_NOTIFIER);
 }
 
-MockEPStore::MockEPStore(EventuallyPersistentEngine &theEngine)
-    : KVBucket(theEngine) {
+MockEPStore::MockEPStore(EventuallyPersistentEngine& theEngine)
+    : EPBucket(theEngine) {
     // Perform a limited set of setup (normally done by EPStore::initialize) -
     // enough such that objects which are assumed to exist are present.
 
