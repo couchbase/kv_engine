@@ -2010,6 +2010,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     if (bucketType == "persistent") {
         kvBucket = new EPBucket(*this);
     } else if (bucketType == "ephemeral") {
+        // Disable warmup - it is not applicable to Ephemeral buckets.
+        configuration.setWarmup(false);
         kvBucket = new EphemeralBucket(*this);
     } else {
         throw std::invalid_argument(bucketType + " is not a recognized bucket "
