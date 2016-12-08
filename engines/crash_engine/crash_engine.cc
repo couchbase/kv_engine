@@ -151,7 +151,8 @@ static ENGINE_ERROR_CODE get(ENGINE_HANDLE* handle,
                              const void* cookie,
                              item** item,
                              const DocKey& key,
-                             uint16_t vbucket)
+                             uint16_t vbucket,
+                             DocumentState)
 {
     return ENGINE_FAILED;
 }
@@ -169,7 +170,8 @@ static ENGINE_ERROR_CODE store(ENGINE_HANDLE* handle,
                                const void *cookie,
                                item* item,
                                uint64_t *cas,
-                               ENGINE_STORE_OPERATION operation)
+                               ENGINE_STORE_OPERATION operation,
+                               DocumentState)
 {
     return ENGINE_FAILED;
 }

@@ -55,6 +55,19 @@ This 32 bit value contains the user specified flags
 This 8 bit bitmask contains meta information about the document. See
 [Data Types](BinaryProtocol.md#data-types) in the binary protocol.
 
+### DocumentState
+
+The DocumentState enum may hold two values:
+
+Deleted - The document is deleted from the users perspective, and trying
+to fetch the document will return KEY_NOT_FOUND unless one asks specifically
+for deleted documents. The Deleted documents will not hang around forever
+and may be reaped by the purger at any time (from the core's perspective.
+That's an internal detail within the underlying engine).
+
+Alive - There is nothing special with this document, and all access to
+it should work just like it always did.
+
 ### nkey
 
 This 16 bit number contains the number of bytes in the key

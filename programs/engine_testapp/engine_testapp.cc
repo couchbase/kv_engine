@@ -191,11 +191,13 @@ static ENGINE_ERROR_CODE mock_get(ENGINE_HANDLE* handle,
                                   const void* cookie,
                                   item** item,
                                   const DocKey& key,
-                                  uint16_t vbucket) {
+                                  uint16_t vbucket,
+                                  DocumentState document_state) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->get,
                                get_engine_from_handle(handle),
-                               static_cast<const void*>(c), item, key, vbucket);
+                               static_cast<const void*>(c), item, key, vbucket,
+                               document_state);
 
     ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
 
@@ -225,12 +227,13 @@ static ENGINE_ERROR_CODE mock_store(ENGINE_HANDLE* handle,
                                     const void *cookie,
                                     item* item,
                                     uint64_t *cas,
-                                    ENGINE_STORE_OPERATION operation) {
+                                    ENGINE_STORE_OPERATION operation,
+                                    DocumentState document_state) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->store,
                                get_engine_from_handle(handle),
                                static_cast<const void*>(c),
-                               item, cas, operation);
+                               item, cas, operation, document_state);
 
     ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
 

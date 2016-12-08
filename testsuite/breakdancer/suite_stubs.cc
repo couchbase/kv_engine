@@ -54,7 +54,7 @@ static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     memcpy(info.value[0].iov_base, value, vlen);
     h1->item_set_cas(h, cookie, it, 0);
 
-    rv = h1->store(h, cookie, it, &cas, op);
+    rv = h1->store(h, cookie, it, &cas, op, DocumentState::Alive);
 
     hasError = rv != ENGINE_SUCCESS;
 
@@ -82,7 +82,7 @@ void set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
     item_info info;
     item *i = NULL;
-    ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, 0);
+    ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, 0, DocumentState::Alive);
     cb_assert(rv == ENGINE_SUCCESS);
 
     info.nvalue = 1;
@@ -109,7 +109,7 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
 
 void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i;
-    ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, 0);
+    ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, 0, DocumentState::Alive);
     cb_assert(rv == ENGINE_KEY_ENOENT);
 }
 

@@ -112,7 +112,7 @@ private:
     }
 
     static ENGINE_ERROR_CODE get(ENGINE_HANDLE*, const void*, item**,
-                                 const DocKey&, uint16_t) {
+                                 const DocKey&, uint16_t, DocumentState) {
         return ENGINE_NO_BUCKET;
     }
 
@@ -122,7 +122,8 @@ private:
     }
 
     static ENGINE_ERROR_CODE store(ENGINE_HANDLE*, const void*, item*,
-                                   uint64_t*, ENGINE_STORE_OPERATION) {
+                                   uint64_t*, ENGINE_STORE_OPERATION,
+                                   DocumentState) {
         return ENGINE_NO_BUCKET;
     }
 

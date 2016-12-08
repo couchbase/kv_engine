@@ -310,20 +310,22 @@ public:
     }
 
     static ENGINE_ERROR_CODE get(ENGINE_HANDLE* handle, const void* cookie,
-                                 item** item, const DocKey& key, uint16_t vbucket) {
+                                 item** item, const DocKey& key, uint16_t vbucket,
+                                 DocumentState document_state) {
         EWB_Engine* ewb = to_engine(handle);
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         if (ewb->should_inject_error(Cmd::GET, cookie, err)) {
             return err;
         } else {
             return ewb->real_engine->get(ewb->real_handle, cookie, item, key,
-                                         vbucket);
+                                         vbucket, document_state);
         }
     }
 
     static ENGINE_ERROR_CODE store(ENGINE_HANDLE* handle, const void *cookie,
                                    item* item, uint64_t *cas,
-                                   ENGINE_STORE_OPERATION operation) {
+                                   ENGINE_STORE_OPERATION operation,
+                                   DocumentState document_state) {
         EWB_Engine* ewb = to_engine(handle);
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         Cmd opcode = (operation == OPERATION_CAS) ? Cmd::CAS : Cmd::STORE;
@@ -331,7 +333,7 @@ public:
             return err;
         } else {
             return ewb->real_engine->store(ewb->real_handle, cookie, item, cas,
-                                           operation);
+                                           operation, document_state);
         }
     }
 

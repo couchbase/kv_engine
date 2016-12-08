@@ -339,17 +339,19 @@ static inline bool bucket_set_item_info(McbpConnection* c, item* item_,
 static inline ENGINE_ERROR_CODE bucket_store(McbpConnection* c,
                                              item* item_,
                                              uint64_t* cas,
-                                             ENGINE_STORE_OPERATION operation) {
+                                             ENGINE_STORE_OPERATION operation,
+                                             DocumentState document_state = DocumentState::Alive) {
     return c->getBucketEngine()->store(c->getBucketEngineAsV0(), c->getCookie(),
-                                       item_, cas, operation);
+                                       item_, cas, operation, document_state);
 }
 
 static inline ENGINE_ERROR_CODE bucket_get(McbpConnection* c,
                                            item** item_,
                                            const DocKey& key,
-                                           uint16_t vbucket) {
+                                           uint16_t vbucket,
+                                           DocumentState document_state = DocumentState::Alive) {
     return c->getBucketEngine()->get(c->getBucketEngineAsV0(), c->getCookie(),
-                                     item_, key, vbucket);
+                                     item_, key, vbucket, document_state);
 }
 
 static inline void bucket_release_item(McbpConnection* c, item* it) {

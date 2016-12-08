@@ -41,7 +41,8 @@ extern "C" {
                                  const void* cookie,
                                  item** item,
                                  const DocKey& key,
-                                 uint16_t vbucket);
+                                 uint16_t vbucket,
+                                 DocumentState document_state);
     static ENGINE_ERROR_CODE get_stats(ENGINE_HANDLE* handle,
                                        const void *cookie,
                                        const char *stat_key,
@@ -52,7 +53,8 @@ extern "C" {
                                    const void *cookie,
                                    item* item,
                                    uint64_t *cas,
-                                   ENGINE_STORE_OPERATION operation);
+                                   ENGINE_STORE_OPERATION operation,
+                                   DocumentState document_state);
     static ENGINE_ERROR_CODE flush(ENGINE_HANDLE* handle,
                                    const void* cookie, time_t when);
     static ENGINE_ERROR_CODE unknown_command(ENGINE_HANDLE* handle,
@@ -654,7 +656,8 @@ public:
     ENGINE_ERROR_CODE get(const void*cookie,
                           item** itm,
                           const DocKey& key,
-                          uint16_t vbucket)
+                          uint16_t vbucket,
+                          DocumentState document_state)
     {
         if ((rand() % 5) == 1) {
             return dispatchNotification(cookie);
@@ -689,7 +692,8 @@ public:
     ENGINE_ERROR_CODE store(const void *cookie,
                             item* itm,
                             uint64_t *cas,
-                            ENGINE_STORE_OPERATION operation)
+                            ENGINE_STORE_OPERATION operation,
+                            DocumentState document_state)
     {
         if ((rand() % 10) == 1) {
             return dispatchNotification(cookie);
@@ -930,9 +934,10 @@ static ENGINE_ERROR_CODE get(ENGINE_HANDLE* handle,
                              const void* cookie,
                              item** item,
                              const DocKey& key,
-                             uint16_t vbucket)
+                             uint16_t vbucket,
+                             DocumentState document_state)
 {
-    return getHandle(handle).get(cookie, item, key, vbucket);
+    return getHandle(handle).get(cookie, item, key, vbucket, document_state);
 }
 
 static ENGINE_ERROR_CODE get_stats(ENGINE_HANDLE* handle,
@@ -953,9 +958,10 @@ static ENGINE_ERROR_CODE store(ENGINE_HANDLE* handle,
                                const void *cookie,
                                item* it,
                                uint64_t *cas,
-                               ENGINE_STORE_OPERATION operation)
+                               ENGINE_STORE_OPERATION operation,
+                               DocumentState document_state)
 {
-    return getHandle(handle).store(cookie, it, cas, operation);
+    return getHandle(handle).store(cookie, it, cas, operation, document_state);
 }
 
 static ENGINE_ERROR_CODE flush(ENGINE_HANDLE* handle,

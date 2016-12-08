@@ -300,6 +300,10 @@ extern "C" {
          * @param item output variable that will receive the located item
          * @param key the key to look up
          * @param vbucket the virtual bucket id
+         * @param allowed_states The document to return must be in any of
+         *                       of these states. (If `Alive` is set, return
+         *                       KEY_ENOENT if the document in the engine
+         *                       is in another state)
          *
          * @return ENGINE_SUCCESS if all goes well
          */
@@ -307,16 +311,23 @@ extern "C" {
                                  const void* cookie,
                                  item** item,
                                  const DocKey& key,
-                                 uint16_t vbucket);
+                                 uint16_t vbucket,
+                                 DocumentState allowed_states);
 
         /**
-         * Store an item.
+         * Store an item into the underlying engine with the given
+         * state. If the DocumentState is set to DocumentState::Deleted
+         * the document shall not be returned unless explicitly asked for
+         * documents in that state, and the underlying engine may choose to
+         * purge it whenever it please.
          *
          * @param handle the engine handle
          * @param cookie The cookie provided by the frontend
          * @param item the item to store
          * @param cas the CAS value for conditional sets
          * @param operation the type of store operation to perform.
+         * @param document_state The state the document should have after
+         *                       the update
          *
          * @return ENGINE_SUCCESS if all goes well
          */
@@ -324,7 +335,8 @@ extern "C" {
                                    const void *cookie,
                                    item* item,
                                    uint64_t *cas,
-                                   ENGINE_STORE_OPERATION operation);
+                                   ENGINE_STORE_OPERATION operation,
+                                   DocumentState document_state);
 
         /**
          * Flush the cache.

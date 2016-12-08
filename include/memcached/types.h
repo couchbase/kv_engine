@@ -85,6 +85,26 @@ extern "C" {
      */
     typedef void item;
 
+    /**
+     * The legal state a document may be in (from the cores perspective)
+     */
+    enum class DocumentState : uint8_t {
+        /**
+         * The document is deleted from the users perspective, and trying
+         * to fetch the document will return KEY_NOT_FOUND unless one
+         * asks specifically for deleted documents. The Deleted documents
+         * will not hang around forever and may be reaped by the purger
+         * at any time (from the core's perspective. That's an internal
+         * detail within the underlying engine).
+         */
+        Deleted = 0x0F,
+
+        /**
+         * The document is alive and all operations should work as expected.
+         */
+        Alive = 0xF0,
+    };
+
     typedef struct {
         uint64_t cas;
         uint64_t vbucket_uuid;
@@ -94,6 +114,11 @@ extern "C" {
         uint32_t nbytes; /**< The total size of the data (in bytes) */
         uint32_t flags; /**< Flags associated with the item (in network byte order)*/
         uint8_t datatype;
+
+        /**
+         * The current state of the document (Deleted or Alive).
+         */
+        DocumentState document_state;
         uint16_t nkey; /**< The total length of the key (in bytes) */
         uint16_t nvalue; /** < IN: The number of elements available in value
                           * OUT: the number of elements used in value */

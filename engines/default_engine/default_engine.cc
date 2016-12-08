@@ -44,7 +44,8 @@ static ENGINE_ERROR_CODE default_get(ENGINE_HANDLE* handle,
                                      const void* cookie,
                                      item** item,
                                      const DocKey& key,
-                                     uint16_t vbucket);
+                                     uint16_t vbucket,
+                                     DocumentState);
 static ENGINE_ERROR_CODE default_get_stats(ENGINE_HANDLE* handle,
                   const void *cookie,
                   const char *stat_key,
@@ -55,7 +56,8 @@ static ENGINE_ERROR_CODE default_store(ENGINE_HANDLE* handle,
                                        const void *cookie,
                                        item* item,
                                        uint64_t *cas,
-                                       ENGINE_STORE_OPERATION operation);
+                                       ENGINE_STORE_OPERATION operation,
+                                       DocumentState);
 static ENGINE_ERROR_CODE default_flush(ENGINE_HANDLE* handle,
                                        const void* cookie, time_t when);
 static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
@@ -324,7 +326,8 @@ static ENGINE_ERROR_CODE default_get(ENGINE_HANDLE* handle,
                                      const void* cookie,
                                      item** item,
                                      const DocKey& key,
-                                     uint16_t vbucket) {
+                                     uint16_t vbucket,
+                                     DocumentState) {
    struct default_engine *engine = get_handle(handle);
    VBUCKET_GUARD(engine, vbucket);
 
@@ -411,7 +414,8 @@ static ENGINE_ERROR_CODE default_store(ENGINE_HANDLE* handle,
                                        const void *cookie,
                                        item* item,
                                        uint64_t *cas,
-                                       ENGINE_STORE_OPERATION operation) {
+                                       ENGINE_STORE_OPERATION operation,
+                                       DocumentState) {
     struct default_engine *engine = get_handle(handle);
     return store_item(engine, get_real_item(item), cas, operation,
                       cookie);
@@ -730,6 +734,7 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
     item_info->value[0].iov_base = item_get_data(it);
     item_info->value[0].iov_len = it->nbytes;
     item_info->datatype = it->datatype;
+    item_info->document_state = DocumentState::Alive;
     return true;
 }
 
