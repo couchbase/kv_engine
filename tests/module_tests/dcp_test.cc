@@ -811,6 +811,59 @@ TEST_F(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
     destroy_mock_cookie(cookie);
 }
 
+/*
+ * The following tests that once a vbucket has been put into a backfillphase
+ * the openCheckpointID is 0.  In addition it checks that a subsequent
+ * snapshotMarker results in a new checkpoint being created.
+ */
+TEST_F(ConnectionTest, test_mb21784) {
+    // Make vbucket replica so can add passive stream
+    ASSERT_EQ(ENGINE_SUCCESS, set_vb_state(vbid, vbucket_state_replica));
+
+    const void *cookie = create_mock_cookie();
+    /*
+     * Create a Mock Dcp consumer. Since child class subobj of MockDcpConsumer
+     *  obj are accounted for by SingleThreadedRCPtr, use the same here
+     */
+    connection_t conn = new MockDcpConsumer(*engine, cookie, "test_consumer");
+    MockDcpConsumer* consumer = static_cast<MockDcpConsumer*>(conn.get());
+
+    // Add passive stream
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(/*opaque*/0, vbid,
+                                                  /*flags*/0));
+    // Get the checkpointManager
+    auto& manager = engine->getKVBucket()->getVBucket(vbid)->checkpointManager;
+
+    // Because the vbucket was previously active it will have an
+    // openCheckpointId of 2
+    EXPECT_EQ(2, manager.getOpenCheckpointId());
+
+    // Send a snapshotMarker to move the vbucket into a backfilling state
+    consumer->snapshotMarker(/*opaque*/1,
+                             /*vbucket*/0,
+                             /*start_seqno*/0,
+                             /*end_seqno*/0,
+                             /*flags set to MARKER_FLAG_DISK*/0x2);
+
+    // A side effect of moving the vbucket into a backfill state is that
+    // the openCheckpointId is set to 0
+    EXPECT_EQ(0, manager.getOpenCheckpointId());
+
+    consumer->snapshotMarker(/*opaque*/1,
+                             /*vbucket*/0,
+                             /*start_seqno*/0,
+                             /*end_seqno*/0,
+                             /*flags*/0);
+
+    // Check that a new checkpoint was created, which means the
+    // opencheckpointid increases to 1
+    EXPECT_EQ(1, manager.getOpenCheckpointId());
+
+    // Close stream
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/0, vbid));
+    destroy_mock_cookie(cookie);
+}
+
 class NotifyTest : public DCPTest {
 protected:
     void SetUp() {

@@ -19,8 +19,10 @@
  * Tests for Rollback functionality in EPStore.
  */
 
+#include "dcp/dcpconnmap.h"
 #include "evp_store_test.h"
 #include "makestoreddockey.h"
+#include "programs/engine_testapp/mock_server.h"
 
 class RollbackTest : public EPBucketTest,
                      public ::testing::WithParamInterface<std::string>
@@ -49,6 +51,15 @@ class RollbackTest : public EPBucketTest,
     }
 
 protected:
+    /*
+     * Fake callback emulating dcp_add_failover_log
+     */
+    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(vbucket_failover_t* entry,
+                                                   size_t nentries,
+                                                   const void *cookie) {
+        return ENGINE_SUCCESS;
+    }
+
     /**
      * Test rollback after deleting an item.
      * @param flush_before_rollback: Should the vbuckt be flushed to disk just
@@ -223,6 +234,48 @@ TEST_P(RollbackTest, RollbackToMiddleOfACheckpointNoFlush) {
     rollback_to_middle_test(false);
 }
 #endif
+
+/*
+ * The opencheckpointid of a bucket can be zero after a rollback.
+ * From MB21784 if an opencheckpointid was zero it was assumed that the
+ * vbucket was in backfilling state.  This caused the producer stream
+ * request to be stuck waiting for backfilling to complete.
+ */
+TEST_P(RollbackTest, MB21784) {
+    // Make the vbucket a replica
+    store->setVBucketState(vbid, vbucket_state_replica, false);
+    // Perform a rollback
+    EXPECT_EQ(ENGINE_SUCCESS, store->rollback(vbid, initial_seqno))
+        << "rollback did not return ENGINE_SUCCESS";
+
+    // Assert the checkpointmanager clear function (called during rollback)
+    // has set the opencheckpointid to zero
+    auto vb = store->getVbMap().getBucket(vbid);
+    auto& ckpt_mgr = vb->checkpointManager;
+    EXPECT_EQ(0, ckpt_mgr.getOpenCheckpointId()) << "opencheckpointId not zero";
+
+    // Create a new Dcp producer, reserving its cookie.
+    get_mock_server_api()->cookie->reserve(cookie);
+    dcp_producer_t producer = engine->getDcpConnMap().newProducer(
+            cookie, "test_producer", /*notifyOnly*/false);
+
+    uint64_t rollbackSeqno;
+    auto err = producer->streamRequest(/*flags*/0,
+                                       /*opaque*/0,
+                                       /*vbucket*/vbid,
+                                       /*start_seqno*/0,
+                                       /*end_seqno*/0,
+                                       /*vb_uuid*/0,
+                                       /*snap_start*/0,
+                                       /*snap_end*/0,
+                                       &rollbackSeqno,
+                                       RollbackTest::fakeDcpAddFailoverLog);
+    EXPECT_EQ(ENGINE_SUCCESS, err)
+        << "stream request did not return ENGINE_SUCCESS";
+    // Close stream
+    ASSERT_EQ(ENGINE_SUCCESS, producer->closeStream(/*opaque*/0, vbid));
+    engine->handleDisconnect(cookie);
+}
 
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(FullAndValueEviction,
