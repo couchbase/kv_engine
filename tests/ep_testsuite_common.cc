@@ -214,6 +214,16 @@ enum test_result prepare(engine_test_t *test) {
     return SUCCESS;
 }
 
+enum test_result prepare_ep_bucket(engine_test_t* test) {
+    std::string cfg{test->cfg};
+    if (cfg.find("bucket_type=ephemeral") != std::string::npos) {
+        return SKIPPED;
+    }
+
+    // Perform whatever prep the "base class" function wants.
+    return prepare(test);
+}
+
 void cleanup(engine_test_t *test, enum test_result result) {
     (void)result;
     // Nuke the database files we created

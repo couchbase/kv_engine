@@ -181,6 +181,12 @@ bool teardown_v2(engine_test_t* test);
 // Default testcase prepare function.
 enum test_result prepare(engine_test_t *test);
 
+/**
+ * Prepare a test which is only applicable for persistent buckets (EPBucket) -
+ * for other types it should be skipped.
+ */
+enum test_result prepare_ep_bucket(engine_test_t* test);
+
 // Default testcase cleanup function.
 void cleanup(engine_test_t *test, enum test_result result);
 
