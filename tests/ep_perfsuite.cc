@@ -158,7 +158,6 @@ std::unordered_map<std::string, StatProperties> stat_tests =
      {"vkey_vb0", {"vkey example_doc 0", StatRuntime::Fast, {}} },
      {"kvtimings", {"kvtimings", StatRuntime::Slow, {}} },
      {"kvstore", {"kvstore", StatRuntime::Fast, {}} },
-     {"warmup", {"warmup", StatRuntime::Fast, {}} },
      {"info", {"info", StatRuntime::Fast, {}} },
      {"allocator", {"allocator", StatRuntime::Slow, {}} },
      {"config", {"config", StatRuntime::Fast, {}} },
@@ -1225,7 +1224,7 @@ static void perf_stat_latency_core(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             storeCasVb11(h, h1, nullptr, OPERATION_ADD, "example_doc", nullptr,
                          0, /*flags*/0, /*out*/nullptr, 0, /*vbid*/0),
-                         "Failed to add example document.");;
+                         "Failed to add example document.");
     for (auto& stat : stat_tests) {
         if (stat.second.runtime == statRuntime) {
             for (int ii = 0; ii < iterations; ii++) {

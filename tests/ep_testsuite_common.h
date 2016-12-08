@@ -218,4 +218,7 @@ const void* createTapConn(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 std::string get_dbname(const char* test_cfg);
 
+// Returns true if Warmup is enabled for the given engine.
+bool isWarmupEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
+
 #endif /* TESTS_EP_TESTSUITE_COMMON_H_ */

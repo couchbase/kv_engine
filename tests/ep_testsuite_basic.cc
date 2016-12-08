@@ -357,16 +357,13 @@ extern "C" {
             store(hp->h, hp->h1, NULL, OPERATION_ADD,
                   "key", "somevalue", &it);
             hp->h1->release(hp->h, NULL, it);
-            usleep(10);
             checkeq(ENGINE_SUCCESS,
                     store(hp->h, hp->h1, NULL, OPERATION_SET,
                           "key", "somevalue", &it),
                     "Error setting.");
             hp->h1->release(hp->h, NULL, it);
-            usleep(10);
             // Ignoring the result here -- we're racing.
             del(hp->h, hp->h1, "key", 0, 0);
-            usleep(10);
         }
     }
 }
@@ -389,15 +386,17 @@ static enum test_result test_conc_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         cb_assert(r == 0);
     }
 
-    wait_for_flusher_to_settle(h, h1);
+    if (isWarmupEnabled(h, h1)) {
+        wait_for_flusher_to_settle(h, h1);
 
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
-    wait_for_warmup_complete(h, h1);
+        testHarness.reload_engine(&h, &h1,
+                                  testHarness.engine_path,
+                                  testHarness.get_current_testcase()->cfg,
+                                  true, false);
+        wait_for_warmup_complete(h, h1);
 
-    cb_assert(0 == get_int_stat(h, h1, "ep_warmup_dups"));
+        cb_assert(0 == get_int_stat(h, h1, "ep_warmup_dups"));
+    }
 
     return SUCCESS;
 }
@@ -1247,6 +1246,10 @@ static enum test_result test_touch_locked(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     item *itm = NULL;
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "coolkey", "cooler", &itm),
@@ -1382,6 +1385,10 @@ static enum test_result test_set_delete_invalid_cas(ENGINE_HANDLE *h, ENGINE_HAN
 }
 
 static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     wait_for_persisted_value(h, h1, "key", "value1");
 
     checkeq(ENGINE_SUCCESS,
@@ -1464,14 +1471,17 @@ static enum test_result test_bug2509(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         usleep(10);
     }
 
-    // Restart again, to verify we don't have any duplicates.
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
-    wait_for_warmup_complete(h, h1);
+    if (isWarmupEnabled(h, h1)) {
+        // Restart again, to verify we don't have any duplicates.
+        testHarness.reload_engine(&h, &h1,
+                                  testHarness.engine_path,
+                                  testHarness.get_current_testcase()->cfg,
+                                  true, false);
+        wait_for_warmup_complete(h, h1);
 
-    return get_int_stat(h, h1, "ep_warmup_dups") == 0 ? SUCCESS : FAIL;
+        return get_int_stat(h, h1, "ep_warmup_dups") == 0 ? SUCCESS : FAIL;
+    }
+    return SUCCESS;
 }
 
 static enum test_result test_bug7023(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -1505,13 +1515,16 @@ static enum test_result test_bug7023(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     }
     wait_for_flusher_to_settle(h, h1);
 
-    // Restart again, to verify no data loss.
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
-    wait_for_warmup_complete(h, h1);
-    return get_int_stat(h, h1, "ep_warmup_value_count", "warmup") == 10000 ? SUCCESS : FAIL;
+    if (isWarmupEnabled(h, h1)) {
+        // Restart again, to verify no data loss.
+        testHarness.reload_engine(&h, &h1,
+                                  testHarness.engine_path,
+                                  testHarness.get_current_testcase()->cfg,
+                                  true, false);
+        wait_for_warmup_complete(h, h1);
+        return get_int_stat(h, h1, "ep_warmup_value_count", "warmup") == 10000 ? SUCCESS : FAIL;
+    }
+    return SUCCESS;
 }
 
 static enum test_result test_mb3169(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -1561,6 +1574,10 @@ static enum test_result test_mb3169(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static enum test_result test_mb5172(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     item *i = NULL;
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key-1", "value-1", &i, 0, 0),
@@ -1730,27 +1747,28 @@ static enum test_result test_flush_disabled(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS, verify_key(h, h1, "key"), "Expected key");
 
     // restart engine with flush enabled and redo the test, we expect flush to succeed
-    std::string param = "flushall_enabled=false";
-    std::string config = testHarness.get_current_testcase()->cfg;
-    size_t found = config.find(param);
-    if(found != config.npos) {
-        config.replace(found, param.size(), "flushall_enabled=true");
+    if (isWarmupEnabled(h, h1)) {
+        std::string param = "flushall_enabled=false";
+        std::string config = testHarness.get_current_testcase()->cfg;
+        size_t found = config.find(param);
+        if(found != config.npos) {
+            config.replace(found, param.size(), "flushall_enabled=true");
+        }
+        testHarness.reload_engine(&h, &h1,
+                                  testHarness.engine_path,
+                                  config.c_str(),
+                                  true, false);
+        wait_for_warmup_complete(h, h1);
+
+
+        set_degraded_mode(h, h1, NULL, true);
+        checkeq(ENGINE_SUCCESS,
+                h1->flush(h, NULL), "Flush should be enabled");
+        set_degraded_mode(h, h1, NULL, false);
+
+        //expect missing key
+        checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
     }
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              config.c_str(),
-                              true, false);
-    wait_for_warmup_complete(h, h1);
-
-
-    set_degraded_mode(h, h1, NULL, true);
-    checkeq(ENGINE_SUCCESS,
-            h1->flush(h, NULL), "Flush should be enabled");
-    set_degraded_mode(h, h1, NULL, false);
-
-    //expect missing key
-    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
-
     return SUCCESS;
 }
 
@@ -1810,6 +1828,10 @@ static enum test_result set_max_cas_mb21190(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 }
 
 static enum test_result warmup_mb21769(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     // Validate some VB data post warmup
     // VB 0 will be empty
     // VB 1 will not be empty

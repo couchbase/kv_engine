@@ -216,6 +216,10 @@ static enum test_result test_replica_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE
 
 static int checkCurrItemsAfterShutdown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                        int numItems2Load, bool shutdownForce) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     std::vector<std::string> keys;
     for (int index = 0; index < numItems2Load; ++index) {
         std::stringstream s;
@@ -274,6 +278,10 @@ static int checkCurrItemsAfterShutdown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 }
 
 static enum test_result test_flush_shutdown_force(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     int numItems2load = 3000;
     bool shutdownForce = true;
     int currItems = checkCurrItemsAfterShutdown(h, h1, numItems2load, shutdownForce);
@@ -284,6 +292,10 @@ static enum test_result test_flush_shutdown_force(ENGINE_HANDLE *h, ENGINE_HANDL
 }
 
 static enum test_result test_flush_shutdown_noforce(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     int numItems2load = 3000;
     bool shutdownForce = false;
     int currItems = checkCurrItemsAfterShutdown(h, h1, numItems2load, shutdownForce);
@@ -294,6 +306,10 @@ static enum test_result test_flush_shutdown_noforce(ENGINE_HANDLE *h, ENGINE_HAN
 }
 
 static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     item *i = NULL;
     // First try to delete something we know to not be there.
     checkeq(ENGINE_KEY_ENOENT, del(h, h1, "key", 0, 0),
@@ -347,6 +363,10 @@ static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
 static enum test_result test_shutdown_snapshot_range(ENGINE_HANDLE *h,
                                                      ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     const int num_items = 100;
     for (int j = 0; j < num_items; ++j) {
         item *i = NULL;
@@ -390,6 +410,10 @@ static enum test_result test_shutdown_snapshot_range(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     item *i = NULL;
     check(set_vbucket_state(h, h1, 2, vbucket_state_active),
           "Failed to set vbucket state.");
@@ -432,6 +456,10 @@ static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDL
 }
 
 static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     item *i = NULL;
     static const char val[] = "somevalue";
     ENGINE_ERROR_CODE ret = store(h, h1, NULL, OPERATION_SET, "key", val, &i);
@@ -522,19 +550,22 @@ static enum test_result test_specialKeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
           "Failed set Arabic key");
     h1->release(h, NULL, i);
 
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
-    wait_for_warmup_complete(h, h1);
-    check_key_value(h, h1, key0, val0, strlen(val0));
-    check_key_value(h, h1, key1, val1, strlen(val1));
-    check_key_value(h, h1, key2, val2, strlen(val2));
-    check_key_value(h, h1, key3, val3, strlen(val3));
-    check_key_value(h, h1, key4, val4, strlen(val4));
-    check_key_value(h, h1, key5, val5, strlen(val5));
-    check_key_value(h, h1, key6, val6, strlen(val6));
-    check_key_value(h, h1, key7, val7, strlen(val7));
+    if (isWarmupEnabled(h, h1)) {
+        // Check that after warmup the keys are still present.
+        testHarness.reload_engine(&h, &h1,
+                                  testHarness.engine_path,
+                                  testHarness.get_current_testcase()->cfg,
+                                  true, false);
+        wait_for_warmup_complete(h, h1);
+        check_key_value(h, h1, key0, val0, strlen(val0));
+        check_key_value(h, h1, key1, val1, strlen(val1));
+        check_key_value(h, h1, key2, val2, strlen(val2));
+        check_key_value(h, h1, key3, val3, strlen(val3));
+        check_key_value(h, h1, key4, val4, strlen(val4));
+        check_key_value(h, h1, key5, val5, strlen(val5));
+        check_key_value(h, h1, key6, val6, strlen(val6));
+        check_key_value(h, h1, key7, val7, strlen(val7));
+    }
     return SUCCESS;
 }
 
@@ -571,22 +602,25 @@ static enum test_result test_binKeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check_key_value(h, h1, key3, val3, strlen(val3));
     h1->release(h, NULL, i);
 
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
-    wait_for_warmup_complete(h, h1);
-    check_key_value(h, h1, key0, val0, strlen(val0));
-    check_key_value(h, h1, key1, val1, strlen(val1));
-    check_key_value(h, h1, key2, val2, strlen(val2));
-    check_key_value(h, h1, key3, val3, strlen(val3));
+    if (isWarmupEnabled(h, h1)) {
+        testHarness.reload_engine(&h, &h1,
+                                  testHarness.engine_path,
+                                  testHarness.get_current_testcase()->cfg,
+                                  true, false);
+        wait_for_warmup_complete(h, h1);
+        check_key_value(h, h1, key0, val0, strlen(val0));
+        check_key_value(h, h1, key1, val1, strlen(val1));
+        check_key_value(h, h1, key2, val2, strlen(val2));
+        check_key_value(h, h1, key3, val3, strlen(val3));
+    }
     return SUCCESS;
 }
 
 static enum test_result test_restart_bin_val(ENGINE_HANDLE *h,
                                              ENGINE_HANDLE_V1 *h1) {
-
-
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
 
     char binaryData[] = "abcdefg\0gfedcba";
     cb_assert(sizeof(binaryData) != strlen(binaryData));
@@ -803,6 +837,9 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
     const char *key = "test_expiry_loader";
     const char *data = "some test data here.";
 
@@ -885,6 +922,9 @@ static enum test_result test_expiration_on_compaction(ENGINE_HANDLE *h,
 
 static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
 
     set_param(h, h1, protocol_binary_engine_param_flush,
               "exp_pager_enabled", "false");
@@ -953,6 +993,10 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     const char *key = "test_expiry_duplicate_warmup";
     const char *data = "some test data here.";
 
@@ -1019,6 +1063,10 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     const char *key = "test_expiry_no_items_warmup";
     const char *data = "some test data here.";
 
@@ -1536,6 +1584,10 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
 
 static enum test_result vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                                 const char* value = NULL) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     check(set_vbucket_state(h, h1, 1, vbucket_state_active),
           "Failed to set vbucket state.");
 
@@ -1911,6 +1963,9 @@ static enum test_result test_vb_file_stats(ENGINE_HANDLE *h,
 
 static enum test_result test_vb_file_stats_after_warmup(ENGINE_HANDLE *h,
                                                         ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
 
     item *it = NULL;
     for (int i = 0; i < 100; ++i) {
@@ -2145,6 +2200,10 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 }
 
 static enum test_result test_warmup_conf(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     checkeq(100, get_int_stat(h, h1, "ep_warmup_min_items_threshold"),
             "Incorrect initial warmup min items threshold.");
     checkeq(100, get_int_stat(h, h1, "ep_warmup_min_memory_threshold"),
@@ -2642,6 +2701,10 @@ static enum test_result test_session_cas_validation(ENGINE_HANDLE *h,
 
 static enum test_result test_access_scanner_settings(ENGINE_HANDLE *h,
                                                      ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        // Access scanner n/a without warmup.
+        return SKIPPED;
+    }
 
     // Create a unique access log path by combining with the db path.
     checkeq(ENGINE_SUCCESS,
@@ -2711,6 +2774,10 @@ static enum test_result test_access_scanner_settings(ENGINE_HANDLE *h,
 
 static enum test_result test_access_scanner(ENGINE_HANDLE *h,
                                             ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        // Access scanner not applicable without warmup.
+        return SKIPPED;
+    }
 
     // Create a unique access log path by combining with the db path.
     checkeq(ENGINE_SUCCESS,
@@ -2862,6 +2929,10 @@ static enum test_result test_set_param_message(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 }
 
 static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     item *it = NULL;
     check(set_vbucket_state(h, h1, 0, vbucket_state_active), "Failed to set VB0 state.");
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set VB1 state.");
@@ -2924,6 +2995,10 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 
 static enum test_result test_warmup_with_threshold(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     item *it = NULL;
     check(set_vbucket_state(h, h1, 0, vbucket_state_active), "Failed set vbucket 1 state.");
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed set vbucket 2 state.");
@@ -3041,6 +3116,9 @@ static enum test_result test_warmup_accesslog(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 #endif
 
 static enum test_result test_warmup_oom(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
 
     write_items(h, h1, 20000, 0, "superlongnameofkey1234567890123456789012345678902");
 
@@ -3577,6 +3655,10 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 }
 
 static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
     std::vector<std::string> keys;
@@ -3844,6 +3926,10 @@ static enum test_result test_validate_engine_handle(ENGINE_HANDLE *h, ENGINE_HAN
 }
 
 static enum test_result test_kill9_bucket(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     std::vector<std::string> keys;
     for (int j = 0; j < 2000; ++j) {
         std::stringstream ss;
@@ -4021,6 +4107,10 @@ static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
 
 static enum test_result test_observe_seqno_failover(ENGINE_HANDLE *h,
                                                     ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     int num_items = 10;
     for (int j = 0; j < num_items; ++j) {
         // Set an item
@@ -5076,15 +5166,18 @@ static enum test_result test_multiple_set_delete_with_metas_full_eviction(
 
     curr_vb_items = get_int_stat(h, h1, "vb_0:num_items", "vbucket-details 0");
 
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, true);
-    wait_for_warmup_complete(h, h1);
+    if (isWarmupEnabled(h, h1)) {
+        // Restart, and check data is warmed up correctly.
+        testHarness.reload_engine(&h, &h1,
+                                  testHarness.engine_path,
+                                  testHarness.get_current_testcase()->cfg,
+                                  true, true);
+        wait_for_warmup_complete(h, h1);
 
-    checkeq(curr_vb_items,
-            get_int_stat(h, h1, "vb_0:num_items", "vbucket-details 0"),
-            "Unexpected item count in vbucket");
+        checkeq(curr_vb_items,
+                get_int_stat(h, h1, "vb_0:num_items", "vbucket-details 0"),
+                "Unexpected item count in vbucket");
+    }
 
     return SUCCESS;
 }
@@ -5453,6 +5546,12 @@ static enum test_result test_get_random_key(ENGINE_HANDLE *h,
 
 static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        // TODO: Ephemeral: We should add a test variant which checks that
+        // on restart we generate a new UUID (essentially forcing all clients
+        // to rollback if they re-connect; given that all previous data is gone).
+        return SKIPPED;
+    }
 
     uint64_t num_entries, top_entry_id;
     // warm up
@@ -5718,6 +5817,9 @@ static void force_vbstate_to_25x(std::string dbname, int vbucket) {
 // we warmup 2 vbuckets and ensure they get unique IDs.
 static enum test_result test_mb19635_upgrade_from_25x(ENGINE_HANDLE *h,
                                                       ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
 
     std::string backend = get_str_stat(h, h1, "ep_backend");
     if (backend == "forestdb") {
@@ -5894,8 +5996,7 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                        roKVStoreStats.end());
     }
 
-    // all of these should be const, but g++ seems to have problems with that
-    const std::map<std::string, std::vector<std::string> > statsKeys{
+    std::map<std::string, std::vector<std::string> > statsKeys{
         {"tap-vbtakeover 0",
             {
                 "name",
@@ -6477,12 +6578,8 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_waitforwarmup",
                 "ep_warmup",
                 "ep_warmup_batch_size",
-                "ep_warmup_dups",
                 "ep_warmup_min_items_threshold",
                 "ep_warmup_min_memory_threshold",
-                "ep_warmup_oom",
-                "ep_warmup_thread",
-                "ep_warmup_time",
                 "ep_workload_pattern",
                 "mem_used",
                 "rollback_item_count",
@@ -6553,6 +6650,15 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
             }
         }
     };
+
+    if (isWarmupEnabled(h, h1)) {
+        // Add stats which are only available if warmup is enabled:
+        auto& eng_stats = statsKeys.at("");
+        eng_stats.insert(eng_stats.end(), {"ep_warmup_dups",
+                                           "ep_warmup_oom",
+                                           "ep_warmup_time",
+                                           "ep_warmup_thread"});
+    }
 
     bool error = false;
     for (const auto& entry : statsKeys) {
@@ -6667,23 +6773,21 @@ static enum test_result test_mb19687_variable(ENGINE_HANDLE* h,
         {"kvtimings",
             {}
         },
-
-        {"warmup",
-            {
-                "ep_warmup",
-                "ep_warmup_state",
-                "ep_warmup_thread",
-                "ep_warmup_key_count",
-                "ep_warmup_value_count",
-                "ep_warmup_dups",
-                "ep_warmup_oom",
-                "ep_warmup_min_memory_threshold",
-                "ep_warmup_min_item_threshold",
-                "ep_warmup_estimated_key_count",
-                "ep_warmup_estimated_value_count"
-            }
-        }
     };
+
+    if (isWarmupEnabled(h, h1)) {
+        statsKeys.insert( { "warmup", { "ep_warmup",
+                                        "ep_warmup_state",
+                                        "ep_warmup_thread",
+                                        "ep_warmup_key_count",
+                                        "ep_warmup_value_count",
+                                        "ep_warmup_dups",
+                                        "ep_warmup_oom",
+                                        "ep_warmup_min_memory_threshold",
+                                        "ep_warmup_min_item_threshold",
+                                        "ep_warmup_estimated_key_count",
+                                        "ep_warmup_estimated_value_count" } });
+    }
 
     item_info info;
     memset(&info, 0, sizeof(info));
@@ -6880,17 +6984,19 @@ static enum test_result test_vbucket_compact_no_purge(ENGINE_HANDLE *h,
             get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
             "purge_seqno didn't match expected value after another compaction");
 
-    /* Reload the engine */
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
-    wait_for_warmup_complete(h, h1);
+    if (isWarmupEnabled(h, h1)) {
+        /* Reload the engine */
+        testHarness.reload_engine(&h, &h1,
+                                  testHarness.engine_path,
+                                  testHarness.get_current_testcase()->cfg,
+                                  true, false);
+        wait_for_warmup_complete(h, h1);
 
-    /* Purge seqno should not change after reload */
-    checkeq(exp_purge_seqno,
-            get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
-            "purge_seqno didn't match expected value after reload");
+        /* Purge seqno should not change after reload */
+        checkeq(exp_purge_seqno,
+                get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
+                "purge_seqno didn't match expected value after reload");
+    }
     return SUCCESS;
 }
 

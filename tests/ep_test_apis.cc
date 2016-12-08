@@ -1352,6 +1352,10 @@ void wait_for_memory_usage_below(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 }
 
 bool wait_for_warmup_complete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return true;
+    }
+
     useconds_t sleepTime = 128;
     do {
         try {

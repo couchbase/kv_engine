@@ -358,3 +358,7 @@ const void* createTapConn(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(iter != NULL, "Failed to create a tap iterator");
     return cookie;
 }
+
+bool isWarmupEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+    return get_bool_stat(h, h1, "ep_warmup");
+}

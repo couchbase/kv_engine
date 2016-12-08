@@ -3103,12 +3103,20 @@ static enum test_result test_dcp_reconnect_partial(ENGINE_HANDLE *h,
 
 static enum test_result test_dcp_crash_reconnect_full(ENGINE_HANDLE *h,
                                                       ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     // Test reconnect after we crash with a full snapshot
     return test_dcp_reconnect(h, h1, true, true);
 }
 
 static enum test_result test_dcp_crash_reconnect_partial(ENGINE_HANDLE *h,
                                                          ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     // Test reconnect after we crash with a partial snapshot
     return test_dcp_reconnect(h, h1, false, true);
 }
@@ -3433,6 +3441,10 @@ static enum test_result test_rollback_to_zero(ENGINE_HANDLE *h,
 
 static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
     uint16_t vbid = 0;
     const int num_items = 40;
     stop_persistence(h, h1);
@@ -4941,6 +4953,14 @@ static enum test_result test_dcp_early_termination(ENGINE_HANDLE* h,
 
 static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
+    if (!isWarmupEnabled(h, h1)) {
+        // TODO: Ephemeral - Should re-enable some of these tests, where after
+        // restart we expect all requests to rollback (as should be no matching
+        // entries as the failover table will just have a single entry with
+        // a new UUID.
+        return SKIPPED;
+    }
+
     const int num_items = 50;
     uint64_t end_seqno = num_items + 1000;
     uint32_t high_seqno = 0;

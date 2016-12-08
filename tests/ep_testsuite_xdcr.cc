@@ -93,16 +93,18 @@ static enum test_result test_get_meta_with_extras(ENGINE_HANDLE *h,
     check(temp == 1, "Expect one getMeta op");
     h1->release(h, NULL, i);
 
-    // restart
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, true);
-    wait_for_warmup_complete(h, h1);
+    if (isWarmupEnabled(h, h1)) {
+        // restart
+        testHarness.reload_engine(&h, &h1,
+                                  testHarness.engine_path,
+                                  testHarness.get_current_testcase()->cfg,
+                                  true, true);
+        wait_for_warmup_complete(h, h1);
 
-    check(get_meta(h, h1, key1, true), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    verifyLastMetaData(metadata1);
+        check(get_meta(h, h1, key1, true), "Expected to get meta");
+        check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+        verifyLastMetaData(metadata1);
+    }
 
     return SUCCESS;
 }
