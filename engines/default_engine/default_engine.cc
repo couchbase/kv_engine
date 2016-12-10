@@ -710,11 +710,6 @@ char* item_get_data(const hash_item* item)
     return ((char*)key->header.full_key) + hash_key_get_key_len(key);
 }
 
-uint8_t item_get_clsid(const hash_item* item)
-{
-    return 0;
-}
-
 static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
                           const item* item, item_info *item_info)
 {
