@@ -219,7 +219,7 @@ public:
         std::string real_engine_name(config.substr(0, seperator));
         std::string real_engine_config;
         if (seperator != std::string::npos) {
-            real_engine_config = config.substr(seperator);
+            real_engine_config = config.substr(seperator + 1);
         }
 
         if ((ewb->real_engine_ref = load_engine(real_engine_name.c_str(),
