@@ -125,7 +125,8 @@ void TestappTest::CreateTestBucket()
 
     char cfg[80];
     memset(cfg, 0, sizeof(cfg));
-    snprintf(cfg, sizeof(cfg), "ewouldblock_engine.so%cdefault_engine.so", 0);
+    snprintf(cfg, sizeof(cfg),
+             "ewouldblock_engine.so%cdefault_engine.so;keep_deleted=true", 0);
 
     Frame request;
     mcbp_raw_command(request, PROTOCOL_BINARY_CMD_CREATE_BUCKET,

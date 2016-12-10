@@ -45,6 +45,9 @@ struct default_engine;
 /* temp */
 #define ITEM_SLABBED (2<<8)
 
+/** The item is deleted (may only be accessed if explicitly asked for) */
+#define ITEM_ZOMBIE (4<<8)
+
 struct config {
    bool use_cas;
    size_t verbose;
@@ -58,6 +61,7 @@ struct config {
    bool ignore_vbucket;
    bool vb0;
    char *uuid;
+   bool keep_deleted;
 };
 
 /**

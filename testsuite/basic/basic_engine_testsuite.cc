@@ -233,6 +233,48 @@ static enum test_result get_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+/*
+ * Make sure when we can successfully retrieve an item that has been stored in
+ * the engine and then deleted.
+ */
+static enum test_result get_deleted_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item* test_item = nullptr;
+    item* test_item_get = nullptr;
+    DocKey key("get_removed_test_key", test_harness.doc_namespace);
+    uint64_t cas = 0;
+    cb_assert(h1->allocate(h, nullptr, &test_item, key, 1, 0, 0,
+                           PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
+    cb_assert(h1->store(h, nullptr, test_item, &cas,
+                        OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
+    cb_assert(h1->get(h, nullptr, &test_item_get, key, 0,
+                      DocumentState::Alive) == ENGINE_SUCCESS);
+    h1->release(h, nullptr, test_item);
+    h1->release(h, nullptr, test_item_get);
+
+    // Asking for a dead document should not find it!
+    test_item_get = nullptr;
+    cb_assert(h1->get(h, nullptr, &test_item_get, key, 0,
+                      DocumentState::Deleted) == ENGINE_KEY_ENOENT);
+    cb_assert(test_item_get == nullptr);
+
+    // remove it
+    mutation_descr_t mut_info;
+    cb_assert(h1->remove(h, nullptr, key, &cas, 0, &mut_info) == ENGINE_SUCCESS);
+    item* check_item;
+    cb_assert(h1->get(h, nullptr, &check_item, key,
+                      0, DocumentState::Alive) == ENGINE_KEY_ENOENT);
+    cb_assert(check_item == nullptr);
+
+    // But we should be able to fetch it if we ask for deleted
+    cb_assert(h1->get(h, nullptr, &check_item, key,
+                      0, DocumentState::Deleted) == ENGINE_SUCCESS);
+    cb_assert(check_item != nullptr);
+    h1->release(h, nullptr, check_item);
+
+    return SUCCESS;
+}
+
+
 static enum test_result expiry_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
     item *test_item_get = NULL;
@@ -823,6 +865,7 @@ engine_test_t* get_tests(void) {
         TEST_CASE("replace test", replace_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("store test", store_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("get test", get_test, NULL, NULL, NULL, NULL, NULL),
+        TEST_CASE("get deleted test", get_deleted_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("expiry test", expiry_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("remove test", remove_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("release test", release_test, NULL, NULL, NULL, NULL, NULL),

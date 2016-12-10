@@ -149,12 +149,14 @@ hash_item *item_alloc(struct default_engine *engine,
  * @param cookie connection cookie
  * @param key the key for the item to get
  * @param nkey the number of bytes in the key
+ * @param state Only return documents in this state
  * @return pointer to the item if it exists or NULL otherwise
  */
 hash_item *item_get(struct default_engine *engine,
                     const void *cookie,
                     const void *key,
-                    const size_t nkey);
+                    const size_t nkey,
+                    const DocumentState state);
 
 /**
  * Reset the item statistics
@@ -204,6 +206,21 @@ void item_release(struct default_engine *engine, hash_item *it);
 void item_unlink(struct default_engine *engine, hash_item *it);
 
 /**
+ * Unlink the item from the hash table (make it inaccessible),
+ * but only if the CAS value in the item is the same as the
+ * one in the hash table (two different connections may operate
+ * on the same objects, so the cas value for the value in the
+ * hashtable may be different than the items value. We need
+ * to have exclusive access to the hashtable to do the actual
+ * unlink)
+ *
+ * @param engine handle to the storage engine
+ * @param it the item to unlink
+ */
+ENGINE_ERROR_CODE safe_item_unlink(struct default_engine *engine,
+                                   hash_item *it);
+
+/**
  * Set the expiration time for an object
  * @param engine handle to the storage engine
  * @param cookie of the connection
@@ -224,6 +241,7 @@ hash_item *touch_item(struct default_engine *engine,
  * @param item the item to store
  * @param cas the cas value (OUT)
  * @param operation what kind of store operation is this (ADD/SET etc)
+ * @param document_state the state of the document to store
  * @return ENGINE_SUCCESS on success
  *
  * @todo should we refactor this into hash_item ** and remove the cas
@@ -233,7 +251,8 @@ ENGINE_ERROR_CODE store_item(struct default_engine *engine,
                              hash_item *item,
                              uint64_t *cas,
                              ENGINE_STORE_OPERATION operation,
-                             const void *cookie);
+                             const void *cookie,
+                             const DocumentState document_state);
 
 /**
  * Run a single scrub loop for the engine.

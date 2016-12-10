@@ -288,32 +288,56 @@ static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
                                              const DocKey& key,
                                              uint64_t* cas,
                                              uint16_t vbucket,
-                                             mutation_descr_t* mut_info)
-{
-   struct default_engine* engine = get_handle(handle);
-   hash_item *it;
+                                             mutation_descr_t* mut_info) {
+    struct default_engine* engine = get_handle(handle);
+    hash_item* it;
+    uint64_t cas_in = *cas;
+    VBUCKET_GUARD(engine, vbucket);
 
-   VBUCKET_GUARD(engine, vbucket);
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    do {
+        it = item_get(engine, cookie, key.data(), key.size(),
+                      DocumentState::Alive);
+        if (it == nullptr) {
+            return ENGINE_KEY_ENOENT;
+        }
 
-   it = item_get(engine, cookie, key.data(), key.size());
-   if (it == NULL) {
-      return ENGINE_KEY_ENOENT;
-   }
+        auto* deleted = item_alloc(engine, key.data(), key.size(), it->flags,
+                                   it->exptime, it->nbytes, cookie,
+                                   it->datatype);
 
-   if (*cas == 0 || *cas == item_get_cas(it)) {
-      item_unlink(engine, it);
-      item_release(engine, it);
-   } else {
-      item_release(engine, it);
-      return ENGINE_KEY_EEXISTS;
-   }
+        if (deleted == NULL) {
+            item_release(engine, it);
+            return ENGINE_TMPFAIL;
+        }
 
-   /* vbucket UUID / seqno arn't supported by default engine, so just return
-      zeros. */
-   mut_info->vbucket_uuid = 0;
-   mut_info->seqno = 0;
+        if (cas_in == 0) {
+            // If the caller specified the "cas wildcard" we should set
+            // the cas for the item we just fetched and do a cas
+            // replace with that value
+            item_set_cas(handle, cookie, deleted, item_get_cas(it));
+        } else {
+            // The caller specified a specific CAS value so we should
+            // use that value in our cas replace
+            item_set_cas(handle, cookie, deleted, cas_in);
+        }
 
-   return ENGINE_SUCCESS;
+        ret = store_item(engine, deleted, cas, OPERATION_CAS,
+                         cookie, DocumentState::Deleted);
+
+        item_release(engine, it);
+        item_release(engine, deleted);
+
+        // We should only retry for race conditions if the caller specified
+        // cas wildcard
+    } while (ret == ENGINE_KEY_EEXISTS && cas_in == 0);
+
+    // vbucket UUID / seqno arn't supported by default engine, so just return
+    // zeros.
+    mut_info->vbucket_uuid = 0;
+    mut_info->seqno = 0;
+
+    return ret;
 }
 
 static void default_item_release(ENGINE_HANDLE* handle,
@@ -327,11 +351,11 @@ static ENGINE_ERROR_CODE default_get(ENGINE_HANDLE* handle,
                                      item** item,
                                      const DocKey& key,
                                      uint16_t vbucket,
-                                     DocumentState) {
+                                     DocumentState document_state) {
    struct default_engine *engine = get_handle(handle);
    VBUCKET_GUARD(engine, vbucket);
 
-   *item = item_get(engine, cookie, key.data(), key.size());
+   *item = item_get(engine, cookie, key.data(), key.size(), document_state);
    if (*item != NULL) {
       return ENGINE_SUCCESS;
    } else {
@@ -415,10 +439,17 @@ static ENGINE_ERROR_CODE default_store(ENGINE_HANDLE* handle,
                                        item* item,
                                        uint64_t *cas,
                                        ENGINE_STORE_OPERATION operation,
-                                       DocumentState) {
-    struct default_engine *engine = get_handle(handle);
-    return store_item(engine, get_real_item(item), cas, operation,
-                      cookie);
+                                       DocumentState document_state) {
+    auto* engine = get_handle(handle);
+    auto& config = engine->config;
+    auto* it = get_real_item(item);
+
+    if (document_state == DocumentState::Deleted && !config.keep_deleted) {
+        return safe_item_unlink(engine, it);
+    }
+
+    return store_item(engine, it, cas, operation,
+                      cookie, document_state);
 }
 
 static ENGINE_ERROR_CODE default_flush(ENGINE_HANDLE* handle,
@@ -447,7 +478,7 @@ static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
    se->config.vb0 = true;
 
    if (cfg_str != NULL) {
-       struct config_item items[13];
+       struct config_item items[14];
        int ii = 0;
 
        memset(&items, 0, sizeof(items));
@@ -510,9 +541,14 @@ static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
        items[ii].value.dt_string = &se->config.uuid;
        ++ii;
 
+       items[ii].key = "keep_deleted";
+       items[ii].datatype = DT_BOOL;
+       items[ii].value.dt_bool = &se->config.keep_deleted;
+       ++ii;
+
        items[ii].key = NULL;
        ++ii;
-       cb_assert(ii == 13);
+       cb_assert(ii == 14);
        ret = ENGINE_ERROR_CODE(se->server.core->parse_config(cfg_str,
                                                              items,
                                                              stderr));
@@ -734,7 +770,11 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
     item_info->value[0].iov_base = item_get_data(it);
     item_info->value[0].iov_len = it->nbytes;
     item_info->datatype = it->datatype;
-    item_info->document_state = DocumentState::Alive;
+    if (it->iflag & ITEM_ZOMBIE) {
+        item_info->document_state = DocumentState::Deleted;
+    } else {
+        item_info->document_state = DocumentState::Alive;
+    }
     return true;
 }
 

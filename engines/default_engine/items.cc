@@ -24,11 +24,14 @@ static hash_item *do_item_alloc(struct default_engine *engine,
                                 const void *cookie,
                                 uint8_t datatype);
 static hash_item *do_item_get(struct default_engine *engine,
-                              const hash_key* key);
+                              const hash_key* key,
+                              const DocumentState document_state);
 static int do_item_link(struct default_engine *engine,
                         const void* cookie,
                         hash_item *it);
 static void do_item_unlink(struct default_engine *engine, hash_item *it);
+static ENGINE_ERROR_CODE do_safe_item_unlink(struct default_engine *engine,
+                                             hash_item *it);
 static void do_item_release(struct default_engine *engine, hash_item *it);
 static void do_item_update(struct default_engine *engine, hash_item *it);
 static int do_item_replace(struct default_engine* engine,
@@ -45,6 +48,10 @@ static bool hash_key_create(hash_key* hkey,
 
 static void hash_key_destroy(hash_key* hkey);
 static void hash_key_copy_to_item(hash_item* dst, const hash_key* src);
+
+static const DocumentState document_any_state = DocumentState(
+    uint8_t(DocumentState::Alive) |
+    uint8_t(DocumentState::Deleted));
 
 /*
  * We only reposition items in the LRU queue if they haven't been repositioned
@@ -368,6 +375,43 @@ void do_item_unlink(struct default_engine *engine, hash_item *it) {
     }
 }
 
+ENGINE_ERROR_CODE do_safe_item_unlink(struct default_engine* engine,
+                                      hash_item* it) {
+
+    const hash_key* key = item_get_key(it);
+    auto* stored = do_item_get(engine, key, document_any_state);
+    if (stored == nullptr) {
+        return ENGINE_KEY_ENOENT;
+    }
+
+    auto ret = ENGINE_SUCCESS;
+
+    if (item_get_cas(it) == item_get_cas(stored)) {
+        MEMCACHED_ITEM_UNLINK(hash_key_get_client_key(key),
+                              hash_key_get_client_key_len(key),
+                              it->nbytes);
+        if ((it->iflag & ITEM_LINKED) != 0) {
+            it->iflag &= ~ITEM_LINKED;
+            cb_mutex_enter(&engine->stats.lock);
+            engine->stats.curr_bytes -= ITEM_ntotal(engine, it);
+            engine->stats.curr_items -= 1;
+            cb_mutex_exit(&engine->stats.lock);
+            assoc_delete(engine, crc32c(hash_key_get_key(key),
+                                        hash_key_get_key_len(key), 0),
+                         key);
+            item_unlink_q(engine, it);
+            if (it->refcount == 0 || engine->scrubber.force_delete) {
+                item_free(engine, it);
+            }
+        }
+    } else {
+        ret = ENGINE_KEY_EEXISTS;
+    }
+
+    do_item_release(engine, stored);
+    return ret;
+}
+
 void do_item_release(struct default_engine *engine, hash_item *it) {
     MEMCACHED_ITEM_REMOVE(hash_key_get_client_key(item_get_key(it)),
                           hash_key_get_client_key_len(item_get_key(it)),
@@ -508,7 +552,8 @@ static void do_item_stats_sizes(struct default_engine *engine,
 
 /** wrapper around assoc_find which does the lazy expiration logic */
 hash_item *do_item_get(struct default_engine *engine,
-                       const hash_key *key) {
+                       const hash_key *key,
+                       const DocumentState document_state) {
     rel_time_t current_time = engine->server.core->get_current_time();
     hash_item *it = assoc_find(engine,
                                crc32c(hash_key_get_key(key),
@@ -563,6 +608,18 @@ hash_item *do_item_get(struct default_engine *engine,
     }
 
     if (it != NULL) {
+        if (it->iflag & ITEM_ZOMBIE) {
+            if ((uint8_t(document_state) & uint8_t(DocumentState::Deleted)) == 0) {
+                // The requested document is deleted, and you asked for alive
+                return nullptr;
+            }
+        } else {
+            if ((uint8_t(document_state) & uint8_t(DocumentState::Alive)) == 0) {
+                // The requested document is Alive, and you asked for Dead
+                return nullptr;
+            }
+        }
+
         it->refcount++;
         DEBUG_REFCNT(it, '+');
         do_item_update(engine, it);
@@ -583,10 +640,11 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
                                        const void *cookie,
                                        hash_item** stored_item) {
     const hash_key* key = item_get_key(it);
-    hash_item *old_it = do_item_get(engine, key);
+    hash_item *old_it = do_item_get(engine, key, document_any_state);
     ENGINE_ERROR_CODE stored = ENGINE_NOT_STORED;
 
-    if (old_it != NULL && operation == OPERATION_ADD) {
+    if (old_it != NULL && operation == OPERATION_ADD &&
+        (old_it->iflag & ITEM_ZOMBIE) == 0) {
         /* add only adds a nonexistent item, but promote to head of LRU */
         do_item_update(engine, old_it);
     } else if (!old_it && operation == OPERATION_REPLACE) {
@@ -667,14 +725,15 @@ hash_item *item_alloc(struct default_engine *engine,
 hash_item *item_get(struct default_engine *engine,
                     const void *cookie,
                     const void *key,
-                    const size_t nkey) {
+                    const size_t nkey,
+                    DocumentState document_state) {
     hash_item *it;
     hash_key hkey;
     if (!hash_key_create(&hkey, key, nkey, engine, cookie)) {
         return NULL;
     }
     cb_mutex_enter(&engine->items.lock);
-    it = do_item_get(engine, &hkey);
+    it = do_item_get(engine, &hkey, document_state);
     cb_mutex_exit(&engine->items.lock);
     hash_key_destroy(&hkey);
     return it;
@@ -699,15 +758,28 @@ void item_unlink(struct default_engine *engine, hash_item *item) {
     cb_mutex_exit(&engine->items.lock);
 }
 
+ENGINE_ERROR_CODE safe_item_unlink(struct default_engine *engine,
+                                   hash_item *it) {
+    cb_mutex_enter(&engine->items.lock);
+    auto ret = do_safe_item_unlink(engine, it);
+    cb_mutex_exit(&engine->items.lock);
+    return ret;
+}
+
 /*
  * Stores an item in the cache (high level, obeys set/add/replace semantics)
  */
 ENGINE_ERROR_CODE store_item(struct default_engine *engine,
                              hash_item *item, uint64_t *cas,
                              ENGINE_STORE_OPERATION operation,
-                             const void *cookie) {
+                             const void *cookie,
+                             const DocumentState document_state) {
     ENGINE_ERROR_CODE ret;
     hash_item* stored_item = NULL;
+
+    if (document_state == DocumentState::Deleted) {
+        item->iflag |= ITEM_ZOMBIE;
+    }
 
     cb_mutex_enter(&engine->items.lock);
     ret = do_store_item(engine, item, operation, cookie, &stored_item);
@@ -722,7 +794,7 @@ static hash_item *do_touch_item(struct default_engine *engine,
                                 const hash_key *hkey,
                                 uint32_t exptime)
 {
-   hash_item *item = do_item_get(engine, hkey);
+   hash_item *item = do_item_get(engine, hkey, DocumentState::Alive);
    if (item != NULL) {
        item->exptime = exptime;
    }
