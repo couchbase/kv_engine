@@ -876,6 +876,19 @@ protected:
     void updateStatsForNewQueuedItem_UNLOCKED(const LockHolder&,
                                      VBucket& vb, const queued_item& qi);
 
+    /**
+     * Helper method to update disk queue stats after (maybe) changing the
+     * number of items remaining for the persistence cursor (for example after
+     * adding / removing checkpoints.
+     * @param vbucket VBucket whose stats should be updated.
+     * @param curr_remains The number of items previously remaining for the
+     *                     persistence cursor.
+     * @param new_remains The number of items now remaining for the
+     *                    persistence cursor.
+     */
+    void updateDiskQueueStats(VBucket& vbucket, size_t curr_remains,
+                              size_t new_remains);
+
 private:
 
     // Pair of {sequence number, cursor at checkpoint start} used when
