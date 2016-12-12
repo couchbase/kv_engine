@@ -3409,6 +3409,10 @@ static enum test_result test_curr_items_add_set(ENGINE_HANDLE *h, ENGINE_HANDLE_
             store(h, h1, NULL, OPERATION_SET,"k3", "v3", &i),
             "Failed to fail to store an item.");
     h1->release(h, NULL, i);
+    if (is_full_eviction(h, h1)) {
+        // MB-21957: FE mode - curr_items is only valid once we flush documents
+        wait_for_flusher_to_settle(h, h1);
+    }
     verify_curr_items(h, h1, 3, "three items stored");
     checkeq(initial_enqueued + 3, get_int_stat(h, h1, "ep_total_enqueued"),
             "Expected total_enqueued to increase by 3 after 3 new items");

@@ -492,4 +492,11 @@ void wait_for_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
+/**
+ * Check via the stats interface if full_eviction mode is enabled
+ */
+inline bool is_full_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    return get_str_stat(h, h1, "ep_item_eviction_policy") == "full_eviction";
+}
+
 #endif  // TESTS_EP_TEST_APIS_H_
