@@ -3474,8 +3474,7 @@ void EPBucket::completeBGFetchForSingleItem(RCPtr<VBucket> vb,
                     // log returned error and notify TMPFAIL to client
                     LOG(EXTENSION_LOG_WARNING,
                         "Failed background fetch for vb:%" PRIu16
-                        ", v:%p seqno:%" PRIu64, vb->getId(),
-                        static_cast<void*>(v), v ? v->getBySeqno() : 0);
+                        ", seqno:%" PRIu64, vb->getId(), v->getBySeqno());
                     status = ENGINE_TMPFAIL;
                 }
             }
