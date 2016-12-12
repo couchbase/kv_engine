@@ -402,6 +402,20 @@ public:
         throw std::invalid_argument("Not implemented");
     }
 
+    /**
+     * Remove the named document
+     *
+     * @param key the document to remove
+     * @param vbucket the vbucket the document is stored in
+     * @param cas the specific version of the document or 0 for "any"
+     * @return Details about the detion
+     */
+    virtual MutationInfo remove(const std::string& key,
+                                uint16_t vbucket,
+                                uint64_t cas = 0) {
+        // Don't bother implementing it for Greenstack at this moment
+        throw std::invalid_argument("Not implemented");
+    }
 
 protected:
     /**

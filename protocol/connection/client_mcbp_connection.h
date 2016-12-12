@@ -182,6 +182,10 @@ public:
                        rel_time_t exptime,
                        MutationInfo* info) override;
 
+    MutationInfo remove(const std::string& key,
+                        uint16_t vbucket,
+                        uint64_t cas) override;
+
     void configureEwouldBlockEngine(const EWBEngineMode& mode,
                                     ENGINE_ERROR_CODE err_code,
                                     uint32_t value,

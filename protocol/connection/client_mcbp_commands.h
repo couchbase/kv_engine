@@ -577,3 +577,11 @@ public:
 private:
     uint64_t value = 0;
 };
+
+class BinprotRemoveCommand
+    : public BinprotCommandT<BinprotRemoveCommand, PROTOCOL_BINARY_CMD_DELETE> {
+public:
+    void encode(std::vector<uint8_t>& buf) const override;
+};
+
+using BinprotRemoveResponse = BinprotMutationResponse;

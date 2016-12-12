@@ -353,3 +353,8 @@ void BinprotIncrDecrResponse::assign(std::vector<uint8_t>&& buf) {
         value = 0;
     }
 }
+
+void BinprotRemoveCommand::encode(std::vector<uint8_t>& buf) const {
+    writeHeader(buf, 0, 0);
+    buf.insert(buf.end(), key.begin(), key.end());
+}

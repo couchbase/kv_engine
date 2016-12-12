@@ -641,3 +641,22 @@ uint64_t MemcachedBinprotConnection::incr_decr(protocol_binary_command opcode,
     }
     return response.getValue();
 }
+
+MutationInfo MemcachedBinprotConnection::remove(const std::string& key,
+                                                uint16_t vbucket,
+                                                uint64_t cas) {
+    BinprotRemoveCommand command;
+    command.setKey(key).setVBucket(vbucket);
+    command.setVBucket(vbucket);
+    sendCommand(command);
+
+    BinprotRemoveResponse response;
+    recvResponse(response);
+
+    if (!response.isSuccess()) {
+        throw BinprotConnectionError("Failed to remove: " + key,
+                                     response.getStatus());
+    }
+
+    return response.getMutationInfo();
+}
