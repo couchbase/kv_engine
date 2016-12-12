@@ -39,6 +39,7 @@
 #include "protocol/mcbp/arithmetic_context.h"
 #include "protocol/mcbp/get_context.h"
 #include "protocol/mcbp/dcp_mutation.h"
+#include "protocol/mcbp/mutation_context.h"
 #include "protocol/mcbp/remove_context.h"
 #include "protocol/mcbp/steppable_command_context.h"
 #include "protocol/mcbp/utilities.h"
@@ -2449,161 +2450,13 @@ static void dcp_control_executor(McbpConnection* c, void* packet) {
 
 static void add_set_replace_executor(McbpConnection* c, void* packet,
                                      ENGINE_STORE_OPERATION store_op) {
-    auto* req = reinterpret_cast<protocol_binary_request_add*>(packet);
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
 
-    uint8_t extlen = req->message.header.request.extlen;
-    char* key = (char*)packet + sizeof(req->bytes);
-    uint16_t nkey = ntohs(req->message.header.request.keylen);
-    uint32_t vlen = ntohl(req->message.header.request.bodylen) - nkey - extlen;
-    item_info_holder info;
-    info.info.nvalue = 1;
-
-    if (req->message.header.request.cas != 0) {
-        store_op = OPERATION_CAS;
+    if (c->getCommandContext() == nullptr) {
+        auto* req = reinterpret_cast<protocol_binary_request_set*>(packet);
+        c->setCommandContext(new MutationCommandContext(*c, req, store_op));
     }
 
-    if (settings.getVerbose() > 1) {
-        char buffer[1024];
-        if (key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
-                                    memcached_opcode_2_text(store_op), key,
-                                    nkey) != -1) {
-            LOG_DEBUG(c, "%s", buffer);
-        }
-    }
-
-    if (c->getItem() == nullptr) {
-        item* it;
-        DocKey allocate_key(reinterpret_cast<uint8_t*>(key), nkey,
-                            DocNamespace::DefaultCollection);
-        if (ret == ENGINE_SUCCESS) {
-            rel_time_t expiration = ntohl(req->message.body.expiration);
-
-            ret = c->getBucketEngine()->allocate(c->getBucketEngineAsV0(), c->getCookie(),
-                                                 &it, allocate_key, vlen,
-                                                 req->message.body.flags,
-                                                 expiration,
-                                                 req->message.header.request.datatype,
-                                                 ntohs(req->message.header.request.vbucket));
-        }
-
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            update_topkeys(allocate_key, c);
-            break;
-        case ENGINE_EWOULDBLOCK:
-            c->setEwouldblock(true);
-            return;
-        case ENGINE_DISCONNECT:
-            c->setState(conn_closing);
-            return;
-        default:
-            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-            return;
-        }
-
-        bucket_item_set_cas(c, it, ntohll(req->message.header.request.cas));
-        if (!bucket_get_item_info(c, it, &info.info)) {
-            bucket_release_item(c, it);
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
-            return;
-        }
-
-        c->setItem(it);
-        cb_assert(info.info.value[0].iov_len == vlen);
-        memcpy(info.info.value[0].iov_base, key + nkey, vlen);
-
-        if (!c->isSupportsDatatype()) {
-            auto* validator = c->getThread()->validator;
-
-            try {
-                auto* ptr = reinterpret_cast<uint8_t*>(info.info.value[0].iov_base);
-                if (validator->validate(ptr, info.info.value[0].iov_len)) {
-                    info.info.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-                    if (!bucket_set_item_info(c, it, &info.info)) {
-                        LOG_WARNING(c, "%u: Failed to set item info",
-                                    c->getId());
-                    }
-                }
-            } catch (std::bad_alloc&) {
-                // @todo return error message back to client
-                bucket_release_item(c, c->getItem());
-                c->setItem(nullptr);
-                c->setState(conn_closing);
-                return;
-            }
-        }
-    }
-
-    if (ret == ENGINE_SUCCESS) {
-        uint64_t cas = c->getCAS();
-        ret = bucket_store(c, c->getItem(), &cas, store_op);
-        if (ret == ENGINE_SUCCESS) {
-            c->setCAS(cas);
-        }
-    }
-
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        /* Stored */
-        if (c->isSupportsMutationExtras()) {
-            info.info.nvalue = 1;
-            if (!bucket_get_item_info(c, c->getItem(), &info.info)) {
-                bucket_release_item(c, c->getItem());
-                LOG_WARNING(c, "%u: Failed to get item info", c->getId());
-                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
-                return;
-            }
-            mutation_descr_t* const extras = (mutation_descr_t*)
-                (c->write.buf + sizeof(protocol_binary_response_no_extras));
-            extras->vbucket_uuid = htonll(info.info.vbucket_uuid);
-            extras->seqno = htonll(info.info.seqno);
-            mcbp_write_response(c, extras, sizeof(*extras), 0, sizeof(*extras));
-        } else {
-            mcbp_write_response(c, NULL, 0, 0, 0);
-        }
-        break;
-    case ENGINE_EWOULDBLOCK:
-        c->setEwouldblock(true);
-        break;
-    case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
-        break;
-    case ENGINE_NOT_STORED:
-        if (store_op == OPERATION_ADD) {
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
-        } else if (store_op == OPERATION_REPLACE) {
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
-        } else {
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_STORED);
-        }
-        break;
-    default:
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-    }
-
-    if (store_op == OPERATION_CAS) {
-        switch (ret) {
-        case ENGINE_SUCCESS: SLAB_INCR(c, cas_hits, key, nkey);
-            break;
-        case ENGINE_KEY_EEXISTS: SLAB_INCR(c, cas_badval, key, nkey);
-            break;
-        case ENGINE_KEY_ENOENT:
-            get_thread_stats(c)->cas_misses++;
-            break;
-        default:;
-        }
-    } else if (ret != ENGINE_EWOULDBLOCK) {
-        SLAB_INCR(c, cmd_set, key, nkey);
-    }
-
-    if (!c->isEwouldblock()) {
-        /* release the c->item reference */
-        bucket_release_item(c, c->getItem());
-        c->setItem(nullptr);
-    }
+    c->getSteppableCommandContext().drive();
 }
 
 
