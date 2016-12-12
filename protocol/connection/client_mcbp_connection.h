@@ -165,6 +165,10 @@ public:
         setFeature(mcbp::Feature::XATTR, enable);
     }
 
+    void setXerrorSupport(bool enable) {
+        setFeature(mcbp::Feature::XERROR, enable);
+    }
+
     std::string ioctl_get(const std::string& key) override;
 
     void ioctl_set(const std::string& key,

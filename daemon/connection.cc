@@ -361,3 +361,39 @@ PrivilegeAccess Connection::checkPrivilege(const Privilege& privilege) const {
 Bucket& Connection::getBucket() const {
     return all_buckets[getBucketIndex()];
 }
+
+ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
+    if (xerror_support) {
+        return code;
+    }
+
+    // Check our whitelist
+    switch (code) {
+    case ENGINE_SUCCESS: // FALLTHROUGH
+    case ENGINE_KEY_ENOENT: // FALLTHROUGH
+    case ENGINE_KEY_EEXISTS: // FALLTHROUGH
+    case ENGINE_ENOMEM: // FALLTHROUGH
+    case ENGINE_NOT_STORED: // FALLTHROUGH
+    case ENGINE_EINVAL: // FALLTHROUGH
+    case ENGINE_ENOTSUP: // FALLTHROUGH
+    case ENGINE_EWOULDBLOCK: // FALLTHROUGH
+    case ENGINE_E2BIG: // FALLTHROUGH
+    case ENGINE_WANT_MORE: // FALLTHROUGH
+    case ENGINE_DISCONNECT: // FALLTHROUGH
+    case ENGINE_EACCESS: // FALLTHROUGH
+    case ENGINE_NOT_MY_VBUCKET: // FALLTHROUGH
+    case ENGINE_TMPFAIL: // FALLTHROUGH
+    case ENGINE_ERANGE: // FALLTHROUGH
+    case ENGINE_ROLLBACK: // FALLTHROUGH
+    case ENGINE_EBUSY: // FALLTHROUGH
+    case ENGINE_DELTA_BADVAL: // FALLTHROUGH
+    case ENGINE_FAILED:
+        return code;
+    default:
+        LOG_INFO(nullptr,
+                 "%u - Client not aware of extended error codes %02x. Disconnecting",
+                 uint32_t(code));
+
+        return ENGINE_DISCONNECT;
+    }
+}

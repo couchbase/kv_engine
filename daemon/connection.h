@@ -331,6 +331,30 @@ public:
         Connection::xattr_support = xattr_support;
     }
 
+    bool isXerrorSupport() const {
+        return xerror_support;
+    }
+
+    void setXerrorSupport(bool xerror_support) {
+        Connection::xerror_support = xerror_support;
+    }
+
+    /**
+     * Remap the current error code
+     *
+     * The method modifies the input code and returns the mapped value
+     * (to make the function a bit easier to use).
+     *
+     * Depending on which features the client have enabled the method
+     * may either just return the input value, map it to a different value
+     * (like ENGINE_DISCONNECT if the client hasn't enabled the extened
+     * error codes).
+     *
+     * @param code The code to map (will be changed on return)
+     * @return the mapped value.
+     */
+    ENGINE_ERROR_CODE remapErrorCode(ENGINE_ERROR_CODE code) const;
+
 protected:
     Connection(SOCKET sfd, event_base* b);
 
@@ -418,6 +442,12 @@ protected:
      * stripped off before sending on the wire)
      */
      bool xattr_support;
+
+    /**
+     * Is XERROR supported for this connection or not (or should we just
+     * silently disconnect the client)
+     */
+    bool xerror_support;
 };
 
 /**

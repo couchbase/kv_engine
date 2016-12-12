@@ -509,6 +509,7 @@ bool conn_refresh_cbsasl(McbpConnection *c) {
         return true;
     }
 
+    ret = c->remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
         mcbp_write_response(c, NULL, 0, 0, 0);
@@ -536,6 +537,7 @@ bool conn_refresh_ssl_certs(McbpConnection *c) {
         return true;
     }
 
+    ret = c->remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
         mcbp_write_response(c, NULL, 0, 0, 0);
@@ -566,6 +568,7 @@ bool conn_flush(McbpConnection *c) {
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
 
+    ret = c->remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
         mcbp_write_response(c, NULL, 0, 0, 0);
@@ -585,9 +588,13 @@ bool conn_audit_configuring(McbpConnection *c) {
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
 
+    ret = c->remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        break;
+    case ENGINE_DISCONNECT:
+        c->setState(conn_closing);
         break;
     default:
         LOG_WARNING(c,
@@ -634,6 +641,7 @@ bool conn_delete_bucket(McbpConnection *c) {
         return true;
     }
 
+    ret = c->remapErrorCode(ret);
     if (ret == ENGINE_DISCONNECT) {
         c->setState(conn_closing);
     } else {

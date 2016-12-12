@@ -62,6 +62,7 @@ MemcachedConnection& TestappClientTest::prepare(MemcachedConnection& connection)
         auto& c = dynamic_cast<MemcachedBinprotConnection&>(connection);
         c.setDatatypeSupport(true);
         c.setMutationSeqnoSupport(true);
+        c.setXerrorSupport(true);
     } else {
         auto& c = dynamic_cast<MemcachedGreenstackConnection&>(connection);
         c.hello("memcached_testapp", "1,0", "BucketTest");

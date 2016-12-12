@@ -26,6 +26,7 @@ void SteppableCommandContext::drive() {
         ret = step();
     }
 
+    ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
         break;

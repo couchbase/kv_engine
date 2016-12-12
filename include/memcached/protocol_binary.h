@@ -1295,7 +1295,8 @@ enum class Feature : uint16_t {
     TCPNODELAY = 0x03,
     MUTATION_SEQNO = 0x04,
     TCPDELAY = 0x05,
-    XATTR = 0x06
+    XATTR = 0x06,
+    XERROR = 0x07
 };
 }
 using protocol_binary_hello_features_t = mcbp::Feature;
@@ -2054,6 +2055,8 @@ inline std::string to_string(const Feature& feature) {
         return "Mutation seqno";
     case Feature::XATTR:
         return "XATTR";
+    case Feature::XERROR:
+        return "XERROR";
     }
     throw std::invalid_argument("mcbp::to_string: unknown feature: " +
                                 std::to_string(uint16_t(feature)));

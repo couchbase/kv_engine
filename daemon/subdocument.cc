@@ -503,6 +503,7 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
             DocKey get_key(reinterpret_cast<const uint8_t*>(key),
                            keylen, DocNamespace::DefaultCollection);
             ret = bucket_get(&c, &initial_item, get_key, vbucket);
+            ret = ctx.connection.remapErrorCode(ret);
         }
 
         switch (ret) {
@@ -830,6 +831,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                                                  expiration,
                                                  context.in_datatype,
                                                  vbucket);
+            ret = context.connection.remapErrorCode(ret);
         }
 
         switch (ret) {
@@ -872,6 +874,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
     uint64_t new_cas;
     auto new_op = context.needs_new_doc ? OPERATION_ADD : OPERATION_CAS;
     ret = bucket_store(&connection, context.out_doc, &new_cas, new_op);
+    ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
         // Record the UUID / Seqno if MUTATION_SEQNO feature is enabled so

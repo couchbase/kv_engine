@@ -3152,6 +3152,7 @@ static void process_hello_packet_executor(McbpConnection* c, void* packet) {
     c->setSupportsDatatype(false);
     c->setSupportsMutationExtras(false);
     c->setXattrSupport(false);
+    c->setXerrorSupport(false);
 
     if (klen) {
         if (klen > 256) {
@@ -3204,6 +3205,11 @@ static void process_hello_packet_executor(McbpConnection* c, void* packet) {
         case mcbp::Feature::XATTR:
             if (!c->isXattrSupport()) {
                 c->setXattrSupport(true);
+                added = true;
+            }
+        case mcbp::Feature::XERROR:
+            if (!c->isXerrorSupport()) {
+                c->setXerrorSupport(true);
                 added = true;
             }
         }
@@ -3327,6 +3333,8 @@ static void flush_executor(McbpConnection* c, void*) {
     LOG_NOTICE(c, "%u: flush", c->getId());
 
     ret = c->getBucketEngine()->flush(c->getBucketEngineAsV0(), c->getCookie(), 0);
+    ret = c->remapErrorCode(ret);
+
     switch (ret) {
     case ENGINE_SUCCESS:
         audit_bucket_flush(c, all_buckets[c->getBucketIndex()].name);
@@ -3378,6 +3386,7 @@ static void delete_executor(McbpConnection* c, void*) {
                                            &cas,
                                            c->binary_header.request.vbucket,
                                            &mut_info);
+        ret = c->remapErrorCode(ret);
     }
 
     switch (ret) {
@@ -3747,6 +3756,7 @@ static void create_bucket_executor(McbpConnection* c, void* packet) {
         } catch (const std::bad_alloc&) {
             ret = ENGINE_ENOMEM;
         }
+        ret = c->remapErrorCode(ret);
     }
 
     switch (ret) {
@@ -3845,6 +3855,7 @@ static void delete_bucket_executor(McbpConnection* c, void* packet) {
             ret = ENGINE_ENOMEM;
             delete task;
         }
+        ret = c->remapErrorCode(ret);
     }
 
     switch (ret) {
@@ -4005,6 +4016,7 @@ static void process_bin_dcp_response(McbpConnection* c) {
                          sizeof(c->binary_header)));
         ret = c->getBucketEngine()->dcp.response_handler
             (c->getBucketEngineAsV0(), c->getCookie(), header);
+        ret = c->remapErrorCode(ret);
     }
 
     if (ret == ENGINE_DISCONNECT) {
