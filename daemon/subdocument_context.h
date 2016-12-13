@@ -60,6 +60,8 @@ public:
         executed(false),
         jroot_type(JSONSL_T_ROOT),
         needs_new_doc(false),
+        vbucket_uuid(0),
+        sequence_no(0),
         out_doc_len(0),
         out_doc(),
         response_val_len(0),
