@@ -2191,7 +2191,9 @@ BaseTestCase testsuite_testcases[] = {
                  test_set_with_meta_race_with_delete, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("test set_with_meta exp persisted", test_exp_persisted_set_del,
-                 test_setup, teardown, "exp_pager_stime=3", prepare, cleanup),
+                 test_setup, teardown, "exp_pager_stime=3",
+                 prepare_ep_bucket,  // Requires persistence
+                 cleanup),
         TestCase("test del meta conflict resolution",
                  test_del_meta_conflict_resolution, test_setup, teardown, NULL,
                  prepare, cleanup),

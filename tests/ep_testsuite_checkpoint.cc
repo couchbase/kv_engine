@@ -278,12 +278,14 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown,
                  "chk_max_items=500;max_checkpoints=5;chk_remover_stime=1;"
                  "enable_chk_merge=true",
-                 prepare, cleanup),
+                 prepare_ep_bucket,  // Relies on stopping persistence to setup test state.
+                 cleanup),
         TestCase("checkpoint: wait for persistence",
                  test_checkpoint_persistence,
                  test_setup, teardown,
                  "chk_max_items=500;max_checkpoints=5;item_num_based_new_chk=true",
-                 prepare, cleanup),
+                 prepare_ep_bucket,  // Relies on being able to wait for persistence.
+                 cleanup),
         TestCase("test wait for persist vb del", test_wait_for_persist_vb_del,
                  test_setup, teardown, NULL, prepare, cleanup),
 

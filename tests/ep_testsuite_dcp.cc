@@ -5611,7 +5611,9 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test add stream", test_dcp_add_stream, test_setup, teardown,
                  "dcp_enable_noop=false", prepare, cleanup),
         TestCase("test consumer backoff stat", test_consumer_backoff_stat,
-                 test_setup, teardown, NULL, prepare, cleanup),
+                 test_setup, teardown, NULL,
+                 prepare_ep_bucket,  // relies on persistence (disk queue)
+                 cleanup),
         TestCase("test dcp reconnect full snapshot", test_dcp_reconnect_full,
                  test_setup, teardown, "dcp_enable_noop=false", prepare,
                  cleanup),
@@ -5637,7 +5639,9 @@ BaseTestCase testsuite_testcases[] = {
                 cleanup),
         TestCase("test partial rollback on consumer",
                 test_partialrollback_for_consumer, test_setup, teardown,
-                "dcp_enable_noop=false", prepare, cleanup),
+                "dcp_enable_noop=false",
+                prepare_ep_bucket,  // Relies on stopping persistence for setup.
+                cleanup),
         TestCase("test change dcp buffer log size", test_dcp_buffer_log_size,
                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test dcp producer flow control",
@@ -5672,7 +5676,9 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("dcp failover log", test_failover_log_dcp, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("dcp persistence seqno", test_dcp_persistence_seqno, test_setup,
-                 teardown, NULL, prepare, cleanup),
+                 teardown, NULL,
+                 prepare_ep_bucket,  // Needs persistence.
+                 cleanup),
         TestCase("dcp last items purged", test_dcp_last_items_purged, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("dcp rollback after purge", test_dcp_rollback_after_purge,

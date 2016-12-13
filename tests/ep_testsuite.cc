@@ -806,7 +806,9 @@ static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h, ENGINE_HANDLE_V
 
     h1->release(h, nullptr, itm);
 
-    wait_for_flusher_to_settle(h, h1);
+    if (isPersistentBucket(h, h1)) {
+        wait_for_flusher_to_settle(h, h1);
+    }
 
     testHarness.time_travel(11);
 
@@ -1750,14 +1752,21 @@ static enum test_result test_stats_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 
     checkeq(100, get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno"),
             "Invalid seqno");
-    checkeq(100, get_int_stat(h, h1, "vb_0:last_persisted_seqno", "vbucket-seqno"),
-            "Unexpected last_persisted_seqno");
+
+    if (isPersistentBucket(h, h1)) {
+        checkeq(100,
+                get_int_stat(h, h1, "vb_0:last_persisted_seqno", "vbucket-seqno"),
+                "Unexpected last_persisted_seqno");
+    }
     checkeq(0, get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno"),
             "Invalid seqno");
     checkeq(0, get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno 1"),
             "Invalid seqno");
-    checkeq(0, get_int_stat(h, h1, "vb_1:last_persisted_seqno", "vbucket-seqno 1"),
-            "Invalid last_persisted_seqno");
+    if (isPersistentBucket(h, h1)) {
+        checkeq(0,
+                get_int_stat(h, h1, "vb_1:last_persisted_seqno", "vbucket-seqno 1"),
+                "Invalid last_persisted_seqno");
+    }
 
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
 
@@ -1868,12 +1877,14 @@ static enum test_result test_item_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
     check_key_value(h, h1, "key1", "someothervalue", 14);
 
-    checkeq(3, get_int_stat(h, h1, "vb_active_ops_create"),
-            "Expected 3 creations");
-    checkeq(1, get_int_stat(h, h1, "vb_active_ops_update"),
-            "Expected 1 updation");
-    checkeq(1, get_int_stat(h, h1, "vb_active_ops_delete"),
-            "Expected 1 deletion");
+    if (isPersistentBucket(h, h1)) {
+        checkeq(3, get_int_stat(h, h1, "vb_active_ops_create"),
+                "Expected 3 creations");
+        checkeq(1, get_int_stat(h, h1, "vb_active_ops_update"),
+                "Expected 1 updation");
+        checkeq(1, get_int_stat(h, h1, "vb_active_ops_delete"),
+                "Expected 1 deletion");
+    }
 
     return SUCCESS;
 }
@@ -1896,7 +1907,9 @@ static enum test_result test_mem_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     wait_for_persisted_value(h, h1, "key", value);
     testHarness.time_travel(65);
-    wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
+    if (isPersistentBucket(h, h1)) {
+        wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
+    }
     int mem_used = get_int_stat(h, h1, "mem_used");
     int cache_size = get_int_stat(h, h1, "ep_total_cache_size");
     int overhead = get_int_stat(h, h1, "ep_overhead");
@@ -7137,23 +7150,23 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test observe single key", test_observe_single_key, test_setup, teardown,
                  NULL, prepare_ep_bucket, cleanup),
         TestCase("test observe on temp item", test_observe_temp_item, test_setup, teardown,
-                 NULL, prepare, cleanup),
+                 NULL, prepare_ep_bucket, cleanup),
         TestCase("test observe multi key", test_observe_multi_key, test_setup, teardown,
-                 NULL, prepare, cleanup),
+                 NULL, prepare_ep_bucket, cleanup),
         TestCase("test multiple observes", test_multiple_observes, test_setup, teardown,
-                 NULL, prepare, cleanup),
+                 NULL, prepare_ep_bucket, cleanup),
         TestCase("test observe with not found", test_observe_with_not_found, test_setup,
-                 teardown, NULL, prepare, cleanup),
+                 teardown, NULL, prepare_ep_bucket, cleanup),
         TestCase("test observe not my vbucket", test_observe_errors, test_setup,
-                 teardown, NULL, prepare, cleanup),
+                 teardown, NULL, prepare_ep_bucket, cleanup),
         TestCase("test observe seqno basic tests", test_observe_seqno_basic_tests,
-                 test_setup, teardown, NULL, prepare, cleanup),
+                 test_setup, teardown, NULL, prepare_ep_bucket, cleanup),
         TestCase("test observe seqno failover", test_observe_seqno_failover,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test observe seqno error", test_observe_seqno_error,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test item pager", test_item_pager, test_setup,
-                 teardown, "max_size=6291456", prepare, cleanup),
+                 teardown, "max_size=6291456", prepare_ep_bucket, cleanup),
         TestCase("warmup conf", test_warmup_conf, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("bloomfilter conf", test_bloomfilter_conf, test_setup,
@@ -7163,10 +7176,10 @@ BaseTestCase testsuite_testcases[] = {
                  teardown, NULL, prepare_ep_bucket, cleanup),
         TestCase("test bloomfilters with store apis",
                  test_bloomfilters_with_store_apis, test_setup,
-                 teardown, NULL, prepare, cleanup),
+                 teardown, NULL, prepare_ep_bucket, cleanup),
         TestCase("test bloomfilters's in a delete+set scenario",
                  test_bloomfilter_delete_plus_set_scenario, test_setup,
-                 teardown, NULL, prepare, cleanup),
+                 teardown, NULL, prepare_ep_bucket, cleanup),
         TestCase("test datatype", test_datatype, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("test datatype with unknown command", test_datatype_with_unknown_command,
@@ -7186,7 +7199,7 @@ BaseTestCase testsuite_testcases[] = {
 
         // Stats tests
         TestCase("item stats", test_item_stats, test_setup, teardown, NULL,
-                 prepare, cleanup),
+                 prepare_ep_bucket, cleanup),
         TestCase("stats", test_stats, test_setup, teardown, NULL,
                  prepare, cleanup),
         TestCase("io stats", test_io_stats, test_setup, teardown,
@@ -7390,7 +7403,7 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test vbucket destroy stats", test_vbucket_destroy_stats,
                  test_setup, teardown,
                  "chk_remover_stime=1;chk_period=60",
-                 prepare, cleanup),
+                 prepare_ep_bucket, cleanup),
         TestCase("test async vbucket destroy restart",
                  test_async_vbucket_destroy_restart, test_setup, teardown,
                  NULL, prepare, cleanup),
@@ -7419,7 +7432,7 @@ BaseTestCase testsuite_testcases[] = {
 
         // Transaction tests
         TestCase("multiple transactions", test_multiple_transactions,
-                 test_setup, teardown, NULL, prepare, cleanup),
+                 test_setup, teardown, NULL, prepare_ep_bucket, cleanup),
 
         // Returning meta tests
         TestCase("test set ret meta", test_set_ret_meta,
@@ -7507,7 +7520,8 @@ BaseTestCase testsuite_testcases[] = {
 
         TestCase("test_mb17517_tap_with_locked_key",
                  test_mb17517_tap_with_locked_key, test_setup, teardown, NULL,
-                 prepare, cleanup),
+                 /*TAP not supported for non-EP buckets*/prepare_ep_bucket,
+                 cleanup),
 
         TestCase("test_mb19635_upgrade_from_25x",
                  test_mb19635_upgrade_from_25x, test_setup, teardown, NULL,
@@ -7521,8 +7535,8 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test vbucket compact no purge", test_vbucket_compact_no_purge,
                  test_setup, teardown, NULL, prepare, cleanup),
 
-        TestCase("test_MB-20697", test_mb20697, test_setup, teardown, NULL, prepare,
-                 cleanup),
+        TestCase("test_MB-20697", test_mb20697, test_setup, teardown, NULL,
+                 prepare_ep_bucket, cleanup),
         TestCase("test_MB-test_mb20943_remove_pending_ops_on_vbucket_delete",
                  test_mb20943_complete_pending_ops_on_vbucket_delete,
                  test_setup, teardown, NULL, prepare, cleanup),
