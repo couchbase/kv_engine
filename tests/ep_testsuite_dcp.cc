@@ -4503,9 +4503,9 @@ static enum test_result test_dcp_last_items_purged(ENGINE_HANDLE *h,
     /* Run compaction */
     compact_db(h, h1, 0, 0, 2, high_seqno, 1);
     wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
-    check(get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno") ==
-            static_cast<int>(high_seqno - 1),
-          "purge_seqno didn't match expected value");
+    checkeq(static_cast<int>(high_seqno - 1),
+            get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
+            "purge_seqno didn't match expected value");
 
     wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 3, "checkpoint");
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
