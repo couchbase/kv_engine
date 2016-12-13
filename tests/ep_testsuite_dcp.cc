@@ -1006,6 +1006,13 @@ static void dcp_waiting_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 static enum test_result test_dcp_vbtakeover_no_stream(ENGINE_HANDLE *h,
                                                       ENGINE_HANDLE_V1 *h1) {
     write_items(h, h1, 10);
+    if (is_full_eviction(h, h1)) {
+        // MB-21646: FE mode - curr_items (which is part of "estimate") is
+        // updated as part of flush, and thus if the writes are flushed in
+        // blocks < 10 we may see an estimate < 10
+        wait_for_flusher_to_settle(h, h1);
+    }
+
     const auto est = get_int_stat(h, h1, "estimate", "dcp-vbtakeover 0");
     checkeq(10, est, "Invalid estimate for non-existent stream");
     checkeq(ENGINE_NOT_MY_VBUCKET,
