@@ -3185,10 +3185,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("vb_dead_num", deadCountVisitor.getVBucketNumber(),
                     add_stat, cookie);
 
-    DBFileInfo fileInfo = kvBucket->getFileStats(cookie);
-
-    add_casted_stat("ep_db_data_size", fileInfo.spaceUsed, add_stat, cookie);
-    add_casted_stat("ep_db_file_size", fileInfo.fileSize, add_stat, cookie);
+    kvBucket->getFileStats(cookie, add_stat);
 
     add_casted_stat("ep_persist_vbstate_total",
                     epstats.totalPersistVBState, add_stat, cookie);
@@ -4454,55 +4451,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doDiskStats(const void *cookie,
-                                                          ADD_STAT add_stat,
-                                                          const char* stat_key,
-                                                          int nkey) {
-    DBFileInfo fileInfo = kvBucket->getFileStats(cookie);
-    add_casted_stat("ep_db_data_size", fileInfo.spaceUsed, add_stat, cookie);
-    add_casted_stat("ep_db_file_size", fileInfo.fileSize, add_stat, cookie);
-    return ENGINE_SUCCESS;
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doDiskDetailStats(
-                                                           const void *cookie,
-                                                           ADD_STAT add_stat,
-                                                           const char* stat_key,
-                                                           int nkey) {
-    class DiskStatVisitor : public VBucketVisitor {
-    public:
-        DiskStatVisitor(const void *c, ADD_STAT a)
-            : cookie(c), add_stat(a) { }
-
-        void visitBucket(RCPtr<VBucket> &vb) override {
-            char buf[32];
-            uint16_t vbid = vb->getId();
-            DBFileInfo dbInfo = vb->getShard()->getRWUnderlying()->
-                                                            getDbFileInfo(vbid);
-
-            try {
-                checked_snprintf(buf, sizeof(buf), "vb_%d:data_size", vbid);
-                add_casted_stat(buf, dbInfo.spaceUsed, add_stat, cookie);
-                checked_snprintf(buf, sizeof(buf), "vb_%d:file_size", vbid);
-                add_casted_stat(buf, dbInfo.fileSize, add_stat, cookie);
-            } catch (std::exception& error) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "DiskStatVisitor::visitBucket: Failed to build stat: %s",
-                    error.what());
-            }
-        }
-
-    private:
-        const void *cookie;
-        ADD_STAT add_stat;
-    };
-
-    DiskStatVisitor dsv(cookie, add_stat);
-    kvBucket->visit(dsv);
-
-    return ENGINE_SUCCESS;
-}
-
 void EventuallyPersistentEngine::addLookupAllKeys(const void *cookie,
                                                   ENGINE_ERROR_CODE err) {
     LockHolder lh(lookupMutex);
@@ -4659,12 +4607,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         }
     } else if (cb_isPrefix(statKey, "diskinfo")) {
         if (nkey == 8) {
-            return doDiskStats(cookie, add_stat, stat_key, nkey);
+            return kvBucket->getFileStats(cookie, add_stat);
         } else if ((nkey == 15) &&
                 (statKey.compare(std::string("diskinfo").length() + 1,
                                  std::string("detail").length(),
                                  "detail") == 0)) {
-            return doDiskDetailStats(cookie, add_stat, stat_key, nkey);
+            return kvBucket->getPerVBucketDiskStats(cookie, add_stat);
         } else {
             return ENGINE_EINVAL;
         }

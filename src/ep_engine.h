@@ -862,10 +862,6 @@ protected:
     ENGINE_ERROR_CODE doWorkloadStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doSeqnoStats(const void *cookie, ADD_STAT add_stat,
                                    const char* stat_key, int nkey);
-    ENGINE_ERROR_CODE doDiskStats(const void *cookie, ADD_STAT add_stat,
-                                  const char* stat_key, int nkey);
-    ENGINE_ERROR_CODE doDiskDetailStats(const void *cookie, ADD_STAT add_stat,
-                                        const char* stat_key, int nkey);
     void addSeqnoVbStats(const void *cookie, ADD_STAT add_stat,
                                   const RCPtr<VBucket> &vb);
 

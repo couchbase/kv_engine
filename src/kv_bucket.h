@@ -303,12 +303,7 @@ public:
      */
     void snapshotStats(void);
 
-    /**
-     * Get file statistics
-     */
-    DBFileInfo getFileStats(const void *cookie);
-
-    /**
+   /**
      * Complete a background fetch of a non resident value or metadata.
      *
      * @param key the key that was fetched

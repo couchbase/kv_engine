@@ -170,8 +170,6 @@ std::unordered_map<std::string, StatProperties> stat_tests =
      {"workload", {"workload", StatRuntime::Fast, {}} },
      {"failovers_vb0", {"failovers 0", StatRuntime::Fast, {}} },
      {"failovers", {"failovers", StatRuntime::Slow, {}} },
-     {"diskinfo", {"diskinfo", StatRuntime::Fast, {}} },
-     {"diskinfo-detail", {"diskinfo-detail", StatRuntime::Slow, {}} },
     };
 
 static void fillLineWith(const char c, int spaces) {
@@ -1224,6 +1222,15 @@ static void perf_stat_latency_core(ENGINE_HANDLE *h,
             storeCasVb11(h, h1, nullptr, OPERATION_ADD, "example_doc", nullptr,
                          0, /*flags*/0, /*out*/nullptr, 0, /*vbid*/0),
                          "Failed to add example document.");
+
+    if (isPersistentBucket(h, h1)) {
+        // Include persistence-specific stats
+        stat_tests.insert({{"diskinfo",
+                          {"diskinfo", StatRuntime::Fast, {}} },
+                      {"diskinfo-detail",
+                          {"diskinfo-detail", StatRuntime::Slow, {}}}});
+    }
+
     for (auto& stat : stat_tests) {
         if (stat.second.runtime == statRuntime) {
             for (int ii = 0; ii < iterations; ii++) {

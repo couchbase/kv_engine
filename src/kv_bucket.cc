@@ -1272,20 +1272,6 @@ void KVBucket::snapshotStats() {
     getOneRWUnderlying()->snapshotStats(snap.smap);
 }
 
-DBFileInfo KVBucket::getFileStats(const void *cookie) {
-    uint16_t numShards = vbMap.getNumShards();
-    DBFileInfo totalInfo;
-
-    for (uint16_t shardId = 0; shardId < numShards; shardId++) {
-        KVStore *store = getRWUnderlyingByShard(shardId);
-        DBFileInfo dbInfo = store->getAggrDbFileInfo();
-        totalInfo.spaceUsed += dbInfo.spaceUsed;
-        totalInfo.fileSize += dbInfo.fileSize;
-    }
-
-    return totalInfo;
-}
-
 void KVBucket::completeBGFetch(const DocKey& key, uint16_t vbucket,
                                const void *cookie, hrtime_t init, bool isMeta) {
     hrtime_t startTime(gethrtime());

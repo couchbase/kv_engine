@@ -6395,18 +6395,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "vb_0:num_erroneous_entries_erased"
             }
         },
-        {"diskinfo",
-            {
-                "ep_db_data_size",
-                "ep_db_file_size"
-            }
-        },
-        {"diskinfo detail",
-            {
-                "vb_0:data_size",
-                "vb_0:file_size"
-            }
-        },
         {"", // Note: we convert empty to a null to get engine stats
             {
                 "bytes",
@@ -6462,8 +6450,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_cursor_dropping_upper_threshold",
                 "ep_cursors_dropped",
                 "ep_data_traffic_enabled",
-                "ep_db_data_size",
-                "ep_db_file_size",
                 "ep_dbname",
                 "ep_dcp_backfill_byte_limit",
                 "ep_dcp_conn_buffer_size",
@@ -6707,6 +6693,17 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                                            "ep_warmup_oom",
                                            "ep_warmup_time",
                                            "ep_warmup_thread"});
+    }
+
+    if (isPersistentBucket(h, h1)) {
+        // Add data_size and file_size stats to toplevel group.
+        auto& eng_stats = statsKeys.at("");
+        eng_stats.insert(eng_stats.end(),
+                         {"ep_db_data_size", "ep_db_file_size"});
+
+        // 'diskinfo and 'diskinfo detail' keys should be present now.
+        statsKeys["diskinfo"] = {"ep_db_data_size", "ep_db_file_size"};
+        statsKeys["diskinfo detail"] = {"vb_0:data_size", "vb_0:file_size"};
     }
 
     bool error = false;
@@ -7151,7 +7148,7 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("io stats", test_io_stats, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("file stats", test_vb_file_stats, test_setup, teardown,
-                 NULL, prepare, cleanup),
+                 NULL, prepare_ep_bucket, cleanup),
         TestCase("file stats post warmup", test_vb_file_stats_after_warmup,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("bg stats", test_bg_stats, test_setup, teardown,
@@ -7174,7 +7171,7 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("seqno stats", test_stats_seqno,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("diskinfo stats", test_stats_diskinfo,
-                 test_setup, teardown, NULL, prepare, cleanup),
+                 test_setup, teardown, NULL, prepare_ep_bucket, cleanup),
         TestCase("stats curr_items ADD SET", test_curr_items_add_set,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("stats curr_items DELETE", test_curr_items_delete,

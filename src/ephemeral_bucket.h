@@ -28,4 +28,16 @@
 class EphemeralBucket : public KVBucket {
 public:
     EphemeralBucket(EventuallyPersistentEngine& theEngine);
+
+    /// File stats not supported for Ephemeral buckets.
+    ENGINE_ERROR_CODE getFileStats(const void* cookie,
+                                   ADD_STAT add_stat) override {
+        return ENGINE_KEY_ENOENT;
+    }
+
+    /// Disk stats not supported for Ephemeral buckets.
+    ENGINE_ERROR_CODE getPerVBucketDiskStats(const void* cookie,
+                                             ADD_STAT add_stat) override {
+        return ENGINE_KEY_ENOENT;
+    }
 };
