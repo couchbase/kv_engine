@@ -1927,6 +1927,8 @@ static enum test_result test_dcp_producer_stream_req_mem(ENGINE_HANDLE *h,
 
 static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
                                                          ENGINE_HANDLE_V1 *h1) {
+    const void* cookie = testHarness.create_cookie();
+
     int i = 0;  // Item count
     while (true) {
         // Gathering stats on every store is expensive, just check every 100 iterations
@@ -1939,12 +1941,17 @@ static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
         item *itm = NULL;
         std::stringstream ss;
         ss << "key" << i;
-        ENGINE_ERROR_CODE ret = store(h, h1, NULL, OPERATION_SET,
-                                      ss.str().c_str(), "somevalue", &itm);
+        ENGINE_ERROR_CODE ret = store(h,
+                                      h1,
+                                      cookie,
+                                      OPERATION_SET,
+                                      ss.str().c_str(),
+                                      "somevalue",
+                                      &itm);
         if (ret == ENGINE_SUCCESS) {
             i++;
         }
-        h1->release(h, NULL, itm);
+        h1->release(h, cookie, itm);
     }
 
     // Sanity check - ensure we have enough vBucket quota (max_size)
@@ -1962,8 +1969,6 @@ static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
     // Reduce max_size from 6291456 to 6000000
     set_param(h, h1, protocol_binary_engine_param_flush, "max_size", "6000000");
     cb_assert(get_int_stat(h, h1, "vb_active_perc_mem_resident") < 50);
-
-    const void *cookie = testHarness.create_cookie();
 
     DcpStreamCtx ctx;
     ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
