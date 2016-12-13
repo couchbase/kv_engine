@@ -1835,23 +1835,26 @@ static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     h1->reset_stats(h, NULL);
 
-    check(get_int_stat(h, h1, "rw_0:io_num_read", "kvstore") == 0,
-          "Expected reset stats to set io_num_read to zero");
-    check(get_int_stat(h, h1, "rw_0:io_num_write", "kvstore") == 0,
-          "Expected reset stats to set io_num_write to zero");
-    check(get_int_stat(h, h1, "rw_0:io_read_bytes", "kvstore") == 0,
-          "Expected reset stats to set io_read_bytes to zero");
-    check(get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore") == 0,
-          "Expected reset stats to set io_write_bytes to zero");
-    wait_for_persisted_value(h, h1, "a", "b\r\n");
-    check(get_int_stat(h, h1, "rw_0:io_num_read", "kvstore") == 0 &&
-          get_int_stat(h, h1, "rw_0:io_read_bytes", "kvstore") == 0,
-          "Expected storing one value to not change the read counter");
+    checkeq(0, get_int_stat(h, h1, "rw_0:io_num_read", "kvstore"),
+            "Expected reset stats to set io_num_read to zero");
+    checkeq(0, get_int_stat(h, h1, "rw_0:io_num_write", "kvstore"),
+            "Expected reset stats to set io_num_write to zero");
+    checkeq(0, get_int_stat(h, h1, "rw_0:io_read_bytes", "kvstore"),
+            "Expected reset stats to set io_read_bytes to zero");
+    checkeq(0, get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore"),
+            "Expected reset stats to set io_write_bytes to zero");
 
-    check(get_int_stat(h, h1, "rw_0:io_num_write", "kvstore") == 1 &&
-          get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore") ==
-                                                                exp_write_bytes,
-          "Expected storing the key to update the write counter");
+    wait_for_persisted_value(h, h1, "a", "b\r\n");
+    checkeq(0, get_int_stat(h, h1, "rw_0:io_num_read", "kvstore"),
+            "Expected storing one value to not change the read counter");
+    checkeq(0, get_int_stat(h, h1, "rw_0:io_read_bytes", "kvstore"),
+            "Expected storing one value to not change the read bytes");
+    checkeq(1, get_int_stat(h, h1, "rw_0:io_num_write", "kvstore"),
+            "Expected storing the key to update the write counter");
+    checkeq(exp_write_bytes,
+            get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore"),
+            "Expected storing the key to update the write bytes");
+
     evict_key(h, h1, "a", 0, "Ejected.");
 
     check_key_value(h, h1, "a", "b\r\n", 3, 0);
@@ -1869,14 +1872,16 @@ static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         cb_assert(false);
     }
 
-    check(get_int_stat(h, h1, numReadStatStr.str().c_str(), "kvstore") == 1 &&
-              get_int_stat(h, h1, readBytesStatStr.str().c_str(), "kvstore") ==
-                                                                 exp_read_bytes,
-          "Expected reading the value back in to update the read counter");
-    check(get_int_stat(h, h1, "rw_0:io_num_write", "kvstore") == 1 &&
-          get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore") ==
-                                                                exp_write_bytes,
-          "Expected reading the value back in to not update the write counter");
+    checkeq(1, get_int_stat(h, h1, numReadStatStr.str().c_str(), "kvstore"),
+            "Expected reading the value back in to update the read counter");
+    checkeq(exp_read_bytes,
+            get_int_stat(h, h1, readBytesStatStr.str().c_str(), "kvstore"),
+            "Expected reading the value back in to update the read bytes");
+    checkeq(1, get_int_stat(h, h1, "rw_0:io_num_write", "kvstore"),
+            "Expected reading the value back in to not update the write counter");
+    checkeq(exp_write_bytes,
+            get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore"),
+            "Expected reading the value back in to not update the write bytes");
 
     return SUCCESS;
 }
