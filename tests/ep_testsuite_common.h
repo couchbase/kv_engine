@@ -193,6 +193,15 @@ enum test_result prepare_ep_bucket(engine_test_t* test);
  */
 enum test_result prepare_full_eviction(engine_test_t *test);
 
+/**
+ * TODO TEMPORARY:
+ * Prepare a test which currently is broken for Ephemeral buckets and so
+ * should be skipped for them for now.
+ *
+ * Any test using this *should* eventually pass, so these should be fixed.
+ */
+enum test_result prepare_skip_broken_under_ephemeral(engine_test_t *test);
+
 // Default testcase cleanup function.
 void cleanup(engine_test_t *test, enum test_result result);
 

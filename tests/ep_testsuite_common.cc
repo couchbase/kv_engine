@@ -251,6 +251,10 @@ enum test_result prepare_full_eviction(engine_test_t *test) {
     return prepare(test);
 }
 
+enum test_result prepare_skip_broken_under_ephemeral(engine_test_t *test) {
+    return prepare_ep_bucket(test);
+}
+
 void cleanup(engine_test_t *test, enum test_result result) {
     (void)result;
     // Nuke the database files we created
