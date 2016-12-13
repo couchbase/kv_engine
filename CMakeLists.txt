@@ -492,6 +492,8 @@ INSTALL(TARGETS ep
 # Defines a testsuite which runs in full and value eviction
 # (persistent), ephemeral buckets (which has no eviction).
 FUNCTION(ADD_TESTSUITE name timeout)
+  CMAKE_PARSE_ARGUMENTS("arg" "SKIP_EPHEMERAL" "" "" ${ARGN} )
+
   SET(_cmdline
     ${CMAKE_BINARY_DIR}/memcached/engine_testapp
         -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so
@@ -500,11 +502,14 @@ FUNCTION(ADD_TESTSUITE name timeout)
          COMMAND ${_cmdline} -v -e "dbname=./${name}.value_eviction.db")
   ADD_TEST(NAME ${name}.full_eviction
          COMMAND ${_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./${name}.full_eviction.db")
-  ADD_TEST(NAME ${name}.ephemeral
-         COMMAND ${_cmdline} -v -e "bucket_type=ephemeral$<SEMICOLON>dbname=./${name}.ephemeral.db")
   SET_TESTS_PROPERTIES(${name}.value_eviction PROPERTIES TIMEOUT ${timeout})
   SET_TESTS_PROPERTIES(${name}.full_eviction PROPERTIES TIMEOUT ${timeout})
-  SET_TESTS_PROPERTIES(${name}.ephemeral PROPERTIES TIMEOUT ${timeout})
+
+  IF(NOT arg_SKIP_EPHEMERAL)
+    ADD_TEST(NAME ${name}.ephemeral
+             COMMAND ${_cmdline} -v -e "bucket_type=ephemeral$<SEMICOLON>dbname=./${name}.ephemeral.db")
+    SET_TESTS_PROPERTIES(${name}.ephemeral PROPERTIES TIMEOUT ${timeout})
+  ENDIF()
 ENDFUNCTION()
 
 ADD_TESTSUITE(ep_testsuite 1800)
@@ -513,7 +518,8 @@ ADD_TESTSUITE(ep_testsuite_basic 600)
 
 ADD_TESTSUITE(ep_testsuite_dcp 1200)
 
-ADD_TESTSUITE(ep_testsuite_tap 180)
+# TAP not supported for Ephemeral buckets.
+ADD_TESTSUITE(ep_testsuite_tap 180 SKIP_EPHEMERAL)
 
 ADD_TESTSUITE(ep_testsuite_checkpoint 120)
 
