@@ -68,8 +68,8 @@ protected:
 
     uint64_t hashDocKey(const DocKey& key, uint32_t iteration) {
         uint64_t result = 0;
-        // Collections: TODO: include namespace whilst hashing
-        MURMURHASH_3(key.data(), key.size(), iteration, &result);
+        uint32_t seed = iteration + (uint32_t(key.getDocNamespace()) * noOfHashes);
+        MURMURHASH_3(key.data(), key.size(), seed, &result);
         return result;
     }
 
