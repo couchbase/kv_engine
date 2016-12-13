@@ -859,6 +859,11 @@ void start_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!isPersistentBucket(h, h1)) {
+        // Nothing to do for non-persistent buckets
+        return;
+    }
+
     useconds_t sleepTime = 128;
     while (true) {
         if (get_str_stat(h, h1, "ep_flusher_state", 0) == "running") {
