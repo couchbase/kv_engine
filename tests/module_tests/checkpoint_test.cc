@@ -466,6 +466,36 @@ TYPED_TEST(CheckpointTest, OneOpenCkpt) {
                                      HasOperation(queue_op::set)));
 }
 
+// Test that enqueuing a single delete works.
+TYPED_TEST(CheckpointTest, Delete) {
+    // Enqueue a single delete.
+    queued_item qi{new Item{makeStoredDocKey("key1"),
+                            this->vbucket->getId(),
+                            queue_op::del,
+                            /*revSeq*/ 10,
+                            /*byseq*/ 0}};
+    EXPECT_TRUE(this->manager->queueDirty(
+            *this->vbucket, qi, GenerateBySeqno::Yes, GenerateCas::Yes));
+
+    EXPECT_EQ(1, this->manager->getNumCheckpoints());  // Single open checkpoint.
+    EXPECT_EQ(2, this->manager->getNumOpenChkItems()); // 1x op_checkpoint_start, 1x op_del
+    EXPECT_EQ(1001, qi->getBySeqno());
+    EXPECT_EQ(10, qi->getRevSeqno());
+
+    // Check that the items fetched matches what was enqueued.
+    std::vector<queued_item> items;
+    auto result = this->manager->getAllItemsForCursor
+            (CheckpointManager::pCursorName, items);
+
+    EXPECT_EQ(0, result.start);
+    EXPECT_EQ(1001, result.end);
+    EXPECT_EQ(2, items.size());
+    EXPECT_THAT(items,
+                testing::ElementsAre(HasOperation(queue_op::checkpoint_start),
+                                     HasOperation(queue_op::del)));
+}
+
+
 // Test with one open and one closed checkpoint.
 TYPED_TEST(CheckpointTest, OneOpenOneClosed) {
     // Add some items to the initial (open) checkpoint.
