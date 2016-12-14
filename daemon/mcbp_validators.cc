@@ -24,6 +24,16 @@
 #include "subdocument_validators.h"
 #include "xattr_utils.h"
 
+static inline bool may_accept_xattr(const Cookie& cookie) {
+    auto* req = static_cast<protocol_binary_request_header*>(McbpConnection::getPacket(cookie));
+    if (mcbp::datatype::is_xattr(req->request.datatype)) {
+        auto* conn = static_cast<McbpConnection*>(cookie.connection);
+        return conn->isXattrSupport();
+    }
+
+    return true;
+}
+
 /******************************************************************************
  *                         Package validators                                 *
  *****************************************************************************/
@@ -151,7 +161,7 @@ static protocol_binary_response_status dcp_mutation_validator(const Cookie& cook
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         extlen != (2*sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(uint16_t)) + sizeof(uint8_t) ||
         keylen == 0 || bodylen == 0 || (keylen + extlen) > bodylen ||
-        !mcbp::datatype::is_valid(datatype)) {
+        !mcbp::datatype::is_valid(datatype) || !may_accept_xattr(cookie)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -168,7 +178,8 @@ static protocol_binary_response_status dcp_deletion_validator(const Cookie& cook
     auto req = static_cast<protocol_binary_request_dcp_deletion*>(McbpConnection::getPacket(cookie));
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != (2*sizeof(uint64_t) + sizeof(uint16_t)) ||
-        req->message.header.request.keylen == 0) {
+        req->message.header.request.keylen == 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -183,8 +194,8 @@ static protocol_binary_response_status dcp_expiration_validator(const Cookie& co
     bodylen -= req->message.header.request.extlen;
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != (2*sizeof(uint64_t) + sizeof(uint16_t)) ||
-        req->message.header.request.keylen == 0 ||
-        bodylen != 0) {
+        req->message.header.request.keylen == 0 || bodylen != 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -873,6 +884,7 @@ static protocol_binary_response_status mutate_with_meta_validator(const Cookie& 
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         keylen == 0 || (keylen + extlen) > bodylen ||
+        !may_accept_xattr(cookie) ||
         !mcbp::datatype::is_valid(datatype)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
