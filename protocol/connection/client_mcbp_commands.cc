@@ -358,3 +358,10 @@ void BinprotRemoveCommand::encode(std::vector<uint8_t>& buf) const {
     writeHeader(buf, 0, 0);
     buf.insert(buf.end(), key.begin(), key.end());
 }
+
+void BinprotGetErrorMapCommand::encode(std::vector<uint8_t>& buf) const {
+    writeHeader(buf, 2, 0);
+    uint16_t encversion = htons(version);
+    const char* p = reinterpret_cast<const char*>(&encversion);
+    buf.insert(buf.end(), p, p + 2);
+}

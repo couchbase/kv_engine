@@ -283,6 +283,15 @@ The *dedupe_nmvb_maps* attribute is a boolean value to enable deduplication
 of the cluster maps in the "Not My VBucket" response messages sent to
 the clients. By default this value is set to false.
 
+
+=== error_maps_dir
+
+A directory containing one or more JSON-formatted error maps. The error maps
+are returned to the client using the GET_ERROR_MAP protocol command.
+Multiple error maps correspond to multiple versions.
+
+The format of the error map itself is described in `docs/ErrorMap.md`
+
 == EXAMPLES
 
 A Sample memcached.json:
@@ -298,6 +307,7 @@ A Sample memcached.json:
             },
         "require_init" : true,
         "audit_file" : "/opt/couchbase/etc/security/audit.json",
+        "error_maps_dir": "/opt/couchbase/etc/error_maps",
         "ssl_cipher_list" : "HIGH",
         "threads" : 4,
         "interfaces" :

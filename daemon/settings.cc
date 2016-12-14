@@ -14,10 +14,18 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+
+#define NOMINMAX // For Win32
+
 #include "config.h"
 
+#include <algorithm>
 #include <cstring>
+#include <fstream>
+#include <system_error>
+
 #include <platform/dirutils.h>
+#include <platform/strerror.h>
 #include "settings.h"
 #include "ssl_utils.h"
 
@@ -73,19 +81,45 @@ static void handle_admin(Settings& s, cJSON* obj) {
     s.setAdmin(obj->valuestring);
 }
 
-static void throw_missing_file_exception(const std::string &key, cJSON* obj) {
-    std::string message("\"");
-    message.append(key);
-    message.append("\":");
-    if (obj->valuestring == nullptr) {
-        message.append("null");
+enum class FileError {
+    Missing,
+    Empty,
+    Invalid
+};
+
+static void throw_file_exception(const std::string &key,
+                                 const std::string& filename,
+                                 FileError reason,
+                                 const std::string& extra_reason = std::string()) {
+    std::string message("'" + key + "': '" + filename + "'");
+    if (reason == FileError::Missing) {
+        throw std::system_error(
+                std::make_error_code(std::errc::no_such_file_or_directory),
+                message);
+    } else if (reason == FileError::Empty) {
+        throw std::invalid_argument(message + " is empty ");
+    } else if (reason == FileError::Invalid) {
+        std::string extra;
+        if (!extra_reason.empty()) {
+            extra = " (" + extra_reason + ")";
+        }
+        throw std::invalid_argument(message + " is badly formatted: " +
+                                    extra_reason);
     } else {
-        message.append("\"");
-        message.append(obj->valuestring);
-        message.append("\"");
+        throw std::runtime_error(message);
     }
-    message.append(" does not exists");
-    throw std::invalid_argument(message);
+}
+
+static void throw_missing_file_exception(const std::string &key,
+                                         const cJSON *obj) {
+    throw_file_exception(key,
+                         obj->valuestring == nullptr ? "null" : obj->valuestring,
+                         FileError::Missing);
+}
+
+static void throw_missing_file_exception(const std::string& key,
+                                         const std::string& filename) {
+    throw_file_exception(key, filename, FileError::Missing);
 }
 
 /**
@@ -106,6 +140,13 @@ static void handle_audit_file(Settings& s, cJSON* obj) {
     }
 
     s.setAuditFile(obj->valuestring);
+}
+
+static void handle_error_maps_dir(Settings& s, cJSON* obj) {
+    if (obj->type != cJSON_String) {
+        throw std::invalid_argument("\"error_maps_dir\" must be a string");
+    }
+    s.setErrorMapsDir(obj->valuestring);
 }
 
 /**
@@ -489,6 +530,7 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
     std::vector<settings_config_tokens> handlers = {
         {"admin",                        handle_admin},
         {"audit_file",                   handle_audit_file},
+        {"error_maps_dir",               handle_error_maps_dir},
         {"threads",                      handle_threads},
         {"interfaces",                   handle_interfaces},
         {"extensions",                   handle_extensions},
@@ -833,6 +875,13 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         }
     }
 
+    if (other.has.error_maps) {
+        if (other.error_maps_dir != error_maps_dir) {
+            throw std::invalid_argument(
+                    "error_maps_dir can't be changed dynamically");
+        }
+    }
+
     // All non-dynamic settings has been validated. If we're not supposed
     // to update anything we can bail out.
     if (!apply) {
@@ -1055,6 +1104,118 @@ void Settings::logit(EXTENSION_LOG_LEVEL level, const char* fmt, ...) {
         logger->log(level, nullptr, "%s", buffer);
     }
 }
+
+/**
+ * Loads a single error map
+ * @param filename The location of the error map
+ * @param[out] contents The JSON-encoded contents of the error map
+ * @return The version of the error map
+ */
+static size_t parseErrorMap(const std::string& filename,
+                            std::string& contents) {
+    const std::string errkey(
+            "parseErrorMap: error_maps_dir (" + filename + ")");
+    if (!cb::io::isFile(filename)) {
+        throw_missing_file_exception(errkey, filename);
+    }
+
+    std::ifstream ifs(filename);
+    if (ifs.good()) {
+        // Read into buffer
+        contents.assign(std::istreambuf_iterator<char>{ifs},
+                        std::istreambuf_iterator<char>());
+        if (contents.empty()) {
+            throw_file_exception(errkey, filename, FileError::Empty);
+        }
+    } else if (ifs.fail()) {
+        // TODO: make this into std::system_error
+        throw std::runtime_error(errkey + ": " + "Couldn't read");
+    }
+
+    unique_cJSON_ptr json(cJSON_Parse(contents.c_str()));
+    if (json.get() == nullptr) {
+        throw_file_exception(errkey, filename, FileError::Invalid,
+                             "Invalid JSON");
+    }
+
+    if (json->type != cJSON_Object) {
+        throw_file_exception(errkey, filename, FileError::Invalid,
+                             "Top-level contents must be objects");
+    }
+    // Find the 'version' field
+    const cJSON *verobj = cJSON_GetObjectItem(json.get(), "version");
+    if (verobj == nullptr) {
+        throw_file_exception(errkey, filename, FileError::Invalid,
+                             "Cannot find 'version' field");
+    }
+    if (verobj->type != cJSON_Number) {
+        throw_file_exception(errkey, filename, FileError::Invalid,
+                             "'version' must be numeric");
+    }
+
+    static const size_t max_version = 200;
+    size_t version = verobj->valueint;
+
+    if (version > max_version) {
+        throw_file_exception(errkey, filename, FileError::Invalid,
+                             "'version' too big. Maximum supported is " +
+                             std::to_string(max_version));
+    }
+
+    return version;
+}
+
+void Settings::loadErrorMaps(const std::string& dir) {
+    static const std::string errkey("Settings::loadErrorMaps");
+    if (!cb::io::isDirectory(dir)) {
+        throw_missing_file_exception(errkey, dir);
+    }
+
+    size_t max_version = 1;
+    static const std::string prefix("error_map");
+    static const std::string suffix(".json");
+
+    for (auto const& filename : cb::io::findFilesWithPrefix(dir, prefix)) {
+        // Ensure the filename matches "error_map*.json", so we ignore editor
+        // generated files or "hidden" files.
+        if (filename.size() < suffix.size()) {
+            continue;
+        }
+        if (!std::equal(suffix.rbegin(), suffix.rend(), filename.rbegin())) {
+            continue;
+        }
+
+        std::string contents;
+        size_t version = parseErrorMap(filename, contents);
+        error_maps.resize(std::max(error_maps.size(), version + 1));
+        error_maps[version] = contents;
+        max_version = std::max(max_version, version);
+    }
+
+    // Ensure we have at least one error map.
+    if (error_maps.empty()) {
+        throw std::invalid_argument(errkey +": No valid files found in " + dir);
+    }
+
+    // Validate that there are no 'holes' in our versions
+    for (size_t ii = 1; ii < max_version; ++ii) {
+        if (getErrorMap(ii).empty()) {
+            throw std::runtime_error(errkey + ": Missing error map version " +
+                                     std::to_string(ii));
+        }
+    }
+}
+
+const std::string& Settings::getErrorMap(size_t version) const {
+    const static std::string empty("");
+    if (error_maps.empty()) {
+        return empty;
+    }
+
+    version = std::min(version, error_maps.size()-1);
+    return error_maps[version];
+}
+
 
 void Settings::notify_changed(const std::string& key) {
     auto iter = change_listeners.find(key);

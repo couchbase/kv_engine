@@ -472,6 +472,9 @@ extern "C"
         /* ns_server - memcached internal communication */
         PROTOCOL_BINARY_CMD_INIT_COMPLETE = 0xf6,
 
+        /* get error code mappings */
+        PROTOCOL_BINARY_CMD_GET_ERROR_MAP = 0xfe,
+
         /* Reserved for being able to signal invalid opcode */
         PROTOCOL_BINARY_CMD_INVALID = 0xff
     } protocol_binary_command;
@@ -2032,6 +2035,31 @@ using protocol_binary_hello_features_t = mcbp::Feature;
      * at the specified key.
      */
     typedef protocol_binary_request_no_extras protocol_binary_request_get_keys;
+
+    /**
+     * Message format for PROTOCOL_BINARY_CMD_GET_ERRORMAP
+     *
+     * The payload (*not* specified as extras) contains a 2 byte payload
+     * containing a 16 bit encoded version number. This version number should
+     * indicate the highest version number of the error map the client is able
+     * to understand. The server will return a JSON-formatted error map
+     * which is formatted to either the version requested by the client, or
+     * a lower version (thus, clients must be ready to parse lower version
+     * formats).
+     */
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                uint16_t version;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 2];
+    } protocol_binary_request_get_errmap;
+
+    typedef protocol_binary_response_no_extras protocol_binary_response_get_errmap;
+
+
 
     /**
      * @}

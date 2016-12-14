@@ -915,6 +915,36 @@ namespace BinaryProtocolValidator {
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_SASL_STEP));
     }
 
+    class GetErrmapValidatorTest : public ValidatorTest {
+        virtual void SetUp() override {
+            ValidatorTest::SetUp();
+            memset(&request, 0, sizeof(request));
+            request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+            request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        }
+    protected:
+        int validate() {
+            return ValidatorTest::validate(PROTOCOL_BINARY_CMD_GET_ERROR_MAP,
+                                           static_cast<void*>(&request));
+        }
+        protocol_binary_request_get_errmap request;
+    };
+
+    TEST_F(GetErrmapValidatorTest, CorrectMessage) {
+        request.message.header.request.bodylen = htonl(2);
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    }
+
+    TEST_F(GetErrmapValidatorTest, InvalidMagic) {
+        request.message.header.request.magic = 0;
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    }
+
+    TEST_F(GetErrmapValidatorTest, MissingBody) {
+        request.message.header.request.bodylen = 0;
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    }
+
     // test IOCTL_GET
     class IoctlGetValidatorTest : public ValidatorTest {
         virtual void SetUp() override {

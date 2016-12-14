@@ -71,6 +71,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_GATQ, require<Privilege::Read>);
     setup(PROTOCOL_BINARY_CMD_GATQ, require<Privilege::Write>);
     setup(PROTOCOL_BINARY_CMD_HELLO, empty);
+    setup(PROTOCOL_BINARY_CMD_GET_ERROR_MAP, empty);
     setup(PROTOCOL_BINARY_CMD_SASL_LIST_MECHS, empty);
     setup(PROTOCOL_BINARY_CMD_SASL_AUTH, empty);
     setup(PROTOCOL_BINARY_CMD_SASL_STEP, empty);

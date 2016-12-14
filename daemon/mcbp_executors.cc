@@ -3635,6 +3635,21 @@ static void select_bucket_executor(McbpConnection* c, void* packet) {
     }
 }
 
+static void get_errmap_executor(McbpConnection *c, void *packet) {
+    auto const *req = reinterpret_cast<protocol_binary_request_get_errmap*>(packet);
+    uint16_t version = ntohs(req->message.body.version);
+    auto const& ss = settings.getErrorMap(version);
+    if (ss.empty()) {
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
+    } else {
+        mcbp_response_handler(NULL, 0, NULL, 0, ss.data(), ss.size(),
+                              PROTOCOL_BINARY_RAW_BYTES,
+                              PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                              0, c->getCookie());
+        mcbp_write_and_free(c, &c->getDynamicBuffer());
+    }
+}
+
 static void shutdown_executor(McbpConnection* c, void* packet) {
     auto req = reinterpret_cast<protocol_binary_request_shutdown*>(packet);
     uint64_t cas = ntohll(req->message.header.request.cas);
@@ -3739,6 +3754,7 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors(void) {
     executors[PROTOCOL_BINARY_CMD_LIST_BUCKETS] = list_bucket_executor;
     executors[PROTOCOL_BINARY_CMD_DELETE_BUCKET] = delete_bucket_executor;
     executors[PROTOCOL_BINARY_CMD_SELECT_BUCKET] = select_bucket_executor;
+    executors[PROTOCOL_BINARY_CMD_GET_ERROR_MAP] = get_errmap_executor;
 
     return executors;
 }

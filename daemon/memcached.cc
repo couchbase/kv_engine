@@ -565,7 +565,10 @@ static void settings_init(void) {
 /**
  * The config file may have altered some of the default values we're
  * caching in other variables. This is the place where we'd propagate
- * such changes
+ * such changes.
+ *
+ * This is also the place to initialize any additional files needed by
+ * Memcached.
  */
 static void update_settings_from_config(void)
 {
@@ -574,6 +577,18 @@ static void update_settings_from_config(void)
     if (!settings.getRoot().empty()) {
         root = settings.getRoot().c_str();
     }
+
+    if (settings.getErrorMapsDir().empty()) {
+        // Set the error map dir.
+        std::string error_maps_dir(root + "/etc/error_maps");
+    #ifdef _WIN32
+        std::replace(error_maps_dir.begin(), error_maps_dir.end(), '/', '\\');
+    #endif
+        if (cb::io::isDirectory(error_maps_dir)) {
+            settings.setErrorMapsDir(error_maps_dir);
+        }
+    }
+    settings.loadErrorMaps(settings.getErrorMapsDir());
 }
 
 struct {

@@ -585,3 +585,19 @@ public:
 };
 
 using BinprotRemoveResponse = BinprotMutationResponse;
+
+
+class BinprotGetErrorMapCommand
+    : public BinprotCommandT<BinprotGetErrorMapCommand,
+                             PROTOCOL_BINARY_CMD_GET_ERROR_MAP> {
+public:
+    void setVersion(uint16_t version_) {
+        version = version_;
+    }
+
+    void encode(std::vector<uint8_t>& buf) const override;
+private:
+    uint16_t version = 0;
+};
+
+using BinprotGetErrorMapResponse = BinprotResponse;

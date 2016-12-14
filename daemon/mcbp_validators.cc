@@ -909,6 +909,21 @@ static protocol_binary_response_status mutate_with_meta_validator(const Cookie& 
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
+static protocol_binary_response_status get_errmap_validator(const Cookie& cookie) {
+    const auto& hdr = *static_cast<const protocol_binary_request_header*>(McbpConnection::getPacket(cookie));
+    if (hdr.request.magic == PROTOCOL_BINARY_REQ &&
+            ntohl(hdr.request.bodylen) == 2 &&
+            hdr.request.cas == 0 &&
+            hdr.request.keylen == 0 &&
+            hdr.request.vbucket == 0 &&
+            hdr.request.extlen == 0 &&
+            hdr.request.datatype == PROTOCOL_BINARY_RAW_BYTES) {
+        return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    } else {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+}
+
 void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& chains) {
     chains.push_unique(PROTOCOL_BINARY_CMD_DCP_OPEN, dcp_open_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_DCP_ADD_STREAM, dcp_add_stream_validator);
@@ -1008,6 +1023,7 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_ADDQ_WITH_META, mutate_with_meta_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_DEL_WITH_META, mutate_with_meta_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_DELQ_WITH_META, mutate_with_meta_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_GET_ERROR_MAP, get_errmap_validator);
 }
 
 /**

@@ -149,6 +149,11 @@ public:
 
     void recvResponse(BinprotResponse& response);
 
+    void executeCommand(BinprotCommand& command, BinprotResponse& response) {
+        sendCommand(command);
+        recvResponse(response);
+    }
+
     void hello(const std::string& userAgent,
                const std::string& userAgentVersion,
                const std::string& comment) override;

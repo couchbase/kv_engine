@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include <system_error>
 #include <platform/platform.h>
 #include <gtest/gtest.h>
 #include <cJSON_utils.h>
@@ -45,9 +46,9 @@ public:
 
     void nonObjectValuesShouldFail(const std::string& tag);
 
-    virtual void expectFail(const unique_cJSON_ptr& ptr) {
-        EXPECT_THROW(Settings settings(ptr),
-                     std::invalid_argument) << to_string(ptr, true);
+    template <typename T = std::invalid_argument>
+    void expectFail(const unique_cJSON_ptr& ptr) {
+        EXPECT_THROW(Settings settings(ptr), T) << to_string(ptr, true);
     }
 };
 
@@ -267,7 +268,7 @@ TEST_F(SettingsTest, AuditFile) {
 
     // But we should fail if the file don't exist
     cb::io::rmrf(pattern);
-    expectFail(obj);
+    expectFail<std::system_error>(obj);
 }
 
 TEST_F(SettingsTest, Threads) {
@@ -394,10 +395,10 @@ TEST_F(SettingsTest, InterfacesMissingSSLFiles) {
 
     // We should fail if one of the files is missing
     cb::io::rmrf(key_pattern);
-    expectFail(root);
+    expectFail<std::system_error>(root);
     fclose(fopen(key_pattern, "a"));
     cb::io::rmrf(cert_pattern);
-    expectFail(root);
+    expectFail<std::system_error>(root);
     cb::io::rmrf(key_pattern);
 }
 
@@ -679,7 +680,7 @@ TEST_F(SettingsTest, Root) {
     // But we should fail if the file don't exist
     obj.reset(cJSON_CreateObject());
     cJSON_AddStringToObject(obj.get(), "root", "/it/would/suck/if/this/exist");
-    expectFail(obj);
+    expectFail<std::system_error>(obj);
 }
 
 TEST_F(SettingsTest, SslCipherList) {
@@ -762,7 +763,7 @@ TEST_F(SettingsTest, Breakpad) {
 
     // But the minidump dir is mandatory
     cb::io::rmrf(minidump_dir);
-    EXPECT_THROW(BreakpadSettings settings(obj.get()), std::invalid_argument);
+    EXPECT_THROW(BreakpadSettings settings(obj.get()), std::system_error);
     cb::io::mkdirp(minidump_dir);
 
     cJSON_AddStringToObject(obj.get(), "content", "default");

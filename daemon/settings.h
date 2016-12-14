@@ -325,6 +325,33 @@ public:
         notify_changed("audit_file");
     }
 
+    const std::string& getErrorMapsDir() const {
+        return Settings::error_maps_dir;
+    }
+
+    void setErrorMapsDir(const std::string& dir) {
+        has.error_maps = true;
+        Settings::error_maps_dir = dir;
+        notify_changed("error_maps_dir");
+    }
+
+    /**
+     * Load the error map from the given directory
+     * @param path Path to load from.
+     * @throw exception if the file does not exist or cannot be read/parsed
+     */
+    void loadErrorMaps(const std::string& path);
+
+public:
+    /**
+     * Get the error map of the requested version
+     * @param version the maximum version of the error map. The returned map
+     *        may be a lower version, but never a higher one.
+     * @return The text of the error map, or the empty string if no error maps
+     *         are loaded.
+     */
+    const std::string& getErrorMap(size_t version) const;
+
     /**
      * Is SASL required or not
      *
@@ -796,6 +823,11 @@ protected:
     std::string audit_file;
 
     /**
+     * Location of error maps sent to the client
+     */
+    std::string error_maps_dir;
+
+    /**
      * require SASL auth
      */
     bool require_sasl;
@@ -888,6 +920,11 @@ protected:
      */
     std::atomic_bool dedupe_nmvb_maps;
 
+    /**
+     * Map of version -> string for error maps
+     */
+    std::vector<std::string> error_maps;
+
 public:
     /**
      * Flags for each of the above config options, indicating if they were
@@ -921,6 +958,7 @@ public:
         bool exit_on_connection_close;
         bool sasl_mechanisms;
         bool dedupe_nmvb_maps;
+        bool error_maps;
     } has;
 
 protected:

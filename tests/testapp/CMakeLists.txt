@@ -15,6 +15,7 @@ list(APPEND TESTAPP_SOURCES
      testapp_client_test.h
      testapp_environment.cc
      testapp_environment.h
+     testapp_errmap.cc
      testapp_getset.cc
      testapp_greenstack.cc
      testapp_greenstack.h
