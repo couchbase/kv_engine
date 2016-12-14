@@ -4688,8 +4688,14 @@ static enum test_result test_dcp_erroneous_mutations(ENGINE_HANDLE *h,
 
     wait_for_stat_to_be(h, h1, bufferItemsStr.c_str(), 0, "dcp");
 
-    checkeq(get_int_stat(h, h1, "vb_0:num_items", "vbucket-details 0"),
-            6, "The last mutation should've been dropped!");
+    // Full Evictions: must wait for all items to have been flushed before
+    // asserting item counts
+    if (is_full_eviction(h, h1)) {
+        wait_for_flusher_to_settle(h, h1);
+    }
+
+    checkeq(6, get_int_stat(h, h1, "vb_0:num_items", "vbucket-details 0"),
+            "The last mutation should've been dropped!");
 
     checkeq(h1->dcp.close_stream(h, cookie, stream_opaque, 0),
             ENGINE_SUCCESS,
