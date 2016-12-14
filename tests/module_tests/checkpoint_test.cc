@@ -456,9 +456,10 @@ TYPED_TEST(CheckpointTest, OneOpenCkpt) {
     EXPECT_EQ(0, result.start);
     EXPECT_EQ(1003, result.end);
     EXPECT_EQ(3, items.size());
-    testing::ElementsAre(HasOperation(queue_op::checkpoint_start),
-                         HasOperation(queue_op::set),
-                         HasOperation(queue_op::set));
+    EXPECT_THAT(items,
+                testing::ElementsAre(HasOperation(queue_op::checkpoint_start),
+                                     HasOperation(queue_op::set),
+                                     HasOperation(queue_op::set)));
 }
 
 // Test with one open and one closed checkpoint.
