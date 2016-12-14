@@ -1229,8 +1229,8 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
                       "value", NULL, 0, 0, 0),
                 "Failed to store an item.");
     }
-    check(estimateVBucketMove(h, h1, 0) == 11, "Invalid estimate");
     wait_for_flusher_to_settle(h, h1);
+    checkeq(size_t(11), estimateVBucketMove(h, h1, 0), "Invalid estimate");
     testHarness.time_travel(1801);
     wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 3, "checkpoint");
 
@@ -1241,9 +1241,8 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
                 del(h, h1, ss.str().c_str(), 0, 0),
                 "Failed to remove a key");
     }
-
-    check(estimateVBucketMove(h, h1, 0) == 8, "Invalid estimate");
     wait_for_flusher_to_settle(h, h1);
+    checkeq(size_t(8), estimateVBucketMove(h, h1, 0), "Invalid estimate");
     testHarness.time_travel(1801);
     wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 4, "checkpoint");
     wait_for_stat_to_be(h, h1, "vb_0:persisted_checkpoint_id", 3, "checkpoint");
