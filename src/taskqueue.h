@@ -23,7 +23,6 @@
 #include <platform/processclock.h>
 
 #include "futurequeue.h"
-#include "ringbuffer.h"
 #include "task_type.h"
 #include "tasks.h"
 class ExecutorPool;

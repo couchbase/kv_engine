@@ -69,7 +69,6 @@
 #include "config.h"
 
 #include "tasks.h"
-#include "ringbuffer.h"
 #include "task_type.h"
 #include "taskable.h"
 
@@ -80,8 +79,6 @@ class TaskLogEntry;
 
 typedef std::vector<ExecutorThread *> ThreadQ;
 typedef std::pair<ExTask, TaskQueue *> TaskQpair;
-typedef std::pair<RingBuffer<TaskLogEntry>*, RingBuffer<TaskLogEntry> *>
-                                                                TaskLog;
 typedef std::vector<TaskQueue *> TaskQ;
 
 class ExecutorPool {

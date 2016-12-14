@@ -183,9 +183,9 @@ void ExecutorThread::addLogEntry(const std::string &desc,
     LockHolder lh(logMutex);
     TaskLogEntry tle(desc, taskType, runtime, t);
     if (isSlowJob) {
-        slowjobs.add(tle);
+        slowjobs.push_back(tle);
     } else {
-        tasklog.add(tle);
+        tasklog.push_back(tle);
     }
 }
 

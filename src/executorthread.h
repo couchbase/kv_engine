@@ -30,6 +30,7 @@
 #include <utility>
 #include <vector>
 
+#include <platform/ring_buffer.h>
 #include <platform/processclock.h>
 #include <relaxed_atomic.h>
 
@@ -37,6 +38,7 @@
 #include "tasks.h"
 #include "task_type.h"
 #include "tasklogentry.h"
+
 #define TASK_LOG_SIZE 80
 
 #define MIN_SLEEP_TIME 2.0
@@ -91,8 +93,7 @@ public:
           now(ProcessClock::now()),
           waketime(ProcessClock::time_point::max()),
           taskStart(),
-          currentTask(NULL), curTaskType(NO_TASK_TYPE),
-          tasklog(TASK_LOG_SIZE), slowjobs(TASK_LOG_SIZE) {}
+          currentTask(NULL), curTaskType(NO_TASK_TYPE) {}
 
     ~ExecutorThread() {
         LOG(EXTENSION_LOG_INFO, "Executor killing %s", name.c_str());
@@ -149,12 +150,12 @@ public:
 
     const std::vector<TaskLogEntry> getLog() {
         LockHolder lh(logMutex);
-        return tasklog.contents();
+        return std::vector<TaskLogEntry>{tasklog.begin(), tasklog.end()};
     }
 
     const std::vector<TaskLogEntry> getSlowLog() {
         LockHolder lh(logMutex);
-        return slowjobs.contents();
+        return std::vector<TaskLogEntry>{slowjobs.begin(), slowjobs.end()};
     }
 
     ProcessClock::time_point getWaketime() const {
@@ -193,8 +194,8 @@ protected:
     task_type_t curTaskType;
 
     std::mutex logMutex;
-    RingBuffer<TaskLogEntry> tasklog;
-    RingBuffer<TaskLogEntry> slowjobs;
+    cb::RingBuffer<TaskLogEntry, TASK_LOG_SIZE> tasklog;
+    cb::RingBuffer<TaskLogEntry, TASK_LOG_SIZE> slowjobs;
 };
 
 #endif  // SRC_SCHEDULER_H_
