@@ -386,8 +386,10 @@ For introductory information on stats within Couchbase, start with the
 | vb_active_eject               | Number of times item values got ejected    |
 | vb_active_expired             | Number of times an item was expired        |
 | vb_active_ht_memory           | Memory overhead of the hashtable           |
-| vb_active_itm_memory          | Total item memory                          |
-| vb_active_meta_data_memory    | Total metadata memory                      |
+| vb_active_itm_memory          | Total memory of all items in active        |
+|                               | vBuckets (StoredValue + key + value Blob)  |
+| vb_active_meta_data_memory    | Metadata memory of all items in active     |
+|                               | vBuckets (StoredValue + key)               |
 | vb_active_meta_data_disk      | Total metadata disk                        |
 | vb_active_ops_create          | Number of create operations                |
 | vb_active_ops_update          | Number of update operations                |
@@ -412,8 +414,10 @@ For introductory information on stats within Couchbase, start with the
 | vb_replica_eject              | Number of times item values got ejected    |
 | vb_replica_expired            | Number of times an item was expired        |
 | vb_replica_ht_memory          | Memory overhead of the hashtable           |
-| vb_replica_itm_memory         | Total item memory                          |
-| vb_replica_meta_data_memory   | Total metadata memory                      |
+| vb_replica_itm_memory         | Total memory of all items in replica       |
+|                               | vBuckets (StoredValue + key + value Blob)  |
+| vb_replica_meta_data_memory   | Metadata memory of all items in replica    |
+|                               | vBuckets (StoredValue + key)               |
 | vb_replica_meta_data_disk     | Total metadata disk                        |
 | vb_replica_ops_create         | Number of create operations                |
 | vb_replica_ops_update         | Number of update operations                |
@@ -438,8 +442,10 @@ For introductory information on stats within Couchbase, start with the
 | vb_pending_eject              | Number of times item values got ejected    |
 | vb_pending_expired            | Number of times an item was expired        |
 | vb_pending_ht_memory          | Memory overhead of the hashtable           |
-| vb_pending_itm_memory         | Total item memory                          |
-| vb_pending_meta_data_memory   | Total metadata memory                      |
+| vb_pending_itm_memory         | Total memory of all items in pending       |
+|                               | vBuckets (StoredValue + key + value Blob)  |
+| vb_pending_meta_data_memory   | Metadata memory of all items in pending    |
+|                               | vBuckets (StoredValue + key)               |
 | vb_pending_meta_data_disk     | Total metadata disk                        |
 | vb_pending_ops_create         | Number of create operations                |
 | vb_pending_ops_update         | Number of update operations                |
