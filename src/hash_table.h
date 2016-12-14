@@ -227,10 +227,8 @@ public:
      * Clear the hash table.
      *
      * @param deactivate true when this hash table is being destroyed completely
-     *
-     * @return a stat visitor reporting how much stuff was removed
      */
-    HashTableStatVisitor clear(bool deactivate = false);
+    void clear(bool deactivate = false);
 
     /**
      * Get the number of times this hash table has been resized.

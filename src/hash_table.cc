@@ -76,7 +76,7 @@ HashTable::~HashTable() {
     values = NULL;
 }
 
-HashTableStatVisitor HashTable::clear(bool deactivate) {
+void HashTable::clear(bool deactivate) {
     HashTableStatVisitor rv;
 
     if (!deactivate) {
@@ -107,8 +107,6 @@ HashTableStatVisitor HashTable::clear(bool deactivate) {
     numNonResidentItems.store(0);
     memSize.store(0);
     cacheSize.store(0);
-
-    return rv;
 }
 
 static size_t distance(size_t a, size_t b) {
