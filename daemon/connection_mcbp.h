@@ -27,14 +27,16 @@
 #include "settings.h"
 #include "statemachine_mcbp.h"
 
-#include <cbsasl/cbsasl.h>
-#include <chrono>
 #include <cJSON.h>
+#include <cbsasl/cbsasl.h>
 #include <daemon/protocol/mcbp/command_context.h>
 #include <daemon/protocol/mcbp/steppable_command_context.h>
 #include <memcached/openssl.h>
-#include <memory>
 #include <platform/cb_malloc.h>
+#include <platform/make_unique.h>
+
+#include <chrono>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -625,6 +627,32 @@ public:
     CommandContext* getCommandContext() const {
         return commandContext.get();
     }
+
+    /**
+     * Get the command context stored for this command as
+     * the given type or make it if it doesn't exist
+     *
+     * @tparam ContextType CommandContext type to create
+     * @return the context object
+     * @throws std::logic_error if the object is the wrong type
+     */
+    template <typename ContextType, typename... Args>
+    ContextType& obtainContext(Args&&... args) {
+        auto* context = commandContext.get();
+        if (context == nullptr) {
+            auto* ret = new ContextType(std::forward<Args>(args)...);
+            commandContext.reset(ret);
+            return *ret;
+        }
+        auto* ret = dynamic_cast<ContextType*>(context);
+        if (ret == nullptr) {
+            throw std::logic_error(
+                    std::string("McbpConnection::obtainContext<") +
+                    typeid(ContextType).name() +
+                    ">(): context is not the requested type");
+        }
+        return *ret;
+    };
 
     /**
      * Get the command context which SHOULD be a steppable command context

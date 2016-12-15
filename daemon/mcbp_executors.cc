@@ -559,12 +559,8 @@ static void process_stat_settings(ADD_STAT add_stat_callback,
 }
 
 static void process_bin_get(McbpConnection* c, void* packet) {
-    if (c->getCommandContext() == nullptr) {
-        auto* req = reinterpret_cast<protocol_binary_request_get*>(packet);
-        c->setCommandContext(new GetCommandContext(*c, req));
-    }
-
-    c->getSteppableCommandContext().drive();
+    auto* req = reinterpret_cast<protocol_binary_request_get*>(packet);
+    c->obtainContext<GetCommandContext>(*c, req).drive();
 }
 
 static void append_bin_stats(const char* key, const uint16_t klen,
@@ -2450,13 +2446,8 @@ static void dcp_control_executor(McbpConnection* c, void* packet) {
 
 static void add_set_replace_executor(McbpConnection* c, void* packet,
                                      ENGINE_STORE_OPERATION store_op) {
-
-    if (c->getCommandContext() == nullptr) {
-        auto* req = reinterpret_cast<protocol_binary_request_set*>(packet);
-        c->setCommandContext(new MutationCommandContext(*c, req, store_op));
-    }
-
-    c->getSteppableCommandContext().drive();
+    auto* req = reinterpret_cast<protocol_binary_request_set*>(packet);
+    c->obtainContext<MutationCommandContext>(*c, req, store_op).drive();
 }
 
 
@@ -2493,12 +2484,8 @@ static void replaceq_executor(McbpConnection* c, void* packet) {
 static void append_prepend_executor(McbpConnection* c,
                                     void* packet,
                                     const AppendPrependCommandContext::Mode mode) {
-    if (c->getCommandContext() == nullptr) {
-        auto* req = reinterpret_cast<protocol_binary_request_append*>(packet);
-        c->setCommandContext(new AppendPrependCommandContext(*c, req, mode));
-    }
-
-    c->getSteppableCommandContext().drive();
+    auto* req = reinterpret_cast<protocol_binary_request_append*>(packet);
+    c->obtainContext<AppendPrependCommandContext>(*c, req, mode).drive();
 }
 
 static void append_executor(McbpConnection* c, void* packet) {
@@ -3200,21 +3187,13 @@ static void delete_executor(McbpConnection* c, void* packet) {
         c->setNoReply(true);
     }
 
-    if (c->getCommandContext() == nullptr) {
-        auto* req = reinterpret_cast<protocol_binary_request_delete*>(packet);
-        c->setCommandContext(new RemoveCommandContext(*c, req));
-    }
-
-    c->getSteppableCommandContext().drive();
+    auto* req = reinterpret_cast<protocol_binary_request_delete*>(packet);
+    c->obtainContext<RemoveCommandContext>(*c, req).drive();
 }
 
 static void arithmetic_executor(McbpConnection* c, void* packet) {
-    if (c->getCommandContext() == nullptr) {
-        auto* req = reinterpret_cast<protocol_binary_request_incr*>(packet);
-        c->setCommandContext(new ArithmeticCommandContext(*c, *req));
-    }
-
-    c->getSteppableCommandContext().drive();
+    auto* req = reinterpret_cast<protocol_binary_request_incr*>(packet);
+    c->obtainContext<ArithmeticCommandContext>(*c, *req).drive();
 }
 
 static void arithmeticq_executor(McbpConnection* c, void* packet) {
