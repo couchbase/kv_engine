@@ -18,15 +18,8 @@
 #include <memcached/engine.h>
 
 #include "bloomfilter.h"
-#include "murmurhash3.h"
 
 #include <cmath>
-
-#if __x86_64__ || __ppc64__
-#define MURMURHASH_3 MurmurHash3_x64_128
-#else
-#define MURMURHASH_3 MurmurHash3_x86_128
-#endif
 
 BloomFilter::BloomFilter(size_t key_count, double false_positive_prob,
                          bfilter_status_t new_status) {
@@ -105,14 +98,11 @@ std::string BloomFilter::getStatusString() {
     return "UNKNOWN";
 }
 
-// Collections: TODO - we need to hash the DocNamespace:key
 void BloomFilter::addKey(const DocKey& key) {
     if (status == BFILTER_COMPACTING || status == BFILTER_ENABLED) {
         bool overlap = true;
-        uint32_t i;
-        uint64_t result;
-        for (i = 0; i < noOfHashes; i++) {
-            MURMURHASH_3(key.data(), key.size(), i, &result);
+        for (uint32_t i = 0; i < noOfHashes; i++) {
+            uint64_t result = hashDocKey(key, i);
             if (overlap && bitArray[result % filterSize] == 0) {
                 overlap = false;
             }
@@ -124,13 +114,10 @@ void BloomFilter::addKey(const DocKey& key) {
     }
 }
 
-// Collections: TODO - we need to hash the DocNamespace:key
 bool BloomFilter::maybeKeyExists(const DocKey& key) {
     if (status == BFILTER_COMPACTING || status == BFILTER_ENABLED) {
-        uint32_t i;
-        uint64_t result;
-        for (i = 0; i < noOfHashes; i++) {
-            MURMURHASH_3(key.data(), key.size(), i, &result);
+        for (uint32_t i = 0; i < noOfHashes; i++) {
+            uint64_t result = hashDocKey(key, i);
             if (bitArray[result % filterSize] == 0) {
                 // The key does NOT exist.
                 return false;
