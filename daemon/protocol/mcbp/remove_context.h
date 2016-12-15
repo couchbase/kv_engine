@@ -33,7 +33,13 @@ public:
     enum class State : uint8_t {
         // Look up the item to delete
         GetItem,
-        // Remove the item
+        // Rebuild the xattr segment we want to preserve
+        RebuildXattr,
+        // Allocate a new deleted object
+        AllocateDeletedItem,
+        // Store the deleted document (tombstone)
+        StoreItem,
+        // The document did not have any xattrs do an "old style" remove
         RemoveItem,
         // Release all allocated resources. The reason we've got a separate
         // state for this and not using the destructor for this is that
@@ -55,7 +61,7 @@ public:
           vbucket(ntohs(req->message.header.request.vbucket)),
           input_cas(ntohll(req->message.header.request.cas)),
           state(State::GetItem),
-          zombie(nullptr),
+          deleted(nullptr),
           existing(nullptr) {
 
     }
@@ -75,8 +81,38 @@ protected:
      */
     ENGINE_ERROR_CODE getItem();
 
-   /**
-     * Try to remove the document
+    /**
+     * Rebuild the XATTR segment to keep with the deleted document
+     *
+     * According to the spec everything except the system xattrs
+     * should be stripped off.
+     *
+     * @return
+     */
+    ENGINE_ERROR_CODE rebuildXattr();
+
+    /**
+     * Allocate the item used to represent the deleted object. (note that
+     * the object may disappear at any point in time when we release it.
+     * The underlying engine is not obligated to keep it around)
+     *
+     * In the future we'll extend this code to preserve the XATTRs from
+     * the original document
+     *
+     * @return ENGINE_SUCCESS if we want to continue the state machine
+     */
+    ENGINE_ERROR_CODE allocateDeletedItem();
+
+    /**
+     * Store the deleted document in the underlying engine.
+     *
+     * @return ENGINE_SUCCESS if we want to continue the state machine
+     */
+    ENGINE_ERROR_CODE storeItem();
+
+    /**
+     * Try to remove the document with the "old style" remove (the
+     * document didn't have any xattrs we wanted to preserve)
      *
      * @return ENGINE_SUCCESS if we want to continue the state machine
      */
@@ -106,8 +142,8 @@ private:
     // after returned from an EWOULDBLOCK
     State state;
 
-    // Pointer to the zombie object to store
-    item* zombie;
+    // Pointer to the deleted object to store
+    item* deleted;
 
     // Pointer to the current value stored in the engine
     item* existing;
@@ -117,4 +153,10 @@ private:
 
     // The mutation descriptor for the mutation
     mutation_descr_t mutation_descr;
+
+    // The xattr segment to keep around
+    cb::byte_buffer xattr;
+
+    // Backing store for the modified xattrs
+    std::unique_ptr<uint8_t[]> xattr_buffer;
 };

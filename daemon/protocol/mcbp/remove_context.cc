@@ -16,6 +16,8 @@
  */
 #include "remove_context.h"
 #include <daemon/mcbp.h>
+#include <daemon/xattr_utils.h>
+#include <daemon/xattr/blob.h>
 
 ENGINE_ERROR_CODE RemoveCommandContext::step() {
     ENGINE_ERROR_CODE ret;
@@ -23,6 +25,15 @@ ENGINE_ERROR_CODE RemoveCommandContext::step() {
         switch (state) {
         case State::GetItem:
             ret = getItem();
+            break;
+        case State::RebuildXattr:
+            ret = rebuildXattr();
+            break;
+        case State::AllocateDeletedItem:
+            ret = allocateDeletedItem();
+            break;
+        case State::StoreItem:
+            ret = storeItem();
             break;
         case State::RemoveItem:
             ret = removeItem();
@@ -33,8 +44,8 @@ ENGINE_ERROR_CODE RemoveCommandContext::step() {
         case State::Reset:
             ret = reset();
             break;
-        case State::Done: SLAB_INCR(&connection, delete_hits, key.data(),
-                                    key.size());
+        case State::Done:
+            SLAB_INCR(&connection, delete_hits, key.data(), key.size());
             update_topkeys(key, &connection);
             return ENGINE_SUCCESS;
         }
@@ -60,8 +71,74 @@ ENGINE_ERROR_CODE RemoveCommandContext::getItem() {
             return ENGINE_KEY_EEXISTS;
         }
 
-        state = State::RemoveItem;
+        if (mcbp::datatype::is_xattr(existing_info.datatype)) {
+            state = State::RebuildXattr;
+        } else {
+            state = State::RemoveItem;
+        }
     }
+    return ret;
+}
+
+ENGINE_ERROR_CODE RemoveCommandContext::allocateDeletedItem() {
+    ENGINE_ERROR_CODE ret;
+    protocol_binary_datatype_t datatype;
+    if (xattr.size() == 0) {
+        datatype = PROTOCOL_BINARY_RAW_BYTES;
+    } else {
+        datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
+    }
+    ret = bucket_allocate(&connection, &deleted, key, xattr.size(),
+                          existing_info.flags,
+                          existing_info.exptime,
+                          datatype,
+                          vbucket);
+    if (ret == ENGINE_SUCCESS) {
+        if (input_cas == 0) {
+            bucket_item_set_cas(&connection, deleted, existing_info.cas);
+        } else {
+            bucket_item_set_cas(&connection, deleted, input_cas);
+        }
+        if (xattr.size() > 0) {
+            item_info info;
+            info.nvalue = 1;
+            if (!bucket_get_item_info(&connection, deleted, &info)) {
+                return ENGINE_FAILED;
+            }
+
+            std::memcpy(info.value[0].iov_base, xattr.buf, xattr.size());
+        }
+
+        state = State::StoreItem;
+    }
+    return ret;
+}
+
+ENGINE_ERROR_CODE RemoveCommandContext::storeItem() {
+    uint64_t new_cas;
+    auto ret = bucket_store(&connection, deleted, &new_cas, OPERATION_CAS,
+                            DocumentState::Deleted);
+
+    if (ret == ENGINE_SUCCESS) {
+        connection.setCAS(new_cas);
+
+        item_info info;
+        info.nvalue = 1;
+        if (!bucket_get_item_info(&connection, deleted, &info)) {
+            return ENGINE_FAILED;
+        }
+
+        // Response includes vbucket UUID and sequence number
+        mutation_descr.vbucket_uuid = htonll(info.vbucket_uuid);
+        mutation_descr.seqno = htonll(info.seqno);
+
+        state = State::SendResponse;
+    } else if (ret == ENGINE_KEY_EEXISTS && input_cas == 0) {
+        // Cas collision and the caller specified the CAS wildcard.. retry
+        state = State::Reset;
+        ret = ENGINE_SUCCESS;
+    }
+
     return ret;
 }
 
@@ -83,15 +160,17 @@ ENGINE_ERROR_CODE RemoveCommandContext::removeItem() {
 }
 
 ENGINE_ERROR_CODE RemoveCommandContext::reset() {
-    if (zombie != nullptr) {
-        bucket_release_item(&connection, zombie);
-        zombie = nullptr;
+    if (deleted != nullptr) {
+        bucket_release_item(&connection, deleted);
+        deleted = nullptr;
     }
 
     if (existing != nullptr) {
         bucket_release_item(&connection, existing);
         existing = nullptr;
     }
+
+    xattr = {nullptr, 0};
 
     state = State::GetItem;
     return ENGINE_SUCCESS;
@@ -120,6 +199,30 @@ ENGINE_ERROR_CODE RemoveCommandContext::sendResponse() {
         mcbp_write_and_free(&connection, &connection.getDynamicBuffer());
     } else {
         mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    }
+
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE RemoveCommandContext::rebuildXattr() {
+    if (mcbp::datatype::is_xattr(existing_info.datatype)) {
+        const auto size = cb::xattr::get_body_offset({
+                static_cast<const char*>(existing_info.value[0].iov_base),
+                existing_info.value[0].iov_len
+            });
+
+        cb::xattr::Blob blob({static_cast<uint8_t*>(existing_info.value[0].iov_base),
+                             size}, xattr_buffer);
+
+        blob.prune_user_keys();
+        xattr = blob.finalize();
+    }
+
+    if (xattr.size() > 0) {
+        state = State::AllocateDeletedItem;
+    } else {
+        // All xattrs should be nuked
+        state = State::RemoveItem;
     }
 
     return ENGINE_SUCCESS;
