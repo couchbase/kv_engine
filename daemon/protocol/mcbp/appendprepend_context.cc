@@ -72,11 +72,13 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::inflateInputData() {
 }
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
-    auto ret = bucket_get(&connection, &olditem, key, vbucket);
+    item* it;
+    auto ret = bucket_get(&connection, &it, key, vbucket);
     if (ret == ENGINE_SUCCESS) {
+        olditem.reset(it);
         oldItemInfo.info.nvalue = 1;
 
-        if (!bucket_get_item_info(&connection, olditem,
+        if (!bucket_get_item_info(&connection, olditem.get(),
                                   &oldItemInfo.info)) {
             return ENGINE_FAILED;
         }
@@ -117,14 +119,16 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
     if (mcbp::datatype::is_xattr(oldItemInfo.info.datatype)) {
         datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
     }
+    item* it;
     ENGINE_ERROR_CODE ret;
-    ret = bucket_allocate(&connection, &newitem, key, oldsize + value.len,
+    ret = bucket_allocate(&connection, &it, key, oldsize + value.len,
                           oldItemInfo.info.flags, 0, datatype, vbucket);
     if (ret == ENGINE_SUCCESS) {
+        newitem.reset(it);
         // copy the data over..
         newItemInfo.info.nvalue = 1;
 
-        if (!bucket_get_item_info(&connection, newitem,
+        if (!bucket_get_item_info(&connection, newitem.get(),
                                   &newItemInfo.info)) {
             return ENGINE_FAILED;
         }
@@ -154,7 +158,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
             memcpy(newdata + offset + value.len, src + offset,
                    oldsize - offset);
         }
-        bucket_item_set_cas(&connection, newitem, oldItemInfo.info.cas);
+        bucket_item_set_cas(&connection, newitem.get(), oldItemInfo.info.cas);
 
         state = State::StoreItem;
     }
@@ -163,14 +167,14 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
     uint64_t ncas = cas;
-    auto ret = bucket_store(&connection, newitem, &ncas, OPERATION_CAS);
+    auto ret = bucket_store(&connection, newitem.get(), &ncas, OPERATION_CAS);
 
     if (ret == ENGINE_SUCCESS) {
         update_topkeys(key, &connection);
         connection.setCAS(ncas);
         if (connection.isSupportsMutationExtras()) {
             newItemInfo.info.nvalue = 1;
-            if (!bucket_get_item_info(&connection, newitem,
+            if (!bucket_get_item_info(&connection, newitem.get(),
                                       &newItemInfo.info)) {
                 return ENGINE_FAILED;
             }
@@ -194,14 +198,8 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
 }
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::reset() {
-    if (olditem != nullptr) {
-        bucket_release_item(&connection, olditem);
-        olditem = nullptr;
-    }
-    if (newitem != nullptr) {
-        bucket_release_item(&connection, newitem);
-        newitem = nullptr;
-    }
+    olditem.reset();
+    newitem.reset();
 
     if (buffer.len > 0) {
         buffer.len = 0;

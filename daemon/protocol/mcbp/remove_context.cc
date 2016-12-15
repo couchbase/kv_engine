@@ -60,10 +60,13 @@ ENGINE_ERROR_CODE RemoveCommandContext::step() {
 }
 
 ENGINE_ERROR_CODE RemoveCommandContext::getItem() {
-    auto ret = bucket_get(&connection, &existing, key, vbucket);
+    item* it;
+    auto ret = bucket_get(&connection, &it, key, vbucket);
     if (ret == ENGINE_SUCCESS) {
+        existing.reset(it);
         existing_info.nvalue = 1;
-        if (!bucket_get_item_info(&connection, existing, &existing_info)) {
+        if (!bucket_get_item_info(&connection, existing.get(),
+                                  &existing_info)) {
             return ENGINE_FAILED;
         }
 
@@ -88,21 +91,23 @@ ENGINE_ERROR_CODE RemoveCommandContext::allocateDeletedItem() {
     } else {
         datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
     }
-    ret = bucket_allocate(&connection, &deleted, key, xattr.size(),
+    item* it;
+    ret = bucket_allocate(&connection, &it, key, xattr.size(),
                           existing_info.flags,
                           existing_info.exptime,
                           datatype,
                           vbucket);
     if (ret == ENGINE_SUCCESS) {
+        deleted.reset(it);
         if (input_cas == 0) {
-            bucket_item_set_cas(&connection, deleted, existing_info.cas);
+            bucket_item_set_cas(&connection, deleted.get(), existing_info.cas);
         } else {
-            bucket_item_set_cas(&connection, deleted, input_cas);
+            bucket_item_set_cas(&connection, deleted.get(), input_cas);
         }
         if (xattr.size() > 0) {
             item_info info;
             info.nvalue = 1;
-            if (!bucket_get_item_info(&connection, deleted, &info)) {
+            if (!bucket_get_item_info(&connection, deleted.get(), &info)) {
                 return ENGINE_FAILED;
             }
 
@@ -116,7 +121,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::allocateDeletedItem() {
 
 ENGINE_ERROR_CODE RemoveCommandContext::storeItem() {
     uint64_t new_cas;
-    auto ret = bucket_store(&connection, deleted, &new_cas, OPERATION_CAS,
+    auto ret = bucket_store(&connection, deleted.get(), &new_cas, OPERATION_CAS,
                             DocumentState::Deleted);
 
     if (ret == ENGINE_SUCCESS) {
@@ -124,7 +129,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::storeItem() {
 
         item_info info;
         info.nvalue = 1;
-        if (!bucket_get_item_info(&connection, deleted, &info)) {
+        if (!bucket_get_item_info(&connection, deleted.get(), &info)) {
             return ENGINE_FAILED;
         }
 
@@ -160,15 +165,8 @@ ENGINE_ERROR_CODE RemoveCommandContext::removeItem() {
 }
 
 ENGINE_ERROR_CODE RemoveCommandContext::reset() {
-    if (deleted != nullptr) {
-        bucket_release_item(&connection, deleted);
-        deleted = nullptr;
-    }
-
-    if (existing != nullptr) {
-        bucket_release_item(&connection, existing);
-        existing = nullptr;
-    }
+    deleted.reset();
+    existing.reset();
 
     xattr = {nullptr, 0};
 

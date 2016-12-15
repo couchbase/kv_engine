@@ -19,11 +19,13 @@
 #include "../../xattr_utils.h"
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
-    auto ret = bucket_get(&connection, &olditem, key, vbucket);
+    item* it;
+    auto ret = bucket_get(&connection, &it, key, vbucket);
     if (ret == ENGINE_SUCCESS) {
+        olditem.reset(it);
         oldItemInfo.info.nvalue = 1;
 
-        if (!bucket_get_item_info(&connection, olditem,
+        if (!bucket_get_item_info(&connection, olditem.get(),
                                   &oldItemInfo.info)) {
             return ENGINE_FAILED;
         }
@@ -70,16 +72,18 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::createNewItem() {
     const std::string value{std::to_string(ntohll(request.message.body.initial))};
     result = ntohll(request.message.body.initial);
     ENGINE_ERROR_CODE ret;
-    ret = bucket_allocate(&connection, &newitem, key,
+    item* it;
+    ret = bucket_allocate(&connection, &it, key,
                           value.size(), oldItemInfo.info.flags,
                           ntohl(request.message.body.expiration),
                           PROTOCOL_BINARY_RAW_BYTES, vbucket);
 
     if (ret == ENGINE_SUCCESS) {
+        newitem.reset(it);
         // copy the data over..
         newItemInfo.info.nvalue = 1;
 
-        if (!bucket_get_item_info(&connection, newitem,
+        if (!bucket_get_item_info(&connection, newitem.get(),
                                   &newItemInfo.info)) {
             return ENGINE_FAILED;
         }
@@ -93,7 +97,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::createNewItem() {
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::storeNewItem() {
     uint64_t ncas = cas;
-    auto ret = bucket_store(&connection, newitem, &ncas, OPERATION_ADD);
+    auto ret = bucket_store(&connection, newitem.get(), &ncas, OPERATION_ADD);
 
     if (ret == ENGINE_SUCCESS) {
         connection.setCAS(ncas);
@@ -153,16 +157,18 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
     }
 
     ENGINE_ERROR_CODE ret;
-    ret = bucket_allocate(&connection, &newitem, key, xattrsize + value.size(),
+    item* it;
+    ret = bucket_allocate(&connection, &it, key, xattrsize + value.size(),
                           oldItemInfo.info.flags,
                           ntohl(request.message.body.expiration),
                           datatype, vbucket);
 
     if (ret == ENGINE_SUCCESS) {
+        newitem.reset(it);
         // copy the data over..
         newItemInfo.info.nvalue = 1;
 
-        if (!bucket_get_item_info(&connection, newitem,
+        if (!bucket_get_item_info(&connection, newitem.get(),
                                   &newItemInfo.info)) {
             return ENGINE_FAILED;
         }
@@ -178,7 +184,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
         memcpy(newdata, src, xattrsize);
         memcpy(newdata + xattrsize, value.data(), value.size());
 
-        bucket_item_set_cas(&connection, newitem, oldItemInfo.info.cas);
+        bucket_item_set_cas(&connection, newitem.get(), oldItemInfo.info.cas);
 
         state = State::StoreItem;
     }
@@ -187,7 +193,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::storeItem() {
     uint64_t ncas = cas;
-    auto ret = bucket_store(&connection, newitem, &ncas, OPERATION_CAS);
+    auto ret = bucket_store(&connection, newitem.get(), &ncas, OPERATION_CAS);
 
     if (ret == ENGINE_SUCCESS) {
         connection.setCAS(ncas);
@@ -211,7 +217,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
 
     if (connection.isSupportsMutationExtras()) {
         newItemInfo.info.nvalue = 1;
-        if (!bucket_get_item_info(&connection, newitem,
+        if (!bucket_get_item_info(&connection, newitem.get(),
                                   &newItemInfo.info)) {
             return ENGINE_FAILED;
         }
@@ -250,14 +256,8 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
 }
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::reset() {
-    if (olditem != nullptr) {
-        bucket_release_item(&connection, olditem);
-        olditem = nullptr;
-    }
-    if (newitem != nullptr) {
-        bucket_release_item(&connection, newitem);
-        newitem = nullptr;
-    }
+    olditem.reset();
+    newitem.reset();
 
     if (buffer.len > 0) {
         buffer.len = 0;

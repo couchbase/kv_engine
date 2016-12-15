@@ -17,6 +17,7 @@
 #pragma once
 
 #include <platform/compress.h>
+#include <daemon/unique_item_ptr.h>
 #include "../../memcached.h"
 #include "steppable_command_context.h"
 
@@ -71,18 +72,14 @@ public:
                 ntohl(req->message.header.request.bodylen) - key.size()),
           vbucket(ntohs(req->message.header.request.vbucket)),
           cas(ntohll(req->message.header.request.cas)),
-          olditem(nullptr),
-          newitem(nullptr),
+          olditem(nullptr, cb::ItemDeleter{c}),
+          newitem(nullptr, cb::ItemDeleter{c}),
           state(State::GetItem) {
 
         auto datatype = req->message.header.request.datatype;
         if (mcbp::datatype::is_compressed(datatype)) {
             state = State::InflateInputData;
         }
-    }
-
-    ~AppendPrependCommandContext() {
-        reset();
     }
 
 protected:
@@ -105,10 +102,10 @@ private:
     const uint16_t vbucket;
     const uint64_t cas;
 
-    item* olditem;
+    cb::unique_item_ptr olditem;
     item_info_holder oldItemInfo;
 
-    item* newitem;
+    cb::unique_item_ptr newitem;
     item_info_holder newItemInfo;
 
     cb::compression::Buffer buffer;

@@ -17,6 +17,7 @@
 #pragma once
 
 #include <platform/compress.h>
+#include <daemon/unique_item_ptr.h>
 #include "../../memcached.h"
 #include "steppable_command_context.h"
 
@@ -73,8 +74,8 @@ public:
               DocNamespace::DefaultCollection),
           request(req),
           cas(ntohll(req.message.header.request.cas)),
-          olditem(nullptr),
-          newitem(nullptr),
+          olditem(nullptr, cb::ItemDeleter{c}),
+          newitem(nullptr, cb::ItemDeleter{c}),
           vbucket(ntohs(req.message.header.request.vbucket)),
           state(State::GetItem) {
     }
@@ -140,9 +141,9 @@ private:
     const DocKey key;
     const protocol_binary_request_incr& request;
     const uint64_t cas;
-    item* olditem;
+    cb::unique_item_ptr olditem;
     item_info_holder oldItemInfo;
-    item* newitem;
+    cb::unique_item_ptr newitem;
     item_info_holder newItemInfo;
     cb::compression::Buffer buffer;
     uint64_t result;
