@@ -221,6 +221,7 @@ ADD_SUBDIRECTORY(engines)
 ADD_SUBDIRECTORY(extensions)
 ADD_SUBDIRECTORY(testsuite)
 ADD_SUBDIRECTORY(auditd)
+ADD_SUBDIRECTORY(xattr)
 ADD_SUBDIRECTORY(daemon)
 
 CONFIGURE_FILE(tests/cert/testapp.pem tests/cert/testapp.pem COPYONLY)

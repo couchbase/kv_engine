@@ -19,7 +19,7 @@
 #include "debug_helpers.h"
 #include "memcached.h"
 #include "utilities/protocol2text.h"
-#include "xattr_utils.h"
+#include "xattr/utils.h"
 
 #include <platform/compress.h>
 

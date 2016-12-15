@@ -15,11 +15,10 @@
  *   limitations under the License.
  */
 #include "config.h"
-#include "xattr_utils.h"
-#include "xattr_key_validator.h"
-
-#include <unordered_set>
 #include <cJSON_utils.h>
+#include <unordered_set>
+#include <xattr/key_validator.h>
+#include <xattr/utils.h>
 
 namespace cb {
 namespace xattr {

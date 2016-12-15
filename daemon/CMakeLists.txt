@@ -154,13 +154,7 @@ ADD_LIBRARY(memcached_daemon STATIC
             topkeys.cc
             topkeys.h
             tracing.cc
-            tracing.h
-            xattr/blob.cc
-            xattr/blob.h
-            xattr_key_validator.cc
-            xattr_key_validator.h
-            xattr_utils.cc
-            xattr_utils.h)
+            tracing.h)
 
 ADD_DEPENDENCIES(memcached_daemon generate_audit_descriptors)
 
@@ -179,6 +173,7 @@ TARGET_LINK_LIBRARIES(memcached_daemon
                       JSON_checker
                       subjson
                       phosphor
+                      xattr
                       ${SNAPPY_LIBRARIES}
                       ${MALLOC_LIBRARIES}
                       ${LIBEVENT_CORE_LIB}

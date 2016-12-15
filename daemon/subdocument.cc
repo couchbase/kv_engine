@@ -27,11 +27,11 @@
 #include "timings.h"
 #include "topkeys.h"
 #include "utilities/protocol2text.h"
-#include "xattr_key_validator.h"
-#include "xattr_utils.h"
+#include "xattr/key_validator.h"
+#include "xattr/utils.h"
 
 #include <platform/histogram.h>
-#include <daemon/xattr/blob.h>
+#include <xattr/blob.h>
 
 static const std::array<SubdocCmdContext::Phase, 2> phases{{SubdocCmdContext::Phase::XATTR,
                                                             SubdocCmdContext::Phase::Body}};

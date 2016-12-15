@@ -15,9 +15,10 @@
  *   limitations under the License.
  */
 #include "config.h"
-#include "blob.h"
+
 #include <algorithm>
 #include <stdexcept>
+#include <xattr/blob.h>
 
 namespace cb {
 namespace xattr {

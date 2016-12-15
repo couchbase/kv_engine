@@ -16,8 +16,8 @@
  */
 #include <gtest/gtest.h>
 
-#include <daemon/xattr/blob.h>
-#include <daemon/xattr_utils.h>
+#include <xattr/blob.h>
+#include <xattr/utils.h>
 
 static cb::const_byte_buffer to_const_byte_buffer(const char* key) {
     return {reinterpret_cast<const uint8_t*>(key), strlen(key)};

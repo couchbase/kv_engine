@@ -17,8 +17,8 @@
 #include <cctype>
 #include <gtest/gtest.h>
 #include <locale>
+#include <xattr/key_validator.h>
 
-#include "daemon/xattr_key_validator.h"
 #include "daemon/subdocument_validators.h"
 #include "memcached/buffer.h"
 

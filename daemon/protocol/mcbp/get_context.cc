@@ -18,7 +18,7 @@
 
 #include <daemon/debug_helpers.h>
 #include <daemon/mcbp.h>
-#include <daemon/xattr_utils.h>
+#include <xattr/utils.h>
 
 GetCommandContext::~GetCommandContext() {
     if (it != nullptr) {

@@ -18,8 +18,8 @@
 #include <locale>
 #include <stdexcept>
 
-#include "xattr_key_validator.h"
-#include "subdocument_validators.h"
+#include <xattr/key_validator.h>
+#include <daemon/subdocument_validators.h>
 
 class encoding_error : public std::runtime_error {
 public:

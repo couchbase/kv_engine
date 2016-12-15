@@ -22,7 +22,7 @@
 #include "buckets.h"
 #include "memcached.h"
 #include "subdocument_validators.h"
-#include "xattr_utils.h"
+#include "xattr/utils.h"
 
 static inline bool may_accept_xattr(const Cookie& cookie) {
     auto* req = static_cast<protocol_binary_request_header*>(McbpConnection::getPacket(cookie));

@@ -22,8 +22,8 @@
 #include <platform/compress.h>
 #include <limits>
 #include <stdexcept>
-#include <daemon/xattr_utils.h>
 #include <extmeta/extmeta.h>
+#include <xattr/utils.h>
 
 ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
                                        uint32_t opaque,

@@ -16,8 +16,7 @@
  */
 #include "config.h"
 #include <gtest/gtest.h>
-
-#include "daemon/xattr_utils.h"
+#include <xattr/utils.h>
 
 class XattrValidatorTest : public ::testing::Test {
 public:

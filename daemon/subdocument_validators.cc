@@ -23,7 +23,7 @@
 #include "subdocument_validators.h"
 #include "subdocument_traits.h"
 
-#include "xattr_key_validator.h"
+#include "xattr/key_validator.h"
 
 static bool validate_macro(const cb::const_byte_buffer& value) {
     static cb::const_byte_buffer doc_cas{(const uint8_t*)"\"${Mutation.CAS}\"",

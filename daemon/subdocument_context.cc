@@ -22,7 +22,7 @@
 #include <iomanip>
 #include <random>
 #include <sstream>
-#include <daemon/xattr/blob.h>
+#include <xattr/blob.h>
 
 SubdocCmdContext::OperationSpec::OperationSpec(SubdocCmdTraits traits_,
                                                protocol_binary_subdoc_flag flags_,

@@ -16,8 +16,8 @@
  */
 #include "remove_context.h"
 #include <daemon/mcbp.h>
-#include <daemon/xattr_utils.h>
-#include <daemon/xattr/blob.h>
+#include <xattr/utils.h>
+#include <xattr/blob.h>
 
 ENGINE_ERROR_CODE RemoveCommandContext::step() {
     ENGINE_ERROR_CODE ret;

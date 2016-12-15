@@ -17,6 +17,7 @@
 #pragma once
 
 #include <platform/sized_buffer.h>
+#include <xattr/visibility.h>
 
 /**
  * Validate that a key is legal according to the XATTR spec
@@ -41,6 +42,7 @@
  * @param key_length The length of the key component (out)
  * @return true if the key part of the provided path meets the spec
  */
+XATTR_PUBLIC_API
 bool is_valid_xattr_key(cb::const_byte_buffer path, size_t& key_length);
 
 // Wrapper function if you couldn't care less about the key length

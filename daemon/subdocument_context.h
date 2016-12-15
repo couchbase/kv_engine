@@ -21,7 +21,7 @@
 
 #include "memcached/buffer.h"
 #include "subdocument_traits.h"
-#include "xattr_utils.h"
+#include "xattr/utils.h"
 
 #include <cstddef>
 #include <iomanip>

@@ -16,7 +16,7 @@
  */
 #include "arithmetic_context.h"
 #include "../../mcbp.h"
-#include "../../xattr_utils.h"
+#include <xattr/utils.h>
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
     item* it;

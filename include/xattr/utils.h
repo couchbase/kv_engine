@@ -17,6 +17,7 @@
 #pragma once
 
 #include <platform/sized_buffer.h>
+#include <xattr/visibility.h>
 
 namespace cb {
 /**
@@ -38,7 +39,8 @@ namespace xattr {
  *              that it is safe to use the rest of the methods in
  *              cb::xattr to access them
  */
- bool validate(const cb::const_char_buffer& blob);
+XATTR_PUBLIC_API
+bool validate(const cb::const_char_buffer& blob);
 
 /**
  * Get the offset of the body into the specified payload
@@ -47,6 +49,7 @@ namespace xattr {
  * @return The number of bytes into the payload where the body lives
  *         (the body size == payload.len - the returned value)
  */
+XATTR_PUBLIC_API
 uint32_t get_body_offset(const cb::const_char_buffer& payload);
 
 /**
@@ -55,6 +58,7 @@ uint32_t get_body_offset(const cb::const_char_buffer& payload);
  * @param payload the document blob as it is stored in the engine
  * @return a buffer representing the body blob
  */
+XATTR_PUBLIC_API
 cb::const_char_buffer get_body(const cb::const_char_buffer& payload);
 
 /**
@@ -63,6 +67,7 @@ cb::const_char_buffer get_body(const cb::const_char_buffer& payload);
  * @param payload the document blob as it is stored in the engine
  * @return a buffer representing the xattr blob
  */
+XATTR_PUBLIC_API
 cb::const_char_buffer get_xattr(const cb::const_char_buffer& payload);
 
 }

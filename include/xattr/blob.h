@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <memory>
 #include <platform/sized_buffer.h>
+#include <xattr/visibility.h>
 
 namespace cb {
 namespace xattr {
@@ -27,7 +28,7 @@ namespace xattr {
  * The cb::xattr::Blob is a class that provides easy access to the
  * binary format of the blob.
  */
-class Blob {
+class XATTR_PUBLIC_API Blob {
 public:
     /**
      * Create an empty Blob
