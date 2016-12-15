@@ -71,7 +71,8 @@ Connection::Connection(SOCKET sfd, event_base* b)
       priority(Priority::Medium),
       clustermap_revno(-2),
       trace_enabled(false),
-      xattr_support(false) {
+      xattr_support(false),
+      xerror_support(false) {
     MEMCACHED_CONN_CREATE(this);
     bucketIndex.store(0);
 }
