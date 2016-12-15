@@ -225,10 +225,6 @@ ADD_EXECUTABLE(ep-engine_atomic_ptr_test
   src/testlogger.cc)
 TARGET_LINK_LIBRARIES(ep-engine_atomic_ptr_test platform)
 
-ADD_EXECUTABLE(ep-engine_chunk_creation_test
-  tests/module_tests/chunk_creation_test.cc)
-TARGET_LINK_LIBRARIES(ep-engine_chunk_creation_test platform)
-
 ADD_EXECUTABLE(ep-engine_compress_test
   tests/module_tests/compress_test.cc
   src/compress.cc)
@@ -333,7 +329,6 @@ ADD_EXECUTABLE(ep-engine_vbucket_test
 TARGET_LINK_LIBRARIES(ep-engine_vbucket_test gtest ${SNAPPY_LIBRARIES} cJSON platform)
 
 ADD_TEST(ep-engine_atomic_ptr_test ep-engine_atomic_ptr_test)
-ADD_TEST(ep-engine_chunk_creation_test ep-engine_chunk_creation_test)
 ADD_TEST(ep-engine_compress_test ep-engine_compress_test)
 ADD_TEST(ep-engine_configuration_test ep-engine_configuration_test)
 ADD_TEST(ep-engine_couch-fs-stats_test ep-engine_couch-fs-stats_test)
