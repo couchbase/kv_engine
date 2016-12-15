@@ -1,0 +1,120 @@
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/*
+ *     Copyright 2016 Couchbase, Inc.
+ *
+ *   Licensed under the Apache License, Version 2.0 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+#pragma once
+
+#include "steppable_command_context.h"
+#include <memcached/protocol_binary.h>
+#include <memcached/engine.h>
+#include <daemon/memcached.h>
+
+/**
+ * The RemoveCommandContext is a state machine used by the memcached
+ * core to implement DELETE.
+ */
+class RemoveCommandContext : public SteppableCommandContext {
+public:
+    /**
+     * The internal state machine used to implement the DELETE
+     */
+    enum class State : uint8_t {
+        // Look up the item to delete
+        GetItem,
+        // Remove the item
+        RemoveItem,
+        // Release all allocated resources. The reason we've got a separate
+        // state for this and not using the destructor for this is that
+        // we try to store the newly created document with a CAS operation
+        // and we might have a race with another client.
+        Reset,
+        // Send the response back to the client if requested
+        SendResponse,
+        // We're all done :)
+        Done
+    };
+
+    RemoveCommandContext(McbpConnection& c,
+                         protocol_binary_request_delete* req)
+        : SteppableCommandContext(c),
+          key(req->bytes + sizeof(req->bytes),
+              ntohs(req->message.header.request.keylen),
+              DocNamespace::DefaultCollection),
+          vbucket(ntohs(req->message.header.request.vbucket)),
+          input_cas(ntohll(req->message.header.request.cas)),
+          state(State::GetItem),
+          zombie(nullptr),
+          existing(nullptr) {
+
+    }
+
+    ~RemoveCommandContext() {
+        reset();
+    }
+
+protected:
+    ENGINE_ERROR_CODE step() override;
+
+    /**
+     * Fetch the existing item from the underlying engine. This must exist
+     * for the operation to success.
+     *
+     * @return ENGINE_SUCCESS if we want to continue the state machine
+     */
+    ENGINE_ERROR_CODE getItem();
+
+   /**
+     * Try to remove the document
+     *
+     * @return ENGINE_SUCCESS if we want to continue the state machine
+     */
+    ENGINE_ERROR_CODE removeItem();
+
+    /**
+     * Create and send the response packet back to the client (include
+     * sequence number and vbucket uuid if the client asked for it)
+     *
+     * @return ENGINE_SUCCESS if we want to continue the state machine
+     */
+    ENGINE_ERROR_CODE sendResponse();
+
+    /**
+     * Release all allocated resources
+     *
+     * @return ENGINE_SUCCESS if we want to continue the state machine
+     */
+    ENGINE_ERROR_CODE reset();
+
+private:
+    const DocKey key;
+    const uint16_t vbucket;
+    const uint64_t input_cas;
+
+    // The current state we're operating in, and where we'll resume
+    // after returned from an EWOULDBLOCK
+    State state;
+
+    // Pointer to the zombie object to store
+    item* zombie;
+
+    // Pointer to the current value stored in the engine
+    item* existing;
+
+    // The metadata for the existing item
+    item_info existing_info;
+
+    // The mutation descriptor for the mutation
+    mutation_descr_t mutation_descr;
+};

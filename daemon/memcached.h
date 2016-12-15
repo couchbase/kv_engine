@@ -345,6 +345,16 @@ static inline ENGINE_ERROR_CODE bucket_store(McbpConnection* c,
                                        item_, cas, operation, document_state);
 }
 
+static inline ENGINE_ERROR_CODE bucket_remove(McbpConnection* c,
+                                              const DocKey& key,
+                                              uint64_t* cas,
+                                              uint16_t vbucket,
+                                              mutation_descr_t* mut_info) {
+    return c->getBucketEngine()->remove(c->getBucketEngineAsV0(),
+                                        c->getCookie(), key, cas, vbucket,
+                                        mut_info);
+}
+
 static inline ENGINE_ERROR_CODE bucket_get(McbpConnection* c,
                                            item** item_,
                                            const DocKey& key,

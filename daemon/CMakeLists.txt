@@ -107,6 +107,8 @@ ADD_LIBRARY(memcached_daemon STATIC
             protocol/mcbp/dcp_mutation.h
             protocol/mcbp/get_context.cc
             protocol/mcbp/get_context.h
+            protocol/mcbp/remove_context.cc
+            protocol/mcbp/remove_context.h
             protocol/mcbp/steppable_command_context.cc
             protocol/mcbp/steppable_command_context.h
             protocol/mcbp/utilities.cc

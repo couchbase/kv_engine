@@ -39,6 +39,7 @@
 #include "protocol/mcbp/arithmetic_context.h"
 #include "protocol/mcbp/get_context.h"
 #include "protocol/mcbp/dcp_mutation.h"
+#include "protocol/mcbp/remove_context.h"
 #include "protocol/mcbp/steppable_command_context.h"
 #include "protocol/mcbp/utilities.h"
 
@@ -93,18 +94,6 @@ static bool authenticated(McbpConnection* c) {
     }
 
     return rv;
-}
-
-/**
- * get a pointer to the start of the request struct for the current command
- */
-static void* binary_get_request(McbpConnection* c) {
-    char* ret = c->read.curr;
-    ret -= (sizeof(c->binary_header) + c->binary_header.request.keylen +
-            c->binary_header.request.extlen);
-
-    cb_assert(ret >= c->read.buf);
-    return ret;
 }
 
 /**
@@ -3353,78 +3342,17 @@ static void flush_executor(McbpConnection* c, void*) {
     }
 }
 
-static void delete_executor(McbpConnection* c, void*) {
+static void delete_executor(McbpConnection* c, void* packet) {
     if (c->getCmd() == PROTOCOL_BINARY_CMD_DELETEQ) {
         c->setNoReply(true);
     }
 
-    ENGINE_ERROR_CODE ret;
-    auto* req = reinterpret_cast<protocol_binary_request_delete*>
-    (binary_get_request(c));
-    char* key = binary_get_key(c);
-    size_t nkey = c->binary_header.request.keylen;
-    uint64_t cas = ntohll(req->message.header.request.cas);
-
-    if (settings.getVerbose() > 1) {
-        char buffer[1024];
-        if (key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
-                                    "DELETE", key, nkey) != -1) {
-            LOG_DEBUG(c, "%s\n", buffer);
-        }
+    if (c->getCommandContext() == nullptr) {
+        auto* req = reinterpret_cast<protocol_binary_request_delete*>(packet);
+        c->setCommandContext(new RemoveCommandContext(*c, req));
     }
 
-    ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
-
-    mutation_descr_t mut_info;
-    DocKey remove_key(reinterpret_cast<const uint8_t*>(key), nkey,
-                      DocNamespace::DefaultCollection);
-    if (ret == ENGINE_SUCCESS) {
-        ret = c->getBucketEngine()->remove(c->getBucketEngineAsV0(),
-                                           c->getCookie(), remove_key,
-                                           &cas,
-                                           c->binary_header.request.vbucket,
-                                           &mut_info);
-        ret = c->remapErrorCode(ret);
-    }
-
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        c->setCAS(cas);
-        if (c->isSupportsMutationExtras()) {
-            /* Response includes vbucket UUID and sequence number */
-            mutation_descr_t* const extras = (mutation_descr_t*)
-                (c->write.buf + sizeof(protocol_binary_response_delete));
-
-            extras->vbucket_uuid = htonll(mut_info.vbucket_uuid);
-            extras->seqno = htonll(mut_info.seqno);
-            mcbp_write_response(c, extras, sizeof(*extras), 0, sizeof(*extras));
-        } else {
-            mcbp_write_response(c, NULL, 0, 0, 0);
-        }
-        SLAB_INCR(c, delete_hits, key, nkey);
-        update_topkeys(remove_key, c);
-        break;
-    case ENGINE_KEY_EEXISTS:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
-        break;
-    case ENGINE_KEY_ENOENT:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
-        STATS_INCR(c, delete_misses, key, nkey);
-        break;
-    case ENGINE_NOT_MY_VBUCKET:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
-        break;
-    case ENGINE_TMPFAIL:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ETMPFAIL);
-        break;
-    case ENGINE_EWOULDBLOCK:
-        c->setEwouldblock(true);
-        break;
-    default:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
-    }
+    c->getSteppableCommandContext().drive();
 }
 
 static void arithmetic_executor(McbpConnection* c, void* packet) {
