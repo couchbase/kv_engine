@@ -24,6 +24,20 @@
 #include <platform/compress.h>
 
 class GetSetTest : public TestappClientTest {
+public:
+    void SetUp() {
+        document.info.cas = Greenstack::CAS::Wildcard;
+        document.info.compression = Greenstack::Compression::None;
+        document.info.datatype = Greenstack::Datatype::Json;
+        document.info.flags = 0xcaffee;
+        document.info.id = name;
+        const std::string content = to_string(memcached_cfg, false);
+        std::copy(content.begin(), content.end(),
+                  std::back_inserter(document.value));
+    }
+
+protected:
+    Document document;
 };
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
@@ -37,21 +51,11 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
 
 TEST_P(GetSetTest, TestAdd) {
     MemcachedConnection& conn = getConnection();
-    Document doc;
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    doc.info.compression = Greenstack::Compression::None;
-    doc.info.datatype = Greenstack::Datatype::Json;
-    doc.info.flags = 0xcaffee;
-    doc.info.id = name;
-    char* ptr = cJSON_Print(memcached_cfg.get());
-    std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
-    cJSON_Free(ptr);
-
-    conn.mutate(doc, 0, Greenstack::MutationType::Add);
+    conn.mutate(document, 0, Greenstack::MutationType::Add);
 
     // Adding it one more time should fail
     try {
-        conn.mutate(doc, 0, Greenstack::MutationType::Add);
+        conn.mutate(document, 0, Greenstack::MutationType::Add);
         FAIL() << "It should not be possible to add a document that exists";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
@@ -59,8 +63,8 @@ TEST_P(GetSetTest, TestAdd) {
 
     // Add with a cas should fail
     try {
-        doc.info.cas = Greenstack::CAS::Wildcard + 1;
-        conn.mutate(doc, 0, Greenstack::MutationType::Add);
+        document.info.cas = Greenstack::CAS::Wildcard + 1;
+        conn.mutate(document, 0, Greenstack::MutationType::Add);
         FAIL() << "It should not be possible to add a document that exists";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isInvalidArguments()) << error.what();
@@ -69,33 +73,24 @@ TEST_P(GetSetTest, TestAdd) {
 
 TEST_P(GetSetTest, TestReplace) {
     MemcachedConnection& conn = getConnection();
-    Document doc;
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    doc.info.compression = Greenstack::Compression::None;
-    doc.info.datatype = Greenstack::Datatype::Json;
-    doc.info.flags = 0xcaffee;
-    doc.info.id = name;
-    char* ptr = cJSON_Print(memcached_cfg.get());
-    std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
-    cJSON_Free(ptr);
 
     // Replacing a nonexisting document should fail
     try {
-        conn.mutate(doc, 0, Greenstack::MutationType::Replace);
+        conn.mutate(document, 0, Greenstack::MutationType::Replace);
         FAIL() << "It's not possible to replace a nonexisting document";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound()) << error.what();
     }
 
-    conn.mutate(doc, 0, Greenstack::MutationType::Add);
+    conn.mutate(document, 0, Greenstack::MutationType::Add);
     // Replace this time should be fine!
     MutationInfo info;
-    info = conn.mutate(doc, 0, Greenstack::MutationType::Replace);
+    info = conn.mutate(document, 0, Greenstack::MutationType::Replace);
 
     // Replace with invalid cas should fail
-    doc.info.cas = info.cas + 1;
+    document.info.cas = info.cas + 1;
     try {
-        conn.mutate(doc, 0, Greenstack::MutationType::Replace);
+        conn.mutate(document, 0, Greenstack::MutationType::Replace);
         FAIL() << "replace with CAS mismatch should fail!";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
@@ -104,41 +99,30 @@ TEST_P(GetSetTest, TestReplace) {
 
 TEST_P(GetSetTest, TestSet) {
     MemcachedConnection& conn = getConnection();
-    Document doc;
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    doc.info.compression = Greenstack::Compression::None;
-    doc.info.datatype = Greenstack::Datatype::Json;
-    doc.info.flags = 0xcaffee;
-    doc.info.id = name;
-    char* ptr = cJSON_Print(memcached_cfg.get());
-    std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
-    cJSON_Free(ptr);
-
     // Set should fail if the key doesn't exists and we're using CAS
-    doc.info.cas = 1;
+    document.info.cas = 1;
     try {
-        conn.mutate(doc, 0, Greenstack::MutationType::Set);
+        conn.mutate(document, 0, Greenstack::MutationType::Set);
         FAIL() << "Set with CAS and no such doc should fail!";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound()) << error.what();
     }
 
     // set should work even if a nonexisting document should fail
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    conn.mutate(doc, 0, Greenstack::MutationType::Set);
+    document.info.cas = Greenstack::CAS::Wildcard;
+    conn.mutate(document, 0, Greenstack::MutationType::Set);
 
     // And it should be possible to set it once more
-    MutationInfo info;
-    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
+    auto info = conn.mutate(document, 0, Greenstack::MutationType::Set);
 
     // And it should be possible to set it with a CAS
-    doc.info.cas = info.cas;
-    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
+    document.info.cas = info.cas;
+    info = conn.mutate(document, 0, Greenstack::MutationType::Set);
 
     // Replace with invalid cas should fail
-    doc.info.cas = info.cas + 1;
+    document.info.cas = info.cas + 1;
     try {
-        conn.mutate(doc, 0, Greenstack::MutationType::Replace);
+        conn.mutate(document, 0, Greenstack::MutationType::Replace);
         FAIL() << "set with CAS mismatch should fail!";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
@@ -157,201 +141,158 @@ TEST_P(GetSetTest, TestGetMiss) {
 
 TEST_P(GetSetTest, TestGetSuccess) {
     MemcachedConnection& conn = getConnection();
-    Document doc;
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    doc.info.compression = Greenstack::Compression::None;
-    doc.info.datatype = Greenstack::Datatype::Json;
-    doc.info.flags = 0xcaffee;
-    doc.info.id = name;
-    char* ptr = cJSON_Print(memcached_cfg.get());
-    std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
-    cJSON_Free(ptr);
+    conn.mutate(document, 0, Greenstack::MutationType::Set);
 
-    conn.mutate(doc, 0, Greenstack::MutationType::Set);
-
-    Document stored;
-    stored = conn.get(name, 0);
+    const auto stored = conn.get(name, 0);
 
     EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
     EXPECT_EQ(Greenstack::Datatype::Json, stored.info.datatype);
-    EXPECT_EQ(doc.info.flags, stored.info.flags);
-    EXPECT_EQ(doc.info.id, stored.info.id);
-    EXPECT_EQ(doc.value, stored.value);
+    EXPECT_EQ(document.info.flags, stored.info.flags);
+    EXPECT_EQ(document.info.id, stored.info.id);
+    EXPECT_EQ(document.value, stored.value);
 }
 
 TEST_P(GetSetTest, TestAppend) {
     MemcachedConnection& conn = getConnection();
-    Document doc;
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    doc.info.compression = Greenstack::Compression::None;
-    doc.info.datatype = Greenstack::Datatype::Json;
-    doc.info.flags = 0xcaffee;
-    doc.info.id = name;
-    doc.value.push_back('a');
+    document.info.datatype = Greenstack::Datatype::Raw;
+    document.value.clear();
+    document.value.push_back('a');
 
-    conn.mutate(doc, 0, Greenstack::MutationType::Set);
-    doc.value[0] = 'b';
-    conn.mutate(doc, 0, Greenstack::MutationType::Append);
+    conn.mutate(document, 0, Greenstack::MutationType::Set);
+    document.value[0] = 'b';
+    conn.mutate(document, 0, Greenstack::MutationType::Append);
 
-    Document stored;
-    stored = conn.get(name, 0);
+    const auto stored = conn.get(name, 0);
 
     EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
     EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
-    EXPECT_EQ(doc.info.flags, stored.info.flags);
-    EXPECT_EQ(doc.info.id, stored.info.id);
-    doc.value[0] = 'a';
-    doc.value.push_back('b');
-    EXPECT_EQ(doc.value, stored.value);
+    EXPECT_EQ(document.info.flags, stored.info.flags);
+    EXPECT_EQ(document.info.id, stored.info.id);
+    document.value[0] = 'a';
+    document.value.push_back('b');
+    EXPECT_EQ(document.value, stored.value);
 }
 
 TEST_P(GetSetTest, TestAppendCasSuccess) {
     MemcachedConnection& conn = getConnection();
-    Document doc;
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    doc.info.compression = Greenstack::Compression::None;
-    doc.info.datatype = Greenstack::Datatype::Json;
-    doc.info.flags = 0xcaffee;
-    doc.info.id = name;
-    doc.value.push_back('a');
+    document.info.datatype = Greenstack::Datatype::Raw;
+    document.value.clear();
+    document.value.push_back('a');
 
-    MutationInfo info;
-    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
-    doc.value[0] = 'b';
-    doc.info.cas = info.cas;
-    conn.mutate(doc, 0, Greenstack::MutationType::Append);
+    const auto info = conn.mutate(document, 0, Greenstack::MutationType::Set);
+    document.value[0] = 'b';
+    document.info.cas = info.cas;
+    conn.mutate(document, 0, Greenstack::MutationType::Append);
 
-    Document stored;
-    stored = conn.get(name, 0);
+    const auto stored = conn.get(name, 0);
 
     EXPECT_NE(info.cas, stored.info.cas);
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
     EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
-    EXPECT_EQ(doc.info.flags, stored.info.flags);
-    EXPECT_EQ(doc.info.id, stored.info.id);
-    doc.value[0] = 'a';
-    doc.value.push_back('b');
-    EXPECT_EQ(doc.value, stored.value);
+    EXPECT_EQ(document.info.flags, stored.info.flags);
+    EXPECT_EQ(document.info.id, stored.info.id);
+    document.value[0] = 'a';
+    document.value.push_back('b');
+    EXPECT_EQ(document.value, stored.value);
 }
 
 TEST_P(GetSetTest, TestAppendCasMismatch) {
     MemcachedConnection& conn = getConnection();
-    Document doc;
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    doc.info.compression = Greenstack::Compression::None;
-    doc.info.datatype = Greenstack::Datatype::Json;
-    doc.info.flags = 0xcaffee;
-    doc.info.id = name;
-    doc.value.push_back('a');
+    document.info.datatype = Greenstack::Datatype::Raw;
+    document.value.clear();
+    document.value.push_back('a');
 
-    MutationInfo info;
-    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
-    doc.value[0] = 'b';
-    doc.info.cas = info.cas + 1;
+    const auto info = conn.mutate(document, 0, Greenstack::MutationType::Set);
+    document.value[0] = 'b';
+    document.info.cas = info.cas + 1;
     try {
-        conn.mutate(doc, 0, Greenstack::MutationType::Append);
+        conn.mutate(document, 0, Greenstack::MutationType::Append);
         FAIL() << "Append with illegal CAS should fail";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
     }
-    Document stored;
-    stored = conn.get(name, 0);
+
+    // verify it didn't change..
+    const auto stored = conn.get(name, 0);
 
     EXPECT_EQ(info.cas, stored.info.cas);
-    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
-    EXPECT_EQ(Greenstack::Datatype::Json, stored.info.datatype);
-    EXPECT_EQ(doc.info.flags, stored.info.flags);
-    EXPECT_EQ(doc.info.id, stored.info.id);
-    doc.value[0] = 'a';
-    EXPECT_EQ(doc.value, stored.value);
+    EXPECT_EQ(document.info.compression, stored.info.compression);
+    EXPECT_EQ(document.info.datatype, stored.info.datatype);
+    EXPECT_EQ(document.info.flags, stored.info.flags);
+    EXPECT_EQ(document.info.id, stored.info.id);
+    document.value[0] = 'a';
+    EXPECT_EQ(document.value, stored.value);
 }
 
 TEST_P(GetSetTest, TestPrepend) {
     MemcachedConnection& conn = getConnection();
-    Document doc;
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    doc.info.compression = Greenstack::Compression::None;
-    doc.info.datatype = Greenstack::Datatype::Json;
-    doc.info.flags = 0xcaffee;
-    doc.info.id = name;
-    doc.value.push_back('a');
+    document.info.datatype = Greenstack::Datatype::Raw;
+    document.value.clear();
+    document.value.push_back('a');
 
-    conn.mutate(doc, 0, Greenstack::MutationType::Set);
-    doc.value[0] = 'b';
-    conn.mutate(doc, 0, Greenstack::MutationType::Prepend);
+    conn.mutate(document, 0, Greenstack::MutationType::Set);
+    document.value[0] = 'b';
+    conn.mutate(document, 0, Greenstack::MutationType::Prepend);
 
-    Document stored;
-    stored = conn.get(name, 0);
+    const auto stored = conn.get(name, 0);
 
     EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
-    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
-    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
-    EXPECT_EQ(doc.info.flags, stored.info.flags);
-    EXPECT_EQ(doc.info.id, stored.info.id);
-    doc.value.push_back('a');
-    EXPECT_EQ(doc.value, stored.value);
+    EXPECT_EQ(document.info.compression, stored.info.compression);
+    EXPECT_EQ(document.info.datatype, stored.info.datatype);
+    EXPECT_EQ(document.info.flags, stored.info.flags);
+    EXPECT_EQ(document.info.id, stored.info.id);
+    document.value.push_back('a');
+    EXPECT_EQ(document.value, stored.value);
 }
 
 TEST_P(GetSetTest, TestPrependCasSuccess) {
     MemcachedConnection& conn = getConnection();
-    Document doc;
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    doc.info.compression = Greenstack::Compression::None;
-    doc.info.datatype = Greenstack::Datatype::Json;
-    doc.info.flags = 0xcaffee;
-    doc.info.id = name;
-    doc.value.push_back('a');
+    document.info.datatype = Greenstack::Datatype::Raw;
+    document.value.clear();
+    document.value.push_back('a');
 
-    MutationInfo info;
-    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
-    doc.value[0] = 'b';
-    doc.info.cas = info.cas;
-    conn.mutate(doc, 0, Greenstack::MutationType::Prepend);
+    const auto info = conn.mutate(document, 0, Greenstack::MutationType::Set);
+    document.value[0] = 'b';
+    document.info.cas = info.cas;
+    conn.mutate(document, 0, Greenstack::MutationType::Prepend);
 
-    Document stored;
-    stored = conn.get(name, 0);
+    const auto stored = conn.get(name, 0);
 
-    EXPECT_NE(info.cas, stored.info.cas);
-    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
-    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
-    EXPECT_EQ(doc.info.flags, stored.info.flags);
-    EXPECT_EQ(doc.info.id, stored.info.id);
-    doc.value.push_back('a');
-    EXPECT_EQ(doc.value, stored.value);
+    EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
+    EXPECT_EQ(document.info.compression, stored.info.compression);
+    EXPECT_EQ(document.info.datatype, stored.info.datatype);
+    EXPECT_EQ(document.info.flags, stored.info.flags);
+    EXPECT_EQ(document.info.id, stored.info.id);
+    document.value.push_back('a');
+    EXPECT_EQ(document.value, stored.value);
 }
 
 TEST_P(GetSetTest, TestPerpendCasMismatch) {
     MemcachedConnection& conn = getConnection();
-    Document doc;
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    doc.info.compression = Greenstack::Compression::None;
-    doc.info.datatype = Greenstack::Datatype::Json;
-    doc.info.flags = 0xcaffee;
-    doc.info.id = name;
-    doc.value.push_back('a');
+    document.info.datatype = Greenstack::Datatype::Raw;
+    document.value.clear();
+    document.value.push_back('a');
 
-    MutationInfo info;
-    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
-    doc.value[0] = 'b';
-    doc.info.cas = info.cas + 1;
+    const auto info = conn.mutate(document, 0, Greenstack::MutationType::Set);
+    document.value[0] = 'b';
+    document.info.cas = info.cas + 1;
     try {
-        conn.mutate(doc, 0, Greenstack::MutationType::Prepend);
+        conn.mutate(document, 0, Greenstack::MutationType::Prepend);
         FAIL() << "Prepend with illegal CAS should fail";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
     }
-    Document stored;
-    stored = conn.get(name, 0);
+    const auto stored = conn.get(name, 0);
 
-    EXPECT_EQ(info.cas, stored.info.cas);
-    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
-    EXPECT_EQ(Greenstack::Datatype::Json, stored.info.datatype);
-    EXPECT_EQ(doc.info.flags, stored.info.flags);
-    EXPECT_EQ(doc.info.id, stored.info.id);
-    doc.value[0] = 'a';
-    EXPECT_EQ(doc.value, stored.value);
+    EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
+    EXPECT_EQ(document.info.compression, stored.info.compression);
+    EXPECT_EQ(document.info.datatype, stored.info.datatype);
+    EXPECT_EQ(document.info.flags, stored.info.flags);
+    EXPECT_EQ(document.info.id, stored.info.id);
+    document.value[0] = 'a';
+    EXPECT_EQ(document.value, stored.value);
 }
 
 TEST_P(GetSetTest, TestIllegalVbucket) {
@@ -385,31 +326,25 @@ static void compress_vector(const std::vector<char>& input,
 
 TEST_P(GetSetTest, TestAppendCompressedSource) {
     MemcachedConnection& conn = getConnection();
-    Document doc;
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    doc.info.compression = Greenstack::Compression::Snappy;
-    doc.info.datatype = Greenstack::Datatype::Raw;
-    doc.info.flags = 0xcaffee;
-    doc.info.id = name;
+    document.info.compression = Greenstack::Compression::Snappy;
+    document.info.datatype = Greenstack::Datatype::Raw;
 
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'a');
-    compress_vector(input, doc.value);
+    compress_vector(input, document.value);
 
-    MutationInfo info;
-    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
-    doc.value.resize(input.size());
-    std::fill(doc.value.begin(), doc.value.end(), 'b');
-    doc.info.compression = Greenstack::Compression::None;
+    conn.mutate(document, 0, Greenstack::MutationType::Set);
+    document.value.resize(input.size());
+    std::fill(document.value.begin(), document.value.end(), 'b');
+    document.info.compression = Greenstack::Compression::None;
 
-    conn.mutate(doc, 0, Greenstack::MutationType::Append);
-    Document stored;
-    stored = conn.get(name, 0);
+    conn.mutate(document, 0, Greenstack::MutationType::Append);
+    const auto stored = conn.get(name, 0);
 
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
     EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
-    EXPECT_EQ(doc.info.flags, stored.info.flags);
-    EXPECT_EQ(doc.info.id, stored.info.id);
+    EXPECT_EQ(document.info.flags, stored.info.flags);
+    EXPECT_EQ(document.info.id, stored.info.id);
 
     std::vector<uint8_t> expected(input.size() * 2);
     memset(expected.data(), 'a', input.size());
@@ -419,30 +354,23 @@ TEST_P(GetSetTest, TestAppendCompressedSource) {
 
 TEST_P(GetSetTest, TestAppendCompressedData) {
     MemcachedConnection& conn = getConnection();
-    Document doc;
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    doc.info.compression = Greenstack::Compression::None;
-    doc.info.datatype = Greenstack::Datatype::Raw;
-    doc.info.flags = 0xcaffee;
-    doc.info.id = name;
-    doc.value.resize(1024);
-    std::fill(doc.value.begin(), doc.value.end(), 'a');
-    MutationInfo info;
-    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
+    document.info.datatype = Greenstack::Datatype::Raw;
+    document.value.resize(1024);
+    std::fill(document.value.begin(), document.value.end(), 'a');
+    conn.mutate(document, 0, Greenstack::MutationType::Set);
 
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'b');
-    compress_vector(input, doc.value);
-    doc.info.compression = Greenstack::Compression::Snappy;
-    conn.mutate(doc, 0, Greenstack::MutationType::Append);
+    compress_vector(input, document.value);
+    document.info.compression = Greenstack::Compression::Snappy;
+    conn.mutate(document, 0, Greenstack::MutationType::Append);
 
-    Document stored;
-    stored = conn.get(name, 0);
+    const auto stored = conn.get(name, 0);
 
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
     EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
-    EXPECT_EQ(doc.info.flags, stored.info.flags);
-    EXPECT_EQ(doc.info.id, stored.info.id);
+    EXPECT_EQ(document.info.flags, stored.info.flags);
+    EXPECT_EQ(document.info.id, stored.info.id);
 
     std::vector<uint8_t> expected(input.size() * 2);
     memset(expected.data(), 'a', input.size());
@@ -455,31 +383,25 @@ TEST_P(GetSetTest, TestAppendCompressedData) {
 
 TEST_P(GetSetTest, TestAppendCompressedSourceAndData) {
     MemcachedConnection& conn = getConnection();
-    Document doc;
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    doc.info.compression = Greenstack::Compression::Snappy;
-    doc.info.datatype = Greenstack::Datatype::Raw;
-    doc.info.flags = 0xcaffee;
-    doc.info.id = name;
+    document.info.compression = Greenstack::Compression::Snappy;
+    document.info.datatype = Greenstack::Datatype::Raw;
 
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'a');
-    compress_vector(input, doc.value);
+    compress_vector(input, document.value);
 
-    MutationInfo info;
-    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
+    conn.mutate(document, 0, Greenstack::MutationType::Set);
 
     std::vector<char> append(1024);
     std::fill(append.begin(), append.end(), 'b');
-    compress_vector(append, doc.value);
-    conn.mutate(doc, 0, Greenstack::MutationType::Append);
-    Document stored;
-    stored = conn.get(name, 0);
+    compress_vector(append, document.value);
+    conn.mutate(document, 0, Greenstack::MutationType::Append);
+    const auto stored = conn.get(name, 0);
 
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
     EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
-    EXPECT_EQ(doc.info.flags, stored.info.flags);
-    EXPECT_EQ(doc.info.id, stored.info.id);
+    EXPECT_EQ(document.info.flags, stored.info.flags);
+    EXPECT_EQ(document.info.id, stored.info.id);
 
     std::vector<uint8_t> expected(input.size() + append.size());
     memset(expected.data(), 'a', input.size());
@@ -490,31 +412,25 @@ TEST_P(GetSetTest, TestAppendCompressedSourceAndData) {
 
 TEST_P(GetSetTest, TestPrependCompressedSource) {
     MemcachedConnection& conn = getConnection();
-    Document doc;
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    doc.info.compression = Greenstack::Compression::Snappy;
-    doc.info.datatype = Greenstack::Datatype::Raw;
-    doc.info.flags = 0xcaffee;
-    doc.info.id = name;
+    document.info.compression = Greenstack::Compression::Snappy;
+    document.info.datatype = Greenstack::Datatype::Raw;
 
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'a');
-    compress_vector(input, doc.value);
+    compress_vector(input, document.value);
 
-    MutationInfo info;
-    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
-    doc.value.resize(input.size());
-    std::fill(doc.value.begin(), doc.value.end(), 'b');
-    doc.info.compression = Greenstack::Compression::None;
+    conn.mutate(document, 0, Greenstack::MutationType::Set);
+    document.value.resize(input.size());
+    std::fill(document.value.begin(), document.value.end(), 'b');
+    document.info.compression = Greenstack::Compression::None;
 
-    conn.mutate(doc, 0, Greenstack::MutationType::Prepend);
-    Document stored;
-    stored = conn.get(name, 0);
+    conn.mutate(document, 0, Greenstack::MutationType::Prepend);
+    const auto stored = conn.get(name, 0);
 
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
     EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
-    EXPECT_EQ(doc.info.flags, stored.info.flags);
-    EXPECT_EQ(doc.info.id, stored.info.id);
+    EXPECT_EQ(document.info.flags, stored.info.flags);
+    EXPECT_EQ(document.info.id, stored.info.id);
 
     std::vector<uint8_t> expected(input.size() * 2);
     memset(expected.data(), 'b', input.size());
@@ -524,30 +440,23 @@ TEST_P(GetSetTest, TestPrependCompressedSource) {
 
 TEST_P(GetSetTest, TestPrependCompressedData) {
     MemcachedConnection& conn = getConnection();
-    Document doc;
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    doc.info.compression = Greenstack::Compression::None;
-    doc.info.datatype = Greenstack::Datatype::Raw;
-    doc.info.flags = 0xcaffee;
-    doc.info.id = name;
-    doc.value.resize(1024);
-    std::fill(doc.value.begin(), doc.value.end(), 'a');
-    MutationInfo info;
-    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
+    document.info.datatype = Greenstack::Datatype::Raw;
+    document.value.resize(1024);
+    std::fill(document.value.begin(), document.value.end(), 'a');
+    conn.mutate(document, 0, Greenstack::MutationType::Set);
 
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'b');
-    compress_vector(input, doc.value);
-    doc.info.compression = Greenstack::Compression::Snappy;
-    conn.mutate(doc, 0, Greenstack::MutationType::Prepend);
+    compress_vector(input, document.value);
+    document.info.compression = Greenstack::Compression::Snappy;
+    conn.mutate(document, 0, Greenstack::MutationType::Prepend);
 
-    Document stored;
-    stored = conn.get(name, 0);
+    const auto stored = conn.get(name, 0);
 
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
     EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
-    EXPECT_EQ(doc.info.flags, stored.info.flags);
-    EXPECT_EQ(doc.info.id, stored.info.id);
+    EXPECT_EQ(document.info.flags, stored.info.flags);
+    EXPECT_EQ(document.info.id, stored.info.id);
 
     std::vector<uint8_t> expected(input.size() * 2);
     memset(expected.data(), 'b', input.size());
@@ -557,31 +466,25 @@ TEST_P(GetSetTest, TestPrependCompressedData) {
 
 TEST_P(GetSetTest, TestPrepepndCompressedSourceAndData) {
     MemcachedConnection& conn = getConnection();
-    Document doc;
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    doc.info.compression = Greenstack::Compression::Snappy;
-    doc.info.datatype = Greenstack::Datatype::Raw;
-    doc.info.flags = 0xcaffee;
-    doc.info.id = name;
+    document.info.compression = Greenstack::Compression::Snappy;
+    document.info.datatype = Greenstack::Datatype::Raw;
 
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'a');
-    compress_vector(input, doc.value);
+    compress_vector(input, document.value);
 
-    MutationInfo info;
-    info = conn.mutate(doc, 0, Greenstack::MutationType::Set);
+    conn.mutate(document, 0, Greenstack::MutationType::Set);
 
     std::vector<char> append(1024);
     std::fill(append.begin(), append.end(), 'b');
-    compress_vector(append, doc.value);
-    conn.mutate(doc, 0, Greenstack::MutationType::Prepend);
-    Document stored;
-    stored = conn.get(name, 0);
+    compress_vector(append, document.value);
+    conn.mutate(document, 0, Greenstack::MutationType::Prepend);
+    const auto stored = conn.get(name, 0);
 
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
     EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
-    EXPECT_EQ(doc.info.flags, stored.info.flags);
-    EXPECT_EQ(doc.info.id, stored.info.id);
+    EXPECT_EQ(document.info.flags, stored.info.flags);
+    EXPECT_EQ(document.info.id, stored.info.id);
 
     std::vector<uint8_t> expected(input.size() + append.size());
     memset(expected.data(), 'b', input.size());
