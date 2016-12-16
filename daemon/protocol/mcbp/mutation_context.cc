@@ -20,6 +20,7 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
 #include <include/memcached/types.h>
+#include <xattr/utils.h>
 
 MutationCommandContext::MutationCommandContext(McbpConnection& c,
                                                protocol_binary_request_set* req,
@@ -38,14 +39,20 @@ MutationCommandContext::MutationCommandContext(McbpConnection& c,
       flags(req->message.body.flags),
       datatype(req->message.header.request.datatype),
       state(State::ValidateInput),
-      newitem(nullptr, cb::ItemDeleter{c}) {
+      newitem(nullptr, cb::ItemDeleter{c}),
+      existing(nullptr, cb::ItemDeleter{c}),
+      xattr_size(0) {
 }
+
 ENGINE_ERROR_CODE MutationCommandContext::step() {
     ENGINE_ERROR_CODE ret;
     do {
         switch (state) {
         case State::ValidateInput:
             ret = validateInput();
+            break;
+        case State::GetItem:
+            ret = getItem();
             break;
         case State::AllocateNewItem:
             ret = allocateNewItem();
@@ -55,6 +62,9 @@ ENGINE_ERROR_CODE MutationCommandContext::step() {
             break;
         case State::SendResponse:
             ret = sendResponse();
+            break;
+        case State::Reset:
+            ret = reset();
             break;
         case State::Done:
             if (operation == OPERATION_CAS) {
@@ -102,27 +112,88 @@ ENGINE_ERROR_CODE MutationCommandContext::validateInput() {
         }
     }
 
-    state = State::AllocateNewItem;
+    if (operation == OPERATION_ADD) {
+        state = State::AllocateNewItem;
+    } else {
+        // We might want to preserve XATTRs
+        state = State::GetItem;
+    }
     return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE MutationCommandContext::getItem() {
+    item* it;
+    auto ret = bucket_get(&connection, &it, key, vbucket);
+    if (ret == ENGINE_SUCCESS) {
+        existing.reset(it);
+        existing_info.nvalue = 1;
+        if (!bucket_get_item_info(&connection, existing.get(),
+                                  &existing_info)) {
+            return ENGINE_FAILED;
+        }
+
+        if (input_cas != 0 && input_cas != existing_info.cas) {
+            return ENGINE_KEY_EEXISTS;
+        }
+
+        if (mcbp::datatype::is_xattr(existing_info.datatype)) {
+            cb::const_char_buffer payload{
+                static_cast<const char*>(existing_info.value[0].iov_base),
+                existing_info.value[0].iov_len};
+
+            xattr_size = cb::xattr::get_body_offset(payload);
+        }
+        state = State::AllocateNewItem;
+    } else if (ret == ENGINE_KEY_ENOENT && operation == OPERATION_SET && input_cas == 0) {
+        // replace and cas should fail, but set with CAS == 0 should work.
+        state = State::AllocateNewItem;
+        ret = ENGINE_SUCCESS;
+    }
+
+    return ret;
 }
 
 ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
     item* it = nullptr;
-    auto ret = bucket_allocate(&connection, &it, key, value.len,
-                               flags, expiration, datatype, vbucket);
+    auto dtype = datatype;
+    if (xattr_size > 0) {
+        dtype |= PROTOCOL_BINARY_DATATYPE_XATTR;
+    }
+    auto ret = bucket_allocate(&connection, &it, key, value.len + xattr_size,
+                               flags, expiration, dtype, vbucket);
 
     if (ret != ENGINE_SUCCESS) {
         return ret;
     }
+
     newitem.reset(it);
-    bucket_item_set_cas(&connection, newitem.get(), input_cas);
+
+    if (operation == OPERATION_ADD || input_cas != 0) {
+        bucket_item_set_cas(&connection, newitem.get(), input_cas);
+    } else {
+        if (existing) {
+            bucket_item_set_cas(&connection, newitem.get(), existing_info.cas);
+        } else {
+            bucket_item_set_cas(&connection, newitem.get(), input_cas);
+        }
+    }
+
     item_info newitem_info;
     newitem_info.nvalue = 1;
     if (!bucket_get_item_info(&connection, newitem.get(), &newitem_info)) {
         return ENGINE_FAILED;
     }
 
-    std::memcpy(newitem_info.value[0].iov_base, value.buf, value.len);
+    uint8_t* root = reinterpret_cast<uint8_t*>(newitem_info.value[0].iov_base);
+    if (xattr_size > 0) {
+        // Preserve the xattrs
+        auto* ex = reinterpret_cast<uint8_t*>(existing_info.value[0].iov_base);
+        std::copy(ex, ex + xattr_size, root);
+        root += xattr_size;
+    }
+
+    // Copy the user supplied value over
+    std::copy(value.buf, value.buf + value.len, root);
     state = State::StoreItem;
 
     return ENGINE_SUCCESS;
@@ -141,6 +212,11 @@ ENGINE_ERROR_CODE MutationCommandContext::storeItem() {
         } else if (operation == OPERATION_REPLACE) {
             ret = ENGINE_KEY_ENOENT;
         }
+    } else if (ret == ENGINE_KEY_EEXISTS && input_cas == 0) {
+        // We failed due to CAS mismatch, and the user did not specify
+        // the CAS, retry the operation.
+        state = State::Reset;
+        ret = ENGINE_SUCCESS;
     }
 
     return ret;
@@ -182,5 +258,13 @@ ENGINE_ERROR_CODE MutationCommandContext::sendResponse() {
         mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
 
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE MutationCommandContext::reset() {
+    newitem.reset();
+    existing.reset();
+    xattr_size = 0;
+    state = State::GetItem;
     return ENGINE_SUCCESS;
 }
