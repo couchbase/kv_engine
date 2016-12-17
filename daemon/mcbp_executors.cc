@@ -2904,7 +2904,7 @@ static void isasl_refresh_executor(McbpConnection* c, void* packet) {
 
     switch (ret) {
     case ENGINE_SUCCESS:
-        mcbp_write_response(c, NULL, 0, 0, 0);
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
         break;
     case ENGINE_EWOULDBLOCK:
         c->setEwouldblock(true);
@@ -2931,7 +2931,7 @@ static void ssl_certs_refresh_executor(McbpConnection* c, void* packet) {
 
     switch (ret) {
     case ENGINE_SUCCESS:
-        mcbp_write_response(c, NULL, 0, 0, 0);
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
         break;
     case ENGINE_EWOULDBLOCK:
         c->setEwouldblock(true);
@@ -2953,7 +2953,7 @@ static void verbosity_executor(McbpConnection* c, void* packet) {
     }
     settings.setVerbose(static_cast<int>(level));
     perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
-    mcbp_write_response(c, NULL, 0, 0, 0);
+    mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
 
@@ -3072,7 +3072,7 @@ static void version_executor(McbpConnection* c, void*) {
 }
 
 static void quit_executor(McbpConnection* c, void*) {
-    mcbp_write_response(c, NULL, 0, 0, 0);
+    mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
     c->setWriteAndGo(conn_closing);
 }
 
@@ -3128,7 +3128,7 @@ static void sasl_auth_executor(McbpConnection* c, void* packet) {
 }
 
 static void noop_executor(McbpConnection* c, void*) {
-    mcbp_write_response(c, NULL, 0, 0, 0);
+    mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
 static void flush_executor(McbpConnection* c, void*) {
@@ -3146,7 +3146,7 @@ static void flush_executor(McbpConnection* c, void*) {
     case ENGINE_SUCCESS:
         audit_bucket_flush(c, all_buckets[c->getBucketIndex()].name);
         get_thread_stats(c)->cmd_flush++;
-        mcbp_write_response(c, NULL, 0, 0, 0);
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
         break;
     case ENGINE_EWOULDBLOCK:
         c->setEwouldblock(true);
@@ -3499,7 +3499,7 @@ static void create_bucket_executor(McbpConnection* c, void* packet) {
 
     switch (ret) {
     case ENGINE_SUCCESS:
-        mcbp_write_response(c, NULL, 0, 0, 0);
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
         break;
     case ENGINE_EWOULDBLOCK:
         c->setEwouldblock(true);
@@ -3598,7 +3598,7 @@ static void delete_bucket_executor(McbpConnection* c, void* packet) {
 
     switch (ret) {
     case ENGINE_SUCCESS:
-        mcbp_write_response(c, NULL, 0, 0, 0);
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
         break;
     case ENGINE_EWOULDBLOCK:
         c->setEwouldblock(true);

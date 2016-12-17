@@ -512,7 +512,7 @@ bool conn_refresh_cbsasl(McbpConnection *c) {
     ret = c->remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
-        mcbp_write_response(c, NULL, 0, 0, 0);
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
         break;
     case ENGINE_DISCONNECT:
         c->setState(conn_closing);
@@ -540,7 +540,7 @@ bool conn_refresh_ssl_certs(McbpConnection *c) {
     ret = c->remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
-        mcbp_write_response(c, NULL, 0, 0, 0);
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
         break;
     case ENGINE_DISCONNECT:
         c->setState(conn_closing);
@@ -571,7 +571,7 @@ bool conn_flush(McbpConnection *c) {
     ret = c->remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
-        mcbp_write_response(c, NULL, 0, 0, 0);
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
         break;
     case ENGINE_DISCONNECT:
         c->setState(conn_closing);
