@@ -381,6 +381,8 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     cJSON_AddStringToObject(root, "audit_file",
                             mcd_env->getAuditFilename().c_str());
     cJSON_AddStringToObject(root, "error_maps_dir", get_errmaps_dir().c_str());
+    cJSON_AddTrueToObject(root, "xattr_enabled");
+
     return root;
 }
 

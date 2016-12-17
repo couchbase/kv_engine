@@ -794,6 +794,26 @@ public:
 
     static void logit(EXTENSION_LOG_LEVEL level, const char *fmt, ...);
 
+    /**
+     * May clients enable the XATTR feature?
+     *
+     * @return true if xattrs may be used
+     */
+    const bool isXattrEnabled() const {
+        return xattr_enabled.load();
+    }
+
+    /**
+     * Set if the server should allow the use of xattrs
+     *
+     * @param xattr_enabled true if the system may use xattrs
+     */
+    void setXattrEnabled(const bool xattr_enabled) {
+        Settings::xattr_enabled.store(xattr_enabled);
+        has.xattr_enabled = true;
+        notify_changed("xattr_enabled");
+    }
+
 protected:
 
     /**
@@ -925,6 +945,11 @@ protected:
      */
     std::vector<std::string> error_maps;
 
+    /**
+     * May xattrs be used or not
+     */
+    std::atomic_bool xattr_enabled;
+
 public:
     /**
      * Flags for each of the above config options, indicating if they were
@@ -959,6 +984,7 @@ public:
         bool sasl_mechanisms;
         bool dedupe_nmvb_maps;
         bool error_maps;
+        bool xattr_enabled;
     } has;
 
 protected:

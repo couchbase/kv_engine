@@ -283,7 +283,6 @@ The *dedupe_nmvb_maps* attribute is a boolean value to enable deduplication
 of the cluster maps in the "Not My VBucket" response messages sent to
 the clients. By default this value is set to false.
 
-
 === error_maps_dir
 
 A directory containing one or more JSON-formatted error maps. The error maps
@@ -291,6 +290,13 @@ are returned to the client using the GET_ERROR_MAP protocol command.
 Multiple error maps correspond to multiple versions.
 
 The format of the error map itself is described in `docs/ErrorMap.md`
+
+=== xattr_enabled
+
+The *xattrs_enabled* attribute is a boolean value to enable or disable
+the use of extended attributes on documents. It may be overridden by
+privileged connections to allow them to set up replication streams
+before users create them.
 
 == EXAMPLES
 
@@ -368,7 +374,8 @@ A Sample memcached.json:
         "max_packet_size" : 25,
         "bio_drain_buffer_sz" : 8192,
         "sasl_mechanisms" : "SCRAM-SHA512 SCRAM-SHA256 SCRAM-SHA1",
-        "dedupe_nmvb_maps" : true
+        "dedupe_nmvb_maps" : true,
+        "xattr_enabled" : true
     }
 
 == COPYRIGHT

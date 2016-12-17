@@ -887,6 +887,30 @@ TEST_F(SettingsTest, DedupeNmvbMaps) {
     }
 }
 
+TEST_F(SettingsTest, XattrEnabled) {
+    nonBooleanValuesShouldFail("xattr_enabled");
+
+    unique_cJSON_ptr obj(cJSON_CreateObject());
+    cJSON_AddTrueToObject(obj.get(), "xattr_enabled");
+    try {
+        Settings settings(obj);
+        EXPECT_TRUE(settings.isXattrEnabled());
+        EXPECT_TRUE(settings.has.xattr_enabled);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+
+    obj.reset(cJSON_CreateObject());
+    cJSON_AddFalseToObject(obj.get(), "xattr_enabled");
+    try {
+        Settings settings(obj);
+        EXPECT_FALSE(settings.isXattrEnabled());
+        EXPECT_TRUE(settings.has.xattr_enabled);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+}
+
 TEST(SettingsUpdateTest, EmptySettingsShouldWork) {
     Settings updated;
     Settings settings;

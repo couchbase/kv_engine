@@ -56,6 +56,7 @@ Settings::Settings()
     verbose.store(0);
     connection_idle_time.reset();
     dedupe_nmvb_maps.store(false);
+    xattr_enabled.store(false);
 
     memset(&has, 0, sizeof(has));
     memset(&extensions, 0, sizeof(extensions));
@@ -450,6 +451,25 @@ static void handle_dedupe_nmvb_maps(Settings& s, cJSON* obj) {
 }
 
 /**
+ * Handle the "xattr_enabled" tag in the settings
+ *
+ *  The value must be a boolean value
+ *
+ * @param s the settings object to update
+ * @param obj the object in the configuration
+ */
+static void handle_xattr_enabled(Settings& s, cJSON* obj) {
+    if (obj->type == cJSON_True) {
+        s.setXattrEnabled(true);
+    } else if (obj->type == cJSON_False) {
+        s.setXattrEnabled(false);
+    } else {
+        throw std::invalid_argument(
+            "\"xattr_enabled\" must be a boolean value");
+    }
+}
+
+/**
  * Handle the "extensions" tag in the settings
  *
  *  The value must be an array
@@ -552,7 +572,8 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
         {"stdin_listen",                 handle_stdin_listen},
         {"exit_on_connection_close",     handle_exit_on_connection_close},
         {"sasl_mechanisms",              handle_sasl_mechanisms},
-        {"dedupe_nmvb_maps",             handle_dedupe_nmvb_maps}
+        {"dedupe_nmvb_maps",             handle_dedupe_nmvb_maps},
+        {"xattr_enabled",                handle_xattr_enabled}
     };
 
     cJSON* obj = json->child;
@@ -985,6 +1006,15 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                   "%s deduplication of NMVB maps",
                   other.dedupe_nmvb_maps.load() ? "Enable" : "Disable");
             setDedupeNmvbMaps(other.dedupe_nmvb_maps.load());
+        }
+    }
+
+    if (other.has.xattr_enabled) {
+        if (other.xattr_enabled != xattr_enabled) {
+            logit(EXTENSION_LOG_NOTICE,
+                  "%s xattr",
+                  other.xattr_enabled.load() ? "Enable" : "Disable");
+            setXattrEnabled(other.xattr_enabled.load());
         }
     }
 

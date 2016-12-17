@@ -3026,15 +3026,17 @@ static void process_hello_packet_executor(McbpConnection* c, void* packet) {
             }
             break;
         case mcbp::Feature::XATTR:
-            if (!c->isXattrSupport()) {
+            if ((settings.isXattrEnabled() || c->isAdmin()) && !c->isXattrSupport()) {
                 c->setXattrSupport(true);
                 added = true;
             }
+            break;
         case mcbp::Feature::XERROR:
             if (!c->isXerrorSupport()) {
                 c->setXerrorSupport(true);
                 added = true;
             }
+            break;
         }
 
         if (added) {
