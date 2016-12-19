@@ -15,7 +15,8 @@
  *   limitations under the License.
  */
 #include <daemon/memcached.h>
-#include <snappy-c.h>
+#include <platform/compress.h>
+#include <xattr/utils.h>
 
 void ship_mcbp_tap_log(McbpConnection* c) {
     bool more_data = true;
@@ -51,6 +52,7 @@ void ship_mcbp_tap_log(McbpConnection* c) {
             protocol_binary_request_noop noop;
         } msg;
         item_info info;
+        cb::char_buffer value_buffer;
 
         if (ii++ == 10) {
             break;
@@ -92,6 +94,9 @@ void ship_mcbp_tap_log(McbpConnection* c) {
                 break;
             }
 
+            value_buffer = {reinterpret_cast<char*>(info.value[0].iov_base),
+                            info.value[0].iov_len};
+
             if (!c->reserveItem(it)) {
                 bucket_release_item(c, it);
                 LOG_WARNING(c, "%u: Failed to grow item array", c->getId());
@@ -117,6 +122,10 @@ void ship_mcbp_tap_log(McbpConnection* c) {
             msg.mutation.message.header.request.extlen = 16;
             if (c->isSupportsDatatype()) {
                 msg.mutation.message.header.request.datatype = info.datatype;
+
+                // XATTRs should always be stripped
+                msg.mutation.message.header.request.datatype &=
+                    ~PROTOCOL_BINARY_DATATYPE_XATTR;
             } else {
                 inflate = mcbp::datatype::is_compressed(info.datatype);
                 msg.mutation.message.header.request.datatype = 0;
@@ -125,22 +134,45 @@ void ship_mcbp_tap_log(McbpConnection* c) {
             bodylen = 16 + info.nkey + nengine;
             if ((tap_flags & TAP_FLAG_NO_VALUE) == 0) {
                 if (inflate) {
-                    if (snappy_uncompressed_length
-                            (reinterpret_cast<const char*>(info.value[0].iov_base),
-                             info.nbytes, &inflated_length) == SNAPPY_OK) {
-                        bodylen += (uint32_t)inflated_length;
-                    } else {
-                        LOG_WARNING(c,
-                                    "<%u Failed to determine inflated size. "
-                                        "Sending as compressed",
-                                    c->getId());
-                        inflate = false;
-                        bodylen += info.nbytes;
+                    cb::compression::Buffer inflated;
+                    if (!cb::compression::inflate(
+                        cb::compression::Algorithm::Snappy,
+                        value_buffer.buf, value_buffer.len,
+                        inflated)) {
+                        LOG_WARNING(c, "%u: Failed to inflate document. "
+                            "Shutting down TAP stream", c->getId());
+                        c->setState(conn_closing);
+                        return;
                     }
-                } else {
-                    bodylen += info.nbytes;
+
+                    char* ptr = static_cast<char*>(cb_malloc(inflated.len));
+                    if (ptr == nullptr) {
+                        LOG_WARNING(c, "%u: Failed to allocate memory for "
+                            "inflated document. Shutting down tap stream",
+                            c->getId());
+                        c->setState(conn_closing);
+                        return;
+                    }
+
+                    memcpy(ptr, inflated.data.get(), inflated.len);
+                    if (!c->pushTempAlloc(ptr)) {
+                        LOG_WARNING(c, "%u: Failed to allocate memory."
+                            " Shutting down tap stream", c->getId());
+                        cb_free(ptr);
+                        c->setState(conn_closing);
+                        return;
+                    }
+                    value_buffer = {ptr, inflated.len};
+                };
+
+                if (mcbp::datatype::is_xattr(info.datatype)) {
+                    auto body = cb::xattr::get_body({value_buffer.buf, value_buffer.len});
+                    value_buffer = {const_cast<char*>(body.buf), body.len};
                 }
+
+                bodylen += value_buffer.len;
             }
+
             msg.mutation.message.header.request.bodylen = htonl(bodylen);
 
             if ((tap_flags & TAP_FLAG_NETWORK_BYTE_ORDER) == 0) {
@@ -170,45 +202,7 @@ void ship_mcbp_tap_log(McbpConnection* c) {
 
             c->addIov(info.key, info.nkey);
             if ((tap_flags & TAP_FLAG_NO_VALUE) == 0) {
-                if (inflate) {
-                    char* buf = reinterpret_cast<char*>(cb_malloc(
-                        inflated_length));
-                    if (buf == NULL) {
-                        LOG_WARNING(c,
-                                    "%u: FATAL: failed to allocate buffer "
-                                        "of size %" PRIu64
-                                        " to inflate object into. Shutting "
-                                        "down connection",
-                                    c->getId(), inflated_length);
-                        c->setState(conn_closing);
-                        return;
-                    }
-                    const char* body = reinterpret_cast<const char*>(info.value[0].iov_base);
-                    size_t input_length = info.value[0].iov_len;
-                    if (snappy_uncompress(body, input_length,
-                                          buf, &inflated_length) == SNAPPY_OK) {
-                        if (!c->pushTempAlloc(buf)) {
-                            cb_free(buf);
-                            LOG_WARNING(c,
-                                        "%u: FATAL: failed to allocate space "
-                                            "to keep temporary buffer",
-                                        c->getId());
-                            c->setState(conn_closing);
-                            return;
-                        }
-                        c->addIov(buf, inflated_length);
-                    } else {
-                        cb_free(buf);
-                        LOG_WARNING(c,
-                                    "%u: FATAL: failed to inflate object. "
-                                        "shutting down connection",
-                                    c->getId());
-                        c->setState(conn_closing);
-                        return;
-                    }
-                } else {
-                    c->addIov(info.value[0].iov_base, info.value[0].iov_len);
-                }
+                c->addIov(value_buffer.buf, value_buffer.len);
             }
 
             break;
