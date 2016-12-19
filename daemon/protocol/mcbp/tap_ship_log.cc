@@ -50,7 +50,7 @@ void ship_mcbp_tap_log(McbpConnection* c) {
             protocol_binary_request_tap_opaque opaque;
             protocol_binary_request_noop noop;
         } msg;
-        item_info_holder info;
+        item_info info;
 
         if (ii++ == 10) {
             break;
@@ -67,7 +67,7 @@ void ship_mcbp_tap_log(McbpConnection* c) {
         msg.opaque.message.body.tap.flags = htons(tap_flags);
         msg.opaque.message.header.request.extlen = 8;
         msg.opaque.message.header.request.vbucket = htons(vbucket);
-        info.info.nvalue = IOV_MAX;
+        info.nvalue = 1;
 
         switch (event) {
         case TAP_NOOP :
@@ -86,7 +86,7 @@ void ship_mcbp_tap_log(McbpConnection* c) {
         case TAP_CHECKPOINT_START:
         case TAP_CHECKPOINT_END:
         case TAP_MUTATION:
-            if (!bucket_get_item_info(c, it, &info.info)) {
+            if (!bucket_get_item_info(c, it, &info)) {
                 bucket_release_item(c, it);
                 LOG_WARNING(c, "%u: Failed to get item info", c->getId());
                 break;
@@ -112,22 +112,22 @@ void ship_mcbp_tap_log(McbpConnection* c) {
                 tap_stats.sent.mutation++;
             }
 
-            msg.mutation.message.header.request.cas = htonll(info.info.cas);
-            msg.mutation.message.header.request.keylen = htons(info.info.nkey);
+            msg.mutation.message.header.request.cas = htonll(info.cas);
+            msg.mutation.message.header.request.keylen = htons(info.nkey);
             msg.mutation.message.header.request.extlen = 16;
             if (c->isSupportsDatatype()) {
-                msg.mutation.message.header.request.datatype = info.info.datatype;
+                msg.mutation.message.header.request.datatype = info.datatype;
             } else {
-                inflate = mcbp::datatype::is_compressed(info.info.datatype);
+                inflate = mcbp::datatype::is_compressed(info.datatype);
                 msg.mutation.message.header.request.datatype = 0;
             }
 
-            bodylen = 16 + info.info.nkey + nengine;
+            bodylen = 16 + info.nkey + nengine;
             if ((tap_flags & TAP_FLAG_NO_VALUE) == 0) {
                 if (inflate) {
                     if (snappy_uncompressed_length
-                            (reinterpret_cast<const char*>(info.info.value[0].iov_base),
-                             info.info.nbytes, &inflated_length) == SNAPPY_OK) {
+                            (reinterpret_cast<const char*>(info.value[0].iov_base),
+                             info.nbytes, &inflated_length) == SNAPPY_OK) {
                         bodylen += (uint32_t)inflated_length;
                     } else {
                         LOG_WARNING(c,
@@ -135,21 +135,21 @@ void ship_mcbp_tap_log(McbpConnection* c) {
                                         "Sending as compressed",
                                     c->getId());
                         inflate = false;
-                        bodylen += info.info.nbytes;
+                        bodylen += info.nbytes;
                     }
                 } else {
-                    bodylen += info.info.nbytes;
+                    bodylen += info.nbytes;
                 }
             }
             msg.mutation.message.header.request.bodylen = htonl(bodylen);
 
             if ((tap_flags & TAP_FLAG_NETWORK_BYTE_ORDER) == 0) {
-                msg.mutation.message.body.item.flags = htonl(info.info.flags);
+                msg.mutation.message.body.item.flags = htonl(info.flags);
             } else {
-                msg.mutation.message.body.item.flags = info.info.flags;
+                msg.mutation.message.body.item.flags = info.flags;
             }
             msg.mutation.message.body.item.expiration = htonl(
-                info.info.exptime);
+                info.exptime);
             msg.mutation.message.body.tap.enginespecific_length = htons(
                 nengine);
             msg.mutation.message.body.tap.ttl = ttl;
@@ -168,7 +168,7 @@ void ship_mcbp_tap_log(McbpConnection* c) {
                 c->write.bytes += nengine;
             }
 
-            c->addIov(info.info.key, info.info.nkey);
+            c->addIov(info.key, info.nkey);
             if ((tap_flags & TAP_FLAG_NO_VALUE) == 0) {
                 if (inflate) {
                     char* buf = reinterpret_cast<char*>(cb_malloc(
@@ -183,8 +183,8 @@ void ship_mcbp_tap_log(McbpConnection* c) {
                         c->setState(conn_closing);
                         return;
                     }
-                    const char* body = reinterpret_cast<const char*>(info.info.value[0].iov_base);
-                    size_t input_length = info.info.value[0].iov_len;
+                    const char* body = reinterpret_cast<const char*>(info.value[0].iov_base);
+                    size_t input_length = info.value[0].iov_len;
                     if (snappy_uncompress(body, input_length,
                                           buf, &inflated_length) == SNAPPY_OK) {
                         if (!c->pushTempAlloc(buf)) {
@@ -207,18 +207,14 @@ void ship_mcbp_tap_log(McbpConnection* c) {
                         return;
                     }
                 } else {
-                    int xx;
-                    for (xx = 0; xx < info.info.nvalue; ++xx) {
-                        c->addIov(info.info.value[xx].iov_base,
-                                  info.info.value[xx].iov_len);
-                    }
+                    c->addIov(info.value[0].iov_base, info.value[0].iov_len);
                 }
             }
 
             break;
         case TAP_DELETION:
             /* This is a delete */
-            if (!bucket_get_item_info(c, it, &info.info)) {
+            if (!bucket_get_item_info(c, it, &info)) {
                 bucket_release_item(c, it);
                 LOG_WARNING(c, "%u: Failed to get item info", c->getId());
                 break;
@@ -231,12 +227,12 @@ void ship_mcbp_tap_log(McbpConnection* c) {
             }
             send_data = true;
             msg.del.message.header.request.opcode = PROTOCOL_BINARY_CMD_TAP_DELETE;
-            msg.del.message.header.request.cas = htonll(info.info.cas);
-            msg.del.message.header.request.keylen = htons(info.info.nkey);
+            msg.del.message.header.request.cas = htonll(info.cas);
+            msg.del.message.header.request.keylen = htons(info.nkey);
 
-            bodylen = 8 + info.info.nkey + nengine;
+            bodylen = 8 + info.nkey + nengine;
             if ((tap_flags & TAP_FLAG_NO_VALUE) == 0) {
-                bodylen += info.info.nbytes;
+                bodylen += info.nbytes;
             }
             msg.del.message.header.request.bodylen = htonl(bodylen);
 
@@ -252,13 +248,9 @@ void ship_mcbp_tap_log(McbpConnection* c) {
                 c->write.bytes += nengine;
             }
 
-            c->addIov(info.info.key, info.info.nkey);
+            c->addIov(info.key, info.nkey);
             if ((tap_flags & TAP_FLAG_NO_VALUE) == 0) {
-                int xx;
-                for (xx = 0; xx < info.info.nvalue; ++xx) {
-                    c->addIov(info.info.value[xx].iov_base,
-                              info.info.value[xx].iov_len);
-                }
+                c->addIov(info.value[0].iov_base, info.value[0].iov_len);
             }
 
             tap_stats.sent.del++;
