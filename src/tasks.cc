@@ -20,8 +20,8 @@
 #include "ep_engine.h"
 #include "flusher.h"
 #include "tasks.h"
+#include "vbucket.h"
 #include "warmup.h"
-#include "ep_engine.h"
 
 #include <climits>
 
@@ -168,6 +168,22 @@ bool VKeyStatBGFetchTask::run() {
 bool SingleBGFetcherTask::run() {
     engine->getEpStore()->completeBGFetch(key, vbucket, cookie, init,
                                           metaFetch);
+    return false;
+}
+
+VBucketMemoryDeletionTask::VBucketMemoryDeletionTask(
+        EventuallyPersistentEngine& eng, RCPtr<VBucket>& vb, double delay)
+    : GlobalTask(&eng, TaskId::VBucketMemoryDeletionTask, delay, true),
+      e(eng),
+      vbucket(vb) {
+    desc = "Removing (dead) vb:" + std::to_string(vbucket->getId()) +
+           " from memory";
+}
+
+bool VBucketMemoryDeletionTask::run() {
+    vbucket->notifyAllPendingConnsFailed(e);
+    vbucket->ht.clear();
+    vbucket.reset();
     return false;
 }
 

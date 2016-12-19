@@ -58,6 +58,7 @@ class EventuallyPersistentEngine;
 class Flusher;
 class Warmup;
 class Taskable;
+class VBucket;
 
 class GlobalTask : public RCValue {
 friend class CompareByDueDate;
@@ -407,6 +408,29 @@ private:
     const void                *cookie;
     bool                       metaFetch;
     hrtime_t                   init;
+};
+
+/*
+ * This is a NONIO task called as part of VB deletion.  The task is responsible
+ * for clearing all the VBucket's pending operations and for clearing the
+ * VBucket's hash table.
+ */
+class VBucketMemoryDeletionTask : public GlobalTask {
+public:
+    VBucketMemoryDeletionTask(EventuallyPersistentEngine& eng,
+                              RCPtr<VBucket>& vb,
+                              double delay);
+
+    std::string getDescription() {
+        return desc;
+    }
+
+    bool run();
+
+private:
+    EventuallyPersistentEngine& e;
+    RCPtr<VBucket> vbucket;
+    std::string desc;
 };
 
 /**

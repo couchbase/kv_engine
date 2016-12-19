@@ -35,6 +35,7 @@
 #include "flusher.h"
 #include "../mock/mock_dcp_producer.h"
 #include "replicationthrottle.h"
+#include "tasks.h"
 
 #include "programs/engine_testapp/mock_server.h"
 
@@ -377,6 +378,39 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsNMVB) {
                                   /*wantsDeleted*/false));
 }
 
+// Test to ensure all pendingBGfetches are deleted when the
+// VBucketMemoryDeletionTask is run
+TEST_P(EPStoreEvictionTest, MB_21976) {
+    // Store an item, then eject it.
+    std::string key("key");
+    auto item = store_item(vbid, key, "value");
+    flush_vbucket_to_disk(vbid);
+    const char* msg;
+    size_t msg_size{sizeof(msg)};
+    EXPECT_EQ(ENGINE_SUCCESS, store->evictKey(key, 0, &msg, &msg_size));
+
+    // Perform a get, which should EWOULDBLOCK
+    get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
+                                                       HONOR_STATES |
+                                                       TRACK_REFERENCE |
+                                                       DELETE_TEMP |
+                                                       HIDE_LOCKED_CAS |
+                                                       TRACK_STATISTICS);
+    GetValue gv = store->get(key, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,gv.getStatus());
+    // Mark the status of the cookie so that we can see if notify is called
+    struct mock_connstruct* c = (struct mock_connstruct *)cookie;
+    c->status = ENGINE_E2BIG;
+
+    // Manually run the VBucketMemoryDeletionTask task
+    RCPtr<VBucket> vb = store->getVBucket(vbid);
+    VBucketMemoryDeletionTask deletionTask(*engine, vb, /*delay*/0.0);
+    deletionTask.run();
+
+    // Check the status of the cookie to see if the cookie status has changed
+    // to ENGINE_NOT_MY_VBUCKET, which means the notify was sent
+    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, c->status);
+}
 
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(FullAndValueEviction,
