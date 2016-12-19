@@ -63,7 +63,8 @@ public:
           input_cas(ntohll(req->message.header.request.cas)),
           state(State::GetItem),
           deleted(nullptr, cb::ItemDeleter{c}),
-          existing(nullptr, cb::ItemDeleter{c}) {
+          existing(nullptr, cb::ItemDeleter{c}),
+          mutation_descr{} {
 
     }
 
