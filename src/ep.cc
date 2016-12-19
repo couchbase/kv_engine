@@ -51,6 +51,7 @@
 #include "connmap.h"
 #include "replicationthrottle.h"
 #include "tapconnmap.h"
+#include "vbucketmemorydeletiontask.h"
 
 class StatsValueChangeListener : public ValueChangedListener {
 public:
@@ -309,34 +310,6 @@ class ExpiredItemsCallback : public Callback<uint16_t&, const DocKey&, uint64_t&
 
     private:
         EPBucket& epstore;
-};
-
-class VBucketMemoryDeletionTask : public GlobalTask {
-public:
-    VBucketMemoryDeletionTask(EventuallyPersistentEngine &eng,
-                              RCPtr<VBucket> &vb, double delay) :
-                              GlobalTask(&eng,
-                              TaskId::VBucketMemoryDeletionTask, delay, true),
-                              e(eng), vbucket(vb), vbid(vb->getId()) { }
-
-    std::string getDescription() {
-        std::stringstream ss;
-        ss << "Removing (dead) vbucket " << vbid << " from memory";
-        return ss.str();
-    }
-
-    bool run(void) {
-        TRACE_EVENT("ep-engine/task", "VBucketMemoryDeletionTask", vbid);
-        vbucket->notifyAllPendingConnsFailed(e);
-        vbucket->ht.clear();
-        vbucket.reset();
-        return false;
-    }
-
-private:
-    EventuallyPersistentEngine &e;
-    RCPtr<VBucket> vbucket;
-    uint16_t vbid;
 };
 
 class PendingOpsNotification : public GlobalTask {

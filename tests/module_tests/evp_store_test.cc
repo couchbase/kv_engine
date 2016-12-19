@@ -37,6 +37,8 @@
 #include "makestoreddockey.h"
 #include "replicationthrottle.h"
 #include "tapconnmap.h"
+#include "tasks.h"
+#include "vbucketmemorydeletiontask.h"
 
 #include "programs/engine_testapp/mock_server.h"
 #include <platform/dirutils.h>
@@ -660,6 +662,38 @@ TEST_P(EPStoreEvictionTest, SetWithMeta_Forced) {
                                  /*allowExisting*/false));
 }
 
+// Test to ensure all pendingBGfetches are deleted when the
+// VBucketMemoryDeletionTask is run
+TEST_P(EPStoreEvictionTest, MB_21976) {
+    // Store an item, then eject it.
+    auto item = make_item(vbid, makeStoredDocKey("key"), "value");
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+    flush_vbucket_to_disk(vbid);
+    evict_key(item.getVBucketId(), item.getKey());
+
+    // Perform a get, which should EWOULDBLOCK
+    get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
+                                                       HONOR_STATES |
+                                                       TRACK_REFERENCE |
+                                                       DELETE_TEMP |
+                                                       HIDE_LOCKED_CAS |
+                                                       TRACK_STATISTICS);
+    GetValue gv = store->get(makeStoredDocKey("key"), vbid, cookie, options);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,gv.getStatus());
+
+    // Mark the status of the cookie so that we can see if notify is called
+    struct mock_connstruct* c = (struct mock_connstruct *)cookie;
+    c->status = ENGINE_E2BIG;
+
+    // Manually run the VBucketMemoryDeletionTask task
+    RCPtr<VBucket> vb = store->getVBucket(vbid);
+    VBucketMemoryDeletionTask deletionTask(*engine, vb, /*delay*/0.0);
+    deletionTask.run();
+
+    // Check the status of the cookie to see if the cookie status has changed
+    // to ENGINE_NOT_MY_VBUCKET, which means the notify was sent
+    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, c->status);
+}
 
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(FullAndValueEviction,

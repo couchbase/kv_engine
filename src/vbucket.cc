@@ -194,19 +194,6 @@ VBucket::~VBucket() {
 
     stats.decrDiskQueueSize(dirtyQueueSize.load());
 
-    size_t num_pending_fetches = 0;
-    vb_bgfetch_queue_t::iterator itr = pendingBGFetches.begin();
-    for (; itr != pendingBGFetches.end(); ++itr) {
-        vb_bgfetch_item_ctx_t &bg_itm_ctx = itr->second;
-        std::list<VBucketBGFetchItem *> &bgitems = bg_itm_ctx.bgfetched_list;
-        std::list<VBucketBGFetchItem *>::iterator vit = bgitems.begin();
-        for (; vit != bgitems.end(); ++vit) {
-            delete (*vit);
-            ++num_pending_fetches;
-        }
-    }
-    stats.numRemainingBgJobs.fetch_sub(num_pending_fetches);
-    pendingBGFetches.clear();
     delete failovers;
 
     // Clear out the bloomfilter(s)
@@ -462,6 +449,23 @@ void VBucket::notifyAllPendingConnsFailed(EventuallyPersistentEngine &e) {
                 --shard->highPriorityCount;
             }
         }
+    }
+
+    // Add all the pendingBGFetches to the toNotify map
+    {
+        LockHolder lh(pendingBGFetchesLock);
+        size_t num_of_deleted_pending_fetches = 0;
+        for (auto& bgf : pendingBGFetches) {
+            vb_bgfetch_item_ctx_t& bg_itm_ctx = bgf.second;
+            for (auto& bgitem : bg_itm_ctx.bgfetched_list) {
+                toNotify[bgitem->cookie] = ENGINE_NOT_MY_VBUCKET;
+                e.storeEngineSpecific(bgitem->cookie, nullptr);
+                delete bgitem;
+                ++num_of_deleted_pending_fetches;
+            }
+        }
+        stats.numRemainingBgJobs.fetch_sub(num_of_deleted_pending_fetches);
+        pendingBGFetches.clear();
     }
 
     std::map<const void*, ENGINE_ERROR_CODE>::iterator itr = toNotify.begin();

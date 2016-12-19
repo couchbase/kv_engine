@@ -138,7 +138,7 @@ TEST_F(SingleThreadedEPStoreTest, MB19695_doTapVbTakeoverStats) {
     // disconnected).
     EXPECT_TRUE(store->resetVBucket(vbid));
 
-    runNextTask(lpNonioQ, "Removing (dead) vbucket 0 from memory");
+    runNextTask(lpNonioQ, "Removing (dead) vb:0 from memory");
     runNextTask(lpWriterQ, "Deleting VBucket:0");
 
     // [[2]] Ok, let's see if we can get TAP takeover stats. This will

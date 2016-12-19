@@ -177,6 +177,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/taskqueue.cc
             src/vbucket.cc
             src/vbucketmap.cc
+            src/vbucketmemorydeletiontask.cc
             src/warmup.cc
             ${OBJECTREGISTRY_SOURCE}
             ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
