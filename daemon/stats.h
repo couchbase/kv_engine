@@ -329,3 +329,25 @@ extern std::mutex stats_mutex;
 extern char reset_stats_time[80];
 
 void stats_reset(const void *cookie);
+
+/**
+ * Tap stats (these are only used by the tap thread, so they don't need
+ * to be in the threadlocal struct right now...
+ */
+struct tap_cmd_stats {
+    Couchbase::RelaxedAtomic<uint64_t> connect;
+    Couchbase::RelaxedAtomic<uint64_t> mutation;
+    Couchbase::RelaxedAtomic<uint64_t> checkpoint_start;
+    Couchbase::RelaxedAtomic<uint64_t> checkpoint_end;
+    Couchbase::RelaxedAtomic<uint64_t> del;
+    Couchbase::RelaxedAtomic<uint64_t> flush;
+    Couchbase::RelaxedAtomic<uint64_t> opaque;
+    Couchbase::RelaxedAtomic<uint64_t> vbucket_set;
+};
+
+struct tap_stats {
+    struct tap_cmd_stats sent;
+    struct tap_cmd_stats received;
+};
+
+extern struct tap_stats tap_stats;
