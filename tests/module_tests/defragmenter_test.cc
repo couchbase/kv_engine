@@ -243,6 +243,24 @@ TEST_F(DefragmenterTest, MappedMemory) {
 TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
 #endif
 
+    /*
+      MB-22016:
+      Disable this test for valgrind as it currently triggers some problems
+      within jemalloc that will get detected much further down the set of
+      unit-tests.
+
+      The problem appears to be the toggling of thread cache, I suspect that
+      jemalloc is writing some data when the thread cache is off (during the
+      defrag) and then accessing that data differently with thread cache on.
+
+      The will link to an issue on jemalloc to see if there is anything to be
+      changed.
+    */
+    if (RUNNING_ON_VALGRIND) {
+        printf("DefragmenterTest.MappedMemory is currently disabled for valgrind\n");
+        return;
+    }
+
     // Sanity check - need memory tracker to be able to check our memory usage.
     ASSERT_TRUE(MemoryTracker::trackingMemoryAllocations())
         << "Memory tracker not enabled - cannot continue";
@@ -270,8 +288,9 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
         // stringstream) to minimize heap pollution.
         char key[16];
         snprintf(key, sizeof(key), "%d", i);
-
-        Item item(makeStoredDocKey(key), 0, 0, data.data(), data.size());;
+        // Use DocKey to minimize heap pollution
+        Item item(DocKey(key, DocNamespace::DefaultCollection),
+                  0, 0, data.data(), data.size());;
         vbucket.ht.add(item, VALUE_ONLY);
     }
 
@@ -294,7 +313,11 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
 
         // Build a map of pages to keys
         for (unsigned int i = 0; i < num_docs; i++ ) {
-            auto* item = vbucket.ht.find(makeStoredDocKey(std::to_string(i)));
+            /// Use stack and DocKey to minimuze heap pollution
+            char key[16];
+            snprintf(key, sizeof(key), "%d", i);
+            auto* item = vbucket.ht.find(DocKey(key,
+                                                DocNamespace::DefaultCollection));
             ASSERT_NE(nullptr, item);
 
             const uintptr_t page =
@@ -309,7 +332,11 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
             // Free all but one document on this page.
             while (kv->second.size() > 1) {
                 auto doc_id = kv->second.back();
-                ASSERT_TRUE(vbucket.ht.del(makeStoredDocKey(std::to_string(doc_id))));
+                // Use DocKey to minimize heap pollution
+                char key[16];
+                snprintf(key, sizeof(key), "%d", doc_id);
+                ASSERT_TRUE(vbucket.ht.del(DocKey(key,
+                                                DocNamespace::DefaultCollection)));
                 kv->second.pop_back();
                 num_remaining--;
             }
