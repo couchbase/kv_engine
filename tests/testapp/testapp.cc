@@ -116,6 +116,10 @@ std::ostream& operator << (std::ostream& os, const Transport& t)
 
 void TestappTest::CreateTestBucket()
 {
+    static const std::string BUCKET_NAME("default");
+    static const std::string BUCKET_CONFIG(
+            "default_engine.so;keep_deleted=true");
+
     auto& conn = connectionMap.getConnection(Protocol::Memcached, false);
     // Reconnect to the server so we know we're on a "fresh" connetion
     // to the server (and not one that might have been catched by the
@@ -123,23 +127,9 @@ void TestappTest::CreateTestBucket()
     conn.reconnect();
     conn.authenticate("_admin", "password", "PLAIN");
 
-    char cfg[80];
-    memset(cfg, 0, sizeof(cfg));
-    snprintf(cfg, sizeof(cfg),
-             "ewouldblock_engine.so%cdefault_engine.so;keep_deleted=true", 0);
+    conn.createBucket(BUCKET_NAME, BUCKET_CONFIG,
+                      Greenstack::BucketType::EWouldBlock);
 
-    Frame request;
-    mcbp_raw_command(request, PROTOCOL_BINARY_CMD_CREATE_BUCKET,
-                     "default", strlen("default"), cfg, sizeof(cfg));
-
-    conn.sendFrame(request);
-
-    Frame response;
-    conn.recvFrame(response);
-    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(response.payload.data());
-    mcbp_validate_response_header(rsp,
-                                  PROTOCOL_BINARY_CMD_CREATE_BUCKET,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     // Reconnect the object to avoid others to reuse the admin creds
     conn.reconnect();
 }
