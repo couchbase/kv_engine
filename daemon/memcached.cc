@@ -365,7 +365,7 @@ static void register_callback(ENGINE_HANDLE *eh,
             }
         }
         if (idx == all_buckets.size()) {
-            throw std::invalid_argument("register_callback: eh (which is" +
+            throw std::invalid_argument("register_callback: eh (which is " +
                     std::to_string(reinterpret_cast<uintptr_t>(eh)) +
                     ") is not a engine associated with a bucket");
         }
