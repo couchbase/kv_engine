@@ -256,9 +256,9 @@ extern "C" {
     }
 
     static ENGINE_ERROR_CODE EvpFlush(ENGINE_HANDLE* handle,
-                                      const void* cookie, time_t when)
+                                      const void* cookie)
     {
-        ENGINE_ERROR_CODE err_code = getHandle(handle)->flush(cookie, when);
+        ENGINE_ERROR_CODE err_code = getHandle(handle)->flush(cookie);
         releaseHandle(handle);
         return err_code;
     }
@@ -2199,8 +2199,7 @@ void EventuallyPersistentEngine::destroy(bool force) {
     }
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie,
-                                                    time_t when){
+ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie){
     if (!flushAllEnabled) {
         return ENGINE_ENOTSUP;
     }
@@ -2220,7 +2219,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie,
         // if yes, if the atomic variable weren't false, then
         // we will assume that a flushAll has been scheduled
         // already and return TMPFAIL.
-        if (kvBucket->scheduleFlushAllTask(cookie, when)) {
+        if (kvBucket->scheduleFlushAllTask(cookie)) {
             storeEngineSpecific(cookie, this);
             return ENGINE_EWOULDBLOCK;
         } else {
@@ -2658,7 +2657,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                                    DocNamespace::DefaultCollection));
         break;
     case TAP_FLUSH:
-        ret = flush(cookie, 0);
+        ret = flush(cookie);
         LOG(EXTENSION_LOG_NOTICE, "%s Received flush.\n",
             connection->logHeader());
         break;

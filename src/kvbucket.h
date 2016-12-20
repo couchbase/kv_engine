@@ -654,7 +654,7 @@ public:
 
     virtual bool isFlushAllScheduled() = 0;
 
-    virtual bool scheduleFlushAllTask(const void* cookie, time_t when) = 0;
+    virtual bool scheduleFlushAllTask(const void* cookie) = 0;
 
     virtual void setFlushAllComplete() = 0;
 

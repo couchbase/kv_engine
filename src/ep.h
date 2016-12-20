@@ -628,7 +628,7 @@ public:
         return diskFlushAll.load();
     }
 
-    bool scheduleFlushAllTask(const void* cookie, time_t when);
+    bool scheduleFlushAllTask(const void* cookie);
 
     void setFlushAllComplete();
 

@@ -156,8 +156,8 @@ private:
  */
 class FlushAllTask : public GlobalTask {
 public:
-    FlushAllTask(EventuallyPersistentEngine *e, double when)
-        : GlobalTask(e, TaskId::FlushAllTask, when, false) {}
+    FlushAllTask(EventuallyPersistentEngine *e)
+        : GlobalTask(e, TaskId::FlushAllTask, 0, false) {}
 
     bool run();
 

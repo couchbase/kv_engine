@@ -1618,7 +1618,7 @@ static enum test_result test_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     set_degraded_mode(h, h1, NULL, true);
     checkeq(ENGINE_SUCCESS,
-            h1->flush(h, NULL, 0),
+            h1->flush(h, NULL),
             "Failed to flush");
     set_degraded_mode(h, h1, NULL, false);
 
@@ -1629,86 +1629,6 @@ static enum test_result test_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             "Failed post-flush set.");
     h1->release(h, NULL, i);
     check_key_value(h, h1, "key", "somevalue", 9);
-
-    return SUCCESS;
-}
-
-/**
- * The following struct: flush_args and function run_flush(),
- * will be used by the test that follows: test_multiple_flush
- */
-struct flush_args {
-    ENGINE_HANDLE *h;
-    ENGINE_HANDLE_V1 *h1;
-    ENGINE_ERROR_CODE expect;
-    int when;
-};
-
-extern "C" {
-    static void run_flush_all(void *arguments) {
-        const void *cookie = testHarness.create_cookie();
-        testHarness.set_ewouldblock_handling(cookie, true);
-        struct flush_args *args = (struct flush_args *)arguments;
-
-        checkeq(args->expect,
-                (args->h1)->flush(args->h, cookie, args->when),
-                "Return code is not what is expected");
-
-        testHarness.destroy_cookie(cookie);
-    }
-}
-
-static enum test_result test_multiple_flush(ENGINE_HANDLE *h,
-                                            ENGINE_HANDLE_V1 *h1) {
-
-    if (get_bool_stat(h, h1, "ep_flushall_enabled") == false) {
-        check(set_param(h, h1, protocol_binary_engine_param_flush,
-                        "flushall_enabled", "true"),
-              "Set flushall_enabled should have worked");
-    }
-    check(get_bool_stat(h, h1, "ep_flushall_enabled"),
-          "flushall wasn't enabled");
-
-    item *i = NULL;
-    checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
-            "Failed set.");
-    h1->release(h, NULL, i);
-    wait_for_flusher_to_settle(h, h1);
-    checkeq(1, get_int_stat(h, h1, "curr_items"),
-            "Expected curr_items equals 1");
-
-    set_degraded_mode(h, h1, NULL, true);
-    cb_thread_t t1, t2;
-    struct flush_args args1,args2;
-    args1.h = h;
-    args1.h1 = h1;
-    args1.expect = ENGINE_SUCCESS;
-    args1.when = 2;
-    checkeq(0, cb_create_thread(&t1, run_flush_all, &args1, 0),
-            "cb_create_thread failed!");
-
-    sleep(1);
-
-    args2.h = h;
-    args2.h1 = h1;
-    args2.expect = ENGINE_TMPFAIL;
-    args2.when = 0;
-    checkeq(0, cb_create_thread(&t2, run_flush_all, &args2, 0),
-            "cb_create_thread failed!");
-
-    cb_assert(cb_join_thread(t1) == 0);
-    cb_assert(cb_join_thread(t2) == 0);
-
-    set_degraded_mode(h, h1, NULL, false);
-
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
-    wait_for_warmup_complete(h, h1);
-    checkeq(0, get_int_stat(h, h1, "curr_items"),
-            "Expected curr_items equals 0");
 
     return SUCCESS;
 }
@@ -1737,7 +1657,7 @@ static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     check_key_value(h, h1, "key2", "somevalue", 9);
 
     set_degraded_mode(h, h1, NULL, true);
-    checkeq(ENGINE_SUCCESS, h1->flush(h, NULL, 0), "Failed to flush");
+    checkeq(ENGINE_SUCCESS, h1->flush(h, NULL), "Failed to flush");
     set_degraded_mode(h, h1, NULL, false);
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key2"), "Expected missing key");
@@ -1773,7 +1693,7 @@ static enum test_result test_flush_multiv(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check_key_value(h, h1, "key2", "somevalue", 9, 2);
 
     set_degraded_mode(h, h1, NULL, true);
-    checkeq(ENGINE_SUCCESS, h1->flush(h, NULL, 0), "Failed to flush");
+    checkeq(ENGINE_SUCCESS, h1->flush(h, NULL), "Failed to flush");
     set_degraded_mode(h, h1, NULL, false);
 
     vals.clear();
@@ -1804,7 +1724,7 @@ static enum test_result test_flush_disabled(ENGINE_HANDLE *h,
     check_key_value(h, h1, "key", "somevalue", 9);
     // expect error msg engine does not support operation
     checkeq(ENGINE_ENOTSUP,
-            h1->flush(h, NULL, 0),
+            h1->flush(h, NULL),
             "Flush should be disabled");
     //check the key
     checkeq(ENGINE_SUCCESS, verify_key(h, h1, "key"), "Expected key");
@@ -1825,7 +1745,7 @@ static enum test_result test_flush_disabled(ENGINE_HANDLE *h,
 
     set_degraded_mode(h, h1, NULL, true);
     checkeq(ENGINE_SUCCESS,
-            h1->flush(h, NULL, 0), "Flush should be enabled");
+            h1->flush(h, NULL), "Flush should be enabled");
     set_degraded_mode(h, h1, NULL, false);
 
     //expect missing key
@@ -1850,7 +1770,7 @@ static enum test_result test_CBD_152(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     check_key_value(h, h1, "key", "somevalue", 9);
     // expect error msg engine does not support operation
-    checkeq(ENGINE_ENOTSUP, h1->flush(h, NULL, 0), "Flush should be disabled");
+    checkeq(ENGINE_ENOTSUP, h1->flush(h, NULL), "Flush should be disabled");
     //check the key
     checkeq(ENGINE_SUCCESS, verify_key(h, h1, "key"), "Expected key");
 
@@ -1860,7 +1780,7 @@ static enum test_result test_CBD_152(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed to set flushall_enabled param");
     // flush should succeed
     set_degraded_mode(h, h1, NULL, true);
-    checkeq(ENGINE_SUCCESS, h1->flush(h, NULL, 0), "Flush should be enabled");
+    checkeq(ENGINE_SUCCESS, h1->flush(h, NULL), "Flush should be enabled");
     set_degraded_mode(h, h1, NULL, false);
     //expect missing key
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
@@ -2056,8 +1976,6 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown, "max_vbuckets=1024", prepare, cleanup),
         TestCase("flush", test_flush, test_setup, teardown,
                  NULL, prepare, cleanup),
-        TestCase("multiple flush requests", test_multiple_flush, test_setup,
-                 teardown, NULL, prepare, cleanup),
         TestCase("flush with stats", test_flush_stats, test_setup, teardown,
                  "flushall_enabled=true;chk_remover_stime=1;chk_period=60",
                  prepare, cleanup),

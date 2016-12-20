@@ -316,7 +316,7 @@ static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
     // Flush
     set_degraded_mode(h, h1, NULL, true);
-    checkeq(ENGINE_SUCCESS, h1->flush(h, NULL, 0),
+    checkeq(ENGINE_SUCCESS, h1->flush(h, NULL),
             "Failed to flush");
     set_degraded_mode(h, h1, NULL, false);
 
@@ -414,7 +414,7 @@ static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDL
 
     // Flush
     set_degraded_mode(h, h1, NULL, true);
-    checkeq(ENGINE_SUCCESS, h1->flush(h, NULL, 0),
+    checkeq(ENGINE_SUCCESS, h1->flush(h, NULL),
             "Failed to flush");
     set_degraded_mode(h, h1, NULL, false);
 
@@ -3457,7 +3457,7 @@ static enum test_result test_curr_items_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 
     // Verify flush case.
     set_degraded_mode(h, h1, nullptr, true);
-    checkeq(ENGINE_SUCCESS, h1->flush(h, nullptr, 0),
+    checkeq(ENGINE_SUCCESS, h1->flush(h, nullptr),
             "Failed to flush");
     set_degraded_mode(h, h1, nullptr, false);
     verify_curr_items(h, h1, 0, "flush");

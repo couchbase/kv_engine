@@ -2889,12 +2889,12 @@ private:
     DISALLOW_COPY_AND_ASSIGN(PersistenceCallback);
 };
 
-bool EPBucket::scheduleFlushAllTask(const void* cookie, time_t when) {
+bool EPBucket::scheduleFlushAllTask(const void* cookie) {
     bool inverse = false;
     if (diskFlushAll.compare_exchange_strong(inverse, true)) {
         flushAllTaskCtx.cookie = cookie;
         flushAllTaskCtx.delayFlushAll.compare_exchange_strong(inverse, true);
-        ExTask task = new FlushAllTask(&engine, static_cast<double>(when));
+        ExTask task = new FlushAllTask(&engine);
         ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
         return true;
     } else {

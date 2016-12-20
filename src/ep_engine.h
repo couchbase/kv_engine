@@ -320,7 +320,7 @@ public:
                             uint64_t *cas,
                             ENGINE_STORE_OPERATION operation);
 
-    ENGINE_ERROR_CODE flush(const void *cookie, time_t when);
+    ENGINE_ERROR_CODE flush(const void *cookie);
 
     uint16_t walkTapQueue(const void *cookie, item **itm, void **es,
                           uint16_t *nes, uint8_t *ttl, uint16_t *flags,
