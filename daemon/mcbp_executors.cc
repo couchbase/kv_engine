@@ -44,6 +44,7 @@
 #include "protocol/mcbp/steppable_command_context.h"
 #include "protocol/mcbp/utilities.h"
 
+#include <cctype>
 #include <memcached/audit_interface.h>
 #include <platform/cb_malloc.h>
 #include <platform/checked_snprintf.h>
@@ -2958,19 +2959,18 @@ static void verbosity_executor(McbpConnection* c, void* packet) {
 
 static void process_hello_packet_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_hello*>(packet);
-    char log_buffer[512];
-    int offset = snprintf(log_buffer, sizeof(log_buffer), "HELO ");
+    std::string log_buffer;
+    log_buffer.reserve(512);
+    log_buffer.append("HELO ");
 
-    if (offset < 0 || offset >= sizeof(log_buffer)) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
-        return;
-    }
+    const cb::const_char_buffer key{
+        reinterpret_cast<const char*>(req->bytes + sizeof(req->bytes)),
+        ntohs(req->message.header.request.keylen)};
 
-    char* key = (char*)packet + sizeof(*req);
-    uint16_t klen = ntohs(req->message.header.request.keylen);
-    uint32_t total = (ntohl(req->message.header.request.bodylen) - klen) / 2;
-    uint32_t ii;
-    char* curr = key + klen;
+    const cb::sized_buffer<const uint16_t> input{
+        reinterpret_cast<const uint16_t*>(key.data() + key.size()),
+        (ntohl(req->message.header.request.bodylen) - key.size()) / 2};
+
     std::vector<uint16_t> out;
     bool tcpdelay_handled = false;
 
@@ -2983,27 +2983,21 @@ static void process_hello_packet_executor(McbpConnection* c, void* packet) {
     c->setXattrSupport(false);
     c->setXerrorSupport(false);
 
-    if (klen) {
-        if (klen > 256) {
-            klen = 256;
+    if (!key.empty()) {
+        log_buffer.append("[");
+        if (key.size() > 256) {
+            log_buffer.append(key.data(), 256);
+            log_buffer.append("...");
+        } else {
+            log_buffer.append(key.data(), key.size());
         }
-        log_buffer[offset++] = '[';
-        memcpy(log_buffer + offset, key, klen);
-        offset += klen;
-        log_buffer[offset++] = ']';
-        log_buffer[offset++] = ' ';
-        log_buffer[offset] = '\0';
+        log_buffer.append("] ");
     }
 
-    for (ii = 0; ii < total; ++ii) {
+    for (const auto& value : input) {
         bool added = false;
-        uint16_t in;
-        /* to avoid alignment */
-        memcpy(&in, curr, 2);
-        curr += 2;
-        in = ntohs(in);
-
-        auto feature = mcbp::Feature(in);
+        const uint16_t in = ntohs(value);
+        const auto feature = mcbp::Feature(in);
 
         switch (feature) {
         case mcbp::Feature::TLS:
@@ -3044,23 +3038,9 @@ static void process_hello_packet_executor(McbpConnection* c, void* packet) {
         }
 
         if (added) {
-            out.push_back(htons(in));
-            int nw;
-
-            try {
-                nw = snprintf(log_buffer + offset, sizeof(log_buffer) - offset,
-                              "%s, ", mcbp::to_string(feature).c_str());
-            } catch (...) {
-                nw = snprintf(log_buffer + offset, sizeof(log_buffer) - offset,
-                              "%04x, ", (unsigned int)in);
-            }
-
-            if (nw < 0 || nw > sizeof(log_buffer) - offset) {
-                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
-                return;
-            }
-
-            offset += nw;
+            out.push_back(value);
+            log_buffer.append(mcbp::to_string(feature));
+            log_buffer.append(", ");
         }
     }
 
@@ -3076,15 +3056,13 @@ static void process_hello_packet_executor(McbpConnection* c, void* packet) {
         mcbp_write_and_free(c, &c->getDynamicBuffer());
     }
 
-
-    /* Trim off the whitespace and potentially trailing commas */
-    --offset;
-    while (offset > 0 &&
-           (isspace(log_buffer[offset]) || log_buffer[offset] == ',')) {
-        log_buffer[offset] = '\0';
-        --offset;
+    // Trim off the trailing whitespace (and potentially comma)
+    log_buffer.resize(log_buffer.size() - 1);
+    if (log_buffer.back() == ',') {
+        log_buffer.resize(log_buffer.size() - 1);
     }
-    LOG_NOTICE(c, "%u: %s %s", c->getId(), log_buffer,
+
+    LOG_NOTICE(c, "%u: %s %s", c->getId(), log_buffer.c_str(),
                c->getDescription().c_str());
 }
 
