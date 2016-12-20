@@ -347,7 +347,7 @@ static enum test_result flush_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                            PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
     cb_assert(h1->store(h, NULL, test_item, &cas,
                         OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
-    cb_assert(h1->flush(h, NULL, 0) == ENGINE_SUCCESS);
+    cb_assert(h1->flush(h, NULL) == ENGINE_SUCCESS);
     check_item = test_item;
     cb_assert(h1->get(h, NULL, &check_item, key,
                       0, DocumentState::Alive) ==  ENGINE_KEY_ENOENT);

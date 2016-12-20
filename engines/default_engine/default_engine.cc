@@ -59,7 +59,7 @@ static ENGINE_ERROR_CODE default_store(ENGINE_HANDLE* handle,
                                        ENGINE_STORE_OPERATION operation,
                                        DocumentState);
 static ENGINE_ERROR_CODE default_flush(ENGINE_HANDLE* handle,
-                                       const void* cookie, time_t when);
+                                       const void* cookie);
 static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
                                                  const char *cfg_str);
 static ENGINE_ERROR_CODE default_unknown_command(ENGINE_HANDLE* handle,
@@ -453,8 +453,7 @@ static ENGINE_ERROR_CODE default_store(ENGINE_HANDLE* handle,
 }
 
 static ENGINE_ERROR_CODE default_flush(ENGINE_HANDLE* handle,
-                                       const void* cookie, time_t when) {
-   (void)when;
+                                       const void* cookie) {
    item_flush_expired(get_handle(handle));
 
    return ENGINE_SUCCESS;

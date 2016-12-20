@@ -127,7 +127,7 @@ private:
         return ENGINE_NO_BUCKET;
     }
 
-    static ENGINE_ERROR_CODE flush(ENGINE_HANDLE*, const void*, time_t) {
+    static ENGINE_ERROR_CODE flush(ENGINE_HANDLE*, const void*) {
         return ENGINE_NO_BUCKET;
     }
 

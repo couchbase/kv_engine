@@ -66,7 +66,7 @@ void add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 void flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    hasError = h1->flush(h, NULL, 0);
+    hasError = h1->flush(h, NULL);
 }
 
 void del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {

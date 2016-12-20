@@ -337,14 +337,13 @@ public:
         }
     }
 
-    static ENGINE_ERROR_CODE flush(ENGINE_HANDLE* handle, const void* cookie,
-                                   time_t when) {
+    static ENGINE_ERROR_CODE flush(ENGINE_HANDLE* handle, const void* cookie) {
         // Flush is a little different - it often returns EWOULDBLOCK, and
         // notify_io_complete() just tells the server it can issue it's *next*
         // command (i.e. no need to re-flush). Therefore just pass Flush
         // straight through for now.
         EWB_Engine* ewb = to_engine(handle);
-        return ewb->real_engine->flush(ewb->real_handle, cookie, when);
+        return ewb->real_engine->flush(ewb->real_handle, cookie);
     }
 
     static ENGINE_ERROR_CODE get_stats(ENGINE_HANDLE* handle,

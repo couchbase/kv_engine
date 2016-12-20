@@ -177,8 +177,7 @@ static ENGINE_ERROR_CODE store(ENGINE_HANDLE* handle,
 }
 
 static ENGINE_ERROR_CODE flush(ENGINE_HANDLE* handle,
-                               const void* cookie,
-                               time_t when)
+                               const void* cookie)
 {
     return ENGINE_FAILED;
 }

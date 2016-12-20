@@ -242,12 +242,11 @@ static ENGINE_ERROR_CODE mock_store(ENGINE_HANDLE* handle,
 }
 
 static ENGINE_ERROR_CODE mock_flush(ENGINE_HANDLE* handle,
-                                    const void* cookie, time_t when) {
+                                    const void* cookie) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->flush,
                                get_engine_from_handle(handle),
-                               static_cast<const void*>(c),
-                               when);
+                               static_cast<const void*>(c));
 
     ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
 

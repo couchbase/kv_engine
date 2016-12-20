@@ -343,12 +343,11 @@ extern "C" {
          *
          * @param handle the engine handle
          * @param cookie The cookie provided by the frontend
-         * @param when time at which the flush should take effect
          *
          * @return ENGINE_SUCCESS if all goes well
          */
         ENGINE_ERROR_CODE (*flush)(ENGINE_HANDLE* handle,
-                                   const void* cookie, time_t when);
+                                   const void* cookie);
 
         /*
          * Statistics

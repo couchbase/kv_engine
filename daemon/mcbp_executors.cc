@@ -3161,7 +3161,7 @@ static void flush_executor(McbpConnection* c, void*) {
 
     LOG_NOTICE(c, "%u: flush", c->getId());
 
-    ret = c->getBucketEngine()->flush(c->getBucketEngineAsV0(), c->getCookie(), 0);
+    ret = c->getBucketEngine()->flush(c->getBucketEngineAsV0(), c->getCookie());
     ret = c->remapErrorCode(ret);
 
     switch (ret) {

@@ -56,7 +56,7 @@ extern "C" {
                                    ENGINE_STORE_OPERATION operation,
                                    DocumentState document_state);
     static ENGINE_ERROR_CODE flush(ENGINE_HANDLE* handle,
-                                   const void* cookie, time_t when);
+                                   const void* cookie);
     static ENGINE_ERROR_CODE unknown_command(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              protocol_binary_request_header *request,
@@ -707,17 +707,13 @@ public:
         return ENGINE_NOT_STORED;
     }
 
-    ENGINE_ERROR_CODE flush(const void* cookie, time_t when) {
+    ENGINE_ERROR_CODE flush(const void* cookie) {
         // if ((random() % 10) == 1) {
         //     return dispatchNotification(cookie);
         // }
 
-        if (when == 0) {
-            kvstore.flush();
-            return ENGINE_SUCCESS;
-        }
-
-        return ENGINE_ENOTSUP;
+        kvstore.flush();
+        return ENGINE_SUCCESS;
     }
 
     ENGINE_ERROR_CODE unknownCommand(const void* cookie,
@@ -965,9 +961,9 @@ static ENGINE_ERROR_CODE store(ENGINE_HANDLE* handle,
 }
 
 static ENGINE_ERROR_CODE flush(ENGINE_HANDLE* handle,
-                               const void* cookie, time_t when)
+                               const void* cookie)
 {
-    return getHandle(handle).flush(cookie, when);
+    return getHandle(handle).flush(cookie);
 }
 
 static ENGINE_ERROR_CODE unknown_command(ENGINE_HANDLE* handle,
