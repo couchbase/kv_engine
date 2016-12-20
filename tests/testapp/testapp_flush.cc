@@ -70,6 +70,7 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         ::testing::PrintToStringParamName());
 
 TEST_P(FlushTest, Flush) {
+    TESTAPP_SKIP_IF_UNSUPPORTED(PROTOCOL_BINARY_CMD_FLUSH);
     BinprotGenericCommand command(PROTOCOL_BINARY_CMD_FLUSH);
     BinprotResponse response;
     conn->executeCommand(command, response);
@@ -78,6 +79,7 @@ TEST_P(FlushTest, Flush) {
 }
 
 TEST_P(FlushTest, FlushQ) {
+    TESTAPP_SKIP_IF_UNSUPPORTED(PROTOCOL_BINARY_CMD_FLUSH);
     BinprotGenericCommand command(PROTOCOL_BINARY_CMD_FLUSHQ);
     BinprotResponse response;
     conn->sendCommand(command);
@@ -85,6 +87,7 @@ TEST_P(FlushTest, FlushQ) {
 }
 
 TEST_P(FlushTest, FlushWithExtlen) {
+    TESTAPP_SKIP_IF_UNSUPPORTED(PROTOCOL_BINARY_CMD_FLUSH);
     BinprotGenericCommand command(PROTOCOL_BINARY_CMD_FLUSH);
     command.setExtrasValue(uint32_t(htonl(0)));
 
@@ -96,6 +99,7 @@ TEST_P(FlushTest, FlushWithExtlen) {
 }
 
 TEST_P(FlushTest, FlushQWithExtlen) {
+    TESTAPP_SKIP_IF_UNSUPPORTED(PROTOCOL_BINARY_CMD_FLUSH);
     BinprotGenericCommand command(PROTOCOL_BINARY_CMD_FLUSHQ);
     BinprotResponse response;
     command.setExtrasValue(static_cast<uint32_t>(htonl(0)));
@@ -105,6 +109,7 @@ TEST_P(FlushTest, FlushQWithExtlen) {
 }
 
 TEST_P(FlushTest, DelayedFlushNotSupported) {
+    TESTAPP_SKIP_IF_UNSUPPORTED(PROTOCOL_BINARY_CMD_FLUSH);
     BinprotGenericCommand command;
     BinprotResponse response;
 

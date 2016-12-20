@@ -383,6 +383,7 @@ TEST_P(McdTestappTest, SubdocGet_BinaryRaw) {
                            getConnection());
 }
 TEST_P(McdTestappTest, SubdocGet_BinaryCompressed) {
+    TESTAPP_SKIP_IF_NO_COMPRESSION();
     test_subdoc_get_binary(
             /*compress*/ true, PROTOCOL_BINARY_CMD_SUBDOC_GET, getConnection());
 }
@@ -393,6 +394,7 @@ TEST_P(McdTestappTest, SubdocExists_BinaryRaw) {
                            getConnection());
 }
 TEST_P(McdTestappTest, SubdocExists_BinaryCompressed) {
+    TESTAPP_SKIP_IF_NO_COMPRESSION();
     test_subdoc_get_binary(/*compress*/ true,
                            PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                            getConnection());
@@ -455,6 +457,7 @@ TEST_P(McdTestappTest, SubdocGet_ArraySimpleRaw) {
                                    PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
 TEST_P(McdTestappTest, SubdocGet_ArraySimpleCompressed) {
+    TESTAPP_SKIP_IF_NO_COMPRESSION();
     test_subdoc_fetch_array_simple(/*compressed*/true,
                                    PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
@@ -464,6 +467,7 @@ TEST_P(McdTestappTest, SubdocExists_ArraySimpleRaw) {
                                    PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
 TEST_P(McdTestappTest, SubdocExists_ArraySimpleCompressed) {
+    TESTAPP_SKIP_IF_NO_COMPRESSION();
     test_subdoc_fetch_array_simple(/*compressed*/true,
                                    PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
@@ -507,6 +511,7 @@ TEST_P(McdTestappTest, SubdocGet_DictSimpleRaw) {
                                   PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
 TEST_P(McdTestappTest, SubdocGet_DictSimpleCompressed) {
+    TESTAPP_SKIP_IF_NO_COMPRESSION();
     test_subdoc_fetch_dict_simple(/*compressed*/true,
                                   PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
@@ -516,6 +521,7 @@ TEST_P(McdTestappTest, SubdocExists_DictSimpleRaw) {
                                   PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
 TEST_P(McdTestappTest, SubdocExists_DictSimpleCompressed) {
+    TESTAPP_SKIP_IF_NO_COMPRESSION();
     test_subdoc_fetch_dict_simple(/*compressed*/true,
                                   PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
@@ -581,6 +587,7 @@ TEST_P(McdTestappTest, SubdocGet_DictNestedRaw) {
                                   PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
 TEST_P(McdTestappTest, SubdocGet_DictNestedCompressed) {
+    TESTAPP_SKIP_IF_NO_COMPRESSION();
     test_subdoc_fetch_dict_nested(/*compressed*/true,
                                   PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
@@ -589,6 +596,7 @@ TEST_P(McdTestappTest, SubdocExists_DictNestedRaw) {
                                   PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
 TEST_P(McdTestappTest, SubdocExists_DictNestedCompressed) {
+    TESTAPP_SKIP_IF_NO_COMPRESSION();
     test_subdoc_fetch_dict_nested(/*compressed*/true,
                                   PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
@@ -880,6 +888,7 @@ TEST_P(McdTestappTest, SubdocDictAdd_SimpleRaw) {
 }
 
 TEST_P(McdTestappTest, SubdocDictAdd_SimpleCompressed) {
+    TESTAPP_SKIP_IF_NO_COMPRESSION();
     test_subdoc_dict_add_simple(/*compress*/true,
                                 PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
 }
@@ -890,6 +899,7 @@ TEST_P(McdTestappTest, SubdocDictUpsert_SimpleRaw) {
 }
 
 TEST_P(McdTestappTest, SubdocDictUpsert_SimpleCompressed) {
+    TESTAPP_SKIP_IF_NO_COMPRESSION();
     test_subdoc_dict_add_simple(/*compress*/true,
                                 PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
 }
@@ -955,6 +965,7 @@ TEST_P(McdTestappTest, SubdocDictAdd_CasRaw) {
                              PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
 }
 TEST_P(McdTestappTest, SubdocDictAdd_CasCompressed) {
+    TESTAPP_SKIP_IF_NO_COMPRESSION();
     test_subdoc_dict_add_cas(/*compress*/true,
                              PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
 }
@@ -963,6 +974,7 @@ TEST_P(McdTestappTest, SubdocDictUpsert_CasRaw) {
                              PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
 }
 TEST_P(McdTestappTest, SubdocDictUpsert_CasCompressed) {
+    TESTAPP_SKIP_IF_NO_COMPRESSION();
     test_subdoc_dict_add_cas(/*compress*/true,
                              PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
 }
@@ -1091,6 +1103,7 @@ TEST_P(McdTestappTest, SubdocDelete_SimpleRaw) {
 }
 
 TEST_P(McdTestappTest, SubdocDelete_SimpleCompressed) {
+    TESTAPP_SKIP_IF_NO_COMPRESSION();
     test_subdoc_delete_simple(/*compress*/true);
 }
 

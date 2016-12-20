@@ -99,6 +99,9 @@ bool initialize_engine_map(char **msg, EXTENSION_LOGGER_DESCRIPTOR *logger)
         map[BucketType::Memcached] = createEngine("default_engine.so",
                                                   "create_instance",
                                                   logger);
+        map[BucketType::Couchstore] = createEngine("ep.so",
+                                                   "create_instance",
+                                                   logger);
         if (getenv("MEMCACHED_UNIT_TESTS") != NULL) {
             // The crash test just wants to create a coredump within the
             // crash_engine to ensure that breakpad successfuly creates
@@ -117,10 +120,6 @@ bool initialize_engine_map(char **msg, EXTENSION_LOGGER_DESCRIPTOR *logger)
             map[BucketType::EWouldBlock] = createEngine("ewouldblock_engine.so",
                                                         "create_instance",
                                                         logger);
-        } else {
-            map[BucketType::Couchstore] = createEngine("ep.so",
-                                                       "create_instance",
-                                                       logger);
         }
     } catch (const std::string &str) {
         *msg = cb_strdup(str.c_str());

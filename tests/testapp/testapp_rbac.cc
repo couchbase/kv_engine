@@ -107,6 +107,7 @@ TEST_P(RbacTest, ScrubNoAccess) {
 }
 
 TEST_P(RbacTest, Scrub) {
+    TESTAPP_SKIP_IF_UNSUPPORTED(PROTOCOL_BINARY_CMD_SCRUB);
     auto& c = dynamic_cast<MemcachedBinprotConnection&>(getAdminConnection());
 
     c.selectBucket("default");

@@ -140,7 +140,6 @@ TEST_P(RemoveTest, RemoveCasWildcard) {
     createDocument();
     auto deleted = conn.remove(name, 0);
     EXPECT_NE(info.cas, deleted.cas);
-    EXPECT_EQ(0xdeadbeef, deleted.vbucketuuid);
 }
 
 /**

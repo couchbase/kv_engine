@@ -18,6 +18,7 @@
 
 #include "utilities.h"
 #include "testapp_environment.h"
+#include "protocol/connection/client_mcbp_connection.h"
 
 #include <cJSON_utils.h>
 #include <fstream>
@@ -25,9 +26,152 @@
 #include <platform/strerror.h>
 #include <platform/memorymap.h>
 
-McdEnvironment::McdEnvironment(bool manageSSL_) : manageSSL(manageSSL_) {
+void TestBucketImpl::createEwbBucket(const std::string& name,
+                                     const std::string& plugin,
+                                     const std::string& config,
+                                     MemcachedConnection& conn) {
+    std::string cfg(plugin);
+    if (!config.empty()) {
+        cfg += ";" + config;
+    }
+    conn.createBucket(name, cfg, BucketType::EWouldBlock);
+}
+
+class DefaultBucketImpl : public TestBucketImpl {
+public:
+    void setUpBucket(const std::string& name,
+                     const std::string& config,
+                     MemcachedConnection& conn) override {
+        createEwbBucket(name, "default_engine.so", config, conn);
+    }
+
+    bool supportsOp(protocol_binary_command cmd) const override {
+        switch (cmd) {
+            case PROTOCOL_BINARY_CMD_DCP_OPEN:
+            case PROTOCOL_BINARY_CMD_DCP_ADD_STREAM:
+            case PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM:
+            case PROTOCOL_BINARY_CMD_DCP_STREAM_REQ:
+            case PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG:
+            case PROTOCOL_BINARY_CMD_DCP_STREAM_END:
+            case PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER:
+            case PROTOCOL_BINARY_CMD_DCP_MUTATION:
+            case PROTOCOL_BINARY_CMD_DCP_DELETION:
+            case PROTOCOL_BINARY_CMD_DCP_EXPIRATION:
+            case PROTOCOL_BINARY_CMD_DCP_FLUSH:
+            case PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE:
+            case PROTOCOL_BINARY_CMD_DCP_NOOP:
+            case PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT:
+            case PROTOCOL_BINARY_CMD_DCP_CONTROL:
+            case PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT:
+                return false;
+            case PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC:
+            case PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC:
+                return false;
+            default:
+                return true;
+        }
+    }
+
+    bool canStoreCompressedItems() const override {
+            return true;
+    }
+
+    size_t getMaximumDocSize() const override {
+        return 1024 * 1024;
+    }
+};
+
+class EpBucketImpl : public TestBucketImpl {
+public:
+    EpBucketImpl() {
+        // Cleanup any files from a previous run still on disk.
+        cb::io::rmrf(dbPath);
+    }
+
+    ~EpBucketImpl() {
+        // Cleanup any files created.
+        cb::io::rmrf(dbPath);
+    }
+
+    void setUpBucket(const std::string& name,
+                     const std::string& config,
+                     MemcachedConnection& conn) override {
+        createEwbBucket(name,
+                        "ep.so",
+                        "dbname=" + dbPath + "/" + name,
+                        conn);
+
+        auto& bconn = dynamic_cast<MemcachedBinprotConnection&>(conn);
+
+        BinprotGenericCommand cmd;
+        BinprotResponse resp;
+
+        cmd.setOp(PROTOCOL_BINARY_CMD_SELECT_BUCKET);
+        cmd.setKey(name);
+        bconn.executeCommand(cmd, resp);
+        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+
+        cmd.clear();
+        resp.clear();
+
+        cmd.setOp(PROTOCOL_BINARY_CMD_SET_VBUCKET);
+        cmd.setExtrasValue<uint32_t>(htonl(1));
+
+        bconn.executeCommand(cmd, resp);
+        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+
+        do {
+            cmd.clear();
+            resp.clear();
+            cmd.setOp(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
+            // Enable traffic
+            bconn.executeCommand(cmd, resp);
+        } while (resp.getStatus() == PROTOCOL_BINARY_RESPONSE_ETMPFAIL);
+
+        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    }
+
+    bool supportsOp(protocol_binary_command cmd ) const override {
+        switch (cmd) {
+        case PROTOCOL_BINARY_CMD_FLUSH:
+        case PROTOCOL_BINARY_CMD_FLUSHQ:
+            // TODO: Flush *is* supported by ep-engine, but it needs traffic
+            // disabling before it's permitted.
+        case PROTOCOL_BINARY_CMD_SCRUB:
+            return false;
+
+        default:
+            return true;
+        }
+    }
+
+    bool canStoreCompressedItems() const override {
+        return false;
+    }
+
+    size_t getMaximumDocSize() const override {
+        return 20 * 1024 * 1024;
+    }
+
+    /// Directory for any database files.
+    static const std::string dbPath;
+};
+const std::string EpBucketImpl::dbPath =
+        "mc_testapp." + std::to_string(cb_getpid());
+
+McdEnvironment::McdEnvironment(bool manageSSL_, std::string engineName)
+    : manageSSL(manageSSL_) {
     if (manageSSL) {
         initialize_openssl();
+    }
+
+    if (engineName == "default") {
+        testBucket = std::make_unique<DefaultBucketImpl>();
+    } else if (engineName == "ep") {
+        testBucket = std::make_unique<EpBucketImpl>();
+    } else {
+        throw std::invalid_argument("Unknown engine '" + engineName + "' "
+                  "Options are 'default' and 'ep'");
     }
 }
 

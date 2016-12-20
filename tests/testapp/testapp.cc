@@ -126,21 +126,47 @@ std::ostream& operator << (std::ostream& os, const Transport& t)
 
 void TestappTest::CreateTestBucket()
 {
-    static const std::string BUCKET_NAME("default");
-    static const std::string BUCKET_CONFIG(
-            "default_engine.so;keep_deleted=true");
-
     auto& conn = connectionMap.getConnection(Protocol::Memcached, false);
+
     // Reconnect to the server so we know we're on a "fresh" connetion
     // to the server (and not one that might have been catched by the
     // idle-timer, but not yet noticed on the client side)
     conn.reconnect();
     conn.authenticate("@admin", "password", "PLAIN");
 
-    conn.createBucket(BUCKET_NAME, BUCKET_CONFIG, BucketType::EWouldBlock);
+    mcd_env->getTestBucket().setUpBucket("default", "keep_deleted=true", conn);
 
     // Reconnect the object to avoid others to reuse the admin creds
     conn.reconnect();
+}
+
+void TestappTest::DeleteTestBucket() {
+    current_phase = phase_plain;
+    sock = connect_to_server_plain(port);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, sasl_auth("@admin",
+                                                          "password"));
+    union {
+        protocol_binary_request_delete_bucket request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+
+    size_t plen = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
+                                   PROTOCOL_BINARY_CMD_DELETE_BUCKET,
+                                   "default", strlen("default"),
+                                   NULL, 0);
+
+    safe_send(buffer.bytes, plen, false);
+    safe_recv_packet(&buffer, sizeof(buffer));
+
+    mcbp_validate_response_header(&buffer.response,
+                                  PROTOCOL_BINARY_CMD_DELETE_BUCKET,
+                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
+}
+
+TestBucketImpl& TestappTest::GetTestBucket()
+{
+    return mcd_env->getTestBucket();
 }
 
 // Per-test-case set-up.
@@ -165,27 +191,7 @@ void TestappTest::TearDownTestCase() {
     }
 
     if (server_pid != reinterpret_cast<pid_t>(-1)) {
-        current_phase = phase_plain;
-        sock = connect_to_server_plain(port);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, sasl_auth("@admin",
-                                                              "password"));
-        union {
-            protocol_binary_request_delete_bucket request;
-            protocol_binary_response_no_extras response;
-            char bytes[1024];
-        } buffer;
-
-        size_t plen = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                       PROTOCOL_BINARY_CMD_DELETE_BUCKET,
-                                       "default", strlen("default"),
-                                       NULL, 0);
-
-        safe_send(buffer.bytes, plen, false);
-        safe_recv_packet(&buffer, sizeof(buffer));
-
-        mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_DELETE_BUCKET,
-                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        DeleteTestBucket();
     }
     stop_memcached_server();
 }
@@ -1064,6 +1070,10 @@ bool safe_recv_packetT(T& info) {
     return ret;
 }
 
+/**
+ * Wrapper for a existing buffer which exposes an API suitable for use with
+ * safe_recv_packetT()
+ */
 struct StaticBufInfo {
     StaticBufInfo(void *buf_, size_t len_)
         : buf(reinterpret_cast<char*>(buf_)), len(len_) {
@@ -1212,8 +1222,10 @@ int main(int argc, char **argv) {
     }
 #endif
 
+    std::string engine_name("default");
+
     int cmd;
-    while ((cmd = getopt(argc, argv, "ve")) != EOF) {
+    while ((cmd = getopt(argc, argv, "veE:")) != EOF) {
         switch (cmd) {
         case 'v':
             memcached_verbose = true;
@@ -1221,21 +1233,28 @@ int main(int argc, char **argv) {
         case 'e':
             embedded_memcached_server = true;
             break;
+        case 'E':
+            engine_name.assign(optarg);
+            break;
         default:
             std::cerr << "Usage: " << argv[0] << " [-v] [-i]" << std::endl
                       << std::endl
                       << "  -v Verbose - Print verbose memcached output "
                       << "to stderr.\n" << std::endl
                       << "  -e Embedded - Run the memcached daemon in the "
-                      << "same process (for debugging only..)" << std::endl;
+                      << "same process (for debugging only..)" << std::endl
+                      << "  -E ENGINE engine type to use. <default|ep>"
+                      << std::endl;
             return 1;
         }
     }
+
     /*
      * If not running in embedded mode we need the McdEnvironment to manageSSL
      * initialization and shutdown.
      */
-    mcd_env = new McdEnvironment(!embedded_memcached_server);
+    mcd_env = new McdEnvironment(!embedded_memcached_server, engine_name);
+
     ::testing::AddGlobalTestEnvironment(mcd_env);
 
     cb_initialize_sockets();

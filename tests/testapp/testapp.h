@@ -66,6 +66,8 @@ extern SOCKET sock_ssl;
 // Set of HELLO features which are currently enabled.
 extern std::set<protocol_binary_hello_features_t> enabled_hello_features;
 
+class TestBucketImpl;
+
 // Base class for tests against just the "plain" socker (no SSL).
 class TestappTest : public ::testing::Test {
 public:
@@ -149,6 +151,12 @@ protected:
     // Create the bucket used for testing
     static void CreateTestBucket();
 
+    // Delete the bucket used for testing.
+    static void DeleteTestBucket();
+
+    // Get information about the bucket used for testing
+    static TestBucketImpl& GetTestBucket();
+
     /* Configure the ewouldblock error-injecting engine */
     static void ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
                                              const EWBEngineMode& mode,
@@ -182,6 +190,24 @@ protected:
     MemcachedConnection& prepare(MemcachedConnection& connection);
 
 };
+
+#define TESTAPP__DOSKIP(cond, reason) \
+    if ((cond)) { \
+        std::cerr \
+        << __FILE__ << ":" << __LINE__ << ": Skipping - '" \
+        << #cond << "' (" << reason << ")" << std::endl; \
+        return; \
+    }
+
+#define TESTAPP_SKIP_IF_UNSUPPORTED(op) \
+    do { TESTAPP__DOSKIP(!GetTestBucket().supportsOp(op), #op); } while (0)
+
+#define TESTAPP_SKIP_IF_SUPPORTED(op) \
+    do { TESTAPP__DOSKIP(GetTestBucket().supportsOp(op), #op); } while (0)
+
+#define TESTAPP_SKIP_IF_NO_COMPRESSION() \
+    do { TESTAPP__DOSKIP(!GetTestBucket().canStoreCompressedItems(), \
+                         "cannot store compressed items"); } while (0)
 
 // Test the various memcached binary protocol commands against a
 // external `memcached` process. Tests are parameterized to test both Plain and

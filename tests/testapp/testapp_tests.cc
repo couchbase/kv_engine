@@ -1805,6 +1805,7 @@ size_t compress_document(const char* data, size_t datalen, char** deflated) {
 }
 
 TEST_P(McdTestappTest, DatatypeCompressed) {
+    TESTAPP_SKIP_IF_NO_COMPRESSION();
     const char inflated[] = "aaaaaaaaabbbbbbbccccccdddddd";
     size_t inflated_len = strlen(inflated);
     char* deflated;
@@ -1825,6 +1826,7 @@ TEST_P(McdTestappTest, DatatypeCompressed) {
 }
 
 TEST_P(McdTestappTest, DatatypeCompressedJSON) {
+    TESTAPP_SKIP_IF_NO_COMPRESSION();
     const char inflated[] = "{ \"value\" : \"aaaaaaaaabbbbbbbccccccdddddd\" }";
     size_t inflated_len = strlen(inflated);
 
@@ -1969,12 +1971,12 @@ TEST_P(McdTestappTest, SessionCtrlToken) {
 }
 
 TEST_P(McdTestappTest, MB_10114) {
-    char buffer[512] = {0};
+    char value[100000] = {0};
     const char *key = "mb-10114";
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
-        char bytes[1024];
+        char bytes[100100];
     } send, receive;
     size_t len;
 
@@ -1985,7 +1987,7 @@ TEST_P(McdTestappTest, MB_10114) {
     do {
         len = mcbp_raw_command(send.bytes, sizeof(send.bytes),
                                PROTOCOL_BINARY_CMD_APPEND,
-                               key, strlen(key), buffer, sizeof(buffer));
+                               key, strlen(key), value, sizeof(value));
         safe_send(send.bytes, len, false);
         safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     } while (receive.response.message.header.response.status == PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -2004,6 +2006,10 @@ TEST_P(McdTestappTest, MB_10114) {
 }
 
 TEST_P(McdTestappTest, DCP_Noop) {
+    // TODO: For ep-engine (which supports DCP), actualy test it (instead of
+    // skipping the default-engine style test).
+    TESTAPP_SKIP_IF_SUPPORTED(PROTOCOL_BINARY_CMD_DCP_NOOP);
+
     union {
         protocol_binary_request_dcp_noop request;
         protocol_binary_response_dcp_noop response;
@@ -2037,6 +2043,10 @@ TEST_P(McdTestappTest, DCP_Noop) {
 }
 
 TEST_P(McdTestappTest, DCP_BufferAck) {
+    // TODO: For ep-engine (which supports DCP), actualy test it (instead of
+    // skipping the default-engine style test).
+    TESTAPP_SKIP_IF_SUPPORTED(PROTOCOL_BINARY_CMD_DCP_NOOP);
+
     union {
         protocol_binary_request_dcp_buffer_acknowledgement request;
         protocol_binary_response_dcp_noop response;
@@ -2082,6 +2092,10 @@ TEST_P(McdTestappTest, DCP_BufferAck) {
 }
 
 TEST_P(McdTestappTest, DCP_Control) {
+    // TODO: For ep-engine (which supports DCP), actualy test it (instead of
+    // skipping the default-engine style test).
+    TESTAPP_SKIP_IF_SUPPORTED(PROTOCOL_BINARY_CMD_DCP_NOOP);
+
     union {
         protocol_binary_request_dcp_control request;
         protocol_binary_response_dcp_control response;
@@ -2265,8 +2279,8 @@ TEST_P(McdTestappTest, SetHuge) {
 
 TEST_P(McdTestappTest, SetE2BIG) {
     test_set_huge_impl("test_set_e2big", PROTOCOL_BINARY_CMD_SET,
-                       PROTOCOL_BINARY_RESPONSE_E2BIG, false, 10,
-                       1024 * 1024);
+                       PROTOCOL_BINARY_RESPONSE_E2BIG, false, 1,
+                       GetTestBucket().getMaximumDocSize() + 1);
 }
 
 TEST_P(McdTestappTest, SetQHuge) {
@@ -2790,7 +2804,7 @@ bool get_topkeys_json_value(const std::string& key, int& count) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
-        char bytes[8192];
+        char bytes[10000];
     } buffer;
 
     size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),

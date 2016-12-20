@@ -19,6 +19,32 @@
 #include <cJSON_utils.h>
 #include <gtest/gtest.h>
 #include <string>
+#include <memcached/protocol_binary.h>
+
+class MemcachedConnection;
+
+/**
+ * The test bucket which tests are being run against.
+ */
+class TestBucketImpl {
+public:
+    virtual void setUpBucket(const std::string& name,
+                             const std::string& config,
+                             MemcachedConnection& conn) = 0;
+
+    virtual ~TestBucketImpl() {}
+
+    // Whether the given bucket type supports an opcode
+    virtual bool supportsOp(protocol_binary_command cmd) const = 0;
+    virtual bool canStoreCompressedItems() const = 0;
+    virtual size_t getMaximumDocSize() const = 0;
+
+protected:
+    static void createEwbBucket(const std::string& name,
+                                const std::string& plugin,
+                                const std::string& config,
+                                MemcachedConnection& conn);
+};
 
 /**
  * The test environment added to the Google Test Framework.
@@ -35,11 +61,13 @@ public:
      * constructor.  Therefore in this case we pass true into the McdEnvironment
      * constructor.
      *
-     * In embedded mode the memcached server is responsible for init/shutdown
-     * of OpenSSL and therefore in this case we pass false into the
-     * McdEnvironment constructor.
+     * @param manageSSL_ In embedded mode the memcached server is responsible
+     *                   for init/shutdown of OpenSSL and therefore in this
+     *                   case we pass false into the McdEnvironment constructor.
+     * @param engineName The name of the engine which memcached will be started
+     *                   with.
      */
-    McdEnvironment(bool manageSSL_);
+    McdEnvironment(bool manageSSL_, std::string engineName);
 
     ~McdEnvironment();
 
@@ -123,6 +151,13 @@ public:
      */
     void rewriteRbacFile();
 
+    /**
+     * @return The bucket type being tested.
+     */
+    TestBucketImpl& getTestBucket() {
+        return *testBucket;
+    }
+
 private:
     void SetupAuditFile();
 
@@ -139,6 +174,7 @@ private:
     unique_cJSON_ptr rbac_data;
     static char isasl_env_var[256];
     bool manageSSL;
+    std::unique_ptr<TestBucketImpl> testBucket;
 };
 
 extern McdEnvironment* mcd_env;
