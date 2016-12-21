@@ -74,7 +74,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::createNewItem() {
     ENGINE_ERROR_CODE ret;
     item* it;
     ret = bucket_allocate(&connection, &it, key,
-                          value.size(), oldItemInfo.info.flags,
+                          value.size(), 0,
                           ntohl(request.message.body.expiration),
                           PROTOCOL_BINARY_RAW_BYTES, vbucket);
 
