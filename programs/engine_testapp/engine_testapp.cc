@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <getopt.h>
 #include <map>
+#include <platform/make_unique.h>
 #include <regex>
 #include <string>
 #include <vector>
@@ -1100,7 +1101,7 @@ int main(int argc, char **argv) {
     const char *engine = NULL;
     const char *engine_args = NULL;
     const char *test_suite = NULL;
-    std::regex test_case_regex(".*");
+    std::unique_ptr<std::regex> test_case_regex;
     engine_test_t *testcases = NULL;
     OutputFormat output_format(OutputFormat::Text);
     cb_dlhandle_t handle;
@@ -1216,7 +1217,7 @@ int main(int argc, char **argv) {
             loop = true;
             break;
         case 'n':
-            test_case_regex = optarg;
+            test_case_regex = std::make_unique<std::regex>(optarg);
             break;
         case 'v' :
             verbose = true;
@@ -1353,7 +1354,8 @@ int main(int argc, char **argv) {
         bool need_newline = false;
         for (i = 0; testcases[i].name; i++) {
             int error;
-            if (!std::regex_search(testcases[i].name, test_case_regex)) {
+            if (test_case_regex && !std::regex_search(testcases[i].name,
+                                                      *test_case_regex)) {
                 continue;
             }
             if (!quiet) {
