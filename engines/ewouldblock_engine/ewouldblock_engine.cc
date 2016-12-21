@@ -62,6 +62,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <cstring>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -90,6 +91,9 @@ extern "C" {
 
 
 class EWB_Engine;
+
+// Mapping from wrapped handle to EWB handles.
+static std::map<ENGINE_HANDLE*, EWB_Engine*> engine_map;
 
 class NotificationThread : public Couchbase::Thread {
 public:
@@ -136,6 +140,31 @@ private:
     const uint32_t id;
     const std::string file;
 };
+
+static void register_callback(ENGINE_HANDLE *, ENGINE_EVENT_TYPE,
+                              EVENT_CALLBACK, const void *);
+
+static SERVER_HANDLE_V1 wrapped_api;
+static SERVER_HANDLE_V1 *real_api;
+static void init_wrapped_api(GET_SERVER_API fn) {
+    static bool init = false;
+    if (init) {
+        return;
+    }
+
+    init = true;
+    real_api = fn();
+    wrapped_api = *real_api;
+
+    // Overrides
+    static SERVER_CALLBACK_API callback = *wrapped_api.callback;
+    callback.register_callback = register_callback;
+    wrapped_api.callback = &callback;
+}
+
+static SERVER_HANDLE_V1 *get_wrapped_gsa() {
+    return &wrapped_api;
+}
 
 /** ewouldblock_engine class */
 class EWB_Engine : public ENGINE_HANDLE_V1 {
@@ -230,7 +259,7 @@ public:
             abort();
         }
 
-        if (!create_engine_instance(ewb->real_engine_ref, ewb->gsa, NULL,
+        if (!create_engine_instance(ewb->real_engine_ref, get_wrapped_gsa, NULL,
                                     &ewb->real_handle)) {
             logger->log(EXTENSION_LOG_WARNING, NULL,
                         "ERROR: EWB_Engine::initialize(): Failed create "
@@ -247,6 +276,9 @@ public:
         }
         ewb->real_engine =
                 reinterpret_cast<ENGINE_HANDLE_V1*>(ewb->real_handle);
+
+
+        engine_map[ewb->real_handle] = ewb;
         ENGINE_ERROR_CODE res = ewb->real_engine->initialize(
                 ewb->real_handle, real_engine_config.c_str());
 
@@ -903,6 +935,8 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     real_engine_ref(nullptr),
     notify_io_thread(new NotificationThread(*this))
 {
+    init_wrapped_api(gsa);
+
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = get_info;
     ENGINE_HANDLE_V1::initialize = initialize;
@@ -942,7 +976,23 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     notify_io_thread->start();
 }
 
+static void register_callback(ENGINE_HANDLE *eh, ENGINE_EVENT_TYPE type,
+                              EVENT_CALLBACK cb, const void *cb_data) {
+    const auto& p = engine_map.find(eh);
+    if (p == engine_map.end()) {
+        std::cerr << "Can't find EWB corresponding to " << std::hex << eh << std::endl;
+        for (const auto& pair : engine_map) {
+            std::cerr << "EH: " << std::hex << pair.first << " = EWB: " << std::hex << pair.second << std::endl;
+        }
+        abort();
+    }
+    cb_assert(p != engine_map.end());
+    auto wrapped_eh = reinterpret_cast<ENGINE_HANDLE*>(p->second);
+    real_api->callback->register_callback(wrapped_eh, type, cb, cb_data);
+}
+
 EWB_Engine::~EWB_Engine() {
+    engine_map.erase(real_handle);
     cb_free(real_engine_ref);
     stop_notification_thread = true;
     condvar.notify_all();
