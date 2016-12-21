@@ -43,6 +43,13 @@ public:
         return cas;
     }
 
+    void clear() {
+        opcode = PROTOCOL_BINARY_CMD_INVALID;
+        key.clear();
+        cas = 0;
+        vbucket = 0;
+    }
+
     /**
      * Encode the command to a buffer.
      * @param buf The buffer
@@ -204,6 +211,8 @@ public:
     BinprotGenericCommand(protocol_binary_command opcode) : BinprotCommandT() {
         setOp(opcode);
     }
+    BinprotGenericCommand() : BinprotCommandT() {
+    }
     BinprotGenericCommand& setValue(const std::string& value_) {
         value = value_;
         return *this;
@@ -211,6 +220,21 @@ public:
     BinprotGenericCommand& setExtras(const std::vector<uint8_t>& buf) {
         extras.assign(buf.begin(), buf.end());
         return *this;
+    }
+
+    // Use for setting a simple value as an extras
+    template <typename T>
+    BinprotGenericCommand& setExtrasValue(T value) {
+        std::vector<uint8_t> buf;
+        buf.resize(sizeof(T));
+        memcpy(buf.data(), &value, sizeof(T));
+        return setExtras(buf);
+    }
+
+    void clear() {
+        BinprotCommand::clear();
+        value.clear();
+        extras.clear();
     }
 
     virtual void encode(std::vector<uint8_t>& buf) const;
