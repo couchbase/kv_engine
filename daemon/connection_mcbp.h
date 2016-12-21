@@ -652,7 +652,7 @@ public:
                     ">(): context is not the requested type");
         }
         return *ret;
-    };
+    }
 
     /**
      * Get the command context which SHOULD be a steppable command context
