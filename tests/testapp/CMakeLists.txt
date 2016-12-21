@@ -24,6 +24,7 @@ list(APPEND TESTAPP_SOURCES
      testapp_environment.cc
      testapp_environment.h
      testapp_errmap.cc
+     testapp_flush.cc
      testapp_getset.cc
      testapp_lock.cc
      testapp_remove.cc
