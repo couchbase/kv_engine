@@ -46,6 +46,11 @@ enum class Transport {
     SslIpv6
 };
 
+namespace Testapp {
+const size_t MAX_CONNECTIONS = 1000;
+const size_t BACKLOG = 1000;
+}
+
 std::ostream& operator << (std::ostream& os, const Transport& t);
 std::string to_string(const Transport& transport);
 
@@ -53,6 +58,10 @@ std::string to_string(const Transport& transport);
 extern SOCKET sock;
 extern in_port_t port;
 extern pid_t server_pid;
+
+// Needed by testapp_tests
+extern in_port_t ssl_port;
+extern SOCKET sock_ssl;
 
 // Set of HELLO features which are currently enabled.
 extern std::set<protocol_binary_hello_features_t> enabled_hello_features;
@@ -79,6 +88,7 @@ protected:
     virtual void TearDown();
 
     static cJSON* generate_config(uint16_t ssl_port);
+    static cJSON* generate_config();
 
     static void start_memcached_server(cJSON* config);
 
@@ -241,11 +251,31 @@ void set_mutation_seqno_feature(bool enable);
 void safe_send(const void* buf, size_t len, bool hickup);
 void safe_send(const BinprotCommand& cmd, bool hickup);
 
+/* Receive the specified len into buf from memcached */
+bool safe_recv(void *buf, size_t len);
+
 /* Attempts to receive size bytes into buf. Returns true if successful.
  */
 bool safe_recv_packet(void *buf, size_t size);
 bool safe_recv_packet(std::vector<uint8_t>& buf);
 bool safe_recv_packet(BinprotResponse& resp);
+
+/* Whether receiving an EOF during a read is considered an error */
+void set_allow_closed_read(bool enabled);
+
+/* The opposite of safe_recv. Simply tries to read from the socket (will use
+ * SSL if the socket is SSL configured.
+ */
+ssize_t phase_recv(void *buf, size_t len);
+
+/* Whether the current socket is SSL */
+bool sock_is_ssl();
+
+SOCKET create_connect_plain_socket(in_port_t port);
+
+time_t get_server_start_time();
+
+std::string CERTIFICATE_PATH(const std::string& in);
 
 /**
  * Combines safe_send and safe_recv_packet

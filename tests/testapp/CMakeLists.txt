@@ -30,6 +30,7 @@ list(APPEND TESTAPP_SOURCES
      testapp_subdoc.cc
      testapp_subdoc_multipath.cc
      testapp_subdoc_perf.cc
+     testapp_tests.cc
      testapp_timeout.cc
      testapp_xattr.cc
      testapp_xattr.h)
