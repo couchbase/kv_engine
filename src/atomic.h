@@ -347,6 +347,17 @@ public:
         return result;
     }
 
+    bool compare_exchange_strong(T& expected, T desired,
+                                 std::memory_order order =
+                                      std::memory_order_seq_cst ) {
+        std::lock_guard<std::mutex> lock(stderr_mutex);
+        std::cerr << "LoggedAtomic[" << this << "]::compare_exchange_strong("
+                  << "expected:" << expected << ", desired:) = " << desired;
+        auto result = value.compare_exchange_strong(expected, desired, order);
+        std::cerr << result << std::endl;
+        return result;
+    }
+
     T fetch_add(T arg,
                 std::memory_order order = std::memory_order_seq_cst ) {
         std::lock_guard<std::mutex> lock(stderr_mutex);
@@ -363,6 +374,14 @@ public:
         std::cerr << "LoggedAtomic[" << this << "]::fetch_sub(" << arg
                   << "): " << result << std::endl;
         return value.load();
+    }
+
+    T& operator++() {
+        std::lock_guard<std::mutex> lock(stderr_mutex);
+        ++value;
+        std::cerr << "LoggedAtomic[" << this << "]::pre-increment: "
+                  << value << std::endl;
+        return value;
     }
 
 protected:
