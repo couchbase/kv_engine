@@ -62,37 +62,37 @@ typedef struct _hash_key {
     hash_key_sized key_storage;
 } hash_key;
 
-static CB_INLINE uint8_t* hash_key_get_key(const hash_key* key) {
+static inline uint8_t* hash_key_get_key(const hash_key* key) {
     return (uint8_t*)key->header.full_key;
 }
 
-static CB_INLINE bucket_id_t hash_key_get_bucket_index(const hash_key* key) {
+static inline bucket_id_t hash_key_get_bucket_index(const hash_key* key) {
     return key->header.full_key->bucket_index;
 }
 
-static CB_INLINE void hash_key_set_bucket_index(hash_key* key,
+static inline void hash_key_set_bucket_index(hash_key* key,
                                              bucket_id_t bucket_index) {
     key->header.full_key->bucket_index = bucket_index;
 }
 
-static CB_INLINE uint16_t hash_key_get_key_len(const hash_key* key) {
+static inline uint16_t hash_key_get_key_len(const hash_key* key) {
     return key->header.len;
 }
 
-static CB_INLINE void hash_key_set_len(hash_key* key, uint16_t len) {
+static inline void hash_key_set_len(hash_key* key, uint16_t len) {
     key->header.len = len;
 }
 
-static CB_INLINE uint8_t* hash_key_get_client_key(const hash_key* key) {
+static inline uint8_t* hash_key_get_client_key(const hash_key* key) {
     return key->header.full_key->client_key;
 }
 
-static CB_INLINE uint16_t hash_key_get_client_key_len(const hash_key* key) {
+static inline uint16_t hash_key_get_client_key_len(const hash_key* key) {
     return hash_key_get_key_len(key) -
            sizeof(key->header.full_key->bucket_index);
 }
 
-static CB_INLINE void hash_key_set_client_key(hash_key* key,
+static inline void hash_key_set_client_key(hash_key* key,
                                            const void* client_key,
                                            const ssize_t client_key_len) {
     memcpy(key->header.full_key->client_key, client_key, client_key_len);
@@ -102,7 +102,7 @@ static CB_INLINE void hash_key_set_client_key(hash_key* key,
  * return the bytes needed to store the hash_key structure
  * in a single contiguous allocation.
  */
-static CB_INLINE size_t hash_key_get_alloc_size(const hash_key* key) {
+static inline size_t hash_key_get_alloc_size(const hash_key* key) {
     return offsetof(hash_key, key_storage) + hash_key_get_key_len(key);
 }
 

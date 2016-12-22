@@ -9,16 +9,8 @@
 #endif
 
 #ifdef WIN32
-/*
-** From https://msdn.microsoft.com/en-us/library/z8y1yy88.aspx:
-**
-** The inline keyword is available only in C++. The __inline and
-** __forceinline keywords are available in both C and C++.
-*/
-#define CB_INLINE __inline
 #include <platform/platform.h>
 #else
-#define CB_INLINE inline
 #include <sys/uio.h>
 #endif
 

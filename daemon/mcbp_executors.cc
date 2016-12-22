@@ -3909,7 +3909,7 @@ static void process_bin_packet(McbpConnection* c) {
 }
 
 
-static CB_INLINE bool is_initialized(McbpConnection* c, uint8_t opcode) {
+static inline bool is_initialized(McbpConnection* c, uint8_t opcode) {
     if (c->isAdmin() || is_server_initialized()) {
         return true;
     }
