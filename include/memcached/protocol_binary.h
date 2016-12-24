@@ -456,7 +456,6 @@ extern "C"
         /* Subdoc additions for Spock: */
         PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT = 0xd2,
 
-
         /* Scrub the data */
         PROTOCOL_BINARY_CMD_SCRUB = 0xf0,
         /* Refresh the ISASL data */
@@ -471,6 +470,16 @@ extern "C"
 
         /* ns_server - memcached internal communication */
         PROTOCOL_BINARY_CMD_INIT_COMPLETE = 0xf6,
+
+        /*
+         * Command used to instruct the ewouldblock engine. This command
+         * is used by the unit test suite to mock the underlying engines, and
+         * should *not* be used in production (note that the none of the
+         * underlying engines know of this command so _if_ it is used in
+         * production you'll get an error message back. It is listed here
+         * to avoid people using the opcode for anything else).
+         */
+        PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL = 0xfd,
 
         /* get error code mappings */
         PROTOCOL_BINARY_CMD_GET_ERROR_MAP = 0xfe,
@@ -2035,6 +2044,27 @@ using protocol_binary_hello_features_t = mcbp::Feature;
      * at the specified key.
      */
     typedef protocol_binary_request_no_extras protocol_binary_request_get_keys;
+
+    /**
+     * Message format for PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL
+     *
+     * See engines/ewouldblock_engine for more information.
+     */
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                uint32_t mode; // See EWB_Engine_Mode
+                uint32_t value;
+                uint32_t inject_error; // ENGINE_ERROR_CODE to inject.
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) +
+                      sizeof(uint32_t) +
+                      sizeof(uint32_t) +
+                      sizeof(uint32_t)];
+    } protocol_binary_request_ewb_ctl;
+    typedef protocol_binary_response_no_extras protocol_binary_response_ewb_ctl;
 
     /**
      * Message format for PROTOCOL_BINARY_CMD_GET_ERRORMAP

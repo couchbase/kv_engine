@@ -294,7 +294,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
         // The opcode used to set the clock by our extension
         setup(protocol_binary_command(0xe3), empty);
         // The opcode used by ewouldblock
-        setup(protocol_binary_command(0xeb), empty);
+        setup(protocol_binary_command(PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL), empty);
         // We have a unit tests that tries to fetch this opcode to detect
         // that we don't crash (we used to have an array which was too
         // small ;-)

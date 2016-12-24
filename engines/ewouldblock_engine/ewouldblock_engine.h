@@ -27,34 +27,8 @@
 
 #include <memcached/protocol_binary.h>
 
-/** Binary protocol command used to control this engine. */
-const uint8_t PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL = 0xeb;
-
-extern "C" {
-    /**
-     * Definition of the packet used to control this engine:
-     */
-    typedef union {
-        struct {
-            protocol_binary_request_header header;
-            struct {
-                uint32_t mode; // See EWB_Engine_Mode
-                uint32_t value;
-                uint32_t inject_error; // ENGINE_ERROR_CODE to inject.
-            } body;
-        } message;
-        uint8_t bytes[sizeof(protocol_binary_request_header) +
-                      sizeof(uint32_t) +
-                      sizeof(uint32_t) +
-                      sizeof(uint32_t)];
-    } request_ewouldblock_ctl;
-
-    /**
-     * Definition of the packet returned by ewouldblock_ctl requests.
-     */
-    typedef protocol_binary_response_no_extras response_ewouldblock_ctl;
-}
-
+using request_ewouldblock_ctl = protocol_binary_request_ewb_ctl;
+using response_ewouldblock_ctl = protocol_binary_response_ewb_ctl;
 
 // The mode the engine is currently operating in. Determines when it will
 // inject EWOULDBLOCK instead of the real return code.
