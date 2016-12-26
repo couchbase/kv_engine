@@ -471,6 +471,11 @@ extern "C"
         /* ns_server - memcached internal communication */
         PROTOCOL_BINARY_CMD_INIT_COMPLETE = 0xf6,
 
+        /**
+         * Command used by our test application to mock with gettimeofday.
+         */
+        PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY = 0xfc,
+
         /*
          * Command used to instruct the ewouldblock engine. This command
          * is used by the unit test suite to mock the underlying engines, and
@@ -2044,6 +2049,25 @@ using protocol_binary_hello_features_t = mcbp::Feature;
      * at the specified key.
      */
     typedef protocol_binary_request_no_extras protocol_binary_request_get_keys;
+
+    /**
+     * Definition of the packet used by adjust timeofday
+     */
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                uint64_t offset;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 8];
+    } protocol_binary_adjust_time;
+
+    /**
+     * Definition of the packet returned by adjust_timeofday
+     */
+    typedef protocol_binary_response_no_extras protocol_binary_adjust_time_response;
+
 
     /**
      * Message format for PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL

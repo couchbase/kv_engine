@@ -19,7 +19,6 @@
 #include "extensions/protocol_extension.h"
 #include <memcached/util.h>
 #include <platform/platform.h>
-#include "extensions/protocol/testapp_extension.h"
 
 static uint8_t adjust_timeofday_command = PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY;
 

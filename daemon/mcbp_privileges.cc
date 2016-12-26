@@ -292,13 +292,13 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
 
     if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {
         // The opcode used to set the clock by our extension
-        setup(protocol_binary_command(0xe3), empty);
+        setup(protocol_binary_command(PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY), empty);
         // The opcode used by ewouldblock
         setup(protocol_binary_command(PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL), empty);
         // We have a unit tests that tries to fetch this opcode to detect
         // that we don't crash (we used to have an array which was too
         // small ;-)
-        setup(protocol_binary_command(0xff), empty);
+        setup(protocol_binary_command(PROTOCOL_BINARY_CMD_INVALID), empty);
     }
 
 }

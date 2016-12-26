@@ -19,7 +19,6 @@
 #include <array>
 #include <cbsasl/cbsasl.h>
 #include <engines/ewouldblock_engine/ewouldblock_engine.h>
-#include <extensions/protocol/testapp_extension.h>
 #include <iostream>
 #include <iterator>
 #include <libmcbp/mcbp.h>

@@ -20,7 +20,6 @@
 #include "client_mcbp_connection.h"
 
 #include <cbsasl/cbsasl.h>
-#include <extensions/protocol/testapp_extension.h>
 #include <iostream>
 #include <libgreenstack/Greenstack.h>
 #include <memcached/protocol_binary.h>

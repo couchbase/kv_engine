@@ -39,7 +39,6 @@
 #include <memcached/util.h>
 #include <memcached/config_parser.h>
 #include <cbsasl/cbsasl.h>
-#include "extensions/protocol/testapp_extension.h"
 #include <platform/cb_malloc.h>
 #include <platform/platform.h>
 #include <fstream>
