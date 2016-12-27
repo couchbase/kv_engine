@@ -37,20 +37,22 @@ std::string to_string(const TransportProtocols& transport) {
     switch (transport) {
     case TransportProtocols::McbpPlain:
         return "Mcbp";
-    case TransportProtocols::GreenstackPlain:
-        return "Greenstack";
     case TransportProtocols::McbpIpv6Plain:
         return "McbpIpv6";
-    case TransportProtocols::GreenstackIpv6Plain:
-        return "GreenstackIpv6";
     case TransportProtocols::McbpSsl:
         return "McbpSsl";
-    case TransportProtocols::GreenstackSsl:
-        return "GreenstackSsl";
     case TransportProtocols::McbpIpv6Ssl:
         return "McbpIpv6Ssl";
+#ifdef ENABLE_GREENSTACK
+    case TransportProtocols::GreenstackPlain:
+        return "Greenstack";
+    case TransportProtocols::GreenstackIpv6Plain:
+        return "GreenstackIpv6";
+    case TransportProtocols::GreenstackSsl:
+        return "GreenstackSsl";
     case TransportProtocols::GreenstackIpv6Ssl:
         return "GreenstackIpv6Ssl";
+#endif
     }
     throw std::logic_error("Unknown transport");
 #endif
@@ -64,8 +66,13 @@ MemcachedConnection& TestappClientTest::prepare(MemcachedConnection& connection)
         c.setMutationSeqnoSupport(true);
         c.setXerrorSupport(true);
     } else {
+#ifdef ENABLE_GREENSTACK
         auto& c = dynamic_cast<MemcachedGreenstackConnection&>(connection);
         c.hello("memcached_testapp", "1,0", "BucketTest");
+#else
+        throw std::logic_error(
+            "TestappClientTest::prepare: built without Greenstack support");
+#endif
     }
     return connection;
 }
@@ -75,27 +82,29 @@ MemcachedConnection& TestappClientTest::getConnection() {
     case TransportProtocols::McbpPlain:
         return prepare(connectionMap.getConnection(Protocol::Memcached,
                                                    false, AF_INET));
-    case TransportProtocols::GreenstackPlain:
-        return prepare(connectionMap.getConnection(Protocol::Greenstack,
-                                                   false, AF_INET));
     case TransportProtocols::McbpIpv6Plain:
         return prepare(connectionMap.getConnection(Protocol::Memcached,
-                                                   false, AF_INET6));
-    case TransportProtocols::GreenstackIpv6Plain:
-        return prepare(connectionMap.getConnection(Protocol::Greenstack,
                                                    false, AF_INET6));
     case TransportProtocols::McbpSsl:
         return prepare(connectionMap.getConnection(Protocol::Memcached,
                                                    true, AF_INET));
-    case TransportProtocols::GreenstackSsl:
-        return prepare(connectionMap.getConnection(Protocol::Greenstack,
-                                                   true, AF_INET));
     case TransportProtocols::McbpIpv6Ssl:
         return prepare(connectionMap.getConnection(Protocol::Memcached,
                                                    true, AF_INET6));
+#ifdef ENABLE_GREENSTACK
+    case TransportProtocols::GreenstackPlain:
+        return prepare(connectionMap.getConnection(Protocol::Greenstack,
+                                                   false, AF_INET));
+    case TransportProtocols::GreenstackIpv6Plain:
+        return prepare(connectionMap.getConnection(Protocol::Greenstack,
+                                                   false, AF_INET6));
+    case TransportProtocols::GreenstackSsl:
+        return prepare(connectionMap.getConnection(Protocol::Greenstack,
+                                                   true, AF_INET));
     case TransportProtocols::GreenstackIpv6Ssl:
         return prepare(connectionMap.getConnection(Protocol::Greenstack,
                                                    true, AF_INET6));
+#endif
     }
     throw std::logic_error("Unknown transport");
 }

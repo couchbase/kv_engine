@@ -244,8 +244,13 @@ int main(int argc, char** argv) {
 
     std::unique_ptr<MemcachedConnection> connection;
     if (greenstack) {
+#ifdef ENABLE_GEENSTACK
         connection.reset(new MemcachedGreenstackConnection(host, port,
                                                            AF_UNSPEC, secure));
+#else
+        std::cerr << "Build without support for greenstack" << std::endl;
+        exit(EXIT_FAILURE);
+#endif
     } else {
         connection.reset(new MemcachedBinprotConnection(host, port,
                                                         AF_UNSPEC, secure));

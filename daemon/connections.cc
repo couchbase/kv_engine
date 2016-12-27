@@ -438,7 +438,12 @@ static Connection *allocate_connection(SOCKET sfd,
             ret = new McbpConnection(sfd, base, interface);
             break;
         case Protocol::Greenstack:
+#ifdef ENABLE_GREENSTACK
             ret = new GreenstackConnection(sfd, base, interface);
+#else
+            throw std::logic_error(
+                "allocate_connection: server built without support for Greenstack");
+#endif
         }
 
         std::lock_guard<std::mutex> lock(connections.mutex);

@@ -1,7 +1,14 @@
+IF (MEMCACHED_USE_GREENSTACK)
+    LIST(APPEND MEMCACHED_GREENSTACK_SRC
+         testapp_greenstack.cc
+         testapp_greenstack.h)
+ENDIF (MEMCACHED_USE_GREENSTACK)
+
 list(APPEND TESTAPP_SOURCES
      ${Memcached_SOURCE_DIR}/daemon/ssl_utils.cc
      ${Memcached_SOURCE_DIR}/daemon/ssl_utils.h
      ${Memcached_SOURCE_DIR}/utilities/subdoc_encoder.cc
+     ${MEMCACHED_GREENSTACK_SRC}
      testapp.cc
      testapp.h
      testapp_arithmetic.cc
@@ -17,8 +24,6 @@ list(APPEND TESTAPP_SOURCES
      testapp_environment.h
      testapp_errmap.cc
      testapp_getset.cc
-     testapp_greenstack.cc
-     testapp_greenstack.h
      testapp_remove.cc
      testapp_require_init.cc
      testapp_sasl.cc
@@ -62,7 +67,6 @@ TARGET_LINK_LIBRARIES(memcached_testapp
                       mcutils
                       mc_client_connection
                       cbsasl
-                      greenstack
                       cJSON
                       platform
                       dirutils
@@ -135,10 +139,11 @@ ADD_TEST(NAME memcached-connection-timeout-tests
          COMMAND memcached_testapp --gtest_filter=ConnectionTimeoutTest.*)
 
 
-#Disabled while making greenstack use bufferevents
-#ADD_TEST(NAME memcached-greenstack-tests
-#        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-#        COMMAND memcached_testapp --gtest_filter=*Greenstack*)
+IF (MEMCACHED_USE_GREENSTACK)
+   ADD_TEST(NAME memcached-greenstack-tests
+            WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+            COMMAND memcached_testapp --gtest_filter=*Greenstack*)
+ENDIF(MEMCACHED_USE_GREENSTACK)
 
 # For perf tests we also want GTest to output XML so we can plot the
 # results in Jenkins.

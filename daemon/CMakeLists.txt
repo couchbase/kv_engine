@@ -34,8 +34,18 @@ IF (HAVE_LIBNUMA)
     SET(NUMA_LIBRARIES numa)
 ENDIF ()
 
+IF (MEMCACHED_USE_GREENSTACK)
+    LIST(APPEND MEMCACHED_EXTRA_LIBS greenstack)
+    LIST(APPEND MEMCACHED_GREENSTACK_SRC
+         greenstack.cc
+         greenstack.h
+         connection_greenstack.cc
+         connection_greenstack.h)
+ENDIF (MEMCACHED_USE_GREENSTACK)
+
 ADD_LIBRARY(memcached_daemon STATIC
             ${BREAKPAD_SRCS}
+            ${MEMCACHED_GREENSTACK_SRC}
             ${Memcached_SOURCE_DIR}/utilities/protocol2text.cc
             ${Memcached_SOURCE_DIR}/utilities/string_utilities.cc
             ${Memcached_SOURCE_DIR}/utilities/terminate_handler.cc
@@ -51,8 +61,6 @@ ADD_LIBRARY(memcached_daemon STATIC
             config_util.h
             connection.cc
             connection.h
-            connection_greenstack.cc
-            connection_greenstack.h
             connection_listen.cc
             connection_listen.h
             connection_mcbp.cc
@@ -70,8 +78,6 @@ ADD_LIBRARY(memcached_daemon STATIC
             executor.h
             executorpool.cc
             executorpool.h
-            greenstack.cc
-            greenstack.h
             ioctl.cc
             ioctl.h
             libevent_locking.cc
@@ -166,7 +172,6 @@ TARGET_LINK_LIBRARIES(memcached_daemon
                       auditd
                       extmeta
                       mcd_util
-                      greenstack
                       cbsasl
                       cbcompress
                       platform
