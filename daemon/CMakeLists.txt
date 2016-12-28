@@ -169,6 +169,7 @@ TARGET_LINK_LIBRARIES(memcached_daemon
                       mcd_util
                       cbsasl
                       cbcompress
+                      engine_utilities
                       platform
                       cJSON
                       JSON_checker
