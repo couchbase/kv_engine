@@ -28,6 +28,8 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${phosphor_SOURCE_DIR}/include
                            ${CMAKE_CURRENT_BINARY_DIR})
 
+INCLUDE_DIRECTORIES(AFTER ${Memcached_BINARY_DIR}/include)
+
 IF (EP_USE_FORESTDB)
     INCLUDE_DIRECTORIES(AFTER ${ForestDB_SOURCE_DIR}/include)
     SET(FOREST_KVSTORE_SOURCE src/forest-kvstore/forest-kvstore.cc)
