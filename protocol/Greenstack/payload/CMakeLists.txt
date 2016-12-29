@@ -8,6 +8,7 @@ macro(Flatbuffers)
                                   ${CMAKE_CURRENT_SOURCE_DIR}/${ARGV0}.fbs
                       DEPENDS
                          ${CMAKE_CURRENT_SOURCE_DIR}/${ARGV0}.fbs
+                         ${FLATC}
                       COMMENT "Generating code for ${ARGV0}")
     list(APPEND FLATBUFFER_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/Greenstack/payload/${ARGV0}_generated.h")
 endmacro(Flatbuffers)
