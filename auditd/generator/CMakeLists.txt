@@ -5,11 +5,11 @@ TARGET_LINK_LIBRARIES(auditevent_generator cJSON platform)
 # When we're running the commit validation for memcached we don't
 # download all of the external modules so we'll just use a
 # subset of the audit descriptors.
-IF (DEFINED COUCHBASE_KV_COMMIT_VALIDATION)
+IF (COUCHBASE_KV_COMMIT_VALIDATION)
     SET(MODULE_DESCRIPTION ${Memcached_SOURCE_DIR}/auditd/etc/kv_commit_validation_module_descriptors.json)
 ELSE ()
     SET(MODULE_DESCRIPTION ${Memcached_SOURCE_DIR}/auditd/etc/module_descriptors.json)
-ENDIF (DEFINED COUCHBASE_KV_COMMIT_VALIDATION)
+ENDIF (COUCHBASE_KV_COMMIT_VALIDATION)
 
 
 ADD_CUSTOM_COMMAND(OUTPUT
