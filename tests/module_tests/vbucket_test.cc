@@ -25,16 +25,6 @@
 #include "makestoreddockey.h"
 #include "vbucket.h"
 
-// Dummy time functions (required by Item constructor).
-// TODO: Unify with the code in checkpoint_test.cc
-static rel_time_t basic_current_time(void) { return 0; }
-
-rel_time_t (*ep_current_time)() = basic_current_time;
-
-time_t ep_real_time() {
-    return time(NULL);
-}
-
 /**
  * Dummy callback to replace the flusher callback.
  */
@@ -143,17 +133,3 @@ INSTANTIATE_TEST_CASE_P(FullAndValueEviction,
                                 return "FULL_EVICTION";
                             }
                         });
-
-
-/* static storage for environment variable set by putenv(). */
-static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    putenv(allow_no_stats_env);
-
-    HashTable::setDefaultNumBuckets(5);
-    HashTable::setDefaultNumLocks(1);
-
-    return RUN_ALL_TESTS();
-}
