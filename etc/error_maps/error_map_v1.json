@@ -270,6 +270,14 @@
                     "subdoc",
                 "special-handling"
                     ]
+            },
+            "cd": {
+                "name": "SUBDOC_SUCCESS_DELETED",
+                "desc": "Subdoc: Success, but the affected document was (and still is) deleted",
+                "attrs": [
+                    "subdoc"
+                ]
             }
+
         }
 }
