@@ -682,8 +682,10 @@ TEST_P(EPStoreEvictionTest, MB_21976) {
     EXPECT_EQ(ENGINE_EWOULDBLOCK,gv.getStatus());
 
     // Mark the status of the cookie so that we can see if notify is called
+    lock_mock_cookie(cookie);
     struct mock_connstruct* c = (struct mock_connstruct *)cookie;
     c->status = ENGINE_E2BIG;
+    unlock_mock_cookie(cookie);
 
     // Manually run the VBucketMemoryDeletionTask task
     RCPtr<VBucket> vb = store->getVBucket(vbid);
