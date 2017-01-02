@@ -136,7 +136,7 @@ static enum test_result skipped_test_function(ENGINE_HANDLE *h,
 }
 
 enum test_result rmdb(const char* path) {
-    CouchbaseDirectoryUtilities::rmrf(path);
+    cb::io::rmrf(path);
     if (access(path, F_OK) != -1) {
         std::cerr << "Failed to remove: " << path << " " << std::endl;
         return FAIL;

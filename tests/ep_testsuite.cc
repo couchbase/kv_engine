@@ -6733,7 +6733,7 @@ static enum test_result test_mb20697(ENGINE_HANDLE *h,
 
     // Restore the database directory so the flusher can complete (otherwise
     // the writer thread can loop forever and we cannot shutdown cleanly.
-    CouchbaseDirectoryUtilities::mkdirp(dbname);
+    cb::io::mkdirp(dbname);
 
     return SUCCESS;
 }
@@ -6776,7 +6776,7 @@ static enum test_result test_mb20744_check_incr_reject_ops(ENGINE_HANDLE* h,
 
     rmdb(filename.c_str());
 
-    CouchbaseDirectoryUtilities::mkdirp(dbname);
+    cb::io::mkdirp(dbname);
 
     return SUCCESS;
 }

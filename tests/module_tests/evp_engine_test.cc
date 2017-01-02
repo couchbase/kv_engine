@@ -29,7 +29,7 @@
 void EventuallyPersistentEngineTest::SetUp() {
     // Paranoia - kill any existing files in case they are left over
     // from a previous run.
-    CouchbaseDirectoryUtilities::rmrf(test_dbname);
+    cb::io::rmrf(test_dbname);
 
     // Setup an engine with a single active vBucket.
     EXPECT_EQ(ENGINE_SUCCESS,
@@ -60,7 +60,7 @@ void EventuallyPersistentEngineTest::TearDown() {
     destroy_mock_event_callbacks();
     destroy_engine();
     // Cleanup any files we created.
-    CouchbaseDirectoryUtilities::rmrf(test_dbname);
+    cb::io::rmrf(test_dbname);
 }
 
 void EventuallyPersistentEngineTest::store_item(uint16_t vbid,

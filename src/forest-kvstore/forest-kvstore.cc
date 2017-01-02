@@ -30,8 +30,6 @@
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 
-using namespace CouchbaseDirectoryUtilities;
-
 std::mutex ForestKVStore::initLock;
 int ForestKVStore::numGlobalFiles = 0;
 
@@ -97,8 +95,7 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
     std::stringstream prefix;
     prefix << shardId << ".fdb";
 
-    const std::vector<std::string> files = findFilesContaining(dbname,
-                                           prefix.str().c_str());
+    const auto files = cb::io::findFilesContaining(dbname, prefix.str());
 
     for (auto& filename : files) {
         size_t secondDot = filename.rfind(".");

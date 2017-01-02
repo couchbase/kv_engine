@@ -118,7 +118,7 @@ public:
 void EPBucketTest::SetUp() {
     // Paranoia - kill any existing files in case they are left over
     // from a previous run.
-    CouchbaseDirectoryUtilities::rmrf(test_dbname);
+    cb::io::rmrf(test_dbname);
 
     // Add dbname to config string.
     std::string config = config_string;

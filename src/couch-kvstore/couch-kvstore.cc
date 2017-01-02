@@ -53,8 +53,6 @@
 #include <JSON_checker.h>
 #include <snappy-c.h>
 
-using namespace CouchbaseDirectoryUtilities;
-
 static const int MAX_OPEN_DB_RETRY = 10;
 
 extern "C" {
@@ -98,7 +96,7 @@ static bool endWithCompact(const std::string &filename) {
 
 static void discoverDbFiles(const std::string &dir,
                             std::vector<std::string> &v) {
-    std::vector<std::string> files = findFilesContaining(dir, ".couch");
+    auto files = cb::io::findFilesContaining(dir, ".couch");
     std::vector<std::string>::iterator ii;
     for (ii = files.begin(); ii != files.end(); ++ii) {
         if (!endWithCompact(*ii)) {
@@ -1275,7 +1273,7 @@ uint64_t CouchKVStore::checkNewRevNum(std::string &dbFileName, bool newFile) {
         nameKey = dbFileName;
     }
     nameKey.append(".");
-    const std::vector<std::string> files = findFilesWithPrefix(nameKey);
+    const auto files = cb::io::findFilesWithPrefix(nameKey);
     std::vector<std::string>::const_iterator itor;
     // found file(s) whoes name has the same key name pair with different
     // revision number

@@ -220,7 +220,7 @@ class CouchKVStoreTest : public ::testing::TestWithParam<std::string> {
 /* Test basic set / get of a document */
 TEST_P(CouchAndForestTest, BasicTest) {
     std::string data_dir("/tmp/kvstore-test");
-    CouchbaseDirectoryUtilities::rmrf(data_dir.c_str());
+    cb::io::rmrf(data_dir.c_str());
 
     KVStoreConfig config(1024, 4, data_dir, GetParam(), 0);
     auto kvstore = setup_kv_store(config);
@@ -239,7 +239,7 @@ TEST_P(CouchAndForestTest, BasicTest) {
 
 TEST(CouchKVStoreTest, CompressedTest) {
     std::string data_dir("/tmp/kvstore-test");
-    CouchbaseDirectoryUtilities::rmrf(data_dir.c_str());
+    cb::io::rmrf(data_dir.c_str());
 
     KVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
     auto kvstore = setup_kv_store(config);
@@ -273,7 +273,7 @@ TEST(CouchKVStoreTest, CompressedTest) {
 // Verify the stats returned from operations are accurate.
 TEST(CouchKVStoreTest, StatsTest) {
     std::string data_dir("/tmp/kvstore-test");
-    CouchbaseDirectoryUtilities::rmrf(data_dir.c_str());
+    cb::io::rmrf(data_dir.c_str());
 
     KVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
     auto kvstore = setup_kv_store(config);
@@ -307,7 +307,7 @@ TEST(CouchKVStoreTest, StatsTest) {
 // Verify the compaction stats returned from operations are accurate.
 TEST(CouchKVStoreTest, CompactStatsTest) {
     std::string data_dir("/tmp/kvstore-test");
-    CouchbaseDirectoryUtilities::rmrf(data_dir.c_str());
+    cb::io::rmrf(data_dir.c_str());
 
     KVStoreConfig config(1, 4, data_dir, "couchdb", 0);
     auto kvstore = setup_kv_store(config);
@@ -357,7 +357,7 @@ TEST(CouchKVStoreTest, CompactStatsTest) {
 // CAS of -1, it is detected and reset to zero when file is loaded.
 TEST(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
     std::string data_dir("/tmp/kvstore-test");
-    CouchbaseDirectoryUtilities::rmrf(data_dir.c_str());
+    cb::io::rmrf(data_dir.c_str());
 
     KVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
     KVStore* kvstore = KVStoreFactory::create(config);
@@ -389,7 +389,7 @@ TEST(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
 // error so the caller can detect (and retry as necessary).
 TEST(CouchKVStoreTest, MB_18580_ENOENT) {
     std::string data_dir("/tmp/kvstore-test");
-    CouchbaseDirectoryUtilities::rmrf(data_dir.c_str());
+    cb::io::rmrf(data_dir.c_str());
 
     KVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
     // Create a read-only kvstore (which disables item count caching), then
@@ -503,12 +503,12 @@ public:
                      .setLogger(logger)
                      .setBuffered(false)) {
 
-        CouchbaseDirectoryUtilities::rmrf(data_dir.c_str());
+        cb::io::rmrf(data_dir.c_str());
         kvstore.reset(new CouchKVStore(config, ops, false));
         initialize_kv_store(kvstore.get());
     }
     ~CouchKVStoreErrorInjectionTest() {
-        CouchbaseDirectoryUtilities::rmrf(data_dir.c_str());
+        cb::io::rmrf(data_dir.c_str());
     }
 
 protected:
@@ -1167,7 +1167,7 @@ public:
           vbid(0),
           config(KVStoreConfig(1024, 4, data_dir, "couchdb", 0)
             .setBuffered(false)) {
-        CouchbaseDirectoryUtilities::rmrf(data_dir.c_str());
+        cb::io::rmrf(data_dir.c_str());
         kvstore.reset(new MockCouchKVStore(config));
         StatsCallback sc;
         std::string failoverLog("");
@@ -1178,7 +1178,7 @@ public:
     }
 
     ~CouchstoreTest() {
-        CouchbaseDirectoryUtilities::rmrf(data_dir.c_str());
+        cb::io::rmrf(data_dir.c_str());
     }
 
 protected:
