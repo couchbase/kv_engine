@@ -18,6 +18,7 @@
 
 #include <memcached/protocol_binary.h>
 #include <memcached/engine.h>
+#include <memcached/engine_error.h>
 #include <memcached/extension.h>
 #include <JSON_checker.h>
 

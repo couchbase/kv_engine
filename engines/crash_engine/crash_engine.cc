@@ -131,6 +131,18 @@ static ENGINE_ERROR_CODE item_allocate(ENGINE_HANDLE* handle,
     return ENGINE_FAILED;
 }
 
+static std::pair<cb::unique_item_ptr, item_info> item_allocate_ex(ENGINE_HANDLE* handle,
+                                                                  const void* cookie,
+                                                                  const DocKey& key,
+                                                                  const size_t nbytes,
+                                                                  const size_t priv_nbytes,
+                                                                  const int flags,
+                                                                  const rel_time_t exptime,
+                                                                  uint8_t datatype,
+                                                                  uint16_t vbucket) {
+    throw cb::engine_error{cb::engine_errc::failed, "crash_engine"};
+}
+
 static ENGINE_ERROR_CODE item_delete(ENGINE_HANDLE* handle,
                                      const void* cookie,
                                      const DocKey& key,
@@ -241,6 +253,7 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     engine->engine.initialize = initialize;
     engine->engine.destroy = destroy;
     engine->engine.allocate = item_allocate;
+    engine->engine.allocate_ex = item_allocate_ex;
     engine->engine.remove = item_delete;
     engine->engine.release = item_release;
     engine->engine.get = get;

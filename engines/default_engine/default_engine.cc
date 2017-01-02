@@ -31,6 +31,16 @@ static ENGINE_ERROR_CODE default_item_allocate(ENGINE_HANDLE* handle,
                                                const rel_time_t exptime,
                                                uint8_t datatype,
                                                uint16_t vbucket);
+static std::pair<cb::unique_item_ptr, item_info> default_item_allocate_ex(ENGINE_HANDLE* handle,
+                                                                          const void* cookie,
+                                                                          const DocKey& key,
+                                                                          const size_t nbytes,
+                                                                          const size_t priv_nbytes,
+                                                                          const int flags,
+                                                                          const rel_time_t exptime,
+                                                                          uint8_t datatype,
+                                                                          uint16_t vbucket);
+
 static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              const DocKey& key,
@@ -140,6 +150,7 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     engine->engine.initialize = default_initialize;
     engine->engine.destroy = default_destroy;
     engine->engine.allocate = default_item_allocate;
+    engine->engine.allocate_ex = default_item_allocate_ex;
     engine->engine.remove = default_item_delete;
     engine->engine.release = default_item_release;
     engine->engine.get = default_get;
@@ -260,32 +271,70 @@ static ENGINE_ERROR_CODE default_item_allocate(ENGINE_HANDLE* handle,
                                                const rel_time_t exptime,
                                                uint8_t datatype,
                                                uint16_t vbucket) {
-   hash_item *it;
+    try {
+        auto pair = default_item_allocate_ex(handle, cookie, key, nbytes,
+                                             0, // No privileged bytes
+                                             flags, exptime, datatype, vbucket);
+        // Given the older API doesn't return a smart pointer, need to 'release'
+        // the one we get back from allocate_ex.
+        *item = pair.first.release();
+        return ENGINE_SUCCESS;
+    } catch (const cb::engine_error& error) {
+        return ENGINE_ERROR_CODE(error.code().value());
+    }
+}
 
-   unsigned int id;
-   struct default_engine* engine = get_handle(handle);
-   VBUCKET_GUARD(engine, vbucket);
+static std::pair<cb::unique_item_ptr, item_info> default_item_allocate_ex(ENGINE_HANDLE* handle,
+                                                                          const void* cookie,
+                                                                          const DocKey& key,
+                                                                          const size_t nbytes,
+                                                                          const size_t priv_nbytes,
+                                                                          const int flags,
+                                                                          const rel_time_t exptime,
+                                                                          uint8_t datatype,
+                                                                          uint16_t vbucket) {
+    hash_item *it;
 
-   size_t ntotal = sizeof(hash_item) + key.size() + nbytes;
-   id = slabs_clsid(engine, ntotal);
-   if (id == 0) {
-      return ENGINE_E2BIG;
-   }
+    unsigned int id;
+    struct default_engine* engine = get_handle(handle);
 
-   if (nbytes > engine->config.item_size_max) {
-      return ENGINE_E2BIG;
-   }
+    if (!handled_vbucket(engine, vbucket)) {
+        throw cb::engine_error(cb::engine_errc::not_my_vbucket,
+                               "default_item_allocate_ex");
+    }
 
-   it = item_alloc(engine, key.data(), key.size(), flags,
-                   engine->server.core->realtime(exptime),
-                   (uint32_t)nbytes, cookie, datatype);
+    size_t ntotal = sizeof(hash_item) + key.size() + nbytes;
+    id = slabs_clsid(engine, ntotal);
+    if (id == 0) {
+        throw cb::engine_error(cb::engine_errc::too_big,
+                               "default_item_allocate_ex: no slab class");
+    }
 
-   if (it != NULL) {
-      *item = it;
-      return ENGINE_SUCCESS;
-   } else {
-      return ENGINE_ENOMEM;
-   }
+    if ((nbytes - priv_nbytes) > engine->config.item_size_max) {
+        throw cb::engine_error(cb::engine_errc::too_big,
+                               "default_item_allocate_ex");
+    }
+
+    it = item_alloc(engine, key.data(), key.size(), flags,
+                    engine->server.core->realtime(exptime),
+                    (uint32_t)nbytes, cookie, datatype);
+
+    if (it != NULL) {
+        item_info info;
+        if (!get_item_info(handle, cookie, it, &info)) {
+            // This should never happen (unless we provide invalid
+            // arguments)
+            item_release(engine, it);
+            throw cb::engine_error(cb::engine_errc::failed,
+                                   "default_item_allocate_ex");
+        }
+
+        return std::make_pair(cb::unique_item_ptr(it, cb::ItemDeleter{handle}),
+                              info);
+    } else {
+        throw cb::engine_error(cb::engine_errc::no_memory,
+                               "default_item_allocate_ex");
+    }
 }
 
 static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,

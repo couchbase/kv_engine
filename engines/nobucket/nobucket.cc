@@ -39,6 +39,7 @@ public:
         ENGINE_HANDLE_V1::initialize = initialize;
         ENGINE_HANDLE_V1::destroy = destroy;
         ENGINE_HANDLE_V1::allocate = item_allocate;
+        ENGINE_HANDLE_V1::allocate_ex = item_allocate_ex;
         ENGINE_HANDLE_V1::remove = item_delete;
         ENGINE_HANDLE_V1::release = item_release;
         ENGINE_HANDLE_V1::get = get;
@@ -100,6 +101,17 @@ private:
                                            const int, const rel_time_t,
                                            uint8_t, uint16_t) {
         return ENGINE_NO_BUCKET;
+    }
+
+    static std::pair<cb::unique_item_ptr, item_info> item_allocate_ex(ENGINE_HANDLE*, const void*,
+                                                                      const DocKey&,
+                                                                      const size_t,
+                                                                      const size_t,
+                                                                      const int,
+                                                                      const rel_time_t,
+                                                                      uint8_t,
+                                                                      uint16_t) {
+        throw cb::engine_error(cb::engine_errc::no_bucket, "no bucket");
     }
 
     static ENGINE_ERROR_CODE item_delete(ENGINE_HANDLE*, const void*,

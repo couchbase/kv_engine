@@ -314,6 +314,27 @@ public:
         }
     }
 
+    static std::pair<cb::unique_item_ptr, item_info> allocate_ex(ENGINE_HANDLE* handle,
+                                                                 const void* cookie,
+                                                                 const DocKey& key,
+                                                                 const size_t nbytes,
+                                                                 const size_t priv_nbytes,
+                                                                 const int flags,
+                                                                 const rel_time_t exptime,
+                                                                 uint8_t datatype,
+                                                                 uint16_t vbucket) {
+        EWB_Engine* ewb = to_engine(handle);
+        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        if (ewb->should_inject_error(Cmd::ALLOCATE, cookie, err)) {
+            throw cb::engine_error(cb::engine_errc(err), "ewb: injecting error");
+        } else {
+            return ewb->real_engine->allocate_ex(ewb->real_handle, cookie,
+                                                 key, nbytes, priv_nbytes,
+                                                 flags, exptime, datatype,
+                                                 vbucket);
+        }
+    }
+
     static ENGINE_ERROR_CODE remove(ENGINE_HANDLE* handle, const void* cookie,
                                     const DocKey& key, uint64_t* cas,
                                     uint16_t vbucket,
@@ -974,6 +995,7 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     ENGINE_HANDLE_V1::initialize = initialize;
     ENGINE_HANDLE_V1::destroy = destroy;
     ENGINE_HANDLE_V1::allocate = allocate;
+    ENGINE_HANDLE_V1::allocate_ex = allocate_ex;
     ENGINE_HANDLE_V1::remove = remove;
     ENGINE_HANDLE_V1::release = release;
     ENGINE_HANDLE_V1::get = get;

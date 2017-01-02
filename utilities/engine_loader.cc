@@ -145,7 +145,9 @@ bool init_engine_instance(ENGINE_HANDLE *engine,
 
         /* validate that the required engine interface is implemented: */
         if (engine_v1->get_info == NULL || engine_v1->initialize == NULL ||
-            engine_v1->destroy == NULL || engine_v1->allocate == NULL ||
+            engine_v1->destroy == NULL ||
+            engine_v1->allocate == nullptr ||
+            engine_v1->allocate_ex == nullptr ||
             engine_v1->remove == NULL || engine_v1->release == NULL ||
             engine_v1->get == NULL || engine_v1->get_locked == NULL ||
             engine_v1->unlock == NULL || engine_v1->store == NULL ||

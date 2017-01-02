@@ -118,3 +118,18 @@ ENGINE_ERROR_CODE bucket_allocate(McbpConnection* c,
                                           c->getCookie(), it, key, nbytes,
                                           flags, exptime, datatype, vbucket);
 }
+
+std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(McbpConnection& c,
+                                                             const DocKey& key,
+                                                             const size_t nbytes,
+                                                             const size_t priv_nbytes,
+                                                             const int flags,
+                                                             const rel_time_t exptime,
+                                                             uint8_t datatype,
+                                                             uint16_t vbucket) {
+    return c.getBucketEngine()->allocate_ex(c.getBucketEngineAsV0(),
+                                            c.getCookie(), key, nbytes,
+                                            priv_nbytes,
+                                            flags, exptime, datatype,
+                                            vbucket);
+}

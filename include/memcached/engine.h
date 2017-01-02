@@ -266,6 +266,52 @@ typedef struct engine_interface_v1 {
                                    uint16_t vbucket);
 
     /**
+     * Allocate an item.
+     *
+     * @param handle the engine handle
+     * @param cookie The cookie provided by the frontend
+     * @param key the item's key
+     * @param nbytes the number of bytes that will make up the
+     *               value of this item.
+     * @param priv_nbytes The number of bytes in nbytes containing
+     *                    system data (and may exceed the item limit).
+     * @param flags the item's flags
+     * @param exptime the maximum lifetime of this item
+     * @param vbucket virtual bucket to request allocation from
+     * @return pair containing the item and the items information
+     * @thows cb::engine_error with:
+     *
+     *   * `cb::engine_errc::no_bucket` The client is bound to the dummy
+     *                                  `no bucket` which don't allow
+     *                                  allocations.
+     *
+     *   * `cb::engine_errc::no_memory` The bucket is full
+     *
+     *   * `cb::engine_errc::too_big` The requested memory exceeds the
+     *                                limit set for items in the bucket.
+     *
+     *   * `cb::engine_errc::disconnect` The client should be disconnected
+     *
+     *   * `cb::engine_errc::not_my_vbucket` The requested vbucket belongs
+     *                                       to someone else
+     *
+     *   * `cb::engine_errc::temporary_failure` Temporary failure, the
+     *                                          _client_ should try again
+     *
+     *   * `cb::engine_errc::too_busy` Too busy to serve the request,
+     *                                 back off and try again.
+     */
+    std::pair<cb::unique_item_ptr, item_info> (* allocate_ex)(ENGINE_HANDLE* handle,
+                                                              const void* cookie,
+                                                              const DocKey& key,
+                                                              const size_t nbytes,
+                                                              const size_t priv_nbytes,
+                                                              const int flags,
+                                                              const rel_time_t exptime,
+                                                              uint8_t datatype,
+                                                              uint16_t vbucket);
+
+    /**
      * Remove an item.
      *
      * @param handle the engine handle
