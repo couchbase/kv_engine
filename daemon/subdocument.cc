@@ -975,8 +975,6 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         return ENGINE_FAILED;
     }
 
-    auto* handle = reinterpret_cast<ENGINE_HANDLE*>(connection.getBucketEngine());
-
     if (!context.traits.is_mutator) {
         // No update required - just make sure we have the correct cas to use
         // for response.
@@ -1001,13 +999,12 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
             DocKey allocate_key(reinterpret_cast<const uint8_t*>(key),
                                 keylen, DocNamespace::DefaultCollection);
             // Calculate the updated document length - use the last operation result.
-            ret = connection.getBucketEngine()->allocate(handle, connection.getCookie(),
-                                                 &new_doc, allocate_key,
-                                                 context.out_doc_len,
-                                                 context.in_flags,
-                                                 expiration,
-                                                 context.in_datatype,
-                                                 vbucket);
+            ret = bucket_allocate(&connection, &new_doc, allocate_key,
+                                  context.out_doc_len,
+                                  context.in_flags,
+                                  expiration,
+                                  context.in_datatype,
+                                  vbucket);
             ret = context.connection.remapErrorCode(ret);
         }
 
