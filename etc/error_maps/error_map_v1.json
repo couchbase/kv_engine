@@ -166,6 +166,13 @@
                 "retry-now"
                     ]
             },
+            "87": {
+                "name": "XATTR_EINVAL",
+                "desc": "Invalid extended attribute",
+                "attrs": [
+                    "invalid-input"
+                ]
+            },
             "c0": {
                 "name": "SUBDOC_PATH_ENOENT",
                 "desc": "Subdoc: Path not found in document",
@@ -277,7 +284,30 @@
                 "attrs": [
                     "subdoc"
                 ]
+            },
+            "ce": {
+                "name": "SUBDOC_XATTR_INVALID_FLAG_COMBO",
+                "desc": "Subdoc: The flag combination doesn't make any sense",
+                "attrs": [
+                    "subdoc",
+                    "invalid-input"
+                ]
+            },
+            "cf": {
+                "name": "SUBDOC_XATTR_INVALID_KEY_COMBO",
+                "desc": "Subdoc: The key combination of the xattrs is not allowed",
+                "attrs": [
+                    "subdoc",
+                    "invalid-input"
+                ]
+            },
+            "d0": {
+                "name": "SUBDOC_XATTR_UNKNOWN_MACRO",
+                "desc": "Subdoc: The server don't know about the specified macro",
+                "attrs": [
+                    "subdoc",
+                    "invalid-input"
+                ]
             }
-
         }
 }

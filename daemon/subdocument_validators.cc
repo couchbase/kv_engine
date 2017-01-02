@@ -45,21 +45,26 @@ static bool validate_macro(const cb::const_byte_buffer& value) {
  * @param xattr_key The xattr key in use (if xattr_key.len != 0) otherwise it
  *                  the current key is stored so that we can check that the
  *                  next key refers the same key..
- * @return True if everything is correct, false otherwise
+ * @return PROTOCOL_BINARY_RESPONSE_SUCCESS if everything is correct
  */
-static inline bool validate_xattr_section(protocol_binary_subdoc_flag flags,
+static inline protocol_binary_response_status validate_xattr_section(
+                                          protocol_binary_subdoc_flag flags,
                                           cb::const_byte_buffer path,
                                           cb::const_byte_buffer value,
                                           cb::const_byte_buffer& xattr_key) {
     if ((flags & SUBDOC_FLAG_XATTR_PATH) == 0) {
         // XATTR flag isn't set... just bail out
-        return !((flags & SUBDOC_FLAG_EXPAND_MACROS) ||
-                 (flags & SUBDOC_FLAG_ACCESS_DELETED));
+        if ((flags & SUBDOC_FLAG_EXPAND_MACROS) ||
+                 (flags & SUBDOC_FLAG_ACCESS_DELETED)) {
+            return PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO;
+        } else {
+            return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+        }
     }
 
     size_t key_length;
     if (!is_valid_xattr_key(path, key_length)) {
-        return false;
+        return PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL;
     }
 
     if (xattr_key.len == 0) {
@@ -67,16 +72,16 @@ static inline bool validate_xattr_section(protocol_binary_subdoc_flag flags,
         xattr_key.len = key_length;
     } else if (xattr_key.len != key_length ||
                std::memcmp(xattr_key.buf, path.buf, key_length) != 0) {
-        return false;
+        return PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_KEY_COMBO;
     }
 
     if (flags & SUBDOC_FLAG_EXPAND_MACROS) {
         if (!validate_macro(value)) {
-            return false;
+            return PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_MACRO;
         }
     }
 
-    return true;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
 static protocol_binary_response_status subdoc_validator(const Cookie& cookie, const SubdocCmdTraits traits) {
@@ -126,12 +131,13 @@ static protocol_binary_response_status subdoc_validator(const Cookie& cookie, co
                                 valuelen};
     cb::const_byte_buffer xattr_key;
 
-    if (!validate_xattr_section(subdoc_flags, path, macro, xattr_key)) {
-        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    const auto status = validate_xattr_section(subdoc_flags, path, macro,
+                                               xattr_key);
+    if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        return status;
     }
 
-    if (!traits.allow_empty_path &&
-        (pathlen == 0)) {
+    if (!traits.allow_empty_path && (pathlen == 0)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -275,8 +281,9 @@ static protocol_binary_response_status is_valid_multipath_spec(const char* ptr,
                                 headerlen + pathlen,
                                 valuelen};
 
-    if (!validate_xattr_section(flags, path, macro, xattr_key)) {
-        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    const auto status = validate_xattr_section(flags, path, macro, xattr_key);
+    if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        return status;
     }
 
     if (!xattr) {

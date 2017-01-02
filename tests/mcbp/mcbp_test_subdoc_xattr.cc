@@ -191,7 +191,7 @@ TEST_P(SubdocXattrSingleTest, PathTest) {
     // to validate all of the checks for the xattr keys, this is just
     // to make sure that our validator calls it ;-)
     flags = SUBDOC_FLAG_XATTR_PATH;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate())
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL, validate())
                 << memcached_opcode_2_text(uint8_t(GetParam()));
 
     // Truncate it to a shorter one, and this time it should pass
@@ -205,7 +205,8 @@ TEST_P(SubdocXattrSingleTest, ValidateFlags) {
 
     // Access Deleted should fail without XATTR_PATH
     flags = SUBDOC_FLAG_ACCESS_DELETED;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO,
+              validate());
 
     flags |= SUBDOC_FLAG_XATTR_PATH;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
@@ -216,13 +217,15 @@ TEST_P(SubdocXattrSingleTest, ValidateFlags) {
 
         // but it should fail if we don't have the XATTR_PATH
         flags = SUBDOC_FLAG_EXPAND_MACROS;
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO,
+                  validate());
 
         // And it should also fail if we have Illegal macros
         flags |= SUBDOC_FLAG_XATTR_PATH;
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
         value = "${UnknownMacro}";
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_MACRO,
+                  validate());
     } else {
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
@@ -280,7 +283,7 @@ TEST_F(SubdocXattrMultiLookupTest, XAttrKeyIsChecked) {
     request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                              SUBDOC_FLAG_XATTR_PATH,
                              "ThisIsASuperDuperLongPath"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL, validate());
 }
 
 TEST_F(SubdocXattrMultiLookupTest, XattrFlagsMakeSense) {
@@ -300,7 +303,8 @@ TEST_F(SubdocXattrMultiLookupTest, XattrFlagsMakeSense) {
 
     // Let's try an invalid access deleted flag (needs xattr path)
     request.specs[0].flags = SUBDOC_FLAG_ACCESS_DELETED;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO,
+              validate());
 
     // We should be able to access deleted docs if both flags are set
     request.specs[0].flags = SUBDOC_FLAG_ACCESS_DELETED | SUBDOC_FLAG_XATTR_PATH;
@@ -323,7 +327,8 @@ TEST_F(SubdocXattrMultiLookupTest, AllLookupsMustBeOnTheSamePath) {
     request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                              SUBDOC_FLAG_XATTR_PATH,
                              "foo.bar"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_KEY_COMBO,
+              validate());
 }
 
 
@@ -380,7 +385,7 @@ TEST_F(SubdocXattrMultiMutationTest, XAttrKeyIsChecked) {
                              SUBDOC_FLAG_XATTR_PATH,
                              "ThisIsASuperDuperLongPath",
                              "{\"foo\" : \"bar\"}"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL, validate());
 }
 
 TEST_F(SubdocXattrMultiMutationTest, XattrFlagsMakeSense) {
@@ -390,7 +395,8 @@ TEST_F(SubdocXattrMultiMutationTest, XattrFlagsMakeSense) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 
     request.specs[0].flags = SUBDOC_FLAG_EXPAND_MACROS;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO,
+              validate());
 
     request.specs[0].flags = SUBDOC_FLAG_EXPAND_MACROS | SUBDOC_FLAG_XATTR_PATH;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
@@ -400,12 +406,13 @@ TEST_F(SubdocXattrMultiMutationTest, XattrFlagsMakeSense) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 
     request.specs[0].value = "${UnknownMacro}";
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_MACRO, validate());
     request.specs[0].value = "\"${Mutation.CAS}\"";
 
     // Let's try an invalid access deleted flag (needs xattr path)
     request.specs[0].flags = SUBDOC_FLAG_ACCESS_DELETED;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO,
+              validate());
 
     // We should be able to access deleted docs if both flags are set
     request.specs[0].flags = SUBDOC_FLAG_ACCESS_DELETED | SUBDOC_FLAG_XATTR_PATH;
@@ -428,7 +435,8 @@ TEST_F(SubdocXattrMultiMutationTest, AllMutationsMustBeOnTheSamePath) {
     request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                              SUBDOC_FLAG_XATTR_PATH,
                              "foo.bar", "{\"foo\" : \"bar\"}"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_KEY_COMBO,
+              validate());
 }
 
 } // namespace BinaryProtocolValidator

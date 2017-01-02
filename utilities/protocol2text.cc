@@ -239,6 +239,8 @@ static const std::map<protocol_binary_response_status, std::string> statusmap {
         "Server too busy"},
     {PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
         "Temporary failure"},
+    {PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL,
+        "Invalid XATTR key"},
 
     /* Sub-document responses */
     {PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT,
@@ -269,6 +271,12 @@ static const std::map<protocol_binary_response_status, std::string> statusmap {
         "Subdoc: One or more paths in a multi-path command failed"},
     {PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED,
         "Subdoc: Operation completed successfully on a deleted document"},
+    {PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO,
+        "Subdoc: Invalid combination of xattr flags"},
+    {PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_KEY_COMBO,
+        "Subdoc: Invalid combination of xattr keys"},
+    {PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_MACRO,
+        "Subdoc: Unknown xattr macro"}
 };
 
 const char *memcached_status_2_text(protocol_binary_response_status status) {

@@ -67,9 +67,6 @@ extern "C"
         PROTOCOL_BINARY_RES = 0x81
     } protocol_binary_magic;
 
-/** The provided XATTRs are invalid */
-#define PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL PROTOCOL_BINARY_RESPONSE_EINVAL
-
     /**
      * Definition of the valid response status numbers.
      *
@@ -143,6 +140,12 @@ extern "C"
          */
         PROTOCOL_BINARY_RESPONSE_ETMPFAIL = 0x86,
 
+        /**
+         * There is something wrong with the syntax of the provided
+         * XATTR.
+         */
+        PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL = 0x87,
+
         /*
          * Sub-document specific responses.
          */
@@ -203,7 +206,23 @@ extern "C"
          * The operation completed successfully, but operated on a deleted
          * document.
          */
-        PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED = 0xcd
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED = 0xcd,
+
+        /**
+         * The combination of the subdoc flags for the xattrs doesn't make
+         * any sense
+         */
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO = 0xce,
+
+        /**
+         * Only a single xattr key may be accessed at the same time.
+         */
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_KEY_COMBO = 0xcf,
+
+        /**
+         * The server has no knowledge of the requested macro
+         */
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_MACRO = 0xd0
     } protocol_binary_response_status;
 
     /**
