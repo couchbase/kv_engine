@@ -42,7 +42,6 @@ void ship_mcbp_tap_log(McbpConnection* c) {
         uint16_t vbucket;
         tap_event_t event;
         bool inflate = false;
-        size_t inflated_length = 0;
 
         union {
             protocol_binary_request_tap_mutation mutation;
