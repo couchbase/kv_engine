@@ -363,9 +363,8 @@ TEST_F(SubdocMultiMutationTest, ValidDictAdd) {
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidDictAdd) {
-    // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P(0x01)/MKDOC(0x02)
     request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
-                             protocol_binary_subdoc_flag(4),
+                             protocol_binary_subdoc_flag(0xff),
                              "path", "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
 
@@ -398,7 +397,7 @@ TEST_F(SubdocMultiMutationTest, ValidDictUpsert) {
 TEST_F(SubdocMultiMutationTest, InvalidDictUpsert) {
     // Only allowed empty flags SUBDOC_FLAG_{MKDIR_P (0x1), MKDOC (0x2)}
     request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
-                             protocol_binary_subdoc_flag(4),
+                             protocol_binary_subdoc_flag(0xff),
                              "path", "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
 
@@ -491,7 +490,7 @@ TEST_F(SubdocMultiMutationTest, ValidArrayPushLast) {
 TEST_F(SubdocMultiMutationTest, InvalidArrayPushLast) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
     request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
-                             protocol_binary_subdoc_flag(4),
+                             protocol_binary_subdoc_flag(0xff),
                              "", "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
 
@@ -523,7 +522,7 @@ TEST_F(SubdocMultiMutationTest, ValidArrayPushFirst) {
 TEST_F(SubdocMultiMutationTest, InvalidArrayPushFirst) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
     request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
-                             protocol_binary_subdoc_flag(4),
+                             protocol_binary_subdoc_flag(0xff),
                              "", "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
 
@@ -586,7 +585,7 @@ TEST_F(SubdocMultiMutationTest, ValidArrayAddUnique) {
 TEST_F(SubdocMultiMutationTest, InvalidArrayAddUnique) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
     request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
-                             protocol_binary_subdoc_flag(4),
+                             protocol_binary_subdoc_flag(0xff),
                              "path", "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
 
@@ -619,7 +618,7 @@ TEST_F(SubdocMultiMutationTest, ValidArrayCounter) {
 TEST_F(SubdocMultiMutationTest, InvalidArrayCounter) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
     request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
-                             protocol_binary_subdoc_flag(4),
+                             protocol_binary_subdoc_flag(0xff),
                              "path", "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
 
