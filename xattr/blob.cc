@@ -213,5 +213,30 @@ uint32_t Blob::read_length(size_t offset) const {
     return ntohl(*ptr);
 }
 
+size_t Blob::get_system_size() const {
+    // special case.. there are no xattr's
+    if (blob.len == 0) {
+        return 0;
+    }
+
+    // The global length field should be calculated as part of the
+    // system xattr's
+    size_t ret = 4;
+    try {
+        size_t current = 4;
+        while (current < blob.len) {
+            // Get the length of the next kv-pair
+            const auto size = read_length(current);
+            if (blob.buf[current + 4] == '_') {
+                ret += size + 4;
+            }
+            current += 4 + size;
+        }
+    } catch (const std::out_of_range& ex) {
+    }
+
+    return ret;
+}
+
 }
 }

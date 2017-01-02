@@ -132,6 +132,7 @@ TEST(XattrBlobBlob, TestPruneUser) {
     // And we should be back at the size we had before adding all of the
     // user xattr
     EXPECT_EQ(systemsize, blob.finalize().len);
+    EXPECT_EQ(systemsize, blob.get_system_size());
 
     // and we should be able to get the system xattr's
     EXPECT_EQ(std::string{"{\"cas\":\"0xdeadbeefcafefeed\"}"},

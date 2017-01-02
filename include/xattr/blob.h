@@ -117,6 +117,11 @@ public:
         return blob;
     }
 
+    /**
+     * Get the size of the system xattr's located in the blob
+     */
+    size_t get_system_size() const;
+
 protected:
 
     /**
