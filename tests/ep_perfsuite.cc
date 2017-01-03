@@ -97,8 +97,8 @@ struct Stats {
     std::vector<T>* values;
 };
 
-static const int iterations_for_fast_stats = 1000;
-static const int iterations_for_slow_stats = 100;
+static const int iterations_for_fast_stats = 100;
+static const int iterations_for_slow_stats = 10;
 
 
 struct StatProperties {
@@ -1328,13 +1328,6 @@ static enum test_result perf_stat_latency_100vb(ENGINE_HANDLE *h,
                              StatRuntime::Fast, BackgroundWork::None, 100);
 }
 
-/* Benchmark the stats with sets running on background thread */
-static enum test_result perf_stat_latency_sets(ENGINE_HANDLE *h,
-                                          ENGINE_HANDLE_V1 *h1) {
-    return perf_stat_latency(h, h1, "With background sets",
-                             StatRuntime::Fast, BackgroundWork::Sets, 1);
-}
-
 /* Benchmark the stats with 100 active vbuckets and sets on background thread */
 static enum test_result perf_stat_latency_100vb_sets(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
@@ -1354,13 +1347,6 @@ static enum test_result perf_slow_stat_latency_100vb(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
     return perf_stat_latency(h, h1, "With 100 vbuckets",
                              StatRuntime::Slow, BackgroundWork::None, 100);
-}
-
-/* Benchmark the slow stats with sets running on background thread */
-static enum test_result perf_slow_stat_latency_sets(ENGINE_HANDLE *h,
-                                          ENGINE_HANDLE_V1 *h1) {
-    return perf_stat_latency(h, h1, "With background sets",
-                             StatRuntime::Slow, BackgroundWork::Sets, 1);
 }
 
 /** Benchmark the slow stats with 100 active vbuckets and sets on background
@@ -1440,10 +1426,6 @@ BaseTestCase testsuite_testcases[] = {
                  perf_stat_latency_100vb, test_setup, teardown,
                  "backend=couchdb;ht_size=393209",
                  prepare, cleanup),
-        TestCase("Stat latency with set executed in separate thread",
-                 perf_stat_latency_sets, test_setup, teardown,
-                 "backend=couchdb;ht_size=393209",
-                 prepare, cleanup),
         TestCase("Stat latency with 100 vbuckets & sets in separate thread",
                  perf_stat_latency_100vb_sets, test_setup, teardown,
                  "backend=couchdb;ht_size=393209",
@@ -1455,9 +1437,6 @@ BaseTestCase testsuite_testcases[] = {
                  perf_slow_stat_latency_100vb,
                  test_setup, teardown, "backend=couchdb;ht_size=393209",
                  prepare, cleanup),
-        TestCase("Stat latency with set executed in separate thread",
-                 perf_slow_stat_latency_sets, test_setup, teardown,
-                 "backend=couchdb;ht_size=393209", prepare, cleanup),
         TestCase("Stat latency with 100 vbuckets & sets in separate thread",
                  perf_slow_stat_latency_100vb_sets, test_setup, teardown,
                  "backend=couchdb;ht_size=393209", prepare, cleanup),
