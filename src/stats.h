@@ -44,6 +44,11 @@ static const hrtime_t ONE_SECOND(1000000);
 class EPStats {
 public:
 
+    // Histogram of ProcessClock::duration; as a unsigned value
+    // (negative durations don't make sense).
+    using ProcessDurationHistogram =
+            Histogram<std::make_unsigned<ProcessClock::duration::rep>::type>;
+
     EPStats() :
         warmedUpKeys(0),
         warmedUpValues(0),
@@ -559,11 +564,11 @@ public:
     //! Historgram of batch reads
     Histogram<hrtime_t> getMultiHisto;
 
-    // ! Histogram of various task wait times
-    Histogram<ProcessClock::duration::rep> *schedulingHisto;
+    // ! Histograms of various task wait times, one per Task.
+    ProcessDurationHistogram* schedulingHisto;
 
-    // ! Histogram of various task run times
-    Histogram<ProcessClock::duration::rep> *taskRuntimeHisto;
+    // ! Histograms of various task run times, one per Task.
+    ProcessDurationHistogram* taskRuntimeHisto;
 
     //! Checkpoint Cursor histograms
     Histogram<hrtime_t> persistenceCursorGetItemsHisto;
