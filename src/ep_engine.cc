@@ -2944,9 +2944,13 @@ void EventuallyPersistentEngine::queueBackfill(const VBucketFilter
                                                              &backfillVBFilter,
                                                Producer *tc)
 {
-    ExTask backfillTask = new BackfillTask(this, *tapConnMap, tc,
-                                           backfillVBFilter);
-    ExecutorPool::get()->schedule(backfillTask, NONIO_TASK_IDX);
+    auto bfv = std::make_shared<BackFillVisitor>(
+            this, *tapConnMap, tc, backfillVBFilter);
+    getKVBucket()->visit(bfv,
+                         "Backfill task",
+                         NONIO_TASK_IDX,
+                         TaskId::BackfillVisitorTask,
+                         1);
 }
 
 void VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {

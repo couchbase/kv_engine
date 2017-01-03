@@ -76,9 +76,12 @@ private:
 };
 
 /**
- * VBucketVisitor to backfill a Producer. This visitor basically performs backfill from memory
- * for only resident items if it needs to schedule a separate disk backfill task because of
- * low resident ratio.
+ * VBucketVisitor to backfill a Producer. This visitor basically performs
+ * backfill from memory for only resident items if it needs to schedule a
+ * separate disk backfill task because of low resident ratio.
+ *
+ * The visitor will pause if the current backfill backlog for the corresponding
+ * producer is greater than the threshold (5000 by default).
  */
 class BackFillVisitor : public VBucketVisitor {
 public:
@@ -104,33 +107,6 @@ private:
     const std::string name;
     hrtime_t connToken;
     bool valid;
-};
-
-/**
- * Backfill task is scheduled as a non-IO task. Each backfill task performs
- * backfill from memory or disk depending on the resident ratio. Each backfill
- * task can backfill more than one vbucket, but will snooze for 1 sec if the
- * current backfill backlog for the corresponding TAP producer is greater than
- * the threshold (5000 by default).
- */
-class BackfillTask : public GlobalTask {
-public:
-
-    BackfillTask(EventuallyPersistentEngine *e, TapConnMap &cm, Producer *tc,
-                 const VBucketFilter &backfillVBFilter):
-                 GlobalTask(e, TaskId::BackfillTask, 0, false),
-      bfv(new BackFillVisitor(e, cm, tc, backfillVBFilter)), engine(e) {}
-
-    virtual ~BackfillTask() {}
-
-    bool run(void);
-
-    std::string getDescription() {
-        return std::string("Backfilling items from memory and disk.");
-    }
-
-    std::shared_ptr<BackFillVisitor> bfv;
-    EventuallyPersistentEngine *engine;
 };
 
 #endif  // SRC_BACKFILL_H_

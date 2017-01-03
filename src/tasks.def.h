@@ -49,7 +49,6 @@ TASK(AccessScanner, 3)
 TASK(VBucketVisitorTask, 3)
 TASK(ActiveStreamCheckpointProcessorTask, 5)
 TASK(BackfillManagerTask, 8)
-TASK(BackfillTask, 8)
 TASK(BackfillVisitorTask, 8)
 
 // Read/Write IO tasks

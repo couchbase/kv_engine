@@ -232,10 +232,3 @@ bool BackFillVisitor::checkValidity() {
     }
     return valid;
 }
-
-bool BackfillTask::run(void) {
-    TRACE_EVENT0("ep-engine/task", "BackFillTask");
-    engine->getKVBucket()->visit(bfv, "Backfill task", NONIO_TASK_IDX,
-                                 TaskId::BackfillVisitorTask, 1);
-    return false;
-}
