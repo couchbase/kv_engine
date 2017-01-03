@@ -24,12 +24,16 @@
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
 
-McdEnvironment::McdEnvironment() {
-    initialize_openssl();
+McdEnvironment::McdEnvironment(bool manageSSL_) : manageSSL(manageSSL_) {
+    if (manageSSL) {
+        initialize_openssl();
+    }
 }
 
 McdEnvironment::~McdEnvironment() {
-    shutdown_openssl();
+   if (manageSSL) {
+       shutdown_openssl();
+   }
 }
 
 void McdEnvironment::SetUp() {

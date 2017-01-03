@@ -65,6 +65,9 @@ static BIO *bio = NULL;
 static BIO *ssl_bio_r = NULL;
 static BIO *ssl_bio_w = NULL;
 
+// used in embedded mode to shutdown memcached
+extern void shutdown_server();
+
 std::set<protocol_binary_hello_features_t> enabled_hello_features;
 
 bool memcached_verbose = false;
@@ -837,6 +840,11 @@ void TestappTest::stop_memcached_server() {
         sock = INVALID_SOCKET;
     }
 
+    if (embedded_memcached_server) {
+        shutdown_server();
+        cb_join_thread(memcached_server_thread);
+    }
+
     if (server_pid != reinterpret_cast<pid_t>(-1)) {
 #ifdef WIN32
         TerminateProcess(server_pid, 0);
@@ -1221,7 +1229,11 @@ int main(int argc, char **argv) {
             return 1;
         }
     }
-    mcd_env = new McdEnvironment();
+    /*
+     * If not running in embedded mode we need the McdEnvironment to manageSSL
+     * initialization and shutdown.
+     */
+    mcd_env = new McdEnvironment(!embedded_memcached_server);
     ::testing::AddGlobalTestEnvironment(mcd_env);
 
     cb_initialize_sockets();

@@ -28,13 +28,18 @@
  */
 class McdEnvironment : public ::testing::Environment {
 public:
-    /* We have to use the contructor / destructor to init/shutdown
-     * OpenSSL, as the SetUp/TearDown methods only get called if at least
+    /* In stand-alone mode we have to init/shutdown OpenSSL (i.e. manage it),
+     * as the SetUp/TearDown methods only get called if at least
      * one Test is run; and we *need* to call shutdown_openssl() to
      * correctly free all memory allocated by OpenSSL's shared_library
+     * constructor.  Therefore in this case we pass true into the McdEnvironment
      * constructor.
+     *
+     * In embedded mode the memcached server is responsible for init/shutdown
+     * of OpenSSL and therefore in this case we pass false into the
+     * McdEnvironment constructor.
      */
-    McdEnvironment();
+    McdEnvironment(bool manageSSL_);
 
     ~McdEnvironment();
 
@@ -114,6 +119,7 @@ private:
     std::string cwd;
     unique_cJSON_ptr audit_config;
     static char isasl_env_var[256];
+    bool manageSSL;
 };
 
 extern McdEnvironment* mcd_env;
