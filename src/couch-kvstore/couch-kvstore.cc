@@ -173,14 +173,30 @@ struct AllKeysCtx {
 };
 
 couchstore_content_meta_flags CouchRequest::getContentMeta(const Item& it) {
-    couchstore_content_meta_flags rval = (it.getDataType() ==
-                                          PROTOCOL_BINARY_DATATYPE_JSON) ?
-                                          COUCH_DOC_IS_JSON :
-                                          COUCH_DOC_NON_JSON_MODE;
+    couchstore_content_meta_flags rval;
 
-    if (it.getNBytes() > 0 &&
-        ((it.getDataType() == PROTOCOL_BINARY_RAW_BYTES) ||
-        (it.getDataType() == PROTOCOL_BINARY_DATATYPE_JSON))) {
+    if (mcbp::datatype::is_json(it.getDataType())) {
+        rval = COUCH_DOC_IS_JSON;
+    } else {
+        rval = COUCH_DOC_NON_JSON_MODE;
+    }
+
+    if (mcbp::datatype::is_compressed(it.getDataType())) {
+        // We are currently using couchstore in a mode where it will try to
+        // compress documents iff COUCH_DOC_IS_COMPRESSED is specified.
+        // This would cause a conflict if we tried to store a document which
+        // is already compressed.
+        //
+        // Luckily for us we don't support keeping objects compressed in
+        // memory yet, so this won't happen. Let's throw an exception
+        // to make sure that we fix this when we're going to support
+        // compressed objects.
+        throw std::logic_error(
+            "CouchRequest::getContentMeta: can't store compressed items");
+    }
+
+    if (it.getNBytes() > 0) {
+        // Don't try to compress empty bodies ;-)
         rval |= COUCH_DOC_IS_COMPRESSED;
     }
 
@@ -192,15 +208,12 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
       : IORequest(it.getVBucketId(), cb, del, it.getKey()), value(it.getValue()),
         fileRevNum(rev) {
 
-    // Datatype used to determine whether document requires compression or not
-    uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
     // Collections: TODO: store the namespace.
     dbDoc.id.buf = const_cast<char *>(key.c_str());
     dbDoc.id.size = it.getKey().size();
     if (it.getNBytes()) {
         dbDoc.data.buf = const_cast<char *>(value->getData());
         dbDoc.data.size = it.getNBytes();
-        datatype = it.getDataType();
     } else {
         dbDoc.data.buf = NULL;
         dbDoc.data.size = 0;
@@ -230,16 +243,7 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
         dbDocInfo.deleted = 0;
     }
     dbDocInfo.id = dbDoc.id;
-
     dbDocInfo.content_meta = getContentMeta(it);
-
-    // Compress only those documents that aren't already compressed.
-    if (dbDoc.data.size > 0) {
-        if (datatype == PROTOCOL_BINARY_RAW_BYTES ||
-                datatype == PROTOCOL_BINARY_DATATYPE_JSON) {
-            dbDocInfo.content_meta |= COUCH_DOC_IS_COMPRESSED;
-        }
-    }
 }
 
 CouchKVStore::CouchKVStore(KVStoreConfig &config, bool read_only)
