@@ -51,7 +51,7 @@
 #include "vbucket.h"
 
 #include <JSON_checker.h>
-#include <snappy-c.h>
+#include <platform/compress.h>
 
 static const int MAX_OPEN_DB_RETRY = 10;
 
@@ -648,23 +648,27 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
     if (documentMetaData->getVersionInitialisedFrom() == MetaData::Version::V0) {
         // Metadata doesn't have flex_meta_code/datatype. Provision space for
         // these paramenters.
-        const unsigned char* data;
-        bool ret;
+
+        // If the document is compressed we need to inflate it to
+        // determine if it is json or not.
+        cb::compression::Buffer inflated;
+        cb::const_char_buffer data { item->buf, item->size };
+
         if (((*info)->content_meta | COUCH_DOC_IS_COMPRESSED) ==
                 (*info)->content_meta) {
-            size_t uncompr_len;
-            snappy_uncompressed_length(item->buf, item->size, &uncompr_len);
-            char *dbuf = (char *) cb_malloc(uncompr_len);
-            snappy_uncompress(item->buf, item->size, dbuf, &uncompr_len);
-            data = (const unsigned char*)dbuf;
-            ret = checkUTF8JSON(data, uncompr_len);
-            cb_free(dbuf);
-        } else {
-            data = (const unsigned char*)item->buf;
-            ret = checkUTF8JSON(data, item->size);
+            if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
+                                          item->buf, item->size, inflated)) {
+                throw std::runtime_error(
+                    "edit_docinfo_hook: failed to inflate document with seqno: " +
+                    std::to_string((*info)->db_seq) + " revno: " +
+                    std::to_string((*info)->rev_seq));
+            }
+            data = { inflated.data.get(), inflated.len };
         }
+
         protocol_binary_datatype_t datatype = PROTOCOL_BINARY_RAW_BYTES;
-        if (ret) {
+        if (checkUTF8JSON(reinterpret_cast<const uint8_t*>(data.data()),
+                          data.size())) {
             datatype = PROTOCOL_BINARY_DATATYPE_JSON;
         }
 
