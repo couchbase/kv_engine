@@ -442,25 +442,27 @@ void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                                                        NULL, 0, key, strlen(key));
     pkt->request.vbucket = htons(vbucketId);
 
-    check(h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
-          "Failed to evict key.");
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(h, NULL, pkt, add_response,
+                                testHarness.doc_namespace),
+          "Failed to perform CMD_EVICT_KEY.");
 
     cb_free(pkt);
     if (expectError) {
-        check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
-              "Expected exists when evicting key.");
+        checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+                "evict_key: expected KEY_EEXISTS when evicting key");
     } else {
         if (last_body != "Already ejected.") {
             nonResidentItems++;
             numEjectedItems++;
         }
-        check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              "Expected success evicting key.");
+        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+                "evict_key: expected SUCCESS when evicting key.");
     }
 
-    check(get_int_stat(h, h1, "ep_num_non_resident") == nonResidentItems,
+    checkeq(nonResidentItems, get_int_stat(h, h1, "ep_num_non_resident"),
           "Incorrect number of non-resident items");
-    check(get_int_stat(h, h1, "ep_num_value_ejects") == numEjectedItems,
+    checkeq(numEjectedItems, get_int_stat(h, h1, "ep_num_value_ejects"),
           "Incorrect number of ejected items");
 
     if (msg != NULL && last_body != msg) {
