@@ -3657,12 +3657,18 @@ KVBucket::Position KVBucket::endPosition() const
     return KVBucket::Position(vbMap.getSize());
 }
 
-VBCBAdaptor::VBCBAdaptor(KVBucket* s, TaskId id,
+VBCBAdaptor::VBCBAdaptor(KVBucket* s,
+                         TaskId id,
                          std::shared_ptr<VBucketVisitor> v,
-                         const char* l, double sleep) :
-    GlobalTask(&s->getEPEngine(), id, 0, false), store(s),
-    visitor(v), label(l), sleepTime(sleep), currentvb(0)
-{
+                         const char* l,
+                         double sleep,
+                         bool shutdown)
+    : GlobalTask(&s->getEPEngine(), id, 0, shutdown),
+      store(s),
+      visitor(v),
+      label(l),
+      sleepTime(sleep),
+      currentvb(0) {
     const VBucketFilter &vbFilter = visitor->getVBucketFilter();
     for (auto vbid : store->vbMap.getBuckets()) {
         RCPtr<VBucket> vb = store->vbMap.getBucket(vbid);
@@ -3692,44 +3698,6 @@ bool VBCBAdaptor::run(void) {
         visitor->complete();
     }
     return !isdone;
-}
-
-VBucketVisitorTask::VBucketVisitorTask(KVBucket* s,
-                                       std::shared_ptr<VBucketVisitor> v,
-                                       uint16_t sh, const char* l,
-                                       double sleep, bool shutdown)
-    : GlobalTask(&(s->getEPEngine()), TaskId::VBucketVisitorTask, 0, shutdown),
-      store(s), visitor(v), label(l), sleepTime(sleep), currentvb(0),
-      shardID(sh) {
-    const VBucketFilter &vbFilter = visitor->getVBucketFilter();
-    for (auto vbid : store->vbMap.getShard(shardID)->getVBuckets()) {
-        RCPtr<VBucket> vb = store->vbMap.getBucket(vbid);
-        if (vb && vbFilter(vbid)) {
-            vbList.push(vbid);
-        }
-    }
-}
-
-bool VBucketVisitorTask::run() {
-    if (!vbList.empty()) {
-        TRACE_EVENT("ep-engine/task", "VBucketVisitorTask", vbList.front());
-        currentvb = vbList.front();
-        RCPtr<VBucket> vb = store->vbMap.getBucket(currentvb);
-        if (vb) {
-            if (visitor->pauseVisitor()) {
-                snooze(sleepTime);
-                return true;
-            }
-            visitor->visitBucket(vb);
-        }
-        vbList.pop();
-    }
-
-    bool isDone = vbList.empty();
-    if (isDone) {
-        visitor->complete();
-    }
-    return !isDone;
 }
 
 void KVBucket::resetUnderlyingStats(void)

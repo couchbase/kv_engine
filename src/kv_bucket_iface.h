@@ -897,5 +897,4 @@ protected:
     friend class Warmup;
     friend class PersistenceCallback;
     friend class VBCBAdaptor;
-    friend class VBucketVisitorTask;
 };

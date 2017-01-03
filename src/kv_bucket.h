@@ -31,10 +31,12 @@
  */
 class VBCBAdaptor : public GlobalTask {
 public:
-
-    VBCBAdaptor(KVBucket* s, TaskId id,
-                std::shared_ptr<VBucketVisitor> v, const char *l,
-                double sleep=0);
+    VBCBAdaptor(KVBucket* s,
+                TaskId id,
+                std::shared_ptr<VBucketVisitor> v,
+                const char* l,
+                double sleep = 0,
+                bool shutdown = false);
 
     std::string getDescription() {
         std::stringstream rv;
@@ -53,35 +55,6 @@ private:
     std::atomic<uint16_t>       currentvb;
 
     DISALLOW_COPY_AND_ASSIGN(VBCBAdaptor);
-};
-
-
-/**
- * Vbucket visitor task for a generic scheduler.
- */
-class VBucketVisitorTask : public GlobalTask {
-public:
-
-    VBucketVisitorTask(KVBucket* s,
-                       std::shared_ptr<VBucketVisitor> v, uint16_t sh,
-                       const char *l, double sleep=0, bool shutdown=true);
-
-    std::string getDescription() {
-        std::stringstream rv;
-        rv << label << " on vb " << currentvb;
-        return rv.str();
-    }
-
-    bool run();
-
-private:
-    std::queue<uint16_t>         vbList;
-    KVBucket* store;
-    std::shared_ptr<VBucketVisitor>   visitor;
-    const char                  *label;
-    double                       sleepTime;
-    uint16_t                     currentvb;
-    uint16_t                     shardID;
 };
 
 const uint16_t EP_PRIMARY_SHARD = 0;
@@ -979,7 +952,6 @@ protected:
     friend class Warmup;
     friend class PersistenceCallback;
     friend class VBCBAdaptor;
-    friend class VBucketVisitorTask;
 
     EventuallyPersistentEngine     &engine;
     EPStats                        &stats;

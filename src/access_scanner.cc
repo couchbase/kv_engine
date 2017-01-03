@@ -28,11 +28,20 @@
 class ItemAccessVisitor : public VBucketVisitor,
                           public HashTableVisitor {
 public:
-    ItemAccessVisitor(KVBucket& _store, EPStats& _stats,
-                      uint16_t sh, std::atomic<bool> &sfin, AccessScanner &aS) :
-        store(_store), stats(_stats), startTime(ep_real_time()),
-        taskStart(gethrtime()), shardID(sh), stateFinalizer(sfin), as(aS)
-    {
+    ItemAccessVisitor(KVBucket& _store,
+                      EPStats& _stats,
+                      uint16_t sh,
+                      std::atomic<bool>& sfin,
+                      AccessScanner& aS)
+        : VBucketVisitor(VBucketFilter(
+                  _store.getVBuckets().getShard(sh)->getVBuckets())),
+          store(_store),
+          stats(_stats),
+          startTime(ep_real_time()),
+          taskStart(gethrtime()),
+          shardID(sh),
+          stateFinalizer(sfin),
+          as(aS) {
         Configuration &conf = store.getEPEngine().getConfiguration();
         name = conf.getAlogPath();
         std::stringstream s;
@@ -279,9 +288,12 @@ bool AccessScanner::run() {
                 std::shared_ptr<ItemAccessVisitor> pv(new ItemAccessVisitor(store,
                                                  stats, i, available, *this));
                 std::shared_ptr<VBucketVisitor> vbv(pv);
-                ExTask task = new VBucketVisitorTask(&store, vbv, i,
-                                                     "Item Access Scanner",
-                                                     sleepTime, true);
+                ExTask task = new VBCBAdaptor(&store,
+                                              TaskId::AccessScannerVisitor,
+                                              vbv,
+                                              "Item Access Scanner",
+                                              sleepTime,
+                                              true);
                 ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
             }
         }
