@@ -70,10 +70,10 @@ protected:
         createManager();
     }
 
-    void createManager() {
+    void createManager(int64_t last_seqno = 1000) {
         manager.reset(new CheckpointManager(global_stats, vbucket->getId(),
                                             checkpoint_config,
-                                            /*lastSeqno*/1000,
+                                            last_seqno,
                                             /*lastSnapStart*/0,/*lastSnapEnd*/0,
                                             callback));
     }
@@ -1043,4 +1043,23 @@ TEST_F(CheckpointTest, CursorUpdateForExistingItemWithNonMetaItemAtHead) {
     EXPECT_EQ(1, items.size());
     EXPECT_EQ(1002, items.at(0)->getBySeqno());
     EXPECT_EQ(makeStoredDocKey("key"), items.at(0)->getKey());
+}
+
+// Regression test for MB-21925 - when a duplicate key is queued and the
+// persistence cursor is still positioned on the initial dummy key,
+// should return EXISTING_ITEM.
+TEST_F(CheckpointTest,
+       MB21925_QueueDuplicateWithPersistenceCursorOnInitialMetaItem) {
+
+    // Need a manager starting from seqno zero.
+    createManager(0);
+    ASSERT_EQ(0, manager->getHighSeqno());
+    ASSERT_EQ(1, manager->getNumItems())
+        << "Should start with queue_op::empty on checkpoint.";
+
+    // Add an item with some new key.
+    ASSERT_TRUE(queueNewItem("key"));
+
+    // Test - second item (duplicate key) should return false.
+    EXPECT_FALSE(queueNewItem("key"));
 }
