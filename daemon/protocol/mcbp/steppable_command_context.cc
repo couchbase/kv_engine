@@ -24,7 +24,18 @@ void SteppableCommandContext::drive() {
     connection.setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
-        ret = step();
+        try {
+            ret = step();
+        } catch (const cb::engine_error& error) {
+            if (error.code() != cb::engine_errc::would_block) {
+                LOG_WARNING(&connection,
+                            "%u: SteppableCommandContext::drive() %s: %s",
+                            connection.getId(),
+                            connection.getDescription().c_str(), error.what());
+            }
+            ret = ENGINE_ERROR_CODE(error.code().value());
+        }
+
         if (ret == ENGINE_LOCKED || ret == ENGINE_LOCKED_TMPFAIL) {
             STATS_INCR(&connection, lock_errors);
         }
