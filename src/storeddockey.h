@@ -236,7 +236,7 @@ protected:
     friend class MutationLogEntry;
     friend class StoredValue;
 
-    SerialisedDocKey() : length(0), bytes() {
+    SerialisedDocKey() : length(0), docNamespace(), bytes() {
     }
 
     /**
