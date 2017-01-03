@@ -176,7 +176,7 @@ TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
     std::atomic<bool> bucket_deleted{false};
     std::atomic<bool> watchdog_fired{false};
     std::thread watchdog{
-        [&second_conn, frame, &cv_m, &cv, &bucket_deleted,
+        [&second_conn, &frame, &cv_m, &cv, &bucket_deleted,
          &watchdog_fired]() {
             std::unique_lock<std::mutex> lock(cv_m);
             cv.wait_for(lock, std::chrono::seconds(5),
