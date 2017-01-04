@@ -152,7 +152,7 @@ bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     // Wait for vb0's state (active) to be persisted to disk, that way
     // we know the KVStore files exist on disk.
-    wait_for_stat_to_be(h, h1, "ep_persist_vbstate_total", 1);
+    wait_for_stat_to_be_gte(h, h1, "ep_persist_vbstate_total", 1);
 
     // warmup is complete, notify ep engine that it must now enable
     // data traffic
