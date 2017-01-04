@@ -390,6 +390,12 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
     case ENGINE_DELTA_BADVAL: // FALLTHROUGH
     case ENGINE_FAILED:
         return code;
+
+    case ENGINE_LOCKED:
+        return ENGINE_KEY_EEXISTS;
+    case ENGINE_LOCKED_TMPFAIL:
+        return ENGINE_TMPFAIL;
+
     default:
         LOG_INFO(nullptr,
                  "%u - Client not aware of extended error codes %02x. Disconnecting",

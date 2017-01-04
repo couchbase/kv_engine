@@ -71,6 +71,17 @@ enum class engine_errc {
      * requested operation.
      */
     delta_badval = 0x13,
+    /**
+     * The requested resource is locked
+     */
+    locked = 0x14,
+    /**
+     * The requested resource is locked, but the engine used to
+     * report it as a tmpfail (we need to be able to separate this
+     * in the core so that old clients can get TMPFAIL back instead
+     * of EEXISTS
+     */
+    locked_tmpfail = 0x15,
     /** Generic failue. */
     failed = 0xff
 };
@@ -122,7 +133,9 @@ typedef enum {
     ENGINE_EBUSY = int(cb::engine_errc::too_busy),
     ENGINE_AUTH_STALE = int(cb::engine_errc::authentication_stale),
     ENGINE_DELTA_BADVAL = int(cb::engine_errc::delta_badval),
-    ENGINE_FAILED = int(cb::engine_errc::failed),
+    ENGINE_LOCKED = int(cb::engine_errc::locked),
+    ENGINE_LOCKED_TMPFAIL = int(cb::engine_errc::locked_tmpfail),
+    ENGINE_FAILED = int(cb::engine_errc::failed)
 } ENGINE_ERROR_CODE;
 
 

@@ -40,6 +40,8 @@ static const error_map mapping = {
         {cb::engine_errc::too_busy, "too busy"},
         {cb::engine_errc::authentication_stale, "authentication stale"},
         {cb::engine_errc::delta_badval, "delta bad value"},
+        {cb::engine_errc::locked, "resource is locked"},
+        {cb::engine_errc::locked_tmpfail, "resource is locked; tmpfail"},
         {cb::engine_errc::failed, "generic failure"}};
 
 /**

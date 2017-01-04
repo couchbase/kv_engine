@@ -68,6 +68,14 @@
                 "conn-state-invalidated"
             ]
         },
+        "9": {
+            "name": "LOCKED",
+            "desc": "Requested resource is locked",
+            "attrs": [
+                "item-only",
+                "retry-now"
+            ]
+        },
         "1f": {
             "name": "AUTH_STALE",
             "desc": "Reauthentication required",

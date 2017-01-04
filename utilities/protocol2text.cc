@@ -213,6 +213,8 @@ static const std::map<protocol_binary_response_status, std::string> statusmap {
         "I'm not responsible for this vbucket"},
     {PROTOCOL_BINARY_RESPONSE_NO_BUCKET,
         "Not connected to a bucket"},
+    {PROTOCOL_BINARY_RESPONSE_LOCKED,
+        "Resource locked"},
     {PROTOCOL_BINARY_RESPONSE_AUTH_STALE,
         "Authentication stale. Please reauthenticate"},
     {PROTOCOL_BINARY_RESPONSE_AUTH_ERROR,

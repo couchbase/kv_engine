@@ -95,6 +95,8 @@ extern "C"
         PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET = 0x07,
         /** Not connected to a bucket */
         PROTOCOL_BINARY_RESPONSE_NO_BUCKET = 0x08,
+        /** The requested resource is locked */
+        PROTOCOL_BINARY_RESPONSE_LOCKED = 0x09,
         /** The authentication context is stale. You should reauthenticate*/
         PROTOCOL_BINARY_RESPONSE_AUTH_STALE = 0x1f,
         /** Authentication failure (invalid user/password combination,

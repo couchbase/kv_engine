@@ -67,6 +67,10 @@ protocol_binary_response_status mcbp::to_status(cb::engine_errc code) {
         throw std::logic_error(
             "mcbp::to_status: disconnect is not a legal error code to send to the user");
 
+    case engine_errc::locked:
+    case engine_errc::locked_tmpfail:
+        return PROTOCOL_BINARY_RESPONSE_LOCKED;
+
     case engine_errc::failed:
         return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
