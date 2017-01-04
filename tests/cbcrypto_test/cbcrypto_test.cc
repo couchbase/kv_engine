@@ -557,3 +557,36 @@ TEST(Crypt, InvalidAlgorithm) {
                                  key, ivec, data),
                  std::invalid_argument);
 }
+
+/**
+ * Extra test to validate that the way we generate the entries in
+ * the password database for plain encoding works the same way as
+ * ns_server would do it.
+ *
+ * All of the input values in the test is verified with ns_server
+ */
+TEST(Crypt, ns_server_password_encoding) {
+    const std::vector<uint8_t> salt = {{0, 1, 2, 3, 4, 5, 6, 7, 8,
+                                           9, 10, 11, 12, 13, 14, 15}};
+    const std::string password = {"pa33w0rd"};
+    const std::vector<uint8_t> hmac = {{31, 112, 31, 99, 18, 35, 227, 52,
+                                           96, 252, 20, 53, 183, 65, 140,
+                                           137, 190, 11, 93, 234}};
+
+    auto generated_hmac = cb::crypto::HMAC(cb::crypto::Algorithm::SHA1,
+                                           salt,
+                                           string2vector(password));
+
+    EXPECT_EQ(hmac, generated_hmac);
+
+    // The format of the password encoding is that we're appending
+    // the generated hmac to the salt (which should be 16 bytes).
+    std::vector<uint8_t> pwent = { salt };
+    std::copy(generated_hmac.begin(), generated_hmac.end(),
+              std::back_inserter(pwent));
+
+    // And the password entry is dumped as base64
+    EXPECT_EQ("AAECAwQFBgcICQoLDA0ODx9wH2MSI+M0YPwUNbdBjIm+C13q",
+              Couchbase::Base64::encode(
+                  std::string{(const char*)pwent.data(), pwent.size()}));
+}
