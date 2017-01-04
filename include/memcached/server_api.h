@@ -6,6 +6,7 @@
 #include <memcached/types.h>
 #include <memcached/config_parser.h>
 #include <memcached/privileges.h>
+#include <memcached/protocol_binary.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -192,6 +193,21 @@ extern "C" {
         PrivilegeAccess (* check_privilege)(const void* cookie,
                                             const Privilege privilege);
 
+        /**
+         * Method to map an engine error code to the appropriate mcbp response
+         * code (the client may not support all error codes so we may have
+         * to remap some).
+         *
+         * @param cookie the client cookie (to look up the client connection)
+         * @param code the engine error code to get the mcbp response code.
+         * @return the mcbp response status to use
+         * @throws std::engine_error if the error code results in being
+         *                           ENGINE_DISCONNECT after remapping
+         *         std::logic_error if the error code doesn't make sense
+         *         std::invalid_argument if the code doesn't exist
+         */
+        protocol_binary_response_status (*engine_error2mcbp)(const void* cookie,
+                                                             ENGINE_ERROR_CODE code);
     } SERVER_COOKIE_API;
 
     struct SERVER_DOCUMENT_API {

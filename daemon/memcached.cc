@@ -691,6 +691,26 @@ static PrivilegeAccess check_privilege(const void* void_cookie,
     return cookie->connection->checkPrivilege(privilege);
 }
 
+static protocol_binary_response_status engine_error2mcbp(const void* void_cookie,
+                                                         ENGINE_ERROR_CODE code) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    cookie->validate();
+    auto* connection = cookie->connection;
+    if (connection == nullptr) {
+        throw std::logic_error("engine_error2mcbp: connection can't be null");
+    }
+
+    ENGINE_ERROR_CODE status = connection->remapErrorCode(code);
+    if (status == ENGINE_DISCONNECT) {
+        throw cb::engine_error(cb::engine_errc::disconnect,
+                               "engine_error2mcbp: " +
+                               std::to_string(connection->getId()) +
+                               ": Disconnect client");
+    }
+
+    return engine_error_2_mcbp_protocol_error(status);
+}
+
 static ENGINE_ERROR_CODE pre_link_document(const void* void_cookie,
                                            item_info& info) {
     // Sanity check that people aren't calling the method with a bogus
@@ -1914,6 +1934,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         server_cookie_api.get_bucket_id = get_bucket_id;
         server_cookie_api.get_connection_id = get_connection_id;
         server_cookie_api.check_privilege = check_privilege;
+        server_cookie_api.engine_error2mcbp = engine_error2mcbp;
 
         server_stat_api.evicting = count_eviction;
 

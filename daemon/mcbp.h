@@ -24,6 +24,7 @@
 
 #include <memcached/protocol_binary.h>
 #include "connection_mcbp.h"
+#include "protocol/mcbp/engine_errc_2_mcbp.h"
 
 /**
  * Add a header to the current memcached connection
@@ -55,15 +56,6 @@ void mcbp_write_response(McbpConnection* c,
                          int dlen);
 
 void mcbp_write_packet(McbpConnection* c, protocol_binary_response_status err);
-
-/**
- * Convert an error code generated from the storage engine to the corresponding
- * error code used by the protocol layer.
- * @param e the error code as used in the engine
- * @return the error code as used by the protocol layer
- */
-protocol_binary_response_status engine_error_2_mcbp_protocol_error(
-    ENGINE_ERROR_CODE e);
 
 bool mcbp_response_handler(const void* key, uint16_t keylen,
                            const void* ext, uint8_t extlen,

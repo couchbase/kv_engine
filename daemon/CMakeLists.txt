@@ -111,6 +111,8 @@ ADD_LIBRARY(memcached_daemon STATIC
             protocol/mcbp/command_context.h
             protocol/mcbp/dcp_mutation.cc
             protocol/mcbp/dcp_mutation.h
+            protocol/mcbp/engine_errc_2_mcbp.cc
+            protocol/mcbp/engine_errc_2_mcbp.h
             protocol/mcbp/get_context.cc
             protocol/mcbp/get_context.h
             protocol/mcbp/mutation_context.cc

@@ -13,6 +13,7 @@
 #include <memcached/extension_loggers.h>
 #include <memcached/server_api.h>
 #include "daemon/alloc_hooks.h"
+#include "daemon/protocol/mcbp/engine_errc_2_mcbp.h"
 
 #include <array>
 #include <list>
@@ -158,6 +159,15 @@ static PrivilegeAccess mock_check_privilege(const void*,
                                        const Privilege) {
     // @todo allow for mocking privilege access
     return PrivilegeAccess::Ok;
+}
+
+static protocol_binary_response_status mock_engine_error2mcbp(const void* void_cookie,
+                                                              ENGINE_ERROR_CODE code) {
+    if (code == ENGINE_DISCONNECT) {
+        return protocol_binary_response_status(-1);
+    }
+
+    return engine_error_2_mcbp_protocol_error(code);
 }
 
 static ENGINE_ERROR_CODE mock_pre_link_document(const void* cookie,
@@ -388,6 +398,7 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       server_cookie_api.release = mock_cookie_release;
       server_cookie_api.set_priority = mock_set_priority;
       server_cookie_api.check_privilege = mock_check_privilege;
+      server_cookie_api.engine_error2mcbp = mock_engine_error2mcbp;
       server_stat_api.evicting = mock_count_eviction;
 
       extension_api.register_extension = mock_register_extension;

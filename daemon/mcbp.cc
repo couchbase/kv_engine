@@ -230,52 +230,6 @@ void mcbp_add_header(McbpConnection* c,
     c->addIov(c->write.buf, sizeof(header->response));
 }
 
-protocol_binary_response_status engine_error_2_mcbp_protocol_error(
-    ENGINE_ERROR_CODE e) {
-    protocol_binary_response_status ret;
-
-    switch (e) {
-    case ENGINE_EACCESS:
-        return PROTOCOL_BINARY_RESPONSE_EACCESS;
-    case ENGINE_SUCCESS:
-        return PROTOCOL_BINARY_RESPONSE_SUCCESS;
-    case ENGINE_KEY_ENOENT:
-        return PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
-    case ENGINE_KEY_EEXISTS:
-        return PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
-    case ENGINE_ENOMEM:
-        return PROTOCOL_BINARY_RESPONSE_ENOMEM;
-    case ENGINE_TMPFAIL:
-        return PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
-    case ENGINE_NOT_STORED:
-        return PROTOCOL_BINARY_RESPONSE_NOT_STORED;
-    case ENGINE_EINVAL:
-        return PROTOCOL_BINARY_RESPONSE_EINVAL;
-    case ENGINE_ENOTSUP:
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    case ENGINE_E2BIG:
-        return PROTOCOL_BINARY_RESPONSE_E2BIG;
-    case ENGINE_NOT_MY_VBUCKET:
-        return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
-    case ENGINE_ERANGE:
-        return PROTOCOL_BINARY_RESPONSE_ERANGE;
-    case ENGINE_ROLLBACK:
-        return PROTOCOL_BINARY_RESPONSE_ROLLBACK;
-    case ENGINE_NO_BUCKET:
-        return PROTOCOL_BINARY_RESPONSE_NO_BUCKET;
-    case ENGINE_EBUSY:
-        return PROTOCOL_BINARY_RESPONSE_EBUSY;
-    case ENGINE_AUTH_STALE:
-        return PROTOCOL_BINARY_RESPONSE_AUTH_STALE;
-    case ENGINE_DELTA_BADVAL:
-        return PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL;
-    default:
-        ret = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
-    }
-
-    return ret;
-}
-
 bool mcbp_response_handler(const void* key, uint16_t keylen,
                            const void* ext, uint8_t extlen,
                            const void* body, uint32_t bodylen,
