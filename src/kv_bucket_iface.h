@@ -788,6 +788,22 @@ public:
      */
     virtual ENGINE_ERROR_CODE forceMaxCas(uint16_t vbucket, uint64_t cas) = 0;
 
+    /**
+     * Create a VBucket object appropriate for this Bucket class.
+     */
+    virtual RCPtr<VBucket> makeVBucket(
+            VBucket::id_type id,
+            vbucket_state_t state,
+            KVShard* shard,
+            std::unique_ptr<FailoverTable> table,
+            std::shared_ptr<Callback<VBucket::id_type>> cb,
+            vbucket_state_t initState = vbucket_state_dead,
+            int64_t lastSeqno = 0,
+            uint64_t lastSnapStart = 0,
+            uint64_t lastSnapEnd = 0,
+            uint64_t purgeSeqno = 0,
+            uint64_t maxCas = 0) = 0;
+
 protected:
 
     // Methods called during warmup

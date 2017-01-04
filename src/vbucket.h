@@ -144,13 +144,13 @@ public:
 
     VBucket(id_type i,
             vbucket_state_t newState,
-            EPStats &st,
-            CheckpointConfig &chkConfig,
-            KVShard *kvshard,
+            EPStats& st,
+            CheckpointConfig& chkConfig,
+            KVShard* kvshard,
             int64_t lastSeqno,
             uint64_t lastSnapStart,
             uint64_t lastSnapEnd,
-            FailoverTable *table,
+            std::unique_ptr<FailoverTable> table,
             std::shared_ptr<Callback<id_type> > cb,
             Configuration& config,
             vbucket_state_t initState = vbucket_state_dead,
@@ -485,7 +485,7 @@ public:
     }
 
     std::queue<queued_item> rejectQueue;
-    FailoverTable *failovers;
+    std::unique_ptr<FailoverTable> failovers;
 
     std::atomic<size_t>  opsCreate;
     std::atomic<size_t>  opsUpdate;

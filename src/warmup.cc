@@ -33,6 +33,8 @@
 #undef STATWRITER_NAMESPACE
 #include "tapconnmap.h"
 
+#include <platform/make_unique.h>
+
 struct WarmupCookie {
     WarmupCookie(KVBucket* s, Callback<GetValue>& c) :
         cb(c), epstore(s),
@@ -508,20 +510,26 @@ void Warmup::createVBuckets(uint16_t shardId) {
 
         RCPtr<VBucket> vb = store.getVBucket(vbid);
         if (!vb) {
-            FailoverTable* table;
+            std::unique_ptr<FailoverTable> table;
             if (vbs.failovers.empty()) {
-                table = new FailoverTable(maxEntries);
+                table = std::make_unique<FailoverTable>(maxEntries);
             } else {
-                table = new FailoverTable(vbs.failovers, maxEntries);
+                table = std::make_unique<FailoverTable>(vbs.failovers,
+                                                        maxEntries);
             }
             KVShard* shard = store.getVBuckets().getShardByVbId(vbid);
             std::shared_ptr<Callback<uint16_t> > cb(new NotifyFlusherCB(shard));
-            vb.reset(new VBucket(vbid, vbs.state,
-                                 store.getEPEngine().getEpStats(),
-                                 store.getEPEngine().getCheckpointConfig(),
-                                 shard, vbs.highSeqno, vbs.lastSnapStart,
-                                 vbs.lastSnapEnd, table, cb, config,
-                                 vbs.state, vbs.purgeSeqno, vbs.maxCas));
+            vb = store.makeVBucket(vbid,
+                                   vbs.state,
+                                   shard,
+                                   std::move(table),
+                                   cb,
+                                   vbs.state,
+                                   vbs.highSeqno,
+                                   vbs.lastSnapStart,
+                                   vbs.lastSnapEnd,
+                                   vbs.purgeSeqno,
+                                   vbs.maxCas);
 
             if(vbs.state == vbucket_state_active && !cleanShutdown) {
                 if (static_cast<uint64_t>(vbs.highSeqno) == vbs.lastSnapEnd) {

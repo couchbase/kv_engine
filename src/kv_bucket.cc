@@ -30,6 +30,7 @@
 #include <vector>
 
 #include <phosphor/phosphor.h>
+#include <platform/make_unique.h>
 
 #include "access_scanner.h"
 #include "bgfetcher.h"
@@ -1225,15 +1226,13 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(uint16_t vbid,
         }
         scheduleVBStatePersist(vbid);
     } else if (vbid < vbMap.getSize()) {
-        FailoverTable* ft = new FailoverTable(engine.getMaxFailoverEntries());
+        auto ft =
+                std::make_unique<FailoverTable>(engine.getMaxFailoverEntries());
         KVShard* shard = vbMap.getShardByVbId(vbid);
         std::shared_ptr<Callback<uint16_t> > cb(new NotifyFlusherCB(shard));
-        Configuration& config = engine.getConfiguration();
-        RCPtr<VBucket> newvb(new VBucket(vbid, to, stats,
-                                         engine.getCheckpointConfig(),
-                                         shard, 0, 0, 0, ft, cb,
-                                         config));
+        RCPtr<VBucket> newvb = makeVBucket(vbid, to, shard, std::move(ft), cb);
 
+        Configuration& config = engine.getConfiguration();
         if (config.isBfilterEnabled()) {
             // Initialize bloom filters upon vbucket creation during
             // bucket creation and rebalance
@@ -3945,4 +3944,32 @@ ENGINE_ERROR_CODE KVBucket::forceMaxCas(uint16_t vbucket, uint64_t cas) {
 std::ostream& operator<<(std::ostream& os, const KVBucket::Position& pos) {
     os << "vbucket:" << pos.vbucket_id;
     return os;
+}
+
+RCPtr<VBucket> KVBucket::makeVBucket(
+        VBucket::id_type id,
+        vbucket_state_t state,
+        KVShard* shard,
+        std::unique_ptr<FailoverTable> table,
+        std::shared_ptr<Callback<VBucket::id_type>> cb,
+        vbucket_state_t initState,
+        int64_t lastSeqno,
+        uint64_t lastSnapStart,
+        uint64_t lastSnapEnd,
+        uint64_t purgeSeqno,
+        uint64_t maxCas) {
+    return RCPtr<VBucket>(new VBucket(id,
+                                      state,
+                                      stats,
+                                      engine.getCheckpointConfig(),
+                                      shard,
+                                      lastSeqno,
+                                      lastSnapStart,
+                                      lastSnapEnd,
+                                      std::move(table),
+                                      cb,
+                                      engine.getConfiguration(),
+                                      initState,
+                                      purgeSeqno,
+                                      maxCas));
 }

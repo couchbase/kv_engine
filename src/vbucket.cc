@@ -120,22 +120,27 @@ const vbucket_state_t VBucket::DEAD =
 
 VBucket::VBucket(id_type i,
                  vbucket_state_t newState,
-                 EPStats &st,
-                 CheckpointConfig &chkConfig,
-                 KVShard *kvshard,
+                 EPStats& st,
+                 CheckpointConfig& chkConfig,
+                 KVShard* kvshard,
                  int64_t lastSeqno,
                  uint64_t lastSnapStart,
                  uint64_t lastSnapEnd,
-                 FailoverTable *table,
+                 std::unique_ptr<FailoverTable> table,
                  std::shared_ptr<Callback<id_type> > cb,
                  Configuration& config,
                  vbucket_state_t initState,
                  uint64_t purgeSeqno,
                  uint64_t maxCas)
     : ht(st),
-      checkpointManager(st, i, chkConfig, lastSeqno, lastSnapStart,
-                        lastSnapEnd, cb),
-      failovers(table),
+      checkpointManager(st,
+                        i,
+                        chkConfig,
+                        lastSeqno,
+                        lastSnapStart,
+                        lastSnapEnd,
+                        cb),
+      failovers(std::move(table)),
       opsCreate(0),
       opsUpdate(0),
       opsDelete(0),
@@ -168,8 +173,7 @@ VBucket::VBucket(id_type i,
       persistenceCheckpointId(0),
       bucketCreation(false),
       bucketDeletion(false),
-      persistenceSeqno(0)
-{
+      persistenceSeqno(0) {
     backfill.isBackfillPhase = false;
     pendingOpsStart = 0;
     stats.memOverhead->fetch_add(sizeof(VBucket)
@@ -196,8 +200,6 @@ VBucket::~VBucket() {
     }
 
     stats.decrDiskQueueSize(dirtyQueueSize.load());
-
-    delete failovers;
 
     // Clear out the bloomfilter(s)
     clearFilter();
