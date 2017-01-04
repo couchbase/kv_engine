@@ -3659,13 +3659,13 @@ KVBucket::Position KVBucket::endPosition() const
 
 VBCBAdaptor::VBCBAdaptor(KVBucket* s,
                          TaskId id,
-                         std::shared_ptr<VBucketVisitor> v,
+                         std::unique_ptr<VBucketVisitor> v,
                          const char* l,
                          double sleep,
                          bool shutdown)
     : GlobalTask(&s->getEPEngine(), id, 0, shutdown),
       store(s),
-      visitor(v),
+      visitor(std::move(v)),
       label(l),
       sleepTime(sleep),
       currentvb(0) {

@@ -31,6 +31,7 @@
 #include <utility>
 
 #include <phosphor/phosphor.h>
+#include <platform/make_unique.h>
 
 
 static const size_t MAX_PERSISTENCE_QUEUE_SIZE = 1000000;
@@ -296,11 +297,17 @@ bool ItemPager::run(void) {
         size_t activeEvictPerc = cfg.getPagerActiveVbPcnt();
         double bias = static_cast<double>(activeEvictPerc) / 50;
 
-        std::shared_ptr<PagingVisitor> pv(new PagingVisitor(*kvBucket, stats,
-                                                            toKill, available,
-                                                            ITEM_PAGER, false,
-                                                            bias, &phase));
-        kvBucket->visit(pv, "Item pager", NONIO_TASK_IDX,
+        auto pv = std::make_unique<PagingVisitor>(*kvBucket,
+                                                  stats,
+                                                  toKill,
+                                                  available,
+                                                  ITEM_PAGER,
+                                                  false,
+                                                  bias,
+                                                  &phase);
+        kvBucket->visit(std::move(pv),
+                        "Item pager",
+                        NONIO_TASK_IDX,
                         TaskId::ItemPagerVisitor);
     }
 
@@ -359,13 +366,20 @@ bool ExpiredItemPager::run(void) {
     if ((*available).compare_exchange_strong(inverse, false)) {
         ++stats.expiryPagerRuns;
 
-        std::shared_ptr<PagingVisitor> pv(new PagingVisitor(*kvBucket, stats,
-                                                            -1, available,
-                                                            EXPIRY_PAGER, true,
-                                                            1, NULL));
+        auto pv = std::make_unique<PagingVisitor>(*kvBucket,
+                                                  stats,
+                                                  -1,
+                                                  available,
+                                                  EXPIRY_PAGER,
+                                                  true,
+                                                  1,
+                                                  nullptr);
         // track spawned tasks for shutdown..
-        kvBucket->visit(pv, "Expired item remover", NONIO_TASK_IDX,
-                        TaskId::ExpiredItemPagerVisitor, 10);
+        kvBucket->visit(std::move(pv),
+                        "Expired item remover",
+                        NONIO_TASK_IDX,
+                        TaskId::ExpiredItemPagerVisitor,
+                        10);
     }
     snooze(sleepTime);
     updateExpPagerTime(sleepTime);

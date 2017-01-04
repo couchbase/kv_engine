@@ -18,6 +18,7 @@
 #include "config.h"
 
 #include <phosphor/phosphor.h>
+#include <platform/make_unique.h>
 
 #include "checkpoint_remover.h"
 #include "dcp/dcpconnmap.h"
@@ -142,10 +143,11 @@ bool ClosedUnrefCheckpointRemoverTask::run(void) {
     if (available.compare_exchange_strong(inverse, false)) {
         cursorDroppingIfNeeded();
         KVBucketIface* kvBucket = engine->getKVBucket();
-        std::shared_ptr<CheckpointVisitor> pv(new CheckpointVisitor(kvBucket,
-                                                                    stats,
-                                                                    available));
-        kvBucket->visit(pv, "Checkpoint Remover", NONIO_TASK_IDX,
+        auto pv =
+                std::make_unique<CheckpointVisitor>(kvBucket, stats, available);
+        kvBucket->visit(std::move(pv),
+                        "Checkpoint Remover",
+                        NONIO_TASK_IDX,
                         TaskId::ClosedUnrefCheckpointRemoverVisitorTask);
     }
     snooze(sleepTime);

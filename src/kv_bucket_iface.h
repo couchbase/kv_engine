@@ -60,11 +60,12 @@ enum get_options_t {
  */
 class VBucketVisitor {
 public:
-
-    VBucketVisitor() { }
+    VBucketVisitor() = default;
 
     VBucketVisitor(const VBucketFilter &filter)
         : vBucketFilter(filter) { }
+
+    virtual ~VBucketVisitor() = default;
 
     /**
      * Begin visiting a bucket.
@@ -543,9 +544,11 @@ public:
      *
      * Note that this is asynchronous.
      */
-    virtual size_t visit(std::shared_ptr<VBucketVisitor> visitor,
-                         const char *lbl, task_type_t taskGroup, TaskId id,
-                         double sleepTime=0) = 0;
+    virtual size_t visit(std::unique_ptr<VBucketVisitor> visitor,
+                         const char* lbl,
+                         task_type_t taskGroup,
+                         TaskId id,
+                         double sleepTime = 0) = 0;
 
     /**
      * Visit the items in this epStore, starting the iteration from the

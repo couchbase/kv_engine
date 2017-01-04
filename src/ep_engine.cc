@@ -33,6 +33,7 @@
 #include <limits>
 #include <platform/cb_malloc.h>
 #include <platform/checked_snprintf.h>
+#include <platform/make_unique.h>
 #include <string>
 #include <vector>
 #include <mutex>
@@ -2944,9 +2945,9 @@ void EventuallyPersistentEngine::queueBackfill(const VBucketFilter
                                                              &backfillVBFilter,
                                                Producer *tc)
 {
-    auto bfv = std::make_shared<BackFillVisitor>(
+    auto bfv = std::make_unique<BackFillVisitor>(
             this, *tapConnMap, tc, backfillVBFilter);
-    getKVBucket()->visit(bfv,
+    getKVBucket()->visit(std::move(bfv),
                          "Backfill task",
                          NONIO_TASK_IDX,
                          TaskId::BackfillVisitorTask,

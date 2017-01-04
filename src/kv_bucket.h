@@ -33,7 +33,7 @@ class VBCBAdaptor : public GlobalTask {
 public:
     VBCBAdaptor(KVBucket* s,
                 TaskId id,
-                std::shared_ptr<VBucketVisitor> v,
+                std::unique_ptr<VBucketVisitor> v,
                 const char* l,
                 double sleep = 0,
                 bool shutdown = false);
@@ -49,7 +49,7 @@ public:
 private:
     std::queue<uint16_t>        vbList;
     KVBucket  *store;
-    std::shared_ptr<VBucketVisitor>  visitor;
+    std::unique_ptr<VBucketVisitor> visitor;
     const char                 *label;
     double                      sleepTime;
     std::atomic<uint16_t>       currentvb;
@@ -485,11 +485,14 @@ public:
      *
      * Note that this is asynchronous.
      */
-    size_t visit(std::shared_ptr<VBucketVisitor> visitor, const char *lbl,
-               task_type_t taskGroup, TaskId id,
-               double sleepTime=0) {
-        return ExecutorPool::get()->schedule(new VBCBAdaptor(this, id, visitor,
-                                             lbl, sleepTime), taskGroup);
+    size_t visit(std::unique_ptr<VBucketVisitor> visitor,
+                 const char* lbl,
+                 task_type_t taskGroup,
+                 TaskId id,
+                 double sleepTime = 0) {
+        return ExecutorPool::get()->schedule(
+                new VBCBAdaptor(this, id, std::move(visitor), lbl, sleepTime),
+                taskGroup);
     }
 
     /**

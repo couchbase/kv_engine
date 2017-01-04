@@ -20,6 +20,7 @@
 #include <iostream>
 
 #include <phosphor/phosphor.h>
+#include <platform/make_unique.h>
 
 #include "access_scanner.h"
 #include "ep_engine.h"
@@ -285,12 +286,11 @@ bool AccessScanner::run() {
                 deleteAlogFile(name);
                 stats.accessScannerSkips++;
             } else {
-                std::shared_ptr<ItemAccessVisitor> pv(new ItemAccessVisitor(store,
-                                                 stats, i, available, *this));
-                std::shared_ptr<VBucketVisitor> vbv(pv);
+                auto pv = std::make_unique<ItemAccessVisitor>(
+                        store, stats, i, available, *this);
                 ExTask task = new VBCBAdaptor(&store,
                                               TaskId::AccessScannerVisitor,
-                                              vbv,
+                                              std::move(pv),
                                               "Item Access Scanner",
                                               sleepTime,
                                               true);
