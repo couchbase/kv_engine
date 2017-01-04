@@ -3670,9 +3670,8 @@ VBCBAdaptor::VBCBAdaptor(KVBucket* s,
       sleepTime(sleep),
       currentvb(0) {
     const VBucketFilter &vbFilter = visitor->getVBucketFilter();
-    for (auto vbid : store->vbMap.getBuckets()) {
-        RCPtr<VBucket> vb = store->vbMap.getBucket(vbid);
-        if (vb && vbFilter(vbid)) {
+    for (auto vbid : store->getVBuckets().getBuckets()) {
+        if (vbFilter(vbid)) {
             vbList.push(vbid);
         }
     }
@@ -3682,7 +3681,7 @@ bool VBCBAdaptor::run(void) {
     if (!vbList.empty()) {
         TRACE_EVENT("ep-engine/task", "VBCBAdaptor", vbList.front());
         currentvb.store(vbList.front());
-        RCPtr<VBucket> vb = store->vbMap.getBucket(currentvb);
+        RCPtr<VBucket> vb = store->getVBucket(currentvb);
         if (vb) {
             if (visitor->pauseVisitor()) {
                 snooze(sleepTime);

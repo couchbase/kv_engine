@@ -954,7 +954,6 @@ protected:
 
     friend class Warmup;
     friend class PersistenceCallback;
-    friend class VBCBAdaptor;
 
     EventuallyPersistentEngine     &engine;
     EPStats                        &stats;
