@@ -216,7 +216,8 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
                tests/module_tests/storeddockey_test.cc
                $<TARGET_OBJECTS:ep_objs>
                $<TARGET_OBJECTS:memory_tracking>
-               ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc)
+               ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
+               ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.cc)
 
 TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests couchstore cJSON dirutils
                       ${EP_FORESTDB_LIB} gtest gmock JSON_checker mcd_util
