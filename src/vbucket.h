@@ -154,7 +154,6 @@ public:
             std::shared_ptr<Callback<id_type> > cb,
             Configuration& config,
             vbucket_state_t initState = vbucket_state_dead,
-            uint64_t chkId = 1,
             uint64_t purgeSeqno = 0,
             uint64_t maxCas = 0);
 
