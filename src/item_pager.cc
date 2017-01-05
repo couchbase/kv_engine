@@ -107,8 +107,8 @@ public:
         update();
 
         bool newCheckpointCreated = false;
-        size_t removed = vb->checkpointManager.removeClosedUnrefCheckpoints(vb,
-                                                         newCheckpointCreated);
+        size_t removed = vb->checkpointManager.removeClosedUnrefCheckpoints(
+                *vb, newCheckpointCreated);
         stats.itemsRemovedFromCheckpoints.fetch_add(removed);
         // If the new checkpoint is created, notify this event to the
         // corresponding paused TAP & DCP connections.

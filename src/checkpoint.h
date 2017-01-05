@@ -643,8 +643,8 @@ public:
      * as a result of running this function.
      * @return the number of items that are purged from checkpoint
      */
-    size_t removeClosedUnrefCheckpoints(const RCPtr<VBucket> &vbucket,
-                                        bool &newOpenCheckpointCreated);
+    size_t removeClosedUnrefCheckpoints(VBucket& vbucket,
+                                        bool& newOpenCheckpointCreated);
 
     /**
      * Register the cursor for getting items whose bySeqno values are between
@@ -824,7 +824,7 @@ public:
      * @param id the id of a checkpoint to be created.
      * @param vbucket vbucket of the checkpoint.
      */
-    void checkAndAddNewCheckpoint(uint64_t id, const RCPtr<VBucket> &vbucket);
+    void checkAndAddNewCheckpoint(uint64_t id, VBucket& vbucket);
 
     bool closeOpenCheckpoint();
 
@@ -943,7 +943,7 @@ private:
 
     bool isLastMutationItemInCheckpoint(CheckpointCursor &cursor);
 
-    bool isCheckpointCreationForHighMemUsage(const RCPtr<VBucket> &vbucket);
+    bool isCheckpointCreationForHighMemUsage(const VBucket& vbucket);
 
     void collapseClosedCheckpoints(std::list<Checkpoint*> &collapsedChks);
 

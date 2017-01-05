@@ -864,32 +864,26 @@ checkpointCursorInfoList CheckpointManager::getAllCursors() {
 }
 
 bool CheckpointManager::isCheckpointCreationForHighMemUsage(
-                                              const RCPtr<VBucket> &vbucket) {
+        const VBucket& vbucket) {
     bool forceCreation = false;
     double memoryUsed = static_cast<double>(stats.getTotalMemoryUsed());
     // pesistence and conn cursors are all currently in the open checkpoint?
     bool allCursorsInOpenCheckpoint =
         (connCursors.size() + 1) == checkpointList.back()->getNumberOfCursors();
 
-    if (memoryUsed > stats.mem_high_wat &&
-        allCursorsInOpenCheckpoint &&
+    if (memoryUsed > stats.mem_high_wat && allCursorsInOpenCheckpoint &&
         (checkpointList.back()->getNumItems() >= MIN_CHECKPOINT_ITEMS ||
-         checkpointList.back()->getNumItems() == vbucket->ht.getNumInMemoryItems())) {
+         checkpointList.back()->getNumItems() ==
+                 vbucket.ht.getNumInMemoryItems())) {
         forceCreation = true;
     }
     return forceCreation;
 }
 
 size_t CheckpointManager::removeClosedUnrefCheckpoints(
-                                              const RCPtr<VBucket> &vbucket,
-                                              bool &newOpenCheckpointCreated) {
-
+        VBucket& vbucket, bool& newOpenCheckpointCreated) {
     // This function is executed periodically by the non-IO dispatcher.
     std::unique_lock<std::mutex> lh(queueLock);
-    if (!vbucket) {
-        throw std::invalid_argument("CheckpointManager::removeCloseUnrefCheckpoints:"
-                        " vbucket must be non-NULL");
-    }
     uint64_t oldCheckpointId = 0;
     bool canCreateNewCheckpoint = false;
     if (checkpointList.size() < checkpointConfig.getMaxCheckpoints() ||
@@ -897,9 +891,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
          checkpointList.front()->getNumberOfCursors() == 0)) {
         canCreateNewCheckpoint = true;
     }
-    if (vbucket->getState() == vbucket_state_active &&
-        canCreateNewCheckpoint) {
-
+    if (vbucket.getState() == vbucket_state_active && canCreateNewCheckpoint) {
         bool forceCreation = isCheckpointCreationForHighMemUsage(vbucket);
         // Check if this master active vbucket needs to create a new open
         // checkpoint.
@@ -957,19 +949,18 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
     // the memory overhead.
     if (checkpointConfig.isCheckpointMergeSupported() &&
         !checkpointConfig.canKeepClosedCheckpoints() &&
-        vbucket->getState() == vbucket_state_replica)
-    {
+        vbucket.getState() == vbucket_state_replica) {
         size_t curr_remains = getNumItemsForCursor_UNLOCKED(pCursorName);
         collapseClosedCheckpoints(unrefCheckpointList);
         size_t new_remains = getNumItemsForCursor_UNLOCKED(pCursorName);
         if (curr_remains > new_remains) {
             size_t diff = curr_remains - new_remains;
             stats.decrDiskQueueSize(diff);
-            vbucket->decrDirtyQueueSize(diff);
+            vbucket.decrDirtyQueueSize(diff);
         } else if (curr_remains < new_remains) {
             size_t diff = new_remains - curr_remains;
             stats.diskQueueSize.fetch_add(diff);
-            vbucket->dirtyQueueSize.fetch_add(diff);
+            vbucket.dirtyQueueSize.fetch_add(diff);
         }
     }
     lh.unlock();
@@ -1562,7 +1553,7 @@ snapshot_info_t CheckpointManager::getSnapshotInfo() {
 }
 
 void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id,
-                                               const RCPtr<VBucket> &vbucket) {
+                                                 VBucket& vbucket) {
     LockHolder lh(queueLock);
 
     // Ignore CHECKPOINT_START message with ID 0 as 0 is reserved for
@@ -1624,11 +1615,11 @@ void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id,
         if (curr_remains > new_remains) {
             size_t diff = curr_remains - new_remains;
             stats.decrDiskQueueSize(diff);
-            vbucket->decrDirtyQueueSize(diff);
+            vbucket.decrDirtyQueueSize(diff);
         } else if (curr_remains < new_remains) {
             size_t diff = new_remains - curr_remains;
             stats.diskQueueSize.fetch_add(diff);
-            vbucket->dirtyQueueSize.fetch_add(diff);
+            vbucket.dirtyQueueSize.fetch_add(diff);
         }
     }
 }

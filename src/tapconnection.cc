@@ -2165,7 +2165,7 @@ bool TapConsumer::processCheckpointCommand(uint8_t event, uint16_t vbucket,
                 setBackfillPhase(false, vbucket);
             }
 
-            vb->checkpointManager.checkAndAddNewCheckpoint(checkpointId, vb);
+            vb->checkpointManager.checkAndAddNewCheckpoint(checkpointId, *vb);
         }
         break;
     case TAP_CHECKPOINT_END:

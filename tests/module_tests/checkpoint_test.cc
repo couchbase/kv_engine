@@ -182,8 +182,8 @@ static void launch_checkpoint_cleanup_thread(void *arg) {
 
     while (args->checkpoint_manager->getNumOfCursors() > 1) {
         bool newCheckpointCreated;
-        args->checkpoint_manager->removeClosedUnrefCheckpoints(args->vbucket,
-                                                               newCheckpointCreated);
+        args->checkpoint_manager->removeClosedUnrefCheckpoints(
+                *args->vbucket, newCheckpointCreated);
         // yield to allow set thread to actually do some useful work.
         std::this_thread::yield();
     }
@@ -322,7 +322,7 @@ TEST_F(CheckpointTest, reset_checkpoint_id) {
 
     items.clear();
 
-    manager->checkAndAddNewCheckpoint(1, vbucket);
+    manager->checkAndAddNewCheckpoint(1, *vbucket);
     range = manager->getAllItemsForCursor(cursor, items);
     EXPECT_EQ(1001, range.start);
     EXPECT_EQ(1010, range.end);
@@ -597,8 +597,9 @@ TEST_F(CheckpointTest, CursorOffsetOnCheckpointClose) {
     // Both previous checkpoints are unreferenced. Close them. This will
     // cause the offset of this cursor to be recalculated.
     bool new_open_ckpt_created;
-    EXPECT_EQ(2, manager->removeClosedUnrefCheckpoints(vbucket,
-                                                           new_open_ckpt_created));
+    EXPECT_EQ(2,
+              manager->removeClosedUnrefCheckpoints(*vbucket,
+                                                    new_open_ckpt_created));
 
     EXPECT_EQ(1, manager->getNumCheckpoints());
 
@@ -730,7 +731,7 @@ TEST_F(CheckpointTest, CursorMovement) {
 
     /* Run the checkpoint remover so that new open checkpoint is created */
     bool newCheckpointCreated;
-    manager->removeClosedUnrefCheckpoints(vbucket, newCheckpointCreated);
+    manager->removeClosedUnrefCheckpoints(*vbucket, newCheckpointCreated);
     EXPECT_EQ(curr_open_chkpt_id + 1, manager->getOpenCheckpointId_UNLOCKED());
 
     /* Get items for persistence cursor */
@@ -847,7 +848,7 @@ TEST_F(CheckpointTest, CursorMovementReplicaMerge) {
     // We now have an unoccupied second checkpoint. We should be able to
     // collapse this, and move the dcp_cursor into the merged checkpoint.
     bool newCheckpointCreated;
-    manager->removeClosedUnrefCheckpoints(vbucket, newCheckpointCreated);
+    manager->removeClosedUnrefCheckpoints(*vbucket, newCheckpointCreated);
 
     /* Get items for DCP cursor */
     EXPECT_EQ(MIN_CHECKPOINT_ITEMS/2 + MIN_CHECKPOINT_ITEMS,

@@ -122,7 +122,9 @@ public:
      * Get the number of in-memory non-resident and resident items within
      * this hash table.
      */
-    size_t getNumInMemoryItems(void) { return numItems; }
+    size_t getNumInMemoryItems() const {
+        return numItems;
+    }
 
     /**
      * Get the number of in-memory non-resident items within this hash table.

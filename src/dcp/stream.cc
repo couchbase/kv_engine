@@ -1842,7 +1842,7 @@ void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno) {
         if (cur_snapshot_type.load() == disk && vb->isBackfillPhase()) {
             vb->setBackfillPhase(false);
             uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
-            vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
+            vb->checkpointManager.checkAndAddNewCheckpoint(id, *vb);
         } else {
             size_t mem_threshold = engine->getEpStats().mem_high_wat.load();
             size_t mem_used = engine->getEpStats().getTotalMemoryUsed();
@@ -1850,7 +1850,7 @@ void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno) {
                high watermark (85%) */
             if (mem_threshold < mem_used) {
                 uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
-                vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
+                vb->checkpointManager.checkAndAddNewCheckpoint(id, *vb);
             }
         }
 

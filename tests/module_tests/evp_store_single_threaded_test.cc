@@ -278,8 +278,7 @@ TEST_F(SingleThreadedEPStoreTest, MB19892_BackfillNotDeleted) {
     EXPECT_EQ(1, store->flushVBucket(vbid));
 
     bool new_ckpt_created;
-    EXPECT_EQ(1,
-              ckpt_mgr.removeClosedUnrefCheckpoints(vb, new_ckpt_created));
+    EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
 
     // Create a DCP producer, and start a stream request.
     std::string name{"test_producer"};
@@ -461,8 +460,7 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
     EXPECT_EQ(1, store->flushVBucket(vbid));
 
     bool new_ckpt_created;
-    EXPECT_EQ(1,
-              ckpt_mgr.removeClosedUnrefCheckpoints(vb, new_ckpt_created));
+    EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
     vb.reset();
 
     EXPECT_EQ(0, lpAuxioQ->getFutureQueueSize());
