@@ -108,6 +108,8 @@ static inline std::error_condition make_error_condition(engine_errc e) {
     return std::error_condition(int(e), engine_error_category());
 }
 
+std::string to_string(engine_errc ev);
+
 }
 
 // For backwards compatibility with the old memcached source code we need

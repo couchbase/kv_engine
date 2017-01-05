@@ -18,32 +18,6 @@
 #include <map>
 #include <string>
 
-using error_map = std::map<const cb::engine_errc, std::string>;
-static const error_map mapping = {
-        {cb::engine_errc::success, "success"},
-        {cb::engine_errc::no_such_key, "no such key"},
-        {cb::engine_errc::key_already_exists, "key already exists"},
-        {cb::engine_errc::no_memory, "no memory"},
-        {cb::engine_errc::not_stored, "not stored"},
-        {cb::engine_errc::invalid_arguments, "invalid arguments"},
-        {cb::engine_errc::not_supported, "not supported"},
-        {cb::engine_errc::would_block, "would block"},
-        {cb::engine_errc::too_big, "too big"},
-        {cb::engine_errc::want_more, "want more"},
-        {cb::engine_errc::disconnect, "disconnect"},
-        {cb::engine_errc::no_access, "no access"},
-        {cb::engine_errc::not_my_vbucket, "not my vbucket"},
-        {cb::engine_errc::temporary_failure, "temporary failure"},
-        {cb::engine_errc::out_of_range, "out of range"},
-        {cb::engine_errc::rollback, "rollback"},
-        {cb::engine_errc::no_bucket, "no bucket"},
-        {cb::engine_errc::too_busy, "too busy"},
-        {cb::engine_errc::authentication_stale, "authentication stale"},
-        {cb::engine_errc::delta_badval, "delta bad value"},
-        {cb::engine_errc::locked, "resource is locked"},
-        {cb::engine_errc::locked_tmpfail, "resource is locked; tmpfail"},
-        {cb::engine_errc::failed, "generic failure"}};
-
 /**
  * engine_error_category provides the mapping from the engine error codes to
  * a textual mapping and is used together with the std::system_error.
@@ -55,15 +29,7 @@ public:
     }
 
     std::string message(int code) const override {
-        const auto iter = mapping.find(cb::engine_errc(code));
-        if (iter == mapping.cend()) {
-            throw std::invalid_argument(
-                    "engine_error_category::message: code does not represent a "
-                    "legal error code: " +
-                    std::to_string(code));
-        } else {
-            return iter->second;
-        }
+        return to_string(cb::engine_errc(code));
     }
 
     std::error_condition default_error_condition(int code) const NOEXCEPT override {
@@ -74,4 +40,59 @@ public:
 const std::error_category& cb::engine_error_category() NOEXCEPT {
     static engine_category category_instance;
     return category_instance;
+}
+
+std::string cb::to_string(cb::engine_errc code) {
+    switch (code) {
+    case cb::engine_errc::success:
+        return "success";
+    case cb::engine_errc::no_such_key:
+        return "no such key";
+    case cb::engine_errc::key_already_exists:
+        return "key already exists";
+    case cb::engine_errc::no_memory:
+        return "no memory";
+    case cb::engine_errc::not_stored:
+        return "not stored";
+    case cb::engine_errc::invalid_arguments:
+        return "invalid arguments";
+    case cb::engine_errc::not_supported:
+        return "not supported";
+    case cb::engine_errc::would_block:
+        return "would block";
+    case cb::engine_errc::too_big:
+        return "too big";
+    case cb::engine_errc::want_more:
+        return "want more";
+    case cb::engine_errc::disconnect:
+        return "disconnect";
+    case cb::engine_errc::no_access:
+        return "no access";
+    case cb::engine_errc::not_my_vbucket:
+        return "not my vbucket";
+    case cb::engine_errc::temporary_failure:
+        return "temporary failure";
+    case cb::engine_errc::out_of_range:
+        return "out of range";
+    case cb::engine_errc::rollback:
+        return "rollback";
+    case cb::engine_errc::no_bucket:
+        return "no bucket";
+    case cb::engine_errc::too_busy:
+        return "too busy";
+    case cb::engine_errc::authentication_stale:
+        return "authentication stale";
+    case cb::engine_errc::delta_badval:
+        return "delta bad value";
+    case cb::engine_errc::locked:
+        return "resource is locked";
+    case cb::engine_errc::locked_tmpfail:
+        return "resource is locked; tmpfail";
+    case cb::engine_errc::failed:
+        return "generic failure";
+    };
+
+    throw std::invalid_argument(
+        "engine_error_category::message: code does not represent a "
+            "legal error code: " + std::to_string(int(code)));
 }
