@@ -47,13 +47,13 @@ std::string to_string(const Opcodes& opcode) {
 #endif
 }
 
-std::ostream& operator << (std::ostream& os, const Opcodes& o) {
+std::ostream& operator<<(std::ostream& os, const Opcodes& o) {
     os << to_string(o);
     return os;
 };
 
 class MutationWithMetaTest : public ValidatorTest,
-                         public ::testing::WithParamInterface<Opcodes> {
+                             public ::testing::WithParamInterface<Opcodes> {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
         memset(&request, 0, sizeof(request));
@@ -105,8 +105,8 @@ TEST_P(MutationWithMetaTest, InvalidExtlen) {
             EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
             break;
         default:
-            EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate())
-                        << "Extlen: " << ii;
+            EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate()) << "Extlen: "
+                                                                   << ii;
         }
     }
 }
@@ -130,7 +130,4 @@ INSTANTIATE_TEST_CASE_P(Opcodes,
                                           Opcodes::DelWithMeta,
                                           Opcodes::DelQWithMeta),
                         ::testing::PrintToStringParamName());
-
-
-
 }

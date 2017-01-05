@@ -21,22 +21,21 @@
  * Memcached binary protocol validator tests.
  */
 
-
 #include "config.h"
 
-#include <gtest/gtest.h>
 #include <daemon/mcbp_validators.h>
+#include <gtest/gtest.h>
 
 namespace BinaryProtocolValidator {
 
 class ValidatorTest : public ::testing::Test {
-    public:
-        virtual void SetUp() override;
+public:
+    virtual void SetUp() override;
 
-    protected:
-        int validate(protocol_binary_command opcode, void *request);
+protected:
+    int validate(protocol_binary_command opcode, void* request);
 
-        McbpValidatorChains validatorChains;
-    };
+    McbpValidatorChains validatorChains;
+};
 
 } // namespace BinaryProtocolValidator

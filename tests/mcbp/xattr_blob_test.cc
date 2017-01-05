@@ -28,8 +28,8 @@ static std::string to_string(cb::byte_buffer buf) {
 }
 
 void validate(cb::byte_buffer buffer) {
-    EXPECT_TRUE(cb::xattr::validate({reinterpret_cast<const char*>(buffer.buf),
-                                     buffer.len}));
+    EXPECT_TRUE(cb::xattr::validate(
+            {reinterpret_cast<const char*>(buffer.buf), buffer.len}));
 }
 
 TEST(XattrBlobBlob, TestBlob) {

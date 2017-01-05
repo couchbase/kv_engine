@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 #include "config.h"
+
 #include <gtest/gtest.h>
 #include <xattr/utils.h>
 
@@ -22,7 +23,6 @@ class XattrValidatorTest : public ::testing::Test {
 public:
     XattrValidatorTest() : blob(4) {
     }
-
 
 protected:
     void addKvPair(const std::string& key, const std::string& value) {
@@ -46,7 +46,6 @@ protected:
     cb::const_char_buffer getBuffer() {
         return {blob.data(), blob.size()};
     }
-
 
     std::vector<char> blob;
 };

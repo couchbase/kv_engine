@@ -14,17 +14,17 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include <cctype>
 #include <gtest/gtest.h>
-#include <locale>
 #include <xattr/key_validator.h>
+#include <cctype>
+#include <locale>
 
 #include "daemon/subdocument_validators.h"
 #include "memcached/buffer.h"
 
 static bool is_valid_xattr_key(cb::const_char_buffer path) {
-    return is_valid_xattr_key({reinterpret_cast<const uint8_t*>(path.buf),
-                              path.len});
+    return is_valid_xattr_key(
+            {reinterpret_cast<const uint8_t*>(path.buf), path.len});
 }
 
 /**
@@ -68,10 +68,10 @@ TEST(XattrKeyValidator, KeyLengthWithPath) {
         const_cast<char*>(copy.data())[ii - 1] = '.';
         if (ii > SUBDOC_MAX_XATTR_LENGTH) {
             EXPECT_FALSE(is_valid_xattr_key({copy.data(), copy.size()}))
-                        << "[" << copy << "]";
+                    << "[" << copy << "]";
         } else {
             EXPECT_TRUE(is_valid_xattr_key({copy.data(), copy.size()}))
-                        << "[" << copy << "]";
+                    << "[" << copy << "]";
         }
     }
 }
@@ -128,8 +128,8 @@ TEST(XattrKeyValidator, RestrictedXattrPrefix) {
 
     for (int ii = 0; ii < 0x80; ++ii) { // values over 0x80 == multibyte UTF8
         key[0] = char(ii);
-        if ((std::ispunct(key[0], loc) && key[0] != '_') || std::iscntrl(key[0],
-                                                                         loc)) {
+        if ((std::ispunct(key[0], loc) && key[0] != '_') ||
+            std::iscntrl(key[0], loc)) {
             EXPECT_FALSE(is_valid_xattr_key({key.data(), key.size()}));
         } else {
             EXPECT_TRUE(is_valid_xattr_key({key.data(), key.size()}));
@@ -153,13 +153,10 @@ static void testInvalidUtf(char magic, int nbytes) {
 
     for (int ii = 1; ii < nbytes + 1; ++ii) {
         data[ii] = 0xff;
-        EXPECT_FALSE(is_valid_xattr_key({data.data(), data.size()}))
-                    << ii;
+        EXPECT_FALSE(is_valid_xattr_key({data.data(), data.size()})) << ii;
         data[ii] = 0xbf;
-        EXPECT_TRUE(is_valid_xattr_key({data.data(), data.size()}))
-                    << ii;
+        EXPECT_TRUE(is_valid_xattr_key({data.data(), data.size()})) << ii;
     }
-
 }
 
 TEST(XattrKeyValidator, InvalidUTF8_2Bytes) {

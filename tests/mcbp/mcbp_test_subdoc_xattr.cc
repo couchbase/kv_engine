@@ -17,13 +17,13 @@
 #include "config.h"
 
 #include "mcbp_test.h"
-#include "utilities/subdoc_encoder.h"
 #include "utilities/protocol2text.h"
+#include "utilities/subdoc_encoder.h"
 
+#include <include/memcached/protocol_binary.h>
 #include <memcached/protocol_binary.h>
 #include <algorithm>
 #include <vector>
-#include <include/memcached/protocol_binary.h>
 
 namespace BinaryProtocolValidator {
 
@@ -66,14 +66,16 @@ std::ostream& operator<<(std::ostream& os, const SubdocOpcodes& o) {
 /**
  * Test the extra checks needed for XATTR access in subdoc
  */
-class SubdocXattrSingleTest : public ValidatorTest,
-                              public ::testing::WithParamInterface<SubdocOpcodes> {
+class SubdocXattrSingleTest
+        : public ValidatorTest,
+          public ::testing::WithParamInterface<SubdocOpcodes> {
 public:
     SubdocXattrSingleTest()
         : doc("Document"),
           path("_sync.cas"),
           value("\"${Mutation.CAS}\""),
-          flags(SUBDOC_FLAG_XATTR_PATH) {}
+          flags(SUBDOC_FLAG_XATTR_PATH) {
+    }
 
     virtual void SetUp() override {
         ValidatorTest::SetUp();
@@ -87,15 +89,16 @@ protected:
     int validate() {
         auto opcode = (protocol_binary_command)GetParam();
         protocol_binary_request_subdocument* req;
-        std::vector<uint8_t> blob(
-            sizeof(req->bytes) + doc.length() + path.length() + value.length());
-        req = reinterpret_cast<protocol_binary_request_subdocument*>(blob.data());
+        std::vector<uint8_t> blob(sizeof(req->bytes) + doc.length() +
+                                  path.length() + value.length());
+        req = reinterpret_cast<protocol_binary_request_subdocument*>(
+                blob.data());
 
         req->message.header.request.magic = PROTOCOL_BINARY_REQ;
         req->message.header.request.extlen = 3;
         req->message.header.request.keylen = ntohs(doc.length());
-        req->message.header.request.bodylen = ntohl(
-            3 + doc.length() + path.length() + value.length());
+        req->message.header.request.bodylen =
+                ntohl(3 + doc.length() + path.length() + value.length());
         req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
 
         req->message.extras.subdoc_flags = flags;
@@ -104,7 +107,8 @@ protected:
         auto* ptr = blob.data() + sizeof(req->bytes);
         memcpy(ptr, doc.data(), doc.length());
         memcpy(ptr + doc.length(), path.data(), path.length());
-        memcpy(ptr + doc.length() + path.length(), value.data(),
+        memcpy(ptr + doc.length() + path.length(),
+               value.data(),
                value.length());
 
         return ValidatorTest::validate(opcode, static_cast<void*>(blob.data()));
@@ -185,19 +189,19 @@ TEST_P(SubdocXattrSingleTest, PathTest) {
     path = "superduperlongpath";
     flags = SUBDOC_FLAG_NONE;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate())
-                << memcached_opcode_2_text(uint8_t(GetParam()));
+            << memcached_opcode_2_text(uint8_t(GetParam()));
 
     // XATTR keys must be < 16 characters (we've got standalone tests
     // to validate all of the checks for the xattr keys, this is just
     // to make sure that our validator calls it ;-)
     flags = SUBDOC_FLAG_XATTR_PATH;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL, validate())
-                << memcached_opcode_2_text(uint8_t(GetParam()));
+            << memcached_opcode_2_text(uint8_t(GetParam()));
 
     // Truncate it to a shorter one, and this time it should pass
     path = "_sync.cas";
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate())
-                << memcached_opcode_2_text(uint8_t(GetParam()));
+            << memcached_opcode_2_text(uint8_t(GetParam()));
 }
 
 TEST_P(SubdocXattrSingleTest, ValidateFlags) {
@@ -237,7 +241,6 @@ TEST_P(SubdocXattrSingleTest, ValidateFlags) {
  */
 class SubdocXattrMultiLookupTest : public ValidatorTest {
 public:
-
     SubdocXattrMultiLookupTest() {
         request.key = "Document";
     }
@@ -307,7 +310,8 @@ TEST_F(SubdocXattrMultiLookupTest, XattrFlagsMakeSense) {
               validate());
 
     // We should be able to access deleted docs if both flags are set
-    request.specs[0].flags = SUBDOC_FLAG_ACCESS_DELETED | SUBDOC_FLAG_XATTR_PATH;
+    request.specs[0].flags =
+            SUBDOC_FLAG_ACCESS_DELETED | SUBDOC_FLAG_XATTR_PATH;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 }
 
@@ -331,14 +335,12 @@ TEST_F(SubdocXattrMultiLookupTest, AllLookupsMustBeOnTheSamePath) {
               validate());
 }
 
-
 /**
  * The SubdocXattrMultiLookupTest tests the XATTR specific constraints
  * over the normal subdoc constraints tested elsewhere
  */
 class SubdocXattrMultiMutationTest : public ValidatorTest {
 public:
-
     SubdocXattrMultiMutationTest() {
         request.key = "Document";
     }
@@ -350,8 +352,9 @@ public:
 protected:
     int validate() {
         auto packet = request.encode();
-        return ValidatorTest::validate(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION,
-                                       static_cast<void*>(packet.data()));
+        return ValidatorTest::validate(
+                PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION,
+                static_cast<void*>(packet.data()));
     }
 
     SubdocMultiMutationCmd request;
@@ -360,20 +363,24 @@ protected:
 TEST_F(SubdocXattrMultiMutationTest, XAttrMayBeFirst) {
     request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                              SUBDOC_FLAG_XATTR_PATH,
-                             "_sync.cas", "{\"foo\" : \"bar\"}"});
+                             "_sync.cas",
+                             "{\"foo\" : \"bar\"}"});
     request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                              SUBDOC_FLAG_NONE,
-                             "meta.author", "{\"name\" : \"Bubba\"}"});
+                             "meta.author",
+                             "{\"name\" : \"Bubba\"}"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 }
 
 TEST_F(SubdocXattrMultiMutationTest, XAttrCantBeLast) {
     request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                              SUBDOC_FLAG_NONE,
-                             "meta.author", "{\"name\" : \"Bubba\"}"});
+                             "meta.author",
+                             "{\"name\" : \"Bubba\"}"});
     request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                              SUBDOC_FLAG_XATTR_PATH,
-                             "_sync.cas", "{\"foo\" : \"bar\"}"});
+                             "_sync.cas",
+                             "{\"foo\" : \"bar\"}"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
@@ -391,7 +398,8 @@ TEST_F(SubdocXattrMultiMutationTest, XAttrKeyIsChecked) {
 TEST_F(SubdocXattrMultiMutationTest, XattrFlagsMakeSense) {
     request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                              SUBDOC_FLAG_XATTR_PATH,
-                             "_sync.cas", "\"${Mutation.CAS}\""});
+                             "_sync.cas",
+                             "\"${Mutation.CAS}\""});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 
     request.specs[0].flags = SUBDOC_FLAG_EXPAND_MACROS;
@@ -402,7 +410,8 @@ TEST_F(SubdocXattrMultiMutationTest, XattrFlagsMakeSense) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 
     request.specs[0].flags = SUBDOC_FLAG_EXPAND_MACROS |
-        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_ACCESS_DELETED;
+                             SUBDOC_FLAG_XATTR_PATH |
+                             SUBDOC_FLAG_ACCESS_DELETED;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 
     request.specs[0].value = "${UnknownMacro}";
@@ -415,7 +424,8 @@ TEST_F(SubdocXattrMultiMutationTest, XattrFlagsMakeSense) {
               validate());
 
     // We should be able to access deleted docs if both flags are set
-    request.specs[0].flags = SUBDOC_FLAG_ACCESS_DELETED | SUBDOC_FLAG_XATTR_PATH;
+    request.specs[0].flags =
+            SUBDOC_FLAG_ACCESS_DELETED | SUBDOC_FLAG_XATTR_PATH;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 }
 
@@ -423,7 +433,8 @@ TEST_F(SubdocXattrMultiMutationTest, AllowMultipleMutations) {
     for (int ii = 0; ii < 10; ii++) {
         request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                                  SUBDOC_FLAG_XATTR_PATH,
-                                 "_sync.cas", "{\"foo\" : \"bar\"}"});
+                                 "_sync.cas",
+                                 "{\"foo\" : \"bar\"}"});
     }
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 }
@@ -431,10 +442,12 @@ TEST_F(SubdocXattrMultiMutationTest, AllowMultipleMutations) {
 TEST_F(SubdocXattrMultiMutationTest, AllMutationsMustBeOnTheSamePath) {
     request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                              SUBDOC_FLAG_XATTR_PATH,
-                             "_sync.cas", "{\"foo\" : \"bar\"}"});
+                             "_sync.cas",
+                             "{\"foo\" : \"bar\"}"});
     request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                              SUBDOC_FLAG_XATTR_PATH,
-                             "foo.bar", "{\"foo\" : \"bar\"}"});
+                             "foo.bar",
+                             "{\"foo\" : \"bar\"}"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_KEY_COMBO,
               validate());
 }
