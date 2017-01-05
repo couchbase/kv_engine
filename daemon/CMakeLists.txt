@@ -115,6 +115,8 @@ ADD_LIBRARY(memcached_daemon STATIC
             protocol/mcbp/engine_errc_2_mcbp.h
             protocol/mcbp/get_context.cc
             protocol/mcbp/get_context.h
+            protocol/mcbp/get_locked_context.cc
+            protocol/mcbp/get_locked_context.h
             protocol/mcbp/mutation_context.cc
             protocol/mcbp/mutation_context.h
             protocol/mcbp/remove_context.cc
@@ -124,6 +126,8 @@ ADD_LIBRARY(memcached_daemon STATIC
             protocol/mcbp/steppable_command_context.cc
             protocol/mcbp/steppable_command_context.h
             protocol/mcbp/tap_ship_log.cc
+            protocol/mcbp/unlock_context.cc
+            protocol/mcbp/unlock_context.h
             protocol/mcbp/utilities.cc
             protocol/mcbp/utilities.h
             runtime.cc

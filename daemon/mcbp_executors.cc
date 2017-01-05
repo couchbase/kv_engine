@@ -38,11 +38,13 @@
 #include "protocol/mcbp/appendprepend_context.h"
 #include "protocol/mcbp/arithmetic_context.h"
 #include "protocol/mcbp/get_context.h"
+#include "protocol/mcbp/get_locked_context.h"
 #include "protocol/mcbp/dcp_mutation.h"
 #include "protocol/mcbp/mutation_context.h"
 #include "protocol/mcbp/remove_context.h"
 #include "protocol/mcbp/stats_context.h"
 #include "protocol/mcbp/steppable_command_context.h"
+#include "protocol/mcbp/unlock_context.h"
 #include "protocol/mcbp/utilities.h"
 
 #include <cctype>
@@ -153,6 +155,16 @@ void update_topkeys(const DocKey& key, McbpConnection* c) {
 static void process_bin_get(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_get*>(packet);
     c->obtainContext<GetCommandContext>(*c, req).drive();
+}
+
+static void get_locked_executor(McbpConnection* c, void* packet) {
+    auto* req = reinterpret_cast<protocol_binary_request_getl*>(packet);
+    c->obtainContext<GetLockedCommandContext>(*c, req).drive();
+}
+
+static void unlock_executor(McbpConnection* c, void* packet) {
+    auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(packet);
+    c->obtainContext<UnlockCommandContext>(*c, req).drive();
 }
 
 static ENGINE_ERROR_CODE default_unknown_command(
@@ -2638,6 +2650,8 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors(void) {
     executors[PROTOCOL_BINARY_CMD_DELETE_BUCKET] = delete_bucket_executor;
     executors[PROTOCOL_BINARY_CMD_SELECT_BUCKET] = select_bucket_executor;
     executors[PROTOCOL_BINARY_CMD_GET_ERROR_MAP] = get_errmap_executor;
+    executors[PROTOCOL_BINARY_CMD_GET_LOCKED] = get_locked_executor;
+    executors[PROTOCOL_BINARY_CMD_UNLOCK_KEY] = unlock_executor;
 
     return executors;
 }

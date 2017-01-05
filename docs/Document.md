@@ -23,6 +23,12 @@ CAS value won't tell you which one is the newest.
 The CAS value is sent to the client in *network byte order*, so that both
 a client and the server can log it in a deterministic way.
 
+If the document is locked, a CAS value of -1 is used (we don't
+reveal the real cas value of the document to the user). Trying to
+acquire the lock generates a new CAS value (so that no one else know
+the real cas value and may unlock the object by referencing its cas
+value).
+
 ### VBucket UUID
 
 The vbucket UUID is a 64 bit identifier which uniquely identifies the version

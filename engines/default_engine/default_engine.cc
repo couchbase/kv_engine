@@ -46,6 +46,17 @@ static ENGINE_ERROR_CODE default_get(ENGINE_HANDLE* handle,
                                      const DocKey& key,
                                      uint16_t vbucket,
                                      DocumentState);
+static ENGINE_ERROR_CODE default_get_locked(ENGINE_HANDLE* handle,
+                                            const void* cookie,
+                                            item** item,
+                                            const DocKey& key,
+                                            uint16_t vbucket,
+                                            uint32_t lock_timeout);
+static ENGINE_ERROR_CODE default_unlock(ENGINE_HANDLE* handle,
+                                        const void* cookie,
+                                        const DocKey& key,
+                                        uint16_t vbucket,
+                                        uint64_t cas);
 static ENGINE_ERROR_CODE default_get_stats(ENGINE_HANDLE* handle,
                   const void *cookie,
                   const char *stat_key,
@@ -132,6 +143,8 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     engine->engine.remove = default_item_delete;
     engine->engine.release = default_item_release;
     engine->engine.get = default_get;
+    engine->engine.get_locked = default_get_locked;
+    engine->engine.unlock = default_unlock;
     engine->engine.get_stats = default_get_stats;
     engine->engine.reset_stats = default_reset_stats;
     engine->engine.store = default_store;
@@ -353,6 +366,23 @@ static ENGINE_ERROR_CODE default_get(ENGINE_HANDLE* handle,
    } else {
       return ENGINE_KEY_ENOENT;
    }
+}
+
+static ENGINE_ERROR_CODE default_get_locked(ENGINE_HANDLE* handle,
+                                            const void* cookie,
+                                            item** item,
+                                            const DocKey& key,
+                                            uint16_t vbucket,
+                                            uint32_t lock_timeout) {
+    return ENGINE_ENOTSUP;
+}
+
+static ENGINE_ERROR_CODE default_unlock(ENGINE_HANDLE* handle,
+                                        const void* cookie,
+                                        const DocKey& key,
+                                        uint16_t vbucket,
+                                        uint64_t cas) {
+    return ENGINE_ENOTSUP;
 }
 
 static ENGINE_ERROR_CODE default_get_stats(ENGINE_HANDLE* handle,

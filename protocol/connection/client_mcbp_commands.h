@@ -487,10 +487,35 @@ public:
     void encode(std::vector<uint8_t>& buf) const override;
 };
 
+class BinprotGetAndLockCommand
+    : public BinprotCommandT<BinprotGetCommand, PROTOCOL_BINARY_CMD_GET_LOCKED> {
+public:
+    BinprotGetAndLockCommand() : BinprotCommandT(), lock_timeout(0) {}
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+    void setLockTimeout(uint32_t timeout) {
+        lock_timeout = timeout;
+    }
+
+protected:
+    uint32_t lock_timeout;
+};
+
 class BinprotGetResponse : public BinprotResponse {
 public:
     uint32_t getDocumentFlags() const;
 };
+
+using BinprotGetAndLockResponse = BinprotGetResponse;
+
+class BinprotUnlockCommand
+    : public BinprotCommandT<BinprotGetCommand, PROTOCOL_BINARY_CMD_UNLOCK_KEY> {
+public:
+    void encode(std::vector<uint8_t>& buf) const override;
+};
+
+using BinprotUnlockResponse = BinprotResponse;
 
 class BinprotMutationCommand : public BinprotCommandT<BinprotMutationCommand> {
 public:

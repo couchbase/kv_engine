@@ -16,6 +16,7 @@
  */
 #include "steppable_command_context.h"
 #include <daemon/mcbp.h>
+#include <daemon/stats.h>
 
 void SteppableCommandContext::drive() {
     ENGINE_ERROR_CODE ret = connection.getAiostat();
@@ -24,6 +25,9 @@ void SteppableCommandContext::drive() {
 
     if (ret == ENGINE_SUCCESS) {
         ret = step();
+        if (ret == ENGINE_LOCKED || ret == ENGINE_LOCKED_TMPFAIL) {
+            STATS_INCR(&connection, lock_errors);
+        }
     }
 
     ret = connection.remapErrorCode(ret);

@@ -171,7 +171,7 @@ class EWB_Engine : public ENGINE_HANDLE_V1 {
 
 private:
     enum class Cmd { NONE, GET_INFO, ALLOCATE, REMOVE, GET, STORE,
-                     CAS, ARITHMETIC,
+                     CAS, ARITHMETIC, LOCK, UNLOCK,
                      FLUSH, GET_STATS, UNKNOWN_COMMAND };
 
     const char* to_string(Cmd cmd);
@@ -353,6 +353,39 @@ public:
                                          vbucket, document_state);
         }
     }
+
+    static ENGINE_ERROR_CODE get_locked(ENGINE_HANDLE* handle,
+                                        const void* cookie,
+                                        item** item,
+                                        const DocKey& key,
+                                        uint16_t vbucket,
+                                        uint32_t lock_timeout) {
+        EWB_Engine* ewb = to_engine(handle);
+        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        if (ewb->should_inject_error(Cmd::LOCK, cookie, err)) {
+            return err;
+        } else {
+            return ewb->real_engine->get_locked(ewb->real_handle,
+                                                cookie, item, key,
+                                                vbucket, lock_timeout);
+        }
+    }
+
+    static ENGINE_ERROR_CODE unlock(ENGINE_HANDLE* handle,
+                                        const void* cookie,
+                                        const DocKey& key,
+                                        uint16_t vbucket,
+                                        uint64_t cas) {
+        EWB_Engine* ewb = to_engine(handle);
+        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        if (ewb->should_inject_error(Cmd::UNLOCK, cookie, err)) {
+            return err;
+        } else {
+            return ewb->real_engine->unlock(ewb->real_handle, cookie, key,
+                                            vbucket, cas);
+        }
+    }
+
 
     static ENGINE_ERROR_CODE store(ENGINE_HANDLE* handle, const void *cookie,
                                    item* item, uint64_t *cas,
@@ -945,6 +978,8 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     ENGINE_HANDLE_V1::remove = remove;
     ENGINE_HANDLE_V1::release = release;
     ENGINE_HANDLE_V1::get = get;
+    ENGINE_HANDLE_V1::get_locked = get_locked;
+    ENGINE_HANDLE_V1::unlock = unlock;
     ENGINE_HANDLE_V1::store = store;
     ENGINE_HANDLE_V1::flush = flush;
     ENGINE_HANDLE_V1::get_stats = get_stats;
@@ -1069,24 +1104,35 @@ void destroy_engine(void) {
 }
 
 const char* EWB_Engine::to_string(const Cmd cmd) {
-    const char* names[] = {
-        "NONE",
-        "GET_INFO",
-        "ALLOCATE",
-        "REMOVE",
-        "GET",
-        "STORE",
-        "CAS",
-        "ARITHMETIC",
-        "FLUSH",
-        "GET_STATS",
-        "UNKNOWN_COMMAND",
-    };
-    if (cmd > Cmd::UNKNOWN_COMMAND) {
-        return "";
-    } else {
-        return names[int(cmd)];
+    switch (cmd) {
+    case Cmd::NONE:
+        return "NONE";
+    case Cmd::GET_INFO:
+        return "GET_INFO";
+    case Cmd::ALLOCATE:
+        return "ALLOCATE";
+    case Cmd::REMOVE:
+        return "REMOVE";
+    case Cmd::GET:
+        return "GET";
+    case Cmd::STORE:
+        return "STORE";
+    case Cmd::CAS:
+        return "CAS";
+    case Cmd::ARITHMETIC:
+        return "ARITHMETIC";
+    case Cmd::FLUSH:
+        return "FLUSH";
+    case Cmd::GET_STATS:
+        return "GET_STATS";
+    case Cmd::UNKNOWN_COMMAND:
+        return "UNKNOWN_COMMAND";
+    case Cmd::LOCK:
+        return "LOCK";
+    case Cmd::UNLOCK:
+        return "UNLOCK";
     }
+    throw std::invalid_argument("EWB_Engine::to_string() Unknown command");
 }
 
 void EWB_Engine::process_notifications() {

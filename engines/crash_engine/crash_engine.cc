@@ -157,6 +157,23 @@ static ENGINE_ERROR_CODE get(ENGINE_HANDLE* handle,
     return ENGINE_FAILED;
 }
 
+static ENGINE_ERROR_CODE get_locked(ENGINE_HANDLE* handle,
+                                    const void* cookie,
+                                    item** item,
+                                    const DocKey& key,
+                                    uint16_t vbucket,
+                                    uint32_t lock_timeout) {
+    return ENGINE_FAILED;
+}
+
+static ENGINE_ERROR_CODE unlock(ENGINE_HANDLE* handle,
+                                const void* cookie,
+                                const DocKey& key,
+                                uint16_t vbucket,
+                                uint64_t cas) {
+    return ENGINE_FAILED;
+}
+
 static ENGINE_ERROR_CODE get_stats(ENGINE_HANDLE* handle,
                                    const void* cookie,
                                    const char* stat_key,
@@ -227,6 +244,8 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     engine->engine.remove = item_delete;
     engine->engine.release = item_release;
     engine->engine.get = get;
+    engine->engine.get_locked = get_locked;
+    engine->engine.unlock = unlock;
     engine->engine.get_stats = get_stats;
     engine->engine.reset_stats = reset_stats;
     engine->engine.store = store;

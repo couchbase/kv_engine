@@ -24,6 +24,7 @@ list(APPEND TESTAPP_SOURCES
      testapp_environment.h
      testapp_errmap.cc
      testapp_getset.cc
+     testapp_lock.cc
      testapp_remove.cc
      testapp_require_init.cc
      testapp_sasl.cc
@@ -103,6 +104,11 @@ ADD_TEST(NAME memcached-bucket-unit-tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         COMMAND memcached_testapp --gtest_filter=TransportProtocols/BucketTest.*)
 
+# Run all of the lock tests
+ADD_TEST(NAME memcached-lock-unit-tests
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND memcached_testapp --gtest_filter=TransportProtocols/LockTest.*)
+
 # Run the Normal get set tests
 ADD_TEST(NAME memcached-getset-unit-tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
@@ -160,6 +166,7 @@ SET_TESTS_PROPERTIES(memcached-basic-unit-tests-bulk PROPERTIES TIMEOUT 60)
 SET_TESTS_PROPERTIES(memcached-basic-unit-tests-require-init PROPERTIES TIMEOUT 200)
 SET_TESTS_PROPERTIES(memcached-bucket-unit-tests PROPERTIES TIMEOUT 400)
 SET_TESTS_PROPERTIES(memcached-getset-unit-tests PROPERTIES TIMEOUT 400)
+SET_TESTS_PROPERTIES(memcached-lock-unit-tests PROPERTIES TIMEOUT 60)
 SET_TESTS_PROPERTIES(memcached-mcbp-unit-tests-plain PROPERTIES TIMEOUT 200)
 SET_TESTS_PROPERTIES(memcached-mcbp-unit-tests-ssl PROPERTIES TIMEOUT 400)
 SET_TESTS_PROPERTIES(memcached-sasl-tests PROPERTIES TIMEOUT 60)

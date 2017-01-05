@@ -206,6 +206,41 @@ static ENGINE_ERROR_CODE mock_get(ENGINE_HANDLE* handle,
     return ret;
 }
 
+static ENGINE_ERROR_CODE mock_get_locked(ENGINE_HANDLE* handle,
+                                  const void* cookie,
+                                  item** item,
+                                  const DocKey& key,
+                                  uint16_t vbucket,
+                                  uint32_t lock_timeout) {
+    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
+    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->get_locked,
+                               get_engine_from_handle(handle),
+                               static_cast<const void*>(c), item, key, vbucket,
+                               lock_timeout);
+
+    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
+
+    check_and_destroy_mock_connstruct(c, cookie);
+    return ret;
+}
+
+static ENGINE_ERROR_CODE mock_unlock(ENGINE_HANDLE* handle,
+                                     const void* cookie,
+                                     const DocKey& key,
+                                     uint16_t vbucket,
+                                     uint64_t cas) {
+    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
+    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->unlock,
+                               get_engine_from_handle(handle),
+                               static_cast<const void*>(c), key, vbucket, cas);
+
+    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
+
+    check_and_destroy_mock_connstruct(c, cookie);
+    return ret;
+}
+
+
 static ENGINE_ERROR_CODE mock_get_stats(ENGINE_HANDLE* handle,
                                         const void* cookie,
                                         const char* stat_key,
@@ -731,6 +766,8 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
         mock_engine->me.remove = mock_remove;
         mock_engine->me.release = mock_release;
         mock_engine->me.get = mock_get;
+        mock_engine->me.get_locked = mock_get_locked;
+        mock_engine->me.unlock = mock_unlock;
         mock_engine->me.store = mock_store;
         mock_engine->me.flush = mock_flush;
         mock_engine->me.get_stats = mock_get_stats;

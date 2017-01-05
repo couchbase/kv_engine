@@ -176,6 +176,20 @@ void BinprotGetCommand::encode(std::vector<uint8_t>& buf) const {
     buf.insert(buf.end(), key.begin(), key.end());
 }
 
+void BinprotGetAndLockCommand::encode(std::vector<uint8_t>& buf) const {
+    writeHeader(buf, 0, sizeof(lock_timeout));
+    protocol_binary_request_getl *req;
+    buf.resize(sizeof(req->bytes));
+    req = reinterpret_cast<protocol_binary_request_getl*>(buf.data());
+    req->message.body.expiration = htonl(lock_timeout);
+    buf.insert(buf.end(), key.begin(), key.end());
+}
+
+void BinprotUnlockCommand::encode(std::vector<uint8_t>& buf) const {
+    writeHeader(buf, 0, 0);
+    buf.insert(buf.end(), key.begin(), key.end());
+}
+
 uint32_t BinprotGetResponse::getDocumentFlags() const {
     if (!isSuccess()) {
         return 0;

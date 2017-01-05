@@ -104,6 +104,10 @@ public:
     virtual bool isDeltaBadval() const = 0;
 
     virtual bool isAuthError() const = 0;
+
+    virtual bool isNotSupported() const = 0;
+
+    virtual bool isLocked() const = 0;
 };
 
 /**
@@ -208,6 +212,40 @@ public:
      *         document.
      */
     virtual Document get(const std::string& id, uint16_t vbucket) = 0;
+
+    /**
+     * Fetch and lock a document from the server
+     *
+     * @param id the name of the document
+     * @param vbucket the vbucket the document resides in
+     * @param lock_timeout the timeout (in sec) for the lock. 0 means
+     *                     use the default lock timeout from the server
+     * @return a document object containing the information about the
+     *         document.
+     */
+    virtual Document get_and_lock(const std::string& id,
+                                  uint16_t vbucket,
+                                  uint32_t lock_timeout) {
+        // We don't want to implement this for greenstack at this time
+        throw std::invalid_argument("Not implemented");
+    }
+
+
+    /**
+     * Unlock a locked document
+     *
+     * @param id the name of the document
+     * @param vbucket the vbucket the document resides in
+     * @param cas the cas identifier of the locked document
+     */
+    virtual void unlock(const std::string& id,
+                        uint16_t vbucket,
+                        uint64_t cas) {
+        // We don't want to implement this for greenstack at this time
+        throw std::invalid_argument("Not implemented");
+    }
+
+
 
     /*
      * Form a Frame representing a CMD_GET

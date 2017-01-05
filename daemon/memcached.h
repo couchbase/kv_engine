@@ -364,6 +364,25 @@ static inline ENGINE_ERROR_CODE bucket_get(McbpConnection* c,
                                      item_, key, vbucket, document_state);
 }
 
+static inline ENGINE_ERROR_CODE bucket_get_locked(McbpConnection& c,
+                                                  item** item_,
+                                                  const DocKey& key,
+                                                  uint16_t vbucket,
+                                                  uint32_t lock_timeout) {
+    return c.getBucketEngine()->get_locked(c.getBucketEngineAsV0(),
+                                           c.getCookie(),
+                                           item_, key, vbucket, lock_timeout);
+}
+
+static inline ENGINE_ERROR_CODE bucket_unlock(McbpConnection& c,
+                                                  const DocKey& key,
+                                                  uint16_t vbucket,
+                                                  uint64_t cas) {
+    return c.getBucketEngine()->unlock(c.getBucketEngineAsV0(),
+                                       c.getCookie(),
+                                       key, vbucket, cas);
+}
+
 static inline void bucket_release_item(McbpConnection* c, item* it) {
     c->getBucketEngine()->release(c->getBucketEngineAsV0(),
                                   c->getCookie(), it);

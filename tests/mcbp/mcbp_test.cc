@@ -2501,4 +2501,131 @@ TEST_F(GetAllVbSeqnoValidatorTest, InvalidVbucketState) {
         }
     }
 }
+
+// PROTOCOL_BINARY_CMD_GET_LOCKED
+class GetLockedValidatorTest : public ValidatorTest {
+    virtual void SetUp() override {
+        ValidatorTest::SetUp();
+        memset(&request, 0, sizeof(request));
+        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        request.message.header.request.keylen = htons(10);
+        request.message.header.request.bodylen = htonl(10);
+    }
+
+protected:
+    int validate() {
+        return ValidatorTest::validate(PROTOCOL_BINARY_CMD_GET_LOCKED,
+                                       static_cast<void*>(&request));
+    }
+    protocol_binary_request_getl request;
+};
+
+TEST_F(GetLockedValidatorTest, CorrectMessageDefaultTimeout) {
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+}
+
+TEST_F(GetLockedValidatorTest, CorrectMessageExplicitTimeout) {
+    request.message.header.request.extlen = 4;
+    request.message.header.request.bodylen = htonl(14);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+}
+
+TEST_F(GetLockedValidatorTest, InvalidMagic) {
+    request.message.header.request.magic = 0;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(GetLockedValidatorTest, InvalidExtlen) {
+    request.message.header.request.extlen = 2;
+    request.message.header.request.bodylen = htonl(12);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(GetLockedValidatorTest, InvalidKey) {
+    request.message.header.request.keylen = 10;
+    request.message.header.request.bodylen = htonl(11);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(GetLockedValidatorTest, InvalidDatatype) {
+    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(GetLockedValidatorTest, InvalidCas) {
+    request.message.header.request.cas = 1;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(GetLockedValidatorTest, InvalidBody) {
+    request.message.header.request.bodylen = htonl(4);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(GetLockedValidatorTest, InvalidBodylen) {
+    request.message.header.request.bodylen = htonl(1);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+// PROTOCOL_BINARY_CMD_UNLOCK
+class UnlockValidatorTest : public ValidatorTest {
+    virtual void SetUp() override {
+        ValidatorTest::SetUp();
+        memset(&request, 0, sizeof(request));
+        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        request.message.header.request.keylen = htons(10);
+        request.message.header.request.bodylen = htonl(10);
+        request.message.header.request.cas = 0xdeadbeef;
+    }
+
+protected:
+    int validate() {
+        return ValidatorTest::validate(PROTOCOL_BINARY_CMD_UNLOCK_KEY,
+                                       static_cast<void*>(&request));
+    }
+    protocol_binary_request_no_extras request;
+};
+
+TEST_F(UnlockValidatorTest, CorrectMessage) {
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+}
+
+TEST_F(UnlockValidatorTest, InvalidMagic) {
+    request.message.header.request.magic = 0;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(UnlockValidatorTest, InvalidExtlen) {
+    request.message.header.request.extlen = 2;
+    request.message.header.request.bodylen = htonl(12);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(UnlockValidatorTest, InvalidKey) {
+    request.message.header.request.keylen = 10;
+    request.message.header.request.bodylen = htonl(11);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(UnlockValidatorTest, InvalidDatatype) {
+    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(UnlockValidatorTest, InvalidCas) {
+    request.message.header.request.cas = 0;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(UnlockValidatorTest, InvalidBody) {
+    request.message.header.request.bodylen = htonl(4);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(UnlockValidatorTest, InvalidBodylen) {
+    request.message.header.request.bodylen = htonl(1);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
 }

@@ -96,6 +96,14 @@ public:
         return reason == PROTOCOL_BINARY_RESPONSE_AUTH_ERROR;
     }
 
+    bool isNotSupported() const override {
+        return reason == PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    }
+
+    bool isLocked() const override {
+        return reason == PROTOCOL_BINARY_RESPONSE_LOCKED;
+    }
+
 private:
     uint16_t reason;
 };
@@ -127,6 +135,11 @@ public:
     std::vector<std::string> listBuckets() override;
 
     Document get(const std::string& id, uint16_t vbucket) override;
+
+    Document get_and_lock(const std::string& id, uint16_t vbucket,
+                          uint32_t lock_timeout) override;
+
+    void unlock(const std::string& id, uint16_t vbucket, uint64_t cas) override;
 
     Frame encodeCmdGet(const std::string& id, uint16_t vbucket) override;
 

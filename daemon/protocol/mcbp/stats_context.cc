@@ -209,6 +209,10 @@ static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
         add_stat(cookie, add_stat_callback, "msgused_high_watermark",
                  thread_stats.msgused_high_watermark);
 
+        add_stat(cookie, add_stat_callback, "cmd_lock", thread_stats.cmd_lock);
+        add_stat(cookie, add_stat_callback, "lock_errors",
+                 thread_stats.lock_errors);
+
         auto lookup_latency = timings.get_interval_lookup_latency();
         add_stat(cookie, add_stat_callback, "cmd_lookup_10s_count",
                  lookup_latency.count);

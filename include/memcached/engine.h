@@ -315,6 +315,43 @@ extern "C" {
                                  DocumentState allowed_states);
 
         /**
+         * Lock and Retrieve an item.
+         *
+         * @param handle the engine handle
+         * @param cookie The cookie provided by the frontend
+         * @param item output variable that will receive the located item
+         * @param key the key to look up
+         * @param vbucket the virtual bucket id
+         * @param lock_timeout the number of seconds to hold the lock
+         *                     (0 == use the engines default lock time)
+         *
+         * @return ENGINE_SUCCESS if all goes well
+         */
+        ENGINE_ERROR_CODE (*get_locked)(ENGINE_HANDLE* handle,
+                                        const void* cookie,
+                                        item** item,
+                                        const DocKey& key,
+                                        uint16_t vbucket,
+                                        uint32_t lock_timeout);
+
+        /**
+         * Unlock an item.
+         *
+         * @param handle the engine handle
+         * @param cookie The cookie provided by the frontend
+         * @param key the key to look up
+         * @param vbucket the virtual bucket id
+         * @param cas the cas value for the locked item
+         *
+         * @return ENGINE_SUCCESS if all goes well
+         */
+        ENGINE_ERROR_CODE (*unlock)(ENGINE_HANDLE* handle,
+                                    const void* cookie,
+                                    const DocKey& key,
+                                    uint16_t vbucket,
+                                    uint64_t cas);
+
+        /**
          * Store an item into the underlying engine with the given
          * state. If the DocumentState is set to DocumentState::Deleted
          * the document shall not be returned unless explicitly asked for

@@ -659,3 +659,58 @@ MutationInfo MemcachedBinprotConnection::remove(const std::string& key,
 
     return response.getMutationInfo();
 }
+
+Document MemcachedBinprotConnection::get_and_lock(const std::string& id,
+                                                  uint16_t vbucket,
+                                                  uint32_t lock_timeout) {
+    BinprotGetAndLockCommand command;
+    command.setKey(id);
+    command.setVBucket(vbucket);
+    command.setLockTimeout(lock_timeout);
+    sendCommand(command);
+
+    BinprotGetAndLockResponse response;
+    recvResponse(response);
+
+    if (!response.isSuccess()) {
+        throw BinprotConnectionError("Failed to get: " + id,
+                                     response.getStatus());
+    }
+
+    Document ret;
+    ret.info.flags = response.getDocumentFlags();
+    ret.info.cas = response.getCas();
+    ret.info.id = id;
+    if (response.getDatatype() & PROTOCOL_BINARY_DATATYPE_JSON) {
+        ret.info.datatype = Greenstack::Datatype::Json;
+    } else {
+        ret.info.datatype = Greenstack::Datatype::Raw;
+    }
+
+    if (response.getDatatype() & PROTOCOL_BINARY_DATATYPE_COMPRESSED) {
+        ret.info.compression = Greenstack::Compression::Snappy;
+    } else {
+        ret.info.compression = Greenstack::Compression::None;
+    }
+    ret.value.assign(response.getData().data(),
+                     response.getData().data() + response.getData().size());
+    return ret;
+}
+
+void MemcachedBinprotConnection::unlock(const std::string& id,
+                                        uint16_t vbucket,
+                                        uint64_t cas) {
+
+    BinprotUnlockCommand command;
+    command.setKey(id);
+    command.setVBucket(vbucket);
+    command.setCas(cas);
+    sendCommand(command);
+
+    BinprotUnlockResponse response;
+    recvResponse(response);
+
+    if (!response.isSuccess()) {
+        throw BinprotConnectionError("unlock(): " + id, response.getStatus());
+    }
+}

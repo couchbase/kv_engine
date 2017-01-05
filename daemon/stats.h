@@ -52,6 +52,8 @@ struct thread_stats {
         auth_errors = 0;
         cmd_subdoc_lookup = 0;
         cmd_subdoc_mutation = 0;
+        cmd_lock = 0;
+        lock_errors = 0;
 
         bytes_subdoc_lookup_total = 0;
         bytes_subdoc_lookup_extracted = 0;
@@ -90,6 +92,9 @@ struct thread_stats {
         auth_errors += other.auth_errors;
         cmd_subdoc_lookup += other.cmd_subdoc_lookup;
         cmd_subdoc_mutation += other.cmd_subdoc_mutation;
+
+        cmd_lock += other.cmd_lock;
+        lock_errors += other.lock_errors;
 
         bytes_subdoc_lookup_total += other.bytes_subdoc_lookup_total;
         bytes_subdoc_lookup_extracted += other.bytes_subdoc_lookup_extracted;
@@ -137,6 +142,12 @@ struct thread_stats {
     Couchbase::RelaxedAtomic<uint64_t> cmd_subdoc_lookup;
     /* # of subdoc mutation commands */
     Couchbase::RelaxedAtomic<uint64_t> cmd_subdoc_mutation;
+
+    /** # of lock commands */
+    Couchbase::RelaxedAtomic<uint64_t> cmd_lock;
+
+    /** # of times an operation failed due to accessing a locked item */
+    Couchbase::RelaxedAtomic<uint64_t> lock_errors;
 
     /* # of bytes in the complete document which subdoc lookups searched
        within. Compare with 'bytes_subdoc_lookup_extracted' */

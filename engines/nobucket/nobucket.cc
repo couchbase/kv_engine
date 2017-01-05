@@ -42,6 +42,8 @@ public:
         ENGINE_HANDLE_V1::remove = item_delete;
         ENGINE_HANDLE_V1::release = item_release;
         ENGINE_HANDLE_V1::get = get;
+        ENGINE_HANDLE_V1::get_locked = get_locked;
+        ENGINE_HANDLE_V1::unlock = unlock;
         ENGINE_HANDLE_V1::get_stats = get_stats;
         ENGINE_HANDLE_V1::reset_stats = reset_stats;
         ENGINE_HANDLE_V1::store = store;
@@ -113,6 +115,16 @@ private:
 
     static ENGINE_ERROR_CODE get(ENGINE_HANDLE*, const void*, item**,
                                  const DocKey&, uint16_t, DocumentState) {
+        return ENGINE_NO_BUCKET;
+    }
+
+    static ENGINE_ERROR_CODE get_locked(ENGINE_HANDLE*, const void*, item**,
+                                        const DocKey&, uint16_t, uint32_t) {
+        return ENGINE_NO_BUCKET;
+    }
+
+    static ENGINE_ERROR_CODE unlock(ENGINE_HANDLE*, const void*, const DocKey&,
+                                    uint16_t, uint64_t) {
         return ENGINE_NO_BUCKET;
     }
 
