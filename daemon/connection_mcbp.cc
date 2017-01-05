@@ -521,8 +521,9 @@ McbpConnection::TryReadResult McbpConnection::tryReadNetwork() {
             }
 
             std::string errormsg = cb_strerror();
-            LOG_WARNING(this, "%u Closing connection %s due to read error: %s",
-                        getId(), getDescription().c_str(), errormsg.c_str());
+            LOG_WARNING(this, "%u Closing connection (%p) %s due to read "
+                        "error: %s", getId(), getCookie(),
+                        getDescription().c_str(), errormsg.c_str());
             return TryReadResult::SocketError;
         }
     }

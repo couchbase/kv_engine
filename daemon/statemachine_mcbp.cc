@@ -199,6 +199,9 @@ bool conn_ship_log(McbpConnection *c) {
     }
 
     if (!c->updateEvent(mask)) {
+        LOG_WARNING(c, "%u: conn_ship_log - Unable to update libevent "
+                    "settings, closing connection (%p) %s", c->getId(),
+                    c->getCookie(), c->getDescription().c_str());
         c->setState(conn_closing);
     }
 
@@ -211,6 +214,10 @@ bool conn_waiting(McbpConnection *c) {
     }
 
     if (!c->updateEvent(EV_READ | EV_PERSIST)) {
+        LOG_WARNING(c, "%u: conn_waiting - Unable to update libevent "
+                    "settings with (EV_READ | EV_PERSIST), closing connection "
+                    "(%p) %s",
+                    c->getId(), c->getCookie(), c->getDescription().c_str());
         c->setState(conn_closing);
         return true;
     }
@@ -292,6 +299,10 @@ bool conn_new_cmd(McbpConnection *c) {
                 flags |= EV_READ;
             }
             if (!c->updateEvent(flags)) {
+                LOG_WARNING(c, "%u: conn_new_cmd - Unable to update "
+                            "libevent settings, closing connection (%p) %s",
+                            c->getId(), c->getCookie(),
+                            c->getDescription().c_str());
                 c->setState(conn_closing);
                 return true;
             }
@@ -353,6 +364,10 @@ bool conn_nread(McbpConnection *c) {
 
     if (res == -1 && is_blocking(error)) {
         if (!c->updateEvent(EV_READ | EV_PERSIST)) {
+            LOG_WARNING(c, "%u: conn_nread - Unable to update libevent "
+                        "settings with (EV_READ | EV_PERSIST), closing "
+                        "connection (%p) %s", c->getId(), c->getCookie(),
+                        c->getDescription().c_str());
             c->setState(conn_closing);
             return true;
         }
