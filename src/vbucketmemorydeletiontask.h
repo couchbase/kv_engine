@@ -37,4 +37,5 @@ public:
 private:
     EventuallyPersistentEngine& e;
     RCPtr<VBucket> vbucket;
+    std::string description;
 };

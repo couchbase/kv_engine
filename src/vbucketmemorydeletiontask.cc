@@ -26,18 +26,16 @@ VBucketMemoryDeletionTask::VBucketMemoryDeletionTask(
     : GlobalTask(&eng, TaskId::VBucketMemoryDeletionTask, delay, true),
       e(eng),
       vbucket(vb) {
+    if (!vb) {
+        throw std::invalid_argument(
+                "VBucketMemoryDeletionTask: vb to delete cannot be null");
+    }
+    description = "Removing (dead) vb:" + std::to_string(vbucket->getId()) +
+                  " from memory";
 }
 
 std::string VBucketMemoryDeletionTask::getDescription() {
-    std::stringstream ss;
-    if (vbucket) {
-        ss << "Removing (dead) vb:" << vbucket->getId() << " from memory";
-    } else {
-        ss << "Trying to remove vbucket that does not exist from memory";
-        LOG(EXTENSION_LOG_WARNING, "VBucketMemoryDeletionTask::getDescription()"
-            " vbucket does not exist");
-   }
-    return ss.str();
+    return description;
 }
 
 bool VBucketMemoryDeletionTask::run() {
