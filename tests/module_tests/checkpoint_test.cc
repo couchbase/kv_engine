@@ -151,6 +151,8 @@ static void launch_persistence_thread(void *arg) {
             }
             break;
         }
+        // yield to allow set thread to actually do some useful work.
+        std::this_thread::yield();
     }
     EXPECT_TRUE(flush);
 }
@@ -168,6 +170,8 @@ static void launch_tap_client_thread(void *arg) {
             flush = true;
             break;
         }
+        // yield to allow set thread to actually do some useful work.
+        std::this_thread::yield();
     }
     EXPECT_TRUE(flush);
 }
@@ -180,6 +184,8 @@ static void launch_checkpoint_cleanup_thread(void *arg) {
         bool newCheckpointCreated;
         args->checkpoint_manager->removeClosedUnrefCheckpoints(args->vbucket,
                                                                newCheckpointCreated);
+        // yield to allow set thread to actually do some useful work.
+        std::this_thread::yield();
     }
 }
 
