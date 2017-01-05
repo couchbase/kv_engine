@@ -357,7 +357,7 @@ public:
     //! The number of samples the bgWaitDelta and bgLoadDelta contains of
     std::atomic<size_t> bgNumOperations;
     //! Max number of individual background fetch jobs that we've seen in the queue
-    size_t maxRemainingBgJobs;
+    std::atomic<size_t> maxRemainingBgJobs;
 
     /** The sum of the deltas (in usec) from an item was put in queue until
      *  the dispatcher started the work for this item

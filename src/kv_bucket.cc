@@ -342,7 +342,6 @@ KVBucket::KVBucket(
     engine(theEngine), stats(engine.getEpStats()),
     vbMap(theEngine.getConfiguration(), *this),
     defragmenterTask(NULL),
-    bgFetchQueue(0),
     diskFlushAll(false), bgFetchDelay(0),
     backfillMemoryThreshold(0.95),
     statsSnapshotTaskId(0), lastTransTimePerItem(0)
@@ -1642,7 +1641,7 @@ void KVBucket::completeBGFetch(const DocKey& key, uint16_t vbucket,
         }
     }
 
-    bgFetchQueue--;
+    --stats.numRemainingBgJobs;
 
     delete gcb.val.getValue();
 }
@@ -1697,15 +1696,16 @@ void KVBucket::bgFetch(const DocKey& key, uint16_t vbucket,
         LOG(EXTENSION_LOG_DEBUG, "Queued a background fetch, now at %" PRIu64,
             uint64_t(bgfetch_size));
     } else {
-        bgFetchQueue++;
-        stats.maxRemainingBgJobs = std::max(stats.maxRemainingBgJobs,
-                                            bgFetchQueue.load());
+        ++stats.numRemainingBgJobs;
+        stats.maxRemainingBgJobs.store(std::max(stats.maxRemainingBgJobs.load(),
+                                                stats.numRemainingBgJobs.load())
+                                       );
         ExecutorPool* iom = ExecutorPool::get();
         ExTask task = new SingleBGFetcherTask(&engine, key, vbucket, cookie,
                                               isMeta, bgFetchDelay, false);
         iom->schedule(task, READER_TASK_IDX);
         LOG(EXTENSION_LOG_DEBUG, "Queued a background fetch, now at %" PRIu64,
-            uint64_t(bgFetchQueue.load()));
+            uint64_t(stats.numRemainingBgJobs.load()));
     }
 }
 
@@ -2116,7 +2116,7 @@ ENGINE_ERROR_CODE KVBucket::statsVKey(const DocKey& key, uint16_t vbucket,
             v->isTempNonExistentItem()) {
             return ENGINE_KEY_ENOENT;
         }
-        bgFetchQueue++;
+        ++stats.numRemainingBgJobs;
         ExecutorPool* iom = ExecutorPool::get();
         ExTask task = new VKeyStatBGFetchTask(&engine, key, vbucket,
                                            v->getBySeqno(), cookie,
@@ -2143,7 +2143,7 @@ ENGINE_ERROR_CODE KVBucket::statsVKey(const DocKey& key, uint16_t vbucket,
 
             case ADD_BG_FETCH:
                 {
-                    ++bgFetchQueue;
+                    ++stats.numRemainingBgJobs;
                     ExecutorPool* iom = ExecutorPool::get();
                     ExTask task = new VKeyStatBGFetchTask(&engine, key,
                                                           vbucket, -1, cookie,
@@ -2196,7 +2196,7 @@ void KVBucket::completeStatsVKey(const void* cookie, const DocKey& key,
         engine.addLookupResult(cookie, NULL);
     }
 
-    bgFetchQueue--;
+    --stats.numRemainingBgJobs;
     engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
 }
 

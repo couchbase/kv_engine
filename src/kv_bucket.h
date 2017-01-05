@@ -988,8 +988,6 @@ protected:
     std::mutex                          *vb_mutexes;
     std::vector<MutationLog*>       accessLog;
 
-    std::atomic<size_t> bgFetchQueue;
-
     std::atomic<bool> diskFlushAll;
     struct FlushAllTaskCtx {
         FlushAllTaskCtx(): delayFlushAll(true), cookie(NULL) {}
