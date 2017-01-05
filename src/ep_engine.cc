@@ -39,6 +39,7 @@
 #include <mutex>
 #include <memcached/extension.h>
 #include <JSON_checker.h>
+#include <memcached/server_api.h>
 
 #include "backfill.h"
 #include "dcp/flow-control-manager.h"
@@ -5194,40 +5195,6 @@ EventuallyPersistentEngine::resetReplicationChain(const void *cookie,
                         PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
 }
 
-static protocol_binary_response_status engine_error_2_protocol_error(
-                                                         ENGINE_ERROR_CODE e) {
-    protocol_binary_response_status ret;
-
-    switch (e) {
-    case ENGINE_SUCCESS:
-        return PROTOCOL_BINARY_RESPONSE_SUCCESS;
-    case ENGINE_KEY_ENOENT:
-        return PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
-    case ENGINE_KEY_EEXISTS:
-        return PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
-    case ENGINE_ENOMEM:
-        return PROTOCOL_BINARY_RESPONSE_ENOMEM;
-    case ENGINE_TMPFAIL:
-        return PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
-    case ENGINE_NOT_STORED:
-        return PROTOCOL_BINARY_RESPONSE_NOT_STORED;
-    case ENGINE_EINVAL:
-        return PROTOCOL_BINARY_RESPONSE_EINVAL;
-    case ENGINE_ENOTSUP:
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    case ENGINE_E2BIG:
-        return PROTOCOL_BINARY_RESPONSE_E2BIG;
-    case ENGINE_NOT_MY_VBUCKET:
-        return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
-    case ENGINE_ERANGE:
-        return PROTOCOL_BINARY_RESPONSE_ERANGE;
-    default:
-        ret = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
-    }
-
-    return ret;
-}
-
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
                                      protocol_binary_request_get_meta *request,
                                      ADD_RESPONSE response,
@@ -5279,7 +5246,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
         } else {
             rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                               PROTOCOL_BINARY_RAW_BYTES,
-                              engine_error_2_protocol_error(rv),
+                              serverApi->cookie->engine_error2mcbp(cookie, rv),
                               metadata.cas, cookie);
         }
     }
@@ -5484,8 +5451,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
         return ret;
     }
 
-    protocol_binary_response_status rc;
-    rc = engine_error_2_protocol_error(ret);
+    auto rc = serverApi->cookie->engine_error2mcbp(cookie, ret);
 
     if (ret == ENGINE_SUCCESS) {
         cas = itm->getCas();
@@ -5622,8 +5588,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
         return ENGINE_EWOULDBLOCK;
     }
 
-    protocol_binary_response_status rc;
-    rc = engine_error_2_protocol_error(ret);
+    auto rc = serverApi->cookie->engine_error2mcbp(cookie, ret);
 
     if (opcode == PROTOCOL_BINARY_CMD_DELQ_WITH_META &&
         rc == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
@@ -5954,8 +5919,7 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
     } else if (ret == ENGINE_EWOULDBLOCK) {
         return ret;
     } else if (ret != ENGINE_SUCCESS) {
-        protocol_binary_response_status rc =
-                            engine_error_2_protocol_error(ret);
+        auto rc = serverApi->cookie->engine_error2mcbp(cookie, ret);
         return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES, rc, 0, cookie);
     }
