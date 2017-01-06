@@ -466,7 +466,9 @@ KVBucket::KVBucket(
         eviction_policy = FULL_EVICTION;
     }
 
-    warmupTask = new Warmup(*this, config);
+    if (config.isWarmup()) {
+        warmupTask = std::make_unique<Warmup>(*this, config);
+    }
 }
 
 bool KVBucket::initialize() {
@@ -487,7 +489,12 @@ bool KVBucket::initialize() {
         return false;
     }
 
-    warmupTask->start();
+    if (warmupTask) {
+        warmupTask->start();
+    } else {
+        // No warmup, immediately online the bucket.
+        warmupCompleted();
+    }
 
     itmpTask = new ItemPager(&engine, stats);
     ExecutorPool::get()->schedule(itmpTask, NONIO_TASK_IDX);
@@ -551,7 +558,6 @@ KVBucket::~KVBucket() {
     delete [] vb_mutexes;
     delete [] stats.schedulingHisto;
     delete [] stats.taskRuntimeHisto;
-    delete warmupTask;
     defragmenterTask.reset();
 
     std::vector<MutationLog*>::iterator it;
@@ -575,7 +581,7 @@ uint16_t KVBucket::decrCommitInterval(uint16_t shardId) {
 }
 
 Warmup* KVBucket::getWarmup(void) const {
-    return warmupTask;
+    return warmupTask.get();
 }
 
 bool KVBucket::startFlusher() {
@@ -3346,11 +3352,11 @@ bool KVBucket::maybeEnableTraffic()
 }
 
 bool KVBucket::isWarmingUp() {
-    return !warmupTask->isComplete();
+    return warmupTask && !warmupTask->isComplete();
 }
 
 bool KVBucket::isWarmupOOMFailure() {
-    return warmupTask->hasOOMFailure();
+    return warmupTask && warmupTask->hasOOMFailure();
 }
 
 void KVBucket::stopWarmup(void)

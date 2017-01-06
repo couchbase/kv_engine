@@ -4680,8 +4680,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         getKVBucket()->addKVStoreStats(add_stat, cookie);
         rv = ENGINE_SUCCESS;
     } else if (statKey == "warmup") {
-        getKVBucket()->getWarmup()->addStats(add_stat, cookie);
+        const auto* warmup = getKVBucket()->getWarmup();
+        add_casted_stat("ep_warmup",
+                        warmup != nullptr ? "enabled" : "disabled",
+                        add_stat,
+                        cookie);
+        if (warmup != nullptr) {
+            warmup->addStats(add_stat, cookie);
+        }
         rv = ENGINE_SUCCESS;
+
     } else if (statKey == "info") {
         add_casted_stat("info", get_stats_info(), add_stat, cookie);
         rv = ENGINE_SUCCESS;

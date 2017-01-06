@@ -974,58 +974,54 @@ void Warmup::addStat(const char *nm, const T &val, ADD_STAT add_stat,
 
 void Warmup::addStats(ADD_STAT add_stat, const void *c) const
 {
-    if (store.getEPEngine().getConfiguration().isWarmup()) {
-        EPStats &stats = store.getEPEngine().getEpStats();
-        addStat(NULL, "enabled", add_stat, c);
-        const char *stateName = state.toString();
-        addStat("state", stateName, add_stat, c);
-        if (warmupComplete.load()) {
-            addStat("thread", "complete", add_stat, c);
-        } else {
-            addStat("thread", "running", add_stat, c);
-        }
-        addStat("key_count", stats.warmedUpKeys, add_stat, c);
-        addStat("value_count", stats.warmedUpValues, add_stat, c);
-        addStat("dups", stats.warmDups, add_stat, c);
-        addStat("oom", stats.warmOOM, add_stat, c);
-        addStat("min_memory_threshold",
-                stats.warmupMemUsedCap * 100.0, add_stat, c);
-        addStat("min_item_threshold",
-                stats.warmupNumReadCap * 100.0, add_stat, c);
+    EPStats& stats = store.getEPEngine().getEpStats();
+    const char* stateName = state.toString();
+    addStat("state", stateName, add_stat, c);
+    if (warmupComplete.load()) {
+        addStat("thread", "complete", add_stat, c);
+    } else {
+        addStat("thread", "running", add_stat, c);
+    }
+    addStat("key_count", stats.warmedUpKeys, add_stat, c);
+    addStat("value_count", stats.warmedUpValues, add_stat, c);
+    addStat("dups", stats.warmDups, add_stat, c);
+    addStat("oom", stats.warmOOM, add_stat, c);
+    addStat("min_memory_threshold",
+            stats.warmupMemUsedCap * 100.0,
+            add_stat,
+            c);
+    addStat("min_item_threshold", stats.warmupNumReadCap * 100.0, add_stat, c);
 
-        hrtime_t md_time = metadata.load();
-        if (md_time > 0) {
-            addStat("keys_time", md_time / 1000, add_stat, c);
-        }
+    hrtime_t md_time = metadata.load();
+    if (md_time > 0) {
+        addStat("keys_time", md_time / 1000, add_stat, c);
+    }
 
-        hrtime_t w_time = warmup.load();
-        if (w_time > 0) {
-            addStat("time", w_time / 1000, add_stat, c);
-        }
+    hrtime_t w_time = warmup.load();
+    if (w_time > 0) {
+        addStat("time", w_time / 1000, add_stat, c);
+    }
 
-        size_t itemCount = estimatedItemCount.load();
-        if (itemCount == std::numeric_limits<size_t>::max()) {
-            addStat("estimated_key_count", "unknown", add_stat, c);
-        } else {
-            hrtime_t e_time = estimateTime.load();
-            if (e_time != 0) {
-                addStat("estimate_time", e_time / 1000, add_stat, c);
-            }
-            addStat("estimated_key_count", itemCount, add_stat, c);
+    size_t itemCount = estimatedItemCount.load();
+    if (itemCount == std::numeric_limits<size_t>::max()) {
+        addStat("estimated_key_count", "unknown", add_stat, c);
+    } else {
+        hrtime_t e_time = estimateTime.load();
+        if (e_time != 0) {
+            addStat("estimate_time", e_time / 1000, add_stat, c);
         }
+        addStat("estimated_key_count", itemCount, add_stat, c);
+    }
 
-        if (corruptAccessLog) {
-            addStat("access_log", "corrupt", add_stat, c);
-        }
+    if (corruptAccessLog) {
+        addStat("access_log", "corrupt", add_stat, c);
+    }
 
-        size_t warmupCount = estimatedWarmupCount.load();
-        if (warmupCount ==  std::numeric_limits<size_t>::max()) {
-            addStat("estimated_value_count", "unknown", add_stat, c);
-        } else {
-            addStat("estimated_value_count", warmupCount, add_stat, c);
-        }
-   } else {
-        addStat(NULL, "disabled", add_stat, c);
+    size_t warmupCount = estimatedWarmupCount.load();
+    if (warmupCount == std::numeric_limits<size_t>::max()) {
+        addStat("estimated_value_count", "unknown", add_stat, c);
+    } else {
+        addStat("estimated_value_count", warmupCount, add_stat, c);
     }
 }
 

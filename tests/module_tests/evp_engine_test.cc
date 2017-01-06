@@ -40,7 +40,13 @@ void EventuallyPersistentEngineTest::SetUp() {
 
     engine = reinterpret_cast<EventuallyPersistentEngine*>(handle);
     ObjectRegistry::onSwitchThread(engine);
-    std::string config = "dbname=" + std::string(test_dbname);
+
+    // Add dbname to config string.
+    std::string config = config_string;
+    if (config.size() > 0) {
+        config += ";";
+    }
+    config += "dbname=" + std::string(test_dbname);
     EXPECT_EQ(ENGINE_SUCCESS, engine->initialize(config.c_str()))
         << "Failed to initialize engine.";
 

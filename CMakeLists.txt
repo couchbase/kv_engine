@@ -216,6 +216,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
                tests/module_tests/stats_test.cc
                tests/module_tests/storeddockey_test.cc
                tests/module_tests/vbucket_test.cc
+               tests/module_tests/warmup_test.cc
                $<TARGET_OBJECTS:ep_objs>
                $<TARGET_OBJECTS:memory_tracking>
                ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
