@@ -38,8 +38,6 @@ struct default_engine;
 #include "slabs.h"
 
    /* Flags */
-#define ITEM_WITH_CAS 1
-
 #define ITEM_LINKED (1<<8)
 
 /* temp */
@@ -49,7 +47,6 @@ struct default_engine;
 #define ITEM_ZOMBIE (4<<8)
 
 struct config {
-   bool use_cas;
    size_t verbose;
    rel_time_t oldest_live;
    bool evict_to_free;

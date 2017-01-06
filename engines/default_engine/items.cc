@@ -76,10 +76,6 @@ void item_stats_reset(struct default_engine *engine) {
 static size_t ITEM_ntotal(struct default_engine *engine,
                           const hash_item *item) {
     size_t ret = sizeof(*item) + hash_key_get_alloc_size(item_get_key(item)) + item->nbytes;
-    if (engine->config.use_cas) {
-        ret += sizeof(uint64_t);
-    }
-
     return ret;
 }
 
@@ -117,9 +113,6 @@ hash_item *do_item_alloc(struct default_engine *engine,
     unsigned int id;
 
     size_t ntotal = sizeof(hash_item) + hash_key_get_alloc_size(key) + nbytes;
-    if (engine->config.use_cas) {
-        ntotal += sizeof(uint64_t);
-    }
 
     if ((id = slabs_clsid(engine, ntotal)) == 0) {
         return 0;
@@ -243,7 +236,7 @@ hash_item *do_item_alloc(struct default_engine *engine,
     it->next = it->prev = it->h_next = 0;
     it->refcount = 1;     /* the caller will have a reference */
     DEBUG_REFCNT(it, '*');
-    it->iflag = engine->config.use_cas ? ITEM_WITH_CAS : 0;
+    it->iflag = 0;
     it->nbytes = nbytes;
     it->flags = flags;
     it->datatype = datatype;

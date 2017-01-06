@@ -140,7 +140,6 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     engine->engine.item_set_cas = item_set_cas;
     engine->engine.get_item_info = get_item_info;
     engine->engine.set_item_info = set_item_info;
-    engine->config.use_cas = true;
     engine->config.verbose = 0;
     engine->config.oldest_live = 0;
     engine->config.evict_to_free = true;
@@ -201,11 +200,7 @@ static ENGINE_ERROR_CODE default_initialize(ENGINE_HANDLE* handle,
    if (ret != ENGINE_SUCCESS) {
       return ret;
    }
-
-   /* fixup feature_info */
-   if (se->config.use_cas) {
-       se->info.engine.features[se->info.engine.num_features++].feature = ENGINE_FEATURE_CAS;
-   }
+   se->info.engine.features[se->info.engine.num_features++].feature = ENGINE_FEATURE_CAS;
 
    ret = assoc_init(se);
    if (ret != ENGINE_SUCCESS) {
@@ -259,9 +254,6 @@ static ENGINE_ERROR_CODE default_item_allocate(ENGINE_HANDLE* handle,
    VBUCKET_GUARD(engine, vbucket);
 
    size_t ntotal = sizeof(hash_item) + key.size() + nbytes;
-   if (engine->config.use_cas) {
-      ntotal += sizeof(uint64_t);
-   }
    id = slabs_clsid(engine, ntotal);
    if (id == 0) {
       return ENGINE_E2BIG;
@@ -477,15 +469,10 @@ static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
    se->config.vb0 = true;
 
    if (cfg_str != NULL) {
-       struct config_item items[14];
+       struct config_item items[13];
        int ii = 0;
 
        memset(&items, 0, sizeof(items));
-       items[ii].key = "use_cas";
-       items[ii].datatype = DT_BOOL;
-       items[ii].value.dt_bool = &se->config.use_cas;
-       ++ii;
-
        items[ii].key = "verbose";
        items[ii].datatype = DT_SIZE;
        items[ii].value.dt_size = &se->config.verbose;
@@ -547,7 +534,7 @@ static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
 
        items[ii].key = NULL;
        ++ii;
-       cb_assert(ii == 14);
+       cb_assert(ii == 13);
        ret = ENGINE_ERROR_CODE(se->server.core->parse_config(cfg_str,
                                                              items,
                                                              stderr));
@@ -718,28 +705,19 @@ static ENGINE_ERROR_CODE default_unknown_command(ENGINE_HANDLE* handle,
 
 uint64_t item_get_cas(const hash_item* item)
 {
-    if (item->iflag & ITEM_WITH_CAS) {
-        return *(uint64_t*)(item + 1);
-    }
-    return 0;
+    return item->cas;
 }
 
 void item_set_cas(ENGINE_HANDLE *handle, const void *cookie,
                   item* item, uint64_t val)
 {
     hash_item* it = get_real_item(item);
-    if (it->iflag & ITEM_WITH_CAS) {
-        *(uint64_t*)(it + 1) = val;
-    }
+    it->cas = val;
 }
 
 hash_key* item_get_key(const hash_item* item)
 {
     const char *ret = reinterpret_cast<const char*>(item + 1);
-    if (item->iflag & ITEM_WITH_CAS) {
-        ret += sizeof(uint64_t);
-    }
-
     return (hash_key*)ret;
 }
 

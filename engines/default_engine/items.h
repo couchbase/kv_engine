@@ -18,6 +18,7 @@ typedef struct _hash_item {
     struct _hash_item *next;
     struct _hash_item *prev;
     struct _hash_item *h_next; /* hash chain next */
+    uint64_t cas;
     rel_time_t time;  /* least recent access */
     rel_time_t exptime; /**< When the item will expire (relative to process
                          * startup) */
