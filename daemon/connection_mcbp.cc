@@ -511,7 +511,7 @@ McbpConnection::TryReadResult McbpConnection::tryReadNetwork() {
         }
         if (res == 0) {
             return isPipeConnection() ?
-                   TryReadResult::NoDataReceived : TryReadResult::SocketError;
+                   TryReadResult::NoDataReceived : TryReadResult::SocketClosed;
         }
         if (res == -1) {
             auto error = GetLastNetworkError();

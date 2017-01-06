@@ -235,6 +235,7 @@ bool conn_read(McbpConnection *c) {
     case McbpConnection::TryReadResult::DataReceived:
         c->setState(conn_parse_cmd);
         break;
+    case McbpConnection::TryReadResult::SocketClosed:
     case McbpConnection::TryReadResult::SocketError:
         c->setState(conn_closing);
         break;

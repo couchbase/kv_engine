@@ -430,7 +430,9 @@ public:
             DataReceived,
         /** No data received on the socket */
             NoDataReceived,
-        /** An error occurred on the socket (or the client closed the connection) */
+        /** The client closed the connection */
+            SocketClosed,
+        /** An error occurred on the socket */
             SocketError,
         /** Failed to allocate more memory for the input buffer */
             MemoryError
