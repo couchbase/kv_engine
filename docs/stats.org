@@ -1118,6 +1118,9 @@ Note that tcmalloc stats are not available on some operating systems
 | key_valid                     | See description below                  | V|
 | key_vb_state                  | The vbucket state of this key          |KV|
 
+All of the above numeric statistics (cas, exptime, flags) are printed as
+decimal integers.
+
 =key_valid= can have the following responses:
 
 this_is_a_bug - Some case we didn't take care of.
