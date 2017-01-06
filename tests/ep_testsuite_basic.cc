@@ -29,6 +29,7 @@
 #include <JSON_checker.h>
 
 #include <array>
+#include <memcached/types.h>
 
 #define WHITESPACE_DB "whitespace sucks.db"
 
@@ -473,11 +474,17 @@ static enum test_result test_getl_delete_with_cas(ENGINE_HANDLE *h,
             "Failed to set key");
     h1->release(h, NULL, itm);
 
-    getl(h, h1, "key", 0, 15);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
-          "Expected getl to succeed on key");
+    item* locked = nullptr;
+    checkeq(ENGINE_SUCCESS,
+            getl(h, h1, nullptr, &locked, "key", 0, 15),
+            "Expected getl to succeed on key");
+    item_info info;
+    info.nvalue = 1;
+    check(h1->get_item_info(h, nullptr, locked, &info),
+          "Failed to get item info");
 
-    checkeq(ENGINE_SUCCESS, del(h, h1, "key", last_cas, 0), "Expected SUCCESS");
+    checkeq(ENGINE_SUCCESS, del(h, h1, "key", info.cas, 0), "Expected SUCCESS");
+    h1->release(h, nullptr, locked);
 
     return SUCCESS;
 }
@@ -492,9 +499,11 @@ static enum test_result test_getl_delete_with_bad_cas(ENGINE_HANDLE *h,
     h1->release(h, NULL, itm);
 
     uint64_t cas = last_cas;
-    getl(h, h1, "key", 0, 15);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
-          "Expected getl to succeed on key");
+    item* locked = nullptr;
+    checkeq(ENGINE_SUCCESS,
+            getl(h, h1, nullptr, &locked, "key", 0, 15),
+            "Expected getl to succeed on key");
+    h1->release(h, nullptr, locked);
 
     checkeq(ENGINE_TMPFAIL, del(h, h1, "key", cas, 0), "Expected TMPFAIL");
 
@@ -512,9 +521,10 @@ static enum test_result test_getl_set_del_with_meta(ENGINE_HANDLE *h,
             "Failed to set key");
     h1->release(h, NULL, itm);
 
-    getl(h, h1, key, 0, 15);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    item* locked = nullptr;
+    checkeq(ENGINE_SUCCESS, getl(h, h1, nullptr, &locked, key, 0, 15),
           "Expected getl to succeed on key");
+    h1->release(h, nullptr, locked);
 
     check(get_meta(h, h1, key), "Expected to get meta");
 
@@ -543,14 +553,10 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint16_t vbucketId = 0;
     uint32_t expiration = 25;
 
-    getl(h, h1, key, vbucketId, expiration);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
-            last_status.load(),
+    item* locked;
+    checkeq(ENGINE_KEY_ENOENT,
+            getl(h, h1, nullptr, &locked, key, vbucketId, expiration),
           "expected the key to be missing...");
-    if (!last_body.empty() && last_body != "NOT_FOUND") {
-        fprintf(stderr, "Should have returned NOT_FOUND. Getl Failed");
-        abort();
-    }
 
     item *i = NULL;
     checkeq(ENGINE_SUCCESS,
@@ -560,30 +566,36 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->release(h, NULL, i);
 
     /* retry getl, should succeed */
-    getl(h, h1, key, vbucketId, expiration);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(ENGINE_SUCCESS,
+            getl(h, h1, nullptr, &locked, key, vbucketId, expiration),
             "Expected to be able to getl on first try");
-    checkeq(std::string("{\"lock\":\"data\"}"), last_body,
+
+    item_info info;
+    info.nvalue = 1;
+    check(h1->get_item_info(h, nullptr, locked, &info),
+          "Failed to get item info");
+
+    checkeq(std::string{"{\"lock\":\"data\"}"},
+            std::string((const char*)info.value[0].iov_base,
+                        info.value[0].iov_len),
             "Body was malformed.");
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
-            last_datatype.load(),
+            info.datatype,
             "Expected datatype to be JSON");
+    h1->release(h, nullptr, locked);
 
     /* wait 16 seconds */
     testHarness.time_travel(16);
 
     /* lock's taken so this should fail */
-    getl(h, h1, key, vbucketId, expiration);
-    checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
+    checkeq(ENGINE_TMPFAIL,
+            getl(h, h1, nullptr, &locked, key, vbucketId, expiration),
             "Expected to fail getl on second try");
 
-    if (!last_body.empty() && last_body != "LOCK_ERROR") {
-        fprintf(stderr, "Should have returned LOCK_ERROR. Getl Failed");
-        abort();
-    }
-
-    check(store(h, h1, NULL, OPERATION_SET, key, "lockdata2", &i, 0, vbucketId)
-          != ENGINE_SUCCESS, "Should have failed to store an item.");
+    checkne(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key, "lockdata2", &i, 0,
+                  vbucketId),
+            "Should have failed to store an item.");
     h1->release(h, NULL, i);
 
     /* wait another 10 seconds */
@@ -596,17 +608,20 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->release(h, NULL, i);
 
     /* point to wrong vbucket, to test NOT_MY_VB response */
-    getl(h, h1, key, 10, expiration);
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            getl(h, h1, nullptr, &locked, key, 10, expiration),
             "Should have received not my vbucket response");
 
     /* acquire lock, should succeed */
-    getl(h, h1, key, vbucketId, expiration);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(ENGINE_SUCCESS,
+            getl(h, h1, nullptr, &locked, key, vbucketId, expiration),
             "Aquire lock should have succeeded");
-    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_RAW_BYTES),
-            last_datatype.load(),
+    info.nvalue = 1;
+    check(h1->get_item_info(h, nullptr, locked, &info),
+          "Failed to get item info");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_RAW_BYTES), info.datatype,
             "Expected datatype to be RAW BYTES");
+    h1->release(h, nullptr, locked);
 
     /* try an delete operation which should fail */
     uint64_t cas = 0;
@@ -628,9 +643,10 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->release(h, NULL, i);
 
     /* acquire lock, should succeed */
-    getl(h, h1, key, vbucketId, expiration);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(ENGINE_SUCCESS,
+            getl(h, h1, nullptr, &locked, key, vbucketId, expiration),
             "Aquire lock should have succeeded");
+    h1->release(h, nullptr, locked);
 
     /* bug MB 3252 & MB 3354.
      * 1. Set a key with an expiry value.
@@ -649,11 +665,10 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                      PROTOCOL_BINARY_RAW_BYTES, 0),
             "Allocation Failed");
 
-    item_info info;
     info.nvalue = 1;
-    if (!h1->get_item_info(h, NULL, it, &info)) {
-        abort();
-    }
+    check(h1->get_item_info(h, NULL, it, &info),
+          "Failed to get item info");
+
     memcpy(info.value[0].iov_base, edata, strlen(edata));
 
     checkeq(ENGINE_SUCCESS,
@@ -677,6 +692,7 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             store(h, h1, NULL, OPERATION_SET, ekey, edata, &i, 0, vbucketId),
             "Failed to store an item.");
     h1->release(h, NULL, i);
+
     return SUCCESS;
 }
 
@@ -690,13 +706,13 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             "Failed to get stats.");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
 
-    unl(h, h1, key, vbucketId);
-
     if (eviction_policy == "full_eviction") {
-        checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
+        checkeq(ENGINE_TMPFAIL,
+                unl(h, h1, nullptr, key, vbucketId),
                 "expected a TMPFAIL");
     } else {
-        checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
+        checkeq(ENGINE_KEY_ENOENT,
+                unl(h, h1, nullptr, key, vbucketId),
                 "expected the key to be missing...");
     }
 
@@ -707,36 +723,38 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->release(h, NULL, i);
 
     /* getl, should succeed */
-    getl(h, h1, key, vbucketId, 0);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    item* locked = nullptr;
+    checkeq(ENGINE_SUCCESS,
+            getl(h, h1, nullptr, &locked, key, vbucketId, 0),
             "Expected to be able to getl on first try");
-
-    /* save the returned cas value for later */
-    uint64_t cas = last_cas;
+    item_info info;
+    info.nvalue = 1;
+    checkeq(true, h1->get_item_info(h, nullptr, locked, &info),
+            "failed to get item info");
+    uint64_t cas = info.cas;
+    h1->release(h, nullptr, locked);
 
     /* lock's taken unlocking with a random cas value should fail */
-    unl(h, h1, key, vbucketId);
-    checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
+    checkeq(ENGINE_TMPFAIL,
+            unl(h, h1, nullptr, key, vbucketId),
             "Expected to fail getl on second try");
 
-    if (!last_body.empty() && last_body != "UNLOCK_ERROR") {
-        fprintf(stderr, "Should have returned UNLOCK_ERROR. Unl Failed");
-        abort();
-    }
-
-    unl(h, h1, key, vbucketId, cas);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(ENGINE_SUCCESS,
+            unl(h, h1, nullptr, key, vbucketId, cas),
             "Expected to succed unl with correct cas");
 
     /* acquire lock, should succeed */
-    getl(h, h1, key, vbucketId, 0);
+    checkeq(ENGINE_SUCCESS,
+            getl(h, h1, nullptr, &locked, key, vbucketId, 0),
+            "Lock should work after unlock");
+    h1->release(h, nullptr, locked);
 
     /* wait 16 seconds */
     testHarness.time_travel(16);
 
     /* lock has expired, unl should fail */
-    unl(h, h1, key, vbucketId, last_cas);
-    checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
+    checkeq(ENGINE_TMPFAIL,
+            unl(h, h1, nullptr, key, vbucketId, last_cas),
             "Expected to fail unl on lock timeout");
 
     return SUCCESS;
@@ -747,8 +765,8 @@ static enum test_result test_unl_nmvb(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *key = "k2";
     uint16_t vbucketId = 10;
 
-    unl(h, h1, key, vbucketId);
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            unl(h, h1, nullptr, key, vbucketId),
           "expected NOT_MY_VBUCKET to unlocking a key in a vbucket we don't own");
 
     return SUCCESS;
@@ -1197,9 +1215,11 @@ static enum test_result test_gat_locked(ENGINE_HANDLE *h,
             "Failed to set key");
     h1->release(h, NULL, itm);
 
-    getl(h, h1, "key", 0, 15);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    item* locked = nullptr;
+    checkeq(ENGINE_SUCCESS,
+            getl(h, h1, nullptr, &locked, "key", 0, 15),
           "Expected getl to succeed on key");
+    h1->release(h, nullptr, locked);
 
     gat(h, h1, "key", 0, 10);
     checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(), "Expected tmp fail");
@@ -1225,9 +1245,11 @@ static enum test_result test_touch_locked(ENGINE_HANDLE *h,
             "Failed to set key");
     h1->release(h, NULL, itm);
 
-    getl(h, h1, "key", 0, 15);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
-          "Expected getl to succeed on key");
+    item* locked = nullptr;
+    checkeq(ENGINE_SUCCESS,
+            getl(h, h1, nullptr, &locked, "key", 0, 15),
+            "Expected getl to succeed on key");
+    h1->release(h, nullptr, locked);
 
     touch(h, h1, "key", 0, 10);
     checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(), "Expected tmp fail");

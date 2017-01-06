@@ -298,6 +298,19 @@ public:
         return ret;
     }
 
+    ENGINE_ERROR_CODE get_locked(const void* cookie,
+                                 item** itm,
+                                 const DocKey& key,
+                                 uint16_t vbucket,
+                                 uint32_t lock_timeout);
+
+
+    ENGINE_ERROR_CODE unlock(const void* cookie,
+                             const DocKey& key,
+                             uint16_t vbucket,
+                             uint64_t cas);
+
+
     const std::string& getName() const {
         return name;
     }
@@ -542,20 +555,6 @@ public:
                                              const char **msg,
                                              size_t *msg_size) {
         return kvBucket->evictKey(key, vbucket, msg, msg_size);
-    }
-
-    GetValue getLocked(const DocKey& key, uint16_t vbucket,
-                       rel_time_t currentTime, uint32_t lockTimeout,
-                       const void *cookie) {
-        return kvBucket->getLocked(key, vbucket, currentTime, lockTimeout,
-                                   cookie);
-    }
-
-    ENGINE_ERROR_CODE unlockKey(const DocKey& key,
-                                uint16_t vbucket,
-                                uint64_t cas,
-                                rel_time_t currentTime) {
-        return kvBucket->unlockKey(key, vbucket, cas, currentTime);
     }
 
     ENGINE_ERROR_CODE observe(const void* cookie,

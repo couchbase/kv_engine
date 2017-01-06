@@ -188,8 +188,15 @@ bool get_item_info(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item_info *info,
                    const char* key, uint16_t vb = 0);
 bool get_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item *i,
              std::string &key);
-void getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key, uint16_t vb,
-          uint32_t lock_timeout);
+
+ENGINE_ERROR_CODE getl(ENGINE_HANDLE* h,
+                       ENGINE_HANDLE_V1* h1,
+                       const void* cookie,
+                       item** item,
+                       const char* key,
+                       uint16_t vb,
+                       uint32_t lock_timeout);
+
 void get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
                  uint16_t vb);
 void observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -243,8 +250,9 @@ ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                uint8_t datatype = 0x00);
 void touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
            uint16_t vb, uint32_t exp);
-void unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
-         uint16_t vb, uint64_t cas = 0);
+ENGINE_ERROR_CODE unl(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
+                      const void* cookie, const char* key,
+                      uint16_t vb, uint64_t cas = 0);
 ENGINE_ERROR_CODE verify_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                              const char* key, uint16_t vbucket = 0);
 bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,

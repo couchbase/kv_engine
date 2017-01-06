@@ -51,6 +51,7 @@
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 #include <JSON_checker.h>
+#include <memcached/types.h>
 
 #ifdef linux
 /* /usr/include/netinet/in.h defines macros from ntohs() to _bswap_nn to
@@ -5641,10 +5642,13 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
     prev_cas = curr_cas;
 
-    getl(h, h1, key, 0, 10);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    item* locked = nullptr;
+    checkeq(ENGINE_SUCCESS, getl(h, h1, NULL, &locked, key, 0, 10),
           "Expected to be able to getl on first try");
-    curr_cas = last_cas;
+    h1->release(h, NULL, locked);
+    check(get_item_info(h, h1, &info, key), "Error in getting item info");
+
+    curr_cas = info.cas;
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
     return SUCCESS;
 }
@@ -5708,9 +5712,12 @@ static enum test_result test_mb17517_tap_with_locked_key(ENGINE_HANDLE *h,
     h1->release(h, NULL, it);
 
     uint32_t lock_timeout = 10;
-    getl(h, h1, key.c_str(), vbid, lock_timeout);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+
+    item* locked = nullptr;
+    checkeq(ENGINE_SUCCESS,
+            getl(h, h1, nullptr, &locked, key.c_str(), vbid, lock_timeout),
             "Expected to be able to getl on first try");
+    h1->release(h, NULL, locked);
 
     wait_for_flusher_to_settle(h, h1);
 

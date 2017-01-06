@@ -227,6 +227,29 @@ extern "C" {
         return err_code;
     }
 
+    static ENGINE_ERROR_CODE EvpGetLocked(ENGINE_HANDLE* handle,
+                                          const void* cookie,
+                                          item** itm,
+                                          const DocKey& key,
+                                          uint16_t vbucket,
+                                          uint32_t lock_timeout) {
+        auto ret = getHandle(handle)->get_locked(cookie, itm,
+                                                 key, vbucket,
+                                                 lock_timeout);
+        releaseHandle(handle);
+        return ret;
+    }
+
+    static ENGINE_ERROR_CODE EvpUnlock(ENGINE_HANDLE* handle,
+                                       const void* cookie,
+                                       const DocKey& key,
+                                       uint16_t vbucket,
+                                       uint64_t cas) {
+        auto ret = getHandle(handle)->unlock(cookie, key, vbucket, cas);
+        releaseHandle(handle);
+        return ret;
+    }
+
     static ENGINE_ERROR_CODE EvpGetStats(ENGINE_HANDLE* handle,
                                          const void* cookie,
                                          const char* stat_key,
@@ -640,134 +663,6 @@ extern "C" {
             }
         }
         return rv;
-    }
-
-    static ENGINE_ERROR_CODE getLocked(EventuallyPersistentEngine *e,
-                                       protocol_binary_request_header *req,
-                                       const void *cookie,
-                                       Item **itm,
-                                       const char **msg,
-                                       protocol_binary_response_status *res,
-                                       DocNamespace docNamespace) {
-
-        uint8_t extlen = req->request.extlen;
-        if (extlen != 0 && extlen != 4) {
-            *msg = "Invalid packet format (extlen may be 0 or 4)";
-            *res = PROTOCOL_BINARY_RESPONSE_EINVAL;
-            return ENGINE_EINVAL;
-        }
-
-        protocol_binary_request_getl *grequest =
-            (protocol_binary_request_getl*)req;
-        *res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-
-        const uint8_t* keyPtr = req->bytes + sizeof(req->bytes) + extlen;
-        uint16_t vbucket = ntohs(req->request.vbucket);
-
-        uint32_t max_timeout = (unsigned int)e->getGetlMaxTimeout();
-        uint32_t default_timeout = (unsigned int)e->getGetlDefaultTimeout();
-        uint32_t lockTimeout = default_timeout;
-        if (extlen == 4) {
-            lockTimeout = ntohl(grequest->message.body.expiration);
-        }
-
-        if (lockTimeout >  max_timeout || lockTimeout < 1) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Illegal value for lock timeout specified"
-                " %u. Using default value: %u", lockTimeout, default_timeout);
-            lockTimeout = default_timeout;
-        }
-
-        DocKey key(keyPtr, ntohs(req->request.keylen), docNamespace);
-        GetValue result = e->getLocked(key, vbucket, ep_current_time(),
-                                       lockTimeout, cookie);
-
-        switch (result.getStatus()) {
-        case ENGINE_SUCCESS:
-            *itm = result.getValue();
-            ++(e->getEpStats().numOpsGet);
-            break;
-
-        case ENGINE_EWOULDBLOCK:
-            // need to wait for value
-            break;
-
-        case ENGINE_NOT_MY_VBUCKET:
-            *msg = "That's not my bucket.";
-            *res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
-            break;
-
-        case ENGINE_TMPFAIL:
-            if (e->isDegradedMode()) {
-                *msg = "LOCK_TMP_ERROR";
-            } else {
-                *msg = "LOCK_ERROR";
-            }
-            *res = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
-            break;
-
-        case ENGINE_KEY_ENOENT:
-            *msg = "NOT_FOUND";
-            *res = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
-            break;
-
-        default:
-            // Unexpected / unhandled status code.
-            *res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
-            break;
-        }
-
-        return result.getStatus();
-    }
-
-    static protocol_binary_response_status unlockKey(
-                                                 EventuallyPersistentEngine *e,
-                                                 protocol_binary_request_header
-                                                                      *request,
-                                                 const char **msg,
-                                                 DocNamespace docNamespace)
-    {
-        protocol_binary_request_no_extras *req =
-            (protocol_binary_request_no_extras*)request;
-
-        protocol_binary_response_status res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-
-        const uint8_t* keyPtr = reinterpret_cast<const uint8_t*>(request) +
-                                sizeof(*request);
-        size_t keylen = ntohs(req->message.header.request.keylen);
-        uint16_t vbucket = ntohs(request->request.vbucket);
-
-        LOG(EXTENSION_LOG_DEBUG, "Executing unlockKey for key{%.*s}\n",
-            int(keylen), keyPtr);
-
-        RememberingCallback<GetValue> getCb;
-        uint64_t cas = ntohll(request->request.cas);
-        DocKey key(keyPtr, keylen, docNamespace);
-        ENGINE_ERROR_CODE rv = e->unlockKey(key, vbucket, cas,
-                                            ep_current_time());
-
-        if (rv == ENGINE_SUCCESS) {
-            *msg = "UNLOCKED";
-        } else if (rv == ENGINE_TMPFAIL){
-            *msg =  "UNLOCK_ERROR";
-            res = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
-        } else {
-            if (e->isDegradedMode()) {
-                *msg = "LOCK_TMP_ERROR";
-                return PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
-            }
-
-            RCPtr<VBucket> vb = e->getVBucket(vbucket);
-            if (!vb) {
-                *msg = "That's not my bucket.";
-                res =  PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
-            } else {
-                *msg = "NOT_FOUND";
-                res = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
-            }
-        }
-
-        return res;
     }
 
     static protocol_binary_response_status setParam(
@@ -1212,16 +1107,6 @@ extern "C" {
         case PROTOCOL_BINARY_CMD_EVICT_KEY:
             res = evictKey(h, request, &msg, &msg_size, docNamespace);
             break;
-        case PROTOCOL_BINARY_CMD_GET_LOCKED:
-            rv = getLocked(h, request, cookie, &itm, &msg, &res, docNamespace);
-            if (rv == ENGINE_EWOULDBLOCK) {
-                // we dont have the value for the item yet
-                return rv;
-            }
-            break;
-        case PROTOCOL_BINARY_CMD_UNLOCK_KEY:
-            res = unlockKey(h, request, &msg, docNamespace);
-            break;
         case PROTOCOL_BINARY_CMD_OBSERVE:
             return h->observe(cookie, request, response, docNamespace);
         case PROTOCOL_BINARY_CMD_OBSERVE_SEQNO:
@@ -1353,17 +1238,7 @@ extern "C" {
             }
         }
 
-        // Send a special response for getl since we don't want to send the key
-        if (itm && request->request.opcode == PROTOCOL_BINARY_CMD_GET_LOCKED) {
-            uint32_t flags = itm->getFlags();
-            rv = sendResponse(response, NULL, 0, (const void *)&flags,
-                              sizeof(uint32_t),
-                              static_cast<const void *>(itm->getData()),
-                              itm->getNBytes(), itm->getDataType(),
-                              static_cast<uint16_t>(res), itm->getCas(),
-                              cookie);
-            delete itm;
-        } else if (itm) {
+        if (itm) {
             uint32_t flags = itm->getFlags();
             rv = sendResponse(response,
                               static_cast<const void *>(itm->getKey().data()),
@@ -1972,6 +1847,8 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::remove = EvpItemDelete;
     ENGINE_HANDLE_V1::release = EvpItemRelease;
     ENGINE_HANDLE_V1::get = EvpGet;
+    ENGINE_HANDLE_V1::get_locked = EvpGetLocked;
+    ENGINE_HANDLE_V1::unlock = EvpUnlock;
     ENGINE_HANDLE_V1::get_stats = EvpGetStats;
     ENGINE_HANDLE_V1::reset_stats = EvpResetStats;
     ENGINE_HANDLE_V1::store = EvpStore;
@@ -2239,6 +2116,43 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie){
         return ENGINE_SUCCESS;
     }
 }
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::get_locked(const void* cookie,
+                                                         item** itm,
+                                                         const DocKey& key,
+                                                         uint16_t vbucket,
+                                                         uint32_t lock_timeout) {
+
+    auto default_timeout = static_cast<uint32_t>(getGetlDefaultTimeout());
+
+    if (lock_timeout == 0) {
+        lock_timeout = default_timeout;
+    } else if (lock_timeout > static_cast<uint32_t>(getGetlMaxTimeout())) {
+        LOG(EXTENSION_LOG_WARNING,
+            "EventuallyPersistentEngine::get_locked: "
+            "Illegal value for lock timeout specified %u. "
+            "Using default value: %u", lock_timeout, default_timeout);
+        lock_timeout = default_timeout;
+    }
+
+    auto result = kvBucket->getLocked(key, vbucket, ep_current_time(),
+                                      lock_timeout, cookie);
+
+    if (result.getStatus() == ENGINE_SUCCESS) {
+        ++stats.numOpsGet;
+        *itm = result.getValue();
+    }
+
+    return result.getStatus();
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::unlock(const void* cookie,
+                                                     const DocKey& key,
+                                                     uint16_t vbucket,
+                                                     uint64_t cas) {
+    return kvBucket->unlockKey(key, vbucket, cas, ep_current_time());
+}
+
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::store(const void *cookie,
                                                     item* itm,

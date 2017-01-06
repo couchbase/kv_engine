@@ -206,10 +206,12 @@ static enum test_result test_tap_rcvr_mutate_replica_locked(ENGINE_HANDLE *h,
             store(h, h1, NULL, OPERATION_SET,"key", "value", &i),
             "Failed to fail to store an item.");
     h1->release(h, NULL, i);
-    getl(h, h1, "key", 0, 10); // 10 secs of lock expiration
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-            last_status.load(),
+
+    item* locked;
+    checkeq(ENGINE_SUCCESS,
+            getl(h, h1, nullptr, &locked, "key", 0, 10),
             "expected the key to be locked...");
+    h1->release(h, nullptr, locked);
 
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
@@ -284,9 +286,12 @@ static enum test_result test_tap_rcvr_delete_replica_locked(ENGINE_HANDLE *h,
             store(h, h1, NULL, OPERATION_SET,"key", "value", &i),
             "Failed to fail to store an item.");
     h1->release(h, NULL, i);
-    getl(h, h1, "key", 0, 10); // 10 secs of lock expiration
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+
+    item* locked = nullptr;
+    checkeq(ENGINE_SUCCESS,
+            getl(h, h1, nullptr, &locked, "key", 0, 10), // 10 secs of lock expiration
             "expected the key to be locked...");
+    h1->release(h, nullptr, locked);
 
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");

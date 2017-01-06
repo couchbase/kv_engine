@@ -551,17 +551,16 @@ bool get_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item *i,
     return true;
 }
 
-void getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
-          uint16_t vb, uint32_t lock_timeout) {
-    char ext[4];
-    uint32_t keylen = key ? strlen(key) : 0;
-    protocol_binary_request_header *request;
-    encodeExt(ext, lock_timeout);
-    request = createPacket(PROTOCOL_BINARY_CMD_GET_LOCKED, vb, 0, ext, 4, key, keylen);
+ENGINE_ERROR_CODE getl(ENGINE_HANDLE* h,
+                       ENGINE_HANDLE_V1* h1,
+                       const void* cookie,
+                       item** item,
+                       const char* key,
+                       uint16_t vb, uint32_t lock_timeout) {
 
-    check(h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
-          "Failed to call getl");
-    cb_free(request);
+    return h1->get_locked(h, cookie, item,
+                          DocKey(key, testHarness.doc_namespace),
+                          vb, lock_timeout);
 }
 
 bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
@@ -955,15 +954,12 @@ void touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
     cb_free(request);
 }
 
-void unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
-         uint16_t vb, uint64_t cas) {
-    uint32_t keylen = key ? strlen(key) : 0;
-    protocol_binary_request_header *request;
-    request = createPacket(PROTOCOL_BINARY_CMD_UNLOCK_KEY, vb, cas, NULL, 0, key, keylen);
+ENGINE_ERROR_CODE unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                      const void* cookie, const char* key,
+                      uint16_t vb, uint64_t cas) {
 
-    check(h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
-          "Failed to call unl");
-    cb_free(request);
+    return h1->unlock(h, cookie, DocKey(key, testHarness.doc_namespace),
+                      vb, cas);
 }
 
 void compact_db(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
