@@ -501,12 +501,12 @@ void Warmup::scheduleCreateVBuckets()
 
 void Warmup::createVBuckets(uint16_t shardId) {
     size_t maxEntries = store.getEPEngine().getMaxFailoverEntries();
-    std::map<uint16_t, vbucket_state>& vbStates = shardVbStates[shardId];
 
-    std::map<uint16_t, vbucket_state>::iterator itr;
-    for (itr = vbStates.begin(); itr != vbStates.end(); ++itr) {
-        uint16_t vbid = itr->first;
-        vbucket_state vbs = itr->second;
+    // Iterate over all VBucket states defined for this shard, creating VBucket
+    // objects if they do not already exist.
+    for (const auto itr : shardVbStates[shardId]) {
+        uint16_t vbid = itr.first;
+        vbucket_state vbs = itr.second;
 
         RCPtr<VBucket> vb = store.getVBucket(vbid);
         if (!vb) {
@@ -575,12 +575,10 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId)
     hrtime_t st = gethrtime();
     size_t item_count = 0;
 
-    const std::vector<uint16_t> &vbs = shardVbIds[shardId];
-    std::vector<uint16_t>::const_iterator it = vbs.begin();
-    for (; it != vbs.end(); ++it) {
+    for (const auto vbid : shardVbIds[shardId]) {
         size_t vbItemCount = store.getROUnderlyingByShard(shardId)->
-                                                        getItemCount(*it);
-        RCPtr<VBucket> vb = store.getVBucket(*it);
+                                                        getItemCount(vbid);
+        RCPtr<VBucket> vb = store.getVBucket(vbid);
         if (vb) {
             vb->ht.numTotalItems = vbItemCount;
         }
@@ -617,10 +615,8 @@ void Warmup::keyDumpforShard(uint16_t shardId)
     std::shared_ptr<Callback<GetValue> > cb(load_cb);
     std::shared_ptr<Callback<CacheLookup> > cl(new NoLookupCallback());
 
-    std::vector<uint16_t>::iterator itr = shardVbIds[shardId].begin();
-
-    for (; itr != shardVbIds[shardId].end(); ++itr) {
-        ScanContext* ctx = kvstore->initScanContext(cb, cl, *itr, 0,
+    for (const auto vbid : shardVbIds[shardId]) {
+        ScanContext* ctx = kvstore->initScanContext(cb, cl, vbid, 0,
                                                     DocumentFilter::NO_DELETES,
                                                     ValueFilter::KEYS_ONLY);
         if (ctx) {
@@ -844,9 +840,8 @@ void Warmup::loadKVPairsforShard(uint16_t shardId)
     std::shared_ptr<Callback<CacheLookup> >
         cl(new LoadValueCallback(store.vbMap, state.getState()));
 
-    std::vector<uint16_t>::iterator itr = shardVbIds[shardId].begin();
-    for (; itr != shardVbIds[shardId].end(); ++itr) {
-        ScanContext* ctx = kvstore->initScanContext(cb, cl, *itr, 0,
+    for (const auto vbid : shardVbIds[shardId]) {
+        ScanContext* ctx = kvstore->initScanContext(cb, cl, vbid, 0,
                                                     DocumentFilter::NO_DELETES,
                                                     ValueFilter::VALUES_DECOMPRESSED);
         if (ctx) {
@@ -886,9 +881,8 @@ void Warmup::loadDataforShard(uint16_t shardId)
     std::shared_ptr<Callback<CacheLookup> >
         cl(new LoadValueCallback(store.vbMap, state.getState()));
 
-    std::vector<uint16_t>::iterator itr = shardVbIds[shardId].begin();
-    for (; itr != shardVbIds[shardId].end(); ++itr) {
-        ScanContext* ctx = kvstore->initScanContext(cb, cl, *itr, 0,
+    for (const auto vbid : shardVbIds[shardId]) {
+        ScanContext* ctx = kvstore->initScanContext(cb, cl, vbid, 0,
                                                     DocumentFilter::NO_DELETES,
                                                     ValueFilter::VALUES_DECOMPRESSED);
         if (ctx) {
