@@ -113,6 +113,7 @@ public:
         pendingCompactions(0),
         bg_fetched(0),
         bg_meta_fetched(0),
+        numRemainingBgItems(0),
         numRemainingBgJobs(0),
         bgNumOperations(0),
         maxRemainingBgJobs(0),
@@ -349,6 +350,8 @@ public:
     std::atomic<size_t> bg_fetched;
     //! Number of times meta background fetches occurred.
     std::atomic<size_t> bg_meta_fetched;
+    //! Number of remaining bg fetch items
+    std::atomic<size_t> numRemainingBgItems;
     //! Number of remaining bg fetch jobs.
     std::atomic<size_t> numRemainingBgJobs;
     //! The number of samples the bgWaitDelta and bgLoadDelta contains of

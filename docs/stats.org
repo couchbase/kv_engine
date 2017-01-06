@@ -129,6 +129,7 @@ For introductory information on stats within Couchbase, start with the
 |                                    | enabled                                |
 | ep_bg_fetched                      | Number of items fetched from disk      |
 | ep_bg_meta_fetched                 | Number of meta items fetched from disk |
+| ep_bg_remaining_items              | Number of remaining bg fetch items     |
 | ep_bg_remaining_jobs               | Number of remaining bg fetch jobs      |
 | ep_max_bg_remaining_jobs           | Max number of remaining bg fetch jobs  |
 |                                    | that we have seen in the queue so far  |

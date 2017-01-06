@@ -469,7 +469,7 @@ void VBucket::notifyAllPendingConnsFailed(EventuallyPersistentEngine &e) {
                 ++num_of_deleted_pending_fetches;
             }
         }
-        stats.numRemainingBgJobs.fetch_sub(num_of_deleted_pending_fetches);
+        stats.numRemainingBgItems.fetch_sub(num_of_deleted_pending_fetches);
         pendingBGFetches.clear();
     }
 

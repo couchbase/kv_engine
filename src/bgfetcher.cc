@@ -43,7 +43,7 @@ void BgFetcher::stop() {
 }
 
 void BgFetcher::notifyBGEvent(void) {
-    ++stats.numRemainingBgJobs;
+    ++stats.numRemainingBgItems;
     bool inverse = false;
     if (pendingFetch.compare_exchange_strong(inverse, true)) {
         ExecutorPool::get()->wake(taskId);
@@ -129,7 +129,7 @@ bool BgFetcher::run(GlobalTask *task) {
         }
     }
 
-    stats.numRemainingBgJobs.fetch_sub(num_fetched_items);
+    stats.numRemainingBgItems.fetch_sub(num_fetched_items);
 
     if (!pendingFetch.load()) {
         // wait a bit until next fetch request arrives
