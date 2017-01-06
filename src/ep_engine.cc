@@ -5746,6 +5746,13 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
 
     const connection_t &conn = dcpConnMap_->findByName(dcpName);
     if (!conn) {
+        /*
+         * @TODO: make the following log message INFO level.  However whilst the
+         * root cause of MB-22082 is unresolved it is useful to log the event at
+         * NOTICE level so its appears in the logs.
+         */
+        LOG(EXTENSION_LOG_NOTICE,"doDcpVbTakeoverStats - cannot find "
+            "connection %s for vb:%" PRIu16, dcpName.c_str(), vbid);
         size_t vb_items = vb->getNumItems(kvBucket->getItemEvictionPolicy());
 
         size_t del_items = 0;
