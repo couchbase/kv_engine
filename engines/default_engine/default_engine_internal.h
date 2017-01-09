@@ -128,7 +128,6 @@ char* item_get_data(const hash_item* item);
 hash_key* item_get_key(const hash_item* item);
 void item_set_cas(ENGINE_HANDLE *handle, const void *cookie,
                   item* item, uint64_t val);
-uint64_t item_get_cas(const hash_item* item);
 #ifdef __cplusplus
 extern "C" {
 #endif

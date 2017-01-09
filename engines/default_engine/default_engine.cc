@@ -328,7 +328,7 @@ static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
             // If the caller specified the "cas wildcard" we should set
             // the cas for the item we just fetched and do a cas
             // replace with that value
-            item_set_cas(handle, cookie, deleted, item_get_cas(it));
+            item_set_cas(handle, cookie, deleted, it->cas);
         } else {
             // The caller specified a specific CAS value so we should
             // use that value in our cas replace
@@ -713,7 +713,7 @@ static bool touch(struct default_engine *e, const void *cookie,
                            item_get_data(item), item->nbytes,
                            PROTOCOL_BINARY_RAW_BYTES,
                            PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                           item_get_cas(item), cookie);
+                           item->cas, cookie);
         }
         item_release(e, item);
         return ret;
@@ -764,12 +764,6 @@ static ENGINE_ERROR_CODE default_unknown_command(ENGINE_HANDLE* handle,
     }
 }
 
-
-uint64_t item_get_cas(const hash_item* item)
-{
-    return item->cas;
-}
-
 void item_set_cas(ENGINE_HANDLE *handle, const void *cookie,
                   item* item, uint64_t val)
 {
@@ -808,7 +802,7 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
         // linked item) to allow returning the real CAS.
         item_info->cas = uint64_t(-1);
     } else {
-        item_info->cas = item_get_cas(it);
+        item_info->cas = it->cas;
     }
 
     item_info->vbucket_uuid = 0;

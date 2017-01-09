@@ -380,7 +380,7 @@ ENGINE_ERROR_CODE do_safe_item_unlink(struct default_engine* engine,
 
     auto ret = ENGINE_SUCCESS;
 
-    if (item_get_cas(it) == item_get_cas(stored)) {
+    if (it->cas == stored->cas) {
         MEMCACHED_ITEM_UNLINK(hash_key_get_client_key(key),
                               hash_key_get_client_key_len(key),
                               it->nbytes);
@@ -653,7 +653,7 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
         if (old_it == NULL) {
             /* LRU expired */
             stored = ENGINE_KEY_ENOENT;
-        } else if (item_get_cas(it) == item_get_cas(old_it)) {
+        } else if (it->cas == old_it->cas) {
             /* cas validates */
             /* it and old_it may belong to different classes. */
             /* I'm updating the stats for the one that's getting pushed out */
@@ -666,8 +666,7 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
                     (engine->server.extension->get_extension(EXTENSION_LOGGER));
                 logger->log(EXTENSION_LOG_INFO, NULL,
                         "CAS:  failure: expected %" PRIu64", got %" PRIu64"\n",
-                        item_get_cas(old_it),
-                        item_get_cas(it));
+                        old_it->cas, it->cas);
             }
 
             if (locked) {
@@ -789,7 +788,7 @@ ENGINE_ERROR_CODE store_item(struct default_engine *engine,
     cb_mutex_enter(&engine->items.lock);
     ret = do_store_item(engine, item, operation, cookie, &stored_item);
     if (ret == ENGINE_SUCCESS) {
-        *cas = item_get_cas(stored_item);
+        *cas = stored_item->cas;
     }
     cb_mutex_exit(&engine->items.lock);
     return ret;
