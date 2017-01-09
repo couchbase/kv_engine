@@ -1785,23 +1785,36 @@ static enum test_result test_del_with_meta_and_check_drift_stats(ENGINE_HANDLE *
 
 static enum test_result test_setting_drift_threshold(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
-    std::vector<std::pair<std::string, std::string> > configData =
-        {{"ep_hlc_drift_ahead_threshold_us", "hlc_drift_ahead_threshold_us"},
-         {"ep_hlc_drift_behind_threshold_us", "hlc_drift_behind_threshold_us"}};
+    std::vector<std::tuple<std::string, std::string, std::string> > configData =
+        {std::make_tuple("ep_hlc_drift_ahead_threshold_us",
+                         "hlc_drift_ahead_threshold_us",
+                         "vb_0:drift_ahead_threshold"),
+         std::make_tuple("ep_hlc_drift_behind_threshold_us",
+                         "hlc_drift_behind_threshold_us",
+                         "vb_0:drift_behind_threshold")};
 
-    std::vector<std::pair<std::string, uint64_t> > values =
-        {{"0", 0}, {"1", 1}, {"-1", -1}, {"-0", 0},
-         {"18446744073709551615", 18446744073709551615ull}};
+    std::vector<std::pair<std::string, std::chrono::microseconds> > values = {
+        {"0", std::chrono::microseconds(0)},
+        {"1", std::chrono::microseconds(1)},
+        {"-1", std::chrono::microseconds(-1)},
+        {"-0", std::chrono::microseconds(0)},
+        {"18446744073709551615",
+         std::chrono::microseconds(18446744073709551615ull)}};
 
     for (auto data : values) {
         for (auto conf : configData) {
             check(set_param(h, h1, protocol_binary_engine_param_vbucket,
-                    conf.second.data(), data.first.data()),
+                     std::get<1>(conf).c_str(), data.first.data()),
                 "Expected set_param success");
 
-            checkeq(data.second,
-                    get_ull_stat(h, h1, conf.first.data(), nullptr),
+            checkeq(data.second.count(),
+                    int64_t(get_ull_stat(h, h1, std::get<0>(conf).c_str(), nullptr)),
                     "Expected the stat to change to the new value");
+
+            // The VB stat values are in nanoseconds
+            checkeq(std::chrono::nanoseconds(data.second).count(),
+                    int64_t(get_ull_stat(h, h1, std::get<2>(conf).c_str(), "vbucket-details 0")),
+                    "Expected the VB stats to change to the new value");
         }
     }
     return SUCCESS;

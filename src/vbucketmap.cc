@@ -41,6 +41,11 @@ VBucketMap::VBucketMap(Configuration &config,
         bucketCreation[i].store(false);
         persistenceSeqnos[i].store(0);
     }
+
+    config.addValueChangedListener("hlc_drift_ahead_threshold_us",
+                                    new VBucketConfigChangeListener(*this));
+    config.addValueChangedListener("hlc_drift_behind_threshold_us",
+                                    new VBucketConfigChangeListener(*this));
 }
 
 VBucketMap::~VBucketMap() {
