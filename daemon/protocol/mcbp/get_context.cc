@@ -131,7 +131,7 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
     connection.addIov(payload.buf, payload.len);
     connection.setState(conn_mwrite);
 
-    STATS_HIT(&connection, get, key.buf, key.len);
+    STATS_HIT(&connection, get);
     update_topkeys(key, &connection);
 
     state = State::Done;
@@ -139,7 +139,7 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
 }
 
 ENGINE_ERROR_CODE GetCommandContext::noSuchItem() {
-    STATS_MISS(&connection, get, key.buf, key.len);
+    STATS_MISS(&connection, get);
 
     MEMCACHED_COMMAND_GET(connection.getId(),
                           reinterpret_cast<const char*>(key.data()),

@@ -58,9 +58,9 @@ ENGINE_ERROR_CODE MutationCommandContext::step() {
             break;
         case State::Done:
             if (operation == OPERATION_CAS) {
-                SLAB_INCR(&connection, cas_hits, key.buf, key.len);
+                SLAB_INCR(&connection, cas_hits);
             } else {
-                SLAB_INCR(&connection, cmd_set, key.buf, key.len);
+                SLAB_INCR(&connection, cmd_set);
             }
             return ENGINE_SUCCESS;
         }
@@ -70,7 +70,7 @@ ENGINE_ERROR_CODE MutationCommandContext::step() {
         if (operation == OPERATION_CAS) {
             switch (ret) {
             case ENGINE_KEY_EEXISTS:
-                SLAB_INCR(&connection, cas_badval, key.buf, key.len);
+                SLAB_INCR(&connection, cas_badval);
                 break;
             case ENGINE_KEY_ENOENT:
                 get_thread_stats(&connection)->cas_misses++;
@@ -78,7 +78,7 @@ ENGINE_ERROR_CODE MutationCommandContext::step() {
             default:;
             }
         } else {
-            SLAB_INCR(&connection, cmd_set, key.buf, key.len);
+            SLAB_INCR(&connection, cmd_set);
         }
     }
 

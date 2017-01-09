@@ -421,13 +421,13 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
             thread_stats->bytes_subdoc_mutation_inserted +=
                     context->getOperationValueBytesTotal();
 
-            SLAB_INCR(&c, cmd_set, key, keylen);
+            SLAB_INCR(&c, cmd_set);
         } else {
             thread_stats->cmd_subdoc_lookup++;
             thread_stats->bytes_subdoc_lookup_total += context->in_doc.len;
             thread_stats->bytes_subdoc_lookup_extracted += context->response_val_len;
 
-            STATS_HIT(&c, get, key, nkey);
+            STATS_HIT(&c, get);
         }
         update_topkeys(DocKey(reinterpret_cast<const uint8_t*>(key),
                               keylen, DocNamespace::DefaultCollection), &c);

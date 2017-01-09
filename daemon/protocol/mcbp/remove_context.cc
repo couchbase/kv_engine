@@ -45,7 +45,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::step() {
             ret = reset();
             break;
         case State::Done:
-            SLAB_INCR(&connection, delete_hits, key.data(), key.size());
+            SLAB_INCR(&connection, delete_hits);
             update_topkeys(key, &connection);
             return ENGINE_SUCCESS;
         }
@@ -53,7 +53,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::step() {
 
 
     if (ret == ENGINE_KEY_ENOENT) {
-        STATS_INCR(&connection, delete_misses, key.data(), key.size());
+        STATS_INCR(&connection, delete_misses);
     }
 
     return ret;

@@ -58,9 +58,9 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
         } else {
             if ((connection.getCmd() == PROTOCOL_BINARY_CMD_INCREMENT) ||
                 (connection.getCmd() == PROTOCOL_BINARY_CMD_INCREMENTQ)) {
-                STATS_INCR(&connection, incr_misses, key.buf, key.len);
+                STATS_INCR(&connection, incr_misses);
             } else {
-                STATS_INCR(&connection, decr_misses, key.buf, key.len);
+                STATS_INCR(&connection, decr_misses);
             }
         }
     }

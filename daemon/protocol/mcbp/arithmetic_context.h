@@ -116,7 +116,7 @@ protected:
         } while (ret == ENGINE_SUCCESS);
 
         if (ret != ENGINE_EWOULDBLOCK) {
-            SLAB_INCR(&connection, cmd_set, key, nkey);
+            SLAB_INCR(&connection, cmd_set);
         }
 
         return ret;

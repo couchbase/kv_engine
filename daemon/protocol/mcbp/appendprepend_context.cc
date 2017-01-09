@@ -43,7 +43,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::step() {
     } while (ret == ENGINE_SUCCESS);
 
     if (ret != ENGINE_EWOULDBLOCK) {
-        SLAB_INCR(&connection, cmd_set, key, nkey);
+        SLAB_INCR(&connection, cmd_set);
     }
 
     if (ret == ENGINE_KEY_ENOENT) {

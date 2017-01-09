@@ -296,28 +296,28 @@ struct thread_stats *get_thread_stats(Connection *c);
     SLAB_GUTS(conn, thread_stats, slab_op, thread_op) \
     THREAD_GUTS(conn, thread_stats, slab_op, thread_op)
 
-#define STATS_INCR1(GUTS, conn, slab_op, thread_op, key, nkey) { \
+#define STATS_INCR1(GUTS, conn, slab_op, thread_op) { \
     struct thread_stats *thread_stats = get_thread_stats(conn); \
     GUTS(conn, thread_stats, slab_op, thread_op); \
 }
 
-#define STATS_INCR(conn, op, key, nkey) \
-    STATS_INCR1(THREAD_GUTS, conn, op, op, key, nkey)
+#define STATS_INCR(conn, op) \
+    STATS_INCR1(THREAD_GUTS, conn, op, op)
 
-#define SLAB_INCR(conn, op, key, nkey) \
-    STATS_INCR1(SLAB_GUTS, conn, op, op, key, nkey)
+#define SLAB_INCR(conn, op) \
+    STATS_INCR1(SLAB_GUTS, conn, op, op)
 
-#define STATS_TWO(conn, slab_op, thread_op, key, nkey) \
-    STATS_INCR1(THREAD_GUTS2, conn, slab_op, thread_op, key, nkey)
+#define STATS_TWO(conn, slab_op, thread_op) \
+    STATS_INCR1(THREAD_GUTS2, conn, slab_op, thread_op)
 
-#define SLAB_TWO(conn, slab_op, thread_op, key, nkey) \
-    STATS_INCR1(SLAB_THREAD_GUTS, conn, slab_op, thread_op, key, nkey)
+#define SLAB_TWO(conn, slab_op, thread_op) \
+    STATS_INCR1(SLAB_THREAD_GUTS, conn, slab_op, thread_op)
 
-#define STATS_HIT(conn, op, key, nkey) \
-    SLAB_TWO(conn, op##_hits, cmd_##op, key, nkey)
+#define STATS_HIT(conn, op) \
+    SLAB_TWO(conn, op##_hits, cmd_##op)
 
-#define STATS_MISS(conn, op, key, nkey) \
-    STATS_TWO(conn, op##_misses, cmd_##op, key, nkey)
+#define STATS_MISS(conn, op) \
+    STATS_TWO(conn, op##_misses, cmd_##op)
 
 /*
  * Set the statistic to the maximum of the current value, and the specified
