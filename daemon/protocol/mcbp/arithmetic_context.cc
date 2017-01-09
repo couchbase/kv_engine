@@ -210,6 +210,13 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
     update_topkeys(key, &connection);
     state = State::Done;
 
+    if ((connection.getCmd() == PROTOCOL_BINARY_CMD_INCREMENT) ||
+        (connection.getCmd() == PROTOCOL_BINARY_CMD_INCREMENTQ)) {
+        STATS_INCR(&connection, incr_hits);
+    } else {
+        STATS_INCR(&connection, decr_hits);
+    }
+
     if (connection.isNoReply()) {
         connection.setState(conn_new_cmd);
         return ENGINE_SUCCESS;
