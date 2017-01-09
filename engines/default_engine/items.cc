@@ -119,7 +119,6 @@ hash_item *do_item_alloc(struct default_engine *engine,
     }
 
     /* do a quick check if we have any expired items in the tail.. */
-    tries = search_items;
     oldest_live = engine->config.oldest_live;
     current_time = engine->server.core->get_current_time();
 
@@ -128,7 +127,8 @@ hash_item *do_item_alloc(struct default_engine *engine,
          tries--, search=search->prev) {
         if (search->refcount == 0 &&
             ((search->time < oldest_live) || /* dead by flush */
-             (search->exptime != 0 && search->exptime < current_time))) {
+             (search->exptime != 0 && search->exptime < current_time)) &&
+            (search->locktime <= current_time)) {
             it = search;
             /* I don't want to actually free the object, just steal
              * the item to avoid to grab the slab mutex twice ;-)
@@ -177,7 +177,7 @@ hash_item *do_item_alloc(struct default_engine *engine,
         }
 
         for (search = engine->items.tails[id]; tries > 0 && search != NULL; tries--, search=search->prev) {
-            if (search->refcount == 0) {
+            if (search->refcount == 0 && search->locktime <= current_time) {
                 if (search->exptime == 0 || search->exptime > current_time) {
                     engine->items.itemstats[id].evicted++;
                     engine->items.itemstats[id].evicted_time = current_time - search->time;
@@ -241,6 +241,7 @@ hash_item *do_item_alloc(struct default_engine *engine,
     it->flags = flags;
     it->datatype = datatype;
     it->exptime = exptime;
+    it->locktime = 0;
     hash_key_copy_to_item(it, key);
     return it;
 }
@@ -636,6 +637,11 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
     hash_item *old_it = do_item_get(engine, key, document_any_state);
     ENGINE_ERROR_CODE stored = ENGINE_NOT_STORED;
 
+    bool locked = false;
+    if (old_it != nullptr && old_it->locktime != 0) {
+        locked = old_it->locktime > engine->server.core->get_current_time();
+    }
+
     if (old_it != NULL && operation == OPERATION_ADD &&
         (old_it->iflag & ITEM_ZOMBIE) == 0) {
         /* add only adds a nonexistent item, but promote to head of LRU */
@@ -644,11 +650,10 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
         /* replace only replaces an existing value; don't store */
     } else if (operation == OPERATION_CAS) {
         /* validate cas operation */
-        if(old_it == NULL) {
+        if (old_it == NULL) {
             /* LRU expired */
             stored = ENGINE_KEY_ENOENT;
-        }
-        else if (item_get_cas(it) == item_get_cas(old_it)) {
+        } else if (item_get_cas(it) == item_get_cas(old_it)) {
             /* cas validates */
             /* it and old_it may belong to different classes. */
             /* I'm updating the stats for the one that's getting pushed out */
@@ -664,10 +669,17 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
                         item_get_cas(old_it),
                         item_get_cas(it));
             }
-            stored = ENGINE_KEY_EEXISTS;
+
+            if (locked) {
+                stored = ENGINE_LOCKED;
+            } else {
+                stored = ENGINE_KEY_EEXISTS;
+            }
         }
     } else {
-        if (stored == ENGINE_NOT_STORED) {
+        if (locked) {
+            stored = ENGINE_LOCKED;
+        } else {
             stored = ENGINE_SUCCESS;
             if (old_it != NULL) {
                 do_item_replace(engine, cookie, old_it, it);
@@ -809,6 +821,182 @@ hash_item *touch_item(struct default_engine *engine,
     ret = do_touch_item(engine, &hkey, exptime);
     cb_mutex_exit(&engine->items.lock);
     hash_key_destroy(&hkey);
+    return ret;
+}
+
+ENGINE_ERROR_CODE do_item_get_locked(struct default_engine* engine,
+                                     const void* cookie,
+                                     hash_item** it,
+                                     const hash_key* hkey,
+                                     rel_time_t locktime) {
+
+    hash_item* item = do_item_get(engine, hkey, DocumentState::Alive);
+    if (item == nullptr) {
+        return ENGINE_KEY_ENOENT;
+    }
+
+    if (item->locktime != 0 &&
+        item->locktime > engine->server.core->get_current_time()) {
+        do_item_release(engine, item);
+        return ENGINE_LOCKED;
+    }
+
+    /*
+     * Unfortunately I have to create an extra copy of the item to return
+     * back to the caller, as I need a way to know if I should mask out
+     * the CAS or not. We don't have enough memory in the hash_item obj to
+     * identify the connection when we need to check if the CAS should be
+     * masked out (or not). I don't want us to lock memory on a per item
+     * base as I don't suspect most items to ever be locked.
+     *
+     * Instead I decided to create an extra clone of the item, and if the
+     * item isn't linked we should revel the real CAS.
+     *
+     * If I failed to create the temporary item I'm returning ENGINE_TMPFAIL.
+     *
+     * There is one minor optimization here.. If I'm the only one accessing
+     * the object (refcount == 1) I can update the in-memory object and only
+     * create a single copy. If multiple users holds a reference to the object
+     * I have to create two clones (one to put in the hashmap, and the
+     * temporary object to return back).
+     */
+    if (item->refcount == 1) {
+        // we're the only one with access, let's just do an in-place
+        // update of the metadata.
+
+        // Unfortunately I can't return the actual object as that'll cause
+        // the item's cas to be masked out ;-)
+        auto* clone = do_item_alloc(engine, hkey, item->flags, item->exptime,
+                                    item->nbytes, cookie, item->datatype);
+        if (clone == nullptr) {
+            do_item_release(engine, item);
+            return ENGINE_TMPFAIL;
+        }
+
+        // let's just do an in-place update of the metadata. and return the
+        // copy
+        clone->locktime = item->locktime = locktime;
+        clone->cas = item->cas = get_cas_id();
+
+        // Copy the payload
+        std::memcpy(item_get_data(clone), item_get_data(item), item->nbytes);
+
+        // Release the one in the linked table
+        do_item_release(engine, item);
+        *it = clone;
+    } else {
+        // Multiple entities holds a reference to the object. We
+        // need to do a copy/replace.
+        auto* clone1 = do_item_alloc(engine, hkey, item->flags, item->exptime,
+                                     item->nbytes, cookie, item->datatype);
+        if (clone1 == nullptr) {
+            do_item_release(engine, item);
+            return ENGINE_TMPFAIL;
+        }
+
+        auto* clone2 = do_item_alloc(engine, hkey, item->flags, item->exptime,
+                                     item->nbytes, cookie, item->datatype);
+        if (clone2 == nullptr) {
+            do_item_release(engine, item);
+            do_item_release(engine, clone1);
+            return ENGINE_TMPFAIL;
+        }
+
+        std::memcpy(item_get_data(clone1), item_get_data(item), item->nbytes);
+        std::memcpy(item_get_data(clone2), item_get_data(item), item->nbytes);
+        clone1->locktime = clone2->locktime = locktime;
+
+        do_item_replace(engine, cookie, item, clone1);
+
+        // do_item_replace generated a new cas id for this object
+        clone2->cas = clone1->cas;
+
+        // Release references
+        do_item_release(engine, item);
+        do_item_release(engine, clone1);
+        *it = clone2;
+    }
+
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE item_get_locked(struct default_engine* engine,
+                                  const void* cookie,
+                                  hash_item** it,
+                                  const void* key,
+                                  const size_t nkey,
+                                  rel_time_t locktime) {
+    hash_key hkey;
+
+    if (!hash_key_create(&hkey, key, nkey, engine, cookie)) {
+        return ENGINE_TMPFAIL;
+    }
+
+    cb_mutex_enter(&engine->items.lock);
+    ENGINE_ERROR_CODE ret = do_item_get_locked(engine, cookie, it, &hkey,
+                                               locktime);
+    cb_mutex_exit(&engine->items.lock);
+    hash_key_destroy(&hkey);
+
+    return ret;
+}
+
+static ENGINE_ERROR_CODE do_item_unlock(struct default_engine* engine,
+                                        const void* cookie,
+                                        const hash_key* hkey,
+                                        uint64_t cas) {
+    hash_item* item = do_item_get(engine, hkey, DocumentState::Alive);
+    if (item == nullptr) {
+        return ENGINE_KEY_ENOENT;
+    }
+
+    if (item->cas != cas) {
+        // Invalid CAS value
+        do_item_release(engine, item);
+        return ENGINE_KEY_EEXISTS;
+    }
+
+    if (item->refcount == 1) {
+        // I'm the only one with a reference to the object..
+        // Just do an in-place release of the object
+        item->locktime = 0;
+        do_item_release(engine, item);
+    } else {
+        // Someone else holds a reference to the object.
+        auto* clone = do_item_alloc(engine, hkey, item->flags, item->exptime,
+                                    item->nbytes, cookie, item->datatype);
+        if (clone == nullptr) {
+            do_item_release(engine, item);
+            return ENGINE_TMPFAIL;
+        }
+
+        std::memcpy(item_get_data(clone), item_get_data(item), item->nbytes);
+        clone->locktime = 0;
+
+        do_item_replace(engine, cookie, item, clone);
+        do_item_release(engine, clone);
+        do_item_release(engine, item);
+    }
+
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE item_unlock(struct default_engine* engine,
+                              const void* cookie,
+                              const void* key,
+                              const size_t nkey,
+                              uint64_t cas) {
+    hash_key hkey;
+
+    if (!hash_key_create(&hkey, key, nkey, engine, cookie)) {
+        return ENGINE_TMPFAIL;
+    }
+
+    cb_mutex_enter(&engine->items.lock);
+    ENGINE_ERROR_CODE ret = do_item_unlock(engine, cookie, &hkey, cas);
+    cb_mutex_exit(&engine->items.lock);
+    hash_key_destroy(&hkey);
+
     return ret;
 }
 

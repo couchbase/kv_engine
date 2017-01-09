@@ -647,6 +647,7 @@ MutationInfo MemcachedBinprotConnection::remove(const std::string& key,
     BinprotRemoveCommand command;
     command.setKey(key).setVBucket(vbucket);
     command.setVBucket(vbucket);
+    command.setCas(cas);
     sendCommand(command);
 
     BinprotRemoveResponse response;

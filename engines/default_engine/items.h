@@ -22,6 +22,13 @@ typedef struct _hash_item {
     rel_time_t time;  /* least recent access */
     rel_time_t exptime; /**< When the item will expire (relative to process
                          * startup) */
+
+    /**
+     * When the current lock for the object expire. If locktime < "current
+     * time" the item isn't locked anymore (timed out). If locktime >=
+     * "current time" the object is locked.
+     */
+    rel_time_t locktime;
     uint32_t nbytes; /**< The total size of the data (in bytes) */
     uint32_t flags; /**< Flags associated with the item (in network byte order)*/
     uint16_t iflag; /**< Intermal flags. lower 8 bit is reserved for the core
@@ -158,6 +165,41 @@ hash_item *item_get(struct default_engine *engine,
                     const void *key,
                     const size_t nkey,
                     const DocumentState state);
+
+
+/**
+ * Get an item from the cache and acquire the lock.
+ *
+ * @param engine handle to the storage engine
+ * @param cookie connection cookie
+ * @param where to return the item (if found)
+ * @param key the key for the item to get
+ * @param nkey the number of bytes in the key
+ * @param locktime when the item expire
+ * @return ENGINE_SUCCESS for success
+ */
+ENGINE_ERROR_CODE item_get_locked(struct default_engine* engine,
+                                  const void* cookie,
+                                  hash_item** it,
+                                  const void* key,
+                                  const size_t nkey,
+                                  rel_time_t locktime);
+
+/**
+ * Unlock an item in the cache
+ *
+ * @param engine handle to the storage engine
+ * @param cookie connection cookie
+ * @param key the key for the item to unlock
+ * @param nkey the number of bytes in the key
+ * @param cas value for the locked value
+ * @return ENGINE_SUCCESS for success
+ */
+ENGINE_ERROR_CODE item_unlock(struct default_engine* engine,
+                              const void* cookie,
+                              const void* key,
+                              const size_t nkey,
+                              uint64_t cas);
 
 /**
  * Reset the item statistics

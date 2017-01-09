@@ -307,6 +307,14 @@ static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
             return ENGINE_KEY_ENOENT;
         }
 
+        if (it->locktime != 0 &&
+            it->locktime > engine->server.core->get_current_time()) {
+            if (cas_in != it->cas) {
+                item_release(engine, it);
+                return ENGINE_LOCKED;
+            }
+        }
+
         auto* deleted = item_alloc(engine, key.data(), key.size(), it->flags,
                                    it->exptime, it->nbytes, cookie,
                                    it->datatype);
@@ -374,7 +382,29 @@ static ENGINE_ERROR_CODE default_get_locked(ENGINE_HANDLE* handle,
                                             const DocKey& key,
                                             uint16_t vbucket,
                                             uint32_t lock_timeout) {
-    return ENGINE_ENOTSUP;
+    auto* engine = get_handle(handle);
+    VBUCKET_GUARD(engine, vbucket);
+
+    // memcached buckets don't offer any way for the user to configure
+    // the lock settings.
+    static const uint32_t default_lock_timeout = 15;
+    static const uint32_t max_lock_timeout = 30;
+
+    if (lock_timeout == 0 || lock_timeout > max_lock_timeout) {
+        lock_timeout = default_lock_timeout;
+    }
+
+    // Convert the lock timeout to an absolute time
+    lock_timeout += engine->server.core->get_current_time();
+
+    hash_item* it;
+    auto ret = item_get_locked(engine, cookie, &it, key.data(), key.size(),
+                               lock_timeout);
+    if (ret == ENGINE_SUCCESS) {
+        *item = it;
+    }
+
+    return ret;
 }
 
 static ENGINE_ERROR_CODE default_unlock(ENGINE_HANDLE* handle,
@@ -382,7 +412,9 @@ static ENGINE_ERROR_CODE default_unlock(ENGINE_HANDLE* handle,
                                         const DocKey& key,
                                         uint16_t vbucket,
                                         uint64_t cas) {
-    return ENGINE_ENOTSUP;
+    auto* engine = get_handle(handle);
+    VBUCKET_GUARD(engine, vbucket);
+    return item_unlock(engine, cookie, key.data(), key.size(), cas);
 }
 
 static ENGINE_ERROR_CODE default_get_stats(ENGINE_HANDLE* handle,
@@ -765,7 +797,20 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
     if (item_info->nvalue < 1) {
         return false;
     }
-    item_info->cas = item_get_cas(it);
+
+    auto* engine = get_handle(handle);
+    if ((it->iflag & ITEM_LINKED) && it->locktime != 0 &&
+        it->locktime > engine->server.core->get_current_time()) {
+        // This object is locked. According to docs/Document.md we should
+        // return -1 in such cases to hide the real CAS for the other clients
+        // (Note the check on ITEM_LINKED.. for the actual item returned by
+        // get_locked we return an item which isn't linked (copy of the
+        // linked item) to allow returning the real CAS.
+        item_info->cas = uint64_t(-1);
+    } else {
+        item_info->cas = item_get_cas(it);
+    }
+
     item_info->vbucket_uuid = 0;
     item_info->seqno = 0;
     item_info->exptime = it->exptime;

@@ -83,9 +83,16 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
             return ENGINE_FAILED;
         }
 
-        uint64_t oldcas = oldItemInfo.info.cas;
-        if (cas != 0 && cas != oldcas) {
-            return ENGINE_KEY_EEXISTS;
+        if (cas != 0) {
+            if (oldItemInfo.info.cas == uint64_t(-1)) {
+                // The object in the cache is locked... lets try to use
+                // the cas provided by the user to override this
+                oldItemInfo.info.cas = cas;
+            } else if (cas != oldItemInfo.info.cas) {
+                return ENGINE_KEY_EEXISTS;
+            }
+        } else if (oldItemInfo.info.cas == uint64_t(-1)) {
+            return ENGINE_LOCKED;
         }
 
         if (mcbp::datatype::is_compressed(oldItemInfo.info.datatype)) {

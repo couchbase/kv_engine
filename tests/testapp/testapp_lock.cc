@@ -23,10 +23,24 @@
 #include <platform/compress.h>
 
 class LockTest : public TestappClientTest {
+public:
+    void SetUp() override {
+        document.info.cas = Greenstack::CAS::Wildcard;
+        document.info.compression = Greenstack::Compression::None;
+        document.info.datatype = Greenstack::Datatype::Json;
+        document.info.flags = 0xcaffee;
+        document.info.id = name;
+        const std::string content = to_string(memcached_cfg, false);
+        std::copy(content.begin(), content.end(),
+                  std::back_inserter(document.value));
+    }
+
 protected:
     MemcachedBinprotConnection& getMcbpConnection() {
         return dynamic_cast<MemcachedBinprotConnection&>(getConnection());
     }
+
+    Document document;
 };
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
@@ -38,24 +52,165 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
                                          ),
                         ::testing::PrintToStringParamName());
 
-TEST_P(LockTest, LockNotSupported) {
+TEST_P(LockTest, LockNonexistingDocument) {
     auto& conn = getMcbpConnection();
 
     try {
-        conn.get_and_lock("foo", 0, 0);
-        FAIL() << "default_bucket should not support lock";
+        conn.get_and_lock(name, 0, 0);
+        FAIL() << "It should not be possible to lock a non-existing document";
     } catch (const ConnectionError& ex) {
-        EXPECT_TRUE(ex.isNotSupported());
+        EXPECT_TRUE(ex.isNotFound());
     }
 }
 
-TEST_P(LockTest, UnlockNotSupported) {
+TEST_P(LockTest, LockIncorrectVBucket) {
     auto& conn = getMcbpConnection();
 
     try {
-        conn.unlock("foo", 0, 0xdeadbeef);
-        FAIL() << "default_bucket should not support unlock";
+        conn.get_and_lock(name, 1, 0);
+        FAIL() << "vbucket 1 should not exist";
     } catch (const ConnectionError& ex) {
-        EXPECT_TRUE(ex.isNotSupported());
+        EXPECT_TRUE(ex.isNotMyVbucket());
     }
+}
+
+TEST_P(LockTest, LockWithDefaultValue) {
+    auto& conn = getMcbpConnection();
+
+    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    conn.get_and_lock(name, 0, 0);
+}
+
+TEST_P(LockTest, LockWithTimeValue) {
+    auto& conn = getMcbpConnection();
+
+    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    conn.get_and_lock(name, 0, 5);
+}
+
+
+TEST_P(LockTest, LockLockedDocument) {
+    auto& conn = getMcbpConnection();
+
+    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    conn.get_and_lock(name, 0, 0);
+
+    try {
+        conn.get_and_lock(name, 0, 0);
+        FAIL() << "it is not possible to lock a locked document";
+    } catch (const ConnectionError& ex) {
+        EXPECT_TRUE(ex.isLocked());
+    }
+}
+
+TEST_P(LockTest, MutateLockedDocument) {
+    auto& conn = getMcbpConnection();
+
+    conn.mutate(document, 0, Greenstack::MutationType::Add);
+
+    for (const auto op : {Greenstack::MutationType::Set,
+                          Greenstack::MutationType::Replace,
+                          Greenstack::MutationType::Append,
+                          Greenstack::MutationType::Prepend}) {
+        const auto locked = conn.get_and_lock(name, 0, 0);
+        EXPECT_NE(uint64_t(-1), locked.info.cas);
+        try {
+            conn.mutate(document, 0, op);
+            FAIL() << "It should not be possible to mutate a locked document";
+        } catch (const ConnectionError& ex) {
+            EXPECT_TRUE(ex.isLocked());
+        }
+
+        // But using the locked cas should work!
+        document.info.cas = locked.info.cas;
+        conn.mutate(document, 0, op);
+    }
+}
+
+TEST_P(LockTest, ArithmeticLockedDocument) {
+    auto& conn = getMcbpConnection();
+
+    conn.arithmetic(name, 1);
+    conn.get_and_lock(name, 0, 0);
+
+    try {
+        conn.arithmetic(name, 1);
+        FAIL() << "incr/decr a locked document should not be possible";
+    } catch (const ConnectionError& ex) {
+        EXPECT_TRUE(ex.isLocked());
+    }
+
+    // You can't unlock the data with incr
+}
+
+TEST_P(LockTest, DeleteLockedDocument) {
+    auto& conn = getMcbpConnection();
+
+    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    const auto locked = conn.get_and_lock(name, 0, 0);
+
+    try {
+        conn.remove(name, 0, 0);
+        FAIL() << "Remove a locked document should not be possible";
+    } catch (const ConnectionError& ex) {
+        EXPECT_TRUE(ex.isLocked());
+    }
+
+    conn.remove(name, 0, locked.info.cas);
+}
+
+TEST_P(LockTest, UnlockNoSuchDocument) {
+    auto& conn = getMcbpConnection();
+    try {
+        conn.unlock(name, 0, 0xdeadbeef);
+        FAIL() << "The document should not exist";
+    } catch (const ConnectionError& ex) {
+        EXPECT_TRUE(ex.isNotFound());
+    }
+}
+
+TEST_P(LockTest, UnlockInvalidVBucket) {
+    auto& conn = getMcbpConnection();
+    try {
+        conn.unlock(name, 1, 0xdeadbeef);
+        FAIL() << "The vbucket should not exist";
+    } catch (const ConnectionError& ex) {
+        EXPECT_TRUE(ex.isNotMyVbucket());
+    }
+}
+
+TEST_P(LockTest, UnlockWrongCas) {
+    auto& conn = getMcbpConnection();
+    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    const auto locked = conn.get_and_lock(name, 0, 0);
+
+    try {
+        conn.unlock(name, 0, locked.info.cas + 1);
+        FAIL() << "The cas value should not match";
+    } catch (const ConnectionError& ex) {
+        EXPECT_TRUE(ex.isAlreadyExists());
+    }
+}
+
+TEST_P(LockTest, UnlockThereIsNoCasWildcard) {
+    auto& conn = getMcbpConnection();
+    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    const auto locked = conn.get_and_lock(name, 0, 0);
+
+    try {
+        conn.unlock(name, 0, 0);
+        FAIL() << "The cas value should not match";
+    } catch (const ConnectionError& ex) {
+        EXPECT_TRUE(ex.isInvalidArguments());
+    }
+}
+
+TEST_P(LockTest, UnlockSuccess) {
+    auto& conn = getMcbpConnection();
+    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    const auto locked = conn.get_and_lock(name, 0, 0);
+    conn.unlock(name, 0, locked.info.cas);
+
+    // The document should no longer be locked
+    conn.mutate(document, 0, Greenstack::MutationType::Set);
 }

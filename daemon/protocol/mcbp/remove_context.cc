@@ -70,8 +70,16 @@ ENGINE_ERROR_CODE RemoveCommandContext::getItem() {
             return ENGINE_FAILED;
         }
 
-        if (input_cas != 0 && input_cas != existing_info.cas) {
-            return ENGINE_KEY_EEXISTS;
+        if (input_cas != 0) {
+            if (existing_info.cas == uint64_t(-1)) {
+                // The object in the cache is locked... lets try to use
+                // the cas provided by the user to override this
+                existing_info.cas = input_cas;
+            } else if (input_cas != existing_info.cas) {
+                return ENGINE_KEY_EEXISTS;
+            }
+        } else if (existing_info.cas == uint64_t(-1)) {
+            return ENGINE_LOCKED;
         }
 
         if (mcbp::datatype::is_xattr(existing_info.datatype)) {
