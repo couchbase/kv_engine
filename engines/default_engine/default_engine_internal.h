@@ -38,13 +38,13 @@ struct default_engine;
 #include "slabs.h"
 
    /* Flags */
-#define ITEM_LINKED (1<<8)
+#define ITEM_LINKED (1)
 
 /* temp */
-#define ITEM_SLABBED (2<<8)
+#define ITEM_SLABBED (2)
 
 /** The item is deleted (may only be accessed if explicitly asked for) */
-#define ITEM_ZOMBIE (4<<8)
+#define ITEM_ZOMBIE (4)
 
 struct config {
    size_t verbose;

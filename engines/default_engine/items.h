@@ -15,13 +15,22 @@ extern "C" {
  * functions.
  */
 typedef struct _hash_item {
-    struct _hash_item *next;
-    struct _hash_item *prev;
-    struct _hash_item *h_next; /* hash chain next */
+    struct _hash_item* next;
+    struct _hash_item* prev;
+    struct _hash_item* h_next; /* hash chain next */
+    /**
+     * The unique identifier for this item (it is guaranteed to be unique
+     * per key, which means that a two different version of a document
+     * cannot have the same CAS value (This is not true after a server
+     * restart given that default_bucket is an in-memory bucket).
+     */
     uint64_t cas;
-    rel_time_t time;  /* least recent access */
-    rel_time_t exptime; /**< When the item will expire (relative to process
-                         * startup) */
+
+    /** least recent access */
+    rel_time_t time;
+
+    /** When the item will expire (relative to process startup) */
+    rel_time_t exptime;
 
     /**
      * When the current lock for the object expire. If locktime < "current
@@ -29,14 +38,31 @@ typedef struct _hash_item {
      * "current time" the object is locked.
      */
     rel_time_t locktime;
-    uint32_t nbytes; /**< The total size of the data (in bytes) */
-    uint32_t flags; /**< Flags associated with the item (in network byte order)*/
-    uint16_t iflag; /**< Intermal flags. lower 8 bit is reserved for the core
-                     * server, the upper 8 bits is reserved for engine
-                     * implementation. */
-    unsigned short refcount;
-    uint8_t slabs_clsid;/* which slab class we're in */
-    uint8_t datatype;/* to identify the type of the data */
+
+    /** The total size of the data (in bytes) */
+    uint32_t nbytes;
+
+    /** Flags associated with the item (in network byte order) */
+    uint32_t flags;
+
+    /**
+     * The number of entities holding a reference to this item object (we
+     * operate in a copy'n'write context so it is always safe for all of
+     * our clients to share an existing object, but we need the refcount
+     * so that we know when we can release the object.
+     */
+    uint16_t refcount;
+
+    /** Intermal flags used by the engine.*/
+    uint8_t iflag;
+
+    /** which slab class we're in */
+    uint8_t slabs_clsid;
+
+    /** to identify the type of the data */
+    uint8_t datatype;
+
+    // There is 3 spare bytes due to alignment
 } hash_item;
 
 /*
