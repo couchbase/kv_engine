@@ -268,41 +268,6 @@ void item_scrubber_main(struct default_engine *engine);
  */
 bool item_start_scrub(struct default_engine *engine);
 
-/**
- * The tap walker to walk the hashtables
- */
-tap_event_t item_tap_walker(ENGINE_HANDLE* handle,
-                            const void *cookie, item **itm,
-                            void **es, uint16_t *nes, uint8_t *ttl,
-                            uint16_t *flags, uint32_t *seqno,
-                            uint16_t *vbucket);
-
-bool initialize_item_tap_walker(struct default_engine *engine,
-                                const void* cookie);
-
-
-struct dcp_connection {
-    void *gid;
-    size_t ngid;
-    uint32_t flags;
-    uint32_t opaque;
-    uint16_t vbucket;
-    uint64_t start_seqno;
-    uint64_t end_seqno;
-    uint64_t vbucket_uuid;
-    uint64_t snap_start_seqno;
-    uint64_t snap_end_seqno;
-    hash_item cursor;
-    hash_item *it;
-};
-
-void link_dcp_walker(struct default_engine *engine,
-                     struct dcp_connection *connection);
-ENGINE_ERROR_CODE item_dcp_step(struct default_engine *engine,
-                                struct dcp_connection *connection,
-                                const void *cookie,
-                                struct dcp_message_producers *producers);
-
 #ifdef __cplusplus
 }
 #endif
