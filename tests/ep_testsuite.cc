@@ -3596,13 +3596,17 @@ static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDL
     }
     wait_for_flusher_to_settle(h, h1);
 
-    check(set_vbucket_state(h, h1, 1, vbucket_state_dead), "Failed set set vbucket 1 state.");
+    // don't need to explicitly set the vbucket state to dead as this is
+    // done as part of the vbucketDelete. See KVBucket::deleteVBucket
     int vb_del_num = get_int_stat(h, h1, "ep_vbucket_del");
     vbucketDelete(h, h1, 1);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Failure deleting dead bucket.");
     check(verify_vbucket_missing(h, h1, 1),
           "vbucket 1 was not missing after deleting it.");
+    // wait for the deletion to successfully complete before setting the
+    // vbucket state active (which creates the vbucket)
+    wait_for_stat_change(h, h1, "ep_vbucket_del", vb_del_num);
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
@@ -3614,7 +3618,6 @@ static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDL
         h1->release(h, NULL, i);
     }
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_change(h, h1, "ep_vbucket_del", vb_del_num);
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
