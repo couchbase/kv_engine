@@ -5315,10 +5315,9 @@ static enum test_result test_del_with_item_eviction(ENGINE_HANDLE *h,
     uint64_t cas = 0;
     uint64_t vb_uuid;
     mutation_descr_t mut_info;
-    uint32_t high_seqno;
 
     vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    auto high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
     checkeq(ENGINE_SUCCESS,
             del(h, h1, "key", &cas, 0, nullptr, &mut_info),
             "Failed remove with value.");
