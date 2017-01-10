@@ -641,21 +641,19 @@ ENGINE_ERROR_CODE DcpConsumer::handleResponse(
     uint8_t opcode = resp->response.opcode;
     uint32_t opaque = resp->response.opaque;
 
-    opaque_map::iterator oitr = opaqueMap_.find(opaque);
-
-    bool validOpaque = false;
-    if (oitr != opaqueMap_.end()) {
-        validOpaque = isValidOpaque(opaque, oitr->second.second);
-    }
-
-    if (!validOpaque) {
-        logger.log(EXTENSION_LOG_WARNING,
-            "Received response with opaque %" PRIu32 " and that stream no "
-                    "longer exists", opaque);
-        return ENGINE_KEY_ENOENT;
-    }
-
     if (opcode == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ) {
+        opaque_map::iterator oitr = opaqueMap_.find(opaque);
+        if (oitr == opaqueMap_.end()) {
+            LOG(EXTENSION_LOG_WARNING,
+                "Received response with opaque %" PRIu32 " and that opaque "
+                "does not exist in opaqueMap", opaque);
+            return ENGINE_KEY_ENOENT;
+        } else if (!isValidOpaque(opaque, oitr->second.second)) {
+            LOG(EXTENSION_LOG_WARNING, "Received response with opaque %" PRIu32
+                " and that stream does not exist for vb:%" PRIu16,
+                opaque, oitr->second.second);
+            return ENGINE_KEY_ENOENT;
+        }
         protocol_binary_response_dcp_stream_req* pkt =
             reinterpret_cast<protocol_binary_response_dcp_stream_req*>(resp);
 

@@ -211,6 +211,10 @@ protected:
                                SingleThreadedRCPtr<PassiveStream>> PassiveStreamMap;
     PassiveStreamMap streams;
 
+    /*
+     * Each time a stream is added an entry is made into the opaqueMap, which
+     * maps a local opaque to a tuple of an externally provided opaque and vbid.
+     */
     opaque_map opaqueMap_;
 
     Couchbase::RelaxedAtomic<uint32_t> backoffs;
