@@ -141,8 +141,8 @@ TEST(XattrKeyValidator, RestrictedXattrPrefix) {
  * XATTRS should be UTF8
  */
 
-static void testInvalidUtf(char magic, int nbytes) {
-    std::vector<char> data;
+static void testInvalidUtf(uint8_t magic, int nbytes) {
+    std::vector<uint8_t> data;
     data.push_back(magic);
 
     for (int ii = 0; ii < nbytes; ++ii) {

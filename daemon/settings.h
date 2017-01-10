@@ -214,7 +214,7 @@ public:
      *
      * @param admin the new username for the admin user
      */
-    void setAdmin(const std::string& admin) CB_ATTR_DEPRECATED {
+    void setAdmin(const std::string& admin) /* CB_ATTR_DEPRECATED */ {
         has.admin = true;
         Settings::admin.assign(admin);
         notify_changed("admin");
@@ -227,7 +227,7 @@ public:
      *
      * @return The username to be treated as the administrator
      */
-    const std::string& getAdmin() const CB_ATTR_DEPRECATED {
+    const std::string& getAdmin() const /* CB_ATTR_DEPRECATED */ {
         return admin;
     }
 
@@ -239,7 +239,7 @@ public:
      * @param other the username to check
      * @return true if the username is the admin user
      */
-    bool isAdmin(const std::string& other) const CB_ATTR_DEPRECATED {
+    bool isAdmin(const std::string& other) const /* CB_ATTR_DEPRECATED */ {
         return admin == other;
     }
 

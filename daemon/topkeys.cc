@@ -217,7 +217,7 @@ static void tk_iterfunc(const std::string& key, const topkey_item_t& it,
                         "get_meta=0,set_meta=0,del_meta=0,ctime=%" PRIu32
                         ",atime=%" PRIu32, it.ti_access_count,
                         created_time, created_time);
-    if (vlen > 0 && vlen < (sizeof(val_str) - 1)) {
+    if (vlen > 0 && vlen < int(sizeof(val_str) - 1)) {
         c->add_stat(key.c_str(), key.size(), val_str, vlen, c->cookie);
     }
 }

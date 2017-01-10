@@ -25,9 +25,6 @@
 #include <memcached/audit_interface.h>
 #include <platform/checked_snprintf.h>
 
-
-
-
 // Generic add_stat<T>. Uses std::to_string which requires heap allocation.
 template<typename T>
 void add_stat(const void* cookie, ADD_STAT add_stat_callback,
@@ -42,8 +39,8 @@ void add_stat(const void* cookie, ADD_STAT add_stat_callback,
 void add_stat(const void* cookie, ADD_STAT add_stat_callback,
               const char* name, int32_t val) {
     char buf[16];
-    int len = snprintf(buf, sizeof(buf), "%" PRId32, val);
-    if (len < 0 || len >= sizeof(buf)) {
+    int len = checked_snprintf(buf, sizeof(buf), "%" PRId32, val);
+    if (len < 0 || size_t(len) >= sizeof(buf)) {
         LOG_WARNING(nullptr, "add_stat failed to add stat for %s", name);
     } else {
         add_stat_callback(name, uint16_t(strlen(name)),
@@ -54,8 +51,8 @@ void add_stat(const void* cookie, ADD_STAT add_stat_callback,
 void add_stat(const void* cookie, ADD_STAT add_stat_callback,
               const char* name, uint32_t val) {
     char buf[16];
-    int len = snprintf(buf, sizeof(buf), "%" PRIu32, val);
-    if (len < 0 || len >= sizeof(buf)) {
+    int len = checked_snprintf(buf, sizeof(buf), "%" PRIu32, val);
+    if (len < 0 || size_t(len) >= sizeof(buf)) {
         LOG_WARNING(nullptr, "add_stat failed to add stat for %s", name);
     } else {
         add_stat_callback(name, uint16_t(strlen(name)),
@@ -66,8 +63,8 @@ void add_stat(const void* cookie, ADD_STAT add_stat_callback,
 void add_stat(const void* cookie, ADD_STAT add_stat_callback,
               const char* name, int64_t val) {
     char buf[32];
-    int len = snprintf(buf, sizeof(buf), "%" PRId64, val);
-    if (len < 0 || len >= sizeof(buf)) {
+    int len = checked_snprintf(buf, sizeof(buf), "%" PRId64, val);
+    if (len < 0 || size_t(len) >= sizeof(buf)) {
         LOG_WARNING(nullptr, "add_stat failed to add stat for %s", name);
     } else {
         add_stat_callback(name, uint16_t(strlen(name)),
@@ -78,8 +75,8 @@ void add_stat(const void* cookie, ADD_STAT add_stat_callback,
 void add_stat(const void* cookie, ADD_STAT add_stat_callback,
               const char* name, uint64_t val) {
     char buf[32];
-    int len = snprintf(buf, sizeof(buf), "%" PRIu64, val);
-    if (len < 0 || len >= sizeof(buf)) {
+    int len = checked_snprintf(buf, sizeof(buf), "%" PRIu64, val);
+    if (len < 0 || size_t(len) >= sizeof(buf)) {
         LOG_WARNING(nullptr, "add_stat failed to add stat for %s", name);
     } else {
         add_stat_callback(name, uint16_t(strlen(name)),
@@ -477,7 +474,7 @@ static void process_bucket_details(McbpConnection* c) {
     cJSON* obj = cJSON_CreateObject();
 
     cJSON* array = cJSON_CreateArray();
-    for (int ii = 0; ii < all_buckets.size(); ++ii) {
+    for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
         cJSON* o = get_bucket_details(ii);
         if (o != NULL) {
             cJSON_AddItemToArray(array, o);
@@ -751,7 +748,7 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
         }
     }
 
-    ENGINE_ERROR_CODE ret;
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     if (key.empty()) {
         /* request all statistics */

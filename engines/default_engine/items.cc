@@ -533,8 +533,8 @@ static void do_item_stats_sizes(struct default_engine *engine,
                 int klen, vlen;
                 klen = snprintf(key, sizeof(key), "%d", i * 32);
                 vlen = snprintf(val, sizeof(val), "%u", histogram[i]);
-                if (klen > 0 && klen < sizeof(key) && vlen > 0 &&
-                    vlen < sizeof(val)) {
+                if (klen > 0 && klen < int(sizeof(key)) && vlen > 0 &&
+                    vlen < int(sizeof(val))) {
                     add_stats(key, klen, val, vlen, c);
                 }
             }

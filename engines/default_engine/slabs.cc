@@ -50,7 +50,7 @@ static void slabs_preallocate (const unsigned int maxslabs);
  */
 
 unsigned int slabs_clsid(struct default_engine *engine, const size_t size) {
-    int res = POWER_SMALLEST;
+    unsigned int res = POWER_SMALLEST;
 
     if (size == 0)
         return 0;
@@ -319,27 +319,27 @@ void add_statistics(const void *cookie, ADD_STAT add_stats,
     vlen = vsnprintf(val, sizeof(val) - 1, fmt, ap);
     va_end(ap);
 
-    if (vlen < 0 || vlen >= sizeof(val)) {
+    if (vlen < 0 || vlen >= int(sizeof(val))) {
         return;
     }
 
     if (prefix != NULL) {
         klen = snprintf(name, sizeof(name), "%s:", prefix);
-        if (klen < 0 || klen >= sizeof(name)) {
+        if (klen < 0 || klen >= int(sizeof(name))) {
             return;
         }
     }
 
     if (num != -1) {
         nw = snprintf(name + klen, sizeof(name) - klen, "%d:", num);
-        if (nw < 0 || nw >= (sizeof(name) - klen)) {
+        if (nw < 0 || nw >= int(sizeof(name) - klen)) {
             return;
         }
         klen += nw;
     }
 
     nw = snprintf(name + klen, sizeof(name) - klen, "%s", key);
-    if (nw < 0 || nw >= (sizeof(name) - klen)) {
+    if (nw < 0 || nw >= int(sizeof(name) - klen)) {
         return;
     }
 

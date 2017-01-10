@@ -210,7 +210,7 @@ bool associate_bucket(Connection *c, const char *name) {
 
     /* Try to associate with the named bucket */
     /* @todo add auth checks!!! */
-    for (int ii = 1; ii < all_buckets.size() && !found; ++ii) {
+    for (size_t ii = 1; ii < all_buckets.size() && !found; ++ii) {
         Bucket &b = all_buckets.at(ii);
         cb_mutex_enter(&b.mutex);
         if (b.state == BucketState::Ready && strcmp(b.name, name) == 0) {
@@ -348,7 +348,7 @@ static void register_callback(ENGINE_HANDLE *eh,
                               EVENT_CALLBACK cb,
                               const void *cb_data)
 {
-    int idx;
+    size_t idx;
     switch (type) {
     /*
      * The following events operates on a connection which is passed in
@@ -388,7 +388,7 @@ static void register_callback(ENGINE_HANDLE *eh,
 
 static void free_callbacks() {
     // free per-bucket callbacks.
-    for (int idx = 0; idx < all_buckets.size(); ++idx) {
+    for (size_t idx = 0; idx < all_buckets.size(); ++idx) {
         for (auto& type_vec : all_buckets[idx].engine_event_handlers) {
             type_vec.clear();
         }
@@ -857,7 +857,7 @@ static cJSON *get_bucket_details_UNLOCKED(const Bucket& bucket, int idx) {
     return root;
 }
 
-cJSON *get_bucket_details(int idx)
+cJSON *get_bucket_details(size_t idx)
 {
     cJSON* ret;
     Bucket &bucket = all_buckets.at(idx);
@@ -2003,14 +2003,16 @@ void CreateBucketThread::create() {
         return;
     }
 
-    int ii;
-    int first_free = -1;
+    size_t ii;
+    size_t first_free = all_buckets.size();
     bool found = false;
 
     cb_mutex_enter(&buckets_lock);
     for (ii = 0; ii < all_buckets.size() && !found; ++ii) {
         cb_mutex_enter(&all_buckets[ii].mutex);
-        if (first_free == -1 && all_buckets[ii].state == BucketState::None) {
+        if (first_free == all_buckets.size() &&
+            all_buckets[ii].state == BucketState::None)
+        {
             first_free = ii;
         }
         if (name == all_buckets[ii].name) {
@@ -2024,7 +2026,7 @@ void CreateBucketThread::create() {
         LOG_NOTICE(&connection,
                    "%u Create bucket [%s] failed - Already exists",
                    connection.getId(), name.c_str());
-    } else if (first_free == -1) {
+    } else if (first_free == all_buckets.size()) {
         result = ENGINE_E2BIG;
         LOG_WARNING(&connection,
                     "%u Create bucket [%s] failed - Too many buckets",
@@ -2133,7 +2135,7 @@ void CreateBucketThread::run()
 }
 
 void notify_thread_bucket_deletion(LIBEVENT_THREAD *me) {
-    for (int ii = 0; ii < all_buckets.size(); ++ii) {
+    for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
         bool destroy = false;
         cb_mutex_enter(&all_buckets[ii].mutex);
         if (all_buckets[ii].state == BucketState::Destroying) {
@@ -2161,8 +2163,8 @@ void DestroyBucketThread::destroy() {
             ? "<none>"
             : std::to_string(connection->getId())};
 
-    int idx = 0;
-    for (int ii = 0; ii < all_buckets.size(); ++ii) {
+    size_t idx = 0;
+    for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
         cb_mutex_enter(&all_buckets[ii].mutex);
         if (name == all_buckets[ii].name) {
             idx = ii;
@@ -2198,7 +2200,7 @@ void DestroyBucketThread::destroy() {
                connection_id.c_str(), name.c_str());
 
     /* If this thread is connected to the requested bucket... release it */
-    if (connection != nullptr && idx == connection->getBucketIndex()) {
+    if (connection != nullptr && idx == size_t(connection->getBucketIndex())) {
         disassociate_bucket(connection);
     }
 
@@ -2382,7 +2384,7 @@ void delete_all_buckets() {
          * Start at one (not zero) because zero is reserved for "no bucket".
          * The "no bucket" has a state of BucketState::Ready but no name.
          */
-        for (int ii = 1; ii < all_buckets.size() && done; ++ii) {
+        for (size_t ii = 1; ii < all_buckets.size() && done; ++ii) {
             cb_mutex_enter(&all_buckets[ii].mutex);
             if (all_buckets[ii].state == BucketState::Ready) {
                 name.assign(all_buckets[ii].name);

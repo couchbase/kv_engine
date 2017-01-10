@@ -156,7 +156,7 @@ static void flush_last_log(bool timebased) {
                               "%s Message repeated %u times\n",
                               timestamp.data(), lastlog.count);
 
-        if (offset < 0 || offset >= sizeof(buffer)) {
+        if (offset < 0 || offset >= int(sizeof(buffer))) {
             // Failed to format... ignore for now..
             return;
         }
@@ -227,13 +227,13 @@ static int format_log_entry(char* buffer, size_t buf_len, time_t time,
     ISOTime::generatetimestamp(timestamp, time, frac_of_second);
     const int prefix_len = snprintf(buffer, buf_len, "%s %s ", timestamp.data(),
                                    severity2string(severity));
-    if (prefix_len < 0 || prefix_len >= buf_len) {
+    if (prefix_len < 0 || size_t(prefix_len) >= buf_len) {
         return 0;
     }
 
     const int msglen = snprintf(buffer + prefix_len, buf_len - prefix_len,
                                 "%s", message);
-    if (msglen < 0 || msglen >= (buf_len - prefix_len)) {
+    if (msglen < 0 || size_t(msglen) >= (buf_len - prefix_len)) {
         return 0;
     }
 

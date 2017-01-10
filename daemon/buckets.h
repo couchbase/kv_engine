@@ -221,7 +221,7 @@ extern std::array<Bucket, COUCHBASE_MAX_NUM_BUCKETS + 1> all_buckets;
  */
 void bucketsForEach(std::function<bool(Bucket&, void*)> fn, void *arg);
 
-cJSON *get_bucket_details(int idx);
+cJSON *get_bucket_details(size_t idx);
 
 /**
  * Is the connected bucket currently dying?

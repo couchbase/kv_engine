@@ -1353,7 +1353,7 @@ int main(int argc, char **argv) {
         int i;
         bool need_newline = false;
         for (i = 0; testcases[i].name; i++) {
-            int error;
+            int error = 0;
             if (test_case_regex && !std::regex_search(testcases[i].name,
                                                       *test_case_regex)) {
                 continue;

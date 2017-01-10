@@ -92,7 +92,7 @@ std::string to_string(const GetOpcodes& opcode) {
 std::ostream& operator<<(std::ostream& os, const GetOpcodes& o) {
     os << to_string(o);
     return os;
-};
+}
 
 // Test the validators for GET, GETQ, GETK, GETKQ
 class GetValidatorTest : public ValidatorTest,

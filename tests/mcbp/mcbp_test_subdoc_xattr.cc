@@ -61,7 +61,7 @@ std::string to_string(const SubdocOpcodes& opcode) {
 std::ostream& operator<<(std::ostream& os, const SubdocOpcodes& o) {
     os << to_string(o);
     return os;
-};
+}
 
 /**
  * Test the extra checks needed for XATTR access in subdoc
@@ -136,6 +136,7 @@ protected:
         case SubdocOpcodes::DictAdd:
             return true;
         }
+        throw std::logic_error("needPayload: Unknown parameter");
     }
 
     bool allowMacroExpansion() {

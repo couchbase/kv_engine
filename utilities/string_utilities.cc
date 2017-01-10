@@ -36,7 +36,7 @@ std::vector<std::string> split_string(const std::string& s,
     result.emplace_back(s, n);
 
     return result;
-};
+}
 
 // based on http://stackoverflow.com/a/4823686/3133303
 std::string percent_decode(const std::string& s) {
@@ -49,7 +49,7 @@ std::string percent_decode(const std::string& s) {
                         "percent encoded char");
             }
 
-            int ii;
+            unsigned int ii;
             if(sscanf(s.substr(i + 1, 2).c_str(), "%x", &ii) != 1) {
                 throw std::invalid_argument("percent_decode: invalid percent "
                                             "encoded char ('"
@@ -94,4 +94,4 @@ std::pair<std::string, StrToStrMap> decode_query(const std::string& s) {
         }
     }
     return result;
-};
+}

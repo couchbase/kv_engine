@@ -50,7 +50,7 @@ std::string to_string(const Opcodes& opcode) {
 std::ostream& operator<<(std::ostream& os, const Opcodes& o) {
     os << to_string(o);
     return os;
-};
+}
 
 class MutationWithMetaTest : public ValidatorTest,
                              public ::testing::WithParamInterface<Opcodes> {

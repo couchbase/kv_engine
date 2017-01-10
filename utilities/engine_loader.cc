@@ -188,7 +188,7 @@ void log_engine_details(ENGINE_HANDLE* engine,
                               "Create bucket with engine: %s.",
                               info->description ?
                               info->description : "Unknown");
-        if (nw < 0 || nw >= sizeof(message)) {
+        if (nw < 0 || nw >= ssize_t(sizeof(message))) {
             return;
         }
         offset = nw;
@@ -198,7 +198,7 @@ void log_engine_details(ENGINE_HANDLE* engine,
             unsigned int ii;
             nw = snprintf(message + offset, sizeof(message) - offset,
                           " Supplying the following features: ");
-            if (nw < 0 || nw >= (sizeof(message) - offset)) {
+            if (nw < 0 || nw >= ssize_t(sizeof(message) - offset)) {
                 return;
             }
             offset += nw;
@@ -219,7 +219,7 @@ void log_engine_details(ENGINE_HANDLE* engine,
                     }
                 }
                 comma = true;
-                if (nw < 0 || nw >= (sizeof(message) - offset)) {
+                if (nw < 0 || nw >= ssize_t(sizeof(message) - offset)) {
                     return;
                 }
                 offset += nw;
