@@ -65,11 +65,16 @@ struct DocKeyInterface {
     }
 
     uint32_t hash() const {
+        return hash(size());
+    }
+
+protected:
+    uint32_t hash(size_t bytes) const {
         uint32_t h = 5381;
 
         h = ((h << 5) + h) ^ uint32_t(getDocNamespace());
 
-        for (size_t i = 0; i < size(); i++) {
+        for (size_t i = 0; i < bytes; i++) {
             h = ((h << 5) + h) ^ uint32_t(data()[i]);
         }
 
