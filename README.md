@@ -16,6 +16,7 @@ eventually persistent engine -
 * [Error Handling Best Practices](docs/ErrorHandling.md)
 * [Event Tracing / Phosphor](docs/Tracing.md)
 * [Document attributes](docs/Document.md)
+* [Environment variables](docs/EnvironmentVariables.md)
 
 # Protocols
 
