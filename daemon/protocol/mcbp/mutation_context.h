@@ -35,12 +35,16 @@ public:
     enum class State : uint8_t {
         // Validate the input data
         ValidateInput,
+        // Get existing item
+        GetExistingItemToPreserveXattr,
         // Allocate the destination object
         AllocateNewItem,
         // Store the new document
         StoreItem,
         // Send the response back to the client
         SendResponse,
+        // Release all data and start all over again (used by cas collision);-)
+        Reset,
         // We're all done :)
         Done
     };
@@ -61,9 +65,17 @@ protected:
     ENGINE_ERROR_CODE validateInput();
 
     /**
+     * Get the existing data from the underlying engine. It may be
+     * needed to preserve potential XATTRs on the document
+     *
+     * @return ENGINE_SUCCESS if we want to proceed to the next state
+     */
+    ENGINE_ERROR_CODE getExistingItemToPreserveXattr();
+
+    /**
      * Allocate memory for the object and initialize it with the value
      * provided by the client
-
+     *
      * @return ENGINE_SUCCESS if we want to proceed to the next state
      */
     ENGINE_ERROR_CODE allocateNewItem();
@@ -83,6 +95,14 @@ protected:
      */
     ENGINE_ERROR_CODE sendResponse();
 
+    /**
+     * Release all allocated resources and prepare for a retry
+     *
+     * @return ENGINE_SUCCESS if we want to proceed to the next state
+     */
+    ENGINE_ERROR_CODE reset();
+
+
 private:
     const ENGINE_STORE_OPERATION operation;
     const DocKey key;
@@ -101,4 +121,13 @@ private:
 
     // The newly created document
     cb::unique_item_ptr newitem;
+
+    // Pointer to the current value stored in the engine
+    cb::unique_item_ptr existing;
+
+    // The metadata for the existing item
+    item_info existing_info;
+
+    // The size of the xattr segment of the existing item
+    size_t xattr_size;
 };
