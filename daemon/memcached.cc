@@ -2675,6 +2675,10 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     update_settings_from_config();
 
+    if (getenv("COUCHBASE_FORCE_ENABLE_XATTR") != nullptr) {
+        settings.setXattrEnabled(true);
+    }
+
     set_server_initialized(!settings.isRequireInit());
 
     /* Initialize breakpad crash catcher with our just-parsed settings. */
