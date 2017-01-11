@@ -2411,9 +2411,6 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
     dcp_stream_from_producer_conn(h, h1, cookie, opaque,
                                   last_seqno_streamed + 1, num_items);
 
-    checkeq(1, get_int_stat(h, h1, "ep_cursors_dropped"),
-            "Expected number of cursors not dropped");
-
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
