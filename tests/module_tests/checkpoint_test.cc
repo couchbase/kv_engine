@@ -42,8 +42,6 @@
 #define DCP_CURSOR_PREFIX "dcp-client-"
 #define TAP_CURSOR_PREFIX "tap-client-"
 
-extern "C" {
-
 /**
  * Dummy callback to replace the flusher callback.
  */
@@ -56,17 +54,28 @@ public:
     }
 };
 
-// Test fixture for Checkpoint tests. Once constructed provides a checkpoint
-// manager and single vBucket (VBID 0).
+/**
+ * Test fixture for Checkpoint tests. Once constructed provides a checkpoint
+ * manager and single vBucket (VBID 0).
+ *
+ *@tparam V The VBucket class to use for the vbucket object.
+ */
+template <typename V>
 class CheckpointTest : public ::testing::Test {
 protected:
     CheckpointTest()
         : callback(new DummyCB()),
-          vbucket(new VBucket(0, vbucket_state_active, global_stats,
-                              checkpoint_config, /*kvshard*/NULL,
-                              /*lastSeqno*/1000, /*lastSnapStart*/0,
-                              /*lastSnapEnd*/0, /*table*/NULL,
-                              callback, config)) {
+          vbucket(new V(0,
+                        vbucket_state_active,
+                        global_stats,
+                        checkpoint_config,
+                        /*kvshard*/ NULL,
+                        /*lastSeqno*/ 1000,
+                        /*lastSnapStart*/ 0,
+                        /*lastSnapEnd*/ 0,
+                        /*table*/ NULL,
+                        callback,
+                        config)) {
         createManager();
     }
 
@@ -97,7 +106,7 @@ protected:
     CheckpointConfig checkpoint_config;
     Configuration config;
     std::shared_ptr<Callback<uint16_t> > callback;
-    std::unique_ptr<VBucket> vbucket;
+    std::unique_ptr<V> vbucket;
     std::unique_ptr<CheckpointManager> manager;
 };
 
@@ -224,21 +233,23 @@ static void launch_set_thread(void *arg) {
                                              GenerateCas::Yes);
     }
 }
-}
 
-TEST_F(CheckpointTest, basic_chk_test) {
+typedef ::testing::Types<VBucket> VBucketTypes;
+TYPED_TEST_CASE(CheckpointTest, VBucketTypes);
+
+TYPED_TEST(CheckpointTest, basic_chk_test) {
     std::shared_ptr<Callback<uint16_t> > cb(new DummyCB());
-    this->vbucket.reset(new VBucket(0,
-                                    vbucket_state_active,
-                                    this->global_stats,
-                                    this->checkpoint_config,
-                                    NULL,
-                                    0,
-                                    0,
-                                    0,
-                                    NULL,
-                                    cb,
-                                    this->config));
+    this->vbucket.reset(new TypeParam(0,
+                                      vbucket_state_active,
+                                      this->global_stats,
+                                      this->checkpoint_config,
+                                      NULL,
+                                      0,
+                                      0,
+                                      0,
+                                      NULL,
+                                      cb,
+                                      this->config));
 
     this->manager.reset(new CheckpointManager(
             this->global_stats, 0, this->checkpoint_config, 1, 0, 0, cb));
@@ -314,7 +325,7 @@ TEST_F(CheckpointTest, basic_chk_test) {
     EXPECT_EQ(0, rc);
 }
 
-TEST_F(CheckpointTest, reset_checkpoint_id) {
+TYPED_TEST(CheckpointTest, reset_checkpoint_id) {
     int i;
     for (i = 0; i < 10; ++i) {
         EXPECT_TRUE(this->queueNewItem("key-" + std::to_string(i)));
@@ -359,8 +370,7 @@ TEST_F(CheckpointTest, reset_checkpoint_id) {
 }
 
 // Sanity check test fixture
-TEST_F(CheckpointTest, CheckFixture) {
-
+TYPED_TEST(CheckpointTest, CheckFixture) {
     // Should intially have a single cursor (persistence).
     EXPECT_EQ(1, this->manager->getNumOfCursors());
     EXPECT_EQ(1, this->manager->getNumOpenChkItems());
@@ -385,8 +395,7 @@ TEST_F(CheckpointTest, CheckFixture) {
 MATCHER_P(HasOperation, op, "") { return arg->getOperation() == op; }
 
 // Basic test of a single, open checkpoint.
-TEST_F(CheckpointTest, OneOpenCkpt) {
-
+TYPED_TEST(CheckpointTest, OneOpenCkpt) {
     // Queue a set operation.
     queued_item qi(new Item(makeStoredDocKey("key1"),
                             this->vbucket->getId(),
@@ -453,7 +462,7 @@ TEST_F(CheckpointTest, OneOpenCkpt) {
 }
 
 // Test with one open and one closed checkpoint.
-TEST_F(CheckpointTest, OneOpenOneClosed) {
+TYPED_TEST(CheckpointTest, OneOpenOneClosed) {
     // Add some items to the initial (open) checkpoint.
     for (auto i : {1,2}) {
         EXPECT_TRUE(this->queueNewItem("key" + std::to_string(i)));
@@ -503,8 +512,7 @@ TEST_F(CheckpointTest, OneOpenOneClosed) {
 }
 
 // Test the automatic creation of checkpoints based on the number of items.
-TEST_F(CheckpointTest, ItemBasedCheckpointCreation) {
-
+TYPED_TEST(CheckpointTest, ItemBasedCheckpointCreation) {
     // Size down the default number of items to create a new checkpoint and
     // recreate the manager
     this->checkpoint_config = CheckpointConfig(DEFAULT_CHECKPOINT_PERIOD,
@@ -583,8 +591,7 @@ TEST_F(CheckpointTest, ItemBasedCheckpointCreation) {
 
 // Test checkpoint and cursor accounting - when checkpoints are closed the
 // offset of cursors is updated as appropriate.
-TEST_F(CheckpointTest, CursorOffsetOnCheckpointClose) {
-
+TYPED_TEST(CheckpointTest, CursorOffsetOnCheckpointClose) {
     // Add two items to the initial (open) checkpoint.
     for (auto i : {1,2}) {
         EXPECT_TRUE(this->queueNewItem("key" + std::to_string(i)));
@@ -705,7 +712,7 @@ TEST_F(CheckpointTest, CursorOffsetOnCheckpointClose) {
 }
 
 // Test the getAllItemsForCursor()
-TEST_F(CheckpointTest, ItemsForCheckpointCursor) {
+TYPED_TEST(CheckpointTest, ItemsForCheckpointCursor) {
     /* We want to have items across 2 checkpoints. Size down the default number
        of items to create a new checkpoint and recreate the manager */
     this->checkpoint_config = CheckpointConfig(DEFAULT_CHECKPOINT_PERIOD,
@@ -753,7 +760,7 @@ TEST_F(CheckpointTest, ItemsForCheckpointCursor) {
 }
 
 // Test the checkpoint cursor movement
-TEST_F(CheckpointTest, CursorMovement) {
+TYPED_TEST(CheckpointTest, CursorMovement) {
     /* We want to have items across 2 checkpoints. Size down the default number
      of items to create a new checkpoint and recreate the manager */
     this->checkpoint_config = CheckpointConfig(DEFAULT_CHECKPOINT_PERIOD,
@@ -859,7 +866,7 @@ TEST_F(CheckpointTest, CursorMovement) {
 
 // Test the checkpoint cursor movement for replica vBuckets (where we can
 // perform more checkpoint collapsing)
-TEST_F(CheckpointTest, CursorMovementReplicaMerge) {
+TYPED_TEST(CheckpointTest, CursorMovementReplicaMerge) {
     this->vbucket->setState(vbucket_state_replica);
 
     /* We want to have items across 2 checkpoints. Size down the default number
@@ -980,8 +987,7 @@ TEST_F(CheckpointTest, CursorMovementReplicaMerge) {
 // otherwise XDCR may drop a newer bySeqno mutation because the CAS is not
 // higher.
 //
-TEST_F(CheckpointTest, SeqnoAndHLCOrdering) {
-
+TYPED_TEST(CheckpointTest, SeqnoAndHLCOrdering) {
     const int n_threads = 8;
     const int n_items = 1000;
 
@@ -1081,7 +1087,7 @@ TEST_F(CheckpointTest, SeqnoAndHLCOrdering) {
 //                                                     ^
 //                                                   Cursor
 //
-TEST_F(CheckpointTest, CursorUpdateForExistingItemWithMetaItemAtHead) {
+TYPED_TEST(CheckpointTest, CursorUpdateForExistingItemWithMetaItemAtHead) {
     // Setup the checkpoint and cursor.
     ASSERT_EQ(1, this->manager->getNumItems());
     ASSERT_TRUE(this->queueNewItem("key"));
@@ -1126,7 +1132,7 @@ TEST_F(CheckpointTest, CursorUpdateForExistingItemWithMetaItemAtHead) {
 //                                                     ^
 //                                                   Cursor
 //
-TEST_F(CheckpointTest, CursorUpdateForExistingItemWithNonMetaItemAtHead) {
+TYPED_TEST(CheckpointTest, CursorUpdateForExistingItemWithNonMetaItemAtHead) {
     // Setup the checkpoint and cursor.
     ASSERT_EQ(1, this->manager->getNumItems());
     this->manager->queueSetVBState(*this->vbucket);
@@ -1165,9 +1171,8 @@ TEST_F(CheckpointTest, CursorUpdateForExistingItemWithNonMetaItemAtHead) {
 // Regression test for MB-21925 - when a duplicate key is queued and the
 // persistence cursor is still positioned on the initial dummy key,
 // should return EXISTING_ITEM.
-TEST_F(CheckpointTest,
-       MB21925_QueueDuplicateWithPersistenceCursorOnInitialMetaItem) {
-
+TYPED_TEST(CheckpointTest,
+           MB21925_QueueDuplicateWithPersistenceCursorOnInitialMetaItem) {
     // Need a manager starting from seqno zero.
     this->createManager(0);
     ASSERT_EQ(0, this->manager->getHighSeqno());
