@@ -273,7 +273,7 @@ MutationStatus HashTable::unlocked_updateStoredValue(
     }
 
     MutationStatus status =
-            v.isClean() ? MutationStatus::WasClean : MutationStatus::WasDirty;
+            v.isDirty() ? MutationStatus::WasDirty : MutationStatus::WasClean;
     if (!v.isResident() && !v.isDeleted() && !v.isTempItem()) {
         decrNumNonResidentItems();
     }

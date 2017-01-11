@@ -1879,14 +1879,15 @@ private:
 
     void redirty() {
         if (vbucket->isBucketDeletion()) {
+            // updating the member stats for the vbucket is not really necessary
+            // as the vbucket is about to be deleted
             vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
+            // the following is a global stat and so is worth updating
             --stats.diskQueueSize;
             return;
         }
         ++stats.flushFailed;
-        store.invokeOnLockedStoredValue(queuedItem->getKey(),
-                                         queuedItem->getVBucketId(),
-                                         &StoredValue::reDirty);
+        vbucket->markDirty(queuedItem->getKey());
         vbucket->rejectQueue.push(queuedItem);
         ++vbucket->opsReject;
     }

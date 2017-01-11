@@ -503,6 +503,9 @@ public:
     // Set the persistence checkpoint ID to the given value.
     void setPersistenceCheckpointId(uint64_t checkpointId);
 
+    // Mark the value associated with the given key as dirty
+    void markDirty(const DocKey& key);
+
     static const vbucket_state_t ACTIVE;
     static const vbucket_state_t REPLICA;
     static const vbucket_state_t PENDING;

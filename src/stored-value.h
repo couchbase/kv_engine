@@ -55,19 +55,6 @@ public:
     }
 
     /**
-     * Mark this item as dirty as of a certain time.
-     *
-     * This method is primarily used to mark an item as dirty again
-     * after a storage failure.
-     *
-     * @param dataAge the previous dataAge of this record
-     */
-    void reDirty() {
-        _isDirty = 1;
-    }
-
-    // returns time this object was dirtied.
-    /**
      * Mark this item as clean.
      */
     void markClean() {
@@ -81,18 +68,11 @@ public:
         return _isDirty;
     }
 
-    /**
-     * True if this object is not dirty.
-     */
-    bool isClean() const {
-        return !isDirty();
-    }
-
     bool eligibleForEviction(item_eviction_policy_t policy) {
         if (policy == VALUE_ONLY) {
-            return isResident() && isClean() && !isDeleted();
+            return isResident() && !isDirty() && !isDeleted();
         } else {
-            return isClean() && !isDeleted();
+            return !isDirty() && !isDeleted();
         }
     }
 

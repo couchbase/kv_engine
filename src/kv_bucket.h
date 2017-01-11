@@ -775,37 +775,6 @@ protected:
                             const void* cookie,
                             double delay = 0);
 
-    /**
-     * Retrieve a StoredValue and invoke a method on it.
-     *
-     * Note that because of complications with void/non-void methods
-     * and potentially missing StoredValues along with the way I
-     * actually intend to use this, I don't return any values from
-     * this.
-     *
-     * @param key the item's key to retrieve
-     * @param vbid the vbucket containing the item
-     * @param f the method to invoke on the item
-     *
-     * @return true if the object was found and method was invoked
-     */
-    bool invokeOnLockedStoredValue(const DocKey& key, uint16_t vbid,
-                                   void (StoredValue::* f)()) {
-        RCPtr<VBucket> vb = getVBucket(vbid);
-        if (!vb) {
-            return false;
-        }
-
-        int bucket_num(0);
-        auto lh = vb->ht.getLockedBucket(key, &bucket_num);
-        StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true);
-
-        if (v) {
-            std::mem_fun(f)(v);
-        }
-        return v != NULL;
-    }
-
     void flushOneDeleteAll(void);
     PersistenceCallback* flushOneDelOrSet(const queued_item &qi,
                                           RCPtr<VBucket> &vb);

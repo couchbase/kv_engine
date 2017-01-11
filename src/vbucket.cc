@@ -569,6 +569,18 @@ void VBucket::setPersistenceCheckpointId(uint64_t checkpointId) {
     persistenceCheckpointId.store(checkpointId);
 }
 
+void VBucket::markDirty(const DocKey& key) {
+    int bucket_num(0);
+    auto lh = ht.getLockedBucket(key, &bucket_num);
+    StoredValue* v = ht.unlocked_find(key, bucket_num, true);
+    if (v) {
+        v->markDirty();
+    } else {
+        LOG(EXTENSION_LOG_WARNING, "markDirty: Error marking dirty, a key "
+            "is missing from vb:%" PRIu16, bucket_num);
+    }
+}
+
 bool VBucket::isResidentRatioUnderThreshold(float threshold,
                                             item_eviction_policy_t policy) {
     if (policy != FULL_EVICTION) {
@@ -2354,7 +2366,7 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSoftDelete(
     v.unlock();
 
     MutationStatus rv =
-            v.isClean() ? MutationStatus::WasClean : MutationStatus::WasDirty;
+            v.isDirty() ? MutationStatus::WasDirty : MutationStatus::WasClean;
 
     if (use_meta) {
         v.setCas(metadata.cas);
