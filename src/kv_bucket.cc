@@ -3434,17 +3434,6 @@ void KVBucket::completeBGFetchForSingleItem(RCPtr<VBucket> vb,
                             "storedvalue (which has seqno " + std::to_string(v->getBySeqno()) +
                             ") should be resident after calling restoreValue()");
                     }
-                    if (vb->getState() == vbucket_state_active &&
-                        v->getExptime() != fetchedValue->getExptime() &&
-                        v->getCas() == fetchedValue->getCas()) {
-                        // MB-9306: It is possible that by the time
-                        // bgfetcher returns, the item may have been
-                        // updated and queued
-                        // Hence test the CAS value to be the same first.
-                        // exptime mutated, schedule it into new checkpoint
-                        queueDirty(vb, v, &blh, NULL, GenerateBySeqno::Yes,
-                                                      GenerateCas::No);
-                    }
                 } else if (status == ENGINE_KEY_ENOENT) {
                     v->setNonExistent();
                     if (eviction_policy == FULL_EVICTION) {

@@ -698,6 +698,42 @@ TEST_P(EPStoreEvictionTest, MB_21976) {
     EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, c->status);
 }
 
+TEST_P(EPStoreEvictionTest, TouchCmdDuringBgFetch) {
+    const DocKey dockey("key", DocNamespace::DefaultCollection);
+    const int numTouchCmds = 2, expiryTime = (time(NULL) + 1000);
+
+    // Store an item
+    store_item(vbid, dockey, "value");
+
+    // Trigger a flush to disk.
+    flush_vbucket_to_disk(vbid);
+
+    // Evict the item
+    evict_key(vbid, dockey);
+
+    // Issue 2 touch commands
+    for (int i = 0; i < numTouchCmds; ++i) {
+        GetValue gv = store->getAndUpdateTtl(dockey, vbid, cookie,
+                                             (i + 1) * expiryTime);
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+    }
+
+    // Manually run the BGFetcher task; to fetch the two outstanding
+    // requests (for the same key).
+    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
+    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+
+    // Issue 2 touch commands again to mock actions post notify from bgFetch
+    for (int i = 0; i < numTouchCmds; ++i) {
+        GetValue gv = store->getAndUpdateTtl(dockey, vbid, cookie,
+                                             (i + 1) * (expiryTime));
+        EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+        delete gv.getValue();
+    }
+    EXPECT_EQ(numTouchCmds + 1 /* Initial item store */,
+              store->getVBucket(vbid)->getHighSeqno());
+}
+
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(FullAndValueEviction,
                         EPStoreEvictionTest,
