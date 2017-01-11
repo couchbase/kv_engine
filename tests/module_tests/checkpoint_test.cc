@@ -93,7 +93,7 @@ protected:
     CheckpointConfig checkpoint_config;
     Configuration config;
     std::shared_ptr<Callback<uint16_t> > callback;
-    RCPtr<VBucket> vbucket;
+    std::unique_ptr<VBucket> vbucket;
     std::unique_ptr<CheckpointManager> manager;
 };
 
@@ -132,7 +132,7 @@ private:
 };
 
 struct thread_args {
-    RCPtr<VBucket> vbucket;
+    VBucket* vbucket;
     CheckpointManager *checkpoint_manager;
     std::string name;
     ThreadGate& gate;
@@ -224,9 +224,9 @@ static void launch_set_thread(void *arg) {
 
 TEST_F(CheckpointTest, basic_chk_test) {
     std::shared_ptr<Callback<uint16_t> > cb(new DummyCB());
-    RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats,
-                                       checkpoint_config, NULL, 0, 0, 0, NULL,
-                                       cb, config));
+    vbucket.reset(new VBucket(0, vbucket_state_active, global_stats,
+                              checkpoint_config, NULL, 0, 0, 0, NULL,
+                              cb, config));
 
     CheckpointManager checkpoint_manager(
             global_stats, 0, checkpoint_config, 1, 0, 0, cb);
@@ -245,13 +245,13 @@ TEST_F(CheckpointTest, basic_chk_test) {
 
     const size_t n_threads{n_set_threads + n_tap_threads + 2};
     ThreadGate gate{n_threads};
-    thread_args t_args{vbucket, &checkpoint_manager, {}, gate};
+    thread_args t_args{vbucket.get(), &checkpoint_manager, {}, gate};
 
     std::vector<thread_args> tap_t_args;
     for (size_t i = 0; i < n_tap_threads; ++i) {
         std::string name(TAP_CURSOR_PREFIX + std::to_string(i));
         tap_t_args.emplace_back(
-                thread_args{vbucket, &checkpoint_manager, name, gate});
+                thread_args{vbucket.get(), &checkpoint_manager, name, gate});
         checkpoint_manager.registerCursor(
                 name, 1, false, MustSendCheckpointEnd::YES);
     }
