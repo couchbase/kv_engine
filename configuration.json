@@ -346,6 +346,11 @@
             "descr": "maximum number of failover log entries",
             "type": "size_t"
         },
+        "max_item_privileged_bytes": {
+            "default": "(1024 * 1024)",
+            "descr": "Maximum number of bytes allowed for 'privileged' (system) data for an item in addition to the max_item_size bytes",
+            "type": "size_t"
+        },
         "max_item_size": {
             "default": "(20 * 1024 * 1024)",
             "descr": "Maximum number of bytes allowed for an item",

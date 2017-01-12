@@ -195,7 +195,8 @@ ADD_LIBRARY(ep SHARED $<TARGET_OBJECTS:ep_objs>)
 
 SET_TARGET_PROPERTIES(ep PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep cJSON JSON_checker couchstore ${EP_FORESTDB_LIB}
-  dirutils cbcompress platform phosphor ${LIBEVENT_LIBRARIES})
+                      engine_utilities dirutils cbcompress
+                      platform phosphor ${LIBEVENT_LIBRARIES})
 
 # Single executable containing all class-level unit tests involving
 # EventuallyPersistentEngine driven by GoogleTest.
@@ -237,8 +238,8 @@ TARGET_INCLUDE_DIRECTORIES(ep-engine_ep_unit_tests
         ${Couchstore_SOURCE_DIR})
 
 TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests couchstore cJSON dirutils
-                      ${EP_FORESTDB_LIB} gtest gmock JSON_checker mcd_util
-                      platform
+                      engine_utilities ${EP_FORESTDB_LIB}
+                      gtest gmock JSON_checker mcd_util platform
                       phosphor cbcompress ${MALLOC_LIBRARIES})
 
 ADD_EXECUTABLE(ep-engine_atomic_ptr_test
@@ -281,7 +282,8 @@ TARGET_LINK_LIBRARIES(timing_tests platform)
 
 ADD_EXECUTABLE(ep-engine_sizes src/sizes.cc
                                $<TARGET_OBJECTS:ep_objs>)
-TARGET_LINK_LIBRARIES(ep-engine_sizes cJSON JSON_checker couchstore
+TARGET_LINK_LIBRARIES(ep-engine_sizes cJSON JSON_checker
+  engine_utilities couchstore
   ${EP_FORESTDB_LIB} dirutils cbcompress platform phosphor
   ${LIBEVENT_LIBRARIES})
 

@@ -214,17 +214,20 @@ public:
     ENGINE_ERROR_CODE initialize(const char* config);
     void destroy(bool force);
 
-    ENGINE_ERROR_CODE itemAllocate(const void* cookie,
-                                   item** itm,
+    ENGINE_ERROR_CODE itemAllocate(item** itm,
                                    const DocKey& key,
                                    const size_t nbytes,
+                                   const size_t priv_nbytes,
                                    const int flags,
                                    const rel_time_t exptime,
                                    uint8_t datatype,
                                    uint16_t vbucket)
     {
-        (void)cookie;
-        if (nbytes > maxItemSize) {
+        if (priv_nbytes > configuration.getMaxItemPrivilegedBytes()) {
+            return ENGINE_E2BIG;
+        }
+
+        if ((nbytes - priv_nbytes) > maxItemSize) {
             return ENGINE_E2BIG;
         }
 

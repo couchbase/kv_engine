@@ -163,15 +163,50 @@ static ENGINE_ERROR_CODE EvpItemAllocate(ENGINE_HANDLE* handle,
         return ENGINE_EINVAL;
     }
 
-    ENGINE_ERROR_CODE err_code = getHandle(handle)->itemAllocate(cookie,
-                                                                 itm, key,
-                                                                 nbytes,
-                                                                 flags,
-                                                                 exptime,
-                                                                 datatype,
-                                                                 vbucket);
+    auto err_code = getHandle(handle)->itemAllocate(itm, key, nbytes,
+                                                    0, // No privileged bytes
+                                                    flags, exptime,
+                                                    datatype, vbucket);
     releaseHandle(handle);
     return err_code;
+}
+
+static bool EvpGetItemInfo(ENGINE_HANDLE *handle, const void *,
+                           const item* itm, item_info *itm_info);
+static void EvpItemRelease(ENGINE_HANDLE* handle, const void *cookie,
+                           item* itm);
+
+
+static std::pair<cb::unique_item_ptr, item_info> EvpItemAllocateEx(ENGINE_HANDLE* handle,
+                                                                   const void* cookie,
+                                                                   const DocKey& key,
+                                                                   const size_t nbytes,
+                                                                   const size_t priv_nbytes,
+                                                                   const int flags,
+                                                                   const rel_time_t exptime,
+                                                                   uint8_t datatype,
+                                                                   uint16_t vbucket) {
+
+    item* it = nullptr;
+    auto err = getHandle(handle)->itemAllocate(&it, key, nbytes,
+                                               priv_nbytes, flags,
+                                               exptime, datatype, vbucket);
+    releaseHandle(handle);
+
+    if (err != ENGINE_SUCCESS) {
+        throw cb::engine_error(cb::engine_errc(err),
+                               "EvpItemAllocateEx: failed to allocate memory");
+    }
+
+    item_info info;
+    if (!EvpGetItemInfo(handle, cookie, it, &info)) {
+        EvpItemRelease(handle, cookie, it);
+        throw cb::engine_error(cb::engine_errc::failed,
+                               "EvpItemAllocateEx: EvpGetItemInfo failed");
+    }
+
+    return std::make_pair(cb::unique_item_ptr{it, cb::ItemDeleter{handle}},
+                          info);
 }
 
 static ENGINE_ERROR_CODE EvpItemDelete(ENGINE_HANDLE* handle,
@@ -1816,6 +1851,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::initialize = EvpInitialize;
     ENGINE_HANDLE_V1::destroy = EvpDestroy;
     ENGINE_HANDLE_V1::allocate = EvpItemAllocate;
+    ENGINE_HANDLE_V1::allocate_ex = EvpItemAllocateEx;
     ENGINE_HANDLE_V1::remove = EvpItemDelete;
     ENGINE_HANDLE_V1::release = EvpItemRelease;
     ENGINE_HANDLE_V1::get = EvpGet;
