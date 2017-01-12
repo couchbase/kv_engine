@@ -105,7 +105,6 @@ private:
     item_info oldItemInfo;
 
     cb::unique_item_ptr newitem;
-    item_info newItemInfo;
 
     cb::compression::Buffer buffer;
     cb::compression::Buffer inputbuffer;

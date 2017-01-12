@@ -92,38 +92,34 @@ ENGINE_ERROR_CODE RemoveCommandContext::getItem() {
 }
 
 ENGINE_ERROR_CODE RemoveCommandContext::allocateDeletedItem() {
-    ENGINE_ERROR_CODE ret;
     protocol_binary_datatype_t datatype;
     if (xattr.size() == 0) {
         datatype = PROTOCOL_BINARY_RAW_BYTES;
     } else {
         datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
     }
-    item* it;
-    ret = bucket_allocate(&connection, &it, key, xattr.size(),
-                          existing_info.flags,
-                          existing_info.exptime,
-                          datatype,
-                          vbucket);
-    if (ret == ENGINE_SUCCESS) {
-        deleted.reset(it);
-        if (input_cas == 0) {
-            bucket_item_set_cas(&connection, deleted.get(), existing_info.cas);
-        } else {
-            bucket_item_set_cas(&connection, deleted.get(), input_cas);
-        }
-        if (xattr.size() > 0) {
-            item_info info;
-            if (!bucket_get_item_info(&connection, deleted.get(), &info)) {
-                return ENGINE_FAILED;
-            }
+    auto pair = bucket_allocate_ex(connection,
+                                   key,
+                                   xattr.size(),
+                                   xattr.size(), // Only system xattrs
+                                   existing_info.flags,
+                                   existing_info.exptime,
+                                   datatype,
+                                   vbucket);
 
-            std::memcpy(info.value[0].iov_base, xattr.buf, xattr.size());
-        }
-
-        state = State::StoreItem;
+    deleted = std::move(pair.first);
+    if (input_cas == 0) {
+        bucket_item_set_cas(&connection, deleted.get(), existing_info.cas);
+    } else {
+        bucket_item_set_cas(&connection, deleted.get(), input_cas);
     }
-    return ret;
+
+    if (xattr.size() > 0) {
+        std::memcpy(pair.second.value[0].iov_base, xattr.buf, xattr.size());
+    }
+
+    state = State::StoreItem;
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE RemoveCommandContext::storeItem() {

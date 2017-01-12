@@ -17,6 +17,7 @@
 #include "arithmetic_context.h"
 #include "engine_wrapper.h"
 #include "../../mcbp.h"
+#include <xattr/blob.h>
 #include <xattr/utils.h>
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
@@ -71,26 +72,18 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
 ENGINE_ERROR_CODE ArithmeticCommandContext::createNewItem() {
     const std::string value{std::to_string(ntohll(request.message.body.initial))};
     result = ntohll(request.message.body.initial);
-    ENGINE_ERROR_CODE ret;
-    item* it;
-    ret = bucket_allocate(&connection, &it, key,
-                          value.size(), 0,
-                          ntohl(request.message.body.expiration),
-                          PROTOCOL_BINARY_RAW_BYTES, vbucket);
 
-    if (ret == ENGINE_SUCCESS) {
-        newitem.reset(it);
-        // copy the data over..
-        if (!bucket_get_item_info(&connection, newitem.get(),
-                                  &newItemInfo)) {
-            return ENGINE_FAILED;
-        }
+    auto pair = bucket_allocate_ex(connection, key, value.size(),
+                                   0, // no privileged bytes
+                                   0, // Empty flags
+                                   ntohl(request.message.body.expiration),
+                                   PROTOCOL_BINARY_RAW_BYTES, vbucket);
+    newitem = std::move(pair.first);
 
-        memcpy(static_cast<char*>(newItemInfo.value[0].iov_base),
-               value.data(), value.size());
-        state = State::StoreNewItem;
-    }
-    return ret;
+    memcpy(pair.second.value[0].iov_base, value.data(), value.size());
+    state = State::StoreNewItem;
+
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::storeNewItem() {
@@ -111,7 +104,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::storeNewItem() {
 ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
     // Set ptr to point to the beginning of the input buffer.
     size_t oldsize = oldItemInfo.nbytes;
-    const char* ptr = static_cast<char*>(oldItemInfo.value[0].iov_base);
+    char* ptr = static_cast<char*>(oldItemInfo.value[0].iov_base);
     // If the input buffer was compressed we should use the temporary
     // allocated buffer instead
     if (buffer.len != 0) {
@@ -121,8 +114,13 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
 
     // Preserve the XATTRs of the existing item if it had any
     size_t xattrsize = 0;
+    size_t priv_bytes = 0;
     if (mcbp::datatype::is_xattr(oldItemInfo.datatype)) {
         xattrsize = cb::xattr::get_body_offset({ptr, oldsize});
+        cb::byte_buffer xattr_blob{reinterpret_cast<uint8_t*>(ptr),
+                                   xattrsize};
+        cb::xattr::Blob blob(xattr_blob);
+        priv_bytes = blob.get_system_size();
     }
     ptr += xattrsize;
     const std::string payload(ptr, oldsize - xattrsize);
@@ -154,37 +152,30 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
         datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
     }
 
-    ENGINE_ERROR_CODE ret;
-    item* it;
-    ret = bucket_allocate(&connection, &it, key, xattrsize + value.size(),
-                          oldItemInfo.flags,
-                          ntohl(request.message.body.expiration),
-                          datatype, vbucket);
+    auto pair = bucket_allocate_ex(connection, key,
+                                   xattrsize + value.size(),
+                                   priv_bytes,
+                                   oldItemInfo.flags,
+                                   ntohl(request.message.body.expiration),
+                                   datatype, vbucket);
 
-    if (ret == ENGINE_SUCCESS) {
-        newitem.reset(it);
-        // copy the data over..
-        if (!bucket_get_item_info(&connection, newitem.get(),
-                                  &newItemInfo)) {
-            return ENGINE_FAILED;
-        }
+    newitem = std::move(pair.first);
+    cb::byte_buffer body{static_cast<uint8_t*>(pair.second.value[0].iov_base),
+                         pair.second.value[0].iov_len};
 
-        const char* src = (const char*)oldItemInfo.value[0].iov_base;
-        if (buffer.len != 0) {
-            src = buffer.data.get();
-        }
-
-        char* newdata = (char*)newItemInfo.value[0].iov_base;
-
-        // copy the xattr over;
-        memcpy(newdata, src, xattrsize);
-        memcpy(newdata + xattrsize, value.data(), value.size());
-
-        bucket_item_set_cas(&connection, newitem.get(), oldItemInfo.cas);
-
-        state = State::StoreItem;
+    // copy the data over..
+    const char* src = (const char*)oldItemInfo.value[0].iov_base;
+    if (buffer.len != 0) {
+        src = buffer.data.get();
     }
-    return ret;
+
+    // copy the xattr over;
+    memcpy(body.buf, src, xattrsize);
+    memcpy(body.buf + xattrsize, value.data(), value.size());
+    bucket_item_set_cas(&connection, newitem.get(), oldItemInfo.cas);
+
+    state = State::StoreItem;
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::storeItem() {
@@ -219,6 +210,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
     }
 
     if (connection.isSupportsMutationExtras()) {
+        item_info newItemInfo;
         if (!bucket_get_item_info(&connection, newitem.get(),
                                   &newItemInfo)) {
             return ENGINE_FAILED;

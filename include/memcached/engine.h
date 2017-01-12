@@ -621,6 +621,12 @@ public:
         }
     }
 
+    /**
+     * Create a copy constructor to allow us to use std::move of the item
+     */
+    ItemDeleter(const ItemDeleter& other) : handle(other.handle) {
+    }
+
     void operator()(item* item) {
         auto* v1 = reinterpret_cast<ENGINE_HANDLE_V1*>(handle);
         v1->release(handle, nullptr, item);

@@ -139,7 +139,6 @@ private:
     cb::unique_item_ptr olditem;
     item_info oldItemInfo;
     cb::unique_item_ptr newitem;
-    item_info newItemInfo;
     cb::compression::Buffer buffer;
     uint64_t result;
     const uint16_t vbucket;

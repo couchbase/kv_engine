@@ -17,6 +17,7 @@
 #include "appendprepend_context.h"
 #include "engine_wrapper.h"
 #include "../../mcbp.h"
+#include <xattr/blob.h>
 #include <xattr/utils.h>
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::step() {
@@ -115,58 +116,60 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
 }
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
-    size_t oldsize = oldItemInfo.nbytes;
+    cb::byte_buffer old{(uint8_t*)oldItemInfo.value[0].iov_base,
+                        oldItemInfo.nbytes};
+
     if (buffer.len != 0) {
-        oldsize = buffer.len;
+        old = {(uint8_t*)buffer.data.get(), buffer.len};
     }
+
+    // If we're operating on a document containing xattr's we need to
+    // tell the underlying engine about how much of the data which
+    // should be accounted for in the privileged segment.
+    size_t priv_size = 0;
+
+    // The offset into the old item where the actual body start.
+    size_t body_offset = 0;
 
     // If the existing item had XATTRs we need to preserve the xattrs
     protocol_binary_datatype_t datatype = PROTOCOL_BINARY_RAW_BYTES;
     if (mcbp::datatype::is_xattr(oldItemInfo.datatype)) {
         datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
+
+        // Calculate the size of the system xattr's.
+        body_offset = cb::xattr::get_body_offset({(const char*)old.buf,
+                                                  old.len});
+        cb::byte_buffer xattr_blob{old.buf, body_offset};
+        cb::xattr::Blob blob(xattr_blob);
+        priv_size = blob.get_system_size();
     }
-    item* it;
-    ENGINE_ERROR_CODE ret;
-    ret = bucket_allocate(&connection, &it, key, oldsize + value.len,
-                          oldItemInfo.flags, 0, datatype, vbucket);
-    if (ret == ENGINE_SUCCESS) {
-        newitem.reset(it);
-        // copy the data over..
-        if (!bucket_get_item_info(&connection, newitem.get(),
-                                  &newItemInfo)) {
-            return ENGINE_FAILED;
-        }
 
-        const char* src = (const char*)oldItemInfo.value[0].iov_base;
-        size_t oldsize = oldItemInfo.value[0].iov_len;
-        if (buffer.len != 0) {
-            src = buffer.data.get();
-            oldsize = buffer.len;
-        }
+    auto pair = bucket_allocate_ex(connection, key,
+                                   old.len + value.len,
+                                   priv_size, oldItemInfo.flags,
+                                   0, datatype, vbucket);
 
-        char* newdata = (char*)newItemInfo.value[0].iov_base;
+    newitem = std::move(pair.first);
+    cb::byte_buffer body{static_cast<uint8_t*>(pair.second.value[0].iov_base),
+                         pair.second.value[0].iov_len};
 
-        // do the op
-        if (mode == Mode::Append) {
-            memcpy(newdata, src, oldsize);
-            memcpy(newdata + oldsize, value.buf, value.len);
-        } else {
-            // The xattrs should go first
-            size_t offset = 0;
-            if (mcbp::datatype::is_xattr(oldItemInfo.datatype)) {
-                offset = cb::xattr::get_body_offset({src, oldsize});
-                memcpy(newdata, src, offset);
-            }
-
-            memcpy(newdata + offset, value.buf, value.len);
-            memcpy(newdata + offset + value.len, src + offset,
-                   oldsize - offset);
-        }
-        bucket_item_set_cas(&connection, newitem.get(), oldItemInfo.cas);
-
-        state = State::StoreItem;
+    // copy the data over..
+    if (mode == Mode::Append) {
+        memcpy(body.buf, old.buf, old.len);
+        memcpy(body.buf + old.len, value.buf, value.len);
+    } else {
+        // The xattrs should go first (body_offset == 0 if the object
+        // don't have any xattrs)
+        memcpy(body.buf, old.buf, body_offset);
+        memcpy(body.buf + body_offset, value.buf, value.len);
+        memcpy(body.buf + body_offset + value.len, old.buf + body_offset,
+               old.len - body_offset);
     }
-    return ret;
+    bucket_item_set_cas(&connection, newitem.get(), oldItemInfo.cas);
+
+    state = State::StoreItem;
+
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
@@ -177,6 +180,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
         update_topkeys(key, &connection);
         connection.setCAS(ncas);
         if (connection.isSupportsMutationExtras()) {
+            item_info newItemInfo;
             if (!bucket_get_item_info(&connection, newitem.get(),
                                       &newItemInfo)) {
                 return ENGINE_FAILED;
