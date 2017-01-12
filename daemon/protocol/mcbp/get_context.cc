@@ -44,19 +44,18 @@ ENGINE_ERROR_CODE GetCommandContext::initialize() {
 ENGINE_ERROR_CODE GetCommandContext::getItem() {
     auto ret = bucket_get(&connection, &it, key, vbucket);
     if (ret == ENGINE_SUCCESS) {
-        info.info.nvalue = 1;
-        if (!bucket_get_item_info(&connection, it, &info.info)) {
+        if (!bucket_get_item_info(&connection, it, &info)) {
             LOG_WARNING(&connection, "%u: Failed to get item info",
                         connection.getId());
             return ENGINE_FAILED;
         }
 
-        payload.buf = static_cast<const char*>(info.info.value[0].iov_base);
-        payload.len = info.info.value[0].iov_len;
+        payload.buf = static_cast<const char*>(info.value[0].iov_base);
+        payload.len = info.value[0].iov_len;
 
         bool need_inflate = false;
-        if (mcbp::datatype::is_compressed(info.info.datatype)) {
-            need_inflate = mcbp::datatype::is_xattr(info.info.datatype) ||
+        if (mcbp::datatype::is_compressed(info.datatype)) {
+            need_inflate = mcbp::datatype::is_xattr(info.datatype) ||
                            !connection.isSupportsDatatype();
         }
 
@@ -92,9 +91,9 @@ ENGINE_ERROR_CODE GetCommandContext::inflateItem() {
 }
 
 ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
-    protocol_binary_datatype_t datatype = info.info.datatype;
+    protocol_binary_datatype_t datatype = info.datatype;
 
-    if (mcbp::datatype::is_xattr(info.info.datatype)) {
+    if (mcbp::datatype::is_xattr(info.datatype)) {
         payload = cb::xattr::get_body(payload);
         datatype &= ~(PROTOCOL_BINARY_DATATYPE_XATTR);
         datatype &= ~(PROTOCOL_BINARY_DATATYPE_COMPRESSED);
@@ -119,13 +118,13 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
                     sizeof(rsp->message.body),
                     keylen, bodylen, datatype);
 
-    rsp->message.header.response.cas = htonll(info.info.cas);
+    rsp->message.header.response.cas = htonll(info.cas);
     /* add the flags */
-    rsp->message.body.flags = info.info.flags;
+    rsp->message.body.flags = info.flags;
     connection.addIov(&rsp->message.body, sizeof(rsp->message.body));
 
     if (shouldSendKey()) {
-        connection.addIov(info.info.key, info.info.nkey);
+        connection.addIov(info.key, info.nkey);
     }
 
     connection.addIov(payload.buf, payload.len);

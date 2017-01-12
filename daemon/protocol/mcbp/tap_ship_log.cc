@@ -68,7 +68,6 @@ void ship_mcbp_tap_log(McbpConnection* c) {
         msg.opaque.message.body.tap.flags = htons(tap_flags);
         msg.opaque.message.header.request.extlen = 8;
         msg.opaque.message.header.request.vbucket = htons(vbucket);
-        info.nvalue = 1;
 
         switch (event) {
         case TAP_NOOP :

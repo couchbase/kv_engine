@@ -138,7 +138,7 @@ private:
     const uint16_t vbucket;
 
     item* it;
-    item_info_holder info;
+    item_info info;
 
     const_char_buffer payload;
     cb::compression::Buffer buffer;

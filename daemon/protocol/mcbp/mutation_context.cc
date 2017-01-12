@@ -126,7 +126,6 @@ ENGINE_ERROR_CODE MutationCommandContext::getExistingItemToPreserveXattr() {
     auto ret = bucket_get(&connection, &it, key, vbucket);
     if (ret == ENGINE_SUCCESS) {
         existing.reset(it);
-        existing_info.nvalue = 1;
         if (!bucket_get_item_info(&connection, existing.get(),
                                   &existing_info)) {
             return ENGINE_FAILED;
@@ -187,7 +186,6 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
     }
 
     item_info newitem_info;
-    newitem_info.nvalue = 1;
     if (!bucket_get_item_info(&connection, newitem.get(), &newitem_info)) {
         return ENGINE_FAILED;
     }
@@ -241,7 +239,6 @@ ENGINE_ERROR_CODE MutationCommandContext::sendResponse() {
 
     if (connection.isSupportsMutationExtras()) {
         item_info newitem_info;
-        newitem_info.nvalue = 1;
         if (!bucket_get_item_info(&connection, newitem.get(), &newitem_info)) {
             return ENGINE_FAILED;
         }

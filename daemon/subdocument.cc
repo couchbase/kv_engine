@@ -470,34 +470,27 @@ get_document_for_searching(McbpConnection& c, const item* item,
                            protocol_binary_datatype_t& datatype,
                            DocumentState& document_state) {
 
-    item_info_holder info;
-    info.info.nvalue = IOV_MAX;
+    item_info info;
 
-    if (!bucket_get_item_info(&c, item, &info.info)) {
+    if (!bucket_get_item_info(&c, item, &info)) {
         LOG_WARNING(&c, "%u: Failed to get item info", c.getId());
         return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
 
-    // Need to have the complete document in a single iovec.
-    if (info.info.nvalue != 1) {
-        LOG_WARNING(&c, "%u: More than one iovec in document", c.getId());
-        return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
-    }
-
     // Check CAS matches (if specified by the user)
-    if ((in_cas != 0) && in_cas != info.info.cas) {
+    if ((in_cas != 0) && in_cas != info.cas) {
         return PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
     }
 
     // Set CAS - same irrespective of datatype.
-    cas = info.info.cas;
-    flags = info.info.flags;
-    document.buf = static_cast<char*>(info.info.value[0].iov_base);
-    document.len = info.info.value[0].iov_len;
-    datatype = info.info.datatype;
-    document_state = info.info.document_state;
+    cas = info.cas;
+    flags = info.flags;
+    document.buf = static_cast<char*>(info.value[0].iov_base);
+    document.len = info.value[0].iov_len;
+    datatype = info.datatype;
+    document_state = info.document_state;
 
-    if (mcbp::datatype::is_compressed(info.info.datatype)) {
+    if (mcbp::datatype::is_compressed(info.datatype)) {
         // Need to expand before attempting to extract from it.
         auto* ctx = static_cast<SubdocCmdContext*>(c.getCommandContext());
         try {
@@ -506,8 +499,8 @@ get_document_for_searching(McbpConnection& c, const item* item,
                          ctx->inflated_doc_buffer)) {
                 char clean_key[KEY_MAX_LENGTH + 32];
                 if (buf_to_printable_buffer(clean_key, sizeof(clean_key),
-                                            static_cast<const char*>(info.info.key),
-                                            info.info.nkey) != -1) {
+                                            static_cast<const char*>(info.key),
+                                            info.nkey) != -1) {
                     LOG_WARNING(&c,
                                 "<%u ERROR: Failed to determine inflated body"
                                     " size. Key: '%s' may have an "
@@ -1033,7 +1026,6 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
 
         // Obtain the item info (and it's iovectors)
         item_info new_doc_info;
-        new_doc_info.nvalue = IOV_MAX;
         if (!bucket_get_item_info(&connection, new_doc, &new_doc_info)) {
             mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             return ENGINE_FAILED;
@@ -1056,7 +1048,6 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         // we can include it in the response.
         if (connection.isSupportsMutationExtras()) {
             item_info info;
-            info.nvalue = 1;
             if (!bucket_get_item_info(&connection, context.out_doc, &info)) {
                 LOG_WARNING(&connection, "%u: Subdoc: Failed to get item info",
                             connection.getId());

@@ -567,7 +567,6 @@ public:
             item_info->flags = 0;
             item_info->datatype = PROTOCOL_BINARY_RAW_BYTES;
             item_info->nkey = ewb->dcp_mutation_item.key.size();
-            item_info->nvalue = 1;
             item_info->key = ewb->dcp_mutation_item.key.c_str();
             item_info->value[0].iov_base = &ewb->dcp_mutation_item.value[0];
             item_info->value[0].iov_len = item_info->nbytes;

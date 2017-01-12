@@ -138,9 +138,9 @@ private:
     const protocol_binary_request_incr& request;
     const uint64_t cas;
     cb::unique_item_ptr olditem;
-    item_info_holder oldItemInfo;
+    item_info oldItemInfo;
     cb::unique_item_ptr newitem;
-    item_info_holder newItemInfo;
+    item_info newItemInfo;
     cb::compression::Buffer buffer;
     uint64_t result;
     const uint16_t vbucket;

@@ -78,10 +78,6 @@ it should work just like it always did.
 
 This 16 bit number contains the number of bytes in the key
 
-### nvalue
-
-This member should always be set to 1 (we don't support iovectors)
-
 ### key
 
 This points to an array of bytes containing the key

@@ -168,7 +168,6 @@ static enum test_result replace_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas = 0;
     int ii;
     item_info item_info;
-    item_info.nvalue = 1;
 
     cb_assert(set_test(h, h1) == SUCCESS);
     DocKey key("key", test_harness.doc_namespace);
@@ -366,7 +365,6 @@ static enum test_result get_item_info_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     uint64_t cas = 0;
     const rel_time_t exp = 1;
     item_info ii;
-    ii.nvalue = 1;
 
     cb_assert(h1->allocate(h, NULL, &test_item, key, 1,0, exp,
                            PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
@@ -395,7 +393,6 @@ static enum test_result item_set_cas_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     uint64_t newcas;
     item_info ii;
 
-    ii.nvalue = 1;
     cb_assert(h1->allocate(h, NULL, &test_item, key, 1,0, exp,
                            PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
     cb_assert(h1->store(h, NULL, test_item, &cas,
@@ -764,7 +761,6 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas = 0;
     item_info ii;
     memset(&ii, 0, sizeof(ii));
-    ii.nvalue = 1;
 
     cb_assert(h1->allocate(h, NULL, &test_item, key, 1, 0,
                            0, 1, 0/*vb*/) == ENGINE_SUCCESS);

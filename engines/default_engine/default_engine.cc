@@ -788,9 +788,6 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
 {
     hash_item* it = (hash_item*)item;
     const hash_key* key = item_get_key(it);
-    if (item_info->nvalue < 1) {
-        return false;
-    }
 
     auto* engine = get_handle(handle);
     if ((it->iflag & ITEM_LINKED) && it->locktime != 0 &&
@@ -811,7 +808,6 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
     item_info->nbytes = it->nbytes;
     item_info->flags = it->flags;
     item_info->nkey = hash_key_get_client_key_len(key);
-    item_info->nvalue = 1;
     item_info->key = hash_key_get_client_key(key);
     item_info->value[0].iov_base = item_get_data(it);
     item_info->value[0].iov_len = it->nbytes;

@@ -123,12 +123,6 @@ extern bool create_notification_pipe(LIBEVENT_THREAD *me);
 #include "connection_listen.h"
 #include "connection_mcbp.h"
 
-
-typedef union {
-    item_info info;
-    char bytes[sizeof(item_info) + ((IOV_MAX - 1) * sizeof(struct iovec))];
-} item_info_holder;
-
 /* list of listening connections */
 extern Connection *listen_conn;
 
@@ -318,15 +312,9 @@ static inline ENGINE_ERROR_CODE bucket_get_engine_vb_map(McbpConnection* c,
 
 static inline bool bucket_get_item_info(McbpConnection* c, const item* item_,
                                         item_info* item_info_) {
-    bool ret = c->getBucketEngine()->get_item_info(c->getBucketEngineAsV0(),
+    return c->getBucketEngine()->get_item_info(c->getBucketEngineAsV0(),
                                                c->getCookie(), item_,
                                                item_info_);
-    if (ret && item_info_->nvalue != 1) {
-        throw std::runtime_error(
-            "Engine tried to use more than 1 entry in the iovec which is not supported");
-    }
-
-    return ret;
 }
 
 static inline bool bucket_set_item_info(McbpConnection* c, item* item_,

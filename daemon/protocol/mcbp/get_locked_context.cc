@@ -40,20 +40,19 @@ ENGINE_ERROR_CODE GetLockedCommandContext::getAndLockItem() {
     auto ret = bucket_get_locked(connection, &item, key, vbucket, lock_timeout);
     if (ret == ENGINE_SUCCESS) {
         it.reset(item);
-        info.info.nvalue = 1;
-        if (!bucket_get_item_info(&connection, item, &info.info)) {
+        if (!bucket_get_item_info(&connection, item, &info)) {
             LOG_WARNING(&connection, "%u: GetLockedCommandContext::"
                 "getAndLockItem Failed to get item info",
                 connection.getId());
             return ENGINE_FAILED;
         }
 
-        payload.buf = static_cast<const char*>(info.info.value[0].iov_base);
-        payload.len = info.info.value[0].iov_len;
+        payload.buf = static_cast<const char*>(info.value[0].iov_base);
+        payload.len = info.value[0].iov_len;
 
         bool need_inflate = false;
-        if (mcbp::datatype::is_compressed(info.info.datatype)) {
-            need_inflate = mcbp::datatype::is_xattr(info.info.datatype) ||
+        if (mcbp::datatype::is_compressed(info.datatype)) {
+            need_inflate = mcbp::datatype::is_xattr(info.datatype) ||
                            !connection.isSupportsDatatype();
         }
 
@@ -86,9 +85,9 @@ ENGINE_ERROR_CODE GetLockedCommandContext::inflateItem() {
 }
 
 ENGINE_ERROR_CODE GetLockedCommandContext::sendResponse() {
-    protocol_binary_datatype_t datatype = info.info.datatype;
+    protocol_binary_datatype_t datatype = info.datatype;
 
-    if (mcbp::datatype::is_xattr(info.info.datatype)) {
+    if (mcbp::datatype::is_xattr(info.datatype)) {
         payload = cb::xattr::get_body(payload);
         datatype &= ~(PROTOCOL_BINARY_DATATYPE_XATTR);
         datatype &= ~(PROTOCOL_BINARY_DATATYPE_COMPRESSED);
@@ -104,10 +103,10 @@ ENGINE_ERROR_CODE GetLockedCommandContext::sendResponse() {
     mcbp_add_header(&connection, PROTOCOL_BINARY_RESPONSE_SUCCESS,
                     sizeof(rsp->message.body), 0 /* keylength */, bodylength,
                     datatype);
-    rsp->message.header.response.cas = htonll(info.info.cas);
+    rsp->message.header.response.cas = htonll(info.cas);
 
     /* add the flags */
-    rsp->message.body.flags = info.info.flags;
+    rsp->message.body.flags = info.flags;
     connection.addIov(&rsp->message.body, sizeof(rsp->message.body));
     connection.addIov(payload.buf, payload.len);
     connection.setState(conn_mwrite);

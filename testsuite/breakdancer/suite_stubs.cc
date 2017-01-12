@@ -46,7 +46,6 @@ static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       PROTOCOL_BINARY_RAW_BYTES, 0);
     cb_assert(rv == ENGINE_SUCCESS);
 
-    info.nvalue = 1;
     if (!h1->get_item_info(h, cookie, it, &info)) {
         abort();
     }
@@ -85,13 +84,11 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
     ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, 0, DocumentState::Alive);
     cb_assert(rv == ENGINE_SUCCESS);
 
-    info.nvalue = 1;
     h1->get_item_info(h, NULL, i, &info);
 
     char* buf = new char[info.value[0].iov_len + 1];
     memcpy(buf, info.value[0].iov_base, info.value[0].iov_len);
     buf[info.value[0].iov_len] = 0x00;
-    cb_assert(info.nvalue == 1);
     if (strlen(exp) > info.value[0].iov_len) {
         fprintf(stderr, "Expected at least %d bytes for ``%s'', got %d as ``%s''\n",
                 (int)strlen(exp), exp, (int)info.value[0].iov_len, buf);

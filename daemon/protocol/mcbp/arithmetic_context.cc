@@ -23,24 +23,23 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
     auto ret = bucket_get(&connection, &it, key, vbucket);
     if (ret == ENGINE_SUCCESS) {
         olditem.reset(it);
-        oldItemInfo.info.nvalue = 1;
 
         if (!bucket_get_item_info(&connection, olditem.get(),
-                                  &oldItemInfo.info)) {
+                                  &oldItemInfo)) {
             return ENGINE_FAILED;
         }
 
-        uint64_t oldcas = oldItemInfo.info.cas;
+        uint64_t oldcas = oldItemInfo.cas;
         if (cas != 0 && cas != oldcas) {
             return ENGINE_KEY_EEXISTS;
         }
 
-        if (mcbp::datatype::is_compressed(oldItemInfo.info.datatype)) {
+        if (mcbp::datatype::is_compressed(oldItemInfo.datatype)) {
             try {
                 if (!cb::compression::inflate(
                     cb::compression::Algorithm::Snappy,
-                    (const char*)oldItemInfo.info.value[0].iov_base,
-                    oldItemInfo.info.value[0].iov_len,
+                    (const char*)oldItemInfo.value[0].iov_base,
+                    oldItemInfo.value[0].iov_len,
                     buffer)) {
                     return ENGINE_FAILED;
                 }
@@ -81,14 +80,12 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::createNewItem() {
     if (ret == ENGINE_SUCCESS) {
         newitem.reset(it);
         // copy the data over..
-        newItemInfo.info.nvalue = 1;
-
         if (!bucket_get_item_info(&connection, newitem.get(),
-                                  &newItemInfo.info)) {
+                                  &newItemInfo)) {
             return ENGINE_FAILED;
         }
 
-        memcpy(static_cast<char*>(newItemInfo.info.value[0].iov_base),
+        memcpy(static_cast<char*>(newItemInfo.value[0].iov_base),
                value.data(), value.size());
         state = State::StoreNewItem;
     }
@@ -112,8 +109,8 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::storeNewItem() {
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
     // Set ptr to point to the beginning of the input buffer.
-    size_t oldsize = oldItemInfo.info.nbytes;
-    const char* ptr = static_cast<char*>(oldItemInfo.info.value[0].iov_base);
+    size_t oldsize = oldItemInfo.nbytes;
+    const char* ptr = static_cast<char*>(oldItemInfo.value[0].iov_base);
     // If the input buffer was compressed we should use the temporary
     // allocated buffer instead
     if (buffer.len != 0) {
@@ -123,7 +120,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
 
     // Preserve the XATTRs of the existing item if it had any
     size_t xattrsize = 0;
-    if (mcbp::datatype::is_xattr(oldItemInfo.info.datatype)) {
+    if (mcbp::datatype::is_xattr(oldItemInfo.datatype)) {
         xattrsize = cb::xattr::get_body_offset({ptr, oldsize});
     }
     ptr += xattrsize;
@@ -159,32 +156,30 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
     ENGINE_ERROR_CODE ret;
     item* it;
     ret = bucket_allocate(&connection, &it, key, xattrsize + value.size(),
-                          oldItemInfo.info.flags,
+                          oldItemInfo.flags,
                           ntohl(request.message.body.expiration),
                           datatype, vbucket);
 
     if (ret == ENGINE_SUCCESS) {
         newitem.reset(it);
         // copy the data over..
-        newItemInfo.info.nvalue = 1;
-
         if (!bucket_get_item_info(&connection, newitem.get(),
-                                  &newItemInfo.info)) {
+                                  &newItemInfo)) {
             return ENGINE_FAILED;
         }
 
-        const char* src = (const char*)oldItemInfo.info.value[0].iov_base;
+        const char* src = (const char*)oldItemInfo.value[0].iov_base;
         if (buffer.len != 0) {
             src = buffer.data.get();
         }
 
-        char* newdata = (char*)newItemInfo.info.value[0].iov_base;
+        char* newdata = (char*)newItemInfo.value[0].iov_base;
 
         // copy the xattr over;
         memcpy(newdata, src, xattrsize);
         memcpy(newdata + xattrsize, value.data(), value.size());
 
-        bucket_item_set_cas(&connection, newitem.get(), oldItemInfo.info.cas);
+        bucket_item_set_cas(&connection, newitem.get(), oldItemInfo.cas);
 
         state = State::StoreItem;
     }
@@ -223,17 +218,16 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
     }
 
     if (connection.isSupportsMutationExtras()) {
-        newItemInfo.info.nvalue = 1;
         if (!bucket_get_item_info(&connection, newitem.get(),
-                                  &newItemInfo.info)) {
+                                  &newItemInfo)) {
             return ENGINE_FAILED;
         }
 
         // Response includes vbucket UUID and sequence number
         // (in addition to value)
         mutation_descr_t extras;
-        extras.vbucket_uuid = htonll(newItemInfo.info.vbucket_uuid);
-        extras.seqno = htonll(newItemInfo.info.seqno);
+        extras.vbucket_uuid = htonll(newItemInfo.vbucket_uuid);
+        extras.seqno = htonll(newItemInfo.seqno);
         result = ntohll(result);
 
         if (!mcbp_response_handler(nullptr, 0,

@@ -76,30 +76,28 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
     auto ret = bucket_get(&connection, &it, key, vbucket);
     if (ret == ENGINE_SUCCESS) {
         olditem.reset(it);
-        oldItemInfo.info.nvalue = 1;
-
         if (!bucket_get_item_info(&connection, olditem.get(),
-                                  &oldItemInfo.info)) {
+                                  &oldItemInfo)) {
             return ENGINE_FAILED;
         }
 
         if (cas != 0) {
-            if (oldItemInfo.info.cas == uint64_t(-1)) {
+            if (oldItemInfo.cas == uint64_t(-1)) {
                 // The object in the cache is locked... lets try to use
                 // the cas provided by the user to override this
-                oldItemInfo.info.cas = cas;
-            } else if (cas != oldItemInfo.info.cas) {
+                oldItemInfo.cas = cas;
+            } else if (cas != oldItemInfo.cas) {
                 return ENGINE_KEY_EEXISTS;
             }
-        } else if (oldItemInfo.info.cas == uint64_t(-1)) {
+        } else if (oldItemInfo.cas == uint64_t(-1)) {
             return ENGINE_LOCKED;
         }
 
-        if (mcbp::datatype::is_compressed(oldItemInfo.info.datatype)) {
+        if (mcbp::datatype::is_compressed(oldItemInfo.datatype)) {
             try {
                 if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                              (const char*)oldItemInfo.info.value[0].iov_base,
-                                              oldItemInfo.info.value[0].iov_len,
+                                              (const char*)oldItemInfo.value[0].iov_base,
+                                              oldItemInfo.value[0].iov_len,
                                               buffer)) {
                     return ENGINE_FAILED;
                 }
@@ -116,38 +114,36 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
 }
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
-    size_t oldsize = oldItemInfo.info.nbytes;
+    size_t oldsize = oldItemInfo.nbytes;
     if (buffer.len != 0) {
         oldsize = buffer.len;
     }
 
     // If the existing item had XATTRs we need to preserve the xattrs
     protocol_binary_datatype_t datatype = PROTOCOL_BINARY_RAW_BYTES;
-    if (mcbp::datatype::is_xattr(oldItemInfo.info.datatype)) {
+    if (mcbp::datatype::is_xattr(oldItemInfo.datatype)) {
         datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
     }
     item* it;
     ENGINE_ERROR_CODE ret;
     ret = bucket_allocate(&connection, &it, key, oldsize + value.len,
-                          oldItemInfo.info.flags, 0, datatype, vbucket);
+                          oldItemInfo.flags, 0, datatype, vbucket);
     if (ret == ENGINE_SUCCESS) {
         newitem.reset(it);
         // copy the data over..
-        newItemInfo.info.nvalue = 1;
-
         if (!bucket_get_item_info(&connection, newitem.get(),
-                                  &newItemInfo.info)) {
+                                  &newItemInfo)) {
             return ENGINE_FAILED;
         }
 
-        const char* src = (const char*)oldItemInfo.info.value[0].iov_base;
-        size_t oldsize = oldItemInfo.info.value[0].iov_len;
+        const char* src = (const char*)oldItemInfo.value[0].iov_base;
+        size_t oldsize = oldItemInfo.value[0].iov_len;
         if (buffer.len != 0) {
             src = buffer.data.get();
             oldsize = buffer.len;
         }
 
-        char* newdata = (char*)newItemInfo.info.value[0].iov_base;
+        char* newdata = (char*)newItemInfo.value[0].iov_base;
 
         // do the op
         if (mode == Mode::Append) {
@@ -156,7 +152,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
         } else {
             // The xattrs should go first
             size_t offset = 0;
-            if (mcbp::datatype::is_xattr(oldItemInfo.info.datatype)) {
+            if (mcbp::datatype::is_xattr(oldItemInfo.datatype)) {
                 offset = cb::xattr::get_body_offset({src, oldsize});
                 memcpy(newdata, src, offset);
             }
@@ -165,7 +161,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
             memcpy(newdata + offset + value.len, src + offset,
                    oldsize - offset);
         }
-        bucket_item_set_cas(&connection, newitem.get(), oldItemInfo.info.cas);
+        bucket_item_set_cas(&connection, newitem.get(), oldItemInfo.cas);
 
         state = State::StoreItem;
     }
@@ -180,16 +176,15 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
         update_topkeys(key, &connection);
         connection.setCAS(ncas);
         if (connection.isSupportsMutationExtras()) {
-            newItemInfo.info.nvalue = 1;
             if (!bucket_get_item_info(&connection, newitem.get(),
-                                      &newItemInfo.info)) {
+                                      &newItemInfo)) {
                 return ENGINE_FAILED;
             }
             mutation_descr_t* const extras = (mutation_descr_t*)
                 (connection.write.buf +
                  sizeof(protocol_binary_response_no_extras));
-            extras->vbucket_uuid = htonll(newItemInfo.info.vbucket_uuid);
-            extras->seqno = htonll(newItemInfo.info.seqno);
+            extras->vbucket_uuid = htonll(newItemInfo.vbucket_uuid);
+            extras->seqno = htonll(newItemInfo.seqno);
             mcbp_write_response(&connection, extras, sizeof(*extras), 0,
                                 sizeof(*extras));
         } else {

@@ -134,7 +134,7 @@ private:
     const uint32_t lock_timeout;
 
     cb::unique_item_ptr it;
-    item_info_holder info;
+    item_info info;
 
     const_char_buffer payload;
     cb::compression::Buffer buffer;

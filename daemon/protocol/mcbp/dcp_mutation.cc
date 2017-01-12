@@ -37,26 +37,25 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
                                        uint8_t nru) {
     auto* c = cookie2mcbp(void_cookie, __func__);
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_MUTATION);
-    item_info_holder info;
-    info.info.nvalue = 1;
+    item_info info;
 
-    if (!bucket_get_item_info(c, it, &info.info)) {
+    if (!bucket_get_item_info(c, it, &info)) {
         bucket_release_item(c, it);
         LOG_WARNING(c, "%u: Failed to get item info", c->getId());
         return ENGINE_FAILED;
     }
 
-    char* root = reinterpret_cast<char*>(info.info.value[0].iov_base);
-    char_buffer buffer{root, info.info.value[0].iov_len};
+    char* root = reinterpret_cast<char*>(info.value[0].iov_base);
+    char_buffer buffer{root, info.value[0].iov_len};
     cb::compression::Buffer inflated;
 
-    if (mcbp::datatype::is_xattr(info.info.datatype)) {
+    if (mcbp::datatype::is_xattr(info.datatype)) {
         // @todo we've not updated the dcp repclicaiton stuff to handle
         // @todo xattrs and according to the XATTR spec this should be
         // @todo enabled by the DCP stream (and not by a hello call)
         // @todo Let's strip them off until we've adressed all of that.
 
-        if (mcbp::datatype::is_compressed(info.info.datatype)) {
+        if (mcbp::datatype::is_compressed(info.datatype)) {
             if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
                                           buffer.buf, buffer.len, inflated)) {
                 LOG_WARNING(c, "%u: Failed to inflate document", c->getId());
@@ -97,23 +96,23 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
     }
 
     const uint8_t extlen = 31; // 2*uint64_t, 3*uint32_t, 1*uint16_t, 1*uint8_t
-    const uint32_t bodylen = uint32_t(buffer.len) + extlen + nmeta + info.info.nkey;
+    const uint32_t bodylen = uint32_t(buffer.len) + extlen + nmeta + info.nkey;
 
     memset(packet.bytes, 0, sizeof(packet));
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_MUTATION;
     packet.message.header.request.opaque = opaque;
     packet.message.header.request.vbucket = htons(vbucket);
-    packet.message.header.request.cas = htonll(info.info.cas);
-    packet.message.header.request.keylen = htons(info.info.nkey);
+    packet.message.header.request.cas = htonll(info.cas);
+    packet.message.header.request.keylen = htons(info.nkey);
     packet.message.header.request.extlen = extlen;
     packet.message.header.request.bodylen = ntohl(bodylen);
-    packet.message.header.request.datatype = info.info.datatype;
+    packet.message.header.request.datatype = info.datatype;
     packet.message.body.by_seqno = htonll(by_seqno);
     packet.message.body.rev_seqno = htonll(rev_seqno);
     packet.message.body.lock_time = htonl(lock_time);
-    packet.message.body.flags = info.info.flags;
-    packet.message.body.expiration = htonl(info.info.exptime);
+    packet.message.body.flags = info.flags;
+    packet.message.body.expiration = htonl(info.exptime);
     packet.message.body.nmeta = htons(nmeta);
     packet.message.body.nru = nru;
 
@@ -121,7 +120,7 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
     c->addIov(c->write.curr, sizeof(packet.bytes));
     c->write.curr += sizeof(packet.bytes);
     c->write.bytes += sizeof(packet.bytes);
-    c->addIov(info.info.key, info.info.nkey);
+    c->addIov(info.key, info.nkey);
     c->addIov(buffer.buf, buffer.len);
 
     memcpy(c->write.curr, meta, nmeta);

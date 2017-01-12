@@ -333,7 +333,6 @@ int do_item_link(struct default_engine *engine,
     info.nbytes = it->nbytes;
     info.flags = it->flags;
     info.nkey = hash_key_get_client_key_len(key);
-    info.nvalue = 1;
     info.key = hash_key_get_client_key(key);
     info.value[0].iov_base = item_get_data(it);
     info.value[0].iov_len = it->nbytes;
