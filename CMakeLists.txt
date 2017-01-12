@@ -211,6 +211,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
                tests/module_tests/atomic_unordered_map_test.cc
                tests/module_tests/bloomfilter_test.cc
                tests/module_tests/checkpoint_test.cc
+               tests/module_tests/collections/collection_dockey_test.cc
                tests/module_tests/collections/manifest_test.cc
                tests/module_tests/configuration_test.cc
                tests/module_tests/defragmenter_test.cc
