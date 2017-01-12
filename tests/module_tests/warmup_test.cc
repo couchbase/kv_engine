@@ -56,7 +56,10 @@ TEST_F(WarmupDisabledTest, Stats) {
 
     std::string key{"warmup"};
     MockAddStat add_stat;
-    EXPECT_CALL(add_stat, Callback("ep_warmup", "disabled")).Times(1);
-    engine->getStats(
-            &add_stat, key.data(), key.size(), MockAddStat::trampoline);
+    EXPECT_CALL(add_stat, Callback("ep_warmup", ::testing::_)).Times(0);
+    EXPECT_EQ(ENGINE_KEY_ENOENT,
+              engine->getStats(&add_stat,
+                               key.data(),
+                               key.size(),
+                               MockAddStat::trampoline));
 }

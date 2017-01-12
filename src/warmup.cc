@@ -977,6 +977,7 @@ void Warmup::addStat(const char *nm, const T &val, ADD_STAT add_stat,
 void Warmup::addStats(ADD_STAT add_stat, const void *c) const
 {
     EPStats& stats = store.getEPEngine().getEpStats();
+    addStat(NULL, "enabled", add_stat, c);
     const char* stateName = state.toString();
     addStat("state", stateName, add_stat, c);
     if (warmupComplete.load()) {
