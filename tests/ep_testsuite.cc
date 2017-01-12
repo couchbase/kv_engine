@@ -802,7 +802,6 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
 
     item_info info;
-    info.nvalue = 1;
     if (!h1->get_item_info(h, NULL, it, &info)) {
         abort();
     }
@@ -852,7 +851,6 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
 
     item_info info;
-    info.nvalue = 1;
     if (!h1->get_item_info(h, NULL, it, &info)) {
         abort();
     }
@@ -942,7 +940,6 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
 
     item_info info;
-    info.nvalue = 1;
     if (!h1->get_item_info(h, NULL, it, &info)) {
         abort();
     }
@@ -1009,7 +1006,6 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
 
     item_info info;
-    info.nvalue = 1;
     if (!h1->get_item_info(h, NULL, it, &info)) {
         abort();
     }
@@ -1032,7 +1028,6 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                       PROTOCOL_BINARY_RAW_BYTES, 0);
     checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
 
-    info.nvalue = 1;
     if (!h1->get_item_info(h, NULL, it, &info)) {
         abort();
     }
@@ -1079,7 +1074,6 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
 
     item_info info;
-    info.nvalue = 1;
     if (!h1->get_item_info(h, NULL, it, &info)) {
         abort();
     }
@@ -1098,7 +1092,6 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                   PROTOCOL_BINARY_RAW_BYTES, 0);
     checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
 
-    info.nvalue = 1;
     if (!h1->get_item_info(h, NULL, it, &info)) {
         abort();
     }
@@ -2600,7 +2593,6 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             "Unable to get stored item");
 
     item_info info;
-    info.nvalue = 1;
     h1->get_item_info(h, cookie, itm, &info);
     h1->release(h, cookie, itm);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
@@ -2653,7 +2645,6 @@ static enum test_result test_datatype_with_unknown_command(ENGINE_HANDLE *h,
             "Unable to get stored item");
 
     item_info info;
-    info.nvalue = 1;
     h1->get_item_info(h, cookie, itm, &info);
     h1->release(h, NULL, itm);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
@@ -5756,7 +5747,6 @@ static enum test_result test_mb17517_tap_with_locked_key(ENGINE_HANDLE *h,
             testHarness.unlock_cookie(cookie);
 
             item_info info;
-            info.nvalue = 1;
             if (!h1->get_item_info(h, NULL, it, &info)) {
                 fprintf(stderr, "test_mb17517_tap_with_locked_key: "
                         "get_item_info failed\n");

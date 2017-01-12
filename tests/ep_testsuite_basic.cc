@@ -479,7 +479,6 @@ static enum test_result test_getl_delete_with_cas(ENGINE_HANDLE *h,
             getl(h, h1, nullptr, &locked, "key", 0, 15),
             "Expected getl to succeed on key");
     item_info info;
-    info.nvalue = 1;
     check(h1->get_item_info(h, nullptr, locked, &info),
           "Failed to get item info");
 
@@ -571,7 +570,6 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             "Expected to be able to getl on first try");
 
     item_info info;
-    info.nvalue = 1;
     check(h1->get_item_info(h, nullptr, locked, &info),
           "Failed to get item info");
 
@@ -616,7 +614,6 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(ENGINE_SUCCESS,
             getl(h, h1, nullptr, &locked, key, vbucketId, expiration),
             "Aquire lock should have succeeded");
-    info.nvalue = 1;
     check(h1->get_item_info(h, nullptr, locked, &info),
           "Failed to get item info");
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_RAW_BYTES), info.datatype,
@@ -665,7 +662,6 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                      PROTOCOL_BINARY_RAW_BYTES, 0),
             "Allocation Failed");
 
-    info.nvalue = 1;
     check(h1->get_item_info(h, NULL, it, &info),
           "Failed to get item info");
 
@@ -728,7 +724,6 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             getl(h, h1, nullptr, &locked, key, vbucketId, 0),
             "Expected to be able to getl on first try");
     item_info info;
-    info.nvalue = 1;
     checkeq(true, h1->get_item_info(h, nullptr, locked, &info),
             "failed to get item info");
     uint64_t cas = info.cas;
@@ -878,8 +873,6 @@ static enum test_result test_add_add_with_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
             "Failed set.");
     check_key_value(h, h1, "key", "somevalue", 9);
     item_info info;
-    info.nvalue = 1;
-    info.nvalue = 1;
     check(h1->get_item_info(h, NULL, i, &info),
           "Should be able to get info");
 
@@ -910,7 +903,6 @@ static enum test_result test_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             "Failed to get value.");
 
     item_info info;
-    info.nvalue = 1;
     check(h1->get_item_info(h, NULL, i, &info), "Failed to get item info.");
     h1->release(h, NULL, i);
 
@@ -1355,12 +1347,10 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE *h,
                 "Failed to get value");
 
     item_info info;
-    info.nvalue = 1;
     if (!h1->get_item_info(h, nullptr, i, &info)){
         abort();
     }
 
-    checkeq(1, static_cast<int>(info.nvalue), "nvalue should be equal to 1");
     checkeq(static_cast<uint8_t>(DocumentState::Deleted),
             static_cast<uint8_t>(info.document_state),
             "document must be in deleted state");
@@ -1441,7 +1431,6 @@ static enum test_result test_set_delete_invalid_cas(ENGINE_HANDLE *h, ENGINE_HAN
             "Failed set.");
     check_key_value(h, h1, "key", "somevalue", 9);
     item_info info;
-    info.nvalue = 1;
     check(h1->get_item_info(h, NULL, i, &info),
           "Should be able to get info");
     h1->release(h, NULL, i);

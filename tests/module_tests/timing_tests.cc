@@ -104,7 +104,6 @@ static ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(rv == ENGINE_SUCCESS, "Allocation failed.");
 
     item_info info;
-    info.nvalue = 1;
     if (!h1->get_item_info(h, cookie, it, &info)) {
         abort();
     }

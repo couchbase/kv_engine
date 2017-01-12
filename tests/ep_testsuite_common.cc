@@ -342,7 +342,6 @@ void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                      uint16_t vbucket) {
     item_info info;
     check(get_item_info(h, h1, &info, key, vbucket), "checking key and value");
-    checkeq(static_cast<uint16_t>(1), info.nvalue, "Unexpected info.nvalue");
     checkeq(vlen, info.value[0].iov_len, "Value length mismatch");
     check(memcmp(info.value[0].iov_base, val, vlen) == 0, "Data mismatch");
 }

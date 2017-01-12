@@ -1006,7 +1006,6 @@ static void perf_tap_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
 
             // Check for sentinel
             item_info info;
-            info.nvalue = 1;
             check(h1->get_item_info(h, NULL, item, &info),
                   "Failed to get item info for TAP mutation");
 

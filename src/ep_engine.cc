@@ -1782,9 +1782,6 @@ extern "C" {
     {
         const Item *it = reinterpret_cast<const Item*>(itm);
         EventuallyPersistentEngine *engine = getHandle(handle);
-        if (itm_info->nvalue < 1) {
-            return false;
-        }
         itm_info->cas = it->getCas();
 
         if (engine) {
@@ -1808,7 +1805,6 @@ extern "C" {
         itm_info->datatype = it->getDataType();
         itm_info->flags = it->getFlags();
         itm_info->nkey = static_cast<uint16_t>(it->getKey().size());
-        itm_info->nvalue = 1;
         itm_info->key = it->getKey().data();
         itm_info->value[0].iov_base = const_cast<char*>(it->getData());
         itm_info->value[0].iov_len = it->getNBytes();

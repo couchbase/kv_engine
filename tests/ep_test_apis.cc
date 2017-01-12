@@ -526,7 +526,6 @@ bool get_item_info(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item_info *info,
     if (get(h, h1, NULL, &i, key, vb) != ENGINE_SUCCESS) {
         return false;
     }
-    info->nvalue = 1;
     if (!h1->get_item_info(h, NULL, i, info)) {
         h1->release(h, NULL, i);
         fprintf(stderr, "get_item_info failed\n");
@@ -541,7 +540,6 @@ bool get_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item *i,
              std::string &key) {
 
     item_info info;
-    info.nvalue = 1;
     if (!h1->get_item_info(h, NULL, i, &info)) {
         fprintf(stderr, "get_item_info failed\n");
         return false;
@@ -897,9 +895,7 @@ ENGINE_ERROR_CODE storeCasOut(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
             allocate(h, h1, NULL, &it, key, value.size(), 0, 0, datatype, vb),
            "Allocation failed.");
     item_info info;
-    info.nvalue = 1;
     check(h1->get_item_info(h, h1, it, &info), "Unable to get item_info");
-    check(info.nvalue == 1, "iovectors not supported");
     memcpy(info.value[0].iov_base, value.data(), value.size());
     ENGINE_ERROR_CODE res = h1->store(h, NULL, it, &out_cas,
                                       OPERATION_SET, docState);
@@ -923,7 +919,6 @@ ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 
     item_info info;
-    info.nvalue = 1;
     if (!h1->get_item_info(h, cookie, it, &info)) {
         abort();
     }
@@ -1518,7 +1513,6 @@ uint64_t get_CAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
             "get_CAS: Failed to get key");
 
     item_info info;
-    info.nvalue = 1;
     check(h1->get_item_info(h, NULL, i, &info),
           "get_CAS: Failed to get item info for key");
     h1->release(h, NULL, i);

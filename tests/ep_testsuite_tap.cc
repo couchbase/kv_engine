@@ -34,9 +34,7 @@ static enum test_result verify_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                     const char* val, size_t vlen)
 {
     item_info info;
-    info.nvalue = 1;
     check(h1->get_item_info(h, NULL, i, &info), "get item info failed");
-    check(info.nvalue == 1, "iovectors not supported");
     // We can pass in a NULL key to avoid the key check (for tap streams)
     if (key) {
         check(klen == info.nkey, "Incorrect key length");

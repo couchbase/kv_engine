@@ -1517,7 +1517,6 @@ static enum test_result test_del_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
             store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
             "Failed set.");
 
-    info.nvalue = 1;
     h1->get_item_info(h, NULL, i, &info);
     wait_for_flusher_to_settle(h, h1);
     h1->release(h, NULL, i);
