@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include <cJSON_utils.h>
 #include <cstddef>
 #include <memory>
 #include <platform/sized_buffer.h>
@@ -121,6 +122,11 @@ public:
      * Get the size of the system xattr's located in the blob
      */
     size_t get_system_size() const;
+
+    /**
+     * Get a JSON representation of the xattrs
+     */
+    unique_cJSON_ptr to_json() const;
 
 protected:
 

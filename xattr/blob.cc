@@ -238,5 +238,27 @@ size_t Blob::get_system_size() const {
     return ret;
 }
 
+unique_cJSON_ptr Blob::to_json() const {
+    unique_cJSON_ptr ret{cJSON_CreateObject()};
+
+    try {
+        size_t current = 4;
+        while (current < blob.len) {
+            // Get the length of the next kv-pair
+            const auto size = read_length(current);
+            current += 4;
+
+            auto* ptr = reinterpret_cast<const char*>(blob.buf + current);
+            cJSON_AddItemToObject(ret.get(), ptr,
+                                  cJSON_Parse(ptr + strlen(ptr) + 1));
+
+            current += size;
+        }
+    } catch (const std::out_of_range& ex) {
+    }
+
+    return ret;
+}
+
 }
 }

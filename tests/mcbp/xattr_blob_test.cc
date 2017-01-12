@@ -32,7 +32,7 @@ void validate(cb::byte_buffer buffer) {
             {reinterpret_cast<const char*>(buffer.buf), buffer.len}));
 }
 
-TEST(XattrBlobBlob, TestBlob) {
+TEST(XattrBlob, TestBlob) {
     cb::xattr::Blob blob;
 
     // Get from an empty buffer should return an empty value
@@ -95,7 +95,7 @@ TEST(XattrBlobBlob, TestBlob) {
     EXPECT_EQ(0, last.len);
 }
 
-TEST(XattrBlobBlob, TestPruneUser) {
+TEST(XattrBlob, TestPruneUser) {
     cb::xattr::Blob blob;
 
     // Add a single system xattr
@@ -139,4 +139,18 @@ TEST(XattrBlobBlob, TestPruneUser) {
               to_string(blob.get(to_const_byte_buffer("_sync"))));
     EXPECT_EQ(std::string{"{\"foo\":\"bar\"}"},
               to_string(blob.get(to_const_byte_buffer("_rbac"))));
+}
+
+TEST(XattrBlob, TestToJson) {
+    cb::xattr::Blob blob;
+    blob.set(to_const_byte_buffer("_sync"),
+             to_const_byte_buffer("{\"cas\":\"0xdeadbeefcafefeed\", "
+                                      "\"user\":\"trond\"}"));
+    blob.set(to_const_byte_buffer("_rbac"),
+             to_const_byte_buffer("{\"foo\":\"bar\"}"));
+
+    const std::string expected{"{\"_sync\":{\"cas\":\"0xdeadbeefcafefeed\","
+                                   "\"user\":\"trond\"},"
+                                   "\"_rbac\":{\"foo\":\"bar\"}}"};
+    EXPECT_EQ(expected, to_string(blob.to_json(), false));
 }
