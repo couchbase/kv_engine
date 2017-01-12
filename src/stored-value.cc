@@ -26,6 +26,7 @@ double StoredValue::mutation_mem_threshold = 0.9;
 const int64_t StoredValue::state_deleted_key = -3;
 const int64_t StoredValue::state_non_existent_key = -4;
 const int64_t StoredValue::state_temp_init = -5;
+const int64_t StoredValue::state_collection_open = -6;
 
 bool StoredValue::ejectValue(HashTable &ht, item_eviction_policy_t policy) {
     if (eligibleForEviction(policy)) {
