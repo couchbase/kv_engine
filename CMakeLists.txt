@@ -131,6 +131,7 @@ SET(CONFIG_SOURCE src/configuration.cc
   ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.cc)
 
 SET(COLLECTIONS_SOURCE src/collections/manifest.cc
+                       src/collections/vbucket_manifest.cc
                        src/collections/vbucket_manifest_entry.cc)
 
 ADD_LIBRARY(ep_objs OBJECT
@@ -214,6 +215,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
                tests/module_tests/checkpoint_test.cc
                tests/module_tests/collections/collection_dockey_test.cc
                tests/module_tests/collections/manifest_test.cc
+               tests/module_tests/collections/vbucket_manifest_test.cc
                tests/module_tests/collections/vbucket_manifest_entry_test.cc
                tests/module_tests/configuration_test.cc
                tests/module_tests/defragmenter_test.cc
