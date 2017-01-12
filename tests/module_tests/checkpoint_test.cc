@@ -75,6 +75,7 @@ protected:
                         /*lastSnapEnd*/ 0,
                         /*table*/ NULL,
                         callback,
+                        /*newSeqnoCb*/ nullptr,
                         config)) {
         createManager();
     }
@@ -249,6 +250,7 @@ TYPED_TEST(CheckpointTest, basic_chk_test) {
                                       0,
                                       NULL,
                                       cb,
+                                      /*newSeqnoCb*/ nullptr,
                                       this->config));
 
     this->manager.reset(new CheckpointManager(

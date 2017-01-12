@@ -39,11 +39,18 @@ public:
 class VBucketTest : public ::testing::Test {
 protected:
     void SetUp() {
-        vbucket.reset(new VBucket(0, vbucket_state_active, global_stats,
-                                  checkpoint_config, /*kvshard*/nullptr,
-                                  /*lastSeqno*/1000, /*lastSnapStart*/0,
-                                  /*lastSnapEnd*/0, /*table*/nullptr,
-                                  std::make_shared<DummyCB>(), config));
+        vbucket.reset(new VBucket(0,
+                                  vbucket_state_active,
+                                  global_stats,
+                                  checkpoint_config,
+                                  /*kvshard*/ nullptr,
+                                  /*lastSeqno*/ 1000,
+                                  /*lastSnapStart*/ 0,
+                                  /*lastSnapEnd*/ 0,
+                                  /*table*/ nullptr,
+                                  std::make_shared<DummyCB>(),
+                                  /*newSeqnoCb*/ nullptr,
+                                  config));
     }
 
     void TearDown() {

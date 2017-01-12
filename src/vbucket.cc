@@ -31,6 +31,7 @@
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 
+#include "flusher.h"
 #include "vbucket.h"
 
 VBucketFilter VBucketFilter::filter_diff(const VBucketFilter &other) const {
@@ -127,7 +128,8 @@ VBucket::VBucket(id_type i,
                  uint64_t lastSnapStart,
                  uint64_t lastSnapEnd,
                  std::unique_ptr<FailoverTable> table,
-                 std::shared_ptr<Callback<id_type> > cb,
+                 std::shared_ptr<Callback<id_type> > flusherCb,
+                 NewSeqnoCallback newSeqnoCb,
                  Configuration& config,
                  vbucket_state_t initState,
                  uint64_t purgeSeqno,
@@ -139,7 +141,7 @@ VBucket::VBucket(id_type i,
                         lastSeqno,
                         lastSnapStart,
                         lastSnapEnd,
-                        cb),
+                        flusherCb),
       failovers(std::move(table)),
       opsCreate(0),
       opsUpdate(0),
@@ -173,7 +175,8 @@ VBucket::VBucket(id_type i,
       persistenceCheckpointId(0),
       bucketCreation(false),
       bucketDeletion(false),
-      persistenceSeqno(0) {
+      persistenceSeqno(0),
+      newSeqnoCb(std::move(newSeqnoCb)) {
     backfill.isBackfillPhase = false;
     pendingOpsStart = 0;
     stats.memOverhead->fetch_add(sizeof(VBucket)
@@ -698,6 +701,34 @@ size_t VBucket::getNumOfKeysInFilter() {
     } else {
         return 0;
     }
+}
+
+uint64_t VBucket::queueDirty(StoredValue& v,
+                             std::unique_lock<std::mutex>* pHtLh,
+                             const GenerateBySeqno generateBySeqno,
+                             const GenerateCas generateCas) {
+    VBNotifyCtx notifyCtx;
+    queued_item qi(v.toItem(false, getId()));
+
+    notifyCtx.notifyFlusher = checkpointManager.queueDirty(
+            *this, qi, generateBySeqno, generateCas);
+    v.setBySeqno(qi->getBySeqno());
+    notifyCtx.bySeqno = qi->getBySeqno();
+    notifyCtx.notifyReplication = true;
+
+    if (GenerateCas::Yes == generateCas) {
+        v.setCas(qi->getCas());
+    }
+
+    if (pHtLh) {
+        pHtLh->unlock();
+    }
+
+    if (newSeqnoCb) {
+        uint16_t vbid = getId();
+        newSeqnoCb->callback(vbid, notifyCtx);
+    }
+    return qi->getBySeqno();
 }
 
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,

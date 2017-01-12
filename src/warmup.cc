@@ -519,11 +519,13 @@ void Warmup::createVBuckets(uint16_t shardId) {
             }
             KVShard* shard = store.getVBuckets().getShardByVbId(vbid);
             std::shared_ptr<Callback<uint16_t> > cb(new NotifyFlusherCB(shard));
+
             vb = store.makeVBucket(vbid,
                                    vbs.state,
                                    shard,
                                    std::move(table),
                                    cb,
+                                   std::make_unique<NotifyNewSeqnoCB>(store),
                                    vbs.state,
                                    vbs.highSeqno,
                                    vbs.lastSnapStart,

@@ -691,7 +691,7 @@ void KVBucket::deleteExpiredItem(uint16_t vbid, const DocKey& key,
                     }
                 } else if (v->isExpired(startTime) && !v->isDeleted()) {
                     vb->ht.unlocked_softDelete(v, 0, getItemEvictionPolicy());
-                    queueDirty(vb, v, &lh, NULL);
+                    vb->queueDirty(*v, &lh);
                 }
             } else {
                 if (eviction_policy == FULL_EVICTION) {
@@ -708,7 +708,7 @@ void KVBucket::deleteExpiredItem(uint16_t vbid, const DocKey& key,
                         v->setDeleted();
                         v->setRevSeqno(revSeqno);
                         vb->ht.unlocked_softDelete(v, 0, eviction_policy);
-                        queueDirty(vb, v, &lh, NULL);
+                        vb->queueDirty(*v, &lh);
                     }
                 }
             }
@@ -745,7 +745,7 @@ StoredValue *KVBucket::fetchValidValue(RCPtr<VBucket> &vb,
             if (queueExpired && vb->getState() == vbucket_state_active) {
                 incExpirationStat(vb, EXP_BY_ACCESS);
                 vb->ht.unlocked_softDelete(v, 0, eviction_policy);
-                queueDirty(vb, v, NULL, NULL);
+                vb->queueDirty(*v);
             }
             return wantDeleted ? v : NULL;
         }
@@ -921,7 +921,8 @@ ENGINE_ERROR_CODE KVBucket::set(Item &itm, const void *cookie) {
         // checkpoint.
     case WAS_CLEAN:
         // We keep lh held as we need to do v->getCas()
-        queueDirty(vb, v, nullptr, &seqno);
+        seqno = vb->queueDirty(*v, nullptr);
+
         itm.setBySeqno(seqno);
         itm.setCas(v->getCas());
         break;
@@ -1009,7 +1010,8 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
     case ADD_SUCCESS:
     case ADD_UNDEL:
         // We need to keep lh as we will do v->getCas()
-        queueDirty(vb, v, nullptr, &seqno);
+        seqno = vb->queueDirty(*v, nullptr);
+
         itm.setBySeqno(seqno);
         itm.setCas(v->getCas());
         break;
@@ -1073,8 +1075,9 @@ ENGINE_ERROR_CODE KVBucket::replace(Item &itm, const void *cookie) {
                 // Even if the item was dirty, push it into the vbucket's open
                 // checkpoint.
             case WAS_CLEAN:
-                // Keep lh as we need to do v->getCas()
-                queueDirty(vb, v, nullptr, &seqno);
+                // We need to keep lh as we will do v->getCas()
+                seqno = vb->queueDirty(*v, nullptr);
+
                 itm.setBySeqno(seqno);
                 itm.setCas(v->getCas());
                 break;
@@ -1235,7 +1238,14 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(uint16_t vbid,
                 std::make_unique<FailoverTable>(engine.getMaxFailoverEntries());
         KVShard* shard = vbMap.getShardByVbId(vbid);
         std::shared_ptr<Callback<uint16_t> > cb(new NotifyFlusherCB(shard));
-        RCPtr<VBucket> newvb = makeVBucket(vbid, to, shard, std::move(ft), cb);
+
+        RCPtr<VBucket> newvb =
+                makeVBucket(vbid,
+                            to,
+                            shard,
+                            std::move(ft),
+                            cb,
+                            std::make_unique<NotifyNewSeqnoCB>(*this));
 
         Configuration& config = engine.getConfiguration();
         if (config.isBfilterEnabled()) {
@@ -2008,10 +2018,13 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item &itm,
         ret = ENGINE_KEY_EEXISTS;
         break;
     case WAS_DIRTY:
-    case WAS_CLEAN:
+    case WAS_CLEAN: {
         vb->setMaxCasAndTrackDrift(v->getCas());
-        queueDirty(vb, v, &lh, seqno, genBySeqno, genCas);
-        break;
+        auto queued_seqno = vb->queueDirty(*v, &lh, genBySeqno, genCas);
+        if (nullptr != seqno) {
+            *seqno = queued_seqno;
+        }
+    } break;
     case NOT_FOUND:
         ret = ENGINE_KEY_ENOENT;
         break;
@@ -2084,7 +2097,7 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key, uint16_t vbucket,
                     ENGINE_SUCCESS, v->getBySeqno());
 
         if (exptime_mutated) {
-            queueDirty(vb, v, &lh, NULL);
+            vb->queueDirty(*v, &lh);
         }
 
         return rv;
@@ -2524,8 +2537,8 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
     case WAS_CLEAN:
     case WAS_DIRTY:
         if (v) {
-            // Keep lh as we need to do v->getCas
-            queueDirty(vb, v, nullptr, &seqno);
+            // We need to keep lh as we will do v->getCas()
+            seqno = vb->queueDirty(*v, nullptr);
             *cas = v->getCas();
         }
 
@@ -2675,7 +2688,11 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
         if (tapBackfill) {
             tapQueueDirty(*vb, v, lh, seqno, genBySeqno);
         } else {
-            queueDirty(vb, v, &lh, seqno, genBySeqno, generateCas);
+            auto queued_seqno =
+                    vb->queueDirty(*v, &lh, genBySeqno, generateCas);
+            if (nullptr != seqno) {
+                *seqno = queued_seqno;
+            }
         }
         break;
     case NEED_BG_FETCH:
@@ -3200,43 +3217,6 @@ PersistenceCallback* KVBucket::flushOneDelOrSet(const queued_item &qi,
             new PersistenceCallback(qi, vb, *this, stats, 0);
         rwUnderlying->del(*qi, *cb);
         return cb;
-    }
-}
-
-void KVBucket::queueDirty(RCPtr<VBucket> &vb,
-                          StoredValue* v,
-                          std::unique_lock<std::mutex>* plh,
-                          uint64_t *seqno,
-                          const GenerateBySeqno generateBySeqno,
-                          const GenerateCas generateCas) {
-    if (vb) {
-        queued_item qi(v->toItem(false, vb->getId()));
-
-        bool rv = vb->checkpointManager.queueDirty(*vb, qi,
-                                                   generateBySeqno, generateCas);
-        v->setBySeqno(qi->getBySeqno());
-
-        if (seqno) {
-            *seqno = v->getBySeqno();
-        }
-
-        if (GenerateCas::Yes == generateCas) {
-            v->setCas(qi->getCas());
-        }
-
-        if (plh) {
-            plh->unlock();
-        }
-
-        if (rv) {
-            KVShard* shard = vbMap.getShardByVbId(vb->getId());
-            shard->getFlusher()->notifyFlushEvent();
-        }
-
-        // Now notify replication
-        engine.getTapConnMap().notifyVBConnections(vb->getId());
-        engine.getDcpConnMap().notifyVBConnections(vb->getId(),
-                                                   qi->getBySeqno());
     }
 }
 
@@ -3953,7 +3933,8 @@ RCPtr<VBucket> KVBucket::makeVBucket(
         vbucket_state_t state,
         KVShard* shard,
         std::unique_ptr<FailoverTable> table,
-        std::shared_ptr<Callback<VBucket::id_type>> cb,
+        std::shared_ptr<Callback<VBucket::id_type>> flusherCb,
+        NewSeqnoCallback newSeqnoCb,
         vbucket_state_t initState,
         int64_t lastSeqno,
         uint64_t lastSnapStart,
@@ -3969,9 +3950,37 @@ RCPtr<VBucket> KVBucket::makeVBucket(
                                       lastSnapStart,
                                       lastSnapEnd,
                                       std::move(table),
-                                      cb,
+                                      flusherCb,
+                                      std::move(newSeqnoCb),
                                       engine.getConfiguration(),
                                       initState,
                                       purgeSeqno,
                                       maxCas));
+}
+
+void KVBucket::notifyNewSeqno(const uint16_t vbid,
+                              const VBNotifyCtx& notifyCtx) {
+    if (notifyCtx.notifyFlusher) {
+        notifyFlusher(vbid);
+    }
+    if (notifyCtx.notifyReplication) {
+        notifyReplication(vbid, notifyCtx.bySeqno);
+    }
+}
+
+void KVBucket::notifyFlusher(const uint16_t vbid) {
+    KVShard* shard = vbMap.getShardByVbId(vbid);
+    if (shard) {
+        shard->getFlusher()->notifyFlushEvent();
+    } else {
+        throw std::logic_error(
+                "KVBucket::notifyFlusher() : shard null for "
+                "vbucket " +
+                std::to_string(vbid));
+    }
+}
+
+void KVBucket::notifyReplication(const uint16_t vbid, const int64_t bySeqno) {
+    engine.getTapConnMap().notifyVBConnections(vbid);
+    engine.getDcpConnMap().notifyVBConnections(vbid, bySeqno);
 }

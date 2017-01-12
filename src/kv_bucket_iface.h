@@ -802,12 +802,19 @@ public:
             KVShard* shard,
             std::unique_ptr<FailoverTable> table,
             std::shared_ptr<Callback<VBucket::id_type>> cb,
+            NewSeqnoCallback newSeqnoCb,
             vbucket_state_t initState = vbucket_state_dead,
             int64_t lastSeqno = 0,
             uint64_t lastSnapStart = 0,
             uint64_t lastSnapEnd = 0,
             uint64_t purgeSeqno = 0,
             uint64_t maxCas = 0) = 0;
+
+    /**
+     * Notify all the clients of a new seqno being added in the vbucket
+     */
+    virtual void notifyNewSeqno(const uint16_t vbid,
+                                const VBNotifyCtx& notifyCtx) = 0;
 
 protected:
 
@@ -842,29 +849,6 @@ protected:
     virtual void scheduleVBDeletion(RCPtr<VBucket> &vb,
                             const void* cookie,
                             double delay = 0) = 0;
-
-    /* Queue an item for persistence and replication
-     *
-     * The caller of this function must hold the lock of the hash table
-     * partition that contains the StoredValue being Queued.
-     *
-     * @param vb the vbucket that contains the dirty item
-     * @param v the dirty item
-     * @param plh the pointer to the hash table partition lock for the dirty
-     *        item. Note that the lock is released inside this function
-     * @param seqno sequence number of the mutation
-     * @param tapBackfill if the item is from backfill replication
-     * @param genBySeqno whether or not to generate sequence number
-     * @param setConflictMode set the conflict resolution mode
-     */
-    virtual void queueDirty(RCPtr<VBucket> &vb,
-                            StoredValue* v,
-                            std::unique_lock<std::mutex>* plh,
-                            uint64_t *seqno,
-                            const GenerateBySeqno generateBySeqno =
-                                                        GenerateBySeqno::Yes,
-                            const GenerateCas generateCas = GenerateCas::Yes)
-                                                                            = 0;
 
     /**
      * Retrieve a StoredValue and invoke a method on it.
