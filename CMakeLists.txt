@@ -212,6 +212,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
                tests/module_tests/evp_store_rollback_test.cc
                tests/module_tests/evp_store_test.cc
                tests/module_tests/evp_store_single_threaded_test.cc
+               tests/module_tests/failover_table_test.cc
                tests/module_tests/mutation_log_test.cc
                tests/module_tests/futurequeue_test.cc
                tests/module_tests/stats_test.cc
@@ -294,11 +295,6 @@ ADD_EXECUTABLE(ep-engine_string_utils_test
                src/string_utils.cc)
 TARGET_LINK_LIBRARIES(ep-engine_string_utils_test gtest gtest_main platform)
 
-ADD_EXECUTABLE(ep-engine_failover_table_test tests/module_tests/failover_table_test.cc
-                        src/failover-table.cc src/testlogger.cc
-                        ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
-TARGET_LINK_LIBRARIES(ep-engine_failover_table_test cJSON platform)
-
 ADD_EXECUTABLE(ep-engine_kvstore_test
   tests/module_tests/kvstore_test.cc
   src/compress.cc
@@ -325,7 +321,6 @@ ADD_TEST(ep-engine_compress_test ep-engine_compress_test)
 ADD_TEST(ep-engine_configuration_test ep-engine_configuration_test)
 ADD_TEST(ep-engine_couch-fs-stats_test ep-engine_couch-fs-stats_test)
 ADD_TEST(ep-engine_ep_unit_tests ep-engine_ep_unit_tests)
-ADD_TEST(ep-engine_failover_table_test ep-engine_failover_table_test)
 ADD_TEST(ep-engine_hash_table_test ep-engine_hash_table_test)
 ADD_TEST(ep-engine_hrtime_test ep-engine_hrtime_test)
 ADD_TEST(ep-engine_misc_test ep-engine_misc_test)
