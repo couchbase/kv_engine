@@ -29,6 +29,7 @@
 #include "mcbp_validators.h"
 #include "ioctl.h"
 #include "mc_time.h"
+#include "protocol/mcbp/engine_wrapper.h"
 #include "utilities/protocol2text.h"
 #include "utilities/terminate_handler.h"
 #include "breakpad.h"

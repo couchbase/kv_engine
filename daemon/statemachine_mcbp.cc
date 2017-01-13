@@ -17,6 +17,7 @@
 #include "config.h"
 #include "statemachine_mcbp.h"
 
+#include "protocol/mcbp/engine_wrapper.h"
 #include "memcached.h"
 #include "mcbp.h"
 #include "mcbp_executors.h"

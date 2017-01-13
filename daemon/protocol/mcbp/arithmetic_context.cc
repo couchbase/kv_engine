@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 #include "arithmetic_context.h"
+#include "engine_wrapper.h"
 #include "../../mcbp.h"
 #include <xattr/utils.h>
 

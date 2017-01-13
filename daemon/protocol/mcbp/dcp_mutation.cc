@@ -16,6 +16,7 @@
  */
 
 #include "dcp_mutation.h"
+#include "engine_wrapper.h"
 #include "utilities.h"
 #include "../../mcbp.h"
 

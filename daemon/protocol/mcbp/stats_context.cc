@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 #include "config.h"
+#include "engine_wrapper.h"
 #include "stats_context.h"
 
 #include <daemon/connections.h>

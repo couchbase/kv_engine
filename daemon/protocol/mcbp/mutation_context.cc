@@ -16,10 +16,11 @@
  */
 #include "daemon/mcbp.h"
 #include "daemon/memcached.h"
+#include "engine_wrapper.h"
 #include "mutation_context.h"
+
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
-#include <include/memcached/types.h>
 #include <xattr/utils.h>
 
 MutationCommandContext::MutationCommandContext(McbpConnection& c,

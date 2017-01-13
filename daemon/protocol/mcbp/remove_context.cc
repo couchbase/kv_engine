@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 #include "remove_context.h"
+#include "engine_wrapper.h"
 #include <daemon/mcbp.h>
 #include <xattr/utils.h>
 #include <xattr/blob.h>

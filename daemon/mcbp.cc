@@ -18,6 +18,7 @@
 
 #include "debug_helpers.h"
 #include "memcached.h"
+#include "protocol/mcbp/engine_wrapper.h"
 #include "utilities/protocol2text.h"
 #include "xattr/utils.h"
 

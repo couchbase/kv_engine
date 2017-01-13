@@ -40,6 +40,7 @@
 #include "protocol/mcbp/get_context.h"
 #include "protocol/mcbp/get_locked_context.h"
 #include "protocol/mcbp/dcp_mutation.h"
+#include "protocol/mcbp/engine_wrapper.h"
 #include "protocol/mcbp/mutation_context.h"
 #include "protocol/mcbp/remove_context.h"
 #include "protocol/mcbp/stats_context.h"

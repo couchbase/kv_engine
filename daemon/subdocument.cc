@@ -20,6 +20,7 @@
 #include "connections.h"
 #include "debug_helpers.h"
 #include "mcbp.h"
+#include "protocol/mcbp/engine_wrapper.h"
 #include "subdoc/util.h"
 #include "subdocument_context.h"
 #include "subdocument_traits.h"

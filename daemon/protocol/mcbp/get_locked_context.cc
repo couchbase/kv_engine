@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 #include "get_locked_context.h"
+#include "engine_wrapper.h"
 
 #include <daemon/debug_helpers.h>
 #include <daemon/mcbp.h>
