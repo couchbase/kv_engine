@@ -379,3 +379,35 @@ void BinprotGetErrorMapCommand::encode(std::vector<uint8_t>& buf) const {
     const char* p = reinterpret_cast<const char*>(&encversion);
     buf.insert(buf.end(), p, p + 2);
 }
+
+void BinprotSubdocMultiMutationCommand::encode(std::vector<uint8_t>& buf) const {
+    // Calculate the size of the payload
+    size_t total = 0;
+    for (const auto& spec : specs) {
+        // Accorrding to the spec the payload should be encoded as:
+        //  1 @0         : Opcode
+        //  1 @1         : Flags
+        //  2 @2         : Path Length
+        //  4 @4         : Value Length
+        //  pathlen @8         : Path
+        //  vallen @8+pathlen  : Value
+        total += 1 + 1 + 2 + 4 + spec.path.size() + spec.value.size();
+    }
+
+    writeHeader(buf, total, 0);
+    buf.insert(buf.end(), key.begin(), key.end());
+
+    // Time to add the data:
+    for (const auto& spec : specs) {
+        buf.push_back(uint8_t(spec.opcode));
+        buf.push_back(uint8_t(spec.flags));
+        uint16_t pathlen = ntohs(spec.path.size());
+        const char* p = reinterpret_cast<const char*>(&pathlen);
+        buf.insert(buf.end(), p, p + 2);
+        uint32_t vallen = ntohl(spec.value.size());
+        p = reinterpret_cast<const char*>(&vallen);
+        buf.insert(buf.end(), p, p + 4);
+        buf.insert(buf.end(), spec.path.begin(), spec.path.end());
+        buf.insert(buf.end(), spec.value.begin(), spec.value.end());
+    }
+}

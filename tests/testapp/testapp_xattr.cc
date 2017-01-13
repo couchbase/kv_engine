@@ -178,3 +178,30 @@ TEST_P(XattrTest, OperateOnDeletedItem) {
         safe_do_command(cmd, resp, PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED);
     }
 }
+
+TEST_P(XattrTest, MB_22319) {
+    store_object(name.c_str(), "{}");
+
+    // This is listed as working in the bug report
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              xattr_upsert("doc.readcount", "0"));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              xattr_upsert("doc.author", "\"jack\""));
+
+    // The failing bits is:
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+    cmd.add_mutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                     SUBDOC_FLAG_XATTR_PATH,
+                    "doc.readcount", "1");
+    cmd.add_mutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                     SUBDOC_FLAG_XATTR_PATH,
+                     "doc.author", "\"jones\"");
+
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    conn.sendCommand(cmd);
+
+    BinprotResponse resp;
+    conn.recvResponse(resp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+}

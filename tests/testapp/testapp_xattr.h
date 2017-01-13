@@ -19,4 +19,23 @@
 #include "testapp_client_test.h"
 
 class XattrTest : public TestappClientTest {
+
+protected:
+    protocol_binary_response_status xattr_upsert(const std::string& path,
+                                                 const std::string& value) {
+        auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+
+        BinprotSubdocCommand cmd;
+        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
+        cmd.setKey(name);
+        cmd.setPath(path);
+        cmd.setValue(value);
+        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH);
+
+        conn.sendCommand(cmd);
+
+        BinprotResponse resp;
+        conn.recvResponse(resp);
+        return resp.getStatus();
+    }
 };

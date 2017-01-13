@@ -210,6 +210,7 @@ static void create_multi_path_context(SubdocCmdContext& context,
         }
 
         const bool xattr = (flags & SUBDOC_FLAG_XATTR_PATH);
+        const auto full_path_len = path.len;
         if (xattr) {
             size_t xattr_keylen;
             is_valid_xattr_key({(const uint8_t*)path.buf, path.len}, xattr_keylen);
@@ -229,7 +230,7 @@ static void create_multi_path_context(SubdocCmdContext& context,
         auto& ops = context.getOperations(phase);
         ops.emplace_back(SubdocCmdContext::OperationSpec{traits, flags, path,
                                                          spec_value});
-        offset += headerlen + path.len + spec_value.len;
+        offset += headerlen + full_path_len + spec_value.len;
     }
 
     if (settings.getVerbose() > 1) {

@@ -144,6 +144,11 @@ ADD_TEST(NAME memcached-connection-timeout-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=ConnectionTimeoutTest.*)
 
+# Run the XATTR tests
+ADD_TEST(NAME memcached-xattr-tests
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND memcached_testapp --gtest_filter=TransportProtocols/XattrTest.*)
+
 
 IF (MEMCACHED_USE_GREENSTACK)
    ADD_TEST(NAME memcached-greenstack-tests
@@ -173,3 +178,4 @@ SET_TESTS_PROPERTIES(memcached-sasl-tests PROPERTIES TIMEOUT 60)
 SET_TESTS_PROPERTIES(memcached-shutdown-tests PROPERTIES TIMEOUT 60)
 SET_TESTS_PROPERTIES(memcached-stats-unit-tests PROPERTIES TIMEOUT 60)
 SET_TESTS_PROPERTIES(memcached-connection-timeout-tests PROPERTIES TIMEOUT 60)
+SET_TESTS_PROPERTIES(memcached-xattr-tests PROPERTIES TIMEOUT 60)

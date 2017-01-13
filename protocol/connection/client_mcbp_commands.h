@@ -399,6 +399,34 @@ private:
     std::string value;
 };
 
+class BinprotSubdocMultiMutationCommand :
+    public BinprotCommandT<BinprotSubdocMultiMutationCommand,
+        PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION> {
+public:
+    struct MutationSpecifier {
+        protocol_binary_command opcode;
+        protocol_binary_subdoc_flag flags;
+        std::string path;
+        std::string value;
+    };
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+    void add_mutation(const MutationSpecifier& spec) {
+        specs.push_back(spec);
+    }
+
+    void add_mutation(protocol_binary_command opcode,
+                      protocol_binary_subdoc_flag flags,
+                      const std::string& path,
+                      const std::string& value) {
+        specs.emplace_back(MutationSpecifier{opcode, flags, path, value});
+    }
+
+protected:
+    std::vector<MutationSpecifier> specs;
+};
+
 class BinprotSaslAuthCommand
         : public BinprotCommandT<BinprotSaslAuthCommand,
                                  PROTOCOL_BINARY_CMD_SASL_AUTH> {
