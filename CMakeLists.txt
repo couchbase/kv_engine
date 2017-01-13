@@ -13,7 +13,7 @@ INCLUDE(CheckSymbolExists)
 INCLUDE(CheckTypeSize)
 INCLUDE(CTest)
 
-OPTION(EP_USE_FORESTDB "Enable support for ForestDB" ON)
+OPTION(EP_USE_FORESTDB "Enable support for ForestDB" OFF)
 
 INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${CMAKE_CURRENT_SOURCE_DIR}
