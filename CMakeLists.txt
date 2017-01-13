@@ -338,9 +338,11 @@ ADD_LIBRARY(timing_tests SHARED tests/module_tests/timing_tests.cc)
 SET_TARGET_PROPERTIES(timing_tests PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(timing_tests platform)
 
-ADD_EXECUTABLE(ep-engine_sizes src/sizes.cc src/testlogger.cc
-              ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
-TARGET_LINK_LIBRARIES(ep-engine_sizes platform)
+ADD_EXECUTABLE(ep-engine_sizes src/sizes.cc
+                               $<TARGET_OBJECTS:ep_objs>)
+TARGET_LINK_LIBRARIES(ep-engine_sizes cJSON JSON_checker couchstore
+  ${EP_FORESTDB_LIB} dirutils cbcompress platform phosphor
+  ${LIBEVENT_LIBRARIES})
 
 ADD_LIBRARY(ep_testsuite SHARED
    tests/ep_testsuite.cc
