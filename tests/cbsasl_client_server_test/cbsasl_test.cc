@@ -90,7 +90,8 @@ protected:
         FILE* fp = fopen(cbpwfile, "w");
         ASSERT_NE(nullptr, fp);
 
-        fprintf(fp, "mikewied mikepw \n");
+        // Create a password with a leading, middle and trailing space
+        fprintf(fp, "mikewied  mik epw \n");
         ASSERT_EQ(0, fclose(fp));
 
         putenv(envptr);
@@ -132,8 +133,8 @@ protected:
 
         client_context.username = "mikewied";
         client_context.secret = (cbsasl_secret_t*)cb_calloc(1, 100);
-        memcpy(client_context.secret->data, "mikepw", 6);
-        client_context.secret->len = 6;
+        memcpy(client_context.secret->data, " mik epw ", 9);
+        client_context.secret->len = 9;
         client_context.nonce = "fyko+d2lbbFgONRv9qkxdawL";
 
         cbsasl_conn_t* conn = nullptr;

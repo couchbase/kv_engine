@@ -23,7 +23,6 @@
 #include <platform/memorymap.h>
 #include <sstream>
 
-
 void cbsasl_pwconv(std::istream& is, std::ostream& os) {
     unique_cJSON_ptr root(cJSON_CreateObject());
     if (root.get() == nullptr) {
@@ -38,28 +37,40 @@ void cbsasl_pwconv(std::istream& is, std::ostream& os) {
     /* File has lines that are newline terminated.
      * File may have comment lines that must being with '#'.
      * Lines should look like...
-     *   <NAME><whitespace><PASSWORD><whitespace><CONFIG><optional_whitespace>
+     *   <NAME><whitespace><PASSWORD>
      */
     std::vector<char> up(1024);
 
     while (is.getline(up.data(), up.size()).good()) {
-        using std::istream_iterator;
-        using std::vector;
+        if (up.front() == '#') {
+            // comment line
+            continue;
+        }
 
-        std::istringstream iss(up.data());
-        vector<std::string> tokens{istream_iterator<std::string>{iss},
-                                   istream_iterator<std::string>{}};
+        std::string username(up.data());
+        // strip off potential carrige returns
+        auto index = username.find('\r');
+        if (index != username.npos) {
+            username.resize(index);
+        }
 
-        if (tokens.empty()) {
+        if (username.empty()) {
             // empty line
             continue;
         }
-        std::string passwd;
-        if (tokens.size() > 1) {
-            passwd = tokens[1];
+
+        std::string password;
+        index = username.find(' ');
+        if (index != username.npos) {
+            password = username.substr(index + 1);
+            username.resize(index);
         }
 
-        auto u = Couchbase::UserFactory::create(tokens[0], passwd);
+        cbsasl_log(nullptr, cbsasl_loglevel_t::Password,
+                   "Create user entry for [" + username + "] with password [" +
+                   password + "]");
+
+        auto u = Couchbase::UserFactory::create(username, password);
         cJSON_AddItemToArray(users, u.to_json().release());
     }
 

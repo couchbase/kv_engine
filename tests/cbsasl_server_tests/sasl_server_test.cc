@@ -81,7 +81,7 @@ protected:
         FILE* fp = fopen(cbpwfile, "w");
         ASSERT_NE(nullptr, fp);
 
-        fprintf(fp, "mikewied mikepw \ncseo cpw \njlim jpw \nnopass\n");
+        fprintf(fp, "mikewied mikepw\ncseo cpw\njlim jpw\nnopass\n");
         ASSERT_EQ(0, fclose(fp));
 
         putenv(envptr);

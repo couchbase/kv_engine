@@ -38,10 +38,15 @@ const std::string pass3{"limpw"};
 class PasswordFileTest : public ::testing::Test {
 protected:
     static void SetUpTestCase() {
-        FILE* fp = fopen(cbpwfile, "w");
+        FILE* fp = fopen(cbpwfile, "wb");
         ASSERT_NE(nullptr, fp);
 
-        fprintf(fp, "%s %s\n%s %s\n%s %s\n",
+        // Create one entry with the microsoft '\r' so that we know
+        // that we properly handle that case as well
+        fprintf(fp, "\n");
+        fprintf(fp, "\r\n");
+        fprintf(fp, "#this is a comment line\n");
+        fprintf(fp, "%s %s\r\n%s %s\n%s %s\n",
                 user1.c_str(), pass1.c_str(),
                 user2.c_str(), pass2.c_str(),
                 user3.c_str(), pass3.c_str());
@@ -105,4 +110,9 @@ TEST_F(PasswordFileTest, VerifyUsernameSubset) {
     user.resize(user.length() - 1);
     std::string password;
     EXPECT_FALSE(find_pw(user, password));
+}
+
+TEST_F(PasswordFileTest, VerifyHandleComment) {
+    Couchbase::User u;
+    EXPECT_FALSE(find_user("#this", u));
 }
