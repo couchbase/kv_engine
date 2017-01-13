@@ -293,21 +293,13 @@ TARGET_LINK_LIBRARIES(ep-engine_sizes cJSON JSON_checker couchstore
 
 ADD_LIBRARY(ep_testsuite SHARED
    tests/ep_testsuite.cc
-   src/atomic.cc
-   src/compress.cc
-   src/ep_time.cc
    src/ext_meta_parser.cc
-   src/item.cc
-   src/storeddockey.cc
-   src/testlogger.cc
    tests/ep_testsuite_common.cc
    tests/ep_test_apis.cc
-   tests/mock/mock_dcp.cc
-   ${OBJECTREGISTRY_SOURCE}
-   ${CONFIG_SOURCE})
+   tests/mock/mock_dcp.cc)
 SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep_testsuite couchstore dirutils JSON_checker platform
-                      ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+                      ${LIBEVENT_LIBRARIES})
 ADD_DEPENDENCIES(ep_testsuite engine_testapp)
 
 ADD_LIBRARY(ep_testsuite_basic SHARED
