@@ -203,26 +203,38 @@ TARGET_LINK_LIBRARIES(ep cJSON JSON_checker couchstore ${EP_FORESTDB_LIB}
 # so simpler / quicker just to link them into a single executable).
 ADD_EXECUTABLE(ep-engine_ep_unit_tests
                tests/mock/mock_dcp.cc
+               tests/module_tests/atomic_unordered_map_test.cc
                tests/module_tests/bloomfilter_test.cc
                tests/module_tests/checkpoint_test.cc
+               tests/module_tests/configuration_test.cc
                tests/module_tests/defragmenter_test.cc
-               tests/module_tests/ep_unit_tests_main.cc
                tests/module_tests/dcp_test.cc
+               tests/module_tests/ep_unit_tests_main.cc
                tests/module_tests/evp_engine_test.cc
                tests/module_tests/evp_store_rollback_test.cc
                tests/module_tests/evp_store_test.cc
                tests/module_tests/evp_store_single_threaded_test.cc
                tests/module_tests/failover_table_test.cc
-               tests/module_tests/mutation_log_test.cc
                tests/module_tests/futurequeue_test.cc
+               tests/module_tests/hash_table_test.cc
+               tests/module_tests/kvstore_test.cc
+               tests/module_tests/memory_tracker_test.cc
+               tests/module_tests/mock_hooks_api.cc
+               tests/module_tests/mutation_log_test.cc
+               tests/module_tests/mutex_test.cc
                tests/module_tests/stats_test.cc
                tests/module_tests/storeddockey_test.cc
                tests/module_tests/vbucket_test.cc
                tests/module_tests/warmup_test.cc
                $<TARGET_OBJECTS:ep_objs>
                $<TARGET_OBJECTS:memory_tracking>
+               $<TARGET_OBJECTS:couchstore_test_fileops>
                ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
                ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.cc)
+
+TARGET_INCLUDE_DIRECTORIES(ep-engine_ep_unit_tests
+        PUBLIC
+        ${Couchstore_SOURCE_DIR})
 
 TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests couchstore cJSON dirutils
                       ${EP_FORESTDB_LIB} gtest gmock JSON_checker mcd_util
@@ -240,14 +252,6 @@ ADD_EXECUTABLE(ep-engine_compress_test
   src/compress.cc)
 TARGET_LINK_LIBRARIES(ep-engine_compress_test ${SNAPPY_LIBRARIES} platform)
 
-ADD_EXECUTABLE(ep-engine_configuration_test
-        tests/module_tests/configuration_test.cc
-        src/configuration.cc
-        src/generated_configuration.h
-        src/objectregistry.cc
-        src/testlogger.cc)
-TARGET_LINK_LIBRARIES(ep-engine_configuration_test gtest gtest_main platform)
-
 ADD_EXECUTABLE(ep-engine_couch-fs-stats_test
         src/couch-kvstore/couch-fs-stats.cc
         src/generated_configuration.h
@@ -259,75 +263,23 @@ TARGET_INCLUDE_DIRECTORIES(ep-engine_couch-fs-stats_test
         ${Couchstore_SOURCE_DIR}/src)
 TARGET_LINK_LIBRARIES(ep-engine_couch-fs-stats_test gtest gtest_main gmock platform)
 
-ADD_EXECUTABLE(ep-engine_hash_table_test
-  tests/module_tests/hash_table_test.cc
-  src/atomic.cc
-  src/compress.cc
-  src/hash_table.cc
-  src/item.cc
-  src/storeddockey.cc
-  src/stored-value.cc
-  src/testlogger.cc
-  ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
-TARGET_LINK_LIBRARIES(ep-engine_hash_table_test gtest ${SNAPPY_LIBRARIES} platform)
-
 ADD_EXECUTABLE(ep-engine_hrtime_test tests/module_tests/hrtime_test.cc)
 TARGET_LINK_LIBRARIES(ep-engine_hrtime_test platform)
 
-ADD_EXECUTABLE(ep-engine_memory_tracker_test
-  tests/module_tests/memory_tracker_test.cc
-  tests/module_tests/mock_hooks_api.cc
-  src/memory_tracker.cc
-  src/testlogger.cc
-  ${OBJECTREGISTRY_SOURCE}
-  ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.h)
-TARGET_LINK_LIBRARIES(ep-engine_memory_tracker_test gtest gtest_main platform)
-
 ADD_EXECUTABLE(ep-engine_misc_test tests/module_tests/misc_test.cc)
 TARGET_LINK_LIBRARIES(ep-engine_misc_test platform)
-ADD_EXECUTABLE(ep-engine_mutex_test
-               tests/module_tests/mutex_test.cc
-               src/testlogger.cc)
-TARGET_LINK_LIBRARIES(ep-engine_mutex_test gtest gtest_main platform)
 
 ADD_EXECUTABLE(ep-engine_string_utils_test
                tests/module_tests/string_utils_test.cc
                src/string_utils.cc)
 TARGET_LINK_LIBRARIES(ep-engine_string_utils_test gtest gtest_main platform)
 
-ADD_EXECUTABLE(ep-engine_kvstore_test
-  tests/module_tests/kvstore_test.cc
-  src/compress.cc
-  src/logger.cc
-  src/testlogger.cc
-  ${OBJECTREGISTRY_SOURCE} ${KVSTORE_SOURCE} ${COUCH_KVSTORE_SOURCE}
-  ${FOREST_KVSTORE_SOURCE} ${CONFIG_SOURCE}
-  $<TARGET_OBJECTS:couchstore_test_fileops>)
-TARGET_LINK_LIBRARIES(ep-engine_kvstore_test
-                      cJSON JSON_checker couchstore dirutils ${EP_FORESTDB_LIB}
-                      gmock gtest platform phosphor cbcompress)
-TARGET_INCLUDE_DIRECTORIES(ep-engine_kvstore_test
-        PUBLIC
-        ${Couchstore_SOURCE_DIR})
-
-ADD_EXECUTABLE(ep-engine_atomic_unordered_map_test
-  tests/module_tests/atomic_unordered_map_test.cc
-  src/atomic.cc)
-TARGET_LINK_LIBRARIES(ep-engine_atomic_unordered_map_test
-  gtest gtest_main)
-
 ADD_TEST(ep-engine_atomic_ptr_test ep-engine_atomic_ptr_test)
 ADD_TEST(ep-engine_compress_test ep-engine_compress_test)
-ADD_TEST(ep-engine_configuration_test ep-engine_configuration_test)
 ADD_TEST(ep-engine_couch-fs-stats_test ep-engine_couch-fs-stats_test)
 ADD_TEST(ep-engine_ep_unit_tests ep-engine_ep_unit_tests)
-ADD_TEST(ep-engine_hash_table_test ep-engine_hash_table_test)
 ADD_TEST(ep-engine_hrtime_test ep-engine_hrtime_test)
 ADD_TEST(ep-engine_misc_test ep-engine_misc_test)
-ADD_TEST(ep-engine_mutex_test ep-engine_mutex_test)
-ADD_TEST(ep-engine_kvstore_test ep-engine_kvstore_test)
-ADD_TEST(ep-engine_memory_tracker_test ep-engine_memory_tracker_test)
-ADD_TEST(ep-engine_atomic_unordered_map_test ep-engine_atomic_unordered_map_test)
 
 ADD_LIBRARY(timing_tests SHARED tests/module_tests/timing_tests.cc)
 SET_TARGET_PROPERTIES(timing_tests PROPERTIES PREFIX "")

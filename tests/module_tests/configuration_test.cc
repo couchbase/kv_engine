@@ -19,8 +19,6 @@
 
 #include <gtest/gtest.h>
 
-void Configuration::initialize() {}
-
 /* Like EXPECT_THROW except you can check the exception's `what()` */
 # define CB_EXPECT_THROW_MSG(EXPR, ETYPE, MSG) \
     EXPECT_THROW(EXPR, ETYPE); \

@@ -29,25 +29,9 @@
 #include "makestoreddockey.h"
 #include "threadtests.h"
 
+#include "programs/engine_testapp/mock_server.h"
+
 #include <gtest/gtest.h>
-
-#ifdef _MSC_VER
-#define alarm(a)
-#endif
-
-time_t time_offset;
-
-extern "C" {
-    static rel_time_t basic_current_time(void) {
-        return 0;
-    }
-
-    rel_time_t (*ep_current_time)() = basic_current_time;
-
-    time_t ep_real_time() {
-        return time(NULL) + time_offset;
-    }
-}
 
 EPStats global_stats;
 
@@ -141,11 +125,6 @@ static std::vector<StoredDocKey> generateKeys(int num, int start=0) {
 
 // Test fixture for HashTable tests.
 class HashTableTest : public ::testing::Test {
-protected:
-    HashTableTest() {
-        // Default per-test timeout
-        alarm(30);
-    }
 };
 
 TEST_F(HashTableTest, Size) {
@@ -255,7 +234,7 @@ TEST_F(HashTableTest, AddExpiry) {
     EXPECT_FALSE(v->isExpired(ep_real_time()));
     EXPECT_TRUE(v->isExpired(ep_real_time() + 6));
 
-    time_offset += 6;
+    mock_time_travel(6);
     EXPECT_TRUE(v->isExpired(ep_real_time()));
 
     add(h, k, ADD_UNDEL, ep_real_time() + 5);
@@ -710,23 +689,4 @@ TEST_F(HashTableTest, updateDeletedItem) {
     EXPECT_EQ(WAS_DIRTY,ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));
     verifyValue(ht, key, "updatedeletedvalue",/*trackReference*/true,
                 /*wantsDeleted*/true);
-}
-
-/* static storage for environment variable set by putenv().
- *
- * (This must be static as putenv() essentially 'takes ownership' of
- * the provided array, so it is unsafe to use an automatic variable.
- * However, if we use the result of cb_malloc() (i.e. the heap) then
- * memory leak checkers (e.g. Valgrind) will report the memory as
- * leaked as it's impossible to free it).
- */
-static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    putenv(allow_no_stats_env);
-
-    global_stats.setMaxDataSize(64*1024*1024);
-    HashTable::setDefaultNumBuckets(3);
-    return RUN_ALL_TESTS();
 }

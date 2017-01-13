@@ -27,30 +27,10 @@
 #include "src/internal.h"
 #include "tests/test_fileops.h"
 
-
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include <unordered_map>
 #include <vector>
-
-extern "C" {
-    static rel_time_t basic_current_time(void) {
-        return 0;
-    }
-
-    rel_time_t (*ep_current_time)() = basic_current_time;
-
-    time_t ep_real_time() {
-        return time(NULL);
-    }
-}
-
-static time_t start_time;
-
-static rel_time_t mock_current_time(void) {
-    rel_time_t result = (rel_time_t)(time(NULL) - start_time);
-    return result;
-}
 
 class WriteCallback : public Callback<mutation_result> {
 public:
@@ -72,9 +52,9 @@ public:
 
 };
 
-class CacheCallback : public Callback<CacheLookup> {
+class KVStoreTestCacheCallback : public Callback<CacheLookup> {
 public:
-    CacheCallback(int64_t s, int64_t e, uint16_t vbid) :
+    KVStoreTestCacheCallback(int64_t s, int64_t e, uint16_t vbid) :
         start(s), end(e), vb(vbid) { }
 
     void callback(CacheLookup &lookup) {
@@ -259,7 +239,7 @@ TEST(CouchKVStoreTest, CompressedTest) {
     kvstore->commit();
 
     std::shared_ptr<Callback<GetValue> > cb(new GetCallback(true/*expectcompressed*/));
-    std::shared_ptr<Callback<CacheLookup> > cl(new CacheCallback(1, 5, 0));
+    std::shared_ptr<Callback<CacheLookup> > cl(new KVStoreTestCacheCallback(1, 5, 0));
     ScanContext* scanCtx;
     scanCtx = kvstore->initScanContext(cb, cl, 0, 1,
                                        DocumentFilter::ALL_ITEMS,
@@ -1667,14 +1647,3 @@ INSTANTIATE_TEST_CASE_P(CouchstoreAndForestDB,
                             return info.param;
                         });
 #endif
-
-static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
-
-int main(int argc, char **argv) {
-    /* Setup mock time functions */
-    start_time = time(0);
-    ep_current_time = mock_current_time;
-    putenv(allow_no_stats_env);
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
