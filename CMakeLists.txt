@@ -377,14 +377,13 @@ ADD_DEPENDENCIES(ep_testsuite engine_testapp)
 
 ADD_LIBRARY(ep_testsuite_dcp SHARED
 tests/ep_testsuite_dcp.cc
-src/compress.cc
 src/ext_meta_parser.cc
 tests/ep_testsuite_common.cc
 tests/ep_test_apis.cc
 tests/mock/mock_dcp.cc
 )
 SET_TARGET_PROPERTIES(ep_testsuite_dcp PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep_testsuite_dcp JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+TARGET_LINK_LIBRARIES(ep_testsuite_dcp cbcompress JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
 ADD_DEPENDENCIES(ep_testsuite_dcp engine_testapp)
 
 ADD_LIBRARY(ep_testsuite_tap SHARED

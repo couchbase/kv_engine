@@ -28,6 +28,7 @@
 
 #include <condition_variable>
 #include <platform/cb_malloc.h>
+#include <platform/compress.h>
 #include <thread>
 
 // Helper functions ///////////////////////////////////////////////////////////
@@ -2579,11 +2580,12 @@ static test_result test_dcp_value_compression(ENGINE_HANDLE *h,
 
     cb_assert(!last_mutation_val.empty());
 
-    snap_buf output;
-    doSnappyUncompress(last_mutation_val.c_str(),
-                       last_mutation_val.length(),
-                       output);
-    std::string received(output.buf.get(), output.len);
+    cb::compression::Buffer inflated;
+    cb::compression::inflate(cb::compression::Algorithm::Snappy,
+                             last_mutation_val.c_str(),
+                             last_mutation_val.length(),
+                             inflated);
+    std::string received(inflated.data.get(), inflated.len);
 
     checkeq(originalValue.compare(received), 0,
             "Value received is not what is expected");
