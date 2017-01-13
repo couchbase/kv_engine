@@ -546,6 +546,21 @@ public:
      */
     void incExpirationStat(ExpireBy source);
 
+    /* Complete the background fetch for the specified item. Depending on the
+     * state of the item, restore it to the hashtable as appropriate,
+     * potentially queuing it as dirty.
+     *
+     * @param key The key of the item
+     * @param fetched_item The item which has been fetched.
+     * @param startTime The time processing of the batch of items started.
+     *
+     * @return ENGINE_ERROR_CODE status notified to be to the front end
+     */
+    ENGINE_ERROR_CODE completeBGFetchForSingleItem(
+            const DocKey& key,
+            const VBucketBGFetchItem& fetched_item,
+            const hrtime_t startTime);
+
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
 
@@ -577,6 +592,18 @@ private:
     void decrDirtyQueueAge(uint32_t decrementBy);
 
     void decrDirtyQueuePendingWrites(size_t decrementBy);
+
+    /**
+     * Helper function to update stats after completion of a background fetch
+     * for either the value of metadata of a key.
+     *
+     * @param init the time of epstore's initialization
+     * @param start the time when the background fetch was started
+     * @param stop the time when the background fetch completed
+     */
+    void updateBGStats(const hrtime_t init,
+                       const hrtime_t start,
+                       const hrtime_t stop);
 
     id_type                         id;
     std::atomic<vbucket_state_t>    state;

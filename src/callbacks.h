@@ -62,7 +62,9 @@ public:
     /**
      * The value retrieved for the key.
      */
-    Item* getValue() { return value; }
+    Item* getValue() const {
+        return value;
+    }
 
     /**
      * Engine code describing what happened.

@@ -347,18 +347,6 @@ public:
                               std::vector<bgfetched_item_t> &fetchedItems,
                               hrtime_t start);
 
-    /**
-     * Helper function to update stats after completion of a background fetch
-     * for either the value of metadata of a key.
-     *
-     * @param init the time of epstore's initialization
-     * @param start the time when the background fetch was started
-     * @param stop the time when the background fetch completed
-     */
-    void updateBGStats(const hrtime_t init,
-                       const hrtime_t start,
-                       const hrtime_t stop);
-
     RCPtr<VBucket> getVBucket(uint16_t vbid) {
         return vbMap.getBucket(vbid);
     }
@@ -809,20 +797,6 @@ protected:
 
     void warmupCompleted();
     void stopWarmup(void);
-
-    /* Complete the background fetch for the specified item. Depending on the
-     * state of the item, restore it to the hashtable as appropriate, potentially
-     * queuing it as dirty.
-     *
-     * @param vb VBucket item belongs to
-     * @param key The key of the item
-     * @param startTime The time processing of the batch of items started.
-     * @param fetched_item The item which has been fetched.
-     */
-    void completeBGFetchForSingleItem(RCPtr<VBucket> vb,
-                                      const DocKey& key,
-                                      const hrtime_t startTime,
-                                      VBucketBGFetchItem& fetched_item);
 
     /**
      * Compaction of a database file

@@ -783,6 +783,97 @@ void VBucket::incExpirationStat(ExpireBy source) {
     ++numExpiredItems;
 }
 
+ENGINE_ERROR_CODE VBucket::completeBGFetchForSingleItem(
+        const DocKey& key,
+        const VBucketBGFetchItem& fetched_item,
+        const hrtime_t startTime) {
+    ENGINE_ERROR_CODE status = fetched_item.value.getStatus();
+    Item* fetchedValue = fetched_item.value.getValue();
+    { // locking scope
+        ReaderLockHolder rlh(getStateLock());
+        int bucket = 0;
+        auto blh = ht.getLockedBucket(key, &bucket);
+        StoredValue* v = fetchValidValue(blh, key, bucket, eviction, true);
+
+        if (fetched_item.metaDataOnly) {
+            if ((v && v->unlocked_restoreMeta(fetchedValue, status, ht)) ||
+                ENGINE_KEY_ENOENT == status) {
+                /* If ENGINE_KEY_ENOENT is the status from storage and the temp
+                 key is removed from hash table by the time bgfetch returns
+                 (in case multiple bgfetch is scheduled for a key), we still
+                 need to return ENGINE_SUCCESS to the memcached worker thread,
+                 so that the worker thread can visit the ep-engine and figure
+                 out the correct flow */
+                status = ENGINE_SUCCESS;
+            }
+        } else {
+            bool restore = false;
+            if (v && v->isResident()) {
+                status = ENGINE_SUCCESS;
+            } else {
+                switch (eviction) {
+                case VALUE_ONLY:
+                    if (v && !v->isResident()) {
+                        restore = true;
+                    }
+                    break;
+                case FULL_EVICTION:
+                    if (v) {
+                        if (v->isTempInitialItem() || !v->isResident()) {
+                            restore = true;
+                        }
+                    }
+                    break;
+                default:
+                    throw std::logic_error("Unknown eviction policy");
+                }
+            }
+
+            if (restore) {
+                if (status == ENGINE_SUCCESS) {
+                    v->unlocked_restoreValue(fetchedValue, ht);
+                    if (!v->isResident()) {
+                        throw std::logic_error(
+                                "VBucket::completeBGFetchForSingleItem: "
+                                "storedvalue (which has seqno " +
+                                std::to_string(v->getBySeqno()) +
+                                ") should be resident after calling "
+                                "restoreValue()");
+                    }
+                } else if (status == ENGINE_KEY_ENOENT) {
+                    v->setNonExistent();
+                    if (eviction == FULL_EVICTION) {
+                        // For the full eviction, we should notify
+                        // ENGINE_SUCCESS to the memcached worker thread,
+                        // so that the worker thread can visit the
+                        // ep-engine and figure out the correct error
+                        // code.
+                        status = ENGINE_SUCCESS;
+                    }
+                } else {
+                    // underlying kvstore couldn't fetch requested data
+                    // log returned error and notify TMPFAIL to client
+                    LOG(EXTENSION_LOG_WARNING,
+                        "Failed background fetch for vb:%" PRIu16
+                        ", seqno:%" PRIu64,
+                        getId(),
+                        v->getBySeqno());
+                    status = ENGINE_TMPFAIL;
+                }
+            }
+        }
+    } // locked scope ends
+
+    if (fetched_item.metaDataOnly) {
+        ++stats.bg_meta_fetched;
+    } else {
+        ++stats.bg_fetched;
+    }
+
+    updateBGStats(fetched_item.initTime, startTime, gethrtime());
+    return status;
+}
+
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
                        item_eviction_policy_t policy) {
     addStat(NULL, toString(state), add_stat, c);
@@ -867,4 +958,26 @@ void VBucket::decrDirtyQueuePendingWrites(size_t decrementBy)
             newVal = oldVal - decrementBy;
         }
     } while (!dirtyQueuePendingWrites.compare_exchange_strong(oldVal, newVal));
+}
+
+void VBucket::updateBGStats(const hrtime_t init,
+                            const hrtime_t start,
+                            const hrtime_t stop) {
+    if (stop >= start && start >= init) {
+        // skip the measurement if the counter wrapped...
+        ++stats.bgNumOperations;
+        hrtime_t w = (start - init) / 1000;
+        BlockTimer::log(start - init, "bgwait", stats.timingLog);
+        stats.bgWaitHisto.add(w);
+        stats.bgWait.fetch_add(w);
+        atomic_setIfLess(stats.bgMinWait, w);
+        atomic_setIfBigger(stats.bgMaxWait, w);
+
+        hrtime_t l = (stop - start) / 1000;
+        BlockTimer::log(stop - start, "bgload", stats.timingLog);
+        stats.bgLoadHisto.add(l);
+        stats.bgLoad.fetch_add(l);
+        atomic_setIfLess(stats.bgMinLoad, l);
+        atomic_setIfBigger(stats.bgMaxLoad, l);
+    }
 }

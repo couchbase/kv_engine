@@ -1586,31 +1586,9 @@ DBFileInfo KVBucket::getFileStats(const void *cookie) {
     return totalInfo;
 }
 
-
-void KVBucket::updateBGStats(const hrtime_t init, const hrtime_t start,
-                             const hrtime_t stop) {
-    if (stop >= start && start >= init) {
-        // skip the measurement if the counter wrapped...
-        ++stats.bgNumOperations;
-        hrtime_t w = (start - init) / 1000;
-        BlockTimer::log(start - init, "bgwait", stats.timingLog);
-        stats.bgWaitHisto.add(w);
-        stats.bgWait.fetch_add(w);
-        atomic_setIfLess(stats.bgMinWait, w);
-        atomic_setIfBigger(stats.bgMaxWait, w);
-
-        hrtime_t l = (stop - start) / 1000;
-        BlockTimer::log(stop - start, "bgload", stats.timingLog);
-        stats.bgLoadHisto.add(l);
-        stats.bgLoad.fetch_add(l);
-        atomic_setIfLess(stats.bgMinLoad, l);
-        atomic_setIfBigger(stats.bgMaxLoad, l);
-    }
-}
-
 void KVBucket::completeBGFetch(const DocKey& key, uint16_t vbucket,
                                const void *cookie, hrtime_t init, bool isMeta) {
-    hrtime_t start(gethrtime());
+    hrtime_t startTime(gethrtime());
     // Go find the data
     RememberingCallback<GetValue> gcb;
     if (isMeta) {
@@ -1626,7 +1604,9 @@ void KVBucket::completeBGFetch(const DocKey& key, uint16_t vbucket,
         RCPtr<VBucket> vb = getVBucket(vbucket);
         if (vb) {
             VBucketBGFetchItem item{gcb.val, cookie, init, isMeta};
-            completeBGFetchForSingleItem(vb, key, start, item);
+            ENGINE_ERROR_CODE status =
+                    vb->completeBGFetchForSingleItem(key, item, startTime);
+            engine.notifyIOComplete(item.cookie, status);
         } else {
             LOG(EXTENSION_LOG_INFO, "vb:%" PRIu16 " file was deleted in the "
                 "middle of a bg fetch for key{%.*s}\n", vbucket, int(key.size()),
@@ -1650,7 +1630,9 @@ void KVBucket::completeBGFetchMulti(
         for (const auto& item : fetchedItems) {
             auto& key = item.first;
             auto* fetched_item = item.second;
-            completeBGFetchForSingleItem(vb, key, startTime, *fetched_item);
+            ENGINE_ERROR_CODE status = vb->completeBGFetchForSingleItem(
+                    key, *fetched_item, startTime);
+            engine.notifyIOComplete(fetched_item->cookie, status);
         }
         LOG(EXTENSION_LOG_DEBUG,
             "EP Store completes %" PRIu64 " of batched background fetch "
@@ -3332,93 +3314,6 @@ void KVBucket::stopWarmup(void)
             stats.isShutdown ? "yes" : "no");
         warmupTask->stop();
     }
-}
-
-void KVBucket::completeBGFetchForSingleItem(RCPtr<VBucket> vb,
-                                            const DocKey& key,
-                                            const hrtime_t startTime,
-                                            VBucketBGFetchItem& fetched_item)
-{
-    ENGINE_ERROR_CODE status = fetched_item.value.getStatus();
-    Item *fetchedValue = fetched_item.value.getValue();
-    {   //locking scope
-        ReaderLockHolder rlh(vb->getStateLock());
-        int bucket = 0;
-        auto blh = vb->ht.getLockedBucket(key, &bucket);
-        StoredValue* v = vb->fetchValidValue(blh, key, bucket, true);
-        if (fetched_item.metaDataOnly) {
-            if ((v && v->unlocked_restoreMeta(fetchedValue, status, vb->ht))
-                || ENGINE_KEY_ENOENT == status) {
-                /* If ENGINE_KEY_ENOENT is the status from storage and the temp
-                 key is removed from hash table by the time bgfetch returns
-                 (in case multiple bgfetch is scheduled for a key), we still
-                 need to return ENGINE_SUCCESS to the memcached worker thread,
-                 so that the worker thread can visit the ep-engine and figure
-                 out the correct flow */
-                status = ENGINE_SUCCESS;
-            }
-        } else {
-            bool restore = false;
-            if (v && v->isResident()) {
-                status = ENGINE_SUCCESS;
-            } else {
-                switch (eviction_policy) {
-                    case VALUE_ONLY:
-                        if (v && !v->isResident()) {
-                            restore = true;
-                        }
-                        break;
-                    case FULL_EVICTION:
-                        if (v) {
-                            if (v->isTempInitialItem() || !v->isResident()) {
-                                restore = true;
-                            }
-                        }
-                        break;
-                    default:
-                        throw std::logic_error("Unknown eviction policy");
-                }
-            }
-
-            if (restore) {
-                if (status == ENGINE_SUCCESS) {
-                    v->unlocked_restoreValue(fetchedValue, vb->ht);
-                    if (!v->isResident()) {
-                        throw std::logic_error("EPStore::completeBGFetchForSingleItem: "
-                            "storedvalue (which has seqno " + std::to_string(v->getBySeqno()) +
-                            ") should be resident after calling restoreValue()");
-                    }
-                } else if (status == ENGINE_KEY_ENOENT) {
-                    v->setNonExistent();
-                    if (eviction_policy == FULL_EVICTION) {
-                        // For the full eviction, we should notify
-                        // ENGINE_SUCCESS to the memcached worker thread,
-                        // so that the worker thread can visit the
-                        // ep-engine and figure out the correct error
-                        // code.
-                        status = ENGINE_SUCCESS;
-                    }
-                } else {
-                    // underlying kvstore couldn't fetch requested data
-                    // log returned error and notify TMPFAIL to client
-                    LOG(EXTENSION_LOG_WARNING,
-                        "Failed background fetch for vb:%" PRIu16
-                        ", seqno:%" PRIu64, vb->getId(), v->getBySeqno());
-                    status = ENGINE_TMPFAIL;
-                }
-            }
-        }
-    } // locked scope ends
-
-    if (fetched_item.metaDataOnly) {
-        ++stats.bg_meta_fetched;
-    } else {
-        ++stats.bg_fetched;
-    }
-
-    hrtime_t endTime = gethrtime();
-    updateBGStats(fetched_item.initTime, startTime, endTime);
-    engine.notifyIOComplete(fetched_item.cookie, status);
 }
 
 bool KVBucket::isMemoryUsageTooHigh() {
