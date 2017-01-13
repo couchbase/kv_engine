@@ -131,6 +131,7 @@ VBucket::VBucket(id_type i,
                  std::shared_ptr<Callback<id_type> > flusherCb,
                  NewSeqnoCallback newSeqnoCb,
                  Configuration& config,
+                 item_eviction_policy_t evictionPolicy,
                  vbucket_state_t initState,
                  uint64_t purgeSeqno,
                  uint64_t maxCas)
@@ -176,7 +177,8 @@ VBucket::VBucket(id_type i,
       bucketCreation(false),
       bucketDeletion(false),
       persistenceSeqno(0),
-      newSeqnoCb(std::move(newSeqnoCb)) {
+      newSeqnoCb(std::move(newSeqnoCb)),
+      eviction(evictionPolicy) {
     backfill.isBackfillPhase = false;
     pendingOpsStart = 0;
     stats.memOverhead->fetch_add(sizeof(VBucket)
@@ -729,6 +731,56 @@ uint64_t VBucket::queueDirty(StoredValue& v,
         newSeqnoCb->callback(vbid, notifyCtx);
     }
     return qi->getBySeqno();
+}
+
+StoredValue* VBucket::fetchValidValue(std::unique_lock<std::mutex>& lh,
+                                      const DocKey& key,
+                                      int bucket_num,
+                                      bool wantsDeleted,
+                                      bool trackReference,
+                                      bool queueExpired) {
+    if (!lh) {
+        throw std::logic_error(
+                "Hash bucket lock not held in "
+                "VBucket::fetchValidValue() for hash bucket: " +
+                std::to_string(bucket_num) + "for key: " +
+                std::string(reinterpret_cast<const char*>(key.data()),
+                            key.size()));
+    }
+    StoredValue* v =
+            ht.unlocked_find(key, bucket_num, wantsDeleted, trackReference);
+    if (v && !v->isDeleted() && !v->isTempItem()) {
+        // In the deleted case, we ignore expiration time.
+        if (v->isExpired(ep_real_time())) {
+            if (getState() != vbucket_state_active) {
+                return wantsDeleted ? v : NULL;
+            }
+
+            // queueDirty only allowed on active VB
+            if (queueExpired && getState() == vbucket_state_active) {
+                incExpirationStat(ExpireBy::Access);
+                ht.unlocked_softDelete(v, 0, eviction);
+                queueDirty(*v);
+            }
+            return wantsDeleted ? v : NULL;
+        }
+    }
+    return v;
+}
+
+void VBucket::incExpirationStat(ExpireBy source) {
+    switch (source) {
+    case ExpireBy::Pager:
+        ++stats.expired_pager;
+        break;
+    case ExpireBy::Compactor:
+        ++stats.expired_compactor;
+        break;
+    case ExpireBy::Access:
+        ++stats.expired_access;
+        break;
+    }
+    ++numExpiredItems;
 }
 
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,

@@ -140,7 +140,8 @@ protected:
                                   nullptr,
                                   cb,
                                   /*newSeqnoCb*/ nullptr,
-                                  config));
+                                  config,
+                                  item_eviction_policy_t::VALUE_ONLY));
     }
 
     static void TearDownTestCase() {
@@ -295,7 +296,8 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
                     nullptr,
                     cb,
                     /*newSeqnoCb*/ nullptr,
-                    config);
+                    config,
+                    item_eviction_policy_t::VALUE_ONLY);
 
     // 1. Create a number of small documents. Doesn't really matter that
     //    they are small, main thing is we create enough to span multiple

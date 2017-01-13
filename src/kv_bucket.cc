@@ -304,8 +304,8 @@ class ExpiredItemsCallback : public Callback<uint16_t&, const DocKey&, uint64_t&
         void callback(uint16_t& vbid, const DocKey& key, uint64_t& revSeqno,
                       time_t& startTime) {
             if (epstore.compactionCanExpireItems()) {
-                epstore.deleteExpiredItem(vbid, key, startTime, revSeqno,
-                                          EXP_BY_COMPACTOR);
+                epstore.deleteExpiredItem(
+                        vbid, key, startTime, revSeqno, ExpireBy::Compactor);
             }
         }
 
@@ -665,9 +665,11 @@ void KVBucket::stopBgFetcher() {
     }
 }
 
-void KVBucket::deleteExpiredItem(uint16_t vbid, const DocKey& key,
-                                 time_t startTime, uint64_t revSeqno,
-                                 exp_type_t source) {
+void KVBucket::deleteExpiredItem(uint16_t vbid,
+                                 const DocKey& key,
+                                 time_t startTime,
+                                 uint64_t revSeqno,
+                                 ExpireBy source) {
     RCPtr<VBucket> vb = getVBucket(vbid);
     if (vb) {
         // Obtain reader access to the VB state change lock so that
@@ -712,45 +714,18 @@ void KVBucket::deleteExpiredItem(uint16_t vbid, const DocKey& key,
                     }
                 }
             }
-            incExpirationStat(vb, source);
+            vb->incExpirationStat(source);
         }
     }
 }
 
-void KVBucket::deleteExpiredItems(std::list<std::pair<uint16_t,
-                                  StoredDocKey> > &keys, exp_type_t source) {
+void KVBucket::deleteExpiredItems(
+        std::list<std::pair<uint16_t, StoredDocKey>>& keys, ExpireBy source) {
     std::list<std::pair<uint16_t, std::string> >::iterator it;
     time_t startTime = ep_real_time();
     for (const auto& it : keys) {
         deleteExpiredItem(it.first, it.second, startTime, 0, source);
     }
-}
-
-StoredValue *KVBucket::fetchValidValue(RCPtr<VBucket> &vb,
-                                       const DocKey& key,
-                                       int bucket_num,
-                                       bool wantDeleted,
-                                       bool trackReference,
-                                       bool queueExpired) {
-    StoredValue *v = vb->ht.unlocked_find(key, bucket_num, wantDeleted,
-                                          trackReference);
-    if (v && !v->isDeleted() && !v->isTempItem()) {
-        // In the deleted case, we ignore expiration time.
-        if (v->isExpired(ep_real_time())) {
-            if (vb->getState() != vbucket_state_active) {
-                return wantDeleted ? v : NULL;
-            }
-
-            // queueDirty only allowed on active VB
-            if (queueExpired && vb->getState() == vbucket_state_active) {
-                incExpirationStat(vb, EXP_BY_ACCESS);
-                vb->ht.unlocked_softDelete(v, 0, eviction_policy);
-                vb->queueDirty(*v);
-            }
-            return wantDeleted ? v : NULL;
-        }
-    }
-    return v;
 }
 
 bool KVBucket::isMetaDataResident(RCPtr<VBucket> &vb, const DocKey& key) {
@@ -781,8 +756,11 @@ protocol_binary_response_status KVBucket::evictKey(const DocKey& key,
 
     int bucket_num(0);
     auto lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = fetchValidValue(vb, key, bucket_num, /*wantDeleted*/ false,
-                                     /*trackReference*/ false);
+    StoredValue* v = vb->fetchValidValue(lh,
+                                         key,
+                                         bucket_num,
+                                         /*wantDeleted*/ false,
+                                         /*trackReference*/ false);
 
     protocol_binary_response_status rv(PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
@@ -1760,8 +1738,8 @@ GetValue KVBucket::getInternal(const DocKey& key, uint16_t vbucket,
 
     int bucket_num(0);
     auto lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = fetchValidValue(vb, key, bucket_num, true,
-                                     trackReference);
+    StoredValue* v =
+            vb->fetchValidValue(lh, key, bucket_num, true, trackReference);
     if (v) {
         if (v->isDeleted() && !getDeletedValue) {
             GetValue rv;
@@ -2068,7 +2046,7 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key, uint16_t vbucket,
 
     int bucket_num(0);
     auto lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = fetchValidValue(vb, key, bucket_num, true);
+    StoredValue* v = vb->fetchValidValue(lh, key, bucket_num, true);
 
     if (v) {
         if (v->isDeleted() || v->isTempDeletedItem() ||
@@ -2130,7 +2108,7 @@ ENGINE_ERROR_CODE KVBucket::statsVKey(const DocKey& key, uint16_t vbucket,
 
     int bucket_num(0);
     auto lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = fetchValidValue(vb, key, bucket_num, true);
+    StoredValue* v = vb->fetchValidValue(lh, key, bucket_num, true);
 
     if (v) {
         if (v->isDeleted() || v->isTempDeletedItem() ||
@@ -2189,7 +2167,7 @@ void KVBucket::completeStatsVKey(const void* cookie, const DocKey& key,
         if (vb) {
             int bucket_num(0);
             auto hlh = vb->ht.getLockedBucket(key, &bucket_num);
-            StoredValue *v = fetchValidValue(vb, key, bucket_num, true);
+            StoredValue* v = vb->fetchValidValue(hlh, key, bucket_num, true);
             if (v && v->isTempInitialItem()) {
                 if (gcb.val.getStatus() == ENGINE_SUCCESS) {
                     v->unlocked_restoreValue(gcb.val.getValue(), vb->ht);
@@ -2232,7 +2210,7 @@ GetValue KVBucket::getLocked(const DocKey& key, uint16_t vbucket,
 
     int bucket_num(0);
     auto lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = fetchValidValue(vb, key, bucket_num, true);
+    StoredValue* v = vb->fetchValidValue(lh, key, bucket_num, true);
 
     if (v) {
         if (v->isDeleted() || v->isTempNonExistentItem() ||
@@ -2299,7 +2277,7 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
 
     int bucket_num(0);
     auto lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = fetchValidValue(vb, key, bucket_num, true);
+    StoredValue* v = vb->fetchValidValue(lh, key, bucket_num, true);
 
     if (v) {
         if (v->isDeleted() || v->isTempNonExistentItem() ||
@@ -2342,7 +2320,7 @@ ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
 
     int bucket_num(0);
     auto lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = fetchValidValue(vb, key, bucket_num, true);
+    StoredValue* v = vb->fetchValidValue(lh, key, bucket_num, true);
 
     if (v) {
         if ((v->isDeleted() && !wantsDeleted) ||
@@ -2383,8 +2361,8 @@ std::string KVBucket::validateKey(const DocKey& key, uint16_t vbucket,
     int bucket_num(0);
     RCPtr<VBucket> vb = getVBucket(vbucket);
     auto lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = fetchValidValue(vb, key, bucket_num, true,
-                                     false, true);
+    StoredValue* v =
+            vb->fetchValidValue(lh, key, bucket_num, true, false, true);
 
     if (v) {
         if (v->isDeleted() || v->isTempNonExistentItem() ||
@@ -2748,9 +2726,8 @@ public:
             int bucket_num(0);
             auto lh = vbucket->ht.getLockedBucket(queuedItem->getKey(),
                                                   &bucket_num);
-            StoredValue *v = store.fetchValidValue(vbucket,
-                                                   queuedItem->getKey(),
-                                                   bucket_num, true, false);
+            StoredValue* v = vbucket->fetchValidValue(
+                    lh, queuedItem->getKey(), bucket_num, true, false);
             if (v) {
                 if (v->getCas() == cas) {
                     // mark this item clean only if current and stored cas
@@ -2782,10 +2759,8 @@ public:
                 int bucket_num(0);
                 auto lh = vbucket->ht.getLockedBucket(
                                            queuedItem->getKey(), &bucket_num);
-                StoredValue *v = store.fetchValidValue(vbucket,
-                                                       queuedItem->getKey(),
-                                                       bucket_num, true,
-                                                       false);
+                StoredValue* v = vbucket->fetchValidValue(
+                        lh, queuedItem->getKey(), bucket_num, true, false);
                 if (v) {
                     LOG(EXTENSION_LOG_WARNING,
                         "PersistenceCallback::callback: Persisting on "
@@ -2829,9 +2804,8 @@ public:
             int bucket_num(0);
             auto lh = vbucket->ht.getLockedBucket(queuedItem->getKey(),
                                                   &bucket_num);
-            StoredValue *v = store.fetchValidValue(vbucket,
-                                                   queuedItem->getKey(),
-                                                   bucket_num, true, false);
+            StoredValue* v = vbucket->fetchValidValue(
+                    lh, queuedItem->getKey(), bucket_num, true, false);
             // Delete the item in the hash table iff:
             //  1. Item is existent in hashtable, and deleted flag is true
             //  2. rev seqno of queued item matches rev seqno of hash table item
@@ -3371,7 +3345,7 @@ void KVBucket::completeBGFetchForSingleItem(RCPtr<VBucket> vb,
         ReaderLockHolder rlh(vb->getStateLock());
         int bucket = 0;
         auto blh = vb->ht.getLockedBucket(key, &bucket);
-        StoredValue *v = fetchValidValue(vb, key, bucket, true);
+        StoredValue* v = vb->fetchValidValue(blh, key, bucket, true);
         if (fetched_item.metaDataOnly) {
             if ((v && v->unlocked_restoreMeta(fetchedValue, status, vb->ht))
                 || ENGINE_KEY_ENOENT == status) {
@@ -3953,6 +3927,7 @@ RCPtr<VBucket> KVBucket::makeVBucket(
                                       flusherCb,
                                       std::move(newSeqnoCb),
                                       engine.getConfiguration(),
+                                      eviction_policy,
                                       initState,
                                       purgeSeqno,
                                       maxCas));

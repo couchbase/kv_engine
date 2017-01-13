@@ -560,11 +560,9 @@ public:
         return vbMap.getShardByVbId(vbId)->getROUnderlying();
     }
 
-    void deleteExpiredItem(uint16_t, const DocKey&, time_t, uint64_t,
-                           exp_type_t);
-    void deleteExpiredItems(std::list<std::pair<uint16_t, StoredDocKey> > &,
-                            exp_type_t);
-
+    void deleteExpiredItem(uint16_t, const DocKey&, time_t, uint64_t, ExpireBy);
+    void deleteExpiredItems(std::list<std::pair<uint16_t, StoredDocKey>>&,
+                            ExpireBy);
 
     /**
      * Get the memoized storage properties from the DB.kv
@@ -630,21 +628,6 @@ public:
     }
 
     bool isMetaDataResident(RCPtr<VBucket> &vb, const DocKey& key);
-
-    void incExpirationStat(RCPtr<VBucket> &vb, exp_type_t source) {
-        switch (source) {
-        case EXP_BY_PAGER:
-            ++stats.expired_pager;
-            break;
-        case EXP_BY_COMPACTOR:
-            ++stats.expired_compactor;
-            break;
-        case EXP_BY_ACCESS:
-            ++stats.expired_access;
-            break;
-        }
-        ++vb->numExpiredItems;
-    }
 
     void logQTime(TaskId taskType, const ProcessClock::duration enqTime) {
         const auto ns_count = std::chrono::duration_cast
@@ -904,10 +887,6 @@ protected:
     void flushOneDeleteAll(void);
     PersistenceCallback* flushOneDelOrSet(const queued_item &qi,
                                           RCPtr<VBucket> &vb);
-
-    StoredValue *fetchValidValue(RCPtr<VBucket> &vb, const DocKey& key,
-                                 int bucket_num, bool wantsDeleted=false,
-                                 bool trackReference=true, bool queueExpired=true);
 
     GetValue getInternal(const DocKey& key, uint16_t vbucket, const void *cookie,
                          vbucket_state_t allowedState,

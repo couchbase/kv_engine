@@ -35,10 +35,12 @@ public:
     void callback(uint16_t &dummy) { }
 };
 
-
-class VBucketTest : public ::testing::Test {
+class VBucketTest
+        : public ::testing::Test,
+          public ::testing::WithParamInterface<item_eviction_policy_t> {
 protected:
     void SetUp() {
+        const auto eviction_policy = GetParam();
         vbucket.reset(new VBucket(0,
                                   vbucket_state_active,
                                   global_stats,
@@ -50,7 +52,8 @@ protected:
                                   /*table*/ nullptr,
                                   std::make_shared<DummyCB>(),
                                   /*newSeqnoCb*/ nullptr,
-                                  config));
+                                  config,
+                                  eviction_policy));
     }
 
     void TearDown() {
@@ -65,7 +68,7 @@ protected:
 
 // Measure performance of VBucket::getBGFetchItems - queue and then get
 // 10,000 items from the vbucket.
-TEST_F(VBucketTest, GetBGFetchItemsPerformance) {
+TEST_P(VBucketTest, GetBGFetchItemsPerformance) {
     BgFetcher fetcher(/*store*/nullptr, /*shard*/nullptr, global_stats);
 
     for (unsigned int ii = 0; ii < 100000; ii++) {
@@ -85,7 +88,7 @@ TEST_F(VBucketTest, GetBGFetchItemsPerformance) {
 
 // Check the existence of bloom filter after performing a
 // swap of existing filter with a temporary filter.
-TEST_F(VBucketTest, SwapFilter) {
+TEST_P(VBucketTest, SwapFilter) {
     vbucket->createFilter(1, 1.0);
     ASSERT_FALSE(vbucket->isTempFilterAvailable());
     ASSERT_NE("DOESN'T EXIST", vbucket->getFilterStatusString());
@@ -93,10 +96,7 @@ TEST_F(VBucketTest, SwapFilter) {
     EXPECT_NE("DOESN'T EXIST", vbucket->getFilterStatusString());
 }
 
-class VBucketEvictionTest : public VBucketTest,
-                            public ::testing::WithParamInterface<item_eviction_policy_t> {
-};
-
+class VBucketEvictionTest : public VBucketTest {};
 
 // Check that counts of items and resident items are as expected when items are
 // ejected from the HashTable.
@@ -130,13 +130,26 @@ TEST_P(VBucketEvictionTest, EjectionResidentCount) {
 }
 
 // Test cases which run in both Full and Value eviction
-INSTANTIATE_TEST_CASE_P(FullAndValueEviction,
-                        VBucketEvictionTest,
-                        ::testing::Values(VALUE_ONLY, FULL_EVICTION),
-                        [] (const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
-                            if (info.param == VALUE_ONLY) {
-                                return "VALUE_ONLY";
-                            } else {
-                                return "FULL_EVICTION";
-                            }
-                        });
+INSTANTIATE_TEST_CASE_P(
+        FullAndValueEviction,
+        VBucketTest,
+        ::testing::Values(VALUE_ONLY, FULL_EVICTION),
+        [](const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
+            if (info.param == VALUE_ONLY) {
+                return "VALUE_ONLY";
+            } else {
+                return "FULL_EVICTION";
+            }
+        });
+
+INSTANTIATE_TEST_CASE_P(
+        FullAndValueEviction,
+        VBucketEvictionTest,
+        ::testing::Values(VALUE_ONLY, FULL_EVICTION),
+        [](const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
+            if (info.param == VALUE_ONLY) {
+                return "VALUE_ONLY";
+            } else {
+                return "FULL_EVICTION";
+            }
+        });

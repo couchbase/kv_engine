@@ -96,16 +96,6 @@ protected:
 };
 
 /**
- * The following will be used to identify
- * the source of an item's expiration.
- */
-enum exp_type_t {
-    EXP_BY_PAGER,
-    EXP_BY_COMPACTOR,
-    EXP_BY_ACCESS
-};
-
-/**
  * Base class for visiting an epStore with pause/resume support.
  */
 class PauseResumeEPStoreVisitor {
@@ -630,12 +620,10 @@ public:
 
     virtual KVStore* getROUnderlying(uint16_t vbId) = 0;
 
-    virtual void deleteExpiredItem(uint16_t, const DocKey&, time_t, uint64_t,
-                                   exp_type_t) = 0;
+    virtual void deleteExpiredItem(
+            uint16_t, const DocKey&, time_t, uint64_t, ExpireBy) = 0;
     virtual void deleteExpiredItems(
-                                std::list<std::pair<uint16_t, StoredDocKey> > &,
-                                exp_type_t) = 0;
-
+            std::list<std::pair<uint16_t, StoredDocKey>>&, ExpireBy) = 0;
 
     /**
      * Get the memoized storage properties from the DB.kv
@@ -690,8 +678,6 @@ public:
 
     virtual bool isMetaDataResident(RCPtr<VBucket> &vb,
                                     const DocKey& key) = 0;
-
-    virtual void incExpirationStat(RCPtr<VBucket> &vb, exp_type_t source) = 0;
 
     virtual void logQTime(TaskId taskType,
                           const ProcessClock::duration enqTime) = 0;
@@ -871,13 +857,6 @@ protected:
     virtual void flushOneDeleteAll(void) = 0;
     virtual PersistenceCallback* flushOneDelOrSet(const queued_item &qi,
                                                   RCPtr<VBucket> &vb) = 0;
-
-    virtual StoredValue *fetchValidValue(RCPtr<VBucket> &vb,
-                                         const DocKey& key,
-                                         int bucket_num,
-                                         bool wantsDeleted=false,
-                                         bool trackReference=true,
-                                         bool queueExpired=true) = 0;
 
     virtual GetValue getInternal(const DocKey& key, uint16_t vbucket,
                                  const void *cookie,

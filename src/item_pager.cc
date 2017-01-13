@@ -154,7 +154,7 @@ public:
     }
 
     void update() {
-        store.deleteExpiredItems(expired, EXP_BY_PAGER);
+        store.deleteExpiredItems(expired, ExpireBy::Pager);
 
         if (numEjected() > 0) {
             LOG(EXTENSION_LOG_INFO, "Paged out %ld values", numEjected());

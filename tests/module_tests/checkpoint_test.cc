@@ -76,7 +76,8 @@ protected:
                         /*table*/ NULL,
                         callback,
                         /*newSeqnoCb*/ nullptr,
-                        config)) {
+                        config,
+                        item_eviction_policy_t::VALUE_ONLY)) {
         createManager();
     }
 
@@ -251,7 +252,8 @@ TYPED_TEST(CheckpointTest, basic_chk_test) {
                                       NULL,
                                       cb,
                                       /*newSeqnoCb*/ nullptr,
-                                      this->config));
+                                      this->config,
+                                      item_eviction_policy_t::VALUE_ONLY));
 
     this->manager.reset(new CheckpointManager(
             this->global_stats, 0, this->checkpoint_config, 1, 0, 0, cb));

@@ -51,6 +51,12 @@ struct HighPriorityVBEntry {
     bool isBySeqno_;
 };
 
+/**
+ * The following will be used to identify
+ * the source of an item's expiration.
+ */
+enum class ExpireBy { Pager, Compactor, Access };
+
 /* Structure that holds info needed for notification for an item being updated
    in the vbucket */
 struct VBNotifyCtx {
@@ -165,6 +171,7 @@ public:
             std::shared_ptr<Callback<id_type>> flusherCb,
             NewSeqnoCallback newSeqnoCb,
             Configuration& config,
+            item_eviction_policy_t evictionPolicy,
             vbucket_state_t initState = vbucket_state_dead,
             uint64_t purgeSeqno = 0,
             uint64_t maxCas = 0);
@@ -496,7 +503,8 @@ public:
         return shard;
     }
 
-    /* Queue an item for persistence and replication
+    /**
+     * Queue an item for persistence and replication
      *
      * The caller of this function must hold the lock of the hash table
      * partition that contains the StoredValue being Queued.
@@ -514,6 +522,29 @@ public:
             std::unique_lock<std::mutex>* pHtLh = nullptr,
             const GenerateBySeqno generateBySeqno = GenerateBySeqno::Yes,
             const GenerateCas generateCas = GenerateCas::Yes);
+
+    /**
+     * Gets the valid StoredValue for the key and deletes an expired item if
+     * desired by the caller. Requires the hash bucket to be locked
+     *
+     * @param lh Reference to the hash bucket lock
+     * @param key
+     * @param bucket_num Hash bucket number
+     * @param wantsDeleted
+     * @param trackReference
+     * @param queueExpired Delete an expired item
+     */
+    StoredValue* fetchValidValue(std::unique_lock<std::mutex>& lh,
+                                 const DocKey& key,
+                                 int bucket_num,
+                                 bool wantsDeleted = false,
+                                 bool trackReference = true,
+                                 bool queueExpired = true);
+
+    /**
+     * Increase the expiration count global stats and in the vbucket stats
+     */
+    void incExpirationStat(ExpireBy source);
 
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
@@ -591,6 +622,9 @@ private:
     // A callback to be called when a new seqno is generated in the vbucket as
     // a result of a front end call
     NewSeqnoCallback newSeqnoCb;
+
+    // This member holds the eviction policy used
+    const item_eviction_policy_t eviction;
 
     static std::atomic<size_t> chkFlushTimeout;
 
