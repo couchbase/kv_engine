@@ -179,12 +179,18 @@ TEST_P(XattrTest, OperateOnDeletedItem) {
     }
 }
 
+TEST_P(XattrTest, MB_22318) {
+    store_object(name.c_str(), "{}");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              xattr_upsert("doc", "{\"author\": \"Bart\"}"));
+}
+
 TEST_P(XattrTest, MB_22319) {
     store_object(name.c_str(), "{}");
 
     // This is listed as working in the bug report
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              xattr_upsert("doc.readcount", "0"));
+    EXPECT_EQ(uint8_t(PROTOCOL_BINARY_RESPONSE_SUCCESS),
+              uint8_t(xattr_upsert("doc.readcount", "0")));
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
               xattr_upsert("doc.author", "\"jack\""));
 

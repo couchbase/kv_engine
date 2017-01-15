@@ -118,8 +118,6 @@ static void create_single_path_context(SubdocCmdContext& context,
             // Swallow the '.'
             ++xattr_keylen;
         }
-        path.buf += xattr_keylen;
-        path.len -= xattr_keylen;
     }
 
     if (flags & SUBDOC_FLAG_EXPAND_MACROS) {
@@ -210,7 +208,6 @@ static void create_multi_path_context(SubdocCmdContext& context,
         }
 
         const bool xattr = (flags & SUBDOC_FLAG_XATTR_PATH);
-        const auto full_path_len = path.len;
         if (xattr) {
             size_t xattr_keylen;
             is_valid_xattr_key({(const uint8_t*)path.buf, path.len}, xattr_keylen);
@@ -219,8 +216,6 @@ static void create_multi_path_context(SubdocCmdContext& context,
                 // Swallow the '.'
                 ++xattr_keylen;
             }
-            path.buf += xattr_keylen;
-            path.len -= xattr_keylen;
         }
 
         const SubdocCmdContext::Phase phase = xattr ?
@@ -230,7 +225,7 @@ static void create_multi_path_context(SubdocCmdContext& context,
         auto& ops = context.getOperations(phase);
         ops.emplace_back(SubdocCmdContext::OperationSpec{traits, flags, path,
                                                          spec_value});
-        offset += headerlen + full_path_len + spec_value.len;
+        offset += headerlen + path.len + spec_value.len;
     }
 
     if (settings.getVerbose() > 1) {
@@ -806,13 +801,27 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
     auto key = context.get_xattr_key();
     auto value_buf = xattr_blob.get(key);
 
-    std::unique_ptr<uint8_t[]> xattr_buffer;
     if (value_buf.len == 0) {
-        // @todo is this the right thing to do?
-        xattr_buffer.reset(new uint8_t[2]);
-        xattr_buffer[0] = '{';
-        xattr_buffer[1] = '}';
-        value_buf = { xattr_buffer.get(), 2};
+        context.xattr_buffer.reset(new uint8_t[2]);
+        context.xattr_buffer[0] = '{';
+        context.xattr_buffer[1] = '}';
+        value_buf = { context.xattr_buffer.get(), 2};
+    } else {
+        // To allow the subjson do it's thing with the full xattrs
+        // create a full json doc looking like: {\"xattr_key\":\"value\"};
+        size_t total = 5 + key.len + value_buf.len;
+        context.xattr_buffer.reset(new uint8_t[total]);
+        uint8_t* ptr = context.xattr_buffer.get();
+        memcpy(ptr, "{\"", 2);
+        ptr += 2;
+        memcpy(ptr, key.buf, key.len);
+        ptr += key.len;
+        memcpy(ptr, "\":", 2);
+        ptr += 2;
+        memcpy(ptr, value_buf.buf, value_buf.len);
+        ptr += value_buf.len;
+        *ptr = '}';
+        value_buf = { context.xattr_buffer.get(), total};
     }
 
     std::unique_ptr<char[]> temp_doc;
@@ -835,7 +844,17 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
     }
 
     // Time to rebuild the full document.
-    xattr_blob.set(key, {(const uint8_t*)document.buf, document.len});
+    // As a temporary solution we did create a full JSON doc for the
+    // xattr key, so we should strip off the key and just store the value.
+
+    if (document.len > key.len) {
+        const char* start = strchr(document.buf, ':') + 1;
+        const char* end = document.buf + document.len - 1;
+
+        xattr_blob.set(key, {(const uint8_t*)start, size_t(end - start)});
+    } else {
+        xattr_blob.remove(key);
+    }
     const auto new_xattr = xattr_blob.finalize();
     auto total = new_xattr.len + bodysize;
 

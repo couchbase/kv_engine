@@ -30,7 +30,7 @@ protected:
         cmd.setKey(name);
         cmd.setPath(path);
         cmd.setValue(value);
-        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH);
+        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
 
         conn.sendCommand(cmd);
 

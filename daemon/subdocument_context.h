@@ -169,6 +169,10 @@ public:
     // as input for the next multi-path mutation.
     std::unique_ptr<char[]> temp_doc;
 
+    // Temporary buffer used to hold the xattrs in use, as a get request
+    // may hold pointers into the repacked xattr buckets
+    std::unique_ptr<uint8_t[]> xattr_buffer;
+
     // CAS value of the input document. Required to ensure we only store a
     // new document which was derived from the same original input document.
     uint64_t in_cas;

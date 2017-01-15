@@ -73,9 +73,9 @@ public:
         cmd.setPath(path);
         cmd.setValue(value);
         if (macro) {
-            cmd.setFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS);
+            cmd.setFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS | SUBDOC_FLAG_MKDIR_P);
         } else {
-            cmd.setFlags(SUBDOC_FLAG_XATTR_PATH);
+            cmd.setFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
         }
 
         connection.sendCommand(cmd);
