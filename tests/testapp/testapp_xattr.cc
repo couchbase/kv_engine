@@ -22,172 +22,87 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
     ::testing::Values(TransportProtocols::McbpPlain),
     ::testing::PrintToStringParamName());
 
-TEST_P(XattrTest, AddSingleXattr) {
-    store_object(name.c_str(), "{}");
+TEST_P(XattrTest, TestMacroExpansionAndIsolation) {
+    // This test verifies that you can have the same path in xattr's
+    // and in the document without one affecting the other.
+    // In addition to that we're testing that macro expansion works
+    // as expected.
 
     // Lets store the macro and verify that it isn't expanded without the
     // expand macro flag
-    {
-        BinprotSubdocCommand cmd;
-        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
-        cmd.setKey(name);
-        cmd.setPath("_sync.cas");
-        cmd.setValue("\"${Mutation.CAS}\"");
-        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                       name, "_sync.cas", "\"${Mutation.CAS}\"",
+                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
 
-        BinprotResponse resp;
-        safe_do_command(cmd, resp, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    }
+    resp = subdoc_get("_sync.cas", SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ("\"${Mutation.CAS}\"", resp.getValue());
 
-    {
-        BinprotSubdocCommand cmd;
-        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
-        cmd.setKey(name);
-        cmd.setPath("_sync.cas");
-        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH);
-
-        BinprotSubdocResponse resp;
-        safe_do_command(cmd, resp, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-        EXPECT_EQ("\"${Mutation.CAS}\"", resp.getValue());
-    }
-
-    {
-        // Let's update the body version..
-        BinprotSubdocCommand cmd;
-        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
-        cmd.setKey(name);
-        cmd.setPath("_sync.cas");
-        cmd.setValue("\"If you don't know me by now\"");
-        cmd.setFlags(SUBDOC_FLAG_MKDIR_P);
-
-        BinprotResponse resp;
-        safe_do_command(cmd, resp, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    }
+    // Let's update the body version..
+    resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT, name, "_sync.cas",
+           "\"If you don't know me by now\"", SUBDOC_FLAG_MKDIR_P);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
 
     // The xattr version should have been unchanged...
-    {
-        BinprotSubdocCommand cmd;
-        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
-        cmd.setKey(name);
-        cmd.setPath("_sync.cas");
-        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH);
-
-        BinprotSubdocResponse resp;
-        safe_do_command(cmd, resp, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-        EXPECT_EQ("\"${Mutation.CAS}\"", resp.getValue());
-    }
+    resp = subdoc_get("_sync.cas", SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ("\"${Mutation.CAS}\"", resp.getValue());
 
     // And the body version should be what we set it to
-    {
-        BinprotSubdocCommand cmd;
-        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
-        cmd.setKey(name);
-        cmd.setPath("_sync.cas");
-        cmd.setFlags(SUBDOC_FLAG_NONE);
+    resp = subdoc_get("_sync.cas");
+    EXPECT_EQ("\"If you don't know me by now\"", resp.getValue());
 
-        BinprotSubdocResponse resp;
-        safe_do_command(cmd, resp, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    // Then change it to macro expansion
+    resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                  name, "_sync.cas", "\"${Mutation.CAS}\"",
+                  SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
 
-        EXPECT_EQ("\"If you don't know me by now\"", resp.getValue());
-    }
-
-    // The change it to macro expansion
-    {
-        BinprotSubdocCommand cmd;
-        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
-        cmd.setKey(name);
-        cmd.setPath("_sync.cas");
-        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS);
-        cmd.setValue("\"${Mutation.CAS}\"");
-
-        BinprotSubdocResponse resp;
-        safe_do_command(cmd, resp, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    }
-
+    /// Fetch the field and verify that it expanded the cas!
     std::string cas_string;
-    {
-        BinprotSubdocCommand cmd;
-        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
-        cmd.setKey(name);
-        cmd.setPath("_sync.cas");
-        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH);
+    resp = subdoc_get("_sync.cas", SUBDOC_FLAG_XATTR_PATH);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    auto first_cas = resp.getCas();
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+    ss << "\"0x" << std::setw(16) << resp.getCas() << "\"";
+    cas_string = ss.str();
+    EXPECT_EQ(cas_string, resp.getValue());
 
-        BinprotSubdocResponse resp;
-        safe_do_command(cmd, resp, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-        std::stringstream ss;
-        ss << std::hex << std::setfill('0');
-        ss << "\"0x" << std::setw(16) << resp.getCas() << "\"";
-        cas_string = ss.str();
-
-        EXPECT_EQ(cas_string, resp.getValue());
-    }
-
-    {
-        // Let's update the body version..
-        BinprotSubdocCommand cmd;
-        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
-        cmd.setKey(name);
-        cmd.setPath("_sync.cas");
-        cmd.setValue("\"If you don't know me by now\"");
-        cmd.setFlags(SUBDOC_FLAG_MKDIR_P);
-
-        BinprotResponse resp;
-        safe_do_command(cmd, resp, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    }
+    // Let's update the body version..
+    resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT, name, "_sync.cas",
+                  "\"Hell ain't such a bad place to be\"");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
 
     // The macro should not have been expanded again...
-    {
-        BinprotSubdocCommand cmd;
-        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
-        cmd.setKey(name);
-        cmd.setPath("_sync.cas");
-        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH);
-
-        BinprotSubdocResponse resp;
-        safe_do_command(cmd, resp, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-        EXPECT_EQ(cas_string, resp.getValue());
-
-        // But the cas for the last version should be different
-        std::stringstream ss;
-        ss << std::hex << std::setfill('0');
-        ss << "\"0x" << std::setw(16) << resp.getCas() << "\"";
-        const auto this_cas_string = ss.str();
-        EXPECT_NE(cas_string, this_cas_string);
-    }
-
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    resp = subdoc_get("_sync.cas", SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ(cas_string, resp.getValue());
+    EXPECT_NE(first_cas, resp.getCas());
 }
 
 TEST_P(XattrTest, OperateOnDeletedItem) {
-    store_object(name.c_str(), "{}");
     getConnection().remove(name, 0);
 
-    // The change it to macro expansion
-    {
-        BinprotSubdocCommand cmd;
-        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
-        cmd.setKey(name);
-        cmd.setPath("_sync.deleted");
-        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_ACCESS_DELETED| SUBDOC_FLAG_MKDIR_P);
-        cmd.setValue("true");
+    // let's add an attribute to the deleted document
+    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, name,
+                       "_sync.deleted", "true",
+                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_ACCESS_DELETED |
+                       SUBDOC_FLAG_MKDIR_P);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED,
+              resp.getStatus());
 
-        BinprotSubdocResponse resp;
-        safe_do_command(cmd, resp, PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED);
-    }
+    resp = subdoc_get("_sync.deleted", SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_ACCESS_DELETED);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED,
+              resp.getStatus());
+    EXPECT_EQ("true", resp.getValue());
 }
 
 TEST_P(XattrTest, MB_22318) {
-    store_object(name.c_str(), "{}");
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
               xattr_upsert("doc", "{\"author\": \"Bart\"}"));
 }
 
 TEST_P(XattrTest, MB_22319) {
-    store_object(name.c_str(), "{}");
-
     // This is listed as working in the bug report
     EXPECT_EQ(uint8_t(PROTOCOL_BINARY_RESPONSE_SUCCESS),
               uint8_t(xattr_upsert("doc.readcount", "0")));
@@ -210,4 +125,314 @@ TEST_P(XattrTest, MB_22319) {
     BinprotResponse resp;
     conn.recvResponse(resp);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+}
+
+
+/*
+ * The spec lists a table of the behavior when operating on a
+ * full XATTR spec or if it is a partial XATTR spec.
+ */
+
+/**
+ * Reads the value of the given XATTR.
+ */
+TEST_P(XattrTest, Get_FullXattrSpec) {
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              xattr_upsert("doc", "{\"author\": \"Bart\",\"rev\":0}"));
+
+    auto response = subdoc_get("doc", SUBDOC_FLAG_XATTR_PATH);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, response.getStatus());
+    EXPECT_EQ("{\"author\": \"Bart\",\"rev\":0}", response.getValue());
+}
+
+/**
+ * Reads the sub-part of the given XATTR.
+ */
+TEST_P(XattrTest, Get_PartialXattrSpec) {
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              xattr_upsert("doc", "{\"author\": \"Bart\",\"rev\":0}"));
+
+    auto response = subdoc_get("doc.author", SUBDOC_FLAG_XATTR_PATH);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, response.getStatus());
+    EXPECT_EQ("\"Bart\"", response.getValue());
+}
+
+/**
+ * Returns true if the given XATTR exists.
+ */
+TEST_P(XattrTest, Exists_FullXattrSpec) {
+    // The document exists, but we should not have any xattr's
+    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
+                       name, "doc", {}, SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, resp.getStatus());
+
+    // Create the xattr
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              xattr_upsert("doc", "{\"author\": \"Bart\",\"rev\":0}"));
+
+    // Now it should exist
+    resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
+                  name, "doc", {}, SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+}
+
+/**
+ * Returns true if the given XATTR exists and the given sub-part
+ * of the XATTR exists.
+ */
+TEST_P(XattrTest, Exists_PartialXattrSpec) {
+    // The document exists, but we should not have any xattr's
+    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
+                       name, "doc", {}, SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, resp.getStatus());
+
+    // Create the xattr
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              xattr_upsert("doc", "{\"author\": \"Bart\",\"rev\":0}"));
+
+    // Now it should exist
+    resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
+                  name, "doc.author", {}, SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+
+    // But we don't have one named _sync
+    resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
+                  name, "_sync.cas", {}, SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, resp.getStatus());
+}
+
+/**
+ * If XATTR specified by X-Key does not exist then create it with the
+ * given value.
+ * If XATTR already exists - fail with SUBDOC_PATH_EEXISTS
+ */
+TEST_P(XattrTest, DictAdd_FullXattrSpec) {
+    // Adding it the first time should work
+    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                       name, "doc", "{\"author\": \"Bart\"}",
+                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+
+    // Adding it the first time should work, second time we should get EEXISTS
+    resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                  name, "doc", "{\"author\": \"Bart\"}",
+                  SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS, resp.getStatus());
+}
+
+/**
+ * Adds a dictionary element specified by the X-Path to the given X-Key.
+ */
+TEST_P(XattrTest, DictAdd_PartialXattrSpec) {
+    // Adding it the first time should work
+    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                       name, "doc.author", "\"Bart\"",
+                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+
+    // Adding it the first time should work, second time we should get EEXISTS
+    resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                  name, "doc.author", "\"Bart\"",
+                  SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS, resp.getStatus());
+}
+
+/**
+ * Replaces the whole XATTR specified by X-Key with the given value if
+ * the XATTR exists, or creates it with the given value.
+ */
+TEST_P(XattrTest, DictUpsert_FullXattrSpec) {
+    // Adding it the first time should work
+    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                       name, "doc", "{\"author\": \"Bart\"}",
+                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+
+    // We should be able to update it...
+    resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                  name, "doc", "{\"author\": \"Jones\"}",
+                  SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+
+    resp = subdoc_get("doc.author", SUBDOC_FLAG_XATTR_PATH);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ("\"Jones\"", resp.getValue());
+}
+
+/**
+ * Upserts a dictionary element specified by the X-Path to the given X-Key.
+ */
+TEST_P(XattrTest, DictUpsert_PartialXattrSpec) {
+    // Adding it the first time should work
+    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                       name, "doc", "{\"author\": \"Bart\"}",
+                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+
+    // We should be able to update it...
+    resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                  name, "doc.author", "\"Jones\"",
+                  SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+
+    resp = subdoc_get("doc.author", SUBDOC_FLAG_XATTR_PATH);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ("\"Jones\"", resp.getValue());
+}
+
+/**
+ * Deletes the whole XATTR specified by X-Key
+ */
+TEST_P(XattrTest, Delete_FullXattrSpec) {
+    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                       name, "doc", "{\"author\": \"Bart\"}",
+                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
+                 name, "doc", {}, SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+
+    // THe entire stuff should be gone
+    resp = subdoc_get("doc", SUBDOC_FLAG_XATTR_PATH);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, resp.getStatus());
+}
+
+/**
+ * Deletes the sub-part of the XATTR specified by X-Key and X-Path
+ */
+TEST_P(XattrTest, Delete_PartialXattrSpec) {
+    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                       name, "doc", "{\"author\":\"Bart\",\"ref\":0}",
+                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
+                  name, "doc.ref", {}, SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+
+    // THe entire stuff should be gone
+    resp = subdoc_get("doc", SUBDOC_FLAG_XATTR_PATH);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ("{\"author\":\"Bart\"}", resp.getValue());
+}
+
+/**
+ * If the XATTR specified by X-Key exists, then replace the whole XATTR,
+ * otherwise fail with SUBDOC_PATH_EEXISTS
+ */
+TEST_P(XattrTest, Replace_FullXattrSpec) {
+    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+                       name, "doc", "{\"author\":\"Bart\",\"ref\":0}",
+                       SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, resp.getStatus());
+
+    resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                  name, "doc", "{\"author\": \"Bart\"}",
+                  SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+
+    resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+                  name, "doc", "{\"author\":\"Bart\",\"ref\":0}",
+                  SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+
+    resp = subdoc_get("doc", SUBDOC_FLAG_XATTR_PATH);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ("{\"author\":\"Bart\",\"ref\":0}", resp.getValue());
+}
+
+/**
+ * Replaces the sub-part of the XATTR-specified by X-Key and X-path.
+ */
+TEST_P(XattrTest, Replace_PartialXattrSpec) {
+    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+                       name, "doc.author", "\"Bart\"",
+                       SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, resp.getStatus());
+    resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                  name, "doc", "{\"author\":\"Bart\",\"rev\":0}",
+                  SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+
+    resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+                  name, "doc.author", "\"Jones\"",
+                  SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+
+    resp = subdoc_get("doc", SUBDOC_FLAG_XATTR_PATH);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ("{\"author\":\"Jones\",\"rev\":0}", resp.getValue());
+}
+
+/**
+ * Appends an array element to the root of the given XATTR.
+ */
+TEST_P(XattrTest, ArrayPushLast_FullXattrSpec) {
+    doArrayPushLastTest("authors");
+}
+
+/**
+ * Appends an array element specified by X-Path to the given X-Key.
+ */
+TEST_P(XattrTest, ArrayPushLast_PartialXattrSpec) {
+    doArrayPushLastTest("doc.authors");
+}
+
+/**
+ * Appends an array element to the root of the given XATTR.
+ */
+TEST_P(XattrTest, ArrayPushFirst_FullXattrSpec) {
+    doArrayPushFirstTest("authors");
+}
+
+/**
+ * Prepends an array element specified by X-Path to the given X-Key.
+ */
+TEST_P(XattrTest, ArrayPushFirst_PartialXattrSpec) {
+    doArrayPushFirstTest("doc.authors");
+}
+
+/**
+ * Inserts an array element specified by X-Path to the given X-Key.
+ */
+TEST_P(XattrTest, ArrayInsert_FullXattrSpec) {
+    doArrayInsertTest("doc.");
+    // It should also work for just "foo[0]"
+    doArrayInsertTest("foo");
+}
+
+/**
+ * Inserts an array element specified by X-Path to the given X-Key.
+ */
+TEST_P(XattrTest, ArrayInsert_PartialXattrSpec) {
+    doArrayInsertTest("doc.authors");
+}
+
+/**
+ * Adds an array element specified to the root of the given X-Key,
+ * iff that element doesn't already exist in the root.
+ */
+TEST_P(XattrTest, ArrayAddUnique_FullXattrSpec) {
+    doAddUniqueTest("doc");
+}
+
+/**
+ * Adds an array element specified by X-Path to the given X-Key,
+ * iff that element doesn't already exist in the array.
+ */
+TEST_P(XattrTest, ArrayAddUnique_PartialXattrSpec) {
+    doAddUniqueTest("doc.authors");
+}
+
+/**
+ * Increments/decrements the value at the root of the given X-Key
+ */
+TEST_P(XattrTest, Counter_FullXattrSpec) {
+    doCounterTest("doc");
+}
+
+/**
+ * Increments/decrements the value at the given X-Path of the given X-Key.
+ */
+TEST_P(XattrTest, Counter_PartialXattrSpec) {
+    doCounterTest("doc.counter");
 }

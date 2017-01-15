@@ -107,7 +107,7 @@ bool is_valid_xattr_key(cb::const_byte_buffer path, size_t& key_length) {
                     }
                 }
 
-                if (*ptr == '.' && dot == length) {
+                if ((*ptr == '.' || *ptr == '[') && dot == length) {
                     dot = offset;
                 }
 
