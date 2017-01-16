@@ -277,22 +277,7 @@ static protocol_binary_response_status dcp_control_validator(const Cookie& cooki
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status isasl_refresh_validator(const Cookie& cookie)
-{
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
-    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.extlen != 0 ||
-        req->message.header.request.keylen != 0 ||
-        req->message.header.request.bodylen != 0 ||
-        req->message.header.request.cas != 0 ||
-        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return PROTOCOL_BINARY_RESPONSE_EINVAL;
-    }
-
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
-}
-
-static protocol_binary_response_status ssl_certs_refresh_validator(const Cookie& cookie)
+static protocol_binary_response_status configuration_refresh_validator(const Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
@@ -975,8 +960,8 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_DCP_CONTROL, dcp_control_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_DCP_STREAM_END, dcp_stream_end_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_DCP_STREAM_REQ, dcp_stream_req_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_ISASL_REFRESH, isasl_refresh_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH, ssl_certs_refresh_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_ISASL_REFRESH, configuration_refresh_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH, configuration_refresh_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_VERBOSITY, verbosity_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_HELLO, hello_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_VERSION, version_validator);
@@ -1061,6 +1046,7 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_GET_ERROR_MAP, get_errmap_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_GET_LOCKED, get_locked_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_UNLOCK_KEY, unlock_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_RBAC_REFRESH, configuration_refresh_validator);
 }
 
 /**

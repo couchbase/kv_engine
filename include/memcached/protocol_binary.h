@@ -492,6 +492,9 @@ extern "C"
         /* ns_server - memcached internal communication */
         PROTOCOL_BINARY_CMD_INIT_COMPLETE = 0xf6,
 
+        /* Refresh the RBAC database */
+        PROTOCOL_BINARY_CMD_RBAC_REFRESH = 0xf7,
+
         /**
          * Command used by our test application to mock with gettimeofday.
          */

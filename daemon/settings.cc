@@ -123,6 +123,19 @@ static void throw_missing_file_exception(const std::string& key,
     throw_file_exception(key, filename, FileError::Missing);
 }
 
+
+/**
+ * Handle the "rbac_file" tag in the settings
+ *
+ *  The value must be a string that points to a file that must exist
+ *
+ * @param s the settings object to update
+ * @param obj the object in the configuration
+ */
+static void handle_rbac_file(Settings& s, cJSON* obj) {
+    // This is to be added by the RBAC integration
+}
+
 /**
  * Handle the "audit_file" tag in the settings
  *
@@ -549,6 +562,7 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
 
     std::vector<settings_config_tokens> handlers = {
         {"admin",                        handle_admin},
+        {"rbac_file",                    handle_rbac_file},
         {"audit_file",                   handle_audit_file},
         {"error_maps_dir",               handle_error_maps_dir},
         {"threads",                      handle_threads},

@@ -290,6 +290,10 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     /* ns_server - memcached internal communication */
     setup(PROTOCOL_BINARY_CMD_INIT_COMPLETE, require<Privilege::NodeManagement>);
 
+    /* Refresh the RBAC data */
+    setup(PROTOCOL_BINARY_CMD_RBAC_REFRESH, require<Privilege::NodeManagement>);
+
+
     if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {
         // The opcode used to set the clock by our extension
         setup(protocol_binary_command(PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY), empty);

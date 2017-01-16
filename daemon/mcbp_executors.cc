@@ -1838,6 +1838,14 @@ static void ssl_certs_refresh_executor(McbpConnection* c, void* packet) {
     }
 }
 
+static void rbac_refresh_executor(McbpConnection* c, void* ) {
+    // Not implemented yet.. Implementation will be added as part of the
+    // RBAC integration project. This stub allows ns_server to send
+    // the notification message to memcached.
+    mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+}
+
+
 static void verbosity_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_verbosity*>(packet);
     uint32_t level = (uint32_t)ntohl(req->message.body.level);
@@ -2652,6 +2660,9 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors(void) {
     executors[PROTOCOL_BINARY_CMD_GET_ERROR_MAP] = get_errmap_executor;
     executors[PROTOCOL_BINARY_CMD_GET_LOCKED] = get_locked_executor;
     executors[PROTOCOL_BINARY_CMD_UNLOCK_KEY] = unlock_executor;
+
+    executors[PROTOCOL_BINARY_CMD_RBAC_REFRESH] = rbac_refresh_executor;
+
 
     return executors;
 }

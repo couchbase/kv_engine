@@ -85,7 +85,7 @@ std::string to_string(const GetOpcodes& opcode) {
     case GetOpcodes::GetQMeta:
         return "GetQMeta";
     }
-    throw std::invalid_argument("to_string: unknown opcode");
+    throw std::invalid_argument("to_string(): unknown opcode");
 #endif
 }
 
@@ -2143,9 +2143,42 @@ TEST_F(GetAdjustedTimeValidatorTest, InvalidBody) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
-// Test IsaslRefresh
-class IsaslRefreshValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
+enum class RefreshOpcodes : uint8_t {
+    Isasl = uint8_t(PROTOCOL_BINARY_CMD_ISASL_REFRESH),
+    Ssl = uint8_t(PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH),
+    Rbac = uint8_t(PROTOCOL_BINARY_CMD_RBAC_REFRESH)
+};
+
+std::string to_string(const RefreshOpcodes& opcode) {
+#ifdef JETBRAINS_CLION_IDE
+    // CLion don't properly parse the output when the
+    // output gets written as the string instead of the
+    // number. This makes it harder to debug the tests
+    // so let's just disable it while we're waiting
+    // for them to supply a fix.
+    // See https://youtrack.jetbrains.com/issue/CPP-6039
+    return std::to_string(static_cast<int>(opcode));
+#else
+    switch (opcode) {
+    case RefreshOpcodes::Isasl:
+        return "ISASL";
+    case RefreshOpcodes::Ssl:
+        return "SSL";
+    case RefreshOpcodes::Rbac:
+        return "RBAC";
+    }
+    throw std::invalid_argument("to_string(const RefreshOpcodes&): unknown opcode");
+#endif
+}
+
+std::ostream& operator<<(std::ostream& os, const RefreshOpcodes& o) {
+    os << to_string(o);
+    return os;
+}
+
+class RefreshValidatorTest : public ValidatorTest,
+                             public ::testing::WithParamInterface<RefreshOpcodes> {
+    void SetUp() override {
         ValidatorTest::SetUp();
         memset(&request, 0, sizeof(request));
         request.message.header.request.magic = PROTOCOL_BINARY_REQ;
@@ -2154,85 +2187,47 @@ class IsaslRefreshValidatorTest : public ValidatorTest {
 
 protected:
     int validate() {
-        return ValidatorTest::validate(PROTOCOL_BINARY_CMD_ISASL_REFRESH,
-                                       static_cast<void*>(&request));
+        auto opcode = (protocol_binary_command)GetParam();
+        return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
+
     protocol_binary_request_no_extras request;
 };
 
-TEST_F(IsaslRefreshValidatorTest, CorrectMessage) {
+INSTANTIATE_TEST_CASE_P(RefreshOpcodes,
+                        RefreshValidatorTest,
+                        ::testing::Values(RefreshOpcodes::Isasl,
+                                          RefreshOpcodes::Ssl,
+                                          RefreshOpcodes::Rbac),
+                        ::testing::PrintToStringParamName());
+
+
+TEST_P(RefreshValidatorTest, CorrectMessage) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 }
-TEST_F(IsaslRefreshValidatorTest, InvalidMagic) {
+TEST_P(RefreshValidatorTest, InvalidMagic) {
     request.message.header.request.magic = 0;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
-TEST_F(IsaslRefreshValidatorTest, InvalidExtlen) {
+TEST_P(RefreshValidatorTest, InvalidExtlen) {
     request.message.header.request.extlen = 2;
     request.message.header.request.bodylen = htonl(2);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
-TEST_F(IsaslRefreshValidatorTest, InvalidKey) {
+TEST_P(RefreshValidatorTest, InvalidKey) {
     request.message.header.request.keylen = 10;
     request.message.header.request.bodylen = htonl(10);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
-TEST_F(IsaslRefreshValidatorTest, InvalidDatatype) {
+TEST_P(RefreshValidatorTest, InvalidDatatype) {
     request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
-TEST_F(IsaslRefreshValidatorTest, InvalidCas) {
+TEST_P(RefreshValidatorTest, InvalidCas) {
     request.message.header.request.cas = 1;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
-TEST_F(IsaslRefreshValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(4);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-}
-
-// Test SslCertsRefresh
-class SslCertsRefreshValidatorTest : public ValidatorTest {
-    virtual void SetUp() override {
-        ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    }
-
-protected:
-    int validate() {
-        return ValidatorTest::validate(PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH,
-                                       static_cast<void*>(&request));
-    }
-    protocol_binary_request_no_extras request;
-};
-
-TEST_F(SslCertsRefreshValidatorTest, CorrectMessage) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
-}
-TEST_F(SslCertsRefreshValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-}
-TEST_F(SslCertsRefreshValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(2);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-}
-TEST_F(SslCertsRefreshValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 10;
-    request.message.header.request.bodylen = htonl(10);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-}
-TEST_F(SslCertsRefreshValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-}
-TEST_F(SslCertsRefreshValidatorTest, InvalidCas) {
-    request.message.header.request.cas = 1;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-}
-TEST_F(SslCertsRefreshValidatorTest, InvalidBody) {
+TEST_P(RefreshValidatorTest, InvalidBody) {
     request.message.header.request.bodylen = htonl(4);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
