@@ -385,20 +385,6 @@ public:
     virtual DBFileInfo getFileStats(const void *cookie) = 0;
 
     /**
-     * Enqueue a background fetch for a key.
-     *
-     * @param key the key to be bg fetched
-     * @param vbucket the vbucket in which the key lives
-     * @param cookie the cookie of the requestor
-     * @param type whether the fetch is for a non-resident value or metadata of
-     *             a (possibly) deleted item
-     */
-    virtual void bgFetch(const DocKey& key,
-                         uint16_t vbucket,
-                         const void *cookie,
-                         bool isMeta = false) = 0;
-
-    /**
      * Complete a background fetch of a non resident value or metadata.
      *
      * @param key the key that was fetched

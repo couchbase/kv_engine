@@ -818,7 +818,7 @@ ENGINE_ERROR_CODE KVBucket::addTempItemForBgFetch(std::unique_lock<std::mutex>& 
 
         case ADD_BG_FETCH:
             lock.unlock();
-            bgFetch(key, vb->getId(), cookie, metadataOnly);
+            vb->bgFetch(key, cookie, engine, bgFetchDelay, metadataOnly);
     }
     return ENGINE_EWOULDBLOCK;
 }
@@ -909,7 +909,7 @@ ENGINE_ERROR_CODE KVBucket::set(Item &itm, const void *cookie) {
         if (v) {
             // temp item is already created. Simply schedule a bg fetch job
             lh.unlock();
-            bgFetch(itm.getKey(), vb->getId(), cookie, true);
+            vb->bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
             return ENGINE_EWOULDBLOCK;
         }
         ret = addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
@@ -983,7 +983,7 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
                                      cookie, true);
     case ADD_BG_FETCH:
         lh.unlock();
-        bgFetch(itm.getKey(), vb->getId(), cookie, true);
+        vb->bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
         return ENGINE_EWOULDBLOCK;
     case ADD_SUCCESS:
     case ADD_UNDEL:
@@ -1063,7 +1063,7 @@ ENGINE_ERROR_CODE KVBucket::replace(Item &itm, const void *cookie) {
             {
                 // temp item is already created. Simply schedule a bg fetch job
                 lh.unlock();
-                bgFetch(itm.getKey(), vb->getId(), cookie, true);
+                vb->bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
                 ret = ENGINE_EWOULDBLOCK;
                 break;
             }
@@ -1651,40 +1651,6 @@ void KVBucket::completeBGFetchMulti(
     }
 }
 
-void KVBucket::bgFetch(const DocKey& key, uint16_t vbucket,
-                       const void *cookie, bool isMeta) {
-    if (multiBGFetchEnabled()) {
-        RCPtr<VBucket> vb = getVBucket(vbucket);
-        if (!vb) {
-            throw std::invalid_argument("EPStore::bgFetch: vbucket (which is " +
-                                        std::to_string(vbucket) +
-                                        ") is not present in vbMap");
-        }
-        KVShard *myShard = vbMap.getShardByVbId(vbucket);
-
-        // schedule to the current batch of background fetch of the given
-        // vbucket
-        VBucketBGFetchItem * fetchThis = new VBucketBGFetchItem(cookie,
-                                                                isMeta);
-        size_t bgfetch_size = vb->queueBGFetchItem(key, fetchThis,
-                                                   myShard->getBgFetcher());
-        myShard->getBgFetcher()->notifyBGEvent();
-        LOG(EXTENSION_LOG_DEBUG, "Queued a background fetch, now at %" PRIu64,
-            uint64_t(bgfetch_size));
-    } else {
-        ++stats.numRemainingBgJobs;
-        stats.maxRemainingBgJobs.store(std::max(stats.maxRemainingBgJobs.load(),
-                                                stats.numRemainingBgJobs.load())
-                                       );
-        ExecutorPool* iom = ExecutorPool::get();
-        ExTask task = new SingleBGFetcherTask(&engine, key, vbucket, cookie,
-                                              isMeta, bgFetchDelay, false);
-        iom->schedule(task, READER_TASK_IDX);
-        LOG(EXTENSION_LOG_DEBUG, "Queued a background fetch, now at %" PRIu64,
-            uint64_t(stats.numRemainingBgJobs.load()));
-    }
-}
-
 GetValue KVBucket::getInternal(const DocKey& key, uint16_t vbucket,
                                const void *cookie, vbucket_state_t allowedState,
                                get_options_t options) {
@@ -1741,7 +1707,7 @@ GetValue KVBucket::getInternal(const DocKey& key, uint16_t vbucket,
         // If the value is not resident, wait for it...
         if (!v->isResident()) {
             if (options & QUEUE_BG_FETCH) {
-                bgFetch(key, vbucket, cookie);
+                vb->bgFetch(key, cookie, engine, bgFetchDelay);
             }
             return GetValue(NULL, ENGINE_EWOULDBLOCK, v->getBySeqno(),
                             true, v->getNRUValue());
@@ -1845,7 +1811,7 @@ ENGINE_ERROR_CODE KVBucket::getMetaData(const DocKey& key,
     if (v) {
         stats.numOpsGetMeta++;
         if (v->isTempInitialItem()) { // Need bg meta fetch.
-            bgFetch(key, vbucket, cookie, true);
+            vb->bgFetch(key, cookie, engine, bgFetchDelay, true);
             return ENGINE_EWOULDBLOCK;
         } else if (v->isTempNonExistentItem()) {
             metadata.cas = v->getCas();
@@ -1933,7 +1899,7 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item &itm,
     if (!force) {
         if (v)  {
             if (v->isTempInitialItem()) {
-                bgFetch(itm.getKey(), itm.getVBucketId(), cookie, true);
+                vb->bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
                 return ENGINE_EWOULDBLOCK;
             }
 
@@ -1992,7 +1958,7 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item &itm,
         {            // CAS operation with non-resident item + full eviction.
             if (v) { // temp item is already created. Simply schedule a
                 lh.unlock(); // bg fetch job.
-                bgFetch(itm.getKey(), vb->getId(), cookie, true);
+                vb->bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
                 return ENGINE_EWOULDBLOCK;
             }
 
@@ -2038,7 +2004,7 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key, uint16_t vbucket,
         }
 
         if (!v->isResident()) {
-            bgFetch(key, vbucket, cookie);
+            vb->bgFetch(key, cookie, engine, bgFetchDelay);
             return GetValue(NULL, ENGINE_EWOULDBLOCK, v->getBySeqno());
         }
         if (v->isLocked(ep_current_time())) {
@@ -2208,7 +2174,7 @@ GetValue KVBucket::getLocked(const DocKey& key, uint16_t vbucket,
         // If the value is not resident, wait for it...
         if (!v->isResident()) {
             if (cookie) {
-                bgFetch(key, vbucket, cookie);
+                vb->bgFetch(key, cookie, engine, bgFetchDelay);
             }
             return GetValue(NULL, ENGINE_EWOULDBLOCK, -1, true);
         }
@@ -2311,7 +2277,7 @@ ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
         }
         if (eviction_policy == FULL_EVICTION && v->isTempInitialItem()) {
             lh.unlock();
-            bgFetch(key, vbucket, cookie, true);
+            vb->bgFetch(key, cookie, engine, bgFetchDelay, true);
             return ENGINE_EWOULDBLOCK;
         }
         kstats.logically_deleted = v->isDeleted();
@@ -2412,7 +2378,7 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
                     }
                 } else if (v->isTempInitialItem()) {
                     lh.unlock();
-                    bgFetch(key, vbucket, cookie, true);
+                    vb->bgFetch(key, cookie, engine, bgFetchDelay, true);
                     return ENGINE_EWOULDBLOCK;
                 } else { // Non-existent or deleted key.
                     if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
@@ -2568,7 +2534,7 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
     if (!force) { // Need conflict resolution.
         if (v)  {
             if (v->isTempInitialItem()) {
-                bgFetch(key, vbucket, cookie, true);
+                vb->bgFetch(key, cookie, engine, bgFetchDelay, true);
                 return ENGINE_EWOULDBLOCK;
             }
 
@@ -2657,7 +2623,7 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
         break;
     case NEED_BG_FETCH:
         lh.unlock();
-        bgFetch(key, vbucket, cookie, true);
+        vb->bgFetch(key, cookie, engine, bgFetchDelay, true);
         ret = ENGINE_EWOULDBLOCK;
     }
 

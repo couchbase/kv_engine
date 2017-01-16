@@ -178,7 +178,12 @@ VBucket::VBucket(id_type i,
       bucketDeletion(false),
       persistenceSeqno(0),
       newSeqnoCb(std::move(newSeqnoCb)),
-      eviction(evictionPolicy) {
+      eviction(evictionPolicy),
+      multiBGFetchEnabled(kvshard
+                                  ? kvshard->getROUnderlying()
+                                            ->getStorageProperties()
+                                            .hasEfficientGet()
+                                  : false) {
     backfill.isBackfillPhase = false;
     pendingOpsStart = 0;
     stats.memOverhead->fetch_add(sizeof(VBucket)
@@ -781,6 +786,38 @@ void VBucket::incExpirationStat(ExpireBy source) {
         break;
     }
     ++numExpiredItems;
+}
+
+void VBucket::bgFetch(const DocKey& key,
+                      const void* cookie,
+                      EventuallyPersistentEngine& engine,
+                      int bgFetchDelay,
+                      bool isMeta) {
+    if (multiBGFetchEnabled) {
+        // schedule to the current batch of background fetch of the given
+        // vbucket
+        VBucketBGFetchItem* fetchThis = new VBucketBGFetchItem(cookie, isMeta);
+        size_t bgfetch_size =
+                queueBGFetchItem(key, fetchThis, shard->getBgFetcher());
+        if (shard) {
+            shard->getBgFetcher()->notifyBGEvent();
+        }
+        LOG(EXTENSION_LOG_DEBUG,
+            "Queued a background fetch, now at %" PRIu64,
+            uint64_t(bgfetch_size));
+    } else {
+        ++stats.numRemainingBgJobs;
+        stats.maxRemainingBgJobs.store(
+                std::max(stats.maxRemainingBgJobs.load(),
+                         stats.numRemainingBgJobs.load()));
+        ExecutorPool* iom = ExecutorPool::get();
+        ExTask task = new SingleBGFetcherTask(
+                &engine, key, getId(), cookie, isMeta, bgFetchDelay, false);
+        iom->schedule(task, READER_TASK_IDX);
+        LOG(EXTENSION_LOG_DEBUG,
+            "Queued a background fetch, now at %" PRIu64,
+            uint64_t(stats.numRemainingBgJobs.load()));
+    }
 }
 
 ENGINE_ERROR_CODE VBucket::completeBGFetchForSingleItem(

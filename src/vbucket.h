@@ -546,6 +546,21 @@ public:
      */
     void incExpirationStat(ExpireBy source);
 
+    /**
+     * Enqueue a background fetch for a key.
+     *
+     * @param key the key to be bg fetched
+     * @param cookie the cookie of the requestor
+     * @param engine Reference to ep engine
+     * @param bgFetchDelay
+     * @param isMeta whether the fetch is for a non-resident value or metadata
+     *               of a (possibly) deleted item
+     */
+    void bgFetch(const DocKey& key,
+                 const void* cookie,
+                 EventuallyPersistentEngine& engine,
+                 int bgFetchDelay,
+                 bool isMeta = false);
     /* Complete the background fetch for the specified item. Depending on the
      * state of the item, restore it to the hashtable as appropriate,
      * potentially queuing it as dirty.
@@ -652,6 +667,8 @@ private:
 
     // This member holds the eviction policy used
     const item_eviction_policy_t eviction;
+
+    const bool multiBGFetchEnabled;
 
     static std::atomic<size_t> chkFlushTimeout;
 
