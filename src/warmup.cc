@@ -662,8 +662,8 @@ void Warmup::checkForAccessLog()
 
     size_t accesslogs = 0;
     for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
-        std::string curr = store.accessLog[i]->getLogFile();
-        std::string old = store.accessLog[i]->getLogFile();
+        std::string curr = store.accessLog[i].getLogFile();
+        std::string old = store.accessLog[i].getLogFile();
         old.append(".old");
         if (access(curr.c_str(), F_OK) == 0 ||
             access(old.c_str(), F_OK) == 0) {
@@ -697,10 +697,10 @@ void Warmup::loadingAccessLog(uint16_t shardId)
         new LoadStorageKVPairCallback(store, true, state.getState());
     bool success = false;
     hrtime_t stTime = gethrtime();
-    if (store.accessLog[shardId]->exists()) {
+    if (store.accessLog[shardId].exists()) {
         try {
-            store.accessLog[shardId]->open();
-            if (doWarmup(*(store.accessLog[shardId]),
+            store.accessLog[shardId].open();
+            if (doWarmup(store.accessLog[shardId],
                          shardVbStates[shardId], *load_cb) != (size_t)-1) {
                 success = true;
             }
@@ -713,7 +713,7 @@ void Warmup::loadingAccessLog(uint16_t shardId)
 
     if (!success) {
         // Do we have the previous file?
-        std::string nm = store.accessLog[shardId]->getLogFile();
+        std::string nm = store.accessLog[shardId].getLogFile();
         nm.append(".old");
         MutationLog old(nm);
         if (old.exists()) {

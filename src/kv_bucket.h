@@ -18,6 +18,7 @@
 
 #include "ep_types.h"
 #include "executorpool.h"
+#include "mutation_log.h"
 #include "storeddockey.h"
 #include "stored-value.h"
 #include "task_type.h"
@@ -25,6 +26,8 @@
 #include "vbucketmap.h"
 #include "utility.h"
 #include "kv_bucket_iface.h"
+
+#include <deque>
 
 /**
  * VBucket visitor callback adaptor.
@@ -875,7 +878,7 @@ protected:
     /* Array of mutexes for each vbucket
      * Used by flush operations: flushVB, deleteVB, compactVB, snapshotVB */
     std::mutex                          *vb_mutexes;
-    std::vector<MutationLog*>       accessLog;
+    std::deque<MutationLog>       accessLog;
 
     std::atomic<bool> diskFlushAll;
     struct FlushAllTaskCtx {

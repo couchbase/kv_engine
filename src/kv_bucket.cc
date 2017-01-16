@@ -350,14 +350,10 @@ KVBucket::KVBucket(
     cachedResidentRatio.replicaRatio.store(0);
 
     Configuration &config = engine.getConfiguration();
-    MutationLog *shardlog;
     for (uint16_t i = 0; i < config.getMaxNumShards(); i++) {
-        std::stringstream s;
-        s << i;
-        shardlog = new MutationLog(engine.getConfiguration().getAlogPath() +
-                                 "." + s.str(),
-                                 engine.getConfiguration().getAlogBlockSize());
-        accessLog.push_back(shardlog);
+        accessLog.emplace_back(
+                config.getAlogPath() + "." + std::to_string(i),
+                config.getAlogBlockSize());
     }
 
 
@@ -551,11 +547,6 @@ void KVBucket::deinitialize() {
 KVBucket::~KVBucket() {
     delete [] vb_mutexes;
     defragmenterTask.reset();
-
-    std::vector<MutationLog*>::iterator it;
-    for (it = accessLog.begin(); it != accessLog.end(); it++) {
-        delete *it;
-    }
 }
 
 const Flusher* KVBucket::getFlusher(uint16_t shardId) {
