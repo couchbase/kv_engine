@@ -361,9 +361,9 @@ KVBucket::KVBucket(
     }
 
 
-    const auto size = GlobalTask::allTaskIds.size();
-    stats.schedulingHisto = new EPStats::ProcessDurationHistogram[size];
-    stats.taskRuntimeHisto = new EPStats::ProcessDurationHistogram[size];
+    const size_t size = GlobalTask::allTaskIds.size();
+    stats.schedulingHisto.resize(size);
+    stats.taskRuntimeHisto.resize(size);
 
     for (size_t i = 0; i < GlobalTask::allTaskIds.size(); i++) {
         stats.schedulingHisto[i].reset();
@@ -550,8 +550,6 @@ void KVBucket::deinitialize() {
 
 KVBucket::~KVBucket() {
     delete [] vb_mutexes;
-    delete [] stats.schedulingHisto;
-    delete [] stats.taskRuntimeHisto;
     defragmenterTask.reset();
 
     std::vector<MutationLog*>::iterator it;

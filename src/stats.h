@@ -568,10 +568,10 @@ public:
     Histogram<hrtime_t> getMultiHisto;
 
     // ! Histograms of various task wait times, one per Task.
-    ProcessDurationHistogram* schedulingHisto;
+    std::vector<ProcessDurationHistogram> schedulingHisto;
 
     // ! Histograms of various task run times, one per Task.
-    ProcessDurationHistogram* taskRuntimeHisto;
+    std::vector<ProcessDurationHistogram> taskRuntimeHisto;
 
     //! Checkpoint Cursor histograms
     Histogram<hrtime_t> persistenceCursorGetItemsHisto;
