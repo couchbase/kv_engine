@@ -561,7 +561,9 @@ public:
                  EventuallyPersistentEngine& engine,
                  int bgFetchDelay,
                  bool isMeta = false);
-    /* Complete the background fetch for the specified item. Depending on the
+
+    /**
+     * Complete the background fetch for the specified item. Depending on the
      * state of the item, restore it to the hashtable as appropriate,
      * potentially queuing it as dirty.
      *
@@ -575,6 +577,32 @@ public:
             const DocKey& key,
             const VBucketBGFetchItem& fetched_item,
             const hrtime_t startTime);
+
+    /**
+     * Retrieve an item from the disk for vkey stats
+     *
+     * @param key the key to fetch
+     * @param cookie the connection cookie
+     * @param eviction_policy The eviction policy
+     * @param engine Reference to ep engine
+     * @param bgFetchDelay
+     *
+     * @return VBReturnCtx indicates notifyCtx and operation result
+     */
+    ENGINE_ERROR_CODE statsVKey(const DocKey& key,
+                                const void* cookie,
+                                EventuallyPersistentEngine& engine,
+                                int bgFetchDelay);
+
+    /**
+     * Complete the vkey stats for an item background fetched from disk.
+     *
+     * @param key The key of the item
+     * @param gcb Bgfetch cbk obj containing the item from disk
+     *
+     */
+    void completeStatsVKey(const DocKey& key,
+                           RememberingCallback<GetValue>& gcb);
 
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;

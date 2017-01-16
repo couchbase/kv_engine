@@ -911,6 +911,91 @@ ENGINE_ERROR_CODE VBucket::completeBGFetchForSingleItem(
     return status;
 }
 
+ENGINE_ERROR_CODE VBucket::statsVKey(const DocKey& key,
+                                     const void* cookie,
+                                     EventuallyPersistentEngine& engine,
+                                     int bgFetchDelay) {
+    int bucket_num(0);
+    auto lh = ht.getLockedBucket(key, &bucket_num);
+    StoredValue* v = fetchValidValue(lh, key, bucket_num, true);
+
+    if (v) {
+        if (v->isDeleted() || v->isTempDeletedItem() ||
+            v->isTempNonExistentItem()) {
+            return ENGINE_KEY_ENOENT;
+        }
+        ++stats.numRemainingBgJobs;
+        ExecutorPool* iom = ExecutorPool::get();
+        ExTask task = new VKeyStatBGFetchTask(&engine,
+                                              key,
+                                              getId(),
+                                              v->getBySeqno(),
+                                              cookie,
+                                              bgFetchDelay,
+                                              false);
+        iom->schedule(task, READER_TASK_IDX);
+        return ENGINE_EWOULDBLOCK;
+    } else {
+        if (eviction == VALUE_ONLY) {
+            return ENGINE_KEY_ENOENT;
+        } else {
+            add_type_t rv = ht.unlocked_addTempItem(bucket_num, key, eviction);
+            switch (rv) {
+            case ADD_NOMEM:
+                return ENGINE_ENOMEM;
+            case ADD_EXISTS:
+            case ADD_UNDEL:
+            case ADD_SUCCESS:
+            case ADD_TMP_AND_BG_FETCH:
+                // Since the hashtable bucket is locked, we shouldn't get here
+                throw std::logic_error(
+                        "VBucket::statsVKey: "
+                        "Invalid result from unlocked_addTempItem (" +
+                        std::to_string(rv) + ")");
+
+            case ADD_BG_FETCH: {
+                ++stats.numRemainingBgJobs;
+                ExecutorPool* iom = ExecutorPool::get();
+                ExTask task = new VKeyStatBGFetchTask(
+                        &engine, key, getId(), -1, cookie, bgFetchDelay, false);
+                iom->schedule(task, READER_TASK_IDX);
+            }
+            }
+            return ENGINE_EWOULDBLOCK;
+        }
+    }
+}
+
+void VBucket::completeStatsVKey(const DocKey& key,
+                                RememberingCallback<GetValue>& gcb) {
+    int bucket_num(0);
+    auto hlh = ht.getLockedBucket(key, &bucket_num);
+    StoredValue* v = fetchValidValue(hlh, key, bucket_num, eviction, true);
+
+    if (v && v->isTempInitialItem()) {
+        if (gcb.val.getStatus() == ENGINE_SUCCESS) {
+            v->unlocked_restoreValue(gcb.val.getValue(), ht);
+            if (!v->isResident()) {
+                throw std::logic_error(
+                        "VBucket::completeStatsVKey: "
+                        "storedvalue (which has seqno:" +
+                        std::to_string(v->getBySeqno()) +
+                        ") should be resident after calling restoreValue()");
+            }
+        } else if (gcb.val.getStatus() == ENGINE_KEY_ENOENT) {
+            v->setNonExistent();
+        } else {
+            // underlying kvstore couldn't fetch requested data
+            // log returned error and notify TMPFAIL to client
+            LOG(EXTENSION_LOG_WARNING,
+                "VBucket::completeStatsVKey: "
+                "Failed background fetch for vb:%" PRIu16 ", seqno:%" PRIu64,
+                getId(),
+                v->getBySeqno());
+        }
+    }
+}
+
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
                        item_eviction_policy_t policy) {
     addStat(NULL, toString(state), add_stat, c);
