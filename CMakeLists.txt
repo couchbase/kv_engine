@@ -138,7 +138,6 @@ ADD_LIBRARY(ep_objs OBJECT
             src/bloomfilter.cc
             src/checkpoint.cc
             src/checkpoint_remover.cc
-            src/compress.cc
             src/conflict_resolution.cc
             src/connmap.cc
             src/dcp/backfill-manager.cc
@@ -247,11 +246,6 @@ ADD_EXECUTABLE(ep-engine_atomic_ptr_test
   src/testlogger.cc)
 TARGET_LINK_LIBRARIES(ep-engine_atomic_ptr_test platform)
 
-ADD_EXECUTABLE(ep-engine_compress_test
-  tests/module_tests/compress_test.cc
-  src/compress.cc)
-TARGET_LINK_LIBRARIES(ep-engine_compress_test ${SNAPPY_LIBRARIES} platform)
-
 ADD_EXECUTABLE(ep-engine_couch-fs-stats_test
         src/couch-kvstore/couch-fs-stats.cc
         src/generated_configuration.h
@@ -275,7 +269,6 @@ ADD_EXECUTABLE(ep-engine_string_utils_test
 TARGET_LINK_LIBRARIES(ep-engine_string_utils_test gtest gtest_main platform)
 
 ADD_TEST(ep-engine_atomic_ptr_test ep-engine_atomic_ptr_test)
-ADD_TEST(ep-engine_compress_test ep-engine_compress_test)
 ADD_TEST(ep-engine_couch-fs-stats_test ep-engine_couch-fs-stats_test)
 ADD_TEST(ep-engine_ep_unit_tests ep-engine_ep_unit_tests)
 ADD_TEST(ep-engine_hrtime_test ep-engine_hrtime_test)
@@ -304,7 +297,6 @@ ADD_DEPENDENCIES(ep_testsuite engine_testapp)
 
 ADD_LIBRARY(ep_testsuite_basic SHARED
    tests/ep_testsuite_basic.cc
-   src/compress.cc
    src/ext_meta_parser.cc
    tests/ep_testsuite_common.cc
    tests/ep_test_apis.cc

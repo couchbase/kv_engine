@@ -20,7 +20,6 @@
 #include "dcp/producer.h"
 
 #include "backfill.h"
-#include "compress.h"
 #include "common.h"
 #include "ep_engine.h"
 #include "failover-table.h"

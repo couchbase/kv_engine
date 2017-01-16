@@ -20,7 +20,6 @@
 #include <platform/dirutils.h>
 
 #include "callbacks.h"
-#include "compress.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "kvstore.h"
 #include "makestoreddockey.h"
@@ -86,21 +85,13 @@ public:
             if (expectCompressed) {
                 EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_COMPRESSED,
                           result.getValue()->getDataType());
-                snap_buf output;
-                EXPECT_EQ(SNAP_SUCCESS,
-                          doSnappyUncompress(result.getValue()->getData(),
-                                             result.getValue()->getNBytes(),
-                                             output));
-                EXPECT_EQ(0,
-                          strncmp("value",
-                                  output.buf.get(),
-                                  output.len));
-            } else {
-                EXPECT_EQ(0,
-                          strncmp("value",
-                                  result.getValue()->getData(),
-                                  result.getValue()->getNBytes()));
+                result.getValue()->decompressValue();
             }
+
+            EXPECT_EQ(0,
+                      strncmp("value",
+                              result.getValue()->getData(),
+                              result.getValue()->getNBytes()));
             delete result.getValue();
         }
     }

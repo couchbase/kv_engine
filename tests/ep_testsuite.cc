@@ -40,7 +40,6 @@
 #include <vector>
 
 #include "atomic.h"
-#include "compress.h"
 #include "ep_test_apis.h"
 
 #include "ep_testsuite_common.h"

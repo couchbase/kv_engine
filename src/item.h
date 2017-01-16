@@ -20,6 +20,7 @@
 
 #include "config.h"
 
+#include <platform/compress.h>
 #include <memcached/engine.h>
 #include <stdio.h>
 #include <string.h>
@@ -29,7 +30,6 @@
 #include <string>
 
 #include "atomic.h"
-#include "compress.h"
 #include "ep_time.h"
 #include "locks.h"
 #include "objectregistry.h"
@@ -461,16 +461,15 @@ public:
         if (!mcbp::datatype::is_compressed(datatype)) {
             // Attempt compression only if datatype indicates
             // that the value is not compressed already.
-            snap_buf output;
-            snap_ret_t ret = doSnappyCompress(getData(), getNBytes(),
-                                              output);
-            if (ret == SNAP_SUCCESS) {
-                if (output.len > minCompressionRatio * getNBytes()) {
+            cb::compression::Buffer deflated;
+            if (cb::compression::deflate(cb::compression::Algorithm::Snappy,
+                                         getData(), getNBytes(), deflated)) {
+                if (deflated.len > minCompressionRatio * getNBytes()) {
                     // No point doing the compression if the desired
                     // compression ratio isn't achieved.
                     return true;
                 }
-                setData(output.buf.get(), output.len,
+                setData(deflated.data.get(), deflated.len,
                         (uint8_t *)(getExtMeta()), getExtMetaLen());
 
                 datatype |= PROTOCOL_BINARY_DATATYPE_COMPRESSED;
@@ -488,11 +487,10 @@ public:
         if (mcbp::datatype::is_compressed(datatype)) {
             // Attempt decompression only if datatype indicates
             // that the value is compressed.
-            snap_buf output;
-            snap_ret_t ret = doSnappyUncompress(getData(), getNBytes(),
-                                                output);
-            if (ret == SNAP_SUCCESS) {
-                setData(output.buf.get(), output.len,
+            cb::compression::Buffer inflated;
+            if (cb::compression::inflate(cb::compression::Algorithm::Snappy,
+                                         getData(), getNBytes(), inflated)) {
+                setData(inflated.data.get(), inflated.len,
                         (uint8_t *)(getExtMeta()), getExtMetaLen());
                 datatype &= ~PROTOCOL_BINARY_DATATYPE_COMPRESSED;
                 setDataType(datatype);
