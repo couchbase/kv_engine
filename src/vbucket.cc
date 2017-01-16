@@ -732,9 +732,37 @@ uint64_t VBucket::queueDirty(StoredValue& v,
     }
 
     if (newSeqnoCb) {
-        uint16_t vbid = getId();
-        newSeqnoCb->callback(vbid, notifyCtx);
+        newSeqnoCb->callback(getId(), notifyCtx);
     }
+
+    return qi->getBySeqno();
+}
+
+/* [TBD]: Get rid of std::unique_lock<std::mutex> plh */
+uint64_t VBucket::tapQueueDirty(StoredValue* v,
+                                std::unique_lock<std::mutex> plh,
+                                const GenerateBySeqno generateBySeqno) {
+    VBNotifyCtx notifyCtx;
+    queued_item qi(v->toItem(false, getId()));
+
+    notifyCtx.notifyFlusher = queueBackfillItem(qi, generateBySeqno);
+
+    v->setBySeqno(qi->getBySeqno());
+
+    /* During backfill on a TAP receiver we need to update the snapshot
+     range in the checkpoint. Has to be done here because in case of TAP
+     backfill, above, we use vb.queueBackfillItem() instead of
+     vb.checkpointManager.queueDirty() */
+    if (GenerateBySeqno::Yes == generateBySeqno) {
+        checkpointManager.resetSnapshotRange();
+    }
+
+    plh.unlock();
+
+    if (newSeqnoCb) {
+        newSeqnoCb->callback(getId(), notifyCtx);
+    }
+
     return qi->getBySeqno();
 }
 

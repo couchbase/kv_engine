@@ -1138,8 +1138,10 @@ ENGINE_ERROR_CODE KVBucket::addTAPBackfillItem(Item &itm, bool genBySeqno,
         // FALLTHROUGH
     case WAS_CLEAN:
         vb->setMaxCas(v->getCas());
-        tapQueueDirty(*vb, v, lh, NULL,
-                      genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No);
+        vb->tapQueueDirty(
+                v,
+                std::move(lh),
+                genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No);
         break;
     case NEED_BG_FETCH:
         throw std::logic_error("EventuallyPersistentStore::addTAPBackfillItem: "
@@ -2538,21 +2540,22 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
         ret = ENGINE_KEY_ENOENT;
         break;
     case WAS_DIRTY:
-    case WAS_CLEAN:
+    case WAS_CLEAN: {
         if (genBySeqno == GenerateBySeqno::No) {
             v->setBySeqno(bySeqno);
         }
 
         vb->setMaxCasAndTrackDrift(v->getCas());
 
+        uint64_t queued_seqno;
         if (tapBackfill) {
-            tapQueueDirty(*vb, v, lh, seqno, genBySeqno);
+            queued_seqno = vb->tapQueueDirty(v, std::move(lh), genBySeqno);
         } else {
-            auto queued_seqno =
-                    vb->queueDirty(*v, &lh, genBySeqno, generateCas);
-            if (nullptr != seqno) {
-                *seqno = queued_seqno;
-            }
+            queued_seqno = vb->queueDirty(*v, &lh, genBySeqno, generateCas);
+        }
+        if (nullptr != seqno) {
+            *seqno = queued_seqno;
+        }
         }
         break;
     case NEED_BG_FETCH:
@@ -3073,37 +3076,6 @@ PersistenceCallback* KVBucket::flushOneDelOrSet(const queued_item &qi,
             new PersistenceCallback(qi, vb, *this, stats, 0);
         rwUnderlying->del(*qi, *cb);
         return cb;
-    }
-}
-
-void KVBucket::tapQueueDirty(VBucket &vb,
-                             StoredValue* v,
-                             std::unique_lock<std::mutex>& plh,
-                             uint64_t *seqno,
-                             const GenerateBySeqno generateBySeqno) {
-    queued_item qi(v->toItem(false, vb.getId()));
-
-    bool queued = vb.queueBackfillItem(qi, generateBySeqno);
-
-    v->setBySeqno(qi->getBySeqno());
-
-    /* During backfill on a TAP receiver we need to update the snapshot
-       range in the checkpoint. Has to be done here because in case of TAP
-       backfill, above, we use vb.queueBackfillItem() instead of
-       vb.checkpointManager.queueDirty() */
-    if (GenerateBySeqno::Yes == generateBySeqno) {
-        vb.checkpointManager.resetSnapshotRange();
-    }
-
-    if (seqno) {
-        *seqno = v->getBySeqno();
-    }
-
-    plh.unlock();
-
-    if (queued) {
-        KVShard* shard = vbMap.getShardByVbId(vb.getId());
-        shard->getFlusher()->notifyFlushEvent();
     }
 }
 
