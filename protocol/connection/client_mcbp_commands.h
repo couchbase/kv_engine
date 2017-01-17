@@ -565,6 +565,9 @@ public:
         datatype = datatype_;
         return *this;
     }
+    BinprotMutationCommand& setDatatype(Greenstack::Datatype datatype_) {
+        return setDatatype(uint8_t(datatype_));
+    }
     BinprotMutationCommand& setDocumentFlags(uint32_t flags_) {
         flags = flags_;
         return *this;
