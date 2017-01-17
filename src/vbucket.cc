@@ -1137,6 +1137,81 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
     return ret;
 }
 
+ENGINE_ERROR_CODE VBucket::replace(Item& itm,
+                                   const void* cookie,
+                                   EventuallyPersistentEngine& engine,
+                                   int bgFetchDelay) {
+    int bucket_num(0);
+    auto lh = ht.getLockedBucket(itm.getKey(), &bucket_num);
+    StoredValue* v = ht.unlocked_find(itm.getKey(), bucket_num, true, false);
+    if (v) {
+        if (v->isDeleted() || v->isTempDeletedItem() ||
+            v->isTempNonExistentItem()) {
+            return ENGINE_KEY_ENOENT;
+        }
+
+        MutationStatus mtype;
+        if (eviction == FULL_EVICTION && v->isTempInitialItem()) {
+            mtype = MutationStatus::NeedBgFetch;
+        } else {
+            mtype = ht.unlocked_set(v, itm, 0, true, false, eviction);
+        }
+
+        uint64_t seqno = 0;
+        ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+        switch (mtype) {
+        case MutationStatus::NoMem:
+            ret = ENGINE_ENOMEM;
+            break;
+        case MutationStatus::IsLocked:
+            ret = ENGINE_KEY_EEXISTS;
+            break;
+        case MutationStatus::InvalidCas:
+        case MutationStatus::NotFound:
+            ret = ENGINE_NOT_STORED;
+            break;
+        // FALLTHROUGH
+        case MutationStatus::WasDirty:
+        // Even if the item was dirty, push it into the vbucket's open
+        // checkpoint.
+        case MutationStatus::WasClean:
+            // We need to keep lh as we will do v->getCas()
+            seqno = queueDirty(*v, nullptr);
+
+            itm.setBySeqno(seqno);
+            itm.setCas(v->getCas());
+            break;
+        case MutationStatus::NeedBgFetch: {
+            // temp item is already created. Simply schedule a bg fetch job
+            lh.unlock();
+            bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
+            ret = ENGINE_EWOULDBLOCK;
+            break;
+        }
+        }
+
+        return ret;
+    } else {
+        if (eviction == VALUE_ONLY) {
+            return ENGINE_KEY_ENOENT;
+        }
+
+        if (maybeKeyExistsInFilter(itm.getKey())) {
+            return addTempItemAndBGFetch(lh,
+                                         bucket_num,
+                                         itm.getKey(),
+                                         cookie,
+                                         engine,
+                                         bgFetchDelay,
+                                         false);
+        } else {
+            // As bloomfilter predicted that item surely doesn't exist
+            // on disk, return ENOENT for replace().
+            return ENGINE_KEY_ENOENT;
+        }
+    }
+}
+
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
                        item_eviction_policy_t policy) {
     addStat(NULL, toString(state), add_stat, c);

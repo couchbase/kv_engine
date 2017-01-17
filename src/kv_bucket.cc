@@ -926,76 +926,7 @@ ENGINE_ERROR_CODE KVBucket::replace(Item &itm, const void *cookie) {
         }
     }
 
-    int bucket_num(0);
-    auto lh = vb->ht.getLockedBucket(itm.getKey(), &bucket_num);
-    StoredValue *v = vb->ht.unlocked_find(itm.getKey(), bucket_num, true,
-                                          false);
-    if (v) {
-        if (v->isDeleted() || v->isTempDeletedItem() ||
-            v->isTempNonExistentItem()) {
-            return ENGINE_KEY_ENOENT;
-        }
-
-        MutationStatus mtype;
-        if (eviction_policy == FULL_EVICTION && v->isTempInitialItem()) {
-            mtype = MutationStatus::NeedBgFetch;
-        } else {
-            mtype = vb->ht.unlocked_set(v, itm, 0, true, false, eviction_policy);
-        }
-
-        uint64_t seqno = 0;
-        ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-        switch (mtype) {
-        case MutationStatus::NoMem:
-            ret = ENGINE_ENOMEM;
-            break;
-        case MutationStatus::IsLocked:
-            ret = ENGINE_KEY_EEXISTS;
-            break;
-        case MutationStatus::InvalidCas:
-        case MutationStatus::NotFound:
-            ret = ENGINE_NOT_STORED;
-            break;
-        // FALLTHROUGH
-        case MutationStatus::WasDirty:
-        // Even if the item was dirty, push it into the vbucket's open
-        // checkpoint.
-        case MutationStatus::WasClean:
-            // We need to keep lh as we will do v->getCas()
-            seqno = vb->queueDirty(*v, nullptr);
-
-            itm.setBySeqno(seqno);
-            itm.setCas(v->getCas());
-            break;
-        case MutationStatus::NeedBgFetch: {
-            // temp item is already created. Simply schedule a bg fetch job
-            lh.unlock();
-            vb->bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
-            ret = ENGINE_EWOULDBLOCK;
-            break;
-            }
-        }
-
-        return ret;
-    } else {
-        if (eviction_policy == VALUE_ONLY) {
-            return ENGINE_KEY_ENOENT;
-        }
-
-        if (vb->maybeKeyExistsInFilter(itm.getKey())) {
-            return vb->addTempItemAndBGFetch(lh,
-                                             bucket_num,
-                                             itm.getKey(),
-                                             cookie,
-                                             engine,
-                                             bgFetchDelay,
-                                             false);
-        } else {
-            // As bloomfilter predicted that item surely doesn't exist
-            // on disk, return ENOENT for replace().
-            return ENGINE_KEY_ENOENT;
-        }
-    }
+    return vb->replace(itm, cookie, engine, bgFetchDelay);
 }
 
 ENGINE_ERROR_CODE KVBucket::addTAPBackfillItem(Item &itm, bool genBySeqno,
