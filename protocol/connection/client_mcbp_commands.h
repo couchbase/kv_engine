@@ -516,14 +516,15 @@ public:
 };
 
 class BinprotGetAndLockCommand
-    : public BinprotCommandT<BinprotGetCommand, PROTOCOL_BINARY_CMD_GET_LOCKED> {
+    : public BinprotCommandT<BinprotGetAndLockCommand, PROTOCOL_BINARY_CMD_GET_LOCKED> {
 public:
     BinprotGetAndLockCommand() : BinprotCommandT(), lock_timeout(0) {}
 
     void encode(std::vector<uint8_t>& buf) const override;
 
-    void setLockTimeout(uint32_t timeout) {
+    BinprotGetAndLockCommand& setLockTimeout(uint32_t timeout) {
         lock_timeout = timeout;
+        return *this;
     }
 
 protected:
