@@ -16,7 +16,7 @@
  */
 
 #include "testapp_subdoc.h"
-
+#include "testapp_client_test.h"
 #include <cstring>
 #include <limits>
 #include <string>
@@ -1934,6 +1934,39 @@ TEST_P(McdTestappTest, SubdocFlags)
     validate_flags("array", 0xcafebabe);
 
     delete_object("array");
+}
+
+// Test that locked items are properly handled
+TEST_P(McdTestappTest, SubdocLockedItem)
+{
+    store_object("item", "{}", true);
+
+    // Set the item's CAS as -1
+    ewouldblock_engine_configure(ENGINE_SUCCESS, EWBEngineMode::SetItemCas,
+                                 uint32_t(-1), "item");
+
+    // Construct the subdoc command
+    SubdocCmd sd_cmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                     "item", "p", "true");
+    sd_cmd.cas = 0;
+    expect_subdoc_cmd(sd_cmd, PROTOCOL_BINARY_RESPONSE_ETMPFAIL, "");
+
+    // Set the CAS to -1
+    sd_cmd.cas = -1;
+    expect_subdoc_cmd(sd_cmd, PROTOCOL_BINARY_RESPONSE_ETMPFAIL, "");
+
+    // Set our "normal" CAS back
+    ewouldblock_engine_configure(ENGINE_SUCCESS, EWBEngineMode::SetItemCas, uint32_t(42), "item");
+
+    auto rv = fetch_value("item");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, rv.first);
+
+    sd_cmd.cas = htonll(42);
+    expect_subdoc_cmd(sd_cmd, PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+
+    validate_object("item", "{\"p\":true}");
+
+    delete_object("item");
 }
 
 
