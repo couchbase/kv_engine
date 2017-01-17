@@ -33,6 +33,11 @@ VBucketMap::VBucketMap(Configuration& config,
     for (size_t shardId = 0; shardId < workload.getNumShards(); shardId++) {
         shards.push_back(std::make_unique<KVShard>(shardId, store));
     }
+
+    config.addValueChangedListener("hlc_drift_ahead_threshold_us",
+                                    new VBucketConfigChangeListener(*this));
+    config.addValueChangedListener("hlc_drift_behind_threshold_us",
+                                    new VBucketConfigChangeListener(*this));
 }
 
 RCPtr<VBucket> VBucketMap::getBucket(id_type id) const {
