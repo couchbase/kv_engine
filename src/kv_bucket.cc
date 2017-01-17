@@ -952,47 +952,7 @@ ENGINE_ERROR_CODE KVBucket::addTAPBackfillItem(Item &itm, bool genBySeqno,
         return ENGINE_KEY_EEXISTS;
     }
 
-    int bucket_num(0);
-    auto lh = vb->ht.getLockedBucket(itm.getKey(), &bucket_num);
-    StoredValue *v = vb->ht.unlocked_find(itm.getKey(), bucket_num, true,
-                                          false);
-
-    // Note that this function is only called on replica or pending vbuckets.
-    if (v && v->isLocked(ep_current_time())) {
-        v->unlock();
-    }
-    MutationStatus mtype =
-            vb->ht.unlocked_set(v, itm, 0, true, true, eviction_policy);
-
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    switch (mtype) {
-    case MutationStatus::NoMem:
-        ret = ENGINE_ENOMEM;
-        break;
-    case MutationStatus::InvalidCas:
-    case MutationStatus::IsLocked:
-        ret = ENGINE_KEY_EEXISTS;
-        break;
-    case MutationStatus::WasDirty:
-    // FALLTHROUGH, to ensure the bySeqno for the hashTable item is
-    // set correctly, and also the sequence numbers are ordered correctly.
-    // (MB-14003)
-    case MutationStatus::NotFound:
-    // FALLTHROUGH
-    case MutationStatus::WasClean:
-        vb->setMaxCas(v->getCas());
-        vb->tapQueueDirty(
-                v,
-                std::move(lh),
-                genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No);
-        break;
-    case MutationStatus::NeedBgFetch:
-        throw std::logic_error("EventuallyPersistentStore::addTAPBackfillItem: "
-                "SET on a non-active vbucket should not require a "
-                "bg_metadata_fetch.");
-    }
-
-    return ret;
+    return vb->addTAPBackfillItem(itm, genBySeqno);
 }
 
 ENGINE_ERROR_CODE KVBucket::setVBucketState(uint16_t vbid,

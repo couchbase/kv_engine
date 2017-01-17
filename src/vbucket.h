@@ -677,6 +677,17 @@ public:
                               EventuallyPersistentEngine& engine,
                               int bgFetchDelay);
 
+    /**
+     * Add an TAP backfill item into its corresponding vbucket.
+     *
+     * @param itm Item to be added/updated from TAP. Upon success, the itm
+     *            revSeqno is updated
+     * @param genBySeqno whether or not to generate sequence number
+     *
+     * @return the result of the operation
+     */
+    ENGINE_ERROR_CODE addTAPBackfillItem(Item& itm, bool genBySeqno);
+
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
 
