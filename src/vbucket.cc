@@ -949,23 +949,23 @@ ENGINE_ERROR_CODE VBucket::addTempItemAndBGFetch(
         int bgFetchDelay,
         bool metadataOnly,
         bool isReplication) {
-    add_type_t rv =
+    AddStatus rv =
             ht.unlocked_addTempItem(bucket_num, key, eviction, isReplication);
     switch (rv) {
-    case ADD_NOMEM:
+    case AddStatus::NoMem:
         return ENGINE_ENOMEM;
 
-    case ADD_EXISTS:
-    case ADD_UNDEL:
-    case ADD_SUCCESS:
-    case ADD_TMP_AND_BG_FETCH:
+    case AddStatus::Exists:
+    case AddStatus::UnDel:
+    case AddStatus::Success:
+    case AddStatus::AddTmpAndBgFetch:
         // Since the hashtable bucket is locked, we shouldn't get here
         throw std::logic_error(
                 "VBucket::addTempItemAndBGFetch: "
                 "Invalid result from addTempItem: " +
-                std::to_string(rv));
+                std::to_string(static_cast<uint16_t>(rv)));
 
-    case ADD_BG_FETCH:
+    case AddStatus::BgFetch:
         lock.unlock();
         bgFetch(key, cookie, engine, bgFetchDelay, metadataOnly);
     }
@@ -1000,21 +1000,21 @@ ENGINE_ERROR_CODE VBucket::statsVKey(const DocKey& key,
         if (eviction == VALUE_ONLY) {
             return ENGINE_KEY_ENOENT;
         } else {
-            add_type_t rv = ht.unlocked_addTempItem(bucket_num, key, eviction);
+            AddStatus rv = ht.unlocked_addTempItem(bucket_num, key, eviction);
             switch (rv) {
-            case ADD_NOMEM:
+            case AddStatus::NoMem:
                 return ENGINE_ENOMEM;
-            case ADD_EXISTS:
-            case ADD_UNDEL:
-            case ADD_SUCCESS:
-            case ADD_TMP_AND_BG_FETCH:
+            case AddStatus::Exists:
+            case AddStatus::UnDel:
+            case AddStatus::Success:
+            case AddStatus::AddTmpAndBgFetch:
                 // Since the hashtable bucket is locked, we shouldn't get here
                 throw std::logic_error(
                         "VBucket::statsVKey: "
                         "Invalid result from unlocked_addTempItem (" +
-                        std::to_string(rv) + ")");
+                        std::to_string(static_cast<uint16_t>(rv)) + ")");
 
-            case ADD_BG_FETCH: {
+            case AddStatus::BgFetch: {
                 ++stats.numRemainingBgJobs;
                 ExecutorPool* iom = ExecutorPool::get();
                 ExTask task = new VKeyStatBGFetchTask(

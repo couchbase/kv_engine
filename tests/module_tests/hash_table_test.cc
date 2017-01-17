@@ -68,7 +68,7 @@ static int count(HashTable &h, bool verify=true) {
 
 static void store(HashTable &h, const StoredDocKey& k) {
     Item i(k, 0, 0, k.data(), k.size());
-    EXPECT_EQ(WAS_CLEAN, h.set(i));
+    EXPECT_EQ(MutationStatus::WasClean, h.set(i));
 }
 
 static void storeMany(HashTable &h, std::vector<StoredDocKey> &keys) {
@@ -77,35 +77,44 @@ static void storeMany(HashTable &h, std::vector<StoredDocKey> &keys) {
     }
 }
 
-static void addMany(HashTable &h, std::vector<StoredDocKey> &keys,
-                    add_type_t expect) {
+static void addMany(HashTable& h,
+                    std::vector<StoredDocKey>& keys,
+                    AddStatus expect) {
     item_eviction_policy_t policy = VALUE_ONLY;
     for (const auto& k : keys) {
         Item i(k, 0, 0, k.data(), k.size());
-        add_type_t v = h.add(i, policy);
+        AddStatus v = h.add(i, policy);
         EXPECT_EQ(expect, v);
     }
 }
 
 template <typename T>
-static const char *toString(add_type_t a) {
+static const char* toString(AddStatus a) {
     switch(a) {
-    case ADD_SUCCESS: return "add_success";
-    case ADD_NOMEM: return "add_nomem";
-    case ADD_EXISTS: return "add_exists";
-    case ADD_UNDEL: return "add_undel";
-    case ADD_TMP_AND_BG_FETCH: return "add_tmp_and_bg_fetch";
-    case ADD_BG_FETCH: return "add_bg_fetch";
+    case AddStatus::Success:
+        return "AddStatus::Success";
+    case AddStatus::NoMem:
+        return "AddStatus::NoMem";
+    case AddStatus::Exists:
+        return "AddStatus::Exists";
+    case AddStatus::UnDel:
+        return "AddStatus::UnDel";
+    case AddStatus::AddTmpAndBgFetch:
+        return "AddStatus::AddTmpAndBgFetch";
+    case AddStatus::BgFetch:
+        return "AddStatus::BgFetch";
     }
     abort();
     return NULL;
 }
 
-static void add(HashTable &h, const StoredDocKey& k, add_type_t expect,
-                int expiry=0) {
+static void add(HashTable& h,
+                const StoredDocKey& k,
+                AddStatus expect,
+                int expiry = 0) {
     Item i(k, 0, expiry, k.data(), k.size());
     item_eviction_policy_t policy = VALUE_ONLY;
-    add_type_t v = h.add(i, policy);
+    AddStatus v = h.add(i, policy);
     EXPECT_EQ(expect, v);
 }
 
@@ -226,8 +235,8 @@ TEST_F(HashTableTest, AddExpiry) {
     HashTable h(global_stats, 5, 1);
     StoredDocKey k = makeStoredDocKey("aKey");
 
-    add(h, k, ADD_SUCCESS, ep_real_time() + 5);
-    add(h, k, ADD_EXISTS, ep_real_time() + 5);
+    add(h, k, AddStatus::Success, ep_real_time() + 5);
+    add(h, k, AddStatus::Exists, ep_real_time() + 5);
 
     StoredValue *v = h.find(k);
     EXPECT_TRUE(v);
@@ -237,7 +246,7 @@ TEST_F(HashTableTest, AddExpiry) {
     mock_time_travel(6);
     EXPECT_TRUE(v->isExpired(ep_real_time()));
 
-    add(h, k, ADD_UNDEL, ep_real_time() + 5);
+    add(h, k, AddStatus::UnDel, ep_real_time() + 5);
     EXPECT_TRUE(v);
     EXPECT_FALSE(v->isExpired(ep_real_time()));
     EXPECT_TRUE(v->isExpired(ep_real_time() + 6));
@@ -331,7 +340,7 @@ TEST_F(HashTableTest, Add) {
     const int nkeys = 1000;
 
     auto keys = generateKeys(nkeys);
-    addMany(h, keys, ADD_SUCCESS);
+    addMany(h, keys, AddStatus::Success);
 
     StoredDocKey missingKey = makeStoredDocKey("aMissingKey");
     EXPECT_FALSE(h.find(missingKey));
@@ -340,20 +349,20 @@ TEST_F(HashTableTest, Add) {
         EXPECT_TRUE(h.find(key));
     }
 
-    addMany(h, keys, ADD_EXISTS);
+    addMany(h, keys, AddStatus::Exists);
     for (const auto& key : keys) {
         EXPECT_TRUE(h.find(key));
     }
 
     // Verify we can read after a soft deletion.
-    EXPECT_EQ(WAS_DIRTY, h.softDelete(keys[0], 0));
-    EXPECT_EQ(NOT_FOUND, h.softDelete(keys[0], 0));
+    EXPECT_EQ(MutationStatus::WasDirty, h.softDelete(keys[0], 0));
+    EXPECT_EQ(MutationStatus::NotFound, h.softDelete(keys[0], 0));
     EXPECT_FALSE(h.find(keys[0]));
     EXPECT_EQ(nkeys - 1, count(h));
 
     Item i(keys[0], 0, 0, "newtest", 7);
     item_eviction_policy_t policy = VALUE_ONLY;
-    EXPECT_EQ(ADD_UNDEL, h.add(i, policy));
+    EXPECT_EQ(AddStatus::UnDel, h.add(i, policy));
     EXPECT_EQ(nkeys, count(h, false));
 }
 
@@ -391,7 +400,7 @@ TEST_F(HashTableTest, SizeStats) {
 
     Item i(k, 0, 0, someval, itemSize);
 
-    EXPECT_EQ(WAS_CLEAN, ht.set(i));
+    EXPECT_EQ(MutationStatus::WasClean, ht.set(i));
 
     ht.del(k);
 
@@ -416,7 +425,7 @@ TEST_F(HashTableTest, SizeStatsFlush) {
 
     Item i(k, 0, 0, someval, itemSize);
 
-    EXPECT_EQ(WAS_CLEAN, ht.set(i));
+    EXPECT_EQ(MutationStatus::WasClean, ht.set(i));
 
     ht.clear();
 
@@ -441,9 +450,9 @@ TEST_F(HashTableTest, SizeStatsSoftDel) {
 
     Item i(k, 0, 0, someval, itemSize);
 
-    EXPECT_EQ(WAS_CLEAN, ht.set(i));
+    EXPECT_EQ(MutationStatus::WasClean, ht.set(i));
 
-    EXPECT_EQ(WAS_DIRTY, ht.softDelete(k, 0));
+    EXPECT_EQ(MutationStatus::WasDirty, ht.softDelete(k, 0));
     ht.del(k);
 
     EXPECT_EQ(0, ht.memSize.load());
@@ -467,9 +476,9 @@ TEST_F(HashTableTest, SizeStatsSoftDelFlush) {
 
     Item i(k, 0, 0, someval, itemSize);
 
-    EXPECT_EQ(WAS_CLEAN, ht.set(i));
+    EXPECT_EQ(MutationStatus::WasClean, ht.set(i));
 
-    EXPECT_EQ(WAS_DIRTY, ht.softDelete(k, 0));
+    EXPECT_EQ(MutationStatus::WasDirty, ht.softDelete(k, 0));
     ht.clear();
 
     EXPECT_EQ(0, ht.memSize.load());
@@ -493,7 +502,7 @@ TEST_F(HashTableTest, SizeStatsEject) {
 
     Item i(key, 0, 0, someval, itemSize);
 
-    EXPECT_EQ(WAS_CLEAN, ht.set(i));
+    EXPECT_EQ(MutationStatus::WasClean, ht.set(i));
 
     item_eviction_policy_t policy = VALUE_ONLY;
     StoredValue *v(ht.find(key));
@@ -524,7 +533,7 @@ TEST_F(HashTableTest, SizeStatsEjectFlush) {
 
     Item i(key, 0, 0, someval, itemSize);
 
-    EXPECT_EQ(WAS_CLEAN, ht.set(i));
+    EXPECT_EQ(MutationStatus::WasClean, ht.set(i));
 
     item_eviction_policy_t policy = VALUE_ONLY;
     StoredValue *v(ht.find(key));
@@ -546,7 +555,7 @@ TEST_F(HashTableTest, ItemAge) {
     HashTable ht(global_stats, 5, 1);
     StoredDocKey key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", strlen("value"));
-    EXPECT_EQ(WAS_CLEAN, ht.set(item));
+    EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
     // Test
     StoredValue* v(ht.find(key));
@@ -578,7 +587,7 @@ TEST_F(HashTableTest, NRUDefault) {
     StoredDocKey key = makeStoredDocKey("key");
 
     Item item(key, 0, 0, "value", strlen("value"));
-    EXPECT_EQ(WAS_CLEAN, ht.set(item));
+    EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
     // trackReferenced=false so we don't modify the NRU while validating it.
     StoredValue* v(ht.find(key, /*trackReference*/false));
@@ -599,7 +608,7 @@ TEST_F(HashTableTest, NRUMinimum) {
 
     Item item(key, 0, 0, "value", strlen("value"));
     item.setNRUValue(MIN_NRU_VALUE);
-    EXPECT_EQ(WAS_CLEAN, ht.set(item));
+    EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
     // trackReferenced=false so we don't modify the NRU while validating it.
     StoredValue* v(ht.find(key,/*trackReference*/false));
@@ -616,15 +625,17 @@ TEST_F(HashTableTest, MB21448_UnlockedSetWithCASDeleted) {
     HashTable ht(global_stats, 5, 1);
     StoredDocKey key = makeStoredDocKey("key");
     Item item(key, 0, 0, "deleted", strlen("deleted"));
-    ASSERT_EQ(WAS_CLEAN, ht.set(item));
-    ASSERT_EQ(WAS_DIRTY, ht.softDelete(key, 0));
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
+    ASSERT_EQ(MutationStatus::WasDirty, ht.softDelete(key, 0));
 
     // Attempt to perform a set on a deleted key with a CAS.
     Item replacement(key, 0, 0, "value", strlen("value"));
-    EXPECT_EQ(NOT_FOUND,
-              ht.set(replacement, /*cas*/10, /*allowExisting*/true,
-                     /*hasMetaData*/false))
-        << "When trying to replace-with-CAS a deleted item";
+    EXPECT_EQ(MutationStatus::NotFound,
+              ht.set(replacement,
+                     /*cas*/ 10,
+                     /*allowExisting*/ true,
+                     /*hasMetaData*/ false))
+            << "When trying to replace-with-CAS a deleted item";
 }
 
 /** Test to check if an unlocked_softDelete performed on an
@@ -635,7 +646,7 @@ TEST_F(HashTableTest, unlockedSoftDeleteWithValue) {
     HashTable ht(global_stats, 5, 1);
     StoredDocKey key = makeStoredDocKey("key");
     Item stored_item(key, 0 , 0, "value", strlen("value"));
-    ASSERT_EQ(WAS_CLEAN, ht.set(stored_item));
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(stored_item));
 
     StoredValue* v(ht.find(key, /*trackReference*/false));
     EXPECT_NE(nullptr, v);
@@ -649,7 +660,8 @@ TEST_F(HashTableTest, unlockedSoftDeleteWithValue) {
     v->setValue(deleted_item, ht, true);
 
     ItemMetaData itm_meta;
-    EXPECT_EQ(WAS_DIRTY,ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));
+    EXPECT_EQ(MutationStatus::WasDirty,
+              ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));
     verifyValue(ht, key, "deletedvalue",/*trackReference*/true, /*wantsDeleted*/true);
 }
 
@@ -661,13 +673,14 @@ TEST_F(HashTableTest, updateDeletedItem) {
     HashTable ht(global_stats, 5, 1);
     StoredDocKey key = makeStoredDocKey("key");
     Item stored_item(key, 0 , 0, "value", strlen("value"));
-    ASSERT_EQ(WAS_CLEAN, ht.set(stored_item));
+    ASSERT_EQ(MutationStatus::WasClean, ht.set(stored_item));
 
     StoredValue* v(ht.find(key, /*trackReference*/false));
     EXPECT_NE(nullptr, v);
 
     ItemMetaData itm_meta;
-    EXPECT_EQ(WAS_DIRTY, ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));
+    EXPECT_EQ(MutationStatus::WasDirty,
+              ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));
     verifyValue(ht, key, nullptr,/*trackReference*/true, /*wantsDeleted*/true);
 
     Item deleted_item(key, 0, 0, "deletedvalue", strlen("deletedvalue"));
@@ -676,7 +689,8 @@ TEST_F(HashTableTest, updateDeletedItem) {
     // Set a new deleted value
     v->setValue(deleted_item, ht, true);
 
-    EXPECT_EQ(WAS_DIRTY,ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));
+    EXPECT_EQ(MutationStatus::WasDirty,
+              ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));
     verifyValue(ht, key, "deletedvalue", /*trackReference*/true, /*wantDeleted*/true);
 
     Item update_deleted_item(key, 0, 0, "updatedeletedvalue",
@@ -686,7 +700,8 @@ TEST_F(HashTableTest, updateDeletedItem) {
     // Set a new deleted value
     v->setValue(update_deleted_item, ht, true);
 
-    EXPECT_EQ(WAS_DIRTY,ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));
+    EXPECT_EQ(MutationStatus::WasDirty,
+              ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));
     verifyValue(ht, key, "updatedeletedvalue",/*trackReference*/true,
                 /*wantsDeleted*/true);
 }

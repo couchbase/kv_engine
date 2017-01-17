@@ -108,7 +108,7 @@ TEST_P(VBucketEvictionTest, EjectionResidentCount) {
     Item item(makeStoredDocKey("key"), /*flags*/0, /*exp*/0,
               /*data*/nullptr, /*ndata*/0);
 
-    EXPECT_EQ(WAS_CLEAN,
+    EXPECT_EQ(MutationStatus::WasClean,
               this->vbucket->ht.set(item, eviction_policy));
 
     EXPECT_EQ(1, this->vbucket->getNumItems(eviction_policy));

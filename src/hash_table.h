@@ -27,9 +27,35 @@ class HashTableDepthVisitor;
 class PauseResumeHashTableVisitor;
 
 /**
+ * Mutation types as returned by store commands.
+ */
+enum class MutationStatus : uint16_t {
+    NotFound, //!< The item was not found for update
+    InvalidCas, //!< The wrong CAS identifier was sent for a CAS update
+    WasClean, //!< The item was clean before this mutation
+    WasDirty, //!< This item was already dirty before this mutation
+    IsLocked, //!< The item is locked and can't be updated.
+    NoMem, //!< Insufficient memory to store this item.
+    NeedBgFetch //!< Require a bg fetch to process SET op
+};
+
+/**
+ * Result from add operation.
+ */
+enum class AddStatus : uint16_t {
+    Success, //!< Add was successful.
+    NoMem, //!< No memory for operation
+    Exists, //!< Did not update -- item exists with this key
+    UnDel, //!< Undeletes an existing dirty item
+    AddTmpAndBgFetch, //!< Create a tmp item and schedule a bg metadata fetch
+    BgFetch //!< Schedule a bg metadata fetch to process ADD op
+};
+
+/**
  * A container of StoredValue instances.
  *
- * The HashTable class is an unordered, associative array which maps StoredDocKeys
+ * The HashTable class is an unordered, associative array which maps
+ * StoredDocKeys
  * to StoredValue.
  *
  * It supports a limited degreee of concurrent access - the underlying
@@ -247,9 +273,7 @@ public:
      * @param policy item eviction policy
      * @return a result indicating the status of the store
      */
-    mutation_type_t set(Item &val,
-                        item_eviction_policy_t policy = VALUE_ONLY)
-    {
+    MutationStatus set(Item& val, item_eviction_policy_t policy = VALUE_ONLY) {
         return set(val, val.getCas(), true, false, policy);
     }
 
@@ -265,15 +289,20 @@ public:
      * @param isReplication true if issued by consumer (for replication)
      * @return a result indicating the status of the store
      */
-    mutation_type_t set(Item &val, uint64_t cas, bool allowExisting,
-                        bool hasMetaData = true,
-                        item_eviction_policy_t policy = VALUE_ONLY);
+    MutationStatus set(Item& val,
+                       uint64_t cas,
+                       bool allowExisting,
+                       bool hasMetaData = true,
+                       item_eviction_policy_t policy = VALUE_ONLY);
 
-    mutation_type_t unlocked_set(StoredValue*& v, Item &val, uint64_t cas,
-                                 bool allowExisting, bool hasMetaData = true,
-                                 item_eviction_policy_t policy = VALUE_ONLY,
-                                 bool maybeKeyExists=true,
-                                 bool isReplication = false);
+    MutationStatus unlocked_set(StoredValue*& v,
+                                Item& val,
+                                uint64_t cas,
+                                bool allowExisting,
+                                bool hasMetaData = true,
+                                item_eviction_policy_t policy = VALUE_ONLY,
+                                bool maybeKeyExists = true,
+                                bool isReplication = false);
 
     /**
      * Insert an item to this hashtable. This is called from the backfill
@@ -288,8 +317,10 @@ public:
      * @param partial is this a complete item, or just the key and meta-data
      * @return a result indicating the status of the store
      */
-    mutation_type_t insert(Item &itm, item_eviction_policy_t policy,
-                           bool eject, bool partial);
+    MutationStatus insert(Item& itm,
+                          item_eviction_policy_t policy,
+                          bool eject,
+                          bool partial);
 
     /**
      * Add an item to the hash table iff it doesn't already exist.
@@ -300,8 +331,9 @@ public:
      * @param storeVal true if the value should be stored (paged-in)
      * @return an indication of what happened
      */
-    add_type_t add(Item &val, item_eviction_policy_t policy,
-                   bool isDirty = true);
+    AddStatus add(Item& val,
+                  item_eviction_policy_t policy,
+                  bool isDirty = true);
 
     /**
      * Unlocked version of the add() method.
@@ -315,13 +347,13 @@ public:
      * @param isReplication true if issued by consumer (for replication)
      * @return an indication of what happened
      */
-    add_type_t unlocked_add(int &bucket_num,
-                            StoredValue*& v,
-                            Item &val,
-                            item_eviction_policy_t policy,
-                            bool isDirty,
-                            bool maybeKeyExists,
-                            bool isReplication);
+    AddStatus unlocked_add(int& bucket_num,
+                           StoredValue*& v,
+                           Item& val,
+                           item_eviction_policy_t policy,
+                           bool isDirty,
+                           bool maybeKeyExists,
+                           bool isReplication);
 
     /**
      * Add a temporary item to the hash table iff it doesn't already exist.
@@ -335,10 +367,10 @@ public:
      * @param isReplication true if issued by consumer (for replication)
      * @return an indication of what happened
      */
-    add_type_t unlocked_addTempItem(int &bucket_num,
-                                    const DocKey& key,
-                                    item_eviction_policy_t policy,
-                                    bool isReplication = false);
+    AddStatus unlocked_addTempItem(int& bucket_num,
+                                   const DocKey& key,
+                                   item_eviction_policy_t policy,
+                                   bool isReplication = false);
 
     /**
      * Mark the given record logically deleted.
@@ -348,21 +380,23 @@ public:
      * @param policy item eviction policy
      * @return an indicator of what the deletion did
      */
-    mutation_type_t softDelete(const DocKey& key, uint64_t cas,
-                               item_eviction_policy_t policy = VALUE_ONLY);
+    MutationStatus softDelete(const DocKey& key,
+                              uint64_t cas,
+                              item_eviction_policy_t policy = VALUE_ONLY);
 
-    mutation_type_t unlocked_softDelete(StoredValue *v,
-                                        uint64_t cas,
-                                        item_eviction_policy_t policy = VALUE_ONLY);
+    MutationStatus unlocked_softDelete(
+            StoredValue* v,
+            uint64_t cas,
+            item_eviction_policy_t policy = VALUE_ONLY);
 
     /**
      * Unlocked implementation of softDelete.
      */
-    mutation_type_t unlocked_softDelete(StoredValue *v,
-                                        uint64_t cas,
-                                        ItemMetaData &metadata,
-                                        item_eviction_policy_t policy,
-                                        bool use_meta=false);
+    MutationStatus unlocked_softDelete(StoredValue* v,
+                                       uint64_t cas,
+                                       ItemMetaData& metadata,
+                                       item_eviction_policy_t policy,
+                                       bool use_meta = false);
 
     /**
      * Find an item within a specific bucket assuming you already

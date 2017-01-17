@@ -242,35 +242,39 @@ Item* HashTable::getRandomKey(long rnd) {
     return ret;
 }
 
-mutation_type_t HashTable::set(Item &val, uint64_t cas,
-                               bool allowExisting, bool hasMetaData,
-                               item_eviction_policy_t policy) {
+MutationStatus HashTable::set(Item& val,
+                              uint64_t cas,
+                              bool allowExisting,
+                              bool hasMetaData,
+                              item_eviction_policy_t policy) {
     int bucket_num(0);
     std::unique_lock<std::mutex> lh = getLockedBucket(val.getKey(), &bucket_num);
     StoredValue *v = unlocked_find(val.getKey(), bucket_num, true, false);
     return unlocked_set(v, val, cas, allowExisting, hasMetaData, policy);
 }
 
-mutation_type_t HashTable::unlocked_set(StoredValue*& v, Item& itm,
-                                        uint64_t cas, bool allowExisting,
-                                        bool hasMetaData,
-                                        item_eviction_policy_t policy,
-                                        bool maybeKeyExists,
-                                        bool isReplication) {
+MutationStatus HashTable::unlocked_set(StoredValue*& v,
+                                       Item& itm,
+                                       uint64_t cas,
+                                       bool allowExisting,
+                                       bool hasMetaData,
+                                       item_eviction_policy_t policy,
+                                       bool maybeKeyExists,
+                                       bool isReplication) {
     if (!isActive()) {
         throw std::logic_error("HashTable::unlocked_set: Cannot call on a "
                 "non-active object");
     }
 
     if (!StoredValue::hasAvailableSpace(stats, itm, isReplication)) {
-        return NOMEM;
+        return MutationStatus::NoMem;
     }
 
-    mutation_type_t rv = NOT_FOUND;
+    MutationStatus rv = MutationStatus::NotFound;
 
     if (cas && policy == FULL_EVICTION && maybeKeyExists) {
         if (!v || v->isTempInitialItem()) {
-            return NEED_BG_FETCH;
+            return MutationStatus::NeedBgFetch;
         }
     }
 
@@ -287,13 +291,13 @@ mutation_type_t HashTable::unlocked_set(StoredValue*& v, Item& itm,
         }
         if (cas) {
             /* item has expired and cas value provided. Deny ! */
-            return NOT_FOUND;
+            return MutationStatus::NotFound;
         }
     }
 
     if (v) {
         if (!allowExisting && !v->isTempItem()) {
-            return INVALID_CAS;
+            return MutationStatus::InvalidCas;
         }
         if (v->isLocked(ep_current_time())) {
             /*
@@ -301,7 +305,7 @@ mutation_type_t HashTable::unlocked_set(StoredValue*& v, Item& itm,
              * or no cas value is provided by the user
              */
             if (cas != v->getCas()) {
-                return IS_LOCKED;
+                return MutationStatus::IsLocked;
             }
             /* allow operation*/
             v->unlock();
@@ -309,12 +313,12 @@ mutation_type_t HashTable::unlocked_set(StoredValue*& v, Item& itm,
             if (v->isTempDeletedItem() ||
                 v->isTempNonExistentItem() ||
                 v->isDeleted()) {
-                return NOT_FOUND;
+                return MutationStatus::NotFound;
             }
-            return INVALID_CAS;
+            return MutationStatus::InvalidCas;
         }
 
-        rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
+        rv = v->isClean() ? MutationStatus::WasClean : MutationStatus::WasDirty;
         if (!v->isResident() && !v->isDeleted() && !v->isTempItem()) {
             decrNumNonResidentItems();
         }
@@ -328,7 +332,7 @@ mutation_type_t HashTable::unlocked_set(StoredValue*& v, Item& itm,
         v->setValue(itm, *this, hasMetaData /*Preserve revSeqno*/);
 
     } else if (cas != 0) {
-        rv = NOT_FOUND;
+        rv = MutationStatus::NotFound;
     } else {
         int bucket_num = getBucketForHash(itm.getKey().hash());
         v = valFact(itm, values[bucket_num], *this);
@@ -346,19 +350,21 @@ mutation_type_t HashTable::unlocked_set(StoredValue*& v, Item& itm,
             v->setRevSeqno(seqno);
             itm.setRevSeqno(seqno);
         }
-        rv = WAS_CLEAN;
+        rv = MutationStatus::WasClean;
     }
     return rv;
 }
 
-mutation_type_t HashTable::insert(Item &itm, item_eviction_policy_t policy,
-                                  bool eject, bool partial) {
+MutationStatus HashTable::insert(Item& itm,
+                                 item_eviction_policy_t policy,
+                                 bool eject,
+                                 bool partial) {
     if (!isActive()) {
         throw std::logic_error("HashTable::insert: Cannot call on a "
                 "non-active object");
     }
     if (!StoredValue::hasAvailableSpace(stats, itm)) {
-        return NOMEM;
+        return MutationStatus::NoMem;
     }
 
     int bucket_num(0);
@@ -378,7 +384,7 @@ mutation_type_t HashTable::insert(Item &itm, item_eviction_policy_t policy,
     } else {
         if (partial) {
             // We don't have a better error code ;)
-            return INVALID_CAS;
+            return MutationStatus::InvalidCas;
         }
 
         // Verify that the CAS isn't changed
@@ -389,7 +395,7 @@ mutation_type_t HashTable::insert(Item &itm, item_eviction_policy_t policy,
                 v->exptime = itm.getExptime();
                 v->revSeqno = itm.getRevSeqno();
             } else {
-                return INVALID_CAS;
+                return MutationStatus::InvalidCas;
             }
         }
 
@@ -412,11 +418,12 @@ mutation_type_t HashTable::insert(Item &itm, item_eviction_policy_t policy,
         unlocked_ejectItem(v, policy);
     }
 
-    return NOT_FOUND;
+    return MutationStatus::NotFound;
 }
 
-add_type_t HashTable::add(Item &val, item_eviction_policy_t policy,
-                          bool isDirty) {
+AddStatus HashTable::add(Item& val,
+                         item_eviction_policy_t policy,
+                         bool isDirty) {
     if (!isActive()) {
         throw std::logic_error("HashTable::add: Cannot call on a "
                 "non-active object");
@@ -428,32 +435,33 @@ add_type_t HashTable::add(Item &val, item_eviction_policy_t policy,
                         /*maybeKeyExists*/true, /*isReplication*/false);
 }
 
-add_type_t HashTable::unlocked_add(int &bucket_num,
-                                   StoredValue*& v,
-                                   Item &itm,
-                                   item_eviction_policy_t policy,
-                                   bool isDirty,
-                                   bool maybeKeyExists,
-                                   bool isReplication) {
-    add_type_t rv = ADD_SUCCESS;
+AddStatus HashTable::unlocked_add(int& bucket_num,
+                                  StoredValue*& v,
+                                  Item& itm,
+                                  item_eviction_policy_t policy,
+                                  bool isDirty,
+                                  bool maybeKeyExists,
+                                  bool isReplication) {
+    AddStatus rv = AddStatus::Success;
     if (v && !v->isDeleted() && !v->isExpired(ep_real_time()) &&
        !v->isTempItem()) {
-        rv = ADD_EXISTS;
+        rv = AddStatus::Exists;
     } else {
         if (!StoredValue::hasAvailableSpace(stats, itm,
                                             isReplication)) {
-            return ADD_NOMEM;
+            return AddStatus::NoMem;
         }
 
         if (v) {
             if (v->isTempInitialItem() && policy == FULL_EVICTION
                 && maybeKeyExists) {
                 // Need to figure out if an item exists on disk
-                return ADD_BG_FETCH;
+                return AddStatus::BgFetch;
             }
 
-            rv = (v->isDeleted() || v->isExpired(ep_real_time())) ?
-                                   ADD_UNDEL : ADD_SUCCESS;
+            rv = (v->isDeleted() || v->isExpired(ep_real_time()))
+                         ? AddStatus::UnDel
+                         : AddStatus::Success;
             if (v->isTempItem()) {
                 if (v->isTempDeletedItem()) {
                     itm.setRevSeqno(v->getRevSeqno() + 1);
@@ -473,7 +481,7 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
         } else {
             if (itm.getBySeqno() != StoredValue::state_temp_init) {
                 if (policy == FULL_EVICTION && maybeKeyExists) {
-                    return ADD_TMP_AND_BG_FETCH;
+                    return AddStatus::AddTmpAndBgFetch;
                 }
             }
             v = valFact(itm, values[bucket_num], *this, isDirty);
@@ -481,7 +489,7 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
 
             if (v->isTempItem()) {
                 ++numTempItems;
-                rv = ADD_BG_FETCH;
+                rv = AddStatus::BgFetch;
             } else {
                 ++numItems;
                 ++numTotalItems;
@@ -510,11 +518,10 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
     return rv;
 }
 
-add_type_t HashTable::unlocked_addTempItem(int &bucket_num,
-                                           const DocKey& key,
-                                           item_eviction_policy_t policy,
-                                           bool isReplication) {
-
+AddStatus HashTable::unlocked_addTempItem(int& bucket_num,
+                                          const DocKey& key,
+                                          item_eviction_policy_t policy,
+                                          bool isReplication) {
     if (!isActive()) {
         throw std::logic_error("HashTable::unlocked_addTempItem: Cannot call on a "
                 "non-active object");
@@ -535,8 +542,9 @@ add_type_t HashTable::unlocked_addTempItem(int &bucket_num,
                         isReplication);
 }
 
-mutation_type_t HashTable::softDelete(const DocKey& key, uint64_t cas,
-                                      item_eviction_policy_t policy) {
+MutationStatus HashTable::softDelete(const DocKey& key,
+                                     uint64_t cas,
+                                     item_eviction_policy_t policy) {
     if (!isActive()) {
         throw std::logic_error("HashTable::softDelete: Cannot call on a "
                 "non-active object");
@@ -547,9 +555,9 @@ mutation_type_t HashTable::softDelete(const DocKey& key, uint64_t cas,
     return unlocked_softDelete(v, cas, policy);
 }
 
-mutation_type_t HashTable::unlocked_softDelete(StoredValue *v,
-                                               uint64_t cas,
-                                               item_eviction_policy_t policy) {
+MutationStatus HashTable::unlocked_softDelete(StoredValue* v,
+                                              uint64_t cas,
+                                              item_eviction_policy_t policy) {
     ItemMetaData metadata;
     if (v) {
         metadata.revSeqno = v->getRevSeqno() + 1;
@@ -557,15 +565,15 @@ mutation_type_t HashTable::unlocked_softDelete(StoredValue *v,
     return unlocked_softDelete(v, cas, metadata, policy);
 }
 
-mutation_type_t HashTable::unlocked_softDelete(StoredValue *v,
-                                               uint64_t cas,
-                                               ItemMetaData &metadata,
-                                               item_eviction_policy_t policy,
-                                               bool use_meta) {
-    mutation_type_t rv = NOT_FOUND;
+MutationStatus HashTable::unlocked_softDelete(StoredValue* v,
+                                              uint64_t cas,
+                                              ItemMetaData& metadata,
+                                              item_eviction_policy_t policy,
+                                              bool use_meta) {
+    MutationStatus rv = MutationStatus::NotFound;
 
     if ((!v || v->isTempInitialItem()) && policy == FULL_EVICTION) {
-        return NEED_BG_FETCH;
+        return MutationStatus::NeedBgFetch;
     }
 
     if (v) {
@@ -581,13 +589,13 @@ mutation_type_t HashTable::unlocked_softDelete(StoredValue *v,
 
         if (v->isLocked(ep_current_time())) {
             if (cas != v->getCas()) {
-                return IS_LOCKED;
+                return MutationStatus::IsLocked;
             }
             v->unlock();
         }
 
         if (cas != 0 && cas != v->getCas()) {
-            return INVALID_CAS;
+            return MutationStatus::InvalidCas;
         }
 
         if (!v->isResident() && !v->isDeleted() && !v->isTempItem()) {
@@ -603,7 +611,7 @@ mutation_type_t HashTable::unlocked_softDelete(StoredValue *v,
         /* allow operation*/
         v->unlock();
 
-        rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
+        rv = v->isClean() ? MutationStatus::WasClean : MutationStatus::WasDirty;
         v->setRevSeqno(metadata.revSeqno);
         if (use_meta) {
             v->setCas(metadata.cas);

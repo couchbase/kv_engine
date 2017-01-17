@@ -701,9 +701,9 @@ void KVBucket::deleteExpiredItem(uint16_t vbid,
                     // into the checkpoint queue, only if the bloomfilter
                     // predicts that the item may exist on disk.
                     if (vb->maybeKeyExistsInFilter(key)) {
-                        add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
-                                                                    eviction_policy);
-                        if (rv == ADD_NOMEM) {
+                        AddStatus rv = vb->ht.unlocked_addTempItem(
+                                bucket_num, key, eviction_policy);
+                        if (rv == AddStatus::NoMem) {
                             return;
                         }
                         v = vb->ht.unlocked_find(key, bucket_num, true, false);
@@ -844,38 +844,37 @@ ENGINE_ERROR_CODE KVBucket::set(Item &itm, const void *cookie) {
         }
     }
 
-    mutation_type_t mtype = vb->ht.unlocked_set(v, itm, itm.getCas(), true, false,
-                                                eviction_policy,
-                                                maybeKeyExists);
+    MutationStatus mtype = vb->ht.unlocked_set(
+            v, itm, itm.getCas(), true, false, eviction_policy, maybeKeyExists);
 
     uint64_t seqno = 0;
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (mtype) {
-    case NOMEM:
+    case MutationStatus::NoMem:
         ret = ENGINE_ENOMEM;
         break;
-    case INVALID_CAS:
-    case IS_LOCKED:
+    case MutationStatus::InvalidCas:
+    case MutationStatus::IsLocked:
         ret = ENGINE_KEY_EEXISTS;
         break;
-    case NOT_FOUND:
+    case MutationStatus::NotFound:
         if (cas_op) {
             ret = ENGINE_KEY_ENOENT;
             break;
         }
         // FALLTHROUGH
-    case WAS_DIRTY:
-        // Even if the item was dirty, push it into the vbucket's open
-        // checkpoint.
-    case WAS_CLEAN:
+    case MutationStatus::WasDirty:
+    // Even if the item was dirty, push it into the vbucket's open
+    // checkpoint.
+    case MutationStatus::WasClean:
         // We keep lh held as we need to do v->getCas()
         seqno = vb->queueDirty(*v, nullptr);
 
         itm.setBySeqno(seqno);
         itm.setCas(v->getCas());
         break;
-    case NEED_BG_FETCH:
-    {   // CAS operation with non-resident item + full eviction.
+    case MutationStatus::NeedBgFetch: { // CAS operation with non-resident item
+        // + full eviction.
         if (v) {
             // temp item is already created. Simply schedule a bg fetch job
             lh.unlock();
@@ -940,20 +939,21 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
         }
     }
 
-    add_type_t atype = vb->ht.unlocked_add(bucket_num, v, itm,
-                                           eviction_policy,
-                                           /*isDirty*/true,
-                                           maybeKeyExists,
-                                           /*isReplication*/false);
-
+    AddStatus atype = vb->ht.unlocked_add(bucket_num,
+                                          v,
+                                          itm,
+                                          eviction_policy,
+                                          /*isDirty*/ true,
+                                          maybeKeyExists,
+                                          /*isReplication*/ false);
 
     uint64_t seqno = 0;
     switch (atype) {
-    case ADD_NOMEM:
+    case AddStatus::NoMem:
         return ENGINE_ENOMEM;
-    case ADD_EXISTS:
+    case AddStatus::Exists:
         return ENGINE_NOT_STORED;
-    case ADD_TMP_AND_BG_FETCH:
+    case AddStatus::AddTmpAndBgFetch:
         return vb->addTempItemAndBGFetch(lh,
                                          bucket_num,
                                          itm.getKey(),
@@ -961,12 +961,12 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
                                          engine,
                                          bgFetchDelay,
                                          true);
-    case ADD_BG_FETCH:
+    case AddStatus::BgFetch:
         lh.unlock();
         vb->bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
         return ENGINE_EWOULDBLOCK;
-    case ADD_SUCCESS:
-    case ADD_UNDEL:
+    case AddStatus::Success:
+    case AddStatus::UnDel:
         // We need to keep lh as we will do v->getCas()
         seqno = vb->queueDirty(*v, nullptr);
 
@@ -1008,9 +1008,9 @@ ENGINE_ERROR_CODE KVBucket::replace(Item &itm, const void *cookie) {
             return ENGINE_KEY_ENOENT;
         }
 
-        mutation_type_t mtype;
+        MutationStatus mtype;
         if (eviction_policy == FULL_EVICTION && v->isTempInitialItem()) {
-            mtype = NEED_BG_FETCH;
+            mtype = MutationStatus::NeedBgFetch;
         } else {
             mtype = vb->ht.unlocked_set(v, itm, 0, true, false, eviction_policy);
         }
@@ -1018,34 +1018,33 @@ ENGINE_ERROR_CODE KVBucket::replace(Item &itm, const void *cookie) {
         uint64_t seqno = 0;
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
         switch (mtype) {
-            case NOMEM:
-                ret = ENGINE_ENOMEM;
-                break;
-            case IS_LOCKED:
-                ret = ENGINE_KEY_EEXISTS;
-                break;
-            case INVALID_CAS:
-            case NOT_FOUND:
-                ret = ENGINE_NOT_STORED;
-                break;
-                // FALLTHROUGH
-            case WAS_DIRTY:
-                // Even if the item was dirty, push it into the vbucket's open
-                // checkpoint.
-            case WAS_CLEAN:
-                // We need to keep lh as we will do v->getCas()
-                seqno = vb->queueDirty(*v, nullptr);
+        case MutationStatus::NoMem:
+            ret = ENGINE_ENOMEM;
+            break;
+        case MutationStatus::IsLocked:
+            ret = ENGINE_KEY_EEXISTS;
+            break;
+        case MutationStatus::InvalidCas:
+        case MutationStatus::NotFound:
+            ret = ENGINE_NOT_STORED;
+            break;
+        // FALLTHROUGH
+        case MutationStatus::WasDirty:
+        // Even if the item was dirty, push it into the vbucket's open
+        // checkpoint.
+        case MutationStatus::WasClean:
+            // We need to keep lh as we will do v->getCas()
+            seqno = vb->queueDirty(*v, nullptr);
 
-                itm.setBySeqno(seqno);
-                itm.setCas(v->getCas());
-                break;
-            case NEED_BG_FETCH:
-            {
-                // temp item is already created. Simply schedule a bg fetch job
-                lh.unlock();
-                vb->bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
-                ret = ENGINE_EWOULDBLOCK;
-                break;
+            itm.setBySeqno(seqno);
+            itm.setCas(v->getCas());
+            break;
+        case MutationStatus::NeedBgFetch: {
+            // temp item is already created. Simply schedule a bg fetch job
+            lh.unlock();
+            vb->bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
+            ret = ENGINE_EWOULDBLOCK;
+            break;
             }
         }
 
@@ -1103,32 +1102,32 @@ ENGINE_ERROR_CODE KVBucket::addTAPBackfillItem(Item &itm, bool genBySeqno,
     if (v && v->isLocked(ep_current_time())) {
         v->unlock();
     }
-    mutation_type_t mtype = vb->ht.unlocked_set(v, itm, 0, true, true,
-                                                eviction_policy);
+    MutationStatus mtype =
+            vb->ht.unlocked_set(v, itm, 0, true, true, eviction_policy);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (mtype) {
-    case NOMEM:
+    case MutationStatus::NoMem:
         ret = ENGINE_ENOMEM;
         break;
-    case INVALID_CAS:
-    case IS_LOCKED:
+    case MutationStatus::InvalidCas:
+    case MutationStatus::IsLocked:
         ret = ENGINE_KEY_EEXISTS;
         break;
-    case WAS_DIRTY:
-        // FALLTHROUGH, to ensure the bySeqno for the hashTable item is
-        // set correctly, and also the sequence numbers are ordered correctly.
-        // (MB-14003)
-    case NOT_FOUND:
-        // FALLTHROUGH
-    case WAS_CLEAN:
+    case MutationStatus::WasDirty:
+    // FALLTHROUGH, to ensure the bySeqno for the hashTable item is
+    // set correctly, and also the sequence numbers are ordered correctly.
+    // (MB-14003)
+    case MutationStatus::NotFound:
+    // FALLTHROUGH
+    case MutationStatus::WasClean:
         vb->setMaxCas(v->getCas());
         vb->tapQueueDirty(
                 v,
                 std::move(lh),
                 genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No);
         break;
-    case NEED_BG_FETCH:
+    case MutationStatus::NeedBgFetch:
         throw std::logic_error("EventuallyPersistentStore::addTAPBackfillItem: "
                 "SET on a non-active vbucket should not require a "
                 "bg_metadata_fetch.");
@@ -1929,46 +1928,50 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item &itm,
         v->unlock();
     }
 
-    mutation_type_t mtype = vb->ht.unlocked_set(v, itm, cas, allowExisting,
-                                                true, eviction_policy,
-                                                maybeKeyExists, isReplication);
+    MutationStatus mtype = vb->ht.unlocked_set(v,
+                                               itm,
+                                               cas,
+                                               allowExisting,
+                                               true,
+                                               eviction_policy,
+                                               maybeKeyExists,
+                                               isReplication);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (mtype) {
-    case NOMEM:
+    case MutationStatus::NoMem:
         ret = ENGINE_ENOMEM;
         break;
-    case INVALID_CAS:
-    case IS_LOCKED:
+    case MutationStatus::InvalidCas:
+    case MutationStatus::IsLocked:
         ret = ENGINE_KEY_EEXISTS;
         break;
-    case WAS_DIRTY:
-    case WAS_CLEAN: {
+    case MutationStatus::WasDirty:
+    case MutationStatus::WasClean: {
         vb->setMaxCasAndTrackDrift(v->getCas());
         auto queued_seqno = vb->queueDirty(*v, &lh, genBySeqno, genCas);
         if (nullptr != seqno) {
             *seqno = queued_seqno;
         }
     } break;
-    case NOT_FOUND:
+    case MutationStatus::NotFound:
         ret = ENGINE_KEY_ENOENT;
         break;
-    case NEED_BG_FETCH:
-        {            // CAS operation with non-resident item + full eviction.
-            if (v) { // temp item is already created. Simply schedule a
-                lh.unlock(); // bg fetch job.
-                vb->bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
-                return ENGINE_EWOULDBLOCK;
-            }
-
-            ret = vb->addTempItemAndBGFetch(lh,
-                                            bucket_num,
-                                            itm.getKey(),
-                                            cookie,
-                                            engine,
-                                            bgFetchDelay,
-                                            true,
-                                            isReplication);
+    case MutationStatus::NeedBgFetch: { // CAS operation with non-resident item
+        // + full eviction.
+        if (v) { // temp item is already created. Simply schedule a
+            lh.unlock(); // bg fetch job.
+            vb->bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
+            return ENGINE_EWOULDBLOCK;
+        }
+        ret = vb->addTempItemAndBGFetch(lh,
+                                        bucket_num,
+                                        itm.getKey(),
+                                        cookie,
+                                        engine,
+                                        bgFetchDelay,
+                                        true,
+                                        isReplication);
         }
     }
 
@@ -2352,11 +2355,9 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
                     // force deletion, only if bloomfilter predicts that
                     // item may exist on disk.
                     if (vb->maybeKeyExistsInFilter(key)) {
-                        add_type_t rv = vb->ht.unlocked_addTempItem(
-                                                               bucket_num,
-                                                               key,
-                                                               eviction_policy);
-                        if (rv == ADD_NOMEM) {
+                        AddStatus rv = vb->ht.unlocked_addTempItem(
+                                bucket_num, key, eviction_policy);
+                        if (rv == AddStatus::NoMem) {
                             return ENGINE_ENOMEM;
                         }
                         v = vb->ht.unlocked_find(key, bucket_num, true, false);
@@ -2384,7 +2385,7 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
          vb->getState() == vbucket_state_pending)) {
         v->unlock();
     }
-    mutation_type_t delrv;
+    MutationStatus delrv;
 
     /* if an item containing a deleted value is present, set the value
      * as part of the stored value so that a value is set as part of the
@@ -2394,7 +2395,9 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
         v->setValue(*itm, vb->ht, true);
     }
     delrv = vb->ht.unlocked_softDelete(v, *cas, eviction_policy);
-    if (v && (delrv == NOT_FOUND || delrv == WAS_DIRTY || delrv == WAS_CLEAN)) {
+    if (v && (delrv == MutationStatus::NotFound ||
+              delrv == MutationStatus::WasDirty ||
+              delrv == MutationStatus::WasClean)) {
         if (itemMeta != nullptr) {
             itemMeta->revSeqno = v->getRevSeqno();
             itemMeta->cas = v->getCas();
@@ -2406,26 +2409,26 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
     uint64_t seqno = 0;
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (delrv) {
-    case NOMEM:
+    case MutationStatus::NoMem:
         ret = ENGINE_ENOMEM;
         break;
-    case INVALID_CAS:
+    case MutationStatus::InvalidCas:
         ret = ENGINE_KEY_EEXISTS;
         break;
-    case IS_LOCKED:
+    case MutationStatus::IsLocked:
         ret = ENGINE_TMPFAIL;
         break;
-    case NOT_FOUND:
+    case MutationStatus::NotFound:
         ret = ENGINE_KEY_ENOENT;
-    case WAS_CLEAN:
-    case WAS_DIRTY:
+    case MutationStatus::WasClean:
+    case MutationStatus::WasDirty:
         if (v) {
             // We need to keep lh as we will do v->getCas()
             seqno = vb->queueDirty(*v, nullptr);
             *cas = v->getCas();
         }
 
-        if (delrv != NOT_FOUND) {
+        if (delrv != MutationStatus::NotFound) {
             mutInfo->seqno = seqno;
             mutInfo->vbucket_uuid = vb->failovers->getLatestUUID();
             if (itemMeta != nullptr) {
@@ -2433,7 +2436,7 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
             }
         }
         break;
-    case NEED_BG_FETCH:
+    case MutationStatus::NeedBgFetch:
         // We already figured out if a bg fetch is requred for a full-evicted
         // item above.
         throw std::logic_error("EventuallyPersistentStore::deleteItem: "
@@ -2514,10 +2517,9 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
             } else {
                 // Even though bloomfilter predicted that item doesn't exist
                 // on disk, we must put this delete on disk if the cas is valid.
-                add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
-                                                            eviction_policy,
-                                                            isReplication);
-                if (rv == ADD_NOMEM) {
+                AddStatus rv = vb->ht.unlocked_addTempItem(
+                        bucket_num, key, eviction_policy, isReplication);
+                if (rv == AddStatus::NoMem) {
                     return ENGINE_ENOMEM;
                 }
                 v = vb->ht.unlocked_find(key, bucket_num, true, false);
@@ -2527,10 +2529,9 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
     } else {
         if (!v) {
             // We should always try to persist a delete here.
-            add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
-                                                        eviction_policy,
-                                                        isReplication);
-            if (rv == ADD_NOMEM) {
+            AddStatus rv = vb->ht.unlocked_addTempItem(
+                    bucket_num, key, eviction_policy, isReplication);
+            if (rv == AddStatus::NoMem) {
                 return ENGINE_ENOMEM;
             }
             v = vb->ht.unlocked_find(key, bucket_num, true, false);
@@ -2547,27 +2548,27 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
          vb->getState() == vbucket_state_pending)) {
         v->unlock();
     }
-    mutation_type_t delrv;
+    MutationStatus delrv;
     delrv = vb->ht.unlocked_softDelete(v, *cas, *itemMeta,
                                        eviction_policy, true);
     *cas = v ? v->getCas() : 0;
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (delrv) {
-    case NOMEM:
+    case MutationStatus::NoMem:
         ret = ENGINE_ENOMEM;
         break;
-    case INVALID_CAS:
+    case MutationStatus::InvalidCas:
         ret = ENGINE_KEY_EEXISTS;
         break;
-    case IS_LOCKED:
+    case MutationStatus::IsLocked:
         ret = ENGINE_TMPFAIL;
         break;
-    case NOT_FOUND:
+    case MutationStatus::NotFound:
         ret = ENGINE_KEY_ENOENT;
         break;
-    case WAS_DIRTY:
-    case WAS_CLEAN: {
+    case MutationStatus::WasDirty:
+    case MutationStatus::WasClean: {
         if (genBySeqno == GenerateBySeqno::No) {
             v->setBySeqno(bySeqno);
         }
@@ -2585,10 +2586,10 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
         }
         }
         break;
-    case NEED_BG_FETCH:
-        lh.unlock();
-        vb->bgFetch(key, cookie, engine, bgFetchDelay, true);
-        ret = ENGINE_EWOULDBLOCK;
+        case MutationStatus::NeedBgFetch:
+            lh.unlock();
+            vb->bgFetch(key, cookie, engine, bgFetchDelay, true);
+            ret = ENGINE_EWOULDBLOCK;
     }
 
     return ret;
@@ -3555,12 +3556,14 @@ public:
                     setStatus(ENGINE_SUCCESS);
                 }
             } else {
-                mutation_type_t mtype = vb->ht.set(*it, /*cas*/0,
-                                                   true, true,
-                                                   engine.getKVBucket()->
-                                                    getItemEvictionPolicy());
+                MutationStatus mtype = vb->ht.set(
+                        *it,
+                        /*cas*/ 0,
+                        true,
+                        true,
+                        engine.getKVBucket()->getItemEvictionPolicy());
 
-                if (mtype == NOMEM) {
+                if (mtype == MutationStatus::NoMem) {
                     setStatus(ENGINE_ENOMEM);
                 }
             }

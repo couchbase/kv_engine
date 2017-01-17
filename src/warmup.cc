@@ -245,7 +245,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
             const auto res = vb->ht.insert(*i, policy, shouldEject(),
                                            val.isPartial());
             switch (res) {
-            case NOMEM:
+            case MutationStatus::NoMem:
                 if (retry == 2) {
                     if (hasPurged) {
                         if (++stats.warmOOM == 1) {
@@ -263,20 +263,21 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                     ++stats.warmOOM;
                 }
                 break;
-            case INVALID_CAS:
+            case MutationStatus::InvalidCas:
                 LOG(EXTENSION_LOG_DEBUG,
                     "Value changed in memory before restore from disk. "
                     "Ignored disk value for: key{%s}.", i->getKey().c_str());
                 ++stats.warmDups;
                 succeeded = true;
                 break;
-            case NOT_FOUND:
+            case MutationStatus::NotFound:
                 succeeded = true;
                 break;
             default:
-                throw std::logic_error("LoadStorageKVPairCallback::callback: "
+                throw std::logic_error(
+                        "LoadStorageKVPairCallback::callback: "
                         "Unexpected result from HashTable::insert: " +
-                        std::to_string(res));
+                        std::to_string(static_cast<uint16_t>(res)));
             }
         } while (!succeeded && retry-- > 0);
 
