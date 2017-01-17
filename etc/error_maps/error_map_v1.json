@@ -181,6 +181,13 @@
                 "invalid-input"
             ]
         },
+        "88": {
+            "name": "UNKNOWN_COLLECTION",
+            "desc": "Unknown collection (or no collection) in the key.",
+            "attrs": [
+                "invalid-input"
+            ]
+        },
         "c0": {
             "name": "SUBDOC_PATH_ENOENT",
             "desc": "Subdoc: Path not found in document",

@@ -88,6 +88,12 @@ enum class engine_errc {
      * of EEXISTS
      */
     locked_tmpfail = 0x15,
+
+    /**
+     * The request has no collection or an unknown collection.
+     */
+    unknown_collection = 0x16,
+
     /** Generic failue. */
     failed = 0xff
 };
@@ -143,6 +149,7 @@ typedef enum {
     ENGINE_DELTA_BADVAL = int(cb::engine_errc::delta_badval),
     ENGINE_LOCKED = int(cb::engine_errc::locked),
     ENGINE_LOCKED_TMPFAIL = int(cb::engine_errc::locked_tmpfail),
+    ENGINE_UNKNOWN_COLLECTION = int(cb::engine_errc::unknown_collection),
     ENGINE_FAILED = int(cb::engine_errc::failed)
 } ENGINE_ERROR_CODE;
 

@@ -90,6 +90,8 @@ std::string cb::to_string(cb::engine_errc code) {
         return "resource is locked; tmpfail";
     case cb::engine_errc::failed:
         return "generic failure";
+    case cb::engine_errc::unknown_collection:
+        return "unknown collection";
     };
 
     throw std::invalid_argument(

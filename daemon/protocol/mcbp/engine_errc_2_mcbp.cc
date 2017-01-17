@@ -71,6 +71,8 @@ protocol_binary_response_status mcbp::to_status(cb::engine_errc code) {
     case engine_errc::locked_tmpfail:
         return PROTOCOL_BINARY_RESPONSE_LOCKED;
 
+    case engine_errc::unknown_collection:
+        return PROTOCOL_BINARY_RESPONSE_UNKNOWN_COLLECTION;
     case engine_errc::failed:
         return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
