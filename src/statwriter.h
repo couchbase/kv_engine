@@ -67,7 +67,7 @@ template <typename T>
 struct histo_stat_adder {
     histo_stat_adder(const char *k, ADD_STAT a, const void *c)
         : prefix(k), add_stat(a), cookie(c) {}
-    void operator() (const HistogramBin<T>* b) {
+    void operator() (const std::unique_ptr<HistogramBin<T>>& b) {
         if (b->count()) {
             std::stringstream ss;
             ss << prefix << "_" << b->start() << "," << b->end();

@@ -36,7 +36,7 @@ static void display(const char *name, size_t size) {
 
 template <typename T>
 struct histo_for_inner {
-    void operator()(const HistogramBin<T> *bin) {
+    void operator()(const std::unique_ptr<HistogramBin<T>>& bin) {
         std::cout << "   " << bin->start() << " - ";
         if (bin->end() == std::numeric_limits<T>::max()) {
             std::cout << "inf";
@@ -49,7 +49,7 @@ struct histo_for_inner {
 
 template <>
 struct histo_for_inner<hrtime_t> {
-    void operator()(const HistogramBin<hrtime_t> *bin) {
+    void operator()(const std::unique_ptr<HistogramBin<hrtime_t>>& bin) {
         const std::string endtext(bin->end()
                                   == std::numeric_limits<hrtime_t>::max()
                                   ? "inf"
