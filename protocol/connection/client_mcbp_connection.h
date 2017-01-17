@@ -162,7 +162,7 @@ public:
 
     void recvResponse(BinprotResponse& response);
 
-    void executeCommand(BinprotCommand& command, BinprotResponse& response) {
+    void executeCommand(const BinprotCommand& command, BinprotResponse& response) {
         sendCommand(command);
         recvResponse(response);
     }
