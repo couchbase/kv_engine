@@ -39,8 +39,8 @@ MutationCommandContext::MutationCommandContext(McbpConnection& c,
       flags(req->message.body.flags),
       datatype(req->message.header.request.datatype),
       state(State::ValidateInput),
-      newitem(nullptr, cb::ItemDeleter{c}),
-      existing(nullptr, cb::ItemDeleter{c}),
+      newitem(nullptr, cb::ItemDeleter{*c.getBucketEngineAsV0()}),
+      existing(nullptr, cb::ItemDeleter{*c.getBucketEngineAsV0()}),
       xattr_size(0) {
 }
 

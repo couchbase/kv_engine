@@ -17,7 +17,6 @@
 #pragma once
 
 #include <platform/compress.h>
-#include <daemon/unique_item_ptr.h>
 #include <include/memcached/protocol_binary.h>
 #include "daemon/memcached.h"
 #include "steppable_command_context.h"
@@ -65,7 +64,7 @@ public:
               DocNamespace::DefaultCollection),
           vbucket(ntohs(req->message.header.request.vbucket)),
           lock_timeout(get_exptime(*req)),
-          it(nullptr, cb::ItemDeleter{c}),
+          it(nullptr, cb::ItemDeleter{*c.getBucketEngineAsV0()}),
           state(State::Initialize) {
     }
 

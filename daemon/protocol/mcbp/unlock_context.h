@@ -17,7 +17,6 @@
 #pragma once
 
 #include <platform/compress.h>
-#include <daemon/unique_item_ptr.h>
 #include <include/memcached/protocol_binary.h>
 #include "daemon/memcached.h"
 #include "steppable_command_context.h"

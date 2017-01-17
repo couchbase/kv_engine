@@ -17,7 +17,6 @@
 #pragma once
 
 #include <platform/compress.h>
-#include <daemon/unique_item_ptr.h>
 #include "../../memcached.h"
 #include "steppable_command_context.h"
 
@@ -74,8 +73,8 @@ public:
               DocNamespace::DefaultCollection),
           request(req),
           cas(ntohll(req.message.header.request.cas)),
-          olditem(nullptr, cb::ItemDeleter{c}),
-          newitem(nullptr, cb::ItemDeleter{c}),
+          olditem(nullptr, cb::ItemDeleter{*c.getBucketEngineAsV0()}),
+          newitem(nullptr, cb::ItemDeleter{*c.getBucketEngineAsV0()}),
           vbucket(ntohs(req.message.header.request.vbucket)),
           state(State::GetItem) {
     }

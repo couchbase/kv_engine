@@ -20,8 +20,6 @@
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
 
-#include <daemon/unique_item_ptr.h>
-
 /**
  * The MutationCommandContext is a state machine used by the memcached
  * core to implement ADD, SET and REPLACE.

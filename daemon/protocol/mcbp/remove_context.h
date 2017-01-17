@@ -20,7 +20,6 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/engine.h>
 #include <daemon/memcached.h>
-#include <daemon/unique_item_ptr.h>
 
 /**
  * The RemoveCommandContext is a state machine used by the memcached
@@ -62,8 +61,8 @@ public:
           vbucket(ntohs(req->message.header.request.vbucket)),
           input_cas(ntohll(req->message.header.request.cas)),
           state(State::GetItem),
-          deleted(nullptr, cb::ItemDeleter{c}),
-          existing(nullptr, cb::ItemDeleter{c}),
+          deleted(nullptr, cb::ItemDeleter{*c.getBucketEngineAsV0()}),
+          existing(nullptr, cb::ItemDeleter{*c.getBucketEngineAsV0()}),
           mutation_descr{} {
 
     }

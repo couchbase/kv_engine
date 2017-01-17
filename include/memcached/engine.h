@@ -2,10 +2,12 @@
 #pragma once
 #define MEMCACHED_ENGINE_H
 
+#include <cstdint>
+#include <cstdio>
 #include <cstring>
+#include <memory>
 #include <sys/types.h>
-#include <stdint.h>
-#include <stdio.h>
+#include <utility>
 
 #include "memcached/allocator_hooks.h"
 #include "memcached/callback.h"
@@ -190,6 +192,14 @@ typedef struct {
      */
     feature_info features[1];
 } engine_info;
+
+/**
+ * A unique_ptr to use with items returned from the engine interface.
+ */
+namespace cb {
+class ItemDeleter;
+typedef std::unique_ptr<item, ItemDeleter> unique_item_ptr;
+}
 
 /**
  * Definition of the first version of the engine interface
@@ -546,6 +556,30 @@ typedef struct engine_interface_v1 {
      */
     void (* set_log_level)(ENGINE_HANDLE* handle, EXTENSION_LOG_LEVEL level);
 } ENGINE_HANDLE_V1;
+
+namespace cb {
+class ItemDeleter {
+public:
+    ItemDeleter() = delete;
+
+    /**
+     * Create a new instance of the item deleter.
+     *
+     * @param handle_ the handle to the the engine who owns the item
+     */
+    ItemDeleter(ENGINE_HANDLE& handle_)
+        : handle(handle_) {
+    }
+
+    void operator()(item* item) {
+        auto* v1 = reinterpret_cast<ENGINE_HANDLE_V1*>(&handle);
+        v1->release(&handle, nullptr, item);
+    }
+
+private:
+    ENGINE_HANDLE& handle;
+};
+}
 
 /**
  * @}
