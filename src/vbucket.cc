@@ -1057,6 +1057,86 @@ void VBucket::completeStatsVKey(const DocKey& key,
     }
 }
 
+ENGINE_ERROR_CODE VBucket::set(Item& itm,
+                               const void* cookie,
+                               EventuallyPersistentEngine& engine,
+                               int bgFetchDelay) {
+    bool cas_op = (itm.getCas() != 0);
+    int bucket_num(0);
+    auto lh = ht.getLockedBucket(itm.getKey(), &bucket_num);
+    StoredValue* v = ht.unlocked_find(itm.getKey(),
+                                      bucket_num,
+                                      /*wantsDeleted*/ true,
+                                      /*trackReference*/ false);
+    if (v && v->isLocked(ep_current_time()) &&
+        (getState() == vbucket_state_replica ||
+         getState() == vbucket_state_pending)) {
+        v->unlock();
+    }
+
+    bool maybeKeyExists = true;
+    // If we didn't find a valid item, check Bloomfilter's prediction if in
+    // full eviction policy and for a CAS operation.
+    if ((v == nullptr || v->isTempInitialItem()) &&
+        (eviction == FULL_EVICTION) && (itm.getCas() != 0)) {
+        // Check Bloomfilter's prediction
+        if (!maybeKeyExistsInFilter(itm.getKey())) {
+            maybeKeyExists = false;
+        }
+    }
+
+    MutationStatus mtype = ht.unlocked_set(
+            v, itm, itm.getCas(), true, false, eviction, maybeKeyExists);
+
+    uint64_t seqno = 0;
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    switch (mtype) {
+    case MutationStatus::NoMem:
+        ret = ENGINE_ENOMEM;
+        break;
+    case MutationStatus::InvalidCas:
+    case MutationStatus::IsLocked:
+        ret = ENGINE_KEY_EEXISTS;
+        break;
+    case MutationStatus::NotFound:
+        if (cas_op) {
+            ret = ENGINE_KEY_ENOENT;
+            break;
+        }
+    // FALLTHROUGH
+    case MutationStatus::WasDirty:
+    // Even if the item was dirty, push it into the vbucket's open
+    // checkpoint.
+    case MutationStatus::WasClean:
+        // We keep lh held as we need to do v->getCas()
+        seqno = queueDirty(*v, nullptr);
+
+        itm.setBySeqno(seqno);
+        itm.setCas(v->getCas());
+        break;
+    case MutationStatus::NeedBgFetch: { // CAS operation with non-resident item
+        // +
+        // full eviction.
+        if (v) {
+            // temp item is already created. Simply schedule a bg fetch job
+            lh.unlock();
+            bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
+            return ENGINE_EWOULDBLOCK;
+        }
+        ret = addTempItemAndBGFetch(lh,
+                                    bucket_num,
+                                    itm.getKey(),
+                                    cookie,
+                                    engine,
+                                    bgFetchDelay,
+                                    true);
+        break;
+    }
+    }
+
+    return ret;
+}
+
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
                        item_eviction_policy_t policy) {
     addStat(NULL, toString(state), add_stat, c);

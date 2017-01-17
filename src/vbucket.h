@@ -645,6 +645,22 @@ public:
     void completeStatsVKey(const DocKey& key,
                            RememberingCallback<GetValue>& gcb);
 
+    /**
+     * Set (add new or update) an item in the vbucket.
+     *
+     * @param itm Item to be added or updated. Upon success, the itm
+     *            bySeqno, cas and revSeqno are updated
+     * @param cookie the connection cookie
+     * @param engine Reference to ep engine
+     * @param bgFetchDelay
+     *
+     * @return ENGINE_ERROR_CODE status notified to be to the front end
+     */
+    ENGINE_ERROR_CODE set(Item& itm,
+                          const void* cookie,
+                          EventuallyPersistentEngine& engine,
+                          int bgFetchDelay);
+
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
 
