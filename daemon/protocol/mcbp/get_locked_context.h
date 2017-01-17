@@ -64,7 +64,7 @@ public:
               DocNamespace::DefaultCollection),
           vbucket(ntohs(req->message.header.request.vbucket)),
           lock_timeout(get_exptime(*req)),
-          it(nullptr, cb::ItemDeleter{*c.getBucketEngineAsV0()}),
+          it(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
           state(State::Initialize) {
     }
 

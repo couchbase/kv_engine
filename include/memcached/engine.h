@@ -567,17 +567,21 @@ public:
      *
      * @param handle_ the handle to the the engine who owns the item
      */
-    ItemDeleter(ENGINE_HANDLE& handle_)
+    ItemDeleter(ENGINE_HANDLE* handle_)
         : handle(handle_) {
+        if (handle == nullptr) {
+            throw std::invalid_argument(
+                "cb::ItemDeleter: engine handle cannot be nil");
+        }
     }
 
     void operator()(item* item) {
-        auto* v1 = reinterpret_cast<ENGINE_HANDLE_V1*>(&handle);
-        v1->release(&handle, nullptr, item);
+        auto* v1 = reinterpret_cast<ENGINE_HANDLE_V1*>(handle);
+        v1->release(handle, nullptr, item);
     }
 
 private:
-    ENGINE_HANDLE& handle;
+    ENGINE_HANDLE* handle;
 };
 }
 

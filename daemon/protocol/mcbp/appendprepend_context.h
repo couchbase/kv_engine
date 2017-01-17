@@ -71,8 +71,8 @@ public:
                 ntohl(req->message.header.request.bodylen) - key.size()),
           vbucket(ntohs(req->message.header.request.vbucket)),
           cas(ntohll(req->message.header.request.cas)),
-          olditem(nullptr, cb::ItemDeleter{*c.getBucketEngineAsV0()}),
-          newitem(nullptr, cb::ItemDeleter{*c.getBucketEngineAsV0()}),
+          olditem(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
+          newitem(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
           state(State::GetItem) {
 
         auto datatype = req->message.header.request.datatype;

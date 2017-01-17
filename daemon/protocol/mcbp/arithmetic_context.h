@@ -73,8 +73,8 @@ public:
               DocNamespace::DefaultCollection),
           request(req),
           cas(ntohll(req.message.header.request.cas)),
-          olditem(nullptr, cb::ItemDeleter{*c.getBucketEngineAsV0()}),
-          newitem(nullptr, cb::ItemDeleter{*c.getBucketEngineAsV0()}),
+          olditem(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
+          newitem(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
           vbucket(ntohs(req.message.header.request.vbucket)),
           state(State::GetItem) {
     }

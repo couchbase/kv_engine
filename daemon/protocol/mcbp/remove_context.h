@@ -62,8 +62,8 @@ public:
           vbucket(ntohs(req->message.header.request.vbucket)),
           input_cas(ntohll(req->message.header.request.cas)),
           state(State::GetItem),
-          deleted(nullptr, cb::ItemDeleter{*c.getBucketEngineAsV0()}),
-          existing(nullptr, cb::ItemDeleter{*c.getBucketEngineAsV0()}),
+          deleted(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
+          existing(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
           mutation_descr{} {
 
     }
