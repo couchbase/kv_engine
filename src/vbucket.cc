@@ -939,6 +939,39 @@ ENGINE_ERROR_CODE VBucket::completeBGFetchForSingleItem(
     return status;
 }
 
+/* [TBD]: Get rid of std::unique_lock<std::mutex> lock */
+ENGINE_ERROR_CODE VBucket::addTempItemAndBGFetch(
+        std::unique_lock<std::mutex>& lock,
+        int bucket_num,
+        const DocKey& key,
+        const void* cookie,
+        EventuallyPersistentEngine& engine,
+        int bgFetchDelay,
+        bool metadataOnly,
+        bool isReplication) {
+    add_type_t rv =
+            ht.unlocked_addTempItem(bucket_num, key, eviction, isReplication);
+    switch (rv) {
+    case ADD_NOMEM:
+        return ENGINE_ENOMEM;
+
+    case ADD_EXISTS:
+    case ADD_UNDEL:
+    case ADD_SUCCESS:
+    case ADD_TMP_AND_BG_FETCH:
+        // Since the hashtable bucket is locked, we shouldn't get here
+        throw std::logic_error(
+                "VBucket::addTempItemAndBGFetch: "
+                "Invalid result from addTempItem: " +
+                std::to_string(rv));
+
+    case ADD_BG_FETCH:
+        lock.unlock();
+        bgFetch(key, cookie, engine, bgFetchDelay, metadataOnly);
+    }
+    return ENGINE_EWOULDBLOCK;
+}
+
 ENGINE_ERROR_CODE VBucket::statsVKey(const DocKey& key,
                                      const void* cookie,
                                      EventuallyPersistentEngine& engine,

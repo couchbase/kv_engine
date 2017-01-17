@@ -793,36 +793,6 @@ protocol_binary_response_status KVBucket::evictKey(const DocKey& key,
     return rv;
 }
 
-ENGINE_ERROR_CODE KVBucket::addTempItemForBgFetch(std::unique_lock<std::mutex>& lock,
-                                                  int bucket_num,
-                                                  const DocKey& key,
-                                                  RCPtr<VBucket> &vb,
-                                                  const void *cookie,
-                                                  bool metadataOnly,
-                                                  bool isReplication) {
-
-    add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
-                                                eviction_policy,
-                                                isReplication);
-    switch(rv) {
-        case ADD_NOMEM:
-            return ENGINE_ENOMEM;
-
-        case ADD_EXISTS:
-        case ADD_UNDEL:
-        case ADD_SUCCESS:
-        case ADD_TMP_AND_BG_FETCH:
-            // Since the hashtable bucket is locked, we shouldn't get here
-            throw std::logic_error("EventuallyPersistentStore::addTempItemForBgFetch: "
-                    "Invalid result from addTempItem: " + std::to_string(rv));
-
-        case ADD_BG_FETCH:
-            lock.unlock();
-            vb->bgFetch(key, cookie, engine, bgFetchDelay, metadataOnly);
-    }
-    return ENGINE_EWOULDBLOCK;
-}
-
 ENGINE_ERROR_CODE KVBucket::set(Item &itm, const void *cookie) {
 
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
@@ -912,8 +882,13 @@ ENGINE_ERROR_CODE KVBucket::set(Item &itm, const void *cookie) {
             vb->bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
             return ENGINE_EWOULDBLOCK;
         }
-        ret = addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
-                                    cookie, true);
+        ret = vb->addTempItemAndBGFetch(lh,
+                                        bucket_num,
+                                        itm.getKey(),
+                                        cookie,
+                                        engine,
+                                        bgFetchDelay,
+                                        true);
         break;
     }
     }
@@ -979,8 +954,13 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
     case ADD_EXISTS:
         return ENGINE_NOT_STORED;
     case ADD_TMP_AND_BG_FETCH:
-        return addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
-                                     cookie, true);
+        return vb->addTempItemAndBGFetch(lh,
+                                         bucket_num,
+                                         itm.getKey(),
+                                         cookie,
+                                         engine,
+                                         bgFetchDelay,
+                                         true);
     case ADD_BG_FETCH:
         lh.unlock();
         vb->bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
@@ -1076,8 +1056,13 @@ ENGINE_ERROR_CODE KVBucket::replace(Item &itm, const void *cookie) {
         }
 
         if (vb->maybeKeyExistsInFilter(itm.getKey())) {
-            return addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
-                                         cookie, false);
+            return vb->addTempItemAndBGFetch(lh,
+                                             bucket_num,
+                                             itm.getKey(),
+                                             cookie,
+                                             engine,
+                                             bgFetchDelay,
+                                             false);
         } else {
             // As bloomfilter predicted that item surely doesn't exist
             // on disk, return ENOENT for replace().
@@ -1731,8 +1716,13 @@ GetValue KVBucket::getInternal(const DocKey& key, uint16_t vbucket,
         if (vb->maybeKeyExistsInFilter(key)) {
             ENGINE_ERROR_CODE ec = ENGINE_EWOULDBLOCK;
             if (options & QUEUE_BG_FETCH) { // Full eviction and need a bg fetch.
-                ec = addTempItemForBgFetch(lh, bucket_num, key, vb,
-                                           cookie, false);
+                ec = vb->addTempItemAndBGFetch(lh,
+                                               bucket_num,
+                                               key,
+                                               cookie,
+                                               engine,
+                                               bgFetchDelay,
+                                               false);
             }
             return GetValue(NULL, ec, -1, true);
         } else {
@@ -1845,7 +1835,8 @@ ENGINE_ERROR_CODE KVBucket::getMetaData(const DocKey& key,
         // existent on disk by the bloomfilter.
 
         if (vb->maybeKeyExistsInFilter(key)) {
-            return addTempItemForBgFetch(lh, bucket_num, key, vb, cookie, true);
+            return vb->addTempItemAndBGFetch(
+                    lh, bucket_num, key, cookie, engine, bgFetchDelay, true);
         } else {
             stats.numOpsGetMeta++;
             return ENGINE_KEY_ENOENT;
@@ -1911,8 +1902,14 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item &itm,
             }
         } else {
             if (vb->maybeKeyExistsInFilter(itm.getKey())) {
-                return addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
-                                             cookie, true, isReplication);
+                return vb->addTempItemAndBGFetch(lh,
+                                                 bucket_num,
+                                                 itm.getKey(),
+                                                 cookie,
+                                                 engine,
+                                                 bgFetchDelay,
+                                                 true,
+                                                 isReplication);
             } else {
                 maybeKeyExists = false;
             }
@@ -1964,8 +1961,14 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item &itm,
                 return ENGINE_EWOULDBLOCK;
             }
 
-            ret = addTempItemForBgFetch(lh, bucket_num, itm.getKey(), vb,
-                                        cookie, true, isReplication);
+            ret = vb->addTempItemAndBGFetch(lh,
+                                            bucket_num,
+                                            itm.getKey(),
+                                            cookie,
+                                            engine,
+                                            bgFetchDelay,
+                                            true,
+                                            isReplication);
         }
     }
 
@@ -2035,9 +2038,13 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key, uint16_t vbucket,
             return rv;
         } else {
             if (vb->maybeKeyExistsInFilter(key)) {
-                ENGINE_ERROR_CODE ec = addTempItemForBgFetch(lh, bucket_num,
-                                                             key, vb, cookie,
-                                                             false);
+                ENGINE_ERROR_CODE ec = vb->addTempItemAndBGFetch(lh,
+                                                                 bucket_num,
+                                                                 key,
+                                                                 cookie,
+                                                                 engine,
+                                                                 bgFetchDelay,
+                                                                 false);
                 return GetValue(NULL, ec, -1, true);
             } else {
                 // As bloomfilter predicted that item surely doesn't exist
@@ -2132,9 +2139,13 @@ GetValue KVBucket::getLocked(const DocKey& key, uint16_t vbucket,
 
         case FULL_EVICTION:
             if (vb->maybeKeyExistsInFilter(key)) {
-                ENGINE_ERROR_CODE ec = addTempItemForBgFetch(lh, bucket_num,
-                                                             key, vb, cookie,
-                                                             false);
+                ENGINE_ERROR_CODE ec = vb->addTempItemAndBGFetch(lh,
+                                                                 bucket_num,
+                                                                 key,
+                                                                 cookie,
+                                                                 engine,
+                                                                 bgFetchDelay,
+                                                                 false);
                 return GetValue(NULL, ec, -1, true);
             } else {
                 // As bloomfilter predicted that item surely doesn't exist
@@ -2228,8 +2239,13 @@ ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
             return ENGINE_KEY_ENOENT;
         } else {
             if (vb->maybeKeyExistsInFilter(key)) {
-                return addTempItemForBgFetch(lh, bucket_num, key, vb,
-                                             cookie, true);
+                return vb->addTempItemAndBGFetch(lh,
+                                                 bucket_num,
+                                                 key,
+                                                 cookie,
+                                                 engine,
+                                                 bgFetchDelay,
+                                                 true);
             } else {
                 // If bgFetch were false, or bloomfilter predicted that
                 // item surely doesn't exist on disk, return ENOENT for
@@ -2305,8 +2321,13 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
             if (!force) {
                 if (!v) { // Item might be evicted from cache.
                     if (vb->maybeKeyExistsInFilter(key)) {
-                        return addTempItemForBgFetch(lh, bucket_num, key, vb,
-                                                     cookie, true);
+                        return vb->addTempItemAndBGFetch(lh,
+                                                         bucket_num,
+                                                         key,
+                                                         cookie,
+                                                         engine,
+                                                         bgFetchDelay,
+                                                         true);
                     } else {
                         // As bloomfilter predicted that item surely doesn't
                         // exist on disk, return ENOENT for deleteItem().
@@ -2482,8 +2503,14 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
             // Item is 1) deleted or not existent in the value eviction case OR
             // 2) deleted or evicted in the full eviction.
             if (vb->maybeKeyExistsInFilter(key)) {
-                return addTempItemForBgFetch(lh, bucket_num, key, vb,
-                                             cookie, true, isReplication);
+                return vb->addTempItemAndBGFetch(lh,
+                                                 bucket_num,
+                                                 key,
+                                                 cookie,
+                                                 engine,
+                                                 bgFetchDelay,
+                                                 true,
+                                                 isReplication);
             } else {
                 // Even though bloomfilter predicted that item doesn't exist
                 // on disk, we must put this delete on disk if the cas is valid.

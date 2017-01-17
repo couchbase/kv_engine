@@ -834,13 +834,6 @@ protected:
                          vbucket_state_t allowedState,
                          get_options_t options = TRACK_REFERENCE);
 
-    ENGINE_ERROR_CODE addTempItemForBgFetch(std::unique_lock<std::mutex>& lock,
-                                            int bucket_num, const DocKey& key,
-                                            RCPtr<VBucket> &vb,
-                                            const void *cookie,
-                                            bool metadataOnly,
-                                            bool isReplication = false);
-
     uint16_t getCommitInterval(uint16_t shardId);
 
     uint16_t decrCommitInterval(uint16_t shardId);

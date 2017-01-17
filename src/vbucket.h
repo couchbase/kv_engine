@@ -596,6 +596,30 @@ public:
             const hrtime_t startTime);
 
     /**
+     * Add a temporary item in hash table and enqueue a background fetch for a
+     * key.
+     *
+     * @param lock Reference to the hash bucket lock
+     * @param bucket_num Hash bucket number
+     * @param key the key to be bg fetched
+     * @param cookie the cookie of the requestor
+     * @param engine Reference to ep engine
+     * @param bgFetchDelay
+     * @param metadataOnly whether the fetch is for a non-resident value or
+     *                     metadata of a (possibly) deleted item
+     * @param isReplication indicates if the call is for a replica vbucket
+     *
+     * @return ENGINE_ERROR_CODE status notified to be to the front end
+     */
+    ENGINE_ERROR_CODE addTempItemAndBGFetch(std::unique_lock<std::mutex>& lock,
+                                            int bucket_num,
+                                            const DocKey& key,
+                                            const void* cookie,
+                                            EventuallyPersistentEngine& engine,
+                                            int bgFetchDelay,
+                                            bool metadataOnly,
+                                            bool isReplication = false);
+    /**
      * Retrieve an item from the disk for vkey stats
      *
      * @param key the key to fetch
