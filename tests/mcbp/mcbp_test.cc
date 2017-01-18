@@ -16,10 +16,17 @@
  */
 #include "config.h"
 #include "mcbp_test.h"
+#include "utilities/protocol2text.h"
 
 #include <daemon/connection_mcbp.h>
 #include <event2/event.h>
 #include <memcached/protocol_binary.h>
+
+std::ostream& operator<<(std::ostream& os, const protocol_binary_response_status status) {
+    os << memcached_status_2_text(status)
+       << " (0x" << std::hex << uint16_t(status) << std::dec << ")";
+    return os;
+}
 
 /**
  * Test all of the command validators we've got to ensure that they
