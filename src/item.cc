@@ -35,6 +35,7 @@ std::string to_string(queue_op op) {
         case queue_op::checkpoint_start: return "checkpoint_start";
         case queue_op::checkpoint_end: return "checkpoint_end";
         case queue_op::set_vbucket_state: return "set_vbucket_state";
+        case queue_op::system_event: return "system_event";
     }
     return "<" +
             std::to_string(static_cast<std::underlying_type<queue_op>::type>(op)) +

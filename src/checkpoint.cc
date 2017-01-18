@@ -340,6 +340,7 @@ size_t Checkpoint::mergePrevCheckpoint(Checkpoint *pPrevCheckpoint) {
                 break;
 
             case queue_op::set_vbucket_state:
+            case queue_op::system_event:
                 // Need to re-insert these into the correct place in the index.
                 if (metaKeyIndex.find(key) == metaKeyIndex.end()) {
                     // Skip the first two meta items (empty & checkpoint start).

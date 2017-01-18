@@ -1302,6 +1302,7 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
                 }
                 break;
             case queue_op::set_vbucket_state:
+            case queue_op::system_event:
                 // Ignored by TAP
                 break;
             }

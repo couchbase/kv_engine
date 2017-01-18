@@ -79,6 +79,12 @@ enum class queue_op : uint8_t {
     /// disk. No data (value) associated with it, simply acts as a marker
     /// to ensure a non-empty persistence queue.
     set_vbucket_state,
+
+    /// System events are created by the code to represent something triggered
+    /// by the system, possibly orginating from a user's action.
+    /// The flags field of system_event describes the detail along with the key
+    /// which must at least be unique per event type.
+    system_event
 };
 
 /// Return a string representation of queue_op.
@@ -651,6 +657,7 @@ public:
             case queue_op::empty:
             case queue_op::checkpoint_start:
             case queue_op::checkpoint_end:
+            case queue_op::system_event:
                 return false;
             case queue_op::set_vbucket_state:
                 return true;
@@ -680,6 +687,7 @@ public:
             case queue_op::checkpoint_start:
             case queue_op::checkpoint_end:
             case queue_op::set_vbucket_state:
+            case queue_op::system_event:
                 return true;
         }
         // Silence GCC warning
