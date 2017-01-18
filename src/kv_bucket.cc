@@ -377,12 +377,6 @@ KVBucket::KVBucket(
 
     *stats.memOverhead = sizeof(KVBucket);
 
-    if (config.getConflictResolutionType().compare("lww") == 0) {
-        conflictResolver.reset(new LastWriteWinsResolution());
-    } else {
-        conflictResolver.reset(new RevisionSeqnoResolution());
-    }
-
     stats.setMaxDataSize(config.getMaxSize());
     config.addValueChangedListener("max_size",
                                    new StatsValueChangeListener(stats, *this));
@@ -1714,7 +1708,7 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item &itm,
                 return ENGINE_EWOULDBLOCK;
             }
 
-            if (!conflictResolver->resolve(*v, itm.getMetaData(), false)) {
+            if (!vb->resolveConflict(*v, itm.getMetaData(), false)) {
                 ++stats.numOpsSetMetaResolutionFailed;
                 return ENGINE_KEY_EEXISTS;
             }
@@ -2317,7 +2311,7 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
                 return ENGINE_EWOULDBLOCK;
             }
 
-            if (!conflictResolver->resolve(*v, *itemMeta, true)) {
+            if (!vb->resolveConflict(*v, *itemMeta, true)) {
                 ++stats.numOpsDelMetaResolutionFailed;
                 return ENGINE_KEY_EEXISTS;
             }

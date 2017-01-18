@@ -22,6 +22,7 @@
 
 #include "bloomfilter.h"
 #include "checkpoint.h"
+#include "conflict_resolution.h"
 #include "ep_types.h"
 #include "failover-table.h"
 #include "hash_table.h"
@@ -688,6 +689,21 @@ public:
      */
     ENGINE_ERROR_CODE addTAPBackfillItem(Item& itm, bool genBySeqno);
 
+    /**
+     * Calls the conflict resolution module to resolve the conflict
+     *
+     * @param v the local document meta data
+     * @param meta the remote document's meta data
+     * @param isDelete the flag indicating if conflict resolution is
+     *                 for delete operations
+     * @return true is the remote document is the winner, false otherwise
+     */
+    bool resolveConflict(const StoredValue& v,
+                         const ItemMetaData& meta,
+                         const bool isDelete) const {
+        return conflictResolver->resolve(v, meta, isDelete);
+    }
+
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
 
@@ -772,6 +788,9 @@ private:
     // Flag to indicate the bucket is being deleted
     std::atomic<bool> bucketDeletion;
     std::atomic<uint64_t> persistenceSeqno;
+
+    // Ptr to the item conflict resolution module
+    std::unique_ptr<ConflictResolution> conflictResolver;
 
     // A callback to be called when a new seqno is generated in the vbucket as
     // a result of a front end call

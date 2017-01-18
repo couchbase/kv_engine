@@ -863,7 +863,6 @@ protected:
     EventuallyPersistentEngine     &engine;
     EPStats                        &stats;
     std::unique_ptr<Warmup> warmupTask;
-    std::unique_ptr<ConflictResolution> conflictResolver;
     VBucketMap                      vbMap;
     ExTask                          itmpTask;
     ExTask                          chkTask;

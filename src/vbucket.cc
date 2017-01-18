@@ -184,6 +184,12 @@ VBucket::VBucket(id_type i,
                                             ->getStorageProperties()
                                             .hasEfficientGet()
                                   : false) {
+    if (config.getConflictResolutionType().compare("lww") == 0) {
+        conflictResolver.reset(new LastWriteWinsResolution());
+    } else {
+        conflictResolver.reset(new RevisionSeqnoResolution());
+    }
+
     backfill.isBackfillPhase = false;
     pendingOpsStart = 0;
     stats.memOverhead->fetch_add(sizeof(VBucket)
