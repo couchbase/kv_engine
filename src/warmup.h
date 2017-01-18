@@ -122,7 +122,7 @@ public:
     void addToTaskSet(size_t taskId);
     void removeFromTaskSet(size_t taskId);
 
-    ~Warmup();
+    ~Warmup() = default;
 
     void step();
     void start(void);
@@ -203,13 +203,13 @@ private:
     std::atomic<hrtime_t> metadata;
     std::atomic<hrtime_t> warmup;
 
-    std::map<uint16_t, vbucket_state> *shardVbStates;
+    std::vector<std::map<uint16_t, vbucket_state>> shardVbStates;
     std::atomic<size_t> threadtask_count;
-    bool *shardKeyDumpStatus;
+    std::vector<std::atomic<bool>> shardKeyDumpStatus;
 
-    /// array of vector of VBucket IDs (one vector per shard). Each vector
+    /// vector of vectors of VBucket IDs (one vector per shard). Each vector
     /// contains all vBucket IDs which are present for the given shard.
-    std::vector<uint16_t> *shardVbIds;
+    std::vector<std::vector<uint16_t>> shardVbIds;
 
     std::atomic<hrtime_t> estimateTime;
     std::atomic<size_t> estimatedItemCount;

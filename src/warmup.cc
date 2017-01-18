@@ -399,7 +399,10 @@ Warmup::Warmup(KVBucket& st, Configuration& config_)
       startTime(0),
       metadata(0),
       warmup(0),
+      shardVbStates(store.vbMap.getNumShards()),
       threadtask_count(0),
+      shardKeyDumpStatus(store.vbMap.getNumShards()),
+      shardVbIds(store.vbMap.getNumShards()),
       estimateTime(0),
       estimatedItemCount(std::numeric_limits<size_t>::max()),
       cleanShutdown(true),
@@ -408,14 +411,6 @@ Warmup::Warmup(KVBucket& st, Configuration& config_)
       warmupOOMFailure(false),
       estimatedWarmupCount(std::numeric_limits<size_t>::max())
 {
-    const size_t num_shards = store.vbMap.getNumShards();
-
-    shardVbStates = new std::map<uint16_t, vbucket_state>[num_shards];
-    shardVbIds = new std::vector<uint16_t>[num_shards];
-    shardKeyDumpStatus = new bool[num_shards];
-    for (size_t i = 0; i < num_shards; i++) {
-        shardKeyDumpStatus[i] = false;
-    }
 }
 
 void Warmup::addToTaskSet(size_t taskId) {
@@ -426,12 +421,6 @@ void Warmup::addToTaskSet(size_t taskId) {
 void Warmup::removeFromTaskSet(size_t taskId) {
     LockHolder lh(taskSetMutex);
     taskSet.erase(taskId);
-}
-
-Warmup::~Warmup() {
-    delete [] shardVbStates;
-    delete [] shardVbIds;
-    delete [] shardKeyDumpStatus;
 }
 
 void Warmup::setEstimatedWarmupCount(size_t to)
