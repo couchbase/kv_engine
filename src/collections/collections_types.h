@@ -20,9 +20,12 @@
 namespace Collections {
 
 // The reserved name of the system owned, default collection.
-static const char* DefaultCollectionIdentifier = "$default";
+const char* const DefaultCollectionIdentifier = "$default";
 
 // The default separator we will use for identifying collections in keys.
-static const char* DefaultSeparator = "::";
+const char* const DefaultSeparator = "::";
+
+// SystemEvent key
+const char* const CreateEventKey = "$collections::create:";
 
 } // end namespace Collections
