@@ -109,6 +109,10 @@ ADD_LIBRARY(memcached_daemon STATIC
             protocol/mcbp/arithmetic_context.cc
             protocol/mcbp/arithmetic_context.h
             protocol/mcbp/command_context.h
+            protocol/mcbp/dcp_deletion.cc
+            protocol/mcbp/dcp_deletion.h
+            protocol/mcbp/dcp_expiration.cc
+            protocol/mcbp/dcp_expiration.h
             protocol/mcbp/dcp_mutation.cc
             protocol/mcbp/dcp_mutation.h
             protocol/mcbp/engine_errc_2_mcbp.cc
