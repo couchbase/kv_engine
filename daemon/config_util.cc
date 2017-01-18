@@ -1,8 +1,9 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
 
 #include <cJSON.h>
 #include <platform/cb_malloc.h>
+#include <platform/strerror.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
@@ -14,50 +15,30 @@
 
 #include "config_util.h"
 
-char *config_strerror(const char *file, config_error_t err)
-{
-    char buffer[1024];
-    buffer[1023] = '\0';
+std::string config_strerror(const char* file, config_error_t err) {
+
     switch (err) {
     case CONFIG_SUCCESS:
-        return strdup("success");
+        return "success";
     case CONFIG_INVALID_ARGUMENTS:
-        return strdup("Invalid arguments supplied to config_load_file");
+        return "Invalid arguments supplied to config_load_file";
     case CONFIG_NO_SUCH_FILE:
-        if (snprintf(buffer, sizeof(buffer) - 1, "Failed to look up \"%s\": %s",
-                     file, strerror(errno)) < 0) {
-            return strdup("Failed to look up file");
-        }
-        return strdup(buffer);
+        return std::string("Failed to look up \"") + file + "\": " +
+               cb_strerror();
     case CONFIG_OPEN_FAILED:
-        if (snprintf(buffer, sizeof(buffer) - 1, "Failed to open \"%s\": %s",
-                     file, strerror(errno)) < 0) {
-            return strdup("Failed to open file");
-        }
-        return strdup(buffer);
+        return std::string("Failed to open \"") + file + "\": " +
+               cb_strerror();
     case CONFIG_MALLOC_FAILED:
-        return strdup("Failed to allocate memory");
+        return "Failed to allocate memory";
     case CONFIG_IO_ERROR:
-        if (snprintf(buffer, sizeof(buffer) - 1, "Failed to read \"%s\": %s",
-                     file, strerror(errno)) < 0) {
-            return strdup("Failed to read file");
-        }
-        return strdup(buffer);
+        return std::string("Failed to read \"") + file + "\": " +
+               cb_strerror();
     case CONFIG_PARSE_ERROR:
-        if (snprintf(buffer, sizeof(buffer) - 1,
-                     "Failed to parse JSON in \"%s\"\nMost likely syntax "
-                         "error in the file.", file) < 0) {
-            return strdup("Failed to parse JSON");
-        }
-        return strdup(buffer);
-
-    default:
-        if (snprintf(buffer, sizeof(buffer) - 1,
-                     "Unknown error code %u", err) < 0) {
-            return strdup("Unknown error");
-        }
-        return strdup(buffer);
+        return std::string("Failed to parse JSON in \"") + file + "\"\n" +
+                  "Most likely syntax error in the file.";
     }
+
+    return std::string("Unknown error code ") + std::to_string(err);
 }
 
 static int spool(FILE *fp, char *dest, size_t size)

@@ -36,10 +36,7 @@ static unique_cJSON_ptr load_config_file(const char* file) {
     config_error_t err = config_load_file(file, &sys);
 
     if (err != CONFIG_SUCCESS) {
-        char *msg = config_strerror(file, err);
-        std::string errormsg(msg);
-        free(msg);
-        throw std::runtime_error(errormsg);
+        throw std::runtime_error(config_strerror(file, err));
     }
 
     return unique_cJSON_ptr(sys);

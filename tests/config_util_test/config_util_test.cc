@@ -177,8 +177,7 @@ TEST(ConfigUtil, ConfigStrerror)
     int ii;
     errno = ENOENT;
     for (ii = 0; ii < 1000; ++ii) {
-        char *msg = config_strerror("foo", (config_error_t)ii);
-        EXPECT_TRUE(msg != nullptr);
-        free(msg);
+        std::string msg = config_strerror("foo", (config_error_t)ii);
+        EXPECT_FALSE(msg.empty());
     }
 }
