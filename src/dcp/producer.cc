@@ -599,8 +599,26 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
     } else if (strncmp(param, "set_noop_interval", nkey) == 0) {
         uint32_t noopInterval;
         if (parseUint32(valueStr.c_str(), &noopInterval)) {
-            noopCtx.dcpNoopTxInterval = std::chrono::seconds(noopInterval);
-            return ENGINE_SUCCESS;
+            /*
+             * We need to ensure that we only set the noop interval to a value
+             * that is a multiple of the connection manager interval. The reason
+             * is that if there is no DCP traffic we snooze for the connection
+             * manager interval before sending the noop.
+             */
+            if (noopInterval % engine_.getConfiguration().
+                    getConnectionManagerInterval() == 0) {
+                noopCtx.dcpNoopTxInterval = std::chrono::seconds(noopInterval);
+                return ENGINE_SUCCESS;
+            } else {
+                LOG(EXTENSION_LOG_WARNING, "%s The ctrl parameter "
+                    "set_noop_interval is being set to %" PRIu32 " seconds."
+                    "This is not a multiple of the connectionManagerInterval "
+                    "of %" PRIu64 " seconds, and so is not supported.",
+                    logHeader(), noopInterval,
+                    uint64_t(engine_.getConfiguration().
+                             getConnectionManagerInterval()));
+                return ENGINE_EINVAL;
+            }
         }
     } else if(strncmp(param, "set_priority", nkey) == 0) {
         if (valueStr == "high") {

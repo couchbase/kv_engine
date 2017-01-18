@@ -327,13 +327,13 @@
             "type": "bool"
         },
         "connection_manager_interval": {
-            "default": "2",
+            "default": "1",
             "descr": "How often connection manager task should be run (in seconds).",
             "type": "size_t",
             "dynamic": false,
             "validator": {
                 "range": {
-                    "min": 2
+                    "min": 1
                 }
             }
         },

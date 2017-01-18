@@ -328,6 +328,32 @@ ENGINE_ERROR_CODE mock_noop_return_engine_e2big(const void* cookie,uint32_t opaq
     return ENGINE_E2BIG;
 }
 
+/*
+ * Test that the connection manager interval is a multiple of the value we
+ * are setting the noop interval to.  This ensures we do not set the the noop
+ * interval to a value that cannot be adhered to.  The reason is that if there
+ * is no DCP traffic we snooze for the connection manager interval before
+ * sending the noop.
+ */
+TEST_F(ConnectionTest, test_mb19955) {
+    const void* cookie = create_mock_cookie();
+    engine->getConfiguration().setConnectionManagerInterval(2);
+
+    // Create a Mock Dcp producer
+    MockDcpProducer producer(*engine,
+                             cookie,
+                             "test_producer",
+                             /*notifyOnly*/false);
+    // "1" is not a multiple of "2" and so we should return ENGINE_EINVAL
+    EXPECT_EQ(ENGINE_EINVAL, producer.control(0,
+                                               "set_noop_interval",
+                                               sizeof("set_noop_interval"),
+                                               "1",
+                                               sizeof("1")))
+        << "Expected producer.control to return ENGINE_EINVAL";
+    destroy_mock_cookie(cookie);
+}
+
 TEST_F(ConnectionTest, test_maybesendnoop_buffer_full) {
     const void* cookie = create_mock_cookie();
     // Create a Mock Dcp producer
