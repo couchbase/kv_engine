@@ -1104,76 +1104,68 @@ static void dcp_open_executor(McbpConnection* c, void* packet) {
 static void dcp_add_stream_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_add_stream*>(packet);
 
-    if (c->getBucketEngine()->dcp.add_stream == NULL) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    } else {
-        ENGINE_ERROR_CODE ret = c->getAiostat();
-        c->setAiostat(ENGINE_SUCCESS);
-        c->setEwouldblock(false);
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
-        if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->dcp.add_stream(c->getBucketEngineAsV0(),
-                                                       c->getCookie(),
-                                                       req->message.header.request.opaque,
-                                                       ntohs(
-                                                           req->message.header.request.vbucket),
-                                                       ntohl(
-                                                           req->message.body.flags));
-        }
-
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            c->setDCP(true);
-            c->setState(conn_ship_log);
-            break;
-        case ENGINE_DISCONNECT:
-            c->setState(conn_closing);
-            break;
-
-        case ENGINE_EWOULDBLOCK:
-            c->setEwouldblock(true);
-            break;
-
-        default:
-            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-        }
+    if (ret == ENGINE_SUCCESS) {
+        ret = c->getBucketEngine()->dcp.add_stream(c->getBucketEngineAsV0(),
+                                                   c->getCookie(),
+                                                   req->message.header.request.opaque,
+                                                   ntohs(
+                                                       req->message.header.request.vbucket),
+                                                   ntohl(
+                                                       req->message.body.flags));
     }
+
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        c->setDCP(true);
+        c->setState(conn_ship_log);
+        break;
+    case ENGINE_DISCONNECT:
+        c->setState(conn_closing);
+        break;
+
+    case ENGINE_EWOULDBLOCK:
+        c->setEwouldblock(true);
+        break;
+
+    default:
+        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+    }
+
 }
 
 static void dcp_close_stream_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_close_stream*>(packet);
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
-    if (c->getBucketEngine()->dcp.close_stream == NULL) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    } else {
-        ENGINE_ERROR_CODE ret = c->getAiostat();
-        c->setAiostat(ENGINE_SUCCESS);
-        c->setEwouldblock(false);
+    if (ret == ENGINE_SUCCESS) {
+        uint16_t vbucket = ntohs(req->message.header.request.vbucket);
+        uint32_t opaque = ntohl(req->message.header.request.opaque);
+        ret = c->getBucketEngine()->dcp.close_stream(
+            c->getBucketEngineAsV0(), c->getCookie(),
+            opaque, vbucket);
+    }
 
-        if (ret == ENGINE_SUCCESS) {
-            uint16_t vbucket = ntohs(req->message.header.request.vbucket);
-            uint32_t opaque = ntohl(req->message.header.request.opaque);
-            ret = c->getBucketEngine()->dcp.close_stream(
-                c->getBucketEngineAsV0(), c->getCookie(),
-                opaque, vbucket);
-        }
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        break;
 
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-            break;
+    case ENGINE_DISCONNECT:
+        c->setState(conn_closing);
+        break;
 
-        case ENGINE_DISCONNECT:
-            c->setState(conn_closing);
-            break;
+    case ENGINE_EWOULDBLOCK:
+        c->setEwouldblock(true);
+        break;
 
-        case ENGINE_EWOULDBLOCK:
-            c->setEwouldblock(true);
-            break;
-
-        default:
-            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-        }
+    default:
+        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
     }
 }
 
@@ -1209,202 +1201,185 @@ static ENGINE_ERROR_CODE add_failover_log(vbucket_failover_t* entries,
 static void dcp_get_failover_log_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_get_failover_log*>(packet);
 
-    if (c->getBucketEngine()->dcp.get_failover_log == NULL) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    } else {
-        ENGINE_ERROR_CODE ret = c->getAiostat();
-        c->setAiostat(ENGINE_SUCCESS);
-        c->setEwouldblock(false);
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
-        if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->dcp.get_failover_log(
-                c->getBucketEngineAsV0(), c->getCookie(),
-                req->message.header.request.opaque,
-                ntohs(req->message.header.request.vbucket),
-                add_failover_log);
+    if (ret == ENGINE_SUCCESS) {
+        ret = c->getBucketEngine()->dcp.get_failover_log(
+            c->getBucketEngineAsV0(), c->getCookie(),
+            req->message.header.request.opaque,
+            ntohs(req->message.header.request.vbucket),
+            add_failover_log);
+    }
+
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        if (c->getDynamicBuffer().getRoot() != nullptr) {
+            mcbp_write_and_free(c, &c->getDynamicBuffer());
+        } else {
+            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
         }
+        break;
 
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            if (c->getDynamicBuffer().getRoot() != nullptr) {
-                mcbp_write_and_free(c, &c->getDynamicBuffer());
-            } else {
-                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-            }
-            break;
+    case ENGINE_DISCONNECT:
+        c->setState(conn_closing);
+        break;
 
-        case ENGINE_DISCONNECT:
-            c->setState(conn_closing);
-            break;
+    case ENGINE_EWOULDBLOCK:
+        c->setEwouldblock(true);
+        break;
 
-        case ENGINE_EWOULDBLOCK:
-            c->setEwouldblock(true);
-            break;
-
-        default:
-            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-        }
+    default:
+        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
     }
 }
 
 static void dcp_stream_req_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_stream_req*>(packet);
 
-    if (c->getBucketEngine()->dcp.stream_req == NULL) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    } else {
-        uint32_t flags = ntohl(req->message.body.flags);
-        uint64_t start_seqno = ntohll(req->message.body.start_seqno);
-        uint64_t end_seqno = ntohll(req->message.body.end_seqno);
-        uint64_t vbucket_uuid = ntohll(req->message.body.vbucket_uuid);
-        uint64_t snap_start_seqno = ntohll(req->message.body.snap_start_seqno);
-        uint64_t snap_end_seqno = ntohll(req->message.body.snap_end_seqno);
-        uint64_t rollback_seqno;
+    uint32_t flags = ntohl(req->message.body.flags);
+    uint64_t start_seqno = ntohll(req->message.body.start_seqno);
+    uint64_t end_seqno = ntohll(req->message.body.end_seqno);
+    uint64_t vbucket_uuid = ntohll(req->message.body.vbucket_uuid);
+    uint64_t snap_start_seqno = ntohll(req->message.body.snap_start_seqno);
+    uint64_t snap_end_seqno = ntohll(req->message.body.snap_end_seqno);
+    uint64_t rollback_seqno;
 
-        ENGINE_ERROR_CODE ret = c->getAiostat();
-        c->setAiostat(ENGINE_SUCCESS);
-        c->setEwouldblock(false);
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
-        if (ret == ENGINE_ROLLBACK) {
-            LOG_WARNING(c,
-                        "%u: dcp_stream_req_executor: Unexpected AIO stat"
-                            " result ROLLBACK. Shutting down DCP connection",
-                        c->getId());
-            c->setState(conn_closing);
-            return;
+    if (ret == ENGINE_ROLLBACK) {
+        LOG_WARNING(c,
+                    "%u: dcp_stream_req_executor: Unexpected AIO stat"
+                        " result ROLLBACK. Shutting down DCP connection",
+                    c->getId());
+        c->setState(conn_closing);
+        return;
+    }
+
+    if (ret == ENGINE_SUCCESS) {
+        ret = c->getBucketEngine()->dcp.stream_req(c->getBucketEngineAsV0(),
+                                                   c->getCookie(),
+                                                   flags,
+                                                   c->binary_header.request.opaque,
+                                                   c->binary_header.request.vbucket,
+                                                   start_seqno, end_seqno,
+                                                   vbucket_uuid,
+                                                   snap_start_seqno,
+                                                   snap_end_seqno,
+                                                   &rollback_seqno,
+                                                   add_failover_log);
+    }
+
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        c->setDCP(true);
+        c->setPriority(Connection::Priority::Medium);
+        if (c->getDynamicBuffer().getRoot() != nullptr) {
+            mcbp_write_and_free(c, &c->getDynamicBuffer());
+        } else {
+            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
         }
+        break;
 
-        if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->dcp.stream_req(c->getBucketEngineAsV0(),
-                                                       c->getCookie(),
-                                                       flags,
-                                                       c->binary_header.request.opaque,
-                                                       c->binary_header.request.vbucket,
-                                                       start_seqno, end_seqno,
-                                                       vbucket_uuid,
-                                                       snap_start_seqno,
-                                                       snap_end_seqno,
-                                                       &rollback_seqno,
-                                                       add_failover_log);
+    case ENGINE_ROLLBACK:
+        rollback_seqno = htonll(rollback_seqno);
+        if (mcbp_response_handler(NULL, 0, NULL, 0, &rollback_seqno,
+                                  sizeof(rollback_seqno),
+                                  PROTOCOL_BINARY_RAW_BYTES,
+                                  PROTOCOL_BINARY_RESPONSE_ROLLBACK, 0,
+                                  c->getCookie())) {
+            mcbp_write_and_free(c, &c->getDynamicBuffer());
+        } else {
+            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
         }
+        break;
 
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            c->setDCP(true);
-            c->setPriority(Connection::Priority::Medium);
-            if (c->getDynamicBuffer().getRoot() != nullptr) {
-                mcbp_write_and_free(c, &c->getDynamicBuffer());
-            } else {
-                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-            }
-            break;
+    case ENGINE_DISCONNECT:
+        c->setState(conn_closing);
+        break;
 
-        case ENGINE_ROLLBACK:
-            rollback_seqno = htonll(rollback_seqno);
-            if (mcbp_response_handler(NULL, 0, NULL, 0, &rollback_seqno,
-                                      sizeof(rollback_seqno),
-                                      PROTOCOL_BINARY_RAW_BYTES,
-                                      PROTOCOL_BINARY_RESPONSE_ROLLBACK, 0,
-                                      c->getCookie())) {
-                mcbp_write_and_free(c, &c->getDynamicBuffer());
-            } else {
-                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
-            }
-            break;
+    case ENGINE_EWOULDBLOCK:
+        c->setEwouldblock(true);
+        break;
 
-        case ENGINE_DISCONNECT:
-            c->setState(conn_closing);
-            break;
-
-        case ENGINE_EWOULDBLOCK:
-            c->setEwouldblock(true);
-            break;
-
-        default:
-            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-        }
+    default:
+        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
     }
 }
 
 static void dcp_stream_end_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_stream_end*>(packet);
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
-    if (c->getBucketEngine()->dcp.stream_end == NULL) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    } else {
-        ENGINE_ERROR_CODE ret = c->getAiostat();
-        c->setAiostat(ENGINE_SUCCESS);
-        c->setEwouldblock(false);
+    if (ret == ENGINE_SUCCESS) {
+        ret = c->getBucketEngine()->dcp.stream_end(c->getBucketEngineAsV0(),
+                                                   c->getCookie(),
+                                                   req->message.header.request.opaque,
+                                                   ntohs(
+                                                       req->message.header.request.vbucket),
+                                                   ntohl(
+                                                       req->message.body.flags));
+    }
 
-        if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->dcp.stream_end(c->getBucketEngineAsV0(),
-                                                       c->getCookie(),
-                                                       req->message.header.request.opaque,
-                                                       ntohs(
-                                                           req->message.header.request.vbucket),
-                                                       ntohl(
-                                                           req->message.body.flags));
-        }
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        c->setState(conn_ship_log);
+        break;
 
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            c->setState(conn_ship_log);
-            break;
+    case ENGINE_DISCONNECT:
+        c->setState(conn_closing);
+        break;
 
-        case ENGINE_DISCONNECT:
-            c->setState(conn_closing);
-            break;
+    case ENGINE_EWOULDBLOCK:
+        c->setEwouldblock(true);
+        break;
 
-        case ENGINE_EWOULDBLOCK:
-            c->setEwouldblock(true);
-            break;
-
-        default:
-            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-        }
+    default:
+        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
     }
 }
 
 static void dcp_snapshot_marker_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_snapshot_marker*>(packet);
 
-    if (c->getBucketEngine()->dcp.snapshot_marker == NULL) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    } else {
-        uint16_t vbucket = ntohs(req->message.header.request.vbucket);
-        uint32_t opaque = req->message.header.request.opaque;
-        uint32_t flags = ntohl(req->message.body.flags);
-        uint64_t start_seqno = ntohll(req->message.body.start_seqno);
-        uint64_t end_seqno = ntohll(req->message.body.end_seqno);
+    uint16_t vbucket = ntohs(req->message.header.request.vbucket);
+    uint32_t opaque = req->message.header.request.opaque;
+    uint32_t flags = ntohl(req->message.body.flags);
+    uint64_t start_seqno = ntohll(req->message.body.start_seqno);
+    uint64_t end_seqno = ntohll(req->message.body.end_seqno);
 
-        ENGINE_ERROR_CODE ret = c->getAiostat();
-        c->setAiostat(ENGINE_SUCCESS);
-        c->setEwouldblock(false);
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
-        if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->dcp.snapshot_marker(
-                c->getBucketEngineAsV0(), c->getCookie(),
-                opaque, vbucket,
-                start_seqno,
-                end_seqno, flags);
-        }
+    if (ret == ENGINE_SUCCESS) {
+        ret = c->getBucketEngine()->dcp.snapshot_marker(
+            c->getBucketEngineAsV0(), c->getCookie(),
+            opaque, vbucket,
+            start_seqno,
+            end_seqno, flags);
+    }
 
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            c->setState(conn_ship_log);
-            break;
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        c->setState(conn_ship_log);
+        break;
 
-        case ENGINE_DISCONNECT:
-            c->setState(conn_closing);
-            break;
+    case ENGINE_DISCONNECT:
+        c->setState(conn_closing);
+        break;
 
-        case ENGINE_EWOULDBLOCK:
-            c->setEwouldblock(true);
-            break;
+    case ENGINE_EWOULDBLOCK:
+        c->setEwouldblock(true);
+        break;
 
-        default:
-            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-        }
+    default:
+        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
     }
 }
 
@@ -1503,185 +1478,165 @@ static void dcp_expiration_executor(McbpConnection* c, void* packet) {
 static void dcp_flush_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_flush*>(packet);
 
-    if (c->getBucketEngine()->dcp.flush == NULL) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    } else {
-        ENGINE_ERROR_CODE ret = c->getAiostat();
-        c->setAiostat(ENGINE_SUCCESS);
-        c->setEwouldblock(false);
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
-        if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->dcp.flush(c->getBucketEngineAsV0(), c->getCookie(),
-                                                  req->message.header.request.opaque,
-                                                  ntohs(
-                                                      req->message.header.request.vbucket));
-        }
+    if (ret == ENGINE_SUCCESS) {
+        ret = c->getBucketEngine()->dcp.flush(c->getBucketEngineAsV0(),
+                                              c->getCookie(),
+                                              req->message.header.request.opaque,
+                                              ntohs(
+                                                  req->message.header.request.vbucket));
+    }
 
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            c->setState(conn_new_cmd);
-            break;
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        c->setState(conn_new_cmd);
+        break;
 
-        case ENGINE_DISCONNECT:
-            c->setState(conn_closing);
-            break;
+    case ENGINE_DISCONNECT:
+        c->setState(conn_closing);
+        break;
 
-        case ENGINE_EWOULDBLOCK:
-            c->setEwouldblock(true);
-            break;
+    case ENGINE_EWOULDBLOCK:
+        c->setEwouldblock(true);
+        break;
 
-        default:
-            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-        }
+    default:
+        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
     }
 }
 
 static void dcp_set_vbucket_state_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_set_vbucket_state*>(packet);
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
-    if (c->getBucketEngine()->dcp.set_vbucket_state == NULL) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    } else {
-        ENGINE_ERROR_CODE ret = c->getAiostat();
-        c->setAiostat(ENGINE_SUCCESS);
-        c->setEwouldblock(false);
+    if (ret == ENGINE_SUCCESS) {
+        vbucket_state_t state = (vbucket_state_t)req->message.body.state;
+        ret = c->getBucketEngine()->dcp.set_vbucket_state(
+            c->getBucketEngineAsV0(), c->getCookie(),
+            c->binary_header.request.opaque,
+            c->binary_header.request.vbucket,
+            state);
+    }
 
-        if (ret == ENGINE_SUCCESS) {
-            vbucket_state_t state = (vbucket_state_t)req->message.body.state;
-            ret = c->getBucketEngine()->dcp.set_vbucket_state(
-                c->getBucketEngineAsV0(), c->getCookie(),
-                c->binary_header.request.opaque,
-                c->binary_header.request.vbucket,
-                state);
-        }
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        c->setState(conn_ship_log);
+        break;
+    case ENGINE_DISCONNECT:
+        c->setState(conn_closing);
+        break;
 
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            c->setState(conn_ship_log);
-            break;
-        case ENGINE_DISCONNECT:
-            c->setState(conn_closing);
-            break;
+    case ENGINE_EWOULDBLOCK:
+        c->setEwouldblock(true);
+        break;
 
-        case ENGINE_EWOULDBLOCK:
-            c->setEwouldblock(true);
-            break;
-
-        default:
-            c->setState(conn_closing);
-            break;
-        }
+    default:
+        c->setState(conn_closing);
+        break;
     }
 }
 
-static void dcp_noop_executor(McbpConnection* c, void* packet) {
-    (void)packet;
+static void dcp_noop_executor(McbpConnection* c, void*) {
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
-    if (c->getBucketEngine()->dcp.noop == NULL) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    } else {
-        ENGINE_ERROR_CODE ret = c->getAiostat();
-        c->setAiostat(ENGINE_SUCCESS);
-        c->setEwouldblock(false);
+    if (ret == ENGINE_SUCCESS) {
+        ret = c->getBucketEngine()->dcp.noop(c->getBucketEngineAsV0(),
+                                             c->getCookie(),
+                                             c->binary_header.request.opaque);
+    }
 
-        if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->dcp.noop(c->getBucketEngineAsV0(), c->getCookie(),
-                                                 c->binary_header.request.opaque);
-        }
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        break;
 
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-            break;
+    case ENGINE_DISCONNECT:
+        c->setState(conn_closing);
+        break;
 
-        case ENGINE_DISCONNECT:
-            c->setState(conn_closing);
-            break;
+    case ENGINE_EWOULDBLOCK:
+        c->setEwouldblock(true);
+        break;
 
-        case ENGINE_EWOULDBLOCK:
-            c->setEwouldblock(true);
-            break;
-
-        default:
-            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-        }
+    default:
+        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
     }
 }
 
 static void dcp_buffer_acknowledgement_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_buffer_acknowledgement*>(packet);
 
-    if (c->getBucketEngine()->dcp.buffer_acknowledgement == NULL) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    } else {
-        ENGINE_ERROR_CODE ret = c->getAiostat();
-        c->setAiostat(ENGINE_SUCCESS);
-        c->setEwouldblock(false);
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
-        if (ret == ENGINE_SUCCESS) {
-            uint32_t bbytes;
-            memcpy(&bbytes, &req->message.body.buffer_bytes, 4);
-            ret = c->getBucketEngine()->dcp.buffer_acknowledgement(
-                c->getBucketEngineAsV0(), c->getCookie(),
-                c->binary_header.request.opaque,
-                c->binary_header.request.vbucket,
-                ntohl(bbytes));
-        }
+    if (ret == ENGINE_SUCCESS) {
+        uint32_t bbytes;
+        memcpy(&bbytes, &req->message.body.buffer_bytes, 4);
+        ret = c->getBucketEngine()->dcp.buffer_acknowledgement(
+            c->getBucketEngineAsV0(), c->getCookie(),
+            c->binary_header.request.opaque,
+            c->binary_header.request.vbucket,
+            ntohl(bbytes));
+    }
 
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            c->setState(conn_new_cmd);
-            break;
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        c->setState(conn_new_cmd);
+        break;
 
-        case ENGINE_DISCONNECT:
-            c->setState(conn_closing);
-            break;
+    case ENGINE_DISCONNECT:
+        c->setState(conn_closing);
+        break;
 
-        case ENGINE_EWOULDBLOCK:
-            c->setEwouldblock(true);
-            break;
+    case ENGINE_EWOULDBLOCK:
+        c->setEwouldblock(true);
+        break;
 
-        default:
-            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-        }
+    default:
+        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
     }
 }
 
 static void dcp_control_executor(McbpConnection* c, void* packet) {
-    if (c->getBucketEngine()->dcp.control == NULL) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    } else {
-        ENGINE_ERROR_CODE ret = c->getAiostat();
-        c->setAiostat(ENGINE_SUCCESS);
-        c->setEwouldblock(false);
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
-        if (ret == ENGINE_SUCCESS) {
-            auto* req = reinterpret_cast<protocol_binary_request_dcp_control*>(packet);
-            const uint8_t* key = req->bytes + sizeof(req->bytes);
-            uint16_t nkey = ntohs(req->message.header.request.keylen);
-            const uint8_t* value = key + nkey;
-            uint32_t nvalue = ntohl(req->message.header.request.bodylen) - nkey;
-            ret = c->getBucketEngine()->dcp.control(c->getBucketEngineAsV0(), c->getCookie(),
-                                                    c->binary_header.request.opaque,
-                                                    key, nkey, value, nvalue);
-        }
+    if (ret == ENGINE_SUCCESS) {
+        auto* req = reinterpret_cast<protocol_binary_request_dcp_control*>(packet);
+        const uint8_t* key = req->bytes + sizeof(req->bytes);
+        uint16_t nkey = ntohs(req->message.header.request.keylen);
+        const uint8_t* value = key + nkey;
+        uint32_t nvalue = ntohl(req->message.header.request.bodylen) - nkey;
+        ret = c->getBucketEngine()->dcp.control(c->getBucketEngineAsV0(),
+                                                c->getCookie(),
+                                                c->binary_header.request.opaque,
+                                                key, nkey, value, nvalue);
+    }
 
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-            break;
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        break;
 
-        case ENGINE_DISCONNECT:
-            c->setState(conn_closing);
-            break;
+    case ENGINE_DISCONNECT:
+        c->setState(conn_closing);
+        break;
 
-        case ENGINE_EWOULDBLOCK:
-            c->setEwouldblock(true);
-            break;
+    case ENGINE_EWOULDBLOCK:
+        c->setEwouldblock(true);
+        break;
 
-        default:
-            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-        }
+    default:
+        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
     }
 }
 

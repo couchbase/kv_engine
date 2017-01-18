@@ -49,6 +49,16 @@ static protocol_binary_response_status dcp_open_validator(const Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
+
+    // We could do these tests before checking the packet, but
+    // it feels cleaner to validate the packet first.
+    if (cookie.connection == nullptr ||
+        cookie.connection->getBucketEngine() == nullptr ||
+        cookie.connection->getBucketEngine()->dcp.open == nullptr) {
+        // The attached bucket does not support DCP
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    }
+
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
@@ -62,6 +72,15 @@ static protocol_binary_response_status dcp_add_stream_validator(const Cookie& co
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         /* INCORRECT FORMAT */
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    // We could do these tests before checking the packet, but
+    // it feels cleaner to validate the packet first.
+    if (cookie.connection == nullptr ||
+        cookie.connection->getBucketEngine() == nullptr ||
+        cookie.connection->getBucketEngine()->dcp.add_stream == nullptr) {
+        // The attached bucket does not support DCP
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -79,6 +98,15 @@ static protocol_binary_response_status dcp_close_stream_validator(const Cookie& 
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
+    // We could do these tests before checking the packet, but
+    // it feels cleaner to validate the packet first.
+    if (cookie.connection == nullptr ||
+        cookie.connection->getBucketEngine() == nullptr ||
+        cookie.connection->getBucketEngine()->dcp.close_stream == nullptr) {
+        // The attached bucket does not support DCP
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    }
+
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
@@ -91,6 +119,15 @@ static protocol_binary_response_status dcp_get_failover_log_validator(const Cook
         req->message.header.request.bodylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    // We could do these tests before checking the packet, but
+    // it feels cleaner to validate the packet first.
+    if (cookie.connection == nullptr ||
+        cookie.connection->getBucketEngine() == nullptr ||
+        cookie.connection->getBucketEngine()->dcp.get_failover_log == nullptr) {
+        // The attached bucket does not support DCP
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -106,6 +143,16 @@ static protocol_binary_response_status dcp_stream_req_validator(const Cookie& co
         /* INCORRECT FORMAT */
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
+
+    // We could do these tests before checking the packet, but
+    // it feels cleaner to validate the packet first.
+    if (cookie.connection == nullptr ||
+        cookie.connection->getBucketEngine() == nullptr ||
+        cookie.connection->getBucketEngine()->dcp.stream_req == nullptr) {
+        // The attached bucket does not support DCP
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    }
+
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
@@ -120,6 +167,15 @@ static protocol_binary_response_status dcp_stream_end_validator(const Cookie& co
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
+    // We could do these tests before checking the packet, but
+    // it feels cleaner to validate the packet first.
+    if (cookie.connection == nullptr ||
+        cookie.connection->getBucketEngine() == nullptr ||
+        cookie.connection->getBucketEngine()->dcp.stream_end == nullptr) {
+        // The attached bucket does not support DCP
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    }
+
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
@@ -132,6 +188,15 @@ static protocol_binary_response_status dcp_snapshot_marker_validator(const Cooki
         req->message.header.request.bodylen != htonl(20) ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    // We could do these tests before checking the packet, but
+    // it feels cleaner to validate the packet first.
+    if (cookie.connection == nullptr ||
+        cookie.connection->getBucketEngine() == nullptr ||
+        cookie.connection->getBucketEngine()->dcp.snapshot_marker == nullptr) {
+        // The attached bucket does not support DCP
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -170,6 +235,15 @@ static protocol_binary_response_status dcp_mutation_validator(const Cookie& cook
         return PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL;
     }
 
+    // We could do these tests before checking the packet, but
+    // it feels cleaner to validate the packet first.
+    if (cookie.connection == nullptr ||
+        cookie.connection->getBucketEngine() == nullptr ||
+        cookie.connection->getBucketEngine()->dcp.mutation == nullptr) {
+        // The attached bucket does not support DCP
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    }
+
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
@@ -181,6 +255,15 @@ static protocol_binary_response_status dcp_deletion_validator(const Cookie& cook
         req->message.header.request.keylen == 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    // We could do these tests before checking the packet, but
+    // it feels cleaner to validate the packet first.
+    if (cookie.connection == nullptr ||
+        cookie.connection->getBucketEngine() == nullptr ||
+        cookie.connection->getBucketEngine()->dcp.deletion == nullptr) {
+        // The attached bucket does not support DCP
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -199,6 +282,15 @@ static protocol_binary_response_status dcp_expiration_validator(const Cookie& co
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
+    // We could do these tests before checking the packet, but
+    // it feels cleaner to validate the packet first.
+    if (cookie.connection == nullptr ||
+        cookie.connection->getBucketEngine() == nullptr ||
+        cookie.connection->getBucketEngine()->dcp.expiration == nullptr) {
+        // The attached bucket does not support DCP
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    }
+
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
@@ -211,6 +303,15 @@ static protocol_binary_response_status dcp_flush_validator(const Cookie& cookie)
         req->message.header.request.bodylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    // We could do these tests before checking the packet, but
+    // it feels cleaner to validate the packet first.
+    if (cookie.connection == nullptr ||
+        cookie.connection->getBucketEngine() == nullptr ||
+        cookie.connection->getBucketEngine()->dcp.flush == nullptr) {
+        // The attached bucket does not support DCP
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -231,6 +332,15 @@ static protocol_binary_response_status dcp_set_vbucket_state_validator(const Coo
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
+    // We could do these tests before checking the packet, but
+    // it feels cleaner to validate the packet first.
+    if (cookie.connection == nullptr ||
+        cookie.connection->getBucketEngine() == nullptr ||
+        cookie.connection->getBucketEngine()->dcp.set_vbucket_state == nullptr) {
+        // The attached bucket does not support DCP
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    }
+
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
@@ -243,6 +353,15 @@ static protocol_binary_response_status dcp_noop_validator(const Cookie& cookie)
         req->message.header.request.bodylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    // We could do these tests before checking the packet, but
+    // it feels cleaner to validate the packet first.
+    if (cookie.connection == nullptr ||
+        cookie.connection->getBucketEngine() == nullptr ||
+        cookie.connection->getBucketEngine()->dcp.noop == nullptr) {
+        // The attached bucket does not support DCP
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -259,6 +378,15 @@ static protocol_binary_response_status dcp_buffer_acknowledgement_validator(cons
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
+    // We could do these tests before checking the packet, but
+    // it feels cleaner to validate the packet first.
+    if (cookie.connection == nullptr ||
+        cookie.connection->getBucketEngine() == nullptr ||
+        cookie.connection->getBucketEngine()->dcp.buffer_acknowledgement == nullptr) {
+        // The attached bucket does not support DCP
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    }
+
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
@@ -272,6 +400,15 @@ static protocol_binary_response_status dcp_control_validator(const Cookie& cooki
         req->message.header.request.extlen != 0 || nkey == 0 || nval == 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    // We could do these tests before checking the packet, but
+    // it feels cleaner to validate the packet first.
+    if (cookie.connection == nullptr ||
+        cookie.connection->getBucketEngine() == nullptr ||
+        cookie.connection->getBucketEngine()->dcp.control == nullptr) {
+        // The attached bucket does not support DCP
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;

@@ -1369,7 +1369,7 @@ protected:
 };
 
 TEST_F(DcpOpenValidatorTest, CorrectMessage) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
 }
 TEST_F(DcpOpenValidatorTest, InvalidMagic) {
     request.message.header.request.magic = 0;
@@ -1409,7 +1409,7 @@ protected:
 };
 
 TEST_F(DcpAddStreamValidatorTest, CorrectMessage) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
 }
 TEST_F(DcpAddStreamValidatorTest, InvalidMagic) {
     request.message.header.request.magic = 0;
@@ -1451,7 +1451,7 @@ protected:
 };
 
 TEST_F(DcpCloseStreamValidatorTest, CorrectMessage) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
 }
 TEST_F(DcpCloseStreamValidatorTest, InvalidMagic) {
     request.message.header.request.magic = 0;
@@ -1493,7 +1493,7 @@ protected:
 };
 
 TEST_F(DcpGetFailoverLogValidatorTest, CorrectMessage) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
 }
 TEST_F(DcpGetFailoverLogValidatorTest, InvalidMagic) {
     request.message.header.request.magic = 0;
@@ -1537,7 +1537,7 @@ protected:
 };
 
 TEST_F(DcpStreamReqValidatorTest, CorrectMessage) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
 }
 TEST_F(DcpStreamReqValidatorTest, InvalidMagic) {
     request.message.header.request.magic = 0;
@@ -1582,7 +1582,7 @@ protected:
 };
 
 TEST_F(DcpStreamEndValidatorTest, CorrectMessage) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
 }
 TEST_F(DcpStreamEndValidatorTest, InvalidMagic) {
     request.message.header.request.magic = 0;
@@ -1626,7 +1626,7 @@ protected:
 };
 
 TEST_F(DcpSnapshotMarkerValidatorTest, CorrectMessage) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
 }
 TEST_F(DcpSnapshotMarkerValidatorTest, InvalidMagic) {
     request.message.header.request.magic = 0;
@@ -1671,7 +1671,7 @@ protected:
 };
 
 TEST_F(DcpMutationValidatorTest, CorrectMessage) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
 }
 TEST_F(DcpMutationValidatorTest, InvalidMagic) {
     request.message.header.request.magic = 0;
@@ -1708,7 +1708,7 @@ protected:
 };
 
 TEST_F(DcpDeletionValidatorTest, CorrectMessage) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
 }
 
 TEST_F(DcpDeletionValidatorTest, InvalidMagic) {
@@ -1752,7 +1752,7 @@ protected:
 };
 
 TEST_F(DcpExpirationValidatorTest, CorrectMessage) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
 }
 
 TEST_F(DcpExpirationValidatorTest, InvalidMagic) {
@@ -1792,7 +1792,7 @@ protected:
 };
 
 TEST_F(DcpFlushValidatorTest, CorrectMessage) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
 }
 TEST_F(DcpFlushValidatorTest, InvalidMagic) {
     request.message.header.request.magic = 0;
@@ -1838,12 +1838,12 @@ protected:
 };
 
 TEST_F(DcpSetVbucketStateValidatorTest, CorrectMessage) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
 }
 TEST_F(DcpSetVbucketStateValidatorTest, LegalValues) {
     for (int ii = 1; ii < 5; ++ii) {
         request.message.body.state = ii;
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
     }
 }
 TEST_F(DcpSetVbucketStateValidatorTest, InvalidMagic) {
@@ -1892,7 +1892,7 @@ protected:
 };
 
 TEST_F(DcpNoopValidatorTest, CorrectMessage) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
 }
 TEST_F(DcpNoopValidatorTest, InvalidMagic) {
     request.message.header.request.magic = 0;
@@ -1937,7 +1937,7 @@ protected:
 };
 
 TEST_F(DcpBufferAckValidatorTest, CorrectMessage) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
 }
 TEST_F(DcpBufferAckValidatorTest, InvalidMagic) {
     request.message.header.request.magic = 0;
@@ -1982,7 +1982,7 @@ protected:
 };
 
 TEST_F(DcpControlValidatorTest, CorrectMessage) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
 }
 TEST_F(DcpControlValidatorTest, InvalidMagic) {
     request.message.header.request.magic = 0;
