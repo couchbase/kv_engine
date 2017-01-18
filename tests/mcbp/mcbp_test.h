@@ -33,7 +33,7 @@ public:
     virtual void SetUp() override;
 
 protected:
-    int validate(protocol_binary_command opcode, void* request);
+    protocol_binary_response_status validate(protocol_binary_command opcode, void* request);
 
     McbpValidatorChains validatorChains;
 };

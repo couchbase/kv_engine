@@ -31,7 +31,7 @@ void ValidatorTest::SetUp() {
     McbpValidatorChains::initializeMcbpValidatorChains(validatorChains);
 }
 
-int ValidatorTest::validate(protocol_binary_command opcode, void* packet) {
+protocol_binary_response_status ValidatorTest::validate(protocol_binary_command opcode, void* packet) {
     // Mockup a McbpConnection and Cookie for the validator chain
     event_base* ev = event_base_new();
     McbpConnection connection(-1, ev);
@@ -47,7 +47,7 @@ int ValidatorTest::validate(protocol_binary_command opcode, void* packet) {
                            (connection.binary_header.request.bodylen +
                             sizeof(connection.binary_header));
     Cookie cookie(&connection);
-    int rv = validatorChains.invoke(opcode, cookie);
+    auto rv = validatorChains.invoke(opcode, cookie);
     event_base_free(ev);
     return rv;
 }
@@ -108,7 +108,7 @@ class GetValidatorTest : public ValidatorTest,
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         auto opcode = (protocol_binary_command)GetParam();
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
@@ -708,7 +708,7 @@ class NoopValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_NOOP,
                                        static_cast<void*>(&request));
     }
@@ -755,7 +755,7 @@ class VersionValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_VERSION,
                                        static_cast<void*>(&request));
     }
@@ -802,7 +802,7 @@ class StatValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_STAT,
                                        static_cast<void*>(&request));
     }
@@ -853,7 +853,7 @@ class VerbosityValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_VERBOSITY,
                                        static_cast<void*>(&request));
     }
@@ -900,7 +900,7 @@ class HelloValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_HELLO,
                                        static_cast<void*>(&request));
     }
@@ -955,7 +955,7 @@ class SaslListMechValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_SASL_LIST_MECHS,
                                        static_cast<void*>(&request));
     }
@@ -1070,7 +1070,7 @@ class GetErrmapValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_GET_ERROR_MAP,
                                        static_cast<void*>(&request));
     }
@@ -1106,7 +1106,7 @@ class IoctlGetValidatorTest : public ValidatorTest {
 protected:
     // #defined in memcached.h..
     const int IOCTL_KEY_LENGTH = 128;
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_IOCTL_GET,
                                        static_cast<void*>(&request));
     }
@@ -1161,7 +1161,7 @@ protected:
     // #defined in memcached.h..
     const int IOCTL_KEY_LENGTH = 128;
     const int IOCTL_VAL_LENGTH = 128;
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_IOCTL_SET,
                                        static_cast<void*>(&request));
     }
@@ -1217,7 +1217,7 @@ class AuditPutValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_AUDIT_PUT,
                                        static_cast<void*>(&request));
     }
@@ -1264,7 +1264,7 @@ class AuditConfigReloadValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD,
                                        static_cast<void*>(&request));
     }
@@ -1312,7 +1312,7 @@ class ShutdownValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_SHUTDOWN,
                                        static_cast<void*>(&request));
     }
@@ -1361,7 +1361,7 @@ class DcpOpenValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_OPEN,
                                        static_cast<void*>(&request));
     }
@@ -1401,7 +1401,7 @@ class DcpAddStreamValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_ADD_STREAM,
                                        static_cast<void*>(&request));
     }
@@ -1443,7 +1443,7 @@ class DcpCloseStreamValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM,
                                        static_cast<void*>(&request));
     }
@@ -1485,7 +1485,7 @@ class DcpGetFailoverLogValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG,
                                        static_cast<void*>(&request));
     }
@@ -1529,7 +1529,7 @@ class DcpStreamReqValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_STREAM_REQ,
                                        static_cast<void*>(&request));
     }
@@ -1574,7 +1574,7 @@ class DcpStreamEndValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_STREAM_END,
                                        static_cast<void*>(&request));
     }
@@ -1618,7 +1618,7 @@ class DcpSnapshotMarkerValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
                                        static_cast<void*>(&request));
     }
@@ -1663,7 +1663,7 @@ class DcpMutationValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_MUTATION,
                                        static_cast<void*>(&request));
     }
@@ -1700,7 +1700,7 @@ class DcpDeletionValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_DELETION,
                                        static_cast<void*>(&request));
     }
@@ -1744,7 +1744,7 @@ class DcpExpirationValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_EXPIRATION,
                                        static_cast<void*>(&request));
     }
@@ -1784,7 +1784,7 @@ class DcpFlushValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_FLUSH,
                                        static_cast<void*>(&request));
     }
@@ -1829,7 +1829,7 @@ class DcpSetVbucketStateValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(
                 PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE,
                 static_cast<void*>(&request));
@@ -1884,7 +1884,7 @@ class DcpNoopValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_NOOP,
                                        static_cast<void*>(&request));
     }
@@ -1928,7 +1928,7 @@ class DcpBufferAckValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(
                 PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT,
                 static_cast<void*>(&request));
@@ -1974,7 +1974,7 @@ class DcpControlValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_CONTROL,
                                        static_cast<void*>(&request));
     }
@@ -2018,7 +2018,7 @@ class ObserveSeqnoValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_OBSERVE_SEQNO,
                                        static_cast<void*>(&request));
     }
@@ -2062,7 +2062,7 @@ class SetDriftCounterStateValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(
                 PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE,
                 static_cast<void*>(&request));
@@ -2106,7 +2106,7 @@ class GetAdjustedTimeValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME,
                                        static_cast<void*>(&request));
     }
@@ -2186,7 +2186,7 @@ class RefreshValidatorTest : public ValidatorTest,
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         auto opcode = (protocol_binary_command)GetParam();
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
@@ -2244,7 +2244,7 @@ class CmdTimerValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_GET_CMD_TIMER,
                                        static_cast<void*>(&request));
     }
@@ -2291,7 +2291,7 @@ class GetCtrlTokenValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN,
                                        static_cast<void*>(&request));
     }
@@ -2341,7 +2341,7 @@ class SetCtrlTokenValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN,
                                        static_cast<void*>(&request));
     }
@@ -2392,7 +2392,7 @@ class InitCompleteValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_INIT_COMPLETE,
                                        static_cast<void*>(&request));
     }
@@ -2435,7 +2435,7 @@ class GetAllVbSeqnoValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS,
                                        static_cast<void*>(&request));
     }
@@ -2509,7 +2509,7 @@ class GetLockedValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_GET_LOCKED,
                                        static_cast<void*>(&request));
     }
@@ -2576,7 +2576,7 @@ class UnlockValidatorTest : public ValidatorTest {
     }
 
 protected:
-    int validate() {
+    protocol_binary_response_status validate() {
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_UNLOCK_KEY,
                                        static_cast<void*>(&request));
     }
