@@ -1693,100 +1693,17 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item &itm,
         return ENGINE_KEY_EEXISTS;
     }
 
-    int bucket_num(0);
-    auto lh = vb->ht.getLockedBucket(itm.getKey(), &bucket_num);
-    StoredValue *v = vb->ht.unlocked_find(itm.getKey(), bucket_num, true,
-                                          false);
-
-    bool maybeKeyExists = true;
-    if (!force) {
-        if (v)  {
-            if (v->isTempInitialItem()) {
-                vb->bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
-                return ENGINE_EWOULDBLOCK;
-            }
-
-            if (!vb->resolveConflict(*v, itm.getMetaData(), false)) {
-                ++stats.numOpsSetMetaResolutionFailed;
-                return ENGINE_KEY_EEXISTS;
-            }
-        } else {
-            if (vb->maybeKeyExistsInFilter(itm.getKey())) {
-                return vb->addTempItemAndBGFetch(lh,
-                                                 bucket_num,
-                                                 itm.getKey(),
-                                                 cookie,
-                                                 engine,
-                                                 bgFetchDelay,
-                                                 true,
-                                                 isReplication);
-            } else {
-                maybeKeyExists = false;
-            }
-        }
-    } else {
-        if (eviction_policy == FULL_EVICTION) {
-            // Check Bloomfilter's prediction
-            if (!vb->maybeKeyExistsInFilter(itm.getKey())) {
-                maybeKeyExists = false;
-            }
-        }
-    }
-
-    if (v && v->isLocked(ep_current_time()) &&
-        (vb->getState() == vbucket_state_replica ||
-         vb->getState() == vbucket_state_pending)) {
-        v->unlock();
-    }
-
-    MutationStatus mtype = vb->ht.unlocked_set(v,
-                                               itm,
-                                               cas,
-                                               allowExisting,
-                                               true,
-                                               eviction_policy,
-                                               maybeKeyExists,
-                                               isReplication);
-
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    switch (mtype) {
-    case MutationStatus::NoMem:
-        ret = ENGINE_ENOMEM;
-        break;
-    case MutationStatus::InvalidCas:
-    case MutationStatus::IsLocked:
-        ret = ENGINE_KEY_EEXISTS;
-        break;
-    case MutationStatus::WasDirty:
-    case MutationStatus::WasClean: {
-        vb->setMaxCasAndTrackDrift(v->getCas());
-        auto queued_seqno = vb->queueDirty(*v, &lh, genBySeqno, genCas);
-        if (nullptr != seqno) {
-            *seqno = queued_seqno;
-        }
-    } break;
-    case MutationStatus::NotFound:
-        ret = ENGINE_KEY_ENOENT;
-        break;
-    case MutationStatus::NeedBgFetch: { // CAS operation with non-resident item
-        // + full eviction.
-        if (v) { // temp item is already created. Simply schedule a
-            lh.unlock(); // bg fetch job.
-            vb->bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
-            return ENGINE_EWOULDBLOCK;
-        }
-        ret = vb->addTempItemAndBGFetch(lh,
-                                        bucket_num,
-                                        itm.getKey(),
-                                        cookie,
-                                        engine,
-                                        bgFetchDelay,
-                                        true,
-                                        isReplication);
-        }
-    }
-
-    return ret;
+    return vb->setWithMeta(itm,
+                           cas,
+                           seqno,
+                           cookie,
+                           engine,
+                           bgFetchDelay,
+                           force,
+                           allowExisting,
+                           genBySeqno,
+                           genCas,
+                           isReplication);
 }
 
 GetValue KVBucket::getAndUpdateTtl(const DocKey& key, uint16_t vbucket,

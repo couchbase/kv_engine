@@ -690,6 +690,37 @@ public:
     ENGINE_ERROR_CODE addTAPBackfillItem(Item& itm, bool genBySeqno);
 
     /**
+     * Set an item in the store from a non-front end operation (DCP, XDCR)
+     *
+     * @param item the item to set. Upon success, the itm revSeqno is updated
+     * @param cas value to match
+     * @param seqno sequence number of mutation
+     * @param cookie the cookie representing the client to store the item
+     * @param engine Reference to ep engine
+     * @param bgFetchDelay
+     * @param force override vbucket states
+     * @param allowExisting set to false if you want set to fail if the
+     *                      item exists already
+     * @param genBySeqno whether or not to generate sequence number
+     * @param emd ExtendedMetaData class object that contains any ext meta
+     * @param isReplication set to true if we are to use replication
+     *                      throttle threshold
+     *
+     * @return the result of the store operation
+     */
+    ENGINE_ERROR_CODE setWithMeta(Item& itm,
+                                  uint64_t cas,
+                                  uint64_t* seqno,
+                                  const void* cookie,
+                                  EventuallyPersistentEngine& engine,
+                                  int bgFetchDelay,
+                                  bool force,
+                                  bool allowExisting,
+                                  GenerateBySeqno genBySeqno,
+                                  GenerateCas genCas,
+                                  bool isReplication);
+
+    /**
      * Calls the conflict resolution module to resolve the conflict
      *
      * @param v the local document meta data

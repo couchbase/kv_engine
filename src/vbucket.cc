@@ -1260,6 +1260,112 @@ ENGINE_ERROR_CODE VBucket::addTAPBackfillItem(Item& itm, bool genBySeqno) {
     return ret;
 }
 
+ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
+                                       uint64_t cas,
+                                       uint64_t* seqno,
+                                       const void* cookie,
+                                       EventuallyPersistentEngine& engine,
+                                       int bgFetchDelay,
+                                       bool force,
+                                       bool allowExisting,
+                                       GenerateBySeqno genBySeqno,
+                                       GenerateCas genCas,
+                                       bool isReplication) {
+    int bucket_num(0);
+    auto lh = ht.getLockedBucket(itm.getKey(), &bucket_num);
+    StoredValue* v = ht.unlocked_find(itm.getKey(), bucket_num, true, false);
+
+    bool maybeKeyExists = true;
+    if (!force) {
+        if (v) {
+            if (v->isTempInitialItem()) {
+                bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
+                return ENGINE_EWOULDBLOCK;
+            }
+
+            if (!(conflictResolver->resolve(*v, itm.getMetaData(), false))) {
+                ++stats.numOpsSetMetaResolutionFailed;
+                return ENGINE_KEY_EEXISTS;
+            }
+        } else {
+            if (maybeKeyExistsInFilter(itm.getKey())) {
+                return addTempItemAndBGFetch(lh,
+                                             bucket_num,
+                                             itm.getKey(),
+                                             cookie,
+                                             engine,
+                                             bgFetchDelay,
+                                             true,
+                                             isReplication);
+            } else {
+                maybeKeyExists = false;
+            }
+        }
+    } else {
+        if (eviction == FULL_EVICTION) {
+            // Check Bloomfilter's prediction
+            if (!maybeKeyExistsInFilter(itm.getKey())) {
+                maybeKeyExists = false;
+            }
+        }
+    }
+
+    if (v && v->isLocked(ep_current_time()) &&
+        (getState() == vbucket_state_replica ||
+         getState() == vbucket_state_pending)) {
+        v->unlock();
+    }
+
+    MutationStatus mtype = ht.unlocked_set(v,
+                                           itm,
+                                           cas,
+                                           allowExisting,
+                                           true,
+                                           eviction,
+                                           maybeKeyExists,
+                                           isReplication);
+
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    switch (mtype) {
+    case MutationStatus::NoMem:
+        ret = ENGINE_ENOMEM;
+        break;
+    case MutationStatus::InvalidCas:
+    case MutationStatus::IsLocked:
+        ret = ENGINE_KEY_EEXISTS;
+        break;
+    case MutationStatus::WasDirty:
+    case MutationStatus::WasClean: {
+        setMaxCasAndTrackDrift(v->getCas());
+        auto queued_seqno = queueDirty(*v, &lh, genBySeqno, genCas);
+        if (nullptr != seqno) {
+            *seqno = queued_seqno;
+        }
+    } break;
+    case MutationStatus::NotFound:
+        ret = ENGINE_KEY_ENOENT;
+        break;
+    case MutationStatus::NeedBgFetch: { // CAS operation with non-resident item
+        // + full eviction.
+        if (v) { // temp item is already created. Simply schedule a
+            lh.unlock(); // bg fetch job.
+            bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
+            return ENGINE_EWOULDBLOCK;
+        }
+        ret = addTempItemAndBGFetch(lh,
+                                    bucket_num,
+                                    itm.getKey(),
+                                    cookie,
+                                    engine,
+                                    bgFetchDelay,
+                                    true,
+                                    isReplication);
+    }
+    }
+
+    return ret;
+}
+
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
                        item_eviction_policy_t policy) {
     addStat(NULL, toString(state), add_stat, c);
