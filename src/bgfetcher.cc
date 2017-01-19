@@ -21,11 +21,16 @@
 #include <vector>
 
 #include "bgfetcher.h"
+#include "ep_engine.h"
+#include "executorthread.h"
 #include "kv_bucket.h"
 #include "kvshard.h"
-#include "executorthread.h"
 
 const double BgFetcher::sleepInterval = MIN_SLEEP_TIME;
+
+BgFetcher::BgFetcher(KVBucket& s, KVShard& k)
+    : BgFetcher(&s, &k, s.getEPEngine().getEpStats()) {
+}
 
 void BgFetcher::start() {
     bool inverse = false;

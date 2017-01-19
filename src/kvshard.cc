@@ -19,80 +19,59 @@
 
 #include <functional>
 
+#include <platform/make_unique.h>
+
 #include "bgfetcher.h"
 #include "ep_engine.h"
 #include "flusher.h"
 #include "kvshard.h"
 
 /* [EPHE TODO]: Consider not using KVShard for ephemeral bucket */
-KVShard::KVShard(uint16_t id, KVBucketIface& store) :
-    shardId(id),
-    kvConfig(store.getEPEngine().getConfiguration(), shardId),
-    highPriorityCount(0)
-{
-    EPStats &stats = store.getEPEngine().getEpStats();
-    Configuration &config = store.getEPEngine().getConfiguration();
-    maxVbuckets = config.getMaxVbuckets();
-
-    vbuckets.resize(maxVbuckets);
-
-    std::string backend = kvConfig.getBackend();
+KVShard::KVShard(uint16_t id, KVBucketIface& kvBucket)
+    : kvConfig(kvBucket.getEPEngine().getConfiguration(), id),
+      vbuckets(kvConfig.getMaxVBuckets()),
+      highPriorityCount(0) {
+    const std::string backend = kvConfig.getBackend();
     uint16_t commitInterval = 1;
 
-    if (backend.compare("couchdb") == 0) {
-        rwUnderlying = KVStoreFactory::create(kvConfig, false);
-        roUnderlying = KVStoreFactory::create(kvConfig, true);
-    } else if (backend.compare("forestdb") == 0) {
-        rwUnderlying = KVStoreFactory::create(kvConfig);
-        roUnderlying = rwUnderlying;
-        commitInterval = config.getMaxVbuckets()/config.getMaxNumShards();
+    if (backend == "couchdb") {
+        rwStore.reset(KVStoreFactory::create(kvConfig, false));
+        roStore.reset(KVStoreFactory::create(kvConfig, true));
+    } else if (backend == "forestdb") {
+        rwStore.reset(KVStoreFactory::create(kvConfig));
+        commitInterval = kvConfig.getMaxVBuckets() / kvConfig.getMaxShards();
+    } else {
+        throw std::logic_error(
+                "KVShard::KVShard: "
+                "Invalid backend type '" +
+                backend + "'");
     }
 
     /* [EPHE TODO]: Try to avoid dynamic cast */
-    KVBucket* epstore = dynamic_cast<KVBucket*>(&store);
+    KVBucket* epBucket = dynamic_cast<KVBucket*>(&kvBucket);
 
-    if (epstore) {
-        /* We want Flusher and BgFetcher only in case of epstore not
-           ephemeral store */
-        flusher = new Flusher(epstore, this, commitInterval);
-        bgFetcher = new BgFetcher(epstore, this, stats);
+    if (epBucket) {
+        /* We want Flusher and BgFetcher only in case of ep bucket not
+           ephemeral bucket */
+        flusher = std::make_unique<Flusher>(epBucket, this, commitInterval);
+        bgFetcher = std::make_unique<BgFetcher>(*epBucket, *this);
     }
 }
 
-KVShard::~KVShard() {
-    if (flusher->state() != stopped) {
-        flusher->stop(true);
-        LOG(EXTENSION_LOG_WARNING, "Terminating flusher while it is in %s",
-            flusher->stateName());
-    }
-    delete flusher;
-    delete bgFetcher;
-
-    delete rwUnderlying;
-
-    /* Only couchstore has a read write store and a read only. ForestDB
-     * only has a read write store. Hence delete the read only store only
-     * in the case of couchstore.
-     */
-    if (kvConfig.getBackend().compare("couchdb") == 0) {
-        delete roUnderlying;
-    }
-}
+// Non-inline destructor so we can destruct
+// unique_ptrs of forward-declared items
+KVShard::~KVShard() = default;
 
 Flusher *KVShard::getFlusher() {
-    return flusher;
+    return flusher.get();
 }
 
 BgFetcher *KVShard::getBgFetcher() {
-    return bgFetcher;
-}
-
-void KVShard::notifyFlusher() {
-    flusher->notifyFlushEvent();
+    return bgFetcher.get();
 }
 
 RCPtr<VBucket> KVShard::getBucket(uint16_t id) const {
-    if (id < maxVbuckets) {
+    if (id < vbuckets.size()) {
         return vbuckets[id];
     } else {
         return NULL;
@@ -112,8 +91,7 @@ std::vector<VBucket::id_type> KVShard::getVBucketsSortedByState() {
     for (int state = vbucket_state_active;
          state <= vbucket_state_dead;
          ++state) {
-        for (size_t i = 0; i < maxVbuckets; ++i) {
-            RCPtr<VBucket> b = vbuckets[i];
+        for (RCPtr<VBucket> b : vbuckets) {
             if (b && b->getState() == state) {
                 rv.push_back(b->getId());
             }
@@ -124,8 +102,7 @@ std::vector<VBucket::id_type> KVShard::getVBucketsSortedByState() {
 
 std::vector<VBucket::id_type> KVShard::getVBuckets() {
     std::vector<VBucket::id_type> rv;
-    for (size_t i = 0; i < maxVbuckets; ++i) {
-        RCPtr<VBucket> b = vbuckets[i];
+    for (RCPtr<VBucket> b : vbuckets) {
         if (b) {
             rv.push_back(b->getId());
         }
@@ -135,6 +112,6 @@ std::vector<VBucket::id_type> KVShard::getVBuckets() {
 
 void NotifyFlusherCB::callback(uint16_t &vb) {
     if (shard->getBucket(vb)) {
-        shard->notifyFlusher();
+        shard->getFlusher()->notifyFlushEvent();
     }
 }

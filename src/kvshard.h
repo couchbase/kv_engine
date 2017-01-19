@@ -15,8 +15,7 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_KVSHARD_H_
-#define SRC_KVSHARD_H_ 1
+#pragma once
 
 #include "config.h"
 
@@ -52,48 +51,51 @@
  *   -----------------------------------
  *
  */
-class KVBucket;
+class BgFetcher;
 class Flusher;
 class KVBucketIface;
 
 class KVShard {
-    friend class VBucketMap;
 public:
     // Identifier for a KVShard
     typedef uint16_t id_type;
     KVShard(KVShard::id_type id, KVBucketIface& store);
     ~KVShard();
 
-    KVStore *getRWUnderlying() { return rwUnderlying; }
-    KVStore *getROUnderlying() { return roUnderlying; }
+    KVStore* getRWUnderlying() {
+        return rwStore.get();
+    }
+
+    KVStore* getROUnderlying() {
+        if (roStore) {
+            return roStore.get();
+        }
+        return rwStore.get();
+    }
 
     Flusher *getFlusher();
     BgFetcher *getBgFetcher();
-
-    void notifyFlusher();
 
     RCPtr<VBucket> getBucket(VBucket::id_type id) const;
     void setBucket(const RCPtr<VBucket> &b);
     void resetBucket(VBucket::id_type id);
 
-    KVShard::id_type getId() const { return shardId; }
+    KVShard::id_type getId() const {
+        return kvConfig.getShardId();
+    }
+
     std::vector<VBucket::id_type> getVBucketsSortedByState();
     std::vector<VBucket::id_type> getVBuckets();
-    size_t getMaxNumVbuckets() { return maxVbuckets; }
 
 private:
+    KVStoreConfig kvConfig;
     std::vector<RCPtr<VBucket>> vbuckets;
 
-    KVStore    *rwUnderlying;
-    KVStore    *roUnderlying;
+    std::unique_ptr<KVStore> rwStore;
+    std::unique_ptr<KVStore> roStore;
 
-    Flusher    *flusher;
-    BgFetcher  *bgFetcher;
-
-    size_t maxVbuckets;
-    uint16_t shardId;
-
-    KVStoreConfig kvConfig;
+    std::unique_ptr<Flusher> flusher;
+    std::unique_ptr<BgFetcher> bgFetcher;
 
 public:
     std::atomic<size_t> highPriorityCount;
@@ -114,5 +116,3 @@ public:
 private:
     KVShard *shard;
 };
-
-#endif  // SRC_KVSHARD_H_

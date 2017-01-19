@@ -557,23 +557,23 @@ public:
                   const std::string& _backend,
                   uint16_t _shardId);
 
-    uint16_t getMaxVBuckets() {
+    uint16_t getMaxVBuckets() const {
         return maxVBuckets;
     }
 
-    uint16_t getMaxShards() {
+    uint16_t getMaxShards() const {
         return maxShards;
     }
 
-    std::string getDBName() {
+    std::string getDBName() const {
         return dbname;
     }
 
-    std::string getBackend() {
+    std::string getBackend() const {
         return backend;
     }
 
-    uint16_t getShardId() {
+    uint16_t getShardId() const {
         return shardId;
     }
 
@@ -587,7 +587,7 @@ public:
      *
      * Only recognised by CouchKVStore
      */
-    bool getBuffered() {
+    bool getBuffered() const {
         return buffered;
     }
 

@@ -64,7 +64,7 @@ public:
         if (_state != stopped) {
             LOG(EXTENSION_LOG_WARNING, "Flusher being destroyed in state %s",
                 stateName(_state));
-
+            stop(true);
         }
     }
 

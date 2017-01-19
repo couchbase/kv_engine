@@ -50,6 +50,18 @@ public:
      */
     BgFetcher(KVBucket* s, KVShard* k, EPStats &st) :
         store(s), shard(k), taskId(0), stats(st), pendingFetch(false) {}
+
+    /**
+     * Construct a BgFetcher
+     *
+     * Equivalent to above constructor except stats reference is obtained
+     * from KVBucket's reference to EPEngine's epstats.
+     *
+     * @param s The store
+     * @param k The shard to which this background fetcher belongs
+     */
+    BgFetcher(KVBucket& s, KVShard& k);
+
     ~BgFetcher() {
         LockHolder lh(queueMutex);
         if (!pendingVbs.empty()) {
