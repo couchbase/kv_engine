@@ -27,6 +27,7 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
 #include <platform/dynamic.h>
+#include <platform/sized_buffer.h>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -267,6 +268,26 @@ public:
     virtual MutationInfo mutate(const Document& doc, uint16_t vbucket,
                                 const Greenstack::mutation_type_t type) = 0;
 
+    /**
+     * Convenience method to store (aka "upsert") an item.
+     * @param id The item's ID
+     * @param vbucket vBucket
+     * @param value Value of the item. Should have a begin/end function
+     * @return The mutation result.
+     */
+    template <typename T>
+    MutationInfo store(const std::string& id, uint16_t vbucket,
+                       const T& value) {
+        Document doc{};
+        doc.value.assign(value.begin(), value.end());
+        doc.info.id = id;
+        return mutate(doc, vbucket, Greenstack::MutationType::Set);
+    }
+    MutationInfo store(const std::string& id, uint16_t vbucket,
+                       const char *value, size_t len) {
+        cb::const_char_buffer buf(value, len);
+        return store(id, vbucket, buf);
+    }
 
     /**
      * Get stats as a map
