@@ -805,8 +805,8 @@ private:
     KVShard *shard;
 
     std::mutex bfMutex;
-    BloomFilter *bFilter;
-    BloomFilter *tempFilter;    // Used during compaction.
+    std::unique_ptr<BloomFilter> bFilter;
+    std::unique_ptr<BloomFilter> tempFilter;    // Used during compaction.
 
     std::atomic<uint64_t> rollbackItemCount;
 

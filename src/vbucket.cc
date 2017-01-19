@@ -166,8 +166,6 @@ VBucket::VBucket(id_type i,
       persisted_snapshot_end(lastSnapEnd),
       numHpChks(0),
       shard(kvshard),
-      bFilter(NULL),
-      tempFilter(NULL),
       rollbackItemCount(0),
       hlc(maxCas,
           std::chrono::microseconds(config.getHlcDriftAheadThresholdUs()),
@@ -569,7 +567,8 @@ void VBucket::createFilter(size_t key_count, double probability) {
     //      - Rebalance
     LockHolder lh(bfMutex);
     if (bFilter == nullptr && tempFilter == nullptr) {
-        bFilter = new BloomFilter(key_count, probability, BFILTER_ENABLED);
+        bFilter = std::make_unique<BloomFilter>(key_count, probability,
+                                        BFILTER_ENABLED);
     } else {
         LOG(EXTENSION_LOG_WARNING, "(vb %" PRIu16 ") Bloom filter / Temp filter"
             " already exist!", id);
@@ -581,10 +580,8 @@ void VBucket::initTempFilter(size_t key_count, double probability) {
     // if the main filter is found to exist, set its state to
     // COMPACTING as well.
     LockHolder lh(bfMutex);
-    if (tempFilter) {
-        delete tempFilter;
-    }
-    tempFilter = new BloomFilter(key_count, probability, BFILTER_COMPACTING);
+    tempFilter = std::make_unique<BloomFilter>(key_count, probability,
+                                     BFILTER_COMPACTING);
     if (bFilter) {
         bFilter->setStatus(BFILTER_COMPACTING);
     }
@@ -649,32 +646,22 @@ void VBucket::swapFilter() {
     // compaction.
 
     LockHolder lh(bfMutex);
-    if (bFilter && tempFilter) {
-        delete bFilter;
-        bFilter = NULL;
-    }
-    if (tempFilter &&
-        (tempFilter->getStatus() == BFILTER_COMPACTING ||
-         tempFilter->getStatus() == BFILTER_ENABLED)) {
-        bFilter = tempFilter;
-        tempFilter = NULL;
-        bFilter->setStatus(BFILTER_ENABLED);
-    } else if (tempFilter) {
-        delete tempFilter;
-        tempFilter = NULL;
+    if (tempFilter) {
+        bFilter.reset();
+
+        if (tempFilter->getStatus() == BFILTER_COMPACTING ||
+             tempFilter->getStatus() == BFILTER_ENABLED) {
+            bFilter = std::move(tempFilter);
+            bFilter->setStatus(BFILTER_ENABLED);
+        }
+        tempFilter.reset();
     }
 }
 
 void VBucket::clearFilter() {
     LockHolder lh(bfMutex);
-    if (bFilter) {
-        delete bFilter;
-        bFilter = NULL;
-    }
-    if (tempFilter) {
-        delete tempFilter;
-        tempFilter = NULL;
-    }
+    bFilter.reset();
+    tempFilter.reset();
 }
 
 void VBucket::setFilterStatus(bfilter_status_t to) {
