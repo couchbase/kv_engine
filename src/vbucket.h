@@ -644,7 +644,7 @@ public:
      *
      */
     void completeStatsVKey(const DocKey& key,
-                           RememberingCallback<GetValue>& gcb);
+                           const RememberingCallback<GetValue>& gcb);
 
     /**
      * Set (add new or update) an item in the vbucket.

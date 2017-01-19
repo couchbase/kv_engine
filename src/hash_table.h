@@ -347,7 +347,7 @@ public:
      * @param isReplication true if issued by consumer (for replication)
      * @return an indication of what happened
      */
-    AddStatus unlocked_add(int& bucket_num,
+    AddStatus unlocked_add(int bucket_num,
                            StoredValue*& v,
                            Item& val,
                            item_eviction_policy_t policy,
@@ -367,7 +367,7 @@ public:
      * @param isReplication true if issued by consumer (for replication)
      * @return an indication of what happened
      */
-    AddStatus unlocked_addTempItem(int& bucket_num,
+    AddStatus unlocked_addTempItem(int bucket_num,
                                    const DocKey& key,
                                    item_eviction_policy_t policy,
                                    bool isReplication = false);

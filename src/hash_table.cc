@@ -435,7 +435,7 @@ AddStatus HashTable::add(Item& val,
                         /*maybeKeyExists*/true, /*isReplication*/false);
 }
 
-AddStatus HashTable::unlocked_add(int& bucket_num,
+AddStatus HashTable::unlocked_add(const int bucket_num,
                                   StoredValue*& v,
                                   Item& itm,
                                   item_eviction_policy_t policy,
@@ -518,7 +518,7 @@ AddStatus HashTable::unlocked_add(int& bucket_num,
     return rv;
 }
 
-AddStatus HashTable::unlocked_addTempItem(int& bucket_num,
+AddStatus HashTable::unlocked_addTempItem(const int bucket_num,
                                           const DocKey& key,
                                           item_eviction_policy_t policy,
                                           bool isReplication) {

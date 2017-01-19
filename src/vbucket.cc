@@ -774,10 +774,10 @@ uint64_t VBucket::tapQueueDirty(StoredValue* v,
 
 StoredValue* VBucket::fetchValidValue(std::unique_lock<std::mutex>& lh,
                                       const DocKey& key,
-                                      int bucket_num,
-                                      bool wantsDeleted,
-                                      bool trackReference,
-                                      bool queueExpired) {
+                                      const int bucket_num,
+                                      const bool wantsDeleted,
+                                      const bool trackReference,
+                                      const bool queueExpired) {
     if (!lh) {
         throw std::logic_error(
                 "Hash bucket lock not held in "
@@ -807,7 +807,7 @@ StoredValue* VBucket::fetchValidValue(std::unique_lock<std::mutex>& lh,
     return v;
 }
 
-void VBucket::incExpirationStat(ExpireBy source) {
+void VBucket::incExpirationStat(const ExpireBy source) {
     switch (source) {
     case ExpireBy::Pager:
         ++stats.expired_pager;
@@ -825,8 +825,8 @@ void VBucket::incExpirationStat(ExpireBy source) {
 void VBucket::bgFetch(const DocKey& key,
                       const void* cookie,
                       EventuallyPersistentEngine& engine,
-                      int bgFetchDelay,
-                      bool isMeta) {
+                      const int bgFetchDelay,
+                      const bool isMeta) {
     if (multiBGFetchEnabled) {
         // schedule to the current batch of background fetch of the given
         // vbucket
@@ -948,13 +948,13 @@ ENGINE_ERROR_CODE VBucket::completeBGFetchForSingleItem(
 /* [TBD]: Get rid of std::unique_lock<std::mutex> lock */
 ENGINE_ERROR_CODE VBucket::addTempItemAndBGFetch(
         std::unique_lock<std::mutex>& lock,
-        int bucket_num,
+        const int bucket_num,
         const DocKey& key,
         const void* cookie,
         EventuallyPersistentEngine& engine,
-        int bgFetchDelay,
-        bool metadataOnly,
-        bool isReplication) {
+        const int bgFetchDelay,
+        const bool metadataOnly,
+        const bool isReplication) {
     AddStatus rv =
             ht.unlocked_addTempItem(bucket_num, key, eviction, isReplication);
     switch (rv) {
@@ -981,7 +981,7 @@ ENGINE_ERROR_CODE VBucket::addTempItemAndBGFetch(
 ENGINE_ERROR_CODE VBucket::statsVKey(const DocKey& key,
                                      const void* cookie,
                                      EventuallyPersistentEngine& engine,
-                                     int bgFetchDelay) {
+                                     const int bgFetchDelay) {
     int bucket_num(0);
     auto lh = ht.getLockedBucket(key, &bucket_num);
     StoredValue* v = fetchValidValue(lh, key, bucket_num, true);
@@ -1034,7 +1034,7 @@ ENGINE_ERROR_CODE VBucket::statsVKey(const DocKey& key,
 }
 
 void VBucket::completeStatsVKey(const DocKey& key,
-                                RememberingCallback<GetValue>& gcb) {
+                                const RememberingCallback<GetValue>& gcb) {
     int bucket_num(0);
     auto hlh = ht.getLockedBucket(key, &bucket_num);
     StoredValue* v = fetchValidValue(hlh, key, bucket_num, eviction, true);
@@ -1066,7 +1066,7 @@ void VBucket::completeStatsVKey(const DocKey& key,
 ENGINE_ERROR_CODE VBucket::set(Item& itm,
                                const void* cookie,
                                EventuallyPersistentEngine& engine,
-                               int bgFetchDelay) {
+                               const int bgFetchDelay) {
     bool cas_op = (itm.getCas() != 0);
     int bucket_num(0);
     auto lh = ht.getLockedBucket(itm.getKey(), &bucket_num);
@@ -1146,7 +1146,7 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
 ENGINE_ERROR_CODE VBucket::replace(Item& itm,
                                    const void* cookie,
                                    EventuallyPersistentEngine& engine,
-                                   int bgFetchDelay) {
+                                   const int bgFetchDelay) {
     int bucket_num(0);
     auto lh = ht.getLockedBucket(itm.getKey(), &bucket_num);
     StoredValue* v = ht.unlocked_find(itm.getKey(), bucket_num, true, false);
@@ -1218,7 +1218,8 @@ ENGINE_ERROR_CODE VBucket::replace(Item& itm,
     }
 }
 
-ENGINE_ERROR_CODE VBucket::addTAPBackfillItem(Item& itm, bool genBySeqno) {
+ENGINE_ERROR_CODE VBucket::addTAPBackfillItem(Item& itm,
+                                              const bool genBySeqno) {
     int bucket_num(0);
     auto lh = ht.getLockedBucket(itm.getKey(), &bucket_num);
     StoredValue* v = ht.unlocked_find(itm.getKey(), bucket_num, true, false);
@@ -1261,16 +1262,16 @@ ENGINE_ERROR_CODE VBucket::addTAPBackfillItem(Item& itm, bool genBySeqno) {
 }
 
 ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
-                                       uint64_t cas,
+                                       const uint64_t cas,
                                        uint64_t* seqno,
                                        const void* cookie,
                                        EventuallyPersistentEngine& engine,
-                                       int bgFetchDelay,
-                                       bool force,
-                                       bool allowExisting,
-                                       GenerateBySeqno genBySeqno,
-                                       GenerateCas genCas,
-                                       bool isReplication) {
+                                       const int bgFetchDelay,
+                                       const bool force,
+                                       const bool allowExisting,
+                                       const GenerateBySeqno genBySeqno,
+                                       const GenerateCas genCas,
+                                       const bool isReplication) {
     int bucket_num(0);
     auto lh = ht.getLockedBucket(itm.getKey(), &bucket_num);
     StoredValue* v = ht.unlocked_find(itm.getKey(), bucket_num, true, false);
