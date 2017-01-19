@@ -51,13 +51,12 @@ public:
         prev = name + ".old";
         next = name + ".next";
 
-        log = new MutationLog(next, conf.getAlogBlockSize());
+        log = std::make_unique<MutationLog>(next, conf.getAlogBlockSize());
         log->open();
         if (!log->isOpen()) {
             LOG(EXTENSION_LOG_WARNING, "Failed to open access log: '%s'",
                 next.c_str());
-            delete log;
-            log = NULL;
+            log.reset();
         } else {
             LOG(EXTENSION_LOG_NOTICE, "Attempting to generate new access file "
                 "'%s'", next.c_str());
@@ -65,7 +64,7 @@ public:
     }
 
     void visit(StoredValue *v) override {
-        if (log != NULL && v->isResident()) {
+        if (log && v->isResident()) {
             if (v->isExpired(startTime) || v->isDeleted()) {
                 LOG(EXTENSION_LOG_INFO,
                 "INFO: Skipping expired/deleted item: %" PRIu64, v->getBySeqno());
@@ -77,7 +76,7 @@ public:
     }
 
     void update() {
-        if (log != NULL) {
+        if (log != nullptr) {
             for (auto it = accessed.begin(); it != accessed.end(); ++it) {
                 log->newItem(currentBucket->getId(), it->second, it->first);
             }
@@ -89,7 +88,7 @@ public:
         currentBucket = vb;
         update();
 
-        if (log == NULL) {
+        if (log == nullptr) {
             return;
         }
 
@@ -107,8 +106,7 @@ public:
             size_t num_items = log->itemsLogged[ML_NEW];
             log->commit1();
             log->commit2();
-            delete log;
-            log = NULL;
+            log.reset();
             stats.alogRuntime.store(ep_real_time() - startTime);
             stats.alogNumItems.store(num_items);
             stats.accessScannerHisto.add((gethrtime() - taskStart) / 1000);
@@ -187,7 +185,7 @@ private:
 
     std::list<std::pair<uint64_t, StoredDocKey> > accessed;
 
-    MutationLog *log;
+    std::unique_ptr<MutationLog> log;
     std::atomic<bool> &stateFinalizer;
     AccessScanner &as;
     RCPtr<VBucket> currentBucket;
