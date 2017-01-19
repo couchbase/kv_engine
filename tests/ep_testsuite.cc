@@ -789,6 +789,58 @@ static enum test_result test_expiry_pager_settings(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+/* Test to ensure that the body is still retained for an item of
+ * type XATTR after expiry.
+ */
+
+static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+    const char *key = "test_expiry";
+    const char *data = "expirevalue";
+
+    item *itm = nullptr;
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, nullptr, OPERATION_SET, key, data,
+                  &itm, 0, 0, 10, PROTOCOL_BINARY_DATATYPE_XATTR),
+            "Unable to store item");
+
+    h1->release(h, nullptr, itm);
+
+    wait_for_flusher_to_settle(h, h1);
+
+    testHarness.time_travel(11);
+
+    checkeq(ENGINE_SUCCESS,
+            get(h, h1, nullptr, &itm, key, 0, DocumentState::Deleted),
+            "Unable to get a stored item");
+
+    item_info info;
+    checkeq(true, h1->get_item_info(h, nullptr, itm, &info),
+            "Getting item info failed");
+
+    checkeq(static_cast<uint8_t>(DocumentState::Deleted),
+            static_cast<uint8_t>(info.document_state),
+            "document must be in deleted state");
+
+    std::string buf(static_cast<char*>(info.value[0].iov_base),
+                    info.value[0].iov_len);
+
+    checkeq(0, buf.compare("expirevalue"), "Data mismatch");
+
+    h1->release(h, nullptr, itm);
+
+    checkeq(ENGINE_KEY_ENOENT,
+            get(h, h1, nullptr, &itm, key, 0),
+            "get of an expired item should result in enoent");
+
+    checkeq(ENGINE_SUCCESS,
+            get(h, h1, nullptr, &itm, key, 0, DocumentState::Deleted),
+            "Unable to get a stored item");
+
+    h1->release(h, nullptr, itm);
+
+    return SUCCESS;
+}
+
 static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *key = "test_expiry";
     const char *data = "some test data here.";
@@ -7011,6 +7063,8 @@ BaseTestCase testsuite_testcases[] = {
                  prepare, cleanup),
         TestCase("expiry", test_expiry, test_setup, teardown,
                  NULL, prepare, cleanup),
+        TestCase("expiry with xattr", test_expiry_with_xattr, test_setup,
+                 teardown, NULL, prepare, cleanup),
         TestCase("expiry_loader", test_expiry_loader, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("expiration on compaction", test_expiration_on_compaction,

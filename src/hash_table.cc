@@ -551,7 +551,20 @@ MutationStatus HashTable::unlocked_softDelete(StoredValue* v,
                 decrNumNonResidentItems();
             }
             v->setRevSeqno(metadata.revSeqno);
-            v->del(*this);
+            /* If the datatype is XATTR, mark the item as deleted
+             * but don't delete the value as system xattrs can
+             * still be queried by mobile clients even after
+             * deletion.
+             * TODO: The current implementation is inefficient
+             * but functionally correct and for performance reasons
+             * only the system xattrs need to be stored.
+             */
+            value_t value = v->getValue();
+            if (value && mcbp::datatype::is_xattr(value->getDataType())) {
+                v->markDeleted();
+            } else {
+                v->del(*this);
+            }
             updateMaxDeletedRevSeqno(v->getRevSeqno());
             return rv;
         }

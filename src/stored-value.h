@@ -207,6 +207,11 @@ public:
         increaseCacheSize(ht, newSize);
     }
 
+    void markDeleted() {
+        deleted = true;
+        markDirty();
+    }
+
     /**
      * Reset the value of this item.
      */
