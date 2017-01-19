@@ -268,7 +268,15 @@ public:
                                 const Greenstack::mutation_type_t type) = 0;
 
 
-    virtual unique_cJSON_ptr stats(const std::string& subcommand) = 0;
+    /**
+     * Get stats as a map
+     * @param subcommand
+     * @return
+     */
+    virtual std::map<std::string,std::string> statsMap(
+            const std::string& subcommand) = 0;
+
+    unique_cJSON_ptr stats(const std::string& subcommand);
 
     /**
      * Instruct the audit daemon to reload the configuration

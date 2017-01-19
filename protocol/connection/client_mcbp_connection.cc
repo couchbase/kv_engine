@@ -375,11 +375,12 @@ MutationInfo MemcachedBinprotConnection::mutate(const Document& doc,
     return response.getMutationInfo();
 }
 
-unique_cJSON_ptr MemcachedBinprotConnection::stats(const std::string& subcommand) {
+std::map<std::string,std::string> MemcachedBinprotConnection::statsMap(
+        const std::string& subcommand) {
     BinprotGenericCommand command(PROTOCOL_BINARY_CMD_STAT, subcommand);
     sendCommand(command);
 
-    unique_cJSON_ptr ret(cJSON_CreateObject());
+    std::map<std::string,std::string> ret;
     int counter = 0;
 
     while (true) {
@@ -395,24 +396,11 @@ unique_cJSON_ptr MemcachedBinprotConnection::stats(const std::string& subcommand
         }
 
         std::string key = response.getKeyString();
-        std::string value = response.getDataString();
 
         if (key.empty()) {
             key = std::to_string(counter++);
         }
-
-        if (value == "false") {
-            cJSON_AddFalseToObject(ret.get(), key.c_str());
-        } else if (value == "true") {
-            cJSON_AddTrueToObject(ret.get(), key.c_str());
-        } else {
-            try {
-                int64_t val = std::stoll(value);
-                cJSON_AddNumberToObject(ret.get(), key.c_str(), val);
-            } catch (...) {
-                cJSON_AddStringToObject(ret.get(), key.c_str(), value.c_str());
-            }
-        }
+        ret.insert(std::make_pair(key, response.getDataString()));
     }
 
     return ret;

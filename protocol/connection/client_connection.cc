@@ -18,6 +18,7 @@
 #include "client_connection.h"
 #include "client_greenstack_connection.h"
 #include "client_mcbp_connection.h"
+#include "cJSON_utils.h"
 
 #include <cbsasl/cbsasl.h>
 #include <iostream>
@@ -399,4 +400,26 @@ void MemcachedConnection::read(Frame& frame, size_t bytes) {
     } else {
         readPlain(frame, bytes);
     }
+}
+
+unique_cJSON_ptr MemcachedConnection::stats(const std::string& subcommand) {
+    unique_cJSON_ptr ret(cJSON_CreateObject());
+
+    for (auto& pair : statsMap(subcommand)) {
+        const std::string& key = pair.first;
+        const std::string& value = pair.second;
+        if (value == "false") {
+            cJSON_AddFalseToObject(ret.get(), key.c_str());
+        } else if (value == "true") {
+            cJSON_AddTrueToObject(ret.get(), key.c_str());
+        } else {
+            try {
+                int64_t val = std::stoll(value);
+                cJSON_AddNumberToObject(ret.get(), key.c_str(), val);
+            } catch (...) {
+                cJSON_AddStringToObject(ret.get(), key.c_str(), value.c_str());
+            }
+        }
+    }
+    return ret;
 }

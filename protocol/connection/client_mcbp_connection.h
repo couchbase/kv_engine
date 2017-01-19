@@ -150,7 +150,8 @@ public:
     MutationInfo mutate(const Document& doc, uint16_t vbucket,
                         const Greenstack::mutation_type_t type) override;
 
-    unique_cJSON_ptr stats(const std::string& subcommand) override;
+    std::map<std::string, std::string>statsMap(
+            const std::string& subcommand) override;
 
     unique_cJSON_ptr timings(uint8_t opcode, const std::string& bucket);
 
