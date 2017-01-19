@@ -16,6 +16,7 @@
  */
 #include "config.h"
 #include "testapp.h"
+#include "testapp_assert_helper.h"
 
 #include <utilities/protocol2text.h>
 #include <include/memcached/util.h>
@@ -202,34 +203,69 @@ size_t mcbp_storage_command(char* buf,
     return key_offset + keylen + dtalen;
 }
 
+/* Validate the specified response header against the expected cmd and status.
+ */
 void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
                                    uint8_t cmd, uint16_t status) {
-    protocol_binary_response_header* header = &response->message.header;
 
-    EXPECT_EQ(PROTOCOL_BINARY_RES, header->response.magic);
-    EXPECT_EQ(cmd, header->response.opcode)
-       << "Expected (as string): '" << memcached_opcode_2_text(cmd)
-       << "', actual (as string): '"
-       << memcached_opcode_2_text((header->response.opcode)) << "'";
-
-    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, header->response.datatype);
+    auto* header = &response->message.header;
     if (status == PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND) {
         if (header->response.status == PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED) {
             header->response.status = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
         }
     }
-    EXPECT_EQ(status, header->response.status)
-       << "Expected (as string): '"
-       << memcached_status_2_text(
-        static_cast<protocol_binary_response_status>(status))
-       << "', actual (as string): '"
-       << memcached_status_2_text(
-        static_cast<protocol_binary_response_status>(header->response.status))
-       << "' for opcode: '" <<
-       memcached_opcode_2_text(header->response.opcode) << "'";
+    bool mutation_seqno_enabled =
+            enabled_hello_features.count(mcbp::Feature::MUTATION_SEQNO) > 0;
+    EXPECT_TRUE(mcbp_validate_response_header(header,
+                                              protocol_binary_command(cmd),
+                                              status,
+                                              mutation_seqno_enabled));
+}
 
+void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
+                              uint64_t expected) {
+    const uint8_t* ptr = incr->bytes
+                         + sizeof(incr->message.header)
+                         + incr->message.header.response.extlen;
+    const uint64_t result = ntohll(*(uint64_t*)ptr);
+    EXPECT_EQ(expected, result);
+
+    /* Check for extras - if present should be {vbucket_uuid, seqno) pair for
+     * mutation seqno support. */
+    if (incr->message.header.response.extlen != 0) {
+        EXPECT_EQ(16, incr->message.header.response.extlen);
+    }
+}
+
+::testing::AssertionResult mcbp_validate_response_header(const protocol_binary_response_header* header,
+                                                         protocol_binary_command cmd, uint16_t status,
+                                                         bool mutation_seqno_enabled) {
+    AssertHelper result;
+
+    //TODO(mnunberg) - replace with TESTAPP_EXPECT*. This undef/redefine is done
+    //to make the diff smaller.
+
+#undef EXPECT_EQ
+#define EXPECT_EQ(a, b) result.eq(#a, #b, a, b)
+
+#undef EXPECT_NE
+#define EXPECT_NE(a, b) result.ne(#a, #b, a, b)
+
+#undef EXPECT_GT
+#define EXPECT_GT(a, b) result.gt(#a, #b, a, b)
+
+#undef EXPECT_GE
+#define EXPECT_GE(a, b) result.ge(#a, #b, a, b)
+
+    EXPECT_EQ(PROTOCOL_BINARY_RES, header->response.magic);
+    EXPECT_EQ(static_cast<protocol_binary_command>(cmd),
+              header->response.opcode);
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, header->response.datatype);
+    EXPECT_EQ(static_cast<protocol_binary_response_status>(status),
+              header->response.status);
     EXPECT_EQ(0xdeadbeef, header->response.opaque);
 
+    //TODO: Shouldn't this be header->response.status?
     if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         switch (cmd) {
         case PROTOCOL_BINARY_CMD_ADDQ:
@@ -242,7 +278,8 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
         case PROTOCOL_BINARY_CMD_QUITQ:
         case PROTOCOL_BINARY_CMD_REPLACEQ:
         case PROTOCOL_BINARY_CMD_SETQ:
-            ADD_FAILURE() << "Quiet command shouldn't return on success";
+            result.fail("Quiet command shouldn't return on success");
+            break;
         default:
             break;
         }
@@ -257,7 +294,7 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
             /* extlen/bodylen are permitted to be either zero, or 16 if
              * MUTATION_SEQNO is enabled.
              */
-            if (enabled_hello_features.count(mcbp::Feature::MUTATION_SEQNO) > 0) {
+            if (mutation_seqno_enabled) {
                 EXPECT_EQ(16u, header->response.extlen);
                 EXPECT_EQ(16u, header->response.bodylen);
             } else {
@@ -278,7 +315,7 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
             /* extlen/bodylen are permitted to be either zero, or 16 if
              * MUTATION_SEQNO is enabled.
              */
-            if (enabled_hello_features.count(mcbp::Feature::MUTATION_SEQNO) > 0) {
+            if (mutation_seqno_enabled) {
                 EXPECT_EQ(16u, header->response.extlen);
                 EXPECT_EQ(16u, header->response.bodylen);
             } else {
@@ -291,7 +328,7 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
             EXPECT_EQ(0, header->response.keylen);
             /* extlen is permitted to be either zero, or 16 if MUTATION_SEQNO
              * is enabled. Similary, bodylen must be either 8 or 24. */
-            if (enabled_hello_features.count(mcbp::Feature::MUTATION_SEQNO) > 0) {
+            if (mutation_seqno_enabled) {
                 EXPECT_EQ(16, header->response.extlen);
                 EXPECT_EQ(24u, header->response.bodylen);
             } else {
@@ -349,7 +386,7 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
             /* extlen/bodylen are permitted to be either zero, or 16 if
              * MUTATION_SEQNO is enabled.
              */
-            if (enabled_hello_features.count(mcbp::Feature::MUTATION_SEQNO) > 0) {
+            if (mutation_seqno_enabled) {
                 EXPECT_EQ(16, header->response.extlen);
                 EXPECT_EQ(16u, header->response.bodylen);
             } else {
@@ -360,7 +397,7 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
             break;
         case PROTOCOL_BINARY_CMD_SUBDOC_COUNTER:
             EXPECT_EQ(0, header->response.keylen);
-            if (enabled_hello_features.count(mcbp::Feature::MUTATION_SEQNO) > 0) {
+            if (mutation_seqno_enabled) {
                 EXPECT_EQ(16, header->response.extlen);
                 EXPECT_GT(header->response.bodylen, 16u);
             } else {
@@ -382,7 +419,7 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
             /* extlen is either zero, or 16 if MUTATION_SEQNO is enabled.
              * bodylen is at least as big as extlen.
              */
-            if (enabled_hello_features.count(mcbp::Feature::MUTATION_SEQNO) > 0) {
+            if (mutation_seqno_enabled) {
                 EXPECT_EQ(16, header->response.extlen);
                 EXPECT_GE(header->response.bodylen, 16u);
             } else {
@@ -407,19 +444,5 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
             EXPECT_EQ(0, header->response.keylen);
         }
     }
-}
-
-void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
-                              uint64_t expected) {
-    const uint8_t* ptr = incr->bytes
-                         + sizeof(incr->message.header)
-                         + incr->message.header.response.extlen;
-    const uint64_t result = ntohll(*(uint64_t*)ptr);
-    EXPECT_EQ(expected, result);
-
-    /* Check for extras - if present should be {vbucket_uuid, seqno) pair for
-     * mutation seqno support. */
-    if (incr->message.header.response.extlen != 0) {
-        EXPECT_EQ(16, incr->message.header.response.extlen);
-    }
+    return result.result();
 }

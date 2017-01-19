@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <sys/types.h>
+#include <gtest/gtest.h>
 
 #include <memcached/protocol_binary.h>
 
@@ -87,6 +88,10 @@ size_t mcbp_storage_command(Frame &frame,
  */
 void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
                                    uint8_t cmd, uint16_t status);
+
+::testing::AssertionResult mcbp_validate_response_header(const protocol_binary_response_header* header,
+                                                         protocol_binary_command cmd, uint16_t status,
+                                                         bool mutation_seqno_enabled);
 
 void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
                               uint64_t expected);

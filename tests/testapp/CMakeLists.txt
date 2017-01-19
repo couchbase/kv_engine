@@ -13,6 +13,7 @@ list(APPEND TESTAPP_SOURCES
      testapp.h
      testapp_arithmetic.cc
      testapp_arithmetic.h
+     testapp_assert_helper.h
      testapp_audit.cc
      testapp_binprot.cc
      testapp_binprot.h
