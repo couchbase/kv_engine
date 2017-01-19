@@ -1,182 +1,225 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/*
+ *     Copyright 2017 Couchbase, Inc.
+ *
+ *   Licensed under the Apache License, Version 2.0 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
 #include "config.h"
 
-#include <memcached/protocol_binary.h>
-#include <memcached/openssl.h>
-#include <memcached/util.h>
-#include <platform/cb_malloc.h>
-#include <platform/platform.h>
-#include <memcached/util.h>
-
 #include <getopt.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <utilities/protocol2text.h>
-
-
-#include "programs/utilities.h"
-
-/**
- * Print the key value pair
- * @param key key to print
- * @param keylen length of key to print
- * @param val value to print
- * @param vallen length of value
- */
-static void print(const char *key, int keylen, const char *val, int vallen) {
-    if (keylen > 0) {
-        (void)fwrite(key, keylen, 1, stdout);
-        fputs(" ", stdout);
-    }
-    (void)fwrite(val, vallen, 1, stdout);
-    fputs("\n", stdout);
-    fflush(stdout);
-}
+#include <iostream>
+#include <protocol/connection/client_mcbp_connection.h>
 
 /**
  * Request a stat from the server
  * @param sock socket connected to the server
- * @param key the name of the stat to receive (NULL == ALL)
+ * @param key the name of the stat to receive (empty == ALL)
+ * @param json if true print as json otherwise print old-style
  */
-static void request_stat(BIO *bio, const char *key)
-{
-    uint32_t buffsize = 0;
-    char *buffer = NULL;
-    uint16_t keylen = 0;
-    protocol_binary_request_stats request;
-    protocol_binary_response_no_extras response;
-
-    if (key != NULL) {
-        keylen = (uint16_t)strlen(key);
-    }
-
-    memset(&request, 0, sizeof(request));
-    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_STAT;
-    request.message.header.request.keylen = htons(keylen);
-    request.message.header.request.bodylen = htonl(keylen);
-
-    ensure_send(bio, &request, sizeof(request));
-    if (keylen > 0) {
-        ensure_send(bio, key, keylen);
-    }
-
-    do {
-        ensure_recv(bio, &response, sizeof(response.bytes));
-        /* Take any payload off the socket */
-        const uint16_t keylen = ntohs(response.message.header.response.keylen);
-        const uint32_t bodylen = ntohl(response.message.header.response.bodylen);
-        if (bodylen > buffsize) {
-            if ((buffer = static_cast<char*>(cb_realloc(buffer, bodylen))) == NULL) {
-                fprintf(stderr, "Failed to allocate memory\n");
-                exit(1);
-            }
-            buffsize = bodylen;
-        }
-
-        ensure_recv(bio, buffer, bodylen);
-
-        /* If response was valid print it, otherwise print error string to stderr. */
-        if (response.message.header.response.status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-            print(buffer, keylen, buffer + keylen, bodylen - keylen);
+static void request_stat(MemcachedBinprotConnection& connection,
+                         const std::string& key,
+                         bool json,
+                         bool format) {
+    try {
+        auto stats = connection.stats(key);
+        if (json) {
+            std::cout << to_string(stats, format) << std::endl;
         } else {
-            protocol_binary_response_status err =
-                protocol_binary_response_status(ntohs(response.message.header.response.status));
-            fprintf(stderr, "Error from server requesting stat");
-            if (keylen > 0) {
-                fprintf(stderr, " '%s': ", key);
-            } else {
-                fprintf(stderr, "s: ");
+            for (auto* obj = stats.get()->child;
+                 obj != nullptr; obj = obj->next) {
+                switch (obj->type) {
+                case cJSON_String:
+                    std::cout << obj->string << " " << obj->valuestring
+                              << std::endl;
+                    break;
+                case cJSON_Number:
+                    std::cout << obj->string << " " << obj->valueint
+                              << std::endl;
+                    break;
+                case cJSON_False:
+                    std::cout << obj->string << " false" << std::endl;
+                    break;
+                case cJSON_True:
+                    std::cout << obj->string << " true" << std::endl;
+                    break;
+                case cJSON_NULL:
+                    std::cout << obj->string << " null" << std::endl;
+                    break;
+                case cJSON_Array:
+                case cJSON_Object:
+                    std::cout << obj->string << " " << to_string(obj)
+                              << std::endl;
+                    break;
+                default:
+                    std::cerr << "Unknown element for: " << obj->string
+                              << std::endl;
+                    exit(EXIT_FAILURE);
+                    break;
+                }
             }
-            fprintf(stderr, "%s\n",  memcached_status_2_text(err));
         }
-    } while (response.message.header.response.bodylen != 0);
+    } catch (const ConnectionError& ex) {
+        std::cerr << ex.what() << std::endl;
+    }
+
+}
+
+static void usage() {
+    std::cout << "Usage: mcstat [options] statkey ..." << std::endl
+              << "  -h hostname[:port]  Host (and optional port number) to retrieve stats from"
+              << std::endl
+              << "                      (for IPv6 use: [address]:port if you'd like to specify port)"
+              << std::endl
+              << "  -p port      Port number" << std::endl
+              << "  -u username  Username (currently synonymous with -b)"
+              << std::endl
+              << "  -b bucket    Bucket name" << std::endl
+              << "  -P password  Password (if bucket is password-protected)"
+              << std::endl
+              << "  -s           Connect to node securely (using SSL)"
+              << std::endl
+              << "  -j           Print result as JSON (unformatted)"
+              << std::endl
+              << "  -J           Print result in JSON (formatted)"
+              << std::endl
+              << "  -4           Use IPv4 (default)" << std::endl
+              << "  -6           Use IPv6" << std::endl
+              << "  statkey ...  Statistic(s) to request" << std::endl;
+}
+
+void decode_hostname(std::string& host, std::string& port,
+                     sa_family_t& family) {
+    auto idx = host.find(":");
+    if (idx == std::string::npos) {
+        family = AF_UNSPEC;
+    } else {
+        // An IPv6 address may contain colon... but then it's
+        // going to be more than one ...
+        auto last = host.rfind(":");
+        if (idx == last) {
+            port = host.substr(idx + 1);
+            host.resize(idx);
+            family = AF_INET;
+        } else {
+            family = AF_INET6;
+            // We have multiple ::, and it has to be enclosed with []
+            // if one of them specifies a port..
+            if (host[last - 1] == ']') {
+                if (host[0] != '[') {
+                    std::cerr << "Invalid IPv6 address specified. "
+                              << "Should be: \"[address]:port\""
+                              << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+
+                port = host.substr(last + 1);
+                host.resize(last - 1);
+                host = host.substr(1);
+            }
+        }
+    }
+}
+
+static in_port_t decode_port(const std::string& port) {
+    // @todo lookup port if it is named!
+    return static_cast<in_port_t>(std::stoi(port));
 }
 
 int main(int argc, char** argv) {
     int cmd;
-    const char *port = "11210";
-    const char *host = "localhost";
-    const char *user = NULL;
-    const char *pass = NULL;
-    int secure = 0;
-    char *ptr;
-    SSL_CTX* ctx;
-    BIO* bio;
-    bool tcp_nodelay = false;
+    std::string port{"11210"};
+    std::string host{"localhost"};
+    std::string user{};
+    std::string password{};
+    std::string bucket{};
+    sa_family_t family = AF_UNSPEC;
+    bool secure = false;
+    bool json = false;
+    bool format = false;
 
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
-    while ((cmd = getopt(argc, argv, "Th:p:u:b:P:s")) != EOF) {
+    while ((cmd = getopt(argc, argv, "46h:p:u:b:P:sjJ")) != EOF) {
         switch (cmd) {
-        case 'T' :
-            tcp_nodelay = true;
+        case '6' :
+            family = AF_INET6;
+            break;
+        case '4' :
+            family = AF_INET;
             break;
         case 'h' :
-            host = optarg;
-            ptr = strchr(optarg, ':');
-            if (ptr != NULL) {
-                *ptr = '\0';
-                port = ptr + 1;
-            }
+            host.assign(optarg);
+            decode_hostname(host, port, family);
             break;
         case 'p':
-            port = optarg;
+            port.assign(optarg);
             break;
         case 'b' :
+            bucket.assign(optarg);
+            break;
         case 'u' :
-            /* Currently -u and -b are synonymous - only allow the user to
-             * specify one. */
-            if (user == NULL) {
-                user = optarg;
-            } else {
-                fprintf(stderr, "Error: cannot specify both -u (user) and -b (bucket).\n");
-                return 1;
-            }
+            user.assign(optarg);
             break;
         case 'P':
-            pass = optarg;
+            password.assign(optarg);
             break;
         case 's':
-            secure = 1;
+            secure = true;
+            break;
+        case 'J':
+            format = true;
+            // FALLTHROUGH
+        case 'j':
+            json = true;
             break;
         default:
-            fprintf(stderr,
-                    "Usage: mcstat [-h host[:port]] [-p port] [-b bucket] [-u user] [-P pass] [-s] [-T] statkey ...\n"
-                    "\n"
-                    "  -h hostname[:port]  Host (and optional port number) to retrieve stats from\n"
-                    "  -p port             Port number\n"
-                    "  -u username         Username (currently synonymous with -b)\n"
-                    "  -b bucket           Bucket name\n"
-                    "  -P password         Password (if bucket is password-protected)\n"
-                    "  -s                  Connect to node securely (using SSL)\n"
-                    "  -T                  Request TCP_NODELAY from the server\n"
-                    "  statkey ...         Statistic(s) to request\n");
-            return 1;
+            usage();
+            return EXIT_FAILURE;
         }
     }
 
-    if (create_ssl_connection(&ctx, &bio, host, port, user, pass, secure) != 0) {
-        return 1;
-    }
+    try {
+        MemcachedBinprotConnection connection(host,
+                                              decode_port(port),
+                                              family,
+                                              secure);
 
-    if (tcp_nodelay && !enable_tcp_nodelay(bio)) {
-        return 1;
-    }
+        connection.hello("mcset", "", "command line utitilty to fetch stats");
 
-    if (optind == argc) {
-        request_stat(bio, NULL);
-    } else {
-        int ii;
-        for (ii = optind; ii < argc; ++ii) {
-            request_stat(bio, argv[ii]);
+        if (!user.empty()) {
+            connection.authenticate(user, password,
+                                    connection.getSaslMechanisms());
         }
-    }
 
-    BIO_free_all(bio);
-    if (secure) {
-        SSL_CTX_free(ctx);
+        if (!bucket.empty()) {
+            connection.selectBucket(bucket);
+        }
+
+        if (optind == argc) {
+            request_stat(connection, "", json, format);
+        } else {
+            for (int ii = optind; ii < argc; ++ii) {
+                request_stat(connection, argv[ii], json, format);
+            }
+        }
+    } catch (const ConnectionError& ex) {
+        std::cerr << ex.what() << std::endl;
+        return EXIT_FAILURE;
+    } catch (const std::runtime_error& ex) {
+        std::cerr << ex.what() << std::endl;
+        return EXIT_FAILURE;
     }
 
     return EXIT_SUCCESS;
