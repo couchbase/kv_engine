@@ -43,10 +43,10 @@ enum dcp_marker_flag_t {
     MARKER_FLAG_ACK    = 0x08
 };
 
-typedef enum {
+enum class MutationPayload : uint8_t {
     KEY_VALUE,
     KEY_ONLY
-} MutationPayload;
+};
 
 class DcpResponse {
 public:
@@ -306,7 +306,7 @@ class MutationResponse : public DcpResponse {
 public:
     MutationResponse(queued_item item, uint32_t opaque,
                      ExtendedMetaData *e = NULL,
-                     MutationPayload mutationPayloadType = KEY_VALUE)
+                     MutationPayload mutationPayloadType = MutationPayload::KEY_VALUE)
         : DcpResponse(item->isDeleted() ? DCP_DELETION : DCP_MUTATION, opaque),
           item_(item), emd(e), payloadType(mutationPayloadType) {}
 
@@ -322,15 +322,14 @@ public:
 
     Item* getItemCopy() {
         switch (payloadType) {
-        case KEY_VALUE:
+        case MutationPayload::KEY_VALUE:
             return new Item(*item_);
-        case KEY_ONLY:
+        case MutationPayload::KEY_ONLY:
             return new Item(*item_, true);
-        default:
-            throw std::logic_error("Unsupported MutationPayload type while "
-                                   "copying an item from mutation response: "
-                                   + std::to_string(payloadType));
         }
+        throw std::logic_error("Unsupported MutationPayload type while "
+                                   "copying an item from mutation response: "
+                               + std::to_string(uint8_t(payloadType)));
     }
 
     uint16_t getVBucket() {
@@ -349,7 +348,7 @@ public:
         uint32_t base = item_->isDeleted() ? deletionBaseMsgBytes :
                                              mutationBaseMsgBytes;
         uint32_t body = 0;
-        if (payloadType == KEY_VALUE) {
+        if (payloadType == MutationPayload::KEY_VALUE) {
             body = item_->getKey().size() + item_->getNBytes();
         } else { // KEY_ONLY
             body = item_->getKey().size();
