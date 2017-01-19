@@ -22,8 +22,6 @@
 #include <algorithm>
 #include <array>
 #include <gtest/gtest.h>
-#include <openssl/evp.h>
-#include <openssl/hmac.h>
 #include <platform/cb_malloc.h>
 #include <platform/platform.h>
 #include <stdio.h>

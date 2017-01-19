@@ -64,8 +64,6 @@
 #include <time.h>
 #include <limits.h>
 #include <ctype.h>
-#include <openssl/conf.h>
-#include <openssl/engine.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <snappy-c.h>

@@ -27,9 +27,6 @@
 #include <iostream>
 #include <map>
 #include <memory>
-#include <openssl/evp.h>
-#include <openssl/hmac.h>
-#include <openssl/sha.h>
 #include <platform/base64.h>
 #include <platform/random.h>
 #include <set>

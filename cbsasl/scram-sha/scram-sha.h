@@ -32,7 +32,6 @@
 #include "cbsasl/cbsasl.h"
 #include "cbsasl/cbsasl_internal.h"
 #include "cbsasl/user.h"
-#include <openssl/evp.h>
 
 #define MECH_NAME_SCRAM_SHA512 "SCRAM-SHA512"
 #define MECH_NAME_SCRAM_SHA256 "SCRAM-SHA256"

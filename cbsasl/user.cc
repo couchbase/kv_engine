@@ -20,7 +20,6 @@
 #include "cbsasl_internal.h"
 
 #include <atomic>
-#include <openssl/evp.h>
 #include <platform/base64.h>
 #include <platform/random.h>
 #include <stdexcept>
