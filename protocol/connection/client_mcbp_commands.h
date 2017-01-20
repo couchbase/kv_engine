@@ -575,6 +575,20 @@ private:
     unique_cJSON_ptr timings;
 };
 
+class BinprotVerbosityCommand
+    : public BinprotCommandT<BinprotVerbosityCommand, PROTOCOL_BINARY_CMD_VERBOSITY> {
+public:
+    void encode(std::vector<uint8_t>& buf) const override;
+
+    void setLevel(int level) {
+        BinprotVerbosityCommand::level = level;
+    }
+
+protected:
+    int level;
+};
+
+using BinprotVerbosityResponse = BinprotResponse;
 
 class BinprotMutationCommand : public BinprotCommandT<BinprotMutationCommand> {
 public:

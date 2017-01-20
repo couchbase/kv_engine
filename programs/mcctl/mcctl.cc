@@ -1,6 +1,6 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2014 Couchbase, Inc
+ *     Copyright 2017 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,77 +21,19 @@
 
 #include "config.h"
 
-#include <memcached/protocol_binary.h>
+#include <getopt.h>
 #include <memcached/openssl.h>
+#include <memcached/protocol_binary.h>
+#include <memcached/util.h>
 #include <platform/cb_malloc.h>
 #include <platform/platform.h>
-
-#include <getopt.h>
-#include <stdlib.h>
+#include <programs/hostname_utils.h>
+#include <protocol/connection/client_connection.h>
+#include <protocol/connection/client_mcbp_connection.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <strings.h>
-
-#include <memcached/util.h>
 #include <utilities/protocol2text.h>
-#include "programs/utilities.h"
-
-struct statistic {
-    char *key;
-    char *value;
-};
-
-/**
- * Allocate a chunk of memory (and add a room for a termination byte)
- */
-static char *allocate(size_t size)
-{
-    if (size == 0) {
-        return NULL;
-    } else {
-        char *ret = static_cast<char*>(cb_malloc(size + 1));
-        if (ret == NULL) {
-            fprintf(stderr, "Failed to allocate %lu bytes of memory\n",
-                    (unsigned long)size);
-            exit(EXIT_FAILURE);
-        }
-        ret[size] = '\0';
-        return ret;
-    }
-}
-
-/**
- * Receive the response packet from a stats call and split it up
- * into the key/value pair.
- *
- * @param bio the connection to read the packet from
- * @param st where to stash the result
- */
-static void receive_stat_response(BIO *bio, struct statistic *st) {
-    protocol_binary_response_no_extras response;
-    ensure_recv(bio, &response, sizeof(response.bytes));
-
-    st->key = st->value = NULL;
-    uint16_t keylen = ntohs(response.message.header.response.keylen);
-    uint32_t vallen = ntohl(response.message.header.response.bodylen) - keylen;
-
-    st->key = allocate(keylen);
-    ensure_recv(bio, st->key, keylen);
-    st->value = allocate(vallen);
-    ensure_recv(bio, st->value, vallen);
-
-    protocol_binary_response_status status;
-    status = protocol_binary_response_status(ntohs(response.message.header.response.status));
-
-    if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        fprintf(stderr, "Error from server requesting stats: %s\n",
-                memcached_status_2_text(status));
-        /* Just terminate.. we might have multiple packets in the
-         * pipeline and this makes the error handling easier and
-         * safer
-         */
-        exit(EXIT_FAILURE);
-    }
-}
 
 /**
  * Get the verbosity level on the server.
@@ -101,45 +43,35 @@ static void receive_stat_response(BIO *bio, struct statistic *st) {
  *
  * @param bio connection to the server.
  */
-static int get_verbosity(BIO *bio)
+static int get_verbosity(MemcachedBinprotConnection& connection)
 {
-    const char *settings = "settings";
-    const uint16_t settingslen = (uint16_t)strlen(settings);
+    auto stats = connection.stats("settings");
+    if (stats) {
+        auto* obj = cJSON_GetObjectItem(stats.get(), "verbosity");
+        if (obj && obj->type == cJSON_Number) {
+            const char* levels[] = {"warning",
+                                    "info",
+                                    "debug",
+                                    "detail",
+                                    "unknown"};
+            const char* ptr = levels[4];
 
-    protocol_binary_request_stats request = {};
-    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_STAT;
-    request.message.header.request.keylen = htons(settingslen);
-    request.message.header.request.bodylen = htonl(settingslen);
-
-    ensure_send(bio, &request, sizeof(request));
-    ensure_send(bio, settings, settingslen);
-
-    // loop and receive the result and print the verbosity when we get it
-    struct statistic st;
-    do {
-        receive_stat_response(bio, &st);
-        if (st.key != NULL && strcasecmp(st.key, "verbosity") == 0) {
-            uint32_t level;
-            if (safe_strtoul(st.value, &level)) {
-                const char *levels[] = { "warning",
-                                         "info",
-                                         "debug",
-                                         "detail",
-                                         "unknown" };
-                const char *ptr = levels[4];
-
-                if (level < 4) {
-                    ptr = levels[level];
-                }
-                fprintf(stderr, "%s\n", ptr);
-            } else {
-                fprintf(stderr, "%s\n", st.value);
+            if (obj->valueint > -1 && obj->valueint < 4) {
+                ptr = levels[obj->valueint];
             }
+            std::cerr << ptr << std::endl;
+        } else if (obj) {
+            std::cerr << "Invalid object type returned from the server: "
+                      << obj->type << std::endl;
+            return EXIT_FAILURE;
+        } else {
+            std::cerr << "Verbosity not returned from the server" << std::endl;
+            return EXIT_FAILURE;
         }
-        cb_free(st.key);
-        cb_free(st.value);
-    } while (st.key != NULL);
+    } else {
+        std::cerr << "Verbosity not returned from the server" << std::endl;
+        return EXIT_FAILURE;
+    }
 
     return EXIT_SUCCESS;
 }
@@ -150,280 +82,176 @@ static int get_verbosity(BIO *bio)
  * @param bio connection to the server.
  * @param value value to set the property to.
  */
-static int set_verbosity(BIO *bio, const char* value)
+static int set_verbosity(MemcachedBinprotConnection& connection,
+                         const std::string& value)
 {
-    protocol_binary_request_verbosity request = {};
-    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_VERBOSITY;
-    request.message.header.request.extlen = 4;
-    request.message.header.request.bodylen = htonl(4);
-    uint32_t level;
-
-    if (!safe_strtoul(value, &level)) {
+    std::size_t pos;
+    uint32_t level = std::stoi(value, &pos);
+    if (pos != value.size()) {
         // Try to map it...
-        if (strcasecmp("warning", value) == 0) {
+        if (value == "warning") {
             level = 0;
-        } else if (strcasecmp("info", value) == 0) {
+        } else if (value == "info") {
             level = 1;
-        } else if (strcasecmp("debug", value) == 0) {
+        } else if (value == "debug") {
             level = 2;
-        } else if (strcasecmp("detail", value) == 0) {
+        } else if (value == "detail") {
             level = 3;
         } else {
-            fprintf(stderr, "Unknown verbosity level \"%s\". "
-                    "Use warning/info/debug/detail\n",
-                    value);
+            std::cerr << "Unknown verbosity level \"" << value
+                      << "\". Use warning/info/debug/detail" << std::endl;
             return EXIT_FAILURE;
         }
     }
 
-    // Fix byte order
-    request.message.body.level = htonl(level);
-    ensure_send(bio, &request, sizeof(request.bytes));
+    BinprotVerbosityCommand cmd;
+    cmd.setLevel(level);
+    connection.sendCommand(cmd);
 
-    // Read the response
-    protocol_binary_response_no_extras response;
-    ensure_recv(bio, &response, sizeof(response.bytes));
+    BinprotVerbosityResponse resp;
+    connection.recvResponse(resp);
 
-    if (response.message.header.response.bodylen != 0) {
-        char *buffer = NULL;
-        uint32_t valuelen = ntohl(response.message.header.response.bodylen);
-        buffer =  static_cast<char*>(cb_malloc(valuelen));
-        if (buffer == NULL) {
-            fprintf(stderr, "Failed to allocate memory for set response\n");
-            exit(EXIT_FAILURE);
-        }
-        ensure_recv(bio, buffer, valuelen);
-        cb_free(buffer);
-    }
-
-    protocol_binary_response_status status;
-    status = protocol_binary_response_status(htons(response.message.header.response.status));
-    if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    if (resp.isSuccess()) {
         return EXIT_SUCCESS;
-    }
-
-    fprintf(stderr, "Error: %s\n", memcached_status_2_text(status));
-    return EXIT_FAILURE;
-}
-
-/**
- * Sets a property (to the specified value).
- * @param bio connection to the server.
- * @param property the name of the property to set.
- * @param value value to set the property to (NULL == no value).
- */
-static int ioctl_set(BIO *bio, const char *property, const char* value)
-{
-    char *buffer = NULL;
-    uint16_t keylen = 0;
-    uint32_t valuelen = 0;
-    int result;
-    protocol_binary_request_ioctl_set request;
-    protocol_binary_response_no_extras response;
-    protocol_binary_response_status status;
-
-    if (property != NULL) {
-        keylen = (uint16_t)strlen(property);
-    }
-    if (value != NULL) {
-        valuelen = (uint32_t)strlen(value);
-    }
-
-    memset(&request, 0, sizeof(request));
-    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_IOCTL_SET;
-    request.message.header.request.keylen = htons(keylen);
-    request.message.header.request.bodylen = htonl(keylen + valuelen);
-
-    ensure_send(bio, &request, sizeof(request));
-    if (keylen > 0) {
-        ensure_send(bio, property, keylen);
-    }
-    if (valuelen > 0) {
-        ensure_send(bio, value, valuelen);
-    }
-
-    ensure_recv(bio, &response, sizeof(response.bytes));
-    if (response.message.header.response.bodylen != 0) {
-        valuelen = ntohl(response.message.header.response.bodylen);
-        buffer = static_cast<char*>(cb_malloc(valuelen));
-        if (buffer == NULL) {
-            fprintf(stderr, "Failed to allocate memory for set response\n");
-            exit(EXIT_FAILURE);
-        }
-        ensure_recv(bio, buffer, valuelen);
-    }
-    status = protocol_binary_response_status(htons(response.message.header.response.status));
-    if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        result = 0;
     } else {
-        fprintf(stderr, "Error from server: %s\n",
-                memcached_status_2_text(status));
-        result = 1;
-    }
-
-    if (buffer != NULL) {
-        fwrite(buffer, valuelen, 1, stdout);
-        fputs("\n", stdout);
-        fflush(stdout);
-        cb_free(buffer);
-    }
-    return result;
-}
-
-/**
- * Gets a property
- * @param bio connection to the server.
- * @param property the name of the property to get.
- */
-static int ioctl_get(BIO *bio, const char *property)
-{
-    char *buffer = NULL;
-    uint16_t keylen = 0;
-    uint32_t valuelen = 0;
-    int result;
-    protocol_binary_request_ioctl_get request;
-    protocol_binary_response_no_extras response;
-    protocol_binary_response_status status;
-
-    if (property == NULL) {
+        std::cerr << "Command failed: "
+                  << memcached_status_2_text(resp.getStatus())
+                  << std::endl;
         return EXIT_FAILURE;
     }
-    keylen = (uint16_t)strlen(property);
-
-    memset(&request, 0, sizeof(request));
-    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_IOCTL_GET;
-    request.message.header.request.keylen = htons(keylen);
-    request.message.header.request.bodylen = htonl(keylen);
-
-    ensure_send(bio, &request, sizeof(request));
-    if (keylen > 0) {
-        ensure_send(bio, property, keylen);
-    }
-
-    ensure_recv(bio, &response, sizeof(response.bytes));
-    if (response.message.header.response.bodylen != 0) {
-        valuelen = ntohl(response.message.header.response.bodylen);
-        buffer = static_cast<char*>(cb_malloc(valuelen));
-        if (buffer == NULL) {
-            fprintf(stderr, "Failed to allocate memory for get response\n");
-            exit(EXIT_FAILURE);
-        }
-        ensure_recv(bio, buffer, valuelen);
-    }
-    status = protocol_binary_response_status(htons(response.message.header.response.status));
-    if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        result = 0;
-    } else {
-        fprintf(stderr, "Error from server for get request: %s\n",
-                memcached_status_2_text(status));
-        result = 1;
-    }
-
-    if (buffer != NULL) {
-        fwrite(buffer, valuelen, 1, stdout);
-        fputs("\n", stdout);
-        fflush(stdout);
-        cb_free(buffer);
-    }
-    return result;
 }
 
-static int usage() {
+static void usage() {
     fprintf(stderr,
             "Usage: mcctl [-h host[:port]] [-p port] [-u user] [-P pass] [-s] <get|set> property [value]\n"
             "\n"
             "    get <property>           Returns the value of the given property.\n"
             "    set <property> [value]   Sets `property` to the given value.\n");
-    return EXIT_FAILURE;
+    exit(EXIT_FAILURE);
 }
 
 int main(int argc, char** argv) {
     int cmd;
-    const char *port = "11210";
-    const char *host = "localhost";
-    const char *user = NULL;
-    const char *pass = NULL;
-    int secure = 0;
-    char *ptr;
-    SSL_CTX* ctx;
-    BIO* bio;
-    int result = EXIT_FAILURE;
+    std::string port{"11210"};
+    std::string host{"localhost"};
+    std::string user{};
+    std::string password{};
+    std::string bucket{};
+    sa_family_t family = AF_UNSPEC;
+    bool secure = false;
 
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
-    while ((cmd = getopt(argc, argv, "h:p:u:P:s")) != EOF) {
+    while ((cmd = getopt(argc, argv, "46h:p:u:b:P:s")) != EOF) {
         switch (cmd) {
+        case '6' :
+            family = AF_INET6;
+            break;
+        case '4' :
+            family = AF_INET;
+            break;
         case 'h' :
-            host = optarg;
-            ptr = strchr(optarg, ':');
-            if (ptr != NULL) {
-                *ptr = '\0';
-                port = ptr + 1;
-            }
+            host.assign(optarg);
             break;
         case 'p':
-            port = optarg;
+            port.assign(optarg);
+            break;
+        case 'b' :
+            bucket.assign(optarg);
             break;
         case 'u' :
-            user = optarg;
+            user.assign(optarg);
             break;
         case 'P':
-            pass = optarg;
+            password.assign(optarg);
             break;
         case 's':
-            secure = 1;
+            secure = true;
             break;
         default:
-            return usage();
+            usage();
         }
     }
 
-    /* Need at least two more arguments: get/set and a property name. */
     if (optind + 1 >= argc) {
-        return usage();
-    } else {
-        if (strcmp(argv[optind], "get") == 0 || strcmp(argv[optind], "set") == 0) {
-            const char* property = argv[optind+1];
-            if (create_ssl_connection(&ctx, &bio, host, port, user,
-                                      pass, secure) != 0) {
-                return 1;
-            }
+         usage();
+    }
 
-            if (strcmp(argv[optind], "get") == 0) {
-                if (strcmp(property, "verbosity") == 0) {
-                    result = get_verbosity(bio);
-                } else {
-                    result = ioctl_get(bio, property);
-                }
-            } else if (strcmp(argv[optind], "set") == 0) {
-                const char* value = (optind + 2 < argc) ? argv[optind+2]
-                                                        : NULL;
-                if (strcmp(property, "verbosity") == 0) {
-                    if (value == NULL) {
-                        fprintf(stderr,
-                                "Error: 'set verbosity' requires a value argument.");
-                        result = usage();
-                    } else {
-                        result = set_verbosity(bio, value);
-                    }
-                } else {
-                    result = ioctl_set(bio, property, value);
-                }
-            }
+    std::string command{argv[optind]};
+    if (command != "get" && command != "set") {
+        fprintf(stderr, "Unknown subcommand \"%s\"\n", argv[optind]);
+        usage();
+    }
 
-            BIO_free_all(bio);
-            if (secure) {
-                SSL_CTX_free(ctx);
+
+    try {
+        in_port_t in_port;
+        sa_family_t fam;
+        std::tie(host, in_port, fam) = cb::inet::parse_hostname(host, port);
+
+        if (family == AF_UNSPEC) { // The user may have used -4 or -6
+            family = fam;
+        }
+
+        MemcachedBinprotConnection connection(host,
+                                              in_port,
+                                              family,
+                                              secure);
+
+        // MEMCACHED_VERSION contains the git sha
+        connection.hello("mcctl",
+                         MEMCACHED_VERSION,
+                         "command line utitilty to get/set properties");
+
+        if (!user.empty()) {
+            connection.authenticate(user, password,
+                                    connection.getSaslMechanisms());
+        }
+
+        if (!bucket.empty()) {
+            connection.selectBucket(bucket);
+        }
+
+
+        /* Need at least two more arguments: get/set and a property name. */
+        std::string property = {argv[optind + 1]};
+
+        if (command == "get") {
+            if (property == "verbosity") {
+                return get_verbosity(connection);
+            } else {
+                std::cout << connection.ioctl_get(property) << std::endl;
+                return EXIT_SUCCESS;
             }
         } else {
-            fprintf(stderr, "Unknown subcommand \"%s\"\n", argv[optind]);
-            result = usage();
+            // we only support get and set
+            std::string value;
+            if (optind + 2 < argc) {
+                value = argv[optind + 2];
+            }
+
+            if (property == "verbosity") {
+                if (value.empty()) {
+                    std::cerr
+                        << "Error: 'set verbosity' requires a value argument."
+                        << std::endl;
+                    usage();
+                } else {
+                    return set_verbosity(connection, value);
+                }
+            } else {
+                connection.ioctl_set(property, value);
+                return EXIT_SUCCESS;
+            }
         }
+    } catch (const ConnectionError& ex) {
+        std::cerr << ex.what() << std::endl;
+        return EXIT_FAILURE;
+    } catch (const std::runtime_error& ex) {
+        std::cerr << ex.what() << std::endl;
+        return EXIT_FAILURE;
     }
 
-    return result;
+    return EXIT_SUCCESS;
 }

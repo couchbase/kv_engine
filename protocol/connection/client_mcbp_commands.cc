@@ -427,3 +427,10 @@ void BinprotGetCmdTimerResponse::assign(std::vector<uint8_t>&& buf) {
         }
     }
 }
+
+void BinprotVerbosityCommand::encode(std::vector<uint8_t>& buf) const {
+    writeHeader(buf, 0, 4);
+    uint32_t value = ntohl(level);
+    auto const* p = reinterpret_cast<const char*>(&value);
+    buf.insert(buf.end(), p, p + 4);
+}
