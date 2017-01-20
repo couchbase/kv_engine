@@ -590,6 +590,13 @@ protected:
 
 using BinprotVerbosityResponse = BinprotResponse;
 
+class BinprotIsaslRefreshCommand
+    : public BinprotCommandT<BinprotIsaslRefreshCommand,
+        PROTOCOL_BINARY_CMD_ISASL_REFRESH> {
+};
+
+using BinprotIsaslRefreshResponse = BinprotResponse;
+
 class BinprotMutationCommand : public BinprotCommandT<BinprotMutationCommand> {
 public:
     BinprotMutationCommand& setMutationType(const Greenstack::mutation_type_t);

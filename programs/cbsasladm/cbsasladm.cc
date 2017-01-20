@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2016 Couchbase, Inc.
+ *     Copyright 2017 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -16,9 +16,8 @@
  */
 #include "config.h"
 
-#include <memcached/protocol_binary.h>
-#include <platform/platform.h>
-
+#include <cbsasl/pwconv.h>
+#include <cbsasl/user.h>
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
@@ -26,103 +25,44 @@
 #include <getopt.h>
 #include <iostream>
 #include <map>
+#include <memcached/protocol_binary.h>
+#include <platform/platform.h>
+#include <programs/hostname_utils.h>
+#include <protocol/connection/client_connection.h>
+#include <protocol/connection/client_mcbp_connection.h>
 #include <string>
 #include <utilities/protocol2text.h>
-#include <cbsasl/pwconv.h>
-#include <cbsasl/user.h>
-
-#include "programs/utilities.h"
-
-// Unfortunately cbsasl don't use namespace internally..
-namespace cbsasladm {
-/**
- * Small class used to wrap the ServerConnection details
- */
-class ServerConnection {
-public:
-    ServerConnection(const char* host_, const char* port_, const char* user_,
-                     const char* pass_, int secure_)
-        : ctx(nullptr),
-          bio(nullptr),
-          host(host_),
-          port(port_),
-          user(user_),
-          pass(pass_),
-          secure(secure_) {
-
-    }
-
-    bool connect() {
-        return create_ssl_connection(&ctx, &bio, host.c_str(),
-                                     port.c_str(), user.c_str(),
-                                     pass.c_str(), secure) == 0;
-    }
-
-    BIO* getBIO() {
-        return bio;
-    }
-
-    ~ServerConnection() {
-        if (bio != nullptr) {
-            BIO_free_all(bio);
-        }
-
-        if (ctx != nullptr) {
-            SSL_CTX_free(ctx);
-        }
-    }
-
-private:
-    SSL_CTX* ctx = nullptr;
-    BIO* bio;
-    const std::string host;
-    const std::string port;
-    const std::string user;
-    const std::string pass;
-    const int secure;
-};
-}
 
 /**
  * Handle cbsasl refresh
  */
 static int handle_refresh(int argc, char**,
-                          cbsasladm::ServerConnection& connection) {
+                          MemcachedBinprotConnection& connection) {
     if (optind + 1 != argc) {
         std::cerr << "Error: cbsasl refresh don't take any arguments"
                   << std::endl;
         return EXIT_FAILURE;
     }
 
-    if (!connection.connect()) {
-        return EXIT_FAILURE;
-    }
+    BinprotIsaslRefreshCommand cmd;
+    connection.sendCommand(cmd);
 
-    protocol_binary_response_no_extras response;
-    protocol_binary_request_no_extras request;
+    BinprotIsaslRefreshResponse resp;
+    connection.recvResponse(resp);
 
-    memset(&request, 0, sizeof(request));
-    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_ISASL_REFRESH;
-
-    ensure_send(connection.getBIO(), &request, sizeof(request));
-    ensure_recv(connection.getBIO(), &response, sizeof(response.bytes));
-    if (response.message.header.response.status != 0) {
-        uint16_t err = ntohs(response.message.header.response.status);
-        auto status =  (protocol_binary_response_status)err;
-
-        std::cerr << "Failed to refresh cbsasl password database: "
-                  << memcached_status_2_text(status) << std::endl;
-
+    if (resp.isSuccess()) {
+        return EXIT_SUCCESS;
+    } else {
+        std::cerr << "Command failed: "
+                  << memcached_status_2_text(resp.getStatus())
+                  << std::endl;
         return EXIT_FAILURE;
     }
 
     return EXIT_SUCCESS;
 }
 
-
-int handle_pwconv(int argc, char** argv,
-                  cbsasladm::ServerConnection& connection) {
+int handle_pwconv(int argc, char** argv) {
     if (optind + 3 != argc) {
         std::cerr << "Usage: cbsasl pwconv inputfile outputfile" << std::endl;
         return EXIT_FAILURE;
@@ -141,6 +81,18 @@ int handle_pwconv(int argc, char** argv,
     return EXIT_SUCCESS;
 }
 
+static void usage() {
+    fprintf(stderr,
+            "Usage: cbsasladm [-h host[:port]] [-p port] [-s] "
+                "[-u user] [-P password] cmd\n"
+                "   The following command(s) exists:\n"
+                "\trefresh - tell memcached to reload its internal "
+                "cache\n"
+                "\tpwconv input ouput - convert isasl.pw to cbsasl.pw "
+                "format\n");
+    exit(EXIT_SUCCESS);
+}
+
 /**
  * Program entry point.
  *
@@ -150,37 +102,42 @@ int handle_pwconv(int argc, char** argv,
  */
 int main(int argc, char **argv) {
     int cmd;
-    const char* port = "11210";
-    const char* host = "localhost";
-    const char* user = "";
-    const char* pass = "";
-    int secure = 0;
-    char* ptr;
+    std::string port{"11210"};
+    std::string host{"localhost"};
+    std::string user{};
+    std::string password{};
+    std::string bucket{};
+    sa_family_t family = AF_UNSPEC;
+    bool secure = false;
 
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
-    while ((cmd = getopt(argc, argv, "h:p:su:P:i:")) != EOF) {
+    while ((cmd = getopt(argc, argv, "46h:p:u:b:P:si:")) != EOF) {
         switch (cmd) {
+        case '6' :
+            family = AF_INET6;
+            break;
+        case '4' :
+            family = AF_INET;
+            break;
         case 'h' :
-            host = optarg;
-            ptr = strchr(optarg, ':');
-            if (ptr != NULL) {
-                *ptr = '\0';
-                port = ptr + 1;
-            }
+            host.assign(optarg);
             break;
         case 'p':
-            port = optarg;
+            port.assign(optarg);
             break;
-        case 's':
-            secure = 1;
+        case 'b' :
+            bucket.assign(optarg);
             break;
         case 'u' :
-            user = optarg;
+            user.assign(optarg);
             break;
         case 'P':
-            pass = optarg;
+            password.assign(optarg);
+            break;
+        case 's':
+            secure = true;
             break;
         case 'i':
             try {
@@ -193,37 +150,58 @@ int main(int argc, char **argv) {
             }
             break;
         default:
-            fprintf(stderr,
-                    "Usage: cbsasladm [-h host[:port]] [-p port] [-s] "
-                        "[-u user] [-P password] cmd\n"
-                        "   The following command(s) exists:\n"
-                        "\trefresh - tell memcached to reload its internal "
-                        "cache\n"
-                        "\tpwconv input ouput - convert isasl.pw to cbsasl.pw "
-                        "format\n");
-            return 1;
+            usage();
         }
     }
 
     if (optind == argc) {
-        fprintf(stderr, "You need to supply a command\n");
-        return EXIT_FAILURE;
+        std::cerr << "You need to supply a command" << std::endl;
+        usage();
     }
 
-    typedef int (* command_handler)(int argc, char** argv,
-                                    cbsasladm::ServerConnection& connection);
-    const std::map<std::string, command_handler> commands{
-        {"refresh", handle_refresh},
-        {"pwconv",  handle_pwconv}
-    };
+    std::string command{argv[optind]};
+    if (command == "refresh") {
+        try {
+            in_port_t in_port;
+            sa_family_t fam;
+            std::tie(host, in_port, fam) = cb::inet::parse_hostname(host, port);
 
-    const auto& iter = commands.find(argv[optind]);
-    if (iter != commands.end()) {
-        cbsasladm::ServerConnection connection(host, port, user, pass, secure);
-        return iter->second(argc, argv, connection);
+            if (family == AF_UNSPEC) { // The user may have used -4 or -6
+                family = fam;
+            }
+
+            MemcachedBinprotConnection connection(host,
+                                                  in_port,
+                                                  family,
+                                                  secure);
+
+            // MEMCACHED_VERSION contains the git sha
+            connection.hello("cbsasladm",
+                             MEMCACHED_VERSION,
+                             "command line utitilty to manage the internal sasl db");
+
+            if (!user.empty()) {
+                connection.authenticate(user, password,
+                                        connection.getSaslMechanisms());
+            }
+
+            if (!bucket.empty()) {
+                connection.selectBucket(bucket);
+            }
+
+            handle_refresh(argc, argv, connection);
+        } catch (const ConnectionError& ex) {
+            std::cerr << ex.what() << std::endl;
+            return EXIT_FAILURE;
+        } catch (const std::runtime_error& ex) {
+            std::cerr << ex.what() << std::endl;
+            return EXIT_FAILURE;
+        }
+    } else if (command == "pwconv") {
+        return handle_pwconv(argc, argv);
     } else {
         std::cerr << "Error: Unknown command" << std::endl;
-        return EXIT_FAILURE;
+        usage();
     }
 
     return EXIT_SUCCESS;

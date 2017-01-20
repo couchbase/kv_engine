@@ -5,6 +5,10 @@ ADD_EXECUTABLE(cbsasladm
                ${Memcached_SOURCE_DIR}/cbsasl/pwconv.h
                ${Memcached_SOURCE_DIR}/cbsasl/user.cc
                ${Memcached_SOURCE_DIR}/cbsasl/user.h)
-TARGET_LINK_LIBRARIES(cbsasladm mcutils mcd_util cbsasl platform ${OPENSSL_LIBRARIES}
-                                ${COUCHBASE_NETWORK_LIBS})
+TARGET_LINK_LIBRARIES(cbsasladm
+                      cbsasl
+                      mc_client_connection
+                      mcd_util
+                      mcutils
+                      platform)
 INSTALL(TARGETS cbsasladm RUNTIME DESTINATION bin)
