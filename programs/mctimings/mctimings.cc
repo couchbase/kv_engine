@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2015 Couchbase, Inc
+ *     Copyright 2017 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -16,22 +16,16 @@
  */
 
 #include "config.h"
+#include "programs/hostname_utils.h"
 
 #include <array>
-#include <string>
-#include <vector>
-#include <iostream>
-#include <cstdlib>
-
-#include <memcached/protocol_binary.h>
-#include <memcached/openssl.h>
-#include <platform/platform.h>
-
-#include <getopt.h>
 #include <cJSON.h>
-
-#include "programs/utilities.h"
-#include "utilities/protocol2text.h"
+#include <cstdlib>
+#include <getopt.h>
+#include <iostream>
+#include <memcached/protocol_binary.h>
+#include <protocol/connection/client_mcbp_connection.h>
+#include <stdexcept>
 
 static uint32_t getValue(cJSON *root, const char *key) {
     cJSON *obj = cJSON_GetObjectItem(root, key);
@@ -39,7 +33,7 @@ static uint32_t getValue(cJSON *root, const char *key) {
         std::string msg = "Fatal error: missing key \"";
         msg += key;
         msg += "\"";
-        throw msg;
+        throw std::runtime_error(msg);
     }
     return uint32_t(obj->valueint);
 }
@@ -50,13 +44,13 @@ static cJSON *getArray(cJSON *root, const char *key) {
         std::string msg = "Fatal error: missing key \"";
         msg += key;
         msg += "\"";
-        throw msg;
+        throw std::runtime_error(msg);
     }
     if (obj->type != cJSON_Array) {
         std::string msg = "Fatal error: key \"";
         msg += key;
         msg += "\" is not an array";
-        throw msg;
+        throw std::runtime_error(msg);
     }
     return obj;
 }
@@ -70,39 +64,12 @@ struct Bin {
 
 class Timings {
 public:
-    Timings() : max(0), ns(Bin()), oldwayout(false) {
+    Timings(cJSON* json) : max(0), ns(Bin()), oldwayout(false) {
         us.fill(Bin());
         ms.fill(Bin());
         halfsec.fill(Bin());
         wayout.fill(Bin());
-    }
-
-    void initialize(std::vector<char> &content) {
-        auto *json = cJSON_Parse(content.data());
-        if (json == nullptr) {
-            std::string msg("Failed to decode json: \"");
-            msg.append(content.data());
-            msg.append("\"");
-            throw msg;
-        }
-
-        auto *obj = cJSON_GetObjectItem(json, "error");
-        if (obj) {
-            std::string message(obj->valuestring);
-            cJSON_Delete(json);
-            throw message;
-        }
-
-        std::string msg;
-        try {
-            initialize(json);
-        } catch (std::string &ex) {
-            msg.assign(ex);
-        }
-        cJSON_Delete(json);
-        if (!msg.empty()) {
-            throw msg;
-        }
+        initialize(json);
     }
 
     uint64_t getTotal() const {
@@ -154,6 +121,13 @@ private:
     }
 
     void initialize(cJSON *root) {
+        auto *obj = cJSON_GetObjectItem(root, "error");
+        if (obj != nullptr) {
+            // The server responded with an error.. send that to the user
+            std::string message(obj->valuestring);
+            throw std::runtime_error(message);
+        }
+
         ns.count = getValue(root, "ns");
         auto arr = getArray(root, "us");
         int ii = 0;
@@ -163,7 +137,8 @@ private:
             ++ii;
             i = i->next;
             if (ii == 100 && i != NULL) {
-                throw std::string("Internal error.. too many \"us\" samples");
+                throw std::runtime_error(
+                    "Internal error.. too many \"us\" samples");
             }
         }
 
@@ -175,7 +150,8 @@ private:
             ++ii;
             i = i->next;
             if (ii == 50 && i != NULL) {
-                throw std::string("Internal error.. too many \"ms\" samples");
+                throw std::runtime_error(
+                    "Internal error.. too many \"ms\" samples");
             }
         }
 
@@ -187,7 +163,8 @@ private:
             ++ii;
             i = i->next;
             if (ii == 10 && i != NULL) {
-                throw std::string("Internal error.. too many \"halfsec\" samples\"");
+                throw std::runtime_error(
+                    "Internal error.. too many \"halfsec\" samples\"");
             }
         }
 
@@ -285,204 +262,200 @@ std::string opcode2string(uint8_t opcode) {
     return std::string(cmd);
 }
 
-static void request_cmd_timings(BIO *bio, const char *bucket, uint8_t opcode,
-                                int verbose, int skip) {
-    protocol_binary_request_get_cmd_timer request;
-    protocol_binary_response_no_extras response;
+static void request_cmd_timings(MemcachedBinprotConnection& connection,
+                                const std::string bucket,
+                                uint8_t opcode,
+                                bool verbose,
+                                bool skip) {
+    BinprotGetCmdTimerCommand cmd;
+    cmd.setBucket(bucket);
+    cmd.setOpcode(opcode);
 
-    uint16_t keylen = (bucket == NULL) ? 0 : strlen(bucket);
-    memset(&request, 0, sizeof(request));
-    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_GET_CMD_TIMER;
-    request.message.header.request.keylen = htons(keylen);
-    request.message.header.request.extlen = 1;
-    request.message.header.request.bodylen = htonl((uint32_t)(keylen + 1));
-    request.message.body.opcode = opcode;
+    connection.sendCommand(cmd);
 
-    ensure_send(bio, &request, sizeof(request.bytes));
-    ensure_send(bio, bucket, keylen);
+    BinprotGetCmdTimerResponse resp;
+    connection.recvResponse(resp);
 
-    ensure_recv(bio, &response, sizeof(response.bytes));
-    uint32_t buffsize = ntohl(response.message.header.response.bodylen);
-    std::vector<char> buffer(buffsize + 1, 0);
-
-    ensure_recv(bio, buffer.data(), buffsize);
-
-    protocol_binary_response_status status;
-    status = (protocol_binary_response_status)ntohs(response.message.header.response.status);
-    if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        switch (status) {
+    if (!resp.isSuccess()) {
+        switch (resp.getStatus()) {
         case PROTOCOL_BINARY_RESPONSE_KEY_ENOENT:
-            std::cerr <<"Cannot find bucket: " << bucket << std::endl;
+            std::cerr << "Cannot find bucket: " << bucket << std::endl;
             break;
         case PROTOCOL_BINARY_RESPONSE_EACCESS:
             std::cerr << "Not authorized to access timings data" << std::endl;
             break;
         default:
             std::cerr << "Command failed: "
-                      << memcached_status_2_text(status)
+                      << memcached_status_2_text(resp.getStatus())
                       << std::endl;
         }
         exit(EXIT_FAILURE);
     }
 
-    Timings timings;
     try {
-        timings.initialize(buffer);
-    } catch (std::string &msg) {
-        std::cerr << "Fatal error: " << msg << std::endl;
+        Timings timings(resp.getTimings());
+
+        auto cmd = opcode2string(opcode);
+
+        if (timings.getTotal() == 0) {
+            if (skip == 0) {
+                std::cout << "The server don't have information about \""
+                          << cmd << "\"" << std::endl;
+            }
+        } else {
+            if (verbose) {
+                timings.dumpHistogram(cmd);
+            } else {
+                std::cout << cmd << " " << timings.getTotal() << " operations"
+                          << std::endl;
+            }
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Fatal error: " << e.what() << std::endl;
         exit(EXIT_FAILURE);
     }
-
-    auto cmd = opcode2string(opcode);
-
-    if (timings.getTotal() == 0) {
-        if (skip == 0) {
-            std::cout << "The server don't have information about \""
-                      << cmd << "\"" << std::endl;
-        }
-    } else {
-        if (verbose) {
-            timings.dumpHistogram(cmd);
-        } else {
-            std::cout << cmd << " " << timings.getTotal() << " operations"
-                      << std::endl;
-        }
-    }
-
 }
 
-static void request_stat_timings(BIO *bio, const char* key, int verbose) {
-    protocol_binary_request_stats request;
-    protocol_binary_response_stats response;
+static void request_stat_timings(MemcachedBinprotConnection& connection,
+                                 const std::string& key,
+                                 bool verbose) {
+    unique_cJSON_ptr json;
 
-    const size_t keylen = strlen(key);
-    memset(&request, 0, sizeof(request));
-    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_STAT;
-    request.message.header.request.keylen = htons(keylen);
-    request.message.header.request.bodylen = htonl(keylen);
-
-    ensure_send(bio, &request, sizeof(request.bytes));
-    ensure_send(bio, key, keylen);
-
-    ensure_recv(bio, &response, sizeof(response.bytes));
-    uint32_t buffsize = ntohl(response.message.header.response.bodylen);
-    std::vector<char> buffer(buffsize + 1, 0);
-
-    ensure_recv(bio, buffer.data(), buffsize);
-    protocol_binary_response_status status;
-    status = (protocol_binary_response_status)ntohs(response.message.header.response.status);
-    if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        switch (status) {
-        case PROTOCOL_BINARY_RESPONSE_KEY_ENOENT:
+    try {
+        json = connection.stats(key);
+    } catch (const BinprotConnectionError& ex) {
+        if (ex.isNotFound()) {
             std::cerr <<"Cannot find statistic: " << key << std::endl;
-            break;
-        case PROTOCOL_BINARY_RESPONSE_EACCESS:
+        } else if (ex.isAccessDenied()) {
             std::cerr << "Not authorized to access timings data" << std::endl;
-            break;
-        default:
-            std::cerr << "Command failed: "
-                      << memcached_status_2_text(status)
+        } else {
+            std::cerr << "Fatal error: " << ex.what() << std::endl;
+        }
+
+        exit(EXIT_FAILURE);
+    }
+
+    try {
+        Timings timings(json.get());
+        if (verbose) {
+            timings.dumpHistogram(key);
+        } else {
+            std::cout << key << " " << timings.getTotal() << " operations"
                       << std::endl;
         }
+    } catch (const std::exception& e) {
+        std::cerr << "Fatal error: " << e.what() << std::endl;
         exit(EXIT_FAILURE);
     }
+}
 
-    Timings timings;
-    try {
-        timings.initialize(buffer);
-    } catch (std::string &msg) {
-        std::cerr << "Fatal error: " << msg << std::endl;
-        exit(EXIT_FAILURE);
-    }
-
-    if (verbose) {
-        timings.dumpHistogram(key);
-    } else {
-        std::cout << key << " " << timings.getTotal() << " operations"
-                  << std::endl;
-    }
+void usage() {
+    std::cerr << "Usage mctimings [-h host[:port]] [-p port] [-u user]"
+              << " [-P pass] [-b bucket] [-s] -v [opcode / stat_name]*" << std::endl
+              << std::endl
+              << "Example:" << std::endl
+              << "    mctimings -h localhost:11210 -v GET SET";
 }
 
 int main(int argc, char** argv) {
     int cmd;
-    const char *port = "11210";
-    const char *host = "localhost";
-    const char *user = NULL;
-    const char *pass = NULL;
-    const char *bucket = NULL;
-    int verbose = 0;
-    int secure = 0;
-    char *ptr;
-    SSL_CTX* ctx;
-    BIO* bio;
+    std::string port{"11210"};
+    std::string host{"localhost"};
+    std::string user{};
+    std::string password{};
+    std::string bucket{};
+    sa_family_t family = AF_UNSPEC;
+    bool verbose = false;
+    bool secure = false;
 
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
-    while ((cmd = getopt(argc, argv, "h:p:u:P:b:sv")) != EOF) {
+    while ((cmd = getopt(argc, argv, "46h:p:u:b:P:sv")) != EOF) {
         switch (cmd) {
+        case '6' :
+            family = AF_INET6;
+            break;
+        case '4' :
+            family = AF_INET;
+            break;
         case 'h' :
-            host = optarg;
-            ptr = strchr(optarg, ':');
-            if (ptr != NULL) {
-                *ptr = '\0';
-                port = ptr + 1;
-            }
+            host.assign(optarg);
             break;
         case 'p':
-            port = optarg;
+            port.assign(optarg);
+            break;
+        case 'b' :
+            bucket.assign(optarg);
             break;
         case 'u' :
-            user = optarg;
+            user.assign(optarg);
             break;
         case 'P':
-            pass = optarg;
-            break;
-        case 'b':
-            bucket = optarg;
+            password.assign(optarg);
             break;
         case 's':
-            secure = 1;
+            secure = true;
             break;
-        case 'v':
-            verbose = 1;
+        case 'v' :
+            verbose = true;
             break;
         default:
-            std::cerr << "Usage mctimings [-h host[:port]] [-p port] [-u user]"
-                      << " [-P pass] [-b bucket] [-s] -v [opcode / stat_name]*" << std::endl
-                      << std::endl
-                      << "Example:" << std::endl
-                      << "    mctimings -h localhost:11210 -v GET SET";
-            exit(EXIT_FAILURE);
+            usage();
+            return EXIT_FAILURE;
         }
     }
 
-    if (create_ssl_connection(&ctx, &bio, host, port, user, pass, secure) != 0) {
-        exit(EXIT_FAILURE);
-    }
+    try {
+        in_port_t in_port;
+        sa_family_t fam;
+        std::tie(host, in_port, fam) = cb::inet::parse_hostname(host, port);
 
-    if (optind == argc) {
-        for (int ii = 0; ii < 256; ++ii) {
-            request_cmd_timings(bio, bucket, (uint8_t)ii, verbose, 1);
+        if (family == AF_UNSPEC) { // The user may have used -4 or -6
+            family = fam;
         }
-    } else {
-        for (; optind < argc; ++optind) {
-            const uint8_t opcode = memcached_text_2_opcode(argv[optind]);
-            if (opcode != PROTOCOL_BINARY_CMD_INVALID) {
-                request_cmd_timings(bio, bucket, opcode, verbose, 0);
-            } else {
-                // Not a command timing, try as statistic timing.
-                request_stat_timings(bio, argv[optind], verbose);
+        MemcachedBinprotConnection connection(host,
+                                              in_port,
+                                              family,
+                                              secure);
+
+        // MEMCACHED_VERSION contains the git sha
+        connection.hello("mctimings",
+                         MEMCACHED_VERSION,
+                         "command line utitilty to fetch command timings");
+
+        if (!user.empty()) {
+            connection.authenticate(user, password,
+                                    connection.getSaslMechanisms());
+        }
+
+        if (!bucket.empty()) {
+            connection.selectBucket(bucket);
+        }
+
+        if (optind == argc) {
+            for (int ii = 0; ii < 256; ++ii) {
+                request_cmd_timings(connection, bucket, (uint8_t)ii, verbose,
+                                    true);
             }
-
+        } else {
+            for (; optind < argc; ++optind) {
+                const uint8_t opcode = memcached_text_2_opcode(argv[optind]);
+                if (opcode != PROTOCOL_BINARY_CMD_INVALID) {
+                    request_cmd_timings(connection, bucket, opcode, verbose,
+                                        false);
+                } else {
+                    // Not a command timing, try as statistic timing.
+                    request_stat_timings(connection, argv[optind], verbose);
+                }
+            }
         }
-    }
-
-    BIO_free_all(bio);
-    if (secure) {
-        SSL_CTX_free(ctx);
+    } catch (const ConnectionError& ex) {
+        std::cerr << ex.what() << std::endl;
+        return EXIT_FAILURE;
+    } catch (const std::runtime_error& ex) {
+        std::cerr << ex.what() << std::endl;
+        return EXIT_FAILURE;
     }
 
     return EXIT_SUCCESS;

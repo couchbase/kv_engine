@@ -411,3 +411,19 @@ void BinprotSubdocMultiMutationCommand::encode(std::vector<uint8_t>& buf) const 
         buf.insert(buf.end(), spec.value.begin(), spec.value.end());
     }
 }
+
+void BinprotGetCmdTimerCommand::encode(std::vector<uint8_t>& buf) const {
+    writeHeader(buf, 0, 1);
+    buf.push_back(opcode);
+    buf.insert(buf.end(), key.begin(), key.end());
+}
+
+void BinprotGetCmdTimerResponse::assign(std::vector<uint8_t>&& buf) {
+    BinprotResponse::assign(std::move(buf));
+    if (isSuccess()) {
+        timings.reset(cJSON_Parse(getDataString().c_str()));
+        if (!timings) {
+            throw std::runtime_error("BinprotGetCmdTimerResponse::assign: Invalid payload returned");
+        }
+    }
+}

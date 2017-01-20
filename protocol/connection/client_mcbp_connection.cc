@@ -715,3 +715,8 @@ void MemcachedBinprotConnection::unlock(const std::string& id,
         throw BinprotConnectionError("unlock(): " + id, response.getStatus());
     }
 }
+
+unique_cJSON_ptr MemcachedBinprotConnection::timings(uint8_t opcode,
+                                                     const std::string& bucket) {
+    return unique_cJSON_ptr();
+}

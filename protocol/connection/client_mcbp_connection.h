@@ -152,6 +152,8 @@ public:
 
     unique_cJSON_ptr stats(const std::string& subcommand) override;
 
+    unique_cJSON_ptr timings(uint8_t opcode, const std::string& bucket);
+
     void reloadAuditConfiguration() override;
 
     void sendFrame(const Frame& frame) override;

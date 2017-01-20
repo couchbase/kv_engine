@@ -546,6 +546,36 @@ public:
 
 using BinprotUnlockResponse = BinprotResponse;
 
+class BinprotGetCmdTimerCommand
+    : public BinprotCommandT<BinprotGetCmdTimerCommand, PROTOCOL_BINARY_CMD_GET_CMD_TIMER> {
+public:
+    void encode(std::vector<uint8_t>& buf) const override;
+
+    void setOpcode(uint8_t opcode) {
+        BinprotGetCmdTimerCommand::opcode = opcode;
+    }
+
+    void setBucket(const std::string& bucket) {
+        setKey(bucket);
+    }
+
+protected:
+    uint8_t opcode;
+};
+
+class BinprotGetCmdTimerResponse : public BinprotResponse {
+public:
+    virtual void assign(std::vector<uint8_t>&& buf) override;
+
+    cJSON* getTimings() const {
+        return timings.get();
+    }
+
+private:
+    unique_cJSON_ptr timings;
+};
+
+
 class BinprotMutationCommand : public BinprotCommandT<BinprotMutationCommand> {
 public:
     BinprotMutationCommand& setMutationType(const Greenstack::mutation_type_t);
