@@ -25,6 +25,12 @@ void BinprotCommand::encode(std::vector<uint8_t>& buf) const {
             buf.end(), header.bytes, &header.bytes[0] + sizeof(header.bytes));
 }
 
+BinprotCommand::Encoded BinprotCommand::encode() const {
+    Encoded bufs;
+    encode(bufs.header);
+    return bufs;
+}
+
 void BinprotCommand::fillHeader(protocol_binary_request_header& header,
                                 size_t payload_len,
                                 size_t extlen) const {

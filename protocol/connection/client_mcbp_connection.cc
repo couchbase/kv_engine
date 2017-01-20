@@ -132,7 +132,16 @@ void MemcachedBinprotConnection::recvFrame(Frame& frame) {
 }
 
 void MemcachedBinprotConnection::sendCommand(const BinprotCommand& command) {
-    sendFrame(to_frame(command));
+    auto bufs = command.encode();
+
+    if (!bufs.header.empty()) {
+        cb::const_byte_buffer tmp_bb{bufs.header.data(), bufs.header.size()};
+        sendBuffer(tmp_bb);
+    }
+
+    for (auto& buf : bufs.bufs) {
+        sendBuffer(buf);
+    }
 }
 
 void MemcachedBinprotConnection::recvResponse(BinprotResponse& response) {

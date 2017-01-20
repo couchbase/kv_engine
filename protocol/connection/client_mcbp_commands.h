@@ -61,6 +61,41 @@ public:
      */
     virtual void encode(std::vector<uint8_t>& buf) const;
 
+    struct Encoded {
+        Encoded() : header(), bufs() {
+        }
+
+        Encoded(Encoded&& other)
+            : header(std::move(other.header)), bufs(std::move(other.bufs)) {
+        }
+
+        /**
+         * 'scratch' space for data which isn't owned by anything and is
+         * generated on demand. Any data here is sent before the data in the
+         * buffers.
+         */
+        std::vector<uint8_t> header;
+
+        /** The actual buffers to be sent */
+        std::vector<cb::const_byte_buffer> bufs;
+    };
+
+    /**
+     * Encode data into an 'Encoded' object.
+     * @return an `Encoded` object which may be sent on the wire.
+     *
+     * Note that unlike the vector<uint8_t> variant, the actual buffers
+     * are not copied into the new structure, so ensure the command object
+     * (which owns the buffers), or the original buffers (if the command object
+     * doesn't own the buffers either; see e.g.
+     * BinprotMutationCommand::setValueBuffers()) remain in tact between this
+     * call and actually sending it.
+     *
+     * The default implementation simply copies what encode(vector<uint8_t>)
+     * does into Encoded::header, and Encoded::bufs contains a single
+     * element.
+     */
+    virtual Encoded encode() const;
 protected:
     /**
      * This class exposes a tri-state expiry object, to allow for a 0-value
@@ -637,6 +672,24 @@ public:
         value.assign(value_.begin(), value_.end());
         return *this;
     }
+
+    /**
+     * Set the value buffers (IO vectors) for the command.
+     * Currently this simply copies the contents of the buffers, but in the
+     * future this may be implemented to override this.
+     *
+     * @param bufs Buffers containing the value. The buffers should be
+     *        considered owned by the command object until it is sent
+     *        over the wire
+     */
+    template <typename T>
+    BinprotMutationCommand& setValueBuffers(const T& bufs) {
+        for (auto const& buf : bufs) {
+            value.insert(value.end(), buf.begin(), buf.end());
+        }
+        return *this;
+    }
+
     BinprotMutationCommand& setDatatype(uint8_t datatype_) {
         datatype = datatype_;
         return *this;
