@@ -425,7 +425,14 @@ void BinprotSubdocMultiMutationCommand::encode(std::vector<uint8_t>& buf) const 
         total += 1 + 1 + 2 + 4 + spec.path.size() + spec.value.size();
     }
 
-    writeHeader(buf, total, 0);
+    const uint8_t extlen = expiry.isSet() ? 4 : 0;
+    writeHeader(buf, total, extlen);
+    if (expiry.isSet()) {
+        uint32_t expbuf = htonl(expiry.getValue());
+        const char* p = reinterpret_cast<const char*>(&expbuf);
+        buf.insert(buf.end(), p, p + 4);
+    }
+
     buf.insert(buf.end(), key.begin(), key.end());
 
     // Time to add the data:
@@ -440,6 +447,122 @@ void BinprotSubdocMultiMutationCommand::encode(std::vector<uint8_t>& buf) const 
         buf.insert(buf.end(), p, p + 4);
         buf.insert(buf.end(), spec.path.begin(), spec.path.end());
         buf.insert(buf.end(), spec.value.begin(), spec.value.end());
+    }
+}
+
+void BinprotSubdocMultiMutationResponse::assign(std::vector<uint8_t>&& buf) {
+    BinprotResponse::assign(std::move(buf));
+    switch (getStatus()) {
+    case PROTOCOL_BINARY_RESPONSE_SUCCESS:
+    case PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE:
+        break;
+    default:
+        return;
+    }
+
+    const uint8_t* bufcur = getData().data();
+    const uint8_t* bufend = getData().data() + getData().size();
+
+    // Result spec is:
+    // 1@0          : Request Index
+    // 2@1          : Status
+    // 4@3          : Value length -- ONLY if status is success
+    // $ValueLen@7  : Value
+
+    while (bufcur < bufend) {
+        uint8_t index = *bufcur;
+        bufcur += 1;
+
+        uint16_t cur_status = ntohs(*reinterpret_cast<const uint16_t*>(bufcur));
+        bufcur += 2;
+
+        if (cur_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            uint32_t cur_len =
+                    ntohl(*reinterpret_cast<const uint32_t*>(bufcur));
+            bufcur += 4;
+            if (cur_len > bufend - bufcur) {
+                throw std::runtime_error(
+                        "BinprotSubdocMultiMutationResponse::assign(): "
+                        "Invalid value length received");
+            }
+            results.emplace_back(MutationResult{
+                    index,
+                    protocol_binary_response_status(cur_status),
+                    std::string(reinterpret_cast<const char*>(bufcur),
+                                cur_len)});
+            bufcur += cur_len;
+        } else {
+            results.emplace_back(MutationResult{
+                    index, protocol_binary_response_status(cur_status)});
+        }
+    }
+}
+
+void BinprotSubdocMultiLookupCommand::encode(std::vector<uint8_t>& buf) const {
+    size_t total = 0;
+    // Payload is to be encoded as:
+    // 1 @0         : Opcode
+    // 1 @1         : Flags
+    // 2 @2         : Path Length
+    // $pathlen @4  : Path
+    for (const auto& spec : specs) {
+        total += 1 + 1 + 2 + spec.path.size();
+    }
+
+    const uint8_t extlen = expiry.isSet() ? 4 : 0;
+    writeHeader(buf, total, extlen);
+
+    // Note: Expiry isn't supported for multi lookups, but we specifically
+    // test for it, and therefore allowed at the API level
+    if (expiry.isSet()) {
+        uint32_t expbuf = htonl(expiry.getValue());
+        const char* p = reinterpret_cast<const char*>(&expbuf);
+        buf.insert(buf.end(), p, p + 4);
+    }
+
+    buf.insert(buf.end(), key.begin(), key.end());
+
+    // Add the lookup specs themselves:
+    for (const auto& spec : specs) {
+        buf.push_back(uint8_t(spec.opcode));
+        buf.push_back(uint8_t(spec.flags));
+
+        uint16_t pathlen = ntohs(spec.path.size());
+        const char* p = reinterpret_cast<const char*>(&pathlen);
+        buf.insert(buf.end(), p, p + 2);
+        buf.insert(buf.end(), spec.path.begin(), spec.path.end());
+    }
+}
+
+void BinprotSubdocMultiLookupResponse::assign(std::vector<uint8_t>&& buf) {
+    BinprotResponse::assign(std::move(buf));
+    switch (getStatus()) {
+    case PROTOCOL_BINARY_RESPONSE_SUCCESS:
+    case PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE:
+        break;
+    default:
+        return;
+    }
+
+    const uint8_t* bufcur = getData().data();
+    const uint8_t* bufend = getData().data() + getData().size();
+
+    // Result spec is:
+    // 2@0          : Status
+    // 4@0          : Value Length
+    // $ValueLen@6  : Value
+
+    while (bufcur < bufend) {
+        uint16_t cur_status = ntohs(*reinterpret_cast<const uint16_t*>(bufcur));
+        bufcur += 2;
+
+        uint32_t cur_len = ntohl(*reinterpret_cast<const uint32_t*>(bufcur));
+        bufcur += 4;
+
+        results.emplace_back(LookupResult{
+                protocol_binary_response_status(cur_status),
+                std::string(reinterpret_cast<const char*>(bufcur), cur_len)});
+        bufcur += cur_len;
     }
 }
 

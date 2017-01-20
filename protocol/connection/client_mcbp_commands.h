@@ -483,8 +483,152 @@ public:
         specs.emplace_back(MutationSpecifier{opcode, flags, path, value});
     }
 
+    BinprotSubdocMultiMutationCommand& setExpiry(uint32_t expiry_) {
+        expiry.assign(expiry_);
+        return *this;
+    }
+
+    MutationSpecifier& at(size_t index) {
+        return specs.at(index);
+    }
+
+    MutationSpecifier& operator[](size_t index) {
+        return specs[index];
+    }
+
+    bool empty() const {
+        return specs.empty();
+    }
+
+    size_t size() const {
+        return specs.size();
+    }
+
+    void clearMutations() {
+        specs.clear();
+    }
+
 protected:
     std::vector<MutationSpecifier> specs;
+    ExpiryValue expiry;
+};
+
+class BinprotSubdocMultiMutationResponse : public BinprotResponse {
+public:
+    struct MutationResult {
+        uint8_t index;
+        protocol_binary_response_status status;
+        std::string value;
+    };
+
+    void assign(std::vector<uint8_t>&& buf) override;
+
+    void clear() override {
+        BinprotResponse::clear();
+        results.clear();
+    }
+
+    const std::vector<MutationResult>& getResults() const {
+        return results;
+    }
+
+protected:
+    std::vector<MutationResult> results;
+};
+
+class BinprotSubdocMultiLookupCommand
+        : public BinprotCommandT<BinprotSubdocMultiLookupCommand,
+                                 PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP> {
+public:
+    struct LookupSpecifier {
+        protocol_binary_command opcode;
+        protocol_binary_subdoc_flag flags;
+        std::string path;
+    };
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+    BinprotSubdocMultiLookupCommand& addLookup(const LookupSpecifier& spec) {
+        specs.push_back(spec);
+        return *this;
+    }
+
+    BinprotSubdocMultiLookupCommand& addLookup(
+            const std::string& path,
+            protocol_binary_command opcode = PROTOCOL_BINARY_CMD_SUBDOC_GET,
+            protocol_binary_subdoc_flag flags = SUBDOC_FLAG_NONE) {
+        return addLookup({opcode, flags, path});
+    }
+
+    BinprotSubdocMultiLookupCommand& addGet(
+            const std::string& path,
+            protocol_binary_subdoc_flag flags = SUBDOC_FLAG_NONE) {
+        return addLookup(path, PROTOCOL_BINARY_CMD_SUBDOC_GET, flags);
+    }
+    BinprotSubdocMultiLookupCommand& addExists(
+            const std::string& path,
+            protocol_binary_subdoc_flag flags = SUBDOC_FLAG_NONE) {
+        return addLookup(path, PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, flags);
+    }
+    BinprotSubdocMultiLookupCommand& addGetcount(
+            const std::string& path,
+            protocol_binary_subdoc_flag flags = SUBDOC_FLAG_NONE) {
+        return addLookup(path, PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, flags);
+    }
+
+    void clearLookups() {
+        specs.clear();
+    }
+
+    LookupSpecifier& at(size_t index) {
+        return specs.at(index);
+    }
+
+    LookupSpecifier& operator[](size_t index) {
+        return specs[index];
+    }
+
+    bool empty() const {
+        return specs.empty();
+    }
+
+    size_t size() const {
+        return specs.size();
+    }
+
+    /**
+     * This is used for testing only!
+     */
+    BinprotSubdocMultiLookupCommand& setExpiry_Unsupported(uint32_t expiry_) {
+        expiry.assign(expiry_);
+        return *this;
+    }
+
+protected:
+    std::vector<LookupSpecifier> specs;
+    ExpiryValue expiry;
+};
+
+class BinprotSubdocMultiLookupResponse : public BinprotResponse {
+public:
+    struct LookupResult {
+        protocol_binary_response_status status;
+        std::string value;
+    };
+
+    const std::vector<LookupResult>& getResults() const {
+        return results;
+    }
+
+    virtual void clear() override {
+        BinprotResponse::clear();
+        results.clear();
+    }
+
+    virtual void assign(std::vector<uint8_t>&& srcbuf) override;
+
+protected:
+    std::vector<LookupResult> results;
 };
 
 class BinprotSaslAuthCommand
