@@ -30,7 +30,7 @@
 #include <platform/dirutils.h>
 #include <platform/backtrace.h>
 #include "memcached/openssl.h"
-#include "programs/utilities.h"
+#include "utilities.h"
 #include "utilities/protocol2text.h"
 #include "daemon/topkeys.h"
 

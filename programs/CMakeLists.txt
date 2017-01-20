@@ -1,4 +1,4 @@
-ADD_LIBRARY(mcutils STATIC utilities.cc utilities.h
+ADD_LIBRARY(mcutils STATIC
             hostname_utils.cc hostname_utils.h)
 TARGET_LINK_LIBRARIES(mcutils mcbp cbsasl ${COUCHBASE_NETWORK_LIBS})
 

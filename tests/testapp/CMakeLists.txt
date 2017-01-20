@@ -39,7 +39,9 @@ list(APPEND TESTAPP_SOURCES
      testapp_tests.cc
      testapp_timeout.cc
      testapp_xattr.cc
-     testapp_xattr.h)
+     testapp_xattr.h
+     utilities.cc
+     utilities.h)
 
 if (NOT WIN32)
     list(APPEND TESTAPP_SOURCES

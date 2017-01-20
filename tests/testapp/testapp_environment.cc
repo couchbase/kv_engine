@@ -16,7 +16,7 @@
  */
 #include "config.h"
 
-#include "programs/utilities.h"
+#include "utilities.h"
 #include "testapp_environment.h"
 
 #include <cJSON_utils.h>
