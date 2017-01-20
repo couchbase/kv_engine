@@ -2111,7 +2111,7 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
      * delete.
      */
     if (itm && v) {
-        v->setValue(*itm, vb->ht, true);
+        v->setValue(*itm, vb->ht, PreserveRevSeqno::Yes);
     }
     delrv = vb->ht.unlocked_softDelete(v, *cas, eviction_policy);
     if (v && (delrv == MutationStatus::NotFound ||
@@ -3275,12 +3275,7 @@ public:
                     setStatus(ENGINE_SUCCESS);
                 }
             } else {
-                MutationStatus mtype = vb->ht.set(
-                        *it,
-                        /*cas*/ 0,
-                        true,
-                        true,
-                        engine.getKVBucket()->getItemEvictionPolicy());
+                MutationStatus mtype = vb->setFromInternal(*it, true);
 
                 if (mtype == MutationStatus::NoMem) {
                     setStatus(ENGINE_ENOMEM);
@@ -3325,7 +3320,7 @@ void KVBucket::rollbackCheckpoint(RCPtr<VBucket> &vb,
             gcb.waitForValue();
 
             if (gcb.val.getStatus() == ENGINE_SUCCESS) {
-                vb->ht.set(*gcb.val.getValue(), 0, true);
+                vb->setFromInternal(*gcb.val.getValue(), true);
             } else {
                 vb->ht.del(item->getKey());
             }

@@ -266,43 +266,52 @@ public:
     Item *getRandomKey(long rnd);
 
     /**
-     * Set a new Item into this hashtable. Use this function when your item
-     * doesn't contain meta data.
+     * Set an Item into the this hashtable
      *
      * @param val the Item to store
-     * @param policy item eviction policy
+     * @param preserveRevSeqno should we keep the same revision seqno or
+     *        increment it
+     *
      * @return a result indicating the status of the store
      */
-    MutationStatus set(Item& val, item_eviction_policy_t policy = VALUE_ONLY) {
-        return set(val, val.getCas(), true, false, policy);
-    }
+    MutationStatus set(
+            Item& val,
+            PreserveRevSeqno preserveRevSeqno = PreserveRevSeqno::No);
 
     /**
-     * Set an Item into the this hashtable. Use this function to do a set
-     * when your item includes meta data.
+     * Updates an existing StoredValue in the HT.
+     * Assumes that HT bucket lock is grabbed.
      *
-     * @param val the Item to store
-     * @param cas This is the cas value for the item <b>in</b> the cache
-     * @param allowExisting should we allow existing items or not
-     * @param hasMetaData should we keep the same revision seqno or increment it
-     * @param policy item eviction policy
-     * @param isReplication true if issued by consumer (for replication)
-     * @return a result indicating the status of the store
+     * @param htLock Hash table lock that must be held.
+     * @param v Reference to the StoredValue to be updated.
+     * @param itm Item to be updated. On success, its revSeqno is updated
+     * @param preserveRevSeqno should we keep the same revision seqno or
+     *        increment it
+     *
+     * @return Result indicating the status of the operation
      */
-    MutationStatus set(Item& val,
-                       uint64_t cas,
-                       bool allowExisting,
-                       bool hasMetaData = true,
-                       item_eviction_policy_t policy = VALUE_ONLY);
+    MutationStatus unlocked_updateStoredValue(
+            const std::unique_lock<std::mutex>& htLock,
+            StoredValue& v,
+            Item& itm,
+            PreserveRevSeqno preserveRevSeqno);
 
-    MutationStatus unlocked_set(StoredValue*& v,
-                                Item& val,
-                                uint64_t cas,
-                                bool allowExisting,
-                                bool hasMetaData = true,
-                                item_eviction_policy_t policy = VALUE_ONLY,
-                                bool maybeKeyExists = true,
-                                bool isReplication = false);
+    /**
+     * Adds a new StoredValue in the HT.
+     * Assumes that HT bucket lock is grabbed.
+     *
+     * @param htLock Hash table lock that must be held.
+     * @param itm Item to be added. Its revSeqno maybe updated
+     * @param preserveRevSeqno should we keep the same revision seqno or
+     *        increment it
+     *
+     * @return Ptr of the StoredValue added. This function always succeeds and
+     *         returns non-null ptr
+     */
+    StoredValue* unlocked_addNewStoredValue(
+            const std::unique_lock<std::mutex>& htLock,
+            Item& itm,
+            PreserveRevSeqno preserveRevSeqno);
 
     /**
      * Insert an item to this hashtable. This is called from the backfill

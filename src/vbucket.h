@@ -647,6 +647,21 @@ public:
                            const RememberingCallback<GetValue>& gcb);
 
     /**
+     * Set (add new or update) an item into in-memory structure like
+     * hash table and do not generate a seqno. This is called internally from
+     * ep-engine when we want to update our in-memory data (like in HT) with
+     * another source of truth like disk.
+     * Currently called during rollback.
+     *
+     * @param itm Item to be added or updated. Upon success, the itm
+     *            revSeqno are updated
+     * @param hasMetaData
+     *
+     * @return Result indicating the status of the operation
+     */
+    MutationStatus setFromInternal(Item& itm, bool hasMetaData);
+
+    /**
      * Set (add new or update) an item in the vbucket.
      *
      * @param itm Item to be added or updated. Upon success, the itm
@@ -753,6 +768,35 @@ public:
 
     std::atomic<size_t>  numExpiredItems;
 
+protected:
+    /**
+     * This function checks cas, expiry and other partition (vbucket) related
+     * rules before setting an item into other in-memory structure like HT,
+     * and checkpoint mgr. This function assumes that HT bucket lock is grabbed.
+     *
+     * @param htLock Hash table lock that must be held
+     * @param v Reference to the ptr of StoredValue. This can be changed if a
+     *          new StoredValue is added or just its contents is changed if the
+     *          exisiting StoredValue is updated
+     * @param itm Item to be added/updated. On success, its revSeqno is updated
+     * @param cas value to match
+     * @param allowExisting set to false if you want set to fail if the
+     *                      item exists already
+     * @param hasMetaData
+     * @param maybeKeyExists true if bloom filter predicts that key may exist
+     * @param isReplication true if issued by consumer (for replication)
+     *
+     * @return Result indicating the status of the operation
+     */
+    MutationStatus processSet(const std::unique_lock<std::mutex>& htLock,
+                              StoredValue*& v,
+                              Item& itm,
+                              uint64_t cas,
+                              bool allowExisting,
+                              bool hasMetaData,
+                              bool maybeKeyExists = true,
+                              bool isReplication = false);
+
 private:
     template <typename T>
     void addStat(const char *nm, const T &val, ADD_STAT add_stat, const void *c);
@@ -778,6 +822,38 @@ private:
     void updateBGStats(const hrtime_t init,
                        const hrtime_t start,
                        const hrtime_t stop);
+
+    /**
+     * Updates an existing StoredValue in in-memory data structures like HT.
+     * Assumes that HT bucket lock is grabbed.
+     *
+     * @param htLock Hash table lock that must be held
+     * @param v Reference to the StoredValue to be updated.
+     * @param itm Item to be updated. On success, its revSeqno is updated
+     * @param preserveRevSeqno should we keep the same revision seqno or
+     *        increment it
+     *
+     * @return Result indicating the status of the operation
+     */
+    MutationStatus updateStoredValue(const std::unique_lock<std::mutex>& htLock,
+                                     StoredValue& v,
+                                     Item& itm,
+                                     PreserveRevSeqno preserveRevSeqno);
+
+    /**
+     * Adds a new StoredValue in in-memory data structures like HT.
+     * Assumes that HT bucket lock is grabbed.
+     *
+     * @param htLock Hash table lock that must be held
+     * @param itm Item to be added. On success, its revSeqno is updated
+     * @param preserveRevSeqno should we keep the same revision seqno or
+     *        increment it
+     *
+     * @return Ptr of the StoredValue added.
+     */
+    StoredValue* addNewStoredValue(const std::unique_lock<std::mutex>& htLock,
+                                   Item& itm,
+                                   PreserveRevSeqno preserveRevSeqno);
 
     id_type                         id;
     std::atomic<vbucket_state_t>    state;

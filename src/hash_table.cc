@@ -243,116 +243,82 @@ Item* HashTable::getRandomKey(long rnd) {
 }
 
 MutationStatus HashTable::set(Item& val,
-                              uint64_t cas,
-                              bool allowExisting,
-                              bool hasMetaData,
-                              item_eviction_policy_t policy) {
-    int bucket_num(0);
-    std::unique_lock<std::mutex> lh = getLockedBucket(val.getKey(), &bucket_num);
-    StoredValue *v = unlocked_find(val.getKey(), bucket_num, true, false);
-    return unlocked_set(v, val, cas, allowExisting, hasMetaData, policy);
-}
-
-MutationStatus HashTable::unlocked_set(StoredValue*& v,
-                                       Item& itm,
-                                       uint64_t cas,
-                                       bool allowExisting,
-                                       bool hasMetaData,
-                                       item_eviction_policy_t policy,
-                                       bool maybeKeyExists,
-                                       bool isReplication) {
-    if (!isActive()) {
-        throw std::logic_error("HashTable::unlocked_set: Cannot call on a "
-                "non-active object");
-    }
-
-    if (!StoredValue::hasAvailableSpace(stats, itm, isReplication)) {
+                              const PreserveRevSeqno preserveRevSeqno) {
+    if (!StoredValue::hasAvailableSpace(stats, val, false)) {
         return MutationStatus::NoMem;
     }
 
-    MutationStatus rv = MutationStatus::NotFound;
-
-    if (cas && policy == FULL_EVICTION && maybeKeyExists) {
-        if (!v || v->isTempInitialItem()) {
-            return MutationStatus::NeedBgFetch;
-        }
-    }
-
-    /*
-     * prior to checking for the lock, we should check if this object
-     * has expired. If so, then check if CAS value has been provided
-     * for this set op. In this case the operation should be denied since
-     * a cas operation for a key that doesn't exist is not a very cool
-     * thing to do. See MB 3252
-     */
-    if (v && v->isExpired(ep_real_time()) && !hasMetaData) {
-        if (v->isLocked(ep_current_time())) {
-            v->unlock();
-        }
-        if (cas) {
-            /* item has expired and cas value provided. Deny ! */
-            return MutationStatus::NotFound;
-        }
-    }
-
+    int bucket_num(0);
+    std::unique_lock<std::mutex> lh = getLockedBucket(val.getKey(), &bucket_num);
+    StoredValue* v = unlocked_find(val.getKey(), bucket_num, true, false);
     if (v) {
-        if (!allowExisting && !v->isTempItem()) {
-            return MutationStatus::InvalidCas;
-        }
-        if (v->isLocked(ep_current_time())) {
-            /*
-             * item is locked, deny if there is cas value mismatch
-             * or no cas value is provided by the user
-             */
-            if (cas != v->getCas()) {
-                return MutationStatus::IsLocked;
-            }
-            /* allow operation*/
-            v->unlock();
-        } else if (cas && cas != v->getCas()) {
-            if (v->isTempDeletedItem() ||
-                v->isTempNonExistentItem() ||
-                v->isDeleted()) {
-                return MutationStatus::NotFound;
-            }
-            return MutationStatus::InvalidCas;
-        }
-
-        rv = v->isClean() ? MutationStatus::WasClean : MutationStatus::WasDirty;
-        if (!v->isResident() && !v->isDeleted() && !v->isTempItem()) {
-            decrNumNonResidentItems();
-        }
-
-        if (v->isTempItem()) {
-            --numTempItems;
-            ++numItems;
-            ++numTotalItems;
-        }
-
-        v->setValue(itm, *this, hasMetaData /*Preserve revSeqno*/);
-
-    } else if (cas != 0) {
-        rv = MutationStatus::NotFound;
+        return unlocked_updateStoredValue(lh, *v, val, preserveRevSeqno);
     } else {
-        int bucket_num = getBucketForHash(itm.getKey().hash());
-        v = valFact(itm, values[bucket_num], *this);
-        values[bucket_num] = v;
+        unlocked_addNewStoredValue(lh, val, preserveRevSeqno);
+        return MutationStatus::WasClean;
+    }
+}
+
+MutationStatus HashTable::unlocked_updateStoredValue(
+        const std::unique_lock<std::mutex>& htLock,
+        StoredValue& v,
+        Item& itm,
+        const PreserveRevSeqno preserveRevSeqno) {
+    if (!htLock) {
+        throw std::invalid_argument(
+                "HashTable::unlocked_updateStoredValue: htLock "
+                "not held");
+    }
+
+    if (!isActive()) {
+        throw std::logic_error(
+                "HashTable::unlocked_updateStoredValue: Cannot "
+                "call on a non-active HT object");
+    }
+
+    MutationStatus status =
+            v.isClean() ? MutationStatus::WasClean : MutationStatus::WasDirty;
+    if (!v.isResident() && !v.isDeleted() && !v.isTempItem()) {
+        decrNumNonResidentItems();
+    }
+
+    if (v.isTempItem()) {
+        --numTempItems;
         ++numItems;
         ++numTotalItems;
-
-        if (!hasMetaData) {
-            /**
-             * Possibly, this item is being recreated. Conservatively assign it
-             * a seqno that is greater than the greatest seqno of all deleted
-             * items seen so far.
-             */
-            uint64_t seqno = getMaxDeletedRevSeqno() + 1;
-            v->setRevSeqno(seqno);
-            itm.setRevSeqno(seqno);
-        }
-        rv = MutationStatus::WasClean;
     }
-    return rv;
+
+    v.setValue(itm, *this, preserveRevSeqno);
+    return status;
+}
+
+StoredValue* HashTable::unlocked_addNewStoredValue(
+        const std::unique_lock<std::mutex>& htLock,
+        Item& itm,
+        const PreserveRevSeqno preserveRevSeqno) {
+    if (!isActive()) {
+        throw std::invalid_argument(
+                "HashTable::unlocked_addNewStoredValue: Cannot "
+                "call on a non-active HT object");
+    }
+
+    int bucket_num = getBucketForHash(itm.getKey().hash());
+    StoredValue* v = valFact(itm, values[bucket_num], *this);
+    values[bucket_num] = v;
+    ++numItems;
+    ++numTotalItems;
+
+    if (preserveRevSeqno == PreserveRevSeqno::No) {
+        /**
+         * Possibly, this item is being recreated. Conservatively assign it
+         * a seqno that is greater than the greatest seqno of all deleted
+         * items seen so far.
+         */
+        uint64_t seqno = getMaxDeletedRevSeqno() + 1;
+        v->setRevSeqno(seqno);
+        itm.setRevSeqno(seqno);
+    }
+    return v;
 }
 
 MutationStatus HashTable::insert(Item& itm,
@@ -409,7 +375,7 @@ MutationStatus HashTable::insert(Item& itm,
             ++numTotalItems;
         }
 
-        v->setValue(const_cast<Item&>(itm), *this, true);
+        v->setValue(const_cast<Item&>(itm), *this, PreserveRevSeqno::Yes);
     }
 
     v->markClean();
@@ -472,7 +438,10 @@ AddStatus HashTable::unlocked_add(const int bucket_num,
                 ++numItems;
                 ++numTotalItems;
             }
-            v->setValue(itm, *this, v->isTempItem() ? true : false);
+            v->setValue(itm,
+                        *this,
+                        v->isTempItem() ? PreserveRevSeqno::Yes
+                                        : PreserveRevSeqno::No);
             if (isDirty) {
                 v->markDirty();
             } else {

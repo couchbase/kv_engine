@@ -35,32 +35,77 @@ public:
     void callback(uint16_t &dummy) { }
 };
 
+class MockVBucket : public VBucket {
+public:
+    MockVBucket(id_type i,
+                vbucket_state_t newState,
+                EPStats& st,
+                CheckpointConfig& chkConfig,
+                KVShard* kvshard,
+                int64_t lastSeqno,
+                uint64_t lastSnapStart,
+                uint64_t lastSnapEnd,
+                std::unique_ptr<FailoverTable> table,
+                std::shared_ptr<Callback<id_type>> flusherCb,
+                NewSeqnoCallback newSeqnoCb,
+                Configuration& config,
+                item_eviction_policy_t evictionPolicy,
+                vbucket_state_t initState = vbucket_state_dead,
+                uint64_t purgeSeqno = 0,
+                uint64_t maxCas = 0)
+        : VBucket(i,
+                  vbucket_state_active,
+                  st,
+                  chkConfig,
+                  kvshard,
+                  lastSeqno,
+                  lastSnapStart,
+                  lastSnapEnd,
+                  nullptr,
+                  flusherCb,
+                  nullptr,
+                  config,
+                  evictionPolicy,
+                  initState,
+                  purgeSeqno,
+                  maxCas) {
+    }
+
+    MutationStatus public_processSet(Item& itm, const uint64_t cas) {
+        int bucket_num(0);
+        auto lh = ht.getLockedBucket(itm.getKey(), &bucket_num);
+        StoredValue* v =
+                ht.unlocked_find(itm.getKey(), bucket_num, true, false);
+        return processSet(lh, v, itm, cas, true, false);
+    }
+};
+
 class VBucketTest
         : public ::testing::Test,
           public ::testing::WithParamInterface<item_eviction_policy_t> {
 protected:
     void SetUp() {
         const auto eviction_policy = GetParam();
-        vbucket.reset(new VBucket(0,
-                                  vbucket_state_active,
-                                  global_stats,
-                                  checkpoint_config,
-                                  /*kvshard*/ nullptr,
-                                  /*lastSeqno*/ 1000,
-                                  /*lastSnapStart*/ 0,
-                                  /*lastSnapEnd*/ 0,
-                                  /*table*/ nullptr,
-                                  std::make_shared<DummyCB>(),
-                                  /*newSeqnoCb*/ nullptr,
-                                  config,
-                                  eviction_policy));
+        vbucket.reset(new MockVBucket(0,
+                                      vbucket_state_active,
+                                      global_stats,
+                                      checkpoint_config,
+                                      /*kvshard*/ nullptr,
+                                      /*lastSeqno*/ 1000,
+                                      /*lastSnapStart*/ 0,
+                                      /*lastSnapEnd*/ 0,
+                                      /*table*/ nullptr,
+                                      std::make_shared<DummyCB>(),
+                                      /*newSeqnoCb*/ nullptr,
+                                      config,
+                                      eviction_policy));
     }
 
     void TearDown() {
         vbucket.reset();
     }
 
-    std::unique_ptr<VBucket> vbucket;
+    std::unique_ptr<MockVBucket> vbucket;
     EPStats global_stats;
     CheckpointConfig checkpoint_config;
     Configuration config;
@@ -109,7 +154,7 @@ TEST_P(VBucketEvictionTest, EjectionResidentCount) {
               /*data*/nullptr, /*ndata*/0);
 
     EXPECT_EQ(MutationStatus::WasClean,
-              this->vbucket->ht.set(item, eviction_policy));
+              this->vbucket->public_processSet(item, item.getCas()));
 
     EXPECT_EQ(1, this->vbucket->getNumItems(eviction_policy));
     EXPECT_EQ(0, this->vbucket->getNumNonResidentItems(eviction_policy));
@@ -127,6 +172,25 @@ TEST_P(VBucketEvictionTest, EjectionResidentCount) {
     // 1 non-resident item.
     EXPECT_EQ(1, this->vbucket->getNumItems(eviction_policy));
     EXPECT_EQ(1, this->vbucket->getNumNonResidentItems(eviction_policy));
+}
+
+// Regression test for MB-21448 - if an attempt is made to perform a CAS
+// operation on a logically deleted item we should return NOT_FOUND
+// (aka KEY_ENOENT) and *not* INVALID_CAS (aka KEY_EEXISTS).
+TEST_P(VBucketEvictionTest, MB21448_UnlockedSetWithCASDeleted) {
+    // Setup - create a key and then delete it.
+    StoredDocKey key = makeStoredDocKey("key");
+    Item item(key, 0, 0, "deleted", strlen("deleted"));
+    ASSERT_EQ(MutationStatus::WasClean,
+              this->vbucket->public_processSet(item, item.getCas()));
+    ASSERT_EQ(MutationStatus::WasDirty, this->vbucket->ht.softDelete(key, 0));
+
+    // Attempt to perform a set on a deleted key with a CAS.
+    Item replacement(key, 0, 0, "value", strlen("value"));
+    EXPECT_EQ(MutationStatus::NotFound,
+              this->vbucket->public_processSet(replacement,
+                                               /*cas*/ 10))
+            << "When trying to replace-with-CAS a deleted item";
 }
 
 // Test cases which run in both Full and Value eviction

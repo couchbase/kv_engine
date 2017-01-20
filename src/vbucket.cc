@@ -1050,6 +1050,12 @@ void VBucket::completeStatsVKey(const DocKey& key,
     }
 }
 
+MutationStatus VBucket::setFromInternal(Item& itm, const bool hasMetaData) {
+    const PreserveRevSeqno preserveRevSeqno =
+            hasMetaData ? PreserveRevSeqno::Yes : PreserveRevSeqno::No;
+    return ht.set(itm, preserveRevSeqno);
+}
+
 ENGINE_ERROR_CODE VBucket::set(Item& itm,
                                const void* cookie,
                                EventuallyPersistentEngine& engine,
@@ -1078,8 +1084,8 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
         }
     }
 
-    MutationStatus mtype = ht.unlocked_set(
-            v, itm, itm.getCas(), true, false, eviction, maybeKeyExists);
+    MutationStatus mtype =
+            processSet(lh, v, itm, itm.getCas(), true, false, maybeKeyExists);
 
     uint64_t seqno = 0;
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
@@ -1147,7 +1153,7 @@ ENGINE_ERROR_CODE VBucket::replace(Item& itm,
         if (eviction == FULL_EVICTION && v->isTempInitialItem()) {
             mtype = MutationStatus::NeedBgFetch;
         } else {
-            mtype = ht.unlocked_set(v, itm, 0, true, false, eviction);
+            mtype = processSet(lh, v, itm, 0, true, false);
         }
 
         uint64_t seqno = 0;
@@ -1215,7 +1221,7 @@ ENGINE_ERROR_CODE VBucket::addTAPBackfillItem(Item& itm,
     if (v && v->isLocked(ep_current_time())) {
         v->unlock();
     }
-    MutationStatus mtype = ht.unlocked_set(v, itm, 0, true, true, eviction);
+    MutationStatus mtype = processSet(lh, v, itm, 0, true, true);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (mtype) {
@@ -1304,14 +1310,14 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
         v->unlock();
     }
 
-    MutationStatus mtype = ht.unlocked_set(v,
-                                           itm,
-                                           cas,
-                                           allowExisting,
-                                           true,
-                                           eviction,
-                                           maybeKeyExists,
-                                           isReplication);
+    MutationStatus mtype = processSet(lh,
+                                      v,
+                                      itm,
+                                      cas,
+                                      allowExisting,
+                                      true,
+                                      maybeKeyExists,
+                                      isReplication);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (mtype) {
@@ -1460,4 +1466,93 @@ void VBucket::updateBGStats(const hrtime_t init,
         atomic_setIfLess(stats.bgMinLoad, l);
         atomic_setIfBigger(stats.bgMaxLoad, l);
     }
+}
+
+MutationStatus VBucket::processSet(const std::unique_lock<std::mutex>& htLock,
+                                   StoredValue*& v,
+                                   Item& itm,
+                                   const uint64_t cas,
+                                   const bool allowExisting,
+                                   const bool hasMetaData,
+                                   const bool maybeKeyExists,
+                                   const bool isReplication) {
+    if (!htLock) {
+        throw std::invalid_argument(
+                "VBucket::processSet: htLock not held for "
+                "VBucket " +
+                std::to_string(getId()));
+    }
+
+    if (!StoredValue::hasAvailableSpace(stats, itm, isReplication)) {
+        return MutationStatus::NoMem;
+    }
+
+    if (cas && eviction == FULL_EVICTION && maybeKeyExists) {
+        if (!v || v->isTempInitialItem()) {
+            return MutationStatus::NeedBgFetch;
+        }
+    }
+
+    /*
+     * prior to checking for the lock, we should check if this object
+     * has expired. If so, then check if CAS value has been provided
+     * for this set op. In this case the operation should be denied since
+     * a cas operation for a key that doesn't exist is not a very cool
+     * thing to do. See MB 3252
+     */
+    if (v && v->isExpired(ep_real_time()) && !hasMetaData) {
+        if (v->isLocked(ep_current_time())) {
+            v->unlock();
+        }
+        if (cas) {
+            /* item has expired and cas value provided. Deny ! */
+            return MutationStatus::NotFound;
+        }
+    }
+
+    const PreserveRevSeqno preserveRevSeqno =
+            hasMetaData ? PreserveRevSeqno::Yes : PreserveRevSeqno::No;
+    if (v) {
+        if (!allowExisting && !v->isTempItem()) {
+            return MutationStatus::InvalidCas;
+        }
+        if (v->isLocked(ep_current_time())) {
+            /*
+             * item is locked, deny if there is cas value mismatch
+             * or no cas value is provided by the user
+             */
+            if (cas != v->getCas()) {
+                return MutationStatus::IsLocked;
+            }
+            /* allow operation*/
+            v->unlock();
+        } else if (cas && cas != v->getCas()) {
+            if (v->isTempDeletedItem() || v->isTempNonExistentItem() ||
+                v->isDeleted()) {
+                return MutationStatus::NotFound;
+            }
+            return MutationStatus::InvalidCas;
+        }
+        return updateStoredValue(htLock, *v, itm, preserveRevSeqno);
+    } else if (cas != 0) {
+        return MutationStatus::NotFound;
+    } else {
+        v = addNewStoredValue(htLock, itm, preserveRevSeqno);
+        return MutationStatus::WasClean;
+    }
+}
+
+MutationStatus VBucket::updateStoredValue(
+        const std::unique_lock<std::mutex>& htLock,
+        StoredValue& v,
+        Item& itm,
+        const PreserveRevSeqno preserveRevSeqno) {
+    return ht.unlocked_updateStoredValue(htLock, v, itm, preserveRevSeqno);
+}
+
+StoredValue* VBucket::addNewStoredValue(
+        const std::unique_lock<std::mutex>& htLock,
+        Item& itm,
+        const PreserveRevSeqno preserveRevSeqno) {
+    return ht.unlocked_addNewStoredValue(htLock, itm, preserveRevSeqno);
 }

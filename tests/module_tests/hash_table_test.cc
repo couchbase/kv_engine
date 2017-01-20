@@ -576,7 +576,7 @@ TEST_F(HashTableTest, ItemAge) {
     // Check changing age when new value is used.
     Item item2(key, 0, 0, "value2", strlen("value2"));
     item2.getValue()->incrementAge();
-    v->setValue(item2, ht, false);
+    v->setValue(item2, ht, PreserveRevSeqno::No);
     EXPECT_EQ(1, v->getValue()->getAge());
 }
 
@@ -616,28 +616,6 @@ TEST_F(HashTableTest, NRUMinimum) {
     EXPECT_EQ(MIN_NRU_VALUE, v->getNRUValue());
 }
 
-/** Regression test for MB-21448 - if an attempt is made to perform a CAS
- *  operation on a logically deleted item we should return NOT_FOUND
- *  (aka KEY_ENOENT) and *not* INVALID_CAS (aka KEY_EEXISTS).
- */
-TEST_F(HashTableTest, MB21448_UnlockedSetWithCASDeleted) {
-    // Setup - create a key and then delete it.
-    HashTable ht(global_stats, 5, 1);
-    StoredDocKey key = makeStoredDocKey("key");
-    Item item(key, 0, 0, "deleted", strlen("deleted"));
-    ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
-    ASSERT_EQ(MutationStatus::WasDirty, ht.softDelete(key, 0));
-
-    // Attempt to perform a set on a deleted key with a CAS.
-    Item replacement(key, 0, 0, "value", strlen("value"));
-    EXPECT_EQ(MutationStatus::NotFound,
-              ht.set(replacement,
-                     /*cas*/ 10,
-                     /*allowExisting*/ true,
-                     /*hasMetaData*/ false))
-            << "When trying to replace-with-CAS a deleted item";
-}
-
 /** Test to check if an unlocked_softDelete performed on an
  *  existing item with a new value results in a success
  */
@@ -657,7 +635,7 @@ TEST_F(HashTableTest, unlockedSoftDeleteWithValue) {
     deleted_item.setDeleted();
 
     // Set a new deleted value
-    v->setValue(deleted_item, ht, true);
+    v->setValue(deleted_item, ht, PreserveRevSeqno::Yes);
 
     ItemMetaData itm_meta;
     EXPECT_EQ(MutationStatus::WasDirty,
@@ -687,7 +665,7 @@ TEST_F(HashTableTest, updateDeletedItem) {
     deleted_item.setDeleted();
 
     // Set a new deleted value
-    v->setValue(deleted_item, ht, true);
+    v->setValue(deleted_item, ht, PreserveRevSeqno::Yes);
 
     EXPECT_EQ(MutationStatus::WasDirty,
               ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));
@@ -698,7 +676,7 @@ TEST_F(HashTableTest, updateDeletedItem) {
     update_deleted_item.setDeleted();
 
     // Set a new deleted value
-    v->setValue(update_deleted_item, ht, true);
+    v->setValue(update_deleted_item, ht, PreserveRevSeqno::Yes);
 
     EXPECT_EQ(MutationStatus::WasDirty,
               ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));

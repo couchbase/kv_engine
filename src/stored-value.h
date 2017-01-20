@@ -30,6 +30,12 @@ class HashTable;
 class StoredValueFactory;
 
 /**
+ * Indicates if the rev seqno in the item being added/updated must be preserved
+ * or if a new one must be generated
+ */
+enum class PreserveRevSeqno : uint8_t { No, Yes };
+
+/**
  * In-memory storage for an item.
  */
 class StoredValue {
@@ -170,7 +176,9 @@ public:
      * @param ht the hashtable that contains this StoredValue instance
      * @param preserveSeqno Preserve the revision sequence number from the item.
      */
-    void setValue(Item &itm, HashTable &ht, bool preserveSeqno) {
+    void setValue(Item& itm,
+                  HashTable& ht,
+                  const PreserveRevSeqno preserveRevSeqno) {
         size_t currSize = size();
         reduceCacheSize(ht, currSize);
         value = itm.getValue();
@@ -180,7 +188,7 @@ public:
 
         cas = itm.getCas();
         exptime = itm.getExptime();
-        if (preserveSeqno) {
+        if (preserveRevSeqno == PreserveRevSeqno::Yes) {
             revSeqno = itm.getRevSeqno();
         } else {
             ++revSeqno;
@@ -489,6 +497,11 @@ public:
      */
     void reallocate();
 
+    /* [TBD] : Move this function out of StoredValue class */
+    static bool hasAvailableSpace(EPStats&,
+                                  const Item& item,
+                                  bool isReplication = false);
+
 private:
 
     StoredValue(const Item &itm, StoredValue *n, EPStats &stats, HashTable &ht,
@@ -553,8 +566,6 @@ private:
     static void reduceMetaDataSize(HashTable &ht, EPStats &st, size_t by);
     static void increaseCacheSize(HashTable &ht, size_t by);
     static void reduceCacheSize(HashTable &ht, size_t by);
-    static bool hasAvailableSpace(EPStats&, const Item &item,
-                                  bool isReplication=false);
     static double mutation_mem_threshold;
 
     DISALLOW_COPY_AND_ASSIGN(StoredValue);
