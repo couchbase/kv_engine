@@ -1,4 +1,0 @@
-IF (NOT WIN32)
-   ADD_EXECUTABLE(mcbasher mcbasher.cc)
-   TARGET_LINK_LIBRARIES(mcbasher platform ${COUCHBASE_NETWORK_LIBS})
-ENDIF (NOT WIN32)
