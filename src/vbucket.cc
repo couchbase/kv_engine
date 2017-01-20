@@ -703,54 +703,39 @@ size_t VBucket::getNumOfKeysInFilter() {
     }
 }
 
+/* [TBD]: Get rid of pHtLh */
 uint64_t VBucket::queueDirty(StoredValue& v,
                              std::unique_lock<std::mutex>* pHtLh,
                              const GenerateBySeqno generateBySeqno,
-                             const GenerateCas generateCas) {
+                             const GenerateCas generateCas,
+                             const bool isBackfillItem) {
     VBNotifyCtx notifyCtx;
     queued_item qi(v.toItem(false, getId()));
 
-    notifyCtx.notifyFlusher = checkpointManager.queueDirty(
-            *this, qi, generateBySeqno, generateCas);
-    v.setBySeqno(qi->getBySeqno());
-    notifyCtx.bySeqno = qi->getBySeqno();
-    notifyCtx.notifyReplication = true;
-
-    if (GenerateCas::Yes == generateCas) {
-        v.setCas(qi->getCas());
+    if (isBackfillItem) {
+        notifyCtx.notifyFlusher = queueBackfillItem(qi, generateBySeqno);
+        /* During backfill on a TAP receiver we need to update the snapshot
+         range in the checkpoint. Has to be done here because in case of TAP
+         backfill, above, we use vb.queueBackfillItem() instead of
+         vb.checkpointManager.queueDirty() */
+        if (generateBySeqno == GenerateBySeqno::Yes) {
+            checkpointManager.resetSnapshotRange();
+        }
+    } else {
+        notifyCtx.notifyFlusher = checkpointManager.queueDirty(
+                *this, qi, generateBySeqno, generateCas);
+        notifyCtx.bySeqno = qi->getBySeqno();
+        notifyCtx.notifyReplication = true;
+        if (GenerateCas::Yes == generateCas) {
+            v.setCas(qi->getCas());
+        }
     }
+
+    v.setBySeqno(qi->getBySeqno());
 
     if (pHtLh) {
         pHtLh->unlock();
     }
-
-    if (newSeqnoCb) {
-        newSeqnoCb->callback(getId(), notifyCtx);
-    }
-
-    return qi->getBySeqno();
-}
-
-/* [TBD]: Get rid of std::unique_lock<std::mutex> plh */
-uint64_t VBucket::tapQueueDirty(StoredValue* v,
-                                std::unique_lock<std::mutex> plh,
-                                const GenerateBySeqno generateBySeqno) {
-    VBNotifyCtx notifyCtx;
-    queued_item qi(v->toItem(false, getId()));
-
-    notifyCtx.notifyFlusher = queueBackfillItem(qi, generateBySeqno);
-
-    v->setBySeqno(qi->getBySeqno());
-
-    /* During backfill on a TAP receiver we need to update the snapshot
-     range in the checkpoint. Has to be done here because in case of TAP
-     backfill, above, we use vb.queueBackfillItem() instead of
-     vb.checkpointManager.queueDirty() */
-    if (GenerateBySeqno::Yes == generateBySeqno) {
-        checkpointManager.resetSnapshotRange();
-    }
-
-    plh.unlock();
 
     if (newSeqnoCb) {
         newSeqnoCb->callback(getId(), notifyCtx);
@@ -1239,9 +1224,11 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm, const bool genBySeqno) {
     // FALLTHROUGH
     case MutationStatus::WasClean:
         setMaxCas(v->getCas());
-        tapQueueDirty(v,
-                      std::move(lh),
-                      genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No);
+        queueDirty(*v,
+                   &lh,
+                   genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No,
+                   GenerateCas::No,
+                   true);
         break;
     case MutationStatus::NeedBgFetch:
         throw std::logic_error(
