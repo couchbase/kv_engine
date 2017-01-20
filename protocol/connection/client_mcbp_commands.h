@@ -33,7 +33,7 @@ public:
     virtual ~BinprotCommand() {
     }
 
-    uint8_t getOp() const {
+    protocol_binary_command getOp() const {
         return opcode;
     }
     const std::string& getKey() const {
