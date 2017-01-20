@@ -1211,8 +1211,7 @@ ENGINE_ERROR_CODE VBucket::replace(Item& itm,
     }
 }
 
-ENGINE_ERROR_CODE VBucket::addTAPBackfillItem(Item& itm,
-                                              const bool genBySeqno) {
+ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm, const bool genBySeqno) {
     int bucket_num(0);
     auto lh = ht.getLockedBucket(itm.getKey(), &bucket_num);
     StoredValue* v = ht.unlocked_find(itm.getKey(), bucket_num, true, false);
@@ -1246,7 +1245,7 @@ ENGINE_ERROR_CODE VBucket::addTAPBackfillItem(Item& itm,
         break;
     case MutationStatus::NeedBgFetch:
         throw std::logic_error(
-                "EventuallyPersistentStore::addTAPBackfillItem: "
+                "EventuallyPersistentStore::addBackfillItem: "
                 "SET on a non-active vbucket should not require a "
                 "bg_metadata_fetch.");
     }

@@ -182,14 +182,14 @@ public:
     virtual ENGINE_ERROR_CODE replace(Item &item, const void *cookie) = 0;
 
     /**
-     * Add an TAP backfill item into its corresponding vbucket
+     * Add an TAP backfill or DCP backfill item into its corresponding vbucket
      * @param item the item to be added
      * @param genBySeqno whether or not to generate sequence number
      * @return the result of the operation
      */
-    virtual ENGINE_ERROR_CODE addTAPBackfillItem(Item &item,
-                                         bool genBySeqno = true,
-                                         ExtendedMetaData *emd = NULL) = 0;
+    virtual ENGINE_ERROR_CODE addBackfillItem(Item& item,
+                                              bool genBySeqno = true,
+                                              ExtendedMetaData* emd = NULL) = 0;
 
     /**
      * Retrieve a value.

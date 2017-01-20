@@ -912,9 +912,9 @@ ENGINE_ERROR_CODE KVBucket::replace(Item &itm, const void *cookie) {
     return vb->replace(itm, cookie, engine, bgFetchDelay);
 }
 
-ENGINE_ERROR_CODE KVBucket::addTAPBackfillItem(Item &itm, bool genBySeqno,
-                                               ExtendedMetaData *emd) {
-
+ENGINE_ERROR_CODE KVBucket::addBackfillItem(Item& itm,
+                                            bool genBySeqno,
+                                            ExtendedMetaData* emd) {
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -935,7 +935,7 @@ ENGINE_ERROR_CODE KVBucket::addTAPBackfillItem(Item &itm, bool genBySeqno,
         return ENGINE_KEY_EEXISTS;
     }
 
-    return vb->addTAPBackfillItem(itm, genBySeqno);
+    return vb->addBackfillItem(itm, genBySeqno);
 }
 
 ENGINE_ERROR_CODE KVBucket::setVBucketState(uint16_t vbid,

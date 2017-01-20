@@ -694,15 +694,17 @@ public:
                               int bgFetchDelay);
 
     /**
-     * Add an TAP backfill item into its corresponding vbucket.
+     * Add an item directly into its vbucket rather than putting it on a
+     * checkpoint (backfill the item). The can happen during TAP or when a
+     * replica vbucket is receiving backfill items from active vbucket.
      *
-     * @param itm Item to be added/updated from TAP. Upon success, the itm
-     *            revSeqno is updated
+     * @param itm Item to be added/updated from TAP or DCP backfill. Upon
+     *            success, the itm revSeqno is updated
      * @param genBySeqno whether or not to generate sequence number
      *
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE addTAPBackfillItem(Item& itm, bool genBySeqno);
+    ENGINE_ERROR_CODE addBackfillItem(Item& itm, bool genBySeqno);
 
     /**
      * Set an item in the store from a non-front end operation (DCP, XDCR)
