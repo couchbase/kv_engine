@@ -502,9 +502,21 @@ protected:
 
     void readSsl(Frame& frame, size_t bytes);
 
-    void sendFramePlain(const Frame& frame);
+    void sendFramePlain(const Frame& frame) {
+        sendBufferPlain(cb::const_byte_buffer(frame.payload.data(),
+                                              frame.payload.size()));
+    }
 
-    void sendFrameSsl(const Frame& frame);
+    void sendFrameSsl(const Frame& frame) {
+        sendBufferSsl(cb::const_byte_buffer(frame.payload.data(),
+                                             frame.payload.size()));
+    }
+
+    void sendBuffer(cb::const_byte_buffer& buf);
+
+    void sendBufferPlain(cb::const_byte_buffer buf);
+
+    void sendBufferSsl(cb::const_byte_buffer buf);
 
     std::string host;
     in_port_t port;

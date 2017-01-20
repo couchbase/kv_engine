@@ -291,10 +291,10 @@ void MemcachedConnection::connect() {
     }
 }
 
-void MemcachedConnection::sendFrameSsl(const Frame& frame) {
-    const char* data = reinterpret_cast<const char*>(frame.payload.data());
-    Frame::size_type nbytes = frame.payload.size();
-    Frame::size_type offset = 0;
+void MemcachedConnection::sendBufferSsl(cb::const_byte_buffer buf) {
+    const char* data = reinterpret_cast<const char*>(buf.data());
+    cb::const_byte_buffer::size_type nbytes = buf.size();
+    cb::const_byte_buffer::size_type offset = 0;
 
     while (offset < nbytes) {
         int nw = BIO_write(bio, data + offset, nbytes - offset);
@@ -308,10 +308,10 @@ void MemcachedConnection::sendFrameSsl(const Frame& frame) {
     }
 }
 
-void MemcachedConnection::sendFramePlain(const Frame& frame) {
-    const char* data = reinterpret_cast<const char*>(frame.payload.data());
-    Frame::size_type nbytes = frame.payload.size();
-    Frame::size_type offset = 0;
+void MemcachedConnection::sendBufferPlain(cb::const_byte_buffer buf) {
+    const char* data = reinterpret_cast<const char*>(buf.data());
+    cb::const_byte_buffer::size_type nbytes = buf.size();
+    cb::const_byte_buffer::size_type offset = 0;
 
     while (offset < nbytes) {
         auto nw = send(sock, data + offset, nbytes - offset, 0);
@@ -375,6 +375,14 @@ void MemcachedConnection::sendFrame(const Frame& frame) {
         sendFrameSsl(frame);
     } else {
         sendFramePlain(frame);
+    }
+}
+
+void MemcachedConnection::sendBuffer(cb::const_byte_buffer& buf) {
+    if (ssl) {
+        sendBufferSsl(buf);
+    } else {
+        sendBufferPlain(buf);
     }
 }
 
