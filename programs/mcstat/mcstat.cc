@@ -20,6 +20,7 @@
 #include <getopt.h>
 #include <iostream>
 #include <protocol/connection/client_mcbp_connection.h>
+#include <programs/hostname_utils.h>
 
 /**
  * Request a stat from the server
@@ -98,44 +99,6 @@ static void usage() {
               << "  statkey ...  Statistic(s) to request" << std::endl;
 }
 
-void decode_hostname(std::string& host, std::string& port,
-                     sa_family_t& family) {
-    auto idx = host.find(":");
-    if (idx == std::string::npos) {
-        family = AF_UNSPEC;
-    } else {
-        // An IPv6 address may contain colon... but then it's
-        // going to be more than one ...
-        auto last = host.rfind(":");
-        if (idx == last) {
-            port = host.substr(idx + 1);
-            host.resize(idx);
-            family = AF_INET;
-        } else {
-            family = AF_INET6;
-            // We have multiple ::, and it has to be enclosed with []
-            // if one of them specifies a port..
-            if (host[last - 1] == ']') {
-                if (host[0] != '[') {
-                    std::cerr << "Invalid IPv6 address specified. "
-                              << "Should be: \"[address]:port\""
-                              << std::endl;
-                    exit(EXIT_FAILURE);
-                }
-
-                port = host.substr(last + 1);
-                host.resize(last - 1);
-                host = host.substr(1);
-            }
-        }
-    }
-}
-
-static in_port_t decode_port(const std::string& port) {
-    // @todo lookup port if it is named!
-    return static_cast<in_port_t>(std::stoi(port));
-}
-
 int main(int argc, char** argv) {
     int cmd;
     std::string port{"11210"};
@@ -161,7 +124,6 @@ int main(int argc, char** argv) {
             break;
         case 'h' :
             host.assign(optarg);
-            decode_hostname(host, port, family);
             break;
         case 'p':
             port.assign(optarg);
@@ -191,12 +153,21 @@ int main(int argc, char** argv) {
     }
 
     try {
+        in_port_t in_port;
+        sa_family_t fam;
+        std::tie(host, in_port, fam) = cb::inet::parse_hostname(host, port);
+
+        if (family == AF_UNSPEC) { // The user may have used -4 or -6
+            family = fam;
+        }
         MemcachedBinprotConnection connection(host,
-                                              decode_port(port),
+                                              in_port,
                                               family,
                                               secure);
 
-        connection.hello("mcset", "", "command line utitilty to fetch stats");
+        // MEMCACHED_VERSION contains the git sha
+        connection.hello("mcstat", MEMCACHED_VERSION,
+                         "command line utitilty to fetch stats");
 
         if (!user.empty()) {
             connection.authenticate(user, password,
