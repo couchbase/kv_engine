@@ -20,6 +20,12 @@
 #include <platform/platform.h>
 #include <system_error>
 
+#ifdef _MSC_VER
+// We need to add the right __declspec magic to the system types
+// to avoid msvc to spit out warnings
+class ENGINE_UTILITIES_PUBLIC_API std::system_error;
+#endif
+
 namespace cb {
 /**
  * The Error enum contains all of the various error codes the engines
