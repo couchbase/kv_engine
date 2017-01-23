@@ -26,8 +26,9 @@
 #include "src/internal.h"
 #include "tests/test_fileops.h"
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
+#include <kvstore.h>
 #include <unordered_map>
 #include <vector>
 
@@ -503,10 +504,10 @@ protected:
 
     vb_bgfetch_queue_t make_bgfetch_queue() {
         vb_bgfetch_queue_t itms;
-        vb_bgfetch_item_ctx_t ctx;
-        ctx.isMetaOnly = false;
         for(const auto& item: items) {
-            itms[item.getKey()] = ctx;
+            vb_bgfetch_item_ctx_t ctx;
+            ctx.isMetaOnly = false;
+            itms[item.getKey()] = std::move(ctx);
         }
         return itms;
     }

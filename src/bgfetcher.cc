@@ -65,7 +65,9 @@ size_t BgFetcher::doFetch(VBucket::id_type vbId,
         const vb_bgfetch_item_ctx_t& bg_item_ctx = fetch.second;
 
         for (const auto& itm : bg_item_ctx.bgfetched_list) {
-            fetchedItems.push_back(std::make_pair(key, itm));
+            // We don't want to transfer ownership of itm here as we clean it
+            // up at the end of this method in clearItems()
+            fetchedItems.push_back(std::make_pair(key, itm.get()));
         }
     }
 
@@ -75,24 +77,16 @@ size_t BgFetcher::doFetch(VBucket::id_type vbId,
                                 fetchedItems.size());
     }
 
-    // failed requests will get requeued for retry within clearItems()
     clearItems(vbId, itemsToFetch);
     return fetchedItems.size();
 }
 
 void BgFetcher::clearItems(VBucket::id_type vbId,
-                           const vb_bgfetch_queue_t& itemsToFetch) {
-    for (const auto& fetch : itemsToFetch) {
+                           vb_bgfetch_queue_t& itemsToFetch) {
+    for (auto& fetch : itemsToFetch) {
         // every fetched item belonging to the same key shares
         // a single data buffer, just delete it from the first fetched item
-        const vb_bgfetch_item_ctx_t& bg_item_ctx = fetch.second;
-        const auto& doneItems = bg_item_ctx.bgfetched_list;
-        VBucketBGFetchItem *firstItem = doneItems.front();
-        firstItem->delValue();
-
-        for (const auto& done : doneItems) {
-            delete done;
-        }
+        fetch.second.bgfetched_list.front()->delValue();
     }
 }
 

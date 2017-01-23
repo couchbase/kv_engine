@@ -57,10 +57,10 @@ static bool batchWarmupCallback(uint16_t vbId,
         vb_bgfetch_queue_t items2fetch;
         for (auto& key : fetches) {
             // Deleted below via a unique_ptr in the next loop
-            VBucketBGFetchItem *fit = new VBucketBGFetchItem(NULL, false);
             vb_bgfetch_item_ctx_t& bg_itm_ctx = items2fetch[key];
             bg_itm_ctx.isMetaOnly = false;
-            bg_itm_ctx.bgfetched_list.push_back(fit);
+            bg_itm_ctx.bgfetched_list.emplace_back(
+                    std::make_unique<VBucketBGFetchItem>(nullptr, false));
         }
 
         c->epstore->getROUnderlying(vbId)->getMulti(vbId, items2fetch);
@@ -71,9 +71,10 @@ static bool batchWarmupCallback(uint16_t vbId,
         // in both cases the loop must delete the VBucketBGFetchItem we
         // allocated above.
         bool applyItem = true;
-        for (auto items : items2fetch) {
+        for (auto& items : items2fetch) {
             vb_bgfetch_item_ctx_t& bg_itm_ctx = items.second;
-            std::unique_ptr<VBucketBGFetchItem> fetchedItem(bg_itm_ctx.bgfetched_list.back());
+            std::unique_ptr<VBucketBGFetchItem> fetchedItem(
+                    std::move(bg_itm_ctx.bgfetched_list.back()));
             if (applyItem) {
                 GetValue &val = fetchedItem->value;
                 if (val.getStatus() == ENGINE_SUCCESS) {

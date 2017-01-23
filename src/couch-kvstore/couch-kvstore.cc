@@ -51,6 +51,7 @@
 #include "vbucket.h"
 
 #include <JSON_checker.h>
+#include <kvstore.h>
 #include <platform/compress.h>
 
 static const int MAX_OPEN_DB_RETRY = 10;
@@ -482,13 +483,9 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
                    "vb:%" PRIu16 ", numDocs:%d",
                    couchstore_strerror(errCode), vb, numItems);
         st.numGetFailure += numItems;
-        vb_bgfetch_queue_t::iterator itr = itms.begin();
-        for (; itr != itms.end(); ++itr) {
-            vb_bgfetch_item_ctx_t &bg_itm_ctx = (*itr).second;
-            std::list<VBucketBGFetchItem *> &fetches = bg_itm_ctx.bgfetched_list;
-            std::list<VBucketBGFetchItem *>::iterator fitr = fetches.begin();
-            for (; fitr != fetches.end(); ++fitr) {
-                (*fitr)->value.setStatus(ENGINE_NOT_MY_VBUCKET);
+        for (auto& item : itms) {
+            for (auto& fetch : item.second.bgfetched_list) {
+                fetch->value.setStatus(ENGINE_NOT_MY_VBUCKET);
             }
         }
         return;
@@ -496,10 +493,10 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
 
     size_t idx = 0;
     sized_buf *ids = new sized_buf[itms.size()];
-    vb_bgfetch_queue_t::iterator itr = itms.begin();
-    for (; itr != itms.end(); ++itr) {
-        ids[idx].size = itr->first.size();
-        ids[idx].buf = const_cast<char*>(reinterpret_cast<const char*>(itr->first.data()));
+    for (auto& item : itms) {
+        ids[idx].size = item.first.size();
+        ids[idx].buf = const_cast<char*>(
+                reinterpret_cast<const char*>(item.first.data()));
         ++idx;
     }
 
@@ -513,12 +510,9 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
                    "couchstore_docinfos_by_id error %s [%s], vb:%" PRIu16,
                    couchstore_strerror(errCode),
                    couchkvstore_strerrno(db, errCode).c_str(), vb);
-        for (itr = itms.begin(); itr != itms.end(); ++itr) {
-            vb_bgfetch_item_ctx_t &bg_itm_ctx = (*itr).second;
-            std::list<VBucketBGFetchItem *> &fetches = bg_itm_ctx.bgfetched_list;
-            std::list<VBucketBGFetchItem *>::iterator fitr = fetches.begin();
-            for (; fitr != fetches.end(); ++fitr) {
-                (*fitr)->value.setStatus(couchErr2EngineErr(errCode));
+        for (auto& item : itms) {
+            for (const auto& fetch : item.second.bgfetched_list) {
+                fetch->value.setStatus(couchErr2EngineErr(errCode));
             }
         }
     }
@@ -2157,16 +2151,13 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
 
     returnVal.setStatus(cbCtx->cks.couchErr2EngineErr(errCode));
 
-    std::list<VBucketBGFetchItem *> &fetches = bg_itm_ctx.bgfetched_list;
-    std::list<VBucketBGFetchItem *>::iterator itr = fetches.begin();
-
     bool return_val_ownership_transferred = false;
-    for (itr = fetches.begin(); itr != fetches.end(); ++itr) {
+    for (auto& fetch : bg_itm_ctx.bgfetched_list) {
         return_val_ownership_transferred = true;
         // populate return value for remaining fetch items with the
         // same seqid
-        (*itr)->value = returnVal;
-        st.readTimeHisto.add((gethrtime() - (*itr)->initTime) / 1000);
+        fetch->value = returnVal;
+        st.readTimeHisto.add((gethrtime() - fetch->initTime) / 1000);
         if (errCode == COUCHSTORE_SUCCESS) {
             st.readSizeHisto.add(returnVal.getValue()->getKey().size() +
                                  returnVal.getValue()->getNBytes());

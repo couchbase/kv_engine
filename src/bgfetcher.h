@@ -73,7 +73,7 @@ public:
 
 private:
     size_t doFetch(VBucket::id_type vbId, vb_bgfetch_queue_t& items);
-    void clearItems(VBucket::id_type vbId, const vb_bgfetch_queue_t& items);
+    void clearItems(VBucket::id_type vbId, vb_bgfetch_queue_t& items);
 
     KVBucket* store;
     KVShard* shard;

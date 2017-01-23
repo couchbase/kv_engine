@@ -368,7 +368,8 @@ size_t VBucket::queueBGFetchItem(const DocKey& key,
         bgfetch_itm_ctx.isMetaOnly = true;
     }
 
-    bgfetch_itm_ctx.bgfetched_list.push_back(fetch);
+    bgfetch_itm_ctx.bgfetched_list.push_back(
+            std::unique_ptr<VBucketBGFetchItem>(fetch));
 
     if (!fetch->metaDataOnly) {
         bgfetch_itm_ctx.isMetaOnly = false;
@@ -479,7 +480,6 @@ void VBucket::notifyAllPendingConnsFailed(EventuallyPersistentEngine &e) {
             for (auto& bgitem : bg_itm_ctx.bgfetched_list) {
                 toNotify[bgitem->cookie] = ENGINE_NOT_MY_VBUCKET;
                 e.storeEngineSpecific(bgitem->cookie, nullptr);
-                delete bgitem;
                 ++num_of_deleted_pending_fetches;
             }
         }

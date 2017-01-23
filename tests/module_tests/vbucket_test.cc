@@ -122,13 +122,6 @@ TEST_P(VBucketTest, GetBGFetchItemsPerformance) {
         vbucket->queueBGFetchItem(makeStoredDocKey(std::to_string(ii)), fetchItem, &fetcher);
     }
     auto items = vbucket->getBGFetchItems();
-
-    // Cleanup.
-    for (auto& it : items) {
-        for (auto* fetchItem : it.second.bgfetched_list) {
-            delete fetchItem;
-        }
-    }
 }
 
 // Check the existence of bloom filter after performing a

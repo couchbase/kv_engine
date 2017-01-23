@@ -22,14 +22,14 @@
 
 #include <cJSON.h>
 #include <cstring>
-#include <map>
+#include <deque>
 #include <list>
+#include <map>
+#include <relaxed_atomic.h>
 #include <string>
 #include <unordered_map>
 #include <utility>
-#include <unordered_map>
 #include <vector>
-#include <relaxed_atomic.h>
 
 #include "configuration.h"
 #include "item.h"
@@ -71,13 +71,27 @@ static const int MUTATION_SUCCESS = 1;
 
 static const int64_t INITIAL_DRIFT = -140737488355328; //lowest possible 48-bit integer
 
-typedef struct {
-    std::list<VBucketBGFetchItem *> bgfetched_list;
+struct vb_bgfetch_item_ctx_t {
+    // These need to be here due to MSVC2013 which otherwise would generate
+    // an incorrect move constructor.
+    vb_bgfetch_item_ctx_t() {
+    }
+    vb_bgfetch_item_ctx_t(vb_bgfetch_item_ctx_t&& other)
+        : bgfetched_list(std::move(other.bgfetched_list)),
+          isMetaOnly(other.isMetaOnly) {
+    }
+
+    vb_bgfetch_item_ctx_t& operator=(vb_bgfetch_item_ctx_t&& other) {
+        this->bgfetched_list = std::move(other.bgfetched_list);
+        this->isMetaOnly = other.isMetaOnly;
+        return *this;
+    }
+    std::list<std::unique_ptr<VBucketBGFetchItem>> bgfetched_list;
     bool isMetaOnly;
-} vb_bgfetch_item_ctx_t;
+};
 
 typedef std::unordered_map<StoredDocKey, vb_bgfetch_item_ctx_t> vb_bgfetch_queue_t;
-typedef std::pair<StoredDocKey, VBucketBGFetchItem *> bgfetched_item_t;
+typedef std::pair<StoredDocKey, const VBucketBGFetchItem*> bgfetched_item_t;
 
 /**
  * Compaction context to perform compaction
