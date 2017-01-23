@@ -1631,63 +1631,7 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key, uint16_t vbucket,
         }
     }
 
-    int bucket_num(0);
-    auto lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue* v = vb->fetchValidValue(lh, key, bucket_num, true);
-
-    if (v) {
-        if (v->isDeleted() || v->isTempDeletedItem() ||
-            v->isTempNonExistentItem()) {
-            GetValue rv;
-            return rv;
-        }
-
-        if (!v->isResident()) {
-            vb->bgFetch(key, cookie, engine, bgFetchDelay);
-            return GetValue(NULL, ENGINE_EWOULDBLOCK, v->getBySeqno());
-        }
-        if (v->isLocked(ep_current_time())) {
-            GetValue rv(NULL, ENGINE_KEY_EEXISTS, 0);
-            return rv;
-        }
-
-        const bool exptime_mutated = exptime != v->getExptime();
-        if (exptime_mutated) {
-            v->markDirty();
-            v->setExptime(exptime);
-            v->setRevSeqno(v->getRevSeqno()+1);
-        }
-
-        GetValue rv(v->toItem(v->isLocked(ep_current_time()), vbucket),
-                    ENGINE_SUCCESS, v->getBySeqno());
-
-        if (exptime_mutated) {
-            vb->queueDirty(*v, &lh);
-        }
-
-        return rv;
-    } else {
-        if (eviction_policy == VALUE_ONLY) {
-            GetValue rv;
-            return rv;
-        } else {
-            if (vb->maybeKeyExistsInFilter(key)) {
-                ENGINE_ERROR_CODE ec = vb->addTempItemAndBGFetch(lh,
-                                                                 bucket_num,
-                                                                 key,
-                                                                 cookie,
-                                                                 engine,
-                                                                 bgFetchDelay,
-                                                                 false);
-                return GetValue(NULL, ec, -1, true);
-            } else {
-                // As bloomfilter predicted that item surely doesn't exist
-                // on disk, return ENOENT for getAndUpdateTtl().
-                GetValue rv;
-                return rv;
-            }
-        }
-    }
+    return vb->getAndUpdateTtl(key, cookie, engine, bgFetchDelay, exptime);
 }
 
 ENGINE_ERROR_CODE KVBucket::statsVKey(const DocKey& key, uint16_t vbucket,

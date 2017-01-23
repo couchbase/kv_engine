@@ -1697,6 +1697,67 @@ ENGINE_ERROR_CODE VBucket::add(Item& itm,
     return ENGINE_SUCCESS;
 }
 
+GetValue VBucket::getAndUpdateTtl(const DocKey& key,
+                                  const void* cookie,
+                                  EventuallyPersistentEngine& engine,
+                                  int bgFetchDelay,
+                                  time_t exptime) {
+    int bucket_num(0);
+    auto lh = ht.getLockedBucket(key, &bucket_num);
+    StoredValue* v = fetchValidValue(lh, key, bucket_num, true);
+
+    if (v) {
+        if (v->isDeleted() || v->isTempDeletedItem() ||
+            v->isTempNonExistentItem()) {
+            return {};
+        }
+
+        if (!v->isResident()) {
+            bgFetch(key, cookie, engine, bgFetchDelay);
+            return GetValue(nullptr, ENGINE_EWOULDBLOCK, v->getBySeqno());
+        }
+        if (v->isLocked(ep_current_time())) {
+            return GetValue(nullptr, ENGINE_KEY_EEXISTS, 0);
+        }
+
+        const bool exptime_mutated = exptime != v->getExptime();
+        if (exptime_mutated) {
+            v->markDirty();
+            v->setExptime(exptime);
+            v->setRevSeqno(v->getRevSeqno() + 1);
+        }
+
+        GetValue rv(v->toItem(v->isLocked(ep_current_time()), getId()),
+                    ENGINE_SUCCESS,
+                    v->getBySeqno());
+
+        if (exptime_mutated) {
+            queueDirty(*v, &lh);
+        }
+
+        return rv;
+    } else {
+        if (eviction == VALUE_ONLY) {
+            return {};
+        } else {
+            if (maybeKeyExistsInFilter(key)) {
+                ENGINE_ERROR_CODE ec = addTempItemAndBGFetch(lh,
+                                                             bucket_num,
+                                                             key,
+                                                             cookie,
+                                                             engine,
+                                                             bgFetchDelay,
+                                                             false);
+                return GetValue(NULL, ec, -1, true);
+            } else {
+                // As bloomfilter predicted that item surely doesn't exist
+                // on disk, return ENOENT for getAndUpdateTtl().
+                return {};
+            }
+        }
+    }
+}
+
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
                        item_eviction_policy_t policy) {
     addStat(NULL, toString(state), add_stat, c);

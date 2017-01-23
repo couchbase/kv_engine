@@ -822,6 +822,23 @@ public:
                           int bgFetchDelay);
 
     /**
+     * Retrieve a value, but update its TTL first
+     *
+     * @param key the key to fetch
+     * @param cookie the connection cookie
+     * @param engine Reference to ep engine
+     * @param bgFetchDelay
+     * @param exptime the new expiry time for the object
+     *
+     * @return a GetValue representing the result of the request
+     */
+    GetValue getAndUpdateTtl(const DocKey& key,
+                             const void* cookie,
+                             EventuallyPersistentEngine& engine,
+                             int bgFetchDelay,
+                             time_t exptime);
+
+    /**
      * Calls the conflict resolution module to resolve the conflict
      *
      * @param v the local document meta data
