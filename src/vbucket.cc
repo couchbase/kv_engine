@@ -1512,7 +1512,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
                 return ENGINE_EWOULDBLOCK;
             }
 
-            if (!resolveConflict(*v, itemMeta, true)) {
+            if (!(conflictResolver->resolve(*v, itemMeta, true))) {
                 ++stats.numOpsDelMetaResolutionFailed;
                 return ENGINE_KEY_EEXISTS;
             }
