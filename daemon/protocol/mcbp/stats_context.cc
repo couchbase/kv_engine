@@ -412,6 +412,8 @@ static void process_stat_settings(ADD_STAT add_stat_callback,
              settings.isDedupeNmvbMaps() ? "true" : "false");
     add_stat(cookie, add_stat_callback, "max_packet_size",
              std::to_string(settings.getMaxPacketSize()).c_str());
+    add_stat(cookie, add_stat_callback, "xattr_enabled",
+            settings.isXattrEnabled());
 }
 
 static void append_bin_stats(const char* key, const uint16_t klen,
