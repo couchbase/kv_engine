@@ -1,18 +1,47 @@
 =====================
-LLVM Coding Standards
+KV-Engine Coding Standards
 =====================
 
 .. contents::
    :local:
 
+Couchbase Editors's Note
+==============
+
+This document is a fork of LLVM's `CodingStandards
+<http://llvm.org/docs/CodingStandards.html>`_, with additions /
+removals as appropriate for KV-Engine. This was choden as a staritng
+point (instead of creating our own from scratch) because the vast
+majority of LLVM's document is applicable to Couchbase:
+
+- LLVM has a number of parallels with KV-Engine (systems /
+  infrastructure software implemented in Modern C++, but needs to
+  support multiple platforms so not /too/ modern).
+- LLVM's coding style is similar to ours.
+
+Having said that, there are a number of differences. Those which are
+simply textual have been search-replaced (LLVM -> KV-Engine); others
+which are not at all relevent simply deleted.
+
+The remaining differences are *aspirational* - the LLVM standard (and
+hence now this one ;) ) - contains many suggestions for good
+style which I would like to encourage in our code.  While we don't at
+time of writing meet all these guidelines, we should strive to.
+
+    CB Note:
+     Couchbase-specific annotations/commentary are indicated
+     with (CB Note:) tag (such as here).  These are used when it is
+     useful to keep the original LLVM content, but highlight how the
+     KV-Engine standards differ.
+
 Introduction
 ============
 
 This document attempts to describe a few coding standards that are being used in
-the LLVM source tree.  Although no coding standards should be regarded as
+the KV-Engine source tree.  Although no coding standards should be regarded as
 absolute requirements to be followed in all instances, coding standards are
 particularly important for large-scale code bases that follow a library-based
-design (like LLVM).
+design (like KV-Engine).
 
 While this document may provide guidance for some mechanical formatting issues,
 whitespace, or other "microscopic details", these are not fixed standards.
@@ -23,12 +52,6 @@ Always follow the golden rule:
     **If you are extending, enhancing, or bug fixing already implemented code,
     use the style that is already being used so that the source is uniform and
     easy to follow.**
-
-Note that some code bases (e.g. ``libc++``) have really good reasons to deviate
-from the coding standards.  In the case of ``libc++``, this is because the
-naming and other conventions are dictated by the C++ standard.  If you think
-there is a specific good reason to deviate from the standards here, please bring
-it up on the LLVM-dev mailing list.
 
 There are some conventions that are not uniformly followed in the code base
 (e.g. the naming convention).  This is because they are relatively new, and a
@@ -41,12 +64,12 @@ the functionality change.
 
 The ultimate goal of these guidelines is to increase the readability and
 maintainability of our common source base. If you have suggestions for topics to
-be included, please mail them to `Chris <mailto:sabre@nondot.org>`_.
+be included, please mail them to `DaveR <mailto:daver.remove.colour@red.couchbase.com>`_.
 
 Languages, Libraries, and Standards
 ===================================
 
-Most source code in LLVM and other LLVM projects using these coding standards
+Most source code in KV-Engine and other KV-Engine projects using these coding standards
 is C++ code. There are some places where C code is used either due to
 environment restrictions, historical restrictions, or due to third-party source
 code imported into the tree. Generally, our preference is for standards
@@ -56,11 +79,9 @@ choice.
 C++ Standard Versions
 ---------------------
 
-LLVM, Clang, and LLD are currently written using C++11 conforming code,
+KV-Engine is currently written using C++11 conforming code,
 although we restrict ourselves to features which are available in the major
-toolchains supported as host compilers. The LLDB project is even more
-aggressive in the set of host compilers supported and thus uses still more
-features. Regardless of the supported features, code is expected to (when
+toolchains supported as host compilers. Regardless of the supported features, code is expected to (when
 reasonable) be standard, portable, and modern C++11 code. We avoid unnecessary
 vendor-specific extensions, etc.
 
@@ -68,23 +89,18 @@ C++ Standard Library
 --------------------
 
 Use the C++ standard library facilities whenever they are available for
-a particular task. LLVM and related projects emphasize and rely on the standard
+a particular task. KV-Engine and related projects emphasize and rely on the standard
 library facilities for as much as possible. Common support libraries providing
 functionality missing from the standard library for which there are standard
 interfaces or active work on adding standard interfaces will often be
-implemented in the LLVM namespace following the expected standard interface.
-
-There are some exceptions such as the standard I/O streams library which are
-avoided. Also, there is much more detailed information on these subjects in the
-:doc:`ProgrammersManual`.
+implemented in the `cb` namespace following the expected standard interface.
 
 Supported C++11 Language and Library Features
 ---------------------------------------------
 
-While LLVM, Clang, and LLD use C++11, not all features are available in all of
-the toolchains which we support. The set of features supported for use in LLVM
-is the intersection of those supported in the minimum requirements described
-in the :doc:`GettingStarted` page, section `Software`.
+While KV-Engine uses C++11, not all features are available in all of
+the toolchains which we support.
+
 The ultimate definition of this set is what build bots with those respective
 toolchains accept. Don't argue with the build bots. However, we have some
 guidance below to help you know what to expect.
@@ -98,6 +114,11 @@ Each toolchain provides a good reference for what it accepts:
 In most cases, the MSVC list will be the dominating factor. Here is a summary
 of the features that are expected to work. Features not on this list are
 unlikely to be supported by our host compilers.
+
+    CB Note:
+     The following list hasn't been verified against the
+     Couchbase builders, but it's probably a reasonable starting point
+     for our environment also.
 
 * Rvalue references: N2118_
 
@@ -179,31 +200,10 @@ Other than these areas you should assume the standard library is available and
 working as expected until some build bot tells you otherwise. If you're in an
 uncertain area of one of the above points, but you cannot test on a Linux
 system, your best approach is to minimize your use of these features, and watch
-the Linux build bots to find out if your usage triggered a bug. For example, if
-you hit a type trait which doesn't work we can then add support to LLVM's
-traits header to emulate it.
+the Linux build bots to find out if your usage triggered a bug.
 
 .. _the libstdc++ manual:
   http://gcc.gnu.org/onlinedocs/gcc-4.8.0/libstdc++/manual/manual/status.html#status.iso.2011
-
-Other Languages
----------------
-
-Any code written in the Go programming language is not subject to the
-formatting rules below. Instead, we adopt the formatting rules enforced by
-the `gofmt`_ tool.
-
-Go code should strive to be idiomatic. Two good sets of guidelines for what
-this means are `Effective Go`_ and `Go Code Review Comments`_.
-
-.. _gofmt:
-  https://golang.org/cmd/gofmt/
-
-.. _Effective Go:
-  https://golang.org/doc/effective_go.html
-
-.. _Go Code Review Comments:
-  https://code.google.com/p/go-wiki/wiki/CodeReviewComments
 
 Mechanical Source Issues
 ========================
@@ -226,44 +226,38 @@ File Headers
 """"""""""""
 
 Every source file should have a header on it that describes the basic purpose of
-the file.  If a file does not have a header, it should not be checked into the
-tree.  The standard header looks like this:
+the file.  The standard header looks like this:
 
 .. code-block:: c++
 
-  //===-- llvm/Instruction.h - Instruction class definition -------*- C++ -*-===//
-  //
-  //                     The LLVM Compiler Infrastructure
-  //
-  // This file is distributed under the University of Illinois Open Source
-  // License. See LICENSE.TXT for details.
-  //
-  //===----------------------------------------------------------------------===//
-  ///
-  /// \file
-  /// This file contains the declaration of the Instruction class, which is the
-  /// base class for all of the VM instructions.
-  ///
-  //===----------------------------------------------------------------------===//
+  /* -*- MODE: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+  /*
+   *     Copyright 2017 Couchbase, Inc
+   *
+   *   Licensed under the Apache License, Version 2.0 (the "License");
+   *   you may not use this file except in compliance with the License.
+   *   You may obtain a copy of the License at
+   *
+   *       http://www.apache.org/licenses/LICENSE-2.0
+   *
+   *   Unless required by applicable law or agreed to in writing, software
+   *   distributed under the License is distributed on an "AS IS" BASIS,
+   *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   *   See the License for the specific language governing permissions and
+   *   limitations under the License.
+   */
 
-A few things to note about this particular format: The "``-*- C++ -*-``" string
-on the first line is there to tell Emacs that the source file is a C++ file, not
-a C file (Emacs assumes ``.h`` files are C files by default).
+  /**
+   * Checkpoint Cursor implementation
+   *
+   * A checkpoint cursor, representing the current position in a Checkpoint
+   * series.
+   * ...
+   */
 
-.. note::
-
-    This tag is not necessary in ``.cpp`` files.  The name of the file is also
-    on the first line, along with a very short description of the purpose of the
-    file.  This is important when printing out code and flipping though lots of
-    pages.
-
-The next section in the file is a concise note that defines the license that the
-file is released under.  This makes it perfectly clear what terms the source
-code can be distributed under and should not be modified in any way.
-
-The main body is a ``doxygen`` comment (identified by the ``///`` comment
+The main body is a ``doxygen`` comment (identified by the ``/**`` comment
 marker instead of the usual ``//``) describing the purpose of the file.  The
-first sentence (or a passage beginning with ``\brief``) is used as an abstract.
+first sentence (or a passage beginning with ``@brief``) is used as an abstract.
 Any additional information should be separated by a blank line.  If an
 algorithm is being implemented or something tricky is going on, a reference
 to the paper where it is published should be included, as well as any notes or
@@ -295,7 +289,7 @@ Comment Formatting
 In general, prefer C++ style comments (``//`` for normal comments, ``///`` for
 ``doxygen`` documentation comments).  They take less space, require
 less typing, don't have nesting problems, etc.  There are a few cases when it is
-useful to use C style (``/* */``) comments however:
+useful to use C style (``/* */`` for normal, ``/** */`` for ``doxygen``) comments however:
 
 #. When writing C code: Obviously if you are writing C code, use C style
    comments.
@@ -305,6 +299,8 @@ useful to use C style (``/* */``) comments however:
 #. When writing a source file that is used by a tool that only accepts C style
    comments.
 
+#. When writing a multi-line comment (3 or more lines).
+
 Commenting out large blocks of code is discouraged, but if you really have to do
 this (for documentation purposes or as a suggestion for debug printing), use
 ``#if 0`` and ``#endif``. These nest properly and are better behaved in general
@@ -313,36 +309,36 @@ than C style comments.
 Doxygen Use in Documentation Comments
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Use the ``\file`` command to turn the standard file header into a file-level
+Use the ``@file`` command to turn the standard file header into a file-level
 comment.
 
 Include descriptive paragraphs for all public interfaces (public classes,
 member and non-member functions).  Don't just restate the information that can
 be inferred from the API name.  The first sentence (or a paragraph beginning
-with ``\brief``) is used as an abstract. Try to use a single sentence as the
-``\brief`` adds visual clutter.  Put detailed discussion into separate
+with ``@brief``) is used as an abstract. Try to use a single sentence as the
+``@brief`` adds visual clutter.  Put detailed discussion into separate
 paragraphs.
 
-To refer to parameter names inside a paragraph, use the ``\p name`` command.
-Don't use the ``\arg name`` command since it starts a new paragraph that
+To refer to parameter names inside a paragraph, use the ``@p name`` command.
+Don't use the ``@arg name`` command since it starts a new paragraph that
 contains documentation for the parameter.
 
-Wrap non-inline code examples in ``\code ... \endcode``.
+Wrap non-inline code examples in ``@code ... @endcode``.
 
 To document a function parameter, start a new paragraph with the
-``\param name`` command.  If the parameter is used as an out or an in/out
-parameter, use the ``\param [out] name`` or ``\param [in,out] name`` command,
+``@param name`` command.  If the parameter is used as an out or an in/out
+parameter, use the ``@param [out] name`` or ``@param [in,out] name`` command,
 respectively.
 
-To describe function return value, start a new paragraph with the ``\returns``
+To describe function return value, start a new paragraph with the ``@return``
 command.
 
 A minimal documentation comment:
 
 .. code-block:: c++
 
-  /// Sets the xyzzy property to \p Baz.
-  void setXyzzy(bool Baz);
+  /// Sets the xyzzy property to @p baz.
+  void setXyzzy(bool baz);
 
 A documentation comment that uses all Doxygen features in a preferred way:
 
@@ -350,18 +346,18 @@ A documentation comment that uses all Doxygen features in a preferred way:
 
   /// Does foo and bar.
   ///
-  /// Does not do foo the usual way if \p Baz is true.
+  /// Does not do foo the usual way if Wp Baz is true.
   ///
   /// Typical usage:
-  /// \code
-  ///   fooBar(false, "quux", Res);
-  /// \endcode
+  /// @code
+  ///   fooBar(false, "quux", res);
+  /// @endcode
   ///
-  /// \param Quux kind of foo to do.
-  /// \param [out] Result filled with bar sequence on foo success.
+  /// @param quux kind of foo to do.
+  /// @param [out] result filled with bar sequence on foo success.
   ///
-  /// \returns true on success.
-  bool fooBar(bool Baz, StringRef Quux, std::vector<int> &Result);
+  /// @return true on success.
+  bool fooBar(bool baz, StringRef quux, std::vector<int>& result);
 
 Don't duplicate the documentation comment in the header file and in the
 implementation file.  Put the documentation comments for public APIs into the
@@ -414,64 +410,31 @@ Correct:
 It is not required to use additional Doxygen features, but sometimes it might
 be a good idea to do so.
 
-Consider:
-
-* adding comments to any narrow namespace containing a collection of
-  related functions or types;
-
-* using top-level groups to organize a collection of related functions at
-  namespace scope where the grouping is smaller than the namespace;
-
-* using member groups and additional comments attached to member
-  groups to organize within a class.
-
-For example:
-
-.. code-block:: c++
-
-  class Something {
-    /// \name Functions that do Foo.
-    /// @{
-    void fooBar();
-    void fooBaz();
-    /// @}
-    ...
-  };
-
 ``#include`` Style
 ^^^^^^^^^^^^^^^^^^
 
-Immediately after the `header file comment`_ (and include guards if working on a
+Immediately after the `header file comment`_ (and ``#pragma once`` guard if working on a
 header file), the `minimal list of #includes`_ required by the file should be
 listed.  We prefer these ``#include``\s to be listed in this order:
 
 .. _Main Module Header:
 .. _Local/Private Headers:
 
+#. Project configuration header (``"config.h"``)
 #. Main Module Header
 #. Local/Private Headers
-#. LLVM project/subproject headers (``clang/...``, ``lldb/...``, ``llvm/...``, etc)
+#. subproject headers (``platform/...``, ``memcached/...``, etc)
 #. System ``#include``\s
 
 and each category should be sorted lexicographically by the full path.
 
-The `Main Module Header`_ file applies to ``.cpp`` files which implement an
+The `Main Module Header`_ file applies to ``.cc`` files which implement an
 interface defined by a ``.h`` file.  This ``#include`` should always be included
 **first** regardless of where it lives on the file system.  By including a
-header file first in the ``.cpp`` files that implement the interfaces, we ensure
+header file first in the ``.cc`` files that implement the interfaces, we ensure
 that the header does not have any hidden dependencies which are not explicitly
 ``#include``\d in the header, but should be. It is also a form of documentation
-in the ``.cpp`` file to indicate where the interfaces it implements are defined.
-
-LLVM project and subproject headers should be grouped from most specific to least
-specific, for the same reasons described above.  For example, LLDB depends on
-both clang and LLVM, and clang depends on LLVM.  So an LLDB source file should
-include ``lldb`` headers first, followed by ``clang`` headers, followed by
-``llvm`` headers, to reduce the possibility (for example) of an LLDB header
-accidentally picking up a missing include due to the previous inclusion of that
-header in the main source file or some earlier header file.  clang should
-similarly include its own headers before including llvm headers.  This rule
-applies to all LLVM subprojects.
+in the ``.cc`` file to indicate where the interfaces it implements are defined.
 
 .. _fit into 80 columns:
 
@@ -504,8 +467,8 @@ tabs out to different tab stops.  This can cause your code to look completely
 unreadable, and it is not worth dealing with.
 
 As always, follow the `Golden Rule`_ above: follow the style of
-existing code if you are modifying and extending it.  If you like four spaces of
-indentation, **DO NOT** do that in the middle of a chunk of code with two spaces
+existing code if you are modifying and extending it.  If you like two spaces of
+indentation, **DO NOT** do that in the middle of a chunk of code with four spaces
 of indentation.  Also, do not reindent a whole source file: it makes for
 incredible diffs that are absolutely worthless.
 
@@ -518,23 +481,52 @@ Just do it. With the introduction of C++11, there are some new formatting
 challenges that merit some suggestions to help have consistent, maintainable,
 and tool-friendly formatting and indentation.
 
+Use Braces for All Control Structures
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Braces should be used for *all* control structures (``if``, ``else``,
+``switch``, ``do``, ``while``). This avoids any parse ambiguity, and
+also reduces the "impact" on existing lines if a single-line condition
+has to be expanded.
+
+Example:
+
+.. code-block:: c++
+
+  int manipulate(const std::vector<Foo>& vec) {
+      if (v.size() == 0) {
+          return 0;
+      }
+
+      for (auto& v: vec) {
+          if (v.isBlah()) {
+              // handle Blah case...
+          } else if (v.isUnusual()) {
+              // handle Unusual case...
+          }
+      }
+      ...
+  }
+
 Format Lambdas Like Blocks Of Code
 """"""""""""""""""""""""""""""""""
 
 When formatting a multi-line lambda, format it like a block of code, that's
 what it is. If there is only one multi-line lambda in a statement, and there
 are no expressions lexically after it in the statement, drop the indent to the
-standard two space indent for a block of code, as if it were an if-block opened
+standard four space indent for a block of code, as if it were an if-block opened
 by the preceding part of the statement:
 
 .. code-block:: c++
 
   std::sort(foo.begin(), foo.end(), [&](Foo a, Foo b) -> bool {
-    if (a.blah < b.blah)
-      return true;
-    if (a.baz < b.baz)
-      return true;
-    return a.bam < b.bam;
+      if (a.blah < b.blah) {
+          return true;
+      }
+      if (a.baz < b.baz) {
+          return true;
+      }
+      return a.bam < b.bam;
   });
 
 To take best advantage of this formatting, if you are designing an API which
@@ -542,23 +534,23 @@ accepts a continuation or single callable argument (be it a functor, or
 a ``std::function``), it should be the last argument if at all possible.
 
 If there are multiple multi-line lambdas in a statement, or there is anything
-interesting after the lambda in the statement, indent the block two spaces from
+interesting after the lambda in the statement, indent the block four spaces from
 the indent of the ``[]``:
 
 .. code-block:: c++
 
-  dyn_switch(V->stripPointerCasts(),
-             [] (PHINode *PN) {
-               // process phis...
+  dyn_switch(v->stripPointerCasts(),
+             [] (PHINode* pn) {
+                 // process phis...
              },
-             [] (SelectInst *SI) {
-               // process selects...
+             [] (SelectInst* si) {
+                 // process selects...
              },
-             [] (LoadInst *LI) {
-               // process loads...
+             [] (LoadInst* li) {
+                 // process loads...
              },
-             [] (AllocaInst *AI) {
-               // process allocas...
+             [] (AllocaInst* ai) {
+                 // process allocas...
              });
 
 Braced Initializer Lists
@@ -583,7 +575,7 @@ understood for formatting nested function calls. Examples:
 
   foo({a, b, c}, {1, 2, 3});
 
-  llvm::Constant *Mask[] = {
+  llvm::Constant* mask[] = {
       llvm::ConstantInt::get(llvm::Type::getInt32Ty(getLLVMContext()), 0),
       llvm::ConstantInt::get(llvm::Type::getInt32Ty(getLLVMContext()), 1),
       llvm::ConstantInt::get(llvm::Type::getInt32Ty(getLLVMContext()), 2)};
@@ -591,7 +583,20 @@ understood for formatting nested function calls. Examples:
 This formatting scheme also makes it particularly easy to get predictable,
 consistent, and automatic formatting with tools like `Clang Format`_.
 
+    CB Note:
+     We have a `Clang Format`_ config file (in
+     ``tlm/dot-clang-format``) which specifies the code style which
+     should be used. This is installed by ``repo`` into the top-level
+     of the checkout, and so is automatically picked up by
+     ``clang-format``.
+
+     Do *not* completely reformat a whole file when you change it -
+     this introduces unnecessary whitespace (see the `Golden
+     Rule`_). Instead, use `git clang-format`_ which only reformats
+     the line(s) which have already been touched by a patch.
+
 .. _Clang Format: http://clang.llvm.org/docs/ClangFormat.html
+.. _git clang-format: https://github.com/llvm-mirror/clang/blob/master/tools/clang-format/git-clang-format
 
 Language and Compiler Issues
 ----------------------------
@@ -613,8 +618,8 @@ I write code like this:
 
 .. code-block:: c++
 
-  if (V = getValue()) {
-    ...
+  if (v = getValue()) {
+      ...
   }
 
 ``gcc`` will warn me that I probably want to use the ``==`` operator, and that I
@@ -624,8 +629,8 @@ this:
 
 .. code-block:: c++
 
-  if ((V = getValue())) {
-    ...
+  if ((v = getValue())) {
+      ...
   }
 
 which shuts ``gcc`` up.  Any ``gcc`` warning that annoys you can be fixed by
@@ -641,23 +646,7 @@ code, isolate it behind a well defined (and well documented) interface.
 In practice, this means that you shouldn't assume much about the host compiler
 (and Visual Studio tends to be the lowest common denominator).  If advanced
 features are used, they should only be an implementation detail of a library
-which has a simple exposed API, and preferably be buried in ``libSystem``.
-
-Do not use RTTI or Exceptions
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-In an effort to reduce code and executable size, LLVM does not use RTTI
-(e.g. ``dynamic_cast<>;``) or exceptions.  These two language features violate
-the general C++ principle of *"you only pay for what you use"*, causing
-executable bloat even if exceptions are never used in the code base, or if RTTI
-is never used for a class.  Because of this, we turn them off globally in the
-code.
-
-That said, LLVM does make extensive use of a hand-rolled form of RTTI that use
-templates like :ref:`isa\<>, cast\<>, and dyn_cast\<> <isa>`.
-This form of RTTI is opt-in and can be
-:doc:`added to any class <HowToSetUpLLVMStyleRTTI>`. It is also
-substantially more efficient than ``dynamic_cast<>``.
+which has a simple exposed API.
 
 .. _static constructor:
 
@@ -666,34 +655,13 @@ Do not use Static Constructors
 
 Static constructors and destructors (e.g. global variables whose types have a
 constructor or destructor) should not be added to the code base, and should be
-removed wherever possible.  Besides `well known problems
+removed wherever possible.  Note the `well known problems
 <http://yosefk.com/c++fqa/ctors.html#fqa-10.12>`_ where the order of
-initialization is undefined between globals in different source files, the
-entire concept of static constructors is at odds with the common use case of
-LLVM as a library linked into a larger application.
+initialization is undefined between globals in different source files.
 
-Consider the use of LLVM as a JIT linked into another application (perhaps for
-`OpenGL, custom languages <http://llvm.org/Users.html>`_, `shaders in movies
-<http://llvm.org/devmtg/2010-11/Gritz-OpenShadingLang.pdf>`_, etc). Due to the
-design of static constructors, they must be executed at startup time of the
-entire application, regardless of whether or how LLVM is used in that larger
-application.  There are two problems with this:
-
-* The time to run the static constructors impacts startup time of applications
-  --- a critical time for GUI apps, among others.
-
-* The static constructors cause the app to pull many extra pages of memory off
-  the disk: both the code for the constructor in each ``.o`` file and the small
-  amount of data that gets touched. In addition, touched/dirty pages put more
-  pressure on the VM system on low-memory machines.
-
-We would really like for there to be zero cost for linking in an additional LLVM
-target or other library into an application, but static constructors violate
-this goal.
-
-That said, LLVM unfortunately does contain static constructors.  It would be a
-`great project <http://llvm.org/PR11944>`_ for someone to purge all static
-constructors from LLVM, and then enable the ``-Wglobal-constructors`` warning
+That said, KV-Engine unfortunately does contain static constructors.  It would be a
+great project for someone to purge all static
+constructors from KV-Engine, and then enable the ``-Wglobal-constructors`` warning
 flag (when building with Clang) to ensure we do not regress in the future.
 
 Use of ``class`` and ``struct`` Keywords
@@ -716,7 +684,7 @@ the symbol (e.g., MSVC).  This can lead to problems at link time.
   class Foo;
 
   // Breaks mangling in MSVC.
-  struct Foo { int Data; };
+  struct Foo { int data; };
 
 * As a rule of thumb, ``struct`` should be kept to structures where *all*
   members are declared public.
@@ -726,17 +694,17 @@ the symbol (e.g., MSVC).  This can lead to problems at link time.
   // Foo feels like a class... this is strange.
   struct Foo {
   private:
-    int Data;
+    int data;
   public:
     Foo() : Data(0) { }
-    int getData() const { return Data; }
-    void setData(int D) { Data = D; }
+    int getData() const { return data; }
+    void setData(int d) { data = d; }
   };
 
   // Bar isn't POD, but it does look like a struct.
   struct Bar {
-    int Data;
-    Bar() : Data(0) { }
+    int data;
+    Bar() : data(0) { }
   };
 
 Do not use Braced Initializer Lists to Call a Constructor
@@ -756,13 +724,13 @@ something notionally equivalent. Examples:
 
   class Foo {
   public:
-    // Construct a Foo by reading data from the disk in the whizbang format, ...
-    Foo(std::string filename);
+      // Construct a Foo by reading data from the disk in the whizbang format, ...
+      Foo(std::string filename);
 
-    // Construct a Foo by looking up the Nth element of some global data ...
-    Foo(int N);
+      // Construct a Foo by looking up the Nth element of some global data ...
+      Foo(int n);
 
-    // ...
+      // ...
   };
 
   // The Foo constructor call is very deliberate, no braces.
@@ -780,7 +748,7 @@ If you use a braced initializer list when initializing a variable, use an equals
 Use ``auto`` Type Deduction to Make Code More Readable
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Some are advocating a policy of "almost always ``auto``" in C++11, however LLVM
+Some are advocating a policy of "almost always ``auto``" in C++11, however KV-Engine
 uses a more moderate stance. Use ``auto`` if and only if it makes the code more
 readable or easier to maintain. Don't "almost always" use ``auto``, but do use
 ``auto`` with initializers like ``cast<Foo>(...)`` or other places where the
@@ -801,15 +769,15 @@ As a rule of thumb, use ``auto &`` unless you need to copy the result, and use
 .. code-block:: c++
 
   // Typically there's no reason to copy.
-  for (const auto &Val : Container) { observe(Val); }
-  for (auto &Val : Container) { Val.change(); }
+  for (const auto& val : Container) { observe(val); }
+  for (auto& val : Container) { val.change(); }
 
   // Remove the reference if you really want a new copy.
-  for (auto Val : Container) { Val.change(); saveSomewhere(Val); }
+  for (auto val : Container) { val.change(); saveSomewhere(val); }
 
   // Copy pointers, but make it clear that they're pointers.
-  for (const auto *Ptr : Container) { observe(*Ptr); }
-  for (auto *Ptr : Container) { Ptr->change(); }
+  for (const auto* ptr : container) { observe(*ptr); }
+  for (auto* ptr : container) { ptr->change(); }
 
 Style Issues
 ============
@@ -822,7 +790,7 @@ A Public Header File **is** a Module
 
 C++ doesn't do too well in the modularity department.  There is no real
 encapsulation or data hiding (unless you use expensive protocol classes), but it
-is what we have to work with.  When you write a public header file (in the LLVM
+is what we have to work with.  When you write a public header file (in the memcached
 source tree, they live in the top level "``include``" directory), you are
 defining a module of functionality.
 
@@ -833,8 +801,8 @@ collection of these that defines an interface.  This interface may be several
 functions, classes, or data structures, but the important issue is how they work
 together.
 
-In general, a module should be implemented by one or more ``.cpp`` files.  Each
-of these ``.cpp`` files should include the header that defines their interface
+In general, a module should be implemented by one or more ``.cc`` files.  Each
+of these ``.cc`` files should include the header that defines their interface
 first.  This ensures that all of the dependences of the module header have been
 properly added to the module header itself, and are not implicit.  System
 headers should be included after user headers for a translation unit.
@@ -868,7 +836,7 @@ Keep "Internal" Headers Private
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Many modules have a complex implementation that causes them to use more than one
-implementation (``.cpp``) file.  It is often tempting to put the internal
+implementation (``.cc``) file.  It is often tempting to put the internal
 communication interface (helper classes, extra functions, etc) in the public
 module header file.  Don't do this!
 
@@ -895,10 +863,10 @@ exit from a function, consider this "bad" code:
 
 .. code-block:: c++
 
-  Value *doSomething(Instruction *I) {
-    if (!isa<TerminatorInst>(I) &&
-        I->hasOneUse() && doOtherThing(I)) {
-      ... some long code ....
+  Value* doSomething(Instruction* i) {
+    if (!isa<TerminatorInst>(i) &&
+        i->hasOneUse() && doOtherThing(i)) {
+        ... some long code ....
     }
 
     return 0;
@@ -919,19 +887,22 @@ It is much preferred to format the code like this:
 
 .. code-block:: c++
 
-  Value *doSomething(Instruction *I) {
+  Value* doSomething(Instruction* i) {
     // Terminators never need 'something' done to them because ...
-    if (isa<TerminatorInst>(I))
-      return 0;
+    if (isa<TerminatorInst>(i)) {
+        return 0;
+    }
 
     // We conservatively avoid transforming instructions with multiple uses
     // because goats like cheese.
-    if (!I->hasOneUse())
-      return 0;
+    if (!i->hasOneUse()) {
+        return 0;
+    }
 
     // This is really just here for example.
-    if (!doOtherThing(I))
-      return 0;
+    if (!doOtherThing(i)) {
+        return 0;
+    }
 
     ... some long code ....
   }
@@ -941,14 +912,14 @@ loops.  A silly example is something like this:
 
 .. code-block:: c++
 
-  for (BasicBlock::iterator II = BB->begin(), E = BB->end(); II != E; ++II) {
-    if (BinaryOperator *BO = dyn_cast<BinaryOperator>(II)) {
-      Value *LHS = BO->getOperand(0);
-      Value *RHS = BO->getOperand(1);
-      if (LHS != RHS) {
-        ...
+  for (auto& op : basicBlocks) {
+      if (BinaryOperator* bo = dyn_cast<BinaryOperator>(op)) {
+          Value* lhs = bo->getOperand(0);
+          Value* rhs = bo->getOperand(1);
+          if (lhs != rhs) {
+              ...
+          }
       }
-    }
   }
 
 When you have very, very small loops, this sort of structure is fine. But if it
@@ -961,15 +932,15 @@ It is strongly preferred to structure the loop like this:
 
 .. code-block:: c++
 
-  for (BasicBlock::iterator II = BB->begin(), E = BB->end(); II != E; ++II) {
-    BinaryOperator *BO = dyn_cast<BinaryOperator>(II);
-    if (!BO) continue;
+  for (auto& op : basicBlocks) {
+      BinaryOperator* bo = dyn_cast<BinaryOperator>(op);
+      if (!bo) continue;
 
-    Value *LHS = BO->getOperand(0);
-    Value *RHS = BO->getOperand(1);
-    if (LHS == RHS) continue;
+      Value *lhs = bo->getOperand(0);
+      Value *rhs = bo->getOperand(1);
+      if (lhs == rhs) continue;
 
-    ...
+      ...
   }
 
 This has all the benefits of using early exits for functions: it reduces nesting
@@ -983,29 +954,29 @@ Don't use ``else`` after a ``return``
 
 For similar reasons above (reduction of indentation and easier reading), please
 do not use ``'else'`` or ``'else if'`` after something that interrupts control
-flow --- like ``return``, ``break``, ``continue``, ``goto``, etc. For
+flow --- like ``return``, ``break``, ``continue``, etc. For
 example, this is *bad*:
 
 .. code-block:: c++
 
   case 'J': {
-    if (Signed) {
-      Type = Context.getsigjmp_bufType();
-      if (Type.isNull()) {
-        Error = ASTContext::GE_Missing_sigjmp_buf;
-        return QualType();
+      if (signed) {
+          type = context.getsigjmp_bufType();
+          if (type.isNull()) {
+              error = ASTContext::GE_Missing_sigjmp_buf;
+              return qualType();
+          } else {
+              break;
+          }
       } else {
-        break;
+          type = context.getjmp_bufType();
+          if (type.isNull()) {
+              error = ASTContext::GE_Missing_jmp_buf;
+              return qualType();
+          } else {
+              break;
+          }
       }
-    } else {
-      Type = Context.getjmp_bufType();
-      if (Type.isNull()) {
-        Error = ASTContext::GE_Missing_jmp_buf;
-        return QualType();
-      } else {
-        break;
-      }
-    }
   }
 
 It is better to write it like this:
@@ -1013,40 +984,69 @@ It is better to write it like this:
 .. code-block:: c++
 
   case 'J':
-    if (Signed) {
-      Type = Context.getsigjmp_bufType();
-      if (Type.isNull()) {
-        Error = ASTContext::GE_Missing_sigjmp_buf;
-        return QualType();
+      if (signed) {
+          type = context.getsigjmp_bufType();
+          if (type.isNull()) {
+              error = ASTContext::GE_Missing_sigjmp_buf;
+              return qualType();
+          }
+      } else {
+          type = context.getjmp_bufType();
+          if (type.isNull()) {
+              error = ASTContext::GE_Missing_jmp_buf;
+              return qualType();
+          }
       }
-    } else {
-      Type = Context.getjmp_bufType();
-      if (Type.isNull()) {
-        Error = ASTContext::GE_Missing_jmp_buf;
-        return QualType();
-      }
-    }
-    break;
+      break;
 
 Or better yet (in this case) as:
 
 .. code-block:: c++
 
   case 'J':
-    if (Signed)
-      Type = Context.getsigjmp_bufType();
-    else
-      Type = Context.getjmp_bufType();
+      if (signed) {
+          type = context.getsigjmp_bufType();
+      } else {
+          type = context.getjmp_bufType();
+      }
 
-    if (Type.isNull()) {
-      Error = Signed ? ASTContext::GE_Missing_sigjmp_buf :
-                       ASTContext::GE_Missing_jmp_buf;
-      return QualType();
-    }
-    break;
+      if (type.isNull()) {
+          error = signed ? ASTContext::GE_Missing_sigjmp_buf
+                         : ASTContext::GE_Missing_jmp_buf;
+          return qualType();
+      }
+      break;
 
 The idea is to reduce indentation and the amount of code you have to keep track
 of when reading the code.
+
+Avoid Double-Negation in ``if`` / ``else`` Statements
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When writing ``if`` / ``else`` statements, prefer to write the
+if-statment with the true case first and then the false - for example this
+is bad - it can be confusing to read as it reads "backwards":
+
+.. code-block:: c++
+
+  if (!foo) {
+      // code for false case...
+  } else {
+      // code for true case...
+  }
+
+Instead, prefer giving the positive case first:
+
+.. code-block:: c++
+
+  if (foo) {
+      // code for true case...
+  } else {
+      // code for false case...
+  }
+
+Having said that, one should prioritize simpler code over ``if`` /
+``else`` ordering - see `early exits`_.
 
 Turn Predicate Loops into Predicate Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1057,15 +1057,15 @@ sort of thing is:
 
 .. code-block:: c++
 
-  bool FoundFoo = false;
-  for (unsigned I = 0, E = BarList.size(); I != E; ++I)
-    if (BarList[I]->isFoo()) {
-      FoundFoo = true;
-      break;
-    }
+  bool foundFoo = false;
+  for (auto& bar : barList) {
+      if (bar->isFoo()) {
+          foundFoo = true;
+          break;
+      }
 
-  if (FoundFoo) {
-    ...
+  if (foundFoo) {
+      ...
   }
 
 This sort of code is awkward to write, and is almost always a bad sign.  Instead
@@ -1075,16 +1075,18 @@ code to be structured like this:
 
 .. code-block:: c++
 
-  /// \returns true if the specified list has an element that is a foo.
-  static bool containsFoo(const std::vector<Bar*> &List) {
-    for (unsigned I = 0, E = List.size(); I != E; ++I)
-      if (List[I]->isFoo())
-        return true;
-    return false;
+  /// @return true if the specified list has an element that is a foo.
+  static bool containsFoo(const std::vector<Bar*>& barList) {
+      for (const auto& bar : barList) {
+          if (bar.isFoo()) {
+              return true;
+          }
+      }
+      return false;
   }
   ...
 
-  if (containsFoo(BarList)) {
+  if (containsFoo(barList)) {
     ...
   }
 
@@ -1118,34 +1120,21 @@ In general, names should be in camel case (e.g. ``TextFileReader`` and
   nouns and start with an upper-case letter (e.g. ``TextFileReader``).
 
 * **Variable names** should be nouns (as they represent state).  The name should
-  be camel case, and start with an upper case letter (e.g. ``Leader`` or
-  ``Boats``).
+  be camel case, and start with an lower case letter (e.g. ``leader`` or
+  ``boats``).
 
 * **Function names** should be verb phrases (as they represent actions), and
   command-like function should be imperative.  The name should be camel case,
   and start with a lower case letter (e.g. ``openFile()`` or ``isFoo()``).
 
 * **Enum declarations** (e.g. ``enum Foo {...}``) are types, so they should
-  follow the naming conventions for types.  A common use for enums is as a
-  discriminator for a union, or an indicator of a subclass.  When an enum is
-  used for something like this, it should have a ``Kind`` suffix
-  (e.g. ``ValueKind``).
+  follow the naming conventions for types.
 
-* **Enumerators** (e.g. ``enum { Foo, Bar }``) and **public member variables**
-  should start with an upper-case letter, just like types.  Unless the
-  enumerators are defined in their own small namespace or inside a class,
-  enumerators should have a prefix corresponding to the enum declaration name.
-  For example, ``enum ValueKind { ... };`` may contain enumerators like
-  ``VK_Argument``, ``VK_BasicBlock``, etc.  Enumerators that are just
-  convenience constants are exempt from the requirement for a prefix.  For
-  instance:
-
-  .. code-block:: c++
-
-      enum {
-        MaxSize = 42,
-        Density = 12
-      };
+* **Enumerators** (e.g. ``enum { Foo, Bar }``) should start with an
+  upper-case letter, just like types. Prefer C++11 enum classes where
+  possible.  Explicit values for enumerations (``enum Foo { Bar = 0,
+  Baz = 1, ...}`` should only be used when the actual values
+  matter, for example when using an enum for a bitfield.
 
 As an exception, classes that mimic STL classes can have member names in STL's
 style of lower-case words separated by underscores (e.g. ``begin()``,
@@ -1159,109 +1148,73 @@ Here are some examples of good and bad names:
 
   class VehicleMaker {
     ...
-    Factory<Tire> F;            // Bad -- abbreviation and non-descriptive.
-    Factory<Tire> Factory;      // Better.
-    Factory<Tire> TireFactory;  // Even better -- if VehicleMaker has more than one
+    Factory<Tire> f;            // Bad -- abbreviation and non-descriptive.
+    Factory<Tire> factory;      // Better.
+    Factory<Tire> tireFactory;  // Even better -- if VehicleMaker has more than one
                                 // kind of factories.
   };
 
   Vehicle makeVehicle(VehicleType Type) {
-    VehicleMaker M;                         // Might be OK if having a short life-span.
-    Tire Tmp1 = M.makeTire();               // Bad -- 'Tmp1' provides no information.
-    Light Headlight = M.makeLight("head");  // Good -- descriptive.
+    VehicleMaker m;                         // Might be OK if having a short life-span.
+    Tire tmp1 = m.makeTire();               // Bad -- 'tmp1' provides no information.
+    Light headlight = m.makeLight("head");  // Good -- descriptive.
     ...
   }
 
-Assert Liberally
-^^^^^^^^^^^^^^^^
+Use exceptions instead of assert()s
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Use the "``assert``" macro to its fullest.  Check all of your preconditions and
-assumptions, you never know when a bug (not necessarily even yours) might be
-caught early by an assertion, which reduces debugging time dramatically.  The
-"``<cassert>``" header file is probably already included by the header files you
-are using, so it doesn't cost anything to use it.
+Use exceptions for preconditions and assumptions, you never know when
+a bug (not necessarily even yours) might be caught early by a check,
+which reduces debugging time dramatically.
 
-To further assist with debugging, make sure to put some kind of error message in
-the assertion statement, which is printed if the assertion is tripped. This
-helps the poor debugger make sense of why an assertion is being made and
-enforced, and hopefully what to do about it.  Here is one complete example:
+`assert` (or even our custom `cb_assert`) should not be used in
+non-test code - `assert` will always abort (and hence terminate)
+KV-Engine. Exceptions on the other hand can be caught and one can
+choose how to handle them on a case-by-case basis.  See
+`./ErrorHandling.md`_ for further discussion on handling errors.
 
-.. code-block:: c++
+To further assist with debugging, make sure to put some kind of error
+message in the exception `what()` message. This should include an
+indication of where the exception was raised (Class::methodName), and
+a description of what exceptional situation occurred.
 
-  inline Value *getOperand(unsigned I) {
-    assert(I < Operands.size() && "getOperand() out of range!");
-    return Operands[I];
-  }
+Throw exceptions by value (i.e. don't use `new`), and catch by (`const`)
+reference. This ensures that there's no explicit need to `delete` an
+exception, and no unnecessary copies are made.
 
-Here are more examples:
+Here are some examples of good and bad code:
 
-.. code-block:: c++
+.. code:block:: c++
 
-  assert(Ty->isPointerType() && "Can't allocate a non-pointer type!");
-
-  assert((Opcode == Shl || Opcode == Shr) && "ShiftInst Opcode invalid!");
-
-  assert(idx < getNumSuccessors() && "Successor # out of range!");
-
-  assert(V1.getType() == V2.getType() && "Constant types must be identical!");
-
-  assert(isa<PHINode>(Succ->front()) && "Only works on PHId BBs!");
-
-You get the idea.
-
-In the past, asserts were used to indicate a piece of code that should not be
-reached.  These were typically of the form:
-
-.. code-block:: c++
-
-  assert(0 && "Invalid radix for integer literal");
-
-This has a few issues, the main one being that some compilers might not
-understand the assertion, or warn about a missing return in builds where
-assertions are compiled out.
-
-Today, we have something much better: ``llvm_unreachable``:
-
-.. code-block:: c++
-
-  llvm_unreachable("Invalid radix for integer literal");
-
-When assertions are enabled, this will print the message if it's ever reached
-and then exit the program. When assertions are disabled (i.e. in release
-builds), ``llvm_unreachable`` becomes a hint to compilers to skip generating
-code for this branch. If the compiler does not support this, it will fall back
-to the "abort" implementation.
-
-Another issue is that values used only by assertions will produce an "unused
-value" warning when assertions are disabled.  For example, this code will warn:
-
-.. code-block:: c++
-
-  unsigned Size = V.size();
-  assert(Size > 42 && "Vector smaller than it should be");
-
-  bool NewToSet = Myset.insert(Value);
-  assert(NewToSet && "The value shouldn't be in the set yet");
-
-These are two interesting different cases. In the first case, the call to
-``V.size()`` is only useful for the assert, and we don't want it executed when
-assertions are disabled.  Code like this should move the call into the assert
-itself.  In the second case, the side effects of the call must happen whether
-the assert is enabled or not.  In this case, the value should be cast to void to
-disable the warning.  To be specific, it is preferred to write the code like
-this:
-
-.. code-block:: c++
-
-  assert(V.size() > 42 && "Vector smaller than it should be");
-
-  bool NewToSet = Myset.insert(Value); (void)NewToSet;
-  assert(NewToSet && "The value shouldn't be in the set yet");
+  void doSomething(int a) {
+      try {
+          if (a > 100) {
+              throw new std::invalid_argument(  // Bad -- thrown via `new`.
+                  "a too large");               // Bad -- no indication where
+                                                // exception came from.
+                                                // Bad -- no indication what
+                                                // value `a` was.
+          }
+      } catch (std::invalid_argument e) {       // Bad -- caught by value.
+         ...
+      }
+      ...
+      try {
+          if (a < 10) {
+              throw std::invalid_argument(      // Good -- throw directly
+                  "doSomething: a (which is " + std::to_string(a) +
+                  ") is less than 10")          // Good -- include method name
+                                                // and value
+          }
+      } catch (std::invalid_argument& e) {      // Good -- caught by reference.
+         ...
+      }
 
 Do Not Use ``using namespace std``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-In LLVM, we prefer to explicitly prefix all identifiers from the standard
+In KV-Engine, we prefer to explicitly prefix all identifiers from the standard
 namespace with an "``std::``" prefix, rather than rely on "``using namespace
 std;``".
 
@@ -1269,24 +1222,24 @@ In header files, adding a ``'using namespace XXX'`` directive pollutes the
 namespace of any source file that ``#include``\s the header.  This is clearly a
 bad thing.
 
-In implementation files (e.g. ``.cpp`` files), the rule is more of a stylistic
+In implementation files (e.g. ``.cc`` files), the rule is more of a stylistic
 rule, but is still important.  Basically, using explicit namespace prefixes
 makes the code **clearer**, because it is immediately obvious what facilities
 are being used and where they are coming from. And **more portable**, because
-namespace clashes cannot occur between LLVM code and other namespaces.  The
+namespace clashes cannot occur between KV-Engine code and other namespaces.  The
 portability rule is important because different standard library implementations
 expose different symbols (potentially ones they shouldn't), and future revisions
 to the C++ standard will add more symbols to the ``std`` namespace.  As such, we
-never use ``'using namespace std;'`` in LLVM.
+never use ``'using namespace std;'`` in KV-Engine.
 
 The exception to the general rule (i.e. it's not an exception for the ``std``
-namespace) is for implementation files.  For example, all of the code in the
-LLVM project implements code that lives in the 'llvm' namespace.  As such, it is
-ok, and actually clearer, for the ``.cpp`` files to have a ``'using namespace
-llvm;'`` directive at the top, after the ``#include``\s.  This reduces
+namespace) is for implementation files.  For example, code in the
+KV-Engine project implements code that lives in the 'cb' namespace.  As such, it is
+ok, and actually clearer, for the ``.cc`` files to have a ``'using namespace
+cb;'`` directive at the top, after the ``#include``\s.  This reduces
 indentation in the body of the file for source editors that indent based on
 braces, and keeps the conceptual context cleaner.  The general form of this rule
-is that any ``.cpp`` file that implements code in any namespace may use that
+is that any ``.cc`` file that implements code in any namespace may use that
 namespace (and its parents'), but should not use any others.
 
 Provide a Virtual Method Anchor for Classes in Headers
@@ -1304,116 +1257,7 @@ Don't use default labels in fully covered switches over enumerations
 ``-Wswitch`` warns if a switch, without a default label, over an enumeration
 does not cover every enumeration value. If you write a default label on a fully
 covered switch over an enumeration then the ``-Wswitch`` warning won't fire
-when new elements are added to that enumeration. To help avoid adding these
-kinds of defaults, Clang has the warning ``-Wcovered-switch-default`` which is
-off by default but turned on when building LLVM with a version of Clang that
-supports the warning.
-
-A knock-on effect of this stylistic requirement is that when building LLVM with
-GCC you may get warnings related to "control may reach end of non-void function"
-if you return from each case of a covered switch-over-enum because GCC assumes
-that the enum expression may take any representable value, not just those of
-individual enumerators. To suppress this warning, use ``llvm_unreachable`` after
-the switch.
-
-Don't evaluate ``end()`` every time through a loop
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Because C++ doesn't have a standard "``foreach``" loop (though it can be
-emulated with macros and may be coming in C++'0x) we end up writing a lot of
-loops that manually iterate from begin to end on a variety of containers or
-through other data structures.  One common mistake is to write a loop in this
-style:
-
-.. code-block:: c++
-
-  BasicBlock *BB = ...
-  for (BasicBlock::iterator I = BB->begin(); I != BB->end(); ++I)
-    ... use I ...
-
-The problem with this construct is that it evaluates "``BB->end()``" every time
-through the loop.  Instead of writing the loop like this, we strongly prefer
-loops to be written so that they evaluate it once before the loop starts.  A
-convenient way to do this is like so:
-
-.. code-block:: c++
-
-  BasicBlock *BB = ...
-  for (BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E; ++I)
-    ... use I ...
-
-The observant may quickly point out that these two loops may have different
-semantics: if the container (a basic block in this case) is being mutated, then
-"``BB->end()``" may change its value every time through the loop and the second
-loop may not in fact be correct.  If you actually do depend on this behavior,
-please write the loop in the first form and add a comment indicating that you
-did it intentionally.
-
-Why do we prefer the second form (when correct)?  Writing the loop in the first
-form has two problems. First it may be less efficient than evaluating it at the
-start of the loop.  In this case, the cost is probably minor --- a few extra
-loads every time through the loop.  However, if the base expression is more
-complex, then the cost can rise quickly.  I've seen loops where the end
-expression was actually something like: "``SomeMap[X]->end()``" and map lookups
-really aren't cheap.  By writing it in the second form consistently, you
-eliminate the issue entirely and don't even have to think about it.
-
-The second (even bigger) issue is that writing the loop in the first form hints
-to the reader that the loop is mutating the container (a fact that a comment
-would handily confirm!).  If you write the loop in the second form, it is
-immediately obvious without even looking at the body of the loop that the
-container isn't being modified, which makes it easier to read the code and
-understand what it does.
-
-While the second form of the loop is a few extra keystrokes, we do strongly
-prefer it.
-
-``#include <iostream>`` is Forbidden
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The use of ``#include <iostream>`` in library files is hereby **forbidden**,
-because many common implementations transparently inject a `static constructor`_
-into every translation unit that includes it.
-
-Note that using the other stream headers (``<sstream>`` for example) is not
-problematic in this regard --- just ``<iostream>``. However, ``raw_ostream``
-provides various APIs that are better performing for almost every use than
-``std::ostream`` style APIs.
-
-.. note::
-
-  New code should always use `raw_ostream`_ for writing, or the
-  ``llvm::MemoryBuffer`` API for reading files.
-
-.. _raw_ostream:
-
-Use ``raw_ostream``
-^^^^^^^^^^^^^^^^^^^
-
-LLVM includes a lightweight, simple, and efficient stream implementation in
-``llvm/Support/raw_ostream.h``, which provides all of the common features of
-``std::ostream``.  All new code should use ``raw_ostream`` instead of
-``ostream``.
-
-Unlike ``std::ostream``, ``raw_ostream`` is not a template and can be forward
-declared as ``class raw_ostream``.  Public headers should generally not include
-the ``raw_ostream`` header, but use forward declarations and constant references
-to ``raw_ostream`` instances.
-
-Avoid ``std::endl``
-^^^^^^^^^^^^^^^^^^^
-
-The ``std::endl`` modifier, when used with ``iostreams`` outputs a newline to
-the output stream specified.  In addition to doing this, however, it also
-flushes the output stream.  In other words, these are equivalent:
-
-.. code-block:: c++
-
-  std::cout << std::endl;
-  std::cout << '\n' << std::flush;
-
-Most of the time, you probably have no reason to flush the output stream, so
-it's better to use a literal ``'\n'``.
+when new elements are added to that enumeration.
 
 Don't use ``inline`` when defining a function in a class definition
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1427,9 +1271,9 @@ Don't:
 
   class Foo {
   public:
-    inline void bar() {
-      // ...
-    }
+      inline void bar() {
+          // ...
+      }
   };
 
 Do:
@@ -1438,9 +1282,9 @@ Do:
 
   class Foo {
   public:
-    void bar() {
-      // ...
-    }
+      void bar() {
+          // ...
+      }
   };
 
 Microscopic Details
@@ -1458,27 +1302,27 @@ macros.  For example, this is good:
 
 .. code-block:: c++
 
-  if (X) ...
-  for (I = 0; I != 100; ++I) ...
-  while (LLVMRocks) ...
+  if (x) ...
+  for (i = 0; i != 100; ++i) ...
+  while (llvmRocks) ...
 
   somefunc(42);
-  assert(3 != 4 && "laws of math are failing me");
+  cb_assert(3 != 4 && "laws of math are failing me");
 
-  A = foo(42, 92) + bar(X);
+  a = foo(42, 92) + bar(x);
 
 and this is bad:
 
 .. code-block:: c++
 
-  if(X) ...
-  for(I = 0; I != 100; ++I) ...
-  while(LLVMRocks) ...
+  if(x) ...
+  for(i = 0; i != 100; ++i) ...
+  while(llvmRocks) ...
 
   somefunc (42);
-  assert (3 != 4 && "laws of math are failing me");
+  cb_assert (3 != 4 && "laws of math are failing me");
 
-  A = foo (42, 92) + bar (X);
+  a = foo (42, 92) + bar (x);
 
 The reason for doing this is not completely arbitrary.  This style makes control
 flow operators stand out more, and makes expressions flow better. The function
@@ -1490,16 +1334,36 @@ misread the "``A``" example as:
 
 .. code-block:: c++
 
-  A = foo ((42, 92) + bar) (X);
+  a = foo ((42, 92) + bar) (x);
 
 when skimming through the code.  By avoiding a space in a function, we avoid
 this misinterpretation.
 
+Pointer (*) and Reference (&) Symbols Next to Type
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Pointers and references should be written with the ``*`` / ``&``
+symbol next to the type, not the variable. For example, this is good:
+
+.. code-block:: c++
+
+  const char* str;
+  Foo& foo = otherFoo;
+  ...
+  void frobnicate(const Foo& foo, size_t amount);
+  ...
+  void consumeFoo(Foo&& foo);
+
+This is ultimately a stylistic choice - we basically have two choices
+(next to type or variable) and so for consistency (see `Golden Rule`_)
+we must pick one. However this is also the style recommended by the
+`Core C++ Guidelines`_ so we are in good company :).
+
 Prefer Preincrement
 ^^^^^^^^^^^^^^^^^^^
 
-Hard fast rule: Preincrement (``++X``) may be no slower than postincrement
-(``X++``) and could very well be a lot faster than it.  Use preincrementation
+Hard fast rule: Preincrement (``++x``) may be no slower than postincrement
+(``x++``) and could very well be a lot faster than it.  Use preincrementation
 whenever possible.
 
 The semantics of postincrement include making a copy of the value being
@@ -1530,8 +1394,8 @@ being closed by a ``}``.  For example:
   class Grokable {
   ...
   public:
-    explicit Grokable() { ... }
-    virtual ~Grokable() = 0;
+      explicit Grokable() { ... }
+      virtual ~Grokable() = 0;
 
     ...
 
@@ -1577,17 +1441,17 @@ good:
   class StringSort {
   ...
   public:
-    StringSort(...)
-    bool operator<(const char *RHS) const;
+      StringSort(...)
+      bool operator<(const char* rhs) const;
   };
   } // end anonymous namespace
 
   static void runHelper() {
-    ...
+      ...
   }
 
-  bool StringSort::operator<(const char *RHS) const {
-    ...
+  bool StringSort::operator<(const char* rhs) const {
+      ...
   }
 
 This is bad:
@@ -1599,16 +1463,16 @@ This is bad:
   class StringSort {
   ...
   public:
-    StringSort(...)
-    bool operator<(const char *RHS) const;
+      StringSort(...)
+      bool operator<(const char* RHS) const;
   };
 
   void runHelper() {
-    ...
+      ...
   }
 
-  bool StringSort::operator<(const char *RHS) const {
-    ...
+  bool StringSort::operator<(const char* rhs) const {
+      ...
   }
 
   } // end anonymous namespace
@@ -1633,6 +1497,11 @@ Two particularly important books for our work are:
 #. `Large-Scale C++ Software Design
    <http://www.amazon.com/Large-Scale-Software-Design-John-Lakos/dp/0201633620/ref=sr_1_1>`_
    by John Lakos
+
+#. `Core C++ Guidelines
+   <http://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines>`_
+   editod by Bjarne Stroustrup, Herb Sutter. This is an excellent
+   resource for best practices in Modern C++.
 
 If you get some free time, and you haven't read them: do so, you might learn
 something.
