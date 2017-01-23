@@ -493,6 +493,31 @@ static void interfaces_changed_listener(const std::string&, Settings &s) {
     s.calculateMaxconns();
 }
 
+#ifdef HAVE_LIBNUMA
+/** Configure the NUMA policy for memcached. By default will attempt to set to
+ *  interleaved polocy, unless the env var MEMCACHED_NUMA_MEM_POLICY is set to
+ *  'disable'.
+ *  @return A log message describing what action was taken.
+ *
+ */
+static std::string configure_numa_policy() {
+    if (numa_available() != 0) {
+        return "Not available - not setting mem policy.";
+    }
+
+    // Attempt to set the default NUMA memory policy to interleaved,
+    // unless overridden by our env var.
+    const char* mem_policy_env = getenv("MEMCACHED_NUMA_MEM_POLICY");
+    if (mem_policy_env != NULL && strcmp("disable", mem_policy_env) == 0) {
+        return std::string("NOT setting memory allocation policy - disabled "
+                "via MEMCACHED_NUMA_MEM_POLICY='") + mem_policy_env + "'";
+    } else {
+        numa_set_interleave_mask(numa_all_nodes_ptr);
+        return "Set memory allocation policy to 'interleave'";
+    }
+}
+#endif  // HAVE_LIBNUMA
+
 static void settings_init(void) {
     // Set up the listener functions
     settings.addChangeListener("breakpad",
@@ -2623,23 +2648,9 @@ extern "C" int memcached_main(int argc, char **argv) {
 #endif
 
 #ifdef HAVE_LIBNUMA
-    enum class NumaPolicy {
-        NOT_AVAILABLE,
-        DISABLED,
-        INTERLEAVE
-    } numa_policy = NumaPolicy::NOT_AVAILABLE;
-    const char* mem_policy_env = NULL;
-
-    if (numa_available() == 0) {
-        // Set the default NUMA memory policy to interleaved.
-        mem_policy_env = getenv("MEMCACHED_NUMA_MEM_POLICY");
-        if (mem_policy_env != NULL && strcmp("disable", mem_policy_env) == 0) {
-            numa_policy = NumaPolicy::DISABLED;
-        } else {
-            numa_set_interleave_mask(numa_all_nodes_ptr);
-            numa_policy = NumaPolicy::INTERLEAVE;
-        }
-    }
+    // Configure NUMA policy as soon as possible (before any dynamic memory
+    // allocation).
+    const std::string numa_status = configure_numa_policy();
 #endif
     std::unique_ptr<ParentMonitor> parent_monitor;
 
@@ -2690,25 +2701,9 @@ extern "C" int memcached_main(int argc, char **argv) {
     LOG_NOTICE(NULL, "Couchbase version %s starting.", get_server_version());
 
 #ifdef HAVE_LIBNUMA
-    // Log the NUMA policy selected.
-    switch (numa_policy) {
-    case NumaPolicy::NOT_AVAILABLE:
-        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                        "NUMA: Not available - not setting mem policy.");
-        break;
-
-    case NumaPolicy::DISABLED:
-        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                        "NUMA: NOT setting memory allocation policy - "
-                                        "disabled via MEMCACHED_NUMA_MEM_POLICY='%s'.",
-                                        mem_policy_env);
-        break;
-
-    case NumaPolicy::INTERLEAVE:
-        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                        "NUMA: Set memory allocation policy to 'interleave'.");
-        break;
-    }
+    // Log the NUMA policy selected (now the logger is available).
+    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+            "NUMA: %s", numa_status.c_str());
 #endif
 
     initialize_audit();
