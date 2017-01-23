@@ -512,8 +512,14 @@ static std::string configure_numa_policy() {
         return std::string("NOT setting memory allocation policy - disabled "
                 "via MEMCACHED_NUMA_MEM_POLICY='") + mem_policy_env + "'";
     } else {
+        errno = 0;
         numa_set_interleave_mask(numa_all_nodes_ptr);
-        return "Set memory allocation policy to 'interleave'";
+        if (errno == 0) {
+            return "Set memory allocation policy to 'interleave'";
+        } else {
+            return std::string("NOT setting memory allocation policy to "
+                    "'interleave' - request failed: ") + cb_strerror();
+        }
     }
 }
 #endif  // HAVE_LIBNUMA
