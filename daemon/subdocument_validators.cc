@@ -62,6 +62,10 @@ static inline protocol_binary_response_status validate_xattr_section(
         }
     }
 
+    if (!settings.isXattrEnabled()) {
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    }
+
     size_t key_length;
     if (!is_valid_xattr_key(path, key_length)) {
         return PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL;

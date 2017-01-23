@@ -35,6 +35,7 @@ std::ostream& operator<<(std::ostream& os, const protocol_binary_response_status
  */
 namespace BinaryProtocolValidator {
 void ValidatorTest::SetUp() {
+    settings.setXattrEnabled(true);
     McbpValidatorChains::initializeMcbpValidatorChains(validatorChains);
 }
 
