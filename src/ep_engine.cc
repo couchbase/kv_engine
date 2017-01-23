@@ -68,24 +68,29 @@ static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
 }
 
+struct EPHandleReleaser {
+    void operator()(EventuallyPersistentEngine*) {
+        ObjectRegistry::onSwitchThread(nullptr);
+    }
+};
+
+using EPHandle = std::unique_ptr<EventuallyPersistentEngine, EPHandleReleaser>;
+
 /**
- * Helper function to avoid typing in the long cast all over the place
+ * Helper function to acquire a handle to the engine which allows access to
+ * the engine while the handle is in scope.
  * @param handle pointer to the engine
- * @return the engine as a class
+ * @return EPHandle which is a unique_ptr to an EventuallyPersistentEngine
+ * with a custom deleter (EPHandleReleaser) which performs the required
+ * ObjectRegistry release.
  */
-static inline EventuallyPersistentEngine* getHandle(ENGINE_HANDLE* handle)
-{
-    EventuallyPersistentEngine* ret;
-    ret = reinterpret_cast<EventuallyPersistentEngine*>(handle);
+
+static inline EPHandle acquireEngine(ENGINE_HANDLE* handle) {
+    auto ret = reinterpret_cast<EventuallyPersistentEngine*>(handle);
     ObjectRegistry::onSwitchThread(ret);
-    return ret;
-}
 
-static inline void releaseHandle(ENGINE_HANDLE* handle) {
-    (void) handle;
-    ObjectRegistry::onSwitchThread(NULL);
+    return EPHandle(ret);
 }
-
 
 /**
  * Call the response callback and return the appropriate value so that
@@ -130,22 +135,18 @@ static void checkNumeric(const char* str) {
 }
 
 static const engine_info* EvpGetInfo(ENGINE_HANDLE* handle) {
-    engine_info* info = getHandle(handle)->getInfo();
-    releaseHandle(handle);
-    return info;
+    return acquireEngine(handle)->getInfo();
 }
 
 static ENGINE_ERROR_CODE EvpInitialize(ENGINE_HANDLE* handle,
                                        const char* config_str) {
-    ENGINE_ERROR_CODE err_code = getHandle(handle)->initialize(config_str);
-    releaseHandle(handle);
-    return err_code;
+    return acquireEngine(handle)->initialize(config_str);
 }
 
 static void EvpDestroy(ENGINE_HANDLE* handle, const bool force) {
-    getHandle(handle)->destroy(force);
-    delete getHandle(handle);
-    releaseHandle(NULL);
+    auto eng = acquireEngine(handle);
+    eng->destroy(force);
+    delete eng.get();
 }
 
 static ENGINE_ERROR_CODE EvpItemAllocate(ENGINE_HANDLE* handle,
@@ -163,12 +164,14 @@ static ENGINE_ERROR_CODE EvpItemAllocate(ENGINE_HANDLE* handle,
         return ENGINE_EINVAL;
     }
 
-    auto err_code = getHandle(handle)->itemAllocate(itm, key, nbytes,
-                                                    0, // No privileged bytes
-                                                    flags, exptime,
-                                                    datatype, vbucket);
-    releaseHandle(handle);
-    return err_code;
+    return acquireEngine(handle)->itemAllocate(itm,
+                                               key,
+                                               nbytes,
+                                               0, // No privileged bytes
+                                               flags,
+                                               exptime,
+                                               datatype,
+                                               vbucket);
 }
 
 static bool EvpGetItemInfo(ENGINE_HANDLE *handle, const void *,
@@ -188,10 +191,8 @@ static std::pair<cb::unique_item_ptr, item_info> EvpItemAllocateEx(ENGINE_HANDLE
                                                                    uint16_t vbucket) {
 
     item* it = nullptr;
-    auto err = getHandle(handle)->itemAllocate(&it, key, nbytes,
-                                               priv_nbytes, flags,
-                                               exptime, datatype, vbucket);
-    releaseHandle(handle);
+    auto err = acquireEngine(handle)->itemAllocate(
+            &it, key, nbytes, priv_nbytes, flags, exptime, datatype, vbucket);
 
     if (err != ENGINE_SUCCESS) {
         throw cb::engine_error(cb::engine_errc(err),
@@ -215,19 +216,14 @@ static ENGINE_ERROR_CODE EvpItemDelete(ENGINE_HANDLE* handle,
                                        uint64_t* cas,
                                        uint16_t vbucket,
                                        mutation_descr_t* mut_info) {
-    ENGINE_ERROR_CODE err_code = getHandle(handle)->itemDelete(cookie, key,
-                                                               cas, vbucket,
-                                                               nullptr, nullptr,
-                                                               mut_info);
-    releaseHandle(handle);
-    return err_code;
+    return acquireEngine(handle)->itemDelete(
+            cookie, key, cas, vbucket, nullptr, nullptr, mut_info);
 }
 
 static void EvpItemRelease(ENGINE_HANDLE* handle,
                            const void* cookie,
                            item* itm) {
-    getHandle(handle)->itemRelease(cookie, itm);
-    releaseHandle(handle);
+    acquireEngine(handle)->itemRelease(cookie, itm);
 }
 
 static ENGINE_ERROR_CODE EvpGet(ENGINE_HANDLE* handle,
@@ -247,11 +243,7 @@ static ENGINE_ERROR_CODE EvpGet(ENGINE_HANDLE* handle,
         options = static_cast<get_options_t>(options | GET_DELETED_VALUE);
     }
 
-    ENGINE_ERROR_CODE err_code = getHandle(handle)->get(cookie, itm, key,
-                                                        vbucket,
-                                                        options);
-    releaseHandle(handle);
-    return err_code;
+    return acquireEngine(handle)->get(cookie, itm, key, vbucket, options);
 }
 
 static ENGINE_ERROR_CODE EvpGetLocked(ENGINE_HANDLE* handle,
@@ -260,11 +252,8 @@ static ENGINE_ERROR_CODE EvpGetLocked(ENGINE_HANDLE* handle,
                                       const DocKey& key,
                                       uint16_t vbucket,
                                       uint32_t lock_timeout) {
-    auto ret = getHandle(handle)->get_locked(cookie, itm,
-                                             key, vbucket,
-                                             lock_timeout);
-    releaseHandle(handle);
-    return ret;
+    return acquireEngine(handle)->get_locked(
+            cookie, itm, key, vbucket, lock_timeout);
 }
 
 static ENGINE_ERROR_CODE EvpUnlock(ENGINE_HANDLE* handle,
@@ -272,9 +261,7 @@ static ENGINE_ERROR_CODE EvpUnlock(ENGINE_HANDLE* handle,
                                    const DocKey& key,
                                    uint16_t vbucket,
                                    uint64_t cas) {
-    auto ret = getHandle(handle)->unlock(cookie, key, vbucket, cas);
-    releaseHandle(handle);
-    return ret;
+    return acquireEngine(handle)->unlock(cookie, key, vbucket, cas);
 }
 
 static ENGINE_ERROR_CODE EvpGetStats(ENGINE_HANDLE* handle,
@@ -282,12 +269,7 @@ static ENGINE_ERROR_CODE EvpGetStats(ENGINE_HANDLE* handle,
                                      const char* stat_key,
                                      int nkey,
                                      ADD_STAT add_stat) {
-    ENGINE_ERROR_CODE err_code = getHandle(handle)->getStats(cookie,
-                                                             stat_key,
-                                                             nkey,
-                                                             add_stat);
-    releaseHandle(handle);
-    return err_code;
+    return acquireEngine(handle)->getStats(cookie, stat_key, nkey, add_stat);
 }
 
 static ENGINE_ERROR_CODE EvpStore(ENGINE_HANDLE* handle,
@@ -297,9 +279,10 @@ static ENGINE_ERROR_CODE EvpStore(ENGINE_HANDLE* handle,
                                   ENGINE_STORE_OPERATION operation,
                                   DocumentState document_state) {
     ENGINE_ERROR_CODE err_code = ENGINE_SUCCESS;
+    auto engine = acquireEngine(handle);
     switch (document_state) {
     case DocumentState::Alive: {
-        err_code = getHandle(handle)->store(cookie, itm, cas, operation);
+        err_code = engine->store(cookie, itm, cas, operation);
         break;
     }
     case DocumentState::Deleted: {
@@ -309,10 +292,13 @@ static ENGINE_ERROR_CODE EvpStore(ENGINE_HANDLE* handle,
 
         /* Set the item as deleted */
         item->setDeleted();
-        err_code = getHandle(handle)->itemDelete(cookie, item->getKey(), cas,
-                                                 item->getVBucketId(), item,
-                                                 &itm_meta,
-                                                 &mut_info);
+        err_code = engine->itemDelete(cookie,
+                                      item->getKey(),
+                                      cas,
+                                      item->getVBucketId(),
+                                      item,
+                                      &itm_meta,
+                                      &mut_info);
         if (err_code == ENGINE_SUCCESS) {
             item->setBySeqno(mut_info.seqno);
             item->setCas(itm_meta.cas);
@@ -324,20 +310,16 @@ static ENGINE_ERROR_CODE EvpStore(ENGINE_HANDLE* handle,
     default:
         return ENGINE_ENOTSUP;
     }
-    releaseHandle(handle);
     return err_code;
 }
 
 static ENGINE_ERROR_CODE EvpFlush(ENGINE_HANDLE* handle,
                                   const void* cookie) {
-    ENGINE_ERROR_CODE err_code = getHandle(handle)->flush(cookie);
-    releaseHandle(handle);
-    return err_code;
+    return acquireEngine(handle)->flush(cookie);
 }
 
 static void EvpResetStats(ENGINE_HANDLE* handle, const void*) {
-    getHandle(handle)->resetStats();
-    releaseHandle(handle);
+    acquireEngine(handle)->resetStats();
 }
 
 static protocol_binary_response_status stopFlusher(
@@ -1300,12 +1282,10 @@ static ENGINE_ERROR_CODE EvpUnknownCommand(ENGINE_HANDLE* handle,
                                            * request,
                                            ADD_RESPONSE response,
                                            DocNamespace doc_namespace) {
-    ENGINE_ERROR_CODE err_code = processUnknownCommand(getHandle(handle),
-                                                       cookie, request,
-                                                       response,
-                                                       doc_namespace);
-    releaseHandle(handle);
-    return err_code;
+    auto engine = acquireEngine(handle);
+    auto ret = processUnknownCommand(
+            engine.get(), cookie, request, response, doc_namespace);
+    return ret;
 }
 
 static void EvpItemSetCas(ENGINE_HANDLE*, const void*,
@@ -1336,18 +1316,22 @@ static ENGINE_ERROR_CODE EvpTapNotify(ENGINE_HANDLE* handle,
         return ENGINE_EINVAL;
     }
 
-    ENGINE_ERROR_CODE err_code = getHandle(handle)->tapNotify(cookie,
-                                                              engine_specific,
-                                                              nengine, ttl,
-                                                              tap_flags,
-                                                              (uint16_t)tap_event,
-                                                              tap_seqno,
-                                                              key, nkey, flags,
-                                                              exptime, cas,
-                                                              datatype, data,
-                                                              ndata, vbucket);
-    releaseHandle(handle);
-    return err_code;
+    return acquireEngine(handle)->tapNotify(cookie,
+                                            engine_specific,
+                                            nengine,
+                                            ttl,
+                                            tap_flags,
+                                            (uint16_t)tap_event,
+                                            tap_seqno,
+                                            key,
+                                            nkey,
+                                            flags,
+                                            exptime,
+                                            cas,
+                                            datatype,
+                                            data,
+                                            ndata,
+                                            vbucket);
 }
 
 static tap_event_t EvpTapIterator(ENGINE_HANDLE* handle,
@@ -1355,11 +1339,8 @@ static tap_event_t EvpTapIterator(ENGINE_HANDLE* handle,
                                   void** es, uint16_t* nes, uint8_t* ttl,
                                   uint16_t* flags, uint32_t* seqno,
                                   uint16_t* vbucket) {
-    uint16_t tap_event = getHandle(handle)->walkTapQueue(cookie, itm, es,
-                                                         nes, ttl,
-                                                         flags, seqno,
-                                                         vbucket);
-    releaseHandle(handle);
+    uint16_t tap_event = acquireEngine(handle)->walkTapQueue(
+            cookie, itm, es, nes, ttl, flags, seqno, vbucket);
     return static_cast<tap_event_t>(tap_event);
 }
 
@@ -1370,17 +1351,16 @@ static TAP_ITERATOR EvpGetTapIterator(ENGINE_HANDLE* handle,
                                       uint32_t flags,
                                       const void* userdata,
                                       size_t nuserdata) {
-    EventuallyPersistentEngine* h = getHandle(handle);
+    auto engine = acquireEngine(handle);
     TAP_ITERATOR iterator = NULL;
     {
         std::string c(static_cast<const char*>(client), nclient);
         // Figure out what we want from the userdata before adding it to
         // the API to the handle
-        if (h->createTapQueue(cookie, c, flags, userdata, nuserdata)) {
+        if (engine->createTapQueue(cookie, c, flags, userdata, nuserdata)) {
             iterator = EvpTapIterator;
         }
     }
-    releaseHandle(handle);
     return iterator;
 }
 
@@ -1388,13 +1368,12 @@ static TAP_ITERATOR EvpGetTapIterator(ENGINE_HANDLE* handle,
 static ENGINE_ERROR_CODE EvpDcpStep(ENGINE_HANDLE* handle,
                                     const void* cookie,
                                     struct dcp_message_producers* producers) {
-    ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
-    ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+    auto engine = acquireEngine(handle);
+    ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        errCode = conn->step(producers);
+        return conn->step(producers);
     }
-    releaseHandle(handle);
-    return errCode;
+    return ENGINE_DISCONNECT;
 }
 
 
@@ -1405,11 +1384,8 @@ static ENGINE_ERROR_CODE EvpDcpOpen(ENGINE_HANDLE* handle,
                                     uint32_t flags,
                                     void* name,
                                     uint16_t nname) {
-    ENGINE_ERROR_CODE errCode;
-    errCode = getHandle(handle)->dcpOpen(cookie, opaque, seqno, flags,
-                                         name, nname);
-    releaseHandle(handle);
-    return errCode;
+    return acquireEngine(handle)->dcpOpen(
+            cookie, opaque, seqno, flags, name, nname);
 }
 
 static ENGINE_ERROR_CODE EvpDcpAddStream(ENGINE_HANDLE* handle,
@@ -1417,25 +1393,19 @@ static ENGINE_ERROR_CODE EvpDcpAddStream(ENGINE_HANDLE* handle,
                                          uint32_t opaque,
                                          uint16_t vbucket,
                                          uint32_t flags) {
-    ENGINE_ERROR_CODE errCode = getHandle(handle)->dcpAddStream(cookie,
-                                                                opaque,
-                                                                vbucket,
-                                                                flags);
-    releaseHandle(handle);
-    return errCode;
+    return acquireEngine(handle)->dcpAddStream(cookie, opaque, vbucket, flags);
 }
 
 static ENGINE_ERROR_CODE EvpDcpCloseStream(ENGINE_HANDLE* handle,
                                            const void* cookie,
                                            uint32_t opaque,
                                            uint16_t vbucket) {
-    ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
-    ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+    auto engine = acquireEngine(handle);
+    ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        errCode = conn->closeStream(opaque, vbucket);
+        return conn->closeStream(opaque, vbucket);
     }
-    releaseHandle(handle);
-    return errCode;
+    return ENGINE_DISCONNECT;
 }
 
 
@@ -1451,15 +1421,21 @@ static ENGINE_ERROR_CODE EvpDcpStreamReq(ENGINE_HANDLE* handle,
                                          uint64_t snapEndSeqno,
                                          uint64_t* rollbackSeqno,
                                          dcp_add_failover_log callback) {
-    ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
-    ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+    auto engine = acquireEngine(handle);
+    ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        errCode = conn->streamRequest(flags, opaque, vbucket, startSeqno,
-                                      endSeqno, vbucketUuid, snapStartSeqno,
-                                      snapEndSeqno, rollbackSeqno, callback);
+        return conn->streamRequest(flags,
+                                   opaque,
+                                   vbucket,
+                                   startSeqno,
+                                   endSeqno,
+                                   vbucketUuid,
+                                   snapStartSeqno,
+                                   snapEndSeqno,
+                                   rollbackSeqno,
+                                   callback);
     }
-    releaseHandle(handle);
-    return errCode;
+    return ENGINE_DISCONNECT;
 }
 
 static ENGINE_ERROR_CODE EvpDcpGetFailoverLog(ENGINE_HANDLE* handle,
@@ -1467,13 +1443,12 @@ static ENGINE_ERROR_CODE EvpDcpGetFailoverLog(ENGINE_HANDLE* handle,
                                               uint32_t opaque,
                                               uint16_t vbucket,
                                               dcp_add_failover_log callback) {
-    ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
-    ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+    auto engine = acquireEngine(handle);
+    ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        errCode = conn->getFailoverLog(opaque, vbucket, callback);
+        return conn->getFailoverLog(opaque, vbucket, callback);
     }
-    releaseHandle(handle);
-    return errCode;
+    return ENGINE_DISCONNECT;
 }
 
 
@@ -1482,13 +1457,12 @@ static ENGINE_ERROR_CODE EvpDcpStreamEnd(ENGINE_HANDLE* handle,
                                          uint32_t opaque,
                                          uint16_t vbucket,
                                          uint32_t flags) {
-    ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
-    ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+    auto engine = acquireEngine(handle);
+    ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        errCode = conn->streamEnd(opaque, vbucket, flags);
+        return conn->streamEnd(opaque, vbucket, flags);
     }
-    releaseHandle(handle);
-    return errCode;
+    return ENGINE_DISCONNECT;
 }
 
 
@@ -1499,14 +1473,13 @@ static ENGINE_ERROR_CODE EvpDcpSnapshotMarker(ENGINE_HANDLE* handle,
                                               uint64_t start_seqno,
                                               uint64_t end_seqno,
                                               uint32_t flags) {
-    ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
-    ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+    auto engine = acquireEngine(handle);
+    ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        errCode = conn->snapshotMarker(opaque, vbucket, start_seqno,
-                                       end_seqno, flags);
+        return conn->snapshotMarker(
+                opaque, vbucket, start_seqno, end_seqno, flags);
     }
-    releaseHandle(handle);
-    return errCode;
+    return ENGINE_DISCONNECT;
 }
 
 static ENGINE_ERROR_CODE EvpDcpMutation(ENGINE_HANDLE* handle,
@@ -1532,16 +1505,27 @@ static ENGINE_ERROR_CODE EvpDcpMutation(ENGINE_HANDLE* handle,
             " (DCPMutation)");
         return ENGINE_EINVAL;
     }
-    ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
-    ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+    auto engine = acquireEngine(handle);
+    ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        errCode = conn->mutation(opaque, key, nkey, value, nvalue, cas,
-                                 vbucket, flags, datatype, lockTime,
-                                 bySeqno, revSeqno, expiration,
-                                 nru, meta, nmeta);
+        return conn->mutation(opaque,
+                              key,
+                              nkey,
+                              value,
+                              nvalue,
+                              cas,
+                              vbucket,
+                              flags,
+                              datatype,
+                              lockTime,
+                              bySeqno,
+                              revSeqno,
+                              expiration,
+                              nru,
+                              meta,
+                              nmeta);
     }
-    releaseHandle(handle);
-    return errCode;
+    return ENGINE_DISCONNECT;
 }
 
 static ENGINE_ERROR_CODE EvpDcpDeletion(ENGINE_HANDLE* handle,
@@ -1555,14 +1539,20 @@ static ENGINE_ERROR_CODE EvpDcpDeletion(ENGINE_HANDLE* handle,
                                         uint64_t revSeqno,
                                         const void* meta,
                                         uint16_t nmeta) {
-    ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
-    ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+    auto engine = acquireEngine(handle);
+    ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        errCode = conn->deletion(opaque, key, nkey, cas, vbucket, bySeqno,
-                                 revSeqno, meta, nmeta);
+        return conn->deletion(opaque,
+                              key,
+                              nkey,
+                              cas,
+                              vbucket,
+                              bySeqno,
+                              revSeqno,
+                              meta,
+                              nmeta);
     }
-    releaseHandle(handle);
-    return errCode;
+    return ENGINE_DISCONNECT;
 }
 
 static ENGINE_ERROR_CODE EvpDcpExpiration(ENGINE_HANDLE* handle,
@@ -1576,27 +1566,32 @@ static ENGINE_ERROR_CODE EvpDcpExpiration(ENGINE_HANDLE* handle,
                                           uint64_t revSeqno,
                                           const void* meta,
                                           uint16_t nmeta) {
-    ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
-    ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+    auto engine = acquireEngine(handle);
+    ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        errCode = conn->expiration(opaque, key, nkey, cas, vbucket, bySeqno,
-                                   revSeqno, meta, nmeta);
+        return conn->expiration(opaque,
+                                key,
+                                nkey,
+                                cas,
+                                vbucket,
+                                bySeqno,
+                                revSeqno,
+                                meta,
+                                nmeta);
     }
-    releaseHandle(handle);
-    return errCode;
+    return ENGINE_DISCONNECT;
 }
 
 static ENGINE_ERROR_CODE EvpDcpFlush(ENGINE_HANDLE* handle,
                                      const void* cookie,
                                      uint32_t opaque,
                                      uint16_t vbucket) {
-    ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
-    ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+    auto engine = acquireEngine(handle);
+    ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        errCode = conn->flushall(opaque, vbucket);
+        return conn->flushall(opaque, vbucket);
     }
-    releaseHandle(handle);
-    return errCode;
+    return ENGINE_DISCONNECT;
 }
 
 static ENGINE_ERROR_CODE EvpDcpSetVbucketState(ENGINE_HANDLE* handle,
@@ -1604,25 +1599,23 @@ static ENGINE_ERROR_CODE EvpDcpSetVbucketState(ENGINE_HANDLE* handle,
                                                uint32_t opaque,
                                                uint16_t vbucket,
                                                vbucket_state_t state) {
-    ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
-    ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+    auto engine = acquireEngine(handle);
+    ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        errCode = conn->setVBucketState(opaque, vbucket, state);
+        return conn->setVBucketState(opaque, vbucket, state);
     }
-    releaseHandle(handle);
-    return errCode;
+    return ENGINE_DISCONNECT;
 }
 
 static ENGINE_ERROR_CODE EvpDcpNoop(ENGINE_HANDLE* handle,
                                     const void* cookie,
                                     uint32_t opaque) {
-    ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
-    ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+    auto engine = acquireEngine(handle);
+    ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        errCode = conn->noop(opaque);
+        return conn->noop(opaque);
     }
-    releaseHandle(handle);
-    return errCode;
+    return ENGINE_DISCONNECT;
 }
 
 static ENGINE_ERROR_CODE EvpDcpBufferAcknowledgement(ENGINE_HANDLE* handle,
@@ -1630,14 +1623,12 @@ static ENGINE_ERROR_CODE EvpDcpBufferAcknowledgement(ENGINE_HANDLE* handle,
                                                      uint32_t opaque,
                                                      uint16_t vbucket,
                                                      uint32_t buffer_bytes) {
-    ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
-    ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+    auto engine = acquireEngine(handle);
+    ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        errCode = conn->bufferAcknowledgement(opaque, vbucket,
-                                              buffer_bytes);
+        return conn->bufferAcknowledgement(opaque, vbucket, buffer_bytes);
     }
-    releaseHandle(handle);
-    return errCode;
+    return ENGINE_DISCONNECT;
 }
 
 static ENGINE_ERROR_CODE EvpDcpControl(ENGINE_HANDLE* handle,
@@ -1647,25 +1638,23 @@ static ENGINE_ERROR_CODE EvpDcpControl(ENGINE_HANDLE* handle,
                                        uint16_t nkey,
                                        const void* value,
                                        uint32_t nvalue) {
-    ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
-    ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+    auto engine = acquireEngine(handle);
+    ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        errCode = conn->control(opaque, key, nkey, value, nvalue);
+        return conn->control(opaque, key, nkey, value, nvalue);
     }
-    releaseHandle(handle);
-    return errCode;
+    return ENGINE_DISCONNECT;
 }
 
 static ENGINE_ERROR_CODE EvpDcpResponseHandler(ENGINE_HANDLE* handle,
                                                const void* cookie,
                                                protocol_binary_response_header* response) {
-    ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
-    ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
+    auto engine = acquireEngine(handle);
+    ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        errCode = conn->handleResponse(response);
+        return conn->handleResponse(response);
     }
-    releaseHandle(handle);
-    return errCode;
+    return ENGINE_DISCONNECT;
 }
 
 static void EvpHandleDisconnect(const void* cookie,
@@ -1682,8 +1671,7 @@ static void EvpHandleDisconnect(const void* cookie,
                                         "is not NULL");
     }
     void* c = const_cast<void*>(cb_data);
-    getHandle(static_cast<ENGINE_HANDLE*>(c))->handleDisconnect(cookie);
-    releaseHandle(static_cast<ENGINE_HANDLE*>(c));
+    acquireEngine(static_cast<ENGINE_HANDLE*>(c))->handleDisconnect(cookie);
 }
 
 static void EvpHandleDeleteBucket(const void* cookie,
@@ -1700,8 +1688,7 @@ static void EvpHandleDeleteBucket(const void* cookie,
                                         "is not NULL");
     }
     void* c = const_cast<void*>(cb_data);
-    getHandle(static_cast<ENGINE_HANDLE*>(c))->handleDeleteBucket(cookie);
-    releaseHandle(static_cast<ENGINE_HANDLE*>(c));
+    acquireEngine(static_cast<ENGINE_HANDLE*>(c))->handleDeleteBucket(cookie);
 }
 
 void EvpSetLogLevel(ENGINE_HANDLE* handle, EXTENSION_LOG_LEVEL level) {
@@ -1769,7 +1756,7 @@ void destroy_engine() {
 static bool EvpGetItemInfo(ENGINE_HANDLE* handle, const void*,
                            const item* itm, item_info* itm_info) {
     const Item* it = reinterpret_cast<const Item*>(itm);
-    EventuallyPersistentEngine* engine = getHandle(handle);
+    auto engine = acquireEngine(handle);
     itm_info->cas = it->getCas();
 
     if (engine) {
@@ -1782,7 +1769,6 @@ static bool EvpGetItemInfo(ENGINE_HANDLE* handle, const void*,
             itm_info->vbucket_uuid = 0;
         }
 
-        releaseHandle(handle);
     } else {
         itm_info->vbucket_uuid = 0;
     }
@@ -1818,11 +1804,11 @@ static bool EvpSetItemInfo(ENGINE_HANDLE* handle, const void* cookie,
 static ENGINE_ERROR_CODE EvpGetClusterConfig(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              engine_get_vb_map_cb callback) {
-    EventuallyPersistentEngine* h = getHandle(handle);
-    LockHolder lh(h->clusterConfig.lock);
-    const char* config = h->clusterConfig.config.data();
-    uint32_t len = h->clusterConfig.config.size();
-    releaseHandle(handle);
+    auto engine = acquireEngine(handle);
+    LockHolder lh(engine->clusterConfig.lock);
+    const char* config = engine->clusterConfig.config.data();
+    uint32_t len = engine->clusterConfig.config.size();
+    engine.reset(); // Want to release the engine before the callback
     return callback(cookie, config, len);
 }
 
