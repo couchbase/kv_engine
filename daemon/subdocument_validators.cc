@@ -39,6 +39,7 @@ static bool validate_macro(const cb::const_byte_buffer& value) {
  * do macro expansion etc), and that the key conforms to the rules (and that
  * all keys refers the same xattr bulk).
  *
+ * @param cookie The cookie representing the command context
  * @param flags The flag section provided
  * @param path The full path (including the key)
  * @param value The value passed (if it is a macro this must be a legal macro)
@@ -48,6 +49,7 @@ static bool validate_macro(const cb::const_byte_buffer& value) {
  * @return PROTOCOL_BINARY_RESPONSE_SUCCESS if everything is correct
  */
 static inline protocol_binary_response_status validate_xattr_section(
+                                          const Cookie& cookie,
                                           protocol_binary_subdoc_flag flags,
                                           cb::const_byte_buffer path,
                                           cb::const_byte_buffer value,
@@ -62,7 +64,8 @@ static inline protocol_binary_response_status validate_xattr_section(
         }
     }
 
-    if (!settings.isXattrEnabled()) {
+    if (!settings.isXattrEnabled() || cookie.connection == nullptr ||
+        !cookie.connection->isXattrSupport()) {
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
@@ -88,7 +91,8 @@ static inline protocol_binary_response_status validate_xattr_section(
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status subdoc_validator(const Cookie& cookie, const SubdocCmdTraits traits) {
+static protocol_binary_response_status subdoc_validator(const Cookie& cookie,
+                                                        const SubdocCmdTraits traits) {
     auto req = reinterpret_cast<const protocol_binary_request_subdocument*>(McbpConnection::getPacket(cookie));
     const protocol_binary_request_header* header = &req->message.header;
     // Extract the various fields from the header.
@@ -135,8 +139,8 @@ static protocol_binary_response_status subdoc_validator(const Cookie& cookie, co
                                 valuelen};
     cb::const_byte_buffer xattr_key;
 
-    const auto status = validate_xattr_section(subdoc_flags, path, macro,
-                                               xattr_key);
+    const auto status = validate_xattr_section(cookie, subdoc_flags, path,
+                                               macro, xattr_key);
     if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         return status;
     }
@@ -213,6 +217,7 @@ protocol_binary_response_status subdoc_get_count_validator(const Cookie& cookie)
 /**
  * Validate the multipath spec. This may be a multi mutation or lookup
  *
+ * @param cookie The cookie representing the command context
  * @param ptr Pointer to the first byte of the encoded spec
  * @param traits The traits to use to validate the spec
  * @param spec_len [OUT] The number of bytes used by this spec
@@ -224,7 +229,8 @@ protocol_binary_response_status subdoc_get_count_validator(const Cookie& cookie)
  * @return PROTOCOL_BINARY_RESPONSE_SUCCESS if everything is correct, or an
  *         error to return to the client otherwise
  */
-static protocol_binary_response_status is_valid_multipath_spec(const char* ptr,
+static protocol_binary_response_status is_valid_multipath_spec(const Cookie& cookie,
+                                                               const char* ptr,
                                                                const SubdocMultiCmdTraits traits,
                                                                size_t& spec_len,
                                                                bool& xattr,
@@ -285,7 +291,8 @@ static protocol_binary_response_status is_valid_multipath_spec(const char* ptr,
                                 headerlen + pathlen,
                                 valuelen};
 
-    const auto status = validate_xattr_section(flags, path, macro, xattr_key);
+    const auto status = validate_xattr_section(cookie, flags, path,
+                                               macro, xattr_key);
     if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         return status;
     }
@@ -366,7 +373,8 @@ static protocol_binary_response_status subdoc_multi_validator(const Cookie& cook
 
         size_t spec_len = 0;
         bool is_xattr;
-        const auto status = is_valid_multipath_spec(body_ptr + body_validated,
+        const auto status = is_valid_multipath_spec(cookie,
+                                                    body_ptr + body_validated,
                                                     traits, spec_len,
                                                     is_xattr, xattr_key);
         if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {

@@ -436,3 +436,29 @@ TEST_P(XattrTest, Counter_FullXattrSpec) {
 TEST_P(XattrTest, Counter_PartialXattrSpec) {
     doCounterTest("doc.counter");
 }
+
+////////////////////////////////////////////////////////////////////////
+//  Verify that I can't do subdoc ops if it's not enabled by hello
+////////////////////////////////////////////////////////////////////////
+TEST_P(XattrTest, VerifyNotEnabled) {
+    auto& conn = getMCBPConnection();
+    conn.setXattrSupport(false);
+
+    // All of the subdoc commands end up using the same method
+    // to validate the xattr portion of the command so we'll just
+    // check one
+    BinprotSubdocCommand cmd;
+    cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
+    cmd.setKey(name);
+    cmd.setPath("_sync.deleted");
+    cmd.setValue("true");
+    cmd.setFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_ACCESS_DELETED |
+                 SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_MKDOC);
+    conn.sendCommand(cmd);
+
+    BinprotSubdocResponse resp;
+    conn.recvResponse(resp);
+
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED,
+              resp.getStatus());
+}

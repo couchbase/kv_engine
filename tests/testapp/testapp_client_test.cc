@@ -65,6 +65,7 @@ MemcachedConnection& TestappClientTest::prepare(MemcachedConnection& connection)
         c.setDatatypeSupport(true);
         c.setMutationSeqnoSupport(true);
         c.setXerrorSupport(true);
+        c.setXattrSupport(true);
     } else {
 #ifdef ENABLE_GREENSTACK
         auto& c = dynamic_cast<MemcachedGreenstackConnection&>(connection);

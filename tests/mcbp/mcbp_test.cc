@@ -43,6 +43,7 @@ protocol_binary_response_status ValidatorTest::validate(protocol_binary_command 
     // Mockup a McbpConnection and Cookie for the validator chain
     event_base* ev = event_base_new();
     McbpConnection connection(-1, ev);
+    connection.setXattrSupport(true);
     auto* req = reinterpret_cast<protocol_binary_request_header*>(packet);
     connection.binary_header = *req;
     connection.binary_header.request.keylen = ntohs(req->request.keylen);
