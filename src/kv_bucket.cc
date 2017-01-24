@@ -2293,8 +2293,8 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
         }
 
         vb->setMaxCasAndTrackDrift(v->getCas());
-        auto queued_seqno = vb->queueDirty(
-                *v, &lh, genBySeqno, GenerateCas::No, tapBackfill);
+        auto queued_seqno =
+                vb->queueDirty(*v, &lh, genBySeqno, generateCas, tapBackfill);
         if (nullptr != seqno) {
             *seqno = queued_seqno;
         }

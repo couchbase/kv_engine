@@ -1885,6 +1885,98 @@ static enum test_result test_cas_regeneration(ENGINE_HANDLE *h,
 }
 
 /*
+ * Perform del_with_meta and check CAS regeneration is ok.
+ */
+static enum test_result test_cas_regeneration_del_with_meta(
+        ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+    const std::string key("key");
+    // First store a key from the past (small CAS).
+    ItemMetaData itemMeta;
+    itemMeta.revSeqno = 10;
+    itemMeta.cas = 0x1;
+    itemMeta.exptime = 0;
+    itemMeta.flags = 0xdeadbeef;
+    int force = 0;
+
+    if (strstr(testHarness.get_current_testcase()->cfg,
+               "conflict_resolution_type=lww") != nullptr) {
+        force = FORCE_ACCEPT_WITH_META_OPS;
+    }
+
+    // Set the key with a low CAS value
+    set_with_meta(h,
+                  h1,
+                  key.c_str(),
+                  key.length(),
+                  nullptr,
+                  0,
+                  0,
+                  &itemMeta,
+                  0,
+                  force);
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(),
+            "Expected success");
+
+    check(get_meta(h, h1, key.c_str()), "Failed to get_meta");
+    // CAS must be what we set.
+    checkeq(itemMeta.cas, last_meta.cas, "CAS is not the value we stored");
+
+    itemMeta.cas++;
+
+    // Check that the code requires skip
+    del_with_meta(h,
+                  h1,
+                  key.c_str(),
+                  key.length(),
+                  0,
+                  &itemMeta,
+                  0,
+                  REGENERATE_CAS /*but no skip*/);
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL,
+            last_status.load(),
+            "Expected EINVAL");
+
+    del_with_meta(h,
+                  h1,
+                  key.c_str(),
+                  key.length(),
+                  0,
+                  &itemMeta,
+                  0,
+                  REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG);
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(),
+            "Expected success");
+
+    check(get_meta(h, h1, key.c_str()), "Failed to get_meta");
+    uint64_t cas = last_meta.cas;
+    // Check item has a new CAS
+    checkne(itemMeta.cas, cas, "CAS was not regenerated");
+
+    itemMeta.cas++;
+    // All flags set should still regen the cas (lww and seqno)
+    del_with_meta(h,
+                  h1,
+                  key.c_str(),
+                  key.length(),
+                  0,
+                  &itemMeta,
+                  0,
+                  REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG | force);
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(),
+            "Expected success");
+
+    check(get_meta(h, h1, key.c_str()), "Failed to get_meta");
+    // Check item has a new CAS
+    checkne(itemMeta.cas, last_meta.cas, "CAS was not regenerated");
+    checkne(cas, last_meta.cas, "CAS was not regenerated");
+
+    return SUCCESS;
+}
+
+/*
  * Test that we can send options and nmeta
  * The nmeta is just going to be ignored though, but should not fail
  */
@@ -2144,6 +2236,12 @@ BaseTestCase testsuite_testcases[] = {
                  test_cas_regeneration, test_setup, teardown,
                  "conflict_resolution_type=seqno",
                  prepare, cleanup),
+        TestCase("test CAS regeneration seqno del_with_meta lww",
+                 test_cas_regeneration_del_with_meta, test_setup, teardown,
+                 "conflict_resolution_type=lww", prepare, cleanup),
+        TestCase("test CAS regeneration seqno del_with_meta seqno",
+                 test_cas_regeneration_del_with_meta, test_setup, teardown,
+                 "conflict_resolution_type=seqno", prepare, cleanup),
         TestCase("test CAS options and nmeta",
                  test_cas_options_and_nmeta, test_setup, teardown,
                  "conflict_resolution_type=lww",
