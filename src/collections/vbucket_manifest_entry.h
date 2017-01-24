@@ -157,10 +157,6 @@ public:
         return endSeqno != StoredValue::state_collection_open;
     }
 
-    bool compare(const std::string& collection) const {
-        return *collectionName == collection;
-    }
-
 private:
     /**
      * Throws std::invalid argument with a message that is prefix combined

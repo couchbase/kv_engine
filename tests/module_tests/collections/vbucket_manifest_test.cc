@@ -15,14 +15,25 @@
  *   limitations under the License.
  */
 
+#include "checkpoint.h"
 #include "collections/manifest.h"
 #include "collections/vbucket_manifest.h"
+#include "collections/vbucket_serialised_manifest_entry.h"
 #include "tests/module_tests/makestoreddockey.h"
+#include "vbucket.h"
+
+#include <cJSON_utils.h>
 
 #include <gtest/gtest.h>
 
 class MockVBManifest : public Collections::VB::Manifest {
 public:
+    MockVBManifest() : Collections::VB::Manifest() {
+    }
+
+    MockVBManifest(const std::string& json) : Collections::VB::Manifest(json) {
+    }
+
     bool exists(const std::string& collection, uint32_t rev) const {
         std::lock_guard<ReaderLock> readLock(lock.reader());
         return exists_UNLOCKED(collection, rev);
@@ -69,6 +80,31 @@ public:
         return map.size();
     }
 
+    bool compareEntry(const Collections::VB::ManifestEntry& entry) const {
+        std::lock_guard<ReaderLock> readLock(lock.reader());
+        if (exists_UNLOCKED(entry.getCollectionName(), entry.getRevision())) {
+            auto itr = map.find(entry.getCollectionName());
+            const auto& myEntry = *itr->second;
+            return myEntry.getStartSeqno() == entry.getStartSeqno() &&
+                   myEntry.getEndSeqno() == entry.getEndSeqno();
+        }
+        return false;
+    }
+
+    bool operator==(const MockVBManifest& rhs) const {
+        std::lock_guard<ReaderLock> readLock(lock.reader());
+        for (const auto& e : map) {
+            if (!rhs.compareEntry(*e.second)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool operator!=(const MockVBManifest& rhs) const {
+        return !(*this == rhs);
+    }
+
 protected:
     bool exists_UNLOCKED(const std::string& collection, uint32_t rev) const {
         auto itr = map.find(collection);
@@ -94,55 +130,140 @@ public:
         OpenAndDeleting
     };
 
+    /// Dummy callback to replace the flusher callback so we can create VBuckets
+    class DummyCB : public Callback<uint16_t> {
+    public:
+        DummyCB() {
+        }
+
+        void callback(uint16_t& dummy) {
+        }
+    };
+
+    VBucketManifestTest()
+        : vbm(),
+          vbucket(0,
+                  vbucket_state_active,
+                  global_stats,
+                  checkpoint_config,
+                  /*kvshard*/ nullptr,
+                  /*lastSeqno*/ 0,
+                  /*lastSnapStart*/ 0,
+                  /*lastSnapEnd*/ 0,
+                  /*table*/ nullptr,
+                  std::make_shared<DummyCB>(),
+                  /*newSeqnoCb*/ nullptr,
+                  config,
+                  VALUE_ONLY) {
+    }
+
+    queued_item getLastSystemEvent() {
+        std::vector<queued_item> items;
+        vbucket.checkpointManager.getAllItemsForCursor(
+                CheckpointManager::pCursorName, items);
+        std::vector<queued_item> events;
+        for (const auto& qi : items) {
+            if (qi->getOperation() == queue_op::system_event) {
+                events.push_back(qi);
+            }
+        }
+
+        if (0 == events.size()) {
+            throw std::logic_error("Found no events");
+        }
+
+        return events.back();
+    }
+
+    std::string getLastEventJson() {
+        auto event = getLastSystemEvent();
+        cb::const_char_buffer buffer(event->getData(), event->getNBytes());
+        return Collections::VB::Manifest::serialToJson(
+                SystemEvent(event->getFlags()), buffer, event->getBySeqno());
+    }
+
+    /**
+     * Create a new VB::Manifest using the JSON we create from the tests
+     * vbm object (found in the vbucket checkpoint).
+     *
+     * Then compare that the new manifest matches the tests current vbm.
+     * @returns gtest assertion with info about the mismatch on failure.
+     */
+    ::testing::AssertionResult checkJson() {
+        MockVBManifest newManifest(getLastEventJson());
+        if (newManifest != vbm) {
+            return ::testing::AssertionFailure() << "manifest mismatch\n"
+                                                 << "generated\n"
+                                                 << newManifest << "\nfrom\n"
+                                                 << vbm;
+        }
+        return ::testing::AssertionSuccess();
+    }
+
+protected:
     MockVBManifest vbm;
+    EPStats global_stats;
+    CheckpointConfig checkpoint_config;
+    Configuration config;
+    VBucket vbucket;
 };
 
 TEST_F(VBucketManifestTest, collectionExists) {
     vbm.update(
+            vbucket,
             {R"({"revision":0,"separator":"::","collections":["vegetable"]})"});
     EXPECT_TRUE(vbm.doesKeyContainValidCollection(
             makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
     EXPECT_TRUE(vbm.isExclusiveOpen("vegetable", 0));
+
+    EXPECT_TRUE(checkJson());
 }
 
 TEST_F(VBucketManifestTest, defaultCollectionExists) {
     EXPECT_TRUE(vbm.doesKeyContainValidCollection(
             makeStoredDocKey("anykey", DocNamespace::DefaultCollection)));
-    vbm.update({R"({"revision":1,"separator":"::","collections":[]})"});
+    vbm.update(vbucket,
+               {R"({"revision":1,"separator":"::","collections":[]})"});
     EXPECT_FALSE(vbm.doesKeyContainValidCollection(
             makeStoredDocKey("anykey", DocNamespace::DefaultCollection)));
+
+    EXPECT_TRUE(checkJson());
 }
 
 TEST_F(VBucketManifestTest, updates) {
     EXPECT_EQ(1, vbm.size());
     EXPECT_TRUE(vbm.isExclusiveOpen("$default", 0));
 
-    vbm.update({R"({"revision":1, "separator":"::",
+    vbm.update(vbucket, {R"({"revision":1, "separator":"::",
                 "collections":["$default","vegetable"]})"});
     EXPECT_EQ(2, vbm.size());
     EXPECT_TRUE(vbm.isExclusiveOpen("vegetable", 1));
 
-    vbm.update({R"({"revision":2, "separator":"::",
+    vbm.update(vbucket, {R"({"revision":2, "separator":"::",
                 "collections":["$default", "vegetable", "fruit"]})"});
     EXPECT_EQ(3, vbm.size());
     EXPECT_TRUE(vbm.isExclusiveOpen("fruit", 2));
 
-    vbm.update({R"({"revision":3, "separator":"::",
+    vbm.update(vbucket, {R"({"revision":3, "separator":"::",
             "collections":
             ["$default", "vegetable", "fruit", "meat", "dairy"]})"});
     EXPECT_EQ(5, vbm.size());
     EXPECT_TRUE(vbm.isExclusiveOpen("meat", 3));
     EXPECT_TRUE(vbm.isExclusiveOpen("dairy", 3));
+
+    EXPECT_TRUE(checkJson());
 }
 
 TEST_F(VBucketManifestTest, updates2) {
-    vbm.update({R"({"revision":0, "separator":"::",
+    vbm.update(vbucket, {R"({"revision":0, "separator":"::",
         "collections":["$default", "vegetable", "fruit", "meat", "dairy"]})"});
     EXPECT_EQ(5, vbm.size());
 
+    EXPECT_TRUE(checkJson());
+
     // Remove meat and dairy, size is not affected because the delete is only
     // starting
-    vbm.update({R"({"revision":1, "separator":"::",
+    vbm.update(vbucket, {R"({"revision":1, "separator":"::",
         "collections":["$default", "vegetable", "fruit"]})"});
     EXPECT_EQ(5, vbm.size());
     EXPECT_TRUE(vbm.isExclusiveDeleting("meat", 1));
@@ -157,15 +278,18 @@ TEST_F(VBucketManifestTest, updates2) {
             makeStoredDocKey("dairy::milk", DocNamespace::Collections)));
     EXPECT_FALSE(vbm.doesKeyContainValidCollection(
             makeStoredDocKey("meat::chicken", DocNamespace::Collections)));
+
+    EXPECT_TRUE(checkJson());
 }
 
 TEST_F(VBucketManifestTest, updates3) {
-    vbm.update({R"({"revision":0,"separator":"::",
+    vbm.update(vbucket, {R"({"revision":0,"separator":"::",
         "collections":["$default", "vegetable", "fruit", "meat", "dairy"]})"});
     EXPECT_EQ(5, vbm.size());
 
     // Remove everything
-    vbm.update({R"({"revision":1, "separator":"::","collections":[]})"});
+    vbm.update(vbucket,
+               {R"({"revision":1, "separator":"::","collections":[]})"});
     EXPECT_EQ(5, vbm.size());
     EXPECT_TRUE(vbm.isExclusiveDeleting("$default", 1));
     EXPECT_TRUE(vbm.isExclusiveDeleting("vegetable", 1));
@@ -184,11 +308,14 @@ TEST_F(VBucketManifestTest, updates3) {
             makeStoredDocKey("fruit::apple", DocNamespace::Collections)));
     EXPECT_FALSE(vbm.doesKeyContainValidCollection(
             makeStoredDocKey("anykey", DocNamespace::DefaultCollection)));
+
+    EXPECT_TRUE(checkJson());
 }
 
 TEST_F(VBucketManifestTest, add_beginDelete_add) {
     // add vegetable
     vbm.update(
+            vbucket,
             {R"({"revision":0,"separator":"::","collections":["vegetable"]})"});
     EXPECT_EQ(2, vbm.size());
     EXPECT_TRUE(vbm.isExclusiveOpen("vegetable", 0));
@@ -196,25 +323,29 @@ TEST_F(VBucketManifestTest, add_beginDelete_add) {
             makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
 
     // remove vegetable
-    vbm.update({R"({"revision":1,"separator":"::","collections":[]})"});
+    vbm.update(vbucket,
+               {R"({"revision":1,"separator":"::","collections":[]})"});
     EXPECT_EQ(2, vbm.size());
     EXPECT_TRUE(vbm.isExclusiveDeleting("vegetable", 1));
     EXPECT_FALSE(vbm.doesKeyContainValidCollection(
             makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
-
     // add vegetable
     vbm.update(
+            vbucket,
             {R"({"revision":2,"separator":"::","collections":["vegetable"]})"});
     EXPECT_EQ(2, vbm.size());
     EXPECT_TRUE(vbm.isOpenAndDeleting("vegetable", 2));
 
     EXPECT_TRUE(vbm.doesKeyContainValidCollection(
             makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
+
+    EXPECT_TRUE(checkJson());
 }
 
 TEST_F(VBucketManifestTest, add_beginDelete_delete) {
     // add vegetable
     vbm.update(
+            vbucket,
             {R"({"revision":0,"separator":"::","collections":["vegetable"]})"});
     EXPECT_EQ(2, vbm.size());
     EXPECT_TRUE(vbm.isExclusiveOpen("vegetable", 0));
@@ -222,7 +353,8 @@ TEST_F(VBucketManifestTest, add_beginDelete_delete) {
             makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
 
     // remove vegetable
-    vbm.update({R"({"revision":1,"separator":"::","collections":[]})"});
+    vbm.update(vbucket,
+               {R"({"revision":1,"separator":"::","collections":[]})"});
     EXPECT_EQ(2, vbm.size());
     EXPECT_TRUE(vbm.isExclusiveDeleting("vegetable", 1));
     EXPECT_FALSE(vbm.doesKeyContainValidCollection(
@@ -233,11 +365,17 @@ TEST_F(VBucketManifestTest, add_beginDelete_delete) {
     EXPECT_EQ(1, vbm.size());
     EXPECT_FALSE(vbm.doesKeyContainValidCollection(
             makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
+
+    // Note: at this patch level expect this to fail as completeDeletion is not
+    // operating against the vbucket and thus the JSON we generate will be
+    // missing the completeDeletion action.
+    EXPECT_FALSE(checkJson());
 }
 
 TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
     // add vegetable
     vbm.update(
+            vbucket,
             {R"({"revision":0,"separator":"::","collections":["vegetable"]})"});
     EXPECT_EQ(2, vbm.size());
     EXPECT_TRUE(vbm.isExclusiveOpen("vegetable", 0));
@@ -245,7 +383,8 @@ TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
             makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
 
     // remove vegetable
-    vbm.update({R"({"revision":1,"separator":"::","collections":[]})"});
+    vbm.update(vbucket,
+               {R"({"revision":1,"separator":"::","collections":[]})"});
     EXPECT_EQ(2, vbm.size());
     EXPECT_TRUE(vbm.isExclusiveDeleting("vegetable", 1));
     EXPECT_FALSE(vbm.doesKeyContainValidCollection(
@@ -253,6 +392,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
 
     // add vegetable
     vbm.update(
+            vbucket,
             {R"({"revision":2,"separator":"::","collections":["vegetable"]})"});
     EXPECT_EQ(2, vbm.size());
     EXPECT_TRUE(vbm.isOpenAndDeleting("vegetable", 2));
@@ -269,4 +409,9 @@ TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
 
     EXPECT_TRUE(vbm.doesKeyContainValidCollection(
             makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
+
+    // Note: at this patch level expect this to fail as completeDeletion is not
+    // operating against the vbucket and thus the JSON we generate will be
+    // missing the completeDeletion action.
+    EXPECT_FALSE(checkJson());
 }

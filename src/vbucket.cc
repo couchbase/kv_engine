@@ -2402,3 +2402,15 @@ inline void VBucket::notifyNewSeqno(const VBNotifyCtx& notifyCtx) {
         newSeqnoCb->callback(getId(), notifyCtx);
     }
 }
+
+/*
+ * Queue the item to the checkpoint and return the seqno the item was
+ * allocated.
+ */
+int64_t VBucket::queueItem(Item* item) {
+    item->setVBucketId(id);
+    queued_item qi(item);
+    checkpointManager.queueDirty(
+            *this, qi, GenerateBySeqno::Yes, GenerateCas::Yes);
+    return qi->getBySeqno();
+}

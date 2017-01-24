@@ -804,6 +804,13 @@ public:
                              EventuallyPersistentEngine& engine,
                              int bgFetchDelay,
                              time_t exptime);
+    /**
+     * Queue an Item to the checkpoint and return its seqno
+     *
+     * @param an Item object to queue, can be any kind of item and will be given
+     *        a CAS and seqno by this function.
+     */
+    int64_t queueItem(Item* item);
 
     /**
      * Insert an item into the VBucket during warmup. If we're trying to insert
