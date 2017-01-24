@@ -85,12 +85,12 @@ void McdEnvironment::SetupAuditFile() {
 void McdEnvironment::TearDown() {
     // Cleanup Audit config file
     if (!audit_file_name.empty()) {
-        EXPECT_TRUE(cb::io::rmrf(audit_file_name));
+        cb::io::rmrf(audit_file_name);
     }
 
     // Cleanup Audit log directory
     if (!audit_log_dir.empty()) {
-        EXPECT_TRUE(cb::io::rmrf(audit_log_dir)) << cb_strerror();
+        cb::io::rmrf(audit_log_dir);
     }
 }
 
