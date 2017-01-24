@@ -63,17 +63,14 @@ void CacheCallback::callback(CacheLookup &lookup) {
         ActiveStream* as = static_cast<ActiveStream*>(stream_.get());
         Item* it;
         try {
-            it = as->isSendMutationKeyOnlyEnabled() ?
-                        v->toValuelessItem(lookup.getVBucketId()) :
-                        v->toItem(false, lookup.getVBucketId());
+            it = v->toItem(false, lookup.getVBucketId());
         } catch (const std::bad_alloc&) {
             setStatus(ENGINE_ENOMEM);
             as->getLogger().log(EXTENSION_LOG_WARNING,
                                 "Alloc error when trying to create an "
                                 "item copy from hash table. Item seqno:%" PRIi64
-                                ", vb:%" PRIu16 ", isSendMutationKeyOnlyEnabled"
-                                ":%d", v->getBySeqno(), lookup.getVBucketId(),
-                                as->isSendMutationKeyOnlyEnabled());
+                                ", vb:%" PRIu16, v->getBySeqno(),
+                                lookup.getVBucketId());
             return;
         }
         lh.unlock();
@@ -172,12 +169,8 @@ backfill_status_t DCPBackfill::create() {
 
     KVStore* kvstore = engine->getKVBucket()->getROUnderlying(vbid);
     ValueFilter valFilter = ValueFilter::VALUES_DECOMPRESSED;
-    if (as->isSendMutationKeyOnlyEnabled()) {
-        valFilter = ValueFilter::KEYS_ONLY;
-    } else {
-        if (as->isCompressionEnabled()) {
-            valFilter = ValueFilter::VALUES_COMPRESSED;
-        }
+    if (as->isCompressionEnabled()) {
+        valFilter = ValueFilter::VALUES_COMPRESSED;
     }
 
     std::shared_ptr<Callback<GetValue> > cb(new DiskCallback(stream));

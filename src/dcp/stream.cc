@@ -174,9 +174,6 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
        itemsFromMemoryPhase(0), firstMarkerSent(false), waitForSnapshot(0),
        engine(e), producer(p), isBackfillTaskRunning(false),
        pendingBackfill(false),
-       payloadType((flags & DCP_ADD_STREAM_FLAG_NO_VALUE) ?
-                   MutationPayload::KEY_ONLY :
-                   MutationPayload::KEY_VALUE),
        lastSentSnapEndSeqno(0), chkptItemsExtractionInProgress(false) {
 
     const char* type = "";
@@ -804,10 +801,7 @@ void ActiveStream::processItems(std::vector<queued_item>& items) {
                 curChkSeqno = qi->getBySeqno();
                 lastReadSeqnoUnSnapshotted = qi->getBySeqno();
 
-                mutations.push_back(new MutationResponse(qi, opaque_, nullptr,
-                            isSendMutationKeyOnlyEnabled() ?
-                            MutationPayload::KEY_ONLY :
-                            MutationPayload::KEY_VALUE));
+                mutations.push_back(new MutationResponse(qi, opaque_));
             } else if (qi->getOperation() == queue_op::checkpoint_start) {
                 /* if there are already other mutations, then they belong to the
                    previous checkpoint and hence we must create a snapshot and
@@ -1234,11 +1228,6 @@ uint64_t ActiveStream::getLastSentSeqno() const {
 const Logger& ActiveStream::getLogger() const
 {
     return producer->getLogger();
-}
-
-bool ActiveStream::isSendMutationKeyOnlyEnabled() const
-{
-    return (MutationPayload::KEY_ONLY == payloadType);
 }
 
 bool ActiveStream::isCurrentSnapshotCompleted() const

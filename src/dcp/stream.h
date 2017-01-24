@@ -241,8 +241,6 @@ public:
 
     const Logger& getLogger() const;
 
-    bool isSendMutationKeyOnlyEnabled() const;
-
     // Runs on ActiveStreamCheckpointProcessorTask
     void nextCheckpointItemTask();
 
@@ -357,10 +355,6 @@ private:
 
     std::atomic<rel_time_t> takeoverStart;
     size_t takeoverSendMaxTime;
-
-    /* Enum indicating whether the stream mutations should contain key only or
-       both key and value */
-    MutationPayload payloadType;
 
     //! Last snapshot end seqno sent to the DCP client
     std::atomic<uint64_t> lastSentSnapEndSeqno;
