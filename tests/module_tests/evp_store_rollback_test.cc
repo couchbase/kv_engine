@@ -74,13 +74,15 @@ protected:
         ASSERT_EQ(initial_seqno + 1, item_v1.getBySeqno());
         ASSERT_EQ(1, store->flushVBucket(vbid));
         uint64_t cas = item_v1.getCas();
-        mutation_descr_t mut_info;
         ASSERT_EQ(ENGINE_SUCCESS,
-                  store->deleteItem(a, &cas, vbid, /*cookie*/nullptr,
-                                    /*force*/false,
-                                    /*Item*/nullptr,
-                                    /*itemMeta*/nullptr,
-                                    /*mutation_descr_t*/&mut_info));
+                  store->deleteItem(a,
+                                    cas,
+                                    vbid,
+                                    /*cookie*/ nullptr,
+                                    /*force*/ false,
+                                    /*Item*/ nullptr,
+                                    /*itemMeta*/ nullptr,
+                                    /*mutation_descr_t*/ nullptr));
         if (flush_before_rollback) {
             ASSERT_EQ(1, store->flushVBucket(vbid));
         }

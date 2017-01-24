@@ -306,15 +306,15 @@ public:
     /**
      * delete an item in the store.
      * @param key the key of the item
-     * @param cas the CAS ID for a CASed delete (0 to override)
+     * @param[in, out] cas the CAS ID for a CASed delete (0 to override)
      * @param vbucket the vbucket for the key
      * @param cookie the cookie representing the client
      * @param force override access to the vbucket even if the state of the
      *              vbucket would deny mutations.
      * @param itm item holding a deleted value. A NULL value is passed
                   if an empty body is to be used for deletion.
-     * @param itemMeta the pointer to the metadata memory.
-     * @param mutInfo mutation information
+     * @param[out] itemMeta the pointer to the metadata memory.
+     * @param[out] mutInfo mutation information
      *
      * (deleteWithMeta)
      * @param genBySeqno whether or not to generate sequence number
@@ -325,13 +325,13 @@ public:
      * @return the result of the delete operation
      */
     virtual ENGINE_ERROR_CODE deleteItem(const DocKey& key,
-                                         uint64_t* cas,
+                                         uint64_t& cas,
                                          uint16_t vbucket,
-                                         const void *cookie,
+                                         const void* cookie,
                                          bool force,
                                          Item* itm,
-                                         ItemMetaData *itemMeta,
-                                         mutation_descr_t *mutInfo) = 0;
+                                         ItemMetaData* itemMeta,
+                                         mutation_descr_t* mutInfo) = 0;
 
     virtual ENGINE_ERROR_CODE deleteWithMeta(const DocKey& key,
                                              uint64_t* cas,

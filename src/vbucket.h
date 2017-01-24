@@ -724,6 +724,38 @@ public:
                                   bool isReplication);
 
     /**
+     * Delete an item in the vbucket
+     *
+     * @param key key to be deleted
+     * @param[in,out] cas value to match; new cas after logical delete
+     * @param cookie the cookie representing the client to store the item
+     * @param engine Reference to ep engine
+     * @param bgFetchDelay
+     * @param force force a delete in full eviction mode without doing a
+     *        bg fetch
+     * @param itm item pointer that contains a value that needs to be
+     *            stored along with a delete. A NULL pointer indicates
+     *            that no value needs to be stored with the delete.
+     * @param[out] itemMeta pointer to item meta data that needs to be returned
+     *                      as a result the delete. A NULL pointer indicates
+     *                      that no meta data needs to be returned.
+     * @param[out] mutInfo Info to uniquely identify (and order) the delete
+     *                     seq. A NULL pointer indicates no info needs to be
+     *                     returned.
+     *
+     * @return the result of the store operation
+     */
+    ENGINE_ERROR_CODE deleteItem(const DocKey& key,
+                                 uint64_t& cas,
+                                 const void* cookie,
+                                 EventuallyPersistentEngine& engine,
+                                 int bgFetchDelay,
+                                 bool force,
+                                 Item* itm,
+                                 ItemMetaData* itemMeta,
+                                 mutation_descr_t* mutInfo);
+
+    /**
      * Calls the conflict resolution module to resolve the conflict
      *
      * @param v the local document meta data

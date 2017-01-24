@@ -272,16 +272,18 @@ public:
      */
     ENGINE_ERROR_CODE itemDelete(const void* cookie,
                                  const DocKey& key,
-                                 uint64_t* cas,
+                                 uint64_t& cas,
                                  uint16_t vbucket,
                                  Item* itm,
-                                 ItemMetaData *item_meta,
-                                 mutation_descr_t *mut_info)
-    {
-        ENGINE_ERROR_CODE ret = kvBucket->deleteItem(key, cas,
-                                                     vbucket, cookie,
-                                                     false, //not force
-                                                     itm, item_meta,
+                                 ItemMetaData* item_meta,
+                                 mutation_descr_t* mut_info) {
+        ENGINE_ERROR_CODE ret = kvBucket->deleteItem(key,
+                                                     cas,
+                                                     vbucket,
+                                                     cookie,
+                                                     false, // not force
+                                                     itm,
+                                                     item_meta,
                                                      mut_info);
 
         if (ret == ENGINE_KEY_ENOENT || ret == ENGINE_NOT_MY_VBUCKET) {

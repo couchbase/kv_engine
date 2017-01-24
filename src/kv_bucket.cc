@@ -2008,14 +2008,13 @@ std::string KVBucket::validateKey(const DocKey& key, uint16_t vbucket,
 }
 
 ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
-                                       uint64_t *cas,
+                                       uint64_t& cas,
                                        uint16_t vbucket,
-                                       const void *cookie,
+                                       const void* cookie,
                                        bool force,
                                        Item* itm,
-                                       ItemMetaData *itemMeta,
-                                       mutation_descr_t *mutInfo)
-{
+                                       ItemMetaData* itemMeta,
+                                       mutation_descr_t* mutInfo) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || (vb->getState() == vbucket_state_dead && !force)) {
         ++stats.numNotMyVBuckets;
@@ -2033,135 +2032,15 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
         return ENGINE_TMPFAIL;
     }
 
-    int bucket_num(0);
-    auto lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true, false);
-    if (!v || v->isDeleted() || v->isTempItem()) {
-        if (eviction_policy == VALUE_ONLY) {
-            return ENGINE_KEY_ENOENT;
-        } else { // Full eviction.
-            if (!force) {
-                if (!v) { // Item might be evicted from cache.
-                    if (vb->maybeKeyExistsInFilter(key)) {
-                        return vb->addTempItemAndBGFetch(lh,
-                                                         bucket_num,
-                                                         key,
-                                                         cookie,
-                                                         engine,
-                                                         bgFetchDelay,
-                                                         true);
-                    } else {
-                        // As bloomfilter predicted that item surely doesn't
-                        // exist on disk, return ENOENT for deleteItem().
-                        return ENGINE_KEY_ENOENT;
-                    }
-                } else if (v->isTempInitialItem()) {
-                    lh.unlock();
-                    vb->bgFetch(key, cookie, engine, bgFetchDelay, true);
-                    return ENGINE_EWOULDBLOCK;
-                } else { // Non-existent or deleted key.
-                    if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
-                        // Delete a temp non-existent item to ensure that
-                        // if a delete were issued over an item that doesn't
-                        // exist, then we don't preserve a temp item.
-                        vb->ht.unlocked_del(key, bucket_num);
-                    }
-                    return ENGINE_KEY_ENOENT;
-                }
-            } else {
-                if (!v) { // Item might be evicted from cache.
-                    // Create a temp item and delete it below as it is a
-                    // force deletion, only if bloomfilter predicts that
-                    // item may exist on disk.
-                    if (vb->maybeKeyExistsInFilter(key)) {
-                        AddStatus rv = vb->ht.unlocked_addTempItem(
-                                bucket_num, key, eviction_policy);
-                        if (rv == AddStatus::NoMem) {
-                            return ENGINE_ENOMEM;
-                        }
-                        v = vb->ht.unlocked_find(key, bucket_num, true, false);
-                        v->setDeleted();
-                    } else {
-                        return ENGINE_KEY_ENOENT;
-                    }
-                } else if (v->isTempInitialItem()) {
-                    v->setDeleted();
-                } else { // Non-existent or deleted key.
-                    if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
-                        // Delete a temp non-existent item to ensure that
-                        // if a delete were issued over an item that doesn't
-                        // exist, then we don't preserve a temp item.
-                        vb->ht.unlocked_del(key, bucket_num);
-                    }
-                    return ENGINE_KEY_ENOENT;
-                }
-            }
-        }
-    }
-
-    if (v && v->isLocked(ep_current_time()) &&
-        (vb->getState() == vbucket_state_replica ||
-         vb->getState() == vbucket_state_pending)) {
-        v->unlock();
-    }
-    MutationStatus delrv;
-
-    /* if an item containing a deleted value is present, set the value
-     * as part of the stored value so that a value is set as part of the
-     * delete.
-     */
-    if (itm && v) {
-        v->setValue(*itm, vb->ht, PreserveRevSeqno::Yes);
-    }
-    delrv = vb->ht.unlocked_softDelete(v, *cas, eviction_policy);
-    if (v && (delrv == MutationStatus::NotFound ||
-              delrv == MutationStatus::WasDirty ||
-              delrv == MutationStatus::WasClean)) {
-        if (itemMeta != nullptr) {
-            itemMeta->revSeqno = v->getRevSeqno();
-            itemMeta->cas = v->getCas();
-            itemMeta->flags = v->getFlags();
-            itemMeta->exptime = v->getExptime();
-        }
-    }
-
-    uint64_t seqno = 0;
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    switch (delrv) {
-    case MutationStatus::NoMem:
-        ret = ENGINE_ENOMEM;
-        break;
-    case MutationStatus::InvalidCas:
-        ret = ENGINE_KEY_EEXISTS;
-        break;
-    case MutationStatus::IsLocked:
-        ret = ENGINE_TMPFAIL;
-        break;
-    case MutationStatus::NotFound:
-        ret = ENGINE_KEY_ENOENT;
-    case MutationStatus::WasClean:
-    case MutationStatus::WasDirty:
-        if (v) {
-            // We need to keep lh as we will do v->getCas()
-            seqno = vb->queueDirty(*v, nullptr);
-            *cas = v->getCas();
-        }
-
-        if (delrv != MutationStatus::NotFound) {
-            mutInfo->seqno = seqno;
-            mutInfo->vbucket_uuid = vb->failovers->getLatestUUID();
-            if (itemMeta != nullptr) {
-                itemMeta->cas = v->getCas();
-            }
-        }
-        break;
-    case MutationStatus::NeedBgFetch:
-        // We already figured out if a bg fetch is requred for a full-evicted
-        // item above.
-        throw std::logic_error("EventuallyPersistentStore::deleteItem: "
-                "Unexpected NEEDS_BG_FETCH from unlocked_softDelete");
-    }
-    return ret;
+    return vb->deleteItem(key,
+                          cas,
+                          cookie,
+                          engine,
+                          bgFetchDelay,
+                          force,
+                          itm,
+                          itemMeta,
+                          mutInfo);
 }
 
 ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,

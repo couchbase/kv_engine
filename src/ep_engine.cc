@@ -216,8 +216,14 @@ static ENGINE_ERROR_CODE EvpItemDelete(ENGINE_HANDLE* handle,
                                        uint64_t* cas,
                                        uint16_t vbucket,
                                        mutation_descr_t* mut_info) {
+    if (!cas) {
+        LOG(EXTENSION_LOG_WARNING,
+            "EvpItemDelete(): cas ptr passed is null for vb: %" PRIu16,
+            vbucket);
+        return ENGINE_EINVAL;
+    }
     return acquireEngine(handle)->itemDelete(
-            cookie, key, cas, vbucket, nullptr, nullptr, mut_info);
+            cookie, key, *cas, vbucket, nullptr, nullptr, mut_info);
 }
 
 static void EvpItemRelease(ENGINE_HANDLE* handle,
@@ -290,11 +296,18 @@ static ENGINE_ERROR_CODE EvpStore(ENGINE_HANDLE* handle,
         ItemMetaData itm_meta;
         mutation_descr_t mut_info;
 
+        if (!cas) {
+            LOG(EXTENSION_LOG_WARNING,
+                "EvpStore(): cas ptr passed is null for vb: %" PRIu16,
+                item->getVBucketId());
+            return ENGINE_EINVAL;
+        }
+
         /* Set the item as deleted */
         item->setDeleted();
         err_code = engine->itemDelete(cookie,
                                       item->getKey(),
-                                      cas,
+                                      *cas,
                                       item->getVBucketId(),
                                       item,
                                       &itm_meta,
@@ -5823,10 +5836,9 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
         delete itm;
     } else if (mutate_type == DEL_RET_META) {
         ItemMetaData itm_meta;
-        mutation_descr_t mut_info;
         DocKey key(keyPtr, keylen, docNamespace);
-        ret = kvBucket->deleteItem(key, &cas, vbucket, cookie, false,
-                                   nullptr, &itm_meta, &mut_info);
+        ret = kvBucket->deleteItem(
+                key, cas, vbucket, cookie, false, nullptr, &itm_meta, nullptr);
         if (ret == ENGINE_SUCCESS) {
             ++stats.numOpsDelRetMeta;
         }

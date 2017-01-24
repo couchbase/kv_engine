@@ -1346,6 +1346,149 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
     return ret;
 }
 
+ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
+                                      uint64_t& cas,
+                                      const void* cookie,
+                                      EventuallyPersistentEngine& engine,
+                                      const int bgFetchDelay,
+                                      bool force,
+                                      Item* itm,
+                                      ItemMetaData* itemMeta,
+                                      mutation_descr_t* mutInfo) {
+    int bucket_num(0);
+    auto lh = ht.getLockedBucket(key, &bucket_num);
+    StoredValue* v = ht.unlocked_find(key, bucket_num, true, false);
+    if (!v || v->isDeleted() || v->isTempItem()) {
+        if (eviction == VALUE_ONLY) {
+            return ENGINE_KEY_ENOENT;
+        } else { // Full eviction.
+            if (!force) {
+                if (!v) { // Item might be evicted from cache.
+                    if (maybeKeyExistsInFilter(key)) {
+                        return addTempItemAndBGFetch(lh,
+                                                     bucket_num,
+                                                     key,
+                                                     cookie,
+                                                     engine,
+                                                     bgFetchDelay,
+                                                     true);
+                    } else {
+                        // As bloomfilter predicted that item surely doesn't
+                        // exist on disk, return ENOENT for deleteItem().
+                        return ENGINE_KEY_ENOENT;
+                    }
+                } else if (v->isTempInitialItem()) {
+                    lh.unlock();
+                    bgFetch(key, cookie, engine, bgFetchDelay, true);
+                    return ENGINE_EWOULDBLOCK;
+                } else { // Non-existent or deleted key.
+                    if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
+                        // Delete a temp non-existent item to ensure that
+                        // if a delete were issued over an item that doesn't
+                        // exist, then we don't preserve a temp item.
+                        ht.unlocked_del(key, bucket_num);
+                    }
+                    return ENGINE_KEY_ENOENT;
+                }
+            } else {
+                if (!v) { // Item might be evicted from cache.
+                    // Create a temp item and delete it below as it is a
+                    // force deletion, only if bloomfilter predicts that
+                    // item may exist on disk.
+                    if (maybeKeyExistsInFilter(key)) {
+                        AddStatus rv = ht.unlocked_addTempItem(
+                                bucket_num, key, eviction);
+                        if (rv == AddStatus::NoMem) {
+                            return ENGINE_ENOMEM;
+                        }
+                        v = ht.unlocked_find(key, bucket_num, true, false);
+                        v->setDeleted();
+                    } else {
+                        return ENGINE_KEY_ENOENT;
+                    }
+                } else if (v->isTempInitialItem()) {
+                    v->setDeleted();
+                } else { // Non-existent or deleted key.
+                    if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
+                        // Delete a temp non-existent item to ensure that
+                        // if a delete were issued over an item that doesn't
+                        // exist, then we don't preserve a temp item.
+                        ht.unlocked_del(key, bucket_num);
+                    }
+                    return ENGINE_KEY_ENOENT;
+                }
+            }
+        }
+    }
+
+    if (v && v->isLocked(ep_current_time()) &&
+        (getState() == vbucket_state_replica ||
+         getState() == vbucket_state_pending)) {
+        v->unlock();
+    }
+    MutationStatus delrv;
+
+    /* if an item containing a deleted value is present, set the value
+     * as part of the stored value so that a value is set as part of the
+     * delete.
+     */
+    if (itm && v) {
+        v->setValue(*itm, ht, PreserveRevSeqno::Yes);
+    }
+    delrv = ht.unlocked_softDelete(v, cas, eviction);
+    if (v && (delrv == MutationStatus::NotFound ||
+              delrv == MutationStatus::WasDirty ||
+              delrv == MutationStatus::WasClean)) {
+        if (itemMeta != nullptr) {
+            itemMeta->revSeqno = v->getRevSeqno();
+            itemMeta->cas = v->getCas();
+            itemMeta->flags = v->getFlags();
+            itemMeta->exptime = v->getExptime();
+        }
+    }
+
+    uint64_t seqno = 0;
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    switch (delrv) {
+    case MutationStatus::NoMem:
+        ret = ENGINE_ENOMEM;
+        break;
+    case MutationStatus::InvalidCas:
+        ret = ENGINE_KEY_EEXISTS;
+        break;
+    case MutationStatus::IsLocked:
+        ret = ENGINE_TMPFAIL;
+        break;
+    case MutationStatus::NotFound:
+        ret = ENGINE_KEY_ENOENT;
+    case MutationStatus::WasClean:
+    case MutationStatus::WasDirty:
+        if (v) {
+            // We need to keep lh as we will do v->getCas()
+            seqno = queueDirty(*v, nullptr);
+            cas = v->getCas();
+        }
+
+        if (delrv != MutationStatus::NotFound) {
+            if (mutInfo) {
+                mutInfo->seqno = seqno;
+                mutInfo->vbucket_uuid = failovers->getLatestUUID();
+            }
+            if (itemMeta != nullptr) {
+                itemMeta->cas = v->getCas();
+            }
+        }
+        break;
+    case MutationStatus::NeedBgFetch:
+        // We already figured out if a bg fetch is requred for a full-evicted
+        // item above.
+        throw std::logic_error(
+                "VBucket::deleteItem: "
+                "Unexpected NEEDS_BG_FETCH from unlocked_softDelete");
+    }
+    return ret;
+}
+
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
                        item_eviction_policy_t policy) {
     addStat(NULL, toString(state), add_stat, c);

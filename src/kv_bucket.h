@@ -247,13 +247,13 @@ public:
                                              size_t *msg_size);
 
     ENGINE_ERROR_CODE deleteItem(const DocKey& key,
-                                 uint64_t* cas,
+                                 uint64_t& cas,
                                  uint16_t vbucket,
-                                 const void *cookie,
+                                 const void* cookie,
                                  bool force,
                                  Item* itm,
-                                 ItemMetaData *itemMeta,
-                                 mutation_descr_t *mutInfo);
+                                 ItemMetaData* itemMeta,
+                                 mutation_descr_t* mutInfo);
 
     ENGINE_ERROR_CODE deleteWithMeta(const DocKey& key,
                                      uint64_t* cas,
