@@ -238,6 +238,11 @@ public:
 
     SingleThreadedRCPtr(const SingleThreadedRCPtr<T> &other) : value(other.gimme()) {}
 
+    template <typename Y>
+    SingleThreadedRCPtr(const SingleThreadedRCPtr<Y>& other)
+        : value(other.gimme()) {
+    }
+
     ~SingleThreadedRCPtr() {
         if (value && static_cast<RCValue *>(value)->_rc_decref() == 0) {
             delete value;
@@ -282,6 +287,9 @@ public:
     }
 
 private:
+    template <typename Y>
+    friend class SingleThreadedRCPtr;
+
     T *gimme() const {
         if (value) {
             static_cast<RCValue *>(value)->_rc_incref();
@@ -300,6 +308,10 @@ private:
     T *value;
 };
 
+template <typename T, class... Args>
+SingleThreadedRCPtr<T> make_STRCPtr(Args&&... args) {
+    return SingleThreadedRCPtr<T>(new T(std::forward<Args>(args)...));
+}
 
 /**
  * Debugging wrapper around std::atomic which print all accesses to the atomic
