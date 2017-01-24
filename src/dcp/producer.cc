@@ -265,16 +265,31 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         start_seqno = static_cast<uint64_t>(vb->getHighSeqno());
     }
 
-    if (vb->failovers->needsRollback(start_seqno, vb->getHighSeqno(),
-                                     vbucket_uuid, snap_start_seqno,
-                                     snap_end_seqno, vb->getPurgeSeqno(),
-                                     rollback_seqno)) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed "
-            "because a rollback to seqno %" PRIu64 " is required "
-            "(start seqno %" PRIu64 ", vb_uuid %" PRIu64 ", snapStartSeqno %" PRIu64
-            ", snapEndSeqno %" PRIu64 ")",
-            logHeader(), vbucket, *rollback_seqno, start_seqno, vbucket_uuid,
-            snap_start_seqno, snap_end_seqno);
+    std::pair<bool, std::string> need_rollback =
+            vb->failovers->needsRollback(start_seqno,
+                                         vb->getHighSeqno(),
+                                         vbucket_uuid,
+                                         snap_start_seqno,
+                                         snap_end_seqno,
+                                         vb->getPurgeSeqno(),
+                                         rollback_seqno);
+
+    if (need_rollback.first) {
+        LOG(EXTENSION_LOG_WARNING,
+            "%s (vb %d) Stream request requires rollback to seqno:%" PRIu64
+            " because %s. Client requested"
+            " seqnos:{%" PRIu64 ",%" PRIu64 "}"
+            " snapshot:{%" PRIu64 ",%" PRIu64 "}"
+            " uuid:%" PRIu64,
+            logHeader(),
+            vbucket,
+            *rollback_seqno,
+            need_rollback.second.c_str(),
+            start_seqno,
+            end_seqno,
+            snap_start_seqno,
+            snap_end_seqno,
+            vbucket_uuid);
         return ENGINE_ROLLBACK;
     }
 

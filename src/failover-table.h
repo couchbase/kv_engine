@@ -40,7 +40,7 @@ typedef struct {
 
 /**
  * The failover table hold a list of uuid/sequence number pairs. The sequence
- * numbers are always guarenteed to be increasing. This table is used to
+ * numbers are always guaranteed to be increasing. This table is used to
  * detect changes of history caused by node failures.
  */
 class FailoverTable {
@@ -106,12 +106,15 @@ class FailoverTable {
      * @param snap_end_seqno the end seq number of the sanpshot
      * @param purge_seqno last seq no purged during compaction
      * @param rollback_seqno the sequence number to rollback to if necessary
-     * @return true if a rollback is needed, false otherwise
+     * @return true and reason if a rollback is needed, false otherwise
      */
-    bool needsRollback(uint64_t start_seqno, uint64_t cur_seqno,
-                       uint64_t vb_uuid, uint64_t snap_start_seqno,
-                       uint64_t snap_end_seqno, uint64_t purge_seqno,
-                       uint64_t* rollback_seqno);
+    std::pair<bool, std::string> needsRollback(uint64_t start_seqno,
+                                               uint64_t cur_seqno,
+                                               uint64_t vb_uuid,
+                                               uint64_t snap_start_seqno,
+                                               uint64_t snap_end_seqno,
+                                               uint64_t purge_seqno,
+                                               uint64_t* rollback_seqno);
 
     /**
      * Delete all entries in failover table uptil the specified sequence

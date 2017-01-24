@@ -110,19 +110,20 @@ bool FailoverTable::getLastSeqnoForUUID(uint64_t uuid,
     return false;
 }
 
-bool FailoverTable::needsRollback(uint64_t start_seqno,
-                                  uint64_t cur_seqno,
-                                  uint64_t vb_uuid,
-                                  uint64_t snap_start_seqno,
-                                  uint64_t snap_end_seqno,
-                                  uint64_t purge_seqno,
-                                  uint64_t* rollback_seqno) {
+std::pair<bool, std::string> FailoverTable::needsRollback(
+        uint64_t start_seqno,
+        uint64_t cur_seqno,
+        uint64_t vb_uuid,
+        uint64_t snap_start_seqno,
+        uint64_t snap_end_seqno,
+        uint64_t purge_seqno,
+        uint64_t* rollback_seqno) {
     /* Start with upper as vb highSeqno */
     uint64_t upper = cur_seqno;
     LockHolder lh(lock);
 
     if (start_seqno == 0) {
-        return false;
+        return std::make_pair(false, std::string());
     }
 
     *rollback_seqno = 0;
@@ -137,7 +138,11 @@ bool FailoverTable::needsRollback(uint64_t start_seqno,
     /* There may be items that are purged during compaction. We need
      to rollback to seq no 0 in that case */
     if (snap_start_seqno < purge_seqno) {
-        return true;
+        return std::make_pair(true,
+                              std::string("purge seqno (") +
+                                      std::to_string(purge_seqno) +
+                                      ") is greater than snapshot start - "
+                                      "could miss purged deletions");
     }
 
     table_t::reverse_iterator itr;
@@ -157,11 +162,14 @@ bool FailoverTable::needsRollback(uint64_t start_seqno,
     if (itr == table.rend()) {
         /* No vb_uuid match found in failover table, so producer and consumer
          have no common history. Rollback to zero */
-        return true;
+        return std::make_pair(
+                true,
+                std::string("vBucket UUID not found in failover table, "
+                            "consumer and producer have no common history"));
     } else {
         if (snap_end_seqno <= upper) {
             /* No rollback needed as producer and consumer histories are same */
-            return false;
+            return {false, ""};
         } else {
             /* We need a rollback as producer upper is lower than the end in
                consumer snapshot */
@@ -169,10 +177,14 @@ bool FailoverTable::needsRollback(uint64_t start_seqno,
                 *rollback_seqno = upper;
             } else {
                 /* We have to rollback till snap_start_seqno to handle
-                   deduplicaton case */
+                   deduplication case */
                 *rollback_seqno = snap_start_seqno;
             }
-            return true;
+            return std::make_pair(
+                    true,
+                    std::string(
+                            "consumer ahead of producer - producer upper at ") +
+                            std::to_string(upper));
         }
     }
 }

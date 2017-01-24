@@ -45,10 +45,10 @@ TEST(FailoverTableTest, test_initial_failover_log) {
     FailoverTable table(25);
 
     // rollback not needed
-    EXPECT_FALSE(table.needsRollback(0, 0, 0, 0, 0, 0, &rollback_seqno));
+    EXPECT_FALSE(table.needsRollback(0, 0, 0, 0, 0, 0, &rollback_seqno).first);
 
     // rollback needed
-    EXPECT_TRUE(table.needsRollback(10, 0, 0, 0, 0, 0, &rollback_seqno));
+    EXPECT_TRUE(table.needsRollback(10, 0, 0, 0, 0, 0, &rollback_seqno).first);
     EXPECT_EQ(0, rollback_seqno);
 }
 
@@ -60,21 +60,31 @@ TEST(FailoverTableTest, test_5_failover_log) {
     table_t failover_entries = generate_entries(table, 5,1);
 
     // rollback not needed
-    EXPECT_FALSE(table.needsRollback(0, 0, 0, 0, 0, 0, &rollback_seqno));
+    EXPECT_FALSE(table.needsRollback(0, 0, 0, 0, 0, 0, &rollback_seqno).first);
 
     curr_seqno = table.getLatestEntry().by_seqno + 100;
-    EXPECT_FALSE(table.needsRollback(10, curr_seqno,
+    EXPECT_FALSE(table.needsRollback(10,
+                                     curr_seqno,
                                      table.getLatestEntry().vb_uuid,
-                                     0, 20, 0, &rollback_seqno));
+                                     0,
+                                     20,
+                                     0,
+                                     &rollback_seqno)
+                         .first);
 
     // rollback needed
-    EXPECT_TRUE(table.needsRollback(10, 0, 0, 0, 0, 0, &rollback_seqno));
+    EXPECT_TRUE(table.needsRollback(10, 0, 0, 0, 0, 0, &rollback_seqno).first);
     EXPECT_EQ(0, rollback_seqno);
 
     curr_seqno = table.getLatestEntry().by_seqno + 100;
-    EXPECT_TRUE(table.needsRollback(curr_seqno-80, curr_seqno,
-                                    table.getLatestEntry().vb_uuid, 0,
-                                    curr_seqno+20, 0, &rollback_seqno));
+    EXPECT_TRUE(table.needsRollback(curr_seqno - 80,
+                                    curr_seqno,
+                                    table.getLatestEntry().vb_uuid,
+                                    0,
+                                    curr_seqno + 20,
+                                    0,
+                                    &rollback_seqno)
+                        .first);
     EXPECT_EQ(0, rollback_seqno);
 }
 
@@ -92,7 +102,7 @@ TEST(FailoverTableTest, test_edgetests_failover_log) {
     table_t failover_entries = generate_entries(table, 5,1);
 
     //TESTS for rollback not needed
-    EXPECT_FALSE(table.needsRollback(0, 0, 0, 0, 0, 0, &rollback_seqno));
+    EXPECT_FALSE(table.needsRollback(0, 0, 0, 0, 0, 0, &rollback_seqno).first);
 
     //start_seqno == snap_start_seqno == snap_end_seqno and start_seqno < upper
     curr_seqno = 300;
@@ -100,10 +110,14 @@ TEST(FailoverTableTest, test_edgetests_failover_log) {
     snap_start_seqno = 200;
     snap_end_seqno = 200;
 
-    EXPECT_FALSE(table.needsRollback(start_seqno, curr_seqno,
+    EXPECT_FALSE(table.needsRollback(start_seqno,
+                                     curr_seqno,
                                      table.getLatestEntry().vb_uuid,
-                                     snap_start_seqno, snap_end_seqno, 0,
-                                     &rollback_seqno));
+                                     snap_start_seqno,
+                                     snap_end_seqno,
+                                     0,
+                                     &rollback_seqno)
+                         .first);
 
     //start_seqno == snap_start_seqno and snap_end_seqno > upper
     curr_seqno = 300;
@@ -111,10 +125,14 @@ TEST(FailoverTableTest, test_edgetests_failover_log) {
     snap_start_seqno = 200;
     snap_end_seqno = 301;
 
-    EXPECT_FALSE(table.needsRollback(start_seqno, curr_seqno,
+    EXPECT_FALSE(table.needsRollback(start_seqno,
+                                     curr_seqno,
                                      table.getLatestEntry().vb_uuid,
-                                     snap_start_seqno, snap_end_seqno, 0,
-                                     &rollback_seqno));
+                                     snap_start_seqno,
+                                     snap_end_seqno,
+                                     0,
+                                     &rollback_seqno)
+                         .first);
 
     //start_seqno == snap_start_seqno == upper and snap_end_seqno > upper
     curr_seqno = 300;
@@ -122,11 +140,14 @@ TEST(FailoverTableTest, test_edgetests_failover_log) {
     snap_start_seqno = 300;
     snap_end_seqno = 301;
 
-    EXPECT_FALSE(table.needsRollback(start_seqno, curr_seqno,
+    EXPECT_FALSE(table.needsRollback(start_seqno,
+                                     curr_seqno,
                                      table.getLatestEntry().vb_uuid,
-                                     snap_start_seqno, snap_end_seqno, 0,
-                                     &rollback_seqno));
-
+                                     snap_start_seqno,
+                                     snap_end_seqno,
+                                     0,
+                                     &rollback_seqno)
+                         .first);
 
     //TEST for rollback needed
 
@@ -136,10 +157,14 @@ TEST(FailoverTableTest, test_edgetests_failover_log) {
     snap_start_seqno = 400;
     snap_end_seqno = 400;
 
-    EXPECT_TRUE(table.needsRollback(start_seqno, curr_seqno,
+    EXPECT_TRUE(table.needsRollback(start_seqno,
+                                    curr_seqno,
                                     table.getLatestEntry().vb_uuid,
-                                    snap_start_seqno, snap_end_seqno, 0,
-                                    &rollback_seqno));
+                                    snap_start_seqno,
+                                    snap_end_seqno,
+                                    0,
+                                    &rollback_seqno)
+                        .first);
     EXPECT_EQ(curr_seqno, rollback_seqno);
 
     //start_seqno > snap_start_seqno and snap_end_seqno > upper
@@ -148,10 +173,14 @@ TEST(FailoverTableTest, test_edgetests_failover_log) {
     snap_start_seqno = 210;
     snap_end_seqno = 301;
 
-    EXPECT_TRUE(table.needsRollback(start_seqno, curr_seqno,
+    EXPECT_TRUE(table.needsRollback(start_seqno,
+                                    curr_seqno,
                                     table.getLatestEntry().vb_uuid,
-                                    snap_start_seqno, snap_end_seqno, 0,
-                                    &rollback_seqno));
+                                    snap_start_seqno,
+                                    snap_end_seqno,
+                                    0,
+                                    &rollback_seqno)
+                        .first);
     EXPECT_EQ(snap_start_seqno, rollback_seqno);
 
 
@@ -161,10 +190,14 @@ TEST(FailoverTableTest, test_edgetests_failover_log) {
     snap_start_seqno = 210;
     snap_end_seqno = 320;
 
-    EXPECT_TRUE(table.needsRollback(start_seqno, curr_seqno,
+    EXPECT_TRUE(table.needsRollback(start_seqno,
+                                    curr_seqno,
                                     table.getLatestEntry().vb_uuid,
-                                    snap_start_seqno, snap_end_seqno, 0,
-                                    &rollback_seqno));
+                                    snap_start_seqno,
+                                    snap_end_seqno,
+                                    0,
+                                    &rollback_seqno)
+                        .first);
     EXPECT_EQ(snap_start_seqno, rollback_seqno);
 }
 
@@ -179,22 +212,30 @@ TEST(FailoverTableTest, test_5_failover_largeseqno_log) {
     table_t failover_entries = generate_entries(table, 5, range);
 
     //TESTS for rollback not needed
-    EXPECT_FALSE(table.needsRollback(0, 0, 0, 0, 0, 0, &rollback_seqno));
+    EXPECT_FALSE(table.needsRollback(0, 0, 0, 0, 0, 0, &rollback_seqno).first);
 
     vb_uuid = table.getLatestEntry().vb_uuid;
     curr_seqno = table.getLatestEntry().by_seqno + 100;
     start_seqno = 10;
     //snapshot end seqno less than upper
-    EXPECT_FALSE(table.needsRollback(start_seqno, curr_seqno, vb_uuid, 0, 20, 0,
-                 &rollback_seqno));
+    EXPECT_FALSE(table.needsRollback(start_seqno,
+                                     curr_seqno,
+                                     vb_uuid,
+                                     0,
+                                     20,
+                                     0,
+                                     &rollback_seqno)
+                         .first);
 
     //TESTS for rollback needed
-    EXPECT_TRUE(table.needsRollback(10, 0, 0, 0, 0, 0, &rollback_seqno));
+    EXPECT_TRUE(table.needsRollback(10, 0, 0, 0, 0, 0, &rollback_seqno).first);
     EXPECT_EQ(0, rollback_seqno);
 
     //vbucket uuid sent by client not present in failover table
-    EXPECT_TRUE(table.needsRollback(start_seqno, curr_seqno, 0, 0, 20, 0,
-                &rollback_seqno));
+    EXPECT_TRUE(
+            table.needsRollback(
+                         start_seqno, curr_seqno, 0, 0, 20, 0, &rollback_seqno)
+                    .first);
     EXPECT_EQ(0, rollback_seqno);
 
     vb_uuid = table.getLatestEntry().vb_uuid;
@@ -202,14 +243,24 @@ TEST(FailoverTableTest, test_5_failover_largeseqno_log) {
     start_seqno = curr_seqno-80;
     //snapshot sequence no is greater than upper && snapshot start sequence no
     // less than upper
-    EXPECT_TRUE(table.needsRollback(start_seqno, curr_seqno, vb_uuid,
-                                    curr_seqno-20, curr_seqno+20, 0,
-                                    &rollback_seqno));
+    EXPECT_TRUE(table.needsRollback(start_seqno,
+                                    curr_seqno,
+                                    vb_uuid,
+                                    curr_seqno - 20,
+                                    curr_seqno + 20,
+                                    0,
+                                    &rollback_seqno)
+                        .first);
     EXPECT_EQ((curr_seqno-20), rollback_seqno);
     //snapshot start seqno greate than  upper
-    EXPECT_TRUE(table.needsRollback(curr_seqno+20, curr_seqno, vb_uuid,
-                                    curr_seqno+10, curr_seqno+40, 0,
-                                    &rollback_seqno));
+    EXPECT_TRUE(table.needsRollback(curr_seqno + 20,
+                                    curr_seqno,
+                                    vb_uuid,
+                                    curr_seqno + 10,
+                                    curr_seqno + 40,
+                                    0,
+                                    &rollback_seqno)
+                        .first);
     EXPECT_EQ(curr_seqno, rollback_seqno);
     //client vb uuiud is not the latest vbuuid in failover table and
     //snap_end_seqno > upper && snap_start_seqno > upper
@@ -217,15 +268,25 @@ TEST(FailoverTableTest, test_5_failover_largeseqno_log) {
     ++itr;
     vb_uuid = itr->vb_uuid;
     --itr;
-    EXPECT_TRUE(table.needsRollback(itr->by_seqno-5 ,curr_seqno, vb_uuid,
-                                    itr->by_seqno-10, itr->by_seqno+40, 0,
-                                    &rollback_seqno));
+    EXPECT_TRUE(table.needsRollback(itr->by_seqno - 5,
+                                    curr_seqno,
+                                    vb_uuid,
+                                    itr->by_seqno - 10,
+                                    itr->by_seqno + 40,
+                                    0,
+                                    &rollback_seqno)
+                        .first);
     EXPECT_EQ(((itr->by_seqno)-10), rollback_seqno);
     //client vb uuiud is not the latest vbuuid in failover table and
     //snapshot start seqno greate than  upper
-    EXPECT_TRUE(table.needsRollback(itr->by_seqno+20, curr_seqno, vb_uuid,
-                                    itr->by_seqno+10, itr->by_seqno+40, 0,
-                                    &rollback_seqno));
+    EXPECT_TRUE(table.needsRollback(itr->by_seqno + 20,
+                                    curr_seqno,
+                                    vb_uuid,
+                                    itr->by_seqno + 10,
+                                    itr->by_seqno + 40,
+                                    0,
+                                    &rollback_seqno)
+                        .first);
     EXPECT_EQ(itr->by_seqno, rollback_seqno);
 }
 
@@ -241,10 +302,10 @@ TEST(FailoverTableTest, test_pop_5_failover_log) {
     EXPECT_EQ(failover_entries.front().by_seqno, table.getLatestEntry().by_seqno);
 
     // rollback not needed
-    EXPECT_FALSE(table.needsRollback(0, 0, 0, 0, 0, 0, &rollback_seqno));
+    EXPECT_FALSE(table.needsRollback(0, 0, 0, 0, 0, 0, &rollback_seqno).first);
 
     // rollback needed
-    EXPECT_TRUE(table.needsRollback(10, 0, 0, 0, 0, 0, &rollback_seqno));
+    EXPECT_TRUE(table.needsRollback(10, 0, 0, 0, 0, 0, &rollback_seqno).first);
     EXPECT_EQ(0, rollback_seqno);
 }
 
@@ -267,6 +328,35 @@ TEST(FailoverTableTest, test_add_entry) {
        Now the table must have only 3 entries: 0, low_seqno, seqno */
     table.createEntry(low_seqno + step - 1);
     EXPECT_EQ(3, table.getNumEntries());
+}
+
+TEST(FailoverTableTest, rollback_log_messages) {
+    /* Doesn't actually test functionality, just allows manual confirmation of
+     * the logged messages */
+
+    uint64_t rollback_seqno;
+
+    FailoverTable table(25);
+
+    table_t failover_entries = generate_entries(table, 1, 50);
+
+    uint64_t vb_uuid = table.getLatestEntry().vb_uuid;
+
+    LOG(EXTENSION_LOG_WARNING,
+        "%s",
+        table.needsRollback(10, 0, 0, 0, 0, 20, &rollback_seqno)
+                .second.c_str());
+    LOG(EXTENSION_LOG_WARNING,
+        "%s",
+        table.needsRollback(10, 0, 0, 0, 0, 0, &rollback_seqno).second.c_str());
+    LOG(EXTENSION_LOG_WARNING,
+        "%s",
+        table.needsRollback(10, 0, vb_uuid, 0, 100, 0, &rollback_seqno)
+                .second.c_str());
+    LOG(EXTENSION_LOG_WARNING,
+        "%s",
+        table.needsRollback(10, 15, vb_uuid, 20, 100, 0, &rollback_seqno)
+                .second.c_str());
 }
 
 TEST(FailoverTableTest, test_max_capacity) {
