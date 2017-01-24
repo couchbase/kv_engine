@@ -1598,6 +1598,51 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
     return ENGINE_SUCCESS;
 }
 
+void VBucket::deleteExpiredItem(const DocKey& key,
+                                time_t startTime,
+                                uint64_t revSeqno,
+                                ExpireBy source) {
+    int bucket_num(0);
+    auto lh = ht.getLockedBucket(key, &bucket_num);
+    StoredValue* v = ht.unlocked_find(key, bucket_num, true, false);
+    if (v) {
+        if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
+            // This is a temporary item whose background fetch for metadata
+            // has completed.
+            bool deleted = ht.unlocked_del(key, bucket_num);
+            if (!deleted) {
+                throw std::logic_error(
+                        "VBucket::deleteExpiredItem: "
+                        "Failed to delete seqno:" +
+                        std::to_string(v->getBySeqno()) + " from bucket " +
+                        std::to_string(bucket_num));
+            }
+        } else if (v->isExpired(startTime) && !v->isDeleted()) {
+            ht.unlocked_softDelete(v, 0, eviction);
+            queueDirty(*v, &lh);
+        }
+    } else {
+        if (eviction == FULL_EVICTION) {
+            // Create a temp item and delete and push it
+            // into the checkpoint queue, only if the bloomfilter
+            // predicts that the item may exist on disk.
+            if (maybeKeyExistsInFilter(key)) {
+                AddStatus rv =
+                        ht.unlocked_addTempItem(bucket_num, key, eviction);
+                if (rv == AddStatus::NoMem) {
+                    return;
+                }
+                v = ht.unlocked_find(key, bucket_num, true, false);
+                v->setDeleted();
+                v->setRevSeqno(revSeqno);
+                ht.unlocked_softDelete(v, 0, eviction);
+                queueDirty(*v, &lh);
+            }
+        }
+    }
+    incExpirationStat(source);
+}
+
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
                        item_eviction_policy_t policy) {
     addStat(NULL, toString(state), add_stat, c);

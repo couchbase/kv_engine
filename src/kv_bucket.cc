@@ -659,45 +659,7 @@ void KVBucket::deleteExpiredItem(uint16_t vbid,
         // the VB can't switch state whilst we're processing
         ReaderLockHolder rlh(vb->getStateLock());
         if (vb->getState() == vbucket_state_active) {
-            int bucket_num(0);
-            std::unique_lock<std::mutex> lh = vb->ht.getLockedBucket(key, &bucket_num);
-            StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true, false);
-            if (v) {
-                if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
-                    // This is a temporary item whose background fetch for metadata
-                    // has completed.
-                    bool deleted = vb->ht.unlocked_del(key, bucket_num);
-                    if (!deleted) {
-                        throw std::logic_error("EPStore::deleteExpiredItem: "
-                                               "Failed to delete seqno:" +
-                                               std::to_string(v->getBySeqno()) +
-                                               " from bucket " +
-                                               std::to_string(bucket_num));
-                    }
-                } else if (v->isExpired(startTime) && !v->isDeleted()) {
-                    vb->ht.unlocked_softDelete(v, 0, getItemEvictionPolicy());
-                    vb->queueDirty(*v, &lh);
-                }
-            } else {
-                if (eviction_policy == FULL_EVICTION) {
-                    // Create a temp item and delete and push it
-                    // into the checkpoint queue, only if the bloomfilter
-                    // predicts that the item may exist on disk.
-                    if (vb->maybeKeyExistsInFilter(key)) {
-                        AddStatus rv = vb->ht.unlocked_addTempItem(
-                                bucket_num, key, eviction_policy);
-                        if (rv == AddStatus::NoMem) {
-                            return;
-                        }
-                        v = vb->ht.unlocked_find(key, bucket_num, true, false);
-                        v->setDeleted();
-                        v->setRevSeqno(revSeqno);
-                        vb->ht.unlocked_softDelete(v, 0, eviction_policy);
-                        vb->queueDirty(*v, &lh);
-                    }
-                }
-            }
-            vb->incExpirationStat(source);
+            vb->deleteExpiredItem(key, startTime, revSeqno, source);
         }
     }
 }
