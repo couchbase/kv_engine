@@ -45,16 +45,20 @@
  *  (opcode PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL).
  *
  * DCP:
- * There is also very basic, fake DCP support to ewouldblock_engine. Only three
- * methods are supported:
- *   - dcp_open - Always returns success.
- *   - dcp_stream_req - Always returns success.
- *   - dcp_step - Always produces a single, fixed DCP_MUTATION message, and
- *                returns ENGINE_WANT_MORE.
+ *    There is a special DCP stream named "ewb_internal" which is an
+ *    endless stream of items. You may also add a number at the end
+ *    e.g. "ewb_internal:10" and it'll create a stream with 10 entries.
+ *    It will always send the same K-V pair.
+ *    Note that we don't register for disconnect events so you might
+ *    experience weirdness if you first try to use the internal dcp
+ *    stream, and then later on want to use the one provided by the
+ *    engine. The workaround for that is to delete the bucket
+ *    in between ;-) (put them in separate test suites and it'll all
+ *    be handled for you.
  *
- * While very basic, this is sufficient to allow a client to request a
- * DCP stream from memcached, and for us to pump infinite DCP mutation
- * messages to it.
+ *    Any other stream name results in proxying the dcp request to
+ *    the underlying engine's DCP implementation.
+ *
  */
 
 #include "ewouldblock_engine.h"
@@ -597,6 +601,7 @@ public:
                                                    item, item_info);
         }
     }
+
     static bool set_item_info(ENGINE_HANDLE *handle, const void *cookie,
                               item* item, const item_info *item_info) {
         // Should never be called - set item_set_cas().
@@ -691,9 +696,12 @@ private:
 
     std::atomic<bool> stop_notification_thread;
 
-
-
-    /* DCP iterator static methods *******************************************/
+    ///////////////////////////////////////////////////////////////////////////
+    //             All of the methods used in the DCP interface              //
+    //                                                                       //
+    // We don't support mocking with the DCP interface yet, so all access to //
+    // the DCP interface will be proxied down to the underlying engine.      //
+    ///////////////////////////////////////////////////////////////////////////
     static ENGINE_ERROR_CODE dcp_step(ENGINE_HANDLE* handle, const void* cookie,
                                       struct dcp_message_producers *producers);
 
@@ -701,6 +709,17 @@ private:
                                       uint32_t opaque, uint32_t seqno,
                                       uint32_t flags, void *name,
                                       uint16_t nname);
+
+    static ENGINE_ERROR_CODE dcp_add_stream(ENGINE_HANDLE* handle,
+                                            const void* cookie,
+                                            uint32_t opaque,
+                                            uint16_t vbucket,
+                                            uint32_t flags);
+
+    static ENGINE_ERROR_CODE dcp_close_stream(ENGINE_HANDLE* handle,
+                                              const void* cookie,
+                                              uint32_t opaque,
+                                              uint16_t vbucket);
 
     static ENGINE_ERROR_CODE dcp_stream_req(ENGINE_HANDLE* handle,
                                             const void* cookie, uint32_t flags,
@@ -712,6 +731,102 @@ private:
                                             uint64_t snap_end_seqno,
                                             uint64_t *rollback_seqno,
                                             dcp_add_failover_log callback);
+
+    static ENGINE_ERROR_CODE dcp_get_failover_log(ENGINE_HANDLE* handle,
+                                                  const void* cookie,
+                                                  uint32_t opaque,
+                                                  uint16_t vbucket,
+                                                  dcp_add_failover_log callback);
+
+    static ENGINE_ERROR_CODE dcp_stream_end(ENGINE_HANDLE* handle,
+                                            const void* cookie,
+                                            uint32_t opaque,
+                                            uint16_t vbucket,
+                                            uint32_t flags);
+
+    static ENGINE_ERROR_CODE dcp_snapshot_marker(ENGINE_HANDLE* handle,
+                                                 const void* cookie,
+                                                 uint32_t opaque,
+                                                 uint16_t vbucket,
+                                                 uint64_t start_seqno,
+                                                 uint64_t end_seqno,
+                                                 uint32_t flags);
+
+    static ENGINE_ERROR_CODE dcp_mutation(ENGINE_HANDLE* handle,
+                                          const void* cookie,
+                                          uint32_t opaque,
+                                          const void* key,
+                                          uint16_t nkey,
+                                          const void* value,
+                                          uint32_t nvalue,
+                                          uint64_t cas,
+                                          uint16_t vbucket,
+                                          uint32_t flags,
+                                          uint8_t datatype,
+                                          uint64_t by_seqno,
+                                          uint64_t rev_seqno,
+                                          uint32_t expiration,
+                                          uint32_t lock_time,
+                                          const void* meta,
+                                          uint16_t nmeta,
+                                          uint8_t nru);
+
+    static ENGINE_ERROR_CODE dcp_deletion(ENGINE_HANDLE* handle,
+                                          const void* cookie,
+                                          uint32_t opaque,
+                                          const void* key,
+                                          uint16_t nkey,
+                                          uint64_t cas,
+                                          uint16_t vbucket,
+                                          uint64_t by_seqno,
+                                          uint64_t rev_seqno,
+                                          const void* meta,
+                                          uint16_t nmeta);
+
+    static ENGINE_ERROR_CODE dcp_expiration(ENGINE_HANDLE* handle,
+                                            const void* cookie,
+                                            uint32_t opaque,
+                                            const void* key,
+                                            uint16_t nkey,
+                                            uint64_t cas,
+                                            uint16_t vbucket,
+                                            uint64_t by_seqno,
+                                            uint64_t rev_seqno,
+                                            const void* meta,
+                                            uint16_t nmeta);
+
+    static ENGINE_ERROR_CODE dcp_flush(ENGINE_HANDLE* handle,
+                                       const void* cookie,
+                                       uint32_t opaque,
+                                       uint16_t vbucket);
+
+    static ENGINE_ERROR_CODE dcp_set_vbucket_state(ENGINE_HANDLE* handle,
+                                                   const void* cookie,
+                                                   uint32_t opaque,
+                                                   uint16_t vbucket,
+                                                   vbucket_state_t state);
+
+    static ENGINE_ERROR_CODE dcp_noop(ENGINE_HANDLE* handle,
+                                      const void* cookie,
+                                      uint32_t opaque);
+
+    static ENGINE_ERROR_CODE dcp_buffer_acknowledgement(ENGINE_HANDLE* handle,
+                                                        const void* cookie,
+                                                        uint32_t opaque,
+                                                        uint16_t vbucket,
+                                                        uint32_t buffer_bytes);
+
+    static ENGINE_ERROR_CODE dcp_control(ENGINE_HANDLE* handle,
+                                         const void* cookie,
+                                         uint32_t opaque,
+                                         const void* key,
+                                         uint16_t nkey,
+                                         const void* value,
+                                         uint32_t nvalue);
+
+    static ENGINE_ERROR_CODE dcp_response_handler(ENGINE_HANDLE* handle,
+                                                  const void* cookie,
+                                                  protocol_binary_response_header* response);
 
     // Base class for all fault injection modes.
     struct FaultInjectMode {
@@ -908,11 +1023,23 @@ private:
     // Current DCP mutation `item`. We return the address of this
     // (in the dcp step() function) back to the server, and then in
     // get_item_info we check if the requested item is this one.
-    struct {
+    class EwbDcpKey {
+    public:
+        EwbDcpKey()
+            : key("k"),
+              value("this is the value") {
+
+        }
+
         std::string key;
         std::string value;
     } dcp_mutation_item;
 
+    /**
+     * The dcp_stream map is used to map a cookie to the count of objects
+     * it should send on the stream.
+     */
+    std::map<const void*, uint64_t> dcp_stream;
 
     friend class BlockMonitorThread;
     std::map<uint32_t, const void*> suspended_map;
@@ -1018,6 +1145,20 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     ENGINE_HANDLE_V1::dcp.step = dcp_step;
     ENGINE_HANDLE_V1::dcp.open = dcp_open;
     ENGINE_HANDLE_V1::dcp.stream_req = dcp_stream_req;
+    ENGINE_HANDLE_V1::dcp.add_stream = dcp_add_stream;
+    ENGINE_HANDLE_V1::dcp.close_stream = dcp_close_stream;
+    ENGINE_HANDLE_V1::dcp.buffer_acknowledgement = dcp_buffer_acknowledgement;
+    ENGINE_HANDLE_V1::dcp.control = dcp_control;
+    ENGINE_HANDLE_V1::dcp.get_failover_log = dcp_get_failover_log;
+    ENGINE_HANDLE_V1::dcp.stream_end = dcp_stream_end;
+    ENGINE_HANDLE_V1::dcp.snapshot_marker = dcp_snapshot_marker;
+    ENGINE_HANDLE_V1::dcp.mutation = dcp_mutation;
+    ENGINE_HANDLE_V1::dcp.deletion = dcp_deletion;
+    ENGINE_HANDLE_V1::dcp.expiration = dcp_expiration;
+    ENGINE_HANDLE_V1::dcp.flush = dcp_flush;
+    ENGINE_HANDLE_V1::dcp.set_vbucket_state = dcp_set_vbucket_state;
+    ENGINE_HANDLE_V1::dcp.noop = dcp_noop;
+    ENGINE_HANDLE_V1::dcp.response_handler = dcp_response_handler;
 
     std::memset(&info, 0, sizeof(info.buffer));
     info.eng_info.description = "EWOULDBLOCK Engine";
@@ -1055,21 +1196,37 @@ EWB_Engine::~EWB_Engine() {
     notify_io_thread->waitForState(Couchbase::ThreadState::Zombie);
 }
 
-ENGINE_ERROR_CODE EWB_Engine::dcp_step(ENGINE_HANDLE* handle, const void* cookie,
-                                       struct dcp_message_producers *producers) {
+ENGINE_ERROR_CODE EWB_Engine::dcp_step(ENGINE_HANDLE* handle,
+                                       const void* cookie,
+                                       struct dcp_message_producers* producers) {
     EWB_Engine* ewb = to_engine(handle);
-    auto logger = ewb->gsa()->log->get_logger();
-    logger->log(EXTENSION_LOG_DEBUG, nullptr, "EWB_Engine: dcp_step");
+    auto stream = ewb->dcp_stream.find(cookie);
+    if (stream != ewb->dcp_stream.end()) {
+        auto& count = stream->second;
+        if (count > 0) {
+            // This is using the internal dcp implementation which always
+            // send the same item back
+            auto ret = producers->mutation(cookie, 0xdeadbeef/*opqaue*/,
+                                           &ewb->dcp_mutation_item,
+                                           0/*vb*/, 0/*by_seqno*/,
+                                           0/*rev_seqno*/,
+                                           0/*lock_time*/, nullptr/*meta*/,
+                                           0/*nmeta*/,
+                                           0/*nru*/);
+            --count;
+            if (ret == ENGINE_SUCCESS) {
+                return ENGINE_WANT_MORE;
+            }
+            return ret;
+        }
+        return ENGINE_EWOULDBLOCK;
+    }
 
-    // Set a simple, static key and value for the DCP mutation.
-    ewb->dcp_mutation_item.key = "k";
-    ewb->dcp_mutation_item.value.resize(1, 'v');
-
-    producers->mutation(cookie, /*opqaue*/0xdeadbeef, &ewb->dcp_mutation_item,
-                        /*vb*/0, /*by_seqno*/0, /*rev_seqno*/0,
-                        /*lock_time*/0, /*meta*/nullptr, /*nmeta*/0, /*nru*/0);
-
-    return ENGINE_WANT_MORE;
+    if (ewb->real_engine->dcp.step == nullptr) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return ewb->real_engine->dcp.step(ewb->real_handle, cookie, producers);
+    }
 }
 
 ENGINE_ERROR_CODE EWB_Engine::dcp_open(ENGINE_HANDLE* handle,
@@ -1077,9 +1234,26 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_open(ENGINE_HANDLE* handle,
                                        uint32_t seqno, uint32_t flags,
                                        void *name, uint16_t nname) {
     EWB_Engine* ewb = to_engine(handle);
-    auto logger = ewb->gsa()->log->get_logger();
-    logger->log(EXTENSION_LOG_DEBUG, nullptr, "EWB_Engine: dcp_open");
-    return ENGINE_SUCCESS;
+    std::string nm{static_cast<char*>(name), nname};
+    if (nm.find("ewb_internal") == 0) {
+        // Yeah, this is a request for the internal "magic" DCP stream
+        // The user could specify the iteration count by adding a colon
+        // at the end...
+        auto idx = nm.rfind(":");
+        if (idx != nm.npos) {
+            ewb->dcp_stream[cookie] = std::stoull(nm.substr(idx + 1));
+        } else {
+            ewb->dcp_stream[cookie] = std::numeric_limits<uint64_t>::max();
+        }
+        return ENGINE_SUCCESS;
+    }
+
+    if (ewb->real_engine->dcp.open == nullptr) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return ewb->real_engine->dcp.open(ewb->real_handle, cookie, opaque,
+                                          seqno, flags, name, nname);
+    }
 }
 
 ENGINE_ERROR_CODE EWB_Engine::dcp_stream_req(ENGINE_HANDLE* handle,
@@ -1093,9 +1267,259 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_stream_req(ENGINE_HANDLE* handle,
                                              uint64_t *rollback_seqno,
                                              dcp_add_failover_log callback) {
     EWB_Engine* ewb = to_engine(handle);
-    auto logger = ewb->gsa()->log->get_logger();
-    logger->log(EXTENSION_LOG_DEBUG, nullptr, "EWB_Engine: dcp_stream_req");
-    return ENGINE_SUCCESS;
+    if (ewb->dcp_stream.find(cookie) != ewb->dcp_stream.end()) {
+        // This is a client of our internal streams.. just let it pass
+        return ENGINE_SUCCESS;
+    }
+
+    if (ewb->real_engine->dcp.stream_req == nullptr) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return ewb->real_engine->dcp.stream_req(ewb->real_handle, cookie,
+                                                flags, opaque, vbucket,
+                                                start_seqno, end_seqno,
+                                                vbucket_uuid, snap_start_seqno,
+                                                snap_end_seqno, rollback_seqno,
+                                                callback);
+    }
+}
+
+ENGINE_ERROR_CODE EWB_Engine::dcp_add_stream(ENGINE_HANDLE* handle,
+                                             const void* cookie,
+                                             uint32_t opaque,
+                                             uint16_t vbucket,
+                                             uint32_t flags) {
+    EWB_Engine* ewb = to_engine(handle);
+    if (ewb->real_engine->dcp.add_stream == nullptr) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return ewb->real_engine->dcp.add_stream(ewb->real_handle, cookie,
+                                                opaque, vbucket, flags);
+    }
+}
+
+ENGINE_ERROR_CODE EWB_Engine::dcp_close_stream(ENGINE_HANDLE* handle,
+                                               const void* cookie,
+                                               uint32_t opaque,
+                                               uint16_t vbucket) {
+    EWB_Engine* ewb = to_engine(handle);
+    if (ewb->real_engine->dcp.close_stream == nullptr) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return ewb->real_engine->dcp.close_stream(ewb->real_handle, cookie,
+                                                opaque, vbucket);
+    }
+}
+
+ENGINE_ERROR_CODE EWB_Engine::dcp_get_failover_log(ENGINE_HANDLE* handle,
+                                                   const void* cookie,
+                                                   uint32_t opaque,
+                                                   uint16_t vbucket,
+                                                   dcp_add_failover_log callback) {
+    EWB_Engine* ewb = to_engine(handle);
+    if (ewb->real_engine->dcp.get_failover_log == nullptr) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return ewb->real_engine->dcp.get_failover_log(ewb->real_handle,
+                                                      cookie,
+                                                      opaque,
+                                                      vbucket,
+                                                      callback);
+    }
+}
+
+ENGINE_ERROR_CODE EWB_Engine::dcp_stream_end(ENGINE_HANDLE* handle,
+                                             const void* cookie,
+                                             uint32_t opaque,
+                                             uint16_t vbucket,
+                                             uint32_t flags) {
+    EWB_Engine* ewb = to_engine(handle);
+    if (ewb->real_engine->dcp.stream_end == nullptr) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return ewb->real_engine->dcp.stream_end(ewb->real_handle, cookie,
+                                                opaque, vbucket, flags);
+    }
+}
+
+ENGINE_ERROR_CODE EWB_Engine::dcp_snapshot_marker(ENGINE_HANDLE* handle,
+                                                  const void* cookie,
+                                                  uint32_t opaque,
+                                                  uint16_t vbucket,
+                                                  uint64_t start_seqno,
+                                                  uint64_t end_seqno,
+                                                  uint32_t flags) {
+    EWB_Engine* ewb = to_engine(handle);
+    if (ewb->real_engine->dcp.snapshot_marker == nullptr) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return ewb->real_engine->dcp.snapshot_marker(ewb->real_handle, cookie,
+                                                     opaque, vbucket,
+                                                     start_seqno, end_seqno,
+                                                     flags);
+    }
+}
+
+ENGINE_ERROR_CODE EWB_Engine::dcp_mutation(ENGINE_HANDLE* handle,
+                                           const void* cookie,
+                                           uint32_t opaque,
+                                           const void* key,
+                                           uint16_t nkey,
+                                           const void* value,
+                                           uint32_t nvalue,
+                                           uint64_t cas,
+                                           uint16_t vbucket,
+                                           uint32_t flags,
+                                           uint8_t datatype,
+                                           uint64_t by_seqno,
+                                           uint64_t rev_seqno,
+                                           uint32_t expiration,
+                                           uint32_t lock_time,
+                                           const void* meta,
+                                           uint16_t nmeta,
+                                           uint8_t nru) {
+    EWB_Engine* ewb = to_engine(handle);
+    if (ewb->real_engine->dcp.mutation == nullptr) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return ewb->real_engine->dcp.mutation(ewb->real_handle, cookie, opaque,
+                                              key, nkey, value, nvalue, cas,
+                                              vbucket, flags, datatype,
+                                              by_seqno, rev_seqno, expiration,
+                                              lock_time, meta, nmeta, nru);
+    }
+}
+
+ENGINE_ERROR_CODE EWB_Engine::dcp_deletion(ENGINE_HANDLE* handle,
+                                           const void* cookie,
+                                           uint32_t opaque,
+                                           const void* key,
+                                           uint16_t nkey,
+                                           uint64_t cas,
+                                           uint16_t vbucket,
+                                           uint64_t by_seqno,
+                                           uint64_t rev_seqno,
+                                           const void* meta,
+                                           uint16_t nmeta) {
+    EWB_Engine* ewb = to_engine(handle);
+    if (ewb->real_engine->dcp.deletion == nullptr) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return ewb->real_engine->dcp.deletion(ewb->real_handle, cookie, opaque,
+                                              key, nkey, cas, vbucket, by_seqno,
+                                              rev_seqno, meta, nmeta);
+    }
+}
+
+ENGINE_ERROR_CODE EWB_Engine::dcp_expiration(ENGINE_HANDLE* handle,
+                                             const void* cookie,
+                                             uint32_t opaque,
+                                             const void* key,
+                                             uint16_t nkey,
+                                             uint64_t cas,
+                                             uint16_t vbucket,
+                                             uint64_t by_seqno,
+                                             uint64_t rev_seqno,
+                                             const void* meta,
+                                             uint16_t nmeta) {
+    EWB_Engine* ewb = to_engine(handle);
+    if (ewb->real_engine->dcp.expiration == nullptr) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return ewb->real_engine->dcp.expiration(ewb->real_handle, cookie,
+                                                opaque, key, nkey, cas, vbucket,
+                                                by_seqno, rev_seqno, meta,
+                                                nmeta);
+    }
+}
+
+ENGINE_ERROR_CODE EWB_Engine::dcp_flush(ENGINE_HANDLE* handle,
+                                        const void* cookie,
+                                        uint32_t opaque,
+                                        uint16_t vbucket) {
+    EWB_Engine* ewb = to_engine(handle);
+    if (ewb->real_engine->dcp.flush == nullptr) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return ewb->real_engine->dcp.flush(ewb->real_handle,
+                                                cookie,
+                                                opaque,
+                                                vbucket);
+    }
+}
+
+ENGINE_ERROR_CODE EWB_Engine::dcp_set_vbucket_state(ENGINE_HANDLE* handle,
+                                                    const void* cookie,
+                                                    uint32_t opaque,
+                                                    uint16_t vbucket,
+                                                    vbucket_state_t state) {
+    EWB_Engine* ewb = to_engine(handle);
+    if (ewb->real_engine->dcp.set_vbucket_state == nullptr) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return ewb->real_engine->dcp.set_vbucket_state(ewb->real_handle,
+                                                cookie,
+                                                opaque,
+                                                vbucket,
+                                                state);
+    }
+}
+
+ENGINE_ERROR_CODE EWB_Engine::dcp_noop(ENGINE_HANDLE* handle,
+                                       const void* cookie,
+                                       uint32_t opaque) {
+    EWB_Engine* ewb = to_engine(handle);
+    if (ewb->real_engine->dcp.noop == nullptr) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return ewb->real_engine->dcp.noop(ewb->real_handle, cookie, opaque);
+    }
+}
+
+ENGINE_ERROR_CODE EWB_Engine::dcp_buffer_acknowledgement(ENGINE_HANDLE* handle,
+                                                         const void* cookie,
+                                                         uint32_t opaque,
+                                                         uint16_t vbucket,
+                                                         uint32_t buffer_bytes) {
+    EWB_Engine* ewb = to_engine(handle);
+    if (ewb->real_engine->dcp.buffer_acknowledgement == nullptr) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return ewb->real_engine->dcp.buffer_acknowledgement(ewb->real_handle,
+                                                            cookie,
+                                                            opaque,
+                                                            vbucket,
+                                                            buffer_bytes);
+    }
+}
+
+ENGINE_ERROR_CODE EWB_Engine::dcp_control(ENGINE_HANDLE* handle,
+                                          const void* cookie,
+                                          uint32_t opaque,
+                                          const void* key,
+                                          uint16_t nkey,
+                                          const void* value,
+                                          uint32_t nvalue) {
+    EWB_Engine* ewb = to_engine(handle);
+    if (ewb->real_engine->dcp.control == nullptr) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return ewb->real_engine->dcp.control(ewb->real_handle, cookie,
+                                             opaque, key, nkey, value, nvalue);
+    }
+}
+
+ENGINE_ERROR_CODE EWB_Engine::dcp_response_handler(ENGINE_HANDLE* handle,
+                                                   const void* cookie,
+                                                   protocol_binary_response_header* response) {
+    EWB_Engine* ewb = to_engine(handle);
+    if (ewb->real_engine->dcp.response_handler == nullptr) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return ewb->real_engine->dcp.response_handler(ewb->real_handle,
+                                                      cookie,
+                                                      response);
+    }
 }
 
 ENGINE_ERROR_CODE create_instance(uint64_t interface,
