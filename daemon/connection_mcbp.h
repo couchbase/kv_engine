@@ -244,6 +244,37 @@ public:
         McbpConnection::dcp = dcp;
     }
 
+    bool isDcpXattrAware() const {
+        return dcpXattrAware;
+    }
+
+    void setDcpXattrAware(bool dcpXattrAware) {
+        // @todo Keeping this as NOTICE while waiting for ns_server
+        //       support for xattr over DCP (to make it easier to debug
+        ///      see MB-22468
+        LOG_NOTICE(this, "%u: DCP connection is %sXATTR aware %s",
+                   getId(),
+                   dcpXattrAware ? "" : "not ",
+                   getDescription().c_str());
+        McbpConnection::dcpXattrAware = dcpXattrAware;
+    }
+
+    bool isDcpNoValue() const {
+        return dcpNoValue;
+    }
+
+    void setDcpNoValue(bool dcpNoValue) {
+        // @todo Keeping this as NOTICE while waiting for ns_server
+        //       support for xattr over DCP (to make it easier to debug
+        ///      see MB-22468
+        LOG_NOTICE(this, "%u: DCP contains keys and %svalues %s",
+                   getId(),
+                   dcpNoValue ? "not " : "",
+                   getDescription().c_str());
+
+        McbpConnection::dcpNoValue = dcpNoValue;
+    }
+
     virtual cJSON* toJSON() const override;
 
 
@@ -784,6 +815,12 @@ protected:
 
     /** Is this connection used by a DCP connection? */
     bool dcp;
+
+    /** Is this DCP channel XAttrAware */
+    bool dcpXattrAware;
+
+    /** Shuld values be stripped off? */
+    bool dcpNoValue;
 
     int max_reqs_per_event; /** The maximum requests we can process in a worker
                                 thread timeslice */

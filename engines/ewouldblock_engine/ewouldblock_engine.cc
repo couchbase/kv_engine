@@ -80,6 +80,8 @@
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 #include <platform/thread.h>
+#include <xattr/blob.h>
+
 #include "utilities/engine_loader.h"
 
 /* Public API declaration ****************************************************/
@@ -590,7 +592,7 @@ public:
             item_info->exptime = 0;
             item_info->nbytes = ewb->dcp_mutation_item.value.size();
             item_info->flags = 0;
-            item_info->datatype = PROTOCOL_BINARY_RAW_BYTES;
+            item_info->datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
             item_info->nkey = ewb->dcp_mutation_item.key.size();
             item_info->key = ewb->dcp_mutation_item.key.c_str();
             item_info->value[0].iov_base = &ewb->dcp_mutation_item.value[0];
@@ -1026,13 +1028,19 @@ private:
     class EwbDcpKey {
     public:
         EwbDcpKey()
-            : key("k"),
-              value("this is the value") {
+            : key("k") {
+            cb::xattr::Blob builder;
+            builder.set("_ewb", "{\"internal\":true}");
+            builder.set("meta", "{\"author\":\"jack\"}");
+            const auto blob = builder.finalize();
+            std::copy(blob.buf, blob.buf + blob.len, std::back_inserter(value));
 
+            const std::string body{"this is the value"};
+            std::copy(body.begin(), body.end(), std::back_inserter(value));
         }
 
         std::string key;
-        std::string value;
+        std::vector<uint8_t> value;
     } dcp_mutation_item;
 
     /**

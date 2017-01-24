@@ -50,16 +50,23 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
     char_buffer buffer{root, info.value[0].iov_len};
     cb::compression::Buffer inflated;
 
-    if (mcbp::datatype::is_xattr(info.datatype)) {
-        // @todo we've not updated the dcp repclicaiton stuff to handle
-        // @todo xattrs and according to the XATTR spec this should be
-        // @todo enabled by the DCP stream (and not by a hello call)
-        // @todo Let's strip them off until we've adressed all of that.
+    if (c->isDcpNoValue() && !c->isDcpXattrAware()) {
+        // The client don't want the body or any xattrs.. just
+        // drop everything
+        buffer.len = 0;
+        info.datatype = PROTOCOL_BINARY_RAW_BYTES;
+    } else if (!c->isDcpNoValue() && c->isDcpXattrAware()) {
+        // The client want both value and xattrs.. we don't need to
+        // do anything
 
+    } else {
+        // we want either values or xattrs
         if (mcbp::datatype::is_compressed(info.datatype)) {
-            if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                          buffer.buf, buffer.len, inflated)) {
-                LOG_WARNING(c, "%u: Failed to inflate document", c->getId());
+            if (!cb::compression::inflate(
+                cb::compression::Algorithm::Snappy,
+                buffer.buf, buffer.len, inflated)) {
+                LOG_WARNING(c, "%u: Failed to inflate document",
+                            c->getId());
                 return ENGINE_FAILED;
             }
 
@@ -78,11 +85,23 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
             }
         }
 
-        auto body = cb::xattr::get_body({buffer.buf, buffer.len});
-        buffer.buf = const_cast<char*>(body.buf);
-        buffer.len = body.len;
+        if (c->isDcpXattrAware()) {
+            if (mcbp::datatype::is_xattr(info.datatype)) {
+                buffer.len = cb::xattr::get_body_offset({buffer.buf, buffer.len});
+            } else {
+                buffer.len = 0;
+                info.datatype = PROTOCOL_BINARY_RAW_BYTES;
+            }
+        } else {
+            // we want the body
+            if (mcbp::datatype::is_xattr(info.datatype)) {
+                auto body = cb::xattr::get_body({buffer.buf, buffer.len});
+                buffer.buf = const_cast<char*>(body.buf);
+                buffer.len = body.len;
+                info.datatype &= ~PROTOCOL_BINARY_DATATYPE_XATTR;
+            }
+        }
     }
-
     protocol_binary_request_dcp_mutation packet;
 
     if (c->write.bytes + sizeof(packet.bytes) + nmeta >= c->write.size) {

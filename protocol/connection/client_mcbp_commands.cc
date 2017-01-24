@@ -476,3 +476,40 @@ void BinprotDcpStreamRequestCommand::encode(std::vector<uint8_t>& buf) const {
     append(buf, snap_start_seqno);
     append(buf, snap_end_seqno);
 }
+
+void BinprotDcpMutationCommand::reset(const std::vector<uint8_t>& packet) {
+    clear();
+    const auto* cmd = reinterpret_cast<const protocol_binary_request_dcp_mutation*>(packet.data());
+    if (cmd->message.header.request.magic != uint8_t(PROTOCOL_BINARY_REQ)) {
+        throw std::invalid_argument(
+            "BinprotDcpMutationCommand::reset: packet is not a request");
+    }
+
+    by_seqno = ntohll(cmd->message.body.by_seqno);
+    rev_seqno = ntohll(cmd->message.body.rev_seqno);
+    flags = ntohl(cmd->message.body.flags);
+    expiration = ntohl(cmd->message.body.expiration);
+    lock_time = ntohl(cmd->message.body.lock_time);
+    nmeta = ntohs(cmd->message.body.nmeta);
+    nru = cmd->message.body.nru;
+
+    setOp(PROTOCOL_BINARY_CMD_DCP_MUTATION);
+    setVBucket(cmd->message.header.request.vbucket);
+    setCas(cmd->message.header.request.cas);
+
+    const char* ptr = reinterpret_cast<const char*>(cmd->bytes);
+    ptr += sizeof(cmd->bytes);
+
+    const auto keylen = cmd->message.header.request.keylen;
+    const auto bodylen = cmd->message.header.request.bodylen;
+    const auto vallen = bodylen - keylen - cmd->message.header.request.extlen;
+
+    setKey(std::string{ptr, keylen});
+    ptr += keylen;
+    setValue(std::string{ptr, vallen});
+}
+
+void BinprotDcpMutationCommand::encode(std::vector<uint8_t>& buf) const {
+    throw std::runtime_error(
+        "BinprotDcpMutationCommand::encode: not implemented");
+}

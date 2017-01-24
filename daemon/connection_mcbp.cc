@@ -868,6 +868,8 @@ McbpConnection::McbpConnection(SOCKET sfd, event_base *b)
       stateMachine(new McbpStateMachine(conn_immediate_close)),
       tap_iterator(nullptr),
       dcp(false),
+      dcpXattrAware(false),
+      dcpNoValue(false),
       max_reqs_per_event(settings.getRequestsPerEventNotification(EventPriority::Default)),
       numEvents(0),
       cmd(PROTOCOL_BINARY_CMD_INVALID),
@@ -913,6 +915,8 @@ McbpConnection::McbpConnection(SOCKET sfd,
       stateMachine(new McbpStateMachine(conn_new_cmd)),
       tap_iterator(nullptr),
       dcp(false),
+      dcpXattrAware(false),
+      dcpNoValue(false),
       max_reqs_per_event(settings.getRequestsPerEventNotification(EventPriority::Default)),
       numEvents(0),
       cmd(PROTOCOL_BINARY_CMD_INVALID),
@@ -1041,6 +1045,8 @@ cJSON* McbpConnection::toJSON() const {
     if (obj != nullptr) {
         json_add_bool_to_object(obj, "tap", isTAP());
         json_add_bool_to_object(obj, "dcp", isDCP());
+        json_add_bool_to_object(obj, "dcp_xattr_aware", isDcpXattrAware());
+        json_add_bool_to_object(obj, "dcp_no_value", isDcpNoValue());
         json_add_uintptr_to_object(obj, "opaque", getOpaque());
         cJSON_AddNumberToObject(obj, "max_reqs_per_event",
                                 max_reqs_per_event);

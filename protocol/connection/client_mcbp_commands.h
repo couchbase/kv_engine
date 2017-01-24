@@ -845,3 +845,36 @@ private:
     uint64_t snap_start_seqno;
     uint64_t snap_end_seqno;
 };
+
+
+class BinprotDcpMutationCommand : public BinprotGenericCommand {
+public:
+    BinprotDcpMutationCommand()
+        : BinprotGenericCommand(PROTOCOL_BINARY_CMD_DCP_MUTATION, {}, {}),
+          by_seqno(0),
+          rev_seqno(0),
+          flags(0),
+          expiration(0),
+          lock_time(0),
+          nmeta(0),
+          nru(0) {
+
+    }
+
+    void reset(const std::vector<uint8_t>& packet);
+
+    const std::string& getValue() const {
+        return value;
+    }
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+private:
+    uint64_t by_seqno;
+    uint64_t rev_seqno;
+    uint32_t flags;
+    uint32_t expiration;
+    uint32_t lock_time;
+    uint16_t nmeta;
+    uint8_t nru;
+};

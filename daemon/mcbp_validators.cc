@@ -49,7 +49,6 @@ static protocol_binary_response_status dcp_open_validator(const Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
     if (cookie.connection == nullptr ||

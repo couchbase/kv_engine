@@ -20,6 +20,7 @@ list(APPEND TESTAPP_SOURCES
      testapp_bucket.h
      testapp_client_test.cc
      testapp_client_test.h
+     testapp_dcp.cc
      testapp_environment.cc
      testapp_environment.h
      testapp_errmap.cc
@@ -105,6 +106,12 @@ ADD_TEST(NAME memcached-audit-unit-tests
 ADD_TEST(NAME memcached-bucket-unit-tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         COMMAND memcached_testapp --gtest_filter=TransportProtocols/BucketTest.*)
+
+# Run the DCP tests
+ADD_TEST(NAME memcached-dcp-unit-tests
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND memcached_testapp --gtest_filter=TransportProtocols/DcpTest.*)
+SET_TESTS_PROPERTIES(memcached-dcp-unit-tests PROPERTIES TIMEOUT 60)
 
 # Run all of the lock tests
 ADD_TEST(NAME memcached-lock-unit-tests

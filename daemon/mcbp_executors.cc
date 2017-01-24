@@ -982,12 +982,13 @@ static void dcp_open_executor(McbpConnection* c, void* packet) {
         c->setAiostat(ENGINE_SUCCESS);
         c->setEwouldblock(false);
         c->setSupportsDatatype(true);
+        uint32_t flags = ntohl(req->message.body.flags);
 
         if (ret == ENGINE_SUCCESS) {
             ret = c->getBucketEngine()->dcp.open(c->getBucketEngineAsV0(), c->getCookie(),
                                                  req->message.header.request.opaque,
                                                  ntohl(req->message.body.seqno),
-                                                 ntohl(req->message.body.flags),
+                                                 flags,
                                                  (void*)(req->bytes +
                                                          sizeof(req->bytes)),
                                                  ntohs(
@@ -996,6 +997,8 @@ static void dcp_open_executor(McbpConnection* c, void* packet) {
 
         switch (ret) {
         case ENGINE_SUCCESS:
+            c->setDcpXattrAware((flags & DCP_OPEN_INCLUDE_XATTRS) != 0);
+            c->setDcpNoValue((flags & DCP_OPEN_NO_VALUE) != 0);
             audit_dcp_open(c);
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
             break;
@@ -1020,6 +1023,7 @@ static void dcp_add_stream_executor(McbpConnection* c, void* packet) {
     ENGINE_ERROR_CODE ret = c->getAiostat();
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
+    uint32_t flags = ntohl(req->message.body.flags);
 
     if (ret == ENGINE_SUCCESS) {
         ret = c->getBucketEngine()->dcp.add_stream(c->getBucketEngineAsV0(),
@@ -1027,12 +1031,20 @@ static void dcp_add_stream_executor(McbpConnection* c, void* packet) {
                                                    req->message.header.request.opaque,
                                                    ntohs(
                                                        req->message.header.request.vbucket),
-                                                   ntohl(
-                                                       req->message.body.flags));
+                                                   flags);
     }
 
     switch (ret) {
     case ENGINE_SUCCESS:
+        /*
+         * @todo For backwards compatibility let's sniff the add stream packet
+         *       and enable no-value mode if we sees a NO_VALUE flag being
+         *      passed. When the view engine (or other consumers) tells us
+         *      that they've fixed their code this should go away.
+         */
+        if ((flags & DCP_ADD_STREAM_FLAG_NO_VALUE) != 0) {
+            c->setDcpNoValue(true);
+        }
         c->setDCP(true);
         c->setState(conn_ship_log);
         break;
