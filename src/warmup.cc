@@ -509,7 +509,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
                                                         maxEntries);
             }
             KVShard* shard = store.getVBuckets().getShardByVbId(vbid);
-            std::shared_ptr<Callback<uint16_t> > cb(new NotifyFlusherCB(shard));
+            auto cb = std::make_shared<NotifyFlusherCB>(shard);
 
             vb = store.makeVBucket(vbid,
                                    vbs.state,
@@ -604,10 +604,9 @@ void Warmup::scheduleKeyDump()
 void Warmup::keyDumpforShard(uint16_t shardId)
 {
     KVStore* kvstore = store.getROUnderlyingByShard(shardId);
-    LoadStorageKVPairCallback *load_cb =
-            new LoadStorageKVPairCallback(store, false, state.getState());
-    std::shared_ptr<Callback<GetValue> > cb(load_cb);
-    std::shared_ptr<Callback<CacheLookup> > cl(new NoLookupCallback());
+    auto cb = std::make_shared<LoadStorageKVPairCallback>(
+            store, false, state.getState());
+    auto cl = std::make_shared<NoLookupCallback>();
 
     for (const auto vbid : shardVbIds[shardId]) {
         ScanContext* ctx = kvstore->initScanContext(cb, cl, vbid, 0,
@@ -695,15 +694,15 @@ void Warmup::scheduleLoadingAccessLog()
 
 void Warmup::loadingAccessLog(uint16_t shardId)
 {
-    LoadStorageKVPairCallback *load_cb =
-        new LoadStorageKVPairCallback(store, true, state.getState());
+    LoadStorageKVPairCallback load_cb(store, true, state.getState());
     bool success = false;
     hrtime_t stTime = gethrtime();
     if (store.accessLog[shardId].exists()) {
         try {
             store.accessLog[shardId].open();
             if (doWarmup(store.accessLog[shardId],
-                         shardVbStates[shardId], *load_cb) != (size_t)-1) {
+                         shardVbStates[shardId],
+                         load_cb) != (size_t)-1) {
                 success = true;
             }
         } catch (MutationLog::ReadException &e) {
@@ -721,8 +720,8 @@ void Warmup::loadingAccessLog(uint16_t shardId)
         if (old.exists()) {
             try {
                 old.open();
-                if (doWarmup(old, shardVbStates[shardId],
-                             *load_cb) != (size_t)-1) {
+                if (doWarmup(old, shardVbStates[shardId], load_cb) !=
+                    (size_t)-1) {
                     success = true;
                 }
             } catch (MutationLog::ReadException &e) {
@@ -744,7 +743,6 @@ void Warmup::loadingAccessLog(uint16_t shardId)
         setEstimatedWarmupCount(estimatedCount);
     }
 
-    delete load_cb;
     if (++threadtask_count == store.vbMap.getNumShards()) {
         if (!store.maybeEnableTraffic()) {
             transition(WarmupState::LoadingData);
@@ -827,12 +825,10 @@ void Warmup::loadKVPairsforShard(uint16_t shardId)
     }
 
     KVStore* kvstore = store.getROUnderlyingByShard(shardId);
-    LoadStorageKVPairCallback *load_cb =
-        new LoadStorageKVPairCallback(store, maybe_enable_traffic,
-                                      state.getState());
-    std::shared_ptr<Callback<GetValue> > cb(load_cb);
-    std::shared_ptr<Callback<CacheLookup> >
-        cl(new LoadValueCallback(store.vbMap, state.getState()));
+    auto cb = std::make_shared<LoadStorageKVPairCallback>(
+            store, maybe_enable_traffic, state.getState());
+    auto cl =
+            std::make_shared<LoadValueCallback>(store.vbMap, state.getState());
 
     for (const auto vbid : shardVbIds[shardId]) {
         ScanContext* ctx = kvstore->initScanContext(cb, cl, vbid, 0,
@@ -869,11 +865,10 @@ void Warmup::loadDataforShard(uint16_t shardId)
     scan_error_t errorCode = scan_success;
 
     KVStore* kvstore = store.getROUnderlyingByShard(shardId);
-    LoadStorageKVPairCallback *load_cb =
-        new LoadStorageKVPairCallback(store, true, state.getState());
-    std::shared_ptr<Callback<GetValue> > cb(load_cb);
-    std::shared_ptr<Callback<CacheLookup> >
-        cl(new LoadValueCallback(store.vbMap, state.getState()));
+    auto cb = std::make_shared<LoadStorageKVPairCallback>(
+            store, true, state.getState());
+    auto cl =
+            std::make_shared<LoadValueCallback>(store.vbMap, state.getState());
 
     for (const auto vbid : shardVbIds[shardId]) {
         ScanContext* ctx = kvstore->initScanContext(cb, cl, vbid, 0,
