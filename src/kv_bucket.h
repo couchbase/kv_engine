@@ -256,7 +256,7 @@ public:
                                      uint16_t vbucket,
                                      const void* cookie,
                                      bool force,
-                                     ItemMetaData& itemMeta,
+                                     const ItemMetaData& itemMeta,
                                      bool backfill,
                                      GenerateBySeqno genBySeqno,
                                      GenerateCas generateCas,

@@ -323,7 +323,7 @@ public:
      *              vbucket would deny mutations.
      * @param itm item holding a deleted value. A NULL value is passed
      *            if an empty body is to be used for deletion.
-     * @param[out] itemMeta the pointer to the metadata memory.
+     * @param itemMeta the metadata to use for this deletion.
      * @param genBySeqno whether or not to generate sequence number
      * @param generateCas whether or not to generate cas
      * @param bySeqno seqno of the key being deleted
@@ -339,7 +339,7 @@ public:
                                              uint16_t vbucket,
                                              const void* cookie,
                                              bool force,
-                                             ItemMetaData& itemMeta,
+                                             const ItemMetaData& itemMeta,
                                              bool backfill,
                                              GenerateBySeqno genBySeqno,
                                              GenerateCas generateCas,
