@@ -55,10 +55,9 @@ enum class AddStatus : uint16_t {
  * A container of StoredValue instances.
  *
  * The HashTable class is an unordered, associative array which maps
- * StoredDocKeys
- * to StoredValue.
+ * StoredDocKeys to StoredValue.
  *
- * It supports a limited degreee of concurrent access - the underlying
+ * It supports a limited degree of concurrent access - the underlying
  * HashTable buckets are guarded by N ht_locks; where N is typically of the
  * order of the number of CPUs. Essentially ht bucket B is guarded by
  * mutex B mod N.
@@ -74,6 +73,13 @@ enum class AddStatus : uint16_t {
  * HashTable has no direct knowledge of the item now, it /does/ track the total
  * number of items which exist but are not resident (see numNonResidentItems).
  * This is full eviction.
+ *
+ * The HashTable can hold StoredValues which are either 'valid' (i.e. represent
+ * the current state of that key), or which are logically deleted. Typically
+ * StoredValues which are deleted are only held in the HashTable for a short
+ * period of time - until the deletion is recorded on disk by the Flusher, at
+ * which point they are removed from the HashTable by PersistenceCallback (we
+ * don't want to unnecessarily spend memory on items which have been deleted).
  */
 class HashTable {
 public:
@@ -159,7 +165,8 @@ public:
 
     /**
      * Get the number of non-resident and resident items managed by
-     * this hash table. Note that this will be equal to getNumItems() if
+     * this hash table. Includes items marked as deleted.
+     * Note that this will be equal to getNumItems() if
      * VALUE_ONLY_EVICTION is chosen as a cache management.
      */
     size_t getNumItems(void) {
