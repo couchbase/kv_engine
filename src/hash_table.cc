@@ -288,7 +288,7 @@ MutationStatus HashTable::unlocked_updateStoredValue(
         ++numTotalItems;
     }
 
-    v.setValue(itm, *this, preserveRevSeqno);
+    v.setValue(itm, *this, preserveRevSeqno, true);
     return status;
 }
 
@@ -375,7 +375,7 @@ MutationStatus HashTable::insert(Item& itm,
             ++numTotalItems;
         }
 
-        v->setValue(const_cast<Item&>(itm), *this, PreserveRevSeqno::Yes);
+        v->setValue(const_cast<Item&>(itm), *this, PreserveRevSeqno::Yes, true);
     }
 
     v->markClean();
@@ -441,12 +441,8 @@ AddStatus HashTable::unlocked_add(const int bucket_num,
             v->setValue(itm,
                         *this,
                         v->isTempItem() ? PreserveRevSeqno::Yes
-                                        : PreserveRevSeqno::No);
-            if (isDirty) {
-                v->markDirty();
-            } else {
-                v->markClean();
-            }
+                                        : PreserveRevSeqno::No,
+                        isDirty);
         } else {
             if (itm.getBySeqno() != StoredValue::state_temp_init) {
                 if (policy == FULL_EVICTION && maybeKeyExists) {

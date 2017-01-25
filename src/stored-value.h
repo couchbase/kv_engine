@@ -175,10 +175,12 @@ public:
      * @param itm the item with a new value
      * @param ht the hashtable that contains this StoredValue instance
      * @param preserveSeqno Preserve the revision sequence number from the item.
+     * @param isDirty Indicates whether to mark dirty or not
      */
     void setValue(Item& itm,
                   HashTable& ht,
-                  const PreserveRevSeqno preserveRevSeqno) {
+                  const PreserveRevSeqno preserveRevSeqno,
+                  bool isDirty) {
         size_t currSize = size();
         reduceCacheSize(ht, currSize);
         value = itm.getValue();
@@ -197,7 +199,11 @@ public:
 
         nru = itm.getNRUValue();
 
-        markDirty();
+        if (isDirty) {
+            markDirty();
+        } else {
+            markClean();
+        }
 
         if (isTempItem()) {
             markNotResident();

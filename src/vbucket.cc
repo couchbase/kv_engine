@@ -1431,7 +1431,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
      * delete.
      */
     if (itm && v) {
-        v->setValue(*itm, ht, PreserveRevSeqno::Yes);
+        v->setValue(*itm, ht, PreserveRevSeqno::Yes, true);
     }
     delrv = ht.unlocked_softDelete(v, cas, eviction);
     if (v && (delrv == MutationStatus::NotFound ||

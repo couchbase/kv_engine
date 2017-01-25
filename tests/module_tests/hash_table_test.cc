@@ -576,7 +576,7 @@ TEST_F(HashTableTest, ItemAge) {
     // Check changing age when new value is used.
     Item item2(key, 0, 0, "value2", strlen("value2"));
     item2.getValue()->incrementAge();
-    v->setValue(item2, ht, PreserveRevSeqno::No);
+    v->setValue(item2, ht, PreserveRevSeqno::No, true);
     EXPECT_EQ(1, v->getValue()->getAge());
 }
 
@@ -635,7 +635,7 @@ TEST_F(HashTableTest, unlockedSoftDeleteWithValue) {
     deleted_item.setDeleted();
 
     // Set a new deleted value
-    v->setValue(deleted_item, ht, PreserveRevSeqno::Yes);
+    v->setValue(deleted_item, ht, PreserveRevSeqno::Yes, true);
 
     ItemMetaData itm_meta;
     EXPECT_EQ(MutationStatus::WasDirty,
@@ -665,7 +665,7 @@ TEST_F(HashTableTest, updateDeletedItem) {
     deleted_item.setDeleted();
 
     // Set a new deleted value
-    v->setValue(deleted_item, ht, PreserveRevSeqno::Yes);
+    v->setValue(deleted_item, ht, PreserveRevSeqno::Yes, true);
 
     EXPECT_EQ(MutationStatus::WasDirty,
               ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));
@@ -676,7 +676,7 @@ TEST_F(HashTableTest, updateDeletedItem) {
     update_deleted_item.setDeleted();
 
     // Set a new deleted value
-    v->setValue(update_deleted_item, ht, PreserveRevSeqno::Yes);
+    v->setValue(update_deleted_item, ht, PreserveRevSeqno::Yes, true);
 
     EXPECT_EQ(MutationStatus::WasDirty,
               ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));
