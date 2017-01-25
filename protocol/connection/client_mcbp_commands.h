@@ -318,6 +318,7 @@ public:
 
     /**
      * Get the entire packet, beginning at the header
+     * Note that all fields in the header is in the host local byte order
      */
     const std::vector<uint8_t>& getRawPacket() const {
         return payload;
