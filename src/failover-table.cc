@@ -16,6 +16,7 @@
  */
 #include "config.h"
 
+#include <cJSON_utils.h>
 #include <platform/checked_snprintf.h>
 
 #include "atomic.h"
@@ -226,18 +227,15 @@ std::string FailoverTable::toJSON() {
 }
 
 void FailoverTable::cacheTableJSON() {
-    cJSON* list = cJSON_CreateArray();
+    unique_cJSON_ptr list(cJSON_CreateArray());
     table_t::iterator it;
     for(it = table.begin(); it != table.end(); it++) {
-        cJSON* obj = cJSON_CreateObject();
-        cJSON_AddNumberToObject(obj, "id", (*it).vb_uuid);
-        cJSON_AddNumberToObject(obj, "seq", (*it).by_seqno);
-        cJSON_AddItemToArray(list, obj);
+        unique_cJSON_ptr obj(cJSON_CreateObject());
+        cJSON_AddNumberToObject(obj.get(), "id", (*it).vb_uuid);
+        cJSON_AddNumberToObject(obj.get(), "seq", (*it).by_seqno);
+        cJSON_AddItemToArray(list.get(), obj.release());
     }
-    char* json = cJSON_PrintUnformatted(list);
-    cachedTableJSON = json;
-    cJSON_Free(json);
-    cJSON_Delete(list);
+    cachedTableJSON = to_string(list, false);
 }
 
 void FailoverTable::addStats(const void* cookie, uint16_t vbid,
@@ -333,13 +331,12 @@ bool FailoverTable::loadFromJSON(cJSON *json) {
 }
 
 bool FailoverTable::loadFromJSON(const std::string& json) {
-    cJSON* parsed = cJSON_Parse(json.c_str());
+    unique_cJSON_ptr parsed(cJSON_Parse(json.c_str()));
     bool ret = true;
 
     if (parsed) {
-        ret = loadFromJSON(parsed);
+        ret = loadFromJSON(parsed.get());
         cachedTableJSON = json;
-        cJSON_Delete(parsed);
     }
 
     return ret;
