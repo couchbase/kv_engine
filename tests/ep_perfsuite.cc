@@ -1223,6 +1223,11 @@ static void perf_stat_latency_core(ENGINE_HANDLE *h,
                          0, /*flags*/0, /*out*/nullptr, 0, /*vbid*/0),
                          "Failed to add example document.");
 
+    if (isWarmupEnabled(h, h1)) {
+        // Include warmup-specific stats
+        stat_tests.insert({"warmup", {"warmup", StatRuntime::Fast, {}} });
+    }
+
     if (isPersistentBucket(h, h1)) {
         // Include persistence-specific stats
         stat_tests.insert({{"diskinfo",
