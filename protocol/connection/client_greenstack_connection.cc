@@ -356,16 +356,6 @@ Frame MemcachedGreenstackConnection::encodeCmdGet(const std::string& id,
     return frame;
 }
 
-Frame MemcachedGreenstackConnection::encodeCmdDcpOpen() {
-    throw std::invalid_argument(
-            "MemcachedGreenstackConnection::encode_cmd_dcp_open: Not implemented");
-}
-
-Frame MemcachedGreenstackConnection::encodeCmdDcpStreamReq() {
-    throw std::invalid_argument(
-            "MemcachedGreenstackConnection::encode_cmd_dcp_stream_req: Not implemented");
-}
-
 MutationInfo MemcachedGreenstackConnection::mutate(const Document& doc,
                                                    uint16_t vbucket,
                                                    const Greenstack::mutation_type_t type) {

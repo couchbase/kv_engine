@@ -434,3 +434,45 @@ void BinprotVerbosityCommand::encode(std::vector<uint8_t>& buf) const {
     auto const* p = reinterpret_cast<const char*>(&value);
     buf.insert(buf.end(), p, p + 4);
 }
+
+/**
+ * Append a 32 bit integer to the buffer in network byte order
+ *
+ * @param buf the buffer to add the data to
+ * @param value The value (in host local byteorder) to add.
+ */
+static void append(std::vector<uint8_t>& buf, uint32_t value) {
+    uint32_t vallen = ntohl(value);
+    auto p = reinterpret_cast<const char*>(&vallen);
+    buf.insert(buf.end(), p, p + 4);
+}
+
+/**
+ * Append a 64 bit integer to the buffer in network byte order
+ *
+ * @param buf the buffer to add the data to
+ * @param value The value (in host local byteorder) to add.
+ */
+void append(std::vector<uint8_t>& buf, uint64_t value) {
+    uint64_t vallen = htonll(value);
+    auto p = reinterpret_cast<const char*>(&vallen);
+    buf.insert(buf.end(), p, p + 8);
+}
+
+void BinprotDcpOpenCommand::encode(std::vector<uint8_t>& buf) const {
+    writeHeader(buf, 0, 8);
+    append(buf, seqno);
+    append(buf, flags);
+    buf.insert(buf.end(), key.begin(), key.end());
+}
+
+void BinprotDcpStreamRequestCommand::encode(std::vector<uint8_t>& buf) const {
+    writeHeader(buf, 0, 48);
+    append(buf, flags);
+    append(buf, reserved);
+    append(buf, start_seqno);
+    append(buf, end_seqno);
+    append(buf, vbucket_uuid);
+    append(buf, snap_start_seqno);
+    append(buf, snap_end_seqno);
+}

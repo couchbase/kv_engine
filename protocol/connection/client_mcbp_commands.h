@@ -734,3 +734,114 @@ private:
 };
 
 using BinprotGetErrorMapResponse = BinprotResponse;
+
+class BinprotDcpOpenCommand : public BinprotGenericCommand {
+public:
+    /**
+     * DCP Open
+     *
+     * @param name the name of the DCP stream to create
+     * @param seqno_ the sequence number for the stream
+     * @param flags_ the open flags
+     */
+    BinprotDcpOpenCommand(const std::string& name,
+                          uint32_t seqno_ = 0,
+                          uint32_t flags_ = 0)
+        : BinprotGenericCommand(PROTOCOL_BINARY_CMD_DCP_OPEN, name, {}),
+          seqno(seqno_),
+          flags(flags_) {
+    }
+
+    /**
+     * Make this a producer stream
+     *
+     * @return this
+     */
+    BinprotDcpOpenCommand& makeProducer() {
+        if (flags & DCP_OPEN_NOTIFIER) {
+            throw std::invalid_argument(
+                "BinprotDcpOpenCommand::makeProducer: a stream can't be both a consumer and producer");
+        }
+        flags |= DCP_OPEN_PRODUCER;
+        return *this;
+    }
+
+    /**
+     * Make this a consumer stream
+     *
+     * @return this
+     */
+    BinprotDcpOpenCommand& makeConsumer() {
+        if (flags & DCP_OPEN_PRODUCER) {
+            throw std::invalid_argument(
+                "BinprotDcpOpenCommand::makeConsumer: a stream can't be both a consumer and producer");
+        }
+        flags |= DCP_OPEN_NOTIFIER;
+        return *this;
+    }
+
+    /**
+     * Let the stream include xattrs (if any)
+     *
+     * @return this
+     */
+    BinprotDcpOpenCommand& makeIncludeXattr() {
+        flags |= DCP_OPEN_INCLUDE_XATTRS;
+        return *this;
+    }
+
+    /**
+     * Don't add any values into the stream
+     *
+     * @return this
+     */
+    BinprotDcpOpenCommand& makeNoValue() {
+        flags |= DCP_OPEN_NO_VALUE;
+        return *this;
+    }
+
+    /**
+     * Set an arbitrary flag value. This may be used in order to test
+     * the sanity checks on the server
+     *
+     * @param flags the raw 32 bit flag section to inject
+     * @return this
+     */
+    BinprotDcpOpenCommand& setFlags(uint32_t flags) {
+        BinprotDcpOpenCommand::flags = flags;
+        return *this;
+    }
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+private:
+    uint32_t seqno;
+    uint32_t flags;
+};
+
+class BinprotDcpStreamRequestCommand : public BinprotGenericCommand {
+public:
+    BinprotDcpStreamRequestCommand()
+        :
+        BinprotGenericCommand(PROTOCOL_BINARY_CMD_DCP_STREAM_REQ, {}, {}),
+        flags(0),
+        reserved(0),
+        start_seqno(htonll(std::numeric_limits<uint64_t>::min())),
+        end_seqno(htonll(std::numeric_limits<uint64_t>::max())),
+        vbucket_uuid(0),
+        snap_start_seqno(htonll(std::numeric_limits<uint64_t>::min())),
+        snap_end_seqno(htonll(std::numeric_limits<uint64_t>::max())) {
+
+    }
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+private:
+    uint32_t flags;
+    uint32_t reserved;
+    uint64_t start_seqno;
+    uint64_t end_seqno;
+    uint64_t vbucket_uuid;
+    uint64_t snap_start_seqno;
+    uint64_t snap_end_seqno;
+};

@@ -143,10 +143,6 @@ public:
 
     Frame encodeCmdGet(const std::string& id, uint16_t vbucket) override;
 
-    Frame encodeCmdDcpOpen() override;
-
-    Frame encodeCmdDcpStreamReq() override;
-
     MutationInfo mutate(const Document& doc, uint16_t vbucket,
                         const Greenstack::mutation_type_t type) override;
 

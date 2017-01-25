@@ -252,16 +252,6 @@ public:
      */
     virtual Frame encodeCmdGet(const std::string& id, uint16_t vbucket) = 0;
 
-    /*
-     * Form a Frame representing a CMD_DCP_OPEN
-     */
-    virtual Frame encodeCmdDcpOpen() = 0;
-
-    /*
-     * Form a Frame representing a CMD_DCP_STREAM_REQ
-     */
-    virtual Frame encodeCmdDcpStreamReq() = 0;
-
     /**
      * Perform the mutation on the attached document.
      *

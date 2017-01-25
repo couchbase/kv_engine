@@ -287,17 +287,20 @@ TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
     auto& conn = getConnection();
 
     auto second_conn = conn.clone();
+    auto* mcbp_conn = dynamic_cast<MemcachedBinprotConnection*>(second_conn.get());
+
+
     conn.createBucket("bucket", "default_engine.so", Greenstack::BucketType::EWouldBlock);
     second_conn->selectBucket("bucket");
 
     // We need to get into the `conn_ship_log` state, and then fill up the
     // connections' write (send) buffer.
-    Frame frame = second_conn->encodeCmdDcpOpen();
-    //    Frame frame = second_conn->encode_cmd_tap_connect();
-    second_conn->sendFrame(frame);
 
-    frame = second_conn->encodeCmdDcpStreamReq();
-    second_conn->sendFrame(frame);
+    BinprotDcpOpenCommand dcp_open_command("dcp", 0, DCP_OPEN_PRODUCER);
+    mcbp_conn->sendCommand(dcp_open_command);
+
+    BinprotDcpStreamRequestCommand dcp_stream_request_command;
+    mcbp_conn->sendCommand(dcp_stream_request_command);
 
     // Now need to wait for the for the write (send) buffer of
     // second_conn to fill in memcached. There's no direct way to
