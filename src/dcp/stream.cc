@@ -1764,9 +1764,13 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
     }
 
     ret = engine->getKVBucket()->deleteWithMeta(deletion->getItem()->getKey(),
-                                                &delCas, NULL, deletion->getVBucket(),
-                                                consumer->getCookie(), true,
-                                                &meta, vb->isBackfillPhase(),
+                                                delCas,
+                                                nullptr,
+                                                deletion->getVBucket(),
+                                                consumer->getCookie(),
+                                                true,
+                                                meta,
+                                                vb->isBackfillPhase(),
                                                 GenerateBySeqno::No,
                                                 GenerateCas::No,
                                                 deletion->getBySeqno(),

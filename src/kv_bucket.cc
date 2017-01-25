@@ -2044,19 +2044,18 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
 }
 
 ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
-                                           uint64_t *cas,
-                                           uint64_t *seqno,
+                                           uint64_t& cas,
+                                           uint64_t* seqno,
                                            uint16_t vbucket,
-                                           const void *cookie,
+                                           const void* cookie,
                                            bool force,
-                                           ItemMetaData *itemMeta,
-                                           bool tapBackfill,
+                                           ItemMetaData& itemMeta,
+                                           bool backfill,
                                            GenerateBySeqno genBySeqno,
                                            GenerateCas generateCas,
                                            uint64_t bySeqno,
-                                           ExtendedMetaData *emd,
-                                           bool isReplication)
-{
+                                           ExtendedMetaData* emd,
+                                           bool isReplication) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
 
     if (!vb) {
@@ -2082,110 +2081,23 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
     }
 
     //check for the incoming item's CAS validity
-    if (!Item::isValidCas(itemMeta->cas)) {
+    if (!Item::isValidCas(itemMeta.cas)) {
         return ENGINE_KEY_EEXISTS;
     }
 
-    int bucket_num(0);
-    auto lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true, false);
-    if (!force) { // Need conflict resolution.
-        if (v)  {
-            if (v->isTempInitialItem()) {
-                vb->bgFetch(key, cookie, engine, bgFetchDelay, true);
-                return ENGINE_EWOULDBLOCK;
-            }
-
-            if (!vb->resolveConflict(*v, *itemMeta, true)) {
-                ++stats.numOpsDelMetaResolutionFailed;
-                return ENGINE_KEY_EEXISTS;
-            }
-        } else {
-            // Item is 1) deleted or not existent in the value eviction case OR
-            // 2) deleted or evicted in the full eviction.
-            if (vb->maybeKeyExistsInFilter(key)) {
-                return vb->addTempItemAndBGFetch(lh,
-                                                 bucket_num,
-                                                 key,
-                                                 cookie,
-                                                 engine,
-                                                 bgFetchDelay,
-                                                 true,
-                                                 isReplication);
-            } else {
-                // Even though bloomfilter predicted that item doesn't exist
-                // on disk, we must put this delete on disk if the cas is valid.
-                AddStatus rv = vb->ht.unlocked_addTempItem(
-                        bucket_num, key, eviction_policy, isReplication);
-                if (rv == AddStatus::NoMem) {
-                    return ENGINE_ENOMEM;
-                }
-                v = vb->ht.unlocked_find(key, bucket_num, true, false);
-                v->setDeleted();
-            }
-        }
-    } else {
-        if (!v) {
-            // We should always try to persist a delete here.
-            AddStatus rv = vb->ht.unlocked_addTempItem(
-                    bucket_num, key, eviction_policy, isReplication);
-            if (rv == AddStatus::NoMem) {
-                return ENGINE_ENOMEM;
-            }
-            v = vb->ht.unlocked_find(key, bucket_num, true, false);
-            v->setDeleted();
-            v->setCas(*cas);
-        } else if (v->isTempInitialItem()) {
-            v->setDeleted();
-            v->setCas(*cas);
-        }
-    }
-
-    if (v && v->isLocked(ep_current_time()) &&
-        (vb->getState() == vbucket_state_replica ||
-         vb->getState() == vbucket_state_pending)) {
-        v->unlock();
-    }
-    MutationStatus delrv;
-    delrv = vb->ht.unlocked_softDelete(v, *cas, *itemMeta,
-                                       eviction_policy, true);
-    *cas = v ? v->getCas() : 0;
-
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    switch (delrv) {
-    case MutationStatus::NoMem:
-        ret = ENGINE_ENOMEM;
-        break;
-    case MutationStatus::InvalidCas:
-        ret = ENGINE_KEY_EEXISTS;
-        break;
-    case MutationStatus::IsLocked:
-        ret = ENGINE_TMPFAIL;
-        break;
-    case MutationStatus::NotFound:
-        ret = ENGINE_KEY_ENOENT;
-        break;
-    case MutationStatus::WasDirty:
-    case MutationStatus::WasClean: {
-        if (genBySeqno == GenerateBySeqno::No) {
-            v->setBySeqno(bySeqno);
-        }
-
-        vb->setMaxCasAndTrackDrift(v->getCas());
-        auto queued_seqno =
-                vb->queueDirty(*v, &lh, genBySeqno, generateCas, tapBackfill);
-        if (nullptr != seqno) {
-            *seqno = queued_seqno;
-        }
-        }
-        break;
-        case MutationStatus::NeedBgFetch:
-            lh.unlock();
-            vb->bgFetch(key, cookie, engine, bgFetchDelay, true);
-            ret = ENGINE_EWOULDBLOCK;
-    }
-
-    return ret;
+    return vb->deleteWithMeta(key,
+                              cas,
+                              seqno,
+                              cookie,
+                              engine,
+                              bgFetchDelay,
+                              force,
+                              itemMeta,
+                              backfill,
+                              genBySeqno,
+                              generateCas,
+                              bySeqno,
+                              isReplication);
 }
 
 void KVBucket::reset() {

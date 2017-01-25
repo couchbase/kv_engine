@@ -705,7 +705,7 @@ public:
      * @param allowExisting set to false if you want set to fail if the
      *                      item exists already
      * @param genBySeqno whether or not to generate sequence number
-     * @param emd ExtendedMetaData class object that contains any ext meta
+     * @param genCas
      * @param isReplication set to true if we are to use replication
      *                      throttle threshold
      *
@@ -743,7 +743,7 @@ public:
      *                     seq. A NULL pointer indicates no info needs to be
      *                     returned.
      *
-     * @return the result of the store operation
+     * @return the result of the operation
      */
     ENGINE_ERROR_CODE deleteItem(const DocKey& key,
                                  uint64_t& cas,
@@ -754,6 +754,43 @@ public:
                                  Item* itm,
                                  ItemMetaData* itemMeta,
                                  mutation_descr_t* mutInfo);
+
+    /**
+     * Delete an item in the vbucket from a non-front end operation (DCP, XDCR)
+     *
+     * @param key key to be deleted
+     * @param[in, out] cas value to match; new cas after logical delete
+     * @param[out] seqno Pointer to get the seqno generated for the item. A
+     *                   NULL value is passed if not needed
+     * @param cookie the cookie representing the client to store the item
+     * @param engine Reference to ep engine
+     * @param bgFetchDelay
+     * @param force force a delete in full eviction mode without doing a
+     *              bg fetch
+     * @param itemMeta ref to item meta data
+     * @param backfill indicates if the item must be put onto vb queue or
+     *                 onto checkpoint
+     * @param genBySeqno whether or not to generate sequence number
+     * @param generateCas whether or not to generate cas
+     * @param bySeqno seqno of the key being deleted
+     * @param isReplication set to true if we are to use replication
+     *                      throttle threshold
+     *
+     * @return the result of the operation
+     */
+    ENGINE_ERROR_CODE deleteWithMeta(const DocKey& key,
+                                     uint64_t& cas,
+                                     uint64_t* seqno,
+                                     const void* cookie,
+                                     EventuallyPersistentEngine& engine,
+                                     int bgFetchDelay,
+                                     bool force,
+                                     const ItemMetaData& itemMeta,
+                                     bool backfill,
+                                     GenerateBySeqno genBySeqno,
+                                     GenerateCas generateCas,
+                                     uint64_t bySeqno,
+                                     bool isReplication);
 
     /**
      * Calls the conflict resolution module to resolve the conflict

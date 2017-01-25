@@ -2271,12 +2271,21 @@ ENGINE_ERROR_CODE TapConsumer::deletion(uint32_t opaque, const void* key,
 
     ItemMetaData itemMeta(cas, revSeqno, 0, 0);
     // TAP has no concept of collections - DefaultCollection only.
-    ret = kvBucket->deleteWithMeta(DocKey(static_cast<const uint8_t*>(key), nkey,
+    ret = kvBucket->deleteWithMeta(DocKey(static_cast<const uint8_t*>(key),
+                                          nkey,
                                           DocNamespace::DefaultCollection),
-                                   &delCas, NULL, vbucket, this, true,
-                                   &itemMeta, isBackfillPhase(vbucket),
-                                   GenerateBySeqno::Yes, GenerateCas::No, 0,
-                                   NULL, true);
+                                   delCas,
+                                   NULL,
+                                   vbucket,
+                                   this,
+                                   true,
+                                   itemMeta,
+                                   isBackfillPhase(vbucket),
+                                   GenerateBySeqno::Yes,
+                                   GenerateCas::No,
+                                   0,
+                                   NULL,
+                                   true);
 
     if (ret == ENGINE_KEY_ENOENT) {
         ret = ENGINE_SUCCESS;

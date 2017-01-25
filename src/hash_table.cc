@@ -536,7 +536,7 @@ MutationStatus HashTable::unlocked_softDelete(StoredValue* v,
 
 MutationStatus HashTable::unlocked_softDelete(StoredValue* v,
                                               uint64_t cas,
-                                              ItemMetaData& metadata,
+                                              const ItemMetaData& metadata,
                                               item_eviction_policy_t policy,
                                               bool use_meta) {
     MutationStatus rv = MutationStatus::NotFound;

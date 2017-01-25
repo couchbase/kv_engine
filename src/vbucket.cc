@@ -1232,7 +1232,7 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm, const bool genBySeqno) {
         break;
     case MutationStatus::NeedBgFetch:
         throw std::logic_error(
-                "EventuallyPersistentStore::addBackfillItem: "
+                "VBucket::addBackfillItem: "
                 "SET on a non-active vbucket should not require a "
                 "bg_metadata_fetch.");
     }
@@ -1487,6 +1487,115 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
                 "Unexpected NEEDS_BG_FETCH from unlocked_softDelete");
     }
     return ret;
+}
+
+ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
+                                          uint64_t& cas,
+                                          uint64_t* seqno,
+                                          const void* cookie,
+                                          EventuallyPersistentEngine& engine,
+                                          const int bgFetchDelay,
+                                          const bool force,
+                                          const ItemMetaData& itemMeta,
+                                          const bool backfill,
+                                          const GenerateBySeqno genBySeqno,
+                                          const GenerateCas generateCas,
+                                          const uint64_t bySeqno,
+                                          const bool isReplication) {
+    int bucket_num(0);
+    auto lh = ht.getLockedBucket(key, &bucket_num);
+    StoredValue* v = ht.unlocked_find(key, bucket_num, true, false);
+    if (!force) { // Need conflict resolution.
+        if (v) {
+            if (v->isTempInitialItem()) {
+                bgFetch(key, cookie, engine, bgFetchDelay, true);
+                return ENGINE_EWOULDBLOCK;
+            }
+
+            if (!resolveConflict(*v, itemMeta, true)) {
+                ++stats.numOpsDelMetaResolutionFailed;
+                return ENGINE_KEY_EEXISTS;
+            }
+        } else {
+            // Item is 1) deleted or not existent in the value eviction case OR
+            // 2) deleted or evicted in the full eviction.
+            if (maybeKeyExistsInFilter(key)) {
+                return addTempItemAndBGFetch(lh,
+                                             bucket_num,
+                                             key,
+                                             cookie,
+                                             engine,
+                                             bgFetchDelay,
+                                             true,
+                                             isReplication);
+            } else {
+                // Even though bloomfilter predicted that item doesn't exist
+                // on disk, we must put this delete on disk if the cas is valid.
+                AddStatus rv = ht.unlocked_addTempItem(
+                        bucket_num, key, eviction, isReplication);
+                if (rv == AddStatus::NoMem) {
+                    return ENGINE_ENOMEM;
+                }
+                v = ht.unlocked_find(key, bucket_num, true, false);
+                v->setDeleted();
+            }
+        }
+    } else {
+        if (!v) {
+            // We should always try to persist a delete here.
+            AddStatus rv = ht.unlocked_addTempItem(
+                    bucket_num, key, eviction, isReplication);
+            if (rv == AddStatus::NoMem) {
+                return ENGINE_ENOMEM;
+            }
+            v = ht.unlocked_find(key, bucket_num, true, false);
+            v->setDeleted();
+            v->setCas(cas);
+        } else if (v->isTempInitialItem()) {
+            v->setDeleted();
+            v->setCas(cas);
+        }
+    }
+
+    if (v && v->isLocked(ep_current_time()) &&
+        (getState() == vbucket_state_replica ||
+         getState() == vbucket_state_pending)) {
+        v->unlock();
+    }
+
+    MutationStatus delrv =
+            ht.unlocked_softDelete(v, cas, itemMeta, eviction, true);
+    cas = v ? v->getCas() : 0;
+
+    switch (delrv) {
+    case MutationStatus::NoMem:
+        return ENGINE_ENOMEM;
+    case MutationStatus::InvalidCas:
+        return ENGINE_KEY_EEXISTS;
+    case MutationStatus::IsLocked:
+        return ENGINE_TMPFAIL;
+    case MutationStatus::NotFound:
+        return ENGINE_KEY_ENOENT;
+    case MutationStatus::WasDirty:
+    case MutationStatus::WasClean: {
+        if (genBySeqno == GenerateBySeqno::No) {
+            v->setBySeqno(bySeqno);
+        }
+
+        setMaxCasAndTrackDrift(v->getCas());
+        auto queued_seqno =
+                queueDirty(*v, &lh, genBySeqno, generateCas, backfill);
+        if (seqno) {
+            *seqno = queued_seqno;
+        }
+        break;
+    }
+    case MutationStatus::NeedBgFetch:
+        lh.unlock();
+        bgFetch(key, cookie, engine, bgFetchDelay, true);
+        return ENGINE_EWOULDBLOCK;
+    }
+    return ENGINE_SUCCESS;
 }
 
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,

@@ -5504,13 +5504,19 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     uint64_t by_seqno = 0;
     uint64_t vb_uuid = 0;
 
-    ENGINE_ERROR_CODE ret = kvBucket->deleteWithMeta(key, &cas, &by_seqno,
-                                                     vbucket, cookie,
+    ENGINE_ERROR_CODE ret = kvBucket->deleteWithMeta(key,
+                                                     cas,
+                                                     &by_seqno,
+                                                     vbucket,
+                                                     cookie,
                                                      skipConflictResolution,
-                                                     &itm_meta, false,
+                                                     itm_meta,
+                                                     false,
                                                      GenerateBySeqno::Yes,
-                                                     generateCas, 0,
-                                                     emd.get(), false);
+                                                     generateCas,
+                                                     0,
+                                                     emd.get(),
+                                                     false);
 
     if (ret == ENGINE_SUCCESS) {
         stats.numOpsDelMeta++;

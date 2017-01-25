@@ -304,7 +304,8 @@ public:
                                                      size_t *msg_size) = 0;
 
     /**
-     * delete an item in the store.
+     * delete an item in the store
+     *
      * @param key the key of the item
      * @param[in, out] cas the CAS ID for a CASed delete (0 to override)
      * @param vbucket the vbucket for the key
@@ -316,13 +317,7 @@ public:
      * @param[out] itemMeta the pointer to the metadata memory.
      * @param[out] mutInfo mutation information
      *
-     * (deleteWithMeta)
-     * @param genBySeqno whether or not to generate sequence number
-     * @param emd ExtendedMetaData class object that contains any ext meta
-     * @param isReplication set to true if we are to use replication
-     *                      throttle threshold
-     *
-     * @return the result of the delete operation
+     * @return the result of the operation
      */
     virtual ENGINE_ERROR_CODE deleteItem(const DocKey& key,
                                          uint64_t& cas,
@@ -333,18 +328,41 @@ public:
                                          ItemMetaData* itemMeta,
                                          mutation_descr_t* mutInfo) = 0;
 
+    /**
+     * Delete an item in the store from a non-front end operation (DCP, XDCR)
+     *
+     * @param key the key of the item
+     * @param[in, out] cas the CAS ID for a CASed delete (0 to override)
+     * @param[out] seqno Pointer to get the seqno generated for the item. A
+     *                   NULL value is passed if not needed
+     * @param vbucket the vbucket for the key
+     * @param cookie the cookie representing the client
+     * @param force override access to the vbucket even if the state of the
+     *              vbucket would deny mutations.
+     * @param itm item holding a deleted value. A NULL value is passed
+     *            if an empty body is to be used for deletion.
+     * @param[out] itemMeta the pointer to the metadata memory.
+     * @param genBySeqno whether or not to generate sequence number
+     * @param generateCas whether or not to generate cas
+     * @param bySeqno seqno of the key being deleted
+     * @param emd ExtendedMetaData class object that contains any ext meta
+     * @param isReplication set to true if we are to use replication
+     *                      throttle threshold
+     *
+     * @return the result of the delete operation
+     */
     virtual ENGINE_ERROR_CODE deleteWithMeta(const DocKey& key,
-                                             uint64_t* cas,
+                                             uint64_t& cas,
                                              uint64_t* seqno,
                                              uint16_t vbucket,
-                                             const void *cookie,
+                                             const void* cookie,
                                              bool force,
-                                             ItemMetaData *itemMeta,
-                                             bool tapBackfill,
+                                             ItemMetaData& itemMeta,
+                                             bool backfill,
                                              GenerateBySeqno genBySeqno,
                                              GenerateCas generateCas,
                                              uint64_t bySeqno,
-                                             ExtendedMetaData *emd,
+                                             ExtendedMetaData* emd,
                                              bool isReplication) = 0;
 
     virtual void reset() = 0;

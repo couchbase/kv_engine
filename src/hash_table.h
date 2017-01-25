@@ -403,7 +403,7 @@ public:
      */
     MutationStatus unlocked_softDelete(StoredValue* v,
                                        uint64_t cas,
-                                       ItemMetaData& metadata,
+                                       const ItemMetaData& metadata,
                                        item_eviction_policy_t policy,
                                        bool use_meta = false);
 

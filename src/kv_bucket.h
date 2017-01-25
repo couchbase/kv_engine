@@ -256,17 +256,17 @@ public:
                                  mutation_descr_t* mutInfo);
 
     ENGINE_ERROR_CODE deleteWithMeta(const DocKey& key,
-                                     uint64_t* cas,
+                                     uint64_t& cas,
                                      uint64_t* seqno,
                                      uint16_t vbucket,
-                                     const void *cookie,
+                                     const void* cookie,
                                      bool force,
-                                     ItemMetaData *itemMeta,
-                                     bool tapBackfill,
+                                     ItemMetaData& itemMeta,
+                                     bool backfill,
                                      GenerateBySeqno genBySeqno,
                                      GenerateCas generateCas,
                                      uint64_t bySeqno,
-                                     ExtendedMetaData *emd,
+                                     ExtendedMetaData* emd,
                                      bool isReplication);
 
     void reset();
