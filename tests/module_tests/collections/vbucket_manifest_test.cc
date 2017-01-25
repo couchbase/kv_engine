@@ -50,7 +50,7 @@ public:
         std::lock_guard<cb::ReaderLock> readLock(lock.reader());
         expect_true(exists_UNLOCKED(collection, rev));
         auto itr = map.find(collection);
-        return itr->second->isOpen() && !itr->second->isDeleting();
+        return itr->second->isExclusiveOpen();
     }
 
     bool isDeleting(const std::string& collection, uint32_t rev) const {
@@ -65,14 +65,14 @@ public:
         std::lock_guard<cb::ReaderLock> readLock(lock.reader());
         expect_true(exists_UNLOCKED(collection, rev));
         auto itr = map.find(collection);
-        return itr->second->isDeleting() && !itr->second->isOpen();
+        return itr->second->isExclusiveDeleting();
     }
 
     bool isOpenAndDeleting(const std::string& collection, uint32_t rev) const {
         std::lock_guard<cb::ReaderLock> readLock(lock.reader());
         expect_true(exists_UNLOCKED(collection, rev));
         auto itr = map.find(collection);
-        return itr->second->isOpen() && itr->second->isDeleting();
+        return itr->second->isOpenAndDeleting();
     }
 
     size_t size() const {
@@ -361,15 +361,12 @@ TEST_F(VBucketManifestTest, add_beginDelete_delete) {
             makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
 
     // finally remove vegetable
-    vbm.completeDeletion("vegetable");
+    vbm.completeDeletion(vbucket, "vegetable", 1);
     EXPECT_EQ(1, vbm.size());
     EXPECT_FALSE(vbm.doesKeyContainValidCollection(
             makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
 
-    // Note: at this patch level expect this to fail as completeDeletion is not
-    // operating against the vbucket and thus the JSON we generate will be
-    // missing the completeDeletion action.
-    EXPECT_FALSE(checkJson());
+    EXPECT_TRUE(checkJson());
 }
 
 TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
@@ -401,7 +398,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
             makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
 
     // finally remove vegetable
-    vbm.completeDeletion("vegetable");
+    vbm.completeDeletion(vbucket, "vegetable", 3);
     EXPECT_EQ(2, vbm.size());
 
     // No longer OpenAndDeleting, now ExclusiveOpen
@@ -410,8 +407,31 @@ TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
     EXPECT_TRUE(vbm.doesKeyContainValidCollection(
             makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
 
-    // Note: at this patch level expect this to fail as completeDeletion is not
-    // operating against the vbucket and thus the JSON we generate will be
-    // missing the completeDeletion action.
-    EXPECT_FALSE(checkJson());
+    EXPECT_TRUE(checkJson());
+}
+
+TEST_F(VBucketManifestTest, invalidDeletes) {
+    // add vegetable
+    vbm.update(vbucket,
+               {R"({"revision":1,"separator":"::",)"
+                R"("collections":["$default","vegetable"]})"});
+    // Delete vegetable
+    vbm.update(vbucket,
+               {R"({"revision":2,"separator":"::",)"
+                R"("collections":["$default"]})"});
+
+    EXPECT_THROW(vbm.completeDeletion(vbucket, "unknown", 1), std::logic_error);
+    EXPECT_THROW(vbm.completeDeletion(vbucket, "$default", 1),
+                 std::logic_error);
+    EXPECT_NO_THROW(vbm.completeDeletion(vbucket, "vegetable", 1));
+
+    // Delete $default
+    vbm.update(vbucket,
+               {R"({"revision":3,"separator":"::",)"
+                R"("collections":[]})"});
+    // Add $default
+    vbm.update(vbucket,
+               {R"({"revision":4,"separator":"::",)"
+                R"("collections":["$default"]})"});
+    EXPECT_NO_THROW(vbm.completeDeletion(vbucket, "$default", 3));
 }

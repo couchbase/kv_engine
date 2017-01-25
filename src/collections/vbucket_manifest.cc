@@ -141,8 +141,9 @@ void Collections::VB::Manifest::beginDelCollection(
     }
 }
 
-void Collections::VB::Manifest::completeDeletion(
-        const std::string& collection) {
+void Collections::VB::Manifest::completeDeletion(::VBucket& vb,
+                                                 const std::string& collection,
+                                                 uint32_t revision) {
     std::lock_guard<cb::WriterLock> writeLock(lock.writer());
     auto itr = map.find(collection);
 
@@ -151,10 +152,27 @@ void Collections::VB::Manifest::completeDeletion(
                                collection);
     }
 
-    if (!itr->second->isOpen()) {
+    if (itr->second->isExclusiveDeleting()) {
+        // When we find that the collection is not open, we can hard delete it.
+        // This means we are purging it completly from the manifest and will
+        // generate a JSON manifest without an entry for the collection.
+        queueSystemEvent(
+                vb, SystemEvent::DeleteCollectionHard, collection, revision);
         map.erase(itr);
+    } else if (itr->second->isOpenAndDeleting()) {
+        // When we find that the collection open and deleting we can soft delete
+        // it. This means we are just adjust the endseqno so that the entry
+        // returns true for isExclusiveOpen()
+        queueSystemEvent(vb,
+                         SystemEvent::DeleteCollectionSoft,
+                         collection,
+                         itr->second->getRevision());
+        itr->second->resetEndSeqno(); // and reset the end to our special seqno
     } else {
-        itr->second->resetEndSeqno();
+        // This is an invalid request
+        std::stringstream ss;
+        ss << *itr->second;
+        throw std::logic_error("completeDeletion: cannot delete:" + ss.str());
     }
 }
 
@@ -314,12 +332,22 @@ std::string Collections::VB::Manifest::serialToJson(
                     reinterpret_cast<const SerialisedManifestEntry*>(serial);
             json += sme->toJson();
             serial = sme->nextEntry();
-            json += ",";
+
+            if (ii < sMan->getEntryCount() - 1) {
+                json += ",";
+            }
         }
+        const auto* sme =
+                reinterpret_cast<const SerialisedManifestEntry*>(serial);
+        if (se != SystemEvent::DeleteCollectionHard) {
+            json += "," + sme->toJson(se, finalEntrySeqno);
+        }
+    } else {
+        const auto* sme =
+                reinterpret_cast<const SerialisedManifestEntry*>(serial);
+        json += sme->toJson(se, finalEntrySeqno);
     }
 
-    const auto* sme = reinterpret_cast<const SerialisedManifestEntry*>(serial);
-    json += sme->toJson(se, finalEntrySeqno);
     json += "]}";
     return json;
 }

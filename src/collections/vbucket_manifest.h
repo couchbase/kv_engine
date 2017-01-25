@@ -104,9 +104,13 @@ public:
      * completeDeletion may just update the state or fully drop all knowledge of
      * the collection.
      *
+     * @param vb The VBucket in which the deletion is occuring.
      * @param collection The collection that is being deleted.
+     * @param revision The Manifest revision which initiated the delete.
      */
-    void completeDeletion(const std::string& collection);
+    void completeDeletion(::VBucket& vb,
+                          const std::string& collection,
+                          uint32_t revision);
 
     /**
      * Does the key contain a valid collection?

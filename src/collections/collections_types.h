@@ -25,7 +25,8 @@ const char* const DefaultCollectionIdentifier = "$default";
 // The default separator we will use for identifying collections in keys.
 const char* const DefaultSeparator = "::";
 
-// SystemEvent key
+// SystemEvent keys
 const char* const CreateEventKey = "$collections::create:";
+const char* const DeleteEventKey = "$collections::delete:";
 
 } // end namespace Collections

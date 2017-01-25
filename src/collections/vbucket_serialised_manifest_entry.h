@@ -113,6 +113,10 @@ public:
             return toJson(startSeqno, correctedSeqno);
         case SystemEvent::CreateCollection:
             return toJson(correctedSeqno, endSeqno);
+        case SystemEvent::DeleteCollectionHard:
+            return std::string(); // return nothing - collection gone
+        case SystemEvent::DeleteCollectionSoft:
+            return toJson(startSeqno, StoredValue::state_collection_open);
         }
 
         throw std::invalid_argument(

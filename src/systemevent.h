@@ -22,7 +22,48 @@
 #include "item.h"
 
 /// underlying size of uint32_t as this is to be stored in the Item flags field.
-enum class SystemEvent : uint32_t { CreateCollection, BeginDeleteCollection };
+enum class SystemEvent : uint32_t {
+    /**
+     * The CreateCollection system event is generated when a VBucket receives
+     * knowledge of a new collection. The event's purpose is to carry data
+     * to the flusher so we can persist a new collections JSON manifest that
+     * includes the new collection and persist a special marker document
+     * allowing DCP backfills to re-transite collection creation at the correct
+     * point in seqno-time. This event will also be used to generate
+     * DCP messages to inform consumers of the new collection (for in-memory
+     * streaming).
+     */
+    CreateCollection,
+
+    /**
+     * The BeginDeleteCollection system event is generated when a VBucket
+     * receives a manifest that removes a collection. The events's purpose is to
+     * carry data to the flusher so we can persist a new collections JSON
+     * manifest that indicates the collection is now in the process of being
+     * removed. This is indicated by changing the end-seqno of a collection's
+     * entry. This event also deletes the orginal create marker document from
+     * the data store. This event will also be used to generate DCP messages to
+     * inform consumers of the deleted collection (for in-memory streaming).
+     */
+    BeginDeleteCollection,
+
+    /**
+     * The DeleteCollectionHard system event is generated when a VBucket has
+     * completed the deletion of all items of a collection. The hard delete
+     * carries data to the flusher so we can persist a JSON manifest that now
+     * fully removes the collection.
+     */
+    DeleteCollectionHard,
+
+    /**
+     * The DeleteCollectionSoft system event is generated when a VBucket has
+     * completed the deletion of all items of a collection *but*  a
+     * collection of the same name was added back during the deletion. The soft
+     * delete carries data to the flusher so we can persist a JSON manifest that
+     * only updates the end-seqno of the deleted collection entry.
+     */
+    DeleteCollectionSoft
+};
 
 static inline std::string to_string(const SystemEvent se) {
     switch (se) {
@@ -30,11 +71,13 @@ static inline std::string to_string(const SystemEvent se) {
         return "CreateCollection";
     case SystemEvent::BeginDeleteCollection:
         return "BeginDeleteCollection";
-    default:
-        throw std::invalid_argument("to_string(SystemEvent) unknown " +
-                                    std::to_string(int(se)));
-        return "";
+    case SystemEvent::DeleteCollectionHard:
+        return "DeleteCollectionHard";
+    case SystemEvent::DeleteCollectionSoft:
+        return "DeleteCollectionSoft";
     }
+    throw std::invalid_argument("to_string(SystemEvent) unknown " +
+                                std::to_string(int(se)));
 }
 
 class SystemEventFactory {

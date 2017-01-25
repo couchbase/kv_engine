@@ -143,18 +143,48 @@ public:
     }
 
     /**
-     * A collection is open when the start is greater than the end
+     * A collection is open when the start is greater than the end.
+     * An open collection is one that is readable and writable by the data
+     * path.
      */
     bool isOpen() const {
         return startSeqno > endSeqno;
     }
 
     /**
-     * A collection has deletion in process when the end is not
-     * StoredValue::state_collection_open
+     * A collection is being deleted when the endSeqno is not the special
+     * state_collection_open value.
      */
     bool isDeleting() const {
         return endSeqno != StoredValue::state_collection_open;
+    }
+
+    /**
+     * A collection can be open whilst at the same time a previous incarnation
+     * of it is being deleted.
+     * isOpenAndDeleted returns true for exactly this case
+     */
+    bool isOpenAndDeleting() const {
+        return isOpen() && isDeleting();
+    }
+
+    /**
+     * A collection can be open whilst at the same time a previous incarnation
+     * of it is being deleted.
+     * Exclusively Open is true only when there is no deletion in progress.
+     */
+    bool isExclusiveOpen() const {
+        return isOpen() && !isDeleting();
+    }
+
+    /**
+     * A collection can be open whilst at the same time a previous incarnation
+     * of it is being deleted.
+     * Exclusively Deleting means that there was no re-addition of the
+     * collection, it is only deleting.
+     */
+    bool isExclusiveDeleting() const {
+        return !isOpen() && isDeleting();
     }
 
 private:

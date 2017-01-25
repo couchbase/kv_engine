@@ -39,6 +39,19 @@ std::unique_ptr<Item> SystemEventFactory::make(SystemEvent se,
         key = Collections::CreateEventKey + keyExtra;
         break;
     }
+    case SystemEvent::DeleteCollectionHard: {
+        // DeleteCollectionHard SystemEvent results in:
+        // An update to the persisted collection manifest removing an entry.
+        // No document is persisted.
+        key = Collections::DeleteEventKey + keyExtra;
+    }
+    case SystemEvent::DeleteCollectionSoft: {
+        // DeleteCollectionHard SystemEvent results in:
+        // An update to the persisted collection manifest (updating the end
+        // seqno).
+        // No document is persisted.
+        key = Collections::DeleteEventKey + keyExtra;
+    }
     }
 
     auto item = std::make_unique<Item>(DocKey(key, DocNamespace::System),
