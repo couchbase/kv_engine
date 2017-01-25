@@ -305,8 +305,13 @@ StoredValue* HashTable::unlocked_addNewStoredValue(
     int bucket_num = getBucketForHash(itm.getKey().hash());
     StoredValue* v = valFact(itm, values[bucket_num], *this);
     values[bucket_num] = v;
-    ++numItems;
-    ++numTotalItems;
+
+    if (v->isTempItem()) {
+        ++numTempItems;
+    } else {
+        ++numItems;
+        ++numTotalItems;
+    }
 
     if (preserveRevSeqno == PreserveRevSeqno::No) {
         /**
@@ -314,7 +319,10 @@ StoredValue* HashTable::unlocked_addNewStoredValue(
          * a seqno that is greater than the greatest seqno of all deleted
          * items seen so far.
          */
-        uint64_t seqno = getMaxDeletedRevSeqno() + 1;
+        uint64_t seqno = getMaxDeletedRevSeqno();
+        if (!v->isTempItem()) {
+            ++seqno;
+        }
         v->setRevSeqno(seqno);
         itm.setRevSeqno(seqno);
     }
