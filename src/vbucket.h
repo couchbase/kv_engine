@@ -917,6 +917,22 @@ private:
                                    PreserveRevSeqno preserveRevSeqno);
 
     /**
+     * Adds a temporary StoredValue in in-memory data structures like HT.
+     * Assumes that HT bucket lock is grabbed.
+     *
+     * @param htLock Hash table lock that must be held
+     * @param bucket_num the locked partition where the key belongs
+     * @param key the key for which a temporary item needs to be added
+     * @param isReplication true if issued by consumer (for replication)
+     *
+     * @return Result indicating the status of the operation
+     */
+    AddStatus addTempStoredValue(const std::unique_lock<std::mutex>& htLock,
+                                 int bucket_num,
+                                 const DocKey& key,
+                                 bool isReplication = false);
+
+    /**
      * Queue an item for persistence and replication
      *
      * The caller of this function must hold the lock of the hash table

@@ -487,30 +487,6 @@ AddStatus HashTable::unlocked_add(const int bucket_num,
     return rv;
 }
 
-AddStatus HashTable::unlocked_addTempItem(const int bucket_num,
-                                          const DocKey& key,
-                                          item_eviction_policy_t policy,
-                                          bool isReplication) {
-    if (!isActive()) {
-        throw std::logic_error("HashTable::unlocked_addTempItem: Cannot call on a "
-                "non-active object");
-    }
-    uint8_t ext_meta[1];
-    uint8_t ext_len = EXT_META_LEN;
-    *(ext_meta) = PROTOCOL_BINARY_RAW_BYTES;
-    Item itm(key, /*flags*/0, /*exp*/0, /*data*/NULL,
-             /*size*/0, ext_meta, ext_len, 0, StoredValue::state_temp_init);
-
-    // if a temp item for a possibly deleted, set it non-resident by resetting
-    // the value cuz normally a new item added is considered resident which
-    // does not apply for temp item.
-    StoredValue* v = NULL;
-    return unlocked_add(bucket_num, v, itm, policy,
-                        false,  // isDirty
-                        true,   // maybeKeyExists
-                        isReplication);
-}
-
 MutationStatus HashTable::softDelete(const DocKey& key,
                                      uint64_t cas,
                                      item_eviction_policy_t policy) {

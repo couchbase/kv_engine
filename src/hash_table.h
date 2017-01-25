@@ -365,23 +365,6 @@ public:
                            bool isReplication);
 
     /**
-     * Add a temporary item to the hash table iff it doesn't already exist.
-     *
-     * NOTE: This method should be called after acquiring the correct
-     *       bucket/partition lock.
-     *
-     * @param bucket_num the locked partition where the key belongs
-     * @param key the key for which a temporary item needs to be added
-     * @param policy item eviction policy
-     * @param isReplication true if issued by consumer (for replication)
-     * @return an indication of what happened
-     */
-    AddStatus unlocked_addTempItem(int bucket_num,
-                                   const DocKey& key,
-                                   item_eviction_policy_t policy,
-                                   bool isReplication = false);
-
-    /**
      * Mark the given record logically deleted.
      *
      * @param key the key of the item to delete

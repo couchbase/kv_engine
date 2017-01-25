@@ -927,8 +927,7 @@ ENGINE_ERROR_CODE VBucket::addTempItemAndBGFetch(
         const int bgFetchDelay,
         const bool metadataOnly,
         const bool isReplication) {
-    AddStatus rv =
-            ht.unlocked_addTempItem(bucket_num, key, eviction, isReplication);
+    AddStatus rv = addTempStoredValue(lock, bucket_num, key, isReplication);
     switch (rv) {
     case AddStatus::NoMem:
         return ENGINE_ENOMEM;
@@ -978,7 +977,7 @@ ENGINE_ERROR_CODE VBucket::statsVKey(const DocKey& key,
         if (eviction == VALUE_ONLY) {
             return ENGINE_KEY_ENOENT;
         } else {
-            AddStatus rv = ht.unlocked_addTempItem(bucket_num, key, eviction);
+            AddStatus rv = addTempStoredValue(lh, bucket_num, key);
             switch (rv) {
             case AddStatus::NoMem:
                 return ENGINE_ENOMEM;
@@ -1396,8 +1395,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
                     // force deletion, only if bloomfilter predicts that
                     // item may exist on disk.
                     if (maybeKeyExistsInFilter(key)) {
-                        AddStatus rv = ht.unlocked_addTempItem(
-                                bucket_num, key, eviction);
+                        AddStatus rv = addTempStoredValue(lh, bucket_num, key);
                         if (rv == AddStatus::NoMem) {
                             return ENGINE_ENOMEM;
                         }
@@ -1531,8 +1529,8 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
             } else {
                 // Even though bloomfilter predicted that item doesn't exist
                 // on disk, we must put this delete on disk if the cas is valid.
-                AddStatus rv = ht.unlocked_addTempItem(
-                        bucket_num, key, eviction, isReplication);
+                AddStatus rv =
+                        addTempStoredValue(lh, bucket_num, key, isReplication);
                 if (rv == AddStatus::NoMem) {
                     return ENGINE_ENOMEM;
                 }
@@ -1543,8 +1541,8 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
     } else {
         if (!v) {
             // We should always try to persist a delete here.
-            AddStatus rv = ht.unlocked_addTempItem(
-                    bucket_num, key, eviction, isReplication);
+            AddStatus rv =
+                    addTempStoredValue(lh, bucket_num, key, isReplication);
             if (rv == AddStatus::NoMem) {
                 return ENGINE_ENOMEM;
             }
@@ -1627,8 +1625,7 @@ void VBucket::deleteExpiredItem(const DocKey& key,
             // into the checkpoint queue, only if the bloomfilter
             // predicts that the item may exist on disk.
             if (maybeKeyExistsInFilter(key)) {
-                AddStatus rv =
-                        ht.unlocked_addTempItem(bucket_num, key, eviction);
+                AddStatus rv = addTempStoredValue(lh, bucket_num, key);
                 if (rv == AddStatus::NoMem) {
                     return;
                 }
@@ -1953,4 +1950,36 @@ StoredValue* VBucket::addNewStoredValue(
         Item& itm,
         const PreserveRevSeqno preserveRevSeqno) {
     return ht.unlocked_addNewStoredValue(htLock, itm, preserveRevSeqno);
+}
+
+AddStatus VBucket::addTempStoredValue(
+        const std::unique_lock<std::mutex>& htLock,
+        int bucket_num,
+        const DocKey& key,
+        bool isReplication) {
+    uint8_t ext_meta[EXT_META_LEN] = {PROTOCOL_BINARY_RAW_BYTES};
+    static_assert(sizeof(ext_meta) == 1,
+                  "VBucket::addTempStoredValue(): expected "
+                  "EXT_META_LEN to be 1");
+    Item itm(key,
+             /*flags*/ 0,
+             /*exp*/ 0,
+             /*data*/ NULL,
+             /*size*/ 0,
+             ext_meta,
+             sizeof(ext_meta),
+             0,
+             StoredValue::state_temp_init);
+
+    /* if a temp item for a possibly deleted, set it non-resident by resetting
+       the value cuz normally a new item added is considered resident which
+       does not apply for temp item. */
+    StoredValue* v = nullptr;
+    return ht.unlocked_add(bucket_num,
+                           v,
+                           itm,
+                           eviction,
+                           /*isDirty*/ false,
+                           /*maybeKeyExists*/ true,
+                           isReplication);
 }
