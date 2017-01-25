@@ -383,8 +383,8 @@ public:
      * adding the specified item.
      **/
     size_t queueBGFetchItem(const DocKey& key,
-                            VBucketBGFetchItem *fetch,
-                            BgFetcher *bgFetcher);
+                            std::unique_ptr<VBucketBGFetchItem> fetch,
+                            BgFetcher* bgFetcher);
 
     bool hasPendingBGFetchItems(void) {
         LockHolder lh(pendingBGFetchesLock);

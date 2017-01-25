@@ -358,8 +358,8 @@ void VBucket::addStat(const char *nm, const T &val, ADD_STAT add_stat,
 }
 
 size_t VBucket::queueBGFetchItem(const DocKey& key,
-                                 VBucketBGFetchItem *fetch,
-                                 BgFetcher *bgFetcher) {
+                                 std::unique_ptr<VBucketBGFetchItem> fetch,
+                                 BgFetcher* bgFetcher) {
     LockHolder lh(pendingBGFetchesLock);
     vb_bgfetch_item_ctx_t& bgfetch_itm_ctx =
         pendingBGFetches[key];
@@ -368,12 +368,12 @@ size_t VBucket::queueBGFetchItem(const DocKey& key,
         bgfetch_itm_ctx.isMetaOnly = true;
     }
 
-    bgfetch_itm_ctx.bgfetched_list.push_back(
-            std::unique_ptr<VBucketBGFetchItem>(fetch));
-
     if (!fetch->metaDataOnly) {
         bgfetch_itm_ctx.isMetaOnly = false;
     }
+
+    bgfetch_itm_ctx.bgfetched_list.push_back(std::move(fetch));
+
     bgFetcher->addPendingVB(id);
     return pendingBGFetches.size();
 }
@@ -802,9 +802,10 @@ void VBucket::bgFetch(const DocKey& key,
     if (multiBGFetchEnabled) {
         // schedule to the current batch of background fetch of the given
         // vbucket
-        VBucketBGFetchItem* fetchThis = new VBucketBGFetchItem(cookie, isMeta);
-        size_t bgfetch_size =
-                queueBGFetchItem(key, fetchThis, shard->getBgFetcher());
+        size_t bgfetch_size = queueBGFetchItem(
+                key,
+                std::make_unique<VBucketBGFetchItem>(cookie, isMeta),
+                shard->getBgFetcher());
         if (shard) {
             shard->getBgFetcher()->notifyBGEvent();
         }
