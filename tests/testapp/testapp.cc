@@ -815,7 +815,15 @@ void TestappTest::waitForShutdown(void) {
     EXPECT_EQ(0, exit_code);
 #else
     int status;
-    pid_t ret = waitpid(server_pid, &status, 0);
+    pid_t ret;
+    while (true) {
+        ret = waitpid(server_pid, &status, 0);
+        if (ret == reinterpret_cast<pid_t>(-1) && errno == EINTR) {
+            // Just loop again
+            continue;
+        }
+        break;
+    }
     ASSERT_NE(reinterpret_cast<pid_t>(-1), ret)
         << "waitpid failed: " << strerror(errno);
     EXPECT_TRUE(WIFEXITED(status))
