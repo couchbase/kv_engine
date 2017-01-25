@@ -806,6 +806,22 @@ public:
                            ExpireBy source);
 
     /**
+     * Add an item in the store
+     *
+     * @param itm the item to add. On success, this will have its seqno and
+     *            CAS updated.
+     * @param cookie the cookie representing the client to store the item
+     * @param engine Reference to ep engine
+     * @param bgFetchDelay
+     *
+     * @return the result of the operation
+     */
+    ENGINE_ERROR_CODE add(Item& itm,
+                          const void* cookie,
+                          EventuallyPersistentEngine& engine,
+                          int bgFetchDelay);
+
+    /**
      * Calls the conflict resolution module to resolve the conflict
      *
      * @param v the local document meta data

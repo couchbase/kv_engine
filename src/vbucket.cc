@@ -1643,6 +1643,60 @@ void VBucket::deleteExpiredItem(const DocKey& key,
     incExpirationStat(source);
 }
 
+ENGINE_ERROR_CODE VBucket::add(Item& itm,
+                               const void* cookie,
+                               EventuallyPersistentEngine& engine,
+                               const int bgFetchDelay) {
+    int bucket_num(0);
+    auto lh = ht.getLockedBucket(itm.getKey(), &bucket_num);
+    StoredValue* v = ht.unlocked_find(itm.getKey(), bucket_num, true, false);
+
+    bool maybeKeyExists = true;
+    if ((v == nullptr || v->isTempInitialItem()) &&
+        (eviction == FULL_EVICTION)) {
+        // Check bloomfilter's prediction
+        if (!maybeKeyExistsInFilter(itm.getKey())) {
+            maybeKeyExists = false;
+        }
+    }
+
+    AddStatus atype = ht.unlocked_add(bucket_num,
+                                      v,
+                                      itm,
+                                      eviction,
+                                      /*isDirty*/ true,
+                                      maybeKeyExists,
+                                      /*isReplication*/ false);
+
+    uint64_t seqno = 0;
+    switch (atype) {
+    case AddStatus::NoMem:
+        return ENGINE_ENOMEM;
+    case AddStatus::Exists:
+        return ENGINE_NOT_STORED;
+    case AddStatus::AddTmpAndBgFetch:
+        return addTempItemAndBGFetch(lh,
+                                     bucket_num,
+                                     itm.getKey(),
+                                     cookie,
+                                     engine,
+                                     bgFetchDelay,
+                                     true);
+    case AddStatus::BgFetch:
+        lh.unlock();
+        bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
+        return ENGINE_EWOULDBLOCK;
+    case AddStatus::Success:
+    case AddStatus::UnDel:
+        // We need to keep lh as we will do v->getCas()
+        seqno = queueDirty(*v, nullptr);
+        itm.setBySeqno(seqno);
+        itm.setCas(v->getCas());
+        break;
+    }
+    return ENGINE_SUCCESS;
+}
+
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
                        item_eviction_policy_t policy) {
     addStat(NULL, toString(state), add_stat, c);

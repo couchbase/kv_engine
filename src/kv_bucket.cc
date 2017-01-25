@@ -798,57 +798,7 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
         return ENGINE_NOT_STORED;
     }
 
-    int bucket_num(0);
-    auto lh = vb->ht.getLockedBucket(itm.getKey(), &bucket_num);
-    StoredValue *v = vb->ht.unlocked_find(itm.getKey(), bucket_num, true,
-                                          false);
-
-    bool maybeKeyExists = true;
-    if ((v == nullptr || v->isTempInitialItem()) &&
-        (eviction_policy == FULL_EVICTION)) {
-        // Check bloomfilter's prediction
-        if (!vb->maybeKeyExistsInFilter(itm.getKey())) {
-            maybeKeyExists = false;
-        }
-    }
-
-    AddStatus atype = vb->ht.unlocked_add(bucket_num,
-                                          v,
-                                          itm,
-                                          eviction_policy,
-                                          /*isDirty*/ true,
-                                          maybeKeyExists,
-                                          /*isReplication*/ false);
-
-    uint64_t seqno = 0;
-    switch (atype) {
-    case AddStatus::NoMem:
-        return ENGINE_ENOMEM;
-    case AddStatus::Exists:
-        return ENGINE_NOT_STORED;
-    case AddStatus::AddTmpAndBgFetch:
-        return vb->addTempItemAndBGFetch(lh,
-                                         bucket_num,
-                                         itm.getKey(),
-                                         cookie,
-                                         engine,
-                                         bgFetchDelay,
-                                         true);
-    case AddStatus::BgFetch:
-        lh.unlock();
-        vb->bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
-        return ENGINE_EWOULDBLOCK;
-    case AddStatus::Success:
-    case AddStatus::UnDel:
-        // We need to keep lh as we will do v->getCas()
-        seqno = vb->queueDirty(*v, nullptr);
-
-        itm.setBySeqno(seqno);
-        itm.setCas(v->getCas());
-        break;
-    }
-
-    return ENGINE_SUCCESS;
+    return vb->add(itm, cookie, engine, bgFetchDelay);
 }
 
 ENGINE_ERROR_CODE KVBucket::replace(Item &itm, const void *cookie) {
