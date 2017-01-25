@@ -296,6 +296,12 @@ StoredValue* HashTable::unlocked_addNewStoredValue(
         const std::unique_lock<std::mutex>& htLock,
         Item& itm,
         const PreserveRevSeqno preserveRevSeqno) {
+    if (!htLock) {
+        throw std::invalid_argument(
+                "HashTable::unlocked_addNewStoredValue: htLock "
+                "not held");
+    }
+
     if (!isActive()) {
         throw std::invalid_argument(
                 "HashTable::unlocked_addNewStoredValue: Cannot "
