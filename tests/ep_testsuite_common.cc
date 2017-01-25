@@ -371,3 +371,7 @@ const void* createTapConn(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 bool isWarmupEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
     return get_bool_stat(h, h1, "ep_warmup");
 }
+
+bool isPersistentBucket(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+    return get_str_stat(h, h1, "ep_bucket_type") == "persistent";
+}
