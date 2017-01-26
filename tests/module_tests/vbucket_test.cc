@@ -20,9 +20,11 @@
 #include <gtest/gtest.h>
 #include <platform/cb_malloc.h>
 
+#include "../mock/mock_vbucket.h"
 #include "bgfetcher.h"
 #include "item.h"
 #include "makestoreddockey.h"
+#include "programs/engine_testapp/mock_server.h"
 #include "vbucket.h"
 
 /**
@@ -35,50 +37,32 @@ public:
     void callback(uint16_t &dummy) { }
 };
 
-class MockVBucket : public VBucket {
-public:
-    MockVBucket(id_type i,
-                vbucket_state_t newState,
-                EPStats& st,
-                CheckpointConfig& chkConfig,
-                KVShard* kvshard,
-                int64_t lastSeqno,
-                uint64_t lastSnapStart,
-                uint64_t lastSnapEnd,
-                std::unique_ptr<FailoverTable> table,
-                std::shared_ptr<Callback<id_type>> flusherCb,
-                NewSeqnoCallback newSeqnoCb,
-                Configuration& config,
-                item_eviction_policy_t evictionPolicy,
-                vbucket_state_t initState = vbucket_state_dead,
-                uint64_t purgeSeqno = 0,
-                uint64_t maxCas = 0)
-        : VBucket(i,
-                  vbucket_state_active,
-                  st,
-                  chkConfig,
-                  kvshard,
-                  lastSeqno,
-                  lastSnapStart,
-                  lastSnapEnd,
-                  nullptr,
-                  flusherCb,
-                  nullptr,
-                  config,
-                  evictionPolicy,
-                  initState,
-                  purgeSeqno,
-                  maxCas) {
+static std::vector<StoredDocKey> generateKeys(int num, int start = 0) {
+    std::vector<StoredDocKey> rv;
+
+    for (int i = start; i < num; i++) {
+        rv.push_back(makeStoredDocKey(std::to_string(i)));
     }
 
-    MutationStatus public_processSet(Item& itm, const uint64_t cas) {
-        int bucket_num(0);
-        auto lh = ht.getLockedBucket(itm.getKey(), &bucket_num);
-        StoredValue* v =
-                ht.unlocked_find(itm.getKey(), bucket_num, true, false);
-        return processSet(lh, v, itm, cas, true, false);
+    return rv;
+}
+
+static void addOne(MockVBucket& vb,
+                   const StoredDocKey& k,
+                   AddStatus expect,
+                   int expiry = 0) {
+    Item i(k, 0, expiry, k.data(), k.size());
+    EXPECT_EQ(expect, vb.public_processAdd(i)) << "Failed to add key "
+                                               << k.c_str();
+}
+
+static void addMany(MockVBucket& vb,
+                    std::vector<StoredDocKey>& keys,
+                    AddStatus expect) {
+    for (const auto& k : keys) {
+        addOne(vb, k, expect);
     }
-};
+}
 
 class VBucketTest
         : public ::testing::Test,
@@ -135,6 +119,62 @@ TEST_P(VBucketTest, SwapFilter) {
     ASSERT_NE("DOESN'T EXIST", vbucket->getFilterStatusString());
     vbucket->swapFilter();
     EXPECT_NE("DOESN'T EXIST", vbucket->getFilterStatusString());
+}
+
+TEST_P(VBucketTest, Add) {
+    const auto eviction_policy = GetParam();
+    if (eviction_policy != VALUE_ONLY) {
+        return;
+    }
+    const int nkeys = 1000;
+
+    auto keys = generateKeys(nkeys);
+    addMany(*vbucket, keys, AddStatus::Success);
+
+    StoredDocKey missingKey = makeStoredDocKey("aMissingKey");
+    EXPECT_FALSE(vbucket->ht.find(missingKey));
+
+    for (const auto& key : keys) {
+        EXPECT_TRUE(vbucket->ht.find(key));
+    }
+
+    addMany(*vbucket, keys, AddStatus::Exists);
+    for (const auto& key : keys) {
+        EXPECT_TRUE(vbucket->ht.find(key));
+    }
+
+    // Verify we can read after a soft deletion.
+    EXPECT_EQ(MutationStatus::WasDirty, vbucket->ht.softDelete(keys[0], 0));
+    EXPECT_EQ(MutationStatus::NotFound, vbucket->ht.softDelete(keys[0], 0));
+    EXPECT_FALSE(vbucket->ht.find(keys[0]));
+
+    Item i(keys[0], 0, 0, "newtest", 7);
+    EXPECT_EQ(AddStatus::UnDel, vbucket->public_processAdd(i));
+    EXPECT_EQ(nkeys, vbucket->ht.getNumItems());
+}
+
+TEST_P(VBucketTest, AddExpiry) {
+    const auto eviction_policy = GetParam();
+    if (eviction_policy != VALUE_ONLY) {
+        return;
+    }
+    StoredDocKey k = makeStoredDocKey("aKey");
+
+    addOne(*vbucket, k, AddStatus::Success, ep_real_time() + 5);
+    addOne(*vbucket, k, AddStatus::Exists, ep_real_time() + 5);
+
+    StoredValue* v = vbucket->ht.find(k);
+    EXPECT_TRUE(v);
+    EXPECT_FALSE(v->isExpired(ep_real_time()));
+    EXPECT_TRUE(v->isExpired(ep_real_time() + 6));
+
+    mock_time_travel(6);
+    EXPECT_TRUE(v->isExpired(ep_real_time()));
+
+    addOne(*vbucket, k, AddStatus::UnDel, ep_real_time() + 5);
+    EXPECT_TRUE(v);
+    EXPECT_FALSE(v->isExpired(ep_real_time()));
+    EXPECT_TRUE(v->isExpired(ep_real_time() + 6));
 }
 
 class VBucketEvictionTest : public VBucketTest {};

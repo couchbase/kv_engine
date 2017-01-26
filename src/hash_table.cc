@@ -288,7 +288,7 @@ MutationStatus HashTable::unlocked_updateStoredValue(
         ++numTotalItems;
     }
 
-    v.setValue(itm, *this, preserveRevSeqno, true);
+    v.setValue(itm, *this, preserveRevSeqno);
     return status;
 }
 
@@ -389,7 +389,7 @@ MutationStatus HashTable::insert(Item& itm,
             ++numTotalItems;
         }
 
-        v->setValue(const_cast<Item&>(itm), *this, PreserveRevSeqno::Yes, true);
+        v->setValue(const_cast<Item&>(itm), *this, PreserveRevSeqno::Yes);
     }
 
     v->markClean();
@@ -399,102 +399,6 @@ MutationStatus HashTable::insert(Item& itm,
     }
 
     return MutationStatus::NotFound;
-}
-
-AddStatus HashTable::add(Item& val,
-                         item_eviction_policy_t policy,
-                         bool isDirty) {
-    if (!isActive()) {
-        throw std::logic_error("HashTable::add: Cannot call on a "
-                "non-active object");
-    }
-    int bucket_num(0);
-    std::unique_lock<std::mutex> lh = getLockedBucket(val.getKey(), &bucket_num);
-    StoredValue *v = unlocked_find(val.getKey(), bucket_num, true, false);
-    return unlocked_add(bucket_num, v, val, policy, isDirty,
-                        /*maybeKeyExists*/true, /*isReplication*/false);
-}
-
-AddStatus HashTable::unlocked_add(const int bucket_num,
-                                  StoredValue*& v,
-                                  Item& itm,
-                                  item_eviction_policy_t policy,
-                                  bool isDirty,
-                                  bool maybeKeyExists,
-                                  bool isReplication) {
-    AddStatus rv = AddStatus::Success;
-    if (v && !v->isDeleted() && !v->isExpired(ep_real_time()) &&
-       !v->isTempItem()) {
-        rv = AddStatus::Exists;
-    } else {
-        if (!StoredValue::hasAvailableSpace(stats, itm,
-                                            isReplication)) {
-            return AddStatus::NoMem;
-        }
-
-        if (v) {
-            if (v->isTempInitialItem() && policy == FULL_EVICTION
-                && maybeKeyExists) {
-                // Need to figure out if an item exists on disk
-                return AddStatus::BgFetch;
-            }
-
-            rv = (v->isDeleted() || v->isExpired(ep_real_time()))
-                         ? AddStatus::UnDel
-                         : AddStatus::Success;
-            if (v->isTempItem()) {
-                if (v->isTempDeletedItem()) {
-                    itm.setRevSeqno(v->getRevSeqno() + 1);
-                } else {
-                    itm.setRevSeqno(getMaxDeletedRevSeqno() + 1);
-                }
-                --numTempItems;
-                ++numItems;
-                ++numTotalItems;
-            }
-            v->setValue(itm,
-                        *this,
-                        v->isTempItem() ? PreserveRevSeqno::Yes
-                                        : PreserveRevSeqno::No,
-                        isDirty);
-        } else {
-            if (itm.getBySeqno() != StoredValue::state_temp_init) {
-                if (policy == FULL_EVICTION && maybeKeyExists) {
-                    return AddStatus::AddTmpAndBgFetch;
-                }
-            }
-            v = valFact(itm, values[bucket_num], *this, isDirty);
-            values[bucket_num] = v;
-
-            if (v->isTempItem()) {
-                ++numTempItems;
-                rv = AddStatus::BgFetch;
-            } else {
-                ++numItems;
-                ++numTotalItems;
-            }
-
-            /**
-             * Possibly, this item is being recreated. Conservatively assign
-             * it a seqno that is greater than the greatest seqno of all
-             * deleted items seen so far.
-             */
-            uint64_t seqno = 0;
-            if (!v->isTempItem()) {
-                seqno = getMaxDeletedRevSeqno() + 1;
-            } else {
-                seqno = getMaxDeletedRevSeqno();
-            }
-            v->setRevSeqno(seqno);
-            itm.setRevSeqno(seqno);
-        }
-
-        if (v && v->isTempItem()) {
-            v->setNRUValue(MAX_NRU_VALUE);
-        }
-    }
-
-    return rv;
 }
 
 MutationStatus HashTable::softDelete(const DocKey& key,

@@ -1432,7 +1432,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
      * delete.
      */
     if (itm && v) {
-        v->setValue(*itm, ht, PreserveRevSeqno::Yes, true);
+        v->setValue(*itm, ht, PreserveRevSeqno::Yes);
     }
     delrv = ht.unlocked_softDelete(v, cas, eviction);
     if (v && (delrv == MutationStatus::NotFound ||
@@ -1658,13 +1658,11 @@ ENGINE_ERROR_CODE VBucket::add(Item& itm,
         }
     }
 
-    AddStatus atype = ht.unlocked_add(bucket_num,
-                                      v,
-                                      itm,
-                                      eviction,
-                                      /*isDirty*/ true,
-                                      maybeKeyExists,
-                                      /*isReplication*/ false);
+    AddStatus atype = processAdd(lh,
+                                 v,
+                                 itm,
+                                 maybeKeyExists,
+                                 /*isReplication*/ false);
 
     uint64_t seqno = 0;
     switch (atype) {
@@ -1938,6 +1936,68 @@ MutationStatus VBucket::processSet(const std::unique_lock<std::mutex>& htLock,
     }
 }
 
+AddStatus VBucket::processAdd(const std::unique_lock<std::mutex>& htLock,
+                              StoredValue*& v,
+                              Item& itm,
+                              bool maybeKeyExists,
+                              bool isReplication) {
+    if (!htLock) {
+        throw std::invalid_argument(
+                "VBucket::processAdd: htLock not held for "
+                "VBucket " +
+                std::to_string(getId()));
+    }
+
+    if (v && !v->isDeleted() && !v->isExpired(ep_real_time()) &&
+        !v->isTempItem()) {
+        return AddStatus::Exists;
+    }
+    if (!StoredValue::hasAvailableSpace(stats, itm, isReplication)) {
+        return AddStatus::NoMem;
+    }
+
+    AddStatus rv = AddStatus::Success;
+
+    if (v) {
+        if (v->isTempInitialItem() && eviction == FULL_EVICTION &&
+            maybeKeyExists) {
+            // Need to figure out if an item exists on disk
+            return AddStatus::BgFetch;
+        }
+
+        rv = (v->isDeleted() || v->isExpired(ep_real_time()))
+                     ? AddStatus::UnDel
+                     : AddStatus::Success;
+
+        if (v->isTempDeletedItem()) {
+            itm.setRevSeqno(v->getRevSeqno() + 1);
+        } else {
+            itm.setRevSeqno(ht.getMaxDeletedRevSeqno() + 1);
+        }
+
+        updateStoredValue(
+                htLock,
+                *v,
+                itm,
+                v->isTempItem() ? PreserveRevSeqno::Yes : PreserveRevSeqno::No);
+    } else {
+        if (itm.getBySeqno() != StoredValue::state_temp_init) {
+            if (eviction == FULL_EVICTION && maybeKeyExists) {
+                return AddStatus::AddTmpAndBgFetch;
+            }
+        }
+        v = addNewStoredValue(htLock, itm, PreserveRevSeqno::No);
+        if (v->isTempItem()) {
+            rv = AddStatus::BgFetch;
+        }
+    }
+
+    if (v->isTempItem()) {
+        v->setNRUValue(MAX_NRU_VALUE);
+    }
+    return rv;
+}
+
 MutationStatus VBucket::updateStoredValue(
         const std::unique_lock<std::mutex>& htLock,
         StoredValue& v,
@@ -1976,11 +2036,9 @@ AddStatus VBucket::addTempStoredValue(
        the value cuz normally a new item added is considered resident which
        does not apply for temp item. */
     StoredValue* v = nullptr;
-    return ht.unlocked_add(bucket_num,
-                           v,
-                           itm,
-                           eviction,
-                           /*isDirty*/ false,
-                           /*maybeKeyExists*/ true,
-                           isReplication);
+    return processAdd(htLock,
+                      v,
+                      itm,
+                      /*maybeKeyExists*/ true,
+                      isReplication);
 }

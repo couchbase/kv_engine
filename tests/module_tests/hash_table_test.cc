@@ -77,17 +77,6 @@ static void storeMany(HashTable &h, std::vector<StoredDocKey> &keys) {
     }
 }
 
-static void addMany(HashTable& h,
-                    std::vector<StoredDocKey>& keys,
-                    AddStatus expect) {
-    item_eviction_policy_t policy = VALUE_ONLY;
-    for (const auto& k : keys) {
-        Item i(k, 0, 0, k.data(), k.size());
-        AddStatus v = h.add(i, policy);
-        EXPECT_EQ(expect, v);
-    }
-}
-
 template <typename T>
 static const char* toString(AddStatus a) {
     switch(a) {
@@ -106,16 +95,6 @@ static const char* toString(AddStatus a) {
     }
     abort();
     return NULL;
-}
-
-static void add(HashTable& h,
-                const StoredDocKey& k,
-                AddStatus expect,
-                int expiry = 0) {
-    Item i(k, 0, expiry, k.data(), k.size());
-    item_eviction_policy_t policy = VALUE_ONLY;
-    AddStatus v = h.add(i, policy);
-    EXPECT_EQ(expect, v);
 }
 
 static std::vector<StoredDocKey> generateKeys(int num, int start=0) {
@@ -231,27 +210,6 @@ TEST_F(HashTableTest, Find) {
     testFind(h);
 }
 
-TEST_F(HashTableTest, AddExpiry) {
-    HashTable h(global_stats, 5, 1);
-    StoredDocKey k = makeStoredDocKey("aKey");
-
-    add(h, k, AddStatus::Success, ep_real_time() + 5);
-    add(h, k, AddStatus::Exists, ep_real_time() + 5);
-
-    StoredValue *v = h.find(k);
-    EXPECT_TRUE(v);
-    EXPECT_FALSE(v->isExpired(ep_real_time()));
-    EXPECT_TRUE(v->isExpired(ep_real_time() + 6));
-
-    mock_time_travel(6);
-    EXPECT_TRUE(v->isExpired(ep_real_time()));
-
-    add(h, k, AddStatus::UnDel, ep_real_time() + 5);
-    EXPECT_TRUE(v);
-    EXPECT_FALSE(v->isExpired(ep_real_time()));
-    EXPECT_TRUE(v->isExpired(ep_real_time() + 6));
-}
-
 TEST_F(HashTableTest, Resize) {
     HashTable h(global_stats, 5, 3);
 
@@ -333,37 +291,6 @@ TEST_F(HashTableTest, AutoResize) {
     h.resize();
     EXPECT_EQ(769, h.getSize());
     verifyFound(h, keys);
-}
-
-TEST_F(HashTableTest, Add) {
-    HashTable h(global_stats, 5, 1);
-    const int nkeys = 1000;
-
-    auto keys = generateKeys(nkeys);
-    addMany(h, keys, AddStatus::Success);
-
-    StoredDocKey missingKey = makeStoredDocKey("aMissingKey");
-    EXPECT_FALSE(h.find(missingKey));
-
-    for (const auto& key : keys) {
-        EXPECT_TRUE(h.find(key));
-    }
-
-    addMany(h, keys, AddStatus::Exists);
-    for (const auto& key : keys) {
-        EXPECT_TRUE(h.find(key));
-    }
-
-    // Verify we can read after a soft deletion.
-    EXPECT_EQ(MutationStatus::WasDirty, h.softDelete(keys[0], 0));
-    EXPECT_EQ(MutationStatus::NotFound, h.softDelete(keys[0], 0));
-    EXPECT_FALSE(h.find(keys[0]));
-    EXPECT_EQ(nkeys - 1, count(h));
-
-    Item i(keys[0], 0, 0, "newtest", 7);
-    item_eviction_policy_t policy = VALUE_ONLY;
-    EXPECT_EQ(AddStatus::UnDel, h.add(i, policy));
-    EXPECT_EQ(nkeys, count(h, false));
 }
 
 TEST_F(HashTableTest, DepthCounting) {
@@ -576,7 +503,7 @@ TEST_F(HashTableTest, ItemAge) {
     // Check changing age when new value is used.
     Item item2(key, 0, 0, "value2", strlen("value2"));
     item2.getValue()->incrementAge();
-    v->setValue(item2, ht, PreserveRevSeqno::No, true);
+    v->setValue(item2, ht, PreserveRevSeqno::No);
     EXPECT_EQ(1, v->getValue()->getAge());
 }
 
@@ -635,7 +562,7 @@ TEST_F(HashTableTest, unlockedSoftDeleteWithValue) {
     deleted_item.setDeleted();
 
     // Set a new deleted value
-    v->setValue(deleted_item, ht, PreserveRevSeqno::Yes, true);
+    v->setValue(deleted_item, ht, PreserveRevSeqno::Yes);
 
     ItemMetaData itm_meta;
     EXPECT_EQ(MutationStatus::WasDirty,
@@ -665,7 +592,7 @@ TEST_F(HashTableTest, updateDeletedItem) {
     deleted_item.setDeleted();
 
     // Set a new deleted value
-    v->setValue(deleted_item, ht, PreserveRevSeqno::Yes, true);
+    v->setValue(deleted_item, ht, PreserveRevSeqno::Yes);
 
     EXPECT_EQ(MutationStatus::WasDirty,
               ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));
@@ -676,7 +603,7 @@ TEST_F(HashTableTest, updateDeletedItem) {
     update_deleted_item.setDeleted();
 
     // Set a new deleted value
-    v->setValue(update_deleted_item, ht, PreserveRevSeqno::Yes, true);
+    v->setValue(update_deleted_item, ht, PreserveRevSeqno::Yes);
 
     EXPECT_EQ(MutationStatus::WasDirty,
               ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));

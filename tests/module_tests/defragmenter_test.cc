@@ -17,6 +17,7 @@
 
 #include "defragmenter_visitor.h"
 
+#include "../mock/mock_vbucket.h"
 #include "daemon/alloc_hooks.h"
 #include "makestoreddockey.h"
 #include "programs/engine_testapp/mock_server.h"
@@ -43,8 +44,7 @@ public:
 /* Fill the bucket with the given number of docs. Returns the rate at which
  * items were added.
  */
-static size_t populateVbucket(VBucket& vbucket, size_t ndocs) {
-
+static size_t populateVbucket(MockVBucket& vbucket, size_t ndocs) {
     /* Set the hashTable to a sensible size */
     vbucket.ht.resize(ndocs);
 
@@ -54,7 +54,7 @@ static size_t populateVbucket(VBucket& vbucket, size_t ndocs) {
     for (size_t i = 0; i < ndocs; i++) {
         std::string key = "key" + std::to_string(i);
         Item item(makeStoredDocKey(key), 0, 0, value, sizeof(value));
-        vbucket.ht.add(item, VALUE_ONLY);
+        vbucket.public_processAdd(item);
     }
     hrtime_t end = gethrtime();
 
@@ -129,19 +129,19 @@ protected:
 
         /* Create the vbucket */
         std::shared_ptr<Callback<uint16_t> > cb(new DummyCB());
-        vbucket.reset(new VBucket(0,
-                                  vbucket_state_active,
-                                  stats,
-                                  chkConfig,
-                                  nullptr,
-                                  0,
-                                  0,
-                                  0,
-                                  nullptr,
-                                  cb,
-                                  /*newSeqnoCb*/ nullptr,
-                                  config,
-                                  item_eviction_policy_t::VALUE_ONLY));
+        vbucket.reset(new MockVBucket(0,
+                                      vbucket_state_active,
+                                      stats,
+                                      chkConfig,
+                                      nullptr,
+                                      0,
+                                      0,
+                                      0,
+                                      nullptr,
+                                      cb,
+                                      /*newSeqnoCb*/ nullptr,
+                                      config,
+                                      item_eviction_policy_t::VALUE_ONLY));
     }
 
     static void TearDownTestCase() {
@@ -153,14 +153,13 @@ protected:
     static EPStats stats;
     static CheckpointConfig chkConfig;
     static Configuration config;
-    static std::unique_ptr<VBucket> vbucket;
+    static std::unique_ptr<MockVBucket> vbucket;
 };
 
 EPStats DefragmenterBenchmarkTest::stats;
 CheckpointConfig DefragmenterBenchmarkTest::chkConfig;
 Configuration DefragmenterBenchmarkTest::config;
-std::unique_ptr<VBucket> DefragmenterBenchmarkTest::vbucket;
-
+std::unique_ptr<MockVBucket> DefragmenterBenchmarkTest::vbucket;
 
 TEST_F(DefragmenterBenchmarkTest, Populate) {
     // How many items to create in the VBucket. Use a large number for
@@ -285,19 +284,19 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
     EPStats stats;
     CheckpointConfig chkConfig;
     Configuration config;
-    VBucket vbucket(0,
-                    vbucket_state_active,
-                    stats,
-                    chkConfig,
-                    nullptr,
-                    0,
-                    0,
-                    0,
-                    nullptr,
-                    cb,
-                    /*newSeqnoCb*/ nullptr,
-                    config,
-                    item_eviction_policy_t::VALUE_ONLY);
+    MockVBucket vbucket(0,
+                        vbucket_state_active,
+                        stats,
+                        chkConfig,
+                        nullptr,
+                        0,
+                        0,
+                        0,
+                        nullptr,
+                        cb,
+                        /*newSeqnoCb*/ nullptr,
+                        config,
+                        item_eviction_policy_t::VALUE_ONLY);
 
     // 1. Create a number of small documents. Doesn't really matter that
     //    they are small, main thing is we create enough to span multiple
@@ -313,7 +312,7 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
         // Use DocKey to minimize heap pollution
         Item item(DocKey(key, DocNamespace::DefaultCollection),
                   0, 0, data.data(), data.size());;
-        vbucket.ht.add(item, VALUE_ONLY);
+        vbucket.public_processAdd(item);
     }
 
     // Record memory usage after creation.

@@ -175,12 +175,10 @@ public:
      * @param itm the item with a new value
      * @param ht the hashtable that contains this StoredValue instance
      * @param preserveSeqno Preserve the revision sequence number from the item.
-     * @param isDirty Indicates whether to mark dirty or not
      */
     void setValue(Item& itm,
                   HashTable& ht,
-                  const PreserveRevSeqno preserveRevSeqno,
-                  bool isDirty) {
+                  const PreserveRevSeqno preserveRevSeqno) {
         size_t currSize = size();
         reduceCacheSize(ht, currSize);
         value = itm.getValue();
@@ -199,10 +197,10 @@ public:
 
         nru = itm.getNRUValue();
 
-        if (isDirty) {
-            markDirty();
-        } else {
+        if (isTempInitialItem()) {
             markClean();
+        } else {
+            markDirty();
         }
 
         if (isTempItem()) {
@@ -506,26 +504,23 @@ public:
                                   bool isReplication = false);
 
 private:
-
-    StoredValue(const Item &itm, StoredValue *n, EPStats &stats, HashTable &ht,
-                bool setDirty = true) :
-        value(itm.getValue()),
-        next(n),
-        cas(itm.getCas()),
-        revSeqno(itm.getRevSeqno()),
-        bySeqno(itm.getBySeqno()),
-        lock_expiry(0),
-        exptime(itm.getExptime()),
-        flags(itm.getFlags()),
-        deleted(false),
-        newCacheItem(true),
-        nru(itm.getNRUValue()),
-        key(itm.getKey()) {
-
-        if (setDirty) {
-            markDirty();
-        } else {
+    StoredValue(const Item& itm, StoredValue* n, EPStats& stats, HashTable& ht)
+        : value(itm.getValue()),
+          next(n),
+          cas(itm.getCas()),
+          revSeqno(itm.getRevSeqno()),
+          bySeqno(itm.getBySeqno()),
+          lock_expiry(0),
+          exptime(itm.getExptime()),
+          flags(itm.getFlags()),
+          deleted(false),
+          newCacheItem(true),
+          nru(itm.getNRUValue()),
+          key(itm.getKey()) {
+        if (isTempInitialItem()) {
             markClean();
+        } else {
+            markDirty();
         }
 
         if (isTempItem()) {
@@ -590,24 +585,22 @@ public:
      *
      * @param itm the item the StoredValue should contain
      * @param n the the top of the hash bucket into which this will be inserted
-     * @param ht the hashtable that will contain the StoredValue instance created
-     * @param setDirty if true, mark this item as dirty after creating it
+     * @param ht the hashtable that will contain the StoredValue instance
+     *           created
      */
-    StoredValue *operator ()(const Item &itm, StoredValue *n, HashTable &ht,
-                             bool setDirty = true) {
-        return newStoredValue(itm, n, ht, setDirty);
+    StoredValue* operator()(const Item& itm, StoredValue* n, HashTable& ht) {
+        return newStoredValue(itm, n, ht);
     }
 
 private:
-
-    StoredValue* newStoredValue(const Item &itm,
-                                StoredValue *n,
-                                HashTable &ht,
-                                bool setDirty) {
+    StoredValue* newStoredValue(const Item& itm,
+                                StoredValue* n,
+                                HashTable& ht) {
         // Allocate a buffer to store the StoredValue and any trailing bytes
         // that maybe required.
-        StoredValue *t = new (::operator new(StoredValue::getRequiredStorage(itm)))
-                              StoredValue(itm, n, *stats, ht, setDirty);
+        StoredValue* t =
+                new (::operator new(StoredValue::getRequiredStorage(itm)))
+                        StoredValue(itm, n, *stats, ht);
         return t;
     }
 

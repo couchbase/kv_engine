@@ -858,6 +858,24 @@ protected:
                               bool maybeKeyExists = true,
                               bool isReplication = false);
 
+    /**
+     * This function checks cas, expiry and other partition (vbucket) related
+     * rules before adding an item into other in-memory structure like HT,
+     * and checkpoint mgr. This function assumes that HT bucket lock is grabbed.
+     *
+     * @param htLock Hash table lock that must be held
+     * @param v[in, out] the stored value to do this operation on
+     * @param itm Item to be added/updated. On success, its revSeqno is updated
+     * @param isReplication true if issued by consumer (for replication)
+     *
+     * @return Result indicating the status of the operation
+     */
+    AddStatus processAdd(const std::unique_lock<std::mutex>& htLock,
+                         StoredValue*& v,
+                         Item& itm,
+                         bool maybeKeyExists,
+                         bool isReplication);
+
 private:
     template <typename T>
     void addStat(const char *nm, const T &val, ADD_STAT add_stat, const void *c);

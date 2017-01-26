@@ -332,39 +332,6 @@ public:
                           bool partial);
 
     /**
-     * Add an item to the hash table iff it doesn't already exist.
-     *
-     * @param val the item to store
-     * @param policy item eviction policy
-     * @param isDirty true if the item should be marked dirty on store
-     * @param storeVal true if the value should be stored (paged-in)
-     * @return an indication of what happened
-     */
-    AddStatus add(Item& val,
-                  item_eviction_policy_t policy,
-                  bool isDirty = true);
-
-    /**
-     * Unlocked version of the add() method.
-     *
-     * @param bucket_num the locked partition where the key belongs
-     * @param v the stored value to do this operation on
-     * @param val the item to store. On success it will have some fields
-     *            updated (e.g. sequence numbers).
-     * @param policy item eviction policy
-     * @param isDirty true if the item should be marked dirty on store
-     * @param isReplication true if issued by consumer (for replication)
-     * @return an indication of what happened
-     */
-    AddStatus unlocked_add(int bucket_num,
-                           StoredValue*& v,
-                           Item& val,
-                           item_eviction_policy_t policy,
-                           bool isDirty,
-                           bool maybeKeyExists,
-                           bool isReplication);
-
-    /**
      * Mark the given record logically deleted.
      *
      * @param key the key of the item to delete
