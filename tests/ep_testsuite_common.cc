@@ -235,6 +235,22 @@ enum test_result prepare_ep_bucket(engine_test_t* test) {
     return prepare(test);
 }
 
+enum test_result prepare_full_eviction(engine_test_t *test) {
+    if (std::string(test->cfg).find("item_eviction_policy=full_eviction")
+            != std::string::npos) {
+        return SKIPPED;
+    }
+
+    // Ephemeral buckets don't support full eviction.
+    if (std::string(test->cfg).find("bucket_type=ephemeral")
+            != std::string::npos) {
+        return SKIPPED;
+    }
+
+    // Perform whatever prep the "base class" function wants.
+    return prepare(test);
+}
+
 void cleanup(engine_test_t *test, enum test_result result) {
     (void)result;
     // Nuke the database files we created
