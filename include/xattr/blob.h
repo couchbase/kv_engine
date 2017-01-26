@@ -104,6 +104,21 @@ public:
     void set(const cb::const_byte_buffer& key,
              const cb::const_byte_buffer& value);
 
+    /**
+     * Set (add or replace) the given key with the specified value.
+     *
+     * @param key The key to set
+     * @param value The new value for the key
+     */
+    void set(const std::string& key,
+             const std::string& value) {
+        cb::const_byte_buffer k{reinterpret_cast<const uint8_t*>(key.data()),
+                                key.size()};
+        cb::const_byte_buffer v{reinterpret_cast<const uint8_t*>(value.data()),
+                                value.size()};
+        set(k, v);
+    }
+
     void prune_user_keys();
 
     /**
