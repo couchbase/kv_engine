@@ -29,6 +29,15 @@ class EphemeralBucket : public KVBucket {
 public:
     EphemeralBucket(EventuallyPersistentEngine& theEngine);
 
+    /// Eviction not supported for Ephemeral buckets - without some backing
+    /// storage, there is nowhere to evict /to/.
+    protocol_binary_response_status evictKey(const DocKey& key,
+                                             uint16_t vbucket,
+                                             const char** msg,
+                                             size_t* msg_size) override {
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    }
+
     /// File stats not supported for Ephemeral buckets.
     ENGINE_ERROR_CODE getFileStats(const void* cookie,
                                    ADD_STAT add_stat) override {

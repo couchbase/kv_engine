@@ -32,6 +32,11 @@ class EPBucket : public KVBucket {
 public:
     EPBucket(EventuallyPersistentEngine& theEngine);
 
+    protocol_binary_response_status evictKey(const DocKey& key,
+                                             uint16_t vbucket,
+                                             const char **msg,
+                                             size_t *msg_size) override;
+
     ENGINE_ERROR_CODE getFileStats(const void* cookie,
                                    ADD_STAT add_stat) override;
 

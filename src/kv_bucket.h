@@ -241,11 +241,6 @@ public:
     void completeStatsVKey(const void* cookie, const DocKey& key, uint16_t vbid,
                            uint64_t bySeqNum);
 
-    protocol_binary_response_status evictKey(const DocKey& key,
-                                             uint16_t vbucket,
-                                             const char **msg,
-                                             size_t *msg_size);
-
     ENGINE_ERROR_CODE deleteItem(const DocKey& key,
                                  uint64_t& cas,
                                  uint16_t vbucket,

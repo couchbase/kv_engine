@@ -2212,7 +2212,7 @@ BaseTestCase testsuite_testcases[] = {
                  "exp_pager_stime=1", prepare, cleanup),
         TestCase("test get_meta with item_eviction",
                  test_getMeta_with_item_eviction, test_setup, teardown,
-                 "item_eviction_policy=full_eviction", prepare, cleanup),
+                 "item_eviction_policy=full_eviction", prepare_ep_bucket, cleanup),
 
         TestCase("test set_with_meta and drift stats",
                  test_set_with_meta_and_check_drift_stats, test_setup,

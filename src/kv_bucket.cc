@@ -690,54 +690,6 @@ bool KVBucket::isMetaDataResident(RCPtr<VBucket> &vb, const DocKey& key) {
     }
 }
 
-protocol_binary_response_status KVBucket::evictKey(const DocKey& key,
-                                                   uint16_t vbucket,
-                                                   const char **msg,
-                                                   size_t *msg_size) {
-    RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (!vb || (vb->getState() != vbucket_state_active)) {
-        return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
-    }
-
-    int bucket_num(0);
-    auto lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue* v = vb->fetchValidValue(lh,
-                                         key,
-                                         bucket_num,
-                                         /*wantDeleted*/ false,
-                                         /*trackReference*/ false);
-
-    protocol_binary_response_status rv(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-    *msg_size = 0;
-    if (v) {
-        if (v->isResident()) {
-            if (vb->ht.unlocked_ejectItem(v, eviction_policy)) {
-                *msg = "Ejected.";
-
-                // Add key to bloom filter incase of full eviction mode
-                if (getItemEvictionPolicy() == FULL_EVICTION) {
-                    vb->addToFilter(key);
-                }
-            } else {
-                *msg = "Can't eject: Dirty object.";
-                rv = PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
-            }
-        } else {
-            *msg = "Already ejected.";
-        }
-    } else {
-        if (eviction_policy == VALUE_ONLY) {
-            *msg = "Not found.";
-            rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
-        } else {
-            *msg = "Already ejected.";
-        }
-    }
-
-    return rv;
-}
-
 ENGINE_ERROR_CODE KVBucket::set(Item &itm, const void *cookie) {
 
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
