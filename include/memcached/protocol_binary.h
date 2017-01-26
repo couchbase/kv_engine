@@ -1444,6 +1444,18 @@ using protocol_binary_hello_features_t = mcbp::Feature;
                  */
 #define DCP_OPEN_PRODUCER 1
 #define DCP_OPEN_NOTIFIER 2
+
+                /**
+                 * Indicate that the server include the documents' XATTRs
+                 * within mutation and deletion bodies.
+                 */
+#define DCP_OPEN_INCLUDE_XATTRS 4
+
+                /**
+                 * Indicate that the server should strip off the values (note,
+                 * if you add INCLUDE_XATTR those will be present)
+                 */
+#define DCP_OPEN_NO_VALUE 8
                 uint32_t flags;
             } body;
         } message;
