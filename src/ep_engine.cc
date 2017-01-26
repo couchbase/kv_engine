@@ -18,51 +18,53 @@
 
 #include "config.h"
 
-#include <fcntl.h>
-#include <memcached/engine.h>
-#include <memcached/protocol_binary.h>
-#include <memcached/util.h>
-#include <platform/platform.h>
-#include <platform/processclock.h>
-#include <stdarg.h>
-
-#include <cstdio>
-#include <cstring>
-#include <fstream>
-#include <iostream>
-#include <limits>
-#include <platform/cb_malloc.h>
-#include <platform/checked_snprintf.h>
-#include <platform/make_unique.h>
-#include <string>
-#include <vector>
-#include <mutex>
-#include <memcached/extension.h>
-#include <JSON_checker.h>
-#include <memcached/server_api.h>
+#include "ep_engine.h"
 
 #include "backfill.h"
 #include "common.h"
 #include "connmap.h"
+#include "dcp/consumer.h"
+#include "dcp/dcpconnmap.h"
 #include "dcp/flow-control-manager.h"
+#include "dcp/producer.h"
 #include "ep_bucket.h"
-#include "ep_engine.h"
 #include "ephemeral_bucket.h"
 #include "failover-table.h"
 #include "flusher.h"
 #include "htresizer.h"
 #include "logger.h"
 #include "memory_tracker.h"
+#include "replicationthrottle.h"
 #include "stats-info.h"
 #define STATWRITER_NAMESPACE core_engine
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
-#include "replicationthrottle.h"
-#include "dcp/consumer.h"
-#include "dcp/dcpconnmap.h"
-#include "dcp/producer.h"
-#include "warmup.h"
 #include "string_utils.h"
+#include "warmup.h"
+
+#include <JSON_checker.h>
+#include <cJSON_utils.h>
+#include <memcached/engine.h>
+#include <memcached/extension.h>
+#include <memcached/protocol_binary.h>
+#include <memcached/server_api.h>
+#include <memcached/util.h>
+#include <platform/cb_malloc.h>
+#include <platform/checked_snprintf.h>
+#include <platform/make_unique.h>
+#include <platform/platform.h>
+#include <platform/processclock.h>
+
+#include <cstdio>
+#include <cstring>
+#include <fcntl.h>
+#include <fstream>
+#include <iostream>
+#include <limits>
+#include <mutex>
+#include <stdarg.h>
+#include <string>
+#include <vector>
 
 static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
@@ -5851,17 +5853,16 @@ EventuallyPersistentEngine::setClusterConfig(const void* cookie,
     // clusterConfig is opaque to ep-engine, but it /should/ be in JSON, as
     // that's what the clients expect. Attempt to parse it and log the revision.
     bool found_rev = false;
-    cJSON* json = cJSON_Parse(clusterConfig.config.c_str());
-    if (json != nullptr) {
-        cJSON* rev = cJSON_GetObjectItem(json, "rev");
-        if (rev != nullptr) {
+    unique_cJSON_ptr json(cJSON_Parse(clusterConfig.config.c_str()));
+    if (json) {
+        cJSON* rev = cJSON_GetObjectItem(json.get(), "rev");
+        if (rev) {
             found_rev = true;
-            char* rev_string = cJSON_PrintUnformatted(rev);
+            std::string rev_string = to_string(rev, false);
             LOG(EXTENSION_LOG_NOTICE,
-                "Updated cluster configuration. New revision: %s", rev_string);
-            cJSON_Free(rev_string);
+                "Updated cluster configuration. New revision: %s",
+                rev_string.c_str());
         }
-        cJSON_Delete(json);
     }
 
     if (!found_rev) {
