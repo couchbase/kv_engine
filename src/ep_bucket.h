@@ -46,4 +46,19 @@ public:
 
     ENGINE_ERROR_CODE getPerVBucketDiskStats(const void* cookie,
                                              ADD_STAT add_stat) override;
+    /**
+     * Creates a VBucket object.
+     */
+    RCPtr<VBucket> makeVBucket(VBucket::id_type id,
+                               vbucket_state_t state,
+                               KVShard* shard,
+                               std::unique_ptr<FailoverTable> table,
+                               std::shared_ptr<Callback<VBucket::id_type> > flusherCb,
+                               NewSeqnoCallback newSeqnoCb,
+                               vbucket_state_t initState,
+                               int64_t lastSeqno,
+                               uint64_t lastSnapStart,
+                               uint64_t lastSnapEnd,
+                               uint64_t purgeSeqno,
+                               uint64_t maxCas) override;
 };

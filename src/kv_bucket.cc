@@ -2986,37 +2986,6 @@ std::ostream& operator<<(std::ostream& os, const KVBucket::Position& pos) {
     return os;
 }
 
-RCPtr<VBucket> KVBucket::makeVBucket(
-        VBucket::id_type id,
-        vbucket_state_t state,
-        KVShard* shard,
-        std::unique_ptr<FailoverTable> table,
-        std::shared_ptr<Callback<VBucket::id_type>> flusherCb,
-        NewSeqnoCallback newSeqnoCb,
-        vbucket_state_t initState,
-        int64_t lastSeqno,
-        uint64_t lastSnapStart,
-        uint64_t lastSnapEnd,
-        uint64_t purgeSeqno,
-        uint64_t maxCas) {
-    return RCPtr<VBucket>(new VBucket(id,
-                                      state,
-                                      stats,
-                                      engine.getCheckpointConfig(),
-                                      shard,
-                                      lastSeqno,
-                                      lastSnapStart,
-                                      lastSnapEnd,
-                                      std::move(table),
-                                      flusherCb,
-                                      std::move(newSeqnoCb),
-                                      engine.getConfiguration(),
-                                      eviction_policy,
-                                      initState,
-                                      purgeSeqno,
-                                      maxCas));
-}
-
 void KVBucket::notifyNewSeqno(const uint16_t vbid,
                               const VBNotifyCtx& notifyCtx) {
     if (notifyCtx.notifyFlusher) {

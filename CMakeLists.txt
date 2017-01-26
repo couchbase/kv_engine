@@ -155,6 +155,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/ep_engine.cc
             src/ep_time.cc
             src/ephemeral_bucket.cc
+            src/ephemeral_vb.cc
             src/executorpool.cc
             src/executorthread.cc
             src/ext_meta_parser.cc
