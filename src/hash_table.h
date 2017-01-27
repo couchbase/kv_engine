@@ -525,6 +525,20 @@ public:
      */
     bool unlocked_ejectItem(StoredValue*& vptr, item_eviction_policy_t policy);
 
+    /**
+     * Restore the value for the item.
+     * Assumes that HT bucket lock is grabbed.
+     *
+     * @param htLock Hash table lock that must be held
+     * @param itm the item to be restored
+     * @param v corresponding StoredValue
+     *
+     * @return true if restored; else false
+     */
+    bool unlocked_restoreValue(const std::unique_lock<std::mutex>& htLock,
+                               const Item& itm,
+                               StoredValue& v);
+
     std::atomic<uint64_t>     maxDeletedRevSeqno;
     std::atomic<size_t>       numTotalItems;
     std::atomic<size_t>       numNonResidentItems;

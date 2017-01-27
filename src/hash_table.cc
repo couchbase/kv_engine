@@ -741,3 +741,27 @@ Item *HashTable::getRandomKeyFromSlot(int slot) {
 
     return NULL;
 }
+
+bool HashTable::unlocked_restoreValue(
+        const std::unique_lock<std::mutex>& htLock,
+        const Item& itm,
+        StoredValue& v) {
+    if (!htLock || !isActive() || v.isResident()) {
+        return false;
+    }
+
+    if (v.isTempInitialItem()) { // Regular item with the full eviction
+        --numTempItems;
+        ++numItems;
+        /* set it back to false as we created a temp item by setting it to true
+           when bg fetch is scheduled (full eviction mode). */
+        v.setNewCacheItem(false);
+    } else {
+        decrNumNonResidentItems();
+    }
+
+    v.restoreValue(itm);
+
+    StoredValue::increaseCacheSize(*this, v.getValue()->length());
+    return true;
+}

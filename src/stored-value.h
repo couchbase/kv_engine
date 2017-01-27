@@ -237,10 +237,10 @@ public:
 
     /**
      * Restore the value for this item.
+     *
      * @param itm the item to be restored
-     * @param ht the hashtable that contains this StoredValue instance
      */
-    bool unlocked_restoreValue(Item *itm, HashTable &ht);
+    void restoreValue(const Item& itm);
 
     /**
      * Restore the metadata of of a temporary item upon completion of a

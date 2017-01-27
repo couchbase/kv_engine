@@ -875,7 +875,7 @@ ENGINE_ERROR_CODE VBucket::completeBGFetchForSingleItem(
 
             if (restore) {
                 if (status == ENGINE_SUCCESS) {
-                    v->unlocked_restoreValue(fetchedValue, ht);
+                    ht.unlocked_restoreValue(blh, *fetchedValue, *v);
                     if (!v->isResident()) {
                         throw std::logic_error(
                                 "VBucket::completeBGFetchForSingleItem: "
@@ -1013,7 +1013,7 @@ void VBucket::completeStatsVKey(const DocKey& key,
 
     if (v && v->isTempInitialItem()) {
         if (gcb.val.getStatus() == ENGINE_SUCCESS) {
-            v->unlocked_restoreValue(gcb.val.getValue(), ht);
+            ht.unlocked_restoreValue(hlh, *(gcb.val.getValue()), *v);
             if (!v->isResident()) {
                 throw std::logic_error(
                         "VBucket::completeStatsVKey: "

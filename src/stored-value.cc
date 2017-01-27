@@ -61,33 +61,17 @@ uint8_t StoredValue::getNRUValue() {
     return nru;
 }
 
-bool StoredValue::unlocked_restoreValue(Item *itm, HashTable &ht) {
-    if (isResident()) {
-        return false;
-    }
-
-    if (isTempInitialItem()) { // Regular item with the full eviction
-        --ht.numTempItems;
-        ++ht.numItems;
-        newCacheItem = false; // set it back to false as we created a temp item
-                              // by setting it to true when bg fetch is
-                              // scheduled (full eviction mode).
-    } else {
-        ht.decrNumNonResidentItems();
-    }
-
+void StoredValue::restoreValue(const Item& itm) {
     if (isTempInitialItem()) {
-        cas = itm->getCas();
-        flags = itm->getFlags();
-        exptime = itm->getExptime();
-        revSeqno = itm->getRevSeqno();
-        bySeqno = itm->getBySeqno();
+        cas = itm.getCas();
+        flags = itm.getFlags();
+        exptime = itm.getExptime();
+        revSeqno = itm.getRevSeqno();
+        bySeqno = itm.getBySeqno();
         nru = INITIAL_NRU_VALUE;
     }
-    deleted = itm->isDeleted();
-    value = itm->getValue();
-    increaseCacheSize(ht, value->length());
-    return true;
+    deleted = itm.isDeleted();
+    value = itm.getValue();
 }
 
 bool StoredValue::unlocked_restoreMeta(Item *itm, ENGINE_ERROR_CODE status,
