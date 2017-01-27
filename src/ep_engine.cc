@@ -1731,37 +1731,9 @@ static bool EvpGetItemInfo(ENGINE_HANDLE* handle, const void*,
                            const item* itm, item_info* itm_info) {
     const Item* it = reinterpret_cast<const Item*>(itm);
     auto engine = acquireEngine(handle);
-    itm_info->cas = it->getCas();
-
-    if (engine) {
-        RCPtr<VBucket> vb = engine->getKVBucket()->getVBucket(
-            it->getVBucketId());
-
-        if (vb) {
-            itm_info->vbucket_uuid = vb->failovers->getLatestUUID();
-        } else {
-            itm_info->vbucket_uuid = 0;
-        }
-
-    } else {
-        itm_info->vbucket_uuid = 0;
-    }
-
-    itm_info->seqno = it->getBySeqno();
-    itm_info->exptime = it->getExptime();
-    itm_info->nbytes = it->getNBytes();
-    itm_info->datatype = it->getDataType();
-    itm_info->flags = it->getFlags();
-    itm_info->nkey = static_cast<uint16_t>(it->getKey().size());
-    itm_info->key = it->getKey().data();
-    itm_info->value[0].iov_base = const_cast<char*>(it->getData());
-    itm_info->value[0].iov_len = it->getNBytes();
-
-    if (it->isDeleted()) {
-        itm_info->document_state = DocumentState::Deleted;
-    } else {
-        itm_info->document_state = DocumentState::Alive;
-    }
+    RCPtr<VBucket> vb = engine->getKVBucket()->getVBucket(it->getVBucketId());
+    uint64_t vb_uuid = vb ? vb->failovers->getLatestUUID() : 0;
+    *itm_info = it->toItemInfo(vb_uuid);
     return true;
 }
 

@@ -114,3 +114,26 @@ std::ostream& operator<<(std::ostream& os, const Blob& b) {
     os << std::dec << '>';
     return os;
 }
+
+item_info Item::toItemInfo(uint64_t vb_uuid) const {
+    item_info info;
+    info.cas = getCas();
+    info.vbucket_uuid = vb_uuid;
+    info.seqno = getBySeqno();
+    info.exptime = getExptime();
+    info.nbytes = getNBytes();
+    info.flags = getFlags();
+    info.datatype = getDataType();
+
+    if (isDeleted()) {
+        info.document_state = DocumentState::Deleted;
+    } else {
+        info.document_state = DocumentState::Alive;
+    }
+    info.nkey = static_cast<uint16_t>(getKey().size());
+    info.key = getKey().data();
+    info.value[0].iov_base = const_cast<char*>(getData());
+    info.value[0].iov_len = getNBytes();
+
+    return info;
+}

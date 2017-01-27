@@ -719,6 +719,14 @@ public:
         return true;
     }
 
+    /* Retrieve item_info for this item instance
+     *
+     * @param vb_uuid the UUID of the associated vbucket
+     * return item_info structure with populate item
+     *        information
+     */
+    item_info toItemInfo(uint64_t vb_uuid) const;
+
 private:
     /**
      * Set the item's data. This is only used by constructors, so we

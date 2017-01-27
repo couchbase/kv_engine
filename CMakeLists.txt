@@ -23,6 +23,7 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${Platform_SOURCE_DIR}/include
                            ${Platform_SOURCE_DIR}/external
                            ${Memcached_SOURCE_DIR}
+                           ${Memcached_SOURCE_DIR}/utilities
                            ${Memcached_SOURCE_DIR}/include
                            ${Couchstore_SOURCE_DIR}/include
                            ${phosphor_SOURCE_DIR}/include
@@ -241,7 +242,9 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
                $<TARGET_OBJECTS:memory_tracking>
                $<TARGET_OBJECTS:couchstore_test_fileops>
                ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
-               ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.cc)
+               ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
+               ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.cc
+               ${Memcached_SOURCE_DIR}/utilities/string_utilities.cc)
 
 TARGET_INCLUDE_DIRECTORIES(ep-engine_ep_unit_tests
         PUBLIC
@@ -250,7 +253,7 @@ TARGET_INCLUDE_DIRECTORIES(ep-engine_ep_unit_tests
 TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests couchstore cJSON dirutils
                       engine_utilities ${EP_FORESTDB_LIB}
                       gtest gmock JSON_checker mcd_util platform
-                      phosphor cbcompress ${MALLOC_LIBRARIES})
+                      phosphor xattr cbcompress ${MALLOC_LIBRARIES})
 
 ADD_EXECUTABLE(ep-engine_atomic_ptr_test
   tests/module_tests/atomic_ptr_test.cc
@@ -302,7 +305,8 @@ ADD_LIBRARY(ep_testsuite SHARED
    src/ext_meta_parser.cc
    tests/ep_testsuite_common.cc
    tests/ep_test_apis.cc
-   tests/mock/mock_dcp.cc)
+   tests/mock/mock_dcp.cc
+   ${Memcached_SOURCE_DIR}/utilities/string_utilities.cc)
 SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep_testsuite couchstore dirutils JSON_checker platform
                       xattr

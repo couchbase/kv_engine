@@ -294,6 +294,14 @@ public:
 
     vbucket_state getVBucketState() const;
 
+    /**
+     * This method performs operations on the stored value prior
+     * to expiring the item.
+     *
+     * @param v the stored value
+     */
+    void handlePreExpiry(StoredValue& v);
+
     bool addPendingOp(const void *cookie) {
         LockHolder lh(pendingOpLock);
         if (state != vbucket_state_pending) {

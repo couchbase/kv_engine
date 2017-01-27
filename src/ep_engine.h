@@ -610,6 +610,8 @@ public:
         return &info.info;
     }
 
+    item_info getItemInfo(const Item& itm);
+
     EPStats &getEpStats() {
         return stats;
     }

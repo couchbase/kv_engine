@@ -391,6 +391,36 @@ void VBucket::addHighPriorityVBEntry(uint64_t id, const void *cookie,
     numHpChks.store(hpChks.size());
 }
 
+void VBucket::handlePreExpiry(StoredValue& v) {
+    value_t value = v.getValue();
+    if (value) {
+        std::unique_ptr<Item> itm(v.toItem(false, id));
+        item_info itm_info;
+        EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
+        itm_info = itm->toItemInfo(failovers->getLatestUUID());
+        value_t new_val(Blob::Copy(*value));
+        itm->setValue(new_val);
+
+        SERVER_HANDLE_V1* sapi = engine->getServerApi();
+        /* TODO: In order to minimize allocations, the callback needs to
+         * allocate an item whose value size will be exactly the size of the
+         * value after pre-expiry is performed.
+         */
+        if (sapi->document->pre_expiry(itm_info)) {
+            char* extMeta = const_cast<char *>(v.getValue()->getExtMeta());
+            Item new_item(v.getKey(), v.getFlags(), v.getExptime(),
+                          itm_info.value[0].iov_base, itm_info.value[0].iov_len,
+                          reinterpret_cast<uint8_t*>(extMeta),
+                          v.getValue()->getExtLen(), v.getCas(),
+                          v.getBySeqno(), id, v.getRevSeqno(),
+                          v.getNRUValue());
+
+            new_item.setDeleted();
+            v.setValue(new_item, ht, PreserveRevSeqno::Yes);
+        }
+    }
+}
+
 void VBucket::notifyOnPersistence(EventuallyPersistentEngine &e,
                                   uint64_t idNum,
                                   bool isBySeqno) {
@@ -756,6 +786,7 @@ StoredValue* VBucket::fetchValidValue(std::unique_lock<std::mutex>& lh,
             // queueDirty only allowed on active VB
             if (queueExpired && getState() == vbucket_state_active) {
                 incExpirationStat(ExpireBy::Access);
+                handlePreExpiry(*v);
                 processSoftDelete(lh, *v, 0);
                 notifyNewSeqno(queueDirty(*v));
             }
@@ -1639,6 +1670,7 @@ void VBucket::deleteExpiredItem(const DocKey& key,
                         std::to_string(bucket_num));
             }
         } else if (v->isExpired(startTime) && !v->isDeleted()) {
+            handlePreExpiry(*v);
             processSoftDelete(lh, *v, 0);
             VBNotifyCtx notifyCtx = queueDirty(*v);
             // we unlock ht lock here because we want to avoid potential lock

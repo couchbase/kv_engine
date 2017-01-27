@@ -24,6 +24,9 @@
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "programs/engine_testapp/mock_server.h"
+#include <string_utilities.h>
+#include <xattr/blob.h>
+#include <xattr/utils.h>
 
 #include <thread>
 
@@ -696,4 +699,65 @@ TEST_F(SingleThreadedEPStoreTest, stream_from_active_vbucket_only) {
             EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, err) << "Unexpected error code";
         }
     }
+}
+
+TEST_F(SingleThreadedEPStoreTest, pre_expiry_xattrs) {
+    auto& kvbucket = *engine->getKVBucket();
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    cb::xattr::Blob blob;
+
+    //Add a few values
+    blob.set(to_const_byte_buffer("user"),
+             to_const_byte_buffer("{\"author\":\"bubba\"}"));
+    blob.set(to_const_byte_buffer("_sync"),
+             to_const_byte_buffer("{\"cas\":\"0xdeadbeefcafefeed\"}"));
+    blob.set(to_const_byte_buffer("meta"),
+             to_const_byte_buffer("{\"content-type\":\"text\"}"));
+
+    auto xattr_value = blob.finalize();
+
+    auto xattr_data = to_string(xattr_value);
+
+    auto itm = store_item(vbid, makeStoredDocKey("key"), xattr_data, 1,
+                          PROTOCOL_BINARY_DATATYPE_XATTR);
+
+    ItemMetaData metadata;
+    uint32_t deleted;
+    kvbucket.getMetaData(makeStoredDocKey("key"), vbid, nullptr, metadata,
+                         deleted);
+    auto prev_revseqno = metadata.revSeqno;
+    EXPECT_EQ(1, prev_revseqno) << "Unexpected revision sequence number";
+
+    kvbucket.deleteExpiredItem(vbid, makeStoredDocKey("key"),
+                               ep_real_time() + 1, 1, ExpireBy::Pager);
+    get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
+                                                       HONOR_STATES |
+                                                       TRACK_REFERENCE |
+                                                       DELETE_TEMP |
+                                                       HIDE_LOCKED_CAS |
+                                                       TRACK_STATISTICS |
+                                                       GET_DELETED_VALUE);
+    GetValue gv = kvbucket.get(makeStoredDocKey("key"), vbid, cookie, options);
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+
+    auto get_itm = gv.getValue();
+    auto get_data = const_cast<char*>(get_itm->getData());
+
+    cb::byte_buffer value_buf{reinterpret_cast<uint8_t*>(get_data),
+                              get_itm->getNBytes()};
+    cb::xattr::Blob new_blob(value_buf);
+
+    const std::string& cas_str{"{\"cas\":\"0xdeadbeefcafefeed\"}"};
+    const std::string& sync_str = to_string(blob.get(to_const_byte_buffer("_sync")));
+
+    EXPECT_EQ(cas_str, sync_str) << "Unexpected system xattrs";
+
+    kvbucket.getMetaData(makeStoredDocKey("key"), vbid, nullptr, metadata,
+                         deleted);
+    EXPECT_EQ(prev_revseqno + 1, metadata.revSeqno) <<
+             "Unexpected revision sequence number";
+
+    delete get_itm;
 }

@@ -51,7 +51,9 @@
 #include <platform/dirutils.h>
 #include <JSON_checker.h>
 #include <memcached/types.h>
+#include <string_utilities.h>
 #include <xattr/blob.h>
+#include <xattr/utils.h>
 
 #ifdef linux
 /* /usr/include/netinet/in.h defines macros from ntohs() to _bswap_nn to
@@ -790,20 +792,36 @@ static enum test_result test_expiry_pager_settings(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-/* Test to ensure that the body is still retained for an item of
- * type XATTR after expiry.
- */
+static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h,
+                                               ENGINE_HANDLE_V1* h1) {
+    const char* key = "test_expiry";
+    cb::xattr::Blob blob;
 
-static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
-    const char *key = "test_expiry";
-    const char *data = "expirevalue";
+    //Add a few XAttrs
+    blob.set(to_const_byte_buffer("user"),
+             to_const_byte_buffer("{\"author\":\"bubba\"}"));
+    blob.set(to_const_byte_buffer("_sync"),
+             to_const_byte_buffer("{\"cas\":\"0xdeadbeefcafefeed\"}"));
+    blob.set(to_const_byte_buffer("meta"),
+             to_const_byte_buffer("{\"content-type\":\"text\"}"));
+
+    auto xattr_value = blob.finalize();
+
+    //Now, append user data to the xattrs and store the data
+    std::string value_data("test_expiry_value");
+    std::vector<char> data;
+    std::copy(xattr_value.buf, xattr_value.buf + xattr_value.len,
+              std::back_inserter(data));
+    std::copy(value_data.c_str(), value_data.c_str() + value_data.length(),
+              std::back_inserter(data));
 
     item *itm = nullptr;
     checkeq(ENGINE_SUCCESS,
-            store(h, h1, nullptr, OPERATION_SET, key, data,
-                  &itm, 0, 0, 10, PROTOCOL_BINARY_DATATYPE_XATTR),
-            "Unable to store item");
-
+            storeCasVb11(h, h1, nullptr, OPERATION_SET, key,
+                         reinterpret_cast<char*>(data.data()),
+                         data.size(), 9258, &itm, 0, 0, 10,
+                         PROTOCOL_BINARY_DATATYPE_XATTR),
+            "Failed to store xattr document");
     h1->release(h, nullptr, itm);
 
     if (isPersistentBucket(h, h1)) {
@@ -812,32 +830,40 @@ static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h, ENGINE_HANDLE_V
 
     testHarness.time_travel(11);
 
+    checkeq(true, get_meta(h, h1, "test_expiry"), "Get meta command failed");
+    auto prev_revseqno = last_meta.revSeqno;
+
     checkeq(ENGINE_SUCCESS,
             get(h, h1, nullptr, &itm, key, 0, DocumentState::Deleted),
-            "Unable to get a stored item");
+                "Unable to get a deleted item");
 
+    checkeq(true, get_meta(h, h1, "test_expiry"), "Get meta command failed");
+
+    checkeq(last_meta.revSeqno, prev_revseqno + 1,
+            "rev seqno must have incremented by 1");
+
+    /* Retrieve the item info and create a new blob out of the data */
     item_info info;
     checkeq(true, h1->get_item_info(h, nullptr, itm, &info),
-            "Getting item info failed");
+            "Unable to retrieve item info");
 
-    checkeq(static_cast<uint8_t>(DocumentState::Deleted),
-            static_cast<uint8_t>(info.document_state),
-            "document must be in deleted state");
+    cb::byte_buffer value_buf{static_cast<uint8_t*>(info.value[0].iov_base),
+                              info.value[0].iov_len};
 
-    std::string buf(static_cast<char*>(info.value[0].iov_base),
-                    info.value[0].iov_len);
+    cb::xattr::Blob new_blob(value_buf);
 
-    checkeq(0, buf.compare("expirevalue"), "Data mismatch");
+    /* Only system extended attributes need to be present at this point.
+     * Thus, check the blob length with the system size.
+     */
+    const auto systemsize = new_blob.finalize().len;
 
-    h1->release(h, nullptr, itm);
+    checkeq(systemsize, new_blob.get_system_size(),
+            "The size of the blob doesn't match the size of system attributes");
 
-    checkeq(ENGINE_KEY_ENOENT,
-            get(h, h1, nullptr, &itm, key, 0),
-            "get of an expired item should result in enoent");
+    const std::string& cas_str{"{\"cas\":\"0xdeadbeefcafefeed\"}"};
+    const std::string& sync_str = to_string(blob.get(to_const_byte_buffer("_sync")));
 
-    checkeq(ENGINE_SUCCESS,
-            get(h, h1, nullptr, &itm, key, 0, DocumentState::Deleted),
-            "Unable to get a stored item");
+    checkeq(cas_str, sync_str , "system xattr is invalid");
 
     h1->release(h, nullptr, itm);
 
@@ -5555,7 +5581,9 @@ static enum test_result test_eviction_with_xattr(ENGINE_HANDLE* h,
 
     const char key[] = "test_eviction_with_xattr";
     cb::xattr::Blob builder;
-    builder.set("_ep","{\foo\":\"bar\"}");
+    const cb::const_byte_buffer& xattr_key = to_const_byte_buffer("_ep");
+    const cb::const_byte_buffer& xattr_value = to_const_byte_buffer("{\foo\":\"bar\"}");
+    builder.set(xattr_key, xattr_value);
     auto blob = builder.finalize();
     std::string data;
     std::copy(blob.buf, blob.buf + blob.size(), std::back_inserter(data));
@@ -7123,8 +7151,9 @@ BaseTestCase testsuite_testcases[] = {
                  prepare, cleanup),
         TestCase("expiry", test_expiry, test_setup, teardown,
                  NULL, prepare, cleanup),
-        TestCase("expiry with xattr", test_expiry_with_xattr, test_setup,
-                 teardown, NULL, prepare, cleanup),
+        TestCase("expiry with xattr", test_expiry_with_xattr,
+                 test_setup, teardown, "exp_pager_enabled=false", prepare,
+                 cleanup),
         TestCase("expiry_loader", test_expiry_loader, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("expiration on compaction", test_expiration_on_compaction,

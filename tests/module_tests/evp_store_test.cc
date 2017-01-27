@@ -159,9 +159,11 @@ void EPBucketTest::TearDown() {
 
 Item EPBucketTest::make_item(uint16_t vbid,
                              const StoredDocKey& key,
-                             const std::string& value) {
-    uint8_t ext_meta[EXT_META_LEN] = {PROTOCOL_BINARY_DATATYPE_JSON};
-    Item item(key, /*flags*/0, /*exp*/0, value.c_str(), value.size(),
+                             const std::string& value,
+                             uint32_t exptime,
+                             protocol_binary_datatype_t datatype) {
+    uint8_t ext_meta[EXT_META_LEN] = {datatype};
+    Item item(key, /*flags*/0, /*exp*/exptime, value.c_str(), value.size(),
               ext_meta, sizeof(ext_meta));
     item.setVBucketId(vbid);
     return item;
@@ -169,8 +171,10 @@ Item EPBucketTest::make_item(uint16_t vbid,
 
 Item EPBucketTest::store_item(uint16_t vbid,
                               const StoredDocKey& key,
-                              const std::string& value) {
-    auto item = make_item(vbid, key, value);
+                              const std::string& value,
+                              uint32_t exptime,
+                              protocol_binary_datatype_t datatype) {
+    auto item = make_item(vbid, key, value, exptime, datatype);
     EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
 
     return item;
