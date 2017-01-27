@@ -472,6 +472,12 @@
             "default": "",
             "type": "std::string"
         },
+        "tap": {
+            "default": "true",
+            "descr":"True if the TAP protocol is supported and enabled.",
+            "type": "bool",
+            "dynamic": false
+        },
         "tap_ack_grace_period": {
             "default": "300",
             "type": "size_t"

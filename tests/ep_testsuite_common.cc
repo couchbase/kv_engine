@@ -255,6 +255,16 @@ enum test_result prepare_skip_broken_under_ephemeral(engine_test_t *test) {
     return prepare_ep_bucket(test);
 }
 
+enum test_result prepare_tap(engine_test_t* test) {
+    // Ephemeral buckets don't support TAP.
+    if (std::string(test->cfg).find("bucket_type=ephemeral")
+            != std::string::npos) {
+        return SKIPPED;
+    }
+
+    // Perform whatever prep the "base class" function wants.
+    return prepare(test);
+}
 void cleanup(engine_test_t *test, enum test_result result) {
     (void)result;
     // Nuke the database files we created
@@ -405,4 +415,8 @@ bool isWarmupEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
 
 bool isPersistentBucket(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
     return get_str_stat(h, h1, "ep_bucket_type") == "persistent";
+}
+
+bool isTapEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+    return get_bool_stat(h, h1, "ep_tap");
 }

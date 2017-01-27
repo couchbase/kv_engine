@@ -2035,6 +2035,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     } else if (bucketType == "ephemeral") {
         // Disable warmup - it is not applicable to Ephemeral buckets.
         configuration.setWarmup(false);
+        // Disable TAP - not supported for Ephemeral.
+        configuration.setTap(false);
 
         kvBucket = new EphemeralBucket(*this);
     } else {

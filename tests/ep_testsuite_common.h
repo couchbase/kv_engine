@@ -202,6 +202,11 @@ enum test_result prepare_full_eviction(engine_test_t *test);
  */
 enum test_result prepare_skip_broken_under_ephemeral(engine_test_t *test);
 
+/**
+ * Prepare a test which is only applicable if TAP is enabled.
+ */
+enum test_result prepare_tap(engine_test_t* test);
+
 // Default testcase cleanup function.
 void cleanup(engine_test_t *test, enum test_result result);
 
@@ -244,5 +249,8 @@ bool isWarmupEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
 
 // Returns true if the given engine is a persistent bucket (EPBucket).
 bool isPersistentBucket(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
+
+// Returns true if the given engine has Tap enabled.
+bool isTapEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
 
 #endif /* TESTS_EP_TESTSUITE_COMMON_H_ */
