@@ -51,6 +51,7 @@
 #include <platform/dirutils.h>
 #include <JSON_checker.h>
 #include <memcached/types.h>
+#include <xattr/blob.h>
 
 #ifdef linux
 /* /usr/include/netinet/in.h defines macros from ntohs() to _bswap_nn to
@@ -5529,6 +5530,46 @@ static enum test_result test_mb16421(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+/**
+ * Test that if we store an object with xattr the datatype is persisted
+ * and read back correctly
+ */
+static enum test_result test_eviction_with_xattr(ENGINE_HANDLE* h,
+                                                 ENGINE_HANDLE_V1* h1) {
+    if (!isPersistentBucket(h, h1)) {
+        return SKIPPED;
+    }
+
+    const char key[] = "test_eviction_with_xattr";
+    cb::xattr::Blob builder;
+    builder.set("_ep","{\foo\":\"bar\"}");
+    auto blob = builder.finalize();
+    std::string data;
+    std::copy(blob.buf, blob.buf + blob.size(), std::back_inserter(data));
+
+    item *itm = NULL;
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, nullptr, OPERATION_SET, key,
+                         data.data(), data.size(), 0, &itm, 0, 0, 0,
+                         PROTOCOL_BINARY_DATATYPE_XATTR, DocumentState::Alive),
+            "Unable to store item");
+
+    h1->release(h, NULL, itm);
+    itm = nullptr;
+    wait_for_flusher_to_settle(h, h1);
+
+    // Evict Item!
+    evict_key(h, h1, key, 0, "Ejected.");
+
+    item_info info;
+    check(get_item_info(h, h1, &info, key), "Error getting item info");
+
+    checkeq(PROTOCOL_BINARY_DATATYPE_XATTR, info.datatype,
+            "Incorrect datatype read back");
+
+    return SUCCESS;
+}
+
 static enum test_result test_get_random_key(ENGINE_HANDLE *h,
                                             ENGINE_HANDLE_V1 *h1) {
 
@@ -7448,6 +7489,10 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test MB-16421", test_mb16421,
                  test_setup, teardown, "item_eviction_policy=full_eviction",
                  prepare_ep_bucket, cleanup),
+
+        TestCase("test eviction with xattr", test_eviction_with_xattr,
+                 test_setup, teardown, "item_eviction_policy=full_eviction",
+                 prepare, cleanup),
 
         TestCase("test get random key", test_get_random_key,
                  test_setup, teardown, NULL, prepare, cleanup),

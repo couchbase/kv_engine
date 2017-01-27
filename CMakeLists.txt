@@ -295,6 +295,7 @@ ADD_LIBRARY(ep_testsuite SHARED
    tests/mock/mock_dcp.cc)
 SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep_testsuite couchstore dirutils JSON_checker platform
+                      xattr
                       ${LIBEVENT_LIBRARIES})
 ADD_DEPENDENCIES(ep_testsuite engine_testapp)
 

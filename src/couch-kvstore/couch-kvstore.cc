@@ -78,6 +78,15 @@ static std::string getStrError(Db *db) {
     return errorStr;
 }
 
+/**
+ * Determine the datatype for a blob. It is _highly_ unlikely that
+ * this method is being called, as it would have to be for an item
+ * which is read off the disk _before_ we started to write the
+ * datatype to disk (we did that in a 3.x server).
+ *
+ * @param doc The document to check
+ * @return JSON or RAW bytes
+ */
 static protocol_binary_datatype_t determine_datatype(sized_buf doc) {
     if (checkUTF8JSON(reinterpret_cast<uint8_t*>(doc.buf), doc.size)) {
         return PROTOCOL_BINARY_DATATYPE_JSON;
@@ -1552,13 +1561,10 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
             size_t valuelen = doc->data.size;
             void *valuePtr = doc->data.buf;
 
-            /**
-             * Set Datatype correctly if data is being
-             * read from couch files where datatype is
-             * not supported.
-             */
             uint8_t extMeta = 0;
             if (metadata->getVersionInitialisedFrom() == MetaData::Version::V0) {
+                // This is a super old version of a couchstore file.
+                // Try to determine if the document is JSON or raw bytes
                 extMeta = determine_datatype(doc->data);
             } else {
                 extMeta = metadata->getDataType();
@@ -1608,8 +1614,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     std::shared_ptr<Callback<CacheLookup> > cl = sctx->lookup;
 
     Doc *doc = nullptr;
-    size_t valuelen = 0;
-    void* valueptr = nullptr;
+    sized_buf value{nullptr, 0};
     uint64_t byseqno = docinfo->db_seq;
     uint16_t vbucketId = sctx->vbid;
 
@@ -1634,8 +1639,6 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     auto metadata = MetaDataFactory::createMetaData(docinfo->rev_meta);
 
     if (sctx->valFilter != ValueFilter::KEYS_ONLY && !docinfo->deleted) {
-        couchstore_error_t errCode;
-        bool expectCompressed = false;
         couchstore_open_options openOptions = 0;
 
         /**
@@ -1646,26 +1649,34 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
         if (docinfo->rev_meta.size == metadata->getMetaDataSize(MetaData::Version::V0) ||
             sctx->valFilter == ValueFilter::VALUES_DECOMPRESSED) {
             openOptions = DECOMPRESS_DOC_BODIES;
-        } else {
-            // => sctx->valFilter == ValueFilter::VALUES_COMPRESSED
-            expectCompressed = true;
         }
-        errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc, openOptions);
+
+        auto errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc,
+                                                        openOptions);
 
         if (errCode == COUCHSTORE_SUCCESS) {
+            value = doc->data;
             if (doc->data.size) {
-                valueptr = doc->data.buf;
-                valuelen = doc->data.size;
-                if (expectCompressed) {
-                    /**
-                     * If a compressed document was retrieved as is,
-                     * update the datatype of the document.
-                     */
+                if ((openOptions & DECOMPRESS_DOC_BODIES) == 0) {
+                    // We always store the document bodies compressed on disk,
+                    // but now the client _wanted_ to fetch the document
+                    // in a compressed mode.
+                    // We've never stored the "compressed" flag on disk
+                    // (as we don't keep items compressed in memory).
+                    // Update the datatype flag for this item to
+                    // reflect that it is compressed so that the
+                    // receiver of the object may notice (Note:
+                    // this is currently _ONLY_ happening via DCP
                      auto datatype = metadata->getDataType();
                      metadata->setDataType(datatype | PROTOCOL_BINARY_DATATYPE_COMPRESSED);
-                } else {
+                } else if (metadata->getVersionInitialisedFrom() == MetaData::Version::V0) {
+                    // This is a super old version of a couchstore file.
+                    // Try to determine if the document is JSON or raw bytes
                     metadata->setDataType(determine_datatype(doc->data));
                 }
+            } else {
+                // No data, it cannot have a datatype!
+                metadata->setDataType(PROTOCOL_BINARY_RAW_BYTES);
             }
         } else {
             sctx->logger->log(EXTENSION_LOG_WARNING,
@@ -1685,8 +1696,8 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     Item *it = new Item(DocKey(makeDocKey(key, DocNamespace::DefaultCollection)),
                         metadata->getFlags(),
                         metadata->getExptime(),
-                        valueptr,
-                        valuelen,
+                        value.buf,
+                        value.size,
                         &extMeta,
                         extMetaLen,
                         metadata->getCas(),
