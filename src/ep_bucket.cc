@@ -146,7 +146,6 @@ RCPtr<VBucket> EPBucket::makeVBucket(
         vbucket_state_t state,
         KVShard* shard,
         std::unique_ptr<FailoverTable> table,
-        std::shared_ptr<Callback<VBucket::id_type>> flusherCb,
         NewSeqnoCallback newSeqnoCb,
         vbucket_state_t initState,
         int64_t lastSeqno,
@@ -154,6 +153,7 @@ RCPtr<VBucket> EPBucket::makeVBucket(
         uint64_t lastSnapEnd,
         uint64_t purgeSeqno,
         uint64_t maxCas) {
+    auto flusherCb = std::make_shared<NotifyFlusherCB>(shard);
     return RCPtr<VBucket>(new VBucket(id,
                                       state,
                                       stats,

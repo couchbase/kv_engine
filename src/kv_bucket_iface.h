@@ -798,7 +798,6 @@ public:
             vbucket_state_t state,
             KVShard* shard,
             std::unique_ptr<FailoverTable> table,
-            std::shared_ptr<Callback<VBucket::id_type>> cb,
             NewSeqnoCallback newSeqnoCb,
             vbucket_state_t initState = vbucket_state_dead,
             int64_t lastSeqno = 0,

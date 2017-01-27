@@ -32,7 +32,6 @@ public:
                      uint64_t lastSnapStart,
                      uint64_t lastSnapEnd,
                      std::unique_ptr<FailoverTable> table,
-                     std::shared_ptr<Callback<id_type> > cb,
                      NewSeqnoCallback newSeqnoCb,
                      Configuration& config,
                      item_eviction_policy_t evictionPolicy,

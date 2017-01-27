@@ -861,14 +861,12 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(uint16_t vbid,
         auto ft =
                 std::make_unique<FailoverTable>(engine.getMaxFailoverEntries());
         KVShard* shard = vbMap.getShardByVbId(vbid);
-        std::shared_ptr<Callback<uint16_t> > cb(new NotifyFlusherCB(shard));
 
         RCPtr<VBucket> newvb =
                 makeVBucket(vbid,
                             to,
                             shard,
                             std::move(ft),
-                            cb,
                             std::make_unique<NotifyNewSeqnoCB>(*this));
 
         Configuration& config = engine.getConfiguration();
