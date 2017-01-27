@@ -337,20 +337,6 @@ static void EvpResetStats(ENGINE_HANDLE* handle, const void*) {
     acquireEngine(handle)->resetStats();
 }
 
-static protocol_binary_response_status stopFlusher(
-    EventuallyPersistentEngine* e,
-    const char** msg,
-    size_t* msg_size) {
-    return e->stopFlusher(msg, msg_size);
-}
-
-static protocol_binary_response_status startFlusher(
-    EventuallyPersistentEngine* e,
-    const char** msg,
-    size_t* msg_size) {
-    return e->startFlusher(msg, msg_size);
-}
-
 static protocol_binary_response_status setTapParam(
     EventuallyPersistentEngine* e,
     const char* keyz,
@@ -1135,10 +1121,10 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         return rv;
     }
     case PROTOCOL_BINARY_CMD_STOP_PERSISTENCE:
-        res = stopFlusher(h, &msg, &msg_size);
+        res = h->stopFlusher(&msg, &msg_size);
         break;
     case PROTOCOL_BINARY_CMD_START_PERSISTENCE:
-        res = startFlusher(h, &msg, &msg_size);
+        res = h->startFlusher(&msg, &msg_size);
         break;
     case PROTOCOL_BINARY_CMD_SET_PARAM:
         res = setParam(h,
