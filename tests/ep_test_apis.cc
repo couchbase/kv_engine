@@ -1370,6 +1370,10 @@ bool wait_for_warmup_complete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 void wait_for_flusher_to_settle(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!isPersistentBucket(h, h1)) {
+        // Nothing to do for non-persistent buckets
+        return;
+    }
 
     wait_for_stat_to_be(h, h1, "ep_queue_size", 0);
 
