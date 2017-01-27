@@ -472,27 +472,24 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         case DCP_MUTATION:
         {
             MutationResponse *m = dynamic_cast<MutationResponse*> (resp);
+            std::pair<const char*, uint16_t> meta{nullptr, 0};
             if (m->getExtMetaData()) {
-                std::pair<const char*, uint16_t> meta = m->getExtMetaData()->getExtMeta();
-                ret = producers->mutation(getCookie(), m->getOpaque(), itmCpy,
-                                          m->getVBucket(), m->getBySeqno(),
-                                          m->getRevSeqno(), 0,
-                                          meta.first, meta.second,
-                                          m->getItem()->getNRUValue());
-            } else {
-                ret = producers->mutation(getCookie(), m->getOpaque(), itmCpy,
-                                          m->getVBucket(), m->getBySeqno(),
-                                          m->getRevSeqno(), 0,
-                                          NULL, 0,
-                                          m->getItem()->getNRUValue());
+                meta = m->getExtMetaData()->getExtMeta();
             }
+            ret = producers->mutation(getCookie(), m->getOpaque(), itmCpy,
+                                      m->getVBucket(), m->getBySeqno(),
+                                      m->getRevSeqno(), 0,
+                                      meta.first, meta.second,
+                                      m->getItem()->getNRUValue());
             break;
         }
         case DCP_DELETION:
         {
             MutationResponse *m = static_cast<MutationResponse*>(resp);
+            std::pair<const char*, uint16_t> meta{nullptr, 0};
             if (m->getExtMetaData()) {
-                std::pair<const char*, uint16_t> meta = m->getExtMetaData()->getExtMeta();
+                meta = m->getExtMetaData()->getExtMeta();
+            }
                 ret = producers->deletion(getCookie(), m->getOpaque(),
                                           m->getItem()->getKey().data(),
                                           m->getItem()->getKey().size(),
@@ -500,15 +497,6 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                                           m->getVBucket(), m->getBySeqno(),
                                           m->getRevSeqno(),
                                           meta.first, meta.second);
-            } else {
-                ret = producers->deletion(getCookie(), m->getOpaque(),
-                                          m->getItem()->getKey().data(),
-                                          m->getItem()->getKey().size(),
-                                          m->getItem()->getCas(),
-                                          m->getVBucket(), m->getBySeqno(),
-                                          m->getRevSeqno(),
-                                          NULL, 0);
-            }
             break;
         }
         case DCP_SNAPSHOT_MARKER:
