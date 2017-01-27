@@ -2072,7 +2072,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     // record engine initialization time
     startupTime.store(ep_real_time());
 
-    LOG(EXTENSION_LOG_DEBUG, "Engine init complete.\n");
+    LOG(EXTENSION_LOG_NOTICE,
+        "EP Engine: Initialization of %s bucket complete",
+        bucketType.c_str());
 
     return ENGINE_SUCCESS;
 }
