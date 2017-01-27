@@ -354,30 +354,48 @@ void store_object(const std::string& key,
 #define EXPECT_SUBDOC_CMD_RESP(cmd, err, val, resp) EXPECT_PRED_FORMAT4(subdoc_pred_full, cmd, err, val, resp)
 
 // Non JSON document, optionally compressed. Subdoc commands should fail.
-void test_subdoc_get_binary(bool compress, protocol_binary_command cmd) {
+void test_subdoc_get_binary(bool compress,
+                            protocol_binary_command cmd,
+                            MemcachedConnection& conn) {
     const char not_JSON[] = "not; json";
     store_object("binary", not_JSON);
 
+    unique_cJSON_ptr stats(cJSON_Parse(
+            cJSON_GetObjectItem(conn.stats("responses detailed").get(),
+                                "responses")
+                    ->valuestring));
+    int notJsonCount = cJSON_GetObjectItem(stats.get(), "c6")->valueint;
     // a). Check that access fails with DOC_NOTJSON
     EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "binary", "[0]"), PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON);
+
+    unique_cJSON_ptr statsNew(cJSON_Parse(
+            cJSON_GetObjectItem(conn.stats("responses").get(), "responses")
+                    ->valuestring));
+    EXPECT_EQ(notJsonCount + 1,
+              cJSON_GetObjectItem(statsNew.get(), "c6")->valueint);
 
     delete_object("binary");
 }
 
 TEST_P(McdTestappTest, SubdocGet_BinaryRaw) {
-    test_subdoc_get_binary(/*compress*/false, PROTOCOL_BINARY_CMD_SUBDOC_GET);
+    test_subdoc_get_binary(/*compress*/ false,
+                           PROTOCOL_BINARY_CMD_SUBDOC_GET,
+                           getConnection());
 }
 TEST_P(McdTestappTest, SubdocGet_BinaryCompressed) {
-    test_subdoc_get_binary(/*compress*/true, PROTOCOL_BINARY_CMD_SUBDOC_GET);
+    test_subdoc_get_binary(
+            /*compress*/ true, PROTOCOL_BINARY_CMD_SUBDOC_GET, getConnection());
 }
 
 TEST_P(McdTestappTest, SubdocExists_BinaryRaw) {
-    test_subdoc_get_binary(/*compress*/false,
-                           PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
+    test_subdoc_get_binary(/*compress*/ false,
+                           PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
+                           getConnection());
 }
 TEST_P(McdTestappTest, SubdocExists_BinaryCompressed) {
-    test_subdoc_get_binary(/*compress*/true,
-                           PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
+    test_subdoc_get_binary(/*compress*/ true,
+                           PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
+                           getConnection());
 }
 
 // retrieve from a JSON document consisting of a toplevel array.

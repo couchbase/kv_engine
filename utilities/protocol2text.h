@@ -11,6 +11,8 @@ extern "C" {
     const char *memcached_opcode_2_text(uint8_t opcode);
     MEMCACHED_PUBLIC_API
     uint8_t memcached_text_2_opcode(const char *txt);
+
+    // Maps a status to a string that is a description and contains whitespace
     MEMCACHED_PUBLIC_API
     const char *memcached_status_2_text(protocol_binary_response_status status);
 

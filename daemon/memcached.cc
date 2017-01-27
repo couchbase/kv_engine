@@ -2307,6 +2307,7 @@ void DestroyBucketThread::destroy() {
     all_buckets[idx].engine = NULL;
     all_buckets[idx].name[0] = '\0';
     delete all_buckets[idx].topkeys;
+    all_buckets[idx].responseCounters.fill(0);
     all_buckets[idx].topkeys = nullptr;
     cb_mutex_exit(&all_buckets[idx].mutex);
     // don't need lock because all timing data uses atomics

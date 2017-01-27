@@ -184,6 +184,14 @@ public:
      * The validator chains to use for this bucket when receiving MCBP commands.
      */
     McbpValidatorChains validatorChains;
+
+    using ResponseCounter = Couchbase::RelaxedAtomic<uint64_t>;
+
+    /**
+     * Response counters that count the number of times a specific response
+     * status is sent
+     */
+    std::array<ResponseCounter, PROTOCOL_BINARY_RESPONSE_SIZE> responseCounters;
 };
 
 class Connection;

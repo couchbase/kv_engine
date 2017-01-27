@@ -235,6 +235,9 @@ static void process_bin_unknown_packet(McbpConnection* c) {
     switch (ret) {
     case ENGINE_SUCCESS: {
         if (c->getDynamicBuffer().getRoot() != nullptr) {
+            // We assume that if the underlying engine returns a success then
+            // it is sending a success to the client.
+            ++c->getBucket().responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
             mcbp_write_and_free(c, &c->getDynamicBuffer());
         } else {
             c->setState(conn_new_cmd);

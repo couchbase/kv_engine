@@ -205,6 +205,8 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
     }
 
     if (connection.isNoReply()) {
+        ++connection.getBucket()
+                  .responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
         connection.setState(conn_new_cmd);
         return ENGINE_SUCCESS;
     }

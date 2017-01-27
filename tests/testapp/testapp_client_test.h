@@ -121,6 +121,35 @@ public:
         return resp.getValue();
     }
 
+    int getResponseCount(protocol_binary_response_status statusCode) {
+        unique_cJSON_ptr stats(cJSON_Parse(
+                cJSON_GetObjectItem(
+                        getConnection().stats("responses detailed").get(),
+                        "responses")
+                        ->valuestring));
+        std::stringstream stream;
+        stream << std::hex << statusCode;
+        return cJSON_GetObjectItem(stats.get(), stream.str().c_str())->valueint;
+    }
+    static int statResps() {
+        // Each stats call gets a new connection prepared for it, resulting in
+        // a HELLO. This means we expect 1 success from the stats call and
+        // the number of successes a HELLO takes.
+        return 1 + helloResps();
+    }
+
+    static int helloResps() {
+        // We do a HELLO for each feature that we enable
+        // Datatype, MutationSeqNo, Xattr, Xerror. Therefore we expect a
+        // success for each of the responses.
+        return 4;
+    }
+
+    static int saslResps() {
+        // 2 successes expected due to the initial response and then the
+        // continue step.
+        return 2;
+    }
 
 protected:
     std::string name;

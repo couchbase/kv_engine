@@ -33,6 +33,7 @@ Bucket::Bucket(const Bucket& other)
     timings = other.timings;
     subjson_operation_times = other.subjson_operation_times;
     topkeys = other.topkeys;
+    responseCounters = other.responseCounters;
 
     cb_mutex_exit(&other.mutex);
 }

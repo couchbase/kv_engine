@@ -53,21 +53,29 @@ TEST_P(GetSetTest, TestAdd) {
     MemcachedConnection& conn = getConnection();
     conn.mutate(document, 0, Greenstack::MutationType::Add);
 
+    int eExistsCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
     // Adding it one more time should fail
     try {
         conn.mutate(document, 0, Greenstack::MutationType::Add);
         FAIL() << "It should not be possible to add a document that exists";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
+        // Check that we correctly increment the status counter stat
+        EXPECT_EQ(eExistsCount + 1,
+                  getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS));
     }
 
     // Add with a cas should fail
+    int invalCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_EINVAL);
     try {
         document.info.cas = Greenstack::CAS::Wildcard + 1;
         conn.mutate(document, 0, Greenstack::MutationType::Add);
         FAIL() << "It should not be possible to add a document that exists";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isInvalidArguments()) << error.what();
+        // Check that we correctly increment the status counter stat
+        EXPECT_EQ(invalCount + 1,
+                  getResponseCount(PROTOCOL_BINARY_RESPONSE_EINVAL));
     }
 }
 
@@ -75,11 +83,15 @@ TEST_P(GetSetTest, TestReplace) {
     MemcachedConnection& conn = getConnection();
 
     // Replacing a nonexisting document should fail
+    int eNoentCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
     try {
         conn.mutate(document, 0, Greenstack::MutationType::Replace);
         FAIL() << "It's not possible to replace a nonexisting document";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound()) << error.what();
+        // Check that we correctly increment the status counter stat
+        EXPECT_EQ(eNoentCount + 1,
+                  getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT));
     }
 
     conn.mutate(document, 0, Greenstack::MutationType::Add);
@@ -89,11 +101,16 @@ TEST_P(GetSetTest, TestReplace) {
 
     // Replace with invalid cas should fail
     document.info.cas = info.cas + 1;
+
+    int eExistsCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
     try {
         conn.mutate(document, 0, Greenstack::MutationType::Replace);
         FAIL() << "replace with CAS mismatch should fail!";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
+        // Check that we correctly increment the status counter stat
+        EXPECT_EQ(eExistsCount + 1,
+                  getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS));
     }
 }
 
@@ -114,13 +131,18 @@ TEST_P(GetSetTest, TestSet) {
     MemcachedConnection& conn = getConnection();
     // Set should fail if the key doesn't exists and we're using CAS
     document.info.cas = 1;
+
+    int eNoentCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
     try {
         conn.mutate(document, 0, Greenstack::MutationType::Set);
         FAIL() << "Set with CAS and no such doc should fail!";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound()) << error.what();
+        EXPECT_EQ(eNoentCount + 1,
+                  getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT));
     }
 
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     // set should work even if a nonexisting document should fail
     document.info.cas = Greenstack::CAS::Wildcard;
     conn.mutate(document, 0, Greenstack::MutationType::Set);
@@ -131,24 +153,37 @@ TEST_P(GetSetTest, TestSet) {
     // And it should be possible to set it with a CAS
     document.info.cas = info.cas;
     info = conn.mutate(document, 0, Greenstack::MutationType::Set);
+    // Check that we correctly increment the status counter stat
+    EXPECT_EQ(successCount + statResps() + 3,
+              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     // Replace with invalid cas should fail
     document.info.cas = info.cas + 1;
+
+    int eExistsCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
+
     try {
         conn.mutate(document, 0, Greenstack::MutationType::Replace);
         FAIL() << "set with CAS mismatch should fail!";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
+        // Check that we correctly increment the status counter stat
+        EXPECT_EQ(eExistsCount + 1,
+                  getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS));
     }
 }
 
 TEST_P(GetSetTest, TestGetMiss) {
     MemcachedConnection& conn = getConnection();
+    int eNoentCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
     try {
         conn.get("TestGetMiss", 0);
         FAIL() << "Expected TestGetMiss to throw an exception";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound()) << error.what();
+        // Check that we correctly increment the status counter stat
+        EXPECT_EQ(eNoentCount + 1,
+                  getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT));
     }
 }
 
@@ -156,7 +191,11 @@ TEST_P(GetSetTest, TestGetSuccess) {
     MemcachedConnection& conn = getConnection();
     conn.mutate(document, 0, Greenstack::MutationType::Set);
 
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     const auto stored = conn.get(name, 0);
+    // Check that we correctly increment the status counter stat
+    EXPECT_EQ(successCount + statResps() + 1,
+              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
@@ -171,12 +210,15 @@ TEST_P(GetSetTest, TestAppend) {
     document.info.datatype = Greenstack::Datatype::Raw;
     document.value.clear();
     document.value.push_back('a');
-
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     conn.mutate(document, 0, Greenstack::MutationType::Set);
     document.value[0] = 'b';
     conn.mutate(document, 0, Greenstack::MutationType::Append);
 
     const auto stored = conn.get(name, 0);
+    // Check that we correctly increment the status counter stat
+    EXPECT_EQ(successCount + statResps() + 3,
+              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
@@ -194,6 +236,7 @@ TEST_P(GetSetTest, TestAppendWithXattr) {
     document.info.datatype = Greenstack::Datatype::Raw;
     document.value.clear();
     document.value.push_back('a');
+    int sucCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     conn.mutate(document, 0, Greenstack::MutationType::Add);
     createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
     const auto mutation_cas = getXattr("meta.cas");
@@ -207,6 +250,13 @@ TEST_P(GetSetTest, TestAppendWithXattr) {
     EXPECT_EQ(mutation_cas, getXattr("meta.cas"));
 
     const auto stored = conn.get(name, 0);
+
+    // Check that we correctly increment the status counter stat
+    // We expect the success count to be the following because we have 6
+    // gets/sets above. Of these 2 are xattr commands and these result in new
+    // HELLOs and SASLs hence we expect 2 HELLOs and 2 SASLs
+    EXPECT_EQ(sucCount + statResps() + 6 + helloResps() * 2 + 2 * saslResps(),
+              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     // And the rest of the doc should look the same
     EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
@@ -226,12 +276,16 @@ TEST_P(GetSetTest, TestAppendCasSuccess) {
     document.value.clear();
     document.value.push_back('a');
 
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     const auto info = conn.mutate(document, 0, Greenstack::MutationType::Set);
     document.value[0] = 'b';
     document.info.cas = info.cas;
     conn.mutate(document, 0, Greenstack::MutationType::Append);
 
     const auto stored = conn.get(name, 0);
+    // Check that we correctly increment the status counter stat
+    EXPECT_EQ(successCount + statResps() + 3,
+              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_NE(info.cas, stored.info.cas);
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
@@ -277,11 +331,15 @@ TEST_P(GetSetTest, TestPrepend) {
     document.value.clear();
     document.value.push_back('a');
 
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     conn.mutate(document, 0, Greenstack::MutationType::Set);
     document.value[0] = 'b';
     conn.mutate(document, 0, Greenstack::MutationType::Prepend);
 
     const auto stored = conn.get(name, 0);
+    // Check that we correctly increment the status counter stat
+    EXPECT_EQ(successCount + statResps() + 3,
+              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
     EXPECT_EQ(document.info.compression, stored.info.compression);
@@ -298,6 +356,9 @@ TEST_P(GetSetTest, TestPrependWithXattr) {
     document.info.datatype = Greenstack::Datatype::Raw;
     document.value.clear();
     document.value.push_back('a');
+
+    int sucCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
     conn.mutate(document, 0, Greenstack::MutationType::Add);
     createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
     const auto mutation_cas = getXattr("meta.cas");
@@ -311,6 +372,8 @@ TEST_P(GetSetTest, TestPrependWithXattr) {
     EXPECT_EQ(mutation_cas, getXattr("meta.cas"));
 
     const auto stored = conn.get(name, 0);
+    EXPECT_EQ(sucCount + statResps() + 6 + 2 * helloResps() + 2 * saslResps(),
+              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     // And the rest of the doc should look the same
     EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
@@ -328,12 +391,16 @@ TEST_P(GetSetTest, TestPrependCasSuccess) {
     document.value.clear();
     document.value.push_back('a');
 
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     const auto info = conn.mutate(document, 0, Greenstack::MutationType::Set);
     document.value[0] = 'b';
     document.info.cas = info.cas;
     conn.mutate(document, 0, Greenstack::MutationType::Prepend);
 
     const auto stored = conn.get(name, 0);
+    // Check that we correctly increment the status counter stat
+    EXPECT_EQ(successCount + statResps() + 3,
+              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
     EXPECT_EQ(document.info.compression, stored.info.compression);
@@ -408,6 +475,7 @@ TEST_P(GetSetTest, TestAppendCompressedSource) {
     std::fill(input.begin(), input.end(), 'a');
     compress_vector(input, document.value);
 
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     conn.mutate(document, 0, Greenstack::MutationType::Set);
     document.value.resize(input.size());
     std::fill(document.value.begin(), document.value.end(), 'b');
@@ -415,6 +483,9 @@ TEST_P(GetSetTest, TestAppendCompressedSource) {
 
     conn.mutate(document, 0, Greenstack::MutationType::Append);
     const auto stored = conn.get(name, 0);
+    // Check that we correctly increment the status counter stat
+    EXPECT_EQ(successCount + statResps() + 3,
+              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
     EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
@@ -432,6 +503,9 @@ TEST_P(GetSetTest, TestAppendCompressedData) {
     document.info.datatype = Greenstack::Datatype::Raw;
     document.value.resize(1024);
     std::fill(document.value.begin(), document.value.end(), 'a');
+
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
     conn.mutate(document, 0, Greenstack::MutationType::Set);
 
     std::vector<char> input(1024);
@@ -441,6 +515,10 @@ TEST_P(GetSetTest, TestAppendCompressedData) {
     conn.mutate(document, 0, Greenstack::MutationType::Append);
 
     const auto stored = conn.get(name, 0);
+
+    // Check that we correctly increment the status counter stat
+    EXPECT_EQ(successCount + statResps() + 3,
+              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
     EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
@@ -465,6 +543,7 @@ TEST_P(GetSetTest, TestAppendCompressedSourceAndData) {
     std::fill(input.begin(), input.end(), 'a');
     compress_vector(input, document.value);
 
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     conn.mutate(document, 0, Greenstack::MutationType::Set);
 
     std::vector<char> append(1024);
@@ -472,6 +551,10 @@ TEST_P(GetSetTest, TestAppendCompressedSourceAndData) {
     compress_vector(append, document.value);
     conn.mutate(document, 0, Greenstack::MutationType::Append);
     const auto stored = conn.get(name, 0);
+
+    // Check that we correctly increment the status counter stat
+    EXPECT_EQ(successCount + statResps() + 3,
+              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
     EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
@@ -494,6 +577,7 @@ TEST_P(GetSetTest, TestPrependCompressedSource) {
     std::fill(input.begin(), input.end(), 'a');
     compress_vector(input, document.value);
 
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     conn.mutate(document, 0, Greenstack::MutationType::Set);
     document.value.resize(input.size());
     std::fill(document.value.begin(), document.value.end(), 'b');
@@ -501,6 +585,10 @@ TEST_P(GetSetTest, TestPrependCompressedSource) {
 
     conn.mutate(document, 0, Greenstack::MutationType::Prepend);
     const auto stored = conn.get(name, 0);
+
+    // Check that we correctly increment the status counter stat
+    EXPECT_EQ(successCount + statResps() + 3,
+              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
     EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
@@ -518,6 +606,8 @@ TEST_P(GetSetTest, TestPrependCompressedData) {
     document.info.datatype = Greenstack::Datatype::Raw;
     document.value.resize(1024);
     std::fill(document.value.begin(), document.value.end(), 'a');
+
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     conn.mutate(document, 0, Greenstack::MutationType::Set);
 
     std::vector<char> input(1024);
@@ -527,6 +617,10 @@ TEST_P(GetSetTest, TestPrependCompressedData) {
     conn.mutate(document, 0, Greenstack::MutationType::Prepend);
 
     const auto stored = conn.get(name, 0);
+
+    // Check that we correctly increment the status counter stat
+    EXPECT_EQ(successCount + statResps() + 3,
+              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
     EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
@@ -548,6 +642,7 @@ TEST_P(GetSetTest, TestPrepepndCompressedSourceAndData) {
     std::fill(input.begin(), input.end(), 'a');
     compress_vector(input, document.value);
 
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     conn.mutate(document, 0, Greenstack::MutationType::Set);
 
     std::vector<char> append(1024);
@@ -555,6 +650,10 @@ TEST_P(GetSetTest, TestPrepepndCompressedSourceAndData) {
     compress_vector(append, document.value);
     conn.mutate(document, 0, Greenstack::MutationType::Prepend);
     const auto stored = conn.get(name, 0);
+
+    // Check that we correctly increment the status counter stat
+    EXPECT_EQ(successCount + statResps() + 3,
+              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
     EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);

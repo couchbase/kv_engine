@@ -22,6 +22,7 @@
 #include "utilities/protocol2text.h"
 #include "xattr/utils.h"
 
+#include <include/memcached/protocol_binary.h>
 #include <platform/compress.h>
 
 static int get_clustermap_revno(const char *map, size_t mapsize) {
@@ -125,6 +126,10 @@ void mcbp_write_response(McbpConnection* c,
             mcbp_collect_timings(reinterpret_cast<McbpConnection*>(c));
             c->setStart(0);
         }
+        // The responseCounter is updated here as this is non-responding code
+        // hence mcbp_add_header will not be called (which is what normally
+        // updates the responseCounters).
+        ++c->getBucket().responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
         c->setState(conn_new_cmd);
     }
 }
@@ -156,6 +161,7 @@ void mcbp_write_packet(McbpConnection* c, protocol_binary_response_status err) {
 
         ENGINE_ERROR_CODE ret;
 
+        ++c->getBucket().responseCounters[err];
         ret = bucket_get_engine_vb_map(c, get_vb_map_cb);
         if (ret == ENGINE_SUCCESS) {
             mcbp_write_and_free(c, &c->getDynamicBuffer());
@@ -228,6 +234,8 @@ void mcbp_add_header(McbpConnection* c,
         }
     }
 
+    ++c->getBucket().responseCounters[err];
+
     c->addIov(c->write.buf, sizeof(header->response));
 }
 
@@ -297,6 +305,8 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     header.response.bodylen = htonl(needed - sizeof(protocol_binary_response_header));
     header.response.opaque = c->getOpaque();
     header.response.cas = htonll(cas);
+
+    ++c->getBucket().responseCounters[status];
 
     char *buf = dbuf.getCurrent();
     memcpy(buf, header.bytes, sizeof(header.response));

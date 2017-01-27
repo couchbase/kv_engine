@@ -229,7 +229,12 @@ extern "C"
         /**
          * The server has no knowledge of the requested macro
          */
-        PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_MACRO = 0xd0
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_MACRO = 0xd0,
+
+        /**
+         * The maximum number of responses
+         */
+        PROTOCOL_BINARY_RESPONSE_SIZE
     } protocol_binary_response_status;
 
     /**

@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 #include "config.h"
+
 #include "engine_wrapper.h"
 #include "stats_context.h"
 #include "utilities.h"
@@ -26,6 +27,9 @@
 #include <daemon/runtime.h>
 #include <memcached/audit_interface.h>
 #include <platform/checked_snprintf.h>
+#include <utilities/protocol2text.h>
+
+#include <numeric>
 
 // Generic add_stat<T>. Uses std::to_string which requires heap allocation.
 template<typename T>
@@ -226,6 +230,15 @@ static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
                  mutation_latency.count);
         add_stat(cookie, add_stat_callback, "cmd_mutation_10s_duration_us",
                  mutation_latency.duration_ns / 1000);
+
+        auto& respCounters = c->getBucket().responseCounters;
+        // Ignore success responses by starting from begin + 1
+        uint64_t total_resp_errors = std::accumulate(
+                std::begin(respCounters) + 1, std::end(respCounters), 0);
+        add_stat(cookie,
+                 add_stat_callback,
+                 "total_resp_errors",
+                 total_resp_errors);
 
     } catch (std::bad_alloc&) {
         return ENGINE_ENOMEM;
@@ -719,6 +732,34 @@ static ENGINE_ERROR_CODE stat_subdoc_execute_executor(const std::string& arg,
     }
 }
 
+static ENGINE_ERROR_CODE stat_responses_json_executor(
+        const std::string& arg, McbpConnection& connection) {
+    try {
+        auto& respCounters = connection.getBucket().responseCounters;
+        unique_cJSON_ptr jsonPtr(cJSON_CreateObject());
+
+        for (uint16_t resp = 0; resp < respCounters.size(); ++resp) {
+            const uint64_t value = respCounters[resp].load();
+            std::stringstream stream;
+            stream << std::hex << resp;
+            cJSON_AddNumberToObject(jsonPtr.get(), stream.str().c_str(), value);
+        }
+
+        char* ptr = cJSON_PrintUnformatted(jsonPtr.get());
+        std::string json_str(ptr);
+        cJSON_Free(ptr);
+        const std::string stat_name = "responses";
+        append_stats(stat_name.c_str(),
+                     stat_name.size(),
+                     json_str.c_str(),
+                     json_str.size(),
+                     connection.getCookie());
+        return ENGINE_SUCCESS;
+    } catch (std::bad_alloc e) {
+        return ENGINE_ENOMEM;
+    }
+}
+
 ENGINE_ERROR_CODE StatsCommandContext::step() {
     struct stat_handler {
         /**
@@ -737,16 +778,16 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
      * statistics
      */
     static std::unordered_map<std::string, struct stat_handler> handlers = {
-        {"reset", {true, stat_reset_executor}},
-        {"settings", {false, stat_settings_executor}},
-        {"audit", {true, stat_audit_executor}},
-        {"bucket_details", {true, stat_bucket_details_executor}},
-        {"aggregate", {false, stat_aggregate_executor}},
-        {"connections", {false, stat_connections_executor}},
-        {"topkeys", {false, stat_topkeys_executor}},
-        {"topkeys_json", {false, stat_topkeys_json_executor}},
-        {"subdoc_execute", {false, stat_subdoc_execute_executor}}
-    };
+            {"reset", {true, stat_reset_executor}},
+            {"settings", {false, stat_settings_executor}},
+            {"audit", {true, stat_audit_executor}},
+            {"bucket_details", {true, stat_bucket_details_executor}},
+            {"aggregate", {false, stat_aggregate_executor}},
+            {"connections", {false, stat_connections_executor}},
+            {"topkeys", {false, stat_topkeys_executor}},
+            {"topkeys_json", {false, stat_topkeys_json_executor}},
+            {"subdoc_execute", {false, stat_subdoc_execute_executor}},
+            {"responses", {false, stat_responses_json_executor}}};
 
     if (settings.getVerbose() > 1) {
         char buffer[1024];
@@ -802,7 +843,26 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
 
     if (ret == ENGINE_SUCCESS) {
         append_stats(nullptr, 0, nullptr, 0, connection.getCookie());
+
+        // We just want to record this once rather than for each packet sent
+        ++connection.getBucket()
+                  .responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
         mcbp_write_and_free(&connection, &connection.getDynamicBuffer());
+
+    } else {
+        switch (ret) {
+        case ENGINE_DISCONNECT:
+        case ENGINE_EWOULDBLOCK:
+        case ENGINE_WANT_MORE:
+            // We don't send these responses back so we will not store
+            // stats for these.
+            break;
+        default:
+            ++connection.getBucket()
+                      .responseCounters[engine_error_2_mcbp_protocol_error(
+                              ret)];
+            break;
+        }
     }
 
     return ret;

@@ -377,3 +377,12 @@ TEST_P(StatsTest, TestSubdocExecute) {
     std::string value(stats.get()->child->valuestring);
     EXPECT_EQ(0, value.find("{\"ns\":"));
 }
+
+TEST_P(StatsTest, TestResponseStats) {
+    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    // 2 successes expected:
+    // 1. The previous stats call sending the JSON
+    // 2. The previous stats call sending a null packet to mark end of stats
+    EXPECT_EQ(successCount + statResps(),
+              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
+}

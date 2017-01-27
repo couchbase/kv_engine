@@ -146,6 +146,8 @@ ENGINE_ERROR_CODE GetCommandContext::noSuchItem() {
                           int(key.size()), -1, 0);
 
     if (connection.isNoReply()) {
+        ++connection.getBucket()
+                  .responseCounters[PROTOCOL_BINARY_RESPONSE_KEY_ENOENT];
         connection.setState(conn_new_cmd);
     } else {
         if (shouldSendKey()) {
