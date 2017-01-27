@@ -53,13 +53,13 @@
  */
 class BgFetcher;
 class Flusher;
-class KVBucketIface;
+class KVBucket;
 
 class KVShard {
 public:
     // Identifier for a KVShard
     typedef uint16_t id_type;
-    KVShard(KVShard::id_type id, KVBucketIface& store);
+    KVShard(KVShard::id_type id, KVBucket& store);
     ~KVShard();
 
     KVStore* getRWUnderlying() {

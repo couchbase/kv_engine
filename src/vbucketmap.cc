@@ -25,10 +25,8 @@
 #include "ep_engine.h"
 #include "vbucketmap.h"
 
-VBucketMap::VBucketMap(Configuration& config,
-                       KVBucketIface& store) :
-                       size(config.getMaxVbuckets())
-{
+VBucketMap::VBucketMap(Configuration& config, KVBucket& store)
+    : size(config.getMaxVbuckets()) {
     WorkLoadPolicy &workload = store.getEPEngine().getWorkLoadPolicy();
     for (size_t shardId = 0; shardId < workload.getNumShards(); shardId++) {
         shards.push_back(std::make_unique<KVShard>(shardId, store));

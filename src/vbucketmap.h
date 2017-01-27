@@ -22,9 +22,11 @@
 
 #include <vector>
 
+
 #include "kvshard.h"
-#include "vbucket.h"
 #include "utility.h"
+
+class VBucket;
 
 /**
  * A map of known vbuckets.
@@ -52,7 +54,7 @@ public:
     // This class uses the same id_type as VBucket
     typedef VBucket::id_type id_type;
 
-    VBucketMap(Configuration& config, KVBucketIface& store);
+    VBucketMap(Configuration& config, KVBucket& store);
 
     ENGINE_ERROR_CODE addBucket(const RCPtr<VBucket> &b);
     void removeBucket(id_type id);

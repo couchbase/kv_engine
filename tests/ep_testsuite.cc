@@ -6543,8 +6543,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_flush_all",
                 "ep_flush_duration_total",
                 "ep_flushall_enabled",
-                "ep_flusher_state",
-                "ep_flusher_todo",
                 "ep_getl_default_timeout",
                 "ep_getl_max_timeout",
                 "ep_hlc_drift_ahead_threshold_us",
@@ -6749,6 +6747,8 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
         auto& eng_stats = statsKeys.at("");
         eng_stats.insert(eng_stats.end(),
                          {"ep_db_data_size", "ep_db_file_size"});
+        eng_stats.insert(eng_stats.end(),
+                         {"ep_flusher_state", "ep_flusher_todo"});
 
         // 'diskinfo and 'diskinfo detail' keys should be present now.
         statsKeys["diskinfo"] = {"ep_db_data_size", "ep_db_file_size"};

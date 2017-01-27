@@ -2049,6 +2049,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     } else if (bucketType == "ephemeral") {
         // Disable warmup - it is not applicable to Ephemeral buckets.
         configuration.setWarmup(false);
+
         kvBucket = new EphemeralBucket(*this);
     } else {
         throw std::invalid_argument(bucketType + " is not a recognized bucket "
@@ -3008,14 +3009,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.flushExpired, add_stat, cookie);
     add_casted_stat("ep_queue_size",
                     epstats.diskQueueSize, add_stat, cookie);
-    add_casted_stat("ep_flusher_todo",
-                    epstats.flusher_todo, add_stat, cookie);
     add_casted_stat("ep_uncommitted_items",
                     epstats.flusher_todo, add_stat, cookie);
     add_casted_stat("ep_diskqueue_items",
                     epstats.diskQueueSize, add_stat, cookie);
-    add_casted_stat("ep_flusher_state",
-                    kvBucket->getFlusher(0)->stateName(), add_stat, cookie);
+    auto* flusher = kvBucket->getFlusher(EP_PRIMARY_SHARD);
+    if (flusher) {
+        add_casted_stat("ep_flusher_state",
+                        flusher->stateName(), add_stat, cookie);
+        add_casted_stat("ep_flusher_todo",
+                        epstats.flusher_todo, add_stat, cookie);
+    }
     add_casted_stat("ep_commit_num", epstats.flusherCommits,
                     add_stat, cookie);
     add_casted_stat("ep_commit_time",

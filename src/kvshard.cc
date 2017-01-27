@@ -22,12 +22,13 @@
 #include <platform/make_unique.h>
 
 #include "bgfetcher.h"
+#include "ep_bucket.h"
 #include "ep_engine.h"
 #include "flusher.h"
 #include "kvshard.h"
 
 /* [EPHE TODO]: Consider not using KVShard for ephemeral bucket */
-KVShard::KVShard(uint16_t id, KVBucketIface& kvBucket)
+KVShard::KVShard(uint16_t id, KVBucket& kvBucket)
     : kvConfig(kvBucket.getEPEngine().getConfiguration(), id),
       vbuckets(kvConfig.getMaxVBuckets()),
       highPriorityCount(0) {
@@ -47,15 +48,12 @@ KVShard::KVShard(uint16_t id, KVBucketIface& kvBucket)
                 backend + "'");
     }
 
-    /* [EPHE TODO]: Try to avoid dynamic cast */
-    KVBucket* epBucket = dynamic_cast<KVBucket*>(&kvBucket);
-
-    if (epBucket) {
-        /* We want Flusher and BgFetcher only in case of ep bucket not
-           ephemeral bucket */
-        flusher = std::make_unique<Flusher>(epBucket, this, commitInterval);
-        bgFetcher = std::make_unique<BgFetcher>(*epBucket, *this);
+    if (kvBucket.getEPEngine().getConfiguration().getBucketType() ==
+        "persistent") {
+        flusher = std::make_unique<Flusher>(&kvBucket, this, commitInterval);
     }
+    // TEMP: This ultimately should only be created for EPBucket.
+    bgFetcher = std::make_unique<BgFetcher>(kvBucket, *this);
 }
 
 // Non-inline destructor so we can destruct
