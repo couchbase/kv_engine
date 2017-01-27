@@ -133,9 +133,7 @@ struct StatProperties {
   */
 std::unordered_map<std::string, StatProperties> stat_tests =
     {{"engine", {"", StatRuntime::Slow, {}} },
-     {"tapagg", {"tapagg _", StatRuntime::Fast, {}} },
      {"dcpagg", {"dcpagg _", StatRuntime::Fast, {}} },
-     {"tap", {"tap", StatRuntime::Fast, {}} },
      {"dcp", {"dcp", StatRuntime::Fast, {}} },
      {"hash", {"hash", StatRuntime::Slow, {}} },
      {"vbucket", {"vbucket", StatRuntime::Fast, {}} },
@@ -161,9 +159,6 @@ std::unordered_map<std::string, StatProperties> stat_tests =
      {"info", {"info", StatRuntime::Fast, {}} },
      {"allocator", {"allocator", StatRuntime::Slow, {}} },
      {"config", {"config", StatRuntime::Fast, {}} },
-     {"tap-vbtakeover", {"tap-vbtakeover 0 tap-connection",
-                         StatRuntime::Fast, {}}
-     },
      {"dcp-vbtakeover", {"dcp-vbtakeover 0 DCP",
                          StatRuntime::Fast, {}}
      },
@@ -1236,6 +1231,15 @@ static void perf_stat_latency_core(ENGINE_HANDLE *h,
                           {"diskinfo-detail", StatRuntime::Slow, {}}}});
     }
 
+    if (isTapEnabled(h, h1)) {
+        // Include TAP-specific stats.
+        stat_tests.insert({{"tap", {"tap", StatRuntime::Fast, {}}},
+                           {"tapagg", {"tapagg _", StatRuntime::Fast, {}}},
+                           {"tap-vbtakeover", {"tap-vbtakeover 0 tap-connection",
+                                               StatRuntime::Fast, {}}
+        }});
+    }
+
     for (auto& stat : stat_tests) {
         if (stat.second.runtime == statRuntime) {
             for (int ii = 0; ii < iterations; ii++) {
@@ -1246,9 +1250,14 @@ static void perf_stat_latency_core(ENGINE_HANDLE *h,
                             "Failed to get engine stats");
                 } else {
                     checkeq(ENGINE_SUCCESS,
-                            h1->get_stats(h, cookie, stat.second.key.c_str(),
-                                          stat.second.key.length(), add_stats),
-                            "Failed to get stats");
+                            h1->get_stats(h,
+                                          cookie,
+                                          stat.second.key.c_str(),
+                                          stat.second.key.length(),
+                                          add_stats),
+                            (std::string("Failed to get stat:") +
+                             stat.second.key)
+                                    .c_str());
                 }
 
                 hrtime_t end = gethrtime();
@@ -1450,7 +1459,7 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("TAP impact on front-end latency", perf_latency_tap_impact,
                  test_setup, teardown,
                  "backend=couchdb;ht_size=393209",
-                 prepare, cleanup),
+                 prepare_tap, cleanup),
 
         TestCase("Baseline Stat latency", perf_stat_latency_baseline,
                  test_setup, teardown,

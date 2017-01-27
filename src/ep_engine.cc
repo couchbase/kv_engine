@@ -4482,11 +4482,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     if (stat_key == NULL) {
         rv = doEngineStats(cookie, add_stat);
     } else if (nkey > 7 && cb_isPrefix(statKey, "tapagg ")) {
-        rv = doConnAggStats(cookie, add_stat, stat_key + 7, nkey - 7, TAP_CONN);
+        if (configuration.isTap()) {
+            rv = doConnAggStats(
+                    cookie, add_stat, stat_key + 7, nkey - 7, TAP_CONN);
+        }
     } else if (nkey > 7 && cb_isPrefix(statKey, "dcpagg ")) {
         rv = doConnAggStats(cookie, add_stat, stat_key + 7, nkey - 7, DCP_CONN);
     } else if (statKey == "tap") {
-        rv = doTapStats(cookie, add_stat);
+        if (configuration.isTap()) {
+            rv = doTapStats(cookie, add_stat);
+        }
     } else if (statKey == "dcp") {
         rv = doDcpStats(cookie, add_stat);
     } else if (statKey == "hash") {
@@ -4565,7 +4570,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
     } else if (statKey == "config") {
         configuration.addStats(add_stat, cookie);
         rv = ENGINE_SUCCESS;
-    } else if (nkey > 15 && cb_isPrefix(statKey, "tap-vbtakeover")) {
+    } else if (nkey > 15 && cb_isPrefix(statKey, "tap-vbtakeover") &&
+               configuration.isTap()) {
         std::string tStream;
         std::string vbid;
         std::string buffer(statKey.substr(15, nkey - 15));
