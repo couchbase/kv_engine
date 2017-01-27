@@ -264,7 +264,7 @@ public:
                                      ExtendedMetaData* emd,
                                      bool isReplication);
 
-    void reset();
+    virtual void reset();
 
     /**
      * Set the background fetch delay.

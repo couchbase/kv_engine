@@ -365,6 +365,12 @@ public:
                                              ExtendedMetaData* emd,
                                              bool isReplication) = 0;
 
+    /**
+     * Resets the Bucket. Removes all elements from each VBucket's &
+     * CheckpointManager.
+     * Specific subclasses (e.g. EPBucket) may have additional work to do
+     * (update disk etc).
+     */
     virtual void reset() = 0;
 
     /**

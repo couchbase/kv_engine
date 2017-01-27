@@ -18,6 +18,7 @@
 #include "ep_bucket.h"
 
 #include "ep_engine.h"
+#include "flusher.h"
 
 EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
     : KVBucket(theEngine) {
@@ -86,6 +87,16 @@ protocol_binary_response_status EPBucket::evictKey(const DocKey& key,
     }
 
     return rv;
+}
+
+void EPBucket::reset() {
+    KVBucket::reset();
+
+    // Need to additionally update disk state
+    bool inverse = true;
+    flushAllTaskCtx.delayFlushAll.compare_exchange_strong(inverse, false);
+    // Waking up (notifying) one flusher is good enough for diskFlushAll
+    vbMap.getShard(EP_PRIMARY_SHARD)->getFlusher()->notifyFlushEvent();
 }
 
 ENGINE_ERROR_CODE EPBucket::getFileStats(const void* cookie,

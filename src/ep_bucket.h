@@ -41,6 +41,8 @@ public:
                                              const char **msg,
                                              size_t *msg_size) override;
 
+    void reset() override;
+
     ENGINE_ERROR_CODE getFileStats(const void* cookie,
                                    ADD_STAT add_stat) override;
 

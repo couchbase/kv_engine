@@ -1898,11 +1898,6 @@ void KVBucket::reset() {
             vb->setPersistedSnapshot(0, 0);
         }
     }
-
-    bool inverse = true;
-    flushAllTaskCtx.delayFlushAll.compare_exchange_strong(inverse, false);
-    // Waking up (notifying) one flusher is good enough for diskFlushAll
-    vbMap.shards[EP_PRIMARY_SHARD]->getFlusher()->notifyFlushEvent();
 }
 
 /**
