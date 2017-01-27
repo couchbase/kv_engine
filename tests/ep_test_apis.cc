@@ -1397,7 +1397,10 @@ void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                               uint16_t vbucketId) {
 
     item *i = NULL;
-    int commitNum = get_int_stat(h, h1, "ep_commit_num");
+    int commitNum = 0;
+    if (isPersistentBucket(h, h1)) {
+         commitNum = get_int_stat(h, h1, "ep_commit_num");
+    }
     check(ENGINE_SUCCESS == store(h, h1, NULL, OPERATION_SET, key, val, &i, 0,
                                   vbucketId),
             "Failed to store an item.");

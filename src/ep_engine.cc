@@ -2991,41 +2991,41 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 
     add_casted_stat("ep_total_enqueued",
                     epstats.totalEnqueued, add_stat, cookie);
-    add_casted_stat("ep_total_persisted",
-                    epstats.totalPersisted, add_stat, cookie);
-    add_casted_stat("ep_item_flush_failed",
-                    epstats.flushFailed, add_stat, cookie);
-    add_casted_stat("ep_item_commit_failed",
-                    epstats.commitFailed, add_stat, cookie);
-    add_casted_stat("ep_item_begin_failed",
-                    epstats.beginFailed, add_stat, cookie);
     add_casted_stat("ep_expired_access", epstats.expired_access,
                     add_stat, cookie);
     add_casted_stat("ep_expired_compactor", epstats.expired_compactor,
                     add_stat, cookie);
     add_casted_stat("ep_expired_pager", epstats.expired_pager,
                     add_stat, cookie);
-    add_casted_stat("ep_item_flush_expired",
-                    epstats.flushExpired, add_stat, cookie);
     add_casted_stat("ep_queue_size",
                     epstats.diskQueueSize, add_stat, cookie);
-    add_casted_stat("ep_uncommitted_items",
-                    epstats.flusher_todo, add_stat, cookie);
     add_casted_stat("ep_diskqueue_items",
                     epstats.diskQueueSize, add_stat, cookie);
     auto* flusher = kvBucket->getFlusher(EP_PRIMARY_SHARD);
     if (flusher) {
+        add_casted_stat("ep_commit_num", epstats.flusherCommits,
+                        add_stat, cookie);
+        add_casted_stat("ep_commit_time",
+                        epstats.commit_time, add_stat, cookie);
+        add_casted_stat("ep_commit_time_total",
+                        epstats.cumulativeCommitTime, add_stat, cookie);
+        add_casted_stat("ep_item_begin_failed",
+                        epstats.beginFailed, add_stat, cookie);
+        add_casted_stat("ep_item_commit_failed",
+                        epstats.commitFailed, add_stat, cookie);
+        add_casted_stat("ep_item_flush_expired",
+                        epstats.flushExpired, add_stat, cookie);
+        add_casted_stat("ep_item_flush_failed",
+                        epstats.flushFailed, add_stat, cookie);
         add_casted_stat("ep_flusher_state",
                         flusher->stateName(), add_stat, cookie);
         add_casted_stat("ep_flusher_todo",
                         epstats.flusher_todo, add_stat, cookie);
+        add_casted_stat("ep_total_persisted",
+                        epstats.totalPersisted, add_stat, cookie);
+        add_casted_stat("ep_uncommitted_items",
+                        epstats.flusher_todo, add_stat, cookie);
     }
-    add_casted_stat("ep_commit_num", epstats.flusherCommits,
-                    add_stat, cookie);
-    add_casted_stat("ep_commit_time",
-                    epstats.commit_time, add_stat, cookie);
-    add_casted_stat("ep_commit_time_total",
-                    epstats.cumulativeCommitTime, add_stat, cookie);
     add_casted_stat("ep_vbucket_del",
                     epstats.vbucketDeletions, add_stat, cookie);
     add_casted_stat("ep_vbucket_del_fail",
