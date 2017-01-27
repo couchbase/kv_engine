@@ -233,7 +233,6 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         }
         bool succeeded(false);
         int retry = 2;
-        item_eviction_policy_t policy = epstore.getItemEvictionPolicy();
         do {
             if (i->getCas() == static_cast<uint64_t>(-1)) {
                 if (val.isPartial()) {
@@ -243,8 +242,8 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                 }
             }
 
-            const auto res = vb->ht.insert(*i, policy, shouldEject(),
-                                           val.isPartial());
+            const auto res =
+                    vb->insertFromWarmup(*i, shouldEject(), val.isPartial());
             switch (res) {
             case MutationStatus::NoMem:
                 if (retry == 2) {

@@ -1754,6 +1754,62 @@ GetValue VBucket::getAndUpdateTtl(const DocKey& key,
     }
 }
 
+MutationStatus VBucket::insertFromWarmup(Item& itm,
+                                         bool eject,
+                                         bool keyMetaDataOnly) {
+    if (!StoredValue::hasAvailableSpace(stats, itm)) {
+        return MutationStatus::NoMem;
+    }
+
+    int bucket_num(0);
+    auto lh = ht.getLockedBucket(itm.getKey(), &bucket_num);
+    StoredValue* v = ht.unlocked_find(itm.getKey(), bucket_num, true, false);
+
+    if (v == NULL) {
+        v = addNewStoredValue(lh, itm, PreserveRevSeqno::Yes);
+        if (keyMetaDataOnly) {
+            v->markNotResident();
+            /* For now ht stats are updated from outside ht. This seems to be
+               a better option for now than passing a flag to
+               addNewStoredValue() just for this func */
+            ++(ht.numNonResidentItems);
+        }
+        /* For now ht stats are updated from outside ht. This seems to be
+           a better option for now than passing a flag to
+           addNewStoredValue() just for this func.
+           We need to decrNumTotalItems because ht.numTotalItems is already
+           set by warmup when it estimated the item count from disk */
+        ht.decrNumTotalItems();
+        v->setNewCacheItem(false);
+    } else {
+        if (keyMetaDataOnly) {
+            // We don't have a better error code ;)
+            return MutationStatus::InvalidCas;
+        }
+
+        // Verify that the CAS isn't changed
+        if (v->getCas() != itm.getCas()) {
+            if (v->getCas() == 0) {
+                v->setCas(itm.getCas());
+                v->setFlags(itm.getFlags());
+                v->setExptime(itm.getExptime());
+                v->setRevSeqno(itm.getRevSeqno());
+            } else {
+                return MutationStatus::InvalidCas;
+            }
+        }
+        updateStoredValue(lh, *v, itm, PreserveRevSeqno::Yes);
+    }
+
+    v->markClean();
+
+    if (eject && !keyMetaDataOnly) {
+        ht.unlocked_ejectItem(v, eviction);
+    }
+
+    return MutationStatus::NotFound;
+}
+
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
                        item_eviction_policy_t policy) {
     addStat(NULL, toString(state), add_stat, c);

@@ -811,6 +811,23 @@ public:
                              int bgFetchDelay,
                              time_t exptime);
 
+    /**
+     * Insert an item into the VBucket during warmup. If we're trying to insert
+     * a partial item we mark it as nonResident
+     *
+     * @param itm Item to insert. itm is not modified. But cannot be passed as
+     *            const because it is passed to functions that can generally
+     *            modify the itm but do not modify it due to the flags passed.
+     * @param eject true if we should eject the value immediately
+     * @param keyMetaDataOnly is this just the key and meta-data or a complete
+     *                        item
+     *
+     * @return the result of the operation
+     */
+    MutationStatus insertFromWarmup(Item& itm,
+                                    bool eject,
+                                    bool keyMetaDataOnly);
+
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
 

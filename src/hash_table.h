@@ -319,24 +319,6 @@ public:
             PreserveRevSeqno preserveRevSeqno);
 
     /**
-     * Insert an item to this hashtable. This is called from the backfill
-     * so we need a bit more logic here. If we're trying to insert a partial
-     * item we don't allow the object to be stored there (and if you try to
-     * insert a full item we're only allowing an item without the value
-     * in memory...)
-     *
-     * @param val the Item to insert
-     * @param policy item eviction policy
-     * @param eject true if we should eject the value immediately
-     * @param partial is this a complete item, or just the key and meta-data
-     * @return a result indicating the status of the store
-     */
-    MutationStatus insert(Item& itm,
-                          item_eviction_policy_t policy,
-                          bool eject,
-                          bool partial);
-
-    /**
      * Mark the given record logically deleted.
      *
      * @param key the key of the item to delete
