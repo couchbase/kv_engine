@@ -2066,7 +2066,22 @@ StoredValue* VBucket::addNewStoredValue(
         const std::unique_lock<std::mutex>& htLock,
         Item& itm,
         const PreserveRevSeqno preserveRevSeqno) {
-    return ht.unlocked_addNewStoredValue(htLock, itm, preserveRevSeqno);
+    StoredValue* v = ht.unlocked_addNewStoredValue(htLock, itm);
+
+    if (preserveRevSeqno == PreserveRevSeqno::No) {
+        /**
+         * Possibly, this item is being recreated. Conservatively assign it
+         * a seqno that is greater than the greatest seqno of all deleted
+         * items seen so far.
+         */
+        uint64_t seqno = ht.getMaxDeletedRevSeqno();
+        if (!v->isTempItem()) {
+            ++seqno;
+        }
+        v->setRevSeqno(seqno);
+        itm.setRevSeqno(seqno);
+    }
+    return v;
 }
 
 AddStatus VBucket::addTempStoredValue(

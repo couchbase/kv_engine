@@ -252,7 +252,7 @@ MutationStatus HashTable::set(Item& val,
     if (v) {
         return unlocked_updateStoredValue(lh, *v, val, preserveRevSeqno);
     } else {
-        unlocked_addNewStoredValue(lh, val, preserveRevSeqno);
+        unlocked_addNewStoredValue(lh, val);
         return MutationStatus::WasClean;
     }
 }
@@ -291,9 +291,7 @@ MutationStatus HashTable::unlocked_updateStoredValue(
 }
 
 StoredValue* HashTable::unlocked_addNewStoredValue(
-        const std::unique_lock<std::mutex>& htLock,
-        Item& itm,
-        const PreserveRevSeqno preserveRevSeqno) {
+        const std::unique_lock<std::mutex>& htLock, Item& itm) {
     if (!htLock) {
         throw std::invalid_argument(
                 "HashTable::unlocked_addNewStoredValue: htLock "
@@ -317,19 +315,6 @@ StoredValue* HashTable::unlocked_addNewStoredValue(
         ++numTotalItems;
     }
 
-    if (preserveRevSeqno == PreserveRevSeqno::No) {
-        /**
-         * Possibly, this item is being recreated. Conservatively assign it
-         * a seqno that is greater than the greatest seqno of all deleted
-         * items seen so far.
-         */
-        uint64_t seqno = getMaxDeletedRevSeqno();
-        if (!v->isTempItem()) {
-            ++seqno;
-        }
-        v->setRevSeqno(seqno);
-        itm.setRevSeqno(seqno);
-    }
     return v;
 }
 

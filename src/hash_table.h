@@ -307,16 +307,12 @@ public:
      *
      * @param htLock Hash table lock that must be held.
      * @param itm Item to be added. Its revSeqno maybe updated
-     * @param preserveRevSeqno should we keep the same revision seqno or
-     *        increment it
      *
      * @return Ptr of the StoredValue added. This function always succeeds and
      *         returns non-null ptr
      */
     StoredValue* unlocked_addNewStoredValue(
-            const std::unique_lock<std::mutex>& htLock,
-            Item& itm,
-            PreserveRevSeqno preserveRevSeqno);
+            const std::unique_lock<std::mutex>& htLock, Item& itm);
 
     /**
      * Mark the given record logically deleted.
