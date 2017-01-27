@@ -844,7 +844,7 @@ protected:
                                                LockHolder& vbset);
 
     /* Notify flusher of a new seqno being added in the vbucket */
-    void notifyFlusher(const uint16_t vbid);
+    virtual void notifyFlusher(const uint16_t vbid);
 
     /* Notify replication of a new seqno being added in the vbucket */
     void notifyReplication(const uint16_t vbid, const int64_t bySeqno);

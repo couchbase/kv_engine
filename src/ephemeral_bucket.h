@@ -64,4 +64,9 @@ public:
                                uint64_t lastSnapEnd,
                                uint64_t purgeSeqno,
                                uint64_t maxCas) override;
+
+    /// Do nothing - no flusher to notify
+    void notifyFlusher(const uint16_t vbid) override {
+    }
+
 };
