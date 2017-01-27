@@ -286,9 +286,6 @@ public:
     virtual bool resumeFlusher();
     virtual void wakeUpFlusher();
 
-    bool startBgFetcher(void);
-    void stopBgFetcher(void);
-
     /**
      * Takes a snapshot of the current stats and persists them to disk.
      */

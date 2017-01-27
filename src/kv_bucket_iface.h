@@ -402,9 +402,6 @@ public:
     /// Wake up the flusher for all shards, if the disk queue is non-empty.
     virtual void wakeUpFlusher() = 0;
 
-    virtual bool startBgFetcher(void) = 0;
-    virtual void stopBgFetcher(void) = 0;
-
     /**
      * Takes a snapshot of the current stats and persists them to disk.
      */

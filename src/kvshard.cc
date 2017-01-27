@@ -51,9 +51,8 @@ KVShard::KVShard(uint16_t id, KVBucket& kvBucket)
     if (kvBucket.getEPEngine().getConfiguration().getBucketType() ==
         "persistent") {
         flusher = std::make_unique<Flusher>(&kvBucket, this, commitInterval);
+        bgFetcher = std::make_unique<BgFetcher>(kvBucket, *this);
     }
-    // TEMP: This ultimately should only be created for EPBucket.
-    bgFetcher = std::make_unique<BgFetcher>(kvBucket, *this);
 }
 
 // Non-inline destructor so we can destruct

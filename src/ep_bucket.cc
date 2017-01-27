@@ -17,6 +17,7 @@
 
 #include "ep_bucket.h"
 
+#include "bgfetcher.h"
 #include "ep_engine.h"
 #include "flusher.h"
 
@@ -27,6 +28,11 @@ EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
 bool EPBucket::initialize() {
     KVBucket::initialize();
 
+    if (!startBgFetcher()) {
+        LOG(EXTENSION_LOG_FATAL,
+           "EPBucket::initialize: Failed to create and start bgFetchers");
+        return false;
+    }
     startFlusher();
 
     return true;
@@ -34,6 +40,7 @@ bool EPBucket::initialize() {
 
 void EPBucket::deinitialize() {
     stopFlusher();
+    stopBgFetcher();
 
     KVBucket::deinitialize();
 }
@@ -154,6 +161,34 @@ void EPBucket::wakeUpFlusher() {
             Flusher *flusher = vbMap.shards[i]->getFlusher();
             flusher->wake();
         }
+    }
+}
+
+bool EPBucket::startBgFetcher() {
+    for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
+        BgFetcher* bgfetcher = vbMap.shards[i]->getBgFetcher();
+        if (bgfetcher == NULL) {
+            LOG(EXTENSION_LOG_WARNING,
+                "Failed to start bg fetcher for shard %d",
+                i);
+            return false;
+        }
+        bgfetcher->start();
+    }
+    return true;
+}
+
+void EPBucket::stopBgFetcher() {
+    for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
+        BgFetcher* bgfetcher = vbMap.shards[i]->getBgFetcher();
+        if (multiBGFetchEnabled() && bgfetcher->pendingJob()) {
+            LOG(EXTENSION_LOG_WARNING,
+                "Shutting down engine while there are still pending data "
+                "read for shard %d from database storage",
+                i);
+        }
+        LOG(EXTENSION_LOG_NOTICE, "Stopping bg fetcher for shard:%" PRIu16, i);
+        bgfetcher->stop();
     }
 }
 

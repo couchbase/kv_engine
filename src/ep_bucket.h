@@ -54,6 +54,15 @@ public:
 
     void wakeUpFlusher() override;
 
+    /**
+     * Starts the background fetcher for each shard.
+     * @return true if successful.
+     */
+    bool startBgFetcher();
+
+    /// Stops the background fetcher for each shard.
+    void stopBgFetcher();
+
     ENGINE_ERROR_CODE getFileStats(const void* cookie,
                                    ADD_STAT add_stat) override;
 

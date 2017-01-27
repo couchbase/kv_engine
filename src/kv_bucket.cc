@@ -33,7 +33,6 @@
 #include <platform/make_unique.h>
 
 #include "access_scanner.h"
-#include "bgfetcher.h"
 #include "checkpoint_remover.h"
 #include "conflict_resolution.h"
 #include "dcp/dcpconnmap.h"
@@ -468,12 +467,6 @@ bool KVBucket::initialize() {
         reset();
     }
 
-    if (!startBgFetcher()) {
-        LOG(EXTENSION_LOG_WARNING,
-           "FATAL: Failed to create and start bgfetchers");
-        return false;
-    }
-
     if (warmupTask) {
         warmupTask->start();
     } else {
@@ -522,7 +515,6 @@ bool KVBucket::initialize() {
 
 void KVBucket::deinitialize() {
     stopWarmup();
-    stopBgFetcher();
     ExecutorPool::get()->stopTaskGroup(engine.getTaskable().getGID(),
                                        NONIO_TASK_IDX, stats.forceShutdown);
 
@@ -572,32 +564,6 @@ bool KVBucket::resumeFlusher() {
 
 void KVBucket::wakeUpFlusher() {
     // Nothing do to - no flusher in this class
-}
-
-bool KVBucket::startBgFetcher() {
-    for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
-        BgFetcher *bgfetcher = vbMap.shards[i]->getBgFetcher();
-        if (bgfetcher == NULL) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Failed to start bg fetcher for shard %d", i);
-            return false;
-        }
-        bgfetcher->start();
-    }
-    return true;
-}
-
-void KVBucket::stopBgFetcher() {
-    for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
-        BgFetcher *bgfetcher = vbMap.shards[i]->getBgFetcher();
-        if (multiBGFetchEnabled() && bgfetcher->pendingJob()) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Shutting down engine while there are still pending data "
-                "read for shard %d from database storage", i);
-        }
-        LOG(EXTENSION_LOG_NOTICE, "Stopping bg fetcher for shard:%" PRIu16, i);
-        bgfetcher->stop();
-    }
 }
 
 void KVBucket::deleteExpiredItem(uint16_t vbid,
