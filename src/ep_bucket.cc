@@ -27,11 +27,8 @@ EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
 bool EPBucket::initialize() {
     KVBucket::initialize();
 
-    if (!startFlusher()) {
-        LOG(EXTENSION_LOG_WARNING,
-            "FATAL: Failed to create and start flushers");
-        return false;
-    }
+    startFlusher();
+
     return true;
 }
 
@@ -97,6 +94,67 @@ void EPBucket::reset() {
     flushAllTaskCtx.delayFlushAll.compare_exchange_strong(inverse, false);
     // Waking up (notifying) one flusher is good enough for diskFlushAll
     vbMap.getShard(EP_PRIMARY_SHARD)->getFlusher()->notifyFlushEvent();
+}
+
+void EPBucket::startFlusher() {
+    for (const auto& shard : vbMap.shards) {
+        shard->getFlusher()->start();
+    }
+}
+
+void EPBucket::stopFlusher() {
+    for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
+        Flusher* flusher = vbMap.shards[i]->getFlusher();
+        LOG(EXTENSION_LOG_NOTICE,
+            "Attempting to stop the flusher for "
+            "shard:%" PRIu16,
+            i);
+        bool rv = flusher->stop(stats.forceShutdown);
+        if (rv && !stats.forceShutdown) {
+            flusher->wait();
+        }
+    }
+}
+
+bool EPBucket::pauseFlusher() {
+    bool rv = true;
+    for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
+        Flusher* flusher = vbMap.shards[i]->getFlusher();
+        if (!flusher->pause()) {
+            LOG(EXTENSION_LOG_WARNING,
+                "Attempted to pause flusher in state "
+                "[%s], shard = %d",
+                flusher->stateName(),
+                i);
+            rv = false;
+        }
+    }
+    return rv;
+}
+
+bool EPBucket::resumeFlusher() {
+    bool rv = true;
+    for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
+        Flusher* flusher = vbMap.shards[i]->getFlusher();
+        if (!flusher->resume()) {
+            LOG(EXTENSION_LOG_WARNING,
+                "Attempted to resume flusher in state [%s], "
+                "shard = %d",
+                flusher->stateName(),
+                i);
+            rv = false;
+        }
+    }
+    return rv;
+}
+
+void EPBucket::wakeUpFlusher() {
+    if (stats.diskQueueSize.load() == 0) {
+        for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
+            Flusher *flusher = vbMap.shards[i]->getFlusher();
+            flusher->wake();
+        }
+    }
 }
 
 ENGINE_ERROR_CODE EPBucket::getFileStats(const void* cookie,

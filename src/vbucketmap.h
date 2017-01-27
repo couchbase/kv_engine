@@ -30,6 +30,9 @@
  * A map of known vbuckets.
  */
 class VBucketMap {
+
+// TODO: Remove this once there's a cleaner API to iterator KVShards.
+friend class EPBucket;
 friend class KVBucket;
 friend class Warmup;
 

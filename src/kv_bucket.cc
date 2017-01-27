@@ -560,59 +560,18 @@ Warmup* KVBucket::getWarmup(void) const {
     return warmupTask.get();
 }
 
-bool KVBucket::startFlusher() {
-    for (const auto& shard : vbMap.shards) {
-        shard->getFlusher()->start();
-    }
-    return true;
-}
-
-void KVBucket::stopFlusher() {
-    for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
-        Flusher *flusher = vbMap.shards[i]->getFlusher();
-        LOG(EXTENSION_LOG_NOTICE, "Attempting to stop the flusher for "
-            "shard:%" PRIu16, i);
-        bool rv = flusher->stop(stats.forceShutdown);
-        if (rv && !stats.forceShutdown) {
-            flusher->wait();
-        }
-    }
-}
-
 bool KVBucket::pauseFlusher() {
-    bool rv = true;
-    for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
-        Flusher *flusher = vbMap.shards[i]->getFlusher();
-        if (!flusher->pause()) {
-            LOG(EXTENSION_LOG_WARNING, "Attempted to pause flusher in state "
-                "[%s], shard = %d", flusher->stateName(), i);
-            rv = false;
-        }
-    }
-    return rv;
+    // Nothing do to - no flusher in this class
+    return false;
 }
 
 bool KVBucket::resumeFlusher() {
-    bool rv = true;
-    for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
-        Flusher *flusher = vbMap.shards[i]->getFlusher();
-        if (!flusher->resume()) {
-            LOG(EXTENSION_LOG_WARNING,
-                    "Attempted to resume flusher in state [%s], "
-                    "shard = %d", flusher->stateName(), i);
-            rv = false;
-        }
-    }
-    return rv;
+    // Nothing do to - no flusher in this class
+    return false;
 }
 
 void KVBucket::wakeUpFlusher() {
-    if (stats.diskQueueSize.load() == 0) {
-        for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
-            Flusher *flusher = vbMap.shards[i]->getFlusher();
-            flusher->wake();
-        }
-    }
+    // Nothing do to - no flusher in this class
 }
 
 bool KVBucket::startBgFetcher() {

@@ -282,13 +282,9 @@ public:
 
     double getBGFetchDelay(void) { return (double)bgFetchDelay; }
 
-    void stopFlusher(void);
-
-    bool startFlusher(void);
-
-    bool pauseFlusher(void);
-    bool resumeFlusher(void);
-    void wakeUpFlusher(void);
+    virtual bool pauseFlusher();
+    virtual bool resumeFlusher();
+    virtual void wakeUpFlusher();
 
     bool startBgFetcher(void);
     void stopBgFetcher(void);

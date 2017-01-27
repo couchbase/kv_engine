@@ -387,13 +387,20 @@ public:
 
     virtual double getBGFetchDelay(void) = 0;
 
-    virtual void stopFlusher(void) = 0;
+    /**
+     * Pause the bucket's Flusher.
+     * @return true if successful.
+     */
+    virtual bool pauseFlusher() = 0;
 
-    virtual bool startFlusher(void) = 0;
+    /**
+     * Resume the Flusher for all shards.
+     * @return true if successful.
+     */
+    virtual bool resumeFlusher() = 0;
 
-    virtual bool pauseFlusher(void) = 0;
-    virtual bool resumeFlusher(void) = 0;
-    virtual void wakeUpFlusher(void) = 0;
+    /// Wake up the flusher for all shards, if the disk queue is non-empty.
+    virtual void wakeUpFlusher() = 0;
 
     virtual bool startBgFetcher(void) = 0;
     virtual void stopBgFetcher(void) = 0;

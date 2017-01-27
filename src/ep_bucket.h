@@ -43,6 +43,17 @@ public:
 
     void reset() override;
 
+    /// Start the Flusher for all shards in this bucket.
+    void startFlusher();
+
+    /// Stop the Flusher for all shards in this bucket.
+    void stopFlusher();
+
+    bool pauseFlusher() override;
+    bool resumeFlusher() override;
+
+    void wakeUpFlusher() override;
+
     ENGINE_ERROR_CODE getFileStats(const void* cookie,
                                    ADD_STAT add_stat) override;
 
