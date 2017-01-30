@@ -175,7 +175,6 @@ void MemcachedConnection::reconnect() {
 
 void MemcachedConnection::close() {
     if (ssl) {
-        // the socket is closed by the underlying BIO stuctures
         if (bio != nullptr) {
             BIO_free_all(bio);
             bio = nullptr;
@@ -184,11 +183,11 @@ void MemcachedConnection::close() {
             SSL_CTX_free(context);
             context = nullptr;
         }
-    } else {
-        if (sock != INVALID_SOCKET) {
-            ::closesocket(sock);
-            sock = INVALID_SOCKET;
-        }
+    }
+
+    if (sock != INVALID_SOCKET) {
+        ::closesocket(sock);
+        sock = INVALID_SOCKET;
     }
 }
 
