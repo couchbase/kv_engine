@@ -308,7 +308,7 @@ TEST_F(StreamTest, test_mb18625) {
 
     // Retrieve the next message in the stream's readyQ
     DcpResponse *op = mock_stream->public_nextQueuedItem();
-    EXPECT_EQ(DCP_STREAM_END, op->getEvent())
+    EXPECT_EQ(DcpEvent::StreamEnd, op->getEvent())
         << "Expected the STREAM_END message";
     delete op;
 

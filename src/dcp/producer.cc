@@ -415,8 +415,8 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         }
     }
 
-    Item* itmCpy = NULL;
-    if (resp->getEvent() == DCP_MUTATION) {
+    Item* itmCpy = nullptr;
+    if (resp->getEvent() == DcpEvent::Mutation) {
         try {
             itmCpy = static_cast<MutationResponse*>(resp)->getItemCopy();
         } catch (const std::bad_alloc&) {
@@ -462,14 +462,14 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL,
                                                                      true);
     switch (resp->getEvent()) {
-        case DCP_STREAM_END:
+        case DcpEvent::StreamEnd:
         {
             StreamEndResponse *se = static_cast<StreamEndResponse*>(resp);
             ret = producers->stream_end(getCookie(), se->getOpaque(),
                                         se->getVbucket(), se->getFlags());
             break;
         }
-        case DCP_MUTATION:
+        case DcpEvent::Mutation:
         {
             MutationResponse *m = dynamic_cast<MutationResponse*> (resp);
             std::pair<const char*, uint16_t> meta{nullptr, 0};
@@ -483,7 +483,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                                       m->getItem()->getNRUValue());
             break;
         }
-        case DCP_DELETION:
+        case DcpEvent::Deletion:
         {
             MutationResponse *m = static_cast<MutationResponse*>(resp);
             std::pair<const char*, uint16_t> meta{nullptr, 0};
@@ -499,7 +499,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                                           meta.first, meta.second);
             break;
         }
-        case DCP_SNAPSHOT_MARKER:
+        case DcpEvent::SnapshotMarker:
         {
             SnapshotMarker *s = static_cast<SnapshotMarker*>(resp);
             ret = producers->marker(getCookie(), s->getOpaque(),
@@ -509,7 +509,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                                     s->getFlags());
             break;
         }
-        case DCP_SET_VBUCKET:
+        case DcpEvent::SetVbucket:
         {
             SetVBucketState *s = static_cast<SetVBucketState*>(resp);
             ret = producers->set_vbucket_state(getCookie(), s->getOpaque(),
@@ -518,15 +518,17 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         }
         default:
         {
-            LOG(EXTENSION_LOG_WARNING, "%s Unexpected dcp event (%d), "
-                "disconnecting", logHeader(), resp->getEvent());
+            LOG(EXTENSION_LOG_WARNING, "%s Unexpected dcp event (%s), "
+                "disconnecting", logHeader(),
+                to_string(resp->getEvent()).c_str());
             ret = ENGINE_DISCONNECT;
             break;
         }
     }
 
     ObjectRegistry::onSwitchThread(epe);
-    if (resp->getEvent() == DCP_MUTATION && ret != ENGINE_SUCCESS) {
+    if (ret != ENGINE_SUCCESS) {
+        // An error occurred, delete the temporary copy
         delete itmCpy;
     }
 
@@ -909,25 +911,25 @@ DcpResponse* DcpProducer::getNextItem() {
             }
 
             switch (op->getEvent()) {
-                case DCP_SNAPSHOT_MARKER:
-                case DCP_MUTATION:
-                case DCP_DELETION:
-                case DCP_EXPIRATION:
-                case DCP_STREAM_END:
-                case DCP_SET_VBUCKET:
+                case DcpEvent::SnapshotMarker:
+                case DcpEvent::Mutation:
+                case DcpEvent::Deletion:
+                case DcpEvent::Expiration:
+                case DcpEvent::StreamEnd:
+                case DcpEvent::SetVbucket:
                     break;
                 default:
                     throw std::logic_error(
                             std::string("DcpProducer::getNextItem: "
                             "Producer (") + logHeader() + ") is attempting to "
                             "write an unexpected event:" +
-                            std::to_string(op->getEvent()));
+                            to_string(op->getEvent()));
             }
 
             ready.pushUnique(vbucket);
 
-            if (op->getEvent() == DCP_MUTATION || op->getEvent() == DCP_DELETION ||
-                op->getEvent() == DCP_EXPIRATION) {
+            if (op->getEvent() == DcpEvent::Mutation || op->getEvent() == DcpEvent::Deletion ||
+                op->getEvent() == DcpEvent::Expiration) {
                 itemsSent++;
             }
 

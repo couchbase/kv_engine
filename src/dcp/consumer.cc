@@ -571,7 +571,7 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
 
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
     switch (resp->getEvent()) {
-        case DCP_ADD_STREAM:
+        case DcpEvent::AddStream:
         {
             AddStreamResponse *as = static_cast<AddStreamResponse*>(resp);
             ret = producers->add_stream_rsp(getCookie(), as->getOpaque(),
@@ -579,7 +579,7 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
                                             as->getStatus());
             break;
         }
-        case DCP_STREAM_REQ:
+        case DcpEvent::StreamReq:
         {
             StreamRequest *sr = static_cast<StreamRequest*> (resp);
             ret = producers->stream_req(getCookie(), sr->getOpaque(),
@@ -590,7 +590,7 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
                                         sr->getSnapEndSeqno());
             break;
         }
-        case DCP_SET_VBUCKET:
+        case DcpEvent::SetVbucket:
         {
             SetVBucketStateResponse* vs;
             vs = static_cast<SetVBucketStateResponse*>(resp);
@@ -598,7 +598,7 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
                                                    vs->getStatus());
             break;
         }
-        case DCP_SNAPSHOT_MARKER:
+        case DcpEvent::SnapshotMarker:
         {
             SnapshotMarkerResponse* mr;
             mr = static_cast<SnapshotMarkerResponse*>(resp);
@@ -608,7 +608,7 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
         }
         default:
             LOG(EXTENSION_LOG_WARNING, "%s Unknown consumer event (%d), "
-                "disconnecting", logHeader(), resp->getEvent());
+                "disconnecting", logHeader(), int(resp->getEvent()));
             ret = ENGINE_DISCONNECT;
     }
     ObjectRegistry::onSwitchThread(epe);
@@ -875,16 +875,16 @@ DcpResponse* DcpConsumer::getNextItem() {
             continue;
         }
         switch (op->getEvent()) {
-            case DCP_STREAM_REQ:
-            case DCP_ADD_STREAM:
-            case DCP_SET_VBUCKET:
-            case DCP_SNAPSHOT_MARKER:
+            case DcpEvent::StreamReq:
+            case DcpEvent::AddStream:
+            case DcpEvent::SetVbucket:
+            case DcpEvent::SnapshotMarker:
                 break;
             default:
                 throw std::logic_error(
                         std::string("DcpConsumer::getNextItem: ") + logHeader() +
                         " is attempting to write an unexpected event: " +
-                        std::to_string(op->getEvent()));
+                        to_string(op->getEvent()));
         }
 
         ready.push_back(vbucket);
