@@ -74,7 +74,7 @@ static const int64_t INITIAL_DRIFT = -140737488355328; //lowest possible 48-bit 
 struct vb_bgfetch_item_ctx_t {
     // These need to be here due to MSVC2013 which otherwise would generate
     // an incorrect move constructor.
-    vb_bgfetch_item_ctx_t() {
+    vb_bgfetch_item_ctx_t() : bgfetched_list(), isMetaOnly() {
     }
     vb_bgfetch_item_ctx_t(vb_bgfetch_item_ctx_t&& other)
         : bgfetched_list(std::move(other.bgfetched_list)),
