@@ -360,6 +360,15 @@ public:
                                             uint32_t value = 0,
                                             const std::string& key = "") = 0;
 
+    /**
+     * Disable the ewouldblock engine entirely.
+     */
+    void disableEwouldBlockEngine() {
+        // We disable the engine by telling it to inject the given error
+        // the next 0 times
+        configureEwouldBlockEngine(EWBEngineMode::Next_N, ENGINE_SUCCESS, 0);
+    }
+
 
     /**
      * Identify ourself to the server and fetch the available SASL mechanisms

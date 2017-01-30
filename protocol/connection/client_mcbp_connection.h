@@ -216,9 +216,9 @@ public:
                         uint64_t cas) override;
 
     void configureEwouldBlockEngine(const EWBEngineMode& mode,
-                                    ENGINE_ERROR_CODE err_code,
-                                    uint32_t value,
-                                    const std::string& key) override;
+                                    ENGINE_ERROR_CODE err_code = ENGINE_EWOULDBLOCK,
+                                    uint32_t value = 0,
+                                    const std::string& key = "") override;
 
     bool hasFeature(mcbp::Feature feature) const {
         return effective_features.find(uint16_t(feature))
