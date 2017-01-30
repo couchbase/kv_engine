@@ -451,6 +451,9 @@ public:
 
                 case EWBEngineMode::Resume:
                     return ewb->handleResume(cookie, value, response);
+
+                case EWBEngineMode::SetItemCas:
+                    return ewb->setItemCas(cookie, key, value, response);
             }
 
             if (new_mode == nullptr) {
@@ -616,6 +619,17 @@ protected:
     ENGINE_ERROR_CODE handleResume(const void* cookie,
                                    uint32_t id,
                                    ADD_RESPONSE response);
+
+    /**
+     * @param cookie the cookie executing the operation
+     * @param key ID of the item whose CAS should be changed
+     * @param cas The new CAS
+     * @param response Response callback used to send a response to the client
+     * @return Standard engine error codes
+     */
+    ENGINE_ERROR_CODE setItemCas(const void *cookie,
+                                 const std::string& key, uint32_t cas,
+                                 ADD_RESPONSE response);
 
 private:
     // Shared state between the main thread of execution and the background
@@ -1164,6 +1178,32 @@ ENGINE_ERROR_CODE EWB_Engine::handleResume(const void* cookie, uint32_t id,
                     id);
         return ENGINE_EINVAL;
     }
+}
+
+ENGINE_ERROR_CODE EWB_Engine::setItemCas(const void *cookie,
+                                         const std::string& key,
+                                         uint32_t cas,
+                                         ADD_RESPONSE response) {
+    uint64_t cas64 = cas;
+    if (cas == static_cast<uint32_t>(-1)) {
+        cas64 = -1ull;
+    }
+
+    item* item = nullptr;
+    ENGINE_ERROR_CODE rv = real_engine->get(real_handle, cookie, &item,
+                                            key.c_str(), key.size(),
+                                            0);
+    if (rv != ENGINE_SUCCESS) {
+        return rv;
+    }
+
+    // item_set_cas has no return value!
+    real_engine->item_set_cas(real_handle, cookie, item, cas64);
+
+    response(nullptr, 0, nullptr, 0, nullptr, 0,
+             PROTOCOL_BINARY_RAW_BYTES,
+             PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+    return ENGINE_SUCCESS;
 }
 
 void BlockMonitorThread::run() {

@@ -107,6 +107,10 @@ enum class EWBEngineMode : uint32_t {
     // while a bucket is deleted. Given that we're not instructing the
     // ewouldblock engine on a special channel there is no way to send
     // commmands to the engine whlie it is being deleted ;-)
-    BlockMonitorFile = 9
+    BlockMonitorFile = 9,
 
+    // Set the CAS for an item.
+    // Requires the CAS of the item. Bear in mind that we're limited to
+    // 32 bits.
+    SetItemCas = 10
 };
