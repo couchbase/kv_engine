@@ -416,24 +416,17 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
     }
 
     Item* itmCpy = nullptr;
-    if (resp->getEvent() == DcpEvent::Mutation) {
+    auto* mutationResponse = dynamic_cast<MutationResponse*>(resp);
+    if (mutationResponse != nullptr) {
         try {
-            itmCpy = static_cast<MutationResponse*>(resp)->getItemCopy();
+            itmCpy = mutationResponse->getItemCopy();
         } catch (const std::bad_alloc&) {
             rejectResp = resp;
             LOG(EXTENSION_LOG_WARNING, "%s (vb %d) ENOMEM while trying to copy "
                 "item with seqno %" PRIu64 "before streaming it", logHeader(),
-                static_cast<MutationResponse*>(resp)->getVBucket(),
-                static_cast<MutationResponse*>(resp)->getBySeqno());
+                mutationResponse->getVBucket(),
+                mutationResponse->getBySeqno());
             return ENGINE_ENOMEM;
-        } catch (const std::logic_error&) {
-            rejectResp = resp;
-            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) illegal mutation payload "
-                "type while copying an item with seqno %" PRIu64 "before "
-                "streaming it", logHeader(),
-                static_cast<MutationResponse*>(resp)->getVBucket(),
-                static_cast<MutationResponse*>(resp)->getBySeqno());
-            return ENGINE_ENOTSUP;
         }
 
         if (enableValueCompression) {
@@ -456,7 +449,6 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                 log.acknowledge(sizeBefore - sizeAfter);
             }
         }
-
     }
 
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL,
@@ -471,32 +463,42 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         }
         case DcpEvent::Mutation:
         {
-            MutationResponse *m = dynamic_cast<MutationResponse*> (resp);
-            std::pair<const char*, uint16_t> meta{nullptr, 0};
-            if (m->getExtMetaData()) {
-                meta = m->getExtMetaData()->getExtMeta();
+            if (itmCpy == nullptr) {
+                throw std::logic_error(
+                    "DcpProducer::step(Mutation): itmCpy must be != nullptr");
             }
-            ret = producers->mutation(getCookie(), m->getOpaque(), itmCpy,
-                                      m->getVBucket(), m->getBySeqno(),
-                                      m->getRevSeqno(), 0,
+            std::pair<const char*, uint16_t> meta{nullptr, 0};
+            if (mutationResponse->getExtMetaData()) {
+                meta = mutationResponse->getExtMetaData()->getExtMeta();
+            }
+            ret = producers->mutation(getCookie(),
+                                      mutationResponse->getOpaque(),
+                                      itmCpy,
+                                      mutationResponse->getVBucket(),
+                                      mutationResponse->getBySeqno(),
+                                      mutationResponse->getRevSeqno(),
+                                      0 /* lock time */,
                                       meta.first, meta.second,
-                                      m->getItem()->getNRUValue());
+                                      mutationResponse->getItem()->getNRUValue());
             break;
         }
         case DcpEvent::Deletion:
         {
-            MutationResponse *m = static_cast<MutationResponse*>(resp);
-            std::pair<const char*, uint16_t> meta{nullptr, 0};
-            if (m->getExtMetaData()) {
-                meta = m->getExtMetaData()->getExtMeta();
+            if (itmCpy == nullptr) {
+                throw std::logic_error(
+                    "DcpProducer::step(Deletion): itmCpy must be != nullptr");
             }
-                ret = producers->deletion(getCookie(), m->getOpaque(),
-                                          m->getItem()->getKey().data(),
-                                          m->getItem()->getKey().size(),
-                                          m->getItem()->getCas(),
-                                          m->getVBucket(), m->getBySeqno(),
-                                          m->getRevSeqno(),
-                                          meta.first, meta.second);
+            std::pair<const char*, uint16_t> meta{nullptr, 0};
+            if (mutationResponse->getExtMetaData()) {
+                meta = mutationResponse->getExtMetaData()->getExtMeta();
+            }
+            ret = producers->deletion(getCookie(),
+                                      mutationResponse->getOpaque(),
+                                      itmCpy,
+                                      mutationResponse->getVBucket(),
+                                      mutationResponse->getBySeqno(),
+                                      mutationResponse->getRevSeqno(),
+                                      meta.first, meta.second);
             break;
         }
         case DcpEvent::SnapshotMarker:
@@ -527,10 +529,6 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
     }
 
     ObjectRegistry::onSwitchThread(epe);
-    if (ret != ENGINE_SUCCESS) {
-        // An error occurred, delete the temporary copy
-        delete itmCpy;
-    }
 
     if (ret == ENGINE_E2BIG) {
         rejectResp = resp;

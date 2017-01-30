@@ -338,13 +338,24 @@ TEST_F(SingleThreadedEPStoreTest, MB18452_yield_dcp_processor) {
 
     // 2. Now add the rest as mutations.
     for (int ii = 0; ii <= messages; ii++) {
-        std::string key = "key" + std::to_string(ii);
+        const std::string key = "key" + std::to_string(ii);
+        const DocKey docKey{key, DocNamespace::DefaultCollection};
         std::string value = "value";
-        consumer->mutation(/*opaque*/1, key.c_str(), key.length(),
-                           value.c_str(), value.length(), /*cas*/0,
-                           vbid, /*flags*/0, /*datatype*/0, /*locktime*/0,
-                           /*bySeqno*/ii, /*revSeqno*/0, /*exptime*/0,
-                           /*nru*/0, /*meta*/nullptr, /*nmeta*/0);
+
+        consumer->mutation(1/*opaque*/,
+                           docKey,
+                           {(const uint8_t*)value.c_str(), value.length()},
+                           0, // privileged bytes
+                           PROTOCOL_BINARY_RAW_BYTES, // datatype
+                           0, // cas
+                           vbid, // vbucket
+                           0, // flags
+                           ii, // bySeqno
+                           0, // revSeqno
+                           0, // exptime
+                           0, // locktime
+                           {}, // meta
+                           0); // nru
     }
 
     // Set the throttle back to the original value
