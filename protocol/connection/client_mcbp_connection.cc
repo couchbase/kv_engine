@@ -671,3 +671,8 @@ unique_cJSON_ptr MemcachedBinprotConnection::timings(uint8_t opcode,
                                                      const std::string& bucket) {
     return unique_cJSON_ptr();
 }
+
+void MemcachedBinprotConnection::close() {
+    MemcachedConnection::close();
+    effective_features.clear();
+}

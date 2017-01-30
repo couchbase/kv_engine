@@ -249,5 +249,10 @@ protected:
      */
     void setFeature(mcbp::Feature feature, bool enabled);
 
+    /**
+     * Erases the per-connection features from Hello
+     */
+    void close() override;
+
     Featureset effective_features;
 };

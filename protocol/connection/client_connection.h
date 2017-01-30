@@ -471,7 +471,7 @@ protected:
                         sa_family_t family, bool ssl,
                         const Protocol& protocol);
 
-    void close();
+    virtual void close();
 
     void connect();
 
