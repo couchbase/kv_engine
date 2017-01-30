@@ -144,7 +144,8 @@ protected:
     /* Configure the ewouldblock error-injecting engine */
     static void ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
                                              const EWBEngineMode& mode,
-                                             uint32_t value);
+                                             uint32_t value,
+                                             const std::string& key = "");
 
     /* Disable the ewouldblock_engine. */
     static void ewouldblock_engine_disable();

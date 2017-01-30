@@ -1067,7 +1067,8 @@ bool safe_recv_packet(void *buf, size_t size) {
 // is a mode-specific parameter.
 void TestappTest::ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
                                                const EWBEngineMode& mode,
-                                               uint32_t value) {
+                                               uint32_t value,
+                                               const std::string& key) {
     union {
         request_ewouldblock_ctl request;
         protocol_binary_response_no_extras response;
@@ -1076,7 +1077,7 @@ void TestappTest::ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
 
     size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                                   PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL,
-                                  NULL, 0, NULL, 0);
+                                  key.c_str(), key.size(), NULL, 0);
     buffer.request.message.body.mode = htonl(static_cast<uint32_t>(mode));
     buffer.request.message.body.value = htonl(value);
     buffer.request.message.body.inject_error = htonl(err_code);
