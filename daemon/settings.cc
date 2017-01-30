@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#define NOMINMAX // For Win32
-
 #include "config.h"
 
 #include <algorithm>
