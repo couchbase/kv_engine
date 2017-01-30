@@ -1475,8 +1475,8 @@ using protocol_binary_hello_features_t = mcbp::Feature;
 #define DCP_ADD_STREAM_FLAG_DISKONLY 2
 #define DCP_ADD_STREAM_FLAG_LATEST   4
                 /**
-                 * Indicate the server to stream only item key and metadata in
-                 * the mutations. Value of the item is not streamed.
+                 * This flag is not used anymore, and should NOT be
+                 * set. It is replaced by DCP_OPEN_NO_VALUE.
                  */
 #define DCP_ADD_STREAM_FLAG_NO_VALUE 8
                 /**
