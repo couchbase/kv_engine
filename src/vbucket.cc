@@ -840,15 +840,25 @@ ENGINE_ERROR_CODE VBucket::completeBGFetchForSingleItem(
         StoredValue* v = fetchValidValue(blh, key, bucket, eviction, true);
 
         if (fetched_item.metaDataOnly) {
-            if ((v && v->unlocked_restoreMeta(fetchedValue, status, ht)) ||
-                ENGINE_KEY_ENOENT == status) {
+            if (status == ENGINE_SUCCESS) {
+                if (v && v->isTempInitialItem()) {
+                    ht.unlocked_restoreMeta(blh, *fetchedValue, *v);
+                }
+            } else if (status == ENGINE_KEY_ENOENT) {
+                if (v && v->isTempInitialItem()) {
+                    v->setNonExistent();
+                }
                 /* If ENGINE_KEY_ENOENT is the status from storage and the temp
-                 key is removed from hash table by the time bgfetch returns
-                 (in case multiple bgfetch is scheduled for a key), we still
-                 need to return ENGINE_SUCCESS to the memcached worker thread,
-                 so that the worker thread can visit the ep-engine and figure
-                 out the correct flow */
+                   key is removed from hash table by the time bgfetch returns
+                   (in case multiple bgfetch is scheduled for a key), we still
+                   need to return ENGINE_SUCCESS to the memcached worker thread,
+                   so that the worker thread can visit the ep-engine and figure
+                   out the correct flow */
                 status = ENGINE_SUCCESS;
+            } else {
+                if (v && !v->isTempInitialItem()) {
+                    status = ENGINE_SUCCESS;
+                }
             }
         } else {
             bool restore = false;

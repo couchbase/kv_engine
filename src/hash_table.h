@@ -539,6 +539,19 @@ public:
                                const Item& itm,
                                StoredValue& v);
 
+    /**
+     * Restore the metadata of of a temporary item upon completion of a
+     * background fetch.
+     * Assumes that HT bucket lock is grabbed.
+     *
+     * @param htLock Hash table lock that must be held
+     * @param itm the Item whose metadata is being restored
+     * @param v corresponding StoredValue
+     */
+    void unlocked_restoreMeta(const std::unique_lock<std::mutex>& htLock,
+                              const Item& itm,
+                              StoredValue& v);
+
     std::atomic<uint64_t>     maxDeletedRevSeqno;
     std::atomic<size_t>       numTotalItems;
     std::atomic<size_t>       numNonResidentItems;

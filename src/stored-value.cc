@@ -74,40 +74,21 @@ void StoredValue::restoreValue(const Item& itm) {
     value = itm.getValue();
 }
 
-bool StoredValue::unlocked_restoreMeta(Item *itm, ENGINE_ERROR_CODE status,
-                                       HashTable &ht) {
-    if (!isTempInitialItem()) {
-        return true;
+void StoredValue::restoreMeta(const Item& itm) {
+    cas = itm.getCas();
+    flags = itm.getFlags();
+    exptime = itm.getExptime();
+    revSeqno = itm.getRevSeqno();
+    if (itm.isDeleted()) {
+        setDeleted();
+    } else { /* Regular item with the full eviction */
+        bySeqno = itm.getBySeqno();
+        /* set it back to false as we created a temp item by setting it to true
+           when bg fetch is scheduled (full eviction mode). */
+        newCacheItem = false;
     }
-
-    switch(status) {
-    case ENGINE_SUCCESS:
-        cas = itm->getCas();
-        flags = itm->getFlags();
-        exptime = itm->getExptime();
-        revSeqno = itm->getRevSeqno();
-        if (itm->isDeleted()) {
-            setDeleted();
-        } else { // Regular item with the full eviction
-            --ht.numTempItems;
-            ++ht.numItems;
-            ++ht.numNonResidentItems;
-            bySeqno = itm->getBySeqno();
-            newCacheItem = false; // set it back to false as we created a temp
-                                  // item by setting it to true when bg fetch is
-                                  // scheduled (full eviction mode).
-        }
-        if (nru == MAX_NRU_VALUE) {
-            nru = INITIAL_NRU_VALUE;
-        }
-        return true;
-    case ENGINE_KEY_ENOENT:
-        setNonExistent();
-        return true;
-    default:
-        LOG(EXTENSION_LOG_WARNING,
-            "The underlying storage returned error %d for get_meta\n", status);
-        return false;
+    if (nru == MAX_NRU_VALUE) {
+        nru = INITIAL_NRU_VALUE;
     }
 }
 

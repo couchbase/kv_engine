@@ -765,3 +765,26 @@ bool HashTable::unlocked_restoreValue(
     StoredValue::increaseCacheSize(*this, v.getValue()->length());
     return true;
 }
+
+void HashTable::unlocked_restoreMeta(const std::unique_lock<std::mutex>& htLock,
+                                     const Item& itm,
+                                     StoredValue& v) {
+    if (!htLock) {
+        throw std::invalid_argument(
+                "HashTable::unlocked_restoreMeta: htLock "
+                "not held");
+    }
+
+    if (!isActive()) {
+        throw std::logic_error(
+                "HashTable::unlocked_restoreMeta: Cannot "
+                "call on a non-active HT object");
+    }
+
+    v.restoreMeta(itm);
+    if (!itm.isDeleted()) {
+        --numTempItems;
+        ++numItems;
+        ++numNonResidentItems;
+    }
+}
