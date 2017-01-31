@@ -242,28 +242,15 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
                                                          bool mutation_seqno_enabled) {
     AssertHelper result;
 
-    //TODO(mnunberg) - replace with TESTAPP_EXPECT*. This undef/redefine is done
-    //to make the diff smaller.
-
-#undef EXPECT_EQ
-#define EXPECT_EQ(a, b) result.eq(#a, #b, a, b)
-
-#undef EXPECT_NE
-#define EXPECT_NE(a, b) result.ne(#a, #b, a, b)
-
-#undef EXPECT_GT
-#define EXPECT_GT(a, b) result.gt(#a, #b, a, b)
-
-#undef EXPECT_GE
-#define EXPECT_GE(a, b) result.ge(#a, #b, a, b)
-
-    EXPECT_EQ(PROTOCOL_BINARY_RES, header->response.magic);
-    EXPECT_EQ(static_cast<protocol_binary_command>(cmd),
-              header->response.opcode);
-    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, header->response.datatype);
-    EXPECT_EQ(static_cast<protocol_binary_response_status>(status),
-              header->response.status);
-    EXPECT_EQ(0xdeadbeef, header->response.opaque);
+    TESTAPP_EXPECT_EQ(result, PROTOCOL_BINARY_RES, header->response.magic);
+    TESTAPP_EXPECT_EQ(result, static_cast<protocol_binary_command>(cmd),
+                      header->response.opcode);
+    TESTAPP_EXPECT_EQ(result, PROTOCOL_BINARY_RAW_BYTES,
+                      header->response.datatype);
+    TESTAPP_EXPECT_EQ(result,
+                      static_cast<protocol_binary_response_status>(status),
+                      header->response.status);
+    TESTAPP_EXPECT_EQ(result, 0xdeadbeef, header->response.opaque);
 
     //TODO: Shouldn't this be header->response.status?
     if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
@@ -290,91 +277,91 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
         case PROTOCOL_BINARY_CMD_SET:
         case PROTOCOL_BINARY_CMD_APPEND:
         case PROTOCOL_BINARY_CMD_PREPEND:
-            EXPECT_EQ(0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
             /* extlen/bodylen are permitted to be either zero, or 16 if
              * MUTATION_SEQNO is enabled.
              */
             if (mutation_seqno_enabled) {
-                EXPECT_EQ(16u, header->response.extlen);
-                EXPECT_EQ(16u, header->response.bodylen);
+                TESTAPP_EXPECT_EQ(result, 16u, header->response.extlen);
+                TESTAPP_EXPECT_EQ(result, 16u, header->response.bodylen);
             } else {
-                EXPECT_EQ(0u, header->response.extlen);
-                EXPECT_EQ(0u, header->response.bodylen);
+                TESTAPP_EXPECT_EQ(result, 0u, header->response.extlen);
+                TESTAPP_EXPECT_EQ(result, 0u, header->response.bodylen);
             }
-            EXPECT_NE(header->response.cas, 0u);
+            TESTAPP_EXPECT_NE(result, header->response.cas, 0u);
             break;
         case PROTOCOL_BINARY_CMD_FLUSH:
         case PROTOCOL_BINARY_CMD_NOOP:
         case PROTOCOL_BINARY_CMD_QUIT:
-            EXPECT_EQ(0, header->response.keylen);
-            EXPECT_EQ(0, header->response.extlen);
-            EXPECT_EQ(0u, header->response.bodylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.extlen);
+            TESTAPP_EXPECT_EQ(result, 0u, header->response.bodylen);
             break;
         case PROTOCOL_BINARY_CMD_DELETE:
-            EXPECT_EQ(0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
             /* extlen/bodylen are permitted to be either zero, or 16 if
              * MUTATION_SEQNO is enabled.
              */
             if (mutation_seqno_enabled) {
-                EXPECT_EQ(16u, header->response.extlen);
-                EXPECT_EQ(16u, header->response.bodylen);
+                TESTAPP_EXPECT_EQ(result, 16u, header->response.extlen);
+                TESTAPP_EXPECT_EQ(result, 16u, header->response.bodylen);
             } else {
-                EXPECT_EQ(0u, header->response.extlen);
-                EXPECT_EQ(0u, header->response.bodylen);
+                TESTAPP_EXPECT_EQ(result, 0u, header->response.extlen);
+                TESTAPP_EXPECT_EQ(result, 0u, header->response.bodylen);
             }
             break;
         case PROTOCOL_BINARY_CMD_DECREMENT:
         case PROTOCOL_BINARY_CMD_INCREMENT:
-            EXPECT_EQ(0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
             /* extlen is permitted to be either zero, or 16 if MUTATION_SEQNO
              * is enabled. Similary, bodylen must be either 8 or 24. */
             if (mutation_seqno_enabled) {
-                EXPECT_EQ(16, header->response.extlen);
-                EXPECT_EQ(24u, header->response.bodylen);
+                TESTAPP_EXPECT_EQ(result, 16, header->response.extlen);
+                TESTAPP_EXPECT_EQ(result, 24u, header->response.bodylen);
             } else {
-                EXPECT_EQ(0u, header->response.extlen);
-                EXPECT_EQ(8u, header->response.bodylen);
+                TESTAPP_EXPECT_EQ(result, 0u, header->response.extlen);
+                TESTAPP_EXPECT_EQ(result, 8u, header->response.bodylen);
             }
-            EXPECT_NE(0u, header->response.cas);
+            TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
 
         case PROTOCOL_BINARY_CMD_STAT:
-            EXPECT_EQ(0, header->response.extlen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.extlen);
             /* key and value exists in all packets except in the terminating */
-            EXPECT_EQ(0u, header->response.cas);
+            TESTAPP_EXPECT_EQ(result, 0u, header->response.cas);
             break;
 
         case PROTOCOL_BINARY_CMD_VERSION:
-            EXPECT_EQ(0, header->response.keylen);
-            EXPECT_EQ(0, header->response.extlen);
-            EXPECT_NE(0u, header->response.bodylen);
-            EXPECT_EQ(0u, header->response.cas);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.extlen);
+            TESTAPP_EXPECT_NE(result, 0u, header->response.bodylen);
+            TESTAPP_EXPECT_EQ(result, 0u, header->response.cas);
             break;
 
         case PROTOCOL_BINARY_CMD_GET:
         case PROTOCOL_BINARY_CMD_GETQ:
-            EXPECT_EQ(0, header->response.keylen);
-            EXPECT_EQ(4, header->response.extlen);
-            EXPECT_NE(0u, header->response.cas);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 4, header->response.extlen);
+            TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
 
         case PROTOCOL_BINARY_CMD_GETK:
         case PROTOCOL_BINARY_CMD_GETKQ:
-            EXPECT_NE(0, header->response.keylen);
-            EXPECT_EQ(4, header->response.extlen);
-            EXPECT_NE(0u, header->response.cas);
+            TESTAPP_EXPECT_NE(result, 0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 4, header->response.extlen);
+            TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
         case PROTOCOL_BINARY_CMD_SUBDOC_GET:
-            EXPECT_EQ(0, header->response.keylen);
-            EXPECT_EQ(0, header->response.extlen);
-            EXPECT_NE(0u, header->response.bodylen);
-            EXPECT_NE(0u, header->response.cas);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.extlen);
+            TESTAPP_EXPECT_NE(result, 0u, header->response.bodylen);
+            TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
         case PROTOCOL_BINARY_CMD_SUBDOC_EXISTS:
-            EXPECT_EQ(0, header->response.keylen);
-            EXPECT_EQ(0, header->response.extlen);
-            EXPECT_EQ(0u, header->response.bodylen);
-            EXPECT_NE(0u, header->response.cas);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.extlen);
+            TESTAPP_EXPECT_EQ(result, 0u, header->response.bodylen);
+            TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
         case PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD:
         case PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT:
@@ -382,51 +369,51 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
         case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST:
         case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT:
         case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE:
-            EXPECT_EQ(0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
             /* extlen/bodylen are permitted to be either zero, or 16 if
              * MUTATION_SEQNO is enabled.
              */
             if (mutation_seqno_enabled) {
-                EXPECT_EQ(16, header->response.extlen);
-                EXPECT_EQ(16u, header->response.bodylen);
+                TESTAPP_EXPECT_EQ(result, 16, header->response.extlen);
+                TESTAPP_EXPECT_EQ(result, 16u, header->response.bodylen);
             } else {
-                EXPECT_EQ(0u, header->response.extlen);
-                EXPECT_EQ(0u, header->response.bodylen);
+                TESTAPP_EXPECT_EQ(result, 0u, header->response.extlen);
+                TESTAPP_EXPECT_EQ(result, 0u, header->response.bodylen);
             }
-            EXPECT_NE(0u, header->response.cas);
+            TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
         case PROTOCOL_BINARY_CMD_SUBDOC_COUNTER:
-            EXPECT_EQ(0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
             if (mutation_seqno_enabled) {
-                EXPECT_EQ(16, header->response.extlen);
-                EXPECT_GT(header->response.bodylen, 16u);
+                TESTAPP_EXPECT_EQ(result, 16, header->response.extlen);
+                TESTAPP_EXPECT_GT(result, header->response.bodylen, 16u);
             } else {
-                EXPECT_EQ(0u, header->response.extlen);
-                EXPECT_NE(0u, header->response.bodylen);
+                TESTAPP_EXPECT_EQ(result, 0u, header->response.extlen);
+                TESTAPP_EXPECT_NE(result, 0u, header->response.bodylen);
             }
-            EXPECT_NE(0u, header->response.cas);
+            TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
 
         case PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP:
-            EXPECT_EQ(0, header->response.keylen);
-            EXPECT_EQ(0, header->response.extlen);
-            EXPECT_NE(0u, header->response.bodylen);
-            EXPECT_NE(0u, header->response.cas);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.extlen);
+            TESTAPP_EXPECT_NE(result, 0u, header->response.bodylen);
+            TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
 
         case PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION:
-            EXPECT_EQ(0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
             /* extlen is either zero, or 16 if MUTATION_SEQNO is enabled.
              * bodylen is at least as big as extlen.
              */
             if (mutation_seqno_enabled) {
-                EXPECT_EQ(16, header->response.extlen);
-                EXPECT_GE(header->response.bodylen, 16u);
+                TESTAPP_EXPECT_EQ(result, 16, header->response.extlen);
+                TESTAPP_EXPECT_GE(result, header->response.bodylen, 16u);
             } else {
-                EXPECT_EQ(0u, header->response.extlen);
-                EXPECT_GE(header->response.bodylen, 0u);
+                TESTAPP_EXPECT_EQ(result, 0u, header->response.extlen);
+                TESTAPP_EXPECT_GE(result, header->response.bodylen, 0u);
             }
-            EXPECT_NE(0u, header->response.cas);
+            TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
         default:
             /* Undefined command code */
@@ -436,12 +423,12 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
         // Subdoc: Even though the some paths may have failed; actual document
         // was successfully accessed so CAS may be valid.
     } else if (status == PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED) {
-        EXPECT_NE(0u, header->response.cas);
+        TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
     } else {
-        EXPECT_EQ(0u, header->response.cas);
-        EXPECT_EQ(0, header->response.extlen);
+        TESTAPP_EXPECT_EQ(result, 0u, header->response.cas);
+        TESTAPP_EXPECT_EQ(result, 0, header->response.extlen);
         if (cmd != PROTOCOL_BINARY_CMD_GETK) {
-            EXPECT_EQ(0, header->response.keylen);
+            TESTAPP_EXPECT_EQ(result, 0, header->response.keylen);
         }
     }
     return result.result();

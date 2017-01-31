@@ -182,3 +182,5 @@ inline std::string AssertHelper::formatArg(const std::string& s) const {
 
 #define TESTAPP_EXPECT_EQ(helper, a, b) helper.eq(#a, #b, a, b)
 #define TESTAPP_EXPECT_NE(helper, a, b) helper.ne(#b, #b, a, b)
+#define TESTAPP_EXPECT_GE(helper, a, b) helper.ge(#a, #b, a, b)
+#define TESTAPP_EXPECT_GT(helper, a, b) helper.gt(#a, #b, a, b)
