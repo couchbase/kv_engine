@@ -323,13 +323,9 @@ public:
         return vbMap.getBucket(vbid);
     }
 
-    uint64_t getLastPersistedCheckpointId(uint16_t vb) {
-        auto vbucket = vbMap.getBucket(vb);
-        if (vbucket) {
-            return vbucket->getPersistenceCheckpointId();
-        } else {
-            return 0;
-        }
+    std::pair<uint64_t, bool> getLastPersistedCheckpointId(uint16_t vb) {
+        // No persistence at the KVBucket class level.
+        return {0, false};
     }
 
     uint64_t getLastPersistedSeqno(uint16_t vb) {

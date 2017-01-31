@@ -444,7 +444,15 @@ public:
 
     virtual RCPtr<VBucket> getVBucket(uint16_t vbid) = 0;
 
-    virtual uint64_t getLastPersistedCheckpointId(uint16_t vb) = 0;
+    /**
+     * Returns the last persisted checkpoint Id for the specified vBucket.
+     * @param vb VBucket ID to get checkpoint Id for.
+     * @return A pair of {checkpointId, true} if the persisted checkpointID is
+     *         available (Persistent bucket), or false if bucket is not
+     *         persistent.
+     */
+    virtual std::pair<uint64_t, bool> getLastPersistedCheckpointId(
+            uint16_t vb) = 0;
 
     virtual uint64_t getLastPersistedSeqno(uint16_t vb) = 0;
 

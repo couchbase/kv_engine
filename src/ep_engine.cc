@@ -3700,10 +3700,15 @@ public:
             add_casted_stat(buf, VBucket::toString(vb->getState()),
                             add_stat, cookie);
             vb->checkpointManager.addStats(add_stat, cookie);
-            checked_snprintf(buf, sizeof(buf), "vb_%d:persisted_checkpoint_id",
-                             vbid);
-            add_casted_stat(buf, eps->getLastPersistedCheckpointId(vbid),
-                            add_stat, cookie);
+
+            auto result = eps->getLastPersistedCheckpointId(vbid);
+            if (result.second) {
+                checked_snprintf(buf,
+                                 sizeof(buf),
+                                 "vb_%d:persisted_checkpoint_id",
+                                 vbid);
+                add_casted_stat(buf, result.first, add_stat, cookie);
+            }
         } catch (std::exception& error) {
             LOG(EXTENSION_LOG_WARNING,
                 "StatCheckpointVisitor::addCheckpointStat: error building stats: %s",
@@ -4916,19 +4921,33 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
             return sendNotMyVBucketResponse(response, cookie, 0);
 
         } else {
-            uint64_t checkpointId = htonll(vb->checkpointManager.
-                                           createNewCheckpoint());
+            // Create a new checkpoint, notifying flusher.
+            const uint64_t checkpointId =
+                    htonll(vb->checkpointManager.createNewCheckpoint());
             getKVBucket()->wakeUpFlusher();
+            const auto lastPersisted =
+                    kvBucket->getLastPersistedCheckpointId(vb->getId());
 
-            uint64_t persistedChkId = htonll(kvBucket->
-                                   getLastPersistedCheckpointId(vb->getId()));
-            char val[128];
-            memcpy(val, &checkpointId, sizeof(uint64_t));
-            memcpy(val + sizeof(uint64_t), &persistedChkId, sizeof(uint64_t));
-            return sendResponse(response, NULL, 0, NULL, 0,
-                                val, sizeof(uint64_t) * 2,
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                status, 0, cookie);
+            if (lastPersisted.second) {
+                const uint64_t persistedChkId = htonll(lastPersisted.first);
+
+                char val[sizeof(checkpointId) + sizeof(persistedChkId)];
+                memcpy(val, &checkpointId, sizeof(checkpointId));
+                memcpy(val + sizeof(checkpointId),
+                       &persistedChkId,
+                       sizeof(persistedChkId));
+                return sendResponse(response,
+                                    NULL,
+                                    0,
+                                    NULL,
+                                    0,
+                                    val,
+                                    sizeof(val),
+                                    PROTOCOL_BINARY_RAW_BYTES,
+                                    status,
+                                    0,
+                                    cookie);
+            }
         }
         break;
     case PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE:

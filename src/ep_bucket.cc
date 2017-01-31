@@ -193,6 +193,15 @@ void EPBucket::stopBgFetcher() {
     }
 }
 
+std::pair<uint64_t, bool> EPBucket::getLastPersistedCheckpointId(uint16_t vb) {
+    auto vbucket = vbMap.getBucket(vb);
+    if (vbucket) {
+        return {vbucket->getPersistenceCheckpointId(), true};
+    } else {
+        return {0, true};
+    }
+}
+
 ENGINE_ERROR_CODE EPBucket::getFileStats(const void* cookie,
                                          ADD_STAT add_stat) {
     const auto numShards = vbMap.getNumShards();

@@ -63,6 +63,9 @@ public:
     /// Stops the background fetcher for each shard.
     void stopBgFetcher();
 
+    std::pair<uint64_t, bool> getLastPersistedCheckpointId(
+            uint16_t vb) override;
+
     ENGINE_ERROR_CODE getFileStats(const void* cookie,
                                    ADD_STAT add_stat) override;
 

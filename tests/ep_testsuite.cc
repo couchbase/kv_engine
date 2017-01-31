@@ -6251,7 +6251,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "vb_0:num_items_for_persistence",
                 "vb_0:num_open_checkpoint_items",
                 "vb_0:open_checkpoint_id",
-                "vb_0:persisted_checkpoint_id",
                 "vb_0:state"
             }
         },
@@ -6265,7 +6264,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "vb_0:num_items_for_persistence",
                 "vb_0:num_open_checkpoint_items",
                 "vb_0:open_checkpoint_id",
-                "vb_0:persisted_checkpoint_id",
                 "vb_0:state"
             }
         },
@@ -6751,10 +6749,10 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
 
         // Add stats which are only available for persistent buckets:
         static const char* persistence_stats[] = {
-            "vb_0:persistence:cursor_checkpoint_id",
-            "vb_0:persistence:cursor_seqno",
-            "vb_0:persistence:num_visits"
-        };
+                "vb_0:persisted_checkpoint_id",
+                "vb_0:persistence:cursor_checkpoint_id",
+                "vb_0:persistence:cursor_seqno",
+                "vb_0:persistence:num_visits"};
         for (auto& stat : persistence_stats) {
             statsKeys.at("checkpoint").push_back(stat);
             statsKeys.at("checkpoint 0").push_back(stat);
