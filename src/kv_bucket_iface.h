@@ -38,24 +38,6 @@ class PauseResumeEPStoreVisitor;
 class PersistenceCallback;
 class Warmup;
 
-
-/**
- * The following options can be specified
- * for retrieving an item for get calls
- */
-enum get_options_t {
-    NONE             = 0x0000,  //no option
-    TRACK_STATISTICS = 0x0001,  //whether statistics need to be tracked or not
-    QUEUE_BG_FETCH   = 0x0002,  //whether a background fetch needs to be queued
-    HONOR_STATES     = 0x0004,  //whether a retrieval should depend on the state
-                                //of the vbucket
-    TRACK_REFERENCE  = 0x0008,  //whether NRU bit needs to be set for the item
-    DELETE_TEMP      = 0x0010,  //whether temporary items need to be deleted
-    HIDE_LOCKED_CAS  = 0x0020,  //whether locked items should have their CAS
-                                //hidden (return -1).
-    GET_DELETED_VALUE = 0x0040  //whether to retrieve value of a deleted item
-};
-
 /**
  * vbucket-aware hashtable visitor.
  */

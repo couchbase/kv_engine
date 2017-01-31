@@ -828,6 +828,25 @@ public:
                                     bool eject,
                                     bool keyMetaDataOnly);
 
+    /**
+     * Get metadata and value for a given key
+     *
+     * @param key key for which metadata and value should be retrieved
+     * @param cookie the cookie representing the client
+     * @param engine Reference to ep engine
+     * @param bgFetchDelay
+     * @param options flags indicating some retrieval related info
+     * @param diskFlushAll
+     *
+     * @return the result of the operation
+     */
+    GetValue getInternal(const DocKey& key,
+                         const void* cookie,
+                         EventuallyPersistentEngine& engine,
+                         int bgFetchDelay,
+                         get_options_t options,
+                         bool diskFlushAll);
+
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
 

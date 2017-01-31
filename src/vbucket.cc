@@ -1820,6 +1820,78 @@ MutationStatus VBucket::insertFromWarmup(Item& itm,
     return MutationStatus::NotFound;
 }
 
+GetValue VBucket::getInternal(const DocKey& key,
+                              const void* cookie,
+                              EventuallyPersistentEngine& engine,
+                              int bgFetchDelay,
+                              get_options_t options,
+                              bool diskFlushAll) {
+    const bool trackReference = (options & TRACK_REFERENCE);
+    const bool getDeletedValue = (options & GET_DELETED_VALUE);
+    int bucket_num(0);
+    auto lh = ht.getLockedBucket(key, &bucket_num);
+    StoredValue* v = fetchValidValue(
+            lh, key, bucket_num, /*wantsDeleted*/ true, trackReference);
+    if (v) {
+        if (v->isDeleted() && !getDeletedValue) {
+            return GetValue();
+        }
+        if (v->isTempDeletedItem() || v->isTempNonExistentItem()) {
+            // Delete a temp non-existent item to ensure that
+            // if the get were issued over an item that doesn't
+            // exist, then we dont preserve a temp item.
+            if (options & DELETE_TEMP) {
+                ht.unlocked_del(key, bucket_num);
+            }
+            return GetValue();
+        }
+
+        // If the value is not resident, wait for it...
+        if (!v->isResident()) {
+            if (options & QUEUE_BG_FETCH) {
+                bgFetch(key, cookie, engine, bgFetchDelay);
+            }
+            return GetValue(NULL,
+                            ENGINE_EWOULDBLOCK,
+                            v->getBySeqno(),
+                            true,
+                            v->getNRUValue());
+        }
+
+        // Should we hide (return -1) for the items' CAS?
+        const bool hide_cas =
+                (options & HIDE_LOCKED_CAS) && v->isLocked(ep_current_time());
+        return GetValue(v->toItem(hide_cas, getId()),
+                        ENGINE_SUCCESS,
+                        v->getBySeqno(),
+                        false,
+                        v->getNRUValue());
+    } else {
+        if (!getDeletedValue && (eviction == VALUE_ONLY || diskFlushAll)) {
+            return GetValue();
+        }
+
+        if (maybeKeyExistsInFilter(key)) {
+            ENGINE_ERROR_CODE ec = ENGINE_EWOULDBLOCK;
+            if (options &
+                QUEUE_BG_FETCH) { // Full eviction and need a bg fetch.
+                ec = addTempItemAndBGFetch(lh,
+                                           bucket_num,
+                                           key,
+                                           cookie,
+                                           engine,
+                                           bgFetchDelay,
+                                           false);
+            }
+            return GetValue(NULL, ec, -1, true);
+        } else {
+            // As bloomfilter predicted that item surely doesn't exist
+            // on disk, return ENOENT, for getInternal().
+            return GetValue();
+        }
+    }
+}
+
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
                        item_eviction_policy_t policy) {
     addStat(NULL, toString(state), add_stat, c);
