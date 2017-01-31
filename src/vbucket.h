@@ -989,6 +989,25 @@ private:
                                    PreserveRevSeqno preserveRevSeqno);
 
     /**
+     * Delete a key from ALL in-memory data structures like HT.
+     * Assumes that HT bucket lock is grabbed.
+     *
+     * Currently StoredValues form HashTable intrusively. That is, HashTable
+     * does not store a reference or a copy of the StoredValue. If any other
+     * in-memory data strucutures are formed intrusively using StoredValues,
+     * then it must be decided in this function which data structure deletes
+     * the StoredValue. Currently it is HashTable that deleted the StoredValue
+     *
+     * @param htLock Hash table lock that must be held
+     * @param v Reference to the StoredValue to be deleted
+     * @param bucket_num the hash bucket to look in
+     *
+     * @return true if an object was deleted, false otherwise
+     */
+    bool deleteStoredValue(const std::unique_lock<std::mutex>& htLock,
+                           StoredValue& v,
+                           int bucketNum);
+    /**
      * Adds a temporary StoredValue in in-memory data structures like HT.
      * Assumes that HT bucket lock is grabbed.
      *

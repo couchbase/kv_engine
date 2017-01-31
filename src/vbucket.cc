@@ -1393,7 +1393,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
                         // Delete a temp non-existent item to ensure that
                         // if a delete were issued over an item that doesn't
                         // exist, then we don't preserve a temp item.
-                        ht.unlocked_del(key, bucket_num);
+                        deleteStoredValue(lh, *v, bucket_num);
                     }
                     return ENGINE_KEY_ENOENT;
                 }
@@ -1419,7 +1419,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
                         // Delete a temp non-existent item to ensure that
                         // if a delete were issued over an item that doesn't
                         // exist, then we don't preserve a temp item.
-                        ht.unlocked_del(key, bucket_num);
+                        deleteStoredValue(lh, *v, bucket_num);
                     }
                     return ENGINE_KEY_ENOENT;
                 }
@@ -1615,7 +1615,7 @@ void VBucket::deleteExpiredItem(const DocKey& key,
         if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
             // This is a temporary item whose background fetch for metadata
             // has completed.
-            bool deleted = ht.unlocked_del(key, bucket_num);
+            bool deleted = deleteStoredValue(lh, *v, bucket_num);
             if (!deleted) {
                 throw std::logic_error(
                         "VBucket::deleteExpiredItem: "
@@ -1838,7 +1838,7 @@ GetValue VBucket::getInternal(const DocKey& key,
             // if the get were issued over an item that doesn't
             // exist, then we dont preserve a temp item.
             if (options & DELETE_TEMP) {
-                ht.unlocked_del(key, bucket_num);
+                deleteStoredValue(lh, *v, bucket_num);
             }
             return GetValue();
         }
@@ -1901,7 +1901,7 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
     //  1. Item is existent in hashtable, and deleted flag is true
     //  2. rev seqno of queued item matches rev seqno of hash table item
     if (v && v->isDeleted() && (queuedItem.getRevSeqno() == v->getRevSeqno())) {
-        bool isDeleted = ht.unlocked_del(queuedItem.getKey(), bucket_num);
+        bool isDeleted = deleteStoredValue(lh, *v, bucket_num);
         if (!isDeleted) {
             throw std::logic_error(
                     "deletedOnDiskCbk:callback: "
@@ -1929,7 +1929,14 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
 bool VBucket::deleteKey(const DocKey& key) {
     int bucket_num(0);
     auto lh = ht.getLockedBucket(key, &bucket_num);
-    return ht.unlocked_del(key, bucket_num);
+    StoredValue* v = ht.unlocked_find(key,
+                                      bucket_num,
+                                      /*wantsDeleted*/ true,
+                                      /*trackReference*/ false);
+    if (!v) {
+        return false;
+    }
+    return deleteStoredValue(lh, *v, bucket_num);
 }
 
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
@@ -2204,6 +2211,20 @@ StoredValue* VBucket::addNewStoredValue(
         itm.setRevSeqno(seqno);
     }
     return v;
+}
+
+bool VBucket::deleteStoredValue(const std::unique_lock<std::mutex>& htLock,
+                                StoredValue& v,
+                                int bucketNum) {
+    if (!v.isDeleted() && v.isLocked(ep_current_time())) {
+        return false;
+    }
+
+    /* StoredValue deleted here. If any other in-memory data structures are
+       using the StoredValue intrusively then they must have handled the delete
+       by this point */
+    ht.unlocked_del(htLock, v.getKey(), bucketNum);
+    return true;
 }
 
 AddStatus VBucket::addTempStoredValue(

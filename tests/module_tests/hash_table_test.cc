@@ -116,7 +116,15 @@ static std::vector<StoredDocKey> generateKeys(int num, int start=0) {
 static bool del(HashTable& ht, const DocKey& key) {
     int bucket_num(0);
     std::unique_lock<std::mutex> lh = ht.getLockedBucket(key, &bucket_num);
-    return ht.unlocked_del(key, bucket_num);
+    StoredValue* v = ht.unlocked_find(key,
+                                      bucket_num,
+                                      /*wantsDeleted*/ true,
+                                      /*trackReference*/ false);
+    if (!v) {
+        return false;
+    }
+    ht.unlocked_del(lh, key, bucket_num);
+    return true;
 }
 
 // ----------------------------------------------------------------------

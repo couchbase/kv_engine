@@ -432,7 +432,15 @@ StoredValue* HashTable::unlocked_find(const DocKey& key, int bucket_num,
     return NULL;
 }
 
-bool HashTable::unlocked_del(const DocKey& key, int bucket_num) {
+void HashTable::unlocked_del(const std::unique_lock<std::mutex>& htLock,
+                             const DocKey& key,
+                             int bucket_num) {
+    if (!htLock) {
+        throw std::invalid_argument(
+                "HashTable::unlocked_del: htLock "
+                "not held");
+    }
+
     if (!isActive()) {
         throw std::logic_error("HashTable::unlocked_del: Cannot call on a "
                 "non-active object");
@@ -441,15 +449,11 @@ bool HashTable::unlocked_del(const DocKey& key, int bucket_num) {
 
     // Special case empty bucket.
     if (!v) {
-        return false;
+        return;
     }
 
     // Special case the first one
     if (v->hasKey(key)) {
-        if (!v->isDeleted() && v->isLocked(ep_current_time())) {
-            return false;
-        }
-
         values[bucket_num] = v->next;
         StoredValue::reduceCacheSize(*this, v->size());
         StoredValue::reduceMetaDataSize(*this, stats, v->metaDataSize());
@@ -460,16 +464,12 @@ bool HashTable::unlocked_del(const DocKey& key, int bucket_num) {
             decrNumTotalItems();
         }
         delete v;
-        return true;
+        return;
     }
 
     while (v->next) {
         if (v->next->hasKey(key)) {
             StoredValue *tmp = v->next;
-            if (!tmp->isDeleted() && tmp->isLocked(ep_current_time())) {
-                return false;
-            }
-
             v->next = v->next->next;
             StoredValue::reduceCacheSize(*this, tmp->size());
             StoredValue::reduceMetaDataSize(*this, stats, tmp->metaDataSize());
@@ -480,13 +480,15 @@ bool HashTable::unlocked_del(const DocKey& key, int bucket_num) {
                 decrNumTotalItems();
             }
             delete tmp;
-            return true;
+            return;
         } else {
             v = v->next;
         }
     }
-
-    return false;
+    /* We cannot reach here, we must delete the StoredValue in the HashTable */
+    throw std::logic_error(
+            "HashTable::unlocked_del: StoredValue to be deleted "
+            "not found in HashTable; possibly HashTable leak");
 }
 
 void HashTable::visit(HashTableVisitor &visitor) {

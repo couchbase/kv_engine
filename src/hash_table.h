@@ -408,11 +408,13 @@ public:
      * (Please note that you <b>MUST</b> acquire the mutex before calling
      * this function!!!
      *
+     * @param htLock Hash table lock that must be held
      * @param key the key to delete
      * @param bucket_num the bucket to look in (must already be locked)
-     * @return true if an object was deleted, false otherwise
      */
-    bool unlocked_del(const DocKey& key, int bucket_num);
+    void unlocked_del(const std::unique_lock<std::mutex>& htLock,
+                      const DocKey& key,
+                      int bucket_num);
 
     /**
      * Visit all items within this hashtable.
