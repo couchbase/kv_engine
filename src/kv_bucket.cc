@@ -1863,38 +1863,7 @@ public:
         if (value >= 0) {
             // We have successfully removed an item from the disk, we
             // may now remove it from the hash table.
-            int bucket_num(0);
-            auto lh = vbucket->ht.getLockedBucket(queuedItem->getKey(),
-                                                  &bucket_num);
-            StoredValue* v = vbucket->fetchValidValue(
-                    lh, queuedItem->getKey(), bucket_num, true, false);
-            // Delete the item in the hash table iff:
-            //  1. Item is existent in hashtable, and deleted flag is true
-            //  2. rev seqno of queued item matches rev seqno of hash table item
-            if (v && v->isDeleted() &&
-                (queuedItem->getRevSeqno() == v->getRevSeqno())) {
-                bool deleted = vbucket->ht.unlocked_del(queuedItem->getKey(),
-                                                        bucket_num);
-                if (!deleted) {
-                    throw std::logic_error("PersistenceCallback:callback: "
-                            "Failed to delete key with seqno:" + std::to_string(v->getBySeqno()) +
-                            "' from bucket " + std::to_string(bucket_num));
-                }
-
-                /**
-                 * Deleted items are to be added to the bloomfilter,
-                 * in either eviction policy.
-                 */
-                vbucket->addToFilter(queuedItem->getKey());
-            }
-
-            if (value > 0) {
-                ++stats.totalPersisted;
-                ++vbucket->opsDelete;
-            }
-            vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
-            stats.decrDiskQueueSize(1);
-            vbucket->decrMetaDataDisk(*queuedItem);
+            vbucket->deletedOnDiskCbk(*queuedItem, (value > 0));
         } else {
             LOG(EXTENSION_LOG_WARNING,
                 "PersistenceCallback::callback: Fatal error in persisting "

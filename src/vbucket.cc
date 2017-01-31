@@ -309,8 +309,7 @@ void VBucket::doStatsForQueueing(const Item& qi, size_t itemBytes)
     dirtyQueuePendingWrites.fetch_add(itemBytes);
 }
 
-void VBucket::doStatsForFlushing(Item& qi, size_t itemBytes)
-{
+void VBucket::doStatsForFlushing(const Item& qi, size_t itemBytes) {
     decrDirtyQueueSize(1);
     decrDirtyQueueMem(sizeof(Item));
     ++dirtyQueueDrain;
@@ -318,13 +317,11 @@ void VBucket::doStatsForFlushing(Item& qi, size_t itemBytes)
     decrDirtyQueuePendingWrites(itemBytes);
 }
 
-void VBucket::incrMetaDataDisk(Item& qi)
-{
+void VBucket::incrMetaDataDisk(const Item& qi) {
     metaDataDisk.fetch_add(qi.getKey().size() + sizeof(ItemMetaData));
 }
 
-void VBucket::decrMetaDataDisk(Item& qi)
-{
+void VBucket::decrMetaDataDisk(const Item& qi) {
     // assume couchstore remove approx this much data from disk
     metaDataDisk.fetch_sub((qi.getKey().size() + sizeof(ItemMetaData)));
 }
@@ -1890,6 +1887,43 @@ GetValue VBucket::getInternal(const DocKey& key,
             return GetValue();
         }
     }
+}
+
+void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
+    int bucket_num(0);
+    auto lh = ht.getLockedBucket(queuedItem.getKey(), &bucket_num);
+    StoredValue* v = fetchValidValue(lh,
+                                     queuedItem.getKey(),
+                                     bucket_num,
+                                     /*wantsDeleted*/ true,
+                                     /*trackReference*/ false);
+    // Delete the item in the hash table iff:
+    //  1. Item is existent in hashtable, and deleted flag is true
+    //  2. rev seqno of queued item matches rev seqno of hash table item
+    if (v && v->isDeleted() && (queuedItem.getRevSeqno() == v->getRevSeqno())) {
+        bool isDeleted = ht.unlocked_del(queuedItem.getKey(), bucket_num);
+        if (!isDeleted) {
+            throw std::logic_error(
+                    "deletedOnDiskCbk:callback: "
+                    "Failed to delete key with seqno:" +
+                    std::to_string(v->getBySeqno()) + "' from bucket " +
+                    std::to_string(bucket_num));
+        }
+
+        /**
+         * Deleted items are to be added to the bloomfilter,
+         * in either eviction policy.
+         */
+        addToFilter(queuedItem.getKey());
+    }
+
+    if (deleted) {
+        ++stats.totalPersisted;
+        ++opsDelete;
+    }
+    doStatsForFlushing(queuedItem, queuedItem.size());
+    stats.decrDiskQueueSize(1);
+    decrMetaDataDisk(queuedItem);
 }
 
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,

@@ -310,9 +310,9 @@ public:
     }
 
     void doStatsForQueueing(const Item& item, size_t itemBytes);
-    void doStatsForFlushing(Item& item, size_t itemBytes);
-    void incrMetaDataDisk(Item& qi);
-    void decrMetaDataDisk(Item& qi);
+    void doStatsForFlushing(const Item& item, size_t itemBytes);
+    void incrMetaDataDisk(const Item& qi);
+    void decrMetaDataDisk(const Item& qi);
 
     void resetStats();
 
@@ -846,6 +846,15 @@ public:
                          int bgFetchDelay,
                          get_options_t options,
                          bool diskFlushAll);
+
+    /**
+     * Update in memory data structures after an item is deleted on disk
+     *
+     * @param queuedItem reference to the deleted item
+     * @param deleted indicates if item actaully deleted or not (in case item
+     *                did not exist on disk)
+     */
+    void deletedOnDiskCbk(const Item& queuedItem, bool deleted);
 
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
