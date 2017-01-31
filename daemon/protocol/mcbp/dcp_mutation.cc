@@ -156,45 +156,38 @@ static ENGINE_ERROR_CODE dcp_xattr_mutation(McbpConnection* conn, void* packet);
 static ENGINE_ERROR_CODE dcp_plain_mutation(McbpConnection* conn, void* packet);
 
 void dcp_mutation_executor(McbpConnection* c, void* packet) {
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
-    if (c->getBucketEngine()->dcp.mutation == NULL) {
-        // @todo this should be moved over to validator now that it
-        //       have access to the cookie object
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    } else {
-        ENGINE_ERROR_CODE ret = c->getAiostat();
-        c->setAiostat(ENGINE_SUCCESS);
-        c->setEwouldblock(false);
-
-        if (ret == ENGINE_SUCCESS) {
-            auto* req = reinterpret_cast<protocol_binary_request_header*>(packet);
-            if (mcbp::datatype::is_compressed(req->request.datatype)) {
-                LOG_WARNING(nullptr, "%u: Compression not supported right now",
-                            c->getId());
-                ret = ENGINE_ENOTSUP;
-            } else if (mcbp::datatype::is_xattr(req->request.datatype)) {
-                ret = dcp_xattr_mutation(c, packet);
-            } else {
-                ret = dcp_plain_mutation(c, packet);
-            }
+    if (ret == ENGINE_SUCCESS) {
+        auto* req = reinterpret_cast<protocol_binary_request_header*>(packet);
+        if (mcbp::datatype::is_compressed(req->request.datatype)) {
+            LOG_WARNING(nullptr, "%u: Compression not supported right now",
+                        c->getId());
+            ret = ENGINE_ENOTSUP;
+        } else if (mcbp::datatype::is_xattr(req->request.datatype)) {
+            ret = dcp_xattr_mutation(c, packet);
+        } else {
+            ret = dcp_plain_mutation(c, packet);
         }
+    }
 
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            c->setState(conn_new_cmd);
-            break;
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        c->setState(conn_new_cmd);
+        break;
 
-        case ENGINE_DISCONNECT:
-            c->setState(conn_closing);
-            break;
+    case ENGINE_DISCONNECT:
+        c->setState(conn_closing);
+        break;
 
-        case ENGINE_EWOULDBLOCK:
-            c->setEwouldblock(true);
-            break;
+    case ENGINE_EWOULDBLOCK:
+        c->setEwouldblock(true);
+        break;
 
-        default:
-            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-        }
+    default:
+        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
     }
 }
 

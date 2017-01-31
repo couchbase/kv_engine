@@ -22,46 +22,42 @@
 void dcp_deletion_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_deletion*>(packet);
 
-    if (c->getBucketEngine()->dcp.deletion == NULL) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    } else {
-        ENGINE_ERROR_CODE ret = c->getAiostat();
-        c->setAiostat(ENGINE_SUCCESS);
-        c->setEwouldblock(false);
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
-        if (ret == ENGINE_SUCCESS) {
-            char* key = (char*)packet + sizeof(req->bytes);
-            uint16_t nkey = ntohs(req->message.header.request.keylen);
-            uint64_t cas = ntohll(req->message.header.request.cas);
-            uint16_t vbucket = ntohs(req->message.header.request.vbucket);
-            uint64_t by_seqno = ntohll(req->message.body.by_seqno);
-            uint64_t rev_seqno = ntohll(req->message.body.rev_seqno);
-            uint16_t nmeta = ntohs(req->message.body.nmeta);
+    if (ret == ENGINE_SUCCESS) {
+        char* key = (char*)packet + sizeof(req->bytes);
+        uint16_t nkey = ntohs(req->message.header.request.keylen);
+        uint64_t cas = ntohll(req->message.header.request.cas);
+        uint16_t vbucket = ntohs(req->message.header.request.vbucket);
+        uint64_t by_seqno = ntohll(req->message.body.by_seqno);
+        uint64_t rev_seqno = ntohll(req->message.body.rev_seqno);
+        uint16_t nmeta = ntohs(req->message.body.nmeta);
 
-            ret = c->getBucketEngine()->dcp.deletion(c->getBucketEngineAsV0(),
-                                                     c->getCookie(),
-                                                     req->message.header.request.opaque,
-                                                     key, nkey, cas, vbucket,
-                                                     by_seqno, rev_seqno,
-                                                     key + nkey, nmeta);
-        }
+        ret = c->getBucketEngine()->dcp.deletion(c->getBucketEngineAsV0(),
+                                                 c->getCookie(),
+                                                 req->message.header.request.opaque,
+                                                 key, nkey, cas, vbucket,
+                                                 by_seqno, rev_seqno,
+                                                 key + nkey, nmeta);
+    }
 
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            c->setState(conn_new_cmd);
-            break;
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        c->setState(conn_new_cmd);
+        break;
 
-        case ENGINE_DISCONNECT:
-            c->setState(conn_closing);
-            break;
+    case ENGINE_DISCONNECT:
+        c->setState(conn_closing);
+        break;
 
-        case ENGINE_EWOULDBLOCK:
-            c->setEwouldblock(true);
-            break;
+    case ENGINE_EWOULDBLOCK:
+        c->setEwouldblock(true);
+        break;
 
-        default:
-            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-        }
+    default:
+        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
     }
 }
 
