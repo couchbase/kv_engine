@@ -9,7 +9,7 @@ add_executable(memcached_mcbp_test
                xattr_blob_validator_test.cc
                xattr_key_validator_test.cc
                ${PROJECT_SOURCE_DIR}/utilities/protocol2text.cc
-               ${PROJECT_SOURCE_DIR}/utilities/subdoc_encoder.cc)
+               ${PROJECT_SOURCE_DIR}/protocol/connection/client_mcbp_commands.cc)
 target_link_libraries(memcached_mcbp_test memcached_daemon platform
                       gtest gtest_main)
 add_test(NAME memcached_mcbp_test COMMAND memcached_mcbp_test)

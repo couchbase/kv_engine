@@ -112,12 +112,12 @@ TEST_P(XattrTest, MB_22319) {
     // The failing bits is:
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
-    cmd.add_mutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
-                     SUBDOC_FLAG_XATTR_PATH,
+    cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                    SUBDOC_FLAG_XATTR_PATH,
                     "doc.readcount", "1");
-    cmd.add_mutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
-                     SUBDOC_FLAG_XATTR_PATH,
-                     "doc.author", "\"jones\"");
+    cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    "doc.author", "\"jones\"");
 
     auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
     conn.sendCommand(cmd);

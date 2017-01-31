@@ -18,7 +18,7 @@
 
 #include "mcbp_test.h"
 #include "utilities/protocol2text.h"
-#include "utilities/subdoc_encoder.h"
+#include "protocol/connection/client_mcbp_commands.h"
 
 #include <memcached/protocol_binary.h>
 #include <algorithm>
@@ -101,29 +101,35 @@ class SubdocMultiLookupTest : public ValidatorTest {
         ValidatorTest::SetUp();
 
         // Setup basic, correct header.
-        request.key = "multi_lookup";
-        request.specs.push_back(
+        request.setKey("multi_lookup");
+        request.addLookup(
                 {PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, SUBDOC_FLAG_NONE, "[0]"});
     }
 
 protected:
-    int validate(const std::vector<char>& request) {
+    int validate(const std::vector<uint8_t> request) {
         void* packet =
                 const_cast<void*>(static_cast<const void*>(request.data()));
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP,
                                        packet);
     }
+    int validate(const BinprotSubdocMultiLookupCommand& cmd) {
+        std::vector<uint8_t> packet;
+        cmd.encode(packet);
+        return validate(packet);
+    }
 
-    SubdocMultiLookupCmd request;
+    BinprotSubdocMultiLookupCommand request;
 };
 
 TEST_F(SubdocMultiLookupTest, Baseline) {
     // Ensure that the initial request as formed by SetUp is valid.
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
 }
 
 TEST_F(SubdocMultiLookupTest, InvalidMagic) {
-    std::vector<char> payload = request.encode();
+    std::vector<uint8_t> payload;
+    request.encode(payload);
     auto* header =
             reinterpret_cast<protocol_binary_request_header*>(payload.data());
     header->request.magic = 0;
@@ -131,7 +137,8 @@ TEST_F(SubdocMultiLookupTest, InvalidMagic) {
 }
 
 TEST_F(SubdocMultiLookupTest, InvalidDatatype) {
-    std::vector<char> payload = request.encode();
+    std::vector<uint8_t> payload;
+    request.encode(payload);
     auto* header =
             reinterpret_cast<protocol_binary_request_header*>(payload.data());
     header->request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
@@ -144,12 +151,14 @@ TEST_F(SubdocMultiLookupTest, InvalidDatatype) {
 }
 
 TEST_F(SubdocMultiLookupTest, InvalidKey) {
-    request.key = "";
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    request.setKey("");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 }
 
 TEST_F(SubdocMultiLookupTest, InvalidExtras) {
-    std::vector<char> payload = request.encode();
+    std::vector<uint8_t> payload;
+    request.encode(payload);
+
     auto* header =
             reinterpret_cast<protocol_binary_request_header*>(payload.data());
     header->request.extlen = 1;
@@ -163,32 +172,30 @@ TEST_F(SubdocMultiLookupTest, InvalidExtras) {
 
 TEST_F(SubdocMultiLookupTest, NumPaths) {
     // Need at least one path.
-    request.specs.clear();
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
-              validate(request.encode()));
+    request.clearLookups();
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO, validate(request));
 
     // Should handle total of 16 paths.
-    request.specs.clear();
+    request.clearLookups();
     // Add maximum number of paths.
-    SubdocMultiLookupCmd::LookupSpec spec{
+    BinprotSubdocMultiLookupCommand::LookupSpecifier spec{
             PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, SUBDOC_FLAG_NONE, "[0]"};
     for (unsigned int i = 0; i < 16; i++) {
-        request.specs.push_back(spec);
+        request.addLookup(spec);
     }
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
 
     // Add one more - should now fail.
-    request.specs.push_back(spec);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
-              validate(request.encode()));
+    request.addLookup(spec);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO, validate(request));
 }
 
 TEST_F(SubdocMultiLookupTest, ValidLocationOpcodes) {
     // Check that GET is supported.
-    request.specs.clear();
-    request.specs.push_back(
+    request.clearLookups();
+    request.addLookup(
             {PROTOCOL_BINARY_CMD_SUBDOC_GET, SUBDOC_FLAG_NONE, "[0]"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
 }
 
 TEST_F(SubdocMultiLookupTest, InvalidLocationOpcodes) {
@@ -202,36 +209,36 @@ TEST_F(SubdocMultiLookupTest, InvalidLocationOpcodes) {
             (cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT)) {
             continue;
         }
-        request.specs.at(0) = {cmd, SUBDOC_FLAG_NONE, "[0]"};
+        request.at(0) = {cmd, SUBDOC_FLAG_NONE, "[0]"};
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
-                  validate(request.encode()))
+                  validate(request))
                 << "Failed for cmd:" << memcached_opcode_2_text(ii);
     }
 }
 
 TEST_F(SubdocMultiLookupTest, InvalidLocationPaths) {
     // Path must not be zero length.
-    request.specs.at(0).path.clear();
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    request.at(0).path.clear();
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 
     // Maximum length should be accepted...
-    request.specs.at(0).path.assign(1024, 'x');
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+    request.at(0).path.assign(1024, 'x');
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
 
     // But any longer should be rejected.
-    request.specs.at(0).path.push_back('x');
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    request.at(0).path.push_back('x');
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 }
 
 TEST_F(SubdocMultiLookupTest, InvalidLocationFlags) {
     // Both GET and EXISTS do not accept any flags.
     for (auto& flag : {SUBDOC_FLAG_MKDIR_P, SUBDOC_FLAG_MKDOC}) {
-        request.specs.at(0).opcode = PROTOCOL_BINARY_CMD_SUBDOC_EXISTS;
-        request.specs.at(0).flags = flag;
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+        request.at(0).opcode = PROTOCOL_BINARY_CMD_SUBDOC_EXISTS;
+        request.at(0).flags = flag;
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 
-        request.specs.at(0).opcode = PROTOCOL_BINARY_CMD_SUBDOC_GET;
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+        request.at(0).opcode = PROTOCOL_BINARY_CMD_SUBDOC_GET;
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
     }
 }
 
@@ -242,39 +249,45 @@ class SubdocMultiMutationTest : public ValidatorTest {
         ValidatorTest::SetUp();
 
         // Setup basic, correct header.
-        request.key = "multi_mutation";
-        request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
-                                 protocol_binary_subdoc_flag(0),
-                                 "key",
-                                 "value"});
+        request.setKey("multi_mutation");
+        request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                              protocol_binary_subdoc_flag(0),
+                              "key",
+                              "value"});
     }
 
 protected:
-    int validate(const std::vector<char>& request) {
-        void* packet =
-                const_cast<void*>(static_cast<const void*>(request.data()));
-        return ValidatorTest::validate(
-                PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION, packet);
+    int validate(const BinprotSubdocMultiMutationCommand& cmd) {
+        std::vector<uint8_t> packet;
+        cmd.encode(packet);
+        return validate(packet);
     }
 
-    SubdocMultiMutationCmd request;
+    int validate(std::vector<uint8_t>& packet) {
+        return ValidatorTest::validate(
+                PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION, packet.data());
+    }
+
+    BinprotSubdocMultiMutationCommand request;
 };
 
 TEST_F(SubdocMultiMutationTest, Baseline) {
     // Ensure that the initial request as formed by SetUp is valid.
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidMagic) {
-    std::vector<char> payload = request.encode();
+    std::vector<uint8_t> payload;
+    request.encode(payload);
     auto* header =
-            reinterpret_cast<protocol_binary_request_header*>(payload.data());
+           reinterpret_cast<protocol_binary_request_header*>(payload.data());
     header->request.magic = 0;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidDatatype) {
-    std::vector<char> payload = request.encode();
+    std::vector<uint8_t> payload;
+    request.encode(payload);
     auto* header =
             reinterpret_cast<protocol_binary_request_header*>(payload.data());
     header->request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
@@ -287,12 +300,13 @@ TEST_F(SubdocMultiMutationTest, InvalidDatatype) {
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidKey) {
-    request.key = "";
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    request.setKey("");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidExtras) {
-    std::vector<char> payload = request.encode();
+    std::vector<uint8_t> payload;
+    request.encode(payload);
     auto* header =
             reinterpret_cast<protocol_binary_request_header*>(payload.data());
     header->request.extlen = 1;
@@ -301,8 +315,9 @@ TEST_F(SubdocMultiMutationTest, InvalidExtras) {
 
 TEST_F(SubdocMultiMutationTest, Expiry) {
     // extlen of 4 permitted for mutations.
-    request.expiry = 10;
-    std::vector<char> payload = request.encode();
+    request.setExpiry(10);
+    std::vector<uint8_t> payload;
+    request.encode(payload);
 
     // Check that we encoded correctly.
     auto* header =
@@ -314,9 +329,9 @@ TEST_F(SubdocMultiMutationTest, Expiry) {
 
 TEST_F(SubdocMultiMutationTest, ExplicitZeroExpiry) {
     // extlen of 4 permitted for mutations.
-    request.expiry = 0;
-    request.encode_zero_expiry_on_wire = 1;
-    std::vector<char> payload = request.encode();
+    request.setExpiry(0);
+    std::vector<uint8_t> payload;
+    request.encode(payload);
 
     auto* header =
             reinterpret_cast<protocol_binary_request_header*>(payload.data());
@@ -327,343 +342,344 @@ TEST_F(SubdocMultiMutationTest, ExplicitZeroExpiry) {
 
 TEST_F(SubdocMultiMutationTest, NumPaths) {
     // Need at least one path.
-    request.specs.clear();
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
-              validate(request.encode()));
+    request.clearMutations();
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO, validate(request));
 
     // Should handle total of 16 paths.
-    request.specs.clear();
+    request.clearMutations();
     // Add maximum number of paths.
-    SubdocMultiMutationCmd::LookupSpec spec{
+    BinprotSubdocMultiMutationCommand::MutationSpecifier spec{
             PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
             protocol_binary_subdoc_flag(0),
             "",
             "0"};
     for (unsigned int i = 0; i < 16; i++) {
-        request.specs.push_back(spec);
+        request.addMutation(spec);
     }
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
 
     // Add one more - should now fail.
-    request.specs.push_back(spec);
+    request.addMutation(spec);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
-              validate(request.encode()));
+              validate(request));
 }
 
 TEST_F(SubdocMultiMutationTest, ValidDictAdd) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P/SUBDOC_FLAG_MKDOC
-    request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                              protocol_binary_subdoc_flag(0),
                              "path",
                              "value"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
 
     for (auto flag : {SUBDOC_FLAG_MKDIR_P,
                       SUBDOC_FLAG_MKDOC,
                       SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_MKDOC}) {
-        request.specs.at(1).flags = flag;
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+        request.at(1).flags = flag;
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
     }
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidDictAdd) {
-    request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                              protocol_binary_subdoc_flag(0xff),
                              "path",
                              "value"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 
     // Must have path.
-    request.specs.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                            protocol_binary_subdoc_flag(0),
                            "",
                            ""};
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 
     // Must have value.
-    request.specs.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                            protocol_binary_subdoc_flag(0),
                            "path",
                            ""};
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 }
 
 TEST_F(SubdocMultiMutationTest, ValidDictUpsert) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P(0x01)/MKDOC(0x02)
-    request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                              protocol_binary_subdoc_flag(0),
                              "path",
                              "value"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
     for (auto flag : {SUBDOC_FLAG_MKDIR_P,
                       SUBDOC_FLAG_MKDOC,
                       SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_MKDOC}) {
-        request.specs.at(1).flags = flag;
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+        request.at(1).flags = flag;
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
     }
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidDictUpsert) {
     // Only allowed empty flags SUBDOC_FLAG_{MKDIR_P (0x1), MKDOC (0x2)}
-    request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                              protocol_binary_subdoc_flag(0xff),
                              "path",
                              "value"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 
     // Must have path.
-    request.specs.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                            protocol_binary_subdoc_flag(0),
                            "",
                            ""};
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 
     // Must have value.
-    request.specs.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                            protocol_binary_subdoc_flag(0),
                            "path",
                            ""};
 }
 
 TEST_F(SubdocMultiMutationTest, ValidDelete) {
-    request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
+    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
                              protocol_binary_subdoc_flag(0),
                              "path",
                              ""});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidDelete) {
     // Shouldn't have value.
-    request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
+    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
                              protocol_binary_subdoc_flag(0),
                              "path",
                              "value"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 
     // Shouldn't have flags.
     for (auto flag : {SUBDOC_FLAG_MKDIR_P, SUBDOC_FLAG_MKDOC}) {
-        request.specs.at(1) = {
+        request.at(1) = {
                 PROTOCOL_BINARY_CMD_SUBDOC_DELETE, flag, "path", ""};
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
     }
 
     // Must have path.
-    request.specs.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
+    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
                            protocol_binary_subdoc_flag(0),
                            "",
                            ""};
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 }
 
 TEST_F(SubdocMultiMutationTest, ValidReplace) {
-    request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                              protocol_binary_subdoc_flag(0),
                              "path",
                              "new_value"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidReplace) {
     // Must have path.
-    request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                              protocol_binary_subdoc_flag(0),
                              "",
                              "new_value"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 
     // Must have value
-    request.specs.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                            protocol_binary_subdoc_flag(0),
                            "path",
                            ""};
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 
     // Shouldn't have flags.
     for (auto flag : {SUBDOC_FLAG_MKDIR_P, SUBDOC_FLAG_MKDOC}) {
-        request.specs.at(1) = {
+        request.at(1) = {
                 PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, flag, "path", "new_value"};
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
     }
 }
 
 TEST_F(SubdocMultiMutationTest, ValidArrayPushLast) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
-    request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
                              protocol_binary_subdoc_flag(0),
                              "path",
                              "value"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
 
     for (auto flag : {SUBDOC_FLAG_MKDIR_P,
                       SUBDOC_FLAG_MKDOC,
                       SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_MKDOC}) {
-        request.specs.at(1).flags = flag;
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+        request.at(1).flags = flag;
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
 
         // Allowed empty path.
-        request.specs.at(1).path.clear();
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+        request.at(1).path.clear();
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
     }
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidArrayPushLast) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
-    request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
                              protocol_binary_subdoc_flag(0xff),
                              "",
                              "value"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 
     // Must have value
-    request.specs.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
                            protocol_binary_subdoc_flag(0),
                            "",
                            ""};
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 }
 
 TEST_F(SubdocMultiMutationTest, ValidArrayPushFirst) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
-    request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
                              protocol_binary_subdoc_flag(0),
                              "path",
                              "value"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
 
     for (auto flag : {SUBDOC_FLAG_MKDIR_P,
                       SUBDOC_FLAG_MKDOC,
                       SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_MKDOC}) {
-        request.specs.at(1).flags = flag;
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+        request.at(1).flags = flag;
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
 
         // Allowed empty path.
-        request.specs.at(1).path.clear();
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+        request.at(1).path.clear();
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
     }
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidArrayPushFirst) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
-    request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
                              protocol_binary_subdoc_flag(0xff),
                              "",
                              "value"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 
     // Must have value
-    request.specs.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
                            protocol_binary_subdoc_flag(0),
                            "",
                            ""};
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 }
 
 TEST_F(SubdocMultiMutationTest, ValidArrayInsert) {
     // Only allowed empty flags.
-    request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
                              protocol_binary_subdoc_flag(0),
                              "path",
                              "value"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidArrayInsert) {
     // Only allowed empty flags.
-    request.specs.resize(2);
+    for (size_t i = 0; i < 2; i++) {
+        request.addMutation({});
+    }
     for (auto flag : {SUBDOC_FLAG_MKDIR_P, SUBDOC_FLAG_MKDOC}) {
-        request.specs.at(1) = {
+        request.at(1) = {
                 PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT, flag, "path", "value"};
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
     }
 
     // Must have path
-    request.specs.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
                            protocol_binary_subdoc_flag(0),
                            "",
                            "value"};
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 
     // Must have value
-    request.specs.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
                            protocol_binary_subdoc_flag(0),
                            "path",
                            ""};
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 }
 
 TEST_F(SubdocMultiMutationTest, ValidArrayAddUnique) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
-    request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
                              protocol_binary_subdoc_flag(0),
                              "path",
                              "value"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
 
     for (auto flag : {SUBDOC_FLAG_MKDIR_P, SUBDOC_FLAG_MKDOC}) {
-        request.specs.at(1).flags = flag;
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+        request.at(1).flags = flag;
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
     }
 
     // Allowed empty path.
-    request.specs.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
                            protocol_binary_subdoc_flag(0),
                            "",
                            "value"};
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidArrayAddUnique) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
-    request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
                              protocol_binary_subdoc_flag(0xff),
                              "path",
                              "value"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 
     // Must have value
-    request.specs.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
                            protocol_binary_subdoc_flag(0),
                            "path",
                            ""};
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 }
 
 TEST_F(SubdocMultiMutationTest, ValidArrayCounter) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
-    request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                              protocol_binary_subdoc_flag(0),
                              "path",
                              "value"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
 
     for (auto flag : {SUBDOC_FLAG_MKDIR_P, SUBDOC_FLAG_MKDOC}) {
-        request.specs.at(1).flags = flag;
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+        request.at(1).flags = flag;
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
     }
 
     // Empty path invalid
-    request.specs.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                            protocol_binary_subdoc_flag(0),
                            "",
                            "value"};
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidArrayCounter) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
-    request.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                              protocol_binary_subdoc_flag(0xff),
                              "path",
                              "value"});
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 
     // Must have value
-    request.specs.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                            protocol_binary_subdoc_flag(0),
                            "path",
                            ""};
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidLocationOpcodes) {
@@ -686,9 +702,9 @@ TEST_F(SubdocMultiMutationTest, InvalidLocationOpcodes) {
             break;
         }
 
-        request.specs.at(0) = {cmd, protocol_binary_subdoc_flag(0), "[0]"};
+        request.at(0) = {cmd, protocol_binary_subdoc_flag(0), "[0]"};
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
-                  validate(request.encode()))
+                  validate(request))
                 << "Failed for cmd:" << memcached_opcode_2_text(ii);
     }
 }

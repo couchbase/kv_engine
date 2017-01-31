@@ -472,15 +472,18 @@ public:
 
     void encode(std::vector<uint8_t>& buf) const override;
 
-    void add_mutation(const MutationSpecifier& spec) {
+    BinprotSubdocMultiMutationCommand& addMutation(
+            const MutationSpecifier& spec) {
         specs.push_back(spec);
+        return *this;
     }
 
-    void add_mutation(protocol_binary_command opcode,
-                      protocol_binary_subdoc_flag flags,
-                      const std::string& path,
-                      const std::string& value) {
+    BinprotSubdocMultiMutationCommand& addMutation(protocol_binary_command opcode,
+                                                   protocol_binary_subdoc_flag flags,
+                                                   const std::string& path,
+                                                   const std::string& value) {
         specs.emplace_back(MutationSpecifier{opcode, flags, path, value});
+        return *this;
     }
 
     BinprotSubdocMultiMutationCommand& setExpiry(uint32_t expiry_) {
