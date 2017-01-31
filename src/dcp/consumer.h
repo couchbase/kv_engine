@@ -41,12 +41,12 @@ public:
     ~DcpConsumer();
 
     ENGINE_ERROR_CODE addStream(uint32_t opaque, uint16_t vbucket,
-                                uint32_t flags);
+                                uint32_t flags) override;
 
-    ENGINE_ERROR_CODE closeStream(uint32_t opaque, uint16_t vbucket);
+    ENGINE_ERROR_CODE closeStream(uint32_t opaque, uint16_t vbucket) override;
 
     ENGINE_ERROR_CODE streamEnd(uint32_t opaque, uint16_t vbucket,
-                                uint32_t flags);
+                                uint32_t flags) override;
 
     ENGINE_ERROR_CODE mutation(uint32_t opaque,
                                const DocKey& key,
@@ -61,7 +61,7 @@ public:
                                uint32_t expiration,
                                uint32_t lock_time,
                                cb::const_byte_buffer meta,
-                               uint8_t nru);
+                               uint8_t nru) override;
 
     ENGINE_ERROR_CODE deletion(uint32_t opaque,
                                const DocKey& key,
@@ -72,7 +72,7 @@ public:
                                uint16_t vbucket,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
-                               cb::const_byte_buffer meta);
+                               cb::const_byte_buffer meta) override;
 
     ENGINE_ERROR_CODE expiration(uint32_t opaque,
                                  const DocKey& key,
@@ -83,30 +83,30 @@ public:
                                  uint16_t vbucket,
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
-                                 cb::const_byte_buffer meta);
+                                 cb::const_byte_buffer meta) override;
 
     ENGINE_ERROR_CODE snapshotMarker(uint32_t opaque,
                                      uint16_t vbucket,
                                      uint64_t start_seqno,
                                      uint64_t end_seqno,
-                                     uint32_t flags);
+                                     uint32_t flags) override;
 
-    ENGINE_ERROR_CODE noop(uint32_t opaque);
+    ENGINE_ERROR_CODE noop(uint32_t opaque) override;
 
     ENGINE_ERROR_CODE flush(uint32_t opaque, uint16_t vbucket);
 
     ENGINE_ERROR_CODE setVBucketState(uint32_t opaque, uint16_t vbucket,
-                                      vbucket_state_t state);
+                                      vbucket_state_t state) override;
 
-    ENGINE_ERROR_CODE step(struct dcp_message_producers* producers);
+    ENGINE_ERROR_CODE step(struct dcp_message_producers* producers) override;
 
-    ENGINE_ERROR_CODE handleResponse(protocol_binary_response_header *resp);
+    ENGINE_ERROR_CODE handleResponse(protocol_binary_response_header *resp) override;
 
     bool doRollback(uint32_t opaque, uint16_t vbid, uint64_t rollbackSeqno);
 
-    void addStats(ADD_STAT add_stat, const void *c);
+    void addStats(ADD_STAT add_stat, const void *c) override;
 
-    void aggregateQueueStats(ConnCounter& aggregator);
+    void aggregateQueueStats(ConnCounter& aggregator) override;
 
     void notifyStreamReady(uint16_t vbucket);
 
