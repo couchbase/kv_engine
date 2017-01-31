@@ -415,18 +415,6 @@ public:
     bool unlocked_del(const DocKey& key, int bucket_num);
 
     /**
-     * Delete the item with the given key.
-     *
-     * @param key the storage key of the value to delete
-     * @return true if the item existed before this call
-     */
-    bool del(const DocKey& key) {
-        int bucket_num(0);
-        std::unique_lock<std::mutex> lh = getLockedBucket(key, &bucket_num);
-        return unlocked_del(key, bucket_num);
-    }
-
-    /**
      * Visit all items within this hashtable.
      */
     void visit(HashTableVisitor &visitor);

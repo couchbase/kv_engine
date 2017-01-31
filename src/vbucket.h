@@ -856,6 +856,15 @@ public:
      */
     void deletedOnDiskCbk(const Item& queuedItem, bool deleted);
 
+    /**
+     * Update in memory data structures after a rollback on disk
+     *
+     * @param queuedItem item key
+     *
+     * @return indicates if the operation is succcessful
+     */
+    bool deleteKey(const DocKey& key);
+
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
 

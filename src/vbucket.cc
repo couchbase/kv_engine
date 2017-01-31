@@ -1926,6 +1926,12 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
     decrMetaDataDisk(queuedItem);
 }
 
+bool VBucket::deleteKey(const DocKey& key) {
+    int bucket_num(0);
+    auto lh = ht.getLockedBucket(key, &bucket_num);
+    return ht.unlocked_del(key, bucket_num);
+}
+
 void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
                        item_eviction_policy_t policy) {
     addStat(NULL, toString(state), add_stat, c);

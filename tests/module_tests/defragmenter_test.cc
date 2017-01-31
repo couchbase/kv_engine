@@ -356,8 +356,8 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
                 // Use DocKey to minimize heap pollution
                 char key[16];
                 snprintf(key, sizeof(key), "%d", doc_id);
-                ASSERT_TRUE(vbucket.ht.del(DocKey(key,
-                                                DocNamespace::DefaultCollection)));
+                ASSERT_TRUE(vbucket.deleteKey(
+                        DocKey(key, DocNamespace::DefaultCollection)));
                 kv->second.pop_back();
                 num_remaining--;
             }

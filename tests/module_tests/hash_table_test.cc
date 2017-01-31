@@ -107,6 +107,18 @@ static std::vector<StoredDocKey> generateKeys(int num, int start=0) {
     return rv;
 }
 
+/**
+ * Delete the item with the given key.
+ *
+ * @param key the storage key of the value to delete
+ * @return true if the item existed before this call
+ */
+static bool del(HashTable& ht, const DocKey& key) {
+    int bucket_num(0);
+    std::unique_lock<std::mutex> lh = ht.getLockedBucket(key, &bucket_num);
+    return ht.unlocked_del(key, bucket_num);
+}
+
 // ----------------------------------------------------------------------
 // Actual tests below.
 // ----------------------------------------------------------------------
@@ -149,7 +161,7 @@ TEST_F(HashTableTest, ReverseDeletions) {
     std::reverse(keys.begin(), keys.end());
 
     for (const auto& key : keys) {
-        h.del(key);
+        del(h, key);
     }
 
     EXPECT_EQ(0, count(h));
@@ -169,7 +181,7 @@ TEST_F(HashTableTest, ForwardDeletions) {
     EXPECT_EQ(nkeys, count(h));
 
     for (const auto& key : keys) {
-        h.del(key);
+        del(h, key);
     }
 
     EXPECT_EQ(0, count(h));
@@ -247,7 +259,7 @@ public:
             if (rand() % 111 == 0) {
                 resize();
             }
-            ht.del(key);
+            del(ht, key);
         }
         return true;
     }
@@ -329,7 +341,7 @@ TEST_F(HashTableTest, SizeStats) {
 
     EXPECT_EQ(MutationStatus::WasClean, ht.set(i));
 
-    ht.del(k);
+    del(ht, k);
 
     EXPECT_EQ(0, ht.memSize.load());
     EXPECT_EQ(0, ht.cacheSize.load());
@@ -380,7 +392,7 @@ TEST_F(HashTableTest, SizeStatsSoftDel) {
     EXPECT_EQ(MutationStatus::WasClean, ht.set(i));
 
     EXPECT_EQ(MutationStatus::WasDirty, ht.softDelete(k, 0));
-    ht.del(k);
+    del(ht, k);
 
     EXPECT_EQ(0, ht.memSize.load());
     EXPECT_EQ(0, ht.cacheSize.load());
@@ -437,7 +449,7 @@ TEST_F(HashTableTest, SizeStatsEject) {
     v->markClean();
     EXPECT_TRUE(ht.unlocked_ejectItem(v, policy));
 
-    ht.del(key);
+    del(ht, key);
 
     EXPECT_EQ(0, ht.memSize.load());
     EXPECT_EQ(0, ht.cacheSize.load());

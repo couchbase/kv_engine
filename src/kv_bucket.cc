@@ -2653,7 +2653,6 @@ public:
         }
         Item *itm = val.getValue();
         RCPtr<VBucket> vb = engine.getVBucket(itm->getVBucketId());
-        int bucket_num(0);
         RememberingCallback<GetValue> gcb;
         engine.getKVBucket()->getROUnderlying(
                     itm->getVBucketId())->getWithHeader(dbHandle,
@@ -2664,8 +2663,7 @@ public:
         if (gcb.val.getStatus() == ENGINE_SUCCESS) {
             Item *it = gcb.val.getValue();
             if (it->isDeleted()) {
-                auto lh = vb->ht.getLockedBucket(it->getKey(), &bucket_num);
-                bool ret = vb->ht.unlocked_del(it->getKey(), bucket_num);
+                bool ret = vb->deleteKey(it->getKey());
                 if(!ret) {
                     setStatus(ENGINE_KEY_ENOENT);
                 } else {
@@ -2680,8 +2678,7 @@ public:
             }
             delete it;
         } else if (gcb.val.getStatus() == ENGINE_KEY_ENOENT) {
-            auto lh = vb->ht.getLockedBucket(itm->getKey(), &bucket_num);
-            bool ret = vb->ht.unlocked_del(itm->getKey(), bucket_num);
+            bool ret = vb->deleteKey(itm->getKey());
             if (!ret) {
                 setStatus(ENGINE_KEY_ENOENT);
             } else {
@@ -2719,7 +2716,7 @@ void KVBucket::rollbackCheckpoint(RCPtr<VBucket> &vb,
             if (gcb.val.getStatus() == ENGINE_SUCCESS) {
                 vb->setFromInternal(*gcb.val.getValue(), true);
             } else {
-                vb->ht.del(item->getKey());
+                vb->deleteKey(item->getKey());
             }
 
             delete gcb.val.getValue();
