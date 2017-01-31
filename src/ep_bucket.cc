@@ -110,12 +110,12 @@ void EPBucket::startFlusher() {
 }
 
 void EPBucket::stopFlusher() {
-    for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
-        Flusher* flusher = vbMap.shards[i]->getFlusher();
+    for (const auto& shard : vbMap.shards) {
+        auto* flusher = shard->getFlusher();
         LOG(EXTENSION_LOG_NOTICE,
             "Attempting to stop the flusher for "
             "shard:%" PRIu16,
-            i);
+            shard->getId());
         bool rv = flusher->stop(stats.forceShutdown);
         if (rv && !stats.forceShutdown) {
             flusher->wait();
@@ -125,14 +125,14 @@ void EPBucket::stopFlusher() {
 
 bool EPBucket::pauseFlusher() {
     bool rv = true;
-    for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
-        Flusher* flusher = vbMap.shards[i]->getFlusher();
+    for (const auto& shard : vbMap.shards) {
+        auto* flusher = shard->getFlusher();
         if (!flusher->pause()) {
             LOG(EXTENSION_LOG_WARNING,
                 "Attempted to pause flusher in state "
                 "[%s], shard = %d",
                 flusher->stateName(),
-                i);
+                shard->getId());
             rv = false;
         }
     }
@@ -141,14 +141,14 @@ bool EPBucket::pauseFlusher() {
 
 bool EPBucket::resumeFlusher() {
     bool rv = true;
-    for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
-        Flusher* flusher = vbMap.shards[i]->getFlusher();
+    for (const auto& shard : vbMap.shards) {
+        auto* flusher = shard->getFlusher();
         if (!flusher->resume()) {
             LOG(EXTENSION_LOG_WARNING,
                 "Attempted to resume flusher in state [%s], "
-                "shard = %d",
+                "shard = %" PRIu16,
                 flusher->stateName(),
-                i);
+                shard->getId());
             rv = false;
         }
     }
@@ -157,20 +157,19 @@ bool EPBucket::resumeFlusher() {
 
 void EPBucket::wakeUpFlusher() {
     if (stats.diskQueueSize.load() == 0) {
-        for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
-            Flusher *flusher = vbMap.shards[i]->getFlusher();
-            flusher->wake();
+        for (const auto& shard : vbMap.shards) {
+            shard->getFlusher()->wake();
         }
     }
 }
 
 bool EPBucket::startBgFetcher() {
-    for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
-        BgFetcher* bgfetcher = vbMap.shards[i]->getBgFetcher();
+    for (const auto& shard : vbMap.shards) {
+        BgFetcher* bgfetcher = shard->getBgFetcher();
         if (bgfetcher == NULL) {
             LOG(EXTENSION_LOG_WARNING,
-                "Failed to start bg fetcher for shard %d",
-                i);
+                "Failed to start bg fetcher for shard %" PRIu16,
+                shard->getId());
             return false;
         }
         bgfetcher->start();
@@ -179,15 +178,17 @@ bool EPBucket::startBgFetcher() {
 }
 
 void EPBucket::stopBgFetcher() {
-    for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
-        BgFetcher* bgfetcher = vbMap.shards[i]->getBgFetcher();
+    for (const auto& shard : vbMap.shards) {
+        BgFetcher* bgfetcher = shard->getBgFetcher();
         if (multiBGFetchEnabled() && bgfetcher->pendingJob()) {
             LOG(EXTENSION_LOG_WARNING,
                 "Shutting down engine while there are still pending data "
-                "read for shard %d from database storage",
-                i);
+                "read for shard %" PRIu16 " from database storage",
+                shard->getId());
         }
-        LOG(EXTENSION_LOG_NOTICE, "Stopping bg fetcher for shard:%" PRIu16, i);
+        LOG(EXTENSION_LOG_NOTICE,
+            "Stopping bg fetcher for shard:%" PRIu16,
+            shard->getId());
         bgfetcher->stop();
     }
 }
