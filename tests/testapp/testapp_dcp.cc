@@ -161,3 +161,42 @@ TEST_P(DcpTest, TestProducerIncludeXAttrNoValue) {
     EXPECT_EQ("{\"_ewb\":{\"internal\":true},\"meta\":{\"author\":\"jack\"}}",
              to_string(blob.to_json(), false));
 }
+
+TEST_P(DcpTest, TestDcpOpenCantBeProducerAndConsumer) {
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+
+    conn.sendCommand(BinprotDcpOpenCommand{"ewb_internal:1", 0,
+                                           DCP_OPEN_PRODUCER |
+                                           DCP_OPEN_NOTIFIER});
+
+    BinprotResponse rsp;
+    conn.recvResponse(rsp);
+    EXPECT_FALSE(rsp.isSuccess());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, rsp.getStatus());
+}
+
+TEST_P(DcpTest, TestDcpNotfierCantBeNoValue) {
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+
+    conn.sendCommand(BinprotDcpOpenCommand{"ewb_internal:1", 0,
+                                           DCP_OPEN_NO_VALUE |
+                                           DCP_OPEN_NOTIFIER});
+
+    BinprotResponse rsp;
+    conn.recvResponse(rsp);
+    EXPECT_FALSE(rsp.isSuccess());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, rsp.getStatus());
+}
+
+TEST_P(DcpTest, TestDcpNotfierCantIncludeXattrs) {
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+
+    conn.sendCommand(BinprotDcpOpenCommand{"ewb_internal:1", 0,
+                                           DCP_OPEN_INCLUDE_XATTRS |
+                                           DCP_OPEN_NOTIFIER});
+
+    BinprotResponse rsp;
+    conn.recvResponse(rsp);
+    EXPECT_FALSE(rsp.isSuccess());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, rsp.getStatus());
+}

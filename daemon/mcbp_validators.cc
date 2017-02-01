@@ -18,6 +18,7 @@
 #include "config.h"
 #include "mcbp_validators.h"
 #include <memcached/protocol_binary.h>
+#include <include/memcached/protocol_binary.h>
 
 #include "buckets.h"
 #include "memcached.h"
@@ -32,6 +33,13 @@ static inline bool may_accept_xattr(const Cookie& cookie) {
     }
 
     return true;
+}
+
+static inline std::string get_peer_description(const Cookie& cookie) {
+    if (cookie.connection != nullptr) {
+        return cookie.connection->getDescription();
+    }
+    return "[unknown]";
 }
 
 /******************************************************************************
@@ -58,6 +66,26 @@ static protocol_binary_response_status dcp_open_validator(const Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
+    const auto flags = ntohl(req->message.body.flags);
+    const auto mask = DCP_OPEN_PRODUCER |
+                      DCP_OPEN_NOTIFIER |
+                      DCP_OPEN_INCLUDE_XATTRS |
+                      DCP_OPEN_NO_VALUE;
+
+    if (flags & ~mask) {
+        LOG_NOTICE(cookie.connection,
+                   "Client trying to open dcp stream with unknown flags (%08x) %s",
+                   flags, get_peer_description(cookie).c_str());
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    if ((flags & DCP_OPEN_NOTIFIER) && (flags & ~DCP_OPEN_NOTIFIER)) {
+        LOG_NOTICE(cookie.connection,
+                   "Invalid flags combination (%08x) specified for a DCP consumer %s",
+                   flags, get_peer_description(cookie).c_str());
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
@@ -80,6 +108,26 @@ static protocol_binary_response_status dcp_add_stream_validator(const Cookie& co
         cookie.connection->getBucketEngine()->dcp.add_stream == nullptr) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    }
+
+    const auto flags = ntohl(req->message.body.flags);
+    const auto mask = DCP_ADD_STREAM_FLAG_TAKEOVER |
+                      DCP_ADD_STREAM_FLAG_DISKONLY |
+                      DCP_ADD_STREAM_FLAG_LATEST |
+                      DCP_ADD_STREAM_ACTIVE_VB_ONLY;
+
+    if (flags & ~mask) {
+        if (flags & DCP_ADD_STREAM_FLAG_NO_VALUE) {
+            // MB-22525 The NO_VALUE flag should be passed to DCP_OPEN
+            LOG_NOTICE(cookie.connection,
+                       "Client trying to add stream with NO VALUE %s",
+                       get_peer_description(cookie).c_str());
+        } else {
+            LOG_NOTICE(cookie.connection,
+                       "Client trying to add stream with unknown flags (%08x) %s",
+                       flags, get_peer_description(cookie).c_str());
+        }
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
