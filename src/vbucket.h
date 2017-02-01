@@ -930,6 +930,43 @@ protected:
                          bool maybeKeyExists,
                          bool isReplication);
 
+    /**
+     * This function checks cas, expiry, eviction policy and other partition
+     * (vbucket) related rules before logically (soft) deleting an item in
+     * in-memory structure like HT, and checkpoint mgr.
+     * Assumes that HT bucket lock is grabbed.
+     *
+     * @param htLock Hash table lock that must be held
+     * @param v Reference to the StoredValue to be soft deleted
+     * @param cas the expected CAS of the item (or 0 to override)
+     *
+     * @return Result indicating the status of the operation
+     */
+    MutationStatus processSoftDelete(const std::unique_lock<std::mutex>& htLock,
+                                     StoredValue& v,
+                                     uint64_t cas);
+
+    /**
+     * Delete a key (associated StoredValue) from ALL in-memory data structures
+     * like HT.
+     * Assumes that HT bucket lock is grabbed.
+     *
+     * Currently StoredValues form HashTable intrusively. That is, HashTable
+     * does not store a reference or a copy of the StoredValue. If any other
+     * in-memory data strucutures are formed intrusively using StoredValues,
+     * then it must be decided in this function which data structure deletes
+     * the StoredValue. Currently it is HashTable that deleted the StoredValue
+     *
+     * @param htLock Hash table lock that must be held
+     * @param v Reference to the StoredValue to be deleted
+     * @param bucket_num the hash bucket to look in
+     *
+     * @return true if an object was deleted, false otherwise
+     */
+    bool deleteStoredValue(const std::unique_lock<std::mutex>& htLock,
+                           StoredValue& v,
+                           int bucketNum);
+
 private:
     template <typename T>
     void addStat(const char *nm, const T &val, ADD_STAT add_stat, const void *c);
@@ -989,24 +1026,44 @@ private:
                                    PreserveRevSeqno preserveRevSeqno);
 
     /**
-     * Delete a key from ALL in-memory data structures like HT.
+     * Logically (soft) delete item in all in-memory data structures. Also
+     * updates revSeqno. Depending on the in-memory data structure the item may
+     * be marked delete and/or reset and/or a new value (marked as deleted)
+     * added.
      * Assumes that HT bucket lock is grabbed.
-     *
-     * Currently StoredValues form HashTable intrusively. That is, HashTable
-     * does not store a reference or a copy of the StoredValue. If any other
-     * in-memory data strucutures are formed intrusively using StoredValues,
-     * then it must be decided in this function which data structure deletes
-     * the StoredValue. Currently it is HashTable that deleted the StoredValue
+     * Also assumes that v is in the hash table.
      *
      * @param htLock Hash table lock that must be held
-     * @param v Reference to the StoredValue to be deleted
-     * @param bucket_num the hash bucket to look in
-     *
-     * @return true if an object was deleted, false otherwise
+     * @param v Reference to the StoredValue to be soft deleted
+     * @param revSeqno revision id sequence number
+     * @param onlyMarkDeleted indicates if we must reset the StoredValue or
+     *                        just mark deleted
      */
-    bool deleteStoredValue(const std::unique_lock<std::mutex>& htLock,
-                           StoredValue& v,
-                           int bucketNum);
+    void softDeleteStoredValue(const std::unique_lock<std::mutex>& htLock,
+                               StoredValue& v,
+                               uint64_t revSeqno,
+                               bool onlyMarkDeleted);
+
+    /**
+     * This function checks cas, expiry, eviction policy and other partition
+     * (vbucket) related rules before logically (soft) deleting an item in
+     * in-memory structure like HT, and checkpoint mgr.
+     * Assumes that HT bucket lock is grabbed.
+     *
+     * @param htLock Hash table lock that must be held
+     * @param v Reference to the StoredValue to be soft deleted
+     * @param cas the expected CAS of the item (or 0 to override)
+     * @param itemMeta ref to item meta data
+     * @param use_meta Indicates if v must be updated with the metadata
+     *
+     * @return Result indicating the status of the operation
+     */
+    MutationStatus processSoftDelete(const std::unique_lock<std::mutex>& htLock,
+                                     StoredValue& v,
+                                     uint64_t cas,
+                                     const ItemMetaData& metadata,
+                                     bool use_meta);
+
     /**
      * Adds a temporary StoredValue in in-memory data structures like HT.
      * Assumes that HT bucket lock is grabbed.

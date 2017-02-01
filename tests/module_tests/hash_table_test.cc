@@ -204,18 +204,6 @@ static void verifyFound(HashTable &h, const std::vector<StoredDocKey> &keys) {
     }
 }
 
-static void verifyValue(HashTable& ht, StoredDocKey& key, const char* value,
-                        bool trackReference, bool wantDeleted) {
-    StoredValue* v = ht.find(key, trackReference, wantDeleted);
-    EXPECT_NE(nullptr, v);
-    value_t val = v->getValue();
-    if (!value) {
-        EXPECT_EQ(nullptr, val.get());
-    } else {
-        EXPECT_STREQ(value, val->to_s().c_str());
-    }
-}
-
 static void testFind(HashTable &h) {
     const int nkeys = 1000;
 
@@ -383,58 +371,6 @@ TEST_F(HashTableTest, SizeStatsFlush) {
     cb_free(someval);
 }
 
-TEST_F(HashTableTest, SizeStatsSoftDel) {
-    global_stats.reset();
-    HashTable ht(global_stats, 5, 1);
-    ASSERT_EQ(0, ht.memSize.load());
-    ASSERT_EQ(0, ht.cacheSize.load());
-    size_t initialSize = global_stats.currentSize.load();
-
-    const StoredDocKey k = makeStoredDocKey("somekey");
-    const size_t itemSize(16 * 1024);
-    char *someval(static_cast<char*>(cb_calloc(1, itemSize)));
-    EXPECT_TRUE(someval);
-
-    Item i(k, 0, 0, someval, itemSize);
-
-    EXPECT_EQ(MutationStatus::WasClean, ht.set(i));
-
-    EXPECT_EQ(MutationStatus::WasDirty, ht.softDelete(k, 0));
-    del(ht, k);
-
-    EXPECT_EQ(0, ht.memSize.load());
-    EXPECT_EQ(0, ht.cacheSize.load());
-    EXPECT_EQ(initialSize, global_stats.currentSize.load());
-
-    cb_free(someval);
-}
-
-TEST_F(HashTableTest, SizeStatsSoftDelFlush) {
-    global_stats.reset();
-    HashTable ht(global_stats, 5, 1);
-    ASSERT_EQ(0, ht.memSize.load());
-    ASSERT_EQ(0, ht.cacheSize.load());
-    size_t initialSize = global_stats.currentSize.load();
-
-    StoredDocKey k = makeStoredDocKey("somekey");
-    const size_t itemSize(16 * 1024);
-    char *someval(static_cast<char*>(cb_calloc(1, itemSize)));
-    EXPECT_TRUE(someval);
-
-    Item i(k, 0, 0, someval, itemSize);
-
-    EXPECT_EQ(MutationStatus::WasClean, ht.set(i));
-
-    EXPECT_EQ(MutationStatus::WasDirty, ht.softDelete(k, 0));
-    ht.clear();
-
-    EXPECT_EQ(0, ht.memSize.load());
-    EXPECT_EQ(0, ht.cacheSize.load());
-    EXPECT_EQ(initialSize, global_stats.currentSize.load());
-
-    cb_free(someval);
-}
-
 TEST_F(HashTableTest, SizeStatsEject) {
     global_stats.reset();
     HashTable ht(global_stats, 5, 1);
@@ -561,72 +497,4 @@ TEST_F(HashTableTest, NRUMinimum) {
     StoredValue* v(ht.find(key,/*trackReference*/false));
     EXPECT_NE(nullptr, v);
     EXPECT_EQ(MIN_NRU_VALUE, v->getNRUValue());
-}
-
-/** Test to check if an unlocked_softDelete performed on an
- *  existing item with a new value results in a success
- */
-TEST_F(HashTableTest, unlockedSoftDeleteWithValue) {
-    // Setup - create a key and then delete it with a value.
-    HashTable ht(global_stats, 5, 1);
-    StoredDocKey key = makeStoredDocKey("key");
-    Item stored_item(key, 0 , 0, "value", strlen("value"));
-    ASSERT_EQ(MutationStatus::WasClean, ht.set(stored_item));
-
-    StoredValue* v(ht.find(key, /*trackReference*/false));
-    EXPECT_NE(nullptr, v);
-
-    // Create an item and set its state to deleted
-    Item deleted_item(key, 0 , 0, "deletedvalue",
-                      strlen("deletedvalue"));
-    deleted_item.setDeleted();
-
-    // Set a new deleted value
-    v->setValue(deleted_item, ht, PreserveRevSeqno::Yes);
-
-    ItemMetaData itm_meta;
-    EXPECT_EQ(MutationStatus::WasDirty,
-              ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));
-    verifyValue(ht, key, "deletedvalue",/*trackReference*/true, /*wantsDeleted*/true);
-}
-
-/** Test to check if an unlocked_softDelete performed on a
- *  deleted item without a value and with a value
- */
-TEST_F(HashTableTest, updateDeletedItem) {
-    // Setup - create a key and then delete it.
-    HashTable ht(global_stats, 5, 1);
-    StoredDocKey key = makeStoredDocKey("key");
-    Item stored_item(key, 0 , 0, "value", strlen("value"));
-    ASSERT_EQ(MutationStatus::WasClean, ht.set(stored_item));
-
-    StoredValue* v(ht.find(key, /*trackReference*/false));
-    EXPECT_NE(nullptr, v);
-
-    ItemMetaData itm_meta;
-    EXPECT_EQ(MutationStatus::WasDirty,
-              ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));
-    verifyValue(ht, key, nullptr,/*trackReference*/true, /*wantsDeleted*/true);
-
-    Item deleted_item(key, 0, 0, "deletedvalue", strlen("deletedvalue"));
-    deleted_item.setDeleted();
-
-    // Set a new deleted value
-    v->setValue(deleted_item, ht, PreserveRevSeqno::Yes);
-
-    EXPECT_EQ(MutationStatus::WasDirty,
-              ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));
-    verifyValue(ht, key, "deletedvalue", /*trackReference*/true, /*wantDeleted*/true);
-
-    Item update_deleted_item(key, 0, 0, "updatedeletedvalue",
-                             strlen("updatedeletedvalue"));
-    update_deleted_item.setDeleted();
-
-    // Set a new deleted value
-    v->setValue(update_deleted_item, ht, PreserveRevSeqno::Yes);
-
-    EXPECT_EQ(MutationStatus::WasDirty,
-              ht.unlocked_softDelete(v, 0, itm_meta, VALUE_ONLY));
-    verifyValue(ht, key, "updatedeletedvalue",/*trackReference*/true,
-                /*wantsDeleted*/true);
 }

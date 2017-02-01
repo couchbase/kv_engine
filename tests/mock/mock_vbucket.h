@@ -79,4 +79,31 @@ public:
                           /*maybeKeyExists*/ true,
                           /*isReplication*/ false);
     }
+
+    MutationStatus public_processSoftDelete(const DocKey& key,
+                                            StoredValue* v,
+                                            uint64_t cas) {
+        int bucket_num(0);
+        auto lh = ht.getLockedBucket(key, &bucket_num);
+        if (!v) {
+            v = ht.unlocked_find(key, bucket_num, false, false);
+            if (!v) {
+                return MutationStatus::NotFound;
+            }
+        }
+        return processSoftDelete(lh, *v, cas);
+    }
+
+    bool public_deleteStoredValue(const DocKey& key) {
+        int bucket_num(0);
+        std::unique_lock<std::mutex> lh = ht.getLockedBucket(key, &bucket_num);
+        StoredValue* v = ht.unlocked_find(key,
+                                          bucket_num,
+                                          /*wantsDeleted*/ true,
+                                          /*trackReference*/ false);
+        if (!v) {
+            return false;
+        }
+        return deleteStoredValue(lh, *v, bucket_num);
+    }
 };

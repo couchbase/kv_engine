@@ -318,99 +318,23 @@ StoredValue* HashTable::unlocked_addNewStoredValue(
     return v;
 }
 
-MutationStatus HashTable::softDelete(const DocKey& key,
-                                     uint64_t cas,
-                                     item_eviction_policy_t policy) {
-    if (!isActive()) {
-        throw std::logic_error("HashTable::softDelete: Cannot call on a "
-                "non-active object");
-    }
-    int bucket_num(0);
-    std::unique_lock<std::mutex> lh = getLockedBucket(key, &bucket_num);
-    StoredValue *v = unlocked_find(key, bucket_num, false, false);
-    return unlocked_softDelete(v, cas, policy);
-}
-
-MutationStatus HashTable::unlocked_softDelete(StoredValue* v,
-                                              uint64_t cas,
-                                              item_eviction_policy_t policy) {
-    ItemMetaData metadata;
-    if (v) {
-        metadata.revSeqno = v->getRevSeqno() + 1;
-    }
-    return unlocked_softDelete(v, cas, metadata, policy);
-}
-
-MutationStatus HashTable::unlocked_softDelete(StoredValue* v,
-                                              uint64_t cas,
-                                              const ItemMetaData& metadata,
-                                              item_eviction_policy_t policy,
-                                              bool use_meta) {
-    MutationStatus rv = MutationStatus::NotFound;
-
-    if ((!v || v->isTempInitialItem()) && policy == FULL_EVICTION) {
-        return MutationStatus::NeedBgFetch;
+void HashTable::unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
+                                    StoredValue& v,
+                                    bool onlyMarkDeleted) {
+    if (!v.isResident() && !v.isDeleted() && !v.isTempItem()) {
+        decrNumNonResidentItems();
     }
 
-    if (v) {
-        if (v->isExpired(ep_real_time()) && !use_meta) {
-            if (!v->isResident() && !v->isDeleted() && !v->isTempItem()) {
-                decrNumNonResidentItems();
-            }
-            v->setRevSeqno(metadata.revSeqno);
-            /* If the datatype is XATTR, mark the item as deleted
-             * but don't delete the value as system xattrs can
-             * still be queried by mobile clients even after
-             * deletion.
-             * TODO: The current implementation is inefficient
-             * but functionally correct and for performance reasons
-             * only the system xattrs need to be stored.
-             */
-            value_t value = v->getValue();
-            if (value && mcbp::datatype::is_xattr(value->getDataType())) {
-                v->markDeleted();
-            } else {
-                v->del(*this);
-            }
-            updateMaxDeletedRevSeqno(v->getRevSeqno());
-            return rv;
-        }
-
-        if (v->isLocked(ep_current_time())) {
-            if (cas != v->getCas()) {
-                return MutationStatus::IsLocked;
-            }
-            v->unlock();
-        }
-
-        if (cas != 0 && cas != v->getCas()) {
-            return MutationStatus::InvalidCas;
-        }
-
-        if (!v->isResident() && !v->isDeleted() && !v->isTempItem()) {
-            decrNumNonResidentItems();
-        }
-
-        if (v->isTempItem()) {
+    if (onlyMarkDeleted) {
+        v.markDeleted();
+    } else {
+        if (v.isTempItem()) {
             --numTempItems;
             ++numItems;
             ++numTotalItems;
         }
-
-        /* allow operation*/
-        v->unlock();
-
-        rv = v->isClean() ? MutationStatus::WasClean : MutationStatus::WasDirty;
-        v->setRevSeqno(metadata.revSeqno);
-        if (use_meta) {
-            v->setCas(metadata.cas);
-            v->setFlags(metadata.flags);
-            v->setExptime(metadata.exptime);
-        }
-        v->del(*this);
-        updateMaxDeletedRevSeqno(v->getRevSeqno());
+        v.del(*this);
     }
-    return rv;
 }
 
 StoredValue* HashTable::unlocked_find(const DocKey& key, int bucket_num,

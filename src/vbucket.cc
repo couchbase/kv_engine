@@ -767,7 +767,7 @@ StoredValue* VBucket::fetchValidValue(std::unique_lock<std::mutex>& lh,
             // queueDirty only allowed on active VB
             if (queueExpired && getState() == vbucket_state_active) {
                 incExpirationStat(ExpireBy::Access);
-                ht.unlocked_softDelete(v, 0, eviction);
+                processSoftDelete(lh, *v, 0);
                 queueDirty(*v);
             }
             return wantsDeleted ? v : NULL;
@@ -1441,7 +1441,17 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
     if (itm && v) {
         v->setValue(*itm, ht, PreserveRevSeqno::Yes);
     }
-    delrv = ht.unlocked_softDelete(v, cas, eviction);
+
+    if (!v) {
+        if (eviction == FULL_EVICTION) {
+            delrv = MutationStatus::NeedBgFetch;
+        } else {
+            delrv = MutationStatus::NotFound;
+        }
+    } else {
+        delrv = processSoftDelete(lh, *v, cas);
+    }
+
     if (v && (delrv == MutationStatus::NotFound ||
               delrv == MutationStatus::WasDirty ||
               delrv == MutationStatus::WasClean)) {
@@ -1490,7 +1500,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
         // item above.
         throw std::logic_error(
                 "VBucket::deleteItem: "
-                "Unexpected NEEDS_BG_FETCH from unlocked_softDelete");
+                "Unexpected NEEDS_BG_FETCH from processSoftDelete");
     }
     return ret;
 }
@@ -1569,8 +1579,16 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
         v->unlock();
     }
 
-    MutationStatus delrv =
-            ht.unlocked_softDelete(v, cas, itemMeta, eviction, true);
+    MutationStatus delrv;
+    if (!v) {
+        if (eviction == FULL_EVICTION) {
+            delrv = MutationStatus::NeedBgFetch;
+        } else {
+            delrv = MutationStatus::NotFound;
+        }
+    } else {
+        delrv = processSoftDelete(lh, *v, cas, itemMeta, /*use_meta*/ true);
+    }
     cas = v ? v->getCas() : 0;
 
     switch (delrv) {
@@ -1624,7 +1642,7 @@ void VBucket::deleteExpiredItem(const DocKey& key,
                         std::to_string(bucket_num));
             }
         } else if (v->isExpired(startTime) && !v->isDeleted()) {
-            ht.unlocked_softDelete(v, 0, eviction);
+            processSoftDelete(lh, *v, 0);
             queueDirty(*v, &lh);
         }
     } else {
@@ -1640,7 +1658,7 @@ void VBucket::deleteExpiredItem(const DocKey& key,
                 v = ht.unlocked_find(key, bucket_num, true, false);
                 v->setDeleted();
                 v->setRevSeqno(revSeqno);
-                ht.unlocked_softDelete(v, 0, eviction);
+                processSoftDelete(lh, *v, 0);
                 queueDirty(*v, &lh);
             }
         }
@@ -2183,6 +2201,80 @@ AddStatus VBucket::processAdd(const std::unique_lock<std::mutex>& htLock,
     return rv;
 }
 
+MutationStatus VBucket::processSoftDelete(
+        const std::unique_lock<std::mutex>& htLock,
+        StoredValue& v,
+        uint64_t cas) {
+    if (!htLock) {
+        throw std::invalid_argument(
+                "VBucket::processSoftDelete: htLock not held for "
+                "VBucket " +
+                std::to_string(getId()));
+    }
+    ItemMetaData metadata;
+    metadata.revSeqno = v.getRevSeqno() + 1;
+    return processSoftDelete(htLock, v, cas, metadata, /*use_meta*/ false);
+}
+
+MutationStatus VBucket::processSoftDelete(
+        const std::unique_lock<std::mutex>& htLock,
+        StoredValue& v,
+        uint64_t cas,
+        const ItemMetaData& metadata,
+        bool use_meta) {
+    if (v.isTempInitialItem() && eviction == FULL_EVICTION) {
+        return MutationStatus::NeedBgFetch;
+    }
+
+    if (v.isExpired(ep_real_time()) && !use_meta) {
+        /* If the datatype is XATTR, mark the item as deleted
+         * but don't delete the value as system xattrs can
+         * still be queried by mobile clients even after
+         * deletion.
+         * TODO: The current implementation is inefficient
+         * but functionally correct and for performance reasons
+         * only the system xattrs need to be stored.
+         */
+        value_t value = v.getValue();
+        if (value && mcbp::datatype::is_xattr(value->getDataType())) {
+            softDeleteStoredValue(
+                    htLock, v, metadata.revSeqno, /*onlyMarkDeleted*/ true);
+        } else {
+            softDeleteStoredValue(
+                    htLock, v, metadata.revSeqno, /*onlyMarkDeleted*/ false);
+        }
+        return MutationStatus::NotFound;
+    }
+
+    if (v.isLocked(ep_current_time())) {
+        if (cas != v.getCas()) {
+            return MutationStatus::IsLocked;
+        }
+        v.unlock();
+    }
+
+    if (cas != 0 && cas != v.getCas()) {
+        return MutationStatus::InvalidCas;
+    }
+
+    /* allow operation */
+    v.unlock();
+
+    MutationStatus rv =
+            v.isClean() ? MutationStatus::WasClean : MutationStatus::WasDirty;
+
+    if (use_meta) {
+        v.setCas(metadata.cas);
+        v.setFlags(metadata.flags);
+        v.setExptime(metadata.exptime);
+    }
+
+    softDeleteStoredValue(
+            htLock, v, metadata.revSeqno, /*onlyMarkDeleted*/ false);
+
+    return rv;
+}
+
 MutationStatus VBucket::updateStoredValue(
         const std::unique_lock<std::mutex>& htLock,
         StoredValue& v,
@@ -2225,6 +2317,15 @@ bool VBucket::deleteStoredValue(const std::unique_lock<std::mutex>& htLock,
        by this point */
     ht.unlocked_del(htLock, v.getKey(), bucketNum);
     return true;
+}
+
+void VBucket::softDeleteStoredValue(const std::unique_lock<std::mutex>& htLock,
+                                    StoredValue& v,
+                                    uint64_t revSeqno,
+                                    bool onlyMarkDeleted) {
+    v.setRevSeqno(revSeqno);
+    ht.unlocked_softDelete(htLock, v, onlyMarkDeleted);
+    ht.updateMaxDeletedRevSeqno(v.getRevSeqno());
 }
 
 AddStatus VBucket::addTempStoredValue(

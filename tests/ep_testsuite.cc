@@ -1028,7 +1028,7 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
     // after waiting for ep_expired_pager == 1), however we cannot assume that
     // - items are actually expired asynchronously.
     // See EPStore::deleteExpiredItem - for non-temporary, expired items we
-    // call unlocked_softDelete (soft-marking the item as deleted in the
+    // call processSoftDelete (soft-marking the item as deleted in the
     // hashtable), and then call queueDirty to queue a deletion, and then
     // increment the expired stat. Only when that delete is actually persisted
     // and the deleted callback is invoked -

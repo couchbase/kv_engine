@@ -315,30 +315,18 @@ public:
             const std::unique_lock<std::mutex>& htLock, Item& itm);
 
     /**
-     * Mark the given record logically deleted.
+     * Logically (soft) delete the item in ht
+     * Assumes that HT bucket lock is grabbed.
+     * Also assumes that v is in the hash table.
      *
-     * @param key the key of the item to delete
-     * @param cas the expected CAS of the item (or 0 to override)
-     * @param policy item eviction policy
-     * @return an indicator of what the deletion did
+     * @param htLock Hash table lock that must be held
+     * @param v Reference to the StoredValue to be soft deleted
+     * @param onlyMarkDeleted indicates if we must reset the StoredValue or
+     *                        just mark deleted
      */
-    MutationStatus softDelete(const DocKey& key,
-                              uint64_t cas,
-                              item_eviction_policy_t policy = VALUE_ONLY);
-
-    MutationStatus unlocked_softDelete(
-            StoredValue* v,
-            uint64_t cas,
-            item_eviction_policy_t policy = VALUE_ONLY);
-
-    /**
-     * Unlocked implementation of softDelete.
-     */
-    MutationStatus unlocked_softDelete(StoredValue* v,
-                                       uint64_t cas,
-                                       const ItemMetaData& metadata,
-                                       item_eviction_policy_t policy,
-                                       bool use_meta = false);
+    void unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
+                             StoredValue& v,
+                             bool onlyMarkDeleted);
 
     /**
      * Find an item within a specific bucket assuming you already

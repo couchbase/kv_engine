@@ -64,6 +64,21 @@ static void addMany(MockVBucket& vb,
     }
 }
 
+static void verifyValue(MockVBucket& vb,
+                        StoredDocKey& key,
+                        const char* value,
+                        bool trackReference,
+                        bool wantDeleted) {
+    StoredValue* v = vb.ht.find(key, trackReference, wantDeleted);
+    EXPECT_NE(nullptr, v);
+    value_t val = v->getValue();
+    if (!value) {
+        EXPECT_EQ(nullptr, val.get());
+    } else {
+        EXPECT_STREQ(value, val->to_s().c_str());
+    }
+}
+
 class VBucketTest
         : public ::testing::Test,
           public ::testing::WithParamInterface<item_eviction_policy_t> {
@@ -144,8 +159,10 @@ TEST_P(VBucketTest, Add) {
     }
 
     // Verify we can read after a soft deletion.
-    EXPECT_EQ(MutationStatus::WasDirty, vbucket->ht.softDelete(keys[0], 0));
-    EXPECT_EQ(MutationStatus::NotFound, vbucket->ht.softDelete(keys[0], 0));
+    EXPECT_EQ(MutationStatus::WasDirty,
+              vbucket->public_processSoftDelete(keys[0], nullptr, 0));
+    EXPECT_EQ(MutationStatus::NotFound,
+              vbucket->public_processSoftDelete(keys[0], nullptr, 0));
     EXPECT_FALSE(vbucket->ht.find(keys[0]));
 
     Item i(keys[0], 0, 0, "newtest", 7);
@@ -175,6 +192,154 @@ TEST_P(VBucketTest, AddExpiry) {
     EXPECT_TRUE(v);
     EXPECT_FALSE(v->isExpired(ep_real_time()));
     EXPECT_TRUE(v->isExpired(ep_real_time() + 6));
+}
+
+/**
+ * Test to check if an unlocked_softDelete performed on an
+ * existing item with a new value results in a success
+ */
+TEST_P(VBucketTest, unlockedSoftDeleteWithValue) {
+    const auto eviction_policy = GetParam();
+    if (eviction_policy != VALUE_ONLY) {
+        return;
+    }
+
+    // Setup - create a key and then delete it with a value.
+    StoredDocKey key = makeStoredDocKey("key");
+    Item stored_item(key, 0, 0, "value", strlen("value"));
+    ASSERT_EQ(MutationStatus::WasClean,
+              vbucket->public_processSet(stored_item, stored_item.getCas()));
+
+    StoredValue* v(vbucket->ht.find(key, /*trackReference*/ false));
+    EXPECT_NE(nullptr, v);
+
+    // Create an item and set its state to deleted
+    Item deleted_item(key, 0, 0, "deletedvalue", strlen("deletedvalue"));
+    deleted_item.setDeleted();
+
+    // Set a new deleted value
+    v->setValue(deleted_item, vbucket->ht, PreserveRevSeqno::Yes);
+
+    ItemMetaData itm_meta;
+    EXPECT_EQ(MutationStatus::WasDirty,
+              vbucket->public_processSoftDelete(v->getKey(), v, 0));
+    verifyValue(*vbucket,
+                key,
+                "deletedvalue",
+                /*trackReference*/ true,
+                /*wantsDeleted*/ true);
+}
+
+/**
+ * Test to check if an unlocked_softDelete performed on a
+ * deleted item without a value and with a value
+ */
+TEST_P(VBucketTest, updateDeletedItem) {
+    const auto eviction_policy = GetParam();
+    if (eviction_policy != VALUE_ONLY) {
+        return;
+    }
+
+    // Setup - create a key and then delete it.
+    StoredDocKey key = makeStoredDocKey("key");
+    Item stored_item(key, 0, 0, "value", strlen("value"));
+    ASSERT_EQ(MutationStatus::WasClean,
+              vbucket->public_processSet(stored_item, stored_item.getCas()));
+
+    StoredValue* v(vbucket->ht.find(key, /*trackReference*/ false));
+    EXPECT_NE(nullptr, v);
+
+    ItemMetaData itm_meta;
+    EXPECT_EQ(MutationStatus::WasDirty,
+              vbucket->public_processSoftDelete(v->getKey(), v, 0));
+    verifyValue(*vbucket,
+                key,
+                nullptr,
+                /*trackReference*/ true,
+                /*wantsDeleted*/ true);
+
+    Item deleted_item(key, 0, 0, "deletedvalue", strlen("deletedvalue"));
+    deleted_item.setDeleted();
+
+    // Set a new deleted value
+    v->setValue(deleted_item, vbucket->ht, PreserveRevSeqno::Yes);
+
+    EXPECT_EQ(MutationStatus::WasDirty,
+              vbucket->public_processSoftDelete(v->getKey(), v, 0));
+    verifyValue(*vbucket,
+                key,
+                "deletedvalue",
+                /*trackReference*/ true,
+                /*wantDeleted*/ true);
+
+    Item update_deleted_item(
+            key, 0, 0, "updatedeletedvalue", strlen("updatedeletedvalue"));
+    update_deleted_item.setDeleted();
+
+    // Set a new deleted value
+    v->setValue(update_deleted_item, vbucket->ht, PreserveRevSeqno::Yes);
+
+    EXPECT_EQ(MutationStatus::WasDirty,
+              vbucket->public_processSoftDelete(v->getKey(), v, 0));
+    verifyValue(*vbucket,
+                key,
+                "updatedeletedvalue",
+                /*trackReference*/ true,
+                /*wantsDeleted*/ true);
+}
+
+TEST_P(VBucketTest, SizeStatsSoftDel) {
+    global_stats.reset();
+    ASSERT_EQ(0, vbucket->ht.memSize.load());
+    ASSERT_EQ(0, vbucket->ht.cacheSize.load());
+    size_t initialSize = global_stats.currentSize.load();
+
+    const StoredDocKey k = makeStoredDocKey("somekey");
+    const size_t itemSize(16 * 1024);
+    char* someval(static_cast<char*>(cb_calloc(1, itemSize)));
+    EXPECT_TRUE(someval);
+
+    Item i(k, 0, 0, someval, itemSize);
+
+    EXPECT_EQ(MutationStatus::WasClean,
+              vbucket->public_processSet(i, i.getCas()));
+
+    EXPECT_EQ(MutationStatus::WasDirty,
+              vbucket->public_processSoftDelete(k, nullptr, 0));
+    vbucket->public_deleteStoredValue(k);
+
+    EXPECT_EQ(0, vbucket->ht.memSize.load());
+    EXPECT_EQ(0, vbucket->ht.cacheSize.load());
+    EXPECT_EQ(initialSize, global_stats.currentSize.load());
+
+    cb_free(someval);
+}
+
+TEST_P(VBucketTest, SizeStatsSoftDelFlush) {
+    global_stats.reset();
+    ASSERT_EQ(0, vbucket->ht.memSize.load());
+    ASSERT_EQ(0, vbucket->ht.cacheSize.load());
+    size_t initialSize = global_stats.currentSize.load();
+
+    StoredDocKey k = makeStoredDocKey("somekey");
+    const size_t itemSize(16 * 1024);
+    char* someval(static_cast<char*>(cb_calloc(1, itemSize)));
+    EXPECT_TRUE(someval);
+
+    Item i(k, 0, 0, someval, itemSize);
+
+    EXPECT_EQ(MutationStatus::WasClean,
+              vbucket->public_processSet(i, i.getCas()));
+
+    EXPECT_EQ(MutationStatus::WasDirty,
+              vbucket->public_processSoftDelete(k, nullptr, 0));
+    vbucket->ht.clear();
+
+    EXPECT_EQ(0, vbucket->ht.memSize.load());
+    EXPECT_EQ(0, vbucket->ht.cacheSize.load());
+    EXPECT_EQ(initialSize, global_stats.currentSize.load());
+
+    cb_free(someval);
 }
 
 class VBucketEvictionTest : public VBucketTest {};
@@ -219,7 +384,8 @@ TEST_P(VBucketEvictionTest, MB21448_UnlockedSetWithCASDeleted) {
     Item item(key, 0, 0, "deleted", strlen("deleted"));
     ASSERT_EQ(MutationStatus::WasClean,
               this->vbucket->public_processSet(item, item.getCas()));
-    ASSERT_EQ(MutationStatus::WasDirty, this->vbucket->ht.softDelete(key, 0));
+    ASSERT_EQ(MutationStatus::WasDirty,
+              this->vbucket->public_processSoftDelete(key, nullptr, 0));
 
     // Attempt to perform a set on a deleted key with a CAS.
     Item replacement(key, 0, 0, "value", strlen("value"));
