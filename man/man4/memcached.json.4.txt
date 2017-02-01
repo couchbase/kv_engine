@@ -277,6 +277,15 @@ the *sasl_mechanisms* attribute is a string value containing the SASL
 mechanisms that should be available for clients. It is not a dynamic
 value and require restart in order to change.
 
+=== ssl_sasl_mechanisms
+
+the *ssl_sasl_mechanisms* attribute is a string value containing the SASL
+mechanisms that should be available for clients connecting over SSL.
+It is not a dynamic value and require restart in order to change.
+By default this value is set to PLAIN (the default value may be cleared
+by setting the environment variable `COUCHBASE_I_DONT_TRUST_SSL` to a
+non-null value.
+
 === dedupe_nmvb_maps
 
 The *dedupe_nmvb_maps* attribute is a boolean value to enable deduplication

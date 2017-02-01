@@ -749,6 +749,15 @@ public:
     }
 
     /**
+     * Is SSL enabled for this connection or not?
+     *
+     * @return true if the connection is running over SSL, false otherwise
+     */
+    bool isSslEnabled() const {
+        return ssl.isEnabled();
+    }
+
+    /**
      * Do we have any pending input data on this connection?
      */
     bool havePendingInputData() {

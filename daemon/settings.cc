@@ -443,6 +443,22 @@ static void handle_sasl_mechanisms(Settings& s, cJSON* obj) {
 }
 
 /**
+ * Handle the "ssl_sasl_mechanisms" tag in the settings
+ *
+ * The value must be a string
+ *
+ * @param s the settings object to update
+ * @param obj the object in the configuration
+ */
+static void handle_ssl_sasl_mechanisms(Settings& s, cJSON* obj) {
+    if (obj->type != cJSON_String) {
+        throw std::invalid_argument("\"ssl_sasl_mechanisms\" must be a string");
+    }
+    s.setSslSaslMechanisms(obj->valuestring);
+}
+
+
+/**
  * Handle the "dedupe_nmvb_maps" tag in the settings
  *
  *  The value must be a boolean value
@@ -584,6 +600,7 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
         {"stdin_listen",                 handle_stdin_listen},
         {"exit_on_connection_close",     handle_exit_on_connection_close},
         {"sasl_mechanisms",              handle_sasl_mechanisms},
+        {"ssl_sasl_mechanisms",          handle_ssl_sasl_mechanisms},
         {"dedupe_nmvb_maps",             handle_dedupe_nmvb_maps},
         {"xattr_enabled",                handle_xattr_enabled}
     };
@@ -857,6 +874,12 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         if (other.sasl_mechanisms != sasl_mechanisms) {
             throw std::invalid_argument(
                 "sasl_mechanisms can't be changed dynamically");
+        }
+    }
+    if (other.has.ssl_sasl_mechanisms) {
+        if (other.ssl_sasl_mechanisms != ssl_sasl_mechanisms) {
+            throw std::invalid_argument(
+                "ssl_sasl_mechanisms can't be changed dynamically");
         }
     }
 

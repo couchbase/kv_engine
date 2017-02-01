@@ -727,6 +727,26 @@ public:
     }
 
     /**
+     * Get the list of available SASL Mechanisms to use for SSL
+     *
+     * @return all SASL mechanisms the client may use
+     */
+    const std::string& getSslSaslMechanisms() const {
+        return ssl_sasl_mechanisms;
+    }
+
+    /**
+     * Set the list of available SASL Mechanisms to use for SSL connections
+     *
+     * @param sasl_mechanisms the new list of sasl mechanisms
+     */
+    void setSslSaslMechanisms(const std::string& ssl_sasl_mechanisms) {
+        Settings::ssl_sasl_mechanisms = ssl_sasl_mechanisms;
+        has.ssl_sasl_mechanisms = true;
+        notify_changed("ssl_sasl_mechanisms");
+    }
+
+    /**
      * Should the server return the cluster map it has already sent a
      * client as part of the payload of <em>not my vbucket</em> errors.
      *
@@ -936,6 +956,11 @@ protected:
     std::string sasl_mechanisms;
 
     /**
+     * The available sasl mechanism list to use over SSL
+     */
+    std::string ssl_sasl_mechanisms;
+
+    /**
      * Should we deduplicate the cluster maps from the Not My VBucket messages
      */
     std::atomic_bool dedupe_nmvb_maps;
@@ -982,6 +1007,7 @@ public:
         bool stdin_listen;
         bool exit_on_connection_close;
         bool sasl_mechanisms;
+        bool ssl_sasl_mechanisms;
         bool dedupe_nmvb_maps;
         bool error_maps;
         bool xattr_enabled;

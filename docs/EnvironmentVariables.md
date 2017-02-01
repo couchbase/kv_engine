@@ -72,6 +72,11 @@ variable is set.
 
 Specify the list of ciphers allowed.
 
+## `COUCHBASE_I_DONT_TRUST_SSL`
+
+If set to a non-null value we don't limit the SASL mechanisms
+to use over SSL to PLAIN
+
 ## `ISASL_PWFILE`
 
 `ISASL_PWFILE` is used to tell `cbsasl` the location of the password

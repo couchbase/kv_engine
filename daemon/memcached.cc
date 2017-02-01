@@ -590,6 +590,16 @@ static void settings_init(void) {
     }
 
     settings.setSslMinimumProtocol("tlsv1");
+    /*
+     * MB-22586
+     * When connecting over SSL there isn't much point of using SCRAM or
+     * any other CPU intensive (and multiple packets exchange between
+     * client and server) to avoid sending the password in clear text as
+     * everything going over SSL should be encrypted anyway.
+     */
+    if (getenv("COUCHBASE_I_DONT_TRUST_SSL") == nullptr) {
+        settings.setSslSaslMechanisms("PLAIN");
+    }
 }
 
 /**

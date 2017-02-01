@@ -49,6 +49,7 @@
 #include "protocol/mcbp/steppable_command_context.h"
 #include "protocol/mcbp/unlock_context.h"
 #include "protocol/mcbp/utilities.h"
+#include "settings.h"
 
 #include <cctype>
 #include <memcached/audit_interface.h>
@@ -1773,21 +1774,33 @@ static void quitq_executor(McbpConnection* c, void*) {
 }
 
 static void sasl_list_mech_executor(McbpConnection* c, void*) {
-    const char* result_string = NULL;
-    unsigned int string_length = 0;
+    if (c->isSslEnabled() && settings.has.ssl_sasl_mechanisms) {
+        const auto& mechs = settings.getSslSaslMechanisms();
+        mcbp_write_response(c, mechs.data(), 0, 0, mechs.size());
+    } else if (!c->isSslEnabled() && settings.has.sasl_mechanisms) {
+        const auto& mechs = settings.getSaslMechanisms();
+        mcbp_write_response(c, mechs.data(), 0, 0, mechs.size());
+    } else {
+        /*
+         * The administrator did not configure any SASL mechanisms.
+         * Go ahead and use whatever we've got in cbsasl
+         */
+        const char* result_string = NULL;
+        unsigned int string_length = 0;
 
-    auto ret = cbsasl_listmech(c->getSaslConn(), nullptr, nullptr, " ",
-                               nullptr, &result_string, &string_length,
-                               nullptr);
+        auto ret = cbsasl_listmech(c->getSaslConn(), nullptr, nullptr, " ",
+                                   nullptr, &result_string, &string_length,
+                                   nullptr);
 
-    if (ret == CBSASL_OK) {
-        mcbp_write_response(c, (char*)result_string, 0, 0, string_length);
-    } else  {
-        /* Perhaps there's a better error for this... */
-        LOG_WARNING(c, "%u: Failed to list SASL mechanisms: %s", c->getId(),
-                    cbsasl_strerror(c->getSaslConn(), ret));
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
-        return;
+        if (ret == CBSASL_OK) {
+            mcbp_write_response(c, (char*)result_string, 0, 0, string_length);
+        } else {
+            /* Perhaps there's a better error for this... */
+            LOG_WARNING(c, "%u: Failed to list SASL mechanisms: %s", c->getId(),
+                        cbsasl_strerror(c->getSaslConn(), ret));
+            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
+            return;
+        }
     }
 }
 
