@@ -28,12 +28,12 @@ namespace plain {
  * provided user object
  *
  * @param user the user object to check
- * @param passwd the password to compare
+ * @param password the password to compare
  * @return CBSASL_OK if the provided password match the supplied
  *                   password.
  */
 cbsasl_error_t check_password(const Couchbase::User& user,
-                              const std::string& passwd);
+                              const std::string& password);
 
 }
 }

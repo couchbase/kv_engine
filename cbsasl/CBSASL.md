@@ -21,8 +21,8 @@ SCRAM-SHA512 and SCRAM-SHA256 is not supported on all platforms.
 
 The PLAIN authentication allows users for authenticating by providing
 the username and password in plain text. The server does however not
-store the plain text password, so we'll calculate a SHA1 hash of the
-password and compare with what we've got stored internally.
+store the plain text password, so we'll calculate a salted HMAC hash
+of the password and compare with what we've got stored internally.
 
 ## Server
 
@@ -65,8 +65,12 @@ The user database is stored in JSON format with the following syntax:
                      "s" : "base64 encoded salt",
                      "i" : iteration-count
                  },
-                 "plain" : "base64 encoded hex version of sha1 hash
+                 "plain" : "base64 encoded hex version of salt + HMAC
                             of plain text password"
              }
          ]
      }
+
+The `plain` entry consists of a salt and the salted hash of the users
+password. The first 16 bytes contains the salt followed by 20 bytes
+of the SHA1 HMAC of the password with the salt.

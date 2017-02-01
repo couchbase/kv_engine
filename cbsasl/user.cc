@@ -64,10 +64,19 @@ Couchbase::User Couchbase::UserFactory::create(const std::string& unm,
         }
     };
 
-    // generate a sha1 of the password
-    User::PasswordMetaData pd(cb::crypto::digest(cb::crypto::Algorithm::SHA1,
-                                                 passwd));
-    ret.password[Mechanism::PLAIN] = pd;
+    // The format of the plain password encoding is that we're appending the
+    // generated hmac to the salt (which should be 16 bytes). This makes
+    // our plain text password generation compatible with ns_server
+    std::vector<uint8_t> pwentry(16);
+    std::string saltstring;
+    generateSalt(pwentry, saltstring);
+    std::vector<uint8_t> pw;
+    std::copy(passwd.begin(), passwd.end(), std::back_inserter(pw));
+    const auto hmac = cb::crypto::HMAC(cb::crypto::Algorithm::SHA1, pwentry, pw);
+    std::copy(hmac.begin(), hmac.end(), std::back_inserter(pwentry));
+    std::string hash{(const char*)pwentry.data(), pwentry.size()};
+
+    ret.password[Mechanism::PLAIN] = User::PasswordMetaData{hash};
 
     for (const auto& info : algo_info) {
         if (cb::crypto::isSupported(info.algoritm)) {
