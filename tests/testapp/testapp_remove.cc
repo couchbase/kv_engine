@@ -160,3 +160,45 @@ TEST_P(RemoveTest, RemoveWithOnlyUserAttributres) {
     auto deleted = conn.remove(name, 0, info.cas);
     EXPECT_NE(info.cas, deleted.cas);
 }
+
+/**
+ * Verify that you cannot get a document (with xattrs) which is deleted
+ */
+TEST_P(RemoveTest, MB_22553_DeleteDocWithXAttr) {
+    auto& conn = getConnection();
+
+    createDocument();
+    createXattr("_rbac.attribute", "\"read-only\"");
+    auto deleted = conn.remove(name, 0);
+    EXPECT_NE(info.cas, deleted.cas);
+
+    // The document itself should not be accessible MB-22553
+    try {
+        conn.get(name, 0);
+        FAIL() << "Document with XATTRs should not be accessible after remove";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isNotFound())
+                    << "MB-22553: doc with xattr is still accessible";
+    }
+
+    // And it doesn't matter if I try to use subdoc
+    auto* mcbp = dynamic_cast<MemcachedBinprotConnection*>(&conn);
+    if (mcbp == nullptr) {
+        // This test can only be run with the Memcached Binary Protocol
+        return;
+    }
+
+    BinprotSubdocCommand cmd;
+    cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
+    cmd.setKey(name);
+    cmd.setPath("verbosity");
+    cmd.setFlags(SUBDOC_FLAG_NONE);
+
+    mcbp->sendCommand(cmd);
+
+    BinprotSubdocResponse resp;
+    mcbp->recvResponse(resp);
+
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, resp.getStatus())
+                << "MB-22553: doc with xattr is still accessible";
+}
