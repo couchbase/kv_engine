@@ -1,0 +1,80 @@
+{
+  "users": [
+    {
+      "n": "mikewied",
+      "plain": "5seUk1/E3lP9o3enGQEbdRzi6X6q+GAMG8eRyBzuidqD3Y/p",
+      "sha1": {
+        "h": "L+HRd0owKZmVU7mTWYGKdxuBKrE=",
+        "s": "hbyE283RYgnNa8xdxj0Lwkt1PsM=",
+        "i": 10
+      },
+      "sha256": {
+        "h": "VSdW7HFOD5SgsaQxUX/XKSzCndIq0M/AEjDzEk6D2mI=",
+        "s": "rltVWCkQTZvYCbc9twTHIFHxf1L3IaRDuWLVMd26rGQ=",
+        "i": 10
+      },
+      "sha512": {
+        "h": "nenNqzMmpJHmKTqSWi9OqOBeyF1UrNABvZP53AZ8dJEWA+HtkJjUJacuNdXiS8lT5UNMdDPHuDWwvwpIVRce/Q==",
+        "s": "LDepUcAkphcWLNRSWCKbL/axI0QFkcd0x10m+k30p7mHUkAnKSm6t7f2UzcfgSjWxIX5uXxEZ5vlU9NE0TEP6g==",
+        "i": 10
+      }
+    },
+    {
+      "n": "cseo",
+      "plain": "YhZfYO8YJR5721wjQ2lVL7og86hKtZfBwd2qdGPcTDbr22sH",
+      "sha1": {
+        "h": "zkUV0vvuiGJ1Ao59nIcNuEQIBP4=",
+        "s": "+0Y4HydtWydzSr0SQu5K/lVtNEE=",
+        "i": 10
+      },
+      "sha256": {
+        "h": "kRIzpoqooRtUaYm5H3OIpSU6XONhrDYWFfg04EiCfms=",
+        "s": "L/w1bh1RjZlqLTWQLwABvQYu51pEkFF623S5TxTyhkQ=",
+        "i": 10
+      },
+      "sha512": {
+        "h": "jo/+sjU4wirOjOC26c5XPE0b2Fn8nFhp3s5cO2chctxD1txceKBQpuwezs1bUQT4Pe3kODdi0IbmcabO4X99TA==",
+        "s": "yAsKTT6P4Uv+yNOpIOx7nWXjDnM94KY5fIj4tprWRApPaJksHBZF2mboDZO9CPywRTGIaNB/CEyGtftp8KIRqQ==",
+        "i": 10
+      }
+    },
+    {
+      "n": "jlim",
+      "plain": "+cjpwcA2Xva3P1ks/SFMesZQp1p6m3t71QI6KM0RgwTCAKNr",
+      "sha1": {
+        "h": "MQWTy9VHyj5QZVOdNWIIxQzv2+U=",
+        "s": "3UfH8xIbQuIREbPc9QBIXhWL2Rw=",
+        "i": 10
+      },
+      "sha256": {
+        "h": "honuucye0g3ZuZPHe/DuKk44gE45ByeMICGhEBp6+TE=",
+        "s": "z4v+JkoQxzCYzyF1YiBkf9EI19cvAUyWnFsShVwCEZg=",
+        "i": 10
+      },
+      "sha512": {
+        "h": "kpSBAzUWAAIcC8XN1C8p5Pd3NuRGocPvEEE72QOFDXRQpd6iT8S4rwTOeOKvwPN7M8PiCRM8eShwzi6s8E3Lhg==",
+        "s": "CvTI2UYBROV5r1/d6ljuyRiS2iDEZoL9GYFNiPrrhy/pRtru1VfxMlKThUciaTqznFlfiQKl24T6rZ6lWQIVWg==",
+        "i": 10
+      }
+    },
+    {
+      "n": "nopass",
+      "plain": "Biw5++XcN0I3I1AfcFX7aHWpi9Vv3eYSDfdZuaMU8qtysCGo",
+      "sha1": {
+        "h": "6wOIDjdUJsavr34Aw4AoJ4MQXgQ=",
+        "s": "UmaP7DiSfRVjFdcgq9hkzPTVcjc=",
+        "i": 10
+      },
+      "sha256": {
+        "h": "Q38WToAHaAz4M3oa8GxmgD9kFZq0y8rjwLIdpucSyZ8=",
+        "s": "mM//h8zOPP1sTrETkjPPdfEsYlumEAKHR58Kw+PEX60=",
+        "i": 10
+      },
+      "sha512": {
+        "h": "EfTXdlkgljn/jwHf/5R1+BeeOGNt+kpDRIq7BV0y61zUF6AduWD1ZXuZ2skxkx3iuBorXwK+9vFKk3dg4SnEmw==",
+        "s": "KdoWi25KF6by81gI8O51uyWdWfzmskA3d42VpxqX7vCVNi+Ezu1UygLf8L4j7OjwAqIzNcEGxW3zAog+7vSRhg==",
+        "i": 10
+      }
+    }
+  ]
+}

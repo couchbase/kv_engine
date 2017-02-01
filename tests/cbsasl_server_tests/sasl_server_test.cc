@@ -28,9 +28,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-const char* cbpwfile = "sasl_server_test.pw";
-
-char envptr[256]{"ISASL_PWFILE=sasl_server_test.pw"};
+char envptr[1024]{"CBSASL_PWFILE=" SOURCE_ROOT
+    "/tests/cbsasl_server_tests/sasl_server_test.json"};
 
 static std::string mechanisms;
 
@@ -76,12 +75,6 @@ protected:
     }
 
     static void SetUpTestCase() {
-        FILE* fp = fopen(cbpwfile, "w");
-        ASSERT_NE(nullptr, fp);
-
-        fprintf(fp, "mikewied mikepw\ncseo cpw\njlim jpw\nnopass\n");
-        ASSERT_EQ(0, fclose(fp));
-
         putenv(envptr);
 
 #ifdef HAVE_PKCS5_PBKDF2_HMAC
@@ -95,7 +88,6 @@ protected:
     }
 
     static void TearDownTestCase() {
-        ASSERT_EQ(0, remove(cbpwfile));
         free_user_ht();
     }
 
