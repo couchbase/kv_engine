@@ -103,6 +103,25 @@ TEST_P(LockTest, LockLockedDocument) {
     }
 }
 
+/**
+ * Verify that we return the correct error code when we try to lock
+ * a locked item without XERROR enabled
+ */
+TEST_P(LockTest, MB_22459_LockLockedDocument_WithoutXerror) {
+    auto& conn = getMcbpConnection();
+    conn.setXerrorSupport(false);
+
+    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    conn.get_and_lock(name, 0, 0);
+
+    try {
+        conn.get_and_lock(name, 0, 0);
+        FAIL() << "it is not possible to lock a locked document";
+    } catch (const ConnectionError& ex) {
+        EXPECT_TRUE(ex.isTemporaryFailure()) << ex.what();
+    }
+}
+
 TEST_P(LockTest, MutateLockedDocument) {
     auto& conn = getMcbpConnection();
 

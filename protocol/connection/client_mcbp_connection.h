@@ -104,6 +104,10 @@ public:
         return reason == PROTOCOL_BINARY_RESPONSE_LOCKED;
     }
 
+    bool isTemporaryFailure() const override {
+        return reason == PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+    }
+
 private:
     uint16_t reason;
 };

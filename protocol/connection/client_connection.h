@@ -108,6 +108,8 @@ public:
     virtual bool isNotSupported() const = 0;
 
     virtual bool isLocked() const = 0;
+
+    virtual bool isTemporaryFailure() const = 0;
 };
 
 /**

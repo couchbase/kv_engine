@@ -62,6 +62,10 @@ ENGINE_ERROR_CODE GetLockedCommandContext::getAndLockItem() {
         } else {
             state = State::SendResponse;
         }
+    } else if (ret == ENGINE_LOCKED) {
+        // In order to be backward compatible we should return TMPFAIL
+        // instead of the more correct EEXISTS
+        ret = ENGINE_LOCKED_TMPFAIL;
     }
 
     return ret;
