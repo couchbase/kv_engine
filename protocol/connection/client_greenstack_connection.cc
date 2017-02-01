@@ -356,8 +356,9 @@ Frame MemcachedGreenstackConnection::encodeCmdGet(const std::string& id,
     return frame;
 }
 
-MutationInfo MemcachedGreenstackConnection::mutate(const Document& doc,
+MutationInfo MemcachedGreenstackConnection::mutate(const DocumentInfo& info,
                                                    uint16_t vbucket,
+                                                   cb::const_byte_buffer value,
                                                    const Greenstack::mutation_type_t type) {
 
     Greenstack::MutationRequest request;
@@ -365,18 +366,18 @@ MutationInfo MemcachedGreenstackConnection::mutate(const Document& doc,
 
     auto docinfo = std::make_shared<Greenstack::DocumentInfo>();
 
-    docinfo->setId(doc.info.id);
-    docinfo->setCompression(doc.info.compression);
-    docinfo->setDatatype(doc.info.datatype);
-    docinfo->setFlags(doc.info.flags);
-    docinfo->setCas(doc.info.cas);
-    docinfo->setExpiration(doc.info.expiration);
+    docinfo->setId(info.id);
+    docinfo->setCompression(info.compression);
+    docinfo->setDatatype(info.datatype);
+    docinfo->setFlags(info.flags);
+    docinfo->setCas(info.cas);
+    docinfo->setExpiration(info.expiration);
     request.setDocumentInfo(docinfo);
 
-    auto value = std::make_shared<Greenstack::FixedByteArrayBuffer>(
-        (uint8_t*)doc.value.data(),
-        (size_t)doc.value.size());
-    request.setValue(value);
+    auto valbuf = std::make_shared<Greenstack::FixedByteArrayBuffer>(
+            value.data(),
+            value.size());
+    request.setValue(valbuf);
 
     request.assemble();
     request.getFlexHeader().setVbucketId(vbucket);
@@ -404,7 +405,7 @@ MutationInfo MemcachedGreenstackConnection::mutate(const Document& doc,
         return ret;
     }
 
-    throw GreenstackConnectionError("Mutate [" + doc.info.id + "] failed",
+    throw GreenstackConnectionError("Mutate [" + info.id + "] failed",
                                     msg->getStatus());
 }
 

@@ -255,17 +255,27 @@ public:
      */
     virtual Frame encodeCmdGet(const std::string& id, uint16_t vbucket) = 0;
 
+    MutationInfo mutate(const Document& doc, uint16_t vbucket,
+                        const Greenstack::mutation_type_t type) {
+        return mutate(doc.info,
+                      vbucket,
+                      cb::const_byte_buffer(doc.value.data(), doc.value.size()),
+                      type);
+    }
+
     /**
      * Perform the mutation on the attached document.
      *
      * The method throws an exception upon errors
      *
-     * @param doc the document to mutate
+     * @param info Document metadata
      * @param vbucket the vbucket to operate on
+     * @param value new value for the document
      * @param type the type of mutation to perform
      * @return the new cas value for success
      */
-    virtual MutationInfo mutate(const Document& doc, uint16_t vbucket,
+    virtual MutationInfo mutate(const DocumentInfo& info, uint16_t vbucket,
+                                cb::const_byte_buffer value,
                                 const Greenstack::mutation_type_t type) = 0;
 
     /**

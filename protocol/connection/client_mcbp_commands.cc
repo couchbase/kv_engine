@@ -255,9 +255,12 @@ BinprotMutationCommand& BinprotMutationCommand::setDocumentInfo(
     return *this;
 }
 
-void BinprotMutationCommand::encode(std::vector<uint8_t>& buf) const {
+void BinprotMutationCommand::encodeHeader(std::vector<uint8_t>& buf) const {
     if (key.empty()) {
         throw std::invalid_argument("BinprotMutationCommand::encode: Key is missing!");
+    }
+    if (!value.empty() && !value_refs.empty()) {
+        throw std::invalid_argument("BinprotMutationCommand::encode: Both value and value_refs have items!");
     }
 
     uint8_t extlen = 8;
@@ -274,7 +277,12 @@ void BinprotMutationCommand::encode(std::vector<uint8_t>& buf) const {
         extlen = 0;
     }
 
-    fillHeader(*header, value.size(), extlen);
+    size_t value_size = value.size();
+    for (const auto& vbuf : value_refs) {
+        value_size += vbuf.size();
+    }
+
+    fillHeader(*header, value_size, extlen);
     header->request.datatype = datatype;
 
     if (extlen != 0) {
@@ -287,9 +295,26 @@ void BinprotMutationCommand::encode(std::vector<uint8_t>& buf) const {
         req->message.body.expiration = htonl(expiry.getValue());
         req->message.body.flags = htonl(flags);
     }
+}
 
+void BinprotMutationCommand::encode(std::vector<uint8_t>& buf) const {
+    encodeHeader(buf);
     buf.insert(buf.end(), key.begin(), key.end());
     buf.insert(buf.end(), value.begin(), value.end());
+    for (const auto& vbuf : value_refs) {
+        buf.insert(buf.end(), vbuf.begin(), vbuf.end());
+    }
+}
+
+BinprotCommand::Encoded BinprotMutationCommand::encode() const {
+    Encoded ret;
+    auto& hdrbuf = ret.header;
+    encodeHeader(hdrbuf);
+    hdrbuf.insert(hdrbuf.end(), key.begin(), key.end());
+    hdrbuf.insert(hdrbuf.end(), value.begin(), value.end());
+
+    ret.bufs.assign(value_refs.begin(), value_refs.end());
+    return ret;
 }
 
 void BinprotMutationResponse::assign(std::vector<uint8_t>&& buf) {

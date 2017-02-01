@@ -675,8 +675,7 @@ public:
 
     /**
      * Set the value buffers (IO vectors) for the command.
-     * Currently this simply copies the contents of the buffers, but in the
-     * future this may be implemented to override this.
+     * Unlike #setValue() this does not copy the value to the command object
      *
      * @param bufs Buffers containing the value. The buffers should be
      *        considered owned by the command object until it is sent
@@ -684,9 +683,12 @@ public:
      */
     template <typename T>
     BinprotMutationCommand& setValueBuffers(const T& bufs) {
-        for (auto const& buf : bufs) {
-            value.insert(value.end(), buf.begin(), buf.end());
-        }
+        value_refs.assign(bufs.begin(), bufs.end());
+        return *this;
+    }
+
+    BinprotMutationCommand& addValueBuffer(cb::const_byte_buffer buf) {
+        value_refs.emplace_back(buf);
         return *this;
     }
 
@@ -707,9 +709,16 @@ public:
     }
 
     void encode(std::vector<uint8_t>& buf) const override;
+    Encoded encode() const override;
 
 private:
+    void encodeHeader(std::vector<uint8_t>& buf) const;
+
+    /** This contains our copied value (i.e. setValue) */
     std::vector<uint8_t> value;
+    /** This contains value references (e.g. addValueBuffer/setValueBuffers) */
+    std::vector<cb::const_byte_buffer> value_refs;
+
     BinprotCommand::ExpiryValue expiry;
     uint32_t flags = 0;
     uint8_t datatype = 0;

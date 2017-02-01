@@ -119,7 +119,9 @@ public:
 
     Frame encodeCmdGet(const std::string& id, uint16_t vbucket) override;
 
-    virtual MutationInfo mutate(const Document& doc, uint16_t vbucket,
+    virtual MutationInfo mutate(const DocumentInfo& doc,
+                                uint16_t vbucket,
+                                cb::const_byte_buffer buf,
                                 const Greenstack::mutation_type_t type) override;
 
     virtual std::map<std::string,std::string> statsMap(const std::string& subcommand) override;

@@ -135,7 +135,7 @@ void MemcachedBinprotConnection::sendCommand(const BinprotCommand& command) {
     auto bufs = command.encode();
 
     if (!bufs.header.empty()) {
-        cb::const_byte_buffer tmp_bb{bufs.header.data(), bufs.header.size()};
+        cb::const_byte_buffer tmp_bb(bufs.header);
         sendBuffer(tmp_bb);
     }
 
@@ -363,13 +363,14 @@ Frame MemcachedBinprotConnection::encodeCmdGet(const std::string& id,
     return to_frame(command);
 }
 
-MutationInfo MemcachedBinprotConnection::mutate(const Document& doc,
+MutationInfo MemcachedBinprotConnection::mutate(const DocumentInfo& info,
                                                 uint16_t vbucket,
+                                                cb::const_byte_buffer value,
                                                 const Greenstack::mutation_type_t type) {
 
     BinprotMutationCommand command;
-    command.setDocumentInfo(doc.info);
-    command.setValue(doc.value);
+    command.setDocumentInfo(info);
+    command.addValueBuffer(value);
     command.setVBucket(vbucket);
     command.setMutationType(type);
     sendCommand(command);
@@ -377,7 +378,7 @@ MutationInfo MemcachedBinprotConnection::mutate(const Document& doc,
     BinprotMutationResponse response;
     recvResponse(response);
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("Failed to store " + doc.info.id,
+        throw BinprotConnectionError("Failed to store " + info.id,
                                      response.getStatus());
     }
 
