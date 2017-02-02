@@ -184,6 +184,8 @@ LIST(APPEND CBSASL_SOURCES
      ${Memcached_SOURCE_DIR}/cbsasl/log.cc
      ${Memcached_SOURCE_DIR}/cbsasl/mechanismfactory.cc
      ${Memcached_SOURCE_DIR}/cbsasl/mechanismfactory.h
+     ${Memcached_SOURCE_DIR}/cbsasl/plain/check_password.cc
+     ${Memcached_SOURCE_DIR}/cbsasl/plain/check_password.h
      ${Memcached_SOURCE_DIR}/cbsasl/plain/plain.cc
      ${Memcached_SOURCE_DIR}/cbsasl/plain/plain.h
      ${Memcached_SOURCE_DIR}/cbsasl/password_database.cc

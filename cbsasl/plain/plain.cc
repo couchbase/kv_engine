@@ -14,13 +14,14 @@
  *   limitations under the License.
  */
 #include "plain.h"
+
 #include "cbsasl/pwfile.h"
-#include "cbsasl/util.h"
+#include "check_password.h"
+
 #include <cstring>
-#include <platform/base64.h>
-#include <stdexcept>
 
 #ifdef WIN32
+#include <stdexcept>
 static cbsasl_error_t check(cbsasl_conn_t* conn,
                             const std::string& username,
                             const std::string &passwd) {
@@ -100,15 +101,7 @@ cbsasl_error_t PlainServerBackend::start(cbsasl_conn_t* conn,
         return CBSASL_NOUSER;
     }
 
-    auto digest = cb::crypto::digest(cb::crypto::Algorithm::SHA1, userpw);
-    auto storedPassword = user.getPassword(Mechanism::PLAIN).getPassword();
-
-    if (cbsasl_secure_compare(storedPassword.data(), storedPassword.length(),
-                              digest.data(), digest.length()) == 0) {
-        return CBSASL_OK;
-    } else {
-        return CBSASL_PWERR;
-    }
+    return cb::sasl::plain::check_password(user, userpw);
 }
 
 cbsasl_error_t PlainClientBackend::start(cbsasl_conn_t* conn, const char* input,
