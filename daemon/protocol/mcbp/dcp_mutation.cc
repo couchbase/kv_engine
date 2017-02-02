@@ -23,7 +23,7 @@
 #include <platform/compress.h>
 #include <limits>
 #include <stdexcept>
-#include <extmeta/extmeta.h>
+#include <xattr/blob.h>
 #include <xattr/utils.h>
 
 ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
@@ -38,10 +38,12 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
                                        uint8_t nru) {
     auto* c = cookie2mcbp(void_cookie, __func__);
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_MUTATION);
+    // Use a unique_ptr to make sure we release the item in all error paths
+    cb::unique_item_ptr item(it, cb::ItemDeleter{c->getBucketEngineAsV0()});
+
     item_info info;
 
     if (!bucket_get_item_info(c, it, &info)) {
-        bucket_release_item(c, it);
         LOG_WARNING(c, "%u: Failed to get item info", c->getId());
         return ENGINE_FAILED;
     }
@@ -110,10 +112,13 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
     }
 
     if (!c->reserveItem(it)) {
-        bucket_release_item(c, it);
         LOG_WARNING(c, "%u: Failed to grow item array", c->getId());
         return ENGINE_FAILED;
     }
+
+    // we've reserved the item, and it'll be released when we're done sending
+    // the item.
+    item.release();
 
     const uint8_t extlen = 31; // 2*uint64_t, 3*uint32_t, 1*uint16_t, 1*uint8_t
     const uint32_t bodylen = uint32_t(buffer.len) + extlen + nmeta + info.nkey;
@@ -151,9 +156,46 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE dcp_xattr_mutation(McbpConnection* conn, void* packet);
+static inline ENGINE_ERROR_CODE do_dcp_mutation(McbpConnection* conn,
+                                                void* packet) {
+    auto* req = reinterpret_cast<protocol_binary_request_dcp_mutation*>(packet);
 
-static ENGINE_ERROR_CODE dcp_plain_mutation(McbpConnection* conn, void* packet);
+    const uint16_t nkey = ntohs(req->message.header.request.keylen);
+    const DocKey key{req->bytes + sizeof(req->bytes), nkey,
+                     DocNamespace::DefaultCollection};
+
+    const auto opaque = req->message.header.request.opaque;
+    const auto datatype = req->message.header.request.datatype;
+    const uint64_t cas = ntohll(req->message.header.request.cas);
+    const uint16_t vbucket = ntohs(req->message.header.request.vbucket);
+    const uint64_t by_seqno = ntohll(req->message.body.by_seqno);
+    const uint64_t rev_seqno = ntohll(req->message.body.rev_seqno);
+    const uint32_t flags = req->message.body.flags;
+    const uint32_t expiration = ntohl(req->message.body.expiration);
+    const uint32_t lock_time = ntohl(req->message.body.lock_time);
+    const uint16_t nmeta = ntohs(req->message.body.nmeta);
+    const uint32_t valuelen = ntohl(req->message.header.request.bodylen) -
+                              nkey - req->message.header.request.extlen -
+                              nmeta;
+    cb::const_byte_buffer value{req->bytes + sizeof(req->bytes) + nkey,
+                                valuelen};
+    cb::const_byte_buffer meta{value.buf + valuelen, nmeta};
+    uint32_t priv_bytes = 0;
+    if (mcbp::datatype::is_xattr(datatype)) {
+        cb::const_char_buffer payload{reinterpret_cast<const char*>(value.buf),
+                                      value.len};
+        cb::byte_buffer buffer{const_cast<uint8_t*>(value.buf),
+                               cb::xattr::get_body_offset(payload)};
+        cb::xattr::Blob blob(buffer);
+        priv_bytes = uint32_t(blob.get_system_size());
+    }
+
+    auto engine = conn->getBucketEngine();
+    return engine->dcp.mutation(conn->getBucketEngineAsV0(), conn->getCookie(),
+                                opaque, key, value, priv_bytes, datatype, cas,
+                                vbucket, flags, by_seqno, rev_seqno, expiration,
+                                lock_time, meta, req->message.body.nru);
+}
 
 void dcp_mutation_executor(McbpConnection* c, void* packet) {
     ENGINE_ERROR_CODE ret = c->getAiostat();
@@ -161,16 +203,7 @@ void dcp_mutation_executor(McbpConnection* c, void* packet) {
     c->setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
-        auto* req = reinterpret_cast<protocol_binary_request_header*>(packet);
-        if (mcbp::datatype::is_compressed(req->request.datatype)) {
-            LOG_WARNING(nullptr, "%u: Compression not supported right now",
-                        c->getId());
-            ret = ENGINE_ENOTSUP;
-        } else if (mcbp::datatype::is_xattr(req->request.datatype)) {
-            ret = dcp_xattr_mutation(c, packet);
-        } else {
-            ret = dcp_plain_mutation(c, packet);
-        }
+        ret = do_dcp_mutation(c, packet);
     }
 
     switch (ret) {
@@ -189,122 +222,4 @@ void dcp_mutation_executor(McbpConnection* c, void* packet) {
     default:
         mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
     }
-}
-
-class XattrReceiver : public cb::extmeta::Parser::Receiver {
-public:
-    XattrReceiver() : length(0) {}
-
-    bool add(const cb::extmeta::Type& type,
-             const uint8_t* data, size_t size) override {
-        if (type == cb::extmeta::Type::XATTR_LENGTH) {
-            if (size != sizeof(length)) {
-                throw std::invalid_argument(
-                    "XattrReceiver::add: incorrect size for xattr");
-            }
-
-            memcpy(&length, data, sizeof(length));
-            length = ntohl(length);
-            return false;
-        }
-        return true;
-    }
-
-    uint32_t length;
-};
-
-static ENGINE_ERROR_CODE dcp_xattr_mutation(McbpConnection* conn,
-                                            void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_dcp_mutation*>(packet);
-
-    char* key = (char*)packet + sizeof(req->bytes);
-    uint16_t nkey = ntohs(req->message.header.request.keylen);
-    void* value = key + nkey;
-    uint64_t cas = ntohll(req->message.header.request.cas);
-    uint16_t vbucket = ntohs(req->message.header.request.vbucket);
-    uint32_t flags = req->message.body.flags;
-    uint8_t datatype = req->message.header.request.datatype;
-    uint64_t by_seqno = ntohll(req->message.body.by_seqno);
-    uint64_t rev_seqno = ntohll(req->message.body.rev_seqno);
-    uint32_t expiration = ntohl(req->message.body.expiration);
-    uint32_t lock_time = ntohl(req->message.body.lock_time);
-    uint16_t nmeta = ntohs(req->message.body.nmeta);
-    uint32_t nvalue = ntohl(req->message.header.request.bodylen) - nkey
-                      - req->message.header.request.extlen - nmeta;
-    uint8_t* meta = reinterpret_cast<uint8_t*>(value) + nvalue;
-
-    // Ok I need to find the xattrs
-    XattrReceiver receiver;
-
-    try {
-        cb::extmeta::Parser::parse(meta, nmeta, receiver);
-    } catch (const std::exception& ex) {
-        LOG_WARNING(conn, "%u - Failed to parse meta: %s", ex.what());
-        return ENGINE_FAILED;
-    }
-
-    // Unfortunately the engine shouldn't know anything about our encoding so
-    // I need to reallocate the packet and stash the length field in..
-    // we should be able to fix this in a better way later on (split up the
-    // interface to do this and use the "alloc" function and then call the
-    // mutation entry with an item reference
-    std::unique_ptr<char[]> buffer;
-    try {
-        buffer.reset(new char[nvalue + sizeof(uint32_t)]);
-    } catch (const std::bad_alloc&) {
-        LOG_INFO(conn, "%u - Failed to allocate temporary buffer");
-        return ENGINE_ENOMEM;
-    }
-
-    auto* xattrlen = reinterpret_cast<uint32_t*>(buffer.get());
-    *xattrlen = receiver.length;
-    memcpy(buffer.get() + 4, value, nvalue);
-
-    auto engine = conn->getBucketEngine();
-    auto ret = engine->dcp.mutation(conn->getBucketEngineAsV0(),
-                                    conn->getCookie(),
-                                    req->message.header.request.opaque,
-                                    key, nkey, buffer.get(), nvalue + 4,
-                                    cas, vbucket,
-                                    flags, datatype, by_seqno,
-                                    rev_seqno,
-                                    expiration, lock_time,
-                                    (char*)value + nvalue,
-                                    nmeta,
-                                    req->message.body.nru);
-    return ret;
-}
-
-static ENGINE_ERROR_CODE dcp_plain_mutation(McbpConnection* conn,
-                                            void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_dcp_mutation*>(packet);
-
-    char* key = (char*)packet + sizeof(req->bytes);
-    uint16_t nkey = ntohs(req->message.header.request.keylen);
-    void* value = key + nkey;
-    uint64_t cas = ntohll(req->message.header.request.cas);
-    uint16_t vbucket = ntohs(req->message.header.request.vbucket);
-    uint32_t flags = req->message.body.flags;
-    uint8_t datatype = req->message.header.request.datatype;
-    uint64_t by_seqno = ntohll(req->message.body.by_seqno);
-    uint64_t rev_seqno = ntohll(req->message.body.rev_seqno);
-    uint32_t expiration = ntohl(req->message.body.expiration);
-    uint32_t lock_time = ntohl(req->message.body.lock_time);
-    uint16_t nmeta = ntohs(req->message.body.nmeta);
-    uint32_t nvalue = ntohl(req->message.header.request.bodylen) - nkey
-                      - req->message.header.request.extlen - nmeta;
-
-    auto engine = conn->getBucketEngine();
-    auto ret = engine->dcp.mutation(conn->getBucketEngineAsV0(),
-                                    conn->getCookie(),
-                                    req->message.header.request.opaque,
-                                    key, nkey, value, nvalue,
-                                    cas, vbucket,
-                                    flags, datatype, by_seqno,
-                                    rev_seqno,
-                                    expiration, lock_time,
-                                    (char*)value + nvalue,
-                                    nmeta,
-                                    req->message.body.nru);
-    return ret;
 }
