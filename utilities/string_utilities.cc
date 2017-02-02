@@ -95,3 +95,11 @@ std::pair<std::string, StrToStrMap> decode_query(const std::string& s) {
     }
     return result;
 }
+
+cb::const_byte_buffer to_const_byte_buffer(const char* key) {
+    return {reinterpret_cast<const uint8_t*>(key), strlen(key)};
+}
+
+std::string to_string(cb::byte_buffer buf) {
+    return std::string(reinterpret_cast<const char*>(buf.buf), buf.len);
+}

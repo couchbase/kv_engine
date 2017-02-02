@@ -20,6 +20,7 @@
 #include <unordered_map>
 #include <string>
 #include <vector>
+#include <platform/sized_buffer.h>
 
 /**
  * Splits a string
@@ -62,3 +63,20 @@ using StrToStrMap = std::unordered_map<std::string, std::string>;
  *         and a map of the split up query arguments
  */
 std::pair<std::string, StrToStrMap> decode_query(const std::string& s);
+
+/**
+ * Convert a const char pointer into a constant byte buffer
+ *
+ * @param s character pointer that needs to be converted
+ * @return the constant byte buffer containing s as a byte
+ *         array and its associated length
+ */
+cb::const_byte_buffer to_const_byte_buffer(const char* s);
+
+/**
+ * Convert a byte buffer into a string
+ *
+ * @param buf byte buffer that needs to be converted to a string
+ * @return the string representation of the byte buffer
+ */
+std::string to_string(cb::byte_buffer buf);

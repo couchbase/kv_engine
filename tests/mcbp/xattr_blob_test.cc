@@ -19,13 +19,7 @@
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
-static cb::const_byte_buffer to_const_byte_buffer(const char* key) {
-    return {reinterpret_cast<const uint8_t*>(key), strlen(key)};
-}
-
-static std::string to_string(cb::byte_buffer buf) {
-    return std::string(reinterpret_cast<const char*>(buf.buf), buf.len);
-}
+#include "utilities/string_utilities.h"
 
 void validate(cb::byte_buffer buffer) {
     EXPECT_TRUE(cb::xattr::validate(
