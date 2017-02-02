@@ -278,20 +278,14 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
     return err;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
-                                        const DocKey& key,
-                                        cb::const_byte_buffer value,
-                                        size_t priv_bytes,
-                                        uint8_t datatype,
-                                        uint64_t cas,
-                                        uint16_t vbucket,
-                                        uint32_t flags,
-                                        uint64_t bySeqno,
-                                        uint64_t revSeqno,
-                                        uint32_t exptime,
-                                        uint32_t lock_time,
-                                        cb::const_byte_buffer meta,
-                                        uint8_t nru) {
+ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque, const void* key,
+                                        uint16_t nkey, const void* value,
+                                        uint32_t nvalue, uint64_t cas,
+                                        uint16_t vbucket, uint32_t flags,
+                                        uint8_t datatype, uint32_t locktime,
+                                        uint64_t bySeqno, uint64_t revSeqno,
+                                        uint32_t exptime, uint8_t nru,
+                                        const void* meta, uint16_t nmeta) {
     lastMessageTime = ep_current_time();
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
@@ -306,13 +300,20 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     auto stream = findStream(vbucket);
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        queued_item item(new Item(key, flags, exptime, value.data(),
-                                  value.size(), &datatype, EXT_META_LEN, cas,
-                                  bySeqno, vbucket, revSeqno));
+        // Create key in DefaultCollection unti DCP supports collections
+        queued_item item(new Item(DocKey(static_cast<const uint8_t*>(key), nkey,
+                                         DocNamespace::DefaultCollection),
+                                  flags, exptime, value, nvalue,
+                                  &datatype, EXT_META_LEN, cas, bySeqno,
+                                  vbucket, revSeqno));
 
         ExtendedMetaData *emd = NULL;
-        if (meta.size() > 0) {
-            emd = new ExtendedMetaData(meta.data(), uint16_t(meta.size()));
+        if (nmeta > 0) {
+            emd = new ExtendedMetaData(meta, nmeta);
+
+            if (emd == NULL) {
+                return ENGINE_ENOMEM;
+            }
             if (emd->getStatus() == ENGINE_EINVAL) {
                 delete emd;
                 return ENGINE_EINVAL;
@@ -338,24 +339,19 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
         return ENGINE_SUCCESS;
     }
 
-    const auto bytes = MutationResponse::mutationBaseMsgBytes + key.size() +
-        meta.size() + value.size();
-    flowControl.incrFreedBytes(uint32_t(bytes));
+    uint32_t bytes =
+        MutationResponse::mutationBaseMsgBytes + nkey + nmeta + nvalue;
+    flowControl.incrFreedBytes(bytes);
     notifyConsumerIfNecessary(true/*schedule*/);
 
     return err;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
-                                        const DocKey& key,
-                                        cb::const_byte_buffer value,
-                                        size_t priv_bytes,
-                                        uint8_t datatype,
-                                        uint64_t cas,
-                                        uint16_t vbucket,
-                                        uint64_t bySeqno,
-                                        uint64_t revSeqno,
-                                        cb::const_byte_buffer meta) {
+ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque, const void* key,
+                                        uint16_t nkey, uint64_t cas,
+                                        uint16_t vbucket, uint64_t bySeqno,
+                                        uint64_t revSeqno, const void* meta,
+                                        uint16_t nmeta) {
     lastMessageTime = ep_current_time();
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
@@ -370,14 +366,20 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     auto stream = findStream(vbucket);
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        queued_item item(new Item(key, 0, 0, value.data(), value.size(),
-                                  &datatype, EXT_META_LEN, cas, bySeqno,
+        // Create key in DefaultCollection until DCP supports collections
+        queued_item item(new Item(DocKey(static_cast<const uint8_t*>(key), nkey,
+                                         DocNamespace::DefaultCollection),
+                                  0, 0, NULL, 0, NULL, 0, cas, bySeqno,
                                   vbucket, revSeqno));
         item->setDeleted();
 
         ExtendedMetaData *emd = NULL;
-        if (meta.size() > 0) {
-            emd = new ExtendedMetaData(meta.data(), meta.size());
+        if (nmeta > 0) {
+            emd = new ExtendedMetaData(meta, nmeta);
+
+            if (emd == NULL) {
+                return ENGINE_ENOMEM;
+            }
             if (emd->getStatus() == ENGINE_EINVAL) {
                 delete emd;
                 return ENGINE_EINVAL;
@@ -402,27 +404,21 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
         return ENGINE_SUCCESS;
     }
 
-    const auto bytes = MutationResponse::mutationBaseMsgBytes + key.size() +
-                       meta.size() + value.size();
-    flowControl.incrFreedBytes(uint32_t(bytes));
+    uint32_t bytes = MutationResponse::deletionBaseMsgBytes + nkey + nmeta;
+    flowControl.incrFreedBytes(bytes);
     notifyConsumerIfNecessary(true/*schedule*/);
 
     return err;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::expiration(uint32_t opaque,
-                                          const DocKey& key,
-                                          cb::const_byte_buffer value,
-                                          size_t priv_bytes,
-                                          uint8_t datatype,
-                                          uint64_t cas,
-                                          uint16_t vbucket,
-                                          uint64_t by_seqno,
-                                          uint64_t rev_seqno,
-                                          cb::const_byte_buffer meta) {
+ENGINE_ERROR_CODE DcpConsumer::expiration(uint32_t opaque, const void* key,
+                                          uint16_t nkey, uint64_t cas,
+                                          uint16_t vbucket, uint64_t bySeqno,
+                                          uint64_t revSeqno, const void* meta,
+                                          uint16_t nmeta) {
     // lastMessageTime is set in deletion function
-    return deletion(opaque, key, value, priv_bytes, datatype, cas, vbucket,
-                    by_seqno, rev_seqno, meta);
+    return deletion(opaque, key, nkey, cas, vbucket, bySeqno, revSeqno, meta,
+                    nmeta);
 }
 
 ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,

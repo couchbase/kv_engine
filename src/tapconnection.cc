@@ -191,50 +191,34 @@ ENGINE_ERROR_CODE ConnHandler::streamEnd(uint32_t opaque, uint16_t vbucket,
     return ENGINE_DISCONNECT;
 }
 
-ENGINE_ERROR_CODE ConnHandler::mutation(uint32_t opaque,
-                                        const DocKey& key,
-                                        cb::const_byte_buffer value,
-                                        size_t priv_bytes,
-                                        uint8_t datatype,
-                                        uint64_t cas,
-                                        uint16_t vbucket,
-                                        uint32_t flags,
-                                        uint64_t by_seqno,
-                                        uint64_t rev_seqno,
-                                        uint32_t expiration,
-                                        uint32_t lock_time,
-                                        cb::const_byte_buffer meta,
-                                        uint8_t nru) {
+ENGINE_ERROR_CODE ConnHandler::mutation(uint32_t opaque, const void* key,
+                                        uint16_t nkey, const void* value,
+                                        uint32_t nvalue, uint64_t cas,
+                                        uint16_t vbucket, uint32_t flags,
+                                        uint8_t datatype, uint32_t locktime,
+                                        uint64_t bySeqno, uint64_t revSeqno,
+                                        uint32_t exptime, uint8_t nru,
+                                        const void* meta, uint16_t nmeta) {
     logger.log(EXTENSION_LOG_WARNING, "Disconnecting - This connection doesn't "
         "support the mutation API");
     return ENGINE_DISCONNECT;
 }
 
-ENGINE_ERROR_CODE ConnHandler::deletion(uint32_t opaque,
-                                        const DocKey& key,
-                                        cb::const_byte_buffer value,
-                                        size_t priv_bytes,
-                                        uint8_t datatype,
-                                        uint64_t cas,
-                                        uint16_t vbucket,
-                                        uint64_t by_seqno,
-                                        uint64_t rev_seqno,
-                                        cb::const_byte_buffer meta) {
+ENGINE_ERROR_CODE ConnHandler::deletion(uint32_t opaque, const void* key,
+                                        uint16_t nkey, uint64_t cas,
+                                        uint16_t vbucket, uint64_t bySeqno,
+                                        uint64_t revSeqno, const void* meta,
+                                        uint16_t nmeta) {
     logger.log(EXTENSION_LOG_WARNING, "Disconnecting - This connection doesn't "
         "support the deletion API");
     return ENGINE_DISCONNECT;
 }
 
-ENGINE_ERROR_CODE ConnHandler::expiration(uint32_t opaque,
-                                          const DocKey& key,
-                                          cb::const_byte_buffer value,
-                                          size_t priv_bytes,
-                                          uint8_t datatype,
-                                          uint64_t cas,
-                                          uint16_t vbucket,
-                                          uint64_t by_seqno,
-                                          uint64_t rev_seqno,
-                                          cb::const_byte_buffer meta) {
+ENGINE_ERROR_CODE ConnHandler::expiration(uint32_t opaque, const void* key,
+                                          uint16_t nkey, uint64_t cas,
+                                          uint16_t vbucket, uint64_t bySeqno,
+                                          uint64_t revSeqno, const void* meta,
+                                          uint16_t nmeta) {
     logger.log(EXTENSION_LOG_WARNING, "Disconnecting - This connection doesn't "
         "support the expiration API");
     return ENGINE_DISCONNECT;
@@ -2201,21 +2185,16 @@ bool TapConsumer::processCheckpointCommand(uint8_t event, uint16_t vbucket,
     return ret;
 }
 
-ENGINE_ERROR_CODE TapConsumer::mutation(uint32_t opaque,
-                                        const DocKey& key,
-                                        cb::const_byte_buffer value,
-                                        size_t priv_bytes,
-                                        uint8_t datatype,
-                                        uint64_t cas,
-                                        uint16_t vbucket,
-                                        uint32_t flags,
-                                        uint64_t bySeqno,
-                                        uint64_t revSeqno,
-                                        uint32_t exptime,
-                                        uint32_t lock_time,
-                                        cb::const_byte_buffer meta,
-                                        uint8_t nru) {
+ENGINE_ERROR_CODE TapConsumer::mutation(uint32_t opaque, const void* key,
+                                        uint16_t nkey, const void* value,
+                                        uint32_t nvalue, uint64_t cas,
+                                        uint16_t vbucket, uint32_t flags,
+                                        uint8_t datatype, uint32_t locktime,
+                                        uint64_t bySeqno, uint64_t revSeqno,
+                                        uint32_t exptime, uint8_t nru,
+                                        const void* meta, uint16_t nmeta) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+
     // MB-17517: Check for the incoming item's CAS validity.
     if (!Item::isValidCas(cas)) {
         LOG(EXTENSION_LOG_WARNING,
@@ -2225,7 +2204,10 @@ ENGINE_ERROR_CODE TapConsumer::mutation(uint32_t opaque,
         cas = Item::nextCas();
     }
 
-    Item *item = new Item(key, flags, exptime, value.data(), value.size(),
+    // TAP has no concept of collections - DefaultCollection only.
+    Item *item = new Item(DocKey(static_cast<const uint8_t*>(key), nkey,
+                                 DocNamespace::DefaultCollection),
+                          flags, exptime, value, nvalue,
                           &datatype, EXT_META_LEN, cas, -1,
                           vbucket, revSeqno, nru);
 
@@ -2265,16 +2247,11 @@ ENGINE_ERROR_CODE TapConsumer::mutation(uint32_t opaque,
     return ret;
 }
 
-ENGINE_ERROR_CODE TapConsumer::deletion(uint32_t opaque,
-                                        const DocKey& key,
-                                        cb::const_byte_buffer value,
-                                        size_t priv_bytes,
-                                        uint8_t datatype,
-                                        uint64_t cas,
-                                        uint16_t vbucket,
-                                        uint64_t bySeqno,
-                                        uint64_t revSeqno,
-                                        cb::const_byte_buffer meta) {
+ENGINE_ERROR_CODE TapConsumer::deletion(uint32_t opaque, const void* key,
+                                        uint16_t nkey, uint64_t cas,
+                                        uint16_t vbucket, uint64_t bySeqno,
+                                        uint64_t revSeqno, const void* meta,
+                                        uint16_t nmeta) {
     uint64_t delCas = 0;
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
@@ -2294,19 +2271,22 @@ ENGINE_ERROR_CODE TapConsumer::deletion(uint32_t opaque,
     }
 
     ItemMetaData itemMeta(cas, revSeqno, 0, 0);
-    ret = kvBucket->deleteWithMeta(key,
+    // TAP has no concept of collections - DefaultCollection only.
+    ret = kvBucket->deleteWithMeta(DocKey(static_cast<const uint8_t*>(key),
+                                          nkey,
+                                          DocNamespace::DefaultCollection),
                                    delCas,
-                                   nullptr, // seqno
+                                   NULL,
                                    vbucket,
-                                   this, // cookie
-                                   true, // force
+                                   this,
+                                   true,
                                    itemMeta,
                                    isBackfillPhase(vbucket),
                                    GenerateBySeqno::Yes,
                                    GenerateCas::No,
-                                   0, // bySeqno
-                                   NULL, // extended metadata
-                                   true); // is replication
+                                   0,
+                                   NULL,
+                                   true);
 
     if (ret == ENGINE_KEY_ENOENT) {
         ret = ENGINE_SUCCESS;

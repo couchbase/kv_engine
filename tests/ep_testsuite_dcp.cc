@@ -683,17 +683,15 @@ static void dcp_stream_to_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     const std::string data("data");
     /* Send DCP mutations */
     for (uint64_t i = start; i <= end; i++) {
-        const std::string key{"key" + std::to_string(i)};
-        const DocKey docKey{key, DocNamespace::DefaultCollection};
-        const cb::const_byte_buffer value{(uint8_t*)data.data(), data.size()};
+        std::stringstream key;
+        key << "key" << i;
         checkeq(ENGINE_SUCCESS, h1->dcp.mutation(h, cookie, opaque,
-                                                 docKey, value,
-                                                 0, // priv bytes
-                                                 PROTOCOL_BINARY_RAW_BYTES,
-                                                 cas, vbucket, flags,
-                                                 i, // by seqno
-                                                 revSeqno, exprtime,
-                                                 lockTime, {}, 0),
+                                                 key.str().c_str(),
+                                                 key.str().length(),
+                                                 data.c_str(), data.length(),
+                                                 cas, vbucket, flags, datatype,
+                                                 i, revSeqno, exprtime,
+                                                 lockTime, NULL, 0, 0),
                 "Failed dcp mutate.");
     }
 }
@@ -857,23 +855,11 @@ extern "C" {
             ctx->h1->dcp.snapshot_marker(ctx->h, cookie,
                                          stream_opaque, 0/*vbid*/,
                                          ctx->items, ctx->items + i, 2);
-
-            const std::string key = ss.str();
-            const DocKey docKey{key, DocNamespace::DefaultCollection};
             ctx->h1->dcp.mutation(ctx->h, cookie, stream_opaque,
-                                  docKey,
-                                  {(const uint8_t*)"value", 5},
-                                  0, // priv bytes
-                                  PROTOCOL_BINARY_RAW_BYTES,
-                                  i * 3, // cas
-                                  0, // vbucket
-                                  0, // flags
-                                  i + ctx->items, // by_seqno
-                                  i + ctx->items, // rev_seqno
-                                  0, // exptime
-                                  0, // locktime
-                                  {}, // meta
-                                  INITIAL_NRU_VALUE);
+                                  ss.str().c_str(), ss.str().length(),
+                                  "value", 5, i * 3, 0, 0, 0,
+                                  i + ctx->items, i + ctx->items,
+                                  0, 0, "", 0, INITIAL_NRU_VALUE);
         }
 
         testHarness.destroy_cookie(cookie);
@@ -2892,22 +2878,12 @@ static enum test_result test_dcp_reconnect(ENGINE_HANDLE *h,
             "Failed to send snapshot marker");
 
     for (int i = 1; i <= items; i++) {
-        const std::string key{"key" + std::to_string(i)};
-        const DocKey docKey(key, DocNamespace::DefaultCollection);
+        std::stringstream ss;
+        ss << "key" << i;
         checkeq(ENGINE_SUCCESS,
-                h1->dcp.mutation(h, cookie, stream_opaque, docKey,
-                                 {(const uint8_t*)"value", 5},
-                                 0,  // privileged bytes
-                                 PROTOCOL_BINARY_RAW_BYTES,
-                                 i * 3, // cas
-                                 0, // vbucket
-                                 0, // flags
-                                 i, // by_seqno
-                                 0, // rev_seqno
-                                 0, // expiration
-                                 0, // lock_time
-                                 {}, // meta
-                                 INITIAL_NRU_VALUE),
+                h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
+                                 ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
+                                 0, 0, 0, "", 0, INITIAL_NRU_VALUE),
                 "Failed to send dcp mutation");
     }
 
@@ -2996,43 +2972,23 @@ static enum test_result test_dcp_consumer_takeover(ENGINE_HANDLE *h,
 
     h1->dcp.snapshot_marker(h, cookie, stream_opaque, 0, 1, 5, 10);
     for (int i = 1; i <= 5; i++) {
-        const std::string key{"key" + std::to_string(i)};
-        const DocKey docKey(key, DocNamespace::DefaultCollection);
+        std::stringstream ss;
+        ss << "key" << i;
         checkeq(ENGINE_SUCCESS,
-                h1->dcp.mutation(h, cookie, stream_opaque, docKey,
-                                 {(const uint8_t*)"value", 5},
-                                 0,  // privileged bytes
-                                 PROTOCOL_BINARY_RAW_BYTES,
-                                 i * 3, // cas
-                                 0, // vbucket
-                                 0, // flags
-                                 i, // by_seqno
-                                 0, // rev_seqno
-                                 0, // expiration
-                                 0, // lock_time
-                                 {}, // meta
-                                 INITIAL_NRU_VALUE),
+                h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
+                                 ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
+                                 0, 0, 0, "", 0, INITIAL_NRU_VALUE),
                 "Failed to send dcp mutation");
     }
 
     h1->dcp.snapshot_marker(h, cookie, stream_opaque, 0, 6, 10, 10);
     for (int i = 6; i <= 10; i++) {
-        const std::string key{"key" + std::to_string(i)};
-        const DocKey docKey(key, DocNamespace::DefaultCollection);
+        std::stringstream ss;
+        ss << "key" << i;
         checkeq(ENGINE_SUCCESS,
-                h1->dcp.mutation(h, cookie, stream_opaque, docKey,
-                                 {(const uint8_t*)"value", 5},
-                                 0,  // privileged bytes
-                                 PROTOCOL_BINARY_RAW_BYTES,
-                                 i * 3, // cas
-                                 0, // vbucket
-                                 0, // flags
-                                 i, // by_seqno
-                                 0, // rev_seqno
-                                 0, // expiration
-                                 0, // lock_time
-                                 {}, // meta
-                                 INITIAL_NRU_VALUE),
+                h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
+                                 ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
+                                 0, 0, 0, "", 0, INITIAL_NRU_VALUE),
                 "Failed to send dcp mutation");
     }
 
@@ -3151,23 +3107,15 @@ static enum test_result test_failover_scenario_two_with_dcp(ENGINE_HANDLE *h,
     // Send 4 mutations
     uint64_t i;
     for (i = 1; i <= 4; i++) {
-        const std::string key("key" + std::to_string(i));
-        const DocKey docKey(key, DocNamespace::DefaultCollection);
-        checkeq(ENGINE_SUCCESS,
-                h1->dcp.mutation(h, cookie, stream_opaque, docKey,
-                                 {(const uint8_t*)"value", 5},
-                                 0,  // privileged bytes
-                                 PROTOCOL_BINARY_RAW_BYTES,
-                                 i * 3, // cas
-                                 0, // vbucket
-                                 0, // flags
-                                 i, // by_seqno
-                                 0, // rev_seqno
-                                 0, // expiration
-                                 0, // lock_time
-                                 {}, // meta
-                                 INITIAL_NRU_VALUE),
-                "Failed to dcp mutate.");
+        std::string key("key" + std::to_string(i));
+        checkeq(ENGINE_SUCCESS, h1->dcp.mutation(h, cookie, stream_opaque,
+                                                 key.c_str(), key.length(),
+                                                 "value", 5,
+                                                 i * 3, 0, 0,
+                                                 PROTOCOL_BINARY_RAW_BYTES,
+                                                 i, 0, 0, 0, "", 0,
+                                                 INITIAL_NRU_VALUE),
+                "Failed dcp mutate.");
     }
 
     // Simulate failover
@@ -3186,22 +3134,12 @@ static enum test_result test_failover_scenario_two_with_dcp(ENGINE_HANDLE *h,
                         "checkpoint");
 
     // Consumer processes 5th mutation
-    const std::string key("key" + std::to_string(i));
-    const DocKey docKey(key, DocNamespace::DefaultCollection);
+    std::string key("key" + std::to_string(i));
     checkeq(ENGINE_KEY_ENOENT,
-            h1->dcp.mutation(h, cookie, stream_opaque, docKey,
-                             {(const uint8_t*)"value", 5},
-                             0,  // privileged bytes
+            h1->dcp.mutation(h, cookie, stream_opaque, key.c_str(), key.length(),
+                             "value", 5, i * 3, 0, 0,
                              PROTOCOL_BINARY_RAW_BYTES,
-                             i * 3, // cas
-                             0, // vbucket
-                             0, // flags
-                             i, // by_seqno
-                             0, // rev_seqno
-                             0, // expiration
-                             0, // lock_time
-                             {}, // meta
-                             INITIAL_NRU_VALUE),
+                             i, 0, 0, 0, "", 0, INITIAL_NRU_VALUE),
             "Unexpected response for the mutation!");
 
     testHarness.destroy_cookie(cookie);
@@ -3272,22 +3210,12 @@ static enum test_result test_consumer_backoff_stat(ENGINE_HANDLE *h,
             ENGINE_SUCCESS, "Failed to send snapshot marker");
 
     for (int i = 1; i <= 20; i++) {
-        const std::string key("key" + std::to_string(i));
-        const DocKey docKey(key, DocNamespace::DefaultCollection);
+        std::stringstream ss;
+        ss << "key" << i;
         checkeq(ENGINE_SUCCESS,
-                h1->dcp.mutation(h, cookie, stream_opaque, docKey,
-                                 {(const uint8_t*)"value", 5},
-                                 0,  // privileged bytes
-                                 PROTOCOL_BINARY_RAW_BYTES,
-                                 i * 3, // cas
-                                 0, // vbucket
-                                 0, // flags
-                                 i, // by_seqno
-                                 0, // rev_seqno
-                                 0, // expiration
-                                 0, // lock_time
-                                 {}, // meta
-                                 INITIAL_NRU_VALUE),
+                h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
+                                 ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
+                                 0, 0, 0, "", 0, INITIAL_NRU_VALUE),
                 "Failed to send dcp mutation");
     }
 
@@ -4076,12 +4004,10 @@ static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h,
             "Consumer flow ctl snapshot marker bytes not accounted correctly");
 
     // Ensure that we don't accept invalid opaque values
-    const DocKey docKey{key, DocNamespace::DefaultCollection};
     checkeq(ENGINE_KEY_ENOENT,
-            h1->dcp.mutation(h, cookie, opaque + 1, docKey,
-                             {(const uint8_t*)data, dataLen}, 0, datatype,
-                             cas, vbucket, flags, bySeqno, revSeqno, exprtime,
-                             lockTime, {}, 0),
+            h1->dcp.mutation(h, cookie, opaque + 1, key.c_str(), key.length(),
+                             data, dataLen, cas, vbucket, flags, datatype,
+                             bySeqno, revSeqno, exprtime, lockTime, NULL, 0, 0),
           "Failed to detect invalid DCP opaque value");
 
     /* Add mutation bytes to unacked bytes. Since we are shipping out
@@ -4103,10 +4029,9 @@ static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h,
 
     // Consume an DCP mutation
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.mutation(h, cookie, opaque, docKey,
-                             {(const uint8_t*)data, dataLen}, 0, datatype, cas,
-                             vbucket, flags, bySeqno, revSeqno, exprtime,
-                             lockTime, {}, 0),
+            h1->dcp.mutation(h, cookie, opaque, key.c_str(), key.length(), data,
+                             dataLen, cas, vbucket, flags, datatype, bySeqno,
+                             revSeqno, exprtime, lockTime, NULL, 0, 0),
             "Failed dcp mutate.");
 
     exp_unacked_bytes += (dcp_mutation_base_msg_bytes + key.length() + dataLen);
@@ -4168,20 +4093,16 @@ static enum test_result test_dcp_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
             h1->dcp.snapshot_marker(h, cookie, opaque, 0, 10, 10, 1),
             "Failed to send snapshot marker");
 
-    const std::string key{"key"};
-    const DocKey docKey{key, DocNamespace::DefaultCollection};
     // verify that we don't accept invalid opaque id's
     checkeq(ENGINE_KEY_ENOENT,
-            h1->dcp.deletion(h, cookie, opaque + 1, docKey, {}, 0,
-                             PROTOCOL_BINARY_RAW_BYTES, cas, vbucket,
-                             bySeqno, revSeqno, {}),
+            h1->dcp.deletion(h, cookie, opaque + 1, "key", 3, cas, vbucket,
+                             bySeqno, revSeqno, NULL, 0),
             "Failed to detect invalid DCP opaque value.");
 
     // Consume an DCP deletion
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.deletion(h, cookie, opaque, docKey, {}, 0,
-                             PROTOCOL_BINARY_RAW_BYTES, cas, vbucket,
-                             bySeqno, revSeqno, {}),
+            h1->dcp.deletion(h, cookie, opaque, "key", 3, cas, vbucket,
+                             bySeqno, revSeqno, NULL, 0),
             "Failed dcp delete.");
 
     wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0,
@@ -4569,29 +4490,22 @@ static enum test_result test_dcp_erroneous_mutations(ENGINE_HANDLE *h,
             ENGINE_SUCCESS,
             "Failed to send snapshot marker!");
     for (int i = 5; i <= 10; i++) {
-        const std::string key("key" + std::to_string(i));
-        const DocKey docKey{key, DocNamespace::DefaultCollection};
-        checkeq(h1->dcp.mutation(h, cookie, stream_opaque, docKey,
-                                 {(const uint8_t*)"value", 5}, 0,
-                                 PROTOCOL_BINARY_RAW_BYTES, i * 3, 0, 0,
-                                 i, 0, 0, 0, {}, INITIAL_NRU_VALUE),
+        std::string key("key" + std::to_string(i));
+        checkeq(h1->dcp.mutation(h, cookie, stream_opaque, key.c_str(),
+                                 key.length(), "value", 5, i * 3, 0, 0, 0,
+                                 i, 0, 0, 0, "", 0, INITIAL_NRU_VALUE),
                 ENGINE_SUCCESS,
                 "Unexpected return code for mutation!");
     }
 
     // Send a mutation and a deletion both out-of-sequence
-    const DocKey key{(const uint8_t*)"key", 3, DocNamespace::DefaultCollection};
-    checkeq(h1->dcp.mutation(h, cookie, stream_opaque, key,
-                             {(const uint8_t*)"val", 3}, 0,
-                             PROTOCOL_BINARY_RAW_BYTES,
-                             35, 0, 0, 2, 0, 0, 0, {},
+    checkeq(h1->dcp.mutation(h, cookie, stream_opaque, "key", 3, "val", 3,
+                             35, 0, 0, 0, 2, 0, 0, 0, "", 0,
                              INITIAL_NRU_VALUE),
             ENGINE_ERANGE,
             "Mutation should've returned ERANGE!");
-    const DocKey key5{(const uint8_t*)"key5", 4,
-                      DocNamespace::DefaultCollection};
-    checkeq(h1->dcp.deletion(h, cookie, stream_opaque, key5, {}, 0,
-                             PROTOCOL_BINARY_RAW_BYTES, 40, 0, 3, 0, {}),
+    checkeq(h1->dcp.deletion(h, cookie, stream_opaque, "key5", 4, 40,
+                             0, 3, 0, "", 0),
             ENGINE_ERANGE,
             "Deletion should've returned ERANGE!");
 
@@ -4599,13 +4513,10 @@ static enum test_result test_dcp_erroneous_mutations(ENGINE_HANDLE *h,
 
     int buffered_items = get_int_stat(h, h1, bufferItemsStr.c_str(), "dcp");
 
-    const DocKey docKey20{(const uint8_t*)"key20", 5,
-                          DocNamespace::DefaultCollection};
-    ENGINE_ERROR_CODE err = h1->dcp.mutation(h, cookie, stream_opaque, docKey20,
-                                             {(const uint8_t*)"val", 3},
-                                             0, PROTOCOL_BINARY_RAW_BYTES,
-                                             45, 0, 0, 20, 0, 0, 0, {},
-                                             INITIAL_NRU_VALUE);
+    ENGINE_ERROR_CODE err = h1->dcp.mutation(h, cookie, stream_opaque,
+                                             "key20", 5, "val", 3,
+                                             45, 0, 0, 0, 20, 0, 0, 0, "",
+                                             0, INITIAL_NRU_VALUE);
 
     if (buffered_items == 0) {
         checkeq(err, ENGINE_ERANGE, "Mutation shouldn't have been accepted!");
@@ -4658,12 +4569,10 @@ static enum test_result test_dcp_erroneous_marker(ENGINE_HANDLE *h,
             ENGINE_SUCCESS,
             "Failed to send snapshot marker!");
     for (int i = 1; i <= 10; i++) {
-        const std::string key("key" + std::to_string(i));
-        const DocKey docKey{key, DocNamespace::DefaultCollection};
-        checkeq(h1->dcp.mutation(h, cookie1, stream_opaque, docKey,
-                                 {(const uint8_t*)"value", 5}, 0,
-                                 PROTOCOL_BINARY_RAW_BYTES, i * 3, 0, 0,
-                                 i, 0, 0, 0, {}, INITIAL_NRU_VALUE),
+        std::string key("key" + std::to_string(i));
+        checkeq(h1->dcp.mutation(h, cookie1, stream_opaque, key.c_str(),
+                                 key.length(), "value", 5, i * 3, 0, 0, 0,
+                                 i, 0, 0, 0, "", 0, INITIAL_NRU_VALUE),
                 ENGINE_SUCCESS,
                 "Unexpected return code for mutation!");
     }
@@ -4701,15 +4610,11 @@ static enum test_result test_dcp_erroneous_marker(ENGINE_HANDLE *h,
             ENGINE_SUCCESS,
             "Failed to send snapshot marker!");
     for (int i = 5; i <= 15; i++) {
-        const std::string key("key_" + std::to_string(i));
-        const DocKey docKey(key, DocNamespace::DefaultCollection);
+        std::string key("key_" + std::to_string(i));
         ENGINE_ERROR_CODE err = h1->dcp.mutation(h, cookie2, stream_opaque,
-                                                 docKey,
-                                                 {(const uint8_t*)"val", 3},
-                                                 0,
-                                                 PROTOCOL_BINARY_RAW_BYTES,
-                                                 i * 3, 0, 0, i,
-                                                 0, 0, 0, {}, INITIAL_NRU_VALUE);
+                                                 key.c_str(), key.length(),
+                                                 "val", 3, i * 3, 0, 0, 0, i,
+                                                 0, 0, 0, "", 0, INITIAL_NRU_VALUE);
         if (i <= 10) {
             checkeq(err, ENGINE_ERANGE, "Mutation should have been dropped!");
         } else {
@@ -4748,19 +4653,16 @@ static enum test_result test_dcp_invalid_mutation_deletion(ENGINE_HANDLE* h,
     uint32_t  stream_opaque = get_int_stat(h, h1, opaqueStr.c_str(), "dcp");
 
     // Mutation(s) or deletion(s) with seqno 0 are invalid!
-    const std::string key("key");
-    DocKey docKey{key, DocNamespace::DefaultCollection};
-    cb::const_byte_buffer value{(const uint8_t*)"value", 5};
-
-    checkeq(h1->dcp.mutation(h, cookie, stream_opaque, docKey, value,
-                             0, PROTOCOL_BINARY_RAW_BYTES, 10, 0,
-                             0, /*seqno*/ 0, 0, 0, 0, {}, INITIAL_NRU_VALUE),
+    std::string key("key");
+    std::string val("value");
+    checkeq(h1->dcp.mutation(h, cookie, stream_opaque, key.c_str(),
+                             key.length(), val.c_str(), val.length(), 10, 0, 0,
+                             0, /*seqno*/ 0, 0, 0, 0, "", 0, INITIAL_NRU_VALUE),
             ENGINE_EINVAL,
             "Mutation should have returned EINVAL!");
 
-    checkeq(h1->dcp.deletion(h, cookie, stream_opaque, docKey, {}, 0,
-                             PROTOCOL_BINARY_RAW_BYTES, 10, 0, /*seqno*/ 0,
-                             0, {}),
+    checkeq(h1->dcp.deletion(h, cookie, stream_opaque, key.c_str(),
+                             key.length(), 10, 0, /*seqno*/ 0, 0, "", 0),
             ENGINE_EINVAL,
             "Deletion should have returned EINVAL!");
 
@@ -4794,22 +4696,11 @@ static enum test_result test_dcp_invalid_snapshot_marker(ENGINE_HANDLE* h,
             ENGINE_SUCCESS,
             "Failed to send snapshot marker!");
     for (int i = 1; i <= 10; i++) {
-        const std::string key("key" + std::to_string(i));
-        const DocKey docKey(key, DocNamespace::DefaultCollection);
-        checkeq(ENGINE_SUCCESS,
-                h1->dcp.mutation(h, cookie, stream_opaque, docKey,
-                                 {(const uint8_t*)"value", 5},
-                                 0,  // privileged bytes
-                                 PROTOCOL_BINARY_RAW_BYTES,
-                                 i * 3, // cas
-                                 0, // vbucket
-                                 0, // flags
-                                 i, // by_seqno
-                                 1, // rev_seqno
-                                 0, // expiration
-                                 0, // lock_time
-                                 {}, // meta
-                                 INITIAL_NRU_VALUE),
+        std::string key("key" + std::to_string(i));
+        checkeq(h1->dcp.mutation(h, cookie, stream_opaque, key.c_str(),
+                                 key.length(), "value", 5, i * 3, 0, 0, 0,
+                                 i, 0, 0, 0, "", 0, INITIAL_NRU_VALUE),
+                ENGINE_SUCCESS,
                 "Unexpected return code for mutation!");
     }
 
@@ -5055,22 +4946,15 @@ static enum test_result test_mb17517_cas_minus_1_dcp(ENGINE_HANDLE *h,
     const std::string prefix{"bad_CAS_DCP"};
     std::string value{"value"};
     for (unsigned int ii = 0; ii < 2; ii++) {
-        const std::string key{prefix + std::to_string(ii)};
-        const DocKey docKey(key, DocNamespace::DefaultCollection);
+        std::string key{prefix + std::to_string(ii)};
         checkeq(ENGINE_SUCCESS,
-                h1->dcp.mutation(h, cookie, stream_opaque, docKey,
-                                 {(const uint8_t*)value.c_str(), value.size()},
-                                 0,  // privileged bytes
-                                 PROTOCOL_BINARY_RAW_BYTES,
-                                 -1, // cas
-                                 0, // vbucket
-                                 0, // flags
-                                 ii + 1, // by_seqno
-                                 1, // rev_seqno
-                                 0, // expiration
-                                 0, // lock_time
-                                 {}, // meta
-                                 INITIAL_NRU_VALUE),
+                h1->dcp.mutation(h, cookie, stream_opaque, key.c_str(), key.size(),
+                                 value.c_str(), value.size(), /*cas*/-1,
+                                 /*vbucket*/0,
+                                 /*flags*/0, PROTOCOL_BINARY_RAW_BYTES,
+                                 /*by_seqno*/ii + 1, /*rev_seqno*/1,
+                                 /*expiration*/0, /*lock_time*/0,
+                                 /*meta*/nullptr, /*nmeta*/0, INITIAL_NRU_VALUE),
                                  "Expected DCP mutation with CAS:-1 to succeed");
     }
 
@@ -5078,17 +4962,13 @@ static enum test_result test_mb17517_cas_minus_1_dcp(ENGINE_HANDLE *h,
     wait_for_stat_to_be(h, h1, "vb_replica_curr_items", 2);
 
     // Delete one of them (to allow us to test DCP deletion).
-    const std::string delete_key{prefix + "0"};
-    const DocKey docKey{delete_key, DocNamespace::DefaultCollection};
+    std::string delete_key{prefix + "0"};
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.deletion(h, cookie, stream_opaque,
-                             docKey, {}, 0, PROTOCOL_BINARY_RAW_BYTES,
-                             -1, // cas
-                             0, // vbucket
-                             3, // by_seqno
-                             2, // rev_seqno,
-                             {}), // meta
-            "Expected DCP deletion with CAS:-1 to succeed");
+            h1->dcp.deletion(h, cookie, stream_opaque, delete_key.c_str(),
+                             delete_key.size(), /*cas*/-1, /*vbucket*/0,
+                             /*by_seqno*/3, /*rev_seqno*/2,
+                             /*meta*/nullptr, /*nmeta*/0),
+                             "Expected DCP deletion with CAS:-1 to succeed");
 
     // Ensure we have processed the deletion.
     wait_for_stat_to_be(h, h1, "vb_replica_curr_items", 1);
@@ -5314,22 +5194,12 @@ static enum test_result test_dcp_consumer_processer_behavior(ENGINE_HANDLE *h,
                                             0, i, i + 20, 0x01),
                     "Failed to send snapshot marker");
         }
-        const std::string key("key" + std::to_string(i));
-        const DocKey docKey(key, DocNamespace::DefaultCollection);
+        std::stringstream ss;
+        ss << "key" << i;
         checkeq(ENGINE_SUCCESS,
-                h1->dcp.mutation(h, cookie, stream_opaque, docKey,
-                                 {(const uint8_t*)"value", 5},
-                                 0,  // privileged bytes
-                                 PROTOCOL_BINARY_RAW_BYTES,
-                                 i * 3, // cas
-                                 0, // vbucket
-                                 0, // flags
-                                 i, // by_seqno
-                                 0, // rev_seqno
-                                 0, // expiration
-                                 0, // lock_time
-                                 {}, // meta
-                                 INITIAL_NRU_VALUE),
+                h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
+                                 ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
+                                 0, 0, 0, "", 0, INITIAL_NRU_VALUE),
                 "Failed to send dcp mutation");
         ++i;
     }
@@ -5384,22 +5254,10 @@ static enum test_result test_get_all_vb_seqnos(ENGINE_HANDLE *h,
                                     1),
             "Failed to send snapshot marker!");
 
-    const std::string key("key");
-    const DocKey docKey(key, DocNamespace::DefaultCollection);
-    checkeq(ENGINE_SUCCESS,
-            h1->dcp.mutation(h, cookie, stream_opaque, docKey,
-                             {(const uint8_t*)"value", 5},
-                             0,  // privileged bytes
-                             datatype,
-                             cas, // cas
-                             rep_vb_num, // vbucket
-                             flags, // flags
-                             bySeqno, // by_seqno
-                             revSeqno, // rev_seqno
-                             exprtime, // expiration
-                             lockTime, // lock_time
-                             {}, // meta
-                             0),
+    check(h1->dcp.mutation(h, cookie, stream_opaque, "key", 3, "value", 5,
+                           cas, rep_vb_num, flags, datatype,
+                           bySeqno, revSeqno, exprtime,
+                           lockTime, NULL, 0, 0) == ENGINE_SUCCESS,
           "Failed dcp mutate.");
 
     /* Create active vbuckets */
@@ -5551,28 +5409,19 @@ static enum test_result test_mb19982(ENGINE_HANDLE *h,
                                           "dcp");
 
     for (int i = 1; i <= num_items; i++) {
+        std::stringstream ss;
+        ss << "key-" << i;
         checkeq(h1->dcp.snapshot_marker(h, cookie,
                                         stream_opaque, 0/*vbid*/,
                                         num_items, num_items + i, 2),
                 ENGINE_SUCCESS,
                 "Failed to send snapshot marker");
-
-        const std::string key("key-" + std::to_string(i));
-        const DocKey docKey(key, DocNamespace::DefaultCollection);
-        checkeq(ENGINE_SUCCESS,
-                h1->dcp.mutation(h, cookie, stream_opaque, docKey,
-                                 {(const uint8_t*)"value", 5},
-                                 0,  // privileged bytes
-                                 PROTOCOL_BINARY_RAW_BYTES,
-                                 i * 3, // cas
-                                 0, // vbucket
-                                 0, // flags
-                                 i + num_items, // by_seqno
-                                 i + num_items, // rev_seqno
-                                 0, // expiration
-                                 0, // lock_time
-                                 {}, // meta
-                                 INITIAL_NRU_VALUE),
+        checkeq(h1->dcp.mutation(h, cookie, stream_opaque,
+                                 ss.str().c_str(), ss.str().length(),
+                                 "value", 5, i * 3, 0, 0, 0,
+                                 i + num_items, i + num_items,
+                                 0, 0, "", 0, INITIAL_NRU_VALUE),
+                ENGINE_SUCCESS,
                 "Failed to send dcp mutation");
 
         // And flip VB state (this can have a lock inversion with stats)

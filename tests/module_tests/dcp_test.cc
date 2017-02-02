@@ -578,47 +578,46 @@ TEST_F(ConnectionTest, test_update_of_last_message_time_in_consumer) {
     consumer->streamEnd(/*opaque*/0, /*vbucket*/0, /*flags*/0);
     EXPECT_NE(1234, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for streamEnd";
-    const DocKey docKey{ nullptr, 0, DocNamespace::DefaultCollection};
-    consumer->mutation(0, // opaque
-                       docKey,
-                       {}, // value
-                       0, // priv bytes
-                       PROTOCOL_BINARY_RAW_BYTES,
-                       0, // cas
-                       0, // vbucket
-                       0, // flags
-                       0, // locktime
-                       0, // by seqno
-                       0, // rev seqno
-                       0, // exptime
-                       {}, // meta
-                       0); // nru
+    consumer->mutation(/*opaque*/0,
+                       /*key*/nullptr,
+                       /*nkey*/0,
+                       /*value*/nullptr,
+                       /*nvalue*/0,
+                       /*cas*/0,
+                       /*vbucket*/0,
+                       /*flags*/0,
+                       /*datatype*/0,
+                       /*locktime*/0,
+                       /*bySeqno*/0,
+                       /*revSeqno*/0,
+                       /*exprtime*/0,
+                       /*nru*/0,
+                       /*meta*/nullptr,
+                       /*nmeta*/0);
     EXPECT_NE(1234, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for mutation";
     consumer->setLastMessageTime(1234);
-    consumer->deletion(0, // opaque
-                       docKey,
-                       {}, // value
-                       0, // priv bytes
-                       PROTOCOL_BINARY_RAW_BYTES,
-                       0, // cas
-                       0, // vbucket
-                       0, // by seqno
-                       0, // rev seqno
-                       {}); // meta
+    consumer->deletion(/*opaque*/0,
+                       /*key*/nullptr,
+                       /*nkey*/0,
+                       /*cas*/0,
+                       /*vbucket*/0,
+                       /*bySeqno*/0,
+                       /*revSeqno*/0,
+                       /*meta*/nullptr,
+                       /*nmeta*/0);
     EXPECT_NE(1234, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for deletion";
     consumer->setLastMessageTime(1234);
-    consumer->expiration(0, // opaque
-                         docKey,
-                         {}, // value
-                         0, // priv bytes
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         0, // cas
-                         0, // vbucket
-                         0, // by seqno
-                         0, // rev seqno
-                         {}); // meta
+    consumer->expiration(/*opaque*/0,
+                         /*key*/nullptr,
+                         /*nkey*/0,
+                         /*cas*/0,
+                         /*vbucket*/0,
+                         /*bySeqno*/0,
+                         /*revSeqno*/0,
+                         /*meta*/nullptr,
+                         /*nmeta*/0);
     EXPECT_NE(1234, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for expiration";
     consumer->setLastMessageTime(1234);
