@@ -26,7 +26,7 @@
  * @param user updated with the user information if found
  * @return true if user exists, false otherwise
  */
-bool find_user(const std::string& username, Couchbase::User &user);
+bool find_user(const std::string& username, cb::sasl::User &user);
 
 cbsasl_error_t load_user_db(void);
 

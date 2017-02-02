@@ -416,7 +416,7 @@ cbsasl_error_t ScramShaServerBackend::start(cbsasl_conn_t* conn,
     if (!find_user(username, user)) {
         cbsasl_log(conn, cbsasl_loglevel_t::Debug,
                    "User [" + username + "] doesn't exist.. using dummy");
-        user = Couchbase::UserFactory::createDummy(username, mechanism);
+        user = cb::sasl::UserFactory::createDummy(username, mechanism);
     }
 
     const auto& passwordMeta = user.getPassword(mechanism);

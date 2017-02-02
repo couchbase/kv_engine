@@ -40,13 +40,13 @@ protected:
 
         std::stringstream output;
         cbsasl_pwconv(input, output);
-        db.reset(new Couchbase::PasswordDatabase(output.str(), false));
+        db.reset(new cb::sasl::PasswordDatabase(output.str(), false));
     }
 
-    static std::unique_ptr<Couchbase::PasswordDatabase> db;
+    static std::unique_ptr<cb::sasl::PasswordDatabase> db;
 };
 
-std::unique_ptr<Couchbase::PasswordDatabase> PwconvTest::db;
+std::unique_ptr<cb::sasl::PasswordDatabase> PwconvTest::db;
 
 TEST_F(PwconvTest, VerifySpaceInTheMiddle) {
     auto trond = db->find("trond");

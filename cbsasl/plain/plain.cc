@@ -92,7 +92,7 @@ cbsasl_error_t PlainServerBackend::start(cbsasl_conn_t* conn,
 
     conn->server->username.assign(username);
     const std::string userpw(password, pwlen);
-    Couchbase::User user;
+    cb::sasl::User user;
     if (!find_user(username, user)) {
         if (cbsasl_use_saslauthd()) {
             return check(conn, username, userpw);

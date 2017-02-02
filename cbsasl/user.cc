@@ -44,7 +44,7 @@ void generateSalt(std::vector<uint8_t>& bytes, std::string& salt) {
                               bytes.size()));
 }
 
-Couchbase::User Couchbase::UserFactory::create(const std::string& unm,
+cb::sasl::User cb::sasl::UserFactory::create(const std::string& unm,
                                                const std::string& passwd) {
     User ret{unm, false};
 
@@ -87,7 +87,7 @@ Couchbase::User Couchbase::UserFactory::create(const std::string& unm,
     return ret;
 }
 
-Couchbase::User Couchbase::UserFactory::createDummy(const std::string& unm,
+cb::sasl::User cb::sasl::UserFactory::createDummy(const std::string& unm,
                                                     const Mechanism& mech) {
     User ret{unm};
 
@@ -106,11 +106,11 @@ Couchbase::User Couchbase::UserFactory::createDummy(const std::string& unm,
         break;
     case Mechanism::PLAIN:
     case Mechanism::UNKNOWN:
-        throw std::logic_error("Couchbase::UserFactory::createDummy invalid algorithm");
+        throw std::logic_error("cb::cbsasl::UserFactory::createDummy invalid algorithm");
     }
 
     if (salt.empty()) {
-        throw std::logic_error("Couchbase::UserFactory::createDummy invalid algorithm");
+        throw std::logic_error("cb::cbsasl::UserFactory::createDummy invalid algorithm");
     }
 
     // Generate a random password
@@ -122,21 +122,21 @@ Couchbase::User Couchbase::UserFactory::createDummy(const std::string& unm,
     return ret;
 }
 
-Couchbase::User Couchbase::UserFactory::create(const cJSON* obj) {
+cb::sasl::User cb::sasl::UserFactory::create(const cJSON* obj) {
     if (obj == nullptr) {
-        throw std::runtime_error("Couchbase::UserFactory::create: obj cannot be null");
+        throw std::runtime_error("cb::cbsasl::UserFactory::create: obj cannot be null");
     }
 
     if (obj->type != cJSON_Object) {
-        throw std::runtime_error("Couchbase::UserFactory::create: Invalid object type");
+        throw std::runtime_error("cb::cbsasl::UserFactory::create: Invalid object type");
     }
 
     auto* o = cJSON_GetObjectItem(const_cast<cJSON*>(obj), "n");
     if (o == nullptr) {
-        throw std::runtime_error("Couchbase::UserFactory::create: missing mandatory label 'n'");
+        throw std::runtime_error("cb::cbsasl::UserFactory::create: missing mandatory label 'n'");
     }
     if (o->type != cJSON_String) {
-        throw std::runtime_error("Couchbase::UserFactory::create: 'n' must be a string");
+        throw std::runtime_error("cb::cbsasl::UserFactory::create: 'n' must be a string");
     }
 
     User ret{o->valuestring, false};
@@ -158,7 +158,7 @@ Couchbase::User Couchbase::UserFactory::create(const cJSON* obj) {
             User::PasswordMetaData pd(Couchbase::Base64::decode(o->valuestring));
             ret.password[Mechanism::PLAIN] = pd;
         } else {
-            throw std::runtime_error("Couchbase::UserFactory::create: Invalid "
+            throw std::runtime_error("cb::cbsasl::UserFactory::create: Invalid "
                                          "label \"" + label + "\" specified");
         }
     }
@@ -166,7 +166,7 @@ Couchbase::User Couchbase::UserFactory::create(const cJSON* obj) {
     return ret;
 }
 
-void Couchbase::UserFactory::setDefaultHmacIterationCount(int count) {
+void cb::sasl::UserFactory::setDefaultHmacIterationCount(int count) {
     IterationCount.store(count);
 }
 
@@ -190,7 +190,7 @@ void cbsasl_set_hmac_iteration_count(cbsasl_getopt_fn getopt_fn,
     }
 }
 
-void Couchbase::User::generateSecrets(const Mechanism& mech,
+void cb::sasl::User::generateSecrets(const Mechanism& mech,
                                       const std::string& passwd) {
 
     std::vector<uint8_t> salt;
@@ -212,11 +212,11 @@ void Couchbase::User::generateSecrets(const Mechanism& mech,
         break;
     case Mechanism::PLAIN:
     case Mechanism::UNKNOWN:
-        throw std::logic_error("Couchbase::User::generateSecrets invalid algorithm");
+        throw std::logic_error("cb::cbsasl::User::generateSecrets invalid algorithm");
     }
 
     if (salt.empty()) {
-        throw std::logic_error("Couchbase::User::generateSecrets invalid algorithm");
+        throw std::logic_error("cb::cbsasl::User::generateSecrets invalid algorithm");
     }
 
     generateSalt(salt, encodedSalt);
@@ -227,9 +227,9 @@ void Couchbase::User::generateSecrets(const Mechanism& mech,
                          encodedSalt, IterationCount);
 }
 
-Couchbase::User::PasswordMetaData::PasswordMetaData(cJSON* obj) {
+cb::sasl::User::PasswordMetaData::PasswordMetaData(cJSON* obj) {
     if (obj->type != cJSON_Object) {
-        throw std::runtime_error("Couchbase::User::PasswordMetaData: invalid"
+        throw std::runtime_error("cb::cbsasl::User::PasswordMetaData: invalid"
                                      " object type");
     }
 
@@ -238,27 +238,27 @@ Couchbase::User::PasswordMetaData::PasswordMetaData(cJSON* obj) {
     auto* i = cJSON_GetObjectItem(obj, "i");
 
     if (h == nullptr || s == nullptr || i == nullptr) {
-        throw std::runtime_error("Couchbase::User::PasswordMetaData: missing "
+        throw std::runtime_error("cb::cbsasl::User::PasswordMetaData: missing "
                                      "mandatory attributes");
     }
 
     if (h->type != cJSON_String) {
-        throw std::runtime_error("Couchbase::User::PasswordMetaData: hash"
+        throw std::runtime_error("cb::cbsasl::User::PasswordMetaData: hash"
                                      " should be a string");
     }
 
     if (s->type != cJSON_String) {
-        throw std::runtime_error("Couchbase::User::PasswordMetaData: salt"
+        throw std::runtime_error("cb::cbsasl::User::PasswordMetaData: salt"
                                      " should be a string");
     }
 
     if (i->type != cJSON_Number) {
-        throw std::runtime_error("Couchbase::User::PasswordMetaData: iteration"
+        throw std::runtime_error("cb::cbsasl::User::PasswordMetaData: iteration"
                                      " count should be a number");
     }
 
     if (cJSON_GetArraySize(obj) != 3) {
-        throw std::runtime_error("Couchbase::User::PasswordMetaData: invalid "
+        throw std::runtime_error("cb::cbsasl::User::PasswordMetaData: invalid "
                                      "number of labels specified");
     }
 
@@ -268,12 +268,12 @@ Couchbase::User::PasswordMetaData::PasswordMetaData(cJSON* obj) {
     password.assign(Couchbase::Base64::decode(h->valuestring));
     iteration_count = i->valueint;
     if (iteration_count < 0) {
-        throw std::runtime_error("Couchbase::User::PasswordMetaData: iteration "
+        throw std::runtime_error("cb::cbsasl::User::PasswordMetaData: iteration "
                                      "count must be positive");
     }
 }
 
-cJSON* Couchbase::User::PasswordMetaData::to_json() const {
+cJSON* cb::sasl::User::PasswordMetaData::to_json() const {
     auto* ret = cJSON_CreateObject();
     std::string s((char*)password.data(), password.size());
     cJSON_AddStringToObject(ret, "h", Couchbase::Base64::encode(s).c_str());
@@ -283,7 +283,7 @@ cJSON* Couchbase::User::PasswordMetaData::to_json() const {
     return ret;
 }
 
-unique_cJSON_ptr Couchbase::User::to_json() const {
+unique_cJSON_ptr cb::sasl::User::to_json() const {
     auto* ret = cJSON_CreateObject();
 
     cJSON_AddStringToObject(ret, "n", username.c_str());
@@ -308,24 +308,24 @@ unique_cJSON_ptr Couchbase::User::to_json() const {
             break;
         default:
             throw std::runtime_error(
-                "Couchbase::User::toJSON(): Unsupported mech");
+                "cb::cbsasl::User::toJSON(): Unsupported mech");
         }
     }
 
     return unique_cJSON_ptr(ret);
 }
 
-std::string Couchbase::User::to_string() const {
+std::string cb::sasl::User::to_string() const {
     return ::to_string(to_json(), false);
 }
 
-const Couchbase::User::PasswordMetaData& Couchbase::User::getPassword(
+const cb::sasl::User::PasswordMetaData& cb::sasl::User::getPassword(
     const Mechanism& mech) const {
 
     const auto iter = password.find(mech);
 
     if (iter == password.end()) {
-        throw std::invalid_argument("Couchbase::User::getPassword: requested "
+        throw std::invalid_argument("cb::cbsasl::User::getPassword: requested "
                                         "mechanism not available");
     } else {
         return iter->second;

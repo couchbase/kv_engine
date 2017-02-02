@@ -32,7 +32,7 @@ namespace plain {
  * @return CBSASL_OK if the provided password match the supplied
  *                   password.
  */
-cbsasl_error_t check_password(const Couchbase::User& user,
+cbsasl_error_t check_password(const cb::sasl::User& user,
                               const std::string& password);
 
 }

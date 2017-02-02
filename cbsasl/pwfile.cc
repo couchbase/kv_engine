@@ -25,44 +25,43 @@
 class PasswordDatabaseManager {
 public:
     PasswordDatabaseManager()
-        : db(new Couchbase::PasswordDatabase) {
+        : db(new cb::sasl::PasswordDatabase) {
 
     }
 
-    void swap(std::unique_ptr<Couchbase::PasswordDatabase>& ndb) {
+    void swap(std::unique_ptr<cb::sasl::PasswordDatabase>& ndb) {
         std::lock_guard<std::mutex> lock(dbmutex);
         db.swap(ndb);
     }
 
-    Couchbase::User find(const std::string& username) {
+    cb::sasl::User find(const std::string& username) {
         std::lock_guard<std::mutex> lock(dbmutex);
         return db->find(username);
     }
 
 private:
     std::mutex dbmutex;
-    std::unique_ptr<Couchbase::PasswordDatabase> db;
+    std::unique_ptr<cb::sasl::PasswordDatabase> db;
 };
 
 static PasswordDatabaseManager pwmgr;
 
 void free_user_ht(void) {
-    std::unique_ptr<Couchbase::PasswordDatabase> ndb(
-        new Couchbase::PasswordDatabase);
+    std::unique_ptr<cb::sasl::PasswordDatabase> ndb(
+        new cb::sasl::PasswordDatabase);
     pwmgr.swap(ndb);
 }
 
-bool find_user(const std::string& username, Couchbase::User& user) {
+bool find_user(const std::string& username, cb::sasl::User& user) {
     user = pwmgr.find(username);
     return !user.isDummy();
 }
 
 cbsasl_error_t parse_user_db(const std::string content, bool file) {
     try {
-        using namespace Couchbase;
         auto start = gethrtime();
-        std::unique_ptr<PasswordDatabase> db(
-            new PasswordDatabase(content, file));
+        std::unique_ptr<cb::sasl::PasswordDatabase> db(
+            new cb::sasl::PasswordDatabase(content, file));
 
         std::string logmessage(
             "Loading [" + content + "] took " +

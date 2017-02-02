@@ -22,7 +22,7 @@
 #include <string>
 
 
-Couchbase::PasswordDatabase::PasswordDatabase(const std::string& content,
+cb::sasl::PasswordDatabase::PasswordDatabase(const std::string& content,
                                               bool file) {
     unique_cJSON_ptr unique_json;
 
@@ -61,12 +61,12 @@ Couchbase::PasswordDatabase::PasswordDatabase(const std::string& content,
 
     // parse all of the users
     for (auto* u = users->child; u != nullptr; u = u->next) {
-        auto user = Couchbase::UserFactory::create(u);
+        auto user = cb::sasl::UserFactory::create(u);
         db[user.getUsername()] = user;
     }
 }
 
-unique_cJSON_ptr Couchbase::PasswordDatabase::to_json() const {
+unique_cJSON_ptr cb::sasl::PasswordDatabase::to_json() const {
     auto* json = cJSON_CreateObject();
     auto* array = cJSON_CreateArray();
 
@@ -77,7 +77,7 @@ unique_cJSON_ptr Couchbase::PasswordDatabase::to_json() const {
     return unique_cJSON_ptr(json);
 }
 
-std::string Couchbase::PasswordDatabase::to_string() const {
+std::string cb::sasl::PasswordDatabase::to_string() const {
     auto json = to_json();
     char* ptr = cJSON_Print(json.get());
     std::string ret(ptr);

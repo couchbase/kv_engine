@@ -24,7 +24,9 @@
 #include <vector>
 #include "cbsasl_internal.h"
 
-namespace Couchbase {
+namespace cb {
+namespace sasl {
+
 class UserFactory;
 
 class User {
@@ -39,9 +41,9 @@ public:
          * Create a new instance of the PasswordMetaData
          */
         PasswordMetaData()
-            : iteration_count(0){
+            : iteration_count(0) {
 
-              };
+        };
 
         /**
          * Create a new instance of the PasswordMetaData with
@@ -54,7 +56,9 @@ public:
         PasswordMetaData(const std::string& h,
                          const std::string& s = "",
                          int i = 0)
-            : salt(s), password(h), iteration_count(i) {
+            : salt(s),
+              password(h),
+              iteration_count(i) {
         }
 
         /**
@@ -115,7 +119,8 @@ public:
       * @param dmy should we create a dummy object or not
       */
     User(const std::string& unm = "", const bool dmy = true)
-        : username(unm), dummy(dmy) {
+        : username(unm),
+          dummy(dmy) {
     }
 
     /**
@@ -228,4 +233,5 @@ public:
      */
     static void setDefaultHmacIterationCount(int count);
 };
+}
 }

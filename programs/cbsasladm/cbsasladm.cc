@@ -141,7 +141,7 @@ int main(int argc, char **argv) {
             break;
         case 'i':
             try {
-                using namespace Couchbase;
+                using namespace cb::sasl;
                 UserFactory::setDefaultHmacIterationCount(std::stoi(optarg));
             } catch (...) {
                 std::cerr << "Error: iteration count must be an integer"

@@ -136,7 +136,7 @@ public:
         std::copy(pw.begin(), pw.end(), std::back_inserter(dest));
     }
 
-    Couchbase::User user;
+    cb::sasl::User user;
 };
 
 /**

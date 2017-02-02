@@ -20,7 +20,9 @@
 #include <unordered_map>
 #include "user.h"
 
-namespace Couchbase {
+namespace cb {
+namespace sasl {
+
 class PasswordDatabase {
 public:
     /**
@@ -48,7 +50,7 @@ public:
      * @param username the username to look up
      * @return a copy of the user object
      */
-    Couchbase::User find(const std::string& username) {
+    cb::sasl::User find(const std::string& username) {
         auto it = db.find(username);
         if (it != db.end()) {
             return it->second;
@@ -56,7 +58,7 @@ public:
             // Return a dummy user (allow the authentication to go
             // through the entire authentication phase but fail with
             // incorrect password ;-)
-            return Couchbase::User();
+            return cb::sasl::User();
         }
     }
 
@@ -74,6 +76,7 @@ private:
     /**
      * The actual user database
      */
-    std::unordered_map<std::string, Couchbase::User> db;
+    std::unordered_map<std::string, cb::sasl::User> db;
 };
+}
 }

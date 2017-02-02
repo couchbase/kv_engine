@@ -70,7 +70,7 @@ void cbsasl_pwconv(std::istream& is, std::ostream& os) {
                    "Create user entry for [" + username + "] with password [" +
                    password + "]");
 
-        auto u = Couchbase::UserFactory::create(username, password);
+        auto u = cb::sasl::UserFactory::create(username, password);
         cJSON_AddItemToArray(users, u.to_json().release());
     }
 
@@ -145,7 +145,6 @@ void cbsasl_write_password_file(const std::string& filename,
             throw std::runtime_error("cbsasl_write_password_file: Invalid json"
                                          " specified in COUCHBASE_CBSASL_SECRETS");
         }
-        using namespace Couchbase;
         auto enc = cb::crypto::encrypt(json.get(),
                                        reinterpret_cast<const uint8_t*>(content.data()),
                                        content.size());

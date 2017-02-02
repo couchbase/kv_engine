@@ -36,7 +36,7 @@ int main(void) {
 
     isaslpw.close();
 
-    Couchbase::UserFactory::setDefaultHmacIterationCount(10);
+    cb::sasl::UserFactory::setDefaultHmacIterationCount(10);
 
     int exitcode = EXIT_SUCCESS;
 
