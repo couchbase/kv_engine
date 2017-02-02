@@ -700,12 +700,10 @@ size_t VBucket::getNumOfKeysInFilter() {
     }
 }
 
-/* [TBD]: Get rid of pHtLh */
-uint64_t VBucket::queueDirty(StoredValue& v,
-                             std::unique_lock<std::mutex>* pHtLh,
-                             const GenerateBySeqno generateBySeqno,
-                             const GenerateCas generateCas,
-                             const bool isBackfillItem) {
+VBNotifyCtx VBucket::queueDirty(StoredValue& v,
+                                const GenerateBySeqno generateBySeqno,
+                                const GenerateCas generateCas,
+                                const bool isBackfillItem) {
     VBNotifyCtx notifyCtx;
     queued_item qi(v.toItem(false, getId()));
 
@@ -730,15 +728,7 @@ uint64_t VBucket::queueDirty(StoredValue& v,
 
     v.setBySeqno(qi->getBySeqno());
 
-    if (pHtLh) {
-        pHtLh->unlock();
-    }
-
-    if (newSeqnoCb) {
-        newSeqnoCb->callback(getId(), notifyCtx);
-    }
-
-    return qi->getBySeqno();
+    return notifyCtx;
 }
 
 StoredValue* VBucket::fetchValidValue(std::unique_lock<std::mutex>& lh,
@@ -768,7 +758,7 @@ StoredValue* VBucket::fetchValidValue(std::unique_lock<std::mutex>& lh,
             if (queueExpired && getState() == vbucket_state_active) {
                 incExpirationStat(ExpireBy::Access);
                 processSoftDelete(lh, *v, 0);
-                queueDirty(*v);
+                notifyNewSeqno(queueDirty(*v));
             }
             return wantsDeleted ? v : NULL;
         }
@@ -1079,7 +1069,6 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
     MutationStatus mtype =
             processSet(lh, v, itm, itm.getCas(), true, false, maybeKeyExists);
 
-    uint64_t seqno = 0;
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (mtype) {
     case MutationStatus::NoMem:
@@ -1099,10 +1088,9 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
     // Even if the item was dirty, push it into the vbucket's open
     // checkpoint.
     case MutationStatus::WasClean:
-        // We keep lh held as we need to do v->getCas()
-        seqno = queueDirty(*v, nullptr);
+        notifyNewSeqno(queueDirty(*v));
 
-        itm.setBySeqno(seqno);
+        itm.setBySeqno(v->getBySeqno());
         itm.setCas(v->getCas());
         break;
     case MutationStatus::NeedBgFetch: { // CAS operation with non-resident item
@@ -1148,7 +1136,6 @@ ENGINE_ERROR_CODE VBucket::replace(Item& itm,
             mtype = processSet(lh, v, itm, 0, true, false);
         }
 
-        uint64_t seqno = 0;
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
         switch (mtype) {
         case MutationStatus::NoMem:
@@ -1166,10 +1153,9 @@ ENGINE_ERROR_CODE VBucket::replace(Item& itm,
         // Even if the item was dirty, push it into the vbucket's open
         // checkpoint.
         case MutationStatus::WasClean:
-            // We need to keep lh as we will do v->getCas()
-            seqno = queueDirty(*v, nullptr);
+            notifyNewSeqno(queueDirty(*v));
 
-            itm.setBySeqno(seqno);
+            itm.setBySeqno(v->getBySeqno());
             itm.setCas(v->getCas());
             break;
         case MutationStatus::NeedBgFetch: {
@@ -1229,14 +1215,18 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm, const bool genBySeqno) {
     // (MB-14003)
     case MutationStatus::NotFound:
     // FALLTHROUGH
-    case MutationStatus::WasClean:
+    case MutationStatus::WasClean: {
         setMaxCas(v->getCas());
-        queueDirty(*v,
-                   &lh,
-                   genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No,
-                   GenerateCas::No,
-                   true);
-        break;
+        VBNotifyCtx notifyCtx = queueDirty(
+                *v,
+                genBySeqno ? GenerateBySeqno::Yes : GenerateBySeqno::No,
+                GenerateCas::No,
+                true);
+        // we unlock ht lock here because we want to avoid potential lock
+        // inversions arising from notifyNewSeqno() call
+        lh.unlock();
+        notifyNewSeqno(notifyCtx);
+    } break;
     case MutationStatus::NeedBgFetch:
         throw std::logic_error(
                 "VBucket::addBackfillItem: "
@@ -1324,10 +1314,14 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
     case MutationStatus::WasDirty:
     case MutationStatus::WasClean: {
         setMaxCasAndTrackDrift(v->getCas());
-        auto queued_seqno = queueDirty(*v, &lh, genBySeqno, genCas);
-        if (nullptr != seqno) {
-            *seqno = queued_seqno;
+        VBNotifyCtx notifyCtx = queueDirty(*v, genBySeqno, genCas);
+        if (seqno) {
+            *seqno = static_cast<uint64_t>(v->getBySeqno());
         }
+        // we unlock ht lock here because we want to avoid potential lock
+        // inversions arising from notifyNewSeqno() call
+        lh.unlock();
+        notifyNewSeqno(notifyCtx);
     } break;
     case MutationStatus::NotFound:
         ret = ENGINE_KEY_ENOENT;
@@ -1480,8 +1474,8 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
     case MutationStatus::WasClean:
     case MutationStatus::WasDirty:
         if (v) {
-            // We need to keep lh as we will do v->getCas()
-            seqno = queueDirty(*v, nullptr);
+            notifyNewSeqno(queueDirty(*v));
+            seqno = static_cast<uint64_t>(v->getBySeqno());
             cas = v->getCas();
         }
 
@@ -1607,11 +1601,15 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
         }
 
         setMaxCasAndTrackDrift(v->getCas());
-        auto queued_seqno =
-                queueDirty(*v, &lh, genBySeqno, generateCas, backfill);
+        VBNotifyCtx notifyCtx =
+                queueDirty(*v, genBySeqno, generateCas, backfill);
         if (seqno) {
-            *seqno = queued_seqno;
+            *seqno = static_cast<uint64_t>(v->getBySeqno());
         }
+        // we unlock ht lock here because we want to avoid potential lock
+        // inversions arising from notifyNewSeqno() call
+        lh.unlock();
+        notifyNewSeqno(notifyCtx);
         break;
     }
     case MutationStatus::NeedBgFetch:
@@ -1643,7 +1641,11 @@ void VBucket::deleteExpiredItem(const DocKey& key,
             }
         } else if (v->isExpired(startTime) && !v->isDeleted()) {
             processSoftDelete(lh, *v, 0);
-            queueDirty(*v, &lh);
+            VBNotifyCtx notifyCtx = queueDirty(*v);
+            // we unlock ht lock here because we want to avoid potential lock
+            // inversions arising from notifyNewSeqno() call
+            lh.unlock();
+            notifyNewSeqno(notifyCtx);
         }
     } else {
         if (eviction == FULL_EVICTION) {
@@ -1659,7 +1661,11 @@ void VBucket::deleteExpiredItem(const DocKey& key,
                 v->setDeleted();
                 v->setRevSeqno(revSeqno);
                 processSoftDelete(lh, *v, 0);
-                queueDirty(*v, &lh);
+                VBNotifyCtx notifyCtx = queueDirty(*v);
+                // we unlock ht lock here because we want to avoid potential
+                // lock inversions arising from notifyNewSeqno() call
+                lh.unlock();
+                notifyNewSeqno(notifyCtx);
             }
         }
     }
@@ -1689,7 +1695,6 @@ ENGINE_ERROR_CODE VBucket::add(Item& itm,
                                  maybeKeyExists,
                                  /*isReplication*/ false);
 
-    uint64_t seqno = 0;
     switch (atype) {
     case AddStatus::NoMem:
         return ENGINE_ENOMEM;
@@ -1709,9 +1714,8 @@ ENGINE_ERROR_CODE VBucket::add(Item& itm,
         return ENGINE_EWOULDBLOCK;
     case AddStatus::Success:
     case AddStatus::UnDel:
-        // We need to keep lh as we will do v->getCas()
-        seqno = queueDirty(*v, nullptr);
-        itm.setBySeqno(seqno);
+        notifyNewSeqno(queueDirty(*v));
+        itm.setBySeqno(v->getBySeqno());
         itm.setCas(v->getCas());
         break;
     }
@@ -1753,7 +1757,11 @@ GetValue VBucket::getAndUpdateTtl(const DocKey& key,
                     v->getBySeqno());
 
         if (exptime_mutated) {
-            queueDirty(*v, &lh);
+            VBNotifyCtx notifyCtx = queueDirty(*v);
+            // we unlock ht lock here because we want to avoid potential lock
+            // inversions arising from notifyNewSeqno() call
+            lh.unlock();
+            notifyNewSeqno(notifyCtx);
         }
 
         return rv;
@@ -2356,4 +2364,10 @@ AddStatus VBucket::addTempStoredValue(
                       itm,
                       /*maybeKeyExists*/ true,
                       isReplication);
+}
+
+inline void VBucket::notifyNewSeqno(const VBNotifyCtx& notifyCtx) {
+    if (newSeqnoCb) {
+        newSeqnoCb->callback(getId(), notifyCtx);
+    }
 }
