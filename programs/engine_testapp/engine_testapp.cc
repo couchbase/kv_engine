@@ -476,27 +476,30 @@ static ENGINE_ERROR_CODE mock_dcp_snapshot_marker(ENGINE_HANDLE* handle,
 static ENGINE_ERROR_CODE mock_dcp_mutation(ENGINE_HANDLE* handle,
                                            const void* cookie,
                                            uint32_t opaque,
-                                           const DocKey& key,
-                                           cb::const_byte_buffer value,
-                                           size_t priv_bytes,
-                                           uint8_t datatype,
+                                           const void *key,
+                                           uint16_t nkey,
+                                           const void *value,
+                                           uint32_t nvalue,
                                            uint64_t cas,
                                            uint16_t vbucket,
                                            uint32_t flags,
-                                           uint64_t by_seqno,
-                                           uint64_t rev_seqno,
+                                           uint8_t datatype,
+                                           uint64_t bySeqno,
+                                           uint64_t revSeqno,
                                            uint32_t expiration,
-                                           uint32_t lock_time,
-                                           cb::const_byte_buffer meta,
+                                           uint32_t lockTime,
+                                           const void *meta,
+                                           uint16_t nmeta,
                                            uint8_t nru) {
 
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->dcp.mutation,
                                get_engine_from_handle(handle),
                                static_cast<const void*>(c),
-                               opaque, key, value, priv_bytes, datatype, cas,
-                               vbucket, flags, by_seqno, rev_seqno, expiration,
-                               lock_time, meta, nru);
+                               opaque, key, nkey, value,
+                               nvalue, cas, vbucket, flags,
+                               datatype, bySeqno, revSeqno, expiration,
+                               lockTime, meta, nmeta, nru);
 
     ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
 
@@ -507,22 +510,21 @@ static ENGINE_ERROR_CODE mock_dcp_mutation(ENGINE_HANDLE* handle,
 static ENGINE_ERROR_CODE mock_dcp_deletion(ENGINE_HANDLE* handle,
                                            const void* cookie,
                                            uint32_t opaque,
-                                           const DocKey& key,
-                                           cb::const_byte_buffer value,
-                                           size_t priv_bytes,
-                                           uint8_t datatype,
+                                           const void *key,
+                                           uint16_t nkey,
                                            uint64_t cas,
                                            uint16_t vbucket,
-                                           uint64_t by_seqno,
-                                           uint64_t rev_seqno,
-                                           cb::const_byte_buffer meta) {
+                                           uint64_t bySeqno,
+                                           uint64_t revSeqno,
+                                           const void *meta,
+                                           uint16_t nmeta) {
 
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->dcp.deletion,
                                get_engine_from_handle(handle),
                                static_cast<const void*>(c),
-                               opaque, key, value, priv_bytes, datatype, cas,
-                               vbucket, by_seqno, rev_seqno, meta);
+                               opaque, key, nkey, cas, vbucket, bySeqno,
+                               revSeqno, meta, nmeta);
 
     ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
 
@@ -533,22 +535,21 @@ static ENGINE_ERROR_CODE mock_dcp_deletion(ENGINE_HANDLE* handle,
 static ENGINE_ERROR_CODE mock_dcp_expiration(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              uint32_t opaque,
-                                             const DocKey& key,
-                                             cb::const_byte_buffer value,
-                                             size_t priv_bytes,
-                                             uint8_t datatype,
+                                             const void *key,
+                                             uint16_t nkey,
                                              uint64_t cas,
                                              uint16_t vbucket,
-                                             uint64_t by_seqno,
-                                             uint64_t rev_seqno,
-                                             cb::const_byte_buffer meta) {
+                                             uint64_t bySeqno,
+                                             uint64_t revSeqno,
+                                             const void *meta,
+                                             uint16_t nmeta) {
 
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->dcp.expiration,
                                get_engine_from_handle(handle),
                                static_cast<const void*>(c),
-                               opaque, key, value, priv_bytes, datatype, cas,
-                               vbucket, by_seqno, rev_seqno, meta);
+                               opaque, key, nkey, cas, vbucket, bySeqno,
+                               revSeqno, meta, nmeta);
 
     ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
 

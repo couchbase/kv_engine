@@ -245,28 +245,25 @@ private:
     }
 
     static ENGINE_ERROR_CODE dcp_mutation(ENGINE_HANDLE*, const void*, uint32_t,
-                                          const DocKey&, cb::const_byte_buffer,
-                                          size_t, uint8_t, uint64_t, uint16_t,
-                                          uint32_t, uint64_t, uint64_t,
-                                          uint32_t, uint32_t,
-                                          cb::const_byte_buffer, uint8_t) {
+                                          const void*, uint16_t, const void*,
+                                          uint32_t, uint64_t, uint16_t,
+                                          uint32_t, uint8_t, uint64_t, uint64_t,
+                                          uint32_t, uint32_t, const void*,
+                                          uint16_t, uint8_t) {
         return ENGINE_NO_BUCKET;
     }
 
     static ENGINE_ERROR_CODE dcp_deletion(ENGINE_HANDLE*, const void*, uint32_t,
-                                          const DocKey&, cb::const_byte_buffer,
-                                          size_t, uint8_t, uint64_t, uint16_t,
-                                          uint64_t, uint64_t,
-                                          cb::const_byte_buffer) {
+                                          const void*, uint16_t, uint64_t,
+                                          uint16_t, uint64_t, uint64_t,
+                                          const void*, uint16_t) {
         return ENGINE_NO_BUCKET;
     }
 
     static ENGINE_ERROR_CODE dcp_expiration(ENGINE_HANDLE*, const void*,
-                                            uint32_t, const DocKey&,
-                                            cb::const_byte_buffer, size_t,
-                                            uint8_t, uint64_t, uint16_t,
-                                            uint64_t, uint64_t,
-                                            cb::const_byte_buffer) {
+                                            uint32_t, const void*, uint16_t,
+                                            uint64_t, uint16_t, uint64_t,
+                                            uint64_t, const void*, uint16_t) {
         return ENGINE_NO_BUCKET;
     }
 

@@ -757,45 +757,45 @@ private:
     static ENGINE_ERROR_CODE dcp_mutation(ENGINE_HANDLE* handle,
                                           const void* cookie,
                                           uint32_t opaque,
-                                          const DocKey& key,
-                                          cb::const_byte_buffer value,
-                                          size_t priv_bytes,
-                                          uint8_t datatype,
+                                          const void* key,
+                                          uint16_t nkey,
+                                          const void* value,
+                                          uint32_t nvalue,
                                           uint64_t cas,
                                           uint16_t vbucket,
                                           uint32_t flags,
+                                          uint8_t datatype,
                                           uint64_t by_seqno,
                                           uint64_t rev_seqno,
                                           uint32_t expiration,
                                           uint32_t lock_time,
-                                          cb::const_byte_buffer meta,
+                                          const void* meta,
+                                          uint16_t nmeta,
                                           uint8_t nru);
 
     static ENGINE_ERROR_CODE dcp_deletion(ENGINE_HANDLE* handle,
                                           const void* cookie,
                                           uint32_t opaque,
-                                          const DocKey& key,
-                                          cb::const_byte_buffer value,
-                                          size_t priv_bytes,
-                                          uint8_t datatype,
+                                          const void* key,
+                                          uint16_t nkey,
                                           uint64_t cas,
                                           uint16_t vbucket,
                                           uint64_t by_seqno,
                                           uint64_t rev_seqno,
-                                          cb::const_byte_buffer meta);
+                                          const void* meta,
+                                          uint16_t nmeta);
 
     static ENGINE_ERROR_CODE dcp_expiration(ENGINE_HANDLE* handle,
                                             const void* cookie,
                                             uint32_t opaque,
-                                            const DocKey& key,
-                                            cb::const_byte_buffer value,
-                                            size_t priv_bytes,
-                                            uint8_t datatype,
+                                            const void* key,
+                                            uint16_t nkey,
                                             uint64_t cas,
                                             uint16_t vbucket,
                                             uint64_t by_seqno,
                                             uint64_t rev_seqno,
-                                            cb::const_byte_buffer meta);
+                                            const void* meta,
+                                            uint16_t nmeta);
 
     static ENGINE_ERROR_CODE dcp_flush(ENGINE_HANDLE* handle,
                                        const void* cookie,
@@ -1371,74 +1371,73 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_snapshot_marker(ENGINE_HANDLE* handle,
 ENGINE_ERROR_CODE EWB_Engine::dcp_mutation(ENGINE_HANDLE* handle,
                                            const void* cookie,
                                            uint32_t opaque,
-                                           const DocKey& key,
-                                           cb::const_byte_buffer value,
-                                           size_t priv_bytes,
-                                           uint8_t datatype,
+                                           const void* key,
+                                           uint16_t nkey,
+                                           const void* value,
+                                           uint32_t nvalue,
                                            uint64_t cas,
                                            uint16_t vbucket,
                                            uint32_t flags,
+                                           uint8_t datatype,
                                            uint64_t by_seqno,
                                            uint64_t rev_seqno,
                                            uint32_t expiration,
                                            uint32_t lock_time,
-                                           cb::const_byte_buffer meta,
+                                           const void* meta,
+                                           uint16_t nmeta,
                                            uint8_t nru) {
     EWB_Engine* ewb = to_engine(handle);
     if (ewb->real_engine->dcp.mutation == nullptr) {
         return ENGINE_ENOTSUP;
     } else {
         return ewb->real_engine->dcp.mutation(ewb->real_handle, cookie, opaque,
-                                              key, value, priv_bytes, datatype,
-                                              cas, vbucket, flags, by_seqno,
-                                              rev_seqno, expiration, lock_time,
-                                              meta, nru);
+                                              key, nkey, value, nvalue, cas,
+                                              vbucket, flags, datatype,
+                                              by_seqno, rev_seqno, expiration,
+                                              lock_time, meta, nmeta, nru);
     }
 }
 
 ENGINE_ERROR_CODE EWB_Engine::dcp_deletion(ENGINE_HANDLE* handle,
                                            const void* cookie,
                                            uint32_t opaque,
-                                           const DocKey& key,
-                                           cb::const_byte_buffer value,
-                                           size_t priv_bytes,
-                                           uint8_t datatype,
+                                           const void* key,
+                                           uint16_t nkey,
                                            uint64_t cas,
                                            uint16_t vbucket,
                                            uint64_t by_seqno,
                                            uint64_t rev_seqno,
-                                           cb::const_byte_buffer meta) {
+                                           const void* meta,
+                                           uint16_t nmeta) {
     EWB_Engine* ewb = to_engine(handle);
     if (ewb->real_engine->dcp.deletion == nullptr) {
         return ENGINE_ENOTSUP;
     } else {
         return ewb->real_engine->dcp.deletion(ewb->real_handle, cookie, opaque,
-                                              key, value, priv_bytes, datatype,
-                                              cas, vbucket, by_seqno, rev_seqno,
-                                              meta);
+                                              key, nkey, cas, vbucket, by_seqno,
+                                              rev_seqno, meta, nmeta);
     }
 }
 
 ENGINE_ERROR_CODE EWB_Engine::dcp_expiration(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              uint32_t opaque,
-                                             const DocKey& key,
-                                             cb::const_byte_buffer value,
-                                             size_t priv_bytes,
-                                             uint8_t datatype,
+                                             const void* key,
+                                             uint16_t nkey,
                                              uint64_t cas,
                                              uint16_t vbucket,
                                              uint64_t by_seqno,
                                              uint64_t rev_seqno,
-                                             cb::const_byte_buffer meta) {
+                                             const void* meta,
+                                             uint16_t nmeta) {
     EWB_Engine* ewb = to_engine(handle);
     if (ewb->real_engine->dcp.expiration == nullptr) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine->dcp.expiration(ewb->real_handle, cookie, opaque,
-                                                key, value, priv_bytes, datatype,
-                                                cas, vbucket, by_seqno, rev_seqno,
-                                                meta);
+        return ewb->real_engine->dcp.expiration(ewb->real_handle, cookie,
+                                                opaque, key, nkey, cas, vbucket,
+                                                by_seqno, rev_seqno, meta,
+                                                nmeta);
     }
 }
 

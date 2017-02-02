@@ -22,7 +22,9 @@ void dcp_expiration_executor(McbpConnection* c, void* packet);
 
 ENGINE_ERROR_CODE dcp_message_expiration(const void* void_cookie,
                                          uint32_t opaque,
-                                         item* it,
+                                         const void* key,
+                                         uint16_t nkey,
+                                         uint64_t cas,
                                          uint16_t vbucket,
                                          uint64_t by_seqno,
                                          uint64_t rev_seqno,

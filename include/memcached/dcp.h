@@ -20,10 +20,9 @@
 #error "Please include memcached/engine.h instead"
 #endif
 
-#include <memcached/dockey.h>
-#include <memcached/protocol_binary.h>
-#include <memcached/types.h>
-#include <memcached/vbucket.h>
+#include "memcached/protocol_binary.h"
+#include "memcached/types.h"
+#include "memcached/vbucket.h"
 
 
 /**
@@ -139,8 +138,9 @@ struct dcp_message_producers {
      * @param cookie passed on the cookie provided by step
      * @param opaque this is the opaque requested by the consumer
      *               in the Stream Request message
-     * @param itm the item to send. The core will call item_release on
-     *            the item when it is sent so remember to keep it around
+     * @param key pointer to the items key
+     * @param nkey the number of bytes in the key
+     * @param cas the cas value representing the deleted item
      * @param vbucket the vbucket id the message belong to
      * @param by_seqno
      * @param rev_seqno
@@ -149,7 +149,9 @@ struct dcp_message_producers {
      */
     ENGINE_ERROR_CODE (* deletion)(const void* cookie,
                                    uint32_t opaque,
-                                   item* itm,
+                                   const void* key,
+                                   uint16_t nkey,
+                                   uint64_t cas,
                                    uint16_t vbucket,
                                    uint64_t by_seqno,
                                    uint64_t rev_seqno,
@@ -162,8 +164,9 @@ struct dcp_message_producers {
      * @param cookie passed on the cookie provided by step
      * @param opaque this is the opaque requested by the consumer
      *               in the Stream Request message
-     * @param itm the item to send. The core will call item_release on
-     *            the item when it is sent so remember to keep it around
+     * @param key pointer to the items key
+     * @param nkey the number of bytes in the key
+     * @param cas the cas value representing the expired item
      * @param vbucket the vbucket id the message belong to
      * @param by_seqno
      * @param rev_seqno
@@ -172,7 +175,9 @@ struct dcp_message_producers {
      */
     ENGINE_ERROR_CODE (* expiration)(const void* cookie,
                                      uint32_t opaque,
-                                     item* itm,
+                                     const void* key,
+                                     uint16_t nkey,
+                                     uint64_t cas,
                                      uint16_t vbucket,
                                      uint64_t by_seqno,
                                      uint64_t rev_seqno,
@@ -348,104 +353,52 @@ struct dcp_interface {
 
     /**
      * Callback to the engine that a mutation message was received
-     *
-     * @param handle The handle to the engine
-     * @param cookie The cookie representing the connection
-     * @param opaque The opaque field in the message (identifying the stream)
-     * @param key The documents key
-     * @param value The value to store
-     * @param priv_bytes The number of bytes in the value which should be
-     *                   allocated from the privileged pool
-     * @param datatype The datatype for the incomming item
-     * @param cas The documents CAS value
-     * @param vbucket The vbucket identifier for the document
-     * @param flags The user specified flags
-     * @param by_seqno The sequence number in the vbucket
-     * @param rev_seqno The revision number for the item
-     * @param expiration When the document expire
-     * @param lock_time The lock time for the document
-     * @param meta The documents meta
-     * @param nru The engine's NRU value
-     * @return Standard engine error code.
      */
-    ENGINE_ERROR_CODE (* mutation)(ENGINE_HANDLE* handle,
-                                   const void* cookie,
+    ENGINE_ERROR_CODE (* mutation)(ENGINE_HANDLE* handle, const void* cookie,
                                    uint32_t opaque,
-                                   const DocKey& key,
-                                   cb::const_byte_buffer value,
-                                   size_t priv_bytes,
-                                   uint8_t datatype,
+                                   const void* key,
+                                   uint16_t nkey,
+                                   const void* value,
+                                   uint32_t nvalue,
                                    uint64_t cas,
                                    uint16_t vbucket,
                                    uint32_t flags,
+                                   uint8_t datatype,
                                    uint64_t by_seqno,
                                    uint64_t rev_seqno,
                                    uint32_t expiration,
                                    uint32_t lock_time,
-                                   cb::const_byte_buffer meta,
+                                   const void* meta,
+                                   uint16_t nmeta,
                                    uint8_t nru);
 
     /**
      * Callback to the engine that a deletion message was received
-     *
-     * @param handle The handle to the engine
-     * @param cookie The cookie representing the connection
-     * @param opaque The opaque field in the message (identifying the stream)
-     * @param key The documents key
-     * @param value The value to store
-     * @param priv_bytes The number of bytes in the value which should be
-     *                   allocated from the privileged pool
-     * @param datatype The datatype for the incomming item
-     * @param cas The documents CAS value
-     * @param vbucket The vbucket identifier for the document
-     * @param by_seqno The sequence number in the vbucket
-     * @param rev_seqno The revision number for the item
-     * @param meta The documents meta
-     * @return Standard engine error code.
      */
-    ENGINE_ERROR_CODE (* deletion)(ENGINE_HANDLE* handle,
-                                   const void* cookie,
+    ENGINE_ERROR_CODE (* deletion)(ENGINE_HANDLE* handle, const void* cookie,
                                    uint32_t opaque,
-                                   const DocKey& key,
-                                   cb::const_byte_buffer value,
-                                   size_t priv_bytes,
-                                   uint8_t datatype,
+                                   const void* key,
+                                   uint16_t nkey,
                                    uint64_t cas,
                                    uint16_t vbucket,
                                    uint64_t by_seqno,
                                    uint64_t rev_seqno,
-                                   cb::const_byte_buffer meta);
+                                   const void* meta,
+                                   uint16_t nmeta);
 
     /**
      * Callback to the engine that an expiration message was received
-     *
-     * @param handle The handle to the engine
-     * @param cookie The cookie representing the connection
-     * @param opaque The opaque field in the message (identifying the stream)
-     * @param key The documents key
-     * @param value The value to store
-     * @param priv_bytes The number of bytes in the value which should be
-     *                   allocated from the privileged pool
-     * @param datatype The datatype for the incomming item
-     * @param cas The documents CAS value
-     * @param vbucket The vbucket identifier for the document
-     * @param by_seqno The sequence number in the vbucket
-     * @param rev_seqno The revision number for the item
-     * @param meta The documents meta
-     * @return Standard engine error code.
      */
-    ENGINE_ERROR_CODE (* expiration)(ENGINE_HANDLE* handle,
-                                     const void* cookie,
+    ENGINE_ERROR_CODE (* expiration)(ENGINE_HANDLE* handle, const void* cookie,
                                      uint32_t opaque,
-                                     const DocKey& key,
-                                     cb::const_byte_buffer value,
-                                     size_t priv_bytes,
-                                     uint8_t datatype,
+                                     const void* key,
+                                     uint16_t nkey,
                                      uint64_t cas,
                                      uint16_t vbucket,
                                      uint64_t by_seqno,
                                      uint64_t rev_seqno,
-                                     cb::const_byte_buffer meta);
+                                     const void* meta,
+                                     uint16_t nmeta);
 
     /**
      * Callback to the engine that a flush message was received
