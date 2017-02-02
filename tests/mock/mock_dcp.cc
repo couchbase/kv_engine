@@ -197,9 +197,7 @@ static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
 
 static ENGINE_ERROR_CODE mock_deletion(const void* cookie,
                                        uint32_t opaque,
-                                       const void *key,
-                                       uint16_t nkey,
-                                       uint64_t cas,
+                                       item *itm,
                                        uint16_t vbucket,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
@@ -207,39 +205,36 @@ static ENGINE_ERROR_CODE mock_deletion(const void* cookie,
                                        uint16_t nmeta) {
     (void) cookie;
     clear_dcp_data();
+    Item* item = reinterpret_cast<Item*>(itm);
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_DELETION;
     dcp_last_opaque = opaque;
-    dcp_last_key.assign(static_cast<const char*>(key), nkey);
-    dcp_last_cas = cas;
+    dcp_last_key.assign(item->getKey().c_str());
+    dcp_last_cas = item->getCas();
     dcp_last_vbucket = vbucket;
     dcp_last_byseqno = by_seqno;
     dcp_last_revseqno = rev_seqno;
     dcp_last_meta.assign(static_cast<const char*>(meta), nmeta);
-    dcp_last_packet_size = 42 + nkey + nmeta;
+    dcp_last_packet_size = 42 + dcp_last_key.length() + nmeta;
+
+    if (engine_handle_v1 && engine_handle) {
+        engine_handle_v1->release(engine_handle, nullptr, item);
+    }
+
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_expiration(const void* cookie,
-                                         uint32_t opaque,
-                                         const void *key,
-                                         uint16_t nkey,
-                                         uint64_t cas,
-                                         uint16_t vbucket,
-                                         uint64_t by_seqno,
-                                         uint64_t rev_seqno,
-                                         const void *meta,
-                                         uint16_t nmeta) {
-    (void) cookie;
-    (void) opaque;
-    (void) key;
-    (void) nkey;
-    (void) cas;
-    (void) vbucket;
-    (void) by_seqno;
-    (void) rev_seqno;
-    (void) meta;
-    (void) nmeta;
+static ENGINE_ERROR_CODE mock_expiration(const void*,
+                                         uint32_t,
+                                         item* itm,
+                                         uint16_t,
+                                         uint64_t,
+                                         uint64_t,
+                                         const void*,
+                                         uint16_t) {
     clear_dcp_data();
+    if (engine_handle_v1 && engine_handle) {
+        engine_handle_v1->release(engine_handle, nullptr, itm);
+    }
     return ENGINE_ENOTSUP;
 }
 

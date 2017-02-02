@@ -48,23 +48,42 @@ public:
     ENGINE_ERROR_CODE streamEnd(uint32_t opaque, uint16_t vbucket,
                                 uint32_t flags);
 
-    ENGINE_ERROR_CODE mutation(uint32_t opaque, const void* key, uint16_t nkey,
-                               const void* value, uint32_t nvalue, uint64_t cas,
-                               uint16_t vbucket, uint32_t flags,
-                               uint8_t datatype, uint32_t locktime,
-                               uint64_t bySeqno, uint64_t revSeqno,
-                               uint32_t exptime, uint8_t nru, const void* meta,
-                               uint16_t nmeta);
+    ENGINE_ERROR_CODE mutation(uint32_t opaque,
+                               const DocKey& key,
+                               cb::const_byte_buffer value,
+                               size_t priv_bytes,
+                               uint8_t datatype,
+                               uint64_t cas,
+                               uint16_t vbucket,
+                               uint32_t flags,
+                               uint64_t by_seqno,
+                               uint64_t rev_seqno,
+                               uint32_t expiration,
+                               uint32_t lock_time,
+                               cb::const_byte_buffer meta,
+                               uint8_t nru);
 
-    ENGINE_ERROR_CODE deletion(uint32_t opaque, const void* key, uint16_t nkey,
-                               uint64_t cas, uint16_t vbucket, uint64_t bySeqno,
-                               uint64_t revSeqno, const void* meta,
-                               uint16_t nmeta);
+    ENGINE_ERROR_CODE deletion(uint32_t opaque,
+                               const DocKey& key,
+                               cb::const_byte_buffer value,
+                               size_t priv_bytes,
+                               uint8_t datatype,
+                               uint64_t cas,
+                               uint16_t vbucket,
+                               uint64_t by_seqno,
+                               uint64_t rev_seqno,
+                               cb::const_byte_buffer meta);
 
-    ENGINE_ERROR_CODE expiration(uint32_t opaque, const void* key,
-                                 uint16_t nkey, uint64_t cas, uint16_t vbucket,
-                                 uint64_t bySeqno, uint64_t revSeqno,
-                                 const void* meta, uint16_t nmeta);
+    ENGINE_ERROR_CODE expiration(uint32_t opaque,
+                                 const DocKey& key,
+                                 cb::const_byte_buffer value,
+                                 size_t priv_bytes,
+                                 uint8_t datatype,
+                                 uint64_t cas,
+                                 uint16_t vbucket,
+                                 uint64_t by_seqno,
+                                 uint64_t rev_seqno,
+                                 cb::const_byte_buffer meta);
 
     ENGINE_ERROR_CODE snapshotMarker(uint32_t opaque,
                                      uint16_t vbucket,

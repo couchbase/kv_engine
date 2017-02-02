@@ -1486,20 +1486,18 @@ static ENGINE_ERROR_CODE EvpDcpSnapshotMarker(ENGINE_HANDLE* handle,
 static ENGINE_ERROR_CODE EvpDcpMutation(ENGINE_HANDLE* handle,
                                         const void* cookie,
                                         uint32_t opaque,
-                                        const void* key,
-                                        uint16_t nkey,
-                                        const void* value,
-                                        uint32_t nvalue,
+                                        const DocKey& key,
+                                        cb::const_byte_buffer value,
+                                        size_t priv_bytes,
+                                        uint8_t datatype,
                                         uint64_t cas,
                                         uint16_t vbucket,
                                         uint32_t flags,
-                                        uint8_t datatype,
-                                        uint64_t bySeqno,
-                                        uint64_t revSeqno,
+                                        uint64_t by_seqno,
+                                        uint64_t rev_seqno,
                                         uint32_t expiration,
-                                        uint32_t lockTime,
-                                        const void* meta,
-                                        uint16_t nmeta,
+                                        uint32_t lock_time,
+                                        cb::const_byte_buffer meta,
                                         uint8_t nru) {
     if (!mcbp::datatype::is_valid(datatype)) {
         LOG(EXTENSION_LOG_WARNING, "Invalid value for datatype "
@@ -1509,22 +1507,9 @@ static ENGINE_ERROR_CODE EvpDcpMutation(ENGINE_HANDLE* handle,
     auto engine = acquireEngine(handle);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        return conn->mutation(opaque,
-                              key,
-                              nkey,
-                              value,
-                              nvalue,
-                              cas,
-                              vbucket,
-                              flags,
-                              datatype,
-                              lockTime,
-                              bySeqno,
-                              revSeqno,
-                              expiration,
-                              nru,
-                              meta,
-                              nmeta);
+        return conn->mutation(opaque, key, value, priv_bytes, datatype, cas,
+                              vbucket, flags, by_seqno, rev_seqno, expiration,
+                              lock_time, meta, nru);
     }
     return ENGINE_DISCONNECT;
 }
@@ -1532,26 +1517,20 @@ static ENGINE_ERROR_CODE EvpDcpMutation(ENGINE_HANDLE* handle,
 static ENGINE_ERROR_CODE EvpDcpDeletion(ENGINE_HANDLE* handle,
                                         const void* cookie,
                                         uint32_t opaque,
-                                        const void* key,
-                                        uint16_t nkey,
+                                        const DocKey& key,
+                                        cb::const_byte_buffer value,
+                                        size_t priv_bytes,
+                                        uint8_t datatype,
                                         uint64_t cas,
                                         uint16_t vbucket,
-                                        uint64_t bySeqno,
-                                        uint64_t revSeqno,
-                                        const void* meta,
-                                        uint16_t nmeta) {
+                                        uint64_t by_seqno,
+                                        uint64_t rev_seqno,
+                                        cb::const_byte_buffer meta) {
     auto engine = acquireEngine(handle);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        return conn->deletion(opaque,
-                              key,
-                              nkey,
-                              cas,
-                              vbucket,
-                              bySeqno,
-                              revSeqno,
-                              meta,
-                              nmeta);
+        return conn->deletion(opaque, key, value, priv_bytes, datatype, cas,
+                              vbucket, by_seqno, rev_seqno, meta);
     }
     return ENGINE_DISCONNECT;
 }
@@ -1559,26 +1538,20 @@ static ENGINE_ERROR_CODE EvpDcpDeletion(ENGINE_HANDLE* handle,
 static ENGINE_ERROR_CODE EvpDcpExpiration(ENGINE_HANDLE* handle,
                                           const void* cookie,
                                           uint32_t opaque,
-                                          const void* key,
-                                          uint16_t nkey,
+                                          const DocKey& key,
+                                          cb::const_byte_buffer value,
+                                          size_t priv_bytes,
+                                          uint8_t datatype,
                                           uint64_t cas,
                                           uint16_t vbucket,
-                                          uint64_t bySeqno,
-                                          uint64_t revSeqno,
-                                          const void* meta,
-                                          uint16_t nmeta) {
+                                          uint64_t by_seqno,
+                                          uint64_t rev_seqno,
+                                          cb::const_byte_buffer meta) {
     auto engine = acquireEngine(handle);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        return conn->expiration(opaque,
-                                key,
-                                nkey,
-                                cas,
-                                vbucket,
-                                bySeqno,
-                                revSeqno,
-                                meta,
-                                nmeta);
+        return conn->expiration(opaque, key, value, priv_bytes, datatype, cas,
+                                vbucket, by_seqno, rev_seqno, meta);
     }
     return ENGINE_DISCONNECT;
 }
@@ -2588,8 +2561,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             TapEngineSpecific::readSpecificData(tap_event, engine_specific,
                                                 nengine, &revSeqno);
 
-            ret = connection->deletion(0, key, nkey, cas, vbucket, 0, revSeqno,
-                                       NULL, 0);
+            // Create key in DefaultCollection since TAP won't support collections
+            const DocKey docKey{static_cast<const uint8_t*>(key), nkey,
+                                DocNamespace::DefaultCollection};
+            ret = connection->deletion(0, docKey, {}, 0,
+                                       PROTOCOL_BINARY_RAW_BYTES, cas, vbucket,
+                                       0, revSeqno, {});
         }
         break;
 
@@ -2653,9 +2630,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                     datatype = PROTOCOL_BINARY_DATATYPE_JSON;
                 }
             }
-            ret = connection->mutation(0, key, nkey, data, ndata, cas, vbucket,
-                                       flags, datatype, 0, 0, revSeqno, exptime,
-                                       nru, NULL, 0);
+            // Create key in DefaultCollection since TAP won't support collections
+            const DocKey docKey{static_cast<const uint8_t*>(key), nkey,
+                                DocNamespace::DefaultCollection};
+            ret = connection->mutation(0, docKey,
+                                       {static_cast<const uint8_t*>(data), ndata},
+                                       0, datatype, cas,
+                                       vbucket, flags, 0, revSeqno, exptime, 0,
+                                       {}, nru);
         }
 
         break;
