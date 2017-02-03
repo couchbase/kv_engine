@@ -16,6 +16,7 @@
  */
 
 #include <cbsasl/util.h>
+#include <iterator>
 #include "check_password.h"
 
 

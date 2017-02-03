@@ -20,6 +20,7 @@
 #include "cbsasl_internal.h"
 
 #include <atomic>
+#include <iterator>
 #include <platform/base64.h>
 #include <platform/random.h>
 #include <stdexcept>
