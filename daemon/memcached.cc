@@ -48,6 +48,7 @@
 #include "greenstack.h"
 #include "mcbpdestroybuckettask.h"
 #include "libevent_locking.h"
+#include "doc_pre_expiry.h"
 
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
@@ -1985,6 +1986,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         hooks_api.enable_thread_cache = AllocHooks::enable_thread_cache;
 
         document_api.pre_link = pre_link_document;
+        document_api.pre_expiry = document_pre_expiry;
 
 
         rv.interface = 1;

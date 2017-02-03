@@ -70,6 +70,8 @@ ADD_LIBRARY(memcached_daemon STATIC
             cookie.h
             debug_helpers.cc
             debug_helpers.h
+            doc_pre_expiry.cc
+            doc_pre_expiry.h
             dynamic_buffer.cc
             dynamic_buffer.h
             enginemap.cc

@@ -14,6 +14,9 @@
 #include <memcached/server_api.h>
 #include "daemon/alloc_hooks.h"
 #include "daemon/protocol/mcbp/engine_errc_2_mcbp.h"
+#include "daemon/doc_pre_expiry.h"
+#include <xattr/blob.h>
+#include <xattr/utils.h>
 
 #include <array>
 #include <list>
@@ -424,6 +427,7 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       hooks_api.enable_thread_cache = AllocHooks::enable_thread_cache;
 
       document_api.pre_link = mock_pre_link_document;
+      document_api.pre_expiry = document_pre_expiry;
 
       rv.interface = 1;
       rv.core = &core_api;

@@ -236,6 +236,20 @@ extern "C" {
          *                        *NOT* link the item
          */
         ENGINE_ERROR_CODE (*pre_link)(const void* cookie, item_info& info);
+
+        /**
+         * This callback is called from the underlying engine right before
+         * a particular document expires. The callback is responsible for
+         * modifying the contents of the itm_info passed in. The updated
+         * total size is available in itm_info.nbytes.
+         *
+         * @param itm_info info pertaining to the item that is to be expired.
+         * @return true indicating that the info has been modified in itm_info.
+         *         false indicating that there is no data available in itm_info.
+         * @throws std::bad_alloc in case of memory allocation failure
+         * @throws std::logic_error if the data has grown
+         */
+        bool (*pre_expiry)(item_info& itm_info);
     };
 
 #ifdef WIN32
