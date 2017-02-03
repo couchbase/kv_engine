@@ -113,27 +113,27 @@ protected:
 // Measure performance of VBucket::getBGFetchItems - queue and then get
 // 10,000 items from the vbucket.
 TEST_P(VBucketTest, GetBGFetchItemsPerformance) {
-    BgFetcher fetcher(/*store*/nullptr, /*shard*/nullptr, global_stats);
+    BgFetcher fetcher(/*store*/ nullptr, /*shard*/ nullptr, this->global_stats);
 
     for (unsigned int ii = 0; ii < 100000; ii++) {
         auto fetchItem = std::make_unique<VBucketBGFetchItem>(
                 /*cookie*/ nullptr,
                 /*isMeta*/ false);
-        vbucket->queueBGFetchItem(makeStoredDocKey(std::to_string(ii)),
-                                  std::move(fetchItem),
-                                  &fetcher);
+        this->vbucket->queueBGFetchItem(makeStoredDocKey(std::to_string(ii)),
+                                        std::move(fetchItem),
+                                        &fetcher);
     }
-    auto items = vbucket->getBGFetchItems();
+    auto items = this->vbucket->getBGFetchItems();
 }
 
 // Check the existence of bloom filter after performing a
 // swap of existing filter with a temporary filter.
 TEST_P(VBucketTest, SwapFilter) {
-    vbucket->createFilter(1, 1.0);
-    ASSERT_FALSE(vbucket->isTempFilterAvailable());
-    ASSERT_NE("DOESN'T EXIST", vbucket->getFilterStatusString());
-    vbucket->swapFilter();
-    EXPECT_NE("DOESN'T EXIST", vbucket->getFilterStatusString());
+    this->vbucket->createFilter(1, 1.0);
+    ASSERT_FALSE(this->vbucket->isTempFilterAvailable());
+    ASSERT_NE("DOESN'T EXIST", this->vbucket->getFilterStatusString());
+    this->vbucket->swapFilter();
+    EXPECT_NE("DOESN'T EXIST", this->vbucket->getFilterStatusString());
 }
 
 TEST_P(VBucketTest, Add) {
@@ -144,30 +144,30 @@ TEST_P(VBucketTest, Add) {
     const int nkeys = 1000;
 
     auto keys = generateKeys(nkeys);
-    addMany(*vbucket, keys, AddStatus::Success);
+    addMany(*this->vbucket, keys, AddStatus::Success);
 
     StoredDocKey missingKey = makeStoredDocKey("aMissingKey");
-    EXPECT_FALSE(vbucket->ht.find(missingKey));
+    EXPECT_FALSE(this->vbucket->ht.find(missingKey));
 
     for (const auto& key : keys) {
-        EXPECT_TRUE(vbucket->ht.find(key));
+        EXPECT_TRUE(this->vbucket->ht.find(key));
     }
 
-    addMany(*vbucket, keys, AddStatus::Exists);
+    addMany(*this->vbucket, keys, AddStatus::Exists);
     for (const auto& key : keys) {
-        EXPECT_TRUE(vbucket->ht.find(key));
+        EXPECT_TRUE(this->vbucket->ht.find(key));
     }
 
     // Verify we can read after a soft deletion.
     EXPECT_EQ(MutationStatus::WasDirty,
-              vbucket->public_processSoftDelete(keys[0], nullptr, 0));
+              this->vbucket->public_processSoftDelete(keys[0], nullptr, 0));
     EXPECT_EQ(MutationStatus::NotFound,
-              vbucket->public_processSoftDelete(keys[0], nullptr, 0));
-    EXPECT_FALSE(vbucket->ht.find(keys[0]));
+              this->vbucket->public_processSoftDelete(keys[0], nullptr, 0));
+    EXPECT_FALSE(this->vbucket->ht.find(keys[0]));
 
     Item i(keys[0], 0, 0, "newtest", 7);
-    EXPECT_EQ(AddStatus::UnDel, vbucket->public_processAdd(i));
-    EXPECT_EQ(nkeys, vbucket->ht.getNumItems());
+    EXPECT_EQ(AddStatus::UnDel, this->vbucket->public_processAdd(i));
+    EXPECT_EQ(nkeys, this->vbucket->ht.getNumItems());
 }
 
 TEST_P(VBucketTest, AddExpiry) {
@@ -177,10 +177,10 @@ TEST_P(VBucketTest, AddExpiry) {
     }
     StoredDocKey k = makeStoredDocKey("aKey");
 
-    addOne(*vbucket, k, AddStatus::Success, ep_real_time() + 5);
-    addOne(*vbucket, k, AddStatus::Exists, ep_real_time() + 5);
+    addOne(*this->vbucket, k, AddStatus::Success, ep_real_time() + 5);
+    addOne(*this->vbucket, k, AddStatus::Exists, ep_real_time() + 5);
 
-    StoredValue* v = vbucket->ht.find(k);
+    StoredValue* v = this->vbucket->ht.find(k);
     EXPECT_TRUE(v);
     EXPECT_FALSE(v->isExpired(ep_real_time()));
     EXPECT_TRUE(v->isExpired(ep_real_time() + 6));
@@ -188,7 +188,7 @@ TEST_P(VBucketTest, AddExpiry) {
     mock_time_travel(6);
     EXPECT_TRUE(v->isExpired(ep_real_time()));
 
-    addOne(*vbucket, k, AddStatus::UnDel, ep_real_time() + 5);
+    addOne(*this->vbucket, k, AddStatus::UnDel, ep_real_time() + 5);
     EXPECT_TRUE(v);
     EXPECT_FALSE(v->isExpired(ep_real_time()));
     EXPECT_TRUE(v->isExpired(ep_real_time() + 6));
@@ -208,9 +208,9 @@ TEST_P(VBucketTest, unlockedSoftDeleteWithValue) {
     StoredDocKey key = makeStoredDocKey("key");
     Item stored_item(key, 0, 0, "value", strlen("value"));
     ASSERT_EQ(MutationStatus::WasClean,
-              vbucket->public_processSet(stored_item, stored_item.getCas()));
+              this->vbucket->public_processSet(stored_item, stored_item.getCas()));
 
-    StoredValue* v(vbucket->ht.find(key, /*trackReference*/ false));
+    StoredValue* v(this->vbucket->ht.find(key, /*trackReference*/ false));
     EXPECT_NE(nullptr, v);
 
     // Create an item and set its state to deleted
@@ -218,12 +218,12 @@ TEST_P(VBucketTest, unlockedSoftDeleteWithValue) {
     deleted_item.setDeleted();
 
     // Set a new deleted value
-    v->setValue(deleted_item, vbucket->ht, PreserveRevSeqno::Yes);
+    v->setValue(deleted_item, this->vbucket->ht, PreserveRevSeqno::Yes);
 
     ItemMetaData itm_meta;
     EXPECT_EQ(MutationStatus::WasDirty,
-              vbucket->public_processSoftDelete(v->getKey(), v, 0));
-    verifyValue(*vbucket,
+              this->vbucket->public_processSoftDelete(v->getKey(), v, 0));
+    verifyValue(*this->vbucket,
                 key,
                 "deletedvalue",
                 /*trackReference*/ true,
@@ -244,15 +244,15 @@ TEST_P(VBucketTest, updateDeletedItem) {
     StoredDocKey key = makeStoredDocKey("key");
     Item stored_item(key, 0, 0, "value", strlen("value"));
     ASSERT_EQ(MutationStatus::WasClean,
-              vbucket->public_processSet(stored_item, stored_item.getCas()));
+              this->vbucket->public_processSet(stored_item, stored_item.getCas()));
 
-    StoredValue* v(vbucket->ht.find(key, /*trackReference*/ false));
+    StoredValue* v(this->vbucket->ht.find(key, /*trackReference*/ false));
     EXPECT_NE(nullptr, v);
 
     ItemMetaData itm_meta;
     EXPECT_EQ(MutationStatus::WasDirty,
-              vbucket->public_processSoftDelete(v->getKey(), v, 0));
-    verifyValue(*vbucket,
+              this->vbucket->public_processSoftDelete(v->getKey(), v, 0));
+    verifyValue(*this->vbucket,
                 key,
                 nullptr,
                 /*trackReference*/ true,
@@ -262,11 +262,11 @@ TEST_P(VBucketTest, updateDeletedItem) {
     deleted_item.setDeleted();
 
     // Set a new deleted value
-    v->setValue(deleted_item, vbucket->ht, PreserveRevSeqno::Yes);
+    v->setValue(deleted_item, this->vbucket->ht, PreserveRevSeqno::Yes);
 
     EXPECT_EQ(MutationStatus::WasDirty,
-              vbucket->public_processSoftDelete(v->getKey(), v, 0));
-    verifyValue(*vbucket,
+              this->vbucket->public_processSoftDelete(v->getKey(), v, 0));
+    verifyValue(*this->vbucket,
                 key,
                 "deletedvalue",
                 /*trackReference*/ true,
@@ -277,11 +277,11 @@ TEST_P(VBucketTest, updateDeletedItem) {
     update_deleted_item.setDeleted();
 
     // Set a new deleted value
-    v->setValue(update_deleted_item, vbucket->ht, PreserveRevSeqno::Yes);
+    v->setValue(update_deleted_item, this->vbucket->ht, PreserveRevSeqno::Yes);
 
     EXPECT_EQ(MutationStatus::WasDirty,
-              vbucket->public_processSoftDelete(v->getKey(), v, 0));
-    verifyValue(*vbucket,
+              this->vbucket->public_processSoftDelete(v->getKey(), v, 0));
+    verifyValue(*this->vbucket,
                 key,
                 "updatedeletedvalue",
                 /*trackReference*/ true,
@@ -289,10 +289,10 @@ TEST_P(VBucketTest, updateDeletedItem) {
 }
 
 TEST_P(VBucketTest, SizeStatsSoftDel) {
-    global_stats.reset();
-    ASSERT_EQ(0, vbucket->ht.memSize.load());
-    ASSERT_EQ(0, vbucket->ht.cacheSize.load());
-    size_t initialSize = global_stats.currentSize.load();
+    this->global_stats.reset();
+    ASSERT_EQ(0, this->vbucket->ht.memSize.load());
+    ASSERT_EQ(0, this->vbucket->ht.cacheSize.load());
+    size_t initialSize = this->global_stats.currentSize.load();
 
     const StoredDocKey k = makeStoredDocKey("somekey");
     const size_t itemSize(16 * 1024);
@@ -302,24 +302,24 @@ TEST_P(VBucketTest, SizeStatsSoftDel) {
     Item i(k, 0, 0, someval, itemSize);
 
     EXPECT_EQ(MutationStatus::WasClean,
-              vbucket->public_processSet(i, i.getCas()));
+              this->vbucket->public_processSet(i, i.getCas()));
 
     EXPECT_EQ(MutationStatus::WasDirty,
-              vbucket->public_processSoftDelete(k, nullptr, 0));
-    vbucket->public_deleteStoredValue(k);
+              this->vbucket->public_processSoftDelete(k, nullptr, 0));
+    this->vbucket->public_deleteStoredValue(k);
 
-    EXPECT_EQ(0, vbucket->ht.memSize.load());
-    EXPECT_EQ(0, vbucket->ht.cacheSize.load());
-    EXPECT_EQ(initialSize, global_stats.currentSize.load());
+    EXPECT_EQ(0, this->vbucket->ht.memSize.load());
+    EXPECT_EQ(0, this->vbucket->ht.cacheSize.load());
+    EXPECT_EQ(initialSize, this->global_stats.currentSize.load());
 
     cb_free(someval);
 }
 
 TEST_P(VBucketTest, SizeStatsSoftDelFlush) {
-    global_stats.reset();
-    ASSERT_EQ(0, vbucket->ht.memSize.load());
-    ASSERT_EQ(0, vbucket->ht.cacheSize.load());
-    size_t initialSize = global_stats.currentSize.load();
+    this->global_stats.reset();
+    ASSERT_EQ(0, this->vbucket->ht.memSize.load());
+    ASSERT_EQ(0, this->vbucket->ht.cacheSize.load());
+    size_t initialSize = this->global_stats.currentSize.load();
 
     StoredDocKey k = makeStoredDocKey("somekey");
     const size_t itemSize(16 * 1024);
@@ -329,15 +329,15 @@ TEST_P(VBucketTest, SizeStatsSoftDelFlush) {
     Item i(k, 0, 0, someval, itemSize);
 
     EXPECT_EQ(MutationStatus::WasClean,
-              vbucket->public_processSet(i, i.getCas()));
+              this->vbucket->public_processSet(i, i.getCas()));
 
     EXPECT_EQ(MutationStatus::WasDirty,
-              vbucket->public_processSoftDelete(k, nullptr, 0));
-    vbucket->ht.clear();
+              this->vbucket->public_processSoftDelete(k, nullptr, 0));
+    this->vbucket->ht.clear();
 
-    EXPECT_EQ(0, vbucket->ht.memSize.load());
-    EXPECT_EQ(0, vbucket->ht.cacheSize.load());
-    EXPECT_EQ(initialSize, global_stats.currentSize.load());
+    EXPECT_EQ(0, this->vbucket->ht.memSize.load());
+    EXPECT_EQ(0, this->vbucket->ht.cacheSize.load());
+    EXPECT_EQ(initialSize, this->global_stats.currentSize.load());
 
     cb_free(someval);
 }
