@@ -101,6 +101,11 @@ protected:
     Item store_item(uint16_t vbid, const std::string& key,
                     const std::string& value);
 
+    /* Flush the given vbucket to disk, so any outstanding dirty items are
+     * written (and are clean).
+     */
+    void flush_vbucket_to_disk(uint16_t vbid);
+
     static const char test_dbname[];
 
     std::string config_string;

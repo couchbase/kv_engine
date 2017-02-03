@@ -263,9 +263,23 @@ protected:
 
     DcpResponse* nextQueuedItem();
 
-private:
-
+    /* The transitionState function is protected (as opposed to private) for
+     * testing purposes.
+     */
     void transitionState(stream_state_t newState);
+
+    /* Indicates that a backfill has been scheduled and has not yet completed.
+     * Is protected (as opposed to private) for testing purposes.
+     */
+    std::atomic<bool> isBackfillTaskRunning;
+
+    /* Indicates if another backfill must be scheduled following the completion
+     * of current running backfill.  Guarded by streamMutex.
+     * Is protected (as opposed to private) for testing purposes.
+     */
+    bool pendingBackfill;
+
+private:
 
     DcpResponse* backfillPhase();
 
@@ -340,13 +354,6 @@ private:
 
     EventuallyPersistentEngine* engine;
     dcp_producer_t producer;
-    AtomicValue<bool> isBackfillTaskRunning;
-
-    /* Indicates if another backfill must be scheduled
-     * following the completion of current running backfill.
-     * Guarded by streamMutex
-     */
-    bool pendingBackfill;
 
     struct {
         AtomicValue<uint32_t> bytes;

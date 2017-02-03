@@ -21,6 +21,7 @@
 #include "taskqueue.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_dcp_consumer.h"
+#include "../mock/mock_stream.h"
 #include "programs/engine_testapp/mock_server.h"
 
 #include <thread>
@@ -117,6 +118,64 @@ protected:
 
     SingleThreadedExecutorPool* task_executor;
 };
+
+
+/**
+ * Regression test for MB-22451: When handleSlowStream is called and in
+ * STREAM_BACKFILLING state and currently have a backfill scheduled (or running)
+ * ensure that when the backfill completes the new backfill is scheduled and
+ * the backfilling flag remains true.
+ */
+TEST_F(SingleThreadedEPStoreTest, test_mb22451) {
+    // Make vbucket active.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    // Store a single Item
+    store_item(vbid, "key", "value");
+    // Ensure that it has persisted to disk
+    flush_vbucket_to_disk(vbid);
+
+    // Create a Mock Dcp producer
+    dcp_producer_t producer = new MockDcpProducer(*engine,
+                                                  cookie,
+                                                  "test_producer",
+                                                  /*notifyOnly*/false);
+    // Create a Mock Active Stream
+    stream_t stream = new MockActiveStream(
+            static_cast<EventuallyPersistentEngine*>(engine.get()),
+            producer,
+            producer->getName(),
+            /*flags*/0,
+            /*opaque*/0, vbid,
+            /*st_seqno*/0,
+            /*en_seqno*/~0,
+            /*vb_uuid*/0xabcd,
+            /*snap_start_seqno*/0,
+            /*snap_end_seqno*/~0);
+
+    MockActiveStream* mock_stream =
+            static_cast<MockActiveStream*>(stream.get());
+
+    /**
+      * The core of the test follows:
+      * Call completeBackfill whilst we are in the state of STREAM_BACKFILLING
+      * and the pendingBackfill flag is set to true.
+      * We expect that on leaving completeBackfill the isBackfillRunning flag is
+      * set to true.
+      */
+    mock_stream->public_setBackfillTaskRunning(true);
+    mock_stream->public_transitionState(STREAM_BACKFILLING);
+    mock_stream->handleSlowStream();
+    // The call to handleSlowStream should result in setting pendingBackfill
+    // flag to true
+    EXPECT_TRUE(mock_stream->public_getPendingBackfill())
+        << "pendingBackfill is not true";
+    mock_stream->completeBackfill();
+    EXPECT_TRUE(mock_stream->public_isBackfillTaskRunning())
+        << "isBackfillRunning is not true";
+
+    // Required to ensure that the backfillMgr is deleted
+    producer->closeAllStreams();
+}
 
 /* Regression / reproducer test for MB-19695 - an exception is thrown
  * (and connection disconnected) if a couchstore file hasn't been re-created

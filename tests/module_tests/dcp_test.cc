@@ -29,43 +29,9 @@
 #include "../mock/mock_dcp.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_dcp_consumer.h"
+#include "../mock/mock_stream.h"
 
 #include <gtest/gtest.h>
-
-// Mock of the ActiveStream class. Wraps the real ActiveStream, but exposes
-// normally protected methods publically for test purposes.
-class MockActiveStream : public ActiveStream {
-public:
-    MockActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
-                     const std::string &name, uint32_t flags, uint32_t opaque,
-                     uint16_t vb, uint64_t st_seqno, uint64_t en_seqno,
-                     uint64_t vb_uuid, uint64_t snap_start_seqno,
-                     uint64_t snap_end_seqno)
-    : ActiveStream(e, p, name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid,
-                   snap_start_seqno, snap_end_seqno) {}
-
-    // Expose underlying protected ActiveStream methods as public
-    void public_getOutstandingItems(RCPtr<VBucket> &vb,
-                                    std::vector<queued_item> &items) {
-        getOutstandingItems(vb, items);
-    }
-
-    void public_processItems(std::vector<queued_item>& items) {
-        processItems(items);
-    }
-
-    bool public_nextCheckpointItem() {
-        return nextCheckpointItem();
-    }
-
-    const std::queue<DcpResponse*>& public_readyQ() {
-        return readyQ;
-    }
-
-    DcpResponse* public_nextQueuedItem() {
-        return nextQueuedItem();
-    }
-};
 
 /*
  * Mock of the DcpConnMap class.  Wraps the real DcpConnMap, but exposes

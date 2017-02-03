@@ -166,12 +166,12 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
                            uint64_t snap_start_seqno, uint64_t snap_end_seqno)
     :  Stream(n, flags, opaque, vb, st_seqno, en_seqno, vb_uuid,
               snap_start_seqno, snap_end_seqno),
+       isBackfillTaskRunning(false), pendingBackfill(false),
        lastReadSeqnoUnSnapshotted(st_seqno), lastReadSeqno(st_seqno),
        lastSentSeqno(st_seqno), curChkSeqno(st_seqno),
        takeoverState(vbucket_state_pending), backfillRemaining(0),
        itemsFromMemoryPhase(0), firstMarkerSent(false), waitForSnapshot(0),
-       engine(e), producer(p), isBackfillTaskRunning(false),
-       pendingBackfill(false),
+       engine(e), producer(p),
        payloadType((flags & DCP_ADD_STREAM_FLAG_NO_VALUE) ? KEY_ONLY :
                                                             KEY_VALUE),
        lastSentSnapEndSeqno(0), chkptItemsExtractionInProgress(false) {
@@ -388,6 +388,20 @@ void ActiveStream::completeBackfill() {
                 scheduleBackfill_UNLOCKED(true);
                 pendingBackfill = false;
             }
+
+            bool expected = false;
+            if (itemsReady.compare_exchange_strong(expected, true)) {
+                producer->notifyStreamReady(vb_);
+            }
+
+            /**
+              * MB-22451: It is important that we return here because
+              * scheduleBackfill_UNLOCKED(true) can set
+              * isBackfillTaskRunning to true.  Therefore if we don't return we
+              * will set isBackfillTaskRunning prematurely back to false, (see
+              * below).
+              */
+            return;
         }
     }
 
