@@ -32,6 +32,7 @@
 #include "stored-value.h"
 #include "utility.h"
 
+#include <platform/non_negative_counter.h>
 #include <atomic>
 #include <queue>
 
@@ -456,21 +457,6 @@ public:
         return ht.getNumTempItems();
     }
 
-    bool decrDirtyQueueSize(size_t decrementBy) {
-        size_t oldVal;
-        do {
-            oldVal = dirtyQueueSize.load();
-            if (oldVal < decrementBy) {
-                LOG(EXTENSION_LOG_DEBUG,
-                    "Cannot decrement dirty queue size of vbucket %" PRIu16
-                    "by %" PRIu64 ", the current value is %" PRIu64 "\n", id,
-                    uint64_t(decrementBy), uint64_t(oldVal));
-                return false;
-            }
-        } while (!dirtyQueueSize.compare_exchange_strong(oldVal, oldVal - decrementBy));
-        return true;
-    }
-
     void incrRollbackItemCount(uint64_t val) {
         rollbackItemCount.fetch_add(val, std::memory_order_relaxed);
     }
@@ -873,7 +859,7 @@ public:
     std::atomic<size_t>  opsDelete;
     std::atomic<size_t>  opsReject;
 
-    std::atomic<size_t>  dirtyQueueSize;
+    cb::NonNegativeCounter<size_t> dirtyQueueSize;
     std::atomic<size_t>  dirtyQueueMem;
     std::atomic<size_t>  dirtyQueueFill;
     std::atomic<size_t>  dirtyQueueDrain;

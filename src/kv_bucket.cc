@@ -1812,7 +1812,7 @@ public:
             }
 
             vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
-            stats.decrDiskQueueSize(1);
+            --stats.diskQueueSize;
             stats.totalPersisted++;
         } else {
             // If the return was 0 here, we're in a bad state because
@@ -1836,7 +1836,7 @@ public:
                 }
 
                 vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
-                stats.decrDiskQueueSize(1);
+                --stats.diskQueueSize;
             } else {
                 LOG(EXTENSION_LOG_WARNING,
                     "PersistenceCallback::callback: Fatal error in persisting "
@@ -1881,7 +1881,7 @@ private:
     void redirty() {
         if (vbucket->isBucketDeletion()) {
             vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
-            stats.decrDiskQueueSize(1);
+            --stats.diskQueueSize;
             return;
         }
         ++stats.flushFailed;
@@ -1936,7 +1936,7 @@ void KVBucket::flushOneDeleteAll() {
         }
     }
 
-    stats.decrDiskQueueSize(1);
+    --stats.diskQueueSize;
     setFlushAllComplete();
 }
 
@@ -2011,7 +2011,7 @@ int KVBucket::flushVBucket(uint16_t vbid) {
 
                     // Update queuing stats how this item has logically been
                     // processed.
-                    stats.decrDiskQueueSize(1);
+                    --stats.diskQueueSize;
                     vb->doStatsForFlushing(*item, item->size());
 
                 } else if (!prev || prev->getKey() != item->getKey()) {
@@ -2040,7 +2040,7 @@ int KVBucket::flushVBucket(uint16_t vbid) {
                     //     This means we only write the highest (i.e. newest)
                     //     item for a given key, and discard any duplicate,
                     //     older items.
-                    stats.decrDiskQueueSize(1);
+                    --stats.diskQueueSize;
                     vb->doStatsForFlushing(*item, item->size());
                 }
             }
@@ -2189,7 +2189,7 @@ PersistenceCallback* KVBucket::flushOneDelOrSet(const queued_item &qi,
                                                 RCPtr<VBucket> &vb) {
 
     if (!vb) {
-        stats.decrDiskQueueSize(1);
+        --stats.diskQueueSize;
         return NULL;
     }
 

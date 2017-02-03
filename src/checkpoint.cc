@@ -1332,8 +1332,8 @@ void CheckpointManager::clear(RCPtr<VBucket> &vb, uint64_t seqno) {
 
     // Reset the disk write queue size stat for the vbucket
     size_t currentDqSize = vb->dirtyQueueSize.load();
-    vb->decrDirtyQueueSize(currentDqSize);
-    stats.decrDiskQueueSize(currentDqSize);
+    vb->dirtyQueueSize.fetch_sub(currentDqSize);
+    stats.diskQueueSize.fetch_sub(currentDqSize);
 }
 
 void CheckpointManager::clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno) {
@@ -1587,8 +1587,8 @@ void CheckpointManager::updateDiskQueueStats(VBucket& vbucket,
                                              size_t new_remains) {
     if (curr_remains > new_remains) {
         size_t diff = curr_remains - new_remains;
-        stats.decrDiskQueueSize(diff);
-        vbucket.decrDirtyQueueSize(diff);
+        stats.diskQueueSize.fetch_sub(diff);
+        vbucket.dirtyQueueSize.fetch_sub(diff);
     } else if (curr_remains < new_remains) {
         size_t diff = new_remains - curr_remains;
         stats.diskQueueSize.fetch_add(diff);

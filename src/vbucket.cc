@@ -213,7 +213,7 @@ VBucket::~VBucket() {
             pendingOps.size(), pendingBGFetches.size());
     }
 
-    stats.decrDiskQueueSize(dirtyQueueSize.load());
+    stats.diskQueueSize.fetch_sub(dirtyQueueSize.load());
 
     // Clear out the bloomfilter(s)
     clearFilter();
@@ -310,7 +310,7 @@ void VBucket::doStatsForQueueing(const Item& qi, size_t itemBytes)
 }
 
 void VBucket::doStatsForFlushing(const Item& qi, size_t itemBytes) {
-    decrDirtyQueueSize(1);
+    --dirtyQueueSize;
     decrDirtyQueueMem(sizeof(Item));
     ++dirtyQueueDrain;
     decrDirtyQueueAge(qi.getQueuedTime());
@@ -332,8 +332,7 @@ void VBucket::resetStats() {
     opsDelete.store(0);
     opsReject.store(0);
 
-    stats.decrDiskQueueSize(dirtyQueueSize.load());
-    dirtyQueueSize.store(0);
+    stats.diskQueueSize.fetch_sub(dirtyQueueSize.exchange(0));
     dirtyQueueMem.store(0);
     dirtyQueueFill.store(0);
     dirtyQueueAge.store(0);
@@ -1948,7 +1947,7 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
         ++opsDelete;
     }
     doStatsForFlushing(queuedItem, queuedItem.size());
-    stats.decrDiskQueueSize(1);
+    --stats.diskQueueSize;
     decrMetaDataDisk(queuedItem);
 }
 

@@ -24,10 +24,11 @@
 
 #include <map>
 
-#include <atomic>
 #include <platform/cacheline_padded.h>
 #include <platform/histogram.h>
+#include <platform/non_negative_counter.h>
 #include <platform/processclock.h>
+#include <atomic>
 #include "memory_tracker.h"
 #include "utility.h"
 
@@ -188,21 +189,6 @@ public:
         return currentSize.load() + memOverhead->load();
     }
 
-    bool decrDiskQueueSize(size_t decrementBy) {
-        size_t oldVal;
-        do {
-            oldVal = diskQueueSize.load();
-            if (oldVal < decrementBy) {
-                LOG(EXTENSION_LOG_DEBUG,
-                    "Cannot decrement diskQueueSize by %" PRIu64 ", "
-                    "the current value is %" PRIu64 "\n",
-                    uint64_t(decrementBy), uint64_t(oldVal));
-                return false;
-            }
-        } while (!diskQueueSize.compare_exchange_strong(oldVal, oldVal - decrementBy));
-        return true;
-    }
-
     //! Number of keys warmed up during key-only loading.
     std::atomic<size_t> warmedUpKeys;
     //! Number of key-values warmed up during data loading.
@@ -222,7 +208,7 @@ public:
     std::atomic<ssize_t> replicationThrottleWriteQueueCap;
 
     //! Amount of items waiting for persistence
-    std::atomic<size_t> diskQueueSize;
+    cb::NonNegativeCounter<size_t> diskQueueSize;
     //! Size of the in-process (output) queue.
     std::atomic<size_t> flusher_todo;
     //! Number of transaction commits.
