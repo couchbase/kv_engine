@@ -55,9 +55,13 @@ public:
      * @param rev vbucket database revision number
      * @param cb persistence callback
      * @param del flag indicating if it is an item deletion or not
+     * @param persistDocNamespace true if we should store the key's namespace
      */
-    CouchRequest(const Item &it, uint64_t rev, MutationRequestCallback &cb,
-                 bool del);
+    CouchRequest(const Item& it,
+                 uint64_t rev,
+                 MutationRequestCallback& cb,
+                 bool del,
+                 bool persistDocNamespace);
 
     virtual ~CouchRequest() {}
 

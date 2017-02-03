@@ -107,12 +107,13 @@ typedef uint16_t DBFileId;
 typedef std::shared_ptr<Callback<uint16_t&, const DocKey&, bool&> > BloomFilterCBPtr;
 typedef std::shared_ptr<Callback<uint16_t&, const DocKey&, uint64_t&, time_t&> > ExpiredItemsCBPtr;
 
+class KVStoreConfig;
 typedef struct {
     uint64_t purge_before_ts;
     uint64_t purge_before_seq;
     //mapping of <key: vbucket id, value: max purged sequence number>
     std::unordered_map<uint16_t, uint64_t> max_purged_seq;
-    KVStore *store;
+    const KVStoreConfig* config;
     uint8_t  drop_deletes;
     DBFileId db_file_id;
     uint32_t curr_time;
@@ -262,15 +263,29 @@ enum class VBStatePersist {
 
 class ScanContext {
 public:
-    ScanContext(std::shared_ptr<Callback<GetValue> > cb,
-                std::shared_ptr<Callback<CacheLookup> > cl,
-                uint16_t vb, size_t id, uint64_t start,
-                uint64_t end, DocumentFilter _docFilter,
-                ValueFilter _valFilter, uint64_t _documentCount)
-    : callback(cb), lookup(cl), lastReadSeqno(0), startSeqno(start),
-      maxSeqno(end), scanId(id), vbid(vb), docFilter(_docFilter),
-      valFilter(_valFilter), documentCount(_documentCount),
-      logger(&global_logger) {}
+    ScanContext(std::shared_ptr<Callback<GetValue>> cb,
+                std::shared_ptr<Callback<CacheLookup>> cl,
+                uint16_t vb,
+                size_t id,
+                uint64_t start,
+                uint64_t end,
+                DocumentFilter _docFilter,
+                ValueFilter _valFilter,
+                uint64_t _documentCount,
+                const KVStoreConfig& _config)
+        : callback(cb),
+          lookup(cl),
+          lastReadSeqno(0),
+          startSeqno(start),
+          maxSeqno(end),
+          scanId(id),
+          vbid(vb),
+          docFilter(_docFilter),
+          valFilter(_valFilter),
+          documentCount(_documentCount),
+          logger(&global_logger),
+          config(_config) {
+    }
 
     ~ScanContext() {}
 
@@ -287,6 +302,7 @@ public:
     const uint64_t documentCount;
 
     Logger* logger;
+    const KVStoreConfig& config;
 };
 
 // First bool is true if an item exists in VB DB file.
@@ -294,10 +310,13 @@ public:
 typedef std::pair<bool, bool> kstat_entry_t;
 
 struct KVStatsCtx{
-    KVStatsCtx() : vbucket(std::numeric_limits<uint16_t>::max()) {}
+    KVStatsCtx(const KVStoreConfig& _config)
+        : vbucket(std::numeric_limits<uint16_t>::max()), config(_config) {
+    }
 
     uint16_t vbucket;
     std::unordered_map<StoredDocKey, kstat_entry_t> keyStats;
+    const KVStoreConfig& config;
 };
 
 typedef struct KVStatsCtx kvstats_ctx;
@@ -555,7 +574,8 @@ public:
                   uint16_t _maxShards,
                   const std::string& _dbname,
                   const std::string& _backend,
-                  uint16_t _shardId);
+                  uint16_t _shardId,
+                  bool persistDocNamespace);
 
     uint16_t getMaxVBuckets() const {
         return maxVBuckets;
@@ -603,6 +623,14 @@ public:
      */
     KVStoreConfig& setBuffered(bool _buffered);
 
+    bool shouldPersistDocNamespace() const {
+        return persistDocNamespace;
+    }
+
+    void setPersistDocNamespace(bool value) {
+        persistDocNamespace = value;
+    }
+
 private:
     uint16_t maxVBuckets;
     uint16_t maxShards;
@@ -611,6 +639,7 @@ private:
     uint16_t shardId;
     Logger* logger;
     bool buffered;
+    bool persistDocNamespace;
 };
 
 class IORequest {

@@ -194,7 +194,8 @@ TEST_P(CouchAndForestTest, BasicTest) {
     std::string data_dir("/tmp/kvstore-test");
     cb::io::rmrf(data_dir.c_str());
 
-    KVStoreConfig config(1024, 4, data_dir, GetParam(), 0);
+    KVStoreConfig config(
+            1024, 4, data_dir, GetParam(), 0, false /*persistnamespace*/);
     auto kvstore = setup_kv_store(config);
 
     kvstore->begin();
@@ -213,7 +214,8 @@ TEST(CouchKVStoreTest, CompressedTest) {
     std::string data_dir("/tmp/kvstore-test");
     cb::io::rmrf(data_dir.c_str());
 
-    KVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
+    KVStoreConfig config(
+            1024, 4, data_dir, "couchdb", 0, false /*persistnamespace*/);
     auto kvstore = setup_kv_store(config);
 
     kvstore->begin();
@@ -247,7 +249,8 @@ TEST(CouchKVStoreTest, StatsTest) {
     std::string data_dir("/tmp/kvstore-test");
     cb::io::rmrf(data_dir.c_str());
 
-    KVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
+    KVStoreConfig config(
+            1024, 4, data_dir, "couchdb", 0, false /*persistnamespace*/);
     auto kvstore = setup_kv_store(config);
 
     // Perform a transaction with a single mutation (set) in it.
@@ -281,7 +284,8 @@ TEST(CouchKVStoreTest, CompactStatsTest) {
     std::string data_dir("/tmp/kvstore-test");
     cb::io::rmrf(data_dir.c_str());
 
-    KVStoreConfig config(1, 4, data_dir, "couchdb", 0);
+    KVStoreConfig config(
+            1, 4, data_dir, "couchdb", 0, false /*persistnamespace*/);
     auto kvstore = setup_kv_store(config);
 
     // Perform a transaction with a single mutation (set) in it.
@@ -331,7 +335,8 @@ TEST(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
     std::string data_dir("/tmp/kvstore-test");
     cb::io::rmrf(data_dir.c_str());
 
-    KVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
+    KVStoreConfig config(
+            1024, 4, data_dir, "couchdb", 0, false /*persistnamespace*/);
     KVStore* kvstore = KVStoreFactory::create(config);
     ASSERT_NE(nullptr, kvstore);
 
@@ -363,7 +368,8 @@ TEST(CouchKVStoreTest, MB_18580_ENOENT) {
     std::string data_dir("/tmp/kvstore-test");
     cb::io::rmrf(data_dir.c_str());
 
-    KVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
+    KVStoreConfig config(
+            1024, 4, data_dir, "couchdb", 0, false /*persistnamespace*/);
     // Create a read-only kvstore (which disables item count caching), then
     // attempt to get the count from a non-existent vbucket.
     KVStore* kvstore = KVStoreFactory::create(config, /*readOnly*/true);
@@ -471,10 +477,14 @@ public:
     CouchKVStoreErrorInjectionTest()
         : data_dir("/tmp/kvstore-test"),
           ops(create_default_file_ops()),
-          config(KVStoreConfig(1024, 4, data_dir, "couchdb", 0)
-                     .setLogger(logger)
-                     .setBuffered(false)) {
-
+          config(KVStoreConfig(1024,
+                               4,
+                               data_dir,
+                               "couchdb",
+                               0,
+                               false /*persistnamespace*/)
+                         .setLogger(logger)
+                         .setBuffered(false)) {
         cb::io::rmrf(data_dir.c_str());
         kvstore.reset(new CouchKVStore(config, ops, false));
         initialize_kv_store(kvstore.get());
@@ -1085,9 +1095,9 @@ public:
 
     MockCouchRequest(const Item& it,
                      uint64_t rev,
-                     MutationRequestCallback &cb,
+                     MutationRequestCallback& cb,
                      bool del)
-        :  CouchRequest(it, rev, cb, del) {
+        : CouchRequest(it, rev, cb, del, false /*persist namespace*/) {
     }
 
     ~MockCouchRequest() {}
@@ -1137,8 +1147,13 @@ public:
     CouchstoreTest()
         : data_dir("/tmp/kvstore-test"),
           vbid(0),
-          config(KVStoreConfig(1024, 4, data_dir, "couchdb", 0)
-            .setBuffered(false)) {
+          config(KVStoreConfig(1024,
+                               4,
+                               data_dir,
+                               "couchdb",
+                               0,
+                               false /*persistnamespace*/)
+                         .setBuffered(false)) {
         cb::io::rmrf(data_dir.c_str());
         kvstore.reset(new MockCouchKVStore(config));
         StatsCallback sc;

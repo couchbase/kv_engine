@@ -149,6 +149,11 @@
             "default": "5",
             "type": "size_t"
         },
+        "collections_prototype_enabled" : {
+            "default": "false",
+            "descr": "Enable the collections functionality. Warning breaks upgrades and compatibility with legacy clients",
+            "type": "bool"
+        },
         "compaction_write_queue_cap": {
             "default": "10000",
             "desr" : "Disk write queue threshold after which compaction tasks will be made to snooze, if there are already pending compaction tasks",

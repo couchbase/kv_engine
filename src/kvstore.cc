@@ -38,23 +38,24 @@ KVStoreConfig::KVStoreConfig(Configuration& config, uint16_t shardid)
                     config.getMaxNumShards(),
                     config.getDbname(),
                     config.getBackend(),
-                    shardid) {
-
+                    shardid,
+                    config.isCollectionsPrototypeEnabled()) {
 }
 
 KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
                              uint16_t _maxShards,
                              const std::string& _dbname,
                              const std::string& _backend,
-                             uint16_t _shardId)
+                             uint16_t _shardId,
+                             bool _persistDocNamespace)
     : maxVBuckets(_maxVBuckets),
       maxShards(_maxShards),
       dbname(_dbname),
       backend(_backend),
       shardId(_shardId),
       logger(&global_logger),
-      buffered(true) {
-
+      buffered(true),
+      persistDocNamespace(_persistDocNamespace) {
 }
 
 KVStoreConfig& KVStoreConfig::setLogger(Logger& _logger) {
