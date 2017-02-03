@@ -1688,21 +1688,6 @@ static ENGINE_ERROR_CODE release_cookie(const void *void_cookie) {
     return ENGINE_SUCCESS;
 }
 
-bool cookie_is_admin(const void *void_cookie) {
-    if (void_cookie == nullptr) {
-        throw std::invalid_argument("cookie_is_admin: 'cookie' must be non-NULL");
-    }
-
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
-    cookie->validate();
-
-    if (cookie->connection == nullptr) {
-        throw std::runtime_error("reserve_cookie: cookie must represent connection");
-    }
-
-    return cookie->connection->isAdmin();
-}
-
 static void cookie_set_priority(const void* void_cookie, CONN_PRIORITY priority) {
     if (void_cookie == nullptr) {
         throw std::invalid_argument("cookie_set_priority: 'cookie' must be non-NULL");

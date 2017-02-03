@@ -275,8 +275,6 @@ void shutdown_server(void);
 bool associate_bucket(Connection *c, const char *name);
 void disassociate_bucket(Connection *c);
 
-bool cookie_is_admin(const void *cookie);
-
 bool is_listen_disabled(void);
 uint64_t get_listen_disabled_num(void);
 

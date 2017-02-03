@@ -1898,7 +1898,7 @@ static void get_cmd_timer_executor(McbpConnection* c, void* packet) {
     }
 
     if (keylen == 0) {
-        if (index == 0 && !cookie_is_admin(c->getCookie())) {
+        if (index == 0 && !c->isAdmin()) {
             // We're not connected to a bucket, and we didn't
             // authenticate to a bucket.. Don't leak the
             // global stats...
@@ -1912,7 +1912,7 @@ static void get_cmd_timer_executor(McbpConnection* c, void* packet) {
                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
                               0, c->getCookie());
         mcbp_write_and_free(c, &c->getDynamicBuffer());
-    } else if (cookie_is_admin(c->getCookie())) {
+    } else if (c->isAdmin()) {
         bool found = false;
         for (size_t ii = 1; ii < all_buckets.size() && !found; ++ii) {
             // Need the lock to get the bucket state and name
