@@ -319,10 +319,10 @@ static void request_cmd_timings(MemcachedBinprotConnection& connection,
 static void request_stat_timings(MemcachedBinprotConnection& connection,
                                  const std::string& key,
                                  bool verbose) {
-    unique_cJSON_ptr json;
 
+    std::map<std::string, std::string> map;
     try {
-        json = connection.stats(key);
+        map = connection.statsMap(key);
     } catch (const BinprotConnectionError& ex) {
         if (ex.isNotFound()) {
             std::cerr <<"Cannot find statistic: " << key << std::endl;
@@ -335,6 +335,25 @@ static void request_stat_timings(MemcachedBinprotConnection& connection,
         exit(EXIT_FAILURE);
     }
 
+    // The return value from stats injects the result in a k-v pair, but
+    // these responses (i.e. subdoc_execute) don't include a key,
+    // so the statsMap adds them into the map with a counter to make sure
+    // that you can fetch all of them. We only expect a single entry, which
+    // would be named "0"
+    auto iter = map.find("0");
+    if (iter == map.end()) {
+        std::cerr << "Failed to fetch statistics for \"" << key << "\""
+                  << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    // And the value for the item should be valid JSON
+    unique_cJSON_ptr json(cJSON_Parse(iter->second.c_str()));
+    if (!json) {
+        std::cerr << "Failed to fetch statistics for \"" << key << "\". Not json"
+                  << std::endl;
+        exit(EXIT_FAILURE);
+    }
     try {
         Timings timings(json.get());
         if (verbose) {
