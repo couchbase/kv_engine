@@ -348,7 +348,8 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(cb::rbac::Privilege privile
         return PrivilegeAccess::Fail;
     case Privilege::CollectionManagement:
         return PrivilegeAccess::Fail;
-
+    case Privilege::Impersonate:
+        return PrivilegeAccess::Fail;
     }
 
     throw std::logic_error("Unknown privilege requested");

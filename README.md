@@ -17,6 +17,7 @@ eventually persistent engine -
 * [Event Tracing / Phosphor](docs/Tracing.md)
 * [Document attributes](docs/Document.md)
 * [Environment variables](docs/EnvironmentVariables.md)
+* [Role Based Access Control (RBAC)](docs/rbac.md)
 
 # Protocols
 
