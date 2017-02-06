@@ -47,11 +47,11 @@ public:
      *         Fail - the connection does not hold the privileges needed
      *         Stale - the authentication context is out of date
      */
-    PrivilegeAccess invoke(protocol_binary_command command,
-                           const Cookie& cookie) {
+    cb::rbac::PrivilegeAccess invoke(protocol_binary_command command,
+                                     const Cookie& cookie) {
         auto& chain = commandChains[command];
         if (chain.empty()) {
-            return PrivilegeAccess::Fail;
+            return cb::rbac::PrivilegeAccess::Fail;
         } else {
             return chain.invoke(cookie);
         }
@@ -62,14 +62,15 @@ protected:
      * Silently ignores any attempt to push the same function onto the chain.
      */
     void setup(protocol_binary_command command,
-              PrivilegeAccess(* f)(const Cookie&)) {
-        commandChains[command].push_unique(makeFunction<PrivilegeAccess,
-            PrivilegeAccess::Ok,
-            const Cookie&>(f));
+               cb::rbac::PrivilegeAccess(* f)(const Cookie&)) {
+        commandChains[command].push_unique(
+            makeFunction<cb::rbac::PrivilegeAccess,
+                cb::rbac::PrivilegeAccess::Ok,
+                const Cookie&>(f));
     }
 
 
-    std::array<FunctionChain<PrivilegeAccess,
-        PrivilegeAccess::Ok,
+    std::array<FunctionChain<cb::rbac::PrivilegeAccess,
+        cb::rbac::PrivilegeAccess::Ok,
         const Cookie&>, 0x100> commandChains;
 };

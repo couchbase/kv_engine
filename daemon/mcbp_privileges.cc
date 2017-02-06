@@ -19,6 +19,8 @@
 #include <memcached/protocol_binary.h>
 #include "memcached.h"
 
+using namespace cb::rbac;
+
 template<Privilege T>
 static PrivilegeAccess require(const Cookie& cookie) {
     if (cookie.connection == nullptr) {

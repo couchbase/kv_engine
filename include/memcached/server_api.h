@@ -190,8 +190,8 @@ extern "C" {
          * @return true if the cookie have the privilege in its active set,
          *         false otherwise
          */
-        PrivilegeAccess (* check_privilege)(const void* cookie,
-                                            const Privilege privilege);
+        cb::rbac::PrivilegeAccess (* check_privilege)(const void* cookie,
+                                                      const cb::rbac::Privilege privilege);
 
         /**
          * Method to map an engine error code to the appropriate mcbp response

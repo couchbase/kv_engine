@@ -787,14 +787,14 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
                              key.size()});
         } else {
             if (iter->second.privileged) {
-                switch (connection.checkPrivilege(Privilege::Stats)) {
-                case PrivilegeAccess::Ok:
+                switch (connection.checkPrivilege(cb::rbac::Privilege::Stats)) {
+                case cb::rbac::PrivilegeAccess::Ok:
                     ret = iter->second.handler(argument, connection);
                     break;
-                case PrivilegeAccess::Fail:
+                case cb::rbac::PrivilegeAccess::Fail:
                     ret = ENGINE_EACCESS;
                     break;
-                case PrivilegeAccess::Stale:
+                case cb::rbac::PrivilegeAccess::Stale:
                     ret = ENGINE_AUTH_STALE;
                     break;
                 }

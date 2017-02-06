@@ -16,7 +16,8 @@
  */
 #pragma once
 
-#ifdef __cplusplus
+namespace cb {
+namespace rbac {
 
 /**
  * RBAC in memcached
@@ -206,24 +207,6 @@ enum class Privilege {
 
 };
 
-enum class PrivilegeAccess {
-    Ok,
-    Fail,
-    Stale
-};
-#else
-/**
- * We still have a ton of C code in our system, but I don't want
- * to pollute the namespace with all of these names. All new code should
- * be C++ so I'm just going to create this dummy enum to put in the
- * interface
- */
-typedef enum memcached_privilege_t {
-    MEMCACHED_PRIVILEGE_READ
-} Privilege;
-
-typedef enum memcached_privilege_access_t {
-    MEMCACHED_PRIVILEGE_ACCESS_OK
-} PrivilegeAccess;
-
-#endif
+enum class PrivilegeAccess { Ok, Fail, Stale };
+}
+}

@@ -2576,7 +2576,7 @@ static void process_bin_packet(McbpConnection* c) {
 
     auto res = privilegeChains.invoke(opcode, c->getCookieObject());
     switch (res) {
-    case PrivilegeAccess::Fail:
+    case cb::rbac::PrivilegeAccess::Fail:
         LOG_WARNING(c,
                     "%u %s: no access to command %s",
                     c->getId(), c->getDescription().c_str(),
@@ -2584,7 +2584,7 @@ static void process_bin_packet(McbpConnection* c) {
         audit_command_access_failed(c);
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
         return;
-    case PrivilegeAccess::Ok:
+    case cb::rbac::PrivilegeAccess::Ok:
         result = validate_bin_header(c);
         if (result == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             result = c->validateCommand(opcode);
@@ -2607,7 +2607,7 @@ static void process_bin_packet(McbpConnection* c) {
             process_bin_unknown_packet(c);
         }
         return;
-    case PrivilegeAccess::Stale:
+    case cb::rbac::PrivilegeAccess::Stale:
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE);
         return;
     }

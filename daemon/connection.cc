@@ -308,8 +308,9 @@ void Connection::restartAuthentication() {
  * This function will be replaces when we get access to ns_servers
  * RBAC data.
  */
-PrivilegeAccess Connection::checkPrivilege(const Privilege& privilege) const {
+cb::rbac::PrivilegeAccess Connection::checkPrivilege(cb::rbac::Privilege privilege) const {
     static bool testing = getenv("MEMCACHED_UNIT_TESTS") != nullptr;
+    using namespace cb::rbac;
 
     if (isAdmin() || testing) {
         return PrivilegeAccess::Ok;

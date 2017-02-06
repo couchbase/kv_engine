@@ -720,8 +720,8 @@ uint64_t get_connection_id(const void *void_cookie) {
  * @param privilege The privilege to check for
  * @return if the privilege is held or not (or if the privilege data is stale)
  */
-static PrivilegeAccess check_privilege(const void* void_cookie,
-                                       const Privilege privilege) {
+static cb::rbac::PrivilegeAccess check_privilege(const void* void_cookie,
+                                                 const cb::rbac::Privilege privilege) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
     if (cookie->connection == nullptr) {

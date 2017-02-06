@@ -155,10 +155,10 @@ static void mock_set_priority(const void* cookie, CONN_PRIORITY priority) {
     (void) priority;
 }
 
-static PrivilegeAccess mock_check_privilege(const void*,
-                                       const Privilege) {
+static cb::rbac::PrivilegeAccess mock_check_privilege(const void*,
+                                                      const cb::rbac::Privilege) {
     // @todo allow for mocking privilege access
-    return PrivilegeAccess::Ok;
+    return cb::rbac::PrivilegeAccess::Ok;
 }
 
 static protocol_binary_response_status mock_engine_error2mcbp(const void* void_cookie,
