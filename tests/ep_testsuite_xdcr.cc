@@ -1808,12 +1808,12 @@ static enum test_result test_setting_drift_threshold(ENGINE_HANDLE *h, ENGINE_HA
                      std::get<1>(conf).c_str(), data.first.data()),
                 "Expected set_param success");
 
-            checkeq(data.second.count(),
+            checkeq(int64_t(data.second.count()),
                     int64_t(get_ull_stat(h, h1, std::get<0>(conf).c_str(), nullptr)),
                     "Expected the stat to change to the new value");
 
             // The VB stat values are in nanoseconds
-            checkeq(std::chrono::nanoseconds(data.second).count(),
+            checkeq(int64_t(std::chrono::nanoseconds(data.second).count()),
                     int64_t(get_ull_stat(h, h1, std::get<2>(conf).c_str(), "vbucket-details 0")),
                     "Expected the VB stats to change to the new value");
         }
