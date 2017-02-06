@@ -119,7 +119,7 @@ ENGINE_ERROR_CODE dcp_message_deletion(const void* void_cookie,
     // the item.
     item.release();
 
-    memset(packet.bytes, 0, sizeof(packet));
+    memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_DELETION;
     packet.message.header.request.opaque = opaque;
