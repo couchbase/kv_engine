@@ -1037,15 +1037,6 @@ static void dcp_add_stream_executor(McbpConnection* c, void* packet) {
 
     switch (ret) {
     case ENGINE_SUCCESS:
-        /*
-         * @todo For backwards compatibility let's sniff the add stream packet
-         *       and enable no-value mode if we sees a NO_VALUE flag being
-         *      passed. When the view engine (or other consumers) tells us
-         *      that they've fixed their code this should go away.
-         */
-        if ((flags & DCP_ADD_STREAM_FLAG_NO_VALUE) != 0) {
-            c->setDcpNoValue(true);
-        }
         c->setDCP(true);
         c->setState(conn_ship_log);
         break;
