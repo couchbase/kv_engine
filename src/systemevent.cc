@@ -17,6 +17,7 @@
 
 #include "systemevent.h"
 #include "collections/collections_types.h"
+#include "kvstore.h"
 
 std::unique_ptr<Item> SystemEventFactory::make(SystemEvent se,
                                                const std::string& keyExtra,
@@ -63,4 +64,68 @@ std::unique_ptr<Item> SystemEventFactory::make(SystemEvent se,
     item->setOperation(queue_op::system_event);
 
     return item;
+}
+
+SystemEventFlushStatus SystemEventFlush::process(const queued_item& item) {
+    if (item->getOperation() != queue_op::system_event) {
+        return SystemEventFlushStatus::Continue;
+    }
+
+    switch (SystemEvent(item->getFlags())) {
+    case SystemEvent::CreateCollection:
+    case SystemEvent::DeleteCollectionHard:
+    case SystemEvent::DeleteCollectionSoft: {
+        // CreateCollection updates the manifest and writes a SystemEvent
+        // DeleteCollection* both update the manifest and write a SystemEvent
+        saveCollectionsManifestItem(item);
+        return SystemEventFlushStatus::Continue;
+    }
+    case SystemEvent::BeginDeleteCollection: {
+        // This will update the manifest but should not write an Item
+        saveCollectionsManifestItem(item);
+        return SystemEventFlushStatus::Skip;
+    }
+    }
+
+    throw std::invalid_argument("SystemEventFlush::process unknown event " +
+                                std::to_string(item->getFlags()));
+}
+
+bool SystemEventFlush::isUpsert(const Item& item) {
+    if (item.getOperation() == queue_op::system_event) {
+        // CreateCollection and DeleteCollection* are the only valid events.
+        // The ::process function should of skipped BeginDeleteCollection.
+        switch (SystemEvent(item.getFlags())) {
+        case SystemEvent::CreateCollection: {
+            return true;
+        }
+        case SystemEvent::BeginDeleteCollection: {
+            throw std::logic_error("SystemEventFlush::isUpsert event " +
+                                   to_string(SystemEvent(item.getFlags())) +
+                                   " should neither delete or upsert ");
+        }
+        case SystemEvent::DeleteCollectionHard:
+        case SystemEvent::DeleteCollectionSoft: {
+            return false;
+        }
+        }
+    } else {
+        return !item.isDeleted();
+    }
+    throw std::invalid_argument("SystemEventFlush::isUpsert unknown event " +
+                                std::to_string(item.getFlags()));
+}
+
+const Item* SystemEventFlush::getCollectionsManifestItem() const {
+    return collectionManifestItem.get();
+}
+
+void SystemEventFlush::saveCollectionsManifestItem(const queued_item& item) {
+    // For a given checkpoint only the highest system event should be the
+    // one which writes the manifest
+    if ((collectionManifestItem &&
+         item->getBySeqno() > collectionManifestItem->getBySeqno()) ||
+        !collectionManifestItem) {
+        collectionManifestItem = item;
+    }
 }

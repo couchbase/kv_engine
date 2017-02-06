@@ -33,4 +33,10 @@ const char* const DefaultSeparator = "::";
 const char* const CreateEventKey = "$collections::create:";
 const char* const DeleteEventKey = "$collections::delete:";
 
+// Couchstore private file name for manifest data
+const char CouchstoreManifest[] = "_local/collections_manifest";
+
+// Length of the string excluding the zero terminator (i.e. strlen)
+const size_t CouchstoreManifestLen = sizeof(CouchstoreManifest) - 1;
+
 } // end namespace Collections

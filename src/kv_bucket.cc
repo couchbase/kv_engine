@@ -630,7 +630,14 @@ ENGINE_ERROR_CODE KVBucket::set(Item &itm, const void *cookie) {
         return ENGINE_TMPFAIL;
     }
 
-    return vb->set(itm, cookie, engine, bgFetchDelay);
+    { // collections read-lock scope
+        auto collectionsRHandle = vb->lockCollections();
+        if (!collectionsRHandle.doesKeyContainValidCollection(itm.getKey())) {
+            return ENGINE_UNKNOWN_COLLECTION;
+        } // now hold collections read access for the duration of the set
+
+        return vb->set(itm, cookie, engine, bgFetchDelay);
+    }
 }
 
 ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
@@ -1209,6 +1216,7 @@ GetValue KVBucket::getInternal(const DocKey& key, uint16_t vbucket,
     vbucket_state_t disallowedState = (allowedState == vbucket_state_active) ?
         vbucket_state_replica : vbucket_state_active;
     RCPtr<VBucket> vb = getVBucket(vbucket);
+
     if (!vb) {
         ++stats.numNotMyVBuckets;
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
@@ -1232,8 +1240,15 @@ GetValue KVBucket::getInternal(const DocKey& key, uint16_t vbucket,
         }
     }
 
-    return vb->getInternal(
-            key, cookie, engine, bgFetchDelay, options, diskDeleteAll);
+    { // collections read scope
+        auto collectionsRHandle = vb->lockCollections();
+        if (!collectionsRHandle.doesKeyContainValidCollection(key)) {
+            return GetValue(NULL, ENGINE_UNKNOWN_COLLECTION);
+        }
+
+        return vb->getInternal(
+                key, cookie, engine, bgFetchDelay, options, diskDeleteAll);
+    }
 }
 
 GetValue KVBucket::getRandomKey() {
@@ -1815,9 +1830,22 @@ int KVBucket::flushVBucket(uint16_t vbid) {
             bool mustCheckpointVBState = false;
             std::list<PersistenceCallback*>& pcbs = rwUnderlying->getPersistenceCbList();
 
+            SystemEventFlush sef;
+
             for (const auto& item : items) {
 
                 if (!item->shouldPersist()) {
+                    continue;
+                }
+
+                // Pass the Item through the SystemEventFlush which may filter
+                // the item away (return Skip).
+                if (sef.process(item) == SystemEventFlushStatus::Skip) {
+                    // The item has no further flushing actions i.e. we've
+                    // absorbed it in the process function.
+                    // Update stats and carry-on
+                    --stats.diskQueueSize;
+                    vb->doStatsForFlushing(*item, item->size());
                     continue;
                 }
 
@@ -1901,9 +1929,10 @@ int KVBucket::flushVBucket(uint16_t vbid) {
             /* Perform an explicit commit to disk if the commit
              * interval reaches zero and if there is a non-zero number
              * of items to flush.
+             * Or if there is a manifest item
              */
-            if ((items_flushed > 0)) {
-                commit(*rwUnderlying);
+            if (items_flushed > 0 || sef.getCollectionsManifestItem()) {
+                commit(*rwUnderlying, sef.getCollectionsManifestItem());
 
                 // Now the commit is complete, vBucket file must exist.
                 if (vb->setBucketCreation(false)) {
@@ -1954,12 +1983,12 @@ int KVBucket::flushVBucket(uint16_t vbid) {
     return items_flushed;
 }
 
-void KVBucket::commit(KVStore& kvstore) {
+void KVBucket::commit(KVStore& kvstore, const Item* collectionsManifest) {
     std::list<PersistenceCallback*>& pcbs = kvstore.getPersistenceCbList();
     BlockTimer timer(&stats.diskCommitHisto, "disk_commit", stats.timingLog);
     hrtime_t commit_start = gethrtime();
 
-    while (!kvstore.commit()) {
+    while (!kvstore.commit(collectionsManifest)) {
         ++stats.commitFailed;
         LOG(EXTENSION_LOG_WARNING,
             "KVBucket::commit: kvstore.commit failed!!! Retry in 1 sec...");
@@ -2003,7 +2032,6 @@ PersistenceCallback* KVBucket::flushOneDelOrSet(const queued_item &qi,
     }
 
     int64_t bySeqno = qi->getBySeqno();
-    bool deleted = qi->isDeleted();
     rel_time_t queued(qi->getQueuedTime());
 
     int dirtyAge = ep_current_time() - queued;
@@ -2013,7 +2041,7 @@ PersistenceCallback* KVBucket::flushOneDelOrSet(const queued_item &qi,
                                          stats.dirtyAgeHighWat.load()));
 
     KVStore *rwUnderlying = getRWUnderlying(qi->getVBucketId());
-    if (!deleted) {
+    if (SystemEventFlush::isUpsert(*qi)) {
         // TODO: Need to separate disk_insert from disk_update because
         // bySeqno doesn't give us that information.
         BlockTimer timer(bySeqno == -1 ?

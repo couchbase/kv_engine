@@ -40,20 +40,116 @@ namespace VB {
  *
  * Each collection is represented by a Collections::VB::ManifestEntry and all of
  * the collections are stored in an unordered_map. The map is implemented to
- * allow look-up by collection-name without having to allocate a string as the
- * data-path will need to do collection validity checks with minimal penalty.
+ * allow look-up by collection-name without having to allocate a std::string,
+ * callers only need a cb::const_char_buffer for look-ups.
  *
  * The Manifest allows for an external manager to drive the lifetime of each
  * collection - adding, begin/complete of the deletion phase.
  *
- * This class is intended to be thread safe - the useage pattern is likely that
- * we will have many threads reading the collection state (i.e. policing
- * incoming database operations) whilst occasionally the collection state will
- * be changed by another thread calling "update" or "completeDeletion".
+ * This class is intended to be thread-safe when accessed through the read
+ * or write handles (providing RAII locking).
  *
+ * Access to the class is peformed by the ReadHandle and WriteHandle classes
+ * which perform RAII locking on the manifest's internal lock. A user of the
+ * manifest is required to hold the correct handle for the required scope to
+ * to ensure any actions they take based upon a collection's existence are
+ * consistent. The important consistency issue is the checkpoint. For example
+ * when setting a document code must first check the document's collection
+ * exists, the document must then only enter the checkpoint after the creation
+ * event for the collection and also before a delete event foe the collection.
+ * Thus the set path must obtain read access to collections and keep read access
+ * for the entire scope of the set path to ensure no other thread can interleave
+ * collection create/delete and cause an inconsistency in the checkpoint
+ * ordering.
  */
 class Manifest {
 public:
+    /**
+     * RAII read locking for access to the Manifest.
+     */
+    class ReadHandle {
+    public:
+        ReadHandle(const Manifest& m, cb::RWLock& lock)
+            : readLock(lock), manifest(m) {
+        }
+
+        ReadHandle(ReadHandle&& rhs)
+            : readLock(std::move(rhs.readLock)), manifest(rhs.manifest) {
+        }
+
+        /**
+         * Does the key contain a valid collection?
+         *
+         * - If the key applies to the default collection, the default
+         *   collection must exist.
+         *
+         * - If the key applies to a collection, the collection must exist and
+         *   must not be in the process of deletion.
+         */
+        bool doesKeyContainValidCollection(::DocKey key) {
+            return manifest.doesKeyContainValidCollection(key);
+        }
+
+    private:
+        std::unique_lock<cb::ReaderLock> readLock;
+        const Manifest& manifest;
+    };
+
+    /**
+     * RAII write locking for access and updates to the Manifest.
+     */
+    class WriteHandle {
+    public:
+        WriteHandle(Manifest& m, cb::RWLock& lock)
+            : writeLock(lock), manifest(m) {
+        }
+
+        WriteHandle(WriteHandle&& rhs)
+            : writeLock(std::move(rhs.writeLock)), manifest(rhs.manifest) {
+        }
+
+        /**
+         * Update from a Collections::Manifest
+         *
+         * Update compares the current collection set against the manifest and
+         * triggers collection creation and collection deletion.
+         *
+         * Creation and deletion of a collection are pushed into the VBucket and
+         * the seqno of updates is recorded in the manifest.
+         *
+         * @param vb The VBucket to update (queue data into).
+         * @param manifest The incoming manifest to compare this object with.
+         */
+        void update(::VBucket& vb, const Collections::Manifest& newManifest) {
+            manifest.update(vb, newManifest);
+        }
+
+        /**
+         * Complete the deletion of a collection.
+         *
+         * Lookup the collection name and determine the deletion actions.
+         * A collection could of been added again during a background delete so
+         * completeDeletion may just update the state or fully drop all
+         * knowledge of the collection.
+         *
+         * @param vb The VBucket in which the deletion is occuring.
+         * @param collection The collection that is being deleted.
+         * @param revision The Manifest revision which initiated the delete.
+         */
+        void completeDeletion(::VBucket& vb,
+                              cb::const_char_buffer collection,
+                              uint32_t revision) {
+            manifest.completeDeletion(vb, collection, revision);
+        }
+
+    private:
+        std::unique_lock<cb::WriterLock> writeLock;
+        Manifest& manifest;
+    };
+
+    friend ReadHandle;
+    friend WriteHandle;
+
     /**
      * Map from a 'string_view' to an entry.
      * The key points to data stored in the value (which is actually a pointer
@@ -82,6 +178,35 @@ public:
      */
     Manifest(const std::string& manifest);
 
+    ReadHandle lock() const {
+        return {*this, rwlock};
+    }
+
+    WriteHandle wlock() {
+        return {*this, rwlock};
+    }
+
+    /**
+     * Return a std::string containing a JSON representation of a
+     * VBucket::Manifest. The input data should be a previously serialised
+     * object, i.e. the input to this function is the output of
+     * populateWithSerialisedData.
+     *
+     * The function also corrects the seqno of the entry which initiated a
+     * manifest update (i.e. a collection create or delete). This is because at
+     * the time of serialisation, the collection SystemEvent Item did not have a
+     * seqno.
+     *
+     * @param se The SystemEvent triggering the JSON generation.
+     * @param buffer The raw data to process.
+     * @param finalEntrySeqno The correct seqno to use for the final entry of
+     *        the serialised data.
+     */
+    static std::string serialToJson(SystemEvent se,
+                                    cb::const_char_buffer buffer,
+                                    int64_t finalEntrySeqno);
+
+private:
     /**
      * Update from a Collections::Manifest
      *
@@ -122,26 +247,6 @@ public:
      *   not be in the process of deletion.
      */
     bool doesKeyContainValidCollection(const ::DocKey& key) const;
-
-    /**
-     * Return a std::string containing a JSON representation of a
-     * VBucket::Manifest. The input data should be a previously serialised
-     * object, i.e. the input to this function is the output of
-     * populateWithSerialisedData.
-     *
-     * The function also corrects the seqno of the entry which initiated a
-     * manifest update (i.e. a collection create or delete). This is because at
-     * the time of serialisation, the collection SystemEvent Item did not have a
-     * seqno.
-     *
-     * @param se The SystemEvent triggering the JSON generation.
-     * @param buffer The raw data to process.
-     * @param finalEntrySeqno The correct seqno to use for the final entry of
-     *        the serialised data.
-     */
-    static std::string serialToJson(SystemEvent se,
-                                    cb::const_char_buffer buffer,
-                                    int64_t finalEntrySeqno);
 
 protected:
     /**
@@ -264,7 +369,7 @@ protected:
     /**
      * shared lock to allow concurrent readers and safe updates
      */
-    mutable cb::RWLock lock;
+    mutable cb::RWLock rwlock;
 
     friend std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
 };

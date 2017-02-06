@@ -947,7 +947,11 @@ TEST_F(SingleThreadedEPStoreTest, pre_expiry_xattrs) {
 
     auto xattr_data = to_string(xattr_value);
 
-    auto itm = store_item(vbid, makeStoredDocKey("key"), xattr_data, 1,
+    auto itm = store_item(vbid,
+                          makeStoredDocKey("key"),
+                          xattr_data,
+                          1,
+                          {cb::engine_errc::success},
                           PROTOCOL_BINARY_DATATYPE_XATTR);
 
     ItemMetaData metadata;

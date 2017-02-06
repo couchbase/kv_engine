@@ -26,9 +26,9 @@
 
 #include "evp_store_test.h"
 
+#include "../mock/mock_dcp_producer.h"
 #include "bgfetcher.h"
 #include "checkpoint.h"
-#include "../mock/mock_dcp_producer.h"
 #include "checkpoint_remover.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/flow-control-manager.h"
@@ -37,6 +37,7 @@
 #include "replicationthrottle.h"
 #include "tapconnmap.h"
 #include "tasks.h"
+#include "tests/mock/mock_global_task.h"
 #include "tests/module_tests/test_helpers.h"
 #include "vbucketmemorydeletiontask.h"
 
@@ -45,19 +46,6 @@
 #include <chrono>
 #include <platform/dirutils.h>
 #include <thread>
-
-/* Mock Task class. Doesn't actually run() or snooze() - they both do nothing.
- */
-class MockGlobalTask : public GlobalTask {
-public:
-    MockGlobalTask(Taskable& t, TaskId id)
-        : GlobalTask(t, id) {}
-
-    bool run() override { return false; }
-    std::string getDescription() override { return "MockGlobalTask"; }
-
-    void snooze(const double secs) override {}
-};
 
 void EPBucketTest::SetUp() {
     // Paranoia - kill any existing files in case they are left over
@@ -105,14 +93,18 @@ Item EPBucketTest::store_item(uint16_t vbid,
                               const StoredDocKey& key,
                               const std::string& value,
                               uint32_t exptime,
+                              const std::vector<cb::engine_errc>& expected,
                               protocol_binary_datatype_t datatype) {
     auto item = make_item(vbid, key, value, exptime, datatype);
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
-
+    auto returnCode = store->set(item, nullptr);
+    EXPECT_NE(expected.end(),
+              std::find(expected.begin(),
+                        expected.end(),
+                        cb::engine_errc(returnCode)));
     return item;
 }
 
-void EPBucketTest::flush_vbucket_to_disk(uint16_t vbid) {
+void EPBucketTest::flush_vbucket_to_disk(uint16_t vbid, int expected) {
     int result;
     const auto time_limit = std::chrono::seconds(10);
     const auto deadline = std::chrono::steady_clock::now() + time_limit;
@@ -132,7 +124,7 @@ void EPBucketTest::flush_vbucket_to_disk(uint16_t vbid) {
         << "Hit timeout (" << time_limit.count() << " seconds) waiting for "
            "warmup to complete while flushing VBucket.";
 
-    ASSERT_EQ(1, result) << "Failed to flush the one item we have stored.";
+    ASSERT_EQ(expected, result) << "Unexpected items in flush_vbucket_to_disk";
 }
 
 void EPBucketTest::delete_item(uint16_t vbid, const StoredDocKey& key) {

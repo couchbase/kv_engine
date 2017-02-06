@@ -77,9 +77,14 @@ private:
 
 class SerialisedManifestEntry {
 public:
+    /**
+     * Object is not copyable or movable
+     */
+    SerialisedManifestEntry(const SerialisedManifestEntry& other) = delete;
+    SerialisedManifestEntry(SerialisedManifestEntry&& other) = delete;
 
     static size_t getObjectSize(size_t collectionNameLen) {
-        return sizeof(SerialisedManifestEntry) - 1 + collectionNameLen;
+        return sizeof(SerialisedManifestEntry) + collectionNameLen;
     }
 
     size_t getObjectSize() const {
@@ -161,6 +166,26 @@ private:
     }
 
     /**
+     * The collection name is stored in memory allocated after this object.
+     *
+     * @return pointer to the collection name, located at the address after
+     *         'this'.
+     */
+    char* getCollectionName() {
+        return reinterpret_cast<char*>(this + 1);
+    }
+
+    /**
+     * The collection name is stored in memory allocated after this object.
+     *
+     * @return const pointer to the collection name, located at the address
+     *         after 'this'.
+     */
+    const char* getCollectionName() const {
+        return reinterpret_cast<const char*>(this + 1);
+    }
+
+    /**
      * throw an exception if the construction of a serialised object overflows
      * the memory allocation represented by out.
      *
@@ -188,7 +213,7 @@ private:
         this->startSeqno = startSeqno;
         this->endSeqno = endSeqno;
         this->collectionNameLen = collection.size();
-        std::memcpy(this->collectionName,
+        std::memcpy(getCollectionName(),
                     collection.data(),
                     this->collectionNameLen);
     }
@@ -203,7 +228,7 @@ private:
     std::string toJson(int64_t _startSeqno, int64_t _endSeqno) const {
         std::string json =
                 R"({"name":")" +
-                std::string(collectionName, collectionNameLen) +
+                std::string(getCollectionName(), collectionNameLen) +
                 R"(","revision":")" + std::to_string(revision) + "\"," +
                 R"("startSeqno":")" + std::to_string(_startSeqno) + "\"," +
                 R"("endSeqno":")" + std::to_string(_endSeqno) + "\"}";
@@ -211,10 +236,9 @@ private:
     }
 
     uint32_t revision;
+    int32_t collectionNameLen;
     int64_t startSeqno;
     int64_t endSeqno;
-    int32_t collectionNameLen;
-    char collectionName[1];
 };
 
 static_assert(std::is_standard_layout<SerialisedManifestEntry>::value,

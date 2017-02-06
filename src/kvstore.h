@@ -745,9 +745,12 @@ public:
     /**
      * Commit a transaction (unless not currently in one).
      *
+     * @param collectionsManifest a pointer to an Item which is a SystemEvent
+     *        that contains a collections manifest to be written in the commit.
+     *        Can be nullptr if the commit has no manifest to write.
      * @return false if the commit fails
      */
-    virtual bool commit() = 0;
+    virtual bool commit(const Item* collectionsManifest) = 0;
 
     /**
      * Rollback the current transaction.
@@ -950,6 +953,14 @@ public:
     virtual scan_error_t scan(ScanContext* sctx) = 0;
 
     virtual void destroyScanContext(ScanContext* ctx) = 0;
+
+    /**
+     * KVStore must implement this method which should perform a full write
+     * of the collections manifest, firstly by converting the Item value to
+     * JSON and then writing it the JSON data.
+     */
+    virtual bool persistCollectionsManifestItem(uint16_t vbid,
+                                                const Item& manifestItem) = 0;
 
 protected:
 

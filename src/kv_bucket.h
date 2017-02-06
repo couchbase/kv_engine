@@ -611,7 +611,7 @@ public:
      */
     int flushVBucket(uint16_t vbid);
 
-    void commit(KVStore& kvstore);
+    void commit(KVStore& kvstore, const Item* collectionsManifest);
 
     void addKVStoreStats(ADD_STAT add_stat, const void* cookie);
 

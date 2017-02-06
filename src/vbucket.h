@@ -21,6 +21,7 @@
 
 #include "bloomfilter.h"
 #include "checkpoint.h"
+#include "collections/vbucket_manifest.h"
 #include "hash_table.h"
 #include "hlc.h"
 #include "item_pager.h"
@@ -481,6 +482,36 @@ public:
 
     // Mark the value associated with the given key as dirty
     void markDirty(const DocKey& key);
+
+    /**
+     * Obtain the read handle for the collections manifest.
+     * The caller will have read-only access to manifest using the methods
+     * exposed by the ReadHandle
+     */
+    Collections::VB::Manifest::ReadHandle lockCollections() const {
+        return manifest.lock();
+    }
+
+    /**
+     * Update the Collections::VB::Manifest and the VBucket.
+     * Adds SystemEvents for the create and delete of collections into the
+     * checkpoint.
+     *
+     * @param m A Collections::Manifest to apply to the VB::Manifest
+     */
+    void updateFromManifest(const Collections::Manifest& m) {
+        manifest.wlock().update(*this, m);
+    }
+
+    /**
+     * Finalise the deletion of a collection (no items remain in the collection)
+     *
+     * @param collection "string-view" name of the collection
+     * @param revision The Manifest revision which initiated the delete.
+     */
+    void completeDeletion(cb::const_char_buffer collection, uint32_t revision) {
+        manifest.wlock().completeDeletion(*this, collection, revision);
+    }
 
     static const vbucket_state_t ACTIVE;
     static const vbucket_state_t REPLICA;
@@ -1300,6 +1331,9 @@ private:
     // A callback to be called when a new seqno is generated in the vbucket as
     // a result of a front end call
     NewSeqnoCallback newSeqnoCb;
+
+    /// The VBucket collection state
+    Collections::VB::Manifest manifest;
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };

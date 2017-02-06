@@ -1071,7 +1071,7 @@ StorageProperties CouchKVStore::getStorageProperties() {
     return rv;
 }
 
-bool CouchKVStore::commit() {
+bool CouchKVStore::commit(const Item* collectionsManifest) {
     TRACE_EVENT("ep-engine/couch-kvstore", "commit",
                 this->configuration.getShardId());
 
@@ -1081,7 +1081,7 @@ bool CouchKVStore::commit() {
     }
 
     if (intransaction) {
-        if (commit2couchstore()) {
+        if (commit2couchstore(collectionsManifest)) {
             intransaction = false;
         }
     }
@@ -1777,30 +1777,39 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     return COUCHSTORE_SUCCESS;
 }
 
-bool CouchKVStore::commit2couchstore() {
+bool CouchKVStore::commit2couchstore(const Item* collectionsManifest) {
     bool success = true;
 
     size_t pendingCommitCnt = pendingReqsQ.size();
-    if (pendingCommitCnt == 0) {
+    if (pendingCommitCnt == 0 && !collectionsManifest) {
         return success;
     }
+
+    // Use the vbucket of the first item or the manifest item
+    uint16_t vbucket2flush = pendingCommitCnt
+                                     ? pendingReqsQ[0]->getVBucketId()
+                                     : collectionsManifest->getVBucketId();
+
+    // When an item and a manifest are present, vbucket2flush is read from the
+    // item. Check it matches the manifest
+    if (pendingCommitCnt && collectionsManifest &&
+        vbucket2flush != collectionsManifest->getVBucketId()) {
+        throw std::logic_error(
+                "CouchKVStore::commit2couchstore: manifest/item vbucket "
+                "mismatch vbucket2flush:" +
+                std::to_string(vbucket2flush) + " manifest vb:" +
+                std::to_string(collectionsManifest->getVBucketId()));
+    }
+
+    // Use the current fileRev, compaction can't change this until we're done
+    // flushing.
+    uint64_t fileRev = dbFileRevMap[vbucket2flush];
 
     std::vector<Doc*> docs(pendingCommitCnt);
     std::vector<DocInfo*> docinfos(pendingCommitCnt);
 
-    if (pendingReqsQ[0] == nullptr) {
-        throw std::logic_error("CouchKVStore::commit2couchstore: "
-                        "pendingReqsQ[0] is NULL");
-    }
-    uint16_t vbucket2flush = pendingReqsQ[0]->getVBucketId();
-    uint64_t fileRev = pendingReqsQ[0]->getRevNum();
     for (size_t i = 0; i < pendingCommitCnt; ++i) {
         CouchRequest *req = pendingReqsQ[i];
-        if (req == nullptr) {
-            throw std::logic_error("CouchKVStore::commit2couchstore: "
-                                       "pendingReqsQ["
-                                       + std::to_string(i) + "] is NULL");
-        }
         docs[i] = (Doc *)req->getDbDoc();
         docinfos[i] = req->getDbDocInfo();
         if (vbucket2flush != req->getVBucketId()) {
@@ -1816,8 +1825,8 @@ bool CouchKVStore::commit2couchstore() {
     kvstats_ctx kvctx(configuration);
     kvctx.vbucket = vbucket2flush;
     // flush all
-    couchstore_error_t errCode =
-            saveDocs(vbucket2flush, fileRev, docs, docinfos, kvctx);
+    couchstore_error_t errCode = saveDocs(
+            vbucket2flush, fileRev, docs, docinfos, kvctx, collectionsManifest);
 
     if (errCode) {
         success = false;
@@ -1861,7 +1870,8 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid,
                                           uint64_t rev,
                                           const std::vector<Doc*>& docs,
                                           std::vector<DocInfo*>& docinfos,
-                                          kvstats_ctx& kvctx) {
+                                          kvstats_ctx& kvctx,
+                                          const Item* collectionsManifest) {
     couchstore_error_t errCode;
     uint64_t fileRev = rev;
     DbInfo info;
@@ -1892,39 +1902,42 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid,
 
         uint64_t maxDBSeqno = 0;
 
-        std::vector<sized_buf> ids(docs.size());
-        for (size_t idx = 0; idx < docs.size(); idx++) {
-            ids[idx] = docinfos[idx]->id;
-            maxDBSeqno = std::max(maxDBSeqno, docinfos[idx]->db_seq);
-            DocKey key = makeDocKey(ids[idx],
-                                    configuration.shouldPersistDocNamespace());
-            kvctx.keyStats[key] = std::make_pair(false,
-                                                 !docinfos[idx]->deleted);
-        }
-        couchstore_docinfos_by_id(db.getDb(),
-                                  ids.data(),
-                                  (unsigned)ids.size(),
-                                  0,
-                                  readDocInfos,
-                                  &kvctx);
+        // Only do a couchstore_save_documents if there are docs
+        if (docs.size() > 0) {
+            std::vector<sized_buf> ids(docs.size());
+            for (size_t idx = 0; idx < docs.size(); idx++) {
+                ids[idx] = docinfos[idx]->id;
+                maxDBSeqno = std::max(maxDBSeqno, docinfos[idx]->db_seq);
+                DocKey key = makeDocKey(
+                        ids[idx], configuration.shouldPersistDocNamespace());
+                kvctx.keyStats[key] =
+                        std::make_pair(false, !docinfos[idx]->deleted);
+            }
+            couchstore_docinfos_by_id(db.getDb(),
+                                      ids.data(),
+                                      (unsigned)ids.size(),
+                                      0,
+                                      readDocInfos,
+                                      &kvctx);
 
-        hrtime_t cs_begin = gethrtime();
-        uint64_t flags = COMPRESS_DOC_BODIES | COUCHSTORE_SEQUENCE_AS_IS;
-        errCode = couchstore_save_documents(db.getDb(),
-                                            docs.data(),
-                                            docinfos.data(),
-                                            (unsigned)docs.size(),
-                                            flags);
-        st.saveDocsHisto.add((gethrtime() - cs_begin) / 1000);
-        if (errCode != COUCHSTORE_SUCCESS) {
-            logger.log(EXTENSION_LOG_WARNING,
-                       "CouchKVStore::saveDocs: couchstore_save_documents "
-                       "error:%s [%s], vb:%" PRIu16 ", numdocs:%" PRIu64,
-                       couchstore_strerror(errCode),
-                       couchkvstore_strerrno(db.getDb(), errCode).c_str(),
-                       vbid,
-                       uint64_t(docs.size()));
-            return errCode;
+            hrtime_t cs_begin = gethrtime();
+            uint64_t flags = COMPRESS_DOC_BODIES | COUCHSTORE_SEQUENCE_AS_IS;
+            errCode = couchstore_save_documents(db.getDb(),
+                                                docs.data(),
+                                                docinfos.data(),
+                                                (unsigned)docs.size(),
+                                                flags);
+            st.saveDocsHisto.add((gethrtime() - cs_begin) / 1000);
+            if (errCode != COUCHSTORE_SUCCESS) {
+                logger.log(EXTENSION_LOG_WARNING,
+                           "CouchKVStore::saveDocs: couchstore_save_documents "
+                           "error:%s [%s], vb:%" PRIu16 ", numdocs:%" PRIu64,
+                           couchstore_strerror(errCode),
+                           couchkvstore_strerrno(db.getDb(), errCode).c_str(),
+                           vbid,
+                           uint64_t(docs.size()));
+                return errCode;
+            }
         }
 
         errCode = saveVBState(db.getDb(), *state);
@@ -1936,7 +1949,11 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid,
             return errCode;
         }
 
-        cs_begin = gethrtime();
+        if (collectionsManifest) {
+            saveCollectionsManifest(*db.getDb(), *collectionsManifest);
+        }
+
+        hrtime_t cs_begin = gethrtime();
         errCode = couchstore_commit(db.getDb());
         st.commitHisto.add((gethrtime() - cs_begin) / 1000);
         if (errCode) {
@@ -1957,7 +1974,8 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid,
         cachedDeleteCount[vbid] = info.deleted_count;
         cachedDocCount[vbid] = info.doc_count;
 
-        if (maxDBSeqno != info.last_sequence) {
+        // Check seqno if we wrote documents
+        if (docs.size() > 0 && maxDBSeqno != info.last_sequence) {
             logger.log(EXTENSION_LOG_WARNING,
                        "CouchKVStore::saveDocs: Seqno in db header (%" PRIu64 ")"
                        " is not matched with what was persisted (%" PRIu64 ")"
@@ -2184,6 +2202,39 @@ couchstore_error_t CouchKVStore::saveVBState(Db *db,
                    "error:%s [%s]", couchstore_strerror(errCode),
                    couchkvstore_strerrno(db, errCode).c_str());
     }
+
+    return errCode;
+}
+
+couchstore_error_t CouchKVStore::saveCollectionsManifest(
+        Db& db, const Item& collectionsManifest) {
+    LocalDoc lDoc;
+    lDoc.id.buf = const_cast<char*>(Collections::CouchstoreManifest);
+    lDoc.id.size = Collections::CouchstoreManifestLen;
+
+    // Convert the Item value into JSON
+    cb::const_char_buffer buffer(collectionsManifest.getData(),
+                                 collectionsManifest.getNBytes());
+    std::string state = Collections::VB::Manifest::serialToJson(
+            SystemEvent(collectionsManifest.getFlags()),
+            buffer,
+            collectionsManifest.getBySeqno());
+
+    lDoc.json.buf = const_cast<char*>(state.c_str());
+    lDoc.json.size = state.size();
+    lDoc.deleted = 0;
+
+    couchstore_error_t errCode = couchstore_save_local_document(&db, &lDoc);
+
+    if (errCode != COUCHSTORE_SUCCESS) {
+        logger.log(EXTENSION_LOG_WARNING,
+                   "CouchKVStore::saveCollectionsManifest "
+                   "couchstore_save_local_document "
+                   "error:%s [%s]",
+                   couchstore_strerror(errCode),
+                   couchkvstore_strerrno(&db, errCode).c_str());
+    }
+
     return errCode;
 }
 
@@ -2628,6 +2679,32 @@ void CouchKVStore::removeCompactFile(const std::string &filename) {
             }
         }
     }
+}
+
+bool CouchKVStore::persistCollectionsManifestItem(uint16_t vbid,
+                                                  const Item& manifestItem) {
+    DbHolder db(this);
+
+    // openDB logs error details
+    couchstore_error_t errCode =
+            openDB(vbid, 0, db.getDbAddress(), COUCHSTORE_OPEN_FLAG_CREATE);
+    if (errCode != COUCHSTORE_SUCCESS) {
+        return false;
+    }
+
+    // saveCollecionsManifest logs error details
+    errCode = saveCollectionsManifest(*db.getDb(), manifestItem);
+    if (errCode != COUCHSTORE_SUCCESS) {
+        return false;
+    }
+
+    // commit logs error details
+    errCode = couchstore_commit(db.getDb());
+    if (errCode != COUCHSTORE_SUCCESS) {
+        return false;
+    }
+
+    return true;
 }
 
 /* end of couch-kvstore.cc */

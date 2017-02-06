@@ -73,7 +73,7 @@ void Collections::VB::Manifest::update(::VBucket& vb,
                                       manifest.getRevision(),
                                       manifest.getRevision());
 
-        LOG(EXTENSION_LOG_INFO,
+        LOG(EXTENSION_LOG_NOTICE,
             "Adding collection:%s vb:%" PRIu16 " seqno:%" PRIu64,
             collection.c_str(),
             vb.getId(),
@@ -95,7 +95,7 @@ void Collections::VB::Manifest::update(::VBucket& vb,
                                       itr->second->getRevision(),
                                       manifest.getRevision());
 
-        LOG(EXTENSION_LOG_INFO,
+        LOG(EXTENSION_LOG_NOTICE,
             "Begin delete of collection:%s vb:%" PRIu16 " seqno:%" PRIu64,
             collection.c_str(),
             vb.getId(),
@@ -109,7 +109,6 @@ void Collections::VB::Manifest::addCollection(cb::const_char_buffer collection,
                                               uint32_t revision,
                                               int64_t startSeqno,
                                               int64_t endSeqno) {
-    std::lock_guard<cb::WriterLock> writeLock(lock.writer());
     auto itr = map.find(collection);
     if (itr == map.end()) {
         auto m = std::make_unique<Collections::VB::ManifestEntry>(
@@ -134,7 +133,6 @@ void Collections::VB::Manifest::addCollection(cb::const_char_buffer collection,
 
 void Collections::VB::Manifest::beginDelCollection(
         cb::const_char_buffer collection, uint32_t revision, int64_t seqno) {
-    std::lock_guard<cb::WriterLock> writeLock(lock.writer());
     auto itr = map.find(collection);
     if (itr != map.end()) {
         itr->second->setRevision(revision);
@@ -153,7 +151,6 @@ void Collections::VB::Manifest::beginDelCollection(
 
 void Collections::VB::Manifest::completeDeletion(
         ::VBucket& vb, cb::const_char_buffer collection, uint32_t revision) {
-    std::lock_guard<cb::WriterLock> writeLock(lock.writer());
     auto itr = map.find(collection);
 
     if (itr == map.end()) {
@@ -194,7 +191,6 @@ Collections::VB::Manifest::processManifest(
         const Collections::Manifest& manifest) const {
     std::vector<std::string> additions, deletions;
 
-    std::lock_guard<cb::WriterLock> writeLock(lock.writer());
     for (const auto& manifestEntry : map) {
         // If the manifestEntry is open and not found in the new manifest it
         // must be deleted.
@@ -223,13 +219,8 @@ Collections::VB::Manifest::processManifest(
 
 bool Collections::VB::Manifest::doesKeyContainValidCollection(
         const ::DocKey& key) const {
-    // TODO: The separator under strict conditions *can* be changed, and by
-    // another thread
     const auto cKey = Collections::DocKey::make(key, separator);
 
-    std::lock_guard<cb::ReaderLock> readLock(lock.reader());
-
-    // TODO: The default collection check could be done with an atomic
     if (defaultCollectionExists &&
         cKey.getDocNamespace() == DocNamespace::DefaultCollection) {
         return true;
@@ -385,7 +376,7 @@ const char* Collections::VB::Manifest::getJsonEntry(cJSON* cJson,
 std::ostream& Collections::VB::operator<<(
         std::ostream& os, const Collections::VB::Manifest& manifest) {
     os << "VBucket::Manifest: size:" << manifest.map.size() << std::endl;
-    std::lock_guard<cb::ReaderLock> readLock(manifest.lock.reader());
+    std::lock_guard<cb::ReaderLock> readLock(manifest.rwlock.reader());
     for (auto& m : manifest.map) {
         os << *m.second << std::endl;
     }

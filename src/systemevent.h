@@ -21,15 +21,17 @@
 
 #include "item.h"
 
+class KVStore;
+
 /// underlying size of uint32_t as this is to be stored in the Item flags field.
 enum class SystemEvent : uint32_t {
     /**
      * The CreateCollection system event is generated when a VBucket receives
      * knowledge of a new collection. The event's purpose is to carry data
      * to the flusher so we can persist a new collections JSON manifest that
-     * includes the new collection and persist a special marker document
-     * allowing DCP backfills to re-transite collection creation at the correct
-     * point in seqno-time. This event will also be used to generate
+     * includes the new collection and also to persist a special marker document
+     * allowing DCP backfills to re-transmit collection creation at the correct
+     * point in "seqno-time". This event will also be used to generate
      * DCP messages to inform consumers of the new collection (for in-memory
      * streaming).
      */
@@ -41,9 +43,8 @@ enum class SystemEvent : uint32_t {
      * carry data to the flusher so we can persist a new collections JSON
      * manifest that indicates the collection is now in the process of being
      * removed. This is indicated by changing the end-seqno of a collection's
-     * entry. This event also deletes the orginal create marker document from
-     * the data store. This event will also be used to generate DCP messages to
-     * inform consumers of the deleted collection (for in-memory streaming).
+     * entry. BeginDeleteCollection also informs DCP clients that the collection
+     * is now deleted (no more data can be written to it).
      */
     BeginDeleteCollection,
 
@@ -51,7 +52,8 @@ enum class SystemEvent : uint32_t {
      * The DeleteCollectionHard system event is generated when a VBucket has
      * completed the deletion of all items of a collection. The hard delete
      * carries data to the flusher so we can persist a JSON manifest that now
-     * fully removes the collection.
+     * fully removes the collection and also deleted the special marker document
+     * created by CreateCollection.
      */
     DeleteCollectionHard,
 
@@ -60,7 +62,9 @@ enum class SystemEvent : uint32_t {
      * completed the deletion of all items of a collection *but*  a
      * collection of the same name was added back during the deletion. The soft
      * delete carries data to the flusher so we can persist a JSON manifest that
-     * only updates the end-seqno of the deleted collection entry.
+     * only updates the end-seqno of the deleted collection entry. The soft
+     * delete also deleted the special marker document created by
+     * CreateCollection.
      */
     DeleteCollectionSoft
 };
@@ -95,4 +99,65 @@ public:
     static std::unique_ptr<Item> make(SystemEvent se,
                                       const std::string& keyExtra,
                                       size_t itemSize);
+};
+
+enum class SystemEventFlushStatus { Skip, Continue };
+
+/**
+ * SystemEventFlush holds all SystemEvent data for a single invocation of a
+ * vbucket's flush
+ * If the flush encountered no SystemEvents then this class does nothing
+ * If the flush has SystemEvents then this class will ensure the correct
+ * actions occur.
+ */
+class SystemEventFlush {
+public:
+    /**
+     * Get the Item which is updating the collections manifest (if any)
+     *
+     * @return nullptr if no manifest exists or the Item to be used in writing
+     *         a manifest.
+     */
+    const Item* getCollectionsManifestItem() const;
+
+    /**
+     * The flusher passes each item into this function and process determines
+     * what needs to happen (possibly updating the Item).
+     *
+     * This function /may/ take a reference to the ref-counted Item if the Item
+     * is required for a collections manifest update.
+     *
+     * Warning: Even though the input is a const queued_item, the Item* is not
+     * const. This function may call setOperation on the shared item
+     *
+     * @param item an item from the flushers items to flush.
+     * @returns Skip if the flusher should not continue with the item or
+     *          Continue if the flusher can continue the rest of the flushing
+     *          function against the item.
+     */
+    SystemEventFlushStatus process(const queued_item& item);
+
+    /**
+     * Determine the flushing action of the Item, knows about normal set/del
+     * and how to flush SystemEvent Items
+     *
+     * @param item An Item to determine if it should result in an upsert.
+     * @returns true if the Item is an upsert (add or update) of the Item
+     */
+    static bool isUpsert(const Item& item);
+
+private:
+    /**
+     * Save the item as the item which contains the manifest which will be
+     * used in the flush's update of the vbucket's metadata documents.
+     * The function will only set the them if it has a seqno higher than any
+     * previously saved item.
+     */
+    void saveCollectionsManifestItem(const queued_item& item);
+
+    /**
+     * Shared pointer to an Item which holds collections manifest data that
+     * maybe needed by the flush::commit
+     */
+    queued_item collectionManifestItem;
 };

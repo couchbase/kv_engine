@@ -35,22 +35,25 @@
 
 /* Actual test fixture class */
 class EPBucketTest : public ::testing::Test {
-protected:
+public:
     void SetUp() override;
 
     void TearDown() override;
 
     // Stores an item into the given vbucket. Returns the item stored.
-    Item store_item(uint16_t vbid, const StoredDocKey& key,
+    Item store_item(uint16_t vbid,
+                    const StoredDocKey& key,
                     const std::string& value,
                     uint32_t exptime = 0,
+                    const std::vector<cb::engine_errc>& expected =
+                            {cb::engine_errc::success},
                     protocol_binary_datatype_t datatype =
                             PROTOCOL_BINARY_DATATYPE_JSON);
 
     /* Flush the given vbucket to disk, so any outstanding dirty items are
      * written (and are clean).
      */
-    void flush_vbucket_to_disk(uint16_t vbid);
+    void flush_vbucket_to_disk(uint16_t vbid, int expected = 1);
 
     /* Delete the given item from the given vbucket, verifying it was
      * successfully deleted.
