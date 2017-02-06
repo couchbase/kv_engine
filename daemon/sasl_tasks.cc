@@ -77,9 +77,8 @@ void SaslAuthTask::notifyExecutionComplete() {
                  connection.getId(), connection.getPeername().c_str(),
                  connection.getUsername());
 
-        if (settings.isAdmin(connection.getUsername())) {
-            connection.setAdmin(true);
-        }
+        // @todo this should be from the security context of the user
+        connection.setInternal(std::string{"_admin"} == connection.getUsername());
 
         /* associate the connection with the appropriate bucket */
         associate_bucket(&connection, connection.getUsername());

@@ -559,7 +559,6 @@ static void settings_init(void) {
     settings.setMaxPacketSize(30 * 1024 * 1024);
 
     settings.setRequireInit(false);
-    settings.setAdmin("_admin");
     settings.setDedupeNmvbMaps(false);
 
     char *tmp = getenv("MEMCACHED_TOP_KEYS");
@@ -1040,9 +1039,9 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
     if ((which & EV_TIMEOUT) == EV_TIMEOUT) {
         auto* mcbp = dynamic_cast<McbpConnection*>(c);
 
-        if (mcbp != nullptr && (c->isAdmin() || c->isDCP() || c->isTAP())) {
+        if (mcbp != nullptr && (c->isInternal() || c->isDCP() || c->isTAP())) {
             auto* mcbp = dynamic_cast<McbpConnection*>(c);
-            if (c->isAdmin()) {
+            if (c->isInternal()) {
                 LOG_NOTICE(c, "%u: Timeout for admin connection. (ignore)",
                            c->getId());
             } else if (c->isDCP()) {

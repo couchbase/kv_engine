@@ -88,7 +88,7 @@ public:
     /**
      * Returns a descriptive name for the connection, of the form:
      *   "[peer_name - local_name ]"
-     *(A) is appended to the string for admin connections.
+     * (system) is appended to the string for system connections.
      */
     std::string getDescription() const;
 
@@ -120,14 +120,20 @@ public:
         event_base_loopbreak(base);
     }
 
-
-    /** Is the connection authorized with admin privileges? */
-    bool isAdmin() const {
-        return admin;
+    /**
+     * Is the connection representing a system internal user
+     */
+    bool isInternal() const {
+        return internal;
     }
 
-    void setAdmin(bool admin) {
-        Connection::admin = admin;
+    /**
+     * Specify if this connection is representing an internal user.
+     * An internal user is a user which is used by one of the components
+     * in Couchbase (like ns_server, indexer etc).
+     */
+    void setInternal(bool internal) {
+        Connection::internal = internal;
     }
 
     bool isAuthenticated() const {
@@ -376,8 +382,8 @@ protected:
      */
     unique_cbsasl_conn_t sasl_conn;
 
-    /** Is the connection set up with admin privileges */
-    bool admin;
+    /** Is this a system internal connection */
+    bool internal;
 
     /** Is the connection authenticated or not */
     bool authenticated;

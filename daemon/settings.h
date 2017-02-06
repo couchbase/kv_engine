@@ -206,31 +206,6 @@ public:
      */
     void reconfigure(const unique_cJSON_ptr& json);
 
-
-    /**
-     * Set the name of the username which is given full privileges
-     *
-     * @deprecated this is deprecated as we're moving towards RBAC
-     *
-     * @param admin the new username for the admin user
-     */
-    void setAdmin(const std::string& admin) /* CB_ATTR_DEPRECATED */ {
-        has.admin = true;
-        Settings::admin.assign(admin);
-        notify_changed("admin");
-    }
-
-    /**
-     * Get the username for the user which is given full privileges
-     *
-     * @deprecated We're moving towards rbac
-     *
-     * @return The username to be treated as the administrator
-     */
-    const std::string& getAdmin() const /* CB_ATTR_DEPRECATED */ {
-        return admin;
-    }
-
     /**
      * Check if the specified name represent a user which is an administrator
      *
@@ -240,7 +215,7 @@ public:
      * @return true if the username is the admin user
      */
     bool isAdmin(const std::string& other) const /* CB_ATTR_DEPRECATED */ {
-        return admin == other;
+        return other == "_admin";
     }
 
     /**
@@ -837,12 +812,6 @@ public:
 protected:
 
     /**
-     * The username to use as the admin user
-     * @deprecated will be removed as part of the RBAC work
-     */
-    std::string admin;
-
-    /**
      * Number of worker (without dispatcher) libevent threads to run
      * */
     int num_threads;
@@ -983,7 +952,6 @@ public:
      * getter/setter pattern
      */
     struct {
-        bool admin;
         bool threads;
         bool interfaces;
         bool extensions;

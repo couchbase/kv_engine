@@ -96,7 +96,7 @@ void audit_bucket_flush(const Connection *c, const char *bucket) {
 
 
 void audit_dcp_open(const Connection *c) {
-    if (c->isAdmin()) {
+    if (c->isInternal()) {
         LOG_INFO(c, "Open DCP stream with admin credentials");
     } else {
         auto root = create_memcached_audit_object(c);

@@ -220,33 +220,6 @@ void SettingsTest::nonObjectValuesShouldFail(const std::string& tag) {
 }
 
 
-TEST_F(SettingsTest, Admin) {
-    // Ensure that we detect non-string values for admin
-    nonStringValuesShouldFail("admin");
-
-    // Ensure that we accept a string
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddStringToObject(obj.get(), "admin", "_admin");
-    try {
-        Settings settings(obj);
-        EXPECT_EQ("_admin", settings.getAdmin());
-        EXPECT_TRUE(settings.has.admin);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-
-    // An empty string is also allowed
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddStringToObject(obj.get(), "admin", "");
-    try {
-        Settings settings(obj);
-        EXPECT_EQ("", settings.getAdmin());
-        EXPECT_TRUE(settings.has.admin);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-}
-
 TEST_F(SettingsTest, AuditFile) {
     // Ensure that we detect non-string values for admin
     nonStringValuesShouldFail("audit_file");
@@ -927,20 +900,6 @@ TEST(SettingsUpdateTest, RootIsNotDynamic) {
 
     // Changing it should fail
     updated.setRoot("/var");
-    EXPECT_THROW(settings.updateSettings(updated, false),
-                 std::invalid_argument);
-}
-
-TEST(SettingsUpdateTest, AdminIsNotDynamic) {
-    Settings updated;
-    Settings settings;
-    // setting it to the same value should work
-    settings.setAdmin("_admin");
-    updated.setAdmin(settings.getAdmin());
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-
-    // Changing it should fail
-    updated.setAdmin("bar");
     EXPECT_THROW(settings.updateSettings(updated, false),
                  std::invalid_argument);
 }

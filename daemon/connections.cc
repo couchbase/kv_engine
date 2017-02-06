@@ -248,7 +248,7 @@ static void conn_cleanup(Connection *c) {
     if (c == nullptr) {
         throw std::invalid_argument("conn_cleanup: 'c' must be non-NULL");
     }
-    c->setAdmin(false);
+    c->setInternal(false);
 
     auto* mcbpc = dynamic_cast<McbpConnection*>(c);
     if (mcbpc != nullptr) {

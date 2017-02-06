@@ -56,7 +56,7 @@ Connection::Connection(SOCKET sfd, event_base* b)
     : socketDescriptor(sfd),
       base(b),
       sasl_conn(create_new_cbsasl_server_t()),
-      admin(false),
+      internal(false),
       authenticated(false),
       username("unknown"),
       nodelay(false),
@@ -248,7 +248,7 @@ cJSON* Connection::toJSON() const {
         cJSON_AddStringToObject(obj, "sockname", getSockname().c_str());
         cJSON_AddNumberToObject(obj, "parent_port", parent_port);
         cJSON_AddNumberToObject(obj, "bucket_index", getBucketIndex());
-        json_add_bool_to_object(obj, "admin", isAdmin());
+        json_add_bool_to_object(obj, "internal", isInternal());
         if (authenticated) {
             cJSON_AddStringToObject(obj, "username", username.c_str());
         }
@@ -285,8 +285,8 @@ cJSON* Connection::toJSON() const {
 
 std::string Connection::getDescription() const {
     std::string descr("[ " + getPeername() + " - " + getSockname());
-    if (isAdmin()) {
-        descr += " (Admin)";
+    if (isInternal()) {
+        descr += " (System)";
     }
     descr += " ]";
     return descr;
@@ -294,7 +294,7 @@ std::string Connection::getDescription() const {
 
 void Connection::restartAuthentication() {
     sasl_conn.reset(create_new_cbsasl_server_t());
-    admin = false;
+    internal = false;
     authenticated = false;
     username = "";
 }
@@ -312,7 +312,7 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(cb::rbac::Privilege privile
     static bool testing = getenv("MEMCACHED_UNIT_TESTS") != nullptr;
     using namespace cb::rbac;
 
-    if (isAdmin() || testing) {
+    if (isInternal() || testing) {
         return PrivilegeAccess::Ok;
     }
 

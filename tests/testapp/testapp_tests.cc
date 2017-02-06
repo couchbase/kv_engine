@@ -1091,31 +1091,6 @@ TEST_P(McdTestappTest, Config_ValidateInvalidJSON) {
                                   PROTOCOL_BINARY_RESPONSE_EINVAL);
 }
 
-TEST_P(McdTestappTest, Config_ValidateAdminNotDynamic) {
-    union {
-        protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } buffer;
-
-    /* 'admin' cannot be changed */
-    cJSON* dynamic = cJSON_CreateObject();
-    char* dyn_string = NULL;
-    cJSON_AddStringToObject(dynamic, "admin", "not_me");
-    dyn_string = cJSON_Print(dynamic);
-    cJSON_Delete(dynamic);
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
-                                  dyn_string, strlen(dyn_string));
-    cJSON_Free(dyn_string);
-
-    safe_send(buffer.bytes, len, false);
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
-                                  PROTOCOL_BINARY_RESPONSE_EINVAL);
-}
-
 TEST_P(McdTestappTest, Config_ValidateThreadsNotDynamic) {
     union {
         protocol_binary_request_no_extras request;

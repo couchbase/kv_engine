@@ -66,18 +66,9 @@ Settings::Settings(const unique_cJSON_ptr& json)
 }
 
 /**
- * Handle the "admin" tag in the settings.
- *
- * The value must be a string
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
+ * Handle deprecated tags in the settings by simply ignoring them
  */
-static void handle_admin(Settings& s, cJSON* obj) {
-    if (obj->type != cJSON_String) {
-        throw std::invalid_argument("\"admin\" must be a string");
-    }
-    s.setAdmin(obj->valuestring);
+static void ignore_entry(Settings&, cJSON*) {
 }
 
 enum class FileError {
@@ -575,7 +566,7 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
     };
 
     std::vector<settings_config_tokens> handlers = {
-        {"admin",                        handle_admin},
+        {"admin",                        ignore_entry},
         {"rbac_file",                    handle_rbac_file},
         {"audit_file",                   handle_audit_file},
         {"error_maps_dir",               handle_error_maps_dir},
@@ -805,13 +796,6 @@ interface::interface(const cJSON* json)
 }
 
 void Settings::updateSettings(const Settings& other, bool apply) {
-    // I need to figure out this one..
-    if (other.has.admin) {
-        if (other.admin != admin) {
-            throw std::invalid_argument("admin can't be changed dynamically");
-        }
-    }
-
     if (other.has.threads) {
         if (other.num_threads != num_threads) {
             throw std::invalid_argument("threads can't be changed dynamically");

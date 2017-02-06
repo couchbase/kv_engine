@@ -1717,7 +1717,7 @@ static void process_hello_packet_executor(McbpConnection* c, void* packet) {
             }
             break;
         case mcbp::Feature::XATTR:
-            if ((settings.isXattrEnabled() || c->isAdmin()) && !c->isXattrSupport()) {
+            if ((settings.isXattrEnabled() || c->isInternal()) && !c->isXattrSupport()) {
                 c->setXattrSupport(true);
                 added = true;
             }
@@ -1898,7 +1898,7 @@ static void get_cmd_timer_executor(McbpConnection* c, void* packet) {
     }
 
     if (keylen == 0) {
-        if (index == 0 && !c->isAdmin()) {
+        if (index == 0 && !c->isInternal()) {
             // We're not connected to a bucket, and we didn't
             // authenticate to a bucket.. Don't leak the
             // global stats...
@@ -1912,7 +1912,7 @@ static void get_cmd_timer_executor(McbpConnection* c, void* packet) {
                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
                               0, c->getCookie());
         mcbp_write_and_free(c, &c->getDynamicBuffer());
-    } else if (c->isAdmin()) {
+    } else if (c->isInternal()) {
         bool found = false;
         for (size_t ii = 1; ii < all_buckets.size() && !found; ++ii) {
             // Need the lock to get the bucket state and name
@@ -2223,7 +2223,7 @@ static void list_bucket_executor(McbpConnection* c, void*) {
     //       in the global privilege check, but we have to filter out
     //       the buckets people may use or not
     static bool testing = getenv("MEMCACHED_UNIT_TESTS") != nullptr;
-    if (c->isAdmin() || testing) {
+    if (c->isInternal() || testing) {
         try {
             std::string blob;
             for (auto& bucket : all_buckets) {
@@ -2322,7 +2322,7 @@ static void select_bucket_executor(McbpConnection* c, void* packet) {
     //       in the global privilege check, but we have to filter out
     //       the buckets people may use or not
     static bool testing = getenv("MEMCACHED_UNIT_TESTS") != nullptr;
-    if (c->isAdmin() || testing) {
+    if (c->isInternal() || testing) {
         /* The validator ensured that we're not doing a buffer overflow */
         char bucketname[1024];
         auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(packet);
@@ -2620,7 +2620,7 @@ static void process_bin_packet(McbpConnection* c) {
 
 
 static inline bool is_initialized(McbpConnection* c, uint8_t opcode) {
-    if (c->isAdmin() || is_server_initialized()) {
+    if (c->isInternal() || is_server_initialized()) {
         return true;
     }
 
