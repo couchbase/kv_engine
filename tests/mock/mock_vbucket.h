@@ -92,7 +92,7 @@ public:
                 return MutationStatus::NotFound;
             }
         }
-        return processSoftDelete(lh, *v, cas);
+        return processSoftDelete(lh, *v, cas).first;
     }
 
     bool public_deleteStoredValue(const DocKey& key) {
