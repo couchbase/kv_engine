@@ -553,9 +553,8 @@ public:
 
     protocol_binary_response_status evictKey(const DocKey& key,
                                              uint16_t vbucket,
-                                             const char **msg,
-                                             size_t *msg_size) {
-        return kvBucket->evictKey(key, vbucket, msg, msg_size);
+                                             const char** msg) {
+        return kvBucket->evictKey(key, vbucket, msg);
     }
 
     ENGINE_ERROR_CODE observe(const void* cookie,

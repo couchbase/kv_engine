@@ -37,9 +37,8 @@ public:
     void deinitialize() override;
 
     protocol_binary_response_status evictKey(const DocKey& key,
-                                             uint16_t vbucket,
-                                             const char **msg,
-                                             size_t *msg_size) override;
+                                             VBucket::id_type vbucket,
+                                             const char** msg) override;
 
     void reset() override;
 

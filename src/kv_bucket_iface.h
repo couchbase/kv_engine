@@ -281,9 +281,8 @@ public:
                                    uint16_t vbid, uint64_t bySeqNum) = 0;
 
     virtual protocol_binary_response_status evictKey(const DocKey& key,
-                                                     uint16_t vbucket,
-                                                     const char **msg,
-                                                     size_t *msg_size) = 0;
+                                                     VBucket::id_type vbucket,
+                                                     const char** msg) = 0;
 
     /**
      * delete an item in the store

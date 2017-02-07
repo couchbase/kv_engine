@@ -689,8 +689,8 @@ static protocol_binary_response_status evictKey(
 
     LOG(EXTENSION_LOG_DEBUG, "Manually evicting object with key{%.*s}\n",
         int(keylen), keyPtr);
-    auto rv = e->evictKey(DocKey(keyPtr, keylen, docNamespace), vbucket,
-                          msg, msg_size);
+    msg_size = 0;
+    auto rv = e->evictKey(DocKey(keyPtr, keylen, docNamespace), vbucket, msg);
     if (rv == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET ||
         rv == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT) {
         if (e->isDegradedMode()) {

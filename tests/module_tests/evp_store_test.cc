@@ -229,8 +229,7 @@ void EPBucketTest::delete_item(uint16_t vbid, const StoredDocKey& key) {
 
 void EPBucketTest::evict_key(uint16_t vbid, const StoredDocKey& key) {
     const char* msg;
-    size_t msg_size{sizeof(msg)};
-    EXPECT_EQ(ENGINE_SUCCESS, store->evictKey(key, vbid, &msg, &msg_size));
+    EXPECT_EQ(ENGINE_SUCCESS, store->evictKey(key, vbid, &msg));
     EXPECT_STREQ("Ejected.", msg);
 }
 

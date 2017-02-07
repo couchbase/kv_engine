@@ -797,6 +797,20 @@ public:
                            ExpireBy source);
 
     /**
+     * Evict a key from memory.
+     *
+     * @param key Key to evict
+     * @param[out] msg Updated to point to a string (with static duration)
+     *                 describing the result of the operation.
+     *
+     * @return SUCCESS if key was successfully evicted (or was already
+     *                 evicted), or the reason why the request failed.
+     *
+     */
+    protocol_binary_response_status evictKey(const DocKey& key,
+                                             const char** msg);
+
+    /**
      * Add an item in the store
      *
      * @param itm the item to add. On success, this will have its seqno and

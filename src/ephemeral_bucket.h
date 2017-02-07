@@ -33,8 +33,7 @@ public:
     /// storage, there is nowhere to evict /to/.
     protocol_binary_response_status evictKey(const DocKey& key,
                                              uint16_t vbucket,
-                                             const char** msg,
-                                             size_t* msg_size) override {
+                                             const char** msg) override {
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
