@@ -729,6 +729,10 @@ protected:
         maxItemSize = value;
     }
 
+    void setMaxItemPrivilegedBytes(size_t value) {
+        maxItemPrivilegedBytes = value;
+    }
+
     void setGetlDefaultTimeout(size_t value) {
         getlDefaultTimeout = value;
     }
@@ -917,6 +921,7 @@ protected:
     CheckpointConfig *checkpointConfig;
     std::string name;
     size_t maxItemSize;
+    size_t maxItemPrivilegedBytes;
     size_t getlDefaultTimeout;
     size_t getlMaxTimeout;
     size_t maxFailoverEntries;

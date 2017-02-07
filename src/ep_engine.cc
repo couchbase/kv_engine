@@ -1877,6 +1877,8 @@ public:
             engine.setGetlDefaultTimeout(value);
         } else if (key.compare("max_item_size") == 0) {
             engine.setMaxItemSize(value);
+        } else if (key.compare("max_item_privileged_bytes") == 0) {
+            engine.setMaxItemPrivilegedBytes(value);
         }
     }
 
@@ -1929,6 +1931,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     maxItemSize = configuration.getMaxItemSize();
     configuration.addValueChangedListener("max_item_size",
                                        new EpEngineValueChangeListener(*this));
+
+    maxItemPrivilegedBytes = configuration.getMaxItemPrivilegedBytes();
+    configuration.addValueChangedListener(
+            "max_item_privileged_bytes",
+            new EpEngineValueChangeListener(*this));
 
     getlDefaultTimeout = configuration.getGetlDefaultTimeout();
     configuration.addValueChangedListener("getl_default_timeout",
@@ -2037,7 +2044,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(
         const rel_time_t exptime,
         uint8_t datatype,
         uint16_t vbucket) {
-    if (priv_nbytes > configuration.getMaxItemPrivilegedBytes()) {
+    if (priv_nbytes > maxItemPrivilegedBytes) {
         return ENGINE_E2BIG;
     }
 
