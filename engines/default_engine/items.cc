@@ -383,25 +383,25 @@ ENGINE_ERROR_CODE do_safe_item_unlink(struct default_engine* engine,
         MEMCACHED_ITEM_UNLINK(hash_key_get_client_key(key),
                               hash_key_get_client_key_len(key),
                               it->nbytes);
-        if ((it->iflag & ITEM_LINKED) != 0) {
-            it->iflag &= ~ITEM_LINKED;
+        if ((stored->iflag & ITEM_LINKED) != 0) {
+            stored->iflag &= ~ITEM_LINKED;
             cb_mutex_enter(&engine->stats.lock);
-            engine->stats.curr_bytes -= ITEM_ntotal(engine, it);
+            engine->stats.curr_bytes -= ITEM_ntotal(engine, stored);
             engine->stats.curr_items -= 1;
             cb_mutex_exit(&engine->stats.lock);
             assoc_delete(engine, crc32c(hash_key_get_key(key),
                                         hash_key_get_key_len(key), 0),
                          key);
-            item_unlink_q(engine, it);
-            if (it->refcount == 0 || engine->scrubber.force_delete) {
-                item_free(engine, it);
+            item_unlink_q(engine, stored);
+            if (stored->refcount == 0 || engine->scrubber.force_delete) {
+                item_free(engine, stored);
             }
         }
     } else {
         ret = ENGINE_KEY_EEXISTS;
     }
 
-    do_item_release(engine, stored);
+    do_item_release(engine, it);
     return ret;
 }
 

@@ -27,6 +27,8 @@ class RemoveTest : public TestappClientTest {
 public:
 
 protected:
+    void verify_MB_22553(const std::string& config);
+
 
     /**
      * Verify that a path isn't there anymore!
@@ -65,6 +67,66 @@ protected:
 
     MutationInfo info;
 };
+
+void RemoveTest::verify_MB_22553(const std::string& config) {
+    auto& conn = getConnection();
+    auto& connection = dynamic_cast<MemcachedBinprotConnection&>(conn);
+
+    std::string name = "bucket-1";
+    conn.createBucket(name, config, Greenstack::BucketType::Memcached);
+    conn.selectBucket("bucket-1");
+
+    // Create a document
+    conn.store(name, 0, std::string{"foobar"});
+
+    // Add an xattr
+    {
+        BinprotSubdocCommand cmd;
+        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
+        cmd.setKey(name);
+        cmd.setPath("_rbac.attribute");
+        cmd.setValue("\"read-only\"");
+        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+
+        connection.sendCommand(cmd);
+
+        BinprotResponse resp;
+        connection.recvResponse(resp);
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    }
+
+    // Delete the document
+    conn.remove(name, 0);
+
+    // The document itself should not be accessible MB-22553
+    try {
+        conn.get(name, 0);
+        FAIL() << "Document with XATTRs should not be accessible after remove";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isNotFound())
+                    << "MB-22553: doc with xattr is still accessible";
+    }
+
+    {
+        // It should not be accessible over subdoc..
+        BinprotSubdocCommand cmd;
+        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
+        cmd.setKey(name);
+        cmd.setPath("verbosity");
+        cmd.setFlags(SUBDOC_FLAG_NONE);
+
+        connection.sendCommand(cmd);
+
+        BinprotSubdocResponse resp;
+        connection.recvResponse(resp);
+
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, resp.getStatus())
+                    << "MB-22553: doc with xattr is still accessible";
+    }
+
+    conn.deleteBucket("bucket-1");
+    conn.reconnect();
+}
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         RemoveTest,
@@ -164,41 +226,13 @@ TEST_P(RemoveTest, RemoveWithOnlyUserAttributres) {
 /**
  * Verify that you cannot get a document (with xattrs) which is deleted
  */
+TEST_P(RemoveTest, MB_22553_DeleteDocWithXAttr_keep_deleted) {
+    verify_MB_22553("keep_deleted=true");}
+
+/**
+ * Verify that you cannot get a document (with xattrs) which is deleted
+ * when the memcached bucket isn't using the keep deleted flag
+ */
 TEST_P(RemoveTest, MB_22553_DeleteDocWithXAttr) {
-    auto& conn = getConnection();
-
-    createDocument();
-    createXattr("_rbac.attribute", "\"read-only\"");
-    auto deleted = conn.remove(name, 0);
-    EXPECT_NE(info.cas, deleted.cas);
-
-    // The document itself should not be accessible MB-22553
-    try {
-        conn.get(name, 0);
-        FAIL() << "Document with XATTRs should not be accessible after remove";
-    } catch (const ConnectionError& error) {
-        EXPECT_TRUE(error.isNotFound())
-                    << "MB-22553: doc with xattr is still accessible";
-    }
-
-    // And it doesn't matter if I try to use subdoc
-    auto* mcbp = dynamic_cast<MemcachedBinprotConnection*>(&conn);
-    if (mcbp == nullptr) {
-        // This test can only be run with the Memcached Binary Protocol
-        return;
-    }
-
-    BinprotSubdocCommand cmd;
-    cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
-    cmd.setKey(name);
-    cmd.setPath("verbosity");
-    cmd.setFlags(SUBDOC_FLAG_NONE);
-
-    mcbp->sendCommand(cmd);
-
-    BinprotSubdocResponse resp;
-    mcbp->recvResponse(resp);
-
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, resp.getStatus())
-                << "MB-22553: doc with xattr is still accessible";
+    verify_MB_22553("");
 }
