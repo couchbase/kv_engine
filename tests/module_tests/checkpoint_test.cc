@@ -25,10 +25,11 @@
 #include "checkpoint.h"
 #include "makestoreddockey.h"
 #include "stats.h"
+#include "thread_gate.h"
 #include "vbucket.h"
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include <valgrind/valgrind.h>
 
 #define NUM_TAP_THREADS 3
@@ -112,39 +113,6 @@ protected:
     std::unique_ptr<CheckpointManager> manager;
 };
 
-/** Object which is used to synchronise the execution of a number of threads.
- *  Each thread calls thread_up(), and until all threads have called this
- *  they are all blocked.
- */
-class ThreadGate {
-public:
-    /** Create a ThreadGate.
-     *  @param n_threads Total number of threads to wait for.
-     */
-    ThreadGate(size_t n_threads_)
-        : n_threads(n_threads_) {}
-
-    /*
-     * atomically increment a threadCount
-     * if the calling thread is the last one up, notify_all
-     * if the calling thread is not the last one up, wait (in the function)
-     */
-    void threadUp() {
-        std::unique_lock<std::mutex> lh(m);
-        if (++thread_count != n_threads) {
-            cv.wait(lh, [this](){return thread_count == n_threads;});
-        } else {
-            cv.notify_all(); // all threads accounted for, begin
-        }
-    }
-
-private:
-    const int n_threads;
-    int thread_count {0};
-    std::mutex m;
-    std::condition_variable cv;
-
-};
 
 struct thread_args {
     VBucket* vbucket;
