@@ -90,7 +90,9 @@ public:
      *   "[peer_name - local_name ]"
      * (system) is appended to the string for system connections.
      */
-    std::string getDescription() const;
+    const std::string& getDescription() const {
+        return description;
+    }
 
     /**
      * Tell the connection to initiate it's shutdown logic
@@ -152,8 +154,8 @@ public:
         }
 
         username.assign(reinterpret_cast<const char*>(unm));
+        updateDescription();
     }
-
 
     const Priority& getPriority() const {
         return priority;
@@ -368,6 +370,13 @@ protected:
                const ListeningPort& interface);
 
     /**
+     * Update the description string for the connection. This
+     * method should be called every time the authentication data
+     * (or the sockname/peername) changes
+     */
+    void updateDescription();
+
+    /**
      * The actual socket descriptor used by this connection
      */
     SOCKET socketDescriptor;
@@ -391,6 +400,8 @@ protected:
     /** The username authenticated as */
     std::string username;
 
+    /** The description of the connection */
+    std::string description;
 
     /** Is tcp nodelay enabled or not? */
     bool nodelay;

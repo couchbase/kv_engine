@@ -75,6 +75,7 @@ Connection::Connection(SOCKET sfd, event_base* b)
       xerror_support(false) {
     MEMCACHED_CONN_CREATE(this);
     bucketIndex.store(0);
+    updateDescription();
 }
 
 Connection::Connection(SOCKET sock,
@@ -84,6 +85,7 @@ Connection::Connection(SOCKET sock,
     parent_port = interface.port;
     resolveConnectionName(false);
     setTcpNoDelay(interface.tcp_nodelay);
+    updateDescription();
 }
 
 Connection::~Connection() {
@@ -154,6 +156,7 @@ void Connection::resolveConnectionName(bool listening) {
         } else {
             sockname = sockaddr_to_string(&sock, sock_len);
         }
+        updateDescription();
     } catch (std::bad_alloc& e) {
         LOG_WARNING(NULL,
                     "Connection::resolveConnectionName: failed to allocate memory: %s",
@@ -283,15 +286,6 @@ cJSON* Connection::toJSON() const {
     return obj;
 }
 
-std::string Connection::getDescription() const {
-    std::string descr("[ " + getPeername() + " - " + getSockname());
-    if (isInternal()) {
-        descr += " (System)";
-    }
-    descr += " ]";
-    return descr;
-}
-
 void Connection::restartAuthentication() {
     sasl_conn.reset(create_new_cbsasl_server_t());
     internal = false;
@@ -404,4 +398,19 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
 
         return ENGINE_DISCONNECT;
     }
+}
+
+void Connection::updateDescription() {
+    description.assign("[ " + getPeername() + " - " + getSockname());
+    if (authenticated) {
+        description += " (";
+        if (isInternal()) {
+            description += "System, ";
+        }
+        description += getUsername();
+        description += ")";
+    } else {
+        description += " (not authenticated)";
+    }
+    description += " ]";
 }
