@@ -2454,17 +2454,8 @@ std::pair<StoredValue*, VBNotifyCtx> VBucket::addNewStoredValue(
     StoredValue* v = ht.unlocked_addNewStoredValue(htLock, itm);
 
     if (preserveRevSeqno == PreserveRevSeqno::No) {
-        /**
-         * Possibly, this item is being recreated. Conservatively assign it
-         * a seqno that is greater than the greatest seqno of all deleted
-         * items seen so far.
-         */
-        uint64_t seqno = ht.getMaxDeletedRevSeqno();
-        if (!v->isTempItem()) {
-            ++seqno;
-        }
-        v->setRevSeqno(seqno);
-        itm.setRevSeqno(seqno);
+        updateRevSeqNoOfNewStoredValue(*v);
+        itm.setRevSeqno(v->getRevSeqno());
     }
 
     if (queueItmCtx) {
@@ -2575,4 +2566,17 @@ int64_t VBucket::queueItem(Item* item) {
     checkpointManager.queueDirty(
             *this, qi, GenerateBySeqno::Yes, GenerateCas::Yes);
     return qi->getBySeqno();
+}
+
+void VBucket::updateRevSeqNoOfNewStoredValue(StoredValue& v) {
+    /**
+     * Possibly, this item is being recreated. Conservatively assign it
+     * a seqno that is greater than the greatest seqno of all deleted
+     * items seen so far.
+     */
+    uint64_t seqno = ht.getMaxDeletedRevSeqno();
+    if (!v.isTempItem()) {
+        ++seqno;
+    }
+    v.setRevSeqno(seqno);
 }

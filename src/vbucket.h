@@ -1201,6 +1201,14 @@ private:
     void notifyNewSeqno(const VBNotifyCtx& notifyCtx);
 
     /**
+     * Update the revision seqno of a newly StoredValue item.
+     * We must ensure that it is greater the maxDeletedRevSeqno
+     *
+     * @param v StoredValue added newly. Its revSeqno is updated
+     */
+    void updateRevSeqNoOfNewStoredValue(StoredValue& v);
+
+    /**
      * Increase the expiration count global stats and in the vbucket stats
      */
     void incExpirationStat(ExpireBy source);
