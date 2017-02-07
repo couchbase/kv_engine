@@ -96,7 +96,16 @@ protected:
         ExecutorPool::get()->setMaxNonIO(0);
     }
 
-    // Use TearDown from parent class
+    void TearDown() override {
+        /* MB-22041 changes to dynamically stopping threads rather than having
+         * the excess looping but not getting work. We now need to set the
+         * AuxIO and NonIO back to 1 to allow dead tasks to be cleaned up
+         */
+        ExecutorPool::get()->setMaxAuxIO(1);
+        ExecutorPool::get()->setMaxNonIO(1);
+
+        EventuallyPersistentEngineTest::TearDown();
+    }
 };
 
 class StreamTest : public DCPTest {
