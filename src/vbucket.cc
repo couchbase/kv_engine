@@ -734,6 +734,7 @@ VBNotifyCtx VBucket::queueDirty(StoredValue& v,
                                 const GenerateCas generateCas,
                                 const bool isBackfillItem) {
     VBNotifyCtx notifyCtx;
+
     queued_item qi(v.toItem(false, getId()));
 
     if (isBackfillItem) {
@@ -758,6 +759,15 @@ VBNotifyCtx VBucket::queueDirty(StoredValue& v,
     v.setBySeqno(qi->getBySeqno());
 
     return notifyCtx;
+}
+
+VBNotifyCtx VBucket::trackCasDriftAndQueueDirty(
+        StoredValue& v,
+        const GenerateBySeqno generateBySeqno,
+        const GenerateCas generateCas,
+        const bool isBackfillItem) {
+    setMaxCasAndTrackDrift(v.getCas());
+    return queueDirty(v, generateBySeqno, generateCas, isBackfillItem);
 }
 
 StoredValue* VBucket::fetchValidValue(std::unique_lock<std::mutex>& lh,
@@ -1343,8 +1353,8 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
         break;
     case MutationStatus::WasDirty:
     case MutationStatus::WasClean: {
-        setMaxCasAndTrackDrift(v->getCas());
-        VBNotifyCtx notifyCtx = queueDirty(*v, genBySeqno, genCas);
+        VBNotifyCtx notifyCtx =
+                trackCasDriftAndQueueDirty(*v, genBySeqno, genCas);
         if (seqno) {
             *seqno = static_cast<uint64_t>(v->getBySeqno());
         }
@@ -1630,9 +1640,8 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
             v->setBySeqno(bySeqno);
         }
 
-        setMaxCasAndTrackDrift(v->getCas());
-        VBNotifyCtx notifyCtx =
-                queueDirty(*v, genBySeqno, generateCas, backfill);
+        VBNotifyCtx notifyCtx = trackCasDriftAndQueueDirty(
+                *v, genBySeqno, generateCas, backfill);
         if (seqno) {
             *seqno = static_cast<uint64_t>(v->getBySeqno());
         }
