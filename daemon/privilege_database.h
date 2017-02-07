@@ -161,8 +161,8 @@ public:
     }
 
 protected:
-    const uint32_t generation;
-    const PrivilegeMask mask;
+    uint32_t generation;
+    PrivilegeMask mask;
 };
 
 /**

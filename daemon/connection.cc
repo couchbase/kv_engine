@@ -430,3 +430,42 @@ void Connection::updateDescription() {
     }
     description += " ]";
 }
+
+void Connection::setBucketIndex(int bucketIndex) {
+    Connection::bucketIndex.store(bucketIndex, std::memory_order_relaxed);
+
+    if (bucketIndex < 0) {
+        // The connection objects which listens to the ports to accept
+        // use a bucketIndex of -1. Those connection objects should
+        // don't need an entry
+        return;
+    }
+
+    // Update the privilege context. If a problem occurs within the RBAC
+    // module we'll assign an empty privilege context to the connection.
+    try {
+        if (authenticated) {
+            // The user have logged in, so we should create a context
+            // representing the users context in the desired bucket.
+            privilegeContext = cb::rbac::createContext(username,
+                                                       all_buckets[bucketIndex].name);
+        } else if (strcmp("default", all_buckets[bucketIndex].name) == 0) {
+            // We've just connected to the _default_ bucket, _AND_ the client
+            // is unknown.
+            // Personally I think the "default bucket" concept is a really
+            // really bad idea, but we need to be backwards compatible for
+            // a while... lets look up a profile named "default" and
+            // assign that. It should only contain access to the default
+            // bucket.
+            privilegeContext = cb::rbac::createContext("default",
+                                                       all_buckets[bucketIndex].name);
+        } else {
+            // The user has not authenticated, and this isn't for the
+            // "default bucket". Assign an empty profile which won't give
+            // you any privileges.
+            privilegeContext = cb::rbac::PrivilegeContext{};
+        }
+    } catch (const cb::rbac::Exception &exception) {
+        privilegeContext = cb::rbac::PrivilegeContext{};
+    }
+}

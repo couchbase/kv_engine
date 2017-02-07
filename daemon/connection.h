@@ -18,6 +18,7 @@
 
 #include "config.h"
 
+#include "privilege_database.h"
 #include "settings.h"
 
 #include <cJSON.h>
@@ -151,6 +152,11 @@ public:
 
     void setAuthenticated(bool authenticated) {
         Connection::authenticated = authenticated;
+        if (authenticated) {
+            privilegeContext = cb::rbac::createContext(username, "");
+        } else {
+            privilegeContext = cb::rbac::PrivilegeContext{};
+        }
     }
 
     const Priority& getPriority() const {
@@ -272,9 +278,7 @@ public:
         return bucketIndex.load(std::memory_order_relaxed);
     }
 
-    void setBucketIndex(int bucketIndex) {
-        Connection::bucketIndex.store(bucketIndex, std::memory_order_relaxed);
-    }
+    void setBucketIndex(int bucketIndex);
 
     Bucket& getBucket() const;
 
@@ -381,6 +385,11 @@ protected:
      * The event base this connection is bound to
      */
     event_base *base;
+
+    /**
+     * The current privilege context
+     */
+    cb::rbac::PrivilegeContext privilegeContext;
 
     /**
      * The SASL object used to do sasl authentication
