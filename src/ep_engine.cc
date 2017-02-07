@@ -2028,6 +2028,50 @@ void EventuallyPersistentEngine::destroy(bool force) {
     }
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(
+        item** itm,
+        const DocKey& key,
+        const size_t nbytes,
+        const size_t priv_nbytes,
+        const int flags,
+        const rel_time_t exptime,
+        uint8_t datatype,
+        uint16_t vbucket) {
+    if (priv_nbytes > configuration.getMaxItemPrivilegedBytes()) {
+        return ENGINE_E2BIG;
+    }
+
+    if ((nbytes - priv_nbytes) > maxItemSize) {
+        return ENGINE_E2BIG;
+    }
+
+    if (!hasAvailableSpace(sizeof(Item) + sizeof(Blob) + key.size() + nbytes)) {
+        return memoryCondition();
+    }
+
+    time_t expiretime = (exptime == 0) ? 0 : ep_abs_time(ep_reltime(exptime));
+
+    uint8_t ext_meta[1];
+    uint8_t ext_len = EXT_META_LEN;
+    *(ext_meta) = datatype;
+    *itm = new Item(key,
+                    flags,
+                    expiretime,
+                    nullptr,
+                    nbytes,
+                    ext_meta,
+                    ext_len,
+                    0 /*cas*/,
+                    -1 /*seq*/,
+                    vbucket);
+    if (*itm == NULL) {
+        return memoryCondition();
+    } else {
+        stats.itemAllocSizeHisto.add(nbytes);
+        return ENGINE_SUCCESS;
+    }
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie){
     if (!flushAllEnabled) {
         return ENGINE_ENOTSUP;
