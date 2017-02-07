@@ -30,12 +30,6 @@ class HashTable;
 class StoredValueFactory;
 
 /**
- * Indicates if the rev seqno in the item being added/updated must be preserved
- * or if a new one must be generated
- */
-enum class PreserveRevSeqno : uint8_t { No, Yes };
-
-/**
  * In-memory storage for an item.
  */
 class StoredValue {
@@ -174,11 +168,8 @@ public:
      *
      * @param itm the item with a new value
      * @param ht the hashtable that contains this StoredValue instance
-     * @param preserveSeqno Preserve the revision sequence number from the item.
      */
-    void setValue(Item& itm,
-                  HashTable& ht,
-                  const PreserveRevSeqno preserveRevSeqno) {
+    void setValue(const Item& itm, HashTable& ht) {
         size_t currSize = size();
         reduceCacheSize(ht, currSize);
         value = itm.getValue();
@@ -188,12 +179,7 @@ public:
 
         cas = itm.getCas();
         exptime = itm.getExptime();
-        if (preserveRevSeqno == PreserveRevSeqno::Yes) {
-            revSeqno = itm.getRevSeqno();
-        } else {
-            ++revSeqno;
-            itm.setRevSeqno(revSeqno);
-        }
+        revSeqno = itm.getRevSeqno();
 
         nru = itm.getNRUValue();
 

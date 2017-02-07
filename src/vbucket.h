@@ -632,11 +632,10 @@ public:
      *
      * @param itm Item to be added or updated. Upon success, the itm
      *            revSeqno are updated
-     * @param hasMetaData
      *
      * @return Result indicating the status of the operation
      */
-    MutationStatus setFromInternal(Item& itm, bool hasMetaData);
+    MutationStatus setFromInternal(Item& itm);
 
     /**
      * Set (add new or update) an item in the vbucket.
@@ -1056,9 +1055,7 @@ private:
      *
      * @param htLock Hash table lock that must be held
      * @param v Reference to the StoredValue to be updated.
-     * @param itm Item to be updated. On success, its revSeqno is updated
-     * @param preserveRevSeqno should we keep the same revision seqno or
-     *        increment it
+     * @param itm Item to be updated.
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
      *                    backfill queue; NULL if item need not be queued
      *
@@ -1068,8 +1065,7 @@ private:
     std::pair<MutationStatus, VBNotifyCtx> updateStoredValue(
             const std::unique_lock<std::mutex>& htLock,
             StoredValue& v,
-            Item& itm,
-            PreserveRevSeqno preserveRevSeqno,
+            const Item& itm,
             const VBQueueItemCtx* queueItmCtx);
 
     /**
@@ -1077,9 +1073,7 @@ private:
      * Assumes that HT bucket lock is grabbed.
      *
      * @param htLock Hash table lock that must be held
-     * @param itm Item to be added. On success, its revSeqno is updated
-     * @param preserveRevSeqno should we keep the same revision seqno or
-     *        increment it
+     * @param itm Item to be added.
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
      *                    backfill queue; NULL if item need not be queued
      *
@@ -1087,8 +1081,7 @@ private:
      */
     std::pair<StoredValue*, VBNotifyCtx> addNewStoredValue(
             const std::unique_lock<std::mutex>& htLock,
-            Item& itm,
-            PreserveRevSeqno preserveRevSeqno,
+            const Item& itm,
             const VBQueueItemCtx* queueItmCtx);
 
     /**
@@ -1101,7 +1094,6 @@ private:
      *
      * @param htLock Hash table lock that must be held
      * @param v Reference to the StoredValue to be soft deleted
-     * @param revSeqno revision id sequence number
      * @param onlyMarkDeleted indicates if we must reset the StoredValue or
      *                        just mark deleted
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
@@ -1113,7 +1105,6 @@ private:
     VBNotifyCtx softDeleteStoredValue(
             const std::unique_lock<std::mutex>& htLock,
             StoredValue& v,
-            uint64_t revSeqno,
             bool onlyMarkDeleted,
             const VBQueueItemCtx& queueItmCtx,
             uint64_t bySeqno);

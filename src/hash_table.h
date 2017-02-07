@@ -274,14 +274,10 @@ public:
      * Set an Item into the this hashtable
      *
      * @param val the Item to store
-     * @param preserveRevSeqno should we keep the same revision seqno or
-     *        increment it
      *
      * @return a result indicating the status of the store
      */
-    MutationStatus set(
-            Item& val,
-            PreserveRevSeqno preserveRevSeqno = PreserveRevSeqno::No);
+    MutationStatus set(Item& val);
 
     /**
      * Updates an existing StoredValue in the HT.
@@ -289,30 +285,27 @@ public:
      *
      * @param htLock Hash table lock that must be held.
      * @param v Reference to the StoredValue to be updated.
-     * @param itm Item to be updated. On success, its revSeqno is updated
-     * @param preserveRevSeqno should we keep the same revision seqno or
-     *        increment it
+     * @param itm Item to be updated.
      *
      * @return Result indicating the status of the operation
      */
     MutationStatus unlocked_updateStoredValue(
             const std::unique_lock<std::mutex>& htLock,
             StoredValue& v,
-            Item& itm,
-            PreserveRevSeqno preserveRevSeqno);
+            const Item& itm);
 
     /**
      * Adds a new StoredValue in the HT.
      * Assumes that HT bucket lock is grabbed.
      *
      * @param htLock Hash table lock that must be held.
-     * @param itm Item to be added. Its revSeqno maybe updated
+     * @param itm Item to be added.
      *
      * @return Ptr of the StoredValue added. This function always succeeds and
      *         returns non-null ptr
      */
     StoredValue* unlocked_addNewStoredValue(
-            const std::unique_lock<std::mutex>& htLock, Item& itm);
+            const std::unique_lock<std::mutex>& htLock, const Item& itm);
 
     /**
      * Logically (soft) delete the item in ht

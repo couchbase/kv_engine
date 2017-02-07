@@ -218,7 +218,7 @@ TEST_P(VBucketTest, unlockedSoftDeleteWithValue) {
     deleted_item.setDeleted();
 
     // Set a new deleted value
-    v->setValue(deleted_item, this->vbucket->ht, PreserveRevSeqno::Yes);
+    v->setValue(deleted_item, this->vbucket->ht);
 
     ItemMetaData itm_meta;
     EXPECT_EQ(MutationStatus::WasDirty,
@@ -262,7 +262,7 @@ TEST_P(VBucketTest, updateDeletedItem) {
     deleted_item.setDeleted();
 
     // Set a new deleted value
-    v->setValue(deleted_item, this->vbucket->ht, PreserveRevSeqno::Yes);
+    v->setValue(deleted_item, this->vbucket->ht);
 
     EXPECT_EQ(MutationStatus::WasDirty,
               this->vbucket->public_processSoftDelete(v->getKey(), v, 0));
@@ -277,7 +277,7 @@ TEST_P(VBucketTest, updateDeletedItem) {
     update_deleted_item.setDeleted();
 
     // Set a new deleted value
-    v->setValue(update_deleted_item, this->vbucket->ht, PreserveRevSeqno::Yes);
+    v->setValue(update_deleted_item, this->vbucket->ht);
 
     EXPECT_EQ(MutationStatus::WasDirty,
               this->vbucket->public_processSoftDelete(v->getKey(), v, 0));

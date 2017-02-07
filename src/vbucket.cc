@@ -416,7 +416,7 @@ void VBucket::handlePreExpiry(StoredValue& v) {
                           v.getNRUValue());
 
             new_item.setDeleted();
-            v.setValue(new_item, ht, PreserveRevSeqno::Yes);
+            v.setValue(new_item, ht);
         }
     }
 }
@@ -1071,10 +1071,8 @@ void VBucket::completeStatsVKey(const DocKey& key,
     }
 }
 
-MutationStatus VBucket::setFromInternal(Item& itm, const bool hasMetaData) {
-    const PreserveRevSeqno preserveRevSeqno =
-            hasMetaData ? PreserveRevSeqno::Yes : PreserveRevSeqno::No;
-    return ht.set(itm, preserveRevSeqno);
+MutationStatus VBucket::setFromInternal(Item& itm) {
+    return ht.set(itm);
 }
 
 ENGINE_ERROR_CODE VBucket::set(Item& itm,
@@ -1476,14 +1474,14 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
          * delete.
          */
         if (v) {
-            v->setValue(*itm, ht, PreserveRevSeqno::Yes);
+            v->setValue(*itm, ht);
         } else {
             AddStatus rv = addTempStoredValue(lh, bucket_num, key);
             if (rv == AddStatus::NoMem) {
                 return ENGINE_ENOMEM;
             }
             v = ht.unlocked_find(key, bucket_num, true, false);
-            v->setValue(*itm, ht, PreserveRevSeqno::Yes);
+            v->setValue(*itm, ht);
         }
     }
 
@@ -1913,9 +1911,7 @@ MutationStatus VBucket::insertFromWarmup(Item& itm,
     StoredValue* v = ht.unlocked_find(itm.getKey(), bucket_num, true, false);
 
     if (v == NULL) {
-        v = addNewStoredValue(
-                    lh, itm, PreserveRevSeqno::Yes, /*queueItmCtx*/ nullptr)
-                    .first;
+        v = addNewStoredValue(lh, itm, /*queueItmCtx*/ nullptr).first;
         if (keyMetaDataOnly) {
             v->markNotResident();
             /* For now ht stats are updated from outside ht. This seems to be
@@ -1947,8 +1943,7 @@ MutationStatus VBucket::insertFromWarmup(Item& itm,
                 return MutationStatus::InvalidCas;
             }
         }
-        updateStoredValue(
-                lh, *v, itm, PreserveRevSeqno::Yes, /*queueItmCtx*/ nullptr);
+        updateStoredValue(lh, *v, itm, /*queueItmCtx*/ nullptr);
     }
 
     v->markClean();
@@ -2234,8 +2229,6 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
         }
     }
 
-    const PreserveRevSeqno preserveRevSeqno =
-            hasMetaData ? PreserveRevSeqno::Yes : PreserveRevSeqno::No;
     if (v) {
         if (!allowExisting && !v->isTempItem()) {
             return {MutationStatus::InvalidCas, VBNotifyCtx()};
@@ -2257,14 +2250,19 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
             }
             return {MutationStatus::InvalidCas, VBNotifyCtx()};
         }
-        return updateStoredValue(
-                htLock, *v, itm, preserveRevSeqno, queueItmCtx);
+        if (!hasMetaData) {
+            itm.setRevSeqno(v->getRevSeqno() + 1);
+        }
+        return updateStoredValue(htLock, *v, itm, queueItmCtx);
     } else if (cas != 0) {
         return {MutationStatus::NotFound, VBNotifyCtx()};
     } else {
         VBNotifyCtx notifyCtx;
-        std::tie(v, notifyCtx) =
-                addNewStoredValue(htLock, itm, preserveRevSeqno, queueItmCtx);
+        std::tie(v, notifyCtx) = addNewStoredValue(htLock, itm, queueItmCtx);
+        if (!hasMetaData) {
+            updateRevSeqNoOfNewStoredValue(*v);
+            itm.setRevSeqno(v->getRevSeqno());
+        }
         return {MutationStatus::WasClean, notifyCtx};
     }
 }
@@ -2310,11 +2308,12 @@ std::pair<AddStatus, VBNotifyCtx> VBucket::processAdd(
             itm.setRevSeqno(ht.getMaxDeletedRevSeqno() + 1);
         }
 
+        if (!v->isTempItem()) {
+            itm.setRevSeqno(v->getRevSeqno() + 1);
+        }
         rv.second = updateStoredValue(htLock,
                                       *v,
                                       itm,
-                                      v->isTempItem() ? PreserveRevSeqno::Yes
-                                                      : PreserveRevSeqno::No,
                                       queueItmCtx)
                             .second;
     } else {
@@ -2323,8 +2322,9 @@ std::pair<AddStatus, VBNotifyCtx> VBucket::processAdd(
                 return {AddStatus::AddTmpAndBgFetch, VBNotifyCtx()};
             }
         }
-        std::tie(v, rv.second) = addNewStoredValue(
-                htLock, itm, PreserveRevSeqno::No, queueItmCtx);
+        std::tie(v, rv.second) = addNewStoredValue(htLock, itm, queueItmCtx);
+        updateRevSeqNoOfNewStoredValue(*v);
+        itm.setRevSeqno(v->getRevSeqno());
         if (v->isTempItem()) {
             rv.first = AddStatus::BgFetch;
         }
@@ -2371,13 +2371,14 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSoftDelete(
         v.setExptime(metadata.exptime);
     }
 
-    return {rv,
-            softDeleteStoredValue(htLock,
-                                  v,
-                                  metadata.revSeqno,
-                                  /*onlyMarkDeleted*/ false,
-                                  queueItmCtx,
-                                  bySeqno)};
+    v.setRevSeqno(metadata.revSeqno);
+    VBNotifyCtx notifyCtx = softDeleteStoredValue(htLock,
+                                                  v,
+                                                  /*onlyMarkDeleted*/ false,
+                                                  queueItmCtx,
+                                                  bySeqno);
+    ht.updateMaxDeletedRevSeqno(metadata.revSeqno);
+    return {rv, notifyCtx};
 }
 
 std::pair<MutationStatus, VBNotifyCtx> VBucket::processExpiredItem(
@@ -2407,26 +2408,26 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processExpiredItem(
     value_t value = v.getValue();
     bool onlyMarkDeleted =
             value && mcbp::datatype::is_xattr(value->getDataType());
-    return {MutationStatus::NotFound,
+    v.setRevSeqno(v.getRevSeqno() + 1);
+    VBNotifyCtx notifyCtx =
             softDeleteStoredValue(htLock,
                                   v,
-                                  v.getRevSeqno() + 1,
                                   onlyMarkDeleted,
                                   VBQueueItemCtx(GenerateBySeqno::Yes,
                                                  GenerateCas::Yes,
                                                  TrackCasDrift::No,
                                                  /*isBackfillItem*/ false),
-                                  v.getBySeqno())};
+                                  v.getBySeqno());
+    ht.updateMaxDeletedRevSeqno(v.getRevSeqno() + 1);
+    return {MutationStatus::NotFound, notifyCtx};
 }
 
 std::pair<MutationStatus, VBNotifyCtx> VBucket::updateStoredValue(
         const std::unique_lock<std::mutex>& htLock,
         StoredValue& v,
-        Item& itm,
-        const PreserveRevSeqno preserveRevSeqno,
+        const Item& itm,
         const VBQueueItemCtx* queueItmCtx) {
-    MutationStatus status =
-            ht.unlocked_updateStoredValue(htLock, v, itm, preserveRevSeqno);
+    MutationStatus status = ht.unlocked_updateStoredValue(htLock, v, itm);
 
     if (queueItmCtx) {
         VBNotifyCtx notifyCtx;
@@ -2448,15 +2449,9 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::updateStoredValue(
 
 std::pair<StoredValue*, VBNotifyCtx> VBucket::addNewStoredValue(
         const std::unique_lock<std::mutex>& htLock,
-        Item& itm,
-        const PreserveRevSeqno preserveRevSeqno,
+        const Item& itm,
         const VBQueueItemCtx* queueItmCtx) {
     StoredValue* v = ht.unlocked_addNewStoredValue(htLock, itm);
-
-    if (preserveRevSeqno == PreserveRevSeqno::No) {
-        updateRevSeqNoOfNewStoredValue(*v);
-        itm.setRevSeqno(v->getRevSeqno());
-    }
 
     if (queueItmCtx) {
         VBNotifyCtx notifyCtx;
@@ -2494,13 +2489,10 @@ bool VBucket::deleteStoredValue(const std::unique_lock<std::mutex>& htLock,
 VBNotifyCtx VBucket::softDeleteStoredValue(
         const std::unique_lock<std::mutex>& htLock,
         StoredValue& v,
-        uint64_t revSeqno,
         bool onlyMarkDeleted,
         const VBQueueItemCtx& queueItmCtx,
         uint64_t bySeqno) {
-    v.setRevSeqno(revSeqno);
     ht.unlocked_softDelete(htLock, v, onlyMarkDeleted);
-    ht.updateMaxDeletedRevSeqno(v.getRevSeqno());
 
     if (queueItmCtx.genBySeqno == GenerateBySeqno::No) {
         v.setBySeqno(bySeqno);

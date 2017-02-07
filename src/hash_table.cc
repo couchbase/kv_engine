@@ -240,8 +240,7 @@ Item* HashTable::getRandomKey(long rnd) {
     return ret;
 }
 
-MutationStatus HashTable::set(Item& val,
-                              const PreserveRevSeqno preserveRevSeqno) {
+MutationStatus HashTable::set(Item& val) {
     if (!StoredValue::hasAvailableSpace(stats, val, false)) {
         return MutationStatus::NoMem;
     }
@@ -250,7 +249,7 @@ MutationStatus HashTable::set(Item& val,
     std::unique_lock<std::mutex> lh = getLockedBucket(val.getKey(), &bucket_num);
     StoredValue* v = unlocked_find(val.getKey(), bucket_num, true, false);
     if (v) {
-        return unlocked_updateStoredValue(lh, *v, val, preserveRevSeqno);
+        return unlocked_updateStoredValue(lh, *v, val);
     } else {
         unlocked_addNewStoredValue(lh, val);
         return MutationStatus::WasClean;
@@ -260,8 +259,7 @@ MutationStatus HashTable::set(Item& val,
 MutationStatus HashTable::unlocked_updateStoredValue(
         const std::unique_lock<std::mutex>& htLock,
         StoredValue& v,
-        Item& itm,
-        const PreserveRevSeqno preserveRevSeqno) {
+        const Item& itm) {
     if (!htLock) {
         throw std::invalid_argument(
                 "HashTable::unlocked_updateStoredValue: htLock "
@@ -286,12 +284,12 @@ MutationStatus HashTable::unlocked_updateStoredValue(
         ++numTotalItems;
     }
 
-    v.setValue(itm, *this, preserveRevSeqno);
+    v.setValue(itm, *this);
     return status;
 }
 
 StoredValue* HashTable::unlocked_addNewStoredValue(
-        const std::unique_lock<std::mutex>& htLock, Item& itm) {
+        const std::unique_lock<std::mutex>& htLock, const Item& itm) {
     if (!htLock) {
         throw std::invalid_argument(
                 "HashTable::unlocked_addNewStoredValue: htLock "

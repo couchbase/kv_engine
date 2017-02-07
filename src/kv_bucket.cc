@@ -2669,7 +2669,7 @@ public:
                     setStatus(ENGINE_SUCCESS);
                 }
             } else {
-                MutationStatus mtype = vb->setFromInternal(*it, true);
+                MutationStatus mtype = vb->setFromInternal(*it);
 
                 if (mtype == MutationStatus::NoMem) {
                     setStatus(ENGINE_ENOMEM);
@@ -2713,7 +2713,7 @@ void KVBucket::rollbackCheckpoint(RCPtr<VBucket> &vb,
             gcb.waitForValue();
 
             if (gcb.val.getStatus() == ENGINE_SUCCESS) {
-                vb->setFromInternal(*gcb.val.getValue(), true);
+                vb->setFromInternal(*gcb.val.getValue());
             } else {
                 vb->deleteKey(item->getKey());
             }
