@@ -124,7 +124,7 @@ public:
      * @return the result of the operation
      */
     ENGINE_ERROR_CODE addBackfillItem(Item& item,
-                                      bool genBySeqno = true,
+                                      GenerateBySeqno genBySeqno,
                                       ExtendedMetaData* emd = NULL);
 
     /**

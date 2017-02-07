@@ -2231,7 +2231,7 @@ ENGINE_ERROR_CODE TapConsumer::mutation(uint32_t opaque,
 
     KVBucketIface* kvBucket = engine_.getKVBucket();
     if (isBackfillPhase(vbucket)) {
-        ret = kvBucket->addBackfillItem(*item, true);
+        ret = kvBucket->addBackfillItem(*item, GenerateBySeqno::Yes);
     }
     else {
         ret = kvBucket->setWithMeta(*item, 0, NULL, this, true, true,

@@ -62,9 +62,33 @@ enum class ExpireBy { Pager, Compactor, Access };
 /* Structure that holds info needed for notification for an item being updated
    in the vbucket */
 struct VBNotifyCtx {
+    VBNotifyCtx() : bySeqno(0), notifyReplication(false), notifyFlusher(false) {
+    }
     Monotonic<int64_t> bySeqno;
     bool notifyReplication;
     bool notifyFlusher;
+};
+
+/**
+ * Structure that holds info needed to queue an item in chkpt or vb backfill
+ * queue
+ */
+struct VBQueueItemCtx {
+    VBQueueItemCtx(GenerateBySeqno genBySeqno,
+                   GenerateCas genCas,
+                   TrackCasDrift trackCasDrift,
+                   bool isBackfillItem)
+        : genBySeqno(genBySeqno),
+          genCas(genCas),
+          trackCasDrift(trackCasDrift),
+          isBackfillItem(isBackfillItem) {
+    }
+    /* Indicates if we should queue an item or not. If this is false other
+       members should not be used */
+    GenerateBySeqno genBySeqno;
+    GenerateCas genCas;
+    TrackCasDrift trackCasDrift;
+    bool isBackfillItem;
 };
 
 typedef std::unique_ptr<Callback<const uint16_t, const VBNotifyCtx&>>
@@ -657,7 +681,7 @@ public:
      *
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE addBackfillItem(Item& itm, bool genBySeqno);
+    ENGINE_ERROR_CODE addBackfillItem(Item& itm, GenerateBySeqno genBySeqno);
 
     /**
      * Set an item in the store from a non-front end operation (DCP, XDCR)
@@ -899,19 +923,24 @@ protected:
      * @param allowExisting set to false if you want set to fail if the
      *                      item exists already
      * @param hasMetaData
+     * @param queueItmCtx holds info needed to queue an item in chkpt or vb
+     *                    backfill queue; NULL if item need not be queued
      * @param maybeKeyExists true if bloom filter predicts that key may exist
      * @param isReplication true if issued by consumer (for replication)
      *
-     * @return Result indicating the status of the operation
+     * @return Result indicating the status of the operation and notification
+     *                info
      */
-    MutationStatus processSet(const std::unique_lock<std::mutex>& htLock,
-                              StoredValue*& v,
-                              Item& itm,
-                              uint64_t cas,
-                              bool allowExisting,
-                              bool hasMetaData,
-                              bool maybeKeyExists = true,
-                              bool isReplication = false);
+    std::pair<MutationStatus, VBNotifyCtx> processSet(
+            const std::unique_lock<std::mutex>& htLock,
+            StoredValue*& v,
+            Item& itm,
+            uint64_t cas,
+            bool allowExisting,
+            bool hasMetaData,
+            const VBQueueItemCtx* queueItmCtx = nullptr,
+            bool maybeKeyExists = true,
+            bool isReplication = false);
 
     /**
      * This function checks cas, expiry and other partition (vbucket) related
@@ -922,14 +951,19 @@ protected:
      * @param v[in, out] the stored value to do this operation on
      * @param itm Item to be added/updated. On success, its revSeqno is updated
      * @param isReplication true if issued by consumer (for replication)
+     * @param queueItmCtx holds info needed to queue an item in chkpt or vb
+     *                    backfill queue; NULL if item need not be queued
      *
-     * @return Result indicating the status of the operation
+     * @return Result indicating the status of the operation and notification
+     *                info
      */
-    AddStatus processAdd(const std::unique_lock<std::mutex>& htLock,
-                         StoredValue*& v,
-                         Item& itm,
-                         bool maybeKeyExists,
-                         bool isReplication);
+    std::pair<AddStatus, VBNotifyCtx> processAdd(
+            const std::unique_lock<std::mutex>& htLock,
+            StoredValue*& v,
+            Item& itm,
+            bool maybeKeyExists,
+            bool isReplication,
+            const VBQueueItemCtx* queueItmCtx = nullptr);
 
     /**
      * This function checks cas, expiry, eviction policy and other partition
@@ -1003,13 +1037,18 @@ private:
      * @param itm Item to be updated. On success, its revSeqno is updated
      * @param preserveRevSeqno should we keep the same revision seqno or
      *        increment it
+     * @param queueItmCtx holds info needed to queue an item in chkpt or vb
+     *                    backfill queue; NULL if item need not be queued
      *
-     * @return Result indicating the status of the operation
+     * @return Result indicating the status of the operation and notification
+     *                info
      */
-    MutationStatus updateStoredValue(const std::unique_lock<std::mutex>& htLock,
-                                     StoredValue& v,
-                                     Item& itm,
-                                     PreserveRevSeqno preserveRevSeqno);
+    std::pair<MutationStatus, VBNotifyCtx> updateStoredValue(
+            const std::unique_lock<std::mutex>& htLock,
+            StoredValue& v,
+            Item& itm,
+            PreserveRevSeqno preserveRevSeqno,
+            const VBQueueItemCtx* queueItmCtx);
 
     /**
      * Adds a new StoredValue in in-memory data structures like HT.
@@ -1019,12 +1058,16 @@ private:
      * @param itm Item to be added. On success, its revSeqno is updated
      * @param preserveRevSeqno should we keep the same revision seqno or
      *        increment it
+     * @param queueItmCtx holds info needed to queue an item in chkpt or vb
+     *                    backfill queue; NULL if item need not be queued
      *
-     * @return Ptr of the StoredValue added.
+     * @return Ptr of the StoredValue added and notification info
      */
-    StoredValue* addNewStoredValue(const std::unique_lock<std::mutex>& htLock,
-                                   Item& itm,
-                                   PreserveRevSeqno preserveRevSeqno);
+    std::pair<StoredValue*, VBNotifyCtx> addNewStoredValue(
+            const std::unique_lock<std::mutex>& htLock,
+            Item& itm,
+            PreserveRevSeqno preserveRevSeqno,
+            const VBQueueItemCtx* queueItmCtx);
 
     /**
      * Logically (soft) delete item in all in-memory data structures. Also

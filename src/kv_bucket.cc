@@ -695,7 +695,7 @@ ENGINE_ERROR_CODE KVBucket::replace(Item &itm, const void *cookie) {
 }
 
 ENGINE_ERROR_CODE KVBucket::addBackfillItem(Item& itm,
-                                            bool genBySeqno,
+                                            GenerateBySeqno genBySeqno,
                                             ExtendedMetaData* emd) {
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb) {

@@ -170,7 +170,7 @@ public:
      * @return the result of the operation
      */
     virtual ENGINE_ERROR_CODE addBackfillItem(Item& item,
-                                              bool genBySeqno = true,
+                                              GenerateBySeqno genBySeqno,
                                               ExtendedMetaData* emd = NULL) = 0;
 
     /**

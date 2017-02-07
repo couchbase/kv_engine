@@ -58,6 +58,22 @@ static inline std::string to_string(GenerateCas generateCas) {
     }
 }
 
+enum class TrackCasDrift { No, Yes };
+
+typedef std::underlying_type<TrackCasDrift>::type TrackCasDriftUType;
+
+static inline std::string to_string(TrackCasDrift trackCasDrift) {
+    switch (trackCasDrift) {
+    case TrackCasDrift::Yes:
+        return "Yes";
+    case TrackCasDrift::No:
+        return "No";
+    }
+    throw std::invalid_argument(
+            "to_string(TrackCasDrift) unknown " +
+            std::to_string(static_cast<TrackCasDriftUType>(trackCasDrift)));
+}
+
 /**
  * The following options can be specified
  * for retrieving an item for get calls

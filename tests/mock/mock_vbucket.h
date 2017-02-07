@@ -65,7 +65,7 @@ public:
         auto lh = ht.getLockedBucket(itm.getKey(), &bucket_num);
         StoredValue* v =
                 ht.unlocked_find(itm.getKey(), bucket_num, true, false);
-        return processSet(lh, v, itm, cas, true, false);
+        return processSet(lh, v, itm, cas, true, false).first;
     }
 
     AddStatus public_processAdd(Item& itm) {
@@ -77,7 +77,8 @@ public:
                           v,
                           itm,
                           /*maybeKeyExists*/ true,
-                          /*isReplication*/ false);
+                          /*isReplication*/ false)
+                .first;
     }
 
     MutationStatus public_processSoftDelete(const DocKey& key,
