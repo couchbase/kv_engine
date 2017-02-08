@@ -18,6 +18,7 @@
 #include "sasl_tasks.h"
 #include "memcached.h"
 #include "mcaudit.h"
+#include "privilege_database.h"
 
 
 StartSaslAuthTask::StartSaslAuthTask(Cookie& cookie_,
@@ -69,9 +70,23 @@ SaslAuthTask::SaslAuthTask(Cookie& cookie_,
 }
 
 void SaslAuthTask::notifyExecutionComplete() {
+    connection.resetUsernameCache();
+
+    if (error == CBSASL_OK) {
+        // Authentication successful, but it still has to be defined in
+        // our system
+        try {
+            cb::rbac::getPrivilegeDatabase()->lookup(connection.getUsername());
+        } catch (const cb::rbac::NoSuchUserException& e) {
+            error = CBSASL_NO_RBAC_PROFILE;
+            LOG_WARNING(&connection,
+                        "%u: User [%s] is not defined as a user in Couchbase",
+                        connection.getId(), connection.getUsername());
+        }
+    }
+
     if (error == CBSASL_OK) {
         connection.setAuthenticated(true);
-
         audit_auth_success(&connection);
         LOG_INFO(&connection, "%u: Client %s authenticated as %s",
                  connection.getId(), connection.getPeername().c_str(),

@@ -151,7 +151,6 @@ public:
 
     void setAuthenticated(bool authenticated) {
         Connection::authenticated = authenticated;
-        resetUsernameCache();
     }
 
     const Priority& getPriority() const {

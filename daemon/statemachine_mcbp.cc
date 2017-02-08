@@ -700,6 +700,14 @@ bool conn_sasl_auth(McbpConnection* c) {
             ts->auth_errors++;
         }
         break;
+    case CBSASL_NO_RBAC_PROFILE:
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
+        {
+            auto* ts = get_thread_stats(c);
+            ts->auth_cmds++;
+            ts->auth_errors++;
+        }
+        break;
     default:
         if (!is_server_initialized()) {
             LOG_WARNING(c, "%u: SASL AUTH failure during initialization",

@@ -28,6 +28,7 @@ list(APPEND TESTAPP_SOURCES
      testapp_flush.cc
      testapp_getset.cc
      testapp_lock.cc
+     testapp_rbac.cc
      testapp_remove.cc
      testapp_require_init.cc
      testapp_sasl.cc
@@ -144,6 +145,12 @@ ADD_TEST(NAME memcached-mcbp-unit-tests-plain
 ADD_TEST(NAME memcached-mcbp-unit-tests-ssl
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         COMMAND memcached_testapp --gtest_filter=Transport/*/SSL:-*/BucketTest*:-*Greenstack*)
+
+# Run the RBAC tests
+ADD_TEST(NAME memcached-rbac-tests
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND memcached_testapp --gtest_filter=TransportProtocols/RbacTest.*)
+SET_TESTS_PROPERTIES(memcached-rbac-tests PROPERTIES TIMEOUT 60)
 
 # Run the shutdown tests
 ADD_TEST(NAME memcached-shutdown-tests
