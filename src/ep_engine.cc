@@ -307,6 +307,7 @@ static ENGINE_ERROR_CODE EvpStore(ENGINE_HANDLE* handle,
 
         /* Set the item as deleted */
         item->setDeleted();
+        *cas = item->getCas();
         err_code = engine->itemDelete(cookie,
                                       item->getKey(),
                                       *cas,
