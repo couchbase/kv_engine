@@ -207,18 +207,6 @@ public:
     void reconfigure(const unique_cJSON_ptr& json);
 
     /**
-     * Check if the specified name represent a user which is an administrator
-     *
-     * @deprecated Replaced by RBAC
-     *
-     * @param other the username to check
-     * @return true if the username is the admin user
-     */
-    bool isAdmin(const std::string& other) const /* CB_ATTR_DEPRECATED */ {
-        return other == "_admin";
-    }
-
-    /**
      * Get the name of the file containing the RBAC data
      *
      * @return the absolute path to the rbac file
