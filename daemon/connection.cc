@@ -403,6 +403,19 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
     }
 }
 
+void Connection::resetUsernameCache() {
+    static const char unknown[] = "unknown";
+    const void* unm = unknown;
+
+    if (cbsasl_getprop(sasl_conn.get(),
+                       CBSASL_USERNAME, &unm) != CBSASL_OK) {
+        unm = unknown;
+    }
+
+    username.assign(reinterpret_cast<const char*>(unm));
+    updateDescription();
+}
+
 void Connection::updateDescription() {
     description.assign("[ " + getPeername() + " - " + getSockname());
     if (authenticated) {

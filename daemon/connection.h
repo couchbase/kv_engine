@@ -138,23 +138,20 @@ public:
         Connection::internal = internal;
     }
 
+    /**
+     * Update the username to reflect what the user used from the SASL
+     * authentication.
+     */
+    void resetUsernameCache();
+
+
     bool isAuthenticated() const {
         return authenticated;
     }
 
     void setAuthenticated(bool authenticated) {
         Connection::authenticated = authenticated;
-
-        static const char unknown[] = "unknown";
-        const void* unm = unknown;
-
-        if (cbsasl_getprop(sasl_conn.get(),
-                           CBSASL_USERNAME, &unm) != CBSASL_OK) {
-            unm = unknown;
-        }
-
-        username.assign(reinterpret_cast<const char*>(unm));
-        updateDescription();
+        resetUsernameCache();
     }
 
     const Priority& getPriority() const {
