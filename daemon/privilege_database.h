@@ -232,11 +232,7 @@ public:
     const UserEntry& lookup(const std::string& user) const {
         auto iter = userdb.find(user);
         if (iter == userdb.cend()) {
-            // Try to locate the fallback user
-            iter = userdb.find("*");
-            if (iter == userdb.cend()) {
-                throw NoSuchUserException(user.c_str());
-            }
+            throw NoSuchUserException(user.c_str());
         }
 
         return iter->second;
