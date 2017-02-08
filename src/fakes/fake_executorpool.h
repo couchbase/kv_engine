@@ -63,15 +63,7 @@ public:
 
     bool _startWorkers() override {
         // Don't actually start any worker threads (all work will be done
-        // synchronously in the same thread) - but we do need to set
-        // maxWorkers to at least 1 otherwise ExecutorPool::tryNewWork() will
-        // never return any work.
-
-        maxWorkers[WRITER_TASK_IDX] = 1;
-        maxWorkers[READER_TASK_IDX] = 1;
-        maxWorkers[AUXIO_TASK_IDX]  = 1;
-        maxWorkers[NONIO_TASK_IDX]  = 1;
-
+        // synchronously in the same thread)
         return true;
     }
 
@@ -173,7 +165,7 @@ public:
 
     ProcessClock::time_point completeCurrentTask() {
         auto min_waketime = ProcessClock::time_point::min();
-        manager->doneWork(curTaskType);
+        manager->doneWork(taskType);
         if (rescheduled && !currentTask->isdead()) {
             min_waketime = queue.reschedule(currentTask);
         } else {

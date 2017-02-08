@@ -88,9 +88,9 @@ public:
 
     void lessWork(task_type_t qType);
 
-    void doneWork(task_type_t &doneTaskType);
+    void startWork(task_type_t taskType);
 
-    task_type_t tryNewWork(task_type_t newTaskType);
+    void doneWork(task_type_t taskType);
 
     bool trySleep(task_type_t task_type) {
         if (!numReadyTasks[task_type]) {
@@ -116,6 +116,15 @@ public:
 
     bool wake(size_t taskId);
 
+    /**
+     * Change how many worker threads there are for a given task type,
+     * stopping/starting threads to reach the desired number.
+     *
+     * @param type the type of task for which to adjust the workers
+     * @param newCount Target number of worker threads
+     */
+    void adjustWorkers(task_type_t type, size_t newCount);
+
     bool snooze(size_t taskId, double tosleep);
 
     void registerTaskable(Taskable& taskable);
@@ -128,7 +137,10 @@ public:
     void doTaskQStat(EventuallyPersistentEngine *engine, const void *cookie,
                      ADD_STAT add_stat);
 
-    size_t getNumWorkersStat(void) { return threadQ.size(); }
+    size_t getNumWorkersStat(void) {
+        LockHolder lh(tMutex);
+        return threadQ.size();
+    }
 
     size_t getNumReaders(void);
 
@@ -138,21 +150,37 @@ public:
 
     size_t getNumNonIO(void);
 
-    size_t getMaxReaders(void) { return maxWorkers[READER_TASK_IDX]; }
+    size_t getMaxReaders(void) {
+        return numWorkers[READER_TASK_IDX];
+    }
 
-    size_t getMaxWriters(void) { return maxWorkers[WRITER_TASK_IDX]; }
+    size_t getMaxWriters(void) {
+        return numWorkers[WRITER_TASK_IDX];
+    }
 
-    size_t getMaxAuxIO(void) { return maxWorkers[AUXIO_TASK_IDX]; }
+    size_t getMaxAuxIO(void) {
+        return numWorkers[AUXIO_TASK_IDX];
+    }
 
-    size_t getMaxNonIO(void) { return maxWorkers[NONIO_TASK_IDX]; }
+    size_t getMaxNonIO(void) {
+        return numWorkers[NONIO_TASK_IDX];
+    }
 
-    void setMaxReaders(uint16_t v) { maxWorkers[READER_TASK_IDX] = v; }
+    void setMaxReaders(uint16_t v) {
+        adjustWorkers(READER_TASK_IDX, v);
+    }
 
-    void setMaxWriters(uint16_t v) { maxWorkers[WRITER_TASK_IDX] = v; }
+    void setMaxWriters(uint16_t v) {
+        adjustWorkers(WRITER_TASK_IDX, v);
+    }
 
-    void setMaxAuxIO(uint16_t v) { maxWorkers[AUXIO_TASK_IDX] = v; }
+    void setMaxAuxIO(uint16_t v) {
+        adjustWorkers(AUXIO_TASK_IDX, v);
+    }
 
-    void setMaxNonIO(uint16_t v) { maxWorkers[NONIO_TASK_IDX] = v; }
+    void setMaxNonIO(uint16_t v) {
+        adjustWorkers(NONIO_TASK_IDX, v);
+    }
 
     size_t getNumReadyTasks(void) { return totReadyTasks; }
 
@@ -174,6 +202,7 @@ protected:
     bool _cancel(size_t taskId, bool eraseTask=false);
     bool _wake(size_t taskId);
     virtual bool _startWorkers(void);
+    ssize_t _adjustWorkers(task_type_t type, size_t desiredNumItems);
     bool _snooze(size_t taskId, double tosleep);
     size_t _schedule(ExTask task, task_type_t qidx);
     void _registerTaskable(Taskable& taskable);
@@ -207,7 +236,7 @@ protected:
 
     std::atomic<uint16_t> numSleepers; // total number of sleeping threads
     std::atomic<uint16_t> *curWorkers; // track # of active workers per TaskSet
-    std::atomic<uint16_t> *maxWorkers; // and limit it to the value set here
+    std::atomic<uint16_t>* numWorkers; // and limit it to the value set here
     std::atomic<size_t> *numReadyTasks; // number of ready tasks per task set
 
     // Set of all known task owners

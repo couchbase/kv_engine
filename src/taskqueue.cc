@@ -123,7 +123,7 @@ bool TaskQueue::_fetchNextTask(ExecutorThread &t, bool toSleep) {
 
     size_t numToWake = _moveReadyTasks(t.getCurTime());
 
-    if (!futureQueue.empty() && t.startIndex == queueType &&
+    if (!futureQueue.empty() && t.taskType == queueType &&
         futureQueue.top()->getWaketime() < t.getWaketime()) {
         // record earliest waketime
         t.setWaketime(futureQueue.top()->getWaketime());
@@ -133,24 +133,15 @@ bool TaskQueue::_fetchNextTask(ExecutorThread &t, bool toSleep) {
         t.setCurrentTask(_popReadyTask()); // clean out dead tasks first
         ret = true;
     } else if (!readyQueue.empty() || !pendingQueue.empty()) {
-        t.curTaskType = manager->tryNewWork(queueType);
-        if (t.curTaskType != NO_TASK_TYPE) {
-            // if this TaskQueue has obtained capacity for the thread, then we must
-            // consider any pending tasks too. To ensure prioritized run order,
-            // the function below will push any pending task back into
-            // the readyQueue (sorted by priority)
-            _checkPendingQueue();
-
-            ExTask tid = _popReadyTask(); // and pop out the top task
-            t.setCurrentTask(tid);
-            ret = true;
-        } else if (!readyQueue.empty()) { // We hit limit on max # workers
-            ExTask tid = _popReadyTask(); // that can work on current Q type!
-            pendingQueue.push_back(tid);
-            numToWake = numToWake ? numToWake - 1 : 0; // 1 fewer task ready
-        } else { // Let the task continue waiting in pendingQueue
-            numToWake = numToWake ? numToWake - 1 : 0; // 1 fewer task ready
-        }
+        // we must consider any pending tasks too. To ensure prioritized run
+        // order, the function below will push any pending task back into the
+        // readyQueue (sorted by priority)
+        _checkPendingQueue();
+        ExTask tid = _popReadyTask(); // and pop out the top task
+        t.setCurrentTask(tid);
+        ret = true;
+    } else { // Let the task continue waiting in pendingQueue
+        numToWake = numToWake ? numToWake - 1 : 0; // 1 fewer task ready
     }
 
     _doWake_UNLOCKED(numToWake);

@@ -86,14 +86,16 @@ public:
         ProcessClock::time_point timepoint;
     };
 
-    ExecutorThread(ExecutorPool *m, int startingQueue,
-                   const std::string nm) : manager(m),
-          startIndex(startingQueue), name(nm),
+    ExecutorThread(ExecutorPool* m, task_type_t type, const std::string nm)
+        : manager(m),
+          taskType(type),
+          name(nm),
           state(EXECUTOR_RUNNING),
           now(ProcessClock::now()),
           waketime(ProcessClock::time_point::max()),
           taskStart(),
-          currentTask(NULL), curTaskType(NO_TASK_TYPE) {}
+          currentTask(NULL) {
+    }
 
     ~ExecutorThread() {
         LOG(EXTENSION_LOG_INFO, "Executor killing %s", name.c_str());
@@ -178,7 +180,7 @@ protected:
 
     cb_thread_t thread;
     ExecutorPool *manager;
-    int startIndex;
+    task_type_t taskType;
     const std::string name;
     std::atomic<executor_state_t> state;
 
@@ -190,8 +192,6 @@ protected:
 
     std::mutex currentTaskMutex; // Protects currentTask
     ExTask currentTask;
-
-    task_type_t curTaskType;
 
     std::mutex logMutex;
     cb::RingBuffer<TaskLogEntry, TASK_LOG_SIZE> tasklog;

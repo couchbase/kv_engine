@@ -79,6 +79,7 @@ void ExecutorThread::run() {
 
         updateCurrentTime();
         if (TaskQueue *q = manager->nextTask(*this, tick)) {
+            manager->startWork(taskType);
             EventuallyPersistentEngine *engine = currentTask->getEngine();
 
             // Not all tasks are associated with an engine, only switch
@@ -88,8 +89,7 @@ void ExecutorThread::run() {
             }
 
             if (currentTask->isdead()) {
-                // release capacity back to TaskQueue
-                manager->doneWork(curTaskType);
+                manager->doneWork(taskType);
                 manager->cancel(currentTask->uid, true);
                 continue;
             }
@@ -136,16 +136,12 @@ void ExecutorThread::run() {
 
             // Check if task is run once or needs to be rescheduled..
             if (!again || currentTask->isdead()) {
-                // release capacity back to TaskQueue
-                manager->doneWork(curTaskType);
                 manager->cancel(currentTask->uid, true);
             } else {
                 // if a task has not set snooze, update its waketime to now
                 // before rescheduling for more accurate timing histograms
                 currentTask->updateWaketimeIfLessThan(getCurTime());
 
-                // release capacity back to TaskQueue ..
-                manager->doneWork(curTaskType);
                 // reschedule this task back into the queue it was fetched from
                 const ProcessClock::time_point new_waketime =
                         q->reschedule(currentTask);
@@ -163,6 +159,7 @@ void ExecutorThread::run() {
                                  count()),
                         uint64_t(to_ns_since_epoch(getWaketime()).count()));
             }
+            manager->doneWork(taskType);
         }
     }
     // Thread is about to terminate - disassociate it from any engine.

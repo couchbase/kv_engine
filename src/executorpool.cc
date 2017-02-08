@@ -54,8 +54,8 @@ size_t ExecutorPool::getNumNonIO(void) {
                      std::max(EP_MIN_NONIO_THREADS, count));
 
     // 3. pick user's value if specified
-    if (maxWorkers[NONIO_TASK_IDX]) {
-        count = maxWorkers[NONIO_TASK_IDX];
+    if (numWorkers[NONIO_TASK_IDX]) {
+        count = numWorkers[NONIO_TASK_IDX];
     }
     return count;
 }
@@ -71,8 +71,8 @@ size_t ExecutorPool::getNumAuxIO(void) {
         count = EP_MAX_AUXIO_THREADS;
     }
     // 3. Override with user's value if specified
-    if (maxWorkers[AUXIO_TASK_IDX]) {
-        count = maxWorkers[AUXIO_TASK_IDX];
+    if (numWorkers[AUXIO_TASK_IDX]) {
+        count = numWorkers[AUXIO_TASK_IDX];
     }
     return count;
 }
@@ -91,8 +91,8 @@ size_t ExecutorPool::getNumWriters(void) {
         count = EP_MIN_WRITER_THREADS;
     }
     // 3. Override with user's value if specified
-    if (maxWorkers[WRITER_TASK_IDX]) {
-        count = maxWorkers[WRITER_TASK_IDX];
+    if (numWorkers[WRITER_TASK_IDX]) {
+        count = numWorkers[WRITER_TASK_IDX];
     }
     return count;
 }
@@ -112,8 +112,8 @@ size_t ExecutorPool::getNumReaders(void) {
         count = EP_MIN_READER_THREADS;
     }
     // 3. Override with user's value if specified
-    if (maxWorkers[READER_TASK_IDX]) {
-        count = maxWorkers[READER_TASK_IDX];
+    if (numWorkers[READER_TASK_IDX]) {
+        count = numWorkers[READER_TASK_IDX];
     }
     return count;
 }
@@ -163,23 +163,23 @@ ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets,
                         EP_MIN_NUM_THREADS : numThreads;
     maxGlobalThreads = maxThreads ? maxThreads : numThreads;
     curWorkers  = new std::atomic<uint16_t>[nTaskSets];
-    maxWorkers  = new std::atomic<uint16_t>[nTaskSets];
+    numWorkers = new std::atomic<uint16_t>[nTaskSets];
     numReadyTasks  = new std::atomic<size_t>[nTaskSets];
     for (size_t i = 0; i < nTaskSets; i++) {
         curWorkers[i] = 0;
         numReadyTasks[i] = 0;
     }
-    maxWorkers[WRITER_TASK_IDX] = maxWriters;
-    maxWorkers[READER_TASK_IDX] = maxReaders;
-    maxWorkers[AUXIO_TASK_IDX]  = maxAuxIO;
-    maxWorkers[NONIO_TASK_IDX]  = maxNonIO;
+    numWorkers[WRITER_TASK_IDX] = maxWriters;
+    numWorkers[READER_TASK_IDX] = maxReaders;
+    numWorkers[AUXIO_TASK_IDX] = maxAuxIO;
+    numWorkers[NONIO_TASK_IDX] = maxNonIO;
 }
 
 ExecutorPool::~ExecutorPool(void) {
     _stopAndJoinThreads();
 
-    delete [] curWorkers;
-    delete[] maxWorkers;
+    delete[] curWorkers;
+    delete[] numWorkers;
     delete[] numReadyTasks;
 
     if (isHiPrioQset) {
@@ -203,7 +203,7 @@ TaskQueue *ExecutorPool::_nextTask(ExecutorThread &t, uint8_t tick) {
         return NULL;
     }
 
-    unsigned int myq = t.startIndex;
+    task_type_t myq = t.taskType;
     TaskQueue *checkQ; // which TaskQueue set should be polled first
     TaskQueue *checkNextQ; // which set of TaskQueue should be polled next
     TaskQueue *toggle = NULL;
@@ -259,40 +259,37 @@ void ExecutorPool::lessWork(task_type_t qType) {
     totReadyTasks--;
 }
 
-void ExecutorPool::doneWork(task_type_t &curTaskType) {
-    if (curTaskType != NO_TASK_TYPE) {
-        // Record that a thread is done working on a particular queue type
-        LOG(EXTENSION_LOG_DEBUG, "Done with Task Type %d capacity = %d",
-                curTaskType, curWorkers[curTaskType].load());
-        if (!curWorkers[curTaskType].load()) {
-            throw std::logic_error("ExecutorPool::doneWork: underflow in "
-                "queue " + std::to_string(curTaskType));
-        }
-        curWorkers[curTaskType]--;
-        curTaskType = NO_TASK_TYPE;
+void ExecutorPool::startWork(task_type_t taskType) {
+    if (taskType == NO_TASK_TYPE || taskType == NUM_TASK_GROUPS) {
+        throw std::logic_error(
+                "ExecutorPool::startWork: worker is starting task with invalid "
+                "type {" +
+                std::to_string(taskType) + "}");
+    } else {
+        ++curWorkers[taskType];
+        LOG(EXTENSION_LOG_DEBUG,
+            "Taking up work in task "
+            "type:{%" PRIu32 "} "
+            "current:{%" PRIu16 "}, max:{%" PRIu16 "}",
+            taskType,
+            curWorkers[taskType].load(),
+            numWorkers[taskType].load());
     }
 }
 
-task_type_t ExecutorPool::tryNewWork(task_type_t newTaskType) {
-    task_type_t ret = newTaskType;
-    curWorkers[newTaskType]++; // atomic increment
-    // Test if a thread can take up task from the target Queue type
-    if (curWorkers[newTaskType] <= maxWorkers[newTaskType]) {
-        // Ok to proceed as limit not hit
-        LOG(EXTENSION_LOG_DEBUG,
-                "Taking up work in task type %d capacity = %d, max=%d",
-                newTaskType, curWorkers[newTaskType].load(),
-                maxWorkers[newTaskType].load());
+void ExecutorPool::doneWork(task_type_t taskType) {
+    if (taskType == NO_TASK_TYPE || taskType == NUM_TASK_GROUPS) {
+        throw std::logic_error(
+                "ExecutorPool::doneWork: worker is finishing task with invalid "
+                "type {" + std::to_string(taskType) + "}");
     } else {
-        curWorkers[newTaskType]--; // do not exceed the limit at maxWorkers
-        LOG(EXTENSION_LOG_DEBUG, "Limiting from taking up work in task "
-                "type %d capacity = %d, max = %d", newTaskType,
-                curWorkers[newTaskType].load(),
-                maxWorkers[newTaskType].load());
-        ret = NO_TASK_TYPE;
+        --curWorkers[taskType];
+        // Record that a thread is done working on a particular queue type
+        LOG(EXTENSION_LOG_DEBUG,
+            "Done with task type:{%" PRIu32 "} capacity:{%" PRIu16 "}",
+            taskType,
+            numWorkers[taskType].load());
     }
-
-    return ret;
 }
 
 bool ExecutorPool::_cancel(size_t taskId, bool eraseTask) {
@@ -466,18 +463,21 @@ void ExecutorPool::_registerTaskable(Taskable& taskable) {
             taskable.getName().c_str());
     }
 
-    LockHolder lh(tMutex);
+    {
+        LockHolder lh(tMutex);
 
-    if (!(*whichQset)) {
-        taskQ->reserve(numTaskSets);
-        for (size_t i = 0; i < numTaskSets; i++) {
-            taskQ->push_back(new TaskQueue(this, (task_type_t)i, queueName));
+        if (!(*whichQset)) {
+            taskQ->reserve(numTaskSets);
+            for (size_t i = 0; i < numTaskSets; ++i) {
+                taskQ->push_back(
+                        new TaskQueue(this, (task_type_t)i, queueName));
+            }
+            *whichQset = true;
         }
-        *whichQset = true;
-    }
 
-    taskOwners.insert(&taskable);
-    numBuckets++;
+        taskOwners.insert(&taskable);
+        numBuckets++;
+    }
 
     _startWorkers();
 }
@@ -488,58 +488,112 @@ void ExecutorPool::registerTaskable(Taskable& taskable) {
     ObjectRegistry::onSwitchThread(epe);
 }
 
-bool ExecutorPool::_startWorkers(void) {
-    if (threadQ.size()) {
-        return false;
+ssize_t ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
+    std::string typeName{to_string(type)};
+
+    // vector of threads which have been stopped
+    // and should be joined after unlocking, if any.
+    ThreadQ removed;
+
+    size_t numItems;
+
+    {
+        // Lock mutex, we are modifying threadQ
+        LockHolder lh(tMutex);
+
+        // How many threads performing this task type there are currently
+        numItems = std::count_if(
+                threadQ.begin(), threadQ.end(), [type](ExecutorThread* thread) {
+                    return thread->taskType == type;
+                });
+
+        LOG(EXTENSION_LOG_DEBUG,
+            "Adjusting threads of"
+            " type:{%s}"
+            " from:{%" PRIu64
+            "}"
+            " to:{%" PRIu64 "}",
+            typeName.c_str(),
+            uint64_t(numItems),
+            uint64_t(desiredNumItems));
+
+        if (numItems < desiredNumItems) {
+            // If we want to increase the number of threads, they must be
+            // created and started
+            for (size_t tidx = numItems; tidx < desiredNumItems; ++tidx) {
+                threadQ.push_back(new ExecutorThread(
+                        this, type, typeName + std::to_string(tidx)));
+                threadQ.back()->start();
+            }
+        } else if (numItems > desiredNumItems) {
+            // If we want to decrease the number of threads, they must be
+            // identified in the threadQ, stopped, and removed.
+            size_t toRemove = numItems - desiredNumItems;
+
+            auto itr = threadQ.begin();
+            while (itr != threadQ.end() && toRemove) {
+                if ((*itr)->taskType == type) {
+                    // stop but /don't/ join yet
+                    (*itr)->stop(false);
+
+                    // store temporarily
+                    removed.push_back(*itr);
+
+                    // remove from the threadQ
+                    itr = threadQ.erase(itr);
+                    --toRemove;
+                } else {
+                    ++itr;
+                }
+            }
+        }
+
+        numWorkers[type] = desiredNumItems;
+    } // release mutex
+
+    // We could not join the threads while holding the lock, as some operations
+    // called from the threads (such as schedule) acquire the lock - we could
+    // have caused deadlock by waiting for the thread to complete its task and
+    // exit, while it waits to acquire the lock.
+    auto itr = removed.begin();
+    while (itr != removed.end()) {
+        (*itr)->stop(true);
+        delete (*itr);
+        itr = removed.erase(itr);
     }
 
+    return ssize_t(desiredNumItems) - ssize_t(numItems);
+}
+
+void ExecutorPool::adjustWorkers(task_type_t type, size_t newCount) {
+    EventuallyPersistentEngine* epe =
+            ObjectRegistry::onSwitchThread(NULL, true);
+    _adjustWorkers(type, newCount);
+    ObjectRegistry::onSwitchThread(epe);
+}
+
+bool ExecutorPool::_startWorkers(void) {
     size_t numReaders = getNumReaders();
     size_t numWriters = getNumWriters();
-    size_t numAuxIO   = getNumAuxIO();
-    size_t numNonIO   = getNumNonIO();
+    size_t numAuxIO = getNumAuxIO();
+    size_t numNonIO = getNumNonIO();
 
-    std::stringstream ss;
-    ss << "Spawning " << numReaders << " readers, " << numWriters <<
-    " writers, " << numAuxIO << " auxIO, " << numNonIO << " nonIO threads";
-    LOG(EXTENSION_LOG_NOTICE, "%s", ss.str().c_str());
-
-    for (size_t tidx = 0; tidx < numReaders; ++tidx) {
-        std::stringstream ss;
-        ss << "reader_worker_" << tidx;
-
-        threadQ.push_back(new ExecutorThread(this, READER_TASK_IDX, ss.str()));
-        threadQ.back()->start();
-    }
-    for (size_t tidx = 0; tidx < numWriters; ++tidx) {
-        std::stringstream ss;
-        ss << "writer_worker_" << numReaders + tidx;
-
-        threadQ.push_back(new ExecutorThread(this, WRITER_TASK_IDX, ss.str()));
-        threadQ.back()->start();
-    }
-    for (size_t tidx = 0; tidx < numAuxIO; ++tidx) {
-        std::stringstream ss;
-        ss << "auxio_worker_" << numReaders + numWriters + tidx;
-
-        threadQ.push_back(new ExecutorThread(this, AUXIO_TASK_IDX, ss.str()));
-        threadQ.back()->start();
-    }
-    for (size_t tidx = 0; tidx < numNonIO; ++tidx) {
-        std::stringstream ss;
-        ss << "nonio_worker_" << numReaders + numWriters + numAuxIO + tidx;
-
-        threadQ.push_back(new ExecutorThread(this, NONIO_TASK_IDX, ss.str()));
-        threadQ.back()->start();
-    }
-
-    if (!maxWorkers[WRITER_TASK_IDX]) {
+    if (!numWorkers[WRITER_TASK_IDX]) {
         // MB-12279: Limit writers to 4 for faster bgfetches in DGM by default
         numWriters = 4;
     }
-    maxWorkers[WRITER_TASK_IDX] = numWriters;
-    maxWorkers[READER_TASK_IDX] = numReaders;
-    maxWorkers[AUXIO_TASK_IDX]  = numAuxIO;
-    maxWorkers[NONIO_TASK_IDX]  = numNonIO;
+
+    _adjustWorkers(READER_TASK_IDX, numReaders);
+    _adjustWorkers(WRITER_TASK_IDX, numWriters);
+    _adjustWorkers(AUXIO_TASK_IDX, numAuxIO);
+    _adjustWorkers(NONIO_TASK_IDX, numNonIO);
+
+    LOG(EXTENSION_LOG_NOTICE,
+        "%s",
+        (std::string("Spawning ") + std::to_string(numReaders) + " readers, " +
+         std::to_string(numWriters) + " writers, " + std::to_string(numAuxIO) +
+         " auxIO, " + std::to_string(numNonIO) + " nonIO threads")
+                .c_str());
 
     return true;
 }

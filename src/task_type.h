@@ -26,4 +26,24 @@ enum task_type_t {
     NUM_TASK_GROUPS=4 // keep this as last element of the enum
 };
 
+static inline std::string to_string(const task_type_t type) {
+    switch (type) {
+    case WRITER_TASK_IDX:
+        return "writer_worker_";
+    case READER_TASK_IDX:
+        return "reader_worker_";
+    case AUXIO_TASK_IDX:
+        return "auxIO_worker_";
+    case NONIO_TASK_IDX:
+        return "nonIO_worker_";
+    case NO_TASK_TYPE:
+        return "NO_TASK_TYPE_worker_";
+    case NUM_TASK_GROUPS:
+        return "NUM_TASK_GROUPS_worker_";
+    default:
+        throw std::invalid_argument("to_string(task_type_t) unknown type:{" +
+                                    std::to_string(int(type)) + "}");
+    }
+}
+
 #endif  // SRC_TASK_TYPE_H_
