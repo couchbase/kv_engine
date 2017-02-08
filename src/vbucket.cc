@@ -1559,6 +1559,11 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
         break;
     case MutationStatus::NotFound:
         ret = ENGINE_KEY_ENOENT;
+    /* Fallthrough:
+     * A NotFound return value at this point indicates that the
+     * item has expired. But, a deletion still needs to be queued
+     * for the item in order to persist it.
+     */
     case MutationStatus::WasClean:
     case MutationStatus::WasDirty:
         if (v) {
