@@ -219,6 +219,25 @@ public:
     }
 
     /**
+     * Get the name of the file containing the RBAC data
+     *
+     * @return the absolute path to the rbac file
+     */
+    const std::string& getRbacFile() const {
+        return rbac_file;
+    }
+
+    /**
+     * Set the name of the file containing the RBAC data
+     *
+     * @param rbac_file the absolute path to the rbac file
+     */
+    void setRbacFile(const std::string& rbac_file) {
+        has.rbac_file = true;
+        Settings::rbac_file = rbac_file;
+    }
+
+    /**
      * Get the number of frontend worker threads
      *
      * @return the configured amount of worker threads
@@ -812,6 +831,11 @@ public:
 protected:
 
     /**
+     * The file containing the RBAC user data
+     */
+    std::string rbac_file;
+
+    /**
      * Number of worker (without dispatcher) libevent threads to run
      * */
     int num_threads;
@@ -952,6 +976,7 @@ public:
      * getter/setter pattern
      */
     struct {
+        bool rbac_file;
         bool threads;
         bool interfaces;
         bool extensions;

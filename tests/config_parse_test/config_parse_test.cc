@@ -244,6 +244,29 @@ TEST_F(SettingsTest, AuditFile) {
     expectFail<std::system_error>(obj);
 }
 
+TEST_F(SettingsTest, RbacFile) {
+    nonStringValuesShouldFail("rbac_file");
+
+    const std::string pattern = {"rbac_file.XXXXXX"};
+
+    // Ensure that we accept a string, but the file must exist
+    const auto tmpfile = cb::io::mktemp(pattern);
+
+    unique_cJSON_ptr obj(cJSON_CreateObject());
+    cJSON_AddStringToObject(obj.get(), "rbac_file", tmpfile.c_str());
+    try {
+        Settings settings(obj);
+        EXPECT_EQ(tmpfile, settings.getRbacFile());
+        EXPECT_TRUE(settings.has.rbac_file);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+
+    // But we should fail if the file don't exist
+    cb::io::rmrf(tmpfile);
+    expectFail<std::system_error>(obj);
+}
+
 TEST_F(SettingsTest, Threads) {
     nonNumericValuesShouldFail("threads");
 

@@ -112,7 +112,6 @@ static void throw_missing_file_exception(const std::string& key,
     throw_file_exception(key, filename, FileError::Missing);
 }
 
-
 /**
  * Handle the "rbac_file" tag in the settings
  *
@@ -122,7 +121,15 @@ static void throw_missing_file_exception(const std::string& key,
  * @param obj the object in the configuration
  */
 static void handle_rbac_file(Settings& s, cJSON* obj) {
-    // This is to be added by the RBAC integration
+    if (obj->type != cJSON_String) {
+        throw std::invalid_argument("\"rbac_file\" must be a string");
+    }
+
+    if (!cb::io::isFile(obj->valuestring)) {
+        throw_missing_file_exception("rbac_file", obj);
+    }
+
+    s.setRbacFile(obj->valuestring);
 }
 
 /**
@@ -796,6 +803,11 @@ interface::interface(const cJSON* json)
 }
 
 void Settings::updateSettings(const Settings& other, bool apply) {
+    if (other.has.rbac_file) {
+        if (other.rbac_file != rbac_file) {
+            throw std::invalid_argument("rbac_file can't be changed dynamically");
+        }
+    }
     if (other.has.threads) {
         if (other.num_threads != num_threads) {
             throw std::invalid_argument("threads can't be changed dynamically");
