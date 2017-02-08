@@ -40,6 +40,8 @@ const char* cbsasl_strerror(cbsasl_conn_t* conn,
         return "No such user";
     case CBSASL_PWERR:
         return "Invalid password";
+    case CBSASL_NO_RBAC_PROFILE:
+        return "User not defined in Couchbase";
     }
 
     conn->errormsg.assign("Unknown error: " + std::to_string(error));

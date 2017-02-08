@@ -31,7 +31,8 @@ extern "C" {
         CBSASL_BADPARAM = 4,
         CBSASL_NOMECH = 5,
         CBSASL_NOUSER = 6,
-        CBSASL_PWERR = 7
+        CBSASL_PWERR = 7,
+        CBSASL_NO_RBAC_PROFILE = 8
     } cbsasl_error_t;
 
     typedef struct {
