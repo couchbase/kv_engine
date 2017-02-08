@@ -49,3 +49,76 @@ EphemeralVBucket::EphemeralVBucket(
               initState,
               purgeSeqno,
               maxCas) {}
+
+std::pair<MutationStatus, VBNotifyCtx> EphemeralVBucket::updateStoredValue(
+        const std::unique_lock<std::mutex>& htLock,
+        StoredValue& v,
+        const Item& itm,
+        const VBQueueItemCtx* queueItmCtx) {
+    std::lock_guard<std::mutex> lh(sequenceLock);
+
+    /* Update the StoredValue in HT + EphemeralVBucket data structure.
+       From the EphemeralVBucket data structure we will know whether to update
+       the current StoredValue or mark the current StoredValue as stale and
+       add a new StoredValue.
+       (Coming soon)
+     */
+    MutationStatus status = ht.unlocked_updateStoredValue(htLock, v, itm);
+
+    if (queueItmCtx) {
+        return {status, queueDirty(v, *queueItmCtx)};
+    }
+
+    /* PlaceHolder for post seqno generation operation in EphemeralVBucket
+     * data structure
+     */
+    return {status, VBNotifyCtx()};
+}
+
+std::pair<StoredValue*, VBNotifyCtx> EphemeralVBucket::addNewStoredValue(
+        const std::unique_lock<std::mutex>& htLock,
+        const Item& itm,
+        const VBQueueItemCtx* queueItmCtx) {
+    StoredValue* v = ht.unlocked_addNewStoredValue(htLock, itm);
+
+    std::lock_guard<std::mutex> lh(sequenceLock);
+
+    /* Add the newly added stored value to Ephemeral VBucket data structure.
+       (Coming soon)
+     */
+    if (queueItmCtx) {
+        return {v, queueDirty(*v, *queueItmCtx)};
+    }
+
+    /* PlaceHolder for post seqno generation operation in EphemeralVBucket
+     * data structure
+     */
+    return {v, VBNotifyCtx()};
+}
+
+VBNotifyCtx EphemeralVBucket::softDeleteStoredValue(
+        const std::unique_lock<std::mutex>& htLock,
+        StoredValue& v,
+        bool onlyMarkDeleted,
+        const VBQueueItemCtx& queueItmCtx,
+        uint64_t bySeqno) {
+    std::lock_guard<std::mutex> lh(sequenceLock);
+
+    /* Soft delete the StoredValue in HT + EphemeralVBucket data structure.
+       From the EphemeralVBucket data structure we will know whether to update
+       (soft delete) the current StoredValue or mark the current StoredValue
+       as stale and add a new softDeleted StoredValue.
+       (Coming soon)
+     */
+    ht.unlocked_softDelete(htLock, v, onlyMarkDeleted);
+
+    if (queueItmCtx.genBySeqno == GenerateBySeqno::No) {
+        v.setBySeqno(bySeqno);
+    }
+
+    return queueDirty(v, queueItmCtx);
+
+    /* PlaceHolder for post seqno generation operation in EphemeralVBucket
+     * data structure
+     */
+}

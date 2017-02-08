@@ -38,4 +38,37 @@ public:
                      vbucket_state_t initState = vbucket_state_dead,
                      uint64_t purgeSeqno = 0,
                      uint64_t maxCas = 0);
+
+private:
+    std::pair<MutationStatus, VBNotifyCtx> updateStoredValue(
+            const std::unique_lock<std::mutex>& htLock,
+            StoredValue& v,
+            const Item& itm,
+            const VBQueueItemCtx* queueItmCtx) override;
+
+    std::pair<StoredValue*, VBNotifyCtx> addNewStoredValue(
+            const std::unique_lock<std::mutex>& htLock,
+            const Item& itm,
+            const VBQueueItemCtx* queueItmCtx) override;
+
+    VBNotifyCtx softDeleteStoredValue(
+            const std::unique_lock<std::mutex>& htLock,
+            StoredValue& v,
+            bool onlyMarkDeleted,
+            const VBQueueItemCtx& queueItmCtx,
+            uint64_t bySeqno) override;
+
+    /**
+     * Lock to synchronize order of bucket elements.
+     * The sequence number is not generated in EphemeralVBucket for now. It is
+     * generated in the CheckpointManager and is synchronized on "queueLock" in
+     * CheckpointManager. This, though undesirable, is needed because the
+     * CheckpointManager relies on seqno for its meta(dummy) items and also self
+     * generates them.
+     *
+     * All operations/data structures that rely on ordered sequence of items
+     * must hold i) sequenceLock in 'EphemeralVBucket' and then
+     * ii) queueLock in 'CheckpointManager'.
+     */
+    mutable std::mutex sequenceLock;
 };
