@@ -29,25 +29,6 @@ public:
 protected:
     void verify_MB_22553(const std::string& config);
 
-
-    /**
-     * Verify that a path isn't there anymore!
-     *
-     * @param path the path to check for
-     */
-    void verifyMissing(const std::string& path) {
-        BinprotSubdocCommand cmd;
-        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
-        cmd.setKey(name);
-        cmd.setPath(path);
-        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_ACCESS_DELETED);
-
-        BinprotSubdocResponse resp;
-        safe_do_command(cmd, resp,
-                        PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT);
-    }
-
-
     /**
      * Create a document and keep the information about the document in
      * the info member
@@ -201,27 +182,19 @@ TEST_P(RemoveTest, RemoveWithXattr) {
     createDocument();
     createXattr("meta.content-type", "\"application/json; charset=utf-8\"");
     createXattr("_rbac.attribute", "\"read-only\"");
-    auto deleted = conn.remove(name, 0, info.cas);
-    EXPECT_NE(info.cas, deleted.cas);
+    conn.remove(name, 0, 0);
 
     // The system xattr should have been preserved
     EXPECT_EQ("\"read-only\"", getXattr("_rbac.attribute", true));
 
     // The user xattr should not be there
-    verifyMissing("meta.content_type");
-}
-
-/**
- * Verify that the server works as expected when it figures out that all
- * of the xattrs it was supposed to rewrite should be stripped off
- */
-TEST_P(RemoveTest, RemoveWithOnlyUserAttributres) {
-    auto& conn = getConnection();
-
-    createDocument();
-    createXattr("meta.content-type", "\"application/json; charset=utf-8\"");
-    auto deleted = conn.remove(name, 0, info.cas);
-    EXPECT_NE(info.cas, deleted.cas);
+    try {
+        getXattr("meta.content_type", true);
+        FAIL() << "The user xattr should be gone!";
+    } catch (const BinprotConnectionError& exp) {
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT,
+                  exp.getReason());
+    }
 }
 
 /**
