@@ -23,6 +23,7 @@
 #include <fstream>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
+#include <platform/memorymap.h>
 
 McdEnvironment::McdEnvironment(bool manageSSL_) : manageSSL(manageSSL_) {
     if (manageSSL) {
@@ -40,6 +41,7 @@ void McdEnvironment::SetUp() {
     cwd = cb::io::getcwd();
     SetupAuditFile();
     SetupIsaslPw();
+    SetupRbacFile();
 }
 
 void McdEnvironment::SetupIsaslPw() {
@@ -92,6 +94,11 @@ void McdEnvironment::TearDown() {
     if (!audit_log_dir.empty()) {
         cb::io::rmrf(audit_log_dir);
     }
+
+    // Cleanup RBAC configuration
+    if (!rbac_file_name.empty()) {
+        cb::io::rmrf(rbac_file_name);
+    }
 }
 
 void McdEnvironment::rewriteAuditConfig() {
@@ -102,6 +109,35 @@ void McdEnvironment::rewriteAuditConfig() {
         out.close();
     } catch (std::exception& e) {
         FAIL() << "Failed to store audit configuration: " << e.what();
+    }
+}
+
+void McdEnvironment::SetupRbacFile() {
+    std::string input_file{SOURCE_ROOT};
+    input_file.append("/tests/testapp/rbac.json");
+#ifdef WIN32
+    std::replace(input_file.begin(), input_file.end(), '\\', '/');
+#endif
+    cb::MemoryMappedFile map(input_file.c_str(),
+                             cb::MemoryMappedFile::Mode::RDONLY);
+    map.open();
+    std::string input(reinterpret_cast<char*>(map.getRoot()),
+                      map.getSize());
+    map.close();
+
+    rbac_data.reset(cJSON_Parse(input.c_str()));
+
+    rbac_file_name = cwd + "/" + cb::io::mktemp("rbac.json.XXXXXX");
+    rewriteRbacFile();
+}
+
+void McdEnvironment::rewriteRbacFile() {
+    try {
+        std::ofstream out(rbac_file_name);
+        out << to_string(rbac_data, true) << std::endl;
+        out.close();
+    } catch (std::exception& e) {
+        FAIL() << "Failed to store rbac configuration: " << e.what();
     }
 }
 

@@ -122,6 +122,11 @@ else:
 minidump_dir = tempfile.mkdtemp(prefix='breakpad_test_tmp.')
 logging.debug("Using minidump_dir=" + minidump_dir)
 
+rbac_data = {}
+rbac_file = tempfile.NamedTemporaryFile(delete=False)
+rbac_file.write(json.dumps(rbac_data))
+rbac_file.close()
+
 # 'verbosity' isn't functionally needed, but helpful to debug test issues.
 config = {"interfaces": [{"port": 0,
                           "maxconn":  1000,
@@ -130,7 +135,8 @@ config = {"interfaces": [{"port": 0,
           "breakpad": { "enabled": True,
                         "minidump_dir" : minidump_dir
                       },
-          "verbosity" : 2}
+          "verbosity" : 2,
+          "rbac_file" : os.path.abspath(rbac_file.name)}
 config_json = json.dumps(config)
 
 # Need a temporary file which can be opened (a second time) by memcached,
@@ -159,6 +165,7 @@ memcached = Subprocess(args)
 
 # Cleanup config_file (no longer needed).
 os.remove(config_file.name)
+os.remove(rbac_file.name)
 
 # Check a message was written to stderr
 if 'Breakpad caught crash' not in stderrdata:

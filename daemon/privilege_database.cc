@@ -17,6 +17,7 @@
 #include "privilege_database.h"
 
 #include <cJSON_utils.h>
+#include <platform/memorymap.h>
 #include <strings.h>
 #include <atomic>
 #include <fstream>
@@ -128,6 +129,48 @@ PrivilegeContext PrivilegeDatabase::createContext(
     }
 
     return PrivilegeContext(generation, mask);
+}
+
+class PrivilegeDatabaseManager {
+public:
+    PrivilegeDatabaseManager()
+        : current(std::make_shared<PrivilegeDatabase>(nullptr)) {
+    }
+
+    void load(const std::string& filename);
+
+    std::shared_ptr<PrivilegeDatabase> getDatabase() {
+        return current;
+    }
+
+protected:
+    std::shared_ptr<PrivilegeDatabase> current;
+};
+
+void PrivilegeDatabaseManager::load(const std::string& filename) {
+    cb::MemoryMappedFile map(filename.c_str(),
+                             cb::MemoryMappedFile::Mode::RDONLY);
+    map.open();
+    std::string content(reinterpret_cast<char*>(map.getRoot()), map.getSize());
+    map.close();
+
+    unique_cJSON_ptr json(cJSON_Parse(content.c_str()));
+    if (json.get() == nullptr) {
+        throw std::runtime_error(
+                "PrivilegeDatabaseManager::load: Failed to parse json");
+    }
+
+    current = std::make_shared<PrivilegeDatabase>(json.get());
+}
+
+PrivilegeDatabaseManager privilegeDatabaseManager;
+
+std::shared_ptr<PrivilegeDatabase> getPrivilegeDatabase() {
+    return privilegeDatabaseManager.getDatabase();
+}
+
+void loadPrivilegeDatabase(const std::string& filename) {
+    privilegeDatabaseManager.load(filename);
 }
 
 } // namespace rbac

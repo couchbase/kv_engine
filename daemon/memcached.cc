@@ -49,6 +49,7 @@
 #include "mcbpdestroybuckettask.h"
 #include "libevent_locking.h"
 #include "doc_pre_expiry.h"
+#include "privilege_database.h"
 
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
@@ -2707,6 +2708,19 @@ extern "C" int memcached_main(int argc, char **argv) {
     settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
             "NUMA: %s", numa_status.c_str());
 #endif
+
+    if (!settings.has.rbac_file) {
+        FATAL_ERROR(EXIT_FAILURE, "RBAC file not specified");
+    }
+
+    if (!cb::io::isFile(settings.getRbacFile())) {
+        FATAL_ERROR(EXIT_FAILURE, "RBAC [%s] does not exist",
+                    settings.getRbacFile().c_str());
+    }
+
+    LOG_NOTICE(nullptr, "Loading RBAC configuration from [%s]",
+               settings.getRbacFile().c_str());
+    cb::rbac::loadPrivilegeDatabase(settings.getRbacFile());
 
     initialize_audit();
 

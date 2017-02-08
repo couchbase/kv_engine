@@ -27,6 +27,7 @@
 #include <array>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -274,5 +275,9 @@ public:
 protected:
     std::unordered_map<std::string, UserEntry> userdb;
 };
+
+std::shared_ptr<cb::rbac::PrivilegeDatabase> getPrivilegeDatabase();
+void loadPrivilegeDatabase(const std::string& filename);
+
 }
 }

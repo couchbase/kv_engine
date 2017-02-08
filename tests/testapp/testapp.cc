@@ -379,12 +379,13 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
 
     cJSON_AddItemToObject(root, "interfaces", array);
 
-    cJSON_AddStringToObject(root, "admin", "_admin");
     cJSON_AddTrueToObject(root, "datatype_support");
     cJSON_AddStringToObject(root, "audit_file",
                             mcd_env->getAuditFilename().c_str());
     cJSON_AddStringToObject(root, "error_maps_dir", get_errmaps_dir().c_str());
     cJSON_AddTrueToObject(root, "xattr_enabled");
+    cJSON_AddStringToObject(root, "rbac_file",
+                            mcd_env->getRbacFilename().c_str());
 
     return root;
 }

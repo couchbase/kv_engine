@@ -1,0 +1,1258 @@
+{
+  "default": {
+    "buckets": {
+      "default": [
+        "DcpConsumer",
+        "DcpProducer",
+        "MetaRead",
+        "MetaWrite",
+        "Read",
+        "SimpleStats",
+        "TapConsumer",
+        "TapProducer",
+        "Write",
+        "XattrRead",
+        "XattrWrite"
+      ]
+    },
+    "privileges": [],
+    "type": "builtin",
+    "internal": true
+  },
+  "_admin": {
+    "buckets": {
+      "_admin": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "bucket-1": {
+    "buckets": {
+      "bucket-1": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "bucket-2": {
+    "buckets": {
+      "bucket-2": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_000": {
+    "buckets": {
+      "mybucket_000": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_001": {
+    "buckets": {
+      "mybucket_001": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_002": {
+    "buckets": {
+      "mybucket_002": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_003": {
+    "buckets": {
+      "mybucket_003": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_004": {
+    "buckets": {
+      "mybucket_004": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_005": {
+    "buckets": {
+      "mybucket_005": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_006": {
+    "buckets": {
+      "mybucket_006": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_007": {
+    "buckets": {
+      "mybucket_007": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_008": {
+    "buckets": {
+      "mybucket_008": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_009": {
+    "buckets": {
+      "mybucket_009": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_010": {
+    "buckets": {
+      "mybucket_010": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_011": {
+    "buckets": {
+      "mybucket_011": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_012": {
+    "buckets": {
+      "mybucket_012": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_013": {
+    "buckets": {
+      "mybucket_013": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_014": {
+    "buckets": {
+      "mybucket_014": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_015": {
+    "buckets": {
+      "mybucket_015": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_016": {
+    "buckets": {
+      "mybucket_016": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_017": {
+    "buckets": {
+      "mybucket_017": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_018": {
+    "buckets": {
+      "mybucket_018": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_019": {
+    "buckets": {
+      "mybucket_019": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_020": {
+    "buckets": {
+      "mybucket_020": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_021": {
+    "buckets": {
+      "mybucket_021": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_022": {
+    "buckets": {
+      "mybucket_022": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_023": {
+    "buckets": {
+      "mybucket_023": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_024": {
+    "buckets": {
+      "mybucket_024": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_025": {
+    "buckets": {
+      "mybucket_025": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_026": {
+    "buckets": {
+      "mybucket_026": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_027": {
+    "buckets": {
+      "mybucket_027": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_028": {
+    "buckets": {
+      "mybucket_028": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_029": {
+    "buckets": {
+      "mybucket_029": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_030": {
+    "buckets": {
+      "mybucket_030": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_031": {
+    "buckets": {
+      "mybucket_031": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_032": {
+    "buckets": {
+      "mybucket_032": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_033": {
+    "buckets": {
+      "mybucket_033": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_034": {
+    "buckets": {
+      "mybucket_034": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_035": {
+    "buckets": {
+      "mybucket_035": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_036": {
+    "buckets": {
+      "mybucket_036": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_037": {
+    "buckets": {
+      "mybucket_037": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_038": {
+    "buckets": {
+      "mybucket_038": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_039": {
+    "buckets": {
+      "mybucket_039": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_040": {
+    "buckets": {
+      "mybucket_040": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_041": {
+    "buckets": {
+      "mybucket_041": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_042": {
+    "buckets": {
+      "mybucket_042": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_043": {
+    "buckets": {
+      "mybucket_043": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_044": {
+    "buckets": {
+      "mybucket_044": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_045": {
+    "buckets": {
+      "mybucket_045": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_046": {
+    "buckets": {
+      "mybucket_046": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_047": {
+    "buckets": {
+      "mybucket_047": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_048": {
+    "buckets": {
+      "mybucket_048": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_049": {
+    "buckets": {
+      "mybucket_049": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_050": {
+    "buckets": {
+      "mybucket_050": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_051": {
+    "buckets": {
+      "mybucket_051": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_052": {
+    "buckets": {
+      "mybucket_052": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_053": {
+    "buckets": {
+      "mybucket_053": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_054": {
+    "buckets": {
+      "mybucket_054": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_055": {
+    "buckets": {
+      "mybucket_055": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_056": {
+    "buckets": {
+      "mybucket_056": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_057": {
+    "buckets": {
+      "mybucket_057": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_058": {
+    "buckets": {
+      "mybucket_058": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_059": {
+    "buckets": {
+      "mybucket_059": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_060": {
+    "buckets": {
+      "mybucket_060": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_061": {
+    "buckets": {
+      "mybucket_061": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_062": {
+    "buckets": {
+      "mybucket_062": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_063": {
+    "buckets": {
+      "mybucket_063": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_064": {
+    "buckets": {
+      "mybucket_064": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_065": {
+    "buckets": {
+      "mybucket_065": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_066": {
+    "buckets": {
+      "mybucket_066": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_067": {
+    "buckets": {
+      "mybucket_067": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_068": {
+    "buckets": {
+      "mybucket_068": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_069": {
+    "buckets": {
+      "mybucket_069": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_070": {
+    "buckets": {
+      "mybucket_070": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_071": {
+    "buckets": {
+      "mybucket_071": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_072": {
+    "buckets": {
+      "mybucket_072": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_073": {
+    "buckets": {
+      "mybucket_073": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_074": {
+    "buckets": {
+      "mybucket_074": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_075": {
+    "buckets": {
+      "mybucket_075": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_076": {
+    "buckets": {
+      "mybucket_076": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_077": {
+    "buckets": {
+      "mybucket_077": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_078": {
+    "buckets": {
+      "mybucket_078": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_079": {
+    "buckets": {
+      "mybucket_079": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_080": {
+    "buckets": {
+      "mybucket_080": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_081": {
+    "buckets": {
+      "mybucket_081": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_082": {
+    "buckets": {
+      "mybucket_082": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_083": {
+    "buckets": {
+      "mybucket_083": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_084": {
+    "buckets": {
+      "mybucket_084": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_085": {
+    "buckets": {
+      "mybucket_085": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_086": {
+    "buckets": {
+      "mybucket_086": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_087": {
+    "buckets": {
+      "mybucket_087": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_088": {
+    "buckets": {
+      "mybucket_088": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_089": {
+    "buckets": {
+      "mybucket_089": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_090": {
+    "buckets": {
+      "mybucket_090": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_091": {
+    "buckets": {
+      "mybucket_091": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_092": {
+    "buckets": {
+      "mybucket_092": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_093": {
+    "buckets": {
+      "mybucket_093": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_094": {
+    "buckets": {
+      "mybucket_094": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_095": {
+    "buckets": {
+      "mybucket_095": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_096": {
+    "buckets": {
+      "mybucket_096": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_097": {
+    "buckets": {
+      "mybucket_097": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_098": {
+    "buckets": {
+      "mybucket_098": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  },
+  "mybucket_099": {
+    "buckets": {
+      "mybucket_099": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "type": "builtin",
+    "internal": true
+  }
+}

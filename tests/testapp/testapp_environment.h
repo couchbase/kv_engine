@@ -16,9 +16,9 @@
  */
 #pragma once
 
+#include <cJSON_utils.h>
 #include <gtest/gtest.h>
 #include <string>
-#include <cJSON_utils.h>
 
 /**
  * The test environment added to the Google Test Framework.
@@ -56,15 +56,6 @@ public:
      * and calling the members may return rubbish.
      */
     void TearDown() override;
-
-    /**
-     * Get the name of the RBAC file used.
-     *
-     * @return the absolute path of the file containing the RBAC data
-     */
-    const std::string& getRbacFilename() const {
-        return rbac_file_name;
-    }
 
     /**
      * Get the name of the configuration file used by the audit daemon.
@@ -105,6 +96,33 @@ public:
      */
     void rewriteAuditConfig();
 
+    /**
+     * Get the name of the RBAC file used.
+     *
+     * @return the absolute path of the file containing the RBAC data
+     */
+    const std::string& getRbacFilename() const {
+        return rbac_file_name;
+    }
+
+    /**
+     * Get a handle to the current RBAC configuration so that you may
+     * modify the configuration (you may write it to the rbac config
+     * file by calling <code>rewriteRbacFile()</code>
+     *
+     * @return the object containing the RBAC configuration
+     */
+    cJSON* getRbacConfig() {
+        return rbac_data.get();
+    }
+
+    /**
+     * Dump the internal representation of the rbac configuration
+     * (returned by <code>getRbacConfig()</code>) to the configuration file
+     * (returned by <getRbacFilename()</config>)
+     */
+    void rewriteRbacFile();
+
 private:
     void SetupAuditFile();
 
@@ -118,6 +136,7 @@ private:
     std::string audit_log_dir;
     std::string cwd;
     unique_cJSON_ptr audit_config;
+    unique_cJSON_ptr rbac_data;
     static char isasl_env_var[256];
     bool manageSSL;
 };
