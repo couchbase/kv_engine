@@ -52,3 +52,14 @@ TEST_P(RbacTest, DontAllowUnknownUsers) {
         EXPECT_TRUE(error.isAccessDenied()) << error.what();
     }
 }
+
+TEST_P(RbacTest, ReloadRbacData_HaveAccess) {
+    auto& conn = reinterpret_cast<MemcachedBinprotConnection&>(getConnection());
+
+    BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_RBAC_REFRESH, {}, {});
+    conn.sendCommand(cmd);
+
+    BinprotResponse resp;
+    conn.recvResponse(resp);
+    EXPECT_TRUE(resp.isSuccess());
+}

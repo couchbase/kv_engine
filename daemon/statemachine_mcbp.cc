@@ -112,6 +112,8 @@ const char* McbpStateMachine::getTaskName(TaskFunction task) const {
         return "conn_delete_bucket";
     } else if (task == conn_sasl_auth) {
         return "conn_sasl_auth";
+    } else if (task == conn_rbac_reload) {
+        return "conn_rbac_reload";
     } else {
         throw std::invalid_argument("Unknown task");
     }
@@ -732,6 +734,28 @@ bool conn_sasl_auth(McbpConnection* c) {
         auto* ts = get_thread_stats(c);
         ts->auth_cmds++;
         ts->auth_errors++;
+    }
+
+    return true;
+}
+
+bool conn_rbac_reload(McbpConnection* c) {
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
+
+    if (ret == ENGINE_EWOULDBLOCK) {
+        LOG_WARNING(c,
+                    "conn_rbac_reload: Unexpected AIO stat result "
+                        "EWOULDBLOCK. Shutting down connection");
+        c->setState(conn_closing);
+        return true;
+    }
+
+    if (ret == ENGINE_DISCONNECT) {
+        c->setState(conn_closing);
+    } else {
+        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
     }
 
     return true;

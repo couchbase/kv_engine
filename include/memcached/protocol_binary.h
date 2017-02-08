@@ -1966,6 +1966,13 @@ using protocol_binary_hello_features_t = mcbp::Feature;
     typedef protocol_binary_request_no_extras protocol_binary_request_shutdown;
     typedef protocol_binary_response_no_extras protocol_binary_response_shutdown;
 
+    /**
+     * The rbac_refresh message is sent from ns_server to memcached to tell
+     * memcached to reload the RBAC configuration file. This is a privileged
+     * command and carries no payload.
+     */
+    typedef protocol_binary_request_no_extras protocol_binary_request_rbac_refresh;
+    typedef protocol_binary_response_no_extras protocol_binary_response_rbac_refresh;
 
     /**
      * The PROTOCOL_BINARY_CMD_OBSERVE_SEQNO command is used by the

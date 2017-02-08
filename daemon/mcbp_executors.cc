@@ -35,6 +35,7 @@
 #include "mcbpdestroybuckettask.h"
 #include "sasl_tasks.h"
 #include "mcbp_privileges.h"
+#include "privilege_database.h"
 #include "protocol/mcbp/appendprepend_context.h"
 #include "protocol/mcbp/arithmetic_context.h"
 #include "protocol/mcbp/get_context.h"
@@ -1619,14 +1620,6 @@ static void ssl_certs_refresh_executor(McbpConnection* c, void* packet) {
     }
 }
 
-static void rbac_refresh_executor(McbpConnection* c, void* ) {
-    // Not implemented yet.. Implementation will be added as part of the
-    // RBAC integration project. This stub allows ns_server to send
-    // the notification message to memcached.
-    mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-}
-
-
 static void verbosity_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_verbosity*>(packet);
     uint32_t level = (uint32_t)ntohl(req->message.body.level);
@@ -2356,6 +2349,80 @@ static void shutdown_executor(McbpConnection* c, void* packet) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
     } else {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
+    }
+}
+
+/**
+ * A small task used to reload the RBAC configuration data (it cannot run
+ * in the frontend threads as it use file io.
+ */
+class RbacConfigReloadTask : public Task {
+public:
+    RbacConfigReloadTask(McbpConnection& connection_)
+        : connection(connection_),
+          status(ENGINE_SUCCESS) {
+        // Empty
+    }
+
+    virtual bool execute() override {
+        try {
+            LOG_NOTICE(nullptr, "Loading RBAC configuration from %s",
+                       settings.getRbacFile().c_str());
+            cb::rbac::loadPrivilegeDatabase(settings.getRbacFile());
+            LOG_NOTICE(nullptr, "RBAC configuration updated");
+        } catch (const std::runtime_error& error) {
+            LOG_WARNING(nullptr,
+                        "An error occured while loading RBAC configuration from %s: %s",
+                        settings.getRbacFile().c_str(), error.what());
+            status = ENGINE_FAILED;
+        }
+
+        return true;
+    }
+
+    virtual void notifyExecutionComplete() override {
+        notify_io_complete(connection.getCookie(), status);
+    }
+
+    McbpConnection& connection;
+    ENGINE_ERROR_CODE status;
+};
+
+static void rbac_refresh_executor(McbpConnection* c, void*) {
+    switch (c->checkPrivilege(cb::rbac::Privilege::NodeManagement)) {
+    case cb::rbac::PrivilegeAccess::Ok:
+        break;
+    case cb::rbac::PrivilegeAccess::Fail:
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
+        return;
+    case cb::rbac::PrivilegeAccess::Stale:
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE);
+        return;
+    }
+
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
+
+    if (ret == ENGINE_SUCCESS) {
+        std::shared_ptr<Task> task;
+        task = std::make_shared<RbacConfigReloadTask>(*c);
+        std::lock_guard<std::mutex> guard(task->getMutex());
+        ret = ENGINE_EWOULDBLOCK;
+        executorPool->schedule(task);
+    }
+
+    switch (ret) {
+    case ENGINE_EWOULDBLOCK:
+        c->setEwouldblock(true);
+        c->setState(conn_rbac_reload);
+        break;
+    case ENGINE_DISCONNECT:
+        c->setState(conn_closing);
+        break;
+    default:
+        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
     }
 }
 
