@@ -173,6 +173,7 @@ TEST_P(RemoveTest, RemoveWithInvalidCas) {
     createDocument();
     try {
         conn.remove(name, 0, info.cas + 1);
+        FAIL() << "Invalid cas should return EEXISTS";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
     }
