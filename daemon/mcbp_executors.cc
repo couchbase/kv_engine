@@ -2384,6 +2384,7 @@ public:
         notify_io_complete(connection.getCookie(), status);
     }
 
+private:
     McbpConnection& connection;
     ENGINE_ERROR_CODE status;
 };
@@ -2406,8 +2407,7 @@ static void rbac_refresh_executor(McbpConnection* c, void*) {
     c->setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
-        std::shared_ptr<Task> task;
-        task = std::make_shared<RbacConfigReloadTask>(*c);
+        std::shared_ptr<Task> task = std::make_shared<RbacConfigReloadTask>(*c);
         std::lock_guard<std::mutex> guard(task->getMutex());
         ret = ENGINE_EWOULDBLOCK;
         executorPool->schedule(task);
