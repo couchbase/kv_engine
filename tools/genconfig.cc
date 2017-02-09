@@ -70,7 +70,9 @@ static string getRangeValidatorCode(const std::string &key, cJSON *o) {
              << "Only numbers are supported." << endl;
         exit(1);
     }
-    if (max && max->type != cJSON_Number) {
+    if (max && !(max->type == cJSON_Number ||
+            (max->type == cJSON_String &&
+             std::string(max->valuestring) == "NUM_CPU"))) {
         cerr << "Incorrect datatype for the range validator specified for "
         << "\"" << key << "\"." << endl
         << "Only numbers are supported." << endl;
@@ -113,7 +115,11 @@ static string getRangeValidatorCode(const std::string &key, cJSON *o) {
         } else {
             mins = "std::numeric_limits<size_t>::min()";
         }
-        if (max) {
+        if (max && max->type == cJSON_String &&
+            std::string(max->valuestring) == "NUM_CPU") {
+            maxs = "Couchbase::get_available_cpu_count()";
+        }
+        else if (max) {
             maxs = to_string(max->valueint);
         } else {
             maxs = "std::numeric_limits<size_t>::max()";
@@ -210,7 +216,8 @@ static void initialize() {
         << "// ###########################################" << endl
         << endl
         << "#include \"config.h\"" << endl
-        << "#include \"configuration.h\"" << endl;
+        << "#include \"configuration.h\"" << endl
+        << "#include <platform/sysinfo.h>" << endl;
     validators["range"] = getRangeValidatorCode;
     validators["enum"] = getEnumValidatorCode;
     getters["std::string"] = "getString";
