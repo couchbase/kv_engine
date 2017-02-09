@@ -86,7 +86,7 @@ PrivilegeMask UserEntry::parsePrivileges(const cJSON* priv) {
 
         const std::string str(it->valuestring);
         if (str == "all") {
-            ret.fill(true);
+            ret.set();
         } else {
             ret[int(to_privilege(str))] = true;
         }
@@ -141,7 +141,7 @@ PrivilegeDatabase::PrivilegeDatabase(const cJSON* json)
 
 PrivilegeContext PrivilegeDatabase::createContext(
         const std::string& user, const std::string& bucket) const {
-    PrivilegeMask mask{};
+    PrivilegeMask mask;
 
     const auto& ue = lookup(user);
 
@@ -152,16 +152,11 @@ PrivilegeContext PrivilegeDatabase::createContext(
             throw NoSuchBucketException(bucket.c_str());
         }
 
-        for (const auto& p : iter->second) {
-            mask[int(p)] = true;
-        }
+        mask |= iter->second;
     }
 
     // Add the rest of the privileges
-    for (const auto& p : ue.getPrivileges()) {
-        mask[int(p)] = true;
-    }
-
+    mask |= ue.getPrivileges();
     return PrivilegeContext(generation, mask);
 }
 

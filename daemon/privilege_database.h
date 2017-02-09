@@ -24,7 +24,7 @@
 #include <cJSON.h>
 #include <memcached/privileges.h>
 
-#include <array>
+#include <bitset>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -41,7 +41,7 @@ namespace rbac {
  * added to the Privilege enum class the size of the mask needs to
  * be updated.
  */
-using PrivilegeMask = std::array<bool, size_t(Privilege::Impersonate) + 1>;
+using PrivilegeMask = std::bitset<size_t(Privilege::Impersonate) + 1>;
 
 /**
  * The UserEntry object is in an in-memory representation of the per-user
