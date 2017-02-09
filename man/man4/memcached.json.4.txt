@@ -61,6 +61,10 @@ for the admin user.
 
 Specify the filename containing all of the Audit configurations
 
+=== rbac_file
+
+Specify the filename containing the RBAC database.
+
 === ssl_cipher_list
 
 Specify the list of ciphers to use. The format of the string is
@@ -315,6 +319,7 @@ A Sample memcached.json:
             },
         "require_init" : true,
         "audit_file" : "/opt/couchbase/etc/security/audit.json",
+        "rbac_file" : "/opt/couchbase/etc/security/rbac.json",
         "error_maps_dir": "/opt/couchbase/etc/error_maps",
         "ssl_cipher_list" : "HIGH",
         "threads" : 4,
