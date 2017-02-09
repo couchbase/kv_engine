@@ -22,6 +22,7 @@
 #pragma once
 
 #include <executorpool.h>
+#include <executorthread.h>
 #include <gtest/gtest.h>
 #include <taskable.h>
 #include "thread_gate.h"
@@ -67,6 +68,25 @@ public:
 
     size_t getNumBuckets() {
         return numBuckets;
+    }
+
+    std::vector<std::string> getThreadNames() {
+        LockHolder lh(tMutex);
+
+        std::vector<std::string> output;
+
+        std::for_each(threadQ.begin(),
+                      threadQ.end(),
+                      [&output](const ExecutorThread* v) {
+                          output.push_back(v->getName());
+                      });
+
+        return output;
+    }
+
+    bool threadExists(std::string name) {
+        auto names = getThreadNames();
+        return std::find(names.begin(), names.end(), name) != names.end();
     }
 
     ~TestExecutorPool() = default;

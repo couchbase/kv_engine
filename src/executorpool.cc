@@ -530,8 +530,8 @@ ssize_t ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
             // identified in the threadQ, stopped, and removed.
             size_t toRemove = numItems - desiredNumItems;
 
-            auto itr = threadQ.begin();
-            while (itr != threadQ.end() && toRemove) {
+            auto itr = threadQ.rbegin();
+            while (itr != threadQ.rend() && toRemove) {
                 if ((*itr)->taskType == type) {
                     // stop but /don't/ join yet
                     (*itr)->stop(false);
@@ -540,7 +540,8 @@ ssize_t ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
                     removed.push_back(*itr);
 
                     // remove from the threadQ
-                    itr = threadQ.erase(itr);
+                    itr = ThreadQ::reverse_iterator(
+                            threadQ.erase(std::next(itr).base()));
                     --toRemove;
                 } else {
                     ++itr;

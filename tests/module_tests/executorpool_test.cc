@@ -167,9 +167,6 @@ TEST_F(ExecutorPoolTest, increase_workers) {
 
 TEST_F(ExecutorPoolDynamicWorkerTest, decrease_workers) {
     EXPECT_EQ(2, pool->getNumWriters());
-    /* Will take ~2s (MIN_SLEEP_TIME while the thread being removed sleeps
-     * (having found no work) and we wait to join it.
-     */
     pool->setMaxWriters(1);
     EXPECT_EQ(1, pool->getNumWriters());
 }
@@ -215,3 +212,21 @@ INSTANTIATE_TEST_CASE_P(ThreadCountTest,
                         ExecutorPoolTestWithParam,
                         ::testing::ValuesIn(threadCountValues),
                         ::testing::PrintToStringParamName());
+
+TEST_F(ExecutorPoolDynamicWorkerTest, new_worker_naming_test) {
+    EXPECT_EQ(2, pool->getNumWriters());
+    std::vector<std::string> names = pool->getThreadNames();
+
+    EXPECT_TRUE(pool->threadExists("writer_worker_0"));
+    EXPECT_TRUE(pool->threadExists("writer_worker_1"));
+
+    pool->setMaxWriters(1);
+
+    EXPECT_TRUE(pool->threadExists("writer_worker_0"));
+    EXPECT_FALSE(pool->threadExists("writer_worker_1"));
+
+    pool->setMaxWriters(2);
+
+    EXPECT_TRUE(pool->threadExists("writer_worker_0"));
+    EXPECT_TRUE(pool->threadExists("writer_worker_1"));
+}
