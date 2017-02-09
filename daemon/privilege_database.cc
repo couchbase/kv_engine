@@ -102,6 +102,40 @@ PrivilegeDatabase::PrivilegeDatabase(const cJSON* json)
         for (auto it = json->child; it != nullptr; it = it->next) {
             userdb.emplace(it->string, UserEntry(*it));
         }
+
+        // for backwards compatibilty, create an entry for the "default" user
+        try {
+            lookup("default");
+        } catch (const cb::rbac::NoSuchUserException&) {
+            unique_cJSON_ptr def(cJSON_Parse("{  \"default\": {\n"
+                                                 "    \"buckets\": {\n"
+                                                 "      \"default\": [\n"
+                                                 "        \"DcpConsumer\",\n"
+                                                 "        \"DcpProducer\",\n"
+                                                 "        \"MetaRead\",\n"
+                                                 "        \"MetaWrite\",\n"
+                                                 "        \"Read\",\n"
+                                                 "        \"SimpleStats\",\n"
+                                                 "        \"TapConsumer\",\n"
+                                                 "        \"TapProducer\",\n"
+                                                 "        \"Write\",\n"
+                                                 "        \"XattrRead\",\n"
+                                                 "        \"XattrWrite\"\n"
+                                                 "      ]\n"
+                                                 "    },\n"
+                                                 "    \"privileges\": [],\n"
+                                                 "    \"type\": \"builtin\",\n"
+                                                 "    \"internal\": false\n"
+                                                 "  }\n"
+                                                 "}"));
+            if (!def) {
+                throw std::runtime_error(
+                    "PrivilegeDatabase::PrivilegeDatabase: Failed to parse JSON for the default user");
+            }
+
+            json = def.get()->child;
+            userdb.emplace(json->string, UserEntry(*json));
+        }
     }
 }
 
