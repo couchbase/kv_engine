@@ -2688,6 +2688,8 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     update_settings_from_config();
 
+    cb::rbac::initialize();
+
     if (getenv("COUCHBASE_FORCE_ENABLE_XATTR") != nullptr) {
         settings.setXattrEnabled(true);
     }
@@ -2824,6 +2826,9 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     LOG_NOTICE(NULL, "Releasing bucket resources");
     cleanup_buckets();
+
+    LOG_NOTICE(NULL, "Shutting down RBAC subsystem");
+    cb::rbac::destroy();
 
     LOG_NOTICE(NULL, "Releasing thread resources");
     threads_cleanup();

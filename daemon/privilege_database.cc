@@ -18,10 +18,12 @@
 
 #include <cJSON_utils.h>
 #include <platform/memorymap.h>
+#include <platform/rwlock.h>
 #include <strings.h>
 #include <atomic>
 #include <fstream>
 #include <iostream>
+#include <mutex>
 #include <streambuf>
 #include <string>
 
@@ -32,6 +34,10 @@ namespace rbac {
 // The PrivilegeContext contains the generation number it was generated
 // from so that we can easily detect if the PrivilegeContext is stale.
 static std::atomic<uint32_t> generation{0};
+
+// The read write lock needed when you want to build a context
+cb::RWLock rwlock;
+std::unique_ptr<PrivilegeDatabase> db;
 
 UserEntry::UserEntry(const cJSON& root) {
     auto* json = const_cast<cJSON*>(&root);
@@ -75,7 +81,7 @@ UserEntry::UserEntry(const cJSON& root) {
 }
 
 PrivilegeMask UserEntry::parsePrivileges(const cJSON* priv) {
-    PrivilegeMask ret{};
+    PrivilegeMask ret;
 
     for (const auto* it = priv->child; it != nullptr; it = it->next) {
         if (it->type != cJSON_String) {
@@ -160,23 +166,27 @@ PrivilegeContext PrivilegeDatabase::createContext(
     return PrivilegeContext(generation, mask);
 }
 
-class PrivilegeDatabaseManager {
-public:
-    PrivilegeDatabaseManager()
-        : current(std::make_shared<PrivilegeDatabase>(nullptr)) {
+PrivilegeAccess PrivilegeContext::check(Privilege privilege) const {
+    if (generation != cb::rbac::generation) {
+        return PrivilegeAccess::Stale;
     }
 
-    void load(const std::string& filename);
-
-    std::shared_ptr<PrivilegeDatabase> getDatabase() {
-        return current;
+    const auto idx = size_t(privilege);
+#ifndef NDEBUG
+    if (idx >= mask.size()) {
+        throw std::invalid_argument("Invalid privilege passed for the check)");
     }
+#endif
+    return mask[idx] ? PrivilegeAccess::Ok : PrivilegeAccess::Fail;
+}
 
-protected:
-    std::shared_ptr<PrivilegeDatabase> current;
-};
+PrivilegeContext createContext(const std::string& user,
+                               const std::string& bucket) {
+    std::lock_guard<cb::ReaderLock> guard(rwlock.reader());
+    return db->createContext(user, bucket);
+}
 
-void PrivilegeDatabaseManager::load(const std::string& filename) {
+void loadPrivilegeDatabase(const std::string& filename) {
     cb::MemoryMappedFile map(filename.c_str(),
                              cb::MemoryMappedFile::Mode::RDONLY);
     map.open();
@@ -189,17 +199,26 @@ void PrivilegeDatabaseManager::load(const std::string& filename) {
                 "PrivilegeDatabaseManager::load: Failed to parse json");
     }
 
-    current = std::make_shared<PrivilegeDatabase>(json.get());
+    std::unique_ptr<PrivilegeDatabase> database;
+    // Guess what, MSVC wasn't happy with std::make_unique :P
+    database.reset(new PrivilegeDatabase(json.get()));
+
+    std::lock_guard<cb::WriterLock> guard(rwlock.writer());
+    // Handle race conditions
+    if (db->generation < database->generation) {
+        db.swap(database);
+    }
 }
 
-PrivilegeDatabaseManager privilegeDatabaseManager;
-
-std::shared_ptr<PrivilegeDatabase> getPrivilegeDatabase() {
-    return privilegeDatabaseManager.getDatabase();
+void initialize() {
+    // Create an empty database to avoid having to add checks
+    // if it exists or not... Guess what, MSVC wasn't happy with
+    // std::make_unique :P
+    db.reset(new PrivilegeDatabase(nullptr));
 }
 
-void loadPrivilegeDatabase(const std::string& filename) {
-    privilegeDatabaseManager.load(filename);
+void destroy() {
+    db.reset();
 }
 
 } // namespace rbac

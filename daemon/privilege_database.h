@@ -149,16 +149,7 @@ public:
      * @param privilege the privilege to check
      * @return if access is granted or not.
      */
-    PrivilegeAccess check(Privilege privilege) const {
-        const auto idx = size_t(privilege);
-#ifndef NDEBUG
-        if (idx >= mask.size()) {
-            throw std::invalid_argument(
-                    "Invalid privilege passed for the check)");
-        }
-#endif
-        return mask[idx] ? PrivilegeAccess::Ok : PrivilegeAccess::Fail;
-    }
+    PrivilegeAccess check(Privilege privilege) const;
 
     /**
      * Get the generation of the Privilege Database this context maps
@@ -282,8 +273,39 @@ protected:
     std::unordered_map<std::string, UserEntry> userdb;
 };
 
-std::shared_ptr<cb::rbac::PrivilegeDatabase> getPrivilegeDatabase();
+/**
+ * Create a new PrivilegeContext for the specified user in the specified
+ * bucket.
+ *
+ * @todo this might starve the writers?
+ *
+ * @param user The name of the user
+ * @param bucket The name of the bucket (may be "" if you're not
+ *               connecting to a bucket (aka the no bucket)).
+ * @return The privilege context representing the user in that bucket
+ * @throws cb::rbac::NoSuchUserException if the user doesn't exist
+ * @throws cb::rbac::NoSuchBucketException if the user doesn't have access
+ *                                         to that bucket.
+ */
+PrivilegeContext createContext(const std::string& user,
+                               const std::string& bucket);
+
+/**
+ * Load the named file and install it as the current privilege database
+ *
+ * @param filename the name of the new file
+ * @throws std::runtime_error
+ */
 void loadPrivilegeDatabase(const std::string& filename);
 
+/**
+ * Initialize the RBAC module
+ */
+void initialize();
+
+/**
+ * Destroy the RBAC module
+ */
+void destroy();
 }
 }

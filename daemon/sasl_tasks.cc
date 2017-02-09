@@ -76,7 +76,7 @@ void SaslAuthTask::notifyExecutionComplete() {
         // Authentication successful, but it still has to be defined in
         // our system
         try {
-            cb::rbac::getPrivilegeDatabase()->lookup(connection.getUsername());
+            cb::rbac::createContext(connection.getUsername(), "");
         } catch (const cb::rbac::NoSuchUserException& e) {
             error = CBSASL_NO_RBAC_PROFILE;
             LOG_WARNING(&connection,
