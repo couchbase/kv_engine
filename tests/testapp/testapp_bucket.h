@@ -20,5 +20,8 @@
 #include "testapp_client_test.h"
 
 class BucketTest : public TestappClientTest {
+public:
+protected:
+    MemcachedConnection& getConnection() override;
 
 };

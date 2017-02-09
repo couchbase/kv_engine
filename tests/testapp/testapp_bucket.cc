@@ -214,8 +214,10 @@ TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
     conn.createBucket("bucket", "default_engine.so",
                       Greenstack::BucketType::EWouldBlock);
     auto second_conn = conn.clone();
+    second_conn->authenticate("_admin", "password", "PLAIN");
     second_conn->selectBucket("bucket");
     auto connection = conn.clone();
+    connection->authenticate("_admin", "password", "PLAIN");
 
     auto cwd = cb::io::getcwd();
     auto testfile = cwd + "/" + cb::io::mktemp("lockfile");
@@ -287,6 +289,7 @@ TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
     auto& conn = getConnection();
 
     auto second_conn = conn.clone();
+    second_conn->authenticate("_admin", "password", "PLAIN");
     auto* mcbp_conn = dynamic_cast<MemcachedBinprotConnection*>(second_conn.get());
 
 
@@ -467,4 +470,10 @@ TEST_P(BucketTest, TestMemcachedBucketBigObjects)
     connection.mutate(doc, 0, Greenstack::MutationType::Add);
     connection.get(name, 0);
     connection.deleteBucket(name);
+}
+
+MemcachedConnection& BucketTest::getConnection() {
+    auto& conn = TestappClientTest::getConnection();
+    conn.authenticate("_admin", "password", "PLAIN");
+    return conn;
 }
