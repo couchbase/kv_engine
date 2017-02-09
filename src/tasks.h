@@ -27,6 +27,8 @@
 #include <array>
 #include <string>
 
+class EventuallyPersistentEngine;
+
 /**
  * A task for persisting items to disk.
  */

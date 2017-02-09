@@ -19,9 +19,10 @@
 
 #include "config.h"
 
-#include <atomic>
+#include "kvstore.h"
 #include "utility.h"
 
+#include <atomic>
 
 /**
  * Base class encapsulating individual couchstore(vbucket) into a

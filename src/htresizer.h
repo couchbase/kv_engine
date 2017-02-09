@@ -15,15 +15,15 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_HTRESIZER_H_
-#define SRC_HTRESIZER_H_ 1
+#pragma once
 
 #include "config.h"
 
+#include "tasks.h"
+
 #include <string>
 
-#include "kv_bucket_iface.h"
-#include "tasks.h"
+class KVBucketIface;
 
 /**
  * Look around at hash tables and verify they're all sized
@@ -32,9 +32,7 @@
 class HashtableResizerTask : public GlobalTask {
 public:
 
-    HashtableResizerTask(KVBucketIface* s, double sleepTime) :
-    GlobalTask(&s->getEPEngine(), TaskId::HashtableResizerTask, sleepTime, false),
-    store(s) {}
+    HashtableResizerTask(KVBucketIface* s, double sleepTime);
 
     bool run(void);
 
@@ -45,5 +43,3 @@ public:
 private:
     KVBucketIface* store;
 };
-
-#endif  // SRC_HTRESIZER_H_

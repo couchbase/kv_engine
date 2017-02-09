@@ -25,6 +25,7 @@
 #include "tasks.h"
 
 // Forward declaration.
+class EPStats;
 class KVBucket;
 class AccessScannerValueChangeListener;
 

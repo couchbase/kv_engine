@@ -19,10 +19,12 @@
 
 #include "htresizer.h"
 
-#include <memory>
+#include "kv_bucket_iface.h"
 
 #include <phosphor/phosphor.h>
 #include <platform/make_unique.h>
+
+#include <memory>
 
 static const double FREQUENCY(60.0);
 
@@ -37,6 +39,14 @@ public:
         vb->ht.resize();
     }
 };
+
+HashtableResizerTask::HashtableResizerTask(KVBucketIface* s, double sleepTime)
+    : GlobalTask(&s->getEPEngine(),
+                 TaskId::HashtableResizerTask,
+                 sleepTime,
+                 false),
+      store(s) {
+}
 
 bool HashtableResizerTask::run(void) {
     TRACE_EVENT0("ep-engine/task", "HashtableResizerTask");

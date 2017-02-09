@@ -20,13 +20,13 @@
 
 #include "config.h"
 
+#include "stats.h"
+#include "tasks.h"
+
 #include <set>
 #include <string>
 
-#include "tasks.h"
-
 class EventuallyPersistentEngine;
-class EPstats;
 
 /**
  * Dispatcher job responsible for removing closed unreferenced checkpoints

@@ -20,6 +20,7 @@
 
 #include "config.h"
 
+#include "item.h"
 #include "item_pager.h"
 #include "utility.h"
 

@@ -72,6 +72,8 @@
 #include "task_type.h"
 #include "taskable.h"
 
+#include <map>
+
 // Forward decl
 class TaskQueue;
 class ExecutorThread;
