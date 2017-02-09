@@ -20,7 +20,6 @@
 
 #include "config.h"
 
-#include "memcached/buffer.h"
 #include "dynamic_buffer.h"
 #include "log_macros.h"
 #include "net_buf.h"
@@ -34,6 +33,7 @@
 #include <memcached/openssl.h>
 #include <platform/cb_malloc.h>
 #include <platform/make_unique.h>
+#include <platform/sized_buffer.h>
 
 #include <chrono>
 #include <memory>
@@ -309,9 +309,9 @@ public:
      * Return the key of the currently processing command.
      * @return the buffer to the key.
      */
-    const_char_buffer getKey() const {
+    cb::const_char_buffer getKey() const {
         auto *pkt = reinterpret_cast<const char *>(getPacket(cookie));
-        const_char_buffer ret;
+        cb::const_char_buffer ret;
         ret.len = binary_header.request.keylen;
         ret.buf = pkt + sizeof binary_header.bytes + binary_header.request.extlen;
         return ret;

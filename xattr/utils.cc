@@ -114,32 +114,32 @@ bool validate(const cb::const_char_buffer& blob) {
     return offset == size;
 }
 
-uint32_t get_body_offset(const const_char_buffer& payload) {
+uint32_t get_body_offset(const cb::const_char_buffer& payload) {
     const uint32_t* lenptr = reinterpret_cast<const uint32_t*>(payload.buf);
     return ntohl(*lenptr) + sizeof(uint32_t);
 }
 
-uint32_t get_body_offset(const char_buffer& payload) {
+uint32_t get_body_offset(const cb::char_buffer& payload) {
     const uint32_t* lenptr = reinterpret_cast<const uint32_t*>(payload.buf);
     return ntohl(*lenptr) + sizeof(uint32_t);
 }
 
-const_char_buffer get_body(const const_char_buffer& payload) {
+const_char_buffer get_body(const cb::const_char_buffer& payload) {
     auto offset = get_body_offset(payload);
     return {payload.buf + offset, payload.len - offset};
 }
 
-char_buffer get_body(const char_buffer& payload) {
+char_buffer get_body(const cb::char_buffer& payload) {
     auto offset = get_body_offset(payload);
     return {payload.buf + offset, payload.len - offset};
 }
 
-const_char_buffer get_xattr(const const_char_buffer& payload) {
+const_char_buffer get_xattr(const cb::const_char_buffer& payload) {
     const uint32_t* lenptr = reinterpret_cast<const uint32_t*>(payload.buf);
     return {payload.buf + sizeof(uint32_t), *lenptr};
 }
 
-char_buffer get_xattr(const char_buffer& payload) {
+char_buffer get_xattr(const cb::char_buffer& payload) {
     const uint32_t* lenptr = reinterpret_cast<const uint32_t*>(payload.buf);
     return {payload.buf + sizeof(uint32_t), *lenptr};
 }

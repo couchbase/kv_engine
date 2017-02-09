@@ -26,15 +26,15 @@
 
 SubdocCmdContext::OperationSpec::OperationSpec(SubdocCmdTraits traits_,
                                                protocol_binary_subdoc_flag flags_,
-                                               const_char_buffer path_)
+                                               cb::const_char_buffer path_)
     : SubdocCmdContext::OperationSpec::OperationSpec(traits_, flags_, path_,
                                                      {nullptr, 0}) {
 }
 
 SubdocCmdContext::OperationSpec::OperationSpec(SubdocCmdTraits traits_,
                                                protocol_binary_subdoc_flag flags_,
-                                               const_char_buffer path_,
-                                               const_char_buffer value_)
+                                               cb::const_char_buffer path_,
+                                               cb::const_char_buffer value_)
     : traits(traits_),
       flags(flags_),
       path(path_),

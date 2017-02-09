@@ -246,7 +246,7 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
 
     McbpConnection* c = reinterpret_cast<McbpConnection*>(cookie->connection);
     cb::compression::Buffer buffer;
-    const_char_buffer payload(static_cast<const char*>(body), bodylen);
+    cb::const_char_buffer payload(static_cast<const char*>(body), bodylen);
 
     if (!c->isSupportsDatatype()) {
         if (mcbp::datatype::is_compressed(datatype)) {

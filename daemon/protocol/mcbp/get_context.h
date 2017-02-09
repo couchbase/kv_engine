@@ -140,7 +140,7 @@ private:
     item* it;
     item_info info;
 
-    const_char_buffer payload;
+    cb::const_char_buffer payload;
     cb::compression::Buffer buffer;
     State state;
 };

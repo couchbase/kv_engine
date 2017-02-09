@@ -19,7 +19,6 @@
 
 #include "memcached.h"
 
-#include "memcached/buffer.h"
 #include "subdocument_traits.h"
 #include "xattr/utils.h"
 
@@ -27,6 +26,7 @@
 #include <iomanip>
 #include <memory>
 #include <platform/compress.h>
+#include <platform/sized_buffer.h>
 
 /** Subdoc command context. An instance of this exists for the lifetime of
  *  each subdocument command, and it used to hold information which needs to
@@ -157,7 +157,7 @@ public:
     // c). {intermediate_result} member of this object.
     // Either way, it should /not/ be cb_free()d.
     // TODO: Remove (b), and just use intermediate result.
-    const_char_buffer in_doc;
+    cb::const_char_buffer in_doc;
 
     // Temporary buffer to hold the inflated content in case of the
     // document in the engine being compressed
@@ -236,13 +236,13 @@ public:
         // Constructor for lookup operations (no value).
         OperationSpec(SubdocCmdTraits traits_,
                       protocol_binary_subdoc_flag flags_,
-                      const_char_buffer path_);
+                      cb::const_char_buffer path_);
 
         // Constructor for operations requiring a value.
         OperationSpec(SubdocCmdTraits traits_,
                       protocol_binary_subdoc_flag flags_,
-                      const_char_buffer path_,
-                      const_char_buffer value_);
+                      cb::const_char_buffer path_,
+                      cb::const_char_buffer value_);
 
         // Move constructor.
         OperationSpec(OperationSpec&& other);
@@ -254,11 +254,11 @@ public:
         protocol_binary_subdoc_flag flags;
 
         // Path to operate on. Owned by the original request packet.
-        const_char_buffer path;
+        cb::const_char_buffer path;
 
         // [For mutations only] Value to apply to document. Owned by the
         // original request packet.
-        const_char_buffer value;
+        cb::const_char_buffer value;
 
         // Status code of the operation.
         protocol_binary_response_status status;

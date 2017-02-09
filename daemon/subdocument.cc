@@ -90,7 +90,7 @@ static void create_single_path_context(SubdocCmdContext& context,
                                        McbpConnection& c,
                                        const SubdocCmdTraits traits,
                                        const void* packet,
-                                       const_char_buffer value) {
+                                       cb::const_char_buffer value) {
     const protocol_binary_request_subdocument *req =
         reinterpret_cast<const protocol_binary_request_subdocument*>(packet);
 
@@ -160,7 +160,7 @@ static void create_multi_path_context(SubdocCmdContext& context,
                                       McbpConnection& c,
                                       const SubdocCmdTraits traits,
                                       const void* packet,
-                                      const_char_buffer value) {
+                                      cb::const_char_buffer value) {
 
     // Decode each of lookup specs from the value into our command context.
     size_t offset = 0;
@@ -169,8 +169,8 @@ static void create_multi_path_context(SubdocCmdContext& context,
         protocol_binary_command binprot_cmd;
         protocol_binary_subdoc_flag flags;
         size_t headerlen;
-        const_char_buffer path;
-        const_char_buffer spec_value;
+        cb::const_char_buffer path;
+        cb::const_char_buffer spec_value;
         if (traits.is_mutator) {
             auto* spec = reinterpret_cast<const protocol_binary_subdoc_multi_mutation_spec*>
                 (value.buf + offset);
@@ -250,7 +250,7 @@ static void create_multi_path_context(SubdocCmdContext& context,
 static SubdocCmdContext* subdoc_create_context(McbpConnection& c,
                                                const SubdocCmdTraits traits,
                                                const void* packet,
-                                               const_char_buffer value) {
+                                               cb::const_char_buffer value) {
     try {
         std::unique_ptr<SubdocCmdContext> context;
         context.reset(new SubdocCmdContext(c, traits));
@@ -360,7 +360,7 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
         // due to EWOULDBLOCK).
         auto* context = dynamic_cast<SubdocCmdContext*>(c.getCommandContext());
         if (context == nullptr) {
-            const_char_buffer value_buf{value, vallen};
+            cb::const_char_buffer value_buf{value, vallen};
             context = subdoc_create_context(c, traits, packet, value_buf);
             if (context == nullptr) {
                 mcbp_write_packet(&c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
@@ -462,7 +462,7 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
  */
 static protocol_binary_response_status
 get_document_for_searching(McbpConnection& c, const item* item,
-                           const_char_buffer& document, uint64_t in_cas,
+                           cb::const_char_buffer& document, uint64_t in_cas,
                            uint64_t& cas, uint32_t& flags,
                            protocol_binary_datatype_t& datatype,
                            DocumentState& document_state) {
@@ -590,7 +590,7 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
         // uncompress it so subjson can parse it.
         uint64_t doc_cas;
         uint32_t doc_flags;
-        const_char_buffer doc;
+        cb::const_char_buffer doc;
         protocol_binary_response_status status;
         status = get_document_for_searching(c, c.getItem(), doc, cas,
                                             doc_cas, doc_flags,
@@ -618,7 +618,7 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
  */
 static protocol_binary_response_status
 subdoc_operate_one_path(SubdocCmdContext& context, SubdocCmdContext::OperationSpec& spec,
-                        const const_char_buffer& in_doc) {
+                        const cb::const_char_buffer& in_doc) {
 
     // Prepare the specified sub-document command.
     Subdoc::Operation* op = context.connection.getThread()->subdoc_op;

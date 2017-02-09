@@ -20,7 +20,7 @@
 #include <locale>
 
 #include "daemon/subdocument_validators.h"
-#include "memcached/buffer.h"
+#include <platform/sized_buffer.h>
 
 static bool is_valid_xattr_key(cb::const_char_buffer path) {
     return is_valid_xattr_key(

@@ -49,7 +49,7 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
     }
 
     char* root = reinterpret_cast<char*>(info.value[0].iov_base);
-    char_buffer buffer{root, info.value[0].iov_len};
+    cb::char_buffer buffer{root, info.value[0].iov_len};
     cb::compression::Buffer inflated;
 
     if (c->isDcpNoValue() && !c->isDcpXattrAware()) {
