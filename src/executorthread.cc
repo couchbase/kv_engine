@@ -23,6 +23,7 @@
 #include "common.h"
 #include "executorpool.h"
 #include "executorthread.h"
+#include "globaltask.h"
 #include "taskqueue.h"
 #include "ep_engine.h"
 
@@ -171,6 +172,24 @@ void ExecutorThread::run() {
 void ExecutorThread::setCurrentTask(ExTask newTask) {
     LockHolder lh(currentTaskMutex);
     currentTask = newTask;
+}
+
+const std::string ExecutorThread::getTaskName() {
+    LockHolder lh(currentTaskMutex);
+    if (currentTask) {
+        return currentTask->getDescription();
+    } else {
+        return std::string("Not currently running any task");
+    }
+}
+
+const std::string ExecutorThread::getTaskableName() {
+    LockHolder lh(currentTaskMutex);
+    if (currentTask) {
+        return currentTask->getTaskable().getName();
+    } else {
+        return std::string();
+    }
 }
 
 void ExecutorThread::addLogEntry(const std::string &desc,

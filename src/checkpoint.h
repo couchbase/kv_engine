@@ -20,19 +20,20 @@
 
 #include "config.h"
 
+#include "callbacks.h"
+#include "ep_types.h"
+#include "item.h"
+#include "locks.h"
+#include "stats.h"
+
+#include <atomic>
 #include <list>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include <atomic>
-#include "ep_types.h"
-#include "item.h"
-#include "locks.h"
-#include "pre_link_document_context.h"
-#include "stats.h"
 
 #define GIGANTOR ((size_t)1<<(sizeof(size_t)*8-1))
 
@@ -102,6 +103,7 @@ typedef std::list<std::pair<std::string, MustSendCheckpointEnd>>
 class Checkpoint;
 class CheckpointManager;
 class CheckpointConfig;
+class PreLinkDocumentContext;
 class VBucket;
 
 /**

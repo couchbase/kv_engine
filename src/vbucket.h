@@ -15,29 +15,26 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_VBUCKET_H_
-#define SRC_VBUCKET_H_ 1
+#pragma once
 
 #include "config.h"
 
 #include "bloomfilter.h"
 #include "checkpoint.h"
-#include "conflict_resolution.h"
-#include "ep_types.h"
-#include "failover-table.h"
 #include "hash_table.h"
 #include "hlc.h"
-#include "kvstore.h"
+#include "item_pager.h"
 #include "monotonic.h"
-#include "pre_link_document_context.h"
-#include "stored-value.h"
-#include "utility.h"
 
 #include <platform/non_negative_counter.h>
 #include <atomic>
 #include <queue>
 
 class BgFetcher;
+class EPStats;
+class ConflictResolution;
+class Configuration;
+class PreLinkDocumentContext;
 
 const size_t MIN_CHK_FLUSH_TIMEOUT = 10; // 10 sec.
 const size_t MAX_CHK_FLUSH_TIMEOUT = 30; // 30 sec.
@@ -1334,5 +1331,3 @@ private:
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };
-
-#endif  // SRC_VBUCKET_H_

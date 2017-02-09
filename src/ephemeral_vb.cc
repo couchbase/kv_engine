@@ -17,6 +17,8 @@
 
 #include "ephemeral_vb.h"
 
+#include "failover-table.h"
+
 EphemeralVBucket::EphemeralVBucket(
         id_type i,
         vbucket_state_t newState,

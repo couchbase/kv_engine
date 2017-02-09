@@ -19,6 +19,9 @@
 
 #include "config.h"
 
+#include "atomic.h"
+#include "atomicqueue.h"
+
 #include <climits>
 #include <iterator>
 #include <list>
@@ -27,16 +30,10 @@
 #include <string>
 #include <vector>
 
-#include "ep_engine.h"
-#include "locks.h"
-#include "syncobject.h"
-#include "tapconnection.h"
-#include "atomicqueue.h"
-#include "dcp/consumer.h"
-#include "dcp/producer.h"
-
 // Forward declaration
 class ConnNotifier;
+class ConnHandler;
+class Consumer;
 class EventuallyPersistentEngine;
 
 typedef SingleThreadedRCPtr<ConnHandler> connection_t;

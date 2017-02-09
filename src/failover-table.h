@@ -14,24 +14,21 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#ifndef SRC_FAILOVER_TABLE_H_
-#define SRC_FAILOVER_TABLE_H_ 1
+
+#pragma once
 
 #include "config.h"
 
-#include <list>
-#include <mutex>
-#include <string>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
+#include "utility.h"
 
+#include <cJSON.h>
 #include <memcached/engine.h>
 #include <platform/random.h>
 
-#include "cJSON.h"
 #include <atomic>
-#include "utility.h"
+#include <list>
+#include <mutex>
+#include <string>
 
 typedef struct {
     uint64_t vb_uuid;
@@ -202,5 +199,3 @@ class FailoverTable {
 
     DISALLOW_COPY_AND_ASSIGN(FailoverTable);
 };
-
-#endif

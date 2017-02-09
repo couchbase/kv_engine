@@ -23,10 +23,13 @@
 #include <vector>
 
 #include "checkpoint.h"
-#include "ep_vb.h"
+#include "configuration.h"
+#include "failover-table.h"
+#include "item_pager.h"
 #include "makestoreddockey.h"
 #include "stats.h"
 #include "thread_gate.h"
+#include "ep_vb.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>

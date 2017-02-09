@@ -25,20 +25,12 @@
 
 #include <memcached/dockey.h>
 
-#include "murmurhash3.h"
-
 enum bfilter_status_t {
     BFILTER_DISABLED,
     BFILTER_PENDING,
     BFILTER_COMPACTING,
     BFILTER_ENABLED
 };
-
-#if __x86_64__ || __ppc64__
-#define MURMURHASH_3 MurmurHash3_x64_128
-#else
-#define MURMURHASH_3 MurmurHash3_x86_128
-#endif
 
 /**
  * A bloom filter instance for a vbucket.
@@ -66,12 +58,7 @@ protected:
     size_t estimateFilterSize(size_t key_count, double false_positive_prob);
     size_t estimateNoOfHashes(size_t key_count);
 
-    uint64_t hashDocKey(const DocKey& key, uint32_t iteration) {
-        uint64_t result = 0;
-        uint32_t seed = iteration + (uint32_t(key.getDocNamespace()) * noOfHashes);
-        MURMURHASH_3(key.data(), key.size(), seed, &result);
-        return result;
-    }
+    uint64_t hashDocKey(const DocKey& key, uint32_t iteration);
 
     size_t filterSize;
     size_t noOfHashes;

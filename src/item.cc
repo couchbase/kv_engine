@@ -20,6 +20,8 @@
 #include "item.h"
 #include "cJSON.h"
 
+#include <platform/compress.h>
+
 #include  <iomanip>
 
 std::atomic<uint64_t> Item::casCounter(1);
@@ -113,6 +115,50 @@ std::ostream& operator<<(std::ostream& os, const Blob& b) {
     }
     os << std::dec << '>';
     return os;
+}
+
+bool Item::compressValue(float minCompressionRatio) {
+    auto datatype = getDataType();
+    if (!mcbp::datatype::is_compressed(datatype)) {
+        // Attempt compression only if datatype indicates
+        // that the value is not compressed already.
+        cb::compression::Buffer deflated;
+        if (cb::compression::deflate(cb::compression::Algorithm::Snappy,
+                                     getData(), getNBytes(), deflated)) {
+            if (deflated.len > minCompressionRatio * getNBytes()) {
+                // No point doing the compression if the desired
+                // compression ratio isn't achieved.
+                return true;
+            }
+            setData(deflated.data.get(), deflated.len,
+                    (uint8_t *)(getExtMeta()), getExtMetaLen());
+
+            datatype |= PROTOCOL_BINARY_DATATYPE_COMPRESSED;
+            setDataType(datatype);
+        } else {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool Item::decompressValue() {
+    uint8_t datatype = getDataType();
+    if (mcbp::datatype::is_compressed(datatype)) {
+        // Attempt decompression only if datatype indicates
+        // that the value is compressed.
+        cb::compression::Buffer inflated;
+        if (cb::compression::inflate(cb::compression::Algorithm::Snappy,
+                                     getData(), getNBytes(), inflated)) {
+            setData(inflated.data.get(), inflated.len,
+                    (uint8_t *)(getExtMeta()), getExtMetaLen());
+            datatype &= ~PROTOCOL_BINARY_DATATYPE_COMPRESSED;
+            setDataType(datatype);
+        } else {
+            return false;
+        }
+    }
+    return true;
 }
 
 item_info Item::toItemInfo(uint64_t vb_uuid) const {

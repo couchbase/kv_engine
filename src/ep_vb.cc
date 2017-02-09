@@ -16,7 +16,9 @@
  */
 
 #include "ep_vb.h"
+
 #include "executorpool.h"
+#include "failover-table.h"
 
 EPVBucket::EPVBucket(id_type i,
                      vbucket_state_t newState,

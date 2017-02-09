@@ -28,6 +28,7 @@
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 #include "tapconnection.h"
+#include "tapconnmap.h"
 #include "vbucket.h"
 
 

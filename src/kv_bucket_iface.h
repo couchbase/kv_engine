@@ -19,23 +19,23 @@
 
 #include "config.h"
 
-#include "executorpool.h"
-#include "stored-value.h"
 #include "task_type.h"
 #include "vbucket.h"
-#include "vbucketmap.h"
-#include "utility.h"
 
 /* Forward declarations */
 class ExtendedMetaData;
 class BGFetchCallback;
 class ConflictResolution;
 class DefragmenterTask;
-class KVBucket;
 class Flusher;
+class HashTable;
+class ItemMetaData;
+class KVBucket;
 class MutationLog;
 class PauseResumeEPStoreVisitor;
 class PersistenceCallback;
+class Producer;
+class VBucketMap;
 class Warmup;
 
 /**

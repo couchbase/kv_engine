@@ -15,14 +15,12 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_KVSTORE_H_
-#define SRC_KVSTORE_H_ 1
+#pragma once
 
 #include "config.h"
 
 #include <cJSON.h>
 #include <cstring>
-#include <deque>
 #include <list>
 #include <map>
 #include <relaxed_atomic.h>
@@ -31,6 +29,7 @@
 #include <utility>
 #include <vector>
 
+#include "callbacks.h"
 #include "configuration.h"
 #include "item.h"
 #include "logger.h"
@@ -1027,6 +1026,3 @@ inline const std::string getJSONObjString(const cJSON *i) {
     }
     return i->valuestring;
 }
-
-
-#endif  // SRC_KVSTORE_H_

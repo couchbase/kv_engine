@@ -24,7 +24,9 @@
 
 #include "atomic.h"
 #include "backfill.h"
+#include "ep_engine.h"
 #include "kv_bucket_iface.h"
+#include "tapconnmap.h"
 #include "vbucket.h"
 
 class ItemResidentCallback : public Callback<CacheLookup> {
@@ -105,6 +107,27 @@ void BackfillDiskCallback::callback(GetValue &gv) {
     }
 }
 
+BackfillDiskLoad::BackfillDiskLoad(const std::string& n,
+                                   EventuallyPersistentEngine* e,
+                                   TapConnMap& cm,
+                                   KVStore* s,
+                                   uint16_t vbid,
+                                   uint64_t start_seqno,
+                                   hrtime_t token,
+                                   double sleeptime,
+                                   bool shutdown)
+    : GlobalTask(e, TaskId::BackfillDiskLoad, sleeptime, shutdown),
+      name(n),
+      engine(e),
+      connMap(cm),
+      store(s),
+      vbucket(vbid),
+      startSeqno(start_seqno),
+      connToken(token) {
+    ScheduleDiskBackfillTapOperation tapop;
+    cm.performOp(name, tapop, static_cast<void*>(NULL));
+}
+
 bool BackfillDiskLoad::run() {
     TRACE_EVENT0("ep-engine/task", "BackfillDiskload");
     if (engine->getKVBucket()->isMemoryUsageTooHigh()) {
@@ -168,6 +191,18 @@ std::string BackfillDiskLoad::getDescription() {
     std::stringstream rv;
     rv << "Loading TAP backfill from disk: vb " << vbucket;
     return rv.str();
+}
+
+BackFillVisitor::BackFillVisitor(EventuallyPersistentEngine* e,
+                                 TapConnMap& cm,
+                                 Producer* tc,
+                                 const VBucketFilter& backfillVBfilter)
+    : VBucketVisitor(backfillVBfilter),
+      engine(e),
+      connMap(cm),
+      name(tc->getName()),
+      connToken(tc->getConnectionToken()),
+      valid(true) {
 }
 
 void BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {

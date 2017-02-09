@@ -20,6 +20,7 @@
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_serialised_manifest_entry.h"
 #include "ep_vb.h"
+#include "failover-table.h"
 #include "tests/module_tests/makestoreddockey.h"
 
 #include <cJSON_utils.h>

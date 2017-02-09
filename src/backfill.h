@@ -20,20 +20,15 @@
 
 #include "config.h"
 
-#include <list>
-#include <map>
-#include <set>
 #include <string>
-#include <unordered_map>
-#include <vector>
 
-#include "ep_engine.h"
-#include "stats.h"
+#include "kv_bucket_iface.h"
 #include "tasks.h"
-#include "connmap.h"
-#include "tapconnmap.h"
 
 #define DEFAULT_BACKFILL_SNOOZE_TIME 1.0
+
+class EventuallyPersistentEngine;
+class TapConnMap;
 
 enum backfill_t {
     ALL_MUTATIONS = 1,
@@ -53,13 +48,7 @@ public:
     BackfillDiskLoad(const std::string &n, EventuallyPersistentEngine* e,
                      TapConnMap &cm, KVStore *s, uint16_t vbid,
                      uint64_t start_seqno, hrtime_t token,
-                     double sleeptime = 0, bool shutdown = false)
-        : GlobalTask(e, TaskId::BackfillDiskLoad, sleeptime, shutdown),
-          name(n), engine(e), connMap(cm), store(s), vbucket(vbid),
-          startSeqno(start_seqno), connToken(token) {
-        ScheduleDiskBackfillTapOperation tapop;
-        cm.performOp(name, tapop, static_cast<void*>(NULL));
-    }
+                     double sleeptime = 0, bool shutdown = false);
 
     bool run();
 
@@ -86,9 +75,7 @@ private:
 class BackFillVisitor : public VBucketVisitor {
 public:
     BackFillVisitor(EventuallyPersistentEngine *e, TapConnMap &cm, Producer *tc,
-                    const VBucketFilter &backfillVBfilter):
-        VBucketVisitor(backfillVBfilter), engine(e), connMap(cm),
-        name(tc->getName()), connToken(tc->getConnectionToken()), valid(true) {}
+                    const VBucketFilter &backfillVBfilter);
 
     virtual ~BackFillVisitor() {}
 

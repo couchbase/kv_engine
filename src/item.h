@@ -15,12 +15,10 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_ITEM_H_
-#define SRC_ITEM_H_
+#pragma once
 
 #include "config.h"
 
-#include <platform/compress.h>
 #include <memcached/engine.h>
 #include <stdio.h>
 #include <string.h>
@@ -34,6 +32,7 @@
 #include "locks.h"
 #include "objectregistry.h"
 #include "stats.h"
+#include "storeddockey.h"
 
 /// The set of possible operations which can be queued into a checkpoint.
 enum class queue_op : uint8_t {
@@ -467,50 +466,10 @@ public:
     }
 
     /* Snappy compress value and update datatype */
-    bool compressValue(float minCompressionRatio = 1.0) {
-        auto datatype = getDataType();
-        if (!mcbp::datatype::is_compressed(datatype)) {
-            // Attempt compression only if datatype indicates
-            // that the value is not compressed already.
-            cb::compression::Buffer deflated;
-            if (cb::compression::deflate(cb::compression::Algorithm::Snappy,
-                                         getData(), getNBytes(), deflated)) {
-                if (deflated.len > minCompressionRatio * getNBytes()) {
-                    // No point doing the compression if the desired
-                    // compression ratio isn't achieved.
-                    return true;
-                }
-                setData(deflated.data.get(), deflated.len,
-                        (uint8_t *)(getExtMeta()), getExtMetaLen());
-
-                datatype |= PROTOCOL_BINARY_DATATYPE_COMPRESSED;
-                setDataType(datatype);
-            } else {
-                return false;
-            }
-        }
-        return true;
-    }
+    bool compressValue(float minCompressionRatio = 1.0);
 
     /* Snappy uncompress value and update datatype */
-    bool decompressValue() {
-        uint8_t datatype = getDataType();
-        if (mcbp::datatype::is_compressed(datatype)) {
-            // Attempt decompression only if datatype indicates
-            // that the value is compressed.
-            cb::compression::Buffer inflated;
-            if (cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                         getData(), getNBytes(), inflated)) {
-                setData(inflated.data.get(), inflated.len,
-                        (uint8_t *)(getExtMeta()), getExtMetaLen());
-                datatype &= ~PROTOCOL_BINARY_DATATYPE_COMPRESSED;
-                setDataType(datatype);
-            } else {
-                return false;
-            }
-        }
-        return true;
-    }
+    bool decompressValue();
 
     const char *getData() const {
         return value.get() ? value->getData() : NULL;
@@ -787,5 +746,3 @@ public:
             : i1->getKey() < i2->getKey();
     }
 };
-
-#endif  // SRC_ITEM_H_

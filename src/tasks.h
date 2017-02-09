@@ -15,19 +15,17 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_TASKS_H_
-#define SRC_TASKS_H_ 1
+#pragma once
 
 #include "config.h"
+
+#include "globaltask.h"
+#include "kvstore.h"
 
 #include <platform/processclock.h>
 
 #include <array>
-#include <chrono>
 #include <string>
-#include <atomic>
-#include "globaltask.h"
-#include "kvstore.h"
 
 /**
  * A task for persisting items to disk.
@@ -261,5 +259,3 @@ private:
     size_t prevNumGets;
     std::string desc;
 };
-
-#endif  // SRC_TASKS_H_

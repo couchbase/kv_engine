@@ -20,6 +20,7 @@
 #include "bgfetcher.h"
 #include "ep_engine.h"
 #include "ep_vb.h"
+#include "failover-table.h"
 #include "flusher.h"
 
 EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)

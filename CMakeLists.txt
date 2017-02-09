@@ -170,6 +170,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/flusher.cc
             src/globaltask.cc
             src/hash_table.cc
+            src/hlc.cc
             src/htresizer.cc
             src/item.cc
             src/item_pager.cc

@@ -19,7 +19,15 @@
 
 #include "bloomfilter.h"
 
+#include "murmurhash3.h"
+
 #include <cmath>
+
+#if __x86_64__ || __ppc64__
+#define MURMURHASH_3 MurmurHash3_x64_128
+#else
+#define MURMURHASH_3 MurmurHash3_x86_128
+#endif
 
 BloomFilter::BloomFilter(size_t key_count, double false_positive_prob,
                          bfilter_status_t new_status) {
@@ -44,6 +52,13 @@ size_t BloomFilter::estimateFilterSize(size_t key_count,
 
 size_t BloomFilter::estimateNoOfHashes(size_t key_count) {
     return round(((double) filterSize / key_count) * (log(2.0)));
+}
+
+uint64_t BloomFilter::hashDocKey(const DocKey& key, uint32_t iteration) {
+    uint64_t result = 0;
+    uint32_t seed = iteration + (uint32_t(key.getDocNamespace()) * noOfHashes);
+    MURMURHASH_3(key.data(), key.size(), seed, &result);
+    return result;
 }
 
 void BloomFilter::setStatus(bfilter_status_t to) {

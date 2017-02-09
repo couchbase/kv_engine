@@ -14,10 +14,18 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_SCHEDULER_H_
-#define SRC_SCHEDULER_H_ 1
+#pragma once
 
 #include "config.h"
+
+#include "objectregistry.h"
+#include "tasks.h"
+#include "task_type.h"
+#include "tasklogentry.h"
+
+#include <platform/ring_buffer.h>
+#include <platform/processclock.h>
+#include <relaxed_atomic.h>
 
 #include <atomic>
 #include <chrono>
@@ -29,15 +37,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <platform/ring_buffer.h>
-#include <platform/processclock.h>
-#include <relaxed_atomic.h>
-
-#include "objectregistry.h"
-#include "tasks.h"
-#include "task_type.h"
-#include "tasklogentry.h"
 
 #define TASK_LOG_SIZE 80
 
@@ -118,23 +117,9 @@ public:
 
     const std::string& getName() const { return name; }
 
-    const std::string getTaskName() {
-        LockHolder lh(currentTaskMutex);
-        if (currentTask) {
-            return currentTask->getDescription();
-        } else {
-            return std::string("Not currently running any task");
-        }
-    }
+    const std::string getTaskName();
 
-    const std::string getTaskableName() {
-        LockHolder lh(currentTaskMutex);
-        if (currentTask) {
-            return currentTask->getTaskable().getName();
-        } else {
-            return std::string();
-        }
-    }
+    const std::string getTaskableName();
 
     ProcessClock::time_point getTaskStart() const {
         return taskStart.getTimePoint();
@@ -197,5 +182,3 @@ protected:
     cb::RingBuffer<TaskLogEntry, TASK_LOG_SIZE> tasklog;
     cb::RingBuffer<TaskLogEntry, TASK_LOG_SIZE> slowjobs;
 };
-
-#endif  // SRC_SCHEDULER_H_

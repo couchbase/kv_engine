@@ -24,14 +24,17 @@
 #include <vector>
 
 #include "atomic.h"
+#include "conflict_resolution.h"
 #include "bgfetcher.h"
 #include "ep_engine.h"
+#include "failover-table.h"
+#include "flusher.h"
+#include "pre_link_document_context.h"
 
 #define STATWRITER_NAMESPACE vbucket
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 
-#include "flusher.h"
 #include "vbucket.h"
 
 VBucketFilter VBucketFilter::filter_diff(const VBucketFilter &other) const {

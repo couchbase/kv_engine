@@ -24,6 +24,7 @@
 
 #include "checkpoint.h"
 #include "ep_engine.h"
+#include "pre_link_document_context.h"
 #define STATWRITER_NAMESPACE checkpoint
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE

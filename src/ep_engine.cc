@@ -40,6 +40,7 @@
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 #include "string_utils.h"
+#include "tapconnmap.h"
 #include "warmup.h"
 
 #include <JSON_checker.h>

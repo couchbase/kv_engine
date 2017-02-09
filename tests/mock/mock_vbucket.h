@@ -22,7 +22,9 @@
 #pragma once
 
 #include "config.h"
+
 #include "ep_vb.h"
+#include "failover-table.h"
 
 class MockEPVBucket : public EPVBucket {
 public:

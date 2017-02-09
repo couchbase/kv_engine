@@ -14,8 +14,10 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_TASK_TYPE_H_
-#define SRC_TASK_TYPE_H_ 1
+#pragma once
+
+#include <stdexcept>
+#include <string>
 
 enum task_type_t {
     NO_TASK_TYPE=-1,
@@ -45,5 +47,3 @@ static inline std::string to_string(const task_type_t type) {
                                     std::to_string(int(type)) + "}");
     }
 }
-
-#endif  // SRC_TASK_TYPE_H_

@@ -19,6 +19,7 @@
 
 #include "ep_engine.h"
 #include "ephemeral_vb.h"
+#include "failover-table.h"
 
 EphemeralBucket::EphemeralBucket(EventuallyPersistentEngine& theEngine)
     : KVBucket(theEngine) {
