@@ -22,11 +22,11 @@
 
 #include <functional>
 #include <mutex>
+#include <platform/rwlock.h>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
 
-#include "rwlock.h"
 #include "utility.h"
 
 using LockHolder = std::lock_guard<std::mutex>;
@@ -84,14 +84,14 @@ private:
 // deprecated, prefer std::lock_guard<ReaderLock> rlh(rwLock.reader())
 class ReaderLockHolder {
 public:
-    typedef RWLock mutex_type;
+    typedef cb::RWLock mutex_type;
 
-    ReaderLockHolder(RWLock& lock)
+    ReaderLockHolder(cb::RWLock& lock)
         : lh(lock) {
     }
 
 private:
-    std::lock_guard<ReaderLock> lh;
+    std::lock_guard<cb::ReaderLock> lh;
 
     DISALLOW_COPY_AND_ASSIGN(ReaderLockHolder);
 };
@@ -102,14 +102,14 @@ private:
 // deprecated, prefer std::lock_guard<WriterLock> wlh(rwLock.writer())
 class WriterLockHolder {
 public:
-    typedef RWLock mutex_type;
+    typedef cb::RWLock mutex_type;
 
-    WriterLockHolder(RWLock& lock)
+    WriterLockHolder(cb::RWLock& lock)
         : lh(lock) {
     }
 
 private:
-    std::lock_guard<WriterLock> lh;
+    std::lock_guard<cb::WriterLock> lh;
 
     DISALLOW_COPY_AND_ASSIGN(WriterLockHolder);
 };

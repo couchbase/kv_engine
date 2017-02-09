@@ -181,7 +181,7 @@ public:
 
         State getState_UNLOCKED();
 
-        RWLock logLock;
+        cb::RWLock logLock;
         DcpProducer& producer;
         size_t maxBytes;
         size_t bytesSent;

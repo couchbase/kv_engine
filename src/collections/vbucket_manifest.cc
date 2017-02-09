@@ -104,7 +104,7 @@ void Collections::VB::Manifest::addCollection(const std::string& collection,
                                               uint32_t revision,
                                               int64_t startSeqno,
                                               int64_t endSeqno) {
-    std::lock_guard<WriterLock> writeLock(lock.writer());
+    std::lock_guard<cb::WriterLock> writeLock(lock.writer());
     auto itr = map.find(collection);
     if (itr == map.end()) {
         auto m = std::make_unique<Collections::VB::ManifestEntry>(
@@ -129,7 +129,7 @@ void Collections::VB::Manifest::addCollection(const std::string& collection,
 
 void Collections::VB::Manifest::beginDelCollection(
         const std::string& collection, uint32_t revision, int64_t seqno) {
-    std::lock_guard<WriterLock> writeLock(lock.writer());
+    std::lock_guard<cb::WriterLock> writeLock(lock.writer());
     auto itr = map.find({collection.data(), collection.size()});
     if (itr != map.end()) {
         itr->second->setRevision(revision);
@@ -143,7 +143,7 @@ void Collections::VB::Manifest::beginDelCollection(
 
 void Collections::VB::Manifest::completeDeletion(
         const std::string& collection) {
-    std::lock_guard<WriterLock> writeLock(lock.writer());
+    std::lock_guard<cb::WriterLock> writeLock(lock.writer());
     auto itr = map.find(collection);
 
     if (itr == map.end()) {
@@ -163,7 +163,7 @@ Collections::VB::Manifest::processManifest(
         const Collections::Manifest& manifest) const {
     std::vector<std::string> additions, deletions;
 
-    std::lock_guard<WriterLock> writeLock(lock.writer());
+    std::lock_guard<cb::WriterLock> writeLock(lock.writer());
     for (const auto& manifestEntry : map) {
         // Does manifestEntry::collectionName exist in manifest? NO - delete
         // time
@@ -195,7 +195,7 @@ bool Collections::VB::Manifest::doesKeyContainValidCollection(
     // another thread
     const auto cKey = Collections::DocKey::make(key, separator);
 
-    std::lock_guard<ReaderLock> readLock(lock.reader());
+    std::lock_guard<cb::ReaderLock> readLock(lock.reader());
 
     // TODO: The default collection check could be done with an atomic
     if (defaultCollectionExists &&
@@ -339,7 +339,7 @@ const char* Collections::VB::Manifest::getJsonEntry(cJSON* cJson,
 std::ostream& Collections::VB::operator<<(
         std::ostream& os, const Collections::VB::Manifest& manifest) {
     os << "VBucket::Manifest: size:" << manifest.map.size() << std::endl;
-    std::lock_guard<ReaderLock> readLock(manifest.lock.reader());
+    std::lock_guard<cb::ReaderLock> readLock(manifest.lock.reader());
     for (auto& m : manifest.map) {
         os << *m.second << std::endl;
     }

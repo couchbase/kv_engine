@@ -35,26 +35,26 @@ public:
     }
 
     bool exists(const std::string& collection, uint32_t rev) const {
-        std::lock_guard<ReaderLock> readLock(lock.reader());
+        std::lock_guard<cb::ReaderLock> readLock(lock.reader());
         return exists_UNLOCKED(collection, rev);
     }
 
     bool isOpen(const std::string& collection, uint32_t rev) const {
-        std::lock_guard<ReaderLock> readLock(lock.reader());
+        std::lock_guard<cb::ReaderLock> readLock(lock.reader());
         expect_true(exists_UNLOCKED(collection, rev));
         auto itr = map.find(collection);
         return itr->second->isOpen();
     }
 
     bool isExclusiveOpen(const std::string& collection, uint32_t rev) const {
-        std::lock_guard<ReaderLock> readLock(lock.reader());
+        std::lock_guard<cb::ReaderLock> readLock(lock.reader());
         expect_true(exists_UNLOCKED(collection, rev));
         auto itr = map.find(collection);
         return itr->second->isOpen() && !itr->second->isDeleting();
     }
 
     bool isDeleting(const std::string& collection, uint32_t rev) const {
-        std::lock_guard<ReaderLock> readLock(lock.reader());
+        std::lock_guard<cb::ReaderLock> readLock(lock.reader());
         expect_true(exists_UNLOCKED(collection, rev));
         auto itr = map.find(collection);
         return itr->second->isDeleting();
@@ -62,26 +62,26 @@ public:
 
     bool isExclusiveDeleting(const std::string& collection,
                              uint32_t rev) const {
-        std::lock_guard<ReaderLock> readLock(lock.reader());
+        std::lock_guard<cb::ReaderLock> readLock(lock.reader());
         expect_true(exists_UNLOCKED(collection, rev));
         auto itr = map.find(collection);
         return itr->second->isDeleting() && !itr->second->isOpen();
     }
 
     bool isOpenAndDeleting(const std::string& collection, uint32_t rev) const {
-        std::lock_guard<ReaderLock> readLock(lock.reader());
+        std::lock_guard<cb::ReaderLock> readLock(lock.reader());
         expect_true(exists_UNLOCKED(collection, rev));
         auto itr = map.find(collection);
         return itr->second->isOpen() && itr->second->isDeleting();
     }
 
     size_t size() const {
-        std::lock_guard<ReaderLock> readLock(lock.reader());
+        std::lock_guard<cb::ReaderLock> readLock(lock.reader());
         return map.size();
     }
 
     bool compareEntry(const Collections::VB::ManifestEntry& entry) const {
-        std::lock_guard<ReaderLock> readLock(lock.reader());
+        std::lock_guard<cb::ReaderLock> readLock(lock.reader());
         if (exists_UNLOCKED(entry.getCollectionName(), entry.getRevision())) {
             auto itr = map.find(entry.getCollectionName());
             const auto& myEntry = *itr->second;
@@ -92,7 +92,7 @@ public:
     }
 
     bool operator==(const MockVBManifest& rhs) const {
-        std::lock_guard<ReaderLock> readLock(lock.reader());
+        std::lock_guard<cb::ReaderLock> readLock(lock.reader());
         for (const auto& e : map) {
             if (!rhs.compareEntry(*e.second)) {
                 return false;

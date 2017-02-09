@@ -21,10 +21,10 @@
 #include "collections/collections_types.h"
 #include "collections/manifest.h"
 #include "collections/vbucket_manifest_entry.h"
-#include "rwlock.h"
 #include "systemevent.h"
 
 #include <platform/sized_buffer.h>
+#include <platform/rwlock.h>
 
 #include <mutex>
 #include <unordered_map>
@@ -255,7 +255,7 @@ protected:
     /**
      * shared lock to allow concurrent readers and safe updates
      */
-    mutable RWLock lock;
+    mutable cb::RWLock lock;
 
     friend std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
 };
