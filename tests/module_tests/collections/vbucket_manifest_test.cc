@@ -361,7 +361,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_delete) {
             makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
 
     // finally remove vegetable
-    vbm.completeDeletion(vbucket, "vegetable", 1);
+    vbm.completeDeletion(vbucket, {"vegetable"}, 1);
     EXPECT_EQ(1, vbm.size());
     EXPECT_FALSE(vbm.doesKeyContainValidCollection(
             makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
@@ -398,7 +398,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
             makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
 
     // finally remove vegetable
-    vbm.completeDeletion(vbucket, "vegetable", 3);
+    vbm.completeDeletion(vbucket, {"vegetable"}, 3);
     EXPECT_EQ(2, vbm.size());
 
     // No longer OpenAndDeleting, now ExclusiveOpen
@@ -420,10 +420,10 @@ TEST_F(VBucketManifestTest, invalidDeletes) {
                {R"({"revision":2,"separator":"::",)"
                 R"("collections":["$default"]})"});
 
-    EXPECT_THROW(vbm.completeDeletion(vbucket, "unknown", 1), std::logic_error);
-    EXPECT_THROW(vbm.completeDeletion(vbucket, "$default", 1),
+    EXPECT_THROW(vbm.completeDeletion(vbucket, {"unknown"}, 1), std::logic_error);
+    EXPECT_THROW(vbm.completeDeletion(vbucket, {"$default"}, 1),
                  std::logic_error);
-    EXPECT_NO_THROW(vbm.completeDeletion(vbucket, "vegetable", 1));
+    EXPECT_NO_THROW(vbm.completeDeletion(vbucket, {"vegetable"}, 1));
 
     // Delete $default
     vbm.update(vbucket,
@@ -433,5 +433,5 @@ TEST_F(VBucketManifestTest, invalidDeletes) {
     vbm.update(vbucket,
                {R"({"revision":4,"separator":"::",)"
                 R"("collections":["$default"]})"});
-    EXPECT_NO_THROW(vbm.completeDeletion(vbucket, "$default", 3));
+    EXPECT_NO_THROW(vbm.completeDeletion(vbucket, {"$default"}, 3));
 }

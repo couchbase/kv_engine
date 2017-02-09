@@ -109,7 +109,7 @@ public:
      * @param revision The Manifest revision which initiated the delete.
      */
     void completeDeletion(::VBucket& vb,
-                          const std::string& collection,
+                          cb::const_char_buffer collection,
                           uint32_t revision);
 
     /**
@@ -154,7 +154,7 @@ protected:
      *        add.
      * @param seqno The seqno of an Item which represents the creation event.
      */
-    void addCollection(const std::string& collection,
+    void addCollection(cb::const_char_buffer collection,
                        uint32_t revision,
                        int64_t startSeqno,
                        int64_t endSeqno);
@@ -171,7 +171,7 @@ protected:
      * @param seqno The seqno of the deleted event mutation for the collection
      *        deletion,
      */
-    void beginDelCollection(const std::string& collection,
+    void beginDelCollection(cb::const_char_buffer collection,
                             uint32_t revision,
                             int64_t seqno);
 
@@ -199,7 +199,7 @@ protected:
      * @param revision Manifest revision triggering the update.
      */
     std::unique_ptr<Item> createSystemEvent(SystemEvent se,
-                                            const std::string& collection,
+                                            cb::const_char_buffer collection,
                                             uint32_t revision) const;
 
     /**
@@ -209,7 +209,7 @@ protected:
      */
     int64_t queueSystemEvent(::VBucket& vb,
                              SystemEvent se,
-                             const std::string& collection,
+                             cb::const_char_buffer collection,
                              uint32_t revision) const;
 
     /**
@@ -219,7 +219,7 @@ protected:
      * @param collection The name of the collection being changed. It's size is
      *        included in the returned value.
      */
-    size_t getSerialisedDataSize(const std::string& collection) const;
+    size_t getSerialisedDataSize(cb::const_char_buffer collection) const;
 
     /**
      * Populate a buffer with the serialised state of the manifest and one
@@ -232,7 +232,7 @@ protected:
      * @param se The SystemEvent we're working on
      */
     void populateWithSerialisedData(cb::char_buffer out,
-                                    const std::string& collection,
+                                    cb::const_char_buffer collection,
                                     uint32_t revision,
                                     SystemEvent se) const;
 

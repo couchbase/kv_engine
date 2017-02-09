@@ -27,7 +27,7 @@
 namespace Collections {
 
 Manifest::Manifest() : revision(0), separator(DefaultSeparator) {
-    collections.push_back(DefaultCollectionIdentifier);
+    collections.push_back(DefaultCollectionIdentifier.data());
 }
 
 Manifest::Manifest(const std::string& json) {

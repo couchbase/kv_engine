@@ -17,10 +17,14 @@
 
 #pragma once
 
+#include <platform/sized_buffer.h>
+
 namespace Collections {
 
 // The reserved name of the system owned, default collection.
-const char* const DefaultCollectionIdentifier = "$default";
+const char* const _DefaultCollectionIdentifier = "$default";
+static cb::const_char_buffer DefaultCollectionIdentifier(
+        _DefaultCollectionIdentifier);
 
 // The default separator we will use for identifying collections in keys.
 const char* const DefaultSeparator = "::";

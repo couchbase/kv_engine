@@ -136,7 +136,7 @@ private:
 
     static SerialisedManifestEntry* make(char* address,
                                          int32_t revision,
-                                         const std::string& collection,
+                                         cb::const_char_buffer collection,
                                          cb::char_buffer out) {
         return new (address) SerialisedManifestEntry(revision, collection, out);
     }
@@ -151,7 +151,7 @@ private:
     }
 
     SerialisedManifestEntry(int revision,
-                            const std::string& collection,
+                            cb::const_char_buffer collection,
                             cb::char_buffer out) {
         tryConstruction(out,
                         revision,
@@ -175,7 +175,7 @@ private:
                          uint32_t revision,
                          int64_t startSeqno,
                          int64_t endSeqno,
-                         const std::string collection) {
+                         cb::const_char_buffer collection) {
         if (!((out.data() + out.size()) >=
               (reinterpret_cast<char*>(this) +
                getObjectSize(collection.size())))) {
