@@ -31,17 +31,17 @@ enum task_type_t {
 static inline std::string to_string(const task_type_t type) {
     switch (type) {
     case WRITER_TASK_IDX:
-        return "writer_worker_";
+        return "writer";
     case READER_TASK_IDX:
-        return "reader_worker_";
+        return "reader";
     case AUXIO_TASK_IDX:
-        return "auxIO_worker_";
+        return "auxIO";
     case NONIO_TASK_IDX:
-        return "nonIO_worker_";
+        return "nonIO";
     case NO_TASK_TYPE:
-        return "NO_TASK_TYPE_worker_";
+        return "NO_TASK_TYPE";
     case NUM_TASK_GROUPS:
-        return "NUM_TASK_GROUPS_worker_";
+        return "NUM_TASK_GROUPS";
     default:
         throw std::invalid_argument("to_string(task_type_t) unknown type:{" +
                                     std::to_string(int(type)) + "}");

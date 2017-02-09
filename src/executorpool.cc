@@ -507,7 +507,7 @@ ssize_t ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
                     return thread->taskType == type;
                 });
 
-        LOG(EXTENSION_LOG_DEBUG,
+        LOG(EXTENSION_LOG_NOTICE,
             "Adjusting threads of"
             " type:{%s}"
             " from:{%" PRIu64
@@ -522,7 +522,9 @@ ssize_t ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
             // created and started
             for (size_t tidx = numItems; tidx < desiredNumItems; ++tidx) {
                 threadQ.push_back(new ExecutorThread(
-                        this, type, typeName + std::to_string(tidx)));
+                        this,
+                        type,
+                        typeName + "_worker_" + std::to_string(tidx)));
                 threadQ.back()->start();
             }
         } else if (numItems > desiredNumItems) {

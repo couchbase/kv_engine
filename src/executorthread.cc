@@ -49,6 +49,8 @@ void ExecutorThread::start() {
         ss << name.c_str() << ": Initialization error!!!";
         throw std::runtime_error(ss.str().c_str());
     }
+
+    LOG(EXTENSION_LOG_NOTICE, "%s: Started", name.c_str());
 }
 
 void ExecutorThread::stop(bool wait) {
