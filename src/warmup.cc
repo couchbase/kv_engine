@@ -17,12 +17,6 @@
 
 #include "warmup.h"
 
-#include <limits>
-#include <string>
-#include <utility>
-#include <array>
-#include <random>
-
 #include "common.h"
 #include "connmap.h"
 #include "ep_engine.h"
@@ -35,6 +29,12 @@
 
 #include <platform/make_unique.h>
 
+#include <limits>
+#include <string>
+#include <utility>
+#include <array>
+#include <random>
+
 struct WarmupCookie {
     WarmupCookie(KVBucket* s, Callback<GetValue>& c) :
         cb(c), epstore(s),
@@ -46,6 +46,248 @@ struct WarmupCookie {
     size_t skipped;
     size_t error;
 };
+
+// Warmup Tasks ///////////////////////////////////////////////////////////////
+
+class WarmupInitialize : public GlobalTask {
+public:
+    WarmupInitialize(KVBucket& st, Warmup* w) :
+        GlobalTask(&st.getEPEngine(), TaskId::WarmupInitialize, 0, false),
+        _warmup(w) {
+        _warmup->addToTaskSet(uid);
+    }
+
+    std::string getDescription() {
+        std::stringstream ss;
+        ss<<"Warmup - initialize";
+        return ss.str();
+    }
+
+    bool run() {
+        TRACE_EVENT0("ep-engine/task", "WarmupInitialize");
+        _warmup->initialize();
+        _warmup->removeFromTaskSet(uid);
+        return false;
+    }
+
+private:
+    Warmup* _warmup;
+};
+
+class WarmupCreateVBuckets : public GlobalTask {
+public:
+    WarmupCreateVBuckets(KVBucket& st, uint16_t sh, Warmup *w):
+        GlobalTask(&st.getEPEngine(), TaskId::WarmupCreateVBuckets, 0, false),
+        _shardId(sh),
+        _warmup(w) {
+        _warmup->addToTaskSet(uid);
+    }
+
+    std::string getDescription() {
+        std::stringstream ss;
+        ss<<"Warmup - creating vbuckets: shard "<<_shardId;
+        return ss.str();
+    }
+
+    bool run() {
+        TRACE_EVENT0("ep-engine/task", "WarmupCreateVBuckets");
+        _warmup->createVBuckets(_shardId);
+        _warmup->removeFromTaskSet(uid);
+        return false;
+    }
+
+private:
+    uint16_t _shardId;
+    Warmup* _warmup;
+};
+
+class WarmupEstimateDatabaseItemCount : public GlobalTask {
+public:
+    WarmupEstimateDatabaseItemCount(KVBucket& st, uint16_t sh, Warmup* w):
+        GlobalTask(&st.getEPEngine(), TaskId::WarmupEstimateDatabaseItemCount,
+                   0, false),
+        _shardId(sh),
+        _warmup(w) {
+        _warmup->addToTaskSet(uid);
+    }
+
+    std::string getDescription() {
+        std::stringstream ss;
+        ss<<"Warmup - estimate item count: shard "<<_shardId;
+        return ss.str();
+    }
+
+    bool run() {
+        TRACE_EVENT0("ep-engine/task", "WarpupEstimateDatabaseItemCount");
+        _warmup->estimateDatabaseItemCount(_shardId);
+        _warmup->removeFromTaskSet(uid);
+        return false;
+    }
+
+private:
+    uint16_t _shardId;
+    Warmup* _warmup;
+};
+
+class WarmupKeyDump : public GlobalTask {
+public:
+    WarmupKeyDump(KVBucket& st, uint16_t sh, Warmup* w) :
+        GlobalTask(&st.getEPEngine(), TaskId::WarmupKeyDump, 0, false),
+        _shardId(sh),
+        _warmup(w) {
+        _warmup->addToTaskSet(uid);
+    }
+
+    std::string getDescription() {
+        std::stringstream ss;
+        ss<<"Warmup - key dump: shard "<<_shardId;
+        return ss.str();
+    }
+
+    bool run() {
+        TRACE_EVENT0("ep-engine/task", "WarmupKeyDump");
+        _warmup->keyDumpforShard(_shardId);
+        _warmup->removeFromTaskSet(uid);
+        return false;
+    }
+
+private:
+    uint16_t _shardId;
+    Warmup* _warmup;
+};
+
+class WarmupCheckforAccessLog : public GlobalTask {
+public:
+    WarmupCheckforAccessLog(KVBucket& st, Warmup* w) :
+        GlobalTask(&st.getEPEngine(), TaskId::WarmupCheckforAccessLog, 0,
+                   false),
+        _warmup(w) {
+        _warmup->addToTaskSet(uid);
+    }
+
+    std::string getDescription() {
+        std::stringstream ss;
+        ss<<"Warmup - check for access log";
+        return ss.str();
+    }
+
+    bool run() {
+        TRACE_EVENT0("ep-engine/task", "WarmupCheckForAccessLog");
+        _warmup->checkForAccessLog();
+        _warmup->removeFromTaskSet(uid);
+        return false;
+    }
+
+private:
+    Warmup* _warmup;
+};
+
+class WarmupLoadAccessLog : public GlobalTask {
+public:
+    WarmupLoadAccessLog(KVBucket& st, uint16_t sh, Warmup* w) :
+        GlobalTask(&st.getEPEngine(), TaskId::WarmupLoadAccessLog, 0, false),
+        _shardId(sh),
+        _warmup(w) {
+        _warmup->addToTaskSet(uid);
+    }
+
+    std::string getDescription() {
+        std::stringstream ss;
+        ss<<"Warmup - loading access log: shard "<<_shardId;
+        return ss.str();
+    }
+
+    bool run() {
+        TRACE_EVENT0("ep-engine/task", "WarmupLoadAccessLog");
+        _warmup->loadingAccessLog(_shardId);
+        _warmup->removeFromTaskSet(uid);
+        return false;
+    }
+
+private:
+    uint16_t _shardId;
+    Warmup* _warmup;
+};
+
+class WarmupLoadingKVPairs : public GlobalTask {
+public:
+    WarmupLoadingKVPairs(KVBucket& st, uint16_t sh, Warmup* w) :
+        GlobalTask(&st.getEPEngine(), TaskId::WarmupLoadingKVPairs, 0, false),
+        _shardId(sh),
+        _warmup(w) {
+        _warmup->addToTaskSet(uid);
+    }
+
+    std::string getDescription() {
+        std::stringstream ss;
+        ss<<"Warmup - loading KV Pairs: shard "<<_shardId;
+        return ss.str();
+    }
+
+    bool run() {
+        TRACE_EVENT0("ep-engine/task", "WarmupLoadingKVPairs");
+        _warmup->loadKVPairsforShard(_shardId);
+        _warmup->removeFromTaskSet(uid);
+        return false;
+    }
+
+private:
+    uint16_t _shardId;
+    Warmup* _warmup;
+};
+
+class WarmupLoadingData : public GlobalTask {
+public:
+    WarmupLoadingData(KVBucket& st, uint16_t sh, Warmup* w) :
+        GlobalTask(&st.getEPEngine(), TaskId::WarmupLoadingData, 0, false),
+        _shardId(sh),
+        _warmup(w) {
+        _warmup->addToTaskSet(uid);
+    }
+
+    std::string getDescription() {
+        std::stringstream ss;
+        ss<<"Warmup - loading data: shard "<<_shardId;
+        return ss.str();
+    }
+
+    bool run() {
+        TRACE_EVENT0("ep-engine/task", "WarmupLoadingData");
+        _warmup->loadDataforShard(_shardId);
+        _warmup->removeFromTaskSet(uid);
+        return false;
+    }
+
+private:
+    uint16_t _shardId;
+    Warmup* _warmup;
+};
+
+class WarmupCompletion : public GlobalTask {
+public:
+    WarmupCompletion(KVBucket& st, Warmup* w) :
+        GlobalTask(&st.getEPEngine(), TaskId::WarmupCompletion, 0, false),
+        _warmup(w) {
+        _warmup->addToTaskSet(uid);
+    }
+
+    std::string getDescription() {
+        std::stringstream ss;
+        ss<<"Warmup - completion";
+        return ss.str();
+    }
+
+    bool run() {
+        TRACE_EVENT0("ep-engine/task", "WarmupCompletion");
+        _warmup->done();
+        _warmup->removeFromTaskSet(uid);
+        return false;
+    }
+
+private:
+    Warmup* _warmup;
+};
+
 
 static bool batchWarmupCallback(uint16_t vbId,
                                 const std::set<StoredDocKey>& fetches,
@@ -221,6 +463,19 @@ std::ostream& operator <<(std::ostream &out, const WarmupState &state)
     out << state.toString();
     return out;
 }
+
+LoadStorageKVPairCallback::LoadStorageKVPairCallback(KVBucket& ep,
+                                                     bool _maybeEnableTraffic,
+                                                     int _warmupState)
+    : vbuckets(ep.vbMap),
+      stats(ep.getEPEngine().getEpStats()),
+      epstore(ep),
+      startTime(ep_real_time()),
+      hasPurged(false),
+      maybeEnableTraffic(_maybeEnableTraffic),
+      warmupState(_warmupState) {
+}
+
 void LoadStorageKVPairCallback::callback(GetValue &val) {
     // This callback method is responsible for deleting the Item
     std::unique_ptr<Item> i(val.getValue());
@@ -328,6 +583,10 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
     } else {
         setStatus(ENGINE_SUCCESS);
     }
+}
+
+bool LoadStorageKVPairCallback::shouldEject() const {
+    return stats.getTotalMemoryUsed() >= stats.mem_low_wat;
 }
 
 void LoadStorageKVPairCallback::purge() {
