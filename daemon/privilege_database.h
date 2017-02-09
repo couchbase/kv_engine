@@ -175,12 +175,22 @@ protected:
 };
 
 /**
+ * Base class for exceptions thrown by the cb::rbac module in
+ * case you want to handle all of them with the same catch block.
+ */
+class Exception : public std::runtime_error {
+protected:
+    Exception(const char* msg) : std::runtime_error(msg) {
+    }
+};
+
+/**
  * An exception class representing that the user doesn't exist in the
  * PrivilegeDatabase.
  */
-class NoSuchUserException : public std::runtime_error {
+class NoSuchUserException : public Exception {
 public:
-    NoSuchUserException(const char* msg) : std::runtime_error(msg) {
+    NoSuchUserException(const char* msg) : Exception(msg) {
     }
 };
 
@@ -188,9 +198,9 @@ public:
  * An exception class representing that the bucket doesn't exists in the
  * PrivilegeDatabase.
  */
-class NoSuchBucketException : public std::runtime_error {
+class NoSuchBucketException : public Exception {
 public:
-    NoSuchBucketException(const char* msg) : std::runtime_error(msg) {
+    NoSuchBucketException(const char* msg) : Exception(msg) {
     }
 };
 
