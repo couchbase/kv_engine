@@ -21,12 +21,6 @@ be specified.
 
 This is the root directory of the Couchbase server installation.
 
-=== admin
-
-Specify the username used for administrive operations (like bucket
-management). To disable the use of an administrative role you should
-set this to an empty string.
-
 === breakpad
 
 The *breakpad* attribute is used to configure the Breakpad crash
@@ -313,7 +307,6 @@ A Sample memcached.json:
 
     {
         "root" : "/opt/couchbase",
-        "admin" : "_admin",
         "breakpad" :
             {
                 "enabled" : true,
