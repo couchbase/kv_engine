@@ -80,6 +80,10 @@ public:
 
     static uint16_t sasl_auth(const char *username, const char *password);
 
+
+    virtual MemcachedConnection& getConnection();
+    virtual MemcachedConnection& getAdminConnection();
+
 protected:
     // per test setup function.
     virtual void SetUp();
@@ -168,6 +172,18 @@ protected:
     static ConnectionMap connectionMap;
     static uint64_t token;
     static cb_thread_t memcached_server_thread;
+
+
+
+    /**
+     * Prepare a connection object to be used from a client by reconnecting
+     * and performing the initial handshake logic
+     *
+     * @param connection the connection to prepare
+     * @return The connection to use
+     */
+    MemcachedConnection& prepare(MemcachedConnection& connection);
+
 };
 
 // Test the various memcached binary protocol commands against a

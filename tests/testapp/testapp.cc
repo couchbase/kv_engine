@@ -1177,6 +1177,35 @@ void TestappTest::ewouldblock_engine_disable() {
     ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode::Next_N, 0);
 }
 
+MemcachedConnection& TestappTest::getConnection() {
+    return prepare(connectionMap.getConnection());
+}
+
+MemcachedConnection& TestappTest::getAdminConnection() {
+    auto& conn = getConnection();
+    conn.authenticate("_admin", "password", "PLAIN");
+    return conn;
+}
+
+MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
+    connection.reconnect();
+    if (connection.getProtocol() == Protocol::Memcached) {
+        auto& c = dynamic_cast<MemcachedBinprotConnection&>(connection);
+        c.setDatatypeSupport(true);
+        c.setMutationSeqnoSupport(true);
+        c.setXerrorSupport(true);
+        c.setXattrSupport(true);
+    } else {
+#ifdef ENABLE_GREENSTACK
+        auto& c = dynamic_cast<MemcachedGreenstackConnection&>(connection);
+    c.hello("memcached_testapp", "1,0", "BucketTest");
+#else
+        throw std::logic_error(
+            "TestappClientTest::prepare: built without Greenstack support");
+#endif
+    }
+    return connection;
+}
 
 INSTANTIATE_TEST_CASE_P(Transport,
                         McdTestappTest,

@@ -125,8 +125,5 @@ public:
 protected:
     std::string name;
 
-    virtual MemcachedConnection& getConnection();
-    virtual MemcachedConnection& getAdminConnection();
-
-    MemcachedConnection& prepare(MemcachedConnection& connection);
+    MemcachedConnection& getConnection() override;
 };

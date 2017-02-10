@@ -58,26 +58,6 @@ std::string to_string(const TransportProtocols& transport) {
 #endif
 }
 
-MemcachedConnection& TestappClientTest::prepare(MemcachedConnection& connection) {
-    connection.reconnect();
-    if (connection.getProtocol() == Protocol::Memcached) {
-        auto& c = dynamic_cast<MemcachedBinprotConnection&>(connection);
-        c.setDatatypeSupport(true);
-        c.setMutationSeqnoSupport(true);
-        c.setXerrorSupport(true);
-        c.setXattrSupport(true);
-    } else {
-#ifdef ENABLE_GREENSTACK
-        auto& c = dynamic_cast<MemcachedGreenstackConnection&>(connection);
-        c.hello("memcached_testapp", "1,0", "BucketTest");
-#else
-        throw std::logic_error(
-            "TestappClientTest::prepare: built without Greenstack support");
-#endif
-    }
-    return connection;
-}
-
 MemcachedConnection& TestappClientTest::getConnection() {
     switch (GetParam()) {
     case TransportProtocols::McbpPlain:
@@ -108,10 +88,4 @@ MemcachedConnection& TestappClientTest::getConnection() {
 #endif
     }
     throw std::logic_error("Unknown transport");
-}
-
-MemcachedConnection& TestappClientTest::getAdminConnection() {
-    auto& ret = getConnection();
-    ret.authenticate("_admin", "password", "PLAIN");
-    return ret;
 }

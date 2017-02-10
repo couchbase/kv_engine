@@ -569,6 +569,16 @@ public:
                                        in_port_t port = 0);
 
     /**
+     * Just get a connection to the server (protocol / ssl etc
+     * doesn't matter)
+     *
+     * @return A connection to the server
+     */
+    MemcachedConnection& getConnection() {
+        return *connections.front();
+    }
+
+    /**
      * Do we have a connection matching the requested attributes
      */
     bool contains(const Protocol& protocol, bool ssl, sa_family_t family);
