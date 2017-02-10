@@ -27,6 +27,14 @@
 
 Collections::VB::Manifest::Manifest(const std::string& manifest)
     : defaultCollectionExists(false), separator(DefaultSeparator) {
+    if (manifest.empty()) {
+        // Empty manifest, initialise the manifest with the default collection
+        addCollection(DefaultCollectionIdentifier,
+                      0,
+                      0,
+                      StoredValue::state_collection_open);
+        return;
+    }
 
     if (!checkUTF8JSON(reinterpret_cast<const unsigned char*>(manifest.data()),
                        manifest.size())) {

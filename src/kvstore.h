@@ -962,6 +962,13 @@ public:
     virtual bool persistCollectionsManifestItem(uint16_t vbid,
                                                 const Item& manifestItem) = 0;
 
+    /**
+     * KVStore must implement this method which should read and return the
+     * collection manifest data as a std::string (data written by
+     * persistCollectionsManifestItem)
+     */
+    virtual std::string getCollectionsManifest(uint16_t vbid) = 0;
+
 protected:
 
     /* all stats */

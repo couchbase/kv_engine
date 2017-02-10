@@ -2238,6 +2238,25 @@ couchstore_error_t CouchKVStore::saveCollectionsManifest(
     return errCode;
 }
 
+std::string CouchKVStore::readCollectionsManifest(Db& db) {
+    sized_buf id;
+    id.buf = const_cast<char*>(Collections::CouchstoreManifest);
+    id.size = sizeof(Collections::CouchstoreManifest) - 1;
+
+    LocalDocHolder lDoc;
+    auto errCode = couchstore_open_local_document(
+            &db, (void*)id.buf, id.size, lDoc.getLocalDocAddress());
+    if (errCode != COUCHSTORE_SUCCESS) {
+        logger.log(EXTENSION_LOG_WARNING,
+                   "CouchKVStore::readCollectionsManifest: "
+                   "couchstore_open_local_document error:%s",
+                   couchstore_strerror(errCode));
+        return {};
+    }
+
+    return {lDoc.getLocalDoc()->json.buf, lDoc.getLocalDoc()->json.size};
+}
+
 int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
     if (docinfo == nullptr) {
         throw std::invalid_argument("CouchKVStore::getMultiCb: docinfo "
@@ -2705,6 +2724,19 @@ bool CouchKVStore::persistCollectionsManifestItem(uint16_t vbid,
     }
 
     return true;
+}
+
+std::string CouchKVStore::getCollectionsManifest(uint16_t vbid) {
+    DbHolder db(this);
+
+    // openDB logs error details
+    couchstore_error_t errCode =
+            openDB(vbid, 0, db.getDbAddress(), COUCHSTORE_OPEN_FLAG_CREATE);
+    if (errCode != COUCHSTORE_SUCCESS) {
+        return {};
+    }
+
+    return readCollectionsManifest(*db.getDb());
 }
 
 /* end of couch-kvstore.cc */

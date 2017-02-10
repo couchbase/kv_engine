@@ -733,7 +733,8 @@ public:
             uint64_t lastSnapStart = 0,
             uint64_t lastSnapEnd = 0,
             uint64_t purgeSeqno = 0,
-            uint64_t maxCas = 0) = 0;
+            uint64_t maxCas = 0,
+            const std::string& collectionsManifest = {}) = 0;
 
     /**
      * Notify all the clients of a new seqno being added in the vbucket

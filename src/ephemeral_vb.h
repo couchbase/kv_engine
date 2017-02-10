@@ -39,7 +39,8 @@ public:
                      item_eviction_policy_t evictionPolicy,
                      vbucket_state_t initState = vbucket_state_dead,
                      uint64_t purgeSeqno = 0,
-                     uint64_t maxCas = 0);
+                     uint64_t maxCas = 0,
+                     const std::string& collectionsManifest = {});
 
     ENGINE_ERROR_CODE completeBGFetchForSingleItem(
             const DocKey& key,

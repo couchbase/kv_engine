@@ -19,6 +19,7 @@
  * Tests for Collection functionality in EPStore.
  */
 #include "bgfetcher.h"
+#include "programs/engine_testapp/mock_server.h"
 #include "tests/mock/mock_global_task.h"
 #include "tests/module_tests/evp_store_test.h"
 #include "tests/module_tests/thread_gate.h"
@@ -338,4 +339,89 @@ TEST_F(CollectionsTest, checkpoint_consistency) {
         }
         seqno = item->getBySeqno();
     }
+}
+
+//
+// Create a collection then create a second engine which will warmup from the
+// persisted collection state and should have the collection accessible.
+//
+TEST_F(CollectionsTest, warmup) {
+    RCPtr<VBucket> vb = store->getVBucket(vbid);
+
+    // Add the meat collection
+    vb->updateFromManifest(
+        {R"({"revision":1,"separator":"-+-","collections":["$default","meat"]})"});
+
+    // Trigger a flush to disk. Flushes the meat create event and 1 item
+    flush_vbucket_to_disk(vbid, 1);
+
+    // Now we can write to beef
+    store_item(vbid, {"meat-+-beef", DocNamespace::Collections}, "value");
+    // But not dairy
+    store_item(vbid,
+               {"dairy-+-milk", DocNamespace::Collections},
+               "value",
+               0,
+               {cb::engine_errc::unknown_collection});
+
+    flush_vbucket_to_disk(vbid, 1);
+
+    // Create a second engine and warmup - should come up with the collection
+    // enabled as it loads the manifest from disk
+
+    // Note we now create an EventuallyPersistentEngine as we need warmup to
+    // complete. This engine will manage the warmup tasks itself.
+    ENGINE_HANDLE* h;
+    EXPECT_EQ(ENGINE_SUCCESS, create_instance(1, get_mock_server_api, &h))
+            << "Failed to create ep engine instance";
+    EXPECT_EQ(1, h->interface) << "Unexpected engine handle version";
+
+    std::unique_ptr<EventuallyPersistentEngine> engine2(
+            reinterpret_cast<EventuallyPersistentEngine*>(h));
+    ObjectRegistry::onSwitchThread(engine2.get());
+
+    // Add dbname to config string.
+    std::string config = config_string;
+    if (config.size() > 0) {
+        config += ";";
+    }
+    config += "dbname=" + std::string(test_dbname);
+    EXPECT_EQ(ENGINE_SUCCESS, engine2->initialize(config.c_str()))
+            << "Failed to initialize engine2.";
+
+    // Wait for warmup to complete.
+    while (engine2->getKVBucket()->isWarmingUp()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    {
+        Item item({"meat-+-beef", DocNamespace::Collections},
+                  /*flags*/ 0,
+                  /*exp*/ 0,
+                  "rare",
+                  sizeof("rare"));
+        item.setVBucketId(vbid);
+        uint64_t cas;
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  engine2->store(nullptr, &item, &cas, OPERATION_SET));
+    }
+    {
+        Item item({"dairy-+-milk", DocNamespace::Collections},
+                  /*flags*/ 0,
+                  /*exp*/ 0,
+                  "skimmed",
+                  sizeof("skimmed"));
+        item.setVBucketId(vbid);
+        uint64_t cas;
+        EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+                  engine2->store(nullptr, &item, &cas, OPERATION_SET));
+    }
+
+    // Because we manually created a new engine we must manually bring it down
+    engine2->destroy(true);
+
+    // Force the callbacks whilst engine2 is still valid
+    destroy_mock_event_callbacks();
+
+    ObjectRegistry::onSwitchThread(nullptr);
 }

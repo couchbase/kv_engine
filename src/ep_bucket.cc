@@ -216,18 +216,18 @@ ENGINE_ERROR_CODE EPBucket::getPerVBucketDiskStats(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-RCPtr<VBucket> EPBucket::makeVBucket(
-        VBucket::id_type id,
-        vbucket_state_t state,
-        KVShard* shard,
-        std::unique_ptr<FailoverTable> table,
-        NewSeqnoCallback newSeqnoCb,
-        vbucket_state_t initState,
-        int64_t lastSeqno,
-        uint64_t lastSnapStart,
-        uint64_t lastSnapEnd,
-        uint64_t purgeSeqno,
-        uint64_t maxCas) {
+RCPtr<VBucket> EPBucket::makeVBucket(VBucket::id_type id,
+                                     vbucket_state_t state,
+                                     KVShard* shard,
+                                     std::unique_ptr<FailoverTable> table,
+                                     NewSeqnoCallback newSeqnoCb,
+                                     vbucket_state_t initState,
+                                     int64_t lastSeqno,
+                                     uint64_t lastSnapStart,
+                                     uint64_t lastSnapEnd,
+                                     uint64_t purgeSeqno,
+                                     uint64_t maxCas,
+                                     const std::string& collectionsManifest) {
     auto flusherCb = std::make_shared<NotifyFlusherCB>(shard);
     return RCPtr<VBucket>(new EPVBucket(id,
                                         state,
@@ -244,7 +244,8 @@ RCPtr<VBucket> EPBucket::makeVBucket(
                                         eviction_policy,
                                         initState,
                                         purgeSeqno,
-                                        maxCas));
+                                        maxCas,
+                                        collectionsManifest));
 }
 
 ENGINE_ERROR_CODE EPBucket::statsVKey(const DocKey& key,

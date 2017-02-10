@@ -136,7 +136,8 @@ VBucket::VBucket(id_type i,
                  item_eviction_policy_t evictionPolicy,
                  vbucket_state_t initState,
                  uint64_t purgeSeqno,
-                 uint64_t maxCas)
+                 uint64_t maxCas,
+                 const std::string& collectionsManifest)
     : ht(st, std::move(valFact)),
       checkpointManager(st,
                         i,
@@ -176,7 +177,8 @@ VBucket::VBucket(id_type i,
       bucketCreation(false),
       bucketDeletion(false),
       persistenceSeqno(0),
-      newSeqnoCb(std::move(newSeqnoCb)) {
+      newSeqnoCb(std::move(newSeqnoCb)),
+      manifest(collectionsManifest) {
     if (config.getConflictResolutionType().compare("lww") == 0) {
         conflictResolver.reset(new LastWriteWinsResolution());
     } else {

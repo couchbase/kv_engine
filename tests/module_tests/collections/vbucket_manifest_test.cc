@@ -29,7 +29,7 @@
 
 class MockVBManifest : public Collections::VB::Manifest {
 public:
-    MockVBManifest() : Collections::VB::Manifest() {
+    MockVBManifest() : Collections::VB::Manifest({/* no collection data*/}) {
     }
 
     MockVBManifest(const std::string& json) : Collections::VB::Manifest(json) {
@@ -432,6 +432,8 @@ TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
             makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
 
     EXPECT_TRUE(checkJson());
+
+    Collections::VB::Manifest g("");
 }
 
 TEST_F(VBucketManifestTest, invalidDeletes) {
