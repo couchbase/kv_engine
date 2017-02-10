@@ -451,15 +451,15 @@ TEST_P(BucketTest, TestBucketIsolationBuckets)
 
 TEST_P(BucketTest, TestMemcachedBucketBigObjects)
 {
-    auto& connection = getConnection();
+    auto& connection = getAdminConnection();
 
     const size_t item_max_size = 2 * 1024 * 1024; // 2MB
     std::string config = "item_size_max=" + std::to_string(item_max_size);
 
-    ASSERT_NO_THROW(connection.createBucket(name,
+    ASSERT_NO_THROW(connection.createBucket("mybucket_000",
                                             config,
                                             Greenstack::BucketType::Memcached));
-    connection.selectBucket(name);
+    connection.selectBucket("mybucket_000");
 
     Document doc;
     doc.info.cas = Greenstack::CAS::Wildcard;
@@ -473,7 +473,7 @@ TEST_P(BucketTest, TestMemcachedBucketBigObjects)
 
     connection.mutate(doc, 0, Greenstack::MutationType::Add);
     connection.get(name, 0);
-    connection.deleteBucket(name);
+    connection.deleteBucket("mybucket_000");
 }
 
 MemcachedConnection& BucketTest::getConnection() {
