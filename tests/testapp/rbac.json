@@ -21,7 +21,7 @@
   },
   "_admin": {
     "buckets": {
-      "_admin": [
+      "default": [
         "all"
       ]
     },
