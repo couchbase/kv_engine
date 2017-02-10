@@ -754,13 +754,14 @@ TEST_P(McdTestappTest, StatConnections) {
     } while (buffer.response.message.header.response.keylen != 0);
 }
 
-TEST_P(McdTestappTest, Scrub) {
+TEST_P(McdTestappTest, DISABLED_Scrub) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } send, recv;
 
+    sasl_auth("_admin", "password");
     size_t len = mcbp_raw_command(send.bytes, sizeof(send.bytes),
                                   PROTOCOL_BINARY_CMD_SCRUB, NULL, 0, NULL, 0);
 
@@ -920,6 +921,8 @@ TEST_P(McdTestappTest, IOCTL_Get) {
         char bytes[1024];
     } buffer;
 
+    sasl_auth("_admin", "password");
+
     /* NULL key is invalid. */
     size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                                   PROTOCOL_BINARY_CMD_IOCTL_GET, NULL, 0, NULL,
@@ -938,6 +941,7 @@ TEST_P(McdTestappTest, IOCTL_Set) {
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } buffer;
+    sasl_auth("_admin", "password");
 
     /* NULL key is invalid. */
     size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
@@ -950,6 +954,7 @@ TEST_P(McdTestappTest, IOCTL_Set) {
                                   PROTOCOL_BINARY_CMD_IOCTL_SET,
                                   PROTOCOL_BINARY_RESPONSE_EINVAL);
     reconnect_to_server();
+    sasl_auth("_admin", "password");
 
     /* Very long (> IOCTL_KEY_LENGTH) is invalid. */
     {
@@ -964,6 +969,7 @@ TEST_P(McdTestappTest, IOCTL_Set) {
                                       PROTOCOL_BINARY_CMD_IOCTL_SET,
                                       PROTOCOL_BINARY_RESPONSE_EINVAL);
         reconnect_to_server();
+        sasl_auth("_admin", "password");
     }
 
     /* release_free_memory always returns OK, regardless of how much was freed.*/
@@ -1037,6 +1043,7 @@ TEST_P(McdTestappTest, Config_ValidateCurrentConfig) {
         protocol_binary_response_no_extras response;
         char bytes[2048];
     } buffer;
+    sasl_auth("_admin", "password");
 
     /* identity config is valid. */
     char* config_string = cJSON_Print(memcached_cfg.get());
@@ -1058,6 +1065,7 @@ TEST_P(McdTestappTest, Config_Validate_Empty) {
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } buffer;
+    sasl_auth("_admin", "password");
 
     /* empty config is invalid */
     size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
@@ -1077,6 +1085,7 @@ TEST_P(McdTestappTest, Config_ValidateInvalidJSON) {
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } buffer;
+    sasl_auth("_admin", "password");
 
     /* non-JSON config is invalid */
     char non_json[] = "[something which isn't JSON]";
@@ -1097,6 +1106,7 @@ TEST_P(McdTestappTest, Config_ValidateThreadsNotDynamic) {
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } buffer;
+    sasl_auth("_admin", "password");
 
     /* 'threads' cannot be changed */
     cJSON* dynamic = cJSON_CreateObject();
@@ -1122,6 +1132,7 @@ TEST_P(McdTestappTest, Config_ValidateInterface) {
         protocol_binary_response_no_extras response;
         char bytes[2048];
     } buffer;
+    sasl_auth("_admin", "password");
 
     /* 'interfaces' - should be able to change max connections */
     cJSON* dynamic = generate_config();
@@ -1150,6 +1161,7 @@ TEST_P(McdTestappTest, Config_Reload) {
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } buffer;
+    sasl_auth("_admin", "password");
 
     if (GetParam() != Transport::Plain) {
         return;
@@ -1312,6 +1324,7 @@ TEST_P(McdTestappTest, Config_Reload_SSL) {
     if (GetParam() != Transport::SSL) {
         return;
     }
+    sasl_auth("_admin", "password");
 
     /* Change ssl cert/key on second interface. */
     cJSON *dynamic = generate_config(ssl_port);
@@ -1351,6 +1364,7 @@ TEST_P(McdTestappTest, Audit_Put) {
         protocol_binary_response_audit_put response;
         char bytes[1024];
     }buffer;
+    sasl_auth("_admin", "password");
 
     buffer.request.message.body.id = 0;
 
@@ -1371,6 +1385,7 @@ TEST_P(McdTestappTest, Audit_ConfigReload) {
         protocol_binary_response_no_extras response;
         char bytes[1024];
     }buffer;
+    sasl_auth("_admin", "password");
 
     size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                                   PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD,
@@ -1390,6 +1405,7 @@ TEST_P(McdTestappTest, Verbosity) {
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } buffer;
+    sasl_auth("_admin", "password");
 
     int ii;
     for (ii = 10; ii > -1; --ii) {
@@ -1908,6 +1924,8 @@ TEST_P(McdTestappTest, SessionCtrlToken) {
         char bytes[1024];
     } buffer;
 
+    sasl_auth("_admin", "password");
+
     uint64_t old_token = get_session_ctrl_token();
     uint64_t new_token = 0x0102030405060708;
 
@@ -1928,6 +1946,8 @@ TEST_P(McdTestappTest, SessionCtrlToken) {
     cb_assert(buffer.response.message.header.response.status ==
               PROTOCOL_BINARY_RESPONSE_EINVAL);
     reconnect_to_server();
+    sasl_auth("_admin", "password");
+
     cb_assert(old_token == get_session_ctrl_token());
 
     /* Validate that you can't set it by providing an incorrect cas */
@@ -2118,26 +2138,6 @@ TEST_P(McdTestappTest, DCP_Control) {
     mcbp_validate_response_header(&buffer.response,
                                   PROTOCOL_BINARY_CMD_DCP_CONTROL,
                                   PROTOCOL_BINARY_RESPONSE_EINVAL);
-}
-
-TEST_P(McdTestappTest, ISASL_Refresh) {
-    union {
-        protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } buffer;
-
-    size_t len;
-
-    len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                           PROTOCOL_BINARY_CMD_ISASL_REFRESH,
-                           NULL, 0, NULL, 0);
-
-    safe_send(buffer.bytes, len, false);
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_ISASL_REFRESH,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
 /*
@@ -3011,7 +3011,7 @@ TEST_P(McdTestappTest, test_MB_16333) {
  * Test that a bad SASL auth doesn't crash the server.
  * It should be rejected with EINVAL.
  */
-TEST_P(McdTestappTest, test_MB_16197) {
+TEST_P(McdTestappTest, DISABLED_test_MB_16197) {
     const char* chosenmech = "PLAIN";
     const char* data = "\0nouser\0nopassword";
 
@@ -3075,7 +3075,7 @@ static void getClustermapRevno(const std::string& map, int& revno) {
 /**
  * Test that we don't dedupe NVMB requests by default
  */
-TEST_P(McdTestappTest, test_MB_17506_no_dedupe) {
+TEST_P(McdTestappTest, DISABLED_test_MB_17506_no_dedupe) {
     auto *value = cJSON_GetObjectItem(memcached_cfg.get(), "dedupe_nmvb_maps");
     if (value != nullptr && value->type != cJSON_False){
         cJSON_ReplaceItemInObject(memcached_cfg.get(), "dedupe_nmvb_maps",
@@ -3130,7 +3130,7 @@ TEST_P(McdTestappTest, test_MB_17506_no_dedupe) {
 /**
  * Test that we dedupe NVMB requests
  */
-TEST_P(McdTestappTest, test_MB_17506_dedupe) {
+TEST_P(McdTestappTest, DISABLED_test_MB_17506_dedupe) {
     auto *value = cJSON_GetObjectItem(memcached_cfg.get(), "dedupe_nmvb_maps");
     if (value == nullptr) {
         cJSON_AddTrueToObject(memcached_cfg.get(), "dedupe_nmvb_maps");
