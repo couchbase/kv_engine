@@ -23,6 +23,9 @@
     "buckets": {
       "default": [
         "all"
+      ],
+      "bucket": [
+        "all"
       ]
     },
     "privileges": [

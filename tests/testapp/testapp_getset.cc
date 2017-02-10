@@ -372,20 +372,20 @@ TEST_P(GetSetTest, TestPerpendCasMismatch) {
 
 TEST_P(GetSetTest, TestIllegalVbucket) {
     auto& conn = getConnection();
-
+    conn.authenticate("_admin", "password", "PLAIN");
     // A memcached bucket only use vbucket 0
     conn.createBucket("bucket", "", Greenstack::BucketType::Memcached);
+    conn.selectBucket("bucket");
 
     try {
-        auto second_conn = conn.clone();
-        second_conn->selectBucket("bucket");
-        second_conn->get("TestGetMiss", 1);
-        FAIL() << "Expected TestGetMiss to throw an exception";
+        conn.get("TestGetInvalidVbucket", 1);
+        FAIL() << "Expected fetch of item in illegal vbucket to throw an exception";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isNotMyVbucket()) << error.what();
     }
 
     conn.deleteBucket("bucket");
+    conn.reconnect();
 }
 
 static void compress_vector(const std::vector<char>& input,
