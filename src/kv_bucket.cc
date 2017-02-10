@@ -1661,18 +1661,17 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
                                        uint64_t& cas,
                                        uint16_t vbucket,
                                        const void* cookie,
-                                       bool force,
                                        Item* itm,
                                        ItemMetaData* itemMeta,
                                        mutation_descr_t* mutInfo) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (!vb || (vb->getState() == vbucket_state_dead && !force)) {
+    if (!vb || vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == vbucket_state_replica && !force) {
+    } else if (vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == vbucket_state_pending && !force) {
+    } else if (vb->getState() == vbucket_state_pending) {
         if (vb->addPendingOp(cookie)) {
             return ENGINE_EWOULDBLOCK;
         }
@@ -1687,7 +1686,6 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
                           cookie,
                           engine,
                           bgFetchDelay,
-                          force,
                           itm,
                           itemMeta,
                           mutInfo);

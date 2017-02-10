@@ -1430,7 +1430,6 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
                                       const void* cookie,
                                       EventuallyPersistentEngine& engine,
                                       const int bgFetchDelay,
-                                      bool force,
                                       Item* itm,
                                       ItemMetaData* itemMeta,
                                       mutation_descr_t* mutInfo) {
@@ -1443,60 +1442,32 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
             if (eviction == VALUE_ONLY) {
                 return ENGINE_KEY_ENOENT;
             } else { // Full eviction.
-                if (!force) {
-                    if (!v) { // Item might be evicted from cache.
-                        if (maybeKeyExistsInFilter(key)) {
-                            return addTempItemAndBGFetch(lh,
-                                                         bucket_num,
-                                                         key,
-                                                         cookie,
-                                                         engine,
-                                                         bgFetchDelay,
-                                                         true);
-                        } else {
-                            // As bloomfilter predicted that item surely doesn't
-                            // exist on disk, return ENOENT for deleteItem().
-                            return ENGINE_KEY_ENOENT;
-                        }
-                    } else if (v->isTempInitialItem()) {
-                        lh.unlock();
-                        bgFetch(key, cookie, engine, bgFetchDelay, true);
-                        return ENGINE_EWOULDBLOCK;
-                    } else { // Non-existent or deleted key.
-                        if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
-                            // Delete a temp non-existent item to ensure that
-                            // if a delete were issued over an item that doesn't
-                            // exist, then we don't preserve a temp item.
-                            deleteStoredValue(lh, *v, bucket_num);
-                        }
+                if (!v) { // Item might be evicted from cache.
+                    if (maybeKeyExistsInFilter(key)) {
+                        return addTempItemAndBGFetch(lh,
+                                                     bucket_num,
+                                                     key,
+                                                     cookie,
+                                                     engine,
+                                                     bgFetchDelay,
+                                                     true);
+                    } else {
+                        // As bloomfilter predicted that item surely doesn't
+                        // exist on disk, return ENOENT for deleteItem().
                         return ENGINE_KEY_ENOENT;
                     }
-                } else {
-                    if (!v) { // Item might be evicted from cache.
-                        // Create a temp item and delete it below as it is a
-                        // force deletion, only if bloomfilter predicts that
-                        // item may exist on disk.
-                        if (maybeKeyExistsInFilter(key)) {
-                            AddStatus rv = addTempStoredValue(lh, bucket_num, key);
-                            if (rv == AddStatus::NoMem) {
-                                return ENGINE_ENOMEM;
-                            }
-                            v = ht.unlocked_find(key, bucket_num, true, false);
-                            v->setDeleted();
-                        } else {
-                            return ENGINE_KEY_ENOENT;
-                        }
-                    } else if (v->isTempInitialItem()) {
-                        v->setDeleted();
-                    } else { // Non-existent or deleted key.
-                        if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
-                            // Delete a temp non-existent item to ensure that
-                            // if a delete were issued over an item that doesn't
-                            // exist, then we don't preserve a temp item.
-                            deleteStoredValue(lh, *v, bucket_num);
-                        }
-                        return ENGINE_KEY_ENOENT;
+                } else if (v->isTempInitialItem()) {
+                    lh.unlock();
+                    bgFetch(key, cookie, engine, bgFetchDelay, true);
+                    return ENGINE_EWOULDBLOCK;
+                } else { // Non-existent or deleted key.
+                    if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
+                        // Delete a temp non-existent item to ensure that
+                        // if a delete were issued over an item that doesn't
+                        // exist, then we don't preserve a temp item.
+                        deleteStoredValue(lh, *v, bucket_num);
                     }
+                    return ENGINE_KEY_ENOENT;
                 }
             }
         }

@@ -253,7 +253,6 @@ public:
                                                      cas,
                                                      vbucket,
                                                      cookie,
-                                                     false, // not force
                                                      itm,
                                                      item_meta,
                                                      mut_info);

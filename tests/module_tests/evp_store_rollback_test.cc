@@ -79,7 +79,6 @@ protected:
                                     cas,
                                     vbid,
                                     /*cookie*/ nullptr,
-                                    /*force*/ false,
                                     /*Item*/ nullptr,
                                     /*itemMeta*/ nullptr,
                                     /*mutation_descr_t*/ nullptr));

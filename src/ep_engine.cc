@@ -5831,7 +5831,7 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
         ItemMetaData itm_meta;
         DocKey key(keyPtr, keylen, docNamespace);
         ret = kvBucket->deleteItem(
-                key, cas, vbucket, cookie, false, nullptr, &itm_meta, nullptr);
+                key, cas, vbucket, cookie, nullptr, &itm_meta, nullptr);
         if (ret == ENGINE_SUCCESS) {
             ++stats.numOpsDelRetMeta;
         }

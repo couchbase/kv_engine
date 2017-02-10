@@ -722,8 +722,6 @@ public:
      * @param cookie the cookie representing the client to store the item
      * @param engine Reference to ep engine
      * @param bgFetchDelay
-     * @param force force a delete in full eviction mode without doing a
-     *        bg fetch
      * @param itm item pointer that contains a value that needs to be
      *            stored along with a delete. A NULL pointer indicates
      *            that no value needs to be stored with the delete.
@@ -741,7 +739,6 @@ public:
                                  const void* cookie,
                                  EventuallyPersistentEngine& engine,
                                  int bgFetchDelay,
-                                 bool force,
                                  Item* itm,
                                  ItemMetaData* itemMeta,
                                  mutation_descr_t* mutInfo);

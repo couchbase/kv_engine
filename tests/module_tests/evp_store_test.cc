@@ -221,7 +221,6 @@ void EPBucketTest::delete_item(uint16_t vbid, const StoredDocKey& key) {
                                 cas,
                                 vbid,
                                 cookie,
-                                /*force*/ false,
                                 /*Item*/ nullptr,
                                 /*itemMeta*/ nullptr,
                                 /*mutation_descr_t*/ nullptr));
