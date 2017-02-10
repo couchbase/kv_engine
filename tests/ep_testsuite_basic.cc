@@ -1369,6 +1369,26 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
 
     checkeq(ENGINE_SUCCESS,
+            store(h, h1, nullptr, OPERATION_SET, "key2",
+                  "newdeletevalue", &i, 0, 0, 3600, 0x00, DocumentState::Deleted),
+            "Failed delete value with cas");
+
+    wait_for_flusher_to_settle(h, h1);
+
+    check(h1->get_item_info(h, nullptr, i, &info), "Getting item info failed");
+
+    h1->release(h, nullptr, i);
+
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, nullptr, OPERATION_SET, "key2",
+                  "newdeletevaluewithcas", &i, info.cas, 0, 3600, 0x00,
+                  DocumentState::Deleted), "Failed delete value with cas");
+
+    h1->release(h, nullptr, i);
+
+    wait_for_flusher_to_settle(h, h1);
+
+    checkeq(ENGINE_SUCCESS,
             get(h, h1, nullptr, &i, "key2", 0 , DocumentState::Deleted),
                 "Failed to get value");
 
@@ -1382,7 +1402,7 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE *h,
     std::string buf(static_cast<char*>(info.value[0].iov_base),
                     info.value[0].iov_len);
 
-    checkeq(0, buf.compare("deletevaluewithcas"), "Data mismatch");
+    checkeq(0, buf.compare("newdeletevaluewithcas"), "Data mismatch");
 
     h1->release(h, nullptr, i);
 
