@@ -891,26 +891,6 @@ void TestappTest::setControlToken(void) {
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
-/**
- * Send the shutdown message to the server and read the response
- * back and compare it with the expected result
- */
-void TestappTest::sendShutdown(protocol_binary_response_status status) {
-    // build the shutdown packet
-    std::vector<char> packet(24);
-    mcbp_raw_command(packet.data(), packet.size(),
-                     PROTOCOL_BINARY_CMD_SHUTDOWN,
-                     nullptr, 0, nullptr, 0);
-    char* ptr = reinterpret_cast<char*>(&token);
-    memcpy(packet.data() + 16, ptr, sizeof(token));
-    safe_send(packet.data(), packet.size(), false);
-    uint8_t buffer[1024];
-    safe_recv_packet(buffer, sizeof(buffer));
-    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(buffer);
-    mcbp_validate_response_header(rsp, PROTOCOL_BINARY_CMD_SHUTDOWN, status);
-}
-
-
 static ssize_t socket_send(SOCKET s, const char *buf, size_t len)
 {
 #ifdef WIN32

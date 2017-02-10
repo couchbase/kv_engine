@@ -145,11 +145,6 @@ protected:
      * to validate the shutdown command)
      */
     static void setControlToken();
-    /**
-     * Send the shutdown message to the server and read the response
-     * back and compare it with the expected result
-     */
-    static void sendShutdown(protocol_binary_response_status status);
 
     // Create the bucket used for testing
     static void CreateTestBucket();

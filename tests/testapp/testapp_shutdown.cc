@@ -32,16 +32,28 @@ public:
 
     virtual void SetUp() {
         TestappTest::SetUpTestCase();
+        ASSERT_NE(reinterpret_cast<pid_t>(-1), server_pid)
+            << "Terminate test execution"
+            << std::endl
+            << (exit(1), "");
 
-        ASSERT_NE(reinterpret_cast<pid_t>(-1), server_pid);
-        sock = connect_to_server_plain(port);
-        ASSERT_NE(INVALID_SOCKET, sock);
+        auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getAdminConnection());
 
-        setControlToken();
+        BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN);
+        cmd.setExtrasValue(token);
+        conn.sendCommand(cmd);
+
+        BinprotResponse rsp;
+        conn.recvResponse(rsp);
+
+        ASSERT_TRUE(rsp.isSuccess())
+                        << "Failed to set control token: "
+                        << rsp.getStatus()
+                        << std::endl
+                        << (exit(1), "");
     }
 
     virtual void TearDown() {
-        closesocket(sock);
         TestappTest::TearDownTestCase();
     }
 
@@ -53,6 +65,13 @@ protected:
 };
 
 TEST_F(ShutdownTest, ShutdownAllowed) {
-    sendShutdown(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getAdminConnection());
+    BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_SHUTDOWN);
+    cmd.setCas(token);
+    conn.sendCommand(cmd);
+
+    BinprotResponse rsp;
+    conn.recvResponse(rsp);
+    EXPECT_TRUE(rsp.isSuccess());
     waitForShutdown();
 }
