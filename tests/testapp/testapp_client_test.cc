@@ -109,3 +109,9 @@ MemcachedConnection& TestappClientTest::getConnection() {
     }
     throw std::logic_error("Unknown transport");
 }
+
+MemcachedConnection& TestappClientTest::getAdminConnection() {
+    auto& ret = getConnection();
+    ret.authenticate("_admin", "password", "PLAIN");
+    return ret;
+}
