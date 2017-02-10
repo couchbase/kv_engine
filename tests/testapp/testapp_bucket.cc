@@ -413,13 +413,13 @@ TEST_P(BucketTest, TestListBucket) {
 
 TEST_P(BucketTest, TestBucketIsolationBuckets)
 {
-    auto& connection = getConnection();
+    auto& connection = getAdminConnection();
 
     for (int ii = 1; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
-        std::string name = "bucket-" + std::to_string(ii);
-        connection.createBucket(name, "", Greenstack::BucketType::Memcached);
+        std::stringstream ss;
+        ss << "mybucket_" << std::setfill('0') << std::setw(3) << ii;
+        connection.createBucket(ss.str(), "", Greenstack::BucketType::Memcached);
     }
-
 
     // I should be able to select each bucket and the same document..
     Document doc;
@@ -433,15 +433,19 @@ TEST_P(BucketTest, TestBucketIsolationBuckets)
     cJSON_Free(ptr);
 
     for (int ii = 1; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
-        std::string name = "bucket-" + std::to_string(ii);
+        std::stringstream ss;
+        ss << "mybucket_" << std::setfill('0') << std::setw(3) << ii;
+        const auto name = ss.str();
         connection.selectBucket(name);
         connection.mutate(doc, 0, Greenstack::MutationType::Add);
     }
 
+    connection = getAdminConnection();
     // Delete all buckets
     for (int ii = 1; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
-        std::string name = "bucket-" + std::to_string(ii);
-        connection.deleteBucket(name);
+        std::stringstream ss;
+        ss << "mybucket_" << std::setfill('0') << std::setw(3) << ii;
+        connection.deleteBucket(ss.str());
     }
 }
 

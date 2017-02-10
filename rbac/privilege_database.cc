@@ -177,7 +177,11 @@ PrivilegeAccess PrivilegeContext::check(Privilege privilege) const {
         throw std::invalid_argument("Invalid privilege passed for the check)");
     }
 #endif
-    return mask[idx] ? PrivilegeAccess::Ok : PrivilegeAccess::Fail;
+    if (mask[idx]) {
+        return PrivilegeAccess::Ok;
+    }
+
+    return PrivilegeAccess::Fail;
 }
 
 PrivilegeContext createContext(const std::string& user,

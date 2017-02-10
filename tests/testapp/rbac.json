@@ -26,6 +26,312 @@
       ],
       "bucket": [
         "all"
+      ],
+      "bucket-1": [
+        "all"
+      ],
+      "bucket-2": [
+        "all"
+      ],
+      "mybucket_000": [
+        "all"
+      ],
+      "mybucket_001": [
+        "all"
+      ],
+      "mybucket_002": [
+        "all"
+      ],
+      "mybucket_003": [
+        "all"
+      ],
+      "mybucket_004": [
+        "all"
+      ],
+      "mybucket_005": [
+        "all"
+      ],
+      "mybucket_006": [
+        "all"
+      ],
+      "mybucket_007": [
+        "all"
+      ],
+      "mybucket_008": [
+        "all"
+      ],
+      "mybucket_009": [
+        "all"
+      ],
+      "mybucket_010": [
+        "all"
+      ],
+      "mybucket_011": [
+        "all"
+      ],
+      "mybucket_012": [
+        "all"
+      ],
+      "mybucket_013": [
+        "all"
+      ],
+      "mybucket_014": [
+        "all"
+      ],
+      "mybucket_015": [
+        "all"
+      ],
+      "mybucket_016": [
+        "all"
+      ],
+      "mybucket_017": [
+        "all"
+      ],
+      "mybucket_018": [
+        "all"
+      ],
+      "mybucket_019": [
+        "all"
+      ],
+      "mybucket_020": [
+        "all"
+      ],
+      "mybucket_021": [
+        "all"
+      ],
+      "mybucket_022": [
+        "all"
+      ],
+      "mybucket_023": [
+        "all"
+      ],
+      "mybucket_024": [
+        "all"
+      ],
+      "mybucket_025": [
+        "all"
+      ],
+      "mybucket_026": [
+        "all"
+      ],
+      "mybucket_027": [
+        "all"
+      ],
+      "mybucket_028": [
+        "all"
+      ],
+      "mybucket_029": [
+        "all"
+      ],
+      "mybucket_030": [
+        "all"
+      ],
+      "mybucket_031": [
+        "all"
+      ],
+      "mybucket_032": [
+        "all"
+      ],
+      "mybucket_033": [
+        "all"
+      ],
+      "mybucket_034": [
+        "all"
+      ],
+      "mybucket_035": [
+        "all"
+      ],
+      "mybucket_036": [
+        "all"
+      ],
+      "mybucket_037": [
+        "all"
+      ],
+      "mybucket_038": [
+        "all"
+      ],
+      "mybucket_039": [
+        "all"
+      ],
+      "mybucket_040": [
+        "all"
+      ],
+      "mybucket_041": [
+        "all"
+      ],
+      "mybucket_042": [
+        "all"
+      ],
+      "mybucket_043": [
+        "all"
+      ],
+      "mybucket_044": [
+        "all"
+      ],
+      "mybucket_045": [
+        "all"
+      ],
+      "mybucket_046": [
+        "all"
+      ],
+      "mybucket_047": [
+        "all"
+      ],
+      "mybucket_048": [
+        "all"
+      ],
+      "mybucket_049": [
+        "all"
+      ],
+      "mybucket_050": [
+        "all"
+      ],
+      "mybucket_051": [
+        "all"
+      ],
+      "mybucket_052": [
+        "all"
+      ],
+      "mybucket_053": [
+        "all"
+      ],
+      "mybucket_054": [
+        "all"
+      ],
+      "mybucket_055": [
+        "all"
+      ],
+      "mybucket_056": [
+        "all"
+      ],
+      "mybucket_057": [
+        "all"
+      ],
+      "mybucket_058": [
+        "all"
+      ],
+      "mybucket_059": [
+        "all"
+      ],
+      "mybucket_060": [
+        "all"
+      ],
+      "mybucket_061": [
+        "all"
+      ],
+      "mybucket_062": [
+        "all"
+      ],
+      "mybucket_063": [
+        "all"
+      ],
+      "mybucket_064": [
+        "all"
+      ],
+      "mybucket_065": [
+        "all"
+      ],
+      "mybucket_066": [
+        "all"
+      ],
+      "mybucket_067": [
+        "all"
+      ],
+      "mybucket_068": [
+        "all"
+      ],
+      "mybucket_069": [
+        "all"
+      ],
+      "mybucket_070": [
+        "all"
+      ],
+      "mybucket_071": [
+        "all"
+      ],
+      "mybucket_072": [
+        "all"
+      ],
+      "mybucket_073": [
+        "all"
+      ],
+      "mybucket_074": [
+        "all"
+      ],
+      "mybucket_075": [
+        "all"
+      ],
+      "mybucket_076": [
+        "all"
+      ],
+      "mybucket_077": [
+        "all"
+      ],
+      "mybucket_078": [
+        "all"
+      ],
+      "mybucket_079": [
+        "all"
+      ],
+      "mybucket_080": [
+        "all"
+      ],
+      "mybucket_081": [
+        "all"
+      ],
+      "mybucket_082": [
+        "all"
+      ],
+      "mybucket_083": [
+        "all"
+      ],
+      "mybucket_084": [
+        "all"
+      ],
+      "mybucket_085": [
+        "all"
+      ],
+      "mybucket_086": [
+        "all"
+      ],
+      "mybucket_087": [
+        "all"
+      ],
+      "mybucket_088": [
+        "all"
+      ],
+      "mybucket_089": [
+        "all"
+      ],
+      "mybucket_090": [
+        "all"
+      ],
+      "mybucket_091": [
+        "all"
+      ],
+      "mybucket_092": [
+        "all"
+      ],
+      "mybucket_093": [
+        "all"
+      ],
+      "mybucket_094": [
+        "all"
+      ],
+      "mybucket_095": [
+        "all"
+      ],
+      "mybucket_096": [
+        "all"
+      ],
+      "mybucket_097": [
+        "all"
+      ],
+      "mybucket_098": [
+        "all"
+      ],
+      "mybucket_099": [
+        "all"
       ]
     },
     "privileges": [
