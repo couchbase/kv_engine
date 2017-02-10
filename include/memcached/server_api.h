@@ -5,7 +5,7 @@
 
 #include <memcached/types.h>
 #include <memcached/config_parser.h>
-#include <memcached/privileges.h>
+#include <memcached/rbac.h>
 #include <memcached/protocol_binary.h>
 
 #ifdef __cplusplus

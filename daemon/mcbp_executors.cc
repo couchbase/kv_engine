@@ -35,7 +35,6 @@
 #include "mcbpdestroybuckettask.h"
 #include "sasl_tasks.h"
 #include "mcbp_privileges.h"
-#include "privilege_database.h"
 #include "protocol/mcbp/appendprepend_context.h"
 #include "protocol/mcbp/arithmetic_context.h"
 #include "protocol/mcbp/get_context.h"
@@ -54,6 +53,7 @@
 
 #include <cctype>
 #include <memcached/audit_interface.h>
+#include <memcached/rbac.h>
 #include <platform/cb_malloc.h>
 #include <platform/checked_snprintf.h>
 #include <platform/compress.h>

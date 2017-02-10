@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 
-#include <memcached/privileges.h>
+#include <memcached/rbac/privileges.h>
 #include <stdexcept>
 #include <unordered_map>
 

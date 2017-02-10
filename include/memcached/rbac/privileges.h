@@ -16,6 +16,8 @@
  */
 #pragma once
 
+#include <memcached/rbac/visibility.h>
+
 #include <string>
 
 namespace cb {
@@ -149,11 +151,13 @@ enum class PrivilegeAccess { Ok, Fail, Stale };
  * @return The privilege
  * @throws std::invalid_argument if the text doesn't map to a privilege
  */
+RBAC_PUBLIC_API
 Privilege to_privilege(const std::string& str);
 
 /**
  * Get the textual representation of a privilege
  */
+RBAC_PUBLIC_API
 std::string to_string(const Privilege& privilege);
 
 }

@@ -49,7 +49,6 @@
 #include "mcbpdestroybuckettask.h"
 #include "libevent_locking.h"
 #include "doc_pre_expiry.h"
-#include "privilege_database.h"
 
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
@@ -66,6 +65,7 @@
 #include <time.h>
 #include <limits.h>
 #include <ctype.h>
+#include <memcached/rbac.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <snappy-c.h>

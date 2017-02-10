@@ -18,11 +18,11 @@
 
 #include "config.h"
 
-#include "privilege_database.h"
 #include "settings.h"
 
 #include <cJSON.h>
 #include <cbsasl/cbsasl.h>
+#include <memcached/rbac.h>
 #include <string>
 
 struct LIBEVENT_THREAD;

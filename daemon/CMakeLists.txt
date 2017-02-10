@@ -106,9 +106,6 @@ ADD_LIBRARY(memcached_daemon STATIC
             net_buf.h
             parent_monitor.cc
             parent_monitor.h
-            privilege_database.cc
-            privilege_database.h
-            privileges.cc
             protocol/mcbp/appendprepend_context.cc
             protocol/mcbp/appendprepend_context.h
             protocol/mcbp/arithmetic_context.cc
@@ -192,6 +189,7 @@ TARGET_LINK_LIBRARIES(memcached_daemon
                       platform
                       cJSON
                       JSON_checker
+                      memcached_rbac
                       subjson
                       phosphor
                       xattr

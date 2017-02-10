@@ -18,7 +18,7 @@
 #include "sasl_tasks.h"
 #include "memcached.h"
 #include "mcaudit.h"
-#include "privilege_database.h"
+#include <memcached/rbac.h>
 
 
 StartSaslAuthTask::StartSaslAuthTask(Cookie& cookie_,

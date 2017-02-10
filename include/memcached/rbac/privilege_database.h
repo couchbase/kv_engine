@@ -22,7 +22,7 @@
  * docs directory.
  */
 #include <cJSON.h>
-#include <memcached/privileges.h>
+#include <memcached/rbac/privileges.h>
 
 #include <bitset>
 #include <cstdint>
@@ -47,7 +47,7 @@ using PrivilegeMask = std::bitset<size_t(Privilege::Impersonate) + 1>;
  * The UserEntry object is in an in-memory representation of the per-user
  * privileges.
  */
-class UserEntry {
+class RBAC_PUBLIC_API UserEntry {
 public:
     /**
      * The Domain specifices where the user is defined.
@@ -118,7 +118,7 @@ protected:
  * of the privileges. It is used (possibly multiple times) for every
  * command being executed.
  */
-class PrivilegeContext {
+class RBAC_PUBLIC_API PrivilegeContext {
 public:
     /**
      * Create a new (empty) instance of the privilege context.
@@ -169,7 +169,7 @@ protected:
  * Base class for exceptions thrown by the cb::rbac module in
  * case you want to handle all of them with the same catch block.
  */
-class Exception : public std::runtime_error {
+class RBAC_PUBLIC_API Exception : public std::runtime_error {
 protected:
     Exception(const char* msg) : std::runtime_error(msg) {
     }
@@ -179,17 +179,17 @@ protected:
  * An exception class representing that the user doesn't exist in the
  * PrivilegeDatabase.
  */
-class NoSuchUserException : public Exception {
+class RBAC_PUBLIC_API NoSuchUserException : public Exception {
 public:
     NoSuchUserException(const char* msg) : Exception(msg) {
     }
 };
 
 /**
- * An exception class representing that the bucket doesn't exists in the
+ * An exception class representing that the bucket doesn't exist in the
  * PrivilegeDatabase.
  */
-class NoSuchBucketException : public Exception {
+class RBAC_PUBLIC_API NoSuchBucketException : public Exception {
 public:
     NoSuchBucketException(const char* msg) : Exception(msg) {
     }
@@ -199,7 +199,7 @@ public:
  * The PrivilegeDatabase is a container for all of the RBAC configuration
  * of the system.
  */
-class PrivilegeDatabase {
+class RBAC_PUBLIC_API PrivilegeDatabase {
 public:
     /**
      * Create a new instance of the PrivilegeDatabase and initialize
@@ -287,6 +287,7 @@ protected:
  * @throws cb::rbac::NoSuchBucketException if the user doesn't have access
  *                                         to that bucket.
  */
+RBAC_PUBLIC_API
 PrivilegeContext createContext(const std::string& user,
                                const std::string& bucket);
 
@@ -296,16 +297,19 @@ PrivilegeContext createContext(const std::string& user,
  * @param filename the name of the new file
  * @throws std::runtime_error
  */
+RBAC_PUBLIC_API
 void loadPrivilegeDatabase(const std::string& filename);
 
 /**
  * Initialize the RBAC module
  */
+RBAC_PUBLIC_API
 void initialize();
 
 /**
  * Destroy the RBAC module
  */
+RBAC_PUBLIC_API
 void destroy();
 }
 }

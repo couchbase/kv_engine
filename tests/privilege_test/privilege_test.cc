@@ -17,7 +17,7 @@
 
 #include <cJSON_utils.h>
 #include <gtest/gtest.h>
-#include "daemon/privilege_database.h"
+#include <memcached/rbac.h>
 
 TEST(PrivilegeDatabaseTest, ParseLegalConfig) {
     unique_cJSON_ptr root(cJSON_CreateObject());

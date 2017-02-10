@@ -19,7 +19,7 @@
 
 #include <array>
 #include <memcached/protocol_binary.h>
-#include <memcached/privileges.h>
+#include <memcached/rbac.h>
 #include "cookie.h"
 #include "function_chain.h"
 

@@ -14,7 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "privilege_database.h"
+#include <memcached/rbac.h>
 
 #include <cJSON_utils.h>
 #include <platform/memorymap.h>
