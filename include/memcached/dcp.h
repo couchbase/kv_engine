@@ -254,6 +254,26 @@ struct dcp_message_producers {
                                   uint16_t nkey,
                                   const void* value,
                                   uint32_t nvalue);
+
+    /**
+     * Send a system event message to the other end
+     *
+     * @param cookie passed on the cookie provided by step
+     * @param opaque what to use as the opaque in the buffer
+     * @param vbucket the vbucket the event applies to
+     * @param bySeqno the sequence number of the event
+     * @param key the system event's key data
+     * @param eventData the system event's specific data
+     *
+     * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
+     */
+    ENGINE_ERROR_CODE (* system_event)(const void* cookie,
+                                       uint32_t opaque,
+                                       uint16_t vbucket,
+                                       uint64_t bySeqno,
+                                       uint32_t event,
+                                       cb::const_byte_buffer key,
+                                       cb::const_byte_buffer eventData);
 };
 
 typedef ENGINE_ERROR_CODE (* dcp_add_failover_log)(vbucket_failover_t*,
