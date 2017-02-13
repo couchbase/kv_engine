@@ -152,6 +152,7 @@ public:
 
     void setAuthenticated(bool authenticated) {
         Connection::authenticated = authenticated;
+        resetUsernameCache();
         if (authenticated) {
             privilegeContext = cb::rbac::createContext(username, "");
         } else {
