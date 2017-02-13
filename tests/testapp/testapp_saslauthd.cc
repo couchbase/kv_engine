@@ -29,6 +29,22 @@ static char cbauth_env_var[256];
 
 std::unique_ptr<SaslauthdMock> authdMock;
 
+// This class acts as a "guard". If we get an exception we can be sure that
+// the thread will be joined, and that thread::~thread() won't abort because
+// it wasn't join()d yet.
+class MockAuthServer {
+public:
+    MockAuthServer() : thread([](){authdMock->processOne();}){
+    }
+
+    ~MockAuthServer() {
+        thread.join();
+    }
+
+private:
+    std::thread thread;
+};
+
 class SaslauthdTest : public TestappClientTest {
 public:
     static void SetUpTestCase() {
@@ -61,37 +77,23 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
 
 TEST_P(SaslauthdTest, TestSuccessfulSaslauthd) {
     MemcachedConnection& conn = getConnection();
-    std::thread saslauthd{[]() {
-        authdMock->processOne();
-    }};
-
+    MockAuthServer saslauthd;
     conn.authenticate("superman", "<3LoisLane<3", "PLAIN");
-    saslauthd.join();
 }
 
 TEST_P(SaslauthdTest, TestIncorrectSaslauthd) {
     MemcachedConnection& conn = getConnection();
-
-    std::thread saslauthd{[]() {
-        authdMock->processOne();
-    }};
+    MockAuthServer saslauthd;
 
     EXPECT_THROW(conn.authenticate("superman", "Lane<3", "PLAIN"),
                  std::runtime_error);
-
-    saslauthd.join();
 }
 
 TEST_P(SaslauthdTest, TestUnknownUser) {
     MemcachedConnection& conn = getConnection();
-
-    std::thread saslauthd{[]() {
-        authdMock->processOne();
-    }};
-
+    MockAuthServer saslauthd;
     EXPECT_THROW(conn.authenticate("godzilla", "Lane<3", "PLAIN"),
                  std::runtime_error);
-    saslauthd.join();
 }
 
 TEST_P(SaslauthdTest, TestKnownSaslauthdUnknownMech) {
