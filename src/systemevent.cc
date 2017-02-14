@@ -17,6 +17,8 @@
 
 #include "systemevent.h"
 #include "collections/collections_types.h"
+#include "collections/vbucket_manifest.h"
+#include "dcp/response.h"
 #include "kvstore.h"
 
 std::unique_ptr<Item> SystemEventFactory::make(SystemEvent se,
@@ -77,9 +79,9 @@ std::unique_ptr<Item> SystemEventFactory::make(SystemEvent se,
     return item;
 }
 
-SystemEventFlushStatus SystemEventFlush::process(const queued_item& item) {
+ProcessStatus SystemEventFlush::process(const queued_item& item) {
     if (item->getOperation() != queue_op::system_event) {
-        return SystemEventFlushStatus::Continue;
+        return ProcessStatus::Continue;
     }
 
     switch (SystemEvent(item->getFlags())) {
@@ -89,13 +91,13 @@ SystemEventFlushStatus SystemEventFlush::process(const queued_item& item) {
         // CreateCollection updates the manifest and writes a SystemEvent
         // DeleteCollection* both update the manifest and write a SystemEvent
         saveCollectionsManifestItem(item);
-        return SystemEventFlushStatus::Continue;
+        return ProcessStatus::Continue;
     }
     case SystemEvent::BeginDeleteCollection:
     case SystemEvent::CollectionsSeparatorChanged: {
         // These two will update the manifest but should not write an Item
         saveCollectionsManifestItem(item);
-        return SystemEventFlushStatus::Skip;
+        return ProcessStatus::Skip;
     }
     }
 
@@ -142,4 +144,55 @@ void SystemEventFlush::saveCollectionsManifestItem(const queued_item& item) {
         !collectionManifestItem) {
         collectionManifestItem = item;
     }
+}
+
+ProcessStatus SystemEventReplicate::process(const Item& item) {
+    if (item.shouldReplicate()) {
+        if (item.getOperation() != queue_op::system_event) {
+            // Not a system event, so no further filtering
+            return ProcessStatus::Continue;
+        } else {
+            switch (SystemEvent(item.getFlags())) {
+            case SystemEvent::CreateCollection:
+            case SystemEvent::BeginDeleteCollection:
+            case SystemEvent::CollectionsSeparatorChanged:
+                // Create, BeginDelete and change separator all replicate
+                return ProcessStatus::Continue;
+            case SystemEvent::DeleteCollectionHard:
+            case SystemEvent::DeleteCollectionSoft: {
+                // Delete H/S do not replicate
+                return ProcessStatus::Skip;
+            }
+            }
+        }
+    }
+    return ProcessStatus::Skip;
+}
+
+std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
+        uint32_t opaque, queued_item& item) {
+    std::pair<cb::const_char_buffer, cb::const_byte_buffer> dcpData;
+    switch (SystemEvent(item->getFlags())) {
+    case SystemEvent::CreateCollection:
+    case SystemEvent::BeginDeleteCollection: {
+        dcpData = Collections::VB::Manifest::getSystemEventData(
+                {item->getData(), item->getNBytes()});
+        break;
+    }
+    case SystemEvent::CollectionsSeparatorChanged: {
+        dcpData = Collections::VB::Manifest::getSystemEventSeparatorData(
+                {item->getData(), item->getNBytes()});
+        break;
+    }
+    case SystemEvent::DeleteCollectionHard:
+    case SystemEvent::DeleteCollectionSoft:
+        throw std::logic_error(
+                "SystemEventProducerMessage::make not valid for " +
+                std::to_string(item->getFlags()));
+    }
+
+    // Note: constructor is private and make_unique is a pain to add as a friend
+    return std::unique_ptr<SystemEventProducerMessage>{
+            new SystemEventProducerMessage(
+                    opaque, item, dcpData.first, dcpData.second)};
 }

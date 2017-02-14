@@ -657,13 +657,13 @@ public:
         switch (op) {
             case queue_op::set:
             case queue_op::del:
+            case queue_op::system_event:
                 return false;
             case queue_op::flush:
             case queue_op::empty:
             case queue_op::checkpoint_start:
             case queue_op::checkpoint_end:
             case queue_op::set_vbucket_state:
-            case queue_op::system_event:
                 return true;
         }
         // Silence GCC warning

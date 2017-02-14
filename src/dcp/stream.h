@@ -279,6 +279,12 @@ protected:
 
     DcpResponse* nextQueuedItem();
 
+    /**
+     * @return a DcpResponse to represent the item. This will be either a
+     *         MutationResponse or SystemEventProducerMessage.
+     */
+    std::unique_ptr<DcpResponse> makeResponseFromItem(queued_item& item);
+
     /* The transitionState function is protected (as opposed to private) for
      * testing purposes.
      */
@@ -327,7 +333,7 @@ private:
 
     DcpResponse* deadPhase();
 
-    void snapshot(std::deque<MutationResponse*>& snapshot, bool mark);
+    void snapshot(std::deque<DcpResponse*>& snapshot, bool mark);
 
     void endStream(end_stream_status_t reason);
 
@@ -409,6 +415,10 @@ public:
     void schedule(const stream_t& stream);
     void wakeup();
     void clearQueues();
+    size_t queueSize() {
+        LockHolder lh(workQueueLock);
+        return queue.size();
+    }
 
 private:
 

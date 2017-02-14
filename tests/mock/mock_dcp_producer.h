@@ -18,6 +18,7 @@
 #pragma once
 
 #include "dcp/producer.h"
+#include "dcp/stream.h"
 
 /*
  * Mock of the DcpProducer class.  Wraps the real DcpProducer, but exposes
@@ -78,5 +79,10 @@ public:
      */
     void scheduleCheckpointProcessorTask() {
         DcpProducer::scheduleCheckpointProcessorTask();
+    }
+
+    ActiveStreamCheckpointProcessorTask& getCheckpointSnapshotTask() const {
+        return *static_cast<ActiveStreamCheckpointProcessorTask*>(
+                checkpointCreatorTask.get());
     }
 };

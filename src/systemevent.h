@@ -22,6 +22,7 @@
 #include "item.h"
 
 class KVStore;
+class SystemEventMessage;
 
 /// underlying size of uint32_t as this is to be stored in the Item flags field.
 enum class SystemEvent : uint32_t {
@@ -113,7 +114,7 @@ public:
                                       OptionalSeqno seqno);
 };
 
-enum class SystemEventFlushStatus { Skip, Continue };
+enum class ProcessStatus { Skip, Continue };
 
 /**
  * SystemEventFlush holds all SystemEvent data for a single invocation of a
@@ -147,7 +148,7 @@ public:
      *          Continue if the flusher can continue the rest of the flushing
      *          function against the item.
      */
-    SystemEventFlushStatus process(const queued_item& item);
+    ProcessStatus process(const queued_item& item);
 
     /**
      * Determine the flushing action of the Item, knows about normal set/del
@@ -172,4 +173,9 @@ private:
      * maybe needed by the flush::commit
      */
     queued_item collectionManifestItem;
+};
+
+class SystemEventReplicate {
+public:
+    static ProcessStatus process(const Item& item);
 };

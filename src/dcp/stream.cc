@@ -399,8 +399,8 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
     if (itm->shouldReplicate()) {
         std::unique_lock<std::mutex> lh(streamMutex);
         if (isBackfilling()) {
-            auto resp = std::make_unique<MutationResponse>(
-                    std::move(itm), opaque_, nullptr);
+            queued_item qi(std::move(itm));
+            std::unique_ptr<DcpResponse> resp(makeResponseFromItem(qi));
             if (!producer->recordBackfillManagerBytesRead(
                         resp->getApproximateSize())) {
                 // Deleting resp may also delete itm (which is owned by resp)
@@ -565,7 +565,6 @@ DcpResponse* ActiveStream::inMemoryPhase() {
             return NULL;
         }
     }
-
     return nextQueuedItem();
 }
 
@@ -862,6 +861,15 @@ void ActiveStream::getOutstandingItems(RCPtr<VBucket> &vb,
     }
 }
 
+std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
+        queued_item& item) {
+    if (item->getOperation() != queue_op::system_event) {
+        return std::make_unique<MutationResponse>(item, opaque_);
+    } else {
+        return SystemEventProducerMessage::make(opaque_, item);
+    }
+}
+
 void ActiveStream::processItems(std::vector<queued_item>& items) {
     if (!items.empty()) {
         bool mark = false;
@@ -869,16 +877,15 @@ void ActiveStream::processItems(std::vector<queued_item>& items) {
             mark = true;
         }
 
-        std::deque<MutationResponse*> mutations;
+        std::deque<DcpResponse*> mutations;
         std::vector<queued_item>::iterator itr = items.begin();
         for (; itr != items.end(); ++itr) {
             queued_item& qi = *itr;
 
-            if (qi->shouldReplicate()) {
+            if (SystemEventReplicate::process(*qi) == ProcessStatus::Continue) {
                 curChkSeqno = qi->getBySeqno();
                 lastReadSeqnoUnSnapshotted = qi->getBySeqno();
-
-                mutations.push_back(new MutationResponse(qi, opaque_));
+                mutations.push_back(makeResponseFromItem(qi).release());
             } else if (qi->getOperation() == queue_op::checkpoint_start) {
                 /* if there are already other mutations, then they belong to the
                    previous checkpoint and hence we must create a snapshot and
@@ -908,7 +915,7 @@ void ActiveStream::processItems(std::vector<queued_item>& items) {
     producer->notifyStreamReady(vb_);
 }
 
-void ActiveStream::snapshot(std::deque<MutationResponse*>& items, bool mark) {
+void ActiveStream::snapshot(std::deque<DcpResponse*>& items, bool mark) {
     if (items.empty()) {
         return;
     }
@@ -922,9 +929,8 @@ void ActiveStream::snapshot(std::deque<MutationResponse*>& items, bool mark) {
         // should be added on the stream's readyQ. We must drop items in case
         // we switch state from in-memory to backfill because we schedule
         // backfill from lastReadSeqno + 1
-        std::deque<MutationResponse *>::iterator itr = items.begin();
-        for (; itr != items.end(); ++itr) {
-            delete *itr;
+        for (auto& item : items) {
+            delete item;
         }
         items.clear();
         return;
@@ -936,9 +942,19 @@ void ActiveStream::snapshot(std::deque<MutationResponse*>& items, bool mark) {
     if (isCurrentSnapshotCompleted()) {
         uint32_t flags = MARKER_FLAG_MEMORY;
 
-        // MB-16181: @todo change items to be DcpResponse
-        uint64_t snapStart = *items.front()->getBySeqno();
-        uint64_t snapEnd = *items.back()->getBySeqno();
+        // Get OptionalSeqnos which for the items list types should have values
+        auto seqnoStart = items.front()->getBySeqno();
+        auto seqnoEnd = items.back()->getBySeqno();
+        if (!seqnoStart || !seqnoEnd) {
+            throw std::logic_error(
+                    "ActiveStream::snapshot incorrect DcpEvent, missing a "
+                    "seqno " +
+                    std::string(items.front()->to_string()) + " " +
+                    std::string(items.back()->to_string()));
+        }
+
+        uint64_t snapStart = *seqnoStart;
+        uint64_t snapEnd = *seqnoEnd;
 
         if (mark) {
             flags |= MARKER_FLAG_CHK;
@@ -958,9 +974,8 @@ void ActiveStream::snapshot(std::deque<MutationResponse*>& items, bool mark) {
         lastSentSnapEndSeqno.store(snapEnd, std::memory_order_relaxed);
     }
 
-    std::deque<MutationResponse*>::iterator itemItr;
-    for (itemItr = items.begin(); itemItr != items.end(); itemItr++) {
-        pushToReadyQ(*itemItr);
+    for (const auto& item : items) {
+        pushToReadyQ(item);
     }
 }
 

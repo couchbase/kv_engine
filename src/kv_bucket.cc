@@ -2035,7 +2035,7 @@ int KVBucket::flushVBucket(uint16_t vbid) {
 
                 // Pass the Item through the SystemEventFlush which may filter
                 // the item away (return Skip).
-                if (sef.process(item) == SystemEventFlushStatus::Skip) {
+                if (sef.process(item) == ProcessStatus::Skip) {
                     // The item has no further flushing actions i.e. we've
                     // absorbed it in the process function.
                     // Update stats and carry-on

@@ -298,6 +298,17 @@ static ENGINE_ERROR_CODE mock_control(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
+static ENGINE_ERROR_CODE mock_system_event(const void* cookie,
+                                           uint32_t opaque,
+                                           uint16_t vbucket,
+                                           uint32_t event,
+                                           uint64_t bySeqno,
+                                           cb::const_byte_buffer key,
+                                           cb::const_byte_buffer eventData) {
+    (void)cookie;
+    clear_dcp_data();
+    return ENGINE_SUCCESS;
+}
 }
 
 void clear_dcp_data() {
@@ -339,6 +350,7 @@ std::unique_ptr<dcp_message_producers> get_dcp_producers(ENGINE_HANDLE *_h,
     producers->noop = mock_noop;
     producers->buffer_acknowledgement = mock_buffer_acknowledgement;
     producers->control = mock_control;
+    producers->system_event = mock_system_event;
 
     engine_handle = _h;
     engine_handle_v1 = _h1;

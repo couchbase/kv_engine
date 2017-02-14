@@ -460,6 +460,79 @@ private:
 };
 
 /**
+ * A SystemEventProducerMessage is used by DcpProducer and associated code
+ * for storing the data of a SystemEvent. The class can just own a
+ * queued_item (shared_ptr) and then read all data from the underlying
+ * Item object.
+ */
+class SystemEventProducerMessage : public SystemEventMessage {
+public:
+    /**
+     * Note: the body of this factory method is in systemevent.cc along side
+     *       related code which decides how SystemEvents are managed.
+     *
+     * Note: creation of the SystemEventProducerMessage will up the ref-count
+     * of item
+     *
+     * @return a SystemEventMessage unique pointer constructed from the
+    *          queued_item data.
+     */
+    static std::unique_ptr<SystemEventProducerMessage> make(uint32_t opaque,
+                                                            queued_item& item);
+
+    uint32_t getMessageSize() override {
+        return SystemEventMessage::baseMsgBytes + getKey().size() +
+               getEventData().size();
+    }
+
+    SystemEvent getSystemEvent() const override {
+        return SystemEvent(item->getFlags());
+    }
+
+    OptionalSeqno getBySeqno() const override {
+        return OptionalSeqno{item->getBySeqno()};
+    }
+
+    uint16_t getVBucket() const override {
+        return item->getVBucketId();
+    }
+
+    cb::const_char_buffer getKey() const override {
+        return key;
+    }
+
+    cb::const_byte_buffer getEventData() const override {
+        return eventData;
+    }
+
+    /**
+     * @returns a size representing approximately the memory used, in this case
+     * the item's size.
+     */
+    size_t getApproximateSize() const override {
+        return item->size();
+    }
+
+private:
+    SystemEventProducerMessage(uint32_t opaque,
+                               queued_item& itm,
+                               cb::const_char_buffer _key,
+                               cb::const_byte_buffer _eventData)
+        : SystemEventMessage(opaque),
+          key(_key),
+          eventData(_eventData),
+          item(itm) {
+    }
+
+    // This refers to the key of the event which is in the item body
+    cb::const_char_buffer key;
+
+    // This refers to the eventData which is in the item body
+    cb::const_byte_buffer eventData;
+    queued_item item;
+};
+
+/**
  * CollectionsEvent provides a shim on top of SystemEventMessage for
  * when a SystemEvent is a Collection's SystemEvent.
  */
@@ -477,7 +550,7 @@ public:
     }
 
     /**
-     * Retieve the key of the collections event
+     * Retrieve the key of the collections event
      * If e == ChangeSeparator, then the key is the separator string
      * If e == Create/BeginDeleteCollection, then the key is the collection name
      */
