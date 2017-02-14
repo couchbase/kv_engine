@@ -61,7 +61,7 @@ public:
 
     void addStats(connection_t conn, ADD_STAT add_stat, const void *c);
 
-    void schedule(stream_t stream, uint64_t start, uint64_t end);
+    void schedule(const stream_t& stream, uint64_t start, uint64_t end);
 
     bool bytesRead(uint32_t bytes);
 

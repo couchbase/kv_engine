@@ -389,7 +389,7 @@ public:
     }
 
     bool run();
-    void schedule(stream_t stream);
+    void schedule(const stream_t& stream);
     void wakeup();
     void clearQueues();
 
@@ -411,7 +411,7 @@ private:
         return queue.empty();
     }
 
-    void pushUnique(stream_t stream) {
+    void pushUnique(const stream_t& stream) {
         LockHolder lh(workQueueLock);
         if (queuedVbuckets.count(stream->getVBucket()) == 0) {
             queue.push(stream);

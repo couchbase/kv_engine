@@ -140,7 +140,7 @@ BackfillManager::~BackfillManager() {
 }
 
 
-void BackfillManager::schedule(stream_t stream, uint64_t start, uint64_t end) {
+void BackfillManager::schedule(const stream_t& stream, uint64_t start, uint64_t end) {
     LockHolder lh(lock);
     if (engine->getDcpConnMap().canAddBackfillToActiveQ()) {
         activeBackfills.push_back(new DCPBackfill(engine, stream, start, end));

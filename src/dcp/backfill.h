@@ -62,7 +62,7 @@ private:
 
 class DCPBackfill {
 public:
-    DCPBackfill(EventuallyPersistentEngine* e, stream_t s,
+    DCPBackfill(EventuallyPersistentEngine* e, const stream_t& s,
                 uint64_t start_seqno, uint64_t end_seqno);
 
     backfill_status_t run();

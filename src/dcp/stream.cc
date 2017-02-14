@@ -786,7 +786,7 @@ void ActiveStreamCheckpointProcessorTask::wakeup() {
     ExecutorPool::get()->wake(getId());
 }
 
-void ActiveStreamCheckpointProcessorTask::schedule(stream_t stream) {
+void ActiveStreamCheckpointProcessorTask::schedule(const stream_t& stream) {
     pushUnique(stream);
 
     bool expected = false;

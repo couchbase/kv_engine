@@ -109,7 +109,7 @@ void DiskCallback::callback(GetValue &val) {
     }
 }
 
-DCPBackfill::DCPBackfill(EventuallyPersistentEngine* e, stream_t s,
+DCPBackfill::DCPBackfill(EventuallyPersistentEngine* e, const stream_t& s,
                          uint64_t start_seqno, uint64_t end_seqno)
     : engine(e), stream(s),startSeqno(start_seqno), endSeqno(end_seqno),
       scanCtx(NULL), state(backfill_state_init) {

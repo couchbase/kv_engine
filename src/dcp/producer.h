@@ -104,7 +104,7 @@ public:
     void notifyBackfillManager();
     bool recordBackfillManagerBytesRead(uint32_t bytes);
     void recordBackfillManagerBytesSent(uint32_t bytes);
-    void scheduleBackfillManager(stream_t s, uint64_t start, uint64_t end);
+    void scheduleBackfillManager(const stream_t& s, uint64_t start, uint64_t end);
 
     bool isExtMetaDataEnabled () {
         return enableExtMetaData;
@@ -200,7 +200,7 @@ public:
         Schedules active stream checkpoint processor task
         for given stream.
     */
-    void scheduleCheckpointProcessorTask(stream_t s);
+    void scheduleCheckpointProcessorTask(const stream_t& s);
 
     /*
         Clears active stream checkpoint processor task's queue.

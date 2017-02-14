@@ -743,7 +743,7 @@ void DcpProducer::recordBackfillManagerBytesSent(uint32_t bytes) {
     backfillMgr->bytesSent(bytes);
 }
 
-void DcpProducer::scheduleBackfillManager(stream_t s,
+void DcpProducer::scheduleBackfillManager(const stream_t& s,
                                           uint64_t start, uint64_t end) {
     backfillMgr->schedule(s, start, end);
 }
@@ -1081,7 +1081,7 @@ bool DcpProducer::bufferLogInsert(size_t bytes) {
     return log.insert(bytes);
 }
 
-void DcpProducer::scheduleCheckpointProcessorTask(stream_t s) {
+void DcpProducer::scheduleCheckpointProcessorTask(const stream_t& s) {
     static_cast<ActiveStreamCheckpointProcessorTask*>(checkpointCreatorTask.get())
         ->schedule(s);
 }
