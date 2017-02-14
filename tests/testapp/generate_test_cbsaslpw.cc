@@ -29,11 +29,6 @@ int main(void) {
             << "bucket-1 1S|=,%#x1" << std::endl
             << "bucket-2 secret" << std::endl << std::setfill('0');
 
-    for (int ii = 0; ii < 100; ++ii) {
-        isaslpw << "mybucket_" << std::setw(3) << ii
-                << " mybucket_" << std::setw(3) << ii << std::endl;
-    }
-
     isaslpw.close();
 
     cb::sasl::UserFactory::setDefaultHmacIterationCount(10);
