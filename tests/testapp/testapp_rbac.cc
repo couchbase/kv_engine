@@ -95,3 +95,31 @@ TEST_P(RbacTest, ReloadSasl_NoAccess) {
     conn.recvResponse(resp);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
 }
+
+TEST_P(RbacTest, ScrubNoAccess) {
+    auto& c = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+
+    c.selectBucket("default");
+    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_SCRUB);
+    BinprotResponse response;
+
+    c.sendCommand(command);
+    c.recvResponse(response);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, response.getStatus());
+}
+
+TEST_P(RbacTest, Scrub) {
+    auto& c = dynamic_cast<MemcachedBinprotConnection&>(getAdminConnection());
+
+    c.selectBucket("default");
+    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_SCRUB);
+    BinprotResponse response;
+
+    do {
+        // Retry if scrubber is already running.
+        c.sendCommand(command);
+        c.recvResponse(response);
+    } while (response.getStatus() == PROTOCOL_BINARY_RESPONSE_EBUSY);
+
+    EXPECT_TRUE(response.isSuccess());
+}

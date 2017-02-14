@@ -754,27 +754,6 @@ TEST_P(McdTestappTest, StatConnections) {
     } while (buffer.response.message.header.response.keylen != 0);
 }
 
-TEST_P(McdTestappTest, DISABLED_Scrub) {
-    union {
-        protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } send, recv;
-
-    sasl_auth("_admin", "password");
-    size_t len = mcbp_raw_command(send.bytes, sizeof(send.bytes),
-                                  PROTOCOL_BINARY_CMD_SCRUB, NULL, 0, NULL, 0);
-
-    // Retry if scrubber is already running.
-    do {
-        safe_send(send.bytes, len, false);
-        safe_recv_packet(recv.bytes, sizeof(recv.bytes));
-    } while (recv.response.message.header.response.status == PROTOCOL_BINARY_RESPONSE_EBUSY);
-
-    mcbp_validate_response_header(&recv.response, PROTOCOL_BINARY_CMD_SCRUB,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
-}
-
 std::atomic<bool> hickup_thread_running;
 
 static void binary_hickup_recv_verification_thread(void *arg) {
@@ -2654,6 +2633,7 @@ uint16_t TestappTest::sasl_auth(const char *username, const char *password) {
 void TestappTest::reconfigure() {
     write_config_to_file(to_string(memcached_cfg, true), config_file);
 
+    sasl_auth("_admin", "password");
     Frame frame;
     mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
                      nullptr, 0, nullptr, 0);
@@ -2667,6 +2647,7 @@ void TestappTest::reconfigure() {
     mcbp_validate_response_header(&buffer.response,
                                   PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    reconnect_to_server();
 }
 
 
@@ -3011,9 +2992,11 @@ TEST_P(McdTestappTest, test_MB_16333) {
  * Test that a bad SASL auth doesn't crash the server.
  * It should be rejected with EINVAL.
  */
-TEST_P(McdTestappTest, DISABLED_test_MB_16197) {
+TEST_P(McdTestappTest, test_MB_16197) {
     const char* chosenmech = "PLAIN";
     const char* data = "\0nouser\0nopassword";
+
+    reconnect_to_server();
 
     union {
         protocol_binary_request_no_extras request;
@@ -3075,7 +3058,7 @@ static void getClustermapRevno(const std::string& map, int& revno) {
 /**
  * Test that we don't dedupe NVMB requests by default
  */
-TEST_P(McdTestappTest, DISABLED_test_MB_17506_no_dedupe) {
+TEST_P(McdTestappTest, test_MB_17506_no_dedupe) {
     auto *value = cJSON_GetObjectItem(memcached_cfg.get(), "dedupe_nmvb_maps");
     if (value != nullptr && value->type != cJSON_False){
         cJSON_ReplaceItemInObject(memcached_cfg.get(), "dedupe_nmvb_maps",
@@ -3130,7 +3113,7 @@ TEST_P(McdTestappTest, DISABLED_test_MB_17506_no_dedupe) {
 /**
  * Test that we dedupe NVMB requests
  */
-TEST_P(McdTestappTest, DISABLED_test_MB_17506_dedupe) {
+TEST_P(McdTestappTest, test_MB_17506_dedupe) {
     auto *value = cJSON_GetObjectItem(memcached_cfg.get(), "dedupe_nmvb_maps");
     if (value == nullptr) {
         cJSON_AddTrueToObject(memcached_cfg.get(), "dedupe_nmvb_maps");
