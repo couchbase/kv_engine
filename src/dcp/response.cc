@@ -33,5 +33,3 @@ const uint32_t SetVBucketStateResponse::baseMsgBytes = 24;
 const uint32_t StreamEndResponse::baseMsgBytes = 28;
 const uint32_t SetVBucketState::baseMsgBytes = 25;
 const uint32_t SnapshotMarker::baseMsgBytes = 44;
-const uint32_t MutationResponse::mutationBaseMsgBytes = 55;
-const uint32_t MutationResponse::deletionBaseMsgBytes = 42;

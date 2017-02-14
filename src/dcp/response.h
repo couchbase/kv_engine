@@ -303,12 +303,6 @@ public:
         : DcpResponse(item->isDeleted() ? DcpEvent::Deletion : DcpEvent::Mutation, opaque),
           item_(item), emd(e) {}
 
-    ~MutationResponse() {
-        if (emd) {
-            delete emd;
-        }
-    }
-
     queued_item& getItem() {
         return item_;
     }
@@ -341,15 +335,15 @@ public:
     }
 
     ExtendedMetaData* getExtMetaData() {
-        return emd;
+        return emd.get();
     }
 
-    static const uint32_t mutationBaseMsgBytes;
-    static const uint32_t deletionBaseMsgBytes;
+    static const uint32_t mutationBaseMsgBytes = 55;
+    static const uint32_t deletionBaseMsgBytes = 42;
 
 private:
     queued_item item_;
-    ExtendedMetaData *emd;
+    std::unique_ptr<ExtendedMetaData> emd;
 };
 
 #endif  // SRC_DCP_RESPONSE_H_
