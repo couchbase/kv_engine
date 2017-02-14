@@ -2390,17 +2390,6 @@ private:
 };
 
 static void rbac_refresh_executor(McbpConnection* c, void*) {
-    switch (c->checkPrivilege(cb::rbac::Privilege::NodeManagement)) {
-    case cb::rbac::PrivilegeAccess::Ok:
-        break;
-    case cb::rbac::PrivilegeAccess::Fail:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
-        return;
-    case cb::rbac::PrivilegeAccess::Stale:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE);
-        return;
-    }
-
     ENGINE_ERROR_CODE ret = c->getAiostat();
 
     c->setAiostat(ENGINE_SUCCESS);
