@@ -41,6 +41,8 @@
 #include "vbucketmemorydeletiontask.h"
 
 #include "programs/engine_testapp/mock_server.h"
+
+#include <chrono>
 #include <platform/dirutils.h>
 #include <thread>
 
