@@ -40,8 +40,7 @@ Configuration::Configuration() {
 }
 
 std::string Configuration::getString(const std::string &key) const {
-    std::mutex *ptr = const_cast<std::mutex*> (&mutex);
-    LockHolder lh(*ptr);
+    LockHolder lh(mutex);
 
     std::map<std::string, value_t>::const_iterator iter;
     if ((iter = attributes.find(key)) == attributes.end()) {
@@ -60,8 +59,7 @@ std::string Configuration::getString(const std::string &key) const {
 }
 
 bool Configuration::getBool(const std::string &key) const {
-    std::mutex *ptr = const_cast<std::mutex*> (&mutex);
-    LockHolder lh(*ptr);
+    LockHolder lh(mutex);
 
     std::map<std::string, value_t>::const_iterator iter;
     if ((iter = attributes.find(key)) == attributes.end()) {
@@ -76,8 +74,7 @@ bool Configuration::getBool(const std::string &key) const {
 }
 
 float Configuration::getFloat(const std::string &key) const {
-    std::mutex *ptr = const_cast<std::mutex*> (&mutex);
-    LockHolder lh(*ptr);
+    LockHolder lh(mutex);
 
     std::map<std::string, value_t>::const_iterator iter;
     if ((iter = attributes.find(key)) == attributes.end()) {
@@ -92,8 +89,7 @@ float Configuration::getFloat(const std::string &key) const {
 }
 
 size_t Configuration::getInteger(const std::string &key) const {
-    std::mutex *ptr = const_cast<std::mutex*> (&mutex);
-    LockHolder lh(*ptr);
+    LockHolder lh(mutex);
 
     std::map<std::string, value_t>::const_iterator iter;
     if ((iter = attributes.find(key)) == attributes.end()) {
@@ -108,8 +104,7 @@ size_t Configuration::getInteger(const std::string &key) const {
 }
 
 ssize_t Configuration::getSignedInteger(const std::string &key) const {
-    std::mutex *ptr = const_cast<std::mutex*> (&mutex);
-    LockHolder lh(*ptr);
+    LockHolder lh(mutex);
 
     std::map<std::string, value_t>::const_iterator iter;
     if ((iter = attributes.find(key)) == attributes.end()) {
@@ -124,7 +119,7 @@ ssize_t Configuration::getSignedInteger(const std::string &key) const {
 }
 
 std::ostream& operator <<(std::ostream &out, const Configuration &config) {
-    LockHolder lh(const_cast<std::mutex&> (config.mutex));
+    LockHolder lh(config.mutex);
     std::map<std::string, Configuration::value_t>::const_iterator iter;
     for (iter = config.attributes.begin(); iter != config.attributes.end();
         ++iter) {
@@ -315,7 +310,7 @@ ValueChangedValidator *Configuration::setValueValidator(const std::string &key,
 }
 
 void Configuration::addStats(ADD_STAT add_stat, const void *c) const {
-    LockHolder lh(const_cast<std::mutex&> (mutex));
+    LockHolder lh(mutex);
     std::map<std::string, value_t>::const_iterator iter;
     for (iter = attributes.begin(); iter != attributes.end(); ++iter) {
         std::stringstream value;
