@@ -103,9 +103,12 @@ protected:
      * Parse a JSON array containing a set of privileges.
      *
      * @param priv The JSON array to parse
+     * @param buckets Set to true if this is for the bucket list (which
+     *                will mask out some of the privileges you can't
+     *                specify for a bucket)
      * @return A vector of all of the privileges found in the specified JSON
      */
-    PrivilegeMask parsePrivileges(const cJSON* priv);
+    PrivilegeMask parsePrivileges(const cJSON* priv, bool buckets);
 
     std::unordered_map<std::string, PrivilegeMask> buckets;
     PrivilegeMask privileges;
@@ -159,6 +162,22 @@ public:
     uint32_t getGeneration() const {
         return generation;
     }
+
+    /**
+     * Get a textual representation of this object in the format:
+     *
+     *   [privilege,privilege,privilege]
+     *
+     * An empty set is written as [none], and a full set is written
+     * as [all].
+     */
+    std::string to_string() const;
+
+    /**
+     * Clear all of the privileges in this context which contains
+     * bucket privileges.
+     */
+    void clearBucketPrivileges();
 
 protected:
     uint32_t generation;

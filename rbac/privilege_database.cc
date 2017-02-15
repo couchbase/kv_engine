@@ -43,7 +43,7 @@ UserEntry::UserEntry(const cJSON& root) {
     auto* json = const_cast<cJSON*>(&root);
     const auto* it = cJSON_GetObjectItem(json, "privileges");
     if (it != nullptr) {
-        privileges = parsePrivileges(it);
+        privileges = parsePrivileges(it, false);
     }
 
     it = cJSON_GetObjectItem(json, "buckets");
@@ -55,7 +55,7 @@ UserEntry::UserEntry(const cJSON& root) {
         }
 
         for (it = it->child; it != nullptr; it = it->next) {
-            buckets[it->string] = parsePrivileges(it);
+            buckets[it->string] = parsePrivileges(it, true);
         }
     }
 
@@ -80,7 +80,7 @@ UserEntry::UserEntry(const cJSON& root) {
     }
 }
 
-PrivilegeMask UserEntry::parsePrivileges(const cJSON* priv) {
+PrivilegeMask UserEntry::parsePrivileges(const cJSON* priv, bool buckets) {
     PrivilegeMask ret;
 
     for (const auto* it = priv->child; it != nullptr; it = it->next) {
@@ -96,6 +96,17 @@ PrivilegeMask UserEntry::parsePrivileges(const cJSON* priv) {
         } else {
             ret[int(to_privilege(str))] = true;
         }
+    }
+
+    if (buckets) {
+        ret[int(Privilege::BucketManagement)] = false;
+        ret[int(Privilege::NodeManagement)] = false;
+        ret[int(Privilege::SessionManagement)] = false;
+        ret[int(Privilege::Audit)] = false;
+        ret[int(Privilege::AuditManagement)] = false;
+        ret[int(Privilege::IdleConnection)] = false;
+        ret[int(Privilege::CollectionManagement)] = false;
+        ret[int(Privilege::Impersonate)] = false;
     }
 
     return ret;
@@ -143,11 +154,44 @@ PrivilegeAccess PrivilegeContext::check(Privilege privilege) const {
         throw std::invalid_argument("Invalid privilege passed for the check)");
     }
 #endif
-    if (mask[idx]) {
+    if (mask.test(idx)) {
         return PrivilegeAccess::Ok;
     }
 
     return PrivilegeAccess::Fail;
+}
+
+std::string PrivilegeContext::to_string() const {
+    if (mask.all()) {
+        return "[all]";
+    } else if (mask.none()) {
+        return "[none]";
+    }
+
+    std::string ret;
+    ret.reserve(80);
+    ret.append("[");
+    for (size_t ii = 0; ii < mask.size(); ++ii) {
+        ret.append(cb::rbac::to_string(Privilege(ii)));
+        ret.append(",");
+    }
+    ret.back() = ']';
+
+    return ret;
+}
+
+void PrivilegeContext::clearBucketPrivileges() {
+    mask[int(Privilege::Read)] = false;
+    mask[int(Privilege::Write)] = false;
+    mask[int(Privilege::SimpleStats)] = false;
+    mask[int(Privilege::DcpConsumer)] = false;
+    mask[int(Privilege::DcpProducer)] = false;
+    mask[int(Privilege::TapProducer)] = false;
+    mask[int(Privilege::TapConsumer)] = false;
+    mask[int(Privilege::MetaRead)] = false;
+    mask[int(Privilege::MetaWrite)] = false;
+    mask[int(Privilege::XattrRead)] = false;
+    mask[int(Privilege::XattrWrite)] = false;
 }
 
 PrivilegeContext createContext(const std::string& user,
