@@ -2633,7 +2633,14 @@ static void process_bin_packet(McbpConnection* c) {
                     c->getId(), c->getDescription().c_str(),
                     memcached_opcode_2_text(opcode));
         audit_command_access_failed(c);
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
+
+        if (c->remapErrorCode(ENGINE_EACCESS) == ENGINE_DISCONNECT) {
+            c->setState(conn_closing);
+            return;
+        } else {
+            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
+        }
+
         return;
     case cb::rbac::PrivilegeAccess::Ok:
         result = validate_bin_header(c);
@@ -2659,7 +2666,11 @@ static void process_bin_packet(McbpConnection* c) {
         }
         return;
     case cb::rbac::PrivilegeAccess::Stale:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE);
+        if (c->remapErrorCode(ENGINE_AUTH_STALE) == ENGINE_DISCONNECT) {
+            c->setState(conn_closing);
+        } else {
+            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE);
+        }
         return;
     }
 

@@ -377,7 +377,6 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
     case ENGINE_E2BIG: // FALLTHROUGH
     case ENGINE_WANT_MORE: // FALLTHROUGH
     case ENGINE_DISCONNECT: // FALLTHROUGH
-    case ENGINE_EACCESS: // FALLTHROUGH
     case ENGINE_NOT_MY_VBUCKET: // FALLTHROUGH
     case ENGINE_TMPFAIL: // FALLTHROUGH
     case ENGINE_ERANGE: // FALLTHROUGH
@@ -393,6 +392,12 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
         return ENGINE_TMPFAIL;
     case ENGINE_UNKNOWN_COLLECTION:
         return ENGINE_EINVAL;
+
+    // Seems like the rest of the components in our system isn't
+    // prepared to receive access denied or authentincation stale.
+    // For now we should just disconnect them
+    case ENGINE_EACCESS: // FALLTHROUGH
+    case ENGINE_AUTH_STALE:
 
     default:
         LOG_INFO(nullptr,
