@@ -742,6 +742,36 @@ TEST_P(EPStoreEvictionTest, TouchCmdDuringBgFetch) {
               store->getVBucket(vbid)->getHighSeqno());
 }
 
+// MB and test was raised because a few commits back this was broken but no
+// existing test covered the case. I.e. run this test  against 0810540 and it
+// fails, but now fixed
+TEST_P(EPStoreEvictionTest, mb22824) {
+    auto key = makeStoredDocKey("key");
+
+    // Store key and force expiry
+    store_item(0, key, "value", 1);
+    mock_time_travel(20);
+
+    uint32_t deleted = false;
+    ItemMetaData itemMeta1;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->getMetaData(key, vbid, cookie, itemMeta1, deleted));
+
+    uint64_t cas = 0;
+    ItemMetaData itemMeta2;
+    EXPECT_EQ(ENGINE_KEY_ENOENT,
+              store->deleteItem(key,
+                                cas,
+                                vbid,
+                                cookie,
+                                /*Item*/ nullptr,
+                                &itemMeta2,
+                                /*mutation_descr_t*/ nullptr));
+
+    // Should be getting the same CAS from the failed delete as getMetaData
+    EXPECT_EQ(itemMeta1.cas, itemMeta2.cas);
+}
+
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(FullAndValueEviction,
                         EPStoreEvictionTest,
