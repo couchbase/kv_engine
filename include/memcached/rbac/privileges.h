@@ -145,6 +145,12 @@ enum class Privilege {
 enum class PrivilegeAccess { Ok, Fail, Stale };
 
 /**
+ * Get a textual representation of the privilege access
+ */
+RBAC_PUBLIC_API
+std::string to_string(const PrivilegeAccess privilegeAccess);
+
+/**
  * Convert a textual string to a Privilege
  *
  * @param str the textual representation of a privilege

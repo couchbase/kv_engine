@@ -62,5 +62,21 @@ Privilege to_privilege(const std::string& str) {
     }
     return it->second;
 }
+
+RBAC_PUBLIC_API
+std::string to_string(const PrivilegeAccess privilegeAccess) {
+    switch (privilegeAccess) {
+    case PrivilegeAccess::Ok:
+        return "Ok";
+    case PrivilegeAccess::Fail:
+        return "Fail";
+    case PrivilegeAccess::Stale:
+        return "Stale";
+    }
+    throw std::invalid_argument("to_string(PrivilegeAccess): Unknown value: " +
+                                std::to_string(int(privilegeAccess)));
+}
+
+
 }
 }
