@@ -1488,33 +1488,13 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
         }
     }
 
-    if (v && v->isLocked(ep_current_time()) &&
+    if (v->isLocked(ep_current_time()) &&
         (getState() == vbucket_state_replica ||
          getState() == vbucket_state_pending)) {
         v->unlock();
     }
-    MutationStatus delrv;
 
-    if (!v) {
-        if (eviction == FULL_EVICTION) {
-            delrv = MutationStatus::NeedBgFetch;
-        } else {
-            delrv = MutationStatus::NotFound;
-        }
-    } else {
-        delrv = processSoftDelete(lh, *v, cas);
-    }
-
-    if (v && (delrv == MutationStatus::NotFound ||
-              delrv == MutationStatus::WasDirty ||
-              delrv == MutationStatus::WasClean)) {
-        if (itemMeta != nullptr) {
-            itemMeta->revSeqno = v->getRevSeqno();
-            itemMeta->cas = v->getCas();
-            itemMeta->flags = v->getFlags();
-            itemMeta->exptime = v->getExptime();
-        }
-    }
+    MutationStatus delrv = processSoftDelete(lh, *v, cas);
 
     uint64_t seqno = 0;
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
@@ -1537,11 +1517,16 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
      */
     case MutationStatus::WasClean:
     case MutationStatus::WasDirty:
-        if (v) {
-            notifyNewSeqno(queueDirty(*v));
-            seqno = static_cast<uint64_t>(v->getBySeqno());
-            cas = v->getCas();
+        if (itemMeta != nullptr) {
+            itemMeta->revSeqno = v->getRevSeqno();
+            itemMeta->cas = v->getCas();
+            itemMeta->flags = v->getFlags();
+            itemMeta->exptime = v->getExptime();
         }
+
+        notifyNewSeqno(queueDirty(*v));
+        seqno = static_cast<uint64_t>(v->getBySeqno());
+        cas = v->getCas();
 
         if (delrv != MutationStatus::NotFound) {
             if (mutInfo) {
