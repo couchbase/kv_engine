@@ -95,7 +95,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     /* VBucket commands */
     setup(PROTOCOL_BINARY_CMD_SET_VBUCKET, require<Privilege::BucketManagement>);
     // The testrunner client seem to use this command..
-    setup(PROTOCOL_BINARY_CMD_GET_VBUCKET, require<Privilege::NodeManagement>);
+    setup(PROTOCOL_BINARY_CMD_GET_VBUCKET, empty);
     setup(PROTOCOL_BINARY_CMD_DEL_VBUCKET, require<Privilege::BucketManagement>);
     /* End VBucket commands */
 
