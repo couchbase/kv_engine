@@ -2625,7 +2625,7 @@ static void process_bin_packet(McbpConnection* c) {
     auto opcode = static_cast<protocol_binary_command>(c->binary_header.request.opcode);
     auto executor = executors[opcode];
 
-    auto res = privilegeChains.invoke(opcode, c->getCookieObject());
+    const auto res = privilegeChains.invoke(opcode, c->getCookieObject());
     switch (res) {
     case cb::rbac::PrivilegeAccess::Fail:
         LOG_WARNING(c,

@@ -226,6 +226,25 @@ public:
     }
 
     /**
+     * If enabled we'll always return true from the privilege checks
+     *
+     * @return true if we're running in privilege debug mode.
+     */
+    bool isPrivilegeDebug() const {
+        return privilege_debug.load(std::memory_order_relaxed);
+    }
+
+    /**
+     * Set if privilege mode is enabled or not
+     * @param enable
+     */
+    void setPrivilegeDebug(bool enable) {
+        has.privilege_debug = true;
+        privilege_debug.store(enable, std::memory_order_relaxed);
+        notify_changed("privilege_debug");
+    }
+
+    /**
      * Get the number of frontend worker threads
      *
      * @return the configured amount of worker threads
@@ -824,6 +843,11 @@ protected:
     std::string rbac_file;
 
     /**
+     * Is privilege debug enabled or not
+     */
+    std::atomic_bool privilege_debug;
+
+    /**
      * Number of worker (without dispatcher) libevent threads to run
      * */
     int num_threads;
@@ -965,6 +989,7 @@ public:
      */
     struct {
         bool rbac_file;
+        bool privilege_debug;
         bool threads;
         bool interfaces;
         bool extensions;

@@ -55,6 +55,7 @@ Settings::Settings()
     connection_idle_time.reset();
     dedupe_nmvb_maps.store(false);
     xattr_enabled.store(false);
+    privilege_debug.store(false);
 
     memset(&has, 0, sizeof(has));
     memset(&extensions, 0, sizeof(extensions));
@@ -130,6 +131,25 @@ static void handle_rbac_file(Settings& s, cJSON* obj) {
     }
 
     s.setRbacFile(obj->valuestring);
+}
+
+/**
+ * Handle the "privilege_debug" tag in the settings
+ *
+ *  The value must be a boolean value
+ *
+ * @param s the settings object to update
+ * @param obj the object in the configuration
+ */
+static void handle_privilege_debug(Settings& s, cJSON* obj) {
+    if (obj->type == cJSON_True) {
+        s.setPrivilegeDebug(true);
+    } else if (obj->type == cJSON_False) {
+        s.setPrivilegeDebug(false);
+    } else {
+        throw std::invalid_argument(
+            "\"privilege_debug\" must be a boolean value");
+    }
 }
 
 /**
@@ -575,6 +595,7 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
     std::vector<settings_config_tokens> handlers = {
         {"admin",                        ignore_entry},
         {"rbac_file",                    handle_rbac_file},
+        {"privilege_debug",              handle_privilege_debug},
         {"audit_file",                   handle_audit_file},
         {"error_maps_dir",               handle_error_maps_dir},
         {"threads",                      handle_threads},
@@ -1144,6 +1165,15 @@ void Settings::updateSettings(const Settings& other, bool apply) {
 
         if (changed) {
             notify_changed("breakpad");
+        }
+    }
+
+    if (other.has.privilege_debug) {
+        if (other.privilege_debug != privilege_debug) {
+            bool value = other.isPrivilegeDebug();
+            logit(EXTENSION_LOG_NOTICE, "%s privilege debug",
+                  value ? "Enable" : "Disable");
+            setPrivilegeDebug(value);
         }
     }
 }

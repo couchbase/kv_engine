@@ -69,3 +69,26 @@ named `bucket1` and `bucket2`. For each of those two buckets there is an
 array of privileges allowed in that bucket. In addition to that the user
 have access to the `BucketManagement` privilege. The user is a `builtin`
 user.
+
+## Privilege debug
+
+It is possible to enter a mode called privilege debug which would cause
+the system to let all privilege checks succeed even if the user lacks
+the requested privilege. This mode is for *DEVELOPMENT ONLY* where one
+wants to figure out the minimal set of privileges an application would
+need. One could start the application with an empty set of privileges,
+and the system would log the missing privileges. These may so be assigned
+to a profile and assigned to the user.
+
+Privilege debug mode may be enabled in two different ways; via an
+environment variable, or through the configuration file.
+
+In the configuration file one needs to set `privilege_debug: true`,
+which is a dynamic configuration value which may be toggled on/off
+while the system is running (and takes effect immediately).
+
+In order to enable it through an environment variable it has to be
+done _before_ starting memcached:
+
+    $ export COUCHBASE_ENABLE_PRIVILEGE_DEBUG=1
+    $ ./cluster_run -n 1

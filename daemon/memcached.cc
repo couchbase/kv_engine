@@ -601,6 +601,10 @@ static void settings_init(void) {
     if (getenv("COUCHBASE_I_DONT_TRUST_SSL") == nullptr) {
         settings.setSslSaslMechanisms("PLAIN");
     }
+
+    if (getenv("COUCHBASE_ENABLE_PRIVILEGE_DEBUG") != nullptr) {
+        settings.setPrivilegeDebug(true);
+    }
 }
 
 /**

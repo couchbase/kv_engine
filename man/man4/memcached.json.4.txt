@@ -65,6 +65,13 @@ Specify the filename containing all of the Audit configurations
 
 Specify the filename containing the RBAC database.
 
+=== privilege_debug
+
+The *privilege_debug* attribute is a boolean value that may be set
+(in development) to make all missing privilege calls return success
+(and the missing privilege is logged). See docs/rbac.md for more
+information.
+
 === ssl_cipher_list
 
 Specify the list of ciphers to use. The format of the string is
@@ -320,6 +327,7 @@ A Sample memcached.json:
         "require_init" : true,
         "audit_file" : "/opt/couchbase/etc/security/audit.json",
         "rbac_file" : "/opt/couchbase/etc/security/rbac.json",
+        "privilege_debug" : false,
         "error_maps_dir": "/opt/couchbase/etc/error_maps",
         "ssl_cipher_list" : "HIGH",
         "threads" : 4,
