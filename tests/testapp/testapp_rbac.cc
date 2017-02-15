@@ -55,11 +55,43 @@ TEST_P(RbacTest, DontAllowUnknownUsers) {
 
 TEST_P(RbacTest, ReloadRbacData_HaveAccess) {
     auto& conn = reinterpret_cast<MemcachedBinprotConnection&>(getConnection());
-
+    conn.authenticate("_admin", "password", "PLAIN");
     BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_RBAC_REFRESH, {}, {});
     conn.sendCommand(cmd);
 
     BinprotResponse resp;
     conn.recvResponse(resp);
     EXPECT_TRUE(resp.isSuccess());
+}
+
+TEST_P(RbacTest, ReloadRbacData_NoAccess) {
+    auto& conn = reinterpret_cast<MemcachedBinprotConnection&>(getConnection());
+    conn.reconnect();
+    conn.setXerrorSupport(true);
+    BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_RBAC_REFRESH, {}, {});
+    conn.sendCommand(cmd);
+
+    BinprotResponse resp;
+    conn.recvResponse(resp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
+}
+
+TEST_P(RbacTest, ReloadSasl_HaveAccess) {
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getAdminConnection());
+    BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_ISASL_REFRESH);
+    BinprotResponse resp;
+
+    conn.sendCommand(cmd);
+    conn.recvResponse(resp);
+    EXPECT_TRUE(resp.isSuccess());
+}
+
+TEST_P(RbacTest, ReloadSasl_NoAccess) {
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_ISASL_REFRESH);
+
+    conn.sendCommand(cmd);
+    BinprotResponse resp;
+    conn.recvResponse(resp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
 }

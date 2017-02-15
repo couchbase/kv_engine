@@ -273,7 +273,7 @@ public:
      *         Fail - the connection is missing the privilege
      *         Stale - the authentication context is stale
      */
-    cb::rbac::PrivilegeAccess checkPrivilege(cb::rbac::Privilege privilege) const;
+    cb::rbac::PrivilegeAccess checkPrivilege(cb::rbac::Privilege privilege);
 
     int getBucketIndex() const {
         return bucketIndex.load(std::memory_order_relaxed);

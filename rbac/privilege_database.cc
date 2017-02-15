@@ -107,6 +107,17 @@ PrivilegeMask UserEntry::parsePrivileges(const cJSON* priv, bool buckets) {
         ret[int(Privilege::IdleConnection)] = false;
         ret[int(Privilege::CollectionManagement)] = false;
         ret[int(Privilege::Impersonate)] = false;
+    } else {
+        ret[int(Privilege::Read)] = false;
+        ret[int(Privilege::Write)] = false;
+        ret[int(Privilege::DcpConsumer)] = false;
+        ret[int(Privilege::DcpProducer)] = false;
+        ret[int(Privilege::TapProducer)] = false;
+        ret[int(Privilege::TapConsumer)] = false;
+        ret[int(Privilege::MetaRead)] = false;
+        ret[int(Privilege::MetaWrite)] = false;
+        ret[int(Privilege::XattrRead)] = false;
+        ret[int(Privilege::XattrWrite)] = false;
     }
 
     return ret;
@@ -172,8 +183,10 @@ std::string PrivilegeContext::to_string() const {
     ret.reserve(80);
     ret.append("[");
     for (size_t ii = 0; ii < mask.size(); ++ii) {
-        ret.append(cb::rbac::to_string(Privilege(ii)));
-        ret.append(",");
+        if (mask.test(ii)) {
+            ret.append(cb::rbac::to_string(Privilege(ii)));
+            ret.append(",");
+        }
     }
     ret.back() = ']';
 

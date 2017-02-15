@@ -293,66 +293,109 @@ void Connection::restartAuthentication() {
     username = "";
 }
 
-/**
- * This is currently just a dummy implementation which provides more or
- * less the same privilege checks we had before we added the RBAC
- * files. The "admin" connection is allowed to do whatever it wants
- * and all other connections may perform most other commands.
- *
- * This function will be replaces when we get access to ns_servers
- * RBAC data.
- */
-cb::rbac::PrivilegeAccess Connection::checkPrivilege(cb::rbac::Privilege privilege) const {
-    static bool testing = getenv("MEMCACHED_UNIT_TESTS") != nullptr;
-    using namespace cb::rbac;
+cb::rbac::PrivilegeAccess Connection::checkPrivilege(cb::rbac::Privilege privilege) {
+    cb::rbac::PrivilegeAccess ret;
 
-    if (isInternal() || testing) {
-        return PrivilegeAccess::Ok;
+    ret = privilegeContext.check(privilege);
+    if (ret == cb::rbac::PrivilegeAccess::Stale) {
+        // @todo refactor this so that we may run this through a
+        //       greenstack command context!
+        std::string command;
+        auto* mcbp = dynamic_cast<McbpConnection*>(this);
+        if (mcbp != nullptr) {
+            command = memcached_opcode_2_text(mcbp->getCmd());
+        }
+
+        if (settings.isPrivilegeDebug()) {
+            LOG_NOTICE(this,
+                       "%u: RBAC privilege debug: %s Stale privilege context. command: [%s] bucket: [%s] Privilege: [%s]",
+                       getId(),
+                       getDescription().c_str(),
+                       command.c_str(),
+                       all_buckets[bucketIndex].name,
+                       to_string(privilege).c_str());
+        }
+
+        // The privilege context we had could have been a dummy entry
+        // (created when the client connected, and used until the
+        // connection authenticates). Let's try to automatically update it,
+        // but let the client deal with whatever happens after
+        // a single update.
+        try {
+            privilegeContext = cb::rbac::createContext(getUsername(),
+                                                       all_buckets[bucketIndex].name);
+        } catch (const cb::rbac::NoSuchBucketException& error) {
+            // Remove all access to the bucket
+            privilegeContext = cb::rbac::createContext(getUsername(), "");
+            LOG_NOTICE(this,
+                       "%u: RBAC: Connection::checkPrivilege(%s) %s No access to bucket [%s]. command: [%s] new privilege set: %s",
+                       getId(), to_string(privilege).c_str(),
+                       getDescription().c_str(),
+                       all_buckets[bucketIndex].name,
+                       command.c_str(),
+                       privilegeContext.to_string().c_str());
+        } catch (const cb::rbac::Exception& error) {
+            LOG_WARNING(this,
+                        "%u: RBAC: Connection::checkPrivilege(%s) %s: An exception occurred. command: [%s] bucket: [%s] message: %s",
+                        getId(), to_string(privilege).c_str(),
+                        getDescription().c_str(),
+                        command.c_str(),
+                        all_buckets[bucketIndex].name,
+                        error.what());
+            return cb::rbac::PrivilegeAccess::Fail;
+        }
+
+        ret = privilegeContext.check(privilege);
+        if (settings.isPrivilegeDebug()) {
+            LOG_NOTICE(this,
+                       "%u: RBAC privilege debug: %s second check %s command: [%s] bucket: [%s] Privilege: [%s])",
+                       getId(),
+                       getDescription().c_str(),
+                       cb::rbac::to_string(ret).c_str(),
+                       command.c_str(),
+                       all_buckets[bucketIndex].name,
+                       to_string(privilege).c_str());
+        }
     }
 
-    switch (privilege) {
-    case Privilege::Read:
-        return PrivilegeAccess::Ok;
-    case Privilege::Write:
-        return PrivilegeAccess::Ok;
-    case Privilege::SimpleStats:
-        return PrivilegeAccess::Ok;
-    case Privilege::Stats:
-        return PrivilegeAccess::Fail;
-    case Privilege::BucketManagement:
-        return PrivilegeAccess::Fail;
-    case Privilege::NodeManagement:
-        return PrivilegeAccess::Ok;
-    case Privilege::SessionManagement:
-        return PrivilegeAccess::Fail;
-    case Privilege::Audit:
-        return PrivilegeAccess::Fail;
-    case Privilege::AuditManagement:
-        return PrivilegeAccess::Fail;
-    case Privilege::DcpConsumer:
-        return PrivilegeAccess::Ok;
-    case Privilege::DcpProducer:
-        return PrivilegeAccess::Ok;
-    case Privilege::TapProducer:
-        return PrivilegeAccess::Ok;
-    case Privilege::TapConsumer:
-        return PrivilegeAccess::Ok;
-    case Privilege::MetaRead:
-        return PrivilegeAccess::Ok;
-    case Privilege::MetaWrite:
-        return PrivilegeAccess::Ok;
-    case Privilege::IdleConnection:
-        return PrivilegeAccess::Ok;
-    case Privilege::XattrRead:
-    case Privilege::XattrWrite:
-        return PrivilegeAccess::Fail;
-    case Privilege::CollectionManagement:
-        return PrivilegeAccess::Fail;
-    case Privilege::Impersonate:
-        return PrivilegeAccess::Fail;
+    if (ret == cb::rbac::PrivilegeAccess::Fail) {
+        // The rest of our system isn't fully RBAC aware yet, so that the
+        // standard unit tests fail due to invalid access.. For now
+        // let's allow them to proceed until they've fixed this..
+
+        // @todo refactor this so that we may run this through a
+        //       greenstack command context!
+        std::string command;
+        auto* mcbp = dynamic_cast<McbpConnection*>(this);
+        if (mcbp != nullptr) {
+            command = memcached_opcode_2_text(mcbp->getCmd());
+        }
+
+        if (isInternal()) {
+            LOG_NOTICE(nullptr,
+                       "%u RBAC %s missing privilege %s for %s with context: %s. Allowing anyway",
+                       getId(),
+                       getDescription().c_str(),
+                       cb::rbac::to_string(privilege).c_str(),
+                       command.c_str(),
+                       privilegeContext.to_string().c_str());
+            return cb::rbac::PrivilegeAccess::Ok;
+        } else {
+            LOG_NOTICE(nullptr,
+                       "%u RBAC %s missing privilege %s for %s with context: %s",
+                       getId(),
+                       getDescription().c_str(),
+                       cb::rbac::to_string(privilege).c_str(),
+                       command.c_str(),
+                       privilegeContext.to_string().c_str());
+        }
+
+        if (settings.isPrivilegeDebug()) {
+            return cb::rbac::PrivilegeAccess::Ok;
+        }
     }
 
-    throw std::logic_error("Unknown privilege requested");
+    return ret;
 }
 
 Bucket& Connection::getBucket() const {
@@ -473,4 +516,8 @@ void Connection::setBucketIndex(int bucketIndex) {
     } catch (const cb::rbac::Exception &exception) {
         privilegeContext = cb::rbac::PrivilegeContext{};
     }
+
+    LOG_DEBUG(nullptr, "RBAC: %u %s switch privilege context %s",
+              getId(), getDescription().c_str(),
+              privilegeContext.to_string().c_str());
 }
