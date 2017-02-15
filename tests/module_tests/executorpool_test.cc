@@ -114,6 +114,57 @@ TEST_F(ExecutorPoolTest, register_taskable_test) {
     ASSERT_EQ(0, pool.getNumBuckets());
 }
 
+/* This test creates an ExecutorPool, and attempts to verify that calls to
+ * setMaxWriters are able to dynamically create more workers than were present
+ * at initialisation. A ThreadGate is used to confirm that two tasks
+ * of type WRITER_TASK_IDX can run concurrently
+ *
+ */
+TEST_F(ExecutorPoolTest, increase_workers) {
+    const size_t numReaders = 1;
+    const size_t numWriters = 1;
+    const size_t numAuxIO = 1;
+    const size_t numNonIO = 1;
+
+    const size_t originalWorkers =
+            numReaders + numWriters + numAuxIO + numNonIO;
+
+    // This will allow us to check that numWriters + 1 writer tasks can run
+    // concurrently after setMaxWriters has been called.
+    ThreadGate tg{numWriters + 1};
+
+    TestExecutorPool pool(5, // MaxThreads
+                          NUM_TASK_GROUPS,
+                          numReaders,
+                          numWriters,
+                          numAuxIO,
+                          numNonIO);
+
+    MockTaskable taskable;
+    pool.registerTaskable(taskable);
+
+    std::vector<ExTask> tasks;
+
+    for (size_t i = 0; i < numWriters + 1; ++i) {
+        ExTask task = makeTask(taskable, tg, i);
+        pool.schedule(task, WRITER_TASK_IDX);
+        tasks.push_back(task);
+    }
+
+    EXPECT_EQ(numWriters, pool.getNumWriters());
+    ASSERT_EQ(originalWorkers, pool.getNumWorkersStat());
+
+    pool.setMaxWriters(numWriters + 1);
+
+    EXPECT_EQ(numWriters + 1, pool.getNumWriters());
+    ASSERT_EQ(originalWorkers + 1, pool.getNumWorkersStat());
+
+    tg.waitFor(std::chrono::seconds(10));
+    EXPECT_TRUE(tg.isComplete()) << "Timeout waiting for threads to run";
+
+    pool.unregisterTaskable(taskable, false);
+}
+
 TEST_F(ExecutorPoolDynamicWorkerTest, decrease_workers) {
     EXPECT_EQ(2, pool->getNumWriters());
     /* Will take ~2s (MIN_SLEEP_TIME while the thread being removed sleeps
