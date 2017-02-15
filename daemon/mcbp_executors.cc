@@ -2366,14 +2366,18 @@ public:
 
     virtual bool execute() override {
         try {
-            LOG_NOTICE(nullptr, "Loading RBAC configuration from %s",
-                       settings.getRbacFile().c_str());
+            LOG_NOTICE(nullptr, "%u: Loading RBAC configuration from [%s] %s",
+                       connection.getId(),
+                       settings.getRbacFile().c_str(),
+                       connection.getDescription().c_str());
             cb::rbac::loadPrivilegeDatabase(settings.getRbacFile());
-            LOG_NOTICE(nullptr, "RBAC configuration updated");
+            LOG_NOTICE(nullptr, "%u: RBAC configuration updated %s",
+                       connection.getId(), connection.getDescription().c_str());
         } catch (const std::runtime_error& error) {
             LOG_WARNING(nullptr,
-                        "An error occured while loading RBAC configuration from %s: %s",
-                        settings.getRbacFile().c_str(), error.what());
+                        "%u: RbacConfigReloadTask(): An error occured while loading RBAC configuration from [%s] %s: %s",
+                        connection.getId(), settings.getRbacFile().c_str(),
+                        connection.getDescription().c_str(), error.what());
             status = ENGINE_FAILED;
         }
 
