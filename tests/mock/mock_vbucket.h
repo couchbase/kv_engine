@@ -92,7 +92,19 @@ public:
                 return MutationStatus::NotFound;
             }
         }
-        return processSoftDelete(lh, *v, cas);
+        ItemMetaData metadata;
+        metadata.revSeqno = v->getRevSeqno() + 1;
+        return processSoftDelete(lh,
+                                 *v,
+                                 cas,
+                                 metadata,
+                                 VBQueueItemCtx(GenerateBySeqno::Yes,
+                                                GenerateCas::Yes,
+                                                TrackCasDrift::No,
+                                                /*isBackfillItem*/ false),
+                                 /*use_meta*/ false,
+                                 /*bySeqno*/ v->getBySeqno())
+                .first;
     }
 
     bool public_deleteStoredValue(const DocKey& key) {

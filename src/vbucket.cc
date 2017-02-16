@@ -797,8 +797,7 @@ StoredValue* VBucket::fetchValidValue(std::unique_lock<std::mutex>& lh,
             if (queueExpired && getState() == vbucket_state_active) {
                 incExpirationStat(ExpireBy::Access);
                 handlePreExpiry(*v);
-                processSoftDelete(lh, *v, 0);
-                notifyNewSeqno(queueDirty(*v));
+                notifyNewSeqno(processExpiredItem(lh, *v).second);
             }
             return wantsDeleted ? v : NULL;
         }
@@ -1494,7 +1493,29 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
         v->unlock();
     }
 
-    MutationStatus delrv = processSoftDelete(lh, *v, cas);
+    if (itemMeta != nullptr) {
+        itemMeta->cas = v->getCas();
+    }
+
+    MutationStatus delrv;
+    VBNotifyCtx notifyCtx;
+    if (v->isExpired(ep_real_time())) {
+        std::tie(delrv, notifyCtx) = processExpiredItem(lh, *v);
+    } else {
+        ItemMetaData metadata;
+        metadata.revSeqno = v->getRevSeqno() + 1;
+        std::tie(delrv, notifyCtx) =
+                processSoftDelete(lh,
+                                  *v,
+                                  cas,
+                                  metadata,
+                                  VBQueueItemCtx(GenerateBySeqno::Yes,
+                                                 GenerateCas::Yes,
+                                                 TrackCasDrift::No,
+                                                 /*isBackfillItem*/ false),
+                                  /*use_meta*/ false,
+                                  /*bySeqno*/ v->getBySeqno());
+    }
 
     uint64_t seqno = 0;
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
@@ -1519,12 +1540,11 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
     case MutationStatus::WasDirty:
         if (itemMeta != nullptr) {
             itemMeta->revSeqno = v->getRevSeqno();
-            itemMeta->cas = v->getCas();
             itemMeta->flags = v->getFlags();
             itemMeta->exptime = v->getExptime();
         }
 
-        notifyNewSeqno(queueDirty(*v));
+        notifyNewSeqno(notifyCtx);
         seqno = static_cast<uint64_t>(v->getBySeqno());
         cas = v->getCas();
 
@@ -1623,6 +1643,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
     }
 
     MutationStatus delrv;
+    VBNotifyCtx notifyCtx;
     if (!v) {
         if (eviction == FULL_EVICTION) {
             delrv = MutationStatus::NeedBgFetch;
@@ -1630,7 +1651,15 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
             delrv = MutationStatus::NotFound;
         }
     } else {
-        delrv = processSoftDelete(lh, *v, cas, itemMeta, /*use_meta*/ true);
+        VBQueueItemCtx queueItmCtx(
+                genBySeqno, generateCas, TrackCasDrift::Yes, backfill);
+        std::tie(delrv, notifyCtx) = processSoftDelete(lh,
+                                                       *v,
+                                                       cas,
+                                                       itemMeta,
+                                                       queueItmCtx,
+                                                       /*use_meta*/ true,
+                                                       bySeqno);
     }
     cas = v ? v->getCas() : 0;
 
@@ -1645,12 +1674,6 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
         return ENGINE_KEY_ENOENT;
     case MutationStatus::WasDirty:
     case MutationStatus::WasClean: {
-        if (genBySeqno == GenerateBySeqno::No) {
-            v->setBySeqno(bySeqno);
-        }
-
-        VBNotifyCtx notifyCtx = trackCasDriftAndQueueDirty(
-                *v, genBySeqno, generateCas, backfill);
         if (seqno) {
             *seqno = static_cast<uint64_t>(v->getBySeqno());
         }
@@ -1689,8 +1712,7 @@ void VBucket::deleteExpiredItem(const DocKey& key,
             }
         } else if (v->isExpired(startTime) && !v->isDeleted()) {
             handlePreExpiry(*v);
-            processSoftDelete(lh, *v, 0);
-            VBNotifyCtx notifyCtx = queueDirty(*v);
+            VBNotifyCtx notifyCtx = processExpiredItem(lh, *v).second;
             // we unlock ht lock here because we want to avoid potential lock
             // inversions arising from notifyNewSeqno() call
             lh.unlock();
@@ -1709,8 +1731,7 @@ void VBucket::deleteExpiredItem(const DocKey& key,
                 v = ht.unlocked_find(key, bucket_num, true, false);
                 v->setDeleted();
                 v->setRevSeqno(revSeqno);
-                processSoftDelete(lh, *v, 0);
-                VBNotifyCtx notifyCtx = queueDirty(*v);
+                VBNotifyCtx notifyCtx = processExpiredItem(lh, *v).second;
                 // we unlock ht lock here because we want to avoid potential
                 // lock inversions arising from notifyNewSeqno() call
                 lh.unlock();
@@ -2315,60 +2336,27 @@ std::pair<AddStatus, VBNotifyCtx> VBucket::processAdd(
     return rv;
 }
 
-MutationStatus VBucket::processSoftDelete(
-        const std::unique_lock<std::mutex>& htLock,
-        StoredValue& v,
-        uint64_t cas) {
-    if (!htLock) {
-        throw std::invalid_argument(
-                "VBucket::processSoftDelete: htLock not held for "
-                "VBucket " +
-                std::to_string(getId()));
-    }
-    ItemMetaData metadata;
-    metadata.revSeqno = v.getRevSeqno() + 1;
-    return processSoftDelete(htLock, v, cas, metadata, /*use_meta*/ false);
-}
-
-MutationStatus VBucket::processSoftDelete(
+std::pair<MutationStatus, VBNotifyCtx> VBucket::processSoftDelete(
         const std::unique_lock<std::mutex>& htLock,
         StoredValue& v,
         uint64_t cas,
         const ItemMetaData& metadata,
-        bool use_meta) {
+        const VBQueueItemCtx& queueItmCtx,
+        bool use_meta,
+        uint64_t bySeqno) {
     if (v.isTempInitialItem() && eviction == FULL_EVICTION) {
-        return MutationStatus::NeedBgFetch;
-    }
-
-    if (v.isExpired(ep_real_time()) && !use_meta) {
-        /* If the datatype is XATTR, mark the item as deleted
-         * but don't delete the value as system xattrs can
-         * still be queried by mobile clients even after
-         * deletion.
-         * TODO: The current implementation is inefficient
-         * but functionally correct and for performance reasons
-         * only the system xattrs need to be stored.
-         */
-        value_t value = v.getValue();
-        if (value && mcbp::datatype::is_xattr(value->getDataType())) {
-            softDeleteStoredValue(
-                    htLock, v, metadata.revSeqno, /*onlyMarkDeleted*/ true);
-        } else {
-            softDeleteStoredValue(
-                    htLock, v, metadata.revSeqno, /*onlyMarkDeleted*/ false);
-        }
-        return MutationStatus::NotFound;
+        return {MutationStatus::NeedBgFetch, VBNotifyCtx()};
     }
 
     if (v.isLocked(ep_current_time())) {
         if (cas != v.getCas()) {
-            return MutationStatus::IsLocked;
+            return {MutationStatus::IsLocked, VBNotifyCtx()};
         }
         v.unlock();
     }
 
     if (cas != 0 && cas != v.getCas()) {
-        return MutationStatus::InvalidCas;
+        return {MutationStatus::InvalidCas, VBNotifyCtx()};
     }
 
     /* allow operation */
@@ -2383,10 +2371,52 @@ MutationStatus VBucket::processSoftDelete(
         v.setExptime(metadata.exptime);
     }
 
-    softDeleteStoredValue(
-            htLock, v, metadata.revSeqno, /*onlyMarkDeleted*/ false);
+    return {rv,
+            softDeleteStoredValue(htLock,
+                                  v,
+                                  metadata.revSeqno,
+                                  /*onlyMarkDeleted*/ false,
+                                  queueItmCtx,
+                                  bySeqno)};
+}
 
-    return rv;
+std::pair<MutationStatus, VBNotifyCtx> VBucket::processExpiredItem(
+        const std::unique_lock<std::mutex>& htLock, StoredValue& v) {
+    if (!htLock) {
+        throw std::invalid_argument(
+                "VBucket::processExpiredItem: htLock not held for VBucket " +
+                std::to_string(getId()));
+    }
+
+    if (v.isTempInitialItem() && eviction == FULL_EVICTION) {
+        return {MutationStatus::NeedBgFetch,
+                queueDirty(v,
+                           GenerateBySeqno::Yes,
+                           GenerateCas::Yes,
+                           /*isBackfillItem*/ false)};
+    }
+
+    /* If the datatype is XATTR, mark the item as deleted
+     * but don't delete the value as system xattrs can
+     * still be queried by mobile clients even after
+     * deletion.
+     * TODO: The current implementation is inefficient
+     * but functionally correct and for performance reasons
+     * only the system xattrs need to be stored.
+     */
+    value_t value = v.getValue();
+    bool onlyMarkDeleted =
+            value && mcbp::datatype::is_xattr(value->getDataType());
+    return {MutationStatus::NotFound,
+            softDeleteStoredValue(htLock,
+                                  v,
+                                  v.getRevSeqno() + 1,
+                                  onlyMarkDeleted,
+                                  VBQueueItemCtx(GenerateBySeqno::Yes,
+                                                 GenerateCas::Yes,
+                                                 TrackCasDrift::No,
+                                                 /*isBackfillItem*/ false),
+                                  v.getBySeqno())};
 }
 
 std::pair<MutationStatus, VBNotifyCtx> VBucket::updateStoredValue(
@@ -2470,13 +2500,32 @@ bool VBucket::deleteStoredValue(const std::unique_lock<std::mutex>& htLock,
     return true;
 }
 
-void VBucket::softDeleteStoredValue(const std::unique_lock<std::mutex>& htLock,
-                                    StoredValue& v,
-                                    uint64_t revSeqno,
-                                    bool onlyMarkDeleted) {
+VBNotifyCtx VBucket::softDeleteStoredValue(
+        const std::unique_lock<std::mutex>& htLock,
+        StoredValue& v,
+        uint64_t revSeqno,
+        bool onlyMarkDeleted,
+        const VBQueueItemCtx& queueItmCtx,
+        uint64_t bySeqno) {
     v.setRevSeqno(revSeqno);
     ht.unlocked_softDelete(htLock, v, onlyMarkDeleted);
     ht.updateMaxDeletedRevSeqno(v.getRevSeqno());
+
+    if (queueItmCtx.genBySeqno == GenerateBySeqno::No) {
+        v.setBySeqno(bySeqno);
+    }
+
+    if (queueItmCtx.trackCasDrift == TrackCasDrift::Yes) {
+        return trackCasDriftAndQueueDirty(v,
+                                          queueItmCtx.genBySeqno,
+                                          queueItmCtx.genCas,
+                                          queueItmCtx.isBackfillItem);
+    } else {
+        return queueDirty(v,
+                          queueItmCtx.genBySeqno,
+                          queueItmCtx.genCas,
+                          queueItmCtx.isBackfillItem);
+    }
 }
 
 AddStatus VBucket::addTempStoredValue(

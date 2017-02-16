@@ -977,7 +977,7 @@ protected:
             const VBQueueItemCtx* queueItmCtx = nullptr);
 
     /**
-     * This function checks cas, expiry, eviction policy and other partition
+     * This function checks cas, eviction policy and other partition
      * (vbucket) related rules before logically (soft) deleting an item in
      * in-memory structure like HT, and checkpoint mgr.
      * Assumes that HT bucket lock is grabbed.
@@ -985,12 +985,23 @@ protected:
      * @param htLock Hash table lock that must be held
      * @param v Reference to the StoredValue to be soft deleted
      * @param cas the expected CAS of the item (or 0 to override)
+     * @param metadata ref to item meta data
+     * @param queueItmCtx holds info needed to queue an item in chkpt or vb
+     *                    backfill queue
+     * @param use_meta Indicates if v must be updated with the metadata
+     * @param bySeqno seqno of the key being deleted
      *
-     * @return Result indicating the status of the operation
+     * @return Result indicating the status of the operation and notification
+     *                info
      */
-    MutationStatus processSoftDelete(const std::unique_lock<std::mutex>& htLock,
-                                     StoredValue& v,
-                                     uint64_t cas);
+    std::pair<MutationStatus, VBNotifyCtx> processSoftDelete(
+            const std::unique_lock<std::mutex>& htLock,
+            StoredValue& v,
+            uint64_t cas,
+            const ItemMetaData& metadata,
+            const VBQueueItemCtx& queueItmCtx,
+            bool use_meta,
+            uint64_t bySeqno);
 
     /**
      * Delete a key (associated StoredValue) from ALL in-memory data structures
@@ -1093,31 +1104,33 @@ private:
      * @param revSeqno revision id sequence number
      * @param onlyMarkDeleted indicates if we must reset the StoredValue or
      *                        just mark deleted
+     * @param queueItmCtx holds info needed to queue an item in chkpt or vb
+     *                    backfill queue
+     * @param bySeqno seqno of the key being deleted
+     *
+     * @return Notification info
      */
-    void softDeleteStoredValue(const std::unique_lock<std::mutex>& htLock,
-                               StoredValue& v,
-                               uint64_t revSeqno,
-                               bool onlyMarkDeleted);
+    VBNotifyCtx softDeleteStoredValue(
+            const std::unique_lock<std::mutex>& htLock,
+            StoredValue& v,
+            uint64_t revSeqno,
+            bool onlyMarkDeleted,
+            const VBQueueItemCtx& queueItmCtx,
+            uint64_t bySeqno);
 
     /**
-     * This function checks cas, expiry, eviction policy and other partition
-     * (vbucket) related rules before logically (soft) deleting an item in
-     * in-memory structure like HT, and checkpoint mgr.
+     * This function handles expiry relatead stuff before logically (soft)
+     * deleting an item in in-memory structures like HT, and checkpoint mgr.
      * Assumes that HT bucket lock is grabbed.
      *
      * @param htLock Hash table lock that must be held
      * @param v Reference to the StoredValue to be soft deleted
-     * @param cas the expected CAS of the item (or 0 to override)
-     * @param itemMeta ref to item meta data
-     * @param use_meta Indicates if v must be updated with the metadata
      *
-     * @return Result indicating the status of the operation
+     * @return Result indicating the status of the operation and notification
+     *                info
      */
-    MutationStatus processSoftDelete(const std::unique_lock<std::mutex>& htLock,
-                                     StoredValue& v,
-                                     uint64_t cas,
-                                     const ItemMetaData& metadata,
-                                     bool use_meta);
+    std::pair<MutationStatus, VBNotifyCtx> processExpiredItem(
+            const std::unique_lock<std::mutex>& htLock, StoredValue& v);
 
     /**
      * Adds a temporary StoredValue in in-memory data structures like HT.
