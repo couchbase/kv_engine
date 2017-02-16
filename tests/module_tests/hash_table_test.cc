@@ -498,3 +498,50 @@ TEST_F(HashTableTest, NRUMinimum) {
     EXPECT_NE(nullptr, v);
     EXPECT_EQ(MIN_NRU_VALUE, v->getNRUValue());
 }
+
+/* Test release from HT (but not deletion) of an (HT) element */
+TEST_F(HashTableTest, ReleaseItem) {
+    /* Setup with 2 hash buckets and 1 lock */
+    HashTable ht(global_stats, 2, 1);
+
+    /* Write 5 items (there are 2 hash buckets, we want to test removing a head
+       element and a non-head element) */
+    const int numItems = 5;
+    std::string val("value");
+
+    for (int i = 0; i < numItems; ++i) {
+        StoredDocKey key =
+                makeStoredDocKey(std::string("key" + std::to_string(i)));
+        Item item(key, 0, 0, val.data(), val.length());
+        EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
+    }
+    EXPECT_EQ(numItems, ht.getNumItems());
+
+    /* Remove the element added first. This is not (most likely because we
+       might have a rare case wherein 4 items are hashed to one bucket and
+       "removeKey1" would be a lone element in the other hash bucket) a head
+       element of a hash bucket */
+    StoredDocKey removeKey1 =
+            makeStoredDocKey(std::string("key" + std::to_string(0)));
+
+    /* Before removing the HT element, get its pointer as it must be deleted
+       after the test */
+    std::unique_ptr<StoredValue> sv1(ht.find(removeKey1));
+
+    std::mutex fakeLock;
+    std::unique_lock<std::mutex> htLock(fakeLock);
+    ht.unlocked_release(htLock, removeKey1);
+    EXPECT_EQ(numItems - 1, ht.getNumItems());
+
+    /* Remove the element added last. This is certainly the head element of a
+       hash bucket */
+    StoredDocKey removeKey2 =
+            makeStoredDocKey(std::string("key" + std::to_string(numItems - 1)));
+
+    /* Before removing the HT element, get its pointer as it must be deleted
+       after the test */
+    std::unique_ptr<StoredValue> sv2(ht.find(removeKey2));
+
+    ht.unlocked_release(htLock, removeKey2);
+    EXPECT_EQ(numItems - 2, ht.getNumItems());
+}

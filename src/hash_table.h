@@ -398,6 +398,19 @@ public:
                       int bucket_num);
 
     /**
+     * Releases an item(StoredValue) in the hash table, but does not delete it.
+     * It will not be found in HT during HT delete. Hence the deletion of this
+     * removed StoredValue must be handled by another (maybe calling) module.
+     * Assumes that the hash bucket lock is already held.
+     *
+     * @param htLock Hash table lock that must be held
+     * @param key the key to be removed
+     *
+     * @return the StoredValue that is released
+     */
+    StoredValue* unlocked_release(const std::unique_lock<std::mutex>& htLock,
+                                  const DocKey& key);
+    /**
      * Visit all items within this hashtable.
      */
     void visit(HashTableVisitor &visitor);
@@ -566,6 +579,25 @@ private:
         }
         return bucket_num % n_locks;
     }
+
+    /**
+     * Releases an item(StoredValue) in the hash table, but does not delete it.
+     * It will pass out the removed item to the caller who can decide whether to
+     * delete it or not.
+     * Once removed the item will not be found if we look in the HT later, even
+     * if the item is not deleted. Hence the deletion of this
+     * removed StoredValue must be handled by another (maybe calling) module.
+     * Assumes that the hash bucket lock is already held.
+     *
+     * @param htLock Hash table lock that must be held
+     * @param key the key to delete
+     * @param bucket_num the hash bucket to look in
+     *
+     * @return the StoredValue that is removed from the HT
+     */
+    StoredValue* unlocked_release(const std::unique_lock<std::mutex>& htLock,
+                                  const DocKey& key,
+                                  int bucket_num);
 
     Item *getRandomKeyFromSlot(int slot);
 

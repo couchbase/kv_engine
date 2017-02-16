@@ -357,21 +357,37 @@ StoredValue* HashTable::unlocked_find(const DocKey& key, int bucket_num,
 void HashTable::unlocked_del(const std::unique_lock<std::mutex>& htLock,
                              const DocKey& key,
                              int bucket_num) {
+    delete unlocked_release(htLock, key, bucket_num);
+}
+
+StoredValue* HashTable::unlocked_release(
+        const std::unique_lock<std::mutex>& htLock, const DocKey& key) {
+    return unlocked_release(htLock, key, getBucketForHash(key.hash()));
+}
+
+StoredValue* HashTable::unlocked_release(
+        const std::unique_lock<std::mutex>& htLock,
+        const DocKey& key,
+        int bucket_num) {
     if (!htLock) {
         throw std::invalid_argument(
-                "HashTable::unlocked_del: htLock "
+                "HashTable::unlocked_remove: htLock "
                 "not held");
     }
 
     if (!isActive()) {
-        throw std::logic_error("HashTable::unlocked_del: Cannot call on a "
+        throw std::logic_error(
+                "HashTable::unlocked_remove: Cannot call on a "
                 "non-active object");
     }
     StoredValue *v = values[bucket_num];
 
-    // Special case empty bucket.
+    /* An empty Hash Bucket when trying to remove a StoredValue indicates a
+       potential memory leak / error in our HashTable handling */
     if (!v) {
-        return;
+        throw std::logic_error(
+                "HashTable::unlocked_remove: Trying to remove "
+                "(maybe delete) a value in empty hash bucket");
     }
 
     // Special case the first one
@@ -385,8 +401,7 @@ void HashTable::unlocked_del(const std::unique_lock<std::mutex>& htLock,
             decrNumItems();
             decrNumTotalItems();
         }
-        delete v;
-        return;
+        return v;
     }
 
     while (v->next) {
@@ -401,8 +416,7 @@ void HashTable::unlocked_del(const std::unique_lock<std::mutex>& htLock,
                 decrNumItems();
                 decrNumTotalItems();
             }
-            delete tmp;
-            return;
+            return tmp;
         } else {
             v = v->next;
         }
