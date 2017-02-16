@@ -22,6 +22,5 @@
 class BucketTest : public TestappClientTest {
 public:
 protected:
-    MemcachedConnection& getConnection() override;
 
 };

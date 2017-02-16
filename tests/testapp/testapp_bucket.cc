@@ -34,7 +34,7 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         ::testing::PrintToStringParamName());
 
 TEST_P(BucketTest, TestNameTooLong) {
-    auto& connection = getConnection();
+    auto& connection = getAdminConnection();
     std::string name;
     name.resize(101);
     std::fill(name.begin(), name.end(), 'a');
@@ -48,7 +48,7 @@ TEST_P(BucketTest, TestNameTooLong) {
 }
 
 TEST_P(BucketTest, TestMaxNameLength) {
-    auto& connection = getConnection();
+    auto& connection = getAdminConnection();
     std::string name;
     name.resize(100);
     std::fill(name.begin(), name.end(), 'a');
@@ -58,7 +58,7 @@ TEST_P(BucketTest, TestMaxNameLength) {
 }
 
 TEST_P(BucketTest, TestEmptyName) {
-    auto& connection = getConnection();
+    auto& connection = getAdminConnection();
 
     if (connection.getProtocol() == Protocol::Greenstack) {
         // libgreenstack won't allow us to send such packets
@@ -74,7 +74,7 @@ TEST_P(BucketTest, TestEmptyName) {
 }
 
 TEST_P(BucketTest, TestInvalidCharacters) {
-    auto& connection = getConnection();
+    auto& connection = getAdminConnection();
 
     std::string name("a ");
 
@@ -115,8 +115,7 @@ TEST_P(BucketTest, TestInvalidCharacters) {
 }
 
 TEST_P(BucketTest, TestMultipleBuckets) {
-    auto& connection = getConnection();
-
+    auto& connection = getAdminConnection();
     int ii;
     try {
         for (ii = 1; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
@@ -134,7 +133,7 @@ TEST_P(BucketTest, TestMultipleBuckets) {
 }
 
 TEST_P(BucketTest, TestCreateBucketAlreadyExists) {
-    auto& conn = getConnection();
+    auto& conn = getAdminConnection();
     try {
         conn.createBucket("default", "", Greenstack::BucketType::Memcached);
     } catch (ConnectionError& error) {
@@ -143,7 +142,7 @@ TEST_P(BucketTest, TestCreateBucketAlreadyExists) {
 }
 
 TEST_P(BucketTest, TestDeleteNonexistingBucket) {
-    auto& conn = getConnection();
+    auto& conn = getAdminConnection();
     try {
         conn.deleteBucket("ItWouldBeSadIfThisBucketExisted");
     } catch (ConnectionError& error) {
@@ -154,7 +153,7 @@ TEST_P(BucketTest, TestDeleteNonexistingBucket) {
 // Regression test for MB-19756 - if a bucket delete is attempted while there
 // is connection in the conn_nread state, then delete will hang.
 TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
-    auto& conn = getConnection();
+    auto& conn = getAdminConnection();
     conn.createBucket("bucket", "", Greenstack::BucketType::Memcached);
 
     auto second_conn = conn.clone();
@@ -210,7 +209,7 @@ TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
 // can be invoked regardless of whether the event is registered
 // (i.e. in a pending state) or not.
 TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
-    auto& conn = getConnection();
+    auto& conn = getAdminConnection();
     conn.createBucket("bucket", "default_engine.so",
                       Greenstack::BucketType::EWouldBlock);
     auto second_conn = conn.clone();
@@ -286,7 +285,7 @@ TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
                 std::endl;
         return;
     }
-    auto& conn = getConnection();
+    auto& conn = getAdminConnection();
 
     auto second_conn = conn.clone();
     second_conn->authenticate("_admin", "password", "PLAIN");
@@ -404,7 +403,7 @@ TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
 #endif
 
 TEST_P(BucketTest, TestListBucket) {
-    auto& conn = getConnection();
+    auto& conn = getAdminConnection();
     auto buckets = conn.listBuckets();
     EXPECT_EQ(1, buckets.size());
     EXPECT_EQ(std::string("default"), buckets[0]);
@@ -474,10 +473,4 @@ TEST_P(BucketTest, TestMemcachedBucketBigObjects)
     connection.mutate(doc, 0, Greenstack::MutationType::Add);
     connection.get(name, 0);
     connection.deleteBucket("mybucket_000");
-}
-
-MemcachedConnection& BucketTest::getConnection() {
-    auto& conn = TestappClientTest::getConnection();
-    conn.authenticate("_admin", "password", "PLAIN");
-    return conn;
 }
