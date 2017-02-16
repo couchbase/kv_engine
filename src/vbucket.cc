@@ -761,15 +761,6 @@ VBNotifyCtx VBucket::queueDirty(StoredValue& v,
     return notifyCtx;
 }
 
-VBNotifyCtx VBucket::trackCasDriftAndQueueDirty(
-        StoredValue& v,
-        const GenerateBySeqno generateBySeqno,
-        const GenerateCas generateCas,
-        const bool isBackfillItem) {
-    setMaxCasAndTrackDrift(v.getCas());
-    return queueDirty(v, generateBySeqno, generateCas, isBackfillItem);
-}
-
 StoredValue* VBucket::fetchValidValue(std::unique_lock<std::mutex>& lh,
                                       const DocKey& key,
                                       const int bucket_num,
@@ -2430,19 +2421,7 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::updateStoredValue(
     MutationStatus status = ht.unlocked_updateStoredValue(htLock, v, itm);
 
     if (queueItmCtx) {
-        VBNotifyCtx notifyCtx;
-        if (queueItmCtx->trackCasDrift == TrackCasDrift::Yes) {
-            notifyCtx = trackCasDriftAndQueueDirty(v,
-                                                   queueItmCtx->genBySeqno,
-                                                   queueItmCtx->genCas,
-                                                   queueItmCtx->isBackfillItem);
-        } else {
-            notifyCtx = queueDirty(v,
-                                   queueItmCtx->genBySeqno,
-                                   queueItmCtx->genCas,
-                                   queueItmCtx->isBackfillItem);
-        }
-        return {status, notifyCtx};
+        return {status, queueDirty(v, *queueItmCtx)};
     }
     return {status, VBNotifyCtx()};
 }
@@ -2454,19 +2433,7 @@ std::pair<StoredValue*, VBNotifyCtx> VBucket::addNewStoredValue(
     StoredValue* v = ht.unlocked_addNewStoredValue(htLock, itm);
 
     if (queueItmCtx) {
-        VBNotifyCtx notifyCtx;
-        if (queueItmCtx->trackCasDrift == TrackCasDrift::Yes) {
-            notifyCtx = trackCasDriftAndQueueDirty(*v,
-                                                   queueItmCtx->genBySeqno,
-                                                   queueItmCtx->genCas,
-                                                   queueItmCtx->isBackfillItem);
-        } else {
-            notifyCtx = queueDirty(*v,
-                                   queueItmCtx->genBySeqno,
-                                   queueItmCtx->genCas,
-                                   queueItmCtx->isBackfillItem);
-        }
-        return {v, notifyCtx};
+        return {v, queueDirty(*v, *queueItmCtx)};
     }
 
     return {v, VBNotifyCtx()};
@@ -2498,17 +2465,7 @@ VBNotifyCtx VBucket::softDeleteStoredValue(
         v.setBySeqno(bySeqno);
     }
 
-    if (queueItmCtx.trackCasDrift == TrackCasDrift::Yes) {
-        return trackCasDriftAndQueueDirty(v,
-                                          queueItmCtx.genBySeqno,
-                                          queueItmCtx.genCas,
-                                          queueItmCtx.isBackfillItem);
-    } else {
-        return queueDirty(v,
-                          queueItmCtx.genBySeqno,
-                          queueItmCtx.genCas,
-                          queueItmCtx.isBackfillItem);
-    }
+    return queueDirty(v, queueItmCtx);
 }
 
 AddStatus VBucket::addTempStoredValue(
@@ -2558,6 +2515,17 @@ int64_t VBucket::queueItem(Item* item) {
     checkpointManager.queueDirty(
             *this, qi, GenerateBySeqno::Yes, GenerateCas::Yes);
     return qi->getBySeqno();
+}
+
+VBNotifyCtx VBucket::queueDirty(StoredValue& v,
+                                const VBQueueItemCtx& queueItmCtx) {
+    if (queueItmCtx.trackCasDrift == TrackCasDrift::Yes) {
+        setMaxCasAndTrackDrift(v.getCas());
+    }
+    return queueDirty(v,
+                      queueItmCtx.genBySeqno,
+                      queueItmCtx.genCas,
+                      queueItmCtx.isBackfillItem);
 }
 
 void VBucket::updateRevSeqNoOfNewStoredValue(StoredValue& v) {
