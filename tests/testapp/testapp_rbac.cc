@@ -166,6 +166,20 @@ public:
 
 protected:
 
+    MutationInfo store(MemcachedBinprotConnection& conn,
+                       Greenstack::mutation_type_t type) {
+        Document document;
+        document.info.cas = Greenstack::CAS::Wildcard;
+        document.info.compression = Greenstack::Compression::None;
+        document.info.datatype = Greenstack::Datatype::Json;
+        document.info.flags = 0xcaffee;
+        document.info.id = name;
+        const std::string content = to_string(memcached_cfg, false);
+        std::copy(content.begin(), content.end(),
+                  std::back_inserter(document.value));
+        return conn.mutate(document, 0, type);
+    }
+
     MemcachedBinprotConnection& prepare(MemcachedBinprotConnection& c) {
         c.setDatatypeSupport(true);
         c.setMutationSeqnoSupport(true);
@@ -229,5 +243,45 @@ TEST_P(RbacRoleTest, Arithmetic) {
                << "arithmetic operations";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied());
+    }
+}
+
+TEST_P(RbacRoleTest, MutationTest_ReadOnly) {
+    auto& ro = getROConnection();
+
+    try {
+        store(ro, Greenstack::MutationType::Add);
+        FAIL() << "The read-only user should not be able to add documents";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isAccessDenied());
+    }
+
+    auto& rw = getRWConnection();
+    store(rw, Greenstack::MutationType::Add);
+
+    for (const auto& type : {Greenstack::MutationType::Append,
+                             Greenstack::MutationType::Prepend,
+                             Greenstack::MutationType::Set,
+                             Greenstack::MutationType::Replace}) {
+        try {
+            store(ro, type);
+            FAIL() << "The read-only user should not be able modify document with operation: "
+                   << type;
+        } catch (const ConnectionError& error) {
+            EXPECT_TRUE(error.isAccessDenied());
+        }
+    }
+}
+
+TEST_P(RbacRoleTest, MutationTest_WriteOnly) {
+    auto& wo = getWOConnection();
+
+    // The Write Only user should be allowed to do all of these ops
+    for (const auto& type : {Greenstack::MutationType::Add,
+                             Greenstack::MutationType::Append,
+                             Greenstack::MutationType::Prepend,
+                             Greenstack::MutationType::Set,
+                             Greenstack::MutationType::Replace}) {
+        store(wo, type);
     }
 }
