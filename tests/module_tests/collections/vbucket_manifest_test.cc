@@ -435,3 +435,37 @@ TEST_F(VBucketManifestTest, invalidDeletes) {
                 R"("collections":["$default"]})"});
     EXPECT_NO_THROW(vbm.completeDeletion(vbucket, {"$default"}, 3));
 }
+
+// Check that a deleting collection doesn't keep adding system events
+TEST_F(VBucketManifestTest, doubleDelete) {
+    auto seqno = vbucket.getHighSeqno();
+    // add vegetable
+    vbm.update(vbucket,
+               {R"({"revision":1,"separator":"::",)"
+                R"("collections":["$default","vegetable"]})"});
+    EXPECT_LT(seqno, vbucket.getHighSeqno());
+    seqno = vbucket.getHighSeqno();
+
+    // same again, should have be nothing created or deleted
+    vbm.update(vbucket,
+               {R"({"revision":2,"separator":"::",)"
+                R"("collections":["$default","vegetable"]})"});
+
+    EXPECT_EQ(seqno, vbucket.getHighSeqno());
+    seqno = vbucket.getHighSeqno();
+
+    // Now delete vegetable
+    vbm.update(vbucket,
+               {R"({"revision":3,"separator":"::",)"
+                R"("collections":["$default"]})"});
+
+    EXPECT_LT(seqno, vbucket.getHighSeqno());
+    seqno = vbucket.getHighSeqno();
+
+    // same again, should have be nothing created or deleted
+    vbm.update(vbucket,
+               {R"({"revision":4,"separator":"::",)"
+                R"("collections":["$default"]})"});
+
+    EXPECT_EQ(seqno, vbucket.getHighSeqno());
+}

@@ -196,10 +196,14 @@ protected:
      *
      * @param se SystemEvent to create.
      * @param collection The collection which is changing,
-     * @param revision Manifest revision triggering the update.
+     * @param revisionForKey the revision which will be appended to the events
+     *        DocKey
+     * @param revision Manifest revision triggering the update, this value will
+     *        be used for the JSON manifest update (as part of flushing).
      */
     std::unique_ptr<Item> createSystemEvent(SystemEvent se,
                                             cb::const_char_buffer collection,
+                                            uint32_t revisionForKey,
                                             uint32_t revision) const;
 
     /**
@@ -210,6 +214,7 @@ protected:
     int64_t queueSystemEvent(::VBucket& vb,
                              SystemEvent se,
                              cb::const_char_buffer collection,
+                             uint32_t revisionForKey,
                              uint32_t revision) const;
 
     /**

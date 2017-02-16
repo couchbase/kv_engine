@@ -70,6 +70,7 @@ void Collections::VB::Manifest::update(::VBucket& vb,
         auto seqno = queueSystemEvent(vb,
                                       SystemEvent::CreateCollection,
                                       collection,
+                                      manifest.getRevision(),
                                       manifest.getRevision());
 
         LOG(EXTENSION_LOG_INFO,
@@ -86,9 +87,12 @@ void Collections::VB::Manifest::update(::VBucket& vb,
 
     // Process deletions to the manifest
     for (const auto& collection : deletions) {
+        auto itr = map.find(collection);
+
         auto seqno = queueSystemEvent(vb,
                                       SystemEvent::BeginDeleteCollection,
                                       collection,
+                                      itr->second->getRevision(),
                                       manifest.getRevision());
 
         LOG(EXTENSION_LOG_INFO,
@@ -131,10 +135,15 @@ void Collections::VB::Manifest::addCollection(cb::const_char_buffer collection,
 void Collections::VB::Manifest::beginDelCollection(
         cb::const_char_buffer collection, uint32_t revision, int64_t seqno) {
     std::lock_guard<cb::WriterLock> writeLock(lock.writer());
-    auto itr = map.find({collection.data(), collection.size()});
+    auto itr = map.find(collection);
     if (itr != map.end()) {
         itr->second->setRevision(revision);
         itr->second->setEndSeqno(seqno);
+    } else {
+        throw std::logic_error("beginDelCollection: did not find collection:" +
+                               cb::to_string(collection) + ", revision:" +
+                               std::to_string(revision) + ", seqno:" +
+                               std::to_string(seqno));
     }
 
     if (collection == DefaultCollectionIdentifier) {
@@ -156,8 +165,11 @@ void Collections::VB::Manifest::completeDeletion(
         // When we find that the collection is not open, we can hard delete it.
         // This means we are purging it completly from the manifest and will
         // generate a JSON manifest without an entry for the collection.
-        queueSystemEvent(
-                vb, SystemEvent::DeleteCollectionHard, collection, revision);
+        queueSystemEvent(vb,
+                         SystemEvent::DeleteCollectionHard,
+                         collection,
+                         revision,
+                         revision);
         map.erase(itr);
     } else if (itr->second->isOpenAndDeleting()) {
         // When we find that the collection open and deleting we can soft delete
@@ -166,6 +178,7 @@ void Collections::VB::Manifest::completeDeletion(
         queueSystemEvent(vb,
                          SystemEvent::DeleteCollectionSoft,
                          collection,
+                         itr->second->getRevision(),
                          itr->second->getRevision());
         itr->second->resetEndSeqno(); // and reset the end to our special seqno
     } else {
@@ -183,10 +196,11 @@ Collections::VB::Manifest::processManifest(
 
     std::lock_guard<cb::WriterLock> writeLock(lock.writer());
     for (const auto& manifestEntry : map) {
-        // Does manifestEntry::collectionName exist in manifest? NO - delete
-        // time
-        if (manifest.find(manifestEntry.second->getCollectionName()) ==
-            manifest.end()) {
+        // If the manifestEntry is open and not found in the new manifest it
+        // must be deleted.
+        if (manifestEntry.second->isOpen() &&
+            manifest.find(manifestEntry.second->getCollectionName()) ==
+                    manifest.end()) {
             deletions.push_back(std::string(
                     reinterpret_cast<const char*>(manifestEntry.first.data()),
                     manifestEntry.first.size()));
@@ -232,6 +246,7 @@ bool Collections::VB::Manifest::doesKeyContainValidCollection(
 std::unique_ptr<Item> Collections::VB::Manifest::createSystemEvent(
         SystemEvent se,
         cb::const_char_buffer collection,
+        uint32_t revisionForKey,
         uint32_t revision) const {
     // Create an item (to be queued and written to disk) that represents
     // the update of a collection and allows the checkpoint to update
@@ -242,7 +257,7 @@ std::unique_ptr<Item> Collections::VB::Manifest::createSystemEvent(
 
     auto item = SystemEventFactory::make(
             se,
-            cb::to_string(collection) + std::to_string(revision),
+            cb::to_string(collection) + std::to_string(revisionForKey),
             getSerialisedDataSize(collection));
 
     // Quite rightly an Item's value is const, but in this case the Item is
@@ -260,9 +275,12 @@ int64_t Collections::VB::Manifest::queueSystemEvent(
         ::VBucket& vb,
         SystemEvent se,
         cb::const_char_buffer collection,
+        uint32_t revisionForKey,
         uint32_t revision) const {
     // Create and transfer Item ownership to the VBucket
-    return vb.queueItem(createSystemEvent(se, collection, revision).release());
+    return vb.queueItem(
+            createSystemEvent(se, collection, revisionForKey, revision)
+                    .release());
 }
 
 size_t Collections::VB::Manifest::getSerialisedDataSize(
