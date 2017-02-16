@@ -42,8 +42,8 @@ Configuration::Configuration() {
 std::string Configuration::getString(const std::string &key) const {
     LockHolder lh(mutex);
 
-    std::map<std::string, value_t>::const_iterator iter;
-    if ((iter = attributes.find(key)) == attributes.end()) {
+    const auto iter = attributes.find(key);
+    if (iter == attributes.end()) {
         return std::string();
     }
     if (iter->second.datatype != DT_STRING) {
@@ -61,8 +61,8 @@ std::string Configuration::getString(const std::string &key) const {
 bool Configuration::getBool(const std::string &key) const {
     LockHolder lh(mutex);
 
-    std::map<std::string, value_t>::const_iterator iter;
-    if ((iter = attributes.find(key)) == attributes.end()) {
+    const auto iter = attributes.find(key);
+    if (iter == attributes.end()) {
         return false;
     }
     if (iter->second.datatype != DT_BOOL) {
@@ -76,8 +76,8 @@ bool Configuration::getBool(const std::string &key) const {
 float Configuration::getFloat(const std::string &key) const {
     LockHolder lh(mutex);
 
-    std::map<std::string, value_t>::const_iterator iter;
-    if ((iter = attributes.find(key)) == attributes.end()) {
+    const auto iter = attributes.find(key);
+    if (iter == attributes.end()) {
         return 0;
     }
     if (iter->second.datatype != DT_FLOAT) {
@@ -91,8 +91,8 @@ float Configuration::getFloat(const std::string &key) const {
 size_t Configuration::getInteger(const std::string &key) const {
     LockHolder lh(mutex);
 
-    std::map<std::string, value_t>::const_iterator iter;
-    if ((iter = attributes.find(key)) == attributes.end()) {
+    const auto iter = attributes.find(key);
+    if (iter == attributes.end()) {
         return 0;
     }
     if (iter->second.datatype != DT_SIZE) {
@@ -106,8 +106,8 @@ size_t Configuration::getInteger(const std::string &key) const {
 ssize_t Configuration::getSignedInteger(const std::string &key) const {
     LockHolder lh(mutex);
 
-    std::map<std::string, value_t>::const_iterator iter;
-    if ((iter = attributes.find(key)) == attributes.end()) {
+    const auto iter = attributes.find(key);
+    if (iter == attributes.end()) {
         return 0;
     }
     if (iter->second.datatype != DT_SSIZE) {
@@ -120,31 +120,29 @@ ssize_t Configuration::getSignedInteger(const std::string &key) const {
 
 std::ostream& operator <<(std::ostream &out, const Configuration &config) {
     LockHolder lh(config.mutex);
-    std::map<std::string, Configuration::value_t>::const_iterator iter;
-    for (iter = config.attributes.begin(); iter != config.attributes.end();
-        ++iter) {
+    for (const auto& attribute : config.attributes) {
         std::stringstream line;
-        line << iter->first.c_str();
+        line << attribute.first.c_str();
         line << " = [";
-        switch (iter->second.datatype) {
+        switch (attribute.second.datatype) {
         case DT_BOOL:
-            if (iter->second.val.v_bool) {
+            if (attribute.second.val.v_bool) {
                 line << "true";
             } else {
                 line << "false";
             }
             break;
         case DT_STRING:
-            line << iter->second.val.v_string;
+            line << attribute.second.val.v_string;
             break;
         case DT_SIZE:
-            line << iter->second.val.v_size;
+            line << attribute.second.val.v_size;
             break;
         case DT_SSIZE:
-            line << iter->second.val.v_ssize;
+            line << attribute.second.val.v_ssize;
             break;
         case DT_FLOAT:
-            line << iter->second.val.v_float;
+            line << attribute.second.val.v_float;
             break;
         case DT_CONFIGFILE:
             continue;
@@ -284,8 +282,8 @@ void Configuration::setParameter(const std::string &key, const char *value) {
         copy = attributes[key].changeListener;
     }
 
-    for (auto iter = copy.begin(); iter != copy.end(); ++iter) {
-        (*iter)->stringValueChanged(key, value);
+    for (const auto& item : copy) {
+        item->stringValueChanged(key, value);
     }
 }
 
@@ -311,24 +309,23 @@ ValueChangedValidator *Configuration::setValueValidator(const std::string &key,
 
 void Configuration::addStats(ADD_STAT add_stat, const void *c) const {
     LockHolder lh(mutex);
-    std::map<std::string, value_t>::const_iterator iter;
-    for (iter = attributes.begin(); iter != attributes.end(); ++iter) {
+    for (const auto& attribute :  attributes) {
         std::stringstream value;
-        switch (iter->second.datatype) {
+        switch (attribute.second.datatype) {
         case DT_BOOL:
-            value << std::boolalpha << iter->second.val.v_bool << std::noboolalpha;
+            value << std::boolalpha << attribute.second.val.v_bool << std::noboolalpha;
             break;
         case DT_STRING:
-            value << iter->second.val.v_string;
+            value << attribute.second.val.v_string;
             break;
         case DT_SIZE:
-            value << iter->second.val.v_size;
+            value << attribute.second.val.v_size;
             break;
         case DT_SSIZE:
-            value << iter->second.val.v_ssize;
+            value << attribute.second.val.v_ssize;
             break;
         case DT_FLOAT:
-            value << iter->second.val.v_float;
+            value << attribute.second.val.v_float;
             break;
         case DT_CONFIGFILE:
         default:
@@ -337,7 +334,7 @@ void Configuration::addStats(ADD_STAT add_stat, const void *c) const {
         }
 
         std::stringstream key;
-        key << "ep_" << iter->first;
+        key << "ep_" << attribute.first;
         std::string k = key.str();
         add_casted_stat(k.c_str(), value.str().data(), add_stat, c);
     }
@@ -363,10 +360,9 @@ bool Configuration::parseConfiguration(const char *str,
                                        SERVER_HANDLE_V1* sapi) {
     std::vector<ConfigItem *> config;
 
-    std::map<std::string, value_t>::const_iterator iter;
-    for (iter = attributes.begin(); iter != attributes.end(); ++iter) {
-        config.push_back(new ConfigItem(iter->first.c_str(),
-                                        iter->second.datatype));
+    for (const auto& attribute : attributes) {
+        config.push_back(new ConfigItem(attribute.first.c_str(),
+                                        attribute.second.datatype));
     }
 
     // we don't have a good support for alias yet...
@@ -417,26 +413,22 @@ bool Configuration::parseConfiguration(const char *str,
         }
     }
 
-    std::vector<ConfigItem *>::iterator ii;
-    for (ii = config.begin(); ii != config.end(); ++ii) {
-        delete *ii;
+    for (const auto& configItem : config) {
+        delete configItem;
     }
 
     return ret;
 }
 
 Configuration::~Configuration() {
-    std::map<std::string, value_t>::iterator iter;
-    for (iter = attributes.begin(); iter != attributes.end(); ++iter) {
-        std::vector<ValueChangedListener*>::iterator ii;
-        for (ii = iter->second.changeListener.begin();
-             ii != iter->second.changeListener.end(); ++ii) {
-            delete *ii;
+    for (const auto& attribute : attributes) {
+        for (const auto& listener : attribute.second.changeListener) {
+            delete listener;
         }
 
-        delete iter->second.validator;
-        if (iter->second.datatype == DT_STRING) {
-            cb_free((void*)iter->second.val.v_string);
+        delete attribute.second.validator;
+        if (attribute.second.datatype == DT_STRING) {
+            cb_free((void*) attribute.second.val.v_string);
         }
     }
 }
