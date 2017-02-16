@@ -32,11 +32,21 @@
   "jones": {
     "buckets": {
       "rbac_test": [
+        "Write",
+        "XattrWrite"
+        ]
+    },
+    "privileges":[],
+    "type": "builtin"
+  },
+  "larry": {
+    "buckets": {
+      "rbac_test": [
         "Read",
         "Write",
         "XattrRead",
         "XattrWrite"
-        ]
+      ]
     },
     "privileges":[],
     "type": "builtin"

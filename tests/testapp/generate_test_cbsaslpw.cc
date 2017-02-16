@@ -29,7 +29,8 @@ int main(void) {
             << "bucket-1 1S|=,%#x1" << std::endl
             << "bucket-2 secret" << std::endl
             << "smith smithpassword" << std::endl
-            << "jones jonespassword" << std::endl;
+            << "jones jonespassword" << std::endl
+            << "larry larrypassword" << std::endl;
 
     isaslpw.close();
 

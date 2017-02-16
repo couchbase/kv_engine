@@ -122,3 +122,112 @@ TEST_P(RbacTest, Scrub) {
 
     EXPECT_TRUE(response.isSuccess());
 }
+
+class RbacRoleTest : public TestappClientTest {
+public:
+    void SetUp() override {
+        auto& conn = getAdminConnection();
+        conn.createBucket("rbac_test", "", Greenstack::BucketType::Memcached);
+
+        conn = getConnection();
+        smith_holder = conn.clone();
+        jones_holder = conn.clone();
+        larry_holder = conn.clone();
+    }
+
+    void TearDown() override {
+        smith_holder.reset();
+        jones_holder.reset();
+        larry_holder.reset();
+        auto& conn = getAdminConnection();
+        conn.deleteBucket("rbac_test");
+    }
+
+    MemcachedBinprotConnection& getROConnection() {
+        auto* c = smith_holder.get();
+        auto& smith = dynamic_cast<MemcachedBinprotConnection&>(*c);
+        smith.authenticate("smith", "smithpassword", "PLAIN");
+        return prepare(smith);
+    }
+
+    MemcachedBinprotConnection& getWOConnection() {
+        auto* c = jones_holder.get();
+        auto& jones = dynamic_cast<MemcachedBinprotConnection&>(*c);
+        jones.authenticate("jones", "jonespassword", "PLAIN");
+        return prepare(jones);
+    }
+
+    MemcachedBinprotConnection& getRWConnection() {
+        auto* c = larry_holder.get();
+        auto& jones = dynamic_cast<MemcachedBinprotConnection&>(*c);
+        jones.authenticate("larry", "larrypassword", "PLAIN");
+        return prepare(jones);
+    }
+
+protected:
+
+    MemcachedBinprotConnection& prepare(MemcachedBinprotConnection& c) {
+        c.setDatatypeSupport(true);
+        c.setMutationSeqnoSupport(true);
+        c.setXerrorSupport(true);
+        c.setXattrSupport(true);
+        c.selectBucket("rbac_test");
+        return c;
+    }
+
+    std::unique_ptr<MemcachedConnection> smith_holder;
+    std::unique_ptr<MemcachedConnection> jones_holder;
+    std::unique_ptr<MemcachedConnection> larry_holder;
+
+};
+
+INSTANTIATE_TEST_CASE_P(TransportProtocols,
+                        RbacRoleTest,
+                        ::testing::Values(TransportProtocols::McbpPlain),
+                        ::testing::PrintToStringParamName());
+
+
+/**
+ * An arithmetic operation requires read and write privilege as it returns
+ * the value
+ */
+TEST_P(RbacRoleTest, Arithmetic) {
+    auto& ro = getROConnection();
+    auto& wo = getWOConnection();
+    auto& rw = getRWConnection();
+
+    // Try to increment the key (it doesn't exists, so it should be created
+    // with value 0)
+    try {
+        ro.arithmetic(name, 1, 0);
+        FAIL() << "The read-only user should not be allowed to create keys";
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isAccessDenied());
+    }
+
+    try {
+        wo.arithmetic(name, 1, 0);
+        FAIL() << "The write-only user should not be allowed to create keys";
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isAccessDenied());
+    }
+
+    rw.arithmetic(name, 0, 0);
+
+    // The key exists, verify that we can't increment it if it exists
+    try {
+        ro.arithmetic(name, 1);
+        FAIL() << "The read-only user should not be allowed to perform "
+               << "arithmetic operations";
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isAccessDenied());
+    }
+
+    try {
+        wo.arithmetic(name, 1);
+        FAIL() << "The write-only user should not be allowed to perform "
+               << "arithmetic operations";
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isAccessDenied());
+    }
+}
