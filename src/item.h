@@ -117,7 +117,7 @@ public:
      */
     static Blob* New(const char *start, const size_t len, uint8_t *ext_meta,
                      uint8_t ext_len) {
-        size_t total_len = len + sizeof(Blob) + FLEX_DATA_OFFSET + ext_len;
+        size_t total_len = getAllocationSize(len + FLEX_DATA_OFFSET + ext_len);
         Blob *t = new (::operator new(total_len)) Blob(start, len, ext_meta,
                                                        ext_len);
         return t;
@@ -134,7 +134,7 @@ public:
      * @return the new Blob instance
      */
     static Blob* New(const size_t len, uint8_t *ext_meta, uint8_t ext_len) {
-        size_t total_len = len + sizeof(Blob) + FLEX_DATA_OFFSET + ext_len;
+        size_t total_len = getAllocationSize(len + FLEX_DATA_OFFSET + ext_len);
         Blob *t = new (::operator new(total_len)) Blob(NULL, len, ext_meta,
                                                        ext_len);
         return t;
@@ -150,7 +150,7 @@ public:
      * @return the new Blob instance
      */
     static Blob* New(const size_t len, uint8_t ext_len) {
-        size_t total_len = len + sizeof(Blob) + FLEX_DATA_OFFSET + ext_len;
+        size_t total_len = getAllocationSize(len + FLEX_DATA_OFFSET + ext_len);
         Blob *t = new (::operator new(total_len)) Blob(len, ext_len);
         return t;
     }
@@ -266,7 +266,7 @@ public:
         ObjectRegistry::onDeleteBlob(this);
     }
 
-private:
+protected:
 
     /* Constructor.
      * @param start If non-NULL, pointer to array which will be copied into
@@ -316,12 +316,17 @@ private:
         ObjectRegistry::onCreateBlob(this);
     }
 
+    static size_t getAllocationSize(size_t len){
+        return sizeof(Blob) + len - sizeof(Blob(0,0).data);
+    }
+
     const uint32_t size;
     const uint8_t extMetaLen;
 
     // The age of this Blob, in terms of some unspecified units of time.
     uint8_t age;
-    char data[1];
+    // Pad Blob to 12 bytes by having an array of size 2.
+    char data[2];
 
     DISALLOW_ASSIGN(Blob);
 

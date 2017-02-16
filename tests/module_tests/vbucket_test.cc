@@ -110,6 +110,22 @@ protected:
     Configuration config;
 };
 
+class BlobTest : public Blob {
+public:
+    BlobTest() : Blob(0,0) {}
+    static size_t getAllocationSize(size_t len){
+        return Blob::getAllocationSize(len);
+    }
+};
+
+TEST(BlobTest, basicAllocationSize){
+    EXPECT_EQ(BlobTest::getAllocationSize(10), 20);
+
+    // Expected to be 10 because the 2 bytes of the data member array will not
+    // be allocated because they will not be used.
+    EXPECT_EQ(BlobTest::getAllocationSize(0), 10);
+}
+
 // Measure performance of VBucket::getBGFetchItems - queue and then get
 // 10,000 items from the vbucket.
 TEST_P(VBucketTest, GetBGFetchItemsPerformance) {
