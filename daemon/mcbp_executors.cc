@@ -43,6 +43,7 @@
 #include "protocol/mcbp/dcp_expiration.h"
 #include "protocol/mcbp/dcp_mutation.h"
 #include "protocol/mcbp/engine_wrapper.h"
+#include "protocol/mcbp/executors.h"
 #include "protocol/mcbp/mutation_context.h"
 #include "protocol/mcbp/remove_context.h"
 #include "protocol/mcbp/stats_context.h"
@@ -2202,45 +2203,6 @@ static void create_bucket_executor(McbpConnection* c, void* packet) {
     }
 }
 
-static void list_bucket_executor(McbpConnection* c, void*) {
-    // @todo We're currently allowing every user to run list buckets
-    //       in the global privilege check, but we have to filter out
-    //       the buckets people may use or not
-    static bool testing = getenv("MEMCACHED_UNIT_TESTS") != nullptr;
-    if (c->isInternal() || testing) {
-        try {
-            std::string blob;
-            for (auto& bucket : all_buckets) {
-                cb_mutex_enter(&bucket.mutex);
-                if (bucket.state == BucketState::Ready) {
-                    blob += bucket.name + std::string(" ");
-                }
-                cb_mutex_exit(&bucket.mutex);
-            }
-
-            if (blob.size() > 0) {
-                /* remove trailing " " */
-                blob.pop_back();
-            }
-
-            if (mcbp_response_handler(NULL, 0, NULL, 0, blob.data(),
-                                      uint32_t(blob.size()),
-                                      PROTOCOL_BINARY_RAW_BYTES,
-                                      PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
-                                      c->getCookie())) {
-                mcbp_write_and_free(c, &c->getDynamicBuffer());
-            } else {
-                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
-            }
-        } catch (const std::bad_alloc&) {
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
-        }
-    } else {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
-    }
-}
-
-
 static void delete_bucket_executor(McbpConnection* c, void* packet) {
     ENGINE_ERROR_CODE ret = c->getAiostat();
     (void)packet;
@@ -2298,29 +2260,6 @@ static void delete_bucket_executor(McbpConnection* c, void* packet) {
         break;
     default:
         mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-    }
-}
-
-static void select_bucket_executor(McbpConnection* c, void* packet) {
-    // @todo We're currently allowing every user to run select bucket
-    //       in the global privilege check, but we have to filter out
-    //       the buckets people may use or not
-    static bool testing = getenv("MEMCACHED_UNIT_TESTS") != nullptr;
-    if (c->isInternal() || testing) {
-        /* The validator ensured that we're not doing a buffer overflow */
-        char bucketname[1024];
-        auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(packet);
-        uint16_t klen = ntohs(req->message.header.request.keylen);
-        memcpy(bucketname, req->bytes + (sizeof(*req)), klen);
-        bucketname[klen] = '\0';
-
-        if (associate_bucket(c, bucketname)) {
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        } else {
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
-        }
-    } else {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
     }
 }
 

@@ -125,10 +125,12 @@ ADD_LIBRARY(memcached_daemon STATIC
             protocol/mcbp/get_context.h
             protocol/mcbp/get_locked_context.cc
             protocol/mcbp/get_locked_context.h
+            protocol/mcbp/list_bucket_executor.cc
             protocol/mcbp/mutation_context.cc
             protocol/mcbp/mutation_context.h
             protocol/mcbp/remove_context.cc
             protocol/mcbp/remove_context.h
+            protocol/mcbp/select_bucket_executor.cc
             protocol/mcbp/stats_context.cc
             protocol/mcbp/stats_context.h
             protocol/mcbp/steppable_command_context.cc
