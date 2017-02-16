@@ -285,3 +285,22 @@ TEST_P(RbacRoleTest, MutationTest_WriteOnly) {
         store(wo, type);
     }
 }
+
+TEST_P(RbacRoleTest, Remove_ReadOnly) {
+    auto& rw = getRWConnection();
+    store(rw, Greenstack::MutationType::Add);
+
+    try {
+        auto& ro = getROConnection();
+        ro.remove(name, 0, 0);
+        FAIL() << "The read-only user should not be able to remove documents";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isAccessDenied());
+    }
+}
+
+TEST_P(RbacRoleTest, Remove_WriteOnly) {
+    auto& rw = getRWConnection();
+    store(rw, Greenstack::MutationType::Add);
+    rw.remove(name, 0, 0);
+}
