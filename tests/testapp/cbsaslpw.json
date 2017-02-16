@@ -75,6 +75,44 @@
         "s":	"hZ9tsZTiNMnjml9BiDWyC+dNWIl3xOqP2RK166q/fuc/PR4FEPyT5msow2C9RHgAXkKgIge2g5SG4UXAsGco4A==",
         "i":	10
       }
+    },
+    {
+      "n": "smith",
+      "plain": "TK4PzSQaBH0VFSvfFEuyrdYn+LjZaVxDorMKMa95wXa6TcUh",
+      "sha1": {
+        "h": "jGNAQJ8ZW7+ulArdUVgZo2LoOc0=",
+        "s": "WCHhkuixVgYycYecwGzwD3KOFpY=",
+        "i": 10
+      },
+      "sha256": {
+        "h": "BwhXCqFg4mnMC0Cmn+xiDyUtNHALJ0PfZzOFjlurggs=",
+        "s": "SSSkbgq5XeEM2rh/HcrFRCwXuYrZfBBqZJT3L6oYjZg=",
+        "i": 10
+      },
+      "sha512": {
+        "h": "69i8xq4jMPbyVilYxZuTMk3XAIWSqQdG5xkwpi+2fY5sf7gSmqWljolZ+JRZ8ze2Nxp5owHWmMkkAs35SFxNYw==",
+        "s": "AlycKXFf15NDQl1SDwMIpvEEAxeDzPo8foNfawYaQmokqMz+QDbUzQfvhva1OIESwtzOWOjGTV+m1L8J2OaJBA==",
+        "i": 10
+      }
+    },
+    {
+      "n": "jones",
+      "plain": "JODrAhh4pQOfVo91pFkKyJl5mF4NyZRU2mzoyriSoGXGLl5/",
+      "sha1": {
+        "h": "JwCYKKqDLZsN127bAmiodzvbdSg=",
+        "s": "DLhReHzDkylzYgxwrwqK01/g5Ys=",
+        "i": 10
+      },
+      "sha256": {
+        "h": "MhGprco8q+HiNFCR9fbQuNobPSwDimcSRZAHc6SCapk=",
+        "s": "HJjdNk98BEWByFC4XCZzGZucaH0Z4kW4mJGw2qQN81Y=",
+        "i": 10
+      },
+      "sha512": {
+        "h": "GReNydree5EraEyo3UlnBPmEb49S3ja0OJm8cA0K0vrd0q8NGOIcAMNEtVtW3GdIimlRJwHi7qb+FxQyjEcbrQ==",
+        "s": "fwe1jCUDMYtx40aYmqT8+qxmicc8r/4KW91HGYX2bPe888EBr4xQ6D+J4CExTn4I0UR+hPP9HkraLNOTHGDClQ==",
+        "i": 10
+      }
     }
   ]
 }

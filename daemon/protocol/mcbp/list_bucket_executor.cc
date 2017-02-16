@@ -21,39 +21,55 @@
 #include <daemon/mcbp.h>
 
 void list_bucket_executor(McbpConnection* c, void*) {
-    // @todo We're currently allowing every user to run list buckets
-    //       in the global privilege check, but we have to filter out
-    //       the buckets people may use or not
-    static bool testing = getenv("MEMCACHED_UNIT_TESTS") != nullptr;
-    if (c->isInternal() || testing) {
-        try {
-            std::string blob;
-            for (auto& bucket : all_buckets) {
-                cb_mutex_enter(&bucket.mutex);
-                if (bucket.state == BucketState::Ready) {
-                    blob += bucket.name + std::string(" ");
-                }
-                cb_mutex_exit(&bucket.mutex);
-            }
+    if (!c->isAuthenticated()) {
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
+        return;
+    }
 
-            if (blob.size() > 0) {
-                /* remove trailing " " */
-                blob.pop_back();
-            }
+    // The list bucket command is a bit racy (as it other threads may
+    // create/delete/remove access to buckets while we check them), but
+    // we don't care about that (we don't want to hold a lock for the
+    // entire period, _AND_ the access could be changed right after we
+    // built the response anyway.
+    try {
+        std::string blob;
+        // The blob string will contain all of the buckets, and to
+        // avoid too many reallocations we should probably just reserve
+        // a chunk
+        blob.reserve(100);
 
-            if (mcbp_response_handler(NULL, 0, NULL, 0, blob.data(),
-                                      uint32_t(blob.size()),
-                                      PROTOCOL_BINARY_RAW_BYTES,
-                                      PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
-                                      c->getCookie())) {
-                mcbp_write_and_free(c, &c->getDynamicBuffer());
-            } else {
-                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+        for (auto& bucket : all_buckets) {
+            std::string bucketname;
+            cb_mutex_enter(&bucket.mutex);
+            if (bucket.state == BucketState::Ready) {
+                bucketname = bucket.name;
             }
-        } catch (const std::bad_alloc&) {
+            cb_mutex_exit(&bucket.mutex);
+
+            try {
+                // Check if the user have access to the bucket
+                cb::rbac::createContext(c->getUsername(), bucketname);
+                blob += bucketname + " ";
+            } catch (const cb::rbac::Exception&){
+                // The client doesn't have access to this bucket
+            }
+        }
+
+        if (blob.size() > 0) {
+            /* remove trailing " " */
+            blob.pop_back();
+        }
+
+        if (mcbp_response_handler(NULL, 0, NULL, 0, blob.data(),
+                                  uint32_t(blob.size()),
+                                  PROTOCOL_BINARY_RAW_BYTES,
+                                  PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
+                                  c->getCookie())) {
+            mcbp_write_and_free(c, &c->getDynamicBuffer());
+        } else {
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
         }
-    } else {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
+    } catch (const std::bad_alloc&) {
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
     }
 }

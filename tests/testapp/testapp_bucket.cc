@@ -157,6 +157,7 @@ TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
     conn.createBucket("bucket", "", Greenstack::BucketType::Memcached);
 
     auto second_conn = conn.clone();
+    second_conn->authenticate("_admin", "password", "PLAIN");
     second_conn->selectBucket("bucket");
 
     // We need to get the second connection sitting the `conn_nread` state in
@@ -409,6 +410,37 @@ TEST_P(BucketTest, TestListBucket) {
     EXPECT_EQ(std::string("default"), buckets[0]);
 }
 
+TEST_P(BucketTest, TestListBucket_not_authenticated) {
+    auto& conn = getConnection();
+    try {
+        conn.listBuckets();
+        FAIL() << "unauthenticated users should not be able to list buckets";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isAccessDenied());
+    }
+}
+
+TEST_P(BucketTest, TestListSomeBuckets) {
+    auto& conn = getAdminConnection();
+    conn.createBucket("bucket-1", "", Greenstack::BucketType::Memcached);
+    conn.createBucket("bucket-2", "", Greenstack::BucketType::Memcached);
+    conn.createBucket("rbac_test", "", Greenstack::BucketType::Memcached);
+
+    const std::vector<std::string> all_buckets = {"default", "bucket-1",
+                                                  "bucket-2", "rbac_test"};
+    EXPECT_EQ(all_buckets, conn.listBuckets());
+
+    // Reconnect and authenticate as a user with access to only one of them
+    conn = getConnection();
+    conn.authenticate("smith", "smithpassword", "PLAIN");
+    const std::vector<std::string> expected = {"rbac_test"};
+    EXPECT_EQ(expected, conn.listBuckets());
+
+    conn = getAdminConnection();
+    conn.deleteBucket("bucket-1");
+    conn.deleteBucket("bucket-2");
+    conn.deleteBucket("rbac_test");
+}
 
 TEST_P(BucketTest, TestBucketIsolationBuckets)
 {

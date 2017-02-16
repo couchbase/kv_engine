@@ -99,7 +99,6 @@ TEST_P(RbacTest, ReloadSasl_NoAccess) {
 TEST_P(RbacTest, ScrubNoAccess) {
     auto& c = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
 
-    c.selectBucket("default");
     BinprotGenericCommand command(PROTOCOL_BINARY_CMD_SCRUB);
     BinprotResponse response;
 

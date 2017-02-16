@@ -19,9 +19,34 @@
     "type": "builtin",
     "internal": true
   },
+  "smith": {
+    "buckets": {
+      "rbac_test": [
+        "Read",
+        "XattrRead"
+      ]
+    },
+    "privileges":[],
+    "type": "builtin"
+  },
+  "jones": {
+    "buckets": {
+      "rbac_test": [
+        "Read",
+        "Write",
+        "XattrRead",
+        "XattrWrite"
+        ]
+    },
+    "privileges":[],
+    "type": "builtin"
+  },
   "_admin": {
     "buckets": {
       "default": [
+        "all"
+      ],
+      "rbac_test": [
         "all"
       ],
       "bucket": [

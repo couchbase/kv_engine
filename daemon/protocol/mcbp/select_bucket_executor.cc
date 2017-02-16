@@ -21,24 +21,33 @@
 #include <daemon/mcbp.h>
 
 void select_bucket_executor(McbpConnection* c, void* packet) {
-    // @todo We're currently allowing every user to run select bucket
-    //       in the global privilege check, but we have to filter out
-    //       the buckets people may use or not
-    static bool testing = getenv("MEMCACHED_UNIT_TESTS") != nullptr;
-    if (c->isInternal() || testing) {
-        /* The validator ensured that we're not doing a buffer overflow */
-        char bucketname[1024];
-        auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(packet);
-        uint16_t klen = ntohs(req->message.header.request.keylen);
-        memcpy(bucketname, req->bytes + (sizeof(*req)), klen);
-        bucketname[klen] = '\0';
+    if (!c->isAuthenticated()) {
+        // One have to authenticate to the server before trying to
+        // select a bucket
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
+        return;
+    }
 
-        if (associate_bucket(c, bucketname)) {
+    auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(packet);
+    std::string bucketname{
+        reinterpret_cast<const char*>(req->bytes + (sizeof(req->bytes))),
+        ntohs(req->message.header.request.keylen)};
+
+    auto oldIndex = c->getBucketIndex();
+
+    try {
+        cb::rbac::createContext(c->getUsername(), bucketname);
+        if (associate_bucket(c, bucketname.c_str())) {
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
         } else {
+            if (oldIndex != c->getBucketIndex()) {
+                // try to jump back to the bucket we used to be associated
+                // with..
+                associate_bucket(c, all_buckets[oldIndex].name);
+            }
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
         }
-    } else {
+    } catch (const cb::rbac::Exception& error) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
     }
 }
