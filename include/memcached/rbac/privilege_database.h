@@ -179,6 +179,12 @@ public:
      */
     void clearBucketPrivileges();
 
+    /**
+     * Set all of the privileges in this context which contains
+     * bucket privileges.
+     */
+    void setBucketPrivileges();
+
 protected:
     uint32_t generation;
     PrivilegeMask mask;

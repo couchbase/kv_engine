@@ -207,6 +207,20 @@ void PrivilegeContext::clearBucketPrivileges() {
     mask[int(Privilege::XattrWrite)] = false;
 }
 
+void PrivilegeContext::setBucketPrivileges() {
+    mask[int(Privilege::Read)] = true;
+    mask[int(Privilege::Write)] = true;
+    mask[int(Privilege::SimpleStats)] = true;
+    mask[int(Privilege::DcpConsumer)] = true;
+    mask[int(Privilege::DcpProducer)] = true;
+    mask[int(Privilege::TapProducer)] = true;
+    mask[int(Privilege::TapConsumer)] = true;
+    mask[int(Privilege::MetaRead)] = true;
+    mask[int(Privilege::MetaWrite)] = true;
+    mask[int(Privilege::XattrRead)] = true;
+    mask[int(Privilege::XattrWrite)] = true;
+}
+
 PrivilegeContext createContext(const std::string& user,
                                const std::string& bucket) {
     std::lock_guard<cb::ReaderLock> guard(rwlock.reader());

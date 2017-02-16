@@ -420,6 +420,24 @@ TEST_P(BucketTest, TestListBucket_not_authenticated) {
     }
 }
 
+TEST_P(BucketTest, TestNoAutoSelectOfBucketForNormalUser) {
+    auto& conn = getAdminConnection();
+    conn.createBucket("rbac_test", "", Greenstack::BucketType::Memcached);
+
+    conn = getConnection();
+    conn.authenticate("smith", "smithpassword", "PLAIN");
+    BinprotGetCommand cmd;
+    cmd.setKey(name);
+    auto& connection = dynamic_cast<MemcachedBinprotConnection&>(conn);
+    connection.sendCommand(cmd);
+    BinprotResponse response;
+    connection.recvResponse(response);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NO_BUCKET, response.getStatus());
+
+    conn = getAdminConnection();
+    conn.deleteBucket("rbac_test");
+}
+
 TEST_P(BucketTest, TestListSomeBuckets) {
     auto& conn = getAdminConnection();
     conn.createBucket("bucket-1", "", Greenstack::BucketType::Memcached);

@@ -517,6 +517,13 @@ void Connection::setBucketIndex(int bucketIndex) {
         privilegeContext = cb::rbac::PrivilegeContext{};
     }
 
+    if (bucketIndex == 0) {
+        // If we're connected to the no bucket we should return
+        // no bucket instead of EACCESS. Lets give the connection all
+        // possible bucket privileges
+        privilegeContext.setBucketPrivileges();
+    }
+
     LOG_DEBUG(nullptr, "RBAC: %u %s switch privilege context %s",
               getId(), getDescription().c_str(),
               privilegeContext.to_string().c_str());
