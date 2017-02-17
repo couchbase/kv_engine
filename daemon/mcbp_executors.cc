@@ -2522,7 +2522,7 @@ bool conn_setup_tap_stream(McbpConnection* c) {
  */
 static bool invalid_datatype(McbpConnection* c) {
     if (mcbp::datatype::is_raw(c->binary_header.request.datatype) ||
-        c->isSupportsDatatype()) {
+        c->isSupportsDatatype() || c->isXattrSupport()) {
         // Additional bits may have been set
         if (!mcbp::datatype::is_valid(c->binary_header.request.datatype)) {
             return true;
