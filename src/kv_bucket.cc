@@ -1774,8 +1774,8 @@ class PersistenceCallback : public Callback<mutation_result>,
 public:
 
     PersistenceCallback(const queued_item &qi, RCPtr<VBucket> &vb,
-                        KVBucket& st, EPStats& s, uint64_t c)
-        : queuedItem(qi), vbucket(vb), store(st), stats(s), cas(c) {
+                        EPStats& s, uint64_t c)
+        : queuedItem(qi), vbucket(vb), stats(s), cas(c) {
         if (!vb) {
             throw std::invalid_argument("PersistenceCallback(): vb is NULL");
         }
@@ -1894,7 +1894,6 @@ private:
 
     const queued_item queuedItem;
     RCPtr<VBucket> vbucket;
-    KVBucket& store;
     EPStats& stats;
     uint64_t cas;
     DISALLOW_COPY_AND_ASSIGN(PersistenceCallback);
@@ -2212,14 +2211,14 @@ PersistenceCallback* KVBucket::flushOneDelOrSet(const queued_item &qi,
                          bySeqno == -1 ? "disk_insert" : "disk_update",
                          stats.timingLog);
         PersistenceCallback *cb =
-            new PersistenceCallback(qi, vb, *this, stats, qi->getCas());
+            new PersistenceCallback(qi, vb, stats, qi->getCas());
         rwUnderlying->set(*qi, *cb);
         return cb;
     } else {
         BlockTimer timer(&stats.diskDelHisto, "disk_delete",
                          stats.timingLog);
         PersistenceCallback *cb =
-            new PersistenceCallback(qi, vb, *this, stats, 0);
+            new PersistenceCallback(qi, vb, stats, 0);
         rwUnderlying->del(*qi, *cb);
         return cb;
     }

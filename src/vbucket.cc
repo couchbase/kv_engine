@@ -577,7 +577,7 @@ void VBucket::markDirty(const DocKey& key) {
         v->markDirty();
     } else {
         LOG(EXTENSION_LOG_WARNING, "markDirty: Error marking dirty, a key "
-            "is missing from vb:%" PRIu16, bucket_num);
+            "is missing from vb:%" PRIu16, id);
     }
 }
 
