@@ -24,8 +24,10 @@
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
 #include "hlc.h"
-
 #include <platform/cb_malloc.h>
+#include <string_utilities.h>
+#include <xattr/blob.h>
+#include <xattr/utils.h>
 
 // Helper functions ///////////////////////////////////////////////////////////
 
@@ -326,6 +328,78 @@ static enum test_result test_get_meta_with_delete(ENGINE_HANDLE *h, ENGINE_HANDL
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     checkeq(3, temp, "Expected one extra getMeta ops");
+
+    return SUCCESS;
+}
+
+static enum test_result test_get_meta_with_xattr(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1)
+{
+    const char* key = "get_meta_key";
+    cb::xattr::Blob blob;
+
+    //Add a few XAttrs
+    blob.set(to_const_byte_buffer("user"),
+             to_const_byte_buffer("{\"author\":\"bubba\"}"));
+    blob.set(to_const_byte_buffer("_sync"),
+             to_const_byte_buffer("{\"cas\":\"0xdeadbeefcafefeed\"}"));
+    blob.set(to_const_byte_buffer("meta"),
+             to_const_byte_buffer("{\"content-type\":\"text\"}"));
+
+    auto xattr_value = blob.finalize();
+
+    //Now, append user data to the xattrs and store the data
+    std::string value_data("test_expiry_value");
+    std::vector<char> data;
+    std::copy(xattr_value.buf, xattr_value.buf + xattr_value.len,
+              std::back_inserter(data));
+    std::copy(value_data.c_str(), value_data.c_str() + value_data.length(),
+              std::back_inserter(data));
+
+    const void* cookie = testHarness.create_cookie();
+
+    item *itm = nullptr;
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, cookie, OPERATION_SET, key,
+                         reinterpret_cast<char*>(data.data()),
+                         data.size(), 9258, &itm, 0, 0, 0,
+                         PROTOCOL_BINARY_DATATYPE_XATTR),
+            "Failed to store xattr document");
+    h1->release(h, nullptr, itm);
+
+    if (isPersistentBucket(h, h1)) {
+        wait_for_flusher_to_settle(h, h1);
+    }
+
+    //Check that the datatype is RAW because XATTR is not enabled
+    checkeq(true,
+            get_meta(h, h1, key, false, GetMetaVersion::V1, cookie),
+            "Get meta command failed");
+
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_RAW_BYTES),
+            last_datatype.load(), "Datatype is not RAW");
+
+    //Check that the datatype now is XATTR
+    checkeq(true,
+            get_meta(h, h1, key, true, GetMetaVersion::V2, cookie),
+            "Get meta command failed");
+
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_XATTR),
+            last_datatype.load(), "Datatype is not XATTR");
+
+    if (isPersistentBucket(h, h1)) {
+        //Evict the key
+        evict_key(h, h1, key);
+
+        //This should result in a bg fetch
+        checkeq(true,
+                get_meta(h, h1, key, true, GetMetaVersion::V2, cookie),
+                "Get meta command failed");
+
+        checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_XATTR),
+                last_datatype.load(), "Datatype is not XATTR");
+    }
+
+    testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
 }
@@ -1245,8 +1319,15 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
     const void *cookie = testHarness.create_cookie();
     testHarness.set_ewouldblock_handling(cookie, false);
 
-    checkeq(false, get_meta(h, h1, k1, /*reqExtMeta*/false, cookie),
-            "Expected get_meta to fail (EWOULDBLOCK)");
+    checkeq(false,
+            get_meta(h,
+                     h1,
+                     k1,
+                     /*reqExtMeta*/ false,
+                     GetMetaVersion::V1,
+                     cookie),
+            "Expected get_meta to fail "
+            "(EWOULDBLOCK)");
     checkeq(static_cast<protocol_binary_response_status>(ENGINE_EWOULDBLOCK),
             last_status.load(), "Expected EWOULDBLOCK");
 
@@ -1258,7 +1339,7 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
     set_param(h, h1, protocol_binary_engine_param_flush,
               "max_num_readers", "1");
 
-    check(get_meta(h, h1, k1, /*reqExtMeta*/false, cookie),
+    check(get_meta(h, h1, k1, /*reqExtMeta*/ false, GetMetaVersion::V1, cookie),
           "Expected get_meta to succeed");
     check(last_deleted_flag, "Expected deleted flag to be set");
 
@@ -2173,6 +2254,8 @@ BaseTestCase testsuite_testcases[] = {
                  cleanup),
         TestCase("get meta followed by delete", test_get_meta_with_delete,
                  test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("get meta with xattr", test_get_meta_with_xattr, test_setup,
+                 teardown, NULL, prepare, cleanup),
         TestCase("add with meta", test_add_with_meta, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("delete with meta", test_delete_with_meta,

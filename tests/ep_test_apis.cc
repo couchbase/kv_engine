@@ -177,6 +177,7 @@ bool add_response_get_meta(const void *key, uint16_t keylen, const void *ext,
                            const void *cookie) {
     (void)cookie;
     const uint8_t* ext_bytes = reinterpret_cast<const uint8_t*> (ext);
+    uint8_t meta_datatype = datatype;
     if (ext && extlen > 0) {
         uint32_t flags;
         memcpy(&flags, ext_bytes, 4);
@@ -188,10 +189,10 @@ bool add_response_get_meta(const void *key, uint16_t keylen, const void *ext,
         last_meta.revSeqno = ntohll(last_meta.revSeqno);
         last_meta.cas = cas;
         if (extlen > 20) {
-            memcpy(&last_conflict_resolution_mode, ext_bytes + 20, 1);
+            memcpy(&meta_datatype, ext_bytes + 20, 1);
         }
     }
-    return add_response(key, keylen, ext, extlen, body, bodylen, datatype,
+    return add_response(key, keylen, ext, extlen, body, bodylen, meta_datatype,
                         status, cas, cookie);
 }
 
@@ -561,14 +562,17 @@ ENGINE_ERROR_CODE getl(ENGINE_HANDLE* h,
                           vb, lock_timeout);
 }
 
-bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
-              bool reqExtMeta, const void* cookie) {
-
+bool get_meta(ENGINE_HANDLE* h,
+              ENGINE_HANDLE_V1* h1,
+              const char* key,
+              bool reqExtMeta,
+              GetMetaVersion metaVer,
+              const void* cookie) {
     protocol_binary_request_header *req;
     if (reqExtMeta) {
-        uint8_t ext = 0x01;
         req = createPacket(PROTOCOL_BINARY_CMD_GET_META, 0, 0,
-                           (char*)&ext, sizeof(ext), key, strlen(key));
+                           reinterpret_cast<char*>(&metaVer), sizeof(metaVer),
+                           key, strlen(key));
     } else {
         req = createPacket(PROTOCOL_BINARY_CMD_GET_META, 0, 0,
                            NULL, 0, key, strlen(key));

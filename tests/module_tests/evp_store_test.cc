@@ -695,8 +695,10 @@ TEST_P(EPStoreEvictionTest, mb22824) {
 
     uint32_t deleted = false;
     ItemMetaData itemMeta1;
+    uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
     EXPECT_EQ(ENGINE_SUCCESS,
-              store->getMetaData(key, vbid, cookie, itemMeta1, deleted));
+              store->getMetaData(key, vbid, cookie, false,itemMeta1, deleted,
+                                 datatype));
 
     uint64_t cas = 0;
     ItemMetaData itemMeta2;

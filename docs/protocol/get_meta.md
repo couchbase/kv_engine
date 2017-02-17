@@ -1,12 +1,35 @@
 
-##Get Meta (getmeta) v4.0
+##Get Meta (getmeta) v5.0
 
-The get meta command is used to fetch the meta data for a key. Extras will contain 1 byte set to 0x01, indicating that extended metadata for the key will need to be sent in the response.
+The get meta command is used to fetch the meta data for a key.
 
 The request:
 
-* Must have key
-* Can have extras (1B)
+* Must have a key
+* Can have 1 byte extras.
+
+The Get Meta command on success will return the document's
+
+* Deleted flag (indicating if the document deleted).
+* Flags
+* Expiry time
+* Sequence number
+
+### Extras - version1
+
+When the 1 byte extras field contains 0x01...
+
+Prior to v4.6 specifiying version 1 in the extras would mean that GET META would return the document's conflict resolution mode.
+
+v4.6 removed conflict resolution mode and GET META now ignores any V1 requests.
+
+### Extras - version2
+
+When the 1 byte extras field contains 0x02...
+
+v5.0 adds the ability to request the datatype of the document by setting extras to 0x02.
+
+* Returns a 1 byte datatype field in the response
 
 ####Binary Implementation
 
@@ -45,7 +68,7 @@ The request:
     Opaque       (12-15): 0x00000000
     CAS          (16-23): 0x0000000000000000
     Extras              :
-      ReqExtMeta (24)   : 0x01 (1)
+      ReqExtMeta (24)   : 0x02 (2)
     Key          (25-29): mykey
 
     Get Meta Binary Response
@@ -95,15 +118,21 @@ The request:
       Flags      (28-31): 0x00000001 (1)
       Exptime    (32-35): 0x00000007 (7)
       Seqno      (36-43): 0x0000000000000009 (9)
-      ConfRes    (44)   : 0x01 (1)
+      Datatype   (44)   : 0x03 (3)
 
 ###Extended Meta Data Section
 
-The extras section in the response packet will contain 1 extra byte indicating the conflict resolution mode that the item is eligible for. This 1 byte of extra meta information will be sent as part of the response only if the ReqExtMeta flag (set to 0x01) is sent in the request as part of the extras section.
+The extras section in the response packet may contain 1 extra byte indicating the document's datatype. This 1 byte of extra meta information will be sent as part of the response only if the ReqExtMeta flag is sent and set to 0x02.
 
-####ReqExtMeta (0x01)
+#### Datatype
 
-ReqExtMeta: 0x01 in the request's extras' section, will ensure that an extra byte containing the conflict resolution mode will be sent along with the rest of the metadata in the extras section of the response packet.
+The datatype byte indicates the document's type using a combination of the following flags.
+* `PROTOCOL_BINARY_RAW_BYTES` = 0
+* `PROTOCOL_BINARY_DATATYPE_JSON` = 1
+* `PROTOCOL_BINARY_DATATYPE_COMPRESSED` = 2
+* `PROTOCOL_BINARY_DATATYPE_XATTR` = 4
+
+Thus a compressed JSON document would have the datatype of 0x03.
 
 ###Errors
 

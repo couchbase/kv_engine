@@ -1587,8 +1587,10 @@ ENGINE_ERROR_CODE VBucket::getMetaData(const DocKey& key,
                                        const void* cookie,
                                        EventuallyPersistentEngine& engine,
                                        int bgFetchDelay,
+                                       bool fetchDatatype,
                                        ItemMetaData& metadata,
-                                       uint32_t& deleted) {
+                                       uint32_t& deleted,
+                                       uint8_t& datatype) {
     deleted = 0;
     auto hbl = ht.getLockedBucket(key);
     StoredValue* v = ht.unlocked_find(
@@ -1596,8 +1598,9 @@ ENGINE_ERROR_CODE VBucket::getMetaData(const DocKey& key,
 
     if (v) {
         stats.numOpsGetMeta++;
-        if (v->isTempInitialItem()) { // Need bg meta fetch.
-            bgFetch(key, cookie, engine, bgFetchDelay, true);
+        if (v->isTempInitialItem() || (fetchDatatype && !v->isResident())) {
+            // Need bg meta fetch.
+            bgFetch(key, cookie, engine, bgFetchDelay, !fetchDatatype);
             return ENGINE_EWOULDBLOCK;
         } else if (v->isTempNonExistentItem()) {
             metadata.cas = v->getCas();
@@ -1616,6 +1619,14 @@ ENGINE_ERROR_CODE VBucket::getMetaData(const DocKey& key,
             metadata.flags = v->getFlags();
             metadata.exptime = v->getExptime();
             metadata.revSeqno = v->getRevSeqno();
+
+            if (fetchDatatype) {
+                value_t value = v->getValue();
+                if (value) {
+                    datatype = value->getDataType();
+                }
+            }
+
             return ENGINE_SUCCESS;
         }
     } else {
@@ -1630,7 +1641,7 @@ ENGINE_ERROR_CODE VBucket::getMetaData(const DocKey& key,
 
         if (maybeKeyExistsInFilter(key)) {
             return addTempItemAndBGFetch(
-                    hbl, key, cookie, engine, bgFetchDelay, true);
+                    hbl, key, cookie, engine, bgFetchDelay, !fetchDatatype);
         } else {
             stats.numOpsGetMeta++;
             return ENGINE_KEY_ENOENT;

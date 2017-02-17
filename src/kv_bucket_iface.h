@@ -211,17 +211,21 @@ public:
     /**
      * Retrieve the meta data for an item
      *
-     * @parapm key the key to get the meta data for
+     * @param key the key to get the meta data for
      * @param vbucket the vbucket from which to retrieve the key
      * @param cookie the connection cookie
-     * @param metadata where to store the meta informaion
-     * @param deleted specifies whether or not the key is deleted
+     * @param fetchDatatype whether to fetch datatype or not
+     * @param[out] metadata where to store the meta informaion
+     * @param[out] deleted specifies whether or not the key is deleted
+     * @param[out] datatype specifies the datatype of the item
      */
     virtual ENGINE_ERROR_CODE getMetaData(const DocKey& key,
                                           uint16_t vbucket,
-                                          const void *cookie,
-                                          ItemMetaData &metadata,
-                                          uint32_t &deleted) = 0;
+                                          const void* cookie,
+                                          bool fetchDatatype,
+                                          ItemMetaData& metadata,
+                                          uint32_t& deleted,
+                                          uint8_t& datatype) = 0;
 
     /**
      * Set an item in the store.

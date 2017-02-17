@@ -5204,32 +5204,64 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
                (size_t)ntohs(request->message.header.request.keylen),
                 docNamespace);
     uint16_t vbucket = ntohs(request->message.header.request.vbucket);
+    uint8_t version = 0;
+    bool fetchDatatype = false;
+
+    // Read the version if extlen is 1
+    if (extlen == 1) {
+        memcpy(&version,
+               request->bytes + sizeof(request->bytes),
+               sizeof(version));
+        fetchDatatype = version == uint8_t(GetMetaVersion::V2);
+    }
 
     ItemMetaData metadata;
-    uint32_t deleted;
-
-    ENGINE_ERROR_CODE rv = kvBucket->getMetaData(key, vbucket, cookie, metadata,
-                                                 deleted);
+    uint32_t deleted = 0;
+    uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
+    auto rv = kvBucket->getMetaData(
+            key, vbucket, cookie, fetchDatatype, metadata, deleted, datatype);
 
     if (rv == ENGINE_SUCCESS) {
+        // GET META returns a packed structure
+        // 0-3   uint32_t deleted
+        // 4-7   uint32_t flags
+        // 8-11  uint32_t expiry
+        // 12-19 uint32_t deleted
+        // 20    uint8_t  datatype (optional, based upon meta-version requested)
 
-        const uint8_t metalen = 20;
-        uint8_t meta[metalen];
+        uint8_t meta[(3 * sizeof(uint32_t)) + sizeof(uint64_t) +
+                     sizeof(uint8_t)] = {};
         deleted = htonl(deleted);
         uint32_t flags = metadata.flags;
         uint32_t exp = htonl(metadata.exptime);
         uint64_t seqno = htonll(metadata.revSeqno);
 
-        memcpy(meta, &deleted, 4);
-        memcpy(meta + 4, &flags, 4);
-        memcpy(meta + 8, &exp, 4);
-        memcpy(meta + 12, &seqno, 8);
+        uint32_t offset = 0;
+        memcpy(meta, &deleted, sizeof(deleted));
+        offset += sizeof(deleted);
+        memcpy(meta + offset, &flags, sizeof(flags));
+        offset += sizeof(flags);
+        memcpy(meta + offset, &exp, sizeof(exp));
+        offset += sizeof(exp);
+        memcpy(meta + offset, &seqno, sizeof(seqno));
+        offset += sizeof(seqno);
 
-        rv = sendResponse(response, NULL, 0, (const void *)meta,
-                          metalen, NULL, 0,
-                          PROTOCOL_BINARY_RAW_BYTES,
-                          PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                          metadata.cas, cookie);
+        if (fetchDatatype) {
+            memcpy(meta + offset, &datatype, sizeof(datatype));
+            offset += sizeof(datatype);
+        }
+
+        rv = sendResponse(response,
+                          nullptr /*key*/,
+                          0 /*keylen*/,
+                          meta /*ext*/,
+                          offset /*extlen*/,
+                          nullptr /*body*/,
+                          0 /*bodylen*/,
+                          PROTOCOL_BINARY_RAW_BYTES /*datatype*/,
+                          PROTOCOL_BINARY_RESPONSE_SUCCESS /*mcbp status*/,
+                          metadata.cas,
+                          cookie);
     } else if (rv == ENGINE_NOT_MY_VBUCKET) {
         rv = sendNotMyVBucketResponse(response, cookie, 0);
     } else if (rv != ENGINE_EWOULDBLOCK) {
@@ -5237,10 +5269,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
             request->message.header.request.opcode == PROTOCOL_BINARY_CMD_GETQ_META) {
             rv = ENGINE_SUCCESS;
         } else {
-            rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+            rv = sendResponse(response,
+                              nullptr,
+                              0,
+                              nullptr,
+                              0,
+                              nullptr,
+                              0,
                               PROTOCOL_BINARY_RAW_BYTES,
                               serverApi->cookie->engine_error2mcbp(cookie, rv),
-                              metadata.cas, cookie);
+                              metadata.cas,
+                              cookie);
         }
     }
 

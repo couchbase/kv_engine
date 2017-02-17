@@ -815,9 +815,11 @@ static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h,
     std::copy(value_data.c_str(), value_data.c_str() + value_data.length(),
               std::back_inserter(data));
 
+    const void* cookie = testHarness.create_cookie();
+
     item *itm = nullptr;
     checkeq(ENGINE_SUCCESS,
-            storeCasVb11(h, h1, nullptr, OPERATION_SET, key,
+            storeCasVb11(h, h1, cookie, OPERATION_SET, key,
                          reinterpret_cast<char*>(data.data()),
                          data.size(), 9258, &itm, 0, 0, 10,
                          PROTOCOL_BINARY_DATATYPE_XATTR),
@@ -830,21 +832,28 @@ static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h,
 
     testHarness.time_travel(11);
 
-    checkeq(true, get_meta(h, h1, "test_expiry"), "Get meta command failed");
+    checkeq(true,
+            get_meta(h, h1, "test_expiry", true, GetMetaVersion::V2, cookie),
+            "Get meta command failed");
     auto prev_revseqno = last_meta.revSeqno;
 
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_XATTR),
+            last_datatype.load(), "Datatype is not XATTR");
+
     checkeq(ENGINE_SUCCESS,
-            get(h, h1, nullptr, &itm, key, 0, DocumentState::Deleted),
+            get(h, h1, cookie, &itm, key, 0, DocumentState::Deleted),
                 "Unable to get a deleted item");
 
-    checkeq(true, get_meta(h, h1, "test_expiry"), "Get meta command failed");
+    checkeq(true,
+            get_meta(h, h1, "test_expiry", false, GetMetaVersion::V1, cookie),
+            "Get meta command failed");
 
     checkeq(last_meta.revSeqno, prev_revseqno + 1,
             "rev seqno must have incremented by 1");
 
     /* Retrieve the item info and create a new blob out of the data */
     item_info info;
-    checkeq(true, h1->get_item_info(h, nullptr, itm, &info),
+    checkeq(true, h1->get_item_info(h, cookie, itm, &info),
             "Unable to retrieve item info");
 
     cb::byte_buffer value_buf{static_cast<uint8_t*>(info.value[0].iov_base),
@@ -866,6 +875,7 @@ static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h,
     checkeq(cas_str, sync_str , "system xattr is invalid");
 
     h1->release(h, nullptr, itm);
+    testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
 }

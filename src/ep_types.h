@@ -95,3 +95,9 @@ enum get_options_t {
     GET_DELETED_VALUE = 0x0040, // whether to retrieve value of a deleted item
     ALLOW_META_ONLY = 0x0080 // Allow only the meta to be returned for an item
 };
+
+/* Meta data versions for GET_META */
+enum class GetMetaVersion : uint8_t {
+    V1 = 1, // returns deleted, flags, expiry and seqno
+    V2 = 2, // The 'spock' version returns V1 + the datatype
+};

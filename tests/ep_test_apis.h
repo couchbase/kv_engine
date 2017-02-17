@@ -26,6 +26,7 @@
 #include <map>
 #include <string>
 
+#include "ep_types.h"
 #include "ext_meta_parser.h"
 #include "item.h"
 
@@ -387,8 +388,12 @@ void compact_db(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 void set_drift_counter_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                              int64_t initialDrift);
 
-bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
-              bool reqExtMeta = false, const void* cookie = nullptr);
+bool get_meta(ENGINE_HANDLE* h,
+              ENGINE_HANDLE_V1* h1,
+              const char* key,
+              bool reqExtMeta = false,
+              GetMetaVersion metaVer = GetMetaVersion::V1,
+              const void* cookie = nullptr);
 
 void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const char *val, const size_t vallen,

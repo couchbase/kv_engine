@@ -375,9 +375,11 @@ ADD_LIBRARY(ep_testsuite_xdcr SHARED
    tests/ep_testsuite_common.cc
    tests/ep_testsuite_xdcr.cc
    tests/ep_test_apis.cc
-   src/ext_meta_parser.cc)
+   src/ext_meta_parser.cc
+   ${Memcached_SOURCE_DIR}/utilities/string_utilities.cc)
 SET_TARGET_PROPERTIES(ep_testsuite_xdcr PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep_testsuite_xdcr JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+TARGET_LINK_LIBRARIES(ep_testsuite_xdcr JSON_checker dirutils platform xattr
+                      ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
 ADD_DEPENDENCIES(ep_testsuite_xdcr engine_testapp)
 
 ADD_LIBRARY(ep_perfsuite SHARED
