@@ -187,18 +187,7 @@ static ENGINE_ERROR_CODE default_unknown_command(
     // Using dynamic cast to ensure a coredump when we implement this for
     // Greenstack and fix it
     auto* c = dynamic_cast<McbpConnection*>(cookie->connection);
-
-    if (!c->isSupportsDatatype() &&
-        request->request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                     PROTOCOL_BINARY_RESPONSE_EINVAL, 0, c->getCookie())) {
-            return ENGINE_SUCCESS;
-        } else {
-            return ENGINE_DISCONNECT;
-        }
-    } else {
-        return bucket_unknown_command(c, request, response);
-    }
+    return bucket_unknown_command(c, request, response);
 }
 
 struct request_lookup {
