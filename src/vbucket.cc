@@ -2089,6 +2089,55 @@ ENGINE_ERROR_CODE VBucket::getMetaData(const DocKey& key,
     }
 }
 
+ENGINE_ERROR_CODE VBucket::getKeyStats(const DocKey& key,
+                                       const void* cookie,
+                                       EventuallyPersistentEngine& engine,
+                                       int bgFetchDelay,
+                                       struct key_stats& kstats,
+                                       bool wantsDeleted) {
+    int bucket_num(0);
+    auto lh = ht.getLockedBucket(key, &bucket_num);
+    StoredValue* v = fetchValidValue(lh, key, bucket_num, true);
+
+    if (v) {
+        if ((v->isDeleted() && !wantsDeleted) || v->isTempNonExistentItem() ||
+            v->isTempDeletedItem()) {
+            return ENGINE_KEY_ENOENT;
+        }
+        if (eviction == FULL_EVICTION && v->isTempInitialItem()) {
+            lh.unlock();
+            bgFetch(key, cookie, engine, bgFetchDelay, true);
+            return ENGINE_EWOULDBLOCK;
+        }
+        kstats.logically_deleted = v->isDeleted();
+        kstats.dirty = v->isDirty();
+        kstats.exptime = v->getExptime();
+        kstats.flags = v->getFlags();
+        kstats.cas = v->getCas();
+        kstats.vb_state = getState();
+        return ENGINE_SUCCESS;
+    } else {
+        if (eviction == VALUE_ONLY) {
+            return ENGINE_KEY_ENOENT;
+        } else {
+            if (maybeKeyExistsInFilter(key)) {
+                return addTempItemAndBGFetch(lh,
+                                             bucket_num,
+                                             key,
+                                             cookie,
+                                             engine,
+                                             bgFetchDelay,
+                                             true);
+            } else {
+                // If bgFetch were false, or bloomfilter predicted that
+                // item surely doesn't exist on disk, return ENOENT for
+                // getKeyStats().
+                return ENGINE_KEY_ENOENT;
+            }
+        }
+    }
+}
+
 void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
     int bucket_num(0);
     auto lh = ht.getLockedBucket(queuedItem.getKey(), &bucket_num);

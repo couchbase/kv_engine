@@ -906,6 +906,27 @@ public:
                                   uint32_t& deleted);
 
     /**
+     * Looks up the key stats for the given {vbucket, key}.
+     *
+     * @param key The key to lookup
+     * @param cookie The client's cookie
+     * @param engine Reference to ep engine
+     * @param bgFetchDelay
+     * @param[out] kstats On success the keystats for this item.
+     * @param wantsDeleted If true then return keystats even if the item is
+     *                     marked as deleted. If false then will return
+     *                     ENGINE_KEY_ENOENT for deleted items.
+     *
+     * @return the result of the operation
+     */
+    ENGINE_ERROR_CODE getKeyStats(const DocKey& key,
+                                  const void* cookie,
+                                  EventuallyPersistentEngine& engine,
+                                  int bgFetchDelay,
+                                  struct key_stats& kstats,
+                                  bool wantsDeleted);
+
+    /**
      * Update in memory data structures after an item is deleted on disk
      *
      * @param queuedItem reference to the deleted item

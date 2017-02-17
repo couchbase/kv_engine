@@ -1538,47 +1538,8 @@ ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    int bucket_num(0);
-    auto lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue* v = vb->fetchValidValue(lh, key, bucket_num, true);
-
-    if (v) {
-        if ((v->isDeleted() && !wantsDeleted) ||
-            v->isTempNonExistentItem() || v->isTempDeletedItem()) {
-            return ENGINE_KEY_ENOENT;
-        }
-        if (eviction_policy == FULL_EVICTION && v->isTempInitialItem()) {
-            lh.unlock();
-            vb->bgFetch(key, cookie, engine, bgFetchDelay, true);
-            return ENGINE_EWOULDBLOCK;
-        }
-        kstats.logically_deleted = v->isDeleted();
-        kstats.dirty = v->isDirty();
-        kstats.exptime = v->getExptime();
-        kstats.flags = v->getFlags();
-        kstats.cas = v->getCas();
-        kstats.vb_state = vb->getState();
-        return ENGINE_SUCCESS;
-    } else {
-        if (eviction_policy == VALUE_ONLY) {
-            return ENGINE_KEY_ENOENT;
-        } else {
-            if (vb->maybeKeyExistsInFilter(key)) {
-                return vb->addTempItemAndBGFetch(lh,
-                                                 bucket_num,
-                                                 key,
-                                                 cookie,
-                                                 engine,
-                                                 bgFetchDelay,
-                                                 true);
-            } else {
-                // If bgFetch were false, or bloomfilter predicted that
-                // item surely doesn't exist on disk, return ENOENT for
-                // getKeyStats().
-                return ENGINE_KEY_ENOENT;
-            }
-        }
-    }
+    return vb->getKeyStats(
+            key, cookie, engine, bgFetchDelay, kstats, wantsDeleted);
 }
 
 std::string KVBucket::validateKey(const DocKey& key, uint16_t vbucket,
