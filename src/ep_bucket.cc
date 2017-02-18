@@ -23,6 +23,13 @@
 
 EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
     : KVBucket(theEngine) {
+    const std::string& policy =
+            engine.getConfiguration().getItemEvictionPolicy();
+    if (policy.compare("value_only") == 0) {
+        eviction_policy = VALUE_ONLY;
+    } else {
+        eviction_policy = FULL_EVICTION;
+    }
 }
 
 bool EPBucket::initialize() {

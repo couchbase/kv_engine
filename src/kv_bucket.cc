@@ -449,13 +449,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     config.addValueChangedListener("dcp_min_compression_ratio",
                                    new EPStoreValueChangeListener(*this));
 
-    const std::string &policy = config.getItemEvictionPolicy();
-    if (policy.compare("value_only") == 0) {
-        eviction_policy = VALUE_ONLY;
-    } else {
-        eviction_policy = FULL_EVICTION;
-    }
-
     if (config.isWarmup()) {
         warmupTask = std::make_unique<Warmup>(*this, config);
     }

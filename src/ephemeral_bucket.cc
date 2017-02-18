@@ -21,7 +21,13 @@
 #include "ephemeral_vb.h"
 
 EphemeralBucket::EphemeralBucket(EventuallyPersistentEngine& theEngine)
-    : KVBucket(theEngine) {}
+    : KVBucket(theEngine) {
+    /* We always have VALUE_ONLY eviction policy because a key not
+       present in HashTable implies key not present at all.
+       Note: This should not be confused with the eviction algorithm
+             that we are going to use like NRU, FIFO etc. */
+    eviction_policy = VALUE_ONLY;
+}
 
 RCPtr<VBucket> EphemeralBucket::makeVBucket(
         VBucket::id_type id,
