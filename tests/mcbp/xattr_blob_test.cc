@@ -148,3 +148,20 @@ TEST(XattrBlob, TestToJson) {
                                    "\"_rbac\":{\"foo\":\"bar\"}}"};
     EXPECT_EQ(expected, to_string(blob.to_json(), false));
 }
+
+/**
+ * Verify that get(key) check that it is an exact match for
+ * a key, and not just a substring of a key
+ */
+TEST(XattrBlob, MB_22691) {
+    cb::xattr::Blob blob;
+
+    // Add a couple of values
+    blob.set(std::string("integer_extra"), std::string("1"));
+
+    // Validate the the blob is correctly built
+    validate(blob.finalize());
+
+    auto value = blob.get(to_const_byte_buffer("integer"));
+    EXPECT_EQ(0, value.len);
+}

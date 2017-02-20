@@ -32,7 +32,8 @@ cb::byte_buffer Blob::get(const cb::const_byte_buffer& key) const {
             current += 4;
             if (size > key.len) {
                 // This may be the next key
-                if (std::memcmp(blob.buf + current, key.buf, key.len) == 0) {
+                if (blob.buf[current + key.len] == '\0' &&
+                    std::memcmp(blob.buf + current, key.buf, key.len) == 0) {
                     // Yay this is the key!!!
                     auto* value = blob.buf + current + key.len + 1;
                     return {value, strlen(reinterpret_cast<char*>(value))};

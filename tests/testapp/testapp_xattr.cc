@@ -462,3 +462,16 @@ TEST_P(XattrTest, VerifyNotEnabled) {
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED,
               resp.getStatus());
 }
+
+TEST_P(XattrTest, MB_22691) {
+    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                  name, "integer_extra", "1",
+                  SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+
+    resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                  name, "integer", "2",
+                  SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus())
+                << memcached_status_2_text(resp.getStatus());
+}
