@@ -823,39 +823,6 @@ void VBucket::incExpirationStat(const ExpireBy source) {
     ++numExpiredItems;
 }
 
-void VBucket::bgFetch(const DocKey& key,
-                      const void* cookie,
-                      EventuallyPersistentEngine& engine,
-                      const int bgFetchDelay,
-                      const bool isMeta) {
-    if (multiBGFetchEnabled) {
-        // schedule to the current batch of background fetch of the given
-        // vbucket
-        size_t bgfetch_size = queueBGFetchItem(
-                key,
-                std::make_unique<VBucketBGFetchItem>(cookie, isMeta),
-                shard->getBgFetcher());
-        if (shard) {
-            shard->getBgFetcher()->notifyBGEvent();
-        }
-        LOG(EXTENSION_LOG_DEBUG,
-            "Queued a background fetch, now at %" PRIu64,
-            uint64_t(bgfetch_size));
-    } else {
-        ++stats.numRemainingBgJobs;
-        stats.maxRemainingBgJobs.store(
-                std::max(stats.maxRemainingBgJobs.load(),
-                         stats.numRemainingBgJobs.load()));
-        ExecutorPool* iom = ExecutorPool::get();
-        ExTask task = new SingleBGFetcherTask(
-                &engine, key, getId(), cookie, isMeta, bgFetchDelay, false);
-        iom->schedule(task, READER_TASK_IDX);
-        LOG(EXTENSION_LOG_DEBUG,
-            "Queued a background fetch, now at %" PRIu64,
-            uint64_t(stats.numRemainingBgJobs.load()));
-    }
-}
-
 ENGINE_ERROR_CODE VBucket::completeBGFetchForSingleItem(
         const DocKey& key,
         const VBucketBGFetchItem& fetched_item,
@@ -955,38 +922,6 @@ ENGINE_ERROR_CODE VBucket::completeBGFetchForSingleItem(
 
     updateBGStats(fetched_item.initTime, startTime, gethrtime());
     return status;
-}
-
-/* [TBD]: Get rid of std::unique_lock<std::mutex> lock */
-ENGINE_ERROR_CODE VBucket::addTempItemAndBGFetch(
-        std::unique_lock<std::mutex>& lock,
-        const int bucket_num,
-        const DocKey& key,
-        const void* cookie,
-        EventuallyPersistentEngine& engine,
-        const int bgFetchDelay,
-        const bool metadataOnly,
-        const bool isReplication) {
-    AddStatus rv = addTempStoredValue(lock, bucket_num, key, isReplication);
-    switch (rv) {
-    case AddStatus::NoMem:
-        return ENGINE_ENOMEM;
-
-    case AddStatus::Exists:
-    case AddStatus::UnDel:
-    case AddStatus::Success:
-    case AddStatus::AddTmpAndBgFetch:
-        // Since the hashtable bucket is locked, we shouldn't get here
-        throw std::logic_error(
-                "VBucket::addTempItemAndBGFetch: "
-                "Invalid result from addTempItem: " +
-                std::to_string(static_cast<uint16_t>(rv)));
-
-    case AddStatus::BgFetch:
-        lock.unlock();
-        bgFetch(key, cookie, engine, bgFetchDelay, metadataOnly);
-    }
-    return ENGINE_EWOULDBLOCK;
 }
 
 ENGINE_ERROR_CODE VBucket::statsVKey(const DocKey& key,
@@ -2657,6 +2592,38 @@ VBNotifyCtx VBucket::softDeleteStoredValue(
     return queueDirty(v, queueItmCtx);
 }
 
+/* [TBD]: Get rid of std::unique_lock<std::mutex> lock */
+ENGINE_ERROR_CODE VBucket::addTempItemAndBGFetch(
+        std::unique_lock<std::mutex>& lock,
+        const int bucket_num,
+        const DocKey& key,
+        const void* cookie,
+        EventuallyPersistentEngine& engine,
+        const int bgFetchDelay,
+        const bool metadataOnly,
+        const bool isReplication) {
+    AddStatus rv = addTempStoredValue(lock, bucket_num, key, isReplication);
+    switch (rv) {
+    case AddStatus::NoMem:
+        return ENGINE_ENOMEM;
+
+    case AddStatus::Exists:
+    case AddStatus::UnDel:
+    case AddStatus::Success:
+    case AddStatus::AddTmpAndBgFetch:
+        // Since the hashtable bucket is locked, we shouldn't get here
+        throw std::logic_error(
+                "VBucket::addTempItemAndBGFetch: "
+                "Invalid result from addTempItem: " +
+                std::to_string(static_cast<uint16_t>(rv)));
+
+    case AddStatus::BgFetch:
+        lock.unlock();
+        bgFetch(key, cookie, engine, bgFetchDelay, metadataOnly);
+    }
+    return ENGINE_EWOULDBLOCK;
+}
+
 AddStatus VBucket::addTempStoredValue(
         const std::unique_lock<std::mutex>& htLock,
         int bucketNum,
@@ -2682,6 +2649,39 @@ AddStatus VBucket::addTempStoredValue(
     StoredValue* v = nullptr;
     return processAdd(htLock, v, itm, true, isReplication, bucketNum, nullptr)
             .first;
+}
+
+void VBucket::bgFetch(const DocKey& key,
+                      const void* cookie,
+                      EventuallyPersistentEngine& engine,
+                      const int bgFetchDelay,
+                      const bool isMeta) {
+    if (multiBGFetchEnabled) {
+        // schedule to the current batch of background fetch of the given
+        // vbucket
+        size_t bgfetch_size = queueBGFetchItem(
+                key,
+                std::make_unique<VBucketBGFetchItem>(cookie, isMeta),
+                shard->getBgFetcher());
+        if (shard) {
+            shard->getBgFetcher()->notifyBGEvent();
+        }
+        LOG(EXTENSION_LOG_DEBUG,
+            "Queued a background fetch, now at %" PRIu64,
+            uint64_t(bgfetch_size));
+    } else {
+        ++stats.numRemainingBgJobs;
+        stats.maxRemainingBgJobs.store(
+                std::max(stats.maxRemainingBgJobs.load(),
+                         stats.numRemainingBgJobs.load()));
+        ExecutorPool* iom = ExecutorPool::get();
+        ExTask task = new SingleBGFetcherTask(
+                &engine, key, getId(), cookie, isMeta, bgFetchDelay, false);
+        iom->schedule(task, READER_TASK_IDX);
+        LOG(EXTENSION_LOG_DEBUG,
+            "Queued a background fetch, now at %" PRIu64,
+            uint64_t(stats.numRemainingBgJobs.load()));
+    }
 }
 
 inline void VBucket::notifyNewSeqno(const VBNotifyCtx& notifyCtx) {
