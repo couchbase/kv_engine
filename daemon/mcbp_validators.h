@@ -58,12 +58,6 @@ public:
      */
     static void initializeMcbpValidatorChains(McbpValidatorChains& chain);
 
-    /*
-     * Enable the collections functionality which adds extra validators to any
-     * K/V command.
-     */
-    static void enableCollections(McbpValidatorChains& chain);
-
 private:
 
     std::array<FunctionChain<protocol_binary_response_status,

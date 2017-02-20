@@ -109,10 +109,6 @@ public:
         cb_cond_destroy(&cond);
     }
 
-    void enableCollections() {
-        McbpValidatorChains::enableCollections(validatorChains);
-    }
-
     /**
      * Invoke the MCBP validator(s) for the given command
      */

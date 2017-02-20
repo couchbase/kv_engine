@@ -1034,15 +1034,6 @@ static protocol_binary_response_status tap_validator(const Cookie& cookie) {
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status get_collections_validator(const Cookie& cookie) {
-    /*
-       This function will check key for collection
-       cookie->getBucket().isKeyValidCollection() ...
-    */
-
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
-}
-
 static protocol_binary_response_status mutate_with_meta_validator(const Cookie& cookie) {
     auto req = static_cast<protocol_binary_request_get_meta*>(McbpConnection::getPacket(cookie));
 
@@ -1231,16 +1222,4 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_GET_LOCKED, get_locked_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_UNLOCK_KEY, unlock_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_RBAC_REFRESH, configuration_refresh_validator);
-}
-
-/**
- * Add relevant collections validators to KV opcodes.
- */
-void McbpValidatorChains::enableCollections(McbpValidatorChains& chains) {
-    // example of how this will work
-    chains.push_unique(PROTOCOL_BINARY_CMD_GET, get_collections_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_GETQ, get_collections_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_GETK, get_collections_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_GETKQ, get_collections_validator);
-    // TODO: set/delete etc...
 }
