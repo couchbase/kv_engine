@@ -2138,6 +2138,70 @@ ENGINE_ERROR_CODE VBucket::getKeyStats(const DocKey& key,
     }
 }
 
+GetValue VBucket::getLocked(const DocKey& key,
+                            rel_time_t currentTime,
+                            uint32_t lockTimeout,
+                            const void* cookie,
+                            EventuallyPersistentEngine& engine,
+                            int bgFetchDelay) {
+    int bucket_num(0);
+    auto lh = ht.getLockedBucket(key, &bucket_num);
+    StoredValue* v = fetchValidValue(lh, key, bucket_num, true);
+
+    if (v) {
+        if (v->isDeleted() || v->isTempNonExistentItem() ||
+            v->isTempDeletedItem()) {
+            return GetValue(NULL, ENGINE_KEY_ENOENT);
+        }
+
+        // if v is locked return error
+        if (v->isLocked(currentTime)) {
+            return GetValue(NULL, ENGINE_TMPFAIL);
+        }
+
+        // If the value is not resident, wait for it...
+        if (!v->isResident()) {
+            if (cookie) {
+                bgFetch(key, cookie, engine, bgFetchDelay);
+            }
+            return GetValue(NULL, ENGINE_EWOULDBLOCK, -1, true);
+        }
+
+        // acquire lock and increment cas value
+        v->lock(currentTime + lockTimeout);
+
+        Item* it = v->toItem(false, getId());
+        it->setCas(nextHLCCas());
+        v->setCas(it->getCas());
+
+        return GetValue(it);
+
+    } else {
+        // No value found in the hashtable.
+        switch (eviction) {
+        case VALUE_ONLY:
+            return GetValue(NULL, ENGINE_KEY_ENOENT);
+
+        case FULL_EVICTION:
+            if (maybeKeyExistsInFilter(key)) {
+                ENGINE_ERROR_CODE ec = addTempItemAndBGFetch(lh,
+                                                             bucket_num,
+                                                             key,
+                                                             cookie,
+                                                             engine,
+                                                             bgFetchDelay,
+                                                             false);
+                return GetValue(NULL, ec, -1, true);
+            } else {
+                // As bloomfilter predicted that item surely doesn't exist
+                // on disk, return ENOENT for getLocked().
+                return GetValue(NULL, ENGINE_KEY_ENOENT);
+            }
+        }
+        return GetValue(); // just to prevent compiler warning
+    }
+}
+
 void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
     int bucket_num(0);
     auto lh = ht.getLockedBucket(queuedItem.getKey(), &bucket_num);

@@ -927,6 +927,25 @@ public:
                                   bool wantsDeleted);
 
     /**
+     * Gets a locked item for a given key.
+     *
+     * @param key The key to lookup
+     * @param currentTime Current time to use for locking the item for a
+     *                    duration of lockTimeout
+     * @param lockTimeout Timeout for the lock on the item
+     * @param cookie The client's cookie
+     * @param engine Reference to ep engine
+     * @param bgFetchDelay Delay in secs before we run the bgFetch task
+     *
+     * @return the result of the operation (contains locked item on success)
+     */
+    GetValue getLocked(const DocKey& key,
+                       rel_time_t currentTime,
+                       uint32_t lockTimeout,
+                       const void* cookie,
+                       EventuallyPersistentEngine& engine,
+                       int bgFetchDelay);
+    /**
      * Update in memory data structures after an item is deleted on disk
      *
      * @param queuedItem reference to the deleted item

@@ -1424,63 +1424,8 @@ GetValue KVBucket::getLocked(const DocKey& key, uint16_t vbucket,
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
     }
 
-    int bucket_num(0);
-    auto lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue* v = vb->fetchValidValue(lh, key, bucket_num, true);
-
-    if (v) {
-        if (v->isDeleted() || v->isTempNonExistentItem() ||
-            v->isTempDeletedItem()) {
-            return GetValue(NULL, ENGINE_KEY_ENOENT);
-        }
-
-        // if v is locked return error
-        if (v->isLocked(currentTime)) {
-            return GetValue(NULL, ENGINE_TMPFAIL);
-        }
-
-        // If the value is not resident, wait for it...
-        if (!v->isResident()) {
-            if (cookie) {
-                vb->bgFetch(key, cookie, engine, bgFetchDelay);
-            }
-            return GetValue(NULL, ENGINE_EWOULDBLOCK, -1, true);
-        }
-
-        // acquire lock and increment cas value
-        v->lock(currentTime + lockTimeout);
-
-        Item *it = v->toItem(false, vbucket);
-        it->setCas(vb->nextHLCCas());
-        v->setCas(it->getCas());
-
-        return GetValue(it);
-
-    } else {
-        // No value found in the hashtable.
-        switch (eviction_policy) {
-        case VALUE_ONLY:
-            return GetValue(NULL, ENGINE_KEY_ENOENT);
-
-        case FULL_EVICTION:
-            if (vb->maybeKeyExistsInFilter(key)) {
-                ENGINE_ERROR_CODE ec = vb->addTempItemAndBGFetch(lh,
-                                                                 bucket_num,
-                                                                 key,
-                                                                 cookie,
-                                                                 engine,
-                                                                 bgFetchDelay,
-                                                                 false);
-                return GetValue(NULL, ec, -1, true);
-            } else {
-                // As bloomfilter predicted that item surely doesn't exist
-                // on disk, return ENOENT for getLocked().
-                return GetValue(NULL, ENGINE_KEY_ENOENT);
-            }
-        default:
-            throw std::logic_error("Unknown eviction policy");
-        }
-    }
+    return vb->getLocked(
+            key, currentTime, lockTimeout, cookie, engine, bgFetchDelay);
 }
 
 ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
