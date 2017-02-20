@@ -233,3 +233,65 @@ TEST_P(LockTest, UnlockSuccess) {
     // The document should no longer be locked
     conn.mutate(document, 0, Greenstack::MutationType::Set);
 }
+
+/**
+ * This test stores a document and then tries to unlock the same document
+ * without specifying a lock timeout (use the default value). The bug we
+ * had in the server was that it did not calculate the correct offset
+ * for the key in the packet
+ */
+TEST_P(LockTest, MB_22778) {
+    // I've modified the packet dump added in the bug report by changing
+    // vbucket to 0 and not 0x4d (the offset for the vbucket id is 6 bytes)
+    std::array<uint8_t, 110> store = {{0x80, 0x01, 0x00, 0x03, 0x08, 0x00,
+                                         0x00, 0x00, 0x00, 0x00, 0x00, 0x56,
+                                         0x00, 0x00, 0x00, 0x05, 0x00, 0x00,
+                                         0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                         0x02, 0x00, 0x00, 0x01, 0x00, 0x00,
+                                         0x00, 0x00, 0x4e, 0x45, 0x54, 0x7b,
+                                         0x22, 0x69, 0x64, 0x22, 0x3a, 0x22,
+                                         0x4e, 0x45, 0x54, 0x22, 0x2c, 0x22,
+                                         0x63, 0x61, 0x73, 0x22, 0x3a, 0x30,
+                                         0x2c, 0x22, 0x65, 0x78, 0x70, 0x69,
+                                         0x72, 0x79, 0x22, 0x3a, 0x30, 0x2c,
+                                         0x22, 0x63, 0x6f, 0x6e, 0x74, 0x65,
+                                         0x6e, 0x74, 0x22, 0x3a, 0x7b, 0x22,
+                                         0x6e, 0x61, 0x6d, 0x65, 0x22, 0x3a,
+                                         0x22, 0x43, 0x6f, 0x75, 0x63, 0x68,
+                                         0x62, 0x61, 0x73, 0x65, 0x22, 0x7d,
+                                         0x2c, 0x22, 0x74, 0x6f, 0x6b, 0x65,
+                                         0x6e, 0x22, 0x3a, 0x6e, 0x75, 0x6c,
+                                         0x6c, 0x7d}};
+
+    auto& conn = getMcbpConnection();
+    Frame command;
+    std::copy(store.begin(), store.end(), std::back_inserter(command.payload));
+
+    conn.sendFrame(command);
+
+    BinprotResponse response;
+    conn.recvResponse(response);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, response.getStatus())
+                << memcached_status_2_text(response.getStatus());
+
+    std::array<uint8_t, 27> lock = {{0x80, // magic
+                                         0x94, // opcode
+                                         0x00, 0x03, // keylen
+                                         0x00, // extlen
+                                         0x00, // datatype
+                                         0x00, 0x00, // vbucket
+                                         0x00, 0x00, 0x00, 0x03, // bodylen
+                                         0x00, 0x00, 0x00, 0x06, // opaque
+                                         0x00, 0x00, 0x00, 0x00, //
+                                         0x00, 0x00, 0x00, 0x00, //  - cas
+                                         0x4e, 0x45, 0x54}}; // key
+
+    command.reset();
+    std::copy(lock.begin(), lock.end(), std::back_inserter(command.payload));
+    conn.sendFrame(command);
+    conn.recvResponse(response);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, response.getStatus())
+                << memcached_status_2_text(response.getStatus());
+
+    conn.remove("NET", 0, response.getCas());
+}

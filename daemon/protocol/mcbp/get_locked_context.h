@@ -59,7 +59,7 @@ public:
     GetLockedCommandContext(McbpConnection& c,
                             protocol_binary_request_getl* req)
         : SteppableCommandContext(c),
-          key(req->bytes + sizeof(req->bytes),
+          key(req->bytes + sizeof(req->message.header.bytes) + req->message.header.request.extlen,
               ntohs(req->message.header.request.keylen),
               DocNamespace::DefaultCollection),
           vbucket(ntohs(req->message.header.request.vbucket)),
