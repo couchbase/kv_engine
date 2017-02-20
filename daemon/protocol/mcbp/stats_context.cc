@@ -414,6 +414,8 @@ static void process_stat_settings(ADD_STAT add_stat_callback,
              std::to_string(settings.getMaxPacketSize()).c_str());
     add_stat(cookie, add_stat_callback, "xattr_enabled",
             settings.isXattrEnabled());
+    add_stat(cookie, add_stat_callback, "privilege_debug",
+             settings.isPrivilegeDebug());
 }
 
 static void append_bin_stats(const char* key, const uint16_t klen,
