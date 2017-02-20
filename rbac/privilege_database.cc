@@ -55,7 +55,10 @@ UserEntry::UserEntry(const cJSON& root) {
         }
 
         for (it = it->child; it != nullptr; it = it->next) {
-            buckets[it->string] = parsePrivileges(it, true);
+            auto privileges = parsePrivileges(it, true);
+            if (privileges.any()) {
+                buckets[it->string] = privileges;
+            }
         }
     }
 
