@@ -348,7 +348,7 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(cb::rbac::Privilege privile
         ret = privilegeContext.check(privilege);
         if (settings.isPrivilegeDebug()) {
             LOG_NOTICE(this,
-                       "%u: RBAC privilege debug: %s second check %s command: [%s] bucket: [%s] Privilege: [%s])",
+                       "%u: RBAC privilege debug: %s second check %s command: [%s] bucket: [%s] Privilege: [%s]",
                        getId(),
                        getDescription().c_str(),
                        cb::rbac::to_string(ret).c_str(),
@@ -391,6 +391,14 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(cb::rbac::Privilege privile
         }
 
         if (settings.isPrivilegeDebug()) {
+            LOG_NOTICE(this,
+                       "%u: RBAC privilege debug: %s command: [%s] bucket: [%s] Privilege: [%s]",
+                       getId(),
+                       getDescription().c_str(),
+                       command.c_str(),
+                       all_buckets[bucketIndex].name,
+                       to_string(privilege).c_str());
+
             return cb::rbac::PrivilegeAccess::Ok;
         }
     }
