@@ -276,7 +276,9 @@ void MemcachedBinprotConnection::selectBucket(const std::string& name) {
     recvResponse(response);
 
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("Select bucket failed: ", response);
+        throw BinprotConnectionError(
+            std::string("Select bucket [" + name + "] failed").c_str(),
+            response);
     }
 }
 
