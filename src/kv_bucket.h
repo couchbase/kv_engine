@@ -176,7 +176,6 @@ public:
      * @param cookie the connection cookie
      * @param metadata where to store the meta informaion
      * @param deleted specifies whether or not the key is deleted
-     * @param confResMode specifies the Conflict Resolution mode for the item
      */
     ENGINE_ERROR_CODE getMetaData(const DocKey& key,
                                   uint16_t vbucket,

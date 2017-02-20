@@ -1286,7 +1286,6 @@ ENGINE_ERROR_CODE KVBucket::getMetaData(const DocKey& key,
                                         ItemMetaData &metadata,
                                         uint32_t &deleted)
 {
-    (void) cookie;
     RCPtr<VBucket> vb = getVBucket(vbucket);
 
     if (!vb) {
@@ -1301,54 +1300,8 @@ ENGINE_ERROR_CODE KVBucket::getMetaData(const DocKey& key,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    int bucket_num(0);
-    deleted = 0;
-    auto lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true,
-                                          /*trackReference*/false);
-
-    if (v) {
-        stats.numOpsGetMeta++;
-        if (v->isTempInitialItem()) { // Need bg meta fetch.
-            vb->bgFetch(key, cookie, engine, bgFetchDelay, true);
-            return ENGINE_EWOULDBLOCK;
-        } else if (v->isTempNonExistentItem()) {
-            metadata.cas = v->getCas();
-            return ENGINE_KEY_ENOENT;
-        } else {
-            if (v->isTempDeletedItem() || v->isDeleted() ||
-                v->isExpired(ep_real_time())) {
-                deleted |= GET_META_ITEM_DELETED_FLAG;
-            }
-
-            if (v->isLocked(ep_current_time())) {
-                metadata.cas = static_cast<uint64_t>(-1);
-            } else {
-                metadata.cas = v->getCas();
-            }
-            metadata.flags = v->getFlags();
-            metadata.exptime = v->getExptime();
-            metadata.revSeqno = v->getRevSeqno();
-            return ENGINE_SUCCESS;
-        }
-    } else {
-        // The key wasn't found. However, this may be because it was previously
-        // deleted or evicted with the full eviction strategy.
-        // So, add a temporary item corresponding to the key to the hash table
-        // and schedule a background fetch for its metadata from the persistent
-        // store. The item's state will be updated after the fetch completes.
-        //
-        // Schedule this bgFetch only if the key is predicted to be may-be
-        // existent on disk by the bloomfilter.
-
-        if (vb->maybeKeyExistsInFilter(key)) {
-            return vb->addTempItemAndBGFetch(
-                    lh, bucket_num, key, cookie, engine, bgFetchDelay, true);
-        } else {
-            stats.numOpsGetMeta++;
-            return ENGINE_KEY_ENOENT;
-        }
-    }
+    return vb->getMetaData(
+            key, cookie, engine, bgFetchDelay, metadata, deleted);
 }
 
 ENGINE_ERROR_CODE KVBucket::setWithMeta(Item &itm,
