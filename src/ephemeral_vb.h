@@ -49,7 +49,8 @@ private:
     std::pair<StoredValue*, VBNotifyCtx> addNewStoredValue(
             const std::unique_lock<std::mutex>& htLock,
             const Item& itm,
-            const VBQueueItemCtx* queueItmCtx) override;
+            const VBQueueItemCtx* queueItmCtx,
+            int bucketNum) override;
 
     VBNotifyCtx softDeleteStoredValue(
             const std::unique_lock<std::mutex>& htLock,

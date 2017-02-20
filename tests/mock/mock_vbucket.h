@@ -61,11 +61,11 @@ public:
     }
 
     MutationStatus public_processSet(Item& itm, const uint64_t cas) {
-        int bucket_num(0);
-        auto lh = ht.getLockedBucket(itm.getKey(), &bucket_num);
+        int bucketNum(0);
+        auto lh = ht.getLockedBucket(itm.getKey(), &bucketNum);
         StoredValue* v =
-                ht.unlocked_find(itm.getKey(), bucket_num, true, false);
-        return processSet(lh, v, itm, cas, true, false).first;
+                ht.unlocked_find(itm.getKey(), bucketNum, true, false);
+        return processSet(lh, v, itm, cas, true, false, bucketNum).first;
     }
 
     AddStatus public_processAdd(Item& itm) {
@@ -77,7 +77,8 @@ public:
                           v,
                           itm,
                           /*maybeKeyExists*/ true,
-                          /*isReplication*/ false)
+                          /*isReplication*/ false,
+                          bucket_num)
                 .first;
     }
 

@@ -936,6 +936,7 @@ protected:
      * @param allowExisting set to false if you want set to fail if the
      *                      item exists already
      * @param hasMetaData
+     * @param bucketNum The hashtable bucket number
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
      *                    backfill queue; NULL if item need not be queued
      * @param maybeKeyExists true if bloom filter predicts that key may exist
@@ -951,6 +952,7 @@ protected:
             uint64_t cas,
             bool allowExisting,
             bool hasMetaData,
+            int bucketNum,
             const VBQueueItemCtx* queueItmCtx = nullptr,
             bool maybeKeyExists = true,
             bool isReplication = false);
@@ -964,6 +966,7 @@ protected:
      * @param v[in, out] the stored value to do this operation on
      * @param itm Item to be added/updated. On success, its revSeqno is updated
      * @param isReplication true if issued by consumer (for replication)
+     * @param bucketNum The hashtable bucket number
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
      *                    backfill queue; NULL if item need not be queued
      *
@@ -976,6 +979,7 @@ protected:
             Item& itm,
             bool maybeKeyExists,
             bool isReplication,
+            int bucketNum,
             const VBQueueItemCtx* queueItmCtx = nullptr);
 
     /**
@@ -1118,13 +1122,15 @@ private:
      * @param itm Item to be added.
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
      *                    backfill queue; NULL if item need not be queued
+     * @param The hashtable bucket number
      *
      * @return Ptr of the StoredValue added and notification info
      */
     virtual std::pair<StoredValue*, VBNotifyCtx> addNewStoredValue(
             const std::unique_lock<std::mutex>& htLock,
             const Item& itm,
-            const VBQueueItemCtx* queueItmCtx);
+            const VBQueueItemCtx* queueItmCtx,
+            int bucketNum);
 
     /**
      * Logically (soft) delete item in all in-memory data structures. Also
@@ -1170,14 +1176,14 @@ private:
      * Assumes that HT bucket lock is grabbed.
      *
      * @param htLock Hash table lock that must be held
-     * @param bucket_num the locked partition where the key belongs
+     * @param bucketNum the locked partition where the key belongs
      * @param key the key for which a temporary item needs to be added
      * @param isReplication true if issued by consumer (for replication)
      *
      * @return Result indicating the status of the operation
      */
     AddStatus addTempStoredValue(const std::unique_lock<std::mutex>& htLock,
-                                 int bucket_num,
+                                 int bucketNum,
                                  const DocKey& key,
                                  bool isReplication = false);
 

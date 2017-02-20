@@ -245,13 +245,13 @@ MutationStatus HashTable::set(Item& val) {
         return MutationStatus::NoMem;
     }
 
-    int bucket_num(0);
-    std::unique_lock<std::mutex> lh = getLockedBucket(val.getKey(), &bucket_num);
-    StoredValue* v = unlocked_find(val.getKey(), bucket_num, true, false);
+    int bucketNum(0);
+    std::unique_lock<std::mutex> lh = getLockedBucket(val.getKey(), &bucketNum);
+    StoredValue* v = unlocked_find(val.getKey(), bucketNum, true, false);
     if (v) {
         return unlocked_updateStoredValue(lh, *v, val);
     } else {
-        unlocked_addNewStoredValue(lh, val);
+        unlocked_addNewStoredValue(lh, val, bucketNum);
         return MutationStatus::WasClean;
     }
 }
@@ -289,7 +289,9 @@ MutationStatus HashTable::unlocked_updateStoredValue(
 }
 
 StoredValue* HashTable::unlocked_addNewStoredValue(
-        const std::unique_lock<std::mutex>& htLock, const Item& itm) {
+        const std::unique_lock<std::mutex>& htLock,
+        const Item& itm,
+        int bucketNum) {
     if (!htLock) {
         throw std::invalid_argument(
                 "HashTable::unlocked_addNewStoredValue: htLock "
@@ -302,9 +304,8 @@ StoredValue* HashTable::unlocked_addNewStoredValue(
                 "call on a non-active HT object");
     }
 
-    int bucket_num = getBucketForHash(itm.getKey().hash());
-    StoredValue* v = valFact(itm, values[bucket_num], *this);
-    values[bucket_num] = v;
+    StoredValue* v = valFact(itm, values[bucketNum], *this);
+    values[bucketNum] = v;
 
     if (v->isTempItem()) {
         ++numTempItems;

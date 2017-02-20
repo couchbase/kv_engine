@@ -1083,10 +1083,10 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
                                EventuallyPersistentEngine& engine,
                                const int bgFetchDelay) {
     bool cas_op = (itm.getCas() != 0);
-    int bucket_num(0);
-    auto lh = ht.getLockedBucket(itm.getKey(), &bucket_num);
+    int bucketNum(0);
+    auto lh = ht.getLockedBucket(itm.getKey(), &bucketNum);
     StoredValue* v = ht.unlocked_find(itm.getKey(),
-                                      bucket_num,
+                                      bucketNum,
                                       /*wantsDeleted*/ true,
                                       /*trackReference*/ false);
     if (v && v->isLocked(ep_current_time()) &&
@@ -1119,6 +1119,7 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
                                              itm.getCas(),
                                              /*allowExisting*/ true,
                                              /*hasMetaData*/ false,
+                                             bucketNum,
                                              &queueItmCtx,
                                              maybeKeyExists);
 
@@ -1156,7 +1157,7 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
             return ENGINE_EWOULDBLOCK;
         }
         ret = addTempItemAndBGFetch(lh,
-                                    bucket_num,
+                                    bucketNum,
                                     itm.getKey(),
                                     cookie,
                                     engine,
@@ -1173,9 +1174,9 @@ ENGINE_ERROR_CODE VBucket::replace(Item& itm,
                                    const void* cookie,
                                    EventuallyPersistentEngine& engine,
                                    const int bgFetchDelay) {
-    int bucket_num(0);
-    auto lh = ht.getLockedBucket(itm.getKey(), &bucket_num);
-    StoredValue* v = ht.unlocked_find(itm.getKey(), bucket_num, true, false);
+    int bucketNum(0);
+    auto lh = ht.getLockedBucket(itm.getKey(), &bucketNum);
+    StoredValue* v = ht.unlocked_find(itm.getKey(), bucketNum, true, false);
     if (v) {
         if (v->isDeleted() || v->isTempDeletedItem() ||
             v->isTempNonExistentItem()) {
@@ -1197,6 +1198,7 @@ ENGINE_ERROR_CODE VBucket::replace(Item& itm,
                                                     0,
                                                     /*allowExisting*/ true,
                                                     /*hasMetaData*/ false,
+                                                    bucketNum,
                                                     &queueItmCtx);
         }
 
@@ -1239,7 +1241,7 @@ ENGINE_ERROR_CODE VBucket::replace(Item& itm,
 
         if (maybeKeyExistsInFilter(itm.getKey())) {
             return addTempItemAndBGFetch(lh,
-                                         bucket_num,
+                                         bucketNum,
                                          itm.getKey(),
                                          cookie,
                                          engine,
@@ -1255,9 +1257,9 @@ ENGINE_ERROR_CODE VBucket::replace(Item& itm,
 
 ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm,
                                            const GenerateBySeqno genBySeqno) {
-    int bucket_num(0);
-    auto lh = ht.getLockedBucket(itm.getKey(), &bucket_num);
-    StoredValue* v = ht.unlocked_find(itm.getKey(), bucket_num, true, false);
+    int bucketNum(0);
+    auto lh = ht.getLockedBucket(itm.getKey(), &bucketNum);
+    StoredValue* v = ht.unlocked_find(itm.getKey(), bucketNum, true, false);
 
     // Note that this function is only called on replica or pending vbuckets.
     if (v && v->isLocked(ep_current_time())) {
@@ -1276,6 +1278,7 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm,
                                              0,
                                              /*allowExisting*/ true,
                                              /*hasMetaData*/ true,
+                                             bucketNum,
                                              &queueItmCtx);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
@@ -1321,9 +1324,9 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
                                        const GenerateBySeqno genBySeqno,
                                        const GenerateCas genCas,
                                        const bool isReplication) {
-    int bucket_num(0);
-    auto lh = ht.getLockedBucket(itm.getKey(), &bucket_num);
-    StoredValue* v = ht.unlocked_find(itm.getKey(), bucket_num, true, false);
+    int bucketNum(0);
+    auto lh = ht.getLockedBucket(itm.getKey(), &bucketNum);
+    StoredValue* v = ht.unlocked_find(itm.getKey(), bucketNum, true, false);
 
     bool maybeKeyExists = true;
     if (!force) {
@@ -1340,7 +1343,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
         } else {
             if (maybeKeyExistsInFilter(itm.getKey())) {
                 return addTempItemAndBGFetch(lh,
-                                             bucket_num,
+                                             bucketNum,
                                              itm.getKey(),
                                              cookie,
                                              engine,
@@ -1378,6 +1381,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
                                              cas,
                                              allowExisting,
                                              true,
+                                             bucketNum,
                                              &queueItmCtx,
                                              maybeKeyExists,
                                              isReplication);
@@ -1412,7 +1416,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
             return ENGINE_EWOULDBLOCK;
         }
         ret = addTempItemAndBGFetch(lh,
-                                    bucket_num,
+                                    bucketNum,
                                     itm.getKey(),
                                     cookie,
                                     engine,
@@ -1784,9 +1788,9 @@ ENGINE_ERROR_CODE VBucket::add(Item& itm,
                                const void* cookie,
                                EventuallyPersistentEngine& engine,
                                const int bgFetchDelay) {
-    int bucket_num(0);
-    auto lh = ht.getLockedBucket(itm.getKey(), &bucket_num);
-    StoredValue* v = ht.unlocked_find(itm.getKey(), bucket_num, true, false);
+    int bucketNum(0);
+    auto lh = ht.getLockedBucket(itm.getKey(), &bucketNum);
+    StoredValue* v = ht.unlocked_find(itm.getKey(), bucketNum, true, false);
 
     bool maybeKeyExists = true;
     if ((v == nullptr || v->isTempInitialItem()) &&
@@ -1803,12 +1807,8 @@ ENGINE_ERROR_CODE VBucket::add(Item& itm,
                                /*isBackfillItem*/ false);
     AddStatus status;
     VBNotifyCtx notifyCtx;
-    std::tie(status, notifyCtx) = processAdd(lh,
-                                             v,
-                                             itm,
-                                             maybeKeyExists,
-                                             /*isReplication*/ false,
-                                             &queueItmCtx);
+    std::tie(status, notifyCtx) = processAdd(
+            lh, v, itm, maybeKeyExists, false, bucketNum, &queueItmCtx);
 
     switch (status) {
     case AddStatus::NoMem:
@@ -1817,7 +1817,7 @@ ENGINE_ERROR_CODE VBucket::add(Item& itm,
         return ENGINE_NOT_STORED;
     case AddStatus::AddTmpAndBgFetch:
         return addTempItemAndBGFetch(lh,
-                                     bucket_num,
+                                     bucketNum,
                                      itm.getKey(),
                                      cookie,
                                      engine,
@@ -1909,12 +1909,13 @@ MutationStatus VBucket::insertFromWarmup(Item& itm,
         return MutationStatus::NoMem;
     }
 
-    int bucket_num(0);
-    auto lh = ht.getLockedBucket(itm.getKey(), &bucket_num);
-    StoredValue* v = ht.unlocked_find(itm.getKey(), bucket_num, true, false);
+    int bucketNum(0);
+    auto lh = ht.getLockedBucket(itm.getKey(), &bucketNum);
+    StoredValue* v = ht.unlocked_find(itm.getKey(), bucketNum, true, false);
 
     if (v == NULL) {
-        v = addNewStoredValue(lh, itm, /*queueItmCtx*/ nullptr).first;
+        v = addNewStoredValue(lh, itm, /*queueItmCtx*/ nullptr, bucketNum)
+                    .first;
         if (keyMetaDataOnly) {
             v->markNotResident();
             /* For now ht stats are updated from outside ht. This seems to be
@@ -2195,6 +2196,7 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
         const uint64_t cas,
         const bool allowExisting,
         const bool hasMetaData,
+        int bucketNum,
         const VBQueueItemCtx* queueItmCtx,
         const bool maybeKeyExists,
         const bool isReplication) {
@@ -2261,7 +2263,8 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
         return {MutationStatus::NotFound, VBNotifyCtx()};
     } else {
         VBNotifyCtx notifyCtx;
-        std::tie(v, notifyCtx) = addNewStoredValue(htLock, itm, queueItmCtx);
+        std::tie(v, notifyCtx) =
+                addNewStoredValue(htLock, itm, queueItmCtx, bucketNum);
         if (!hasMetaData) {
             updateRevSeqNoOfNewStoredValue(*v);
             itm.setRevSeqno(v->getRevSeqno());
@@ -2276,6 +2279,7 @@ std::pair<AddStatus, VBNotifyCtx> VBucket::processAdd(
         Item& itm,
         bool maybeKeyExists,
         bool isReplication,
+        int bucketNum,
         const VBQueueItemCtx* queueItmCtx) {
     if (!htLock) {
         throw std::invalid_argument(
@@ -2325,7 +2329,8 @@ std::pair<AddStatus, VBNotifyCtx> VBucket::processAdd(
                 return {AddStatus::AddTmpAndBgFetch, VBNotifyCtx()};
             }
         }
-        std::tie(v, rv.second) = addNewStoredValue(htLock, itm, queueItmCtx);
+        std::tie(v, rv.second) =
+                addNewStoredValue(htLock, itm, queueItmCtx, bucketNum);
         updateRevSeqNoOfNewStoredValue(*v);
         itm.setRevSeqno(v->getRevSeqno());
         if (v->isTempItem()) {
@@ -2441,8 +2446,9 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::updateStoredValue(
 std::pair<StoredValue*, VBNotifyCtx> VBucket::addNewStoredValue(
         const std::unique_lock<std::mutex>& htLock,
         const Item& itm,
-        const VBQueueItemCtx* queueItmCtx) {
-    StoredValue* v = ht.unlocked_addNewStoredValue(htLock, itm);
+        const VBQueueItemCtx* queueItmCtx,
+        int bucketNum) {
+    StoredValue* v = ht.unlocked_addNewStoredValue(htLock, itm, bucketNum);
 
     if (queueItmCtx) {
         return {v, queueDirty(*v, *queueItmCtx)};
@@ -2482,7 +2488,7 @@ VBNotifyCtx VBucket::softDeleteStoredValue(
 
 AddStatus VBucket::addTempStoredValue(
         const std::unique_lock<std::mutex>& htLock,
-        int bucket_num,
+        int bucketNum,
         const DocKey& key,
         bool isReplication) {
     uint8_t ext_meta[EXT_META_LEN] = {PROTOCOL_BINARY_RAW_BYTES};
@@ -2503,11 +2509,7 @@ AddStatus VBucket::addTempStoredValue(
        the value cuz normally a new item added is considered resident which
        does not apply for temp item. */
     StoredValue* v = nullptr;
-    return processAdd(htLock,
-                      v,
-                      itm,
-                      /*maybeKeyExists*/ true,
-                      isReplication)
+    return processAdd(htLock, v, itm, true, isReplication, bucketNum, nullptr)
             .first;
 }
 

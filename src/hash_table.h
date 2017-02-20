@@ -300,12 +300,15 @@ public:
      *
      * @param htLock Hash table lock that must be held.
      * @param itm Item to be added.
+     * @param bucketNum The hashtable bucket number
      *
      * @return Ptr of the StoredValue added. This function always succeeds and
      *         returns non-null ptr
      */
     StoredValue* unlocked_addNewStoredValue(
-            const std::unique_lock<std::mutex>& htLock, const Item& itm);
+            const std::unique_lock<std::mutex>& htLock,
+            const Item& itm,
+            int bucketNum);
 
     /**
      * Logically (soft) delete the item in ht
