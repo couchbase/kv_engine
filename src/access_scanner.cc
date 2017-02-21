@@ -103,7 +103,7 @@ public:
         if (log == nullptr) {
             updateStateFinalizer(false);
         } else {
-            size_t num_items = log->itemsLogged[ML_NEW];
+            size_t num_items = log->itemsLogged[int(MutationLogType::New)];
             log->commit1();
             log->commit2();
             log.reset();

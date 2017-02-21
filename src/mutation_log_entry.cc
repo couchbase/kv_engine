@@ -17,19 +17,23 @@
 
 #include "mutation_log_entry.h"
 
-static const char* logType(uint8_t t) {
+std::string to_string(MutationLogType t) {
     switch (t) {
-    case ML_NEW:
+    case MutationLogType::New:
         return "new";
         break;
-    case ML_COMMIT1:
+    case MutationLogType::Commit1:
         return "commit1";
         break;
-    case ML_COMMIT2:
+    case MutationLogType::Commit2:
         return "commit2";
         break;
+    case MutationLogType::NumberOfTypes: {
+        // fall through
     }
-    return "UNKNOWN";
+    }
+    throw std::invalid_argument("to_string(MutationLogType) unknown param " +
+                                std::to_string(int(t)));
 }
 
 uint64_t MutationLogEntry::rowid() const {
@@ -44,7 +48,7 @@ std::ostream& operator<<(std::ostream& out, const MutationLogEntry& mle) {
     out << "{MutationLogEntry rowid=" << mle.rowid()
         << ", vbucket=" << mle.vbucket() << ", magic=0x" << std::hex
         << static_cast<uint16_t>(mle.magic) << std::dec
-        << ", type=" << logType(mle.type()) << ", key=``" << mle.key().data()
+        << ", type=" << to_string(mle.type()) << ", key=``" << mle.key().data()
         << "''";
     return out;
 }

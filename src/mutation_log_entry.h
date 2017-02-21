@@ -22,13 +22,16 @@
 
 #include <type_traits>
 
-enum mutation_log_type_t {
-    ML_NEW = 0,
+enum class MutationLogType : uint8_t {
+    New = 0,
     /* removed: ML_DEL = 1 */
     /* removed: ML_DEL_ALL = 2 */
-    ML_COMMIT1 = 3,
-    ML_COMMIT2 = 4
+    Commit1 = 3,
+    Commit2 = 4,
+    NumberOfTypes
 };
+
+std::string to_string(MutationLogType t);
 
 const uint8_t MUTATION_LOG_MAGIC(0x45);
 
@@ -47,7 +50,7 @@ public:
      */
     static MutationLogEntry* newEntry(uint8_t* buf,
                                       uint64_t r,
-                                      mutation_log_type_t t,
+                                      MutationLogType t,
                                       uint16_t vb,
                                       const DocKey& k) {
         return new (buf) MutationLogEntry(r, t, vb, k);
@@ -55,9 +58,9 @@ public:
 
     static MutationLogEntry* newEntry(uint8_t* buf,
                                       uint64_t r,
-                                      mutation_log_type_t t,
+                                      MutationLogType t,
                                       uint16_t vb) {
-        if (t != ML_COMMIT1 && t != ML_COMMIT2) {
+        if (MutationLogType::Commit1 != t && MutationLogType::Commit2 != t) {
             throw std::invalid_argument(
                     "MutationLogEntry::newEntry: invalid type");
         }
@@ -143,7 +146,7 @@ public:
     /**
      * The type of this log entry.
      */
-    uint8_t type() const {
+    MutationLogType type() const {
         return _type;
     }
 
@@ -152,13 +155,13 @@ private:
                                     const MutationLogEntry& e);
 
     MutationLogEntry(uint64_t r,
-                     mutation_log_type_t t,
+                     MutationLogType t,
                      uint16_t vb,
                      const DocKey& k)
         : _rowid(htonll(r)),
           _vbucket(htons(vb)),
           magic(MUTATION_LOG_MAGIC),
-          _type(static_cast<uint8_t>(t)),
+          _type(t),
           pad(0),
           _key(k) {
         (void)pad;
@@ -169,7 +172,7 @@ private:
                 "_key must be the final member of MutationLogEntry");
     }
 
-    MutationLogEntry(uint64_t r, mutation_log_type_t t, uint16_t vb)
+    MutationLogEntry(uint64_t r, MutationLogType t, uint16_t vb)
         : MutationLogEntry(
                   r, t, vb, {nullptr, 0, DocNamespace::DefaultCollection}) {
     }
@@ -177,11 +180,14 @@ private:
     uint64_t _rowid;
     uint16_t _vbucket;
     uint8_t magic;
-    uint8_t _type;
+    MutationLogType _type;
     uint8_t pad; // explicit padding to ensure _key is the final member
     SerialisedDocKey _key;
 
     DISALLOW_COPY_AND_ASSIGN(MutationLogEntry);
+
+    static_assert(sizeof(MutationLogType) == sizeof(uint8_t),
+                  "_type must be a uint8_t");
 };
 
 std::ostream& operator<<(std::ostream& out, const MutationLogEntry& mle);

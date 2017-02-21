@@ -193,8 +193,6 @@ private:
     size_t sleepTime;
 };
 
-#define MUTATION_LOG_TYPES 5
-
 /**
  * The MutationLog records major key events to allow ep-engine to more
  * quickly restore the server to its previous state upon restart.
@@ -378,7 +376,7 @@ public:
     }
 
     //! Items logged by type.
-    std::atomic<size_t> itemsLogged[MUTATION_LOG_TYPES];
+    std::atomic<size_t> itemsLogged[int(MutationLogType::NumberOfTypes)];
     //! Histogram of block padding sizes.
     Histogram<uint32_t> paddingHisto;
     //! Flush time histogram.
@@ -440,7 +438,7 @@ typedef bool (*mlCallbackWithQueue)(uint16_t,
 struct mutation_log_uncommitted_t {
     StoredDocKey        key;
     uint64_t            rowid;
-    mutation_log_type_t type;
+    MutationLogType     type;
     uint16_t            vbucket;
 };
 
@@ -511,5 +509,5 @@ private:
 
     std::unordered_map<uint16_t, std::set<StoredDocKey>> committed;
     std::unordered_map<uint16_t, std::set<StoredDocKey>> loading;
-    size_t itemsSeen[MUTATION_LOG_TYPES];
+    size_t itemsSeen[int(MutationLogType::NumberOfTypes)];
 };

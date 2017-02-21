@@ -203,9 +203,9 @@ TEST_F(MutationLogTest, Logging) {
         ml.commit2();
         // Remaining:   3:key2, 2:key1
 
-        EXPECT_EQ(2, ml.itemsLogged[ML_NEW]);
-        EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT1]);
-        EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT2]);
+        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::New)]);
+        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::Commit1)]);
+        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::Commit2)]);
     }
 
     {
@@ -218,16 +218,16 @@ TEST_F(MutationLogTest, Logging) {
 
         EXPECT_TRUE(h.load());
 
-        EXPECT_EQ(2, h.getItemsSeen()[ML_NEW]);
-        EXPECT_EQ(2, h.getItemsSeen()[ML_COMMIT1]);
-        EXPECT_EQ(2, h.getItemsSeen()[ML_COMMIT2]);
+        EXPECT_EQ(2, h.getItemsSeen()[int(MutationLogType::New)]);
+        EXPECT_EQ(2, h.getItemsSeen()[int(MutationLogType::Commit1)]);
+        EXPECT_EQ(2, h.getItemsSeen()[int(MutationLogType::Commit2)]);
 
         // Check stat copying
         ml.resetCounts(h.getItemsSeen());
 
-        EXPECT_EQ(2, ml.itemsLogged[ML_NEW]);
-        EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT1]);
-        EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT2]);
+        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::New)]);
+        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::Commit1)]);
+        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::Commit2)]);
 
         // See if we got what we expect.
         std::set<StoredDocKey> maps[4];
@@ -259,9 +259,9 @@ TEST_F(MutationLogTest, LoggingDirty) {
         ml.newItem(3, makeStoredDocKey("key2"),  3);
         // Remaining:   3:key1, 2:key1
 
-        EXPECT_EQ(3, ml.itemsLogged[ML_NEW]);
-        EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT1]);
-        EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT2]);
+        EXPECT_EQ(3, ml.itemsLogged[int(MutationLogType::New)]);
+        EXPECT_EQ(1, ml.itemsLogged[int(MutationLogType::Commit1)]);
+        EXPECT_EQ(1, ml.itemsLogged[int(MutationLogType::Commit2)]);
     }
 
     {
@@ -274,16 +274,16 @@ TEST_F(MutationLogTest, LoggingDirty) {
 
         EXPECT_FALSE(h.load());
 
-        EXPECT_EQ(3, h.getItemsSeen()[ML_NEW]);
-        EXPECT_EQ(1, h.getItemsSeen()[ML_COMMIT1]);
-        EXPECT_EQ(1, h.getItemsSeen()[ML_COMMIT2]);
+        EXPECT_EQ(3, h.getItemsSeen()[int(MutationLogType::New)]);
+        EXPECT_EQ(1, h.getItemsSeen()[int(MutationLogType::Commit1)]);
+        EXPECT_EQ(1, h.getItemsSeen()[int(MutationLogType::Commit2)]);
 
         // Check stat copying
         ml.resetCounts(h.getItemsSeen());
 
-        EXPECT_EQ(3, ml.itemsLogged[ML_NEW]);
-        EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT1]);
-        EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT2]);
+        EXPECT_EQ(3, ml.itemsLogged[int(MutationLogType::New)]);
+        EXPECT_EQ(1, ml.itemsLogged[int(MutationLogType::Commit1)]);
+        EXPECT_EQ(1, ml.itemsLogged[int(MutationLogType::Commit2)]);
 
         // See if we got what we expect.
         std::set<StoredDocKey> maps[4];
@@ -316,9 +316,9 @@ TEST_F(MutationLogTest, LoggingBadCRC) {
         ml.commit2();
         // Remaining:   3:key2, 2:key1
 
-        EXPECT_EQ(2, ml.itemsLogged[ML_NEW]);
-        EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT1]);
-        EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT2]);
+        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::New)]);
+        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::Commit1)]);
+        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::Commit2)]);
     }
 
     // Break the log
@@ -341,16 +341,16 @@ TEST_F(MutationLogTest, LoggingBadCRC) {
 
         EXPECT_THROW(h.load(), MutationLog::CRCReadException);
 
-        EXPECT_EQ(0, h.getItemsSeen()[ML_NEW]);
-        EXPECT_EQ(0, h.getItemsSeen()[ML_COMMIT1]);
-        EXPECT_EQ(0, h.getItemsSeen()[ML_COMMIT2]);
+        EXPECT_EQ(0, h.getItemsSeen()[int(MutationLogType::New)]);
+        EXPECT_EQ(0, h.getItemsSeen()[int(MutationLogType::Commit1)]);
+        EXPECT_EQ(0, h.getItemsSeen()[int(MutationLogType::Commit2)]);
 
         // Check stat copying
         ml.resetCounts(h.getItemsSeen());
 
-        EXPECT_EQ(0, ml.itemsLogged[ML_NEW]);
-        EXPECT_EQ(0, ml.itemsLogged[ML_COMMIT1]);
-        EXPECT_EQ(0, ml.itemsLogged[ML_COMMIT2]);
+        EXPECT_EQ(0, ml.itemsLogged[int(MutationLogType::New)]);
+        EXPECT_EQ(0, ml.itemsLogged[int(MutationLogType::Commit1)]);
+        EXPECT_EQ(0, ml.itemsLogged[int(MutationLogType::Commit2)]);
 
         // See if we got what we expect.
         std::map<std::string, uint64_t> maps[4];
@@ -381,9 +381,9 @@ TEST_F(MutationLogTest, LoggingShortRead) {
         ml.commit2();
         // Remaining:   3:key2, 2:key1
 
-        EXPECT_EQ(2, ml.itemsLogged[ML_NEW]);
-        EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT1]);
-        EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT2]);
+        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::New)]);
+        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::Commit1)]);
+        EXPECT_EQ(2, ml.itemsLogged[int(MutationLogType::Commit2)]);
     }
 
     // Break the log
@@ -433,9 +433,9 @@ TEST_F(MutationLogTest, Iterator) {
         ml.commit1();
         ml.commit2();
 
-        EXPECT_EQ(3, ml.itemsLogged[ML_NEW]);
-        EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT1]);
-        EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT2]);
+        EXPECT_EQ(3, ml.itemsLogged[int(MutationLogType::New)]);
+        EXPECT_EQ(1, ml.itemsLogged[int(MutationLogType::Commit1)]);
+        EXPECT_EQ(1, ml.itemsLogged[int(MutationLogType::Commit2)]);
     }
 
     // Now check the iterators.
@@ -474,9 +474,9 @@ TEST_F(MutationLogTest, BatchLoad) {
         ml.commit1();
         ml.commit2();
 
-        EXPECT_EQ(10, ml.itemsLogged[ML_NEW]);
-        EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT1]);
-        EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT2]);
+        EXPECT_EQ(10, ml.itemsLogged[int(MutationLogType::New)]);
+        EXPECT_EQ(1, ml.itemsLogged[int(MutationLogType::Commit1)]);
+        EXPECT_EQ(1, ml.itemsLogged[int(MutationLogType::Commit2)]);
     }
 
     {

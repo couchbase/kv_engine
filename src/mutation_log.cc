@@ -266,7 +266,7 @@ MutationLog::MutationLog(const std::string &path,
     syncConfig(DEFAULT_SYNC_CONF),
     readOnly(false)
 {
-    for (int ii = 0; ii < MUTATION_LOG_TYPES; ++ii) {
+    for (int ii = 0; ii < int(MutationLogType::NumberOfTypes); ++ii) {
         itemsLogged[ii].store(0);
     }
     logSize.store(0);
@@ -290,9 +290,8 @@ void MutationLog::disable() {
 
 void MutationLog::newItem(uint16_t vbucket, const DocKey& key, uint64_t rowid) {
     if (isEnabled()) {
-        MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer.get(),
-                                                           rowid, ML_NEW,
-                                                           vbucket, key);
+        MutationLogEntry* mle = MutationLogEntry::newEntry(
+                entryBuffer.get(), rowid, MutationLogType::New, vbucket, key);
         writeEntry(mle);
     }
 }
@@ -312,8 +311,8 @@ void MutationLog::sync() {
 
 void MutationLog::commit1() {
     if (isEnabled()) {
-        MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer.get(),
-                                                           0, ML_COMMIT1, 0);
+        MutationLogEntry* mle = MutationLogEntry::newEntry(
+                entryBuffer.get(), 0, MutationLogType::Commit1, 0);
         writeEntry(mle);
 
         if ((getSyncConfig() & FLUSH_COMMIT_1) != 0) {
@@ -327,8 +326,8 @@ void MutationLog::commit1() {
 
 void MutationLog::commit2() {
     if (isEnabled()) {
-        MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer.get(),
-                                                           0, ML_COMMIT2, 0);
+        MutationLogEntry* mle = MutationLogEntry::newEntry(
+                entryBuffer.get(), 0, MutationLogType::Commit2, 0);
         writeEntry(mle);
 
         if ((getSyncConfig() & FLUSH_COMMIT_2) != 0) {
@@ -615,7 +614,7 @@ bool MutationLog::replaceWith(MutationLog &mlog) {
     }
     close();
 
-    for (int i(0); i < MUTATION_LOG_TYPES; ++i) {
+    for (int i(0); i < int(MutationLogType::NumberOfTypes); ++i) {
         itemsLogged[i].store(mlog.itemsLogged[i]);
     }
 
@@ -701,7 +700,7 @@ void MutationLog::writeEntry(MutationLogEntry *mle) {
     blockPos += len;
     ++entries;
 
-    ++itemsLogged[mle->type()];
+    ++itemsLogged[int(mle->type())];
 
     delete mle;
 }
@@ -858,7 +857,7 @@ void MutationLog::iterator::nextBlock() {
 }
 
 void MutationLog::resetCounts(size_t *items) {
-    for (int i(0); i < MUTATION_LOG_TYPES; ++i) {
+    for (int i(0); i < int(MutationLogType::NumberOfTypes); ++i) {
         itemsLogged[i] = items[i];
     }
 }
@@ -871,16 +870,16 @@ bool MutationLogHarvester::load() {
     bool clean(false);
     std::set<uint16_t> shouldClear;
     for (const MutationLogEntry* le : mlog) {
-        ++itemsSeen[le->type()];
+        ++itemsSeen[int(le->type())];
         clean = false;
 
         switch (le->type()) {
-        case ML_NEW:
+        case MutationLogType::New:
             if (vbid_set.find(le->vbucket()) != vbid_set.end()) {
                 loading[le->vbucket()].emplace(le->key());
             }
             break;
-        case ML_COMMIT2:
+        case MutationLogType::Commit2:
             clean = true;
 
             for (const uint16_t vb : vbid_set) {
@@ -890,12 +889,15 @@ bool MutationLogHarvester::load() {
             }
             loading.clear();
             break;
-        case ML_COMMIT1:
+        case MutationLogType::Commit1:
             // nothing in particular
             break;
+        case MutationLogType::NumberOfTypes:
         default:
-            throw std::logic_error("MutationLogHarvester::load: Invalid log "
-                    "entry type:" + std::to_string(le->type()));
+            throw std::logic_error(
+                    "MutationLogHarvester::load: Invalid log "
+                    "entry type:" +
+                    to_string(le->type()));
         }
     }
     return clean;
@@ -911,24 +913,24 @@ MutationLog::iterator MutationLogHarvester::loadBatch(
     committed.clear();
     for (; it != mlog.end() && count < limit; ++it) {
         const auto* le = *it;
-        ++itemsSeen[le->type()];
+        ++itemsSeen[int(le->type())];
 
         switch (le->type()) {
-        case ML_NEW:
+        case MutationLogType::New:
             if (vbid_set.find(le->vbucket()) != vbid_set.end()) {
                 committed[le->vbucket()].emplace(le->key());
                 count++;
             }
             break;
 
-        case ML_COMMIT2:
+        case MutationLogType::Commit1:
+        case MutationLogType::Commit2:
+        case MutationLogType::NumberOfTypes: {
             // We ignore COMMIT2 for Access log, was only relevent to the
             // 'proper' mutation log.
+            // all other types ignored as well.
             break;
-
-        default:
-            // Just ignore anything else also.
-            break;
+        }
         }
     }
     return it;
@@ -974,7 +976,7 @@ void MutationLogHarvester::apply(void *arg, mlCallbackWithQueue mlc) {
 
 size_t MutationLogHarvester::total() {
     size_t rv(0);
-    for (int i = 0; i < MUTATION_LOG_TYPES; ++i) {
+    for (int i = 0; i < int(MutationLogType::NumberOfTypes); ++i) {
         rv += itemsSeen[i];
     }
     return rv;
