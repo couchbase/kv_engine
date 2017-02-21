@@ -124,6 +124,41 @@ public:
     };
 
     /**
+     * Represents a locked hash bucket that provides RAII semantics for the lock
+     *
+     * A simple container which holds a lock and the bucket_num of the
+     * hashtable bucket it has the lock for.
+     */
+    class HashBucketLock {
+    public:
+        HashBucketLock(int bucketNum, std::mutex& mutex)
+            : bucketNum(bucketNum), htLock(mutex) {
+        }
+
+        HashBucketLock(HashBucketLock&& other)
+            : bucketNum(other.bucketNum), htLock(std::move(other.htLock)) {
+        }
+
+        HashBucketLock(const HashBucketLock& other) = delete;
+
+        int getBucketNum() const {
+            return bucketNum;
+        }
+
+        const std::unique_lock<std::mutex>& getHTLock() const {
+            return htLock;
+        }
+
+        std::unique_lock<std::mutex>& getHTLock() {
+            return htLock;
+        }
+
+    private:
+        int bucketNum;
+        std::unique_lock<std::mutex> htLock;
+    };
+
+    /**
      * Create a HashTable.
      *
      * @param st the global stats reference
@@ -305,17 +340,14 @@ public:
      * Adds a new StoredValue in the HT.
      * Assumes that HT bucket lock is grabbed.
      *
-     * @param htLock Hash table lock that must be held.
+     * @param hbl Hash table bucket lock that must be held.
      * @param itm Item to be added.
-     * @param bucketNum The hashtable bucket number
      *
      * @return Ptr of the StoredValue added. This function always succeeds and
      *         returns non-null ptr
      */
-    StoredValue* unlocked_addNewStoredValue(
-            const std::unique_lock<std::mutex>& htLock,
-            const Item& itm,
-            int bucketNum);
+    StoredValue* unlocked_addNewStoredValue(const HashBucketLock& hbl,
+                                            const Item& itm);
 
     /**
      * Logically (soft) delete the item in ht
@@ -348,12 +380,11 @@ public:
     /**
      * Get a lock holder holding a lock for the given bucket
      *
-     * @param bucket the bucket to lock
-     * @return a locked LockHolder
+     * @param bucket the bucket number to lock
+     * @return HashBucektLock which contains a lock and the hash bucket number
      */
-    inline std::unique_lock<std::mutex> getLockedBucket(int bucket) {
-        std::unique_lock<std::mutex> rv(mutexes[mutexForBucket(bucket)]);
-        return rv;
+    inline HashBucketLock getLockedBucket(int bucket) {
+        return HashBucketLock(bucket, mutexes[mutexForBucket(bucket)]);
     }
 
     /**
@@ -361,18 +392,17 @@ public:
      * hash.
      *
      * @param h the input hash
-     * @param bucket output parameter to receive a bucket
-     * @return a locked LockHolder
+     * @return HashBucketLock which contains a lock and the hash bucket number
      */
-    inline std::unique_lock<std::mutex> getLockedBucket(int h, int *bucket) {
+    inline HashBucketLock getLockedBucketForHash(int h) {
         while (true) {
             if (!isActive()) {
                 throw std::logic_error("HashTable::getLockedBucket: "
                         "Cannot call on a non-active object");
             }
-            *bucket = getBucketForHash(h);
-            std::unique_lock<std::mutex> rv(mutexes[mutexForBucket(*bucket)]);
-            if (*bucket == getBucketForHash(h)) {
+            int bucket = getBucketForHash(h);
+            HashBucketLock rv(bucket, mutexes[mutexForBucket(bucket)]);
+            if (bucket == getBucketForHash(h)) {
                 return rv;
             }
         }
@@ -383,15 +413,14 @@ public:
      * the given key.
      *
      * @param s the key
-     * @param bucket output parameter to receive a bucket
-     * @return a locked LockHolder
+     * @return HashBucektLock which contains a lock and the hash bucket number
      */
-    inline std::unique_lock<std::mutex> getLockedBucket(const DocKey& key, int *bucket) {
+    inline HashBucketLock getLockedBucket(const DocKey& key) {
         if (!isActive()) {
             throw std::logic_error("HashTable::getLockedBucket: Cannot call on a "
                     "non-active object");
         }
-        return getLockedBucket(key.hash(), bucket);
+        return getLockedBucketForHash(key.hash());
     }
 
     /**
@@ -399,27 +428,11 @@ public:
      * (Please note that you <b>MUST</b> acquire the mutex before calling
      * this function!!!
      *
-     * @param htLock Hash table lock that must be held
+     * @param hbl HashBucketLock that must be held
      * @param key the key to delete
-     * @param bucket_num the bucket to look in (must already be locked)
      */
-    void unlocked_del(const std::unique_lock<std::mutex>& htLock,
-                      const DocKey& key,
-                      int bucket_num);
+    void unlocked_del(const HashBucketLock& hbl, const DocKey& key);
 
-    /**
-     * Releases an item(StoredValue) in the hash table, but does not delete it.
-     * It will not be found in HT during HT delete. Hence the deletion of this
-     * removed StoredValue must be handled by another (maybe calling) module.
-     * Assumes that the hash bucket lock is already held.
-     *
-     * @param htLock Hash table lock that must be held
-     * @param key the key to be removed
-     *
-     * @return the StoredValue that is released
-     */
-    StoredValue* unlocked_release(const std::unique_lock<std::mutex>& htLock,
-                                  const DocKey& key);
     /**
      * Visit all items within this hashtable.
      */
@@ -546,6 +559,22 @@ public:
                               const Item& itm,
                               StoredValue& v);
 
+    /**
+     * Releases an item(StoredValue) in the hash table, but does not delete it.
+     * It will pass out the removed item to the caller who can decide whether to
+     * delete it or not.
+     * Once removed the item will not be found if we look in the HT later, even
+     * if the item is not deleted. Hence the deletion of this
+     * removed StoredValue must be handled by another (maybe calling) module.
+     * Assumes that the hash bucket lock is already held.
+     *
+     * @param hbl HashBucketLock that must be held
+     * @param key the key to delete
+     *
+     * @return the StoredValue that is removed from the HT
+     */
+    StoredValue* unlocked_release(const HashBucketLock& hbl, const DocKey& key);
+
     std::atomic<uint64_t>     maxDeletedRevSeqno;
     std::atomic<size_t>       numTotalItems;
     std::atomic<size_t>       numNonResidentItems;
@@ -590,25 +619,6 @@ private:
         }
         return bucket_num % n_locks;
     }
-
-    /**
-     * Releases an item(StoredValue) in the hash table, but does not delete it.
-     * It will pass out the removed item to the caller who can decide whether to
-     * delete it or not.
-     * Once removed the item will not be found if we look in the HT later, even
-     * if the item is not deleted. Hence the deletion of this
-     * removed StoredValue must be handled by another (maybe calling) module.
-     * Assumes that the hash bucket lock is already held.
-     *
-     * @param htLock Hash table lock that must be held
-     * @param key the key to delete
-     * @param bucket_num the hash bucket to look in
-     *
-     * @return the StoredValue that is removed from the HT
-     */
-    StoredValue* unlocked_release(const std::unique_lock<std::mutex>& htLock,
-                                  const DocKey& key,
-                                  int bucket_num);
 
     Item *getRandomKeyFromSlot(int slot);
 

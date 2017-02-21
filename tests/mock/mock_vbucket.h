@@ -61,41 +61,37 @@ public:
     }
 
     MutationStatus public_processSet(Item& itm, const uint64_t cas) {
-        int bucketNum(0);
-        auto lh = ht.getLockedBucket(itm.getKey(), &bucketNum);
+        auto hbl = ht.getLockedBucket(itm.getKey());
         StoredValue* v =
-                ht.unlocked_find(itm.getKey(), bucketNum, true, false);
-        return processSet(lh, v, itm, cas, true, false, bucketNum).first;
+                ht.unlocked_find(itm.getKey(), hbl.getBucketNum(), true, false);
+        return processSet(hbl, v, itm, cas, true, false).first;
     }
 
     AddStatus public_processAdd(Item& itm) {
-        int bucket_num(0);
-        auto lh = ht.getLockedBucket(itm.getKey(), &bucket_num);
+        auto hbl = ht.getLockedBucket(itm.getKey());
         StoredValue* v =
-                ht.unlocked_find(itm.getKey(), bucket_num, true, false);
-        return processAdd(lh,
+                ht.unlocked_find(itm.getKey(), hbl.getBucketNum(), true, false);
+        return processAdd(hbl,
                           v,
                           itm,
                           /*maybeKeyExists*/ true,
-                          /*isReplication*/ false,
-                          bucket_num)
+                          /*isReplication*/ false)
                 .first;
     }
 
     MutationStatus public_processSoftDelete(const DocKey& key,
                                             StoredValue* v,
                                             uint64_t cas) {
-        int bucket_num(0);
-        auto lh = ht.getLockedBucket(key, &bucket_num);
+        auto hbl = ht.getLockedBucket(key);
         if (!v) {
-            v = ht.unlocked_find(key, bucket_num, false, false);
+            v = ht.unlocked_find(key, hbl.getBucketNum(), false, false);
             if (!v) {
                 return MutationStatus::NotFound;
             }
         }
         ItemMetaData metadata;
         metadata.revSeqno = v->getRevSeqno() + 1;
-        return processSoftDelete(lh,
+        return processSoftDelete(hbl.getHTLock(),
                                  *v,
                                  cas,
                                  metadata,
@@ -109,15 +105,14 @@ public:
     }
 
     bool public_deleteStoredValue(const DocKey& key) {
-        int bucket_num(0);
-        std::unique_lock<std::mutex> lh = ht.getLockedBucket(key, &bucket_num);
+        auto hbl = ht.getLockedBucket(key);
         StoredValue* v = ht.unlocked_find(key,
-                                          bucket_num,
+                                          hbl.getBucketNum(),
                                           /*wantsDeleted*/ true,
                                           /*trackReference*/ false);
         if (!v) {
             return false;
         }
-        return deleteStoredValue(lh, *v, bucket_num);
+        return deleteStoredValue(hbl, *v);
     }
 };

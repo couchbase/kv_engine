@@ -80,11 +80,10 @@ std::pair<MutationStatus, VBNotifyCtx> EphemeralVBucket::updateStoredValue(
 }
 
 std::pair<StoredValue*, VBNotifyCtx> EphemeralVBucket::addNewStoredValue(
-        const std::unique_lock<std::mutex>& htLock,
+        const HashTable::HashBucketLock& hbl,
         const Item& itm,
-        const VBQueueItemCtx* queueItmCtx,
-        int bucketNum) {
-    StoredValue* v = ht.unlocked_addNewStoredValue(htLock, itm, bucketNum);
+        const VBQueueItemCtx* queueItmCtx) {
+    StoredValue* v = ht.unlocked_addNewStoredValue(hbl, itm);
 
     std::lock_guard<std::mutex> lh(sequenceLock);
 

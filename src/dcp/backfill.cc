@@ -56,9 +56,9 @@ void CacheCallback::callback(CacheLookup &lookup) {
         return;
     }
 
-    int bucket_num(0);
-    auto lh = vb->ht.getLockedBucket(lookup.getKey(), &bucket_num);
-    StoredValue *v = vb->ht.unlocked_find(lookup.getKey(), bucket_num, false, false);
+    auto hbl = vb->ht.getLockedBucket(lookup.getKey());
+    StoredValue* v = vb->ht.unlocked_find(
+            lookup.getKey(), hbl.getBucketNum(), false, false);
     if (v && v->isResident() && v->getBySeqno() == lookup.getBySeqno()) {
         ActiveStream* as = static_cast<ActiveStream*>(stream_.get());
         Item* it;
@@ -73,7 +73,7 @@ void CacheCallback::callback(CacheLookup &lookup) {
                                 lookup.getVBucketId());
             return;
         }
-        lh.unlock();
+        hbl.getHTLock().unlock();
         if (!as->backfillReceived(it, BACKFILL_FROM_MEMORY)) {
             setStatus(ENGINE_ENOMEM); // Pause the backfill
         } else {

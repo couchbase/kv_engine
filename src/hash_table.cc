@@ -219,9 +219,8 @@ StoredValue* HashTable::find(const DocKey& key, bool trackReference,
         throw std::logic_error("HashTable::find: Cannot call on a "
                 "non-active object");
     }
-    int bucket_num(0);
-    std::unique_lock<std::mutex> lh = getLockedBucket(key, &bucket_num);
-    return unlocked_find(key, bucket_num, wantsDeleted, trackReference);
+    HashBucketLock hbl = getLockedBucket(key);
+    return unlocked_find(key, hbl.getBucketNum(), wantsDeleted, trackReference);
 }
 
 Item* HashTable::getRandomKey(long rnd) {
@@ -245,13 +244,13 @@ MutationStatus HashTable::set(Item& val) {
         return MutationStatus::NoMem;
     }
 
-    int bucketNum(0);
-    std::unique_lock<std::mutex> lh = getLockedBucket(val.getKey(), &bucketNum);
-    StoredValue* v = unlocked_find(val.getKey(), bucketNum, true, false);
+    HashBucketLock hbl = getLockedBucket(val.getKey());
+    StoredValue* v =
+            unlocked_find(val.getKey(), hbl.getBucketNum(), true, false);
     if (v) {
-        return unlocked_updateStoredValue(lh, *v, val);
+        return unlocked_updateStoredValue(hbl.getHTLock(), *v, val);
     } else {
-        unlocked_addNewStoredValue(lh, val, bucketNum);
+        unlocked_addNewStoredValue(hbl, val);
         return MutationStatus::WasClean;
     }
 }
@@ -293,11 +292,9 @@ MutationStatus HashTable::unlocked_updateStoredValue(
     return status;
 }
 
-StoredValue* HashTable::unlocked_addNewStoredValue(
-        const std::unique_lock<std::mutex>& htLock,
-        const Item& itm,
-        int bucketNum) {
-    if (!htLock) {
+StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
+                                                   const Item& itm) {
+    if (!hbl.getHTLock()) {
         throw std::invalid_argument(
                 "HashTable::unlocked_addNewStoredValue: htLock "
                 "not held");
@@ -309,8 +306,8 @@ StoredValue* HashTable::unlocked_addNewStoredValue(
                 "call on a non-active HT object");
     }
 
-    StoredValue* v = valFact(itm, values[bucketNum], *this);
-    values[bucketNum] = v;
+    StoredValue* v = valFact(itm, values[hbl.getBucketNum()], *this);
+    values[hbl.getBucketNum()] = v;
 
     if (v->isTempItem()) {
         ++numTempItems;
@@ -361,22 +358,13 @@ StoredValue* HashTable::unlocked_find(const DocKey& key, int bucket_num,
     return NULL;
 }
 
-void HashTable::unlocked_del(const std::unique_lock<std::mutex>& htLock,
-                             const DocKey& key,
-                             int bucket_num) {
-    delete unlocked_release(htLock, key, bucket_num);
+void HashTable::unlocked_del(const HashBucketLock& hbl, const DocKey& key) {
+    delete unlocked_release(hbl, key);
 }
 
-StoredValue* HashTable::unlocked_release(
-        const std::unique_lock<std::mutex>& htLock, const DocKey& key) {
-    return unlocked_release(htLock, key, getBucketForHash(key.hash()));
-}
-
-StoredValue* HashTable::unlocked_release(
-        const std::unique_lock<std::mutex>& htLock,
-        const DocKey& key,
-        int bucket_num) {
-    if (!htLock) {
+StoredValue* HashTable::unlocked_release(const HashBucketLock& hbl,
+                                         const DocKey& key) {
+    if (!hbl.getHTLock()) {
         throw std::invalid_argument(
                 "HashTable::unlocked_remove: htLock "
                 "not held");
@@ -387,7 +375,7 @@ StoredValue* HashTable::unlocked_release(
                 "HashTable::unlocked_remove: Cannot call on a "
                 "non-active object");
     }
-    StoredValue *v = values[bucket_num];
+    StoredValue* v = values[hbl.getBucketNum()];
 
     /* An empty Hash Bucket when trying to remove a StoredValue indicates a
        potential memory leak / error in our HashTable handling */
@@ -399,7 +387,7 @@ StoredValue* HashTable::unlocked_release(
 
     // Special case the first one
     if (v->hasKey(key)) {
-        values[bucket_num] = v->next;
+        values[hbl.getBucketNum()] = v->next;
         StoredValue::reduceCacheSize(*this, v->size());
         StoredValue::reduceMetaDataSize(*this, stats, v->metaDataSize());
         if (v->isTempItem()) {
@@ -680,7 +668,7 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
 }
 
 Item *HashTable::getRandomKeyFromSlot(int slot) {
-    std::unique_lock<std::mutex> lh = getLockedBucket(slot);
+    auto lh = getLockedBucket(slot);
     StoredValue *v = values[slot];
 
     while (v) {

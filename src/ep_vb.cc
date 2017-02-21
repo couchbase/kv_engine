@@ -73,11 +73,10 @@ std::pair<MutationStatus, VBNotifyCtx> EPVBucket::updateStoredValue(
 }
 
 std::pair<StoredValue*, VBNotifyCtx> EPVBucket::addNewStoredValue(
-        const std::unique_lock<std::mutex>& htLock,
+        const HashTable::HashBucketLock& hbl,
         const Item& itm,
-        const VBQueueItemCtx* queueItmCtx,
-        int bucketNum) {
-    StoredValue* v = ht.unlocked_addNewStoredValue(htLock, itm, bucketNum);
+        const VBQueueItemCtx* queueItmCtx) {
+    StoredValue* v = ht.unlocked_addNewStoredValue(hbl, itm);
 
     if (queueItmCtx) {
         return {v, queueDirty(*v, *queueItmCtx)};

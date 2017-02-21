@@ -114,16 +114,15 @@ static std::vector<StoredDocKey> generateKeys(int num, int start=0) {
  * @return true if the item existed before this call
  */
 static bool del(HashTable& ht, const DocKey& key) {
-    int bucket_num(0);
-    std::unique_lock<std::mutex> lh = ht.getLockedBucket(key, &bucket_num);
+    auto hbl = ht.getLockedBucket(key);
     StoredValue* v = ht.unlocked_find(key,
-                                      bucket_num,
+                                      hbl.getBucketNum(),
                                       /*wantsDeleted*/ true,
                                       /*trackReference*/ false);
     if (!v) {
         return false;
     }
-    ht.unlocked_del(lh, key, bucket_num);
+    ht.unlocked_del(hbl, key);
     return true;
 }
 
@@ -528,11 +527,11 @@ TEST_F(HashTableTest, ReleaseItem) {
        after the test */
     std::unique_ptr<StoredValue> sv1(ht.find(removeKey1));
 
-    std::mutex fakeLock;
-    std::unique_lock<std::mutex> htLock(fakeLock);
-    ht.unlocked_release(htLock, removeKey1);
+    auto hbl = ht.getLockedBucket(removeKey1);
+    ht.unlocked_release(hbl, removeKey1);
     EXPECT_EQ(numItems - 1, ht.getNumItems());
 
+    hbl.getHTLock().unlock();
     /* Remove the element added last. This is certainly the head element of a
        hash bucket */
     StoredDocKey removeKey2 =
@@ -542,6 +541,7 @@ TEST_F(HashTableTest, ReleaseItem) {
        after the test */
     std::unique_ptr<StoredValue> sv2(ht.find(removeKey2));
 
-    ht.unlocked_release(htLock, removeKey2);
+    auto hbl2 = ht.getLockedBucket(removeKey2);
+    ht.unlocked_release(hbl2, removeKey2);
     EXPECT_EQ(numItems - 2, ht.getNumItems());
 }

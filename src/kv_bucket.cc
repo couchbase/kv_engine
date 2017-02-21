@@ -591,9 +591,9 @@ bool KVBucket::isMetaDataResident(RCPtr<VBucket> &vb, const DocKey& key) {
         throw std::invalid_argument("EPStore::isMetaDataResident: vb is NULL");
     }
 
-    int bucket_num(0);
-    auto lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = vb->ht.unlocked_find(key, bucket_num, false, false);
+    auto hbl = vb->ht.getLockedBucket(key);
+    StoredValue* v =
+            vb->ht.unlocked_find(key, hbl.getBucketNum(), false, false);
 
     if (v && !v->isTempItem()) {
         return true;
@@ -1272,13 +1272,11 @@ GetValue KVBucket::getRandomKey() {
     return GetValue(NULL, ENGINE_KEY_ENOENT);
 }
 
-
 ENGINE_ERROR_CODE KVBucket::getMetaData(const DocKey& key,
                                         uint16_t vbucket,
-                                        const void *cookie,
-                                        ItemMetaData &metadata,
-                                        uint32_t &deleted)
-{
+                                        const void* cookie,
+                                        ItemMetaData& metadata,
+                                        uint32_t& deleted) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
 
     if (!vb) {
@@ -1433,9 +1431,8 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    int bucket_num(0);
-    auto lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue* v = vb->fetchValidValue(lh, key, bucket_num, true);
+    auto hbl = vb->ht.getLockedBucket(key);
+    StoredValue* v = vb->fetchValidValue(hbl, key, true);
 
     if (v) {
         if (v->isDeleted() || v->isTempNonExistentItem() ||
@@ -1464,13 +1461,11 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
     }
 }
 
-
 ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
                                         uint16_t vbucket,
-                                        const void *cookie,
-                                        struct key_stats &kstats,
-                                        bool wantsDeleted)
-{
+                                        const void* cookie,
+                                        struct key_stats& kstats,
+                                        bool wantsDeleted) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
@@ -1482,11 +1477,9 @@ ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
 
 std::string KVBucket::validateKey(const DocKey& key, uint16_t vbucket,
                                   Item &diskItem) {
-    int bucket_num(0);
     RCPtr<VBucket> vb = getVBucket(vbucket);
-    auto lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue* v =
-            vb->fetchValidValue(lh, key, bucket_num, true, false, true);
+    auto hbl = vb->ht.getLockedBucket(key);
+    StoredValue* v = vb->fetchValidValue(hbl, key, true, false, true);
 
     if (v) {
         if (v->isDeleted() || v->isTempNonExistentItem() ||
@@ -1636,11 +1629,9 @@ public:
     // This callback is invoked for set only.
     void callback(mutation_result &value) {
         if (value.first == 1) {
-            int bucket_num(0);
-            auto lh = vbucket->ht.getLockedBucket(queuedItem->getKey(),
-                                                  &bucket_num);
+            auto hbl = vbucket->ht.getLockedBucket(queuedItem->getKey());
             StoredValue* v = vbucket->fetchValidValue(
-                    lh, queuedItem->getKey(), bucket_num, true, false);
+                    hbl, queuedItem->getKey(), true, false);
             if (v) {
                 if (v->getCas() == cas) {
                     // mark this item clean only if current and stored cas
@@ -1669,11 +1660,9 @@ public:
             // If the return was 0 here, we're in a bad state because
             // we do not know the rowid of this object.
             if (value.first == 0) {
-                int bucket_num(0);
-                auto lh = vbucket->ht.getLockedBucket(
-                                           queuedItem->getKey(), &bucket_num);
+                auto hbl = vbucket->ht.getLockedBucket(queuedItem->getKey());
                 StoredValue* v = vbucket->fetchValidValue(
-                        lh, queuedItem->getKey(), bucket_num, true, false);
+                        hbl, queuedItem->getKey(), true, false);
                 if (v) {
                     LOG(EXTENSION_LOG_WARNING,
                         "PersistenceCallback::callback: Persisting on "

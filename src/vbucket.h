@@ -530,16 +530,14 @@ public:
      * Gets the valid StoredValue for the key and deletes an expired item if
      * desired by the caller. Requires the hash bucket to be locked
      *
-     * @param lh Reference to the hash bucket lock
+     * @param hbl Reference to the hash bucket lock
      * @param key
-     * @param bucket_num Hash bucket number
      * @param wantsDeleted
      * @param trackReference
      * @param queueExpired Delete an expired item
      */
-    StoredValue* fetchValidValue(std::unique_lock<std::mutex>& lh,
+    StoredValue* fetchValidValue(HashTable::HashBucketLock& hbl,
                                  const DocKey& key,
-                                 int bucket_num,
                                  bool wantsDeleted = false,
                                  bool trackReference = true,
                                  bool queueExpired = true);
@@ -947,7 +945,7 @@ protected:
      * rules before setting an item into other in-memory structure like HT,
      * and checkpoint mgr. This function assumes that HT bucket lock is grabbed.
      *
-     * @param htLock Hash table lock that must be held
+     * @param hbl Hash table bucket lock that must be held
      * @param v Reference to the ptr of StoredValue. This can be changed if a
      *          new StoredValue is added or just its contents is changed if the
      *          exisiting StoredValue is updated
@@ -956,7 +954,6 @@ protected:
      * @param allowExisting set to false if you want set to fail if the
      *                      item exists already
      * @param hasMetaData
-     * @param bucketNum The hashtable bucket number
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
      *                    backfill queue; NULL if item need not be queued
      * @param maybeKeyExists true if bloom filter predicts that key may exist
@@ -966,13 +963,12 @@ protected:
      *                info
      */
     std::pair<MutationStatus, VBNotifyCtx> processSet(
-            const std::unique_lock<std::mutex>& htLock,
+            const HashTable::HashBucketLock& hbl,
             StoredValue*& v,
             Item& itm,
             uint64_t cas,
             bool allowExisting,
             bool hasMetaData,
-            int bucketNum,
             const VBQueueItemCtx* queueItmCtx = nullptr,
             bool maybeKeyExists = true,
             bool isReplication = false);
@@ -982,11 +978,10 @@ protected:
      * rules before adding an item into other in-memory structure like HT,
      * and checkpoint mgr. This function assumes that HT bucket lock is grabbed.
      *
-     * @param htLock Hash table lock that must be held
+     * @param hbl Hash table bucket lock that must be held
      * @param v[in, out] the stored value to do this operation on
      * @param itm Item to be added/updated. On success, its revSeqno is updated
      * @param isReplication true if issued by consumer (for replication)
-     * @param bucketNum The hashtable bucket number
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
      *                    backfill queue; NULL if item need not be queued
      *
@@ -994,12 +989,11 @@ protected:
      *                info
      */
     std::pair<AddStatus, VBNotifyCtx> processAdd(
-            const std::unique_lock<std::mutex>& htLock,
+            const HashTable::HashBucketLock& hbl,
             StoredValue*& v,
             Item& itm,
             bool maybeKeyExists,
             bool isReplication,
-            int bucketNum,
             const VBQueueItemCtx* queueItmCtx = nullptr);
 
     /**
@@ -1040,15 +1034,13 @@ protected:
      * then it must be decided in this function which data structure deletes
      * the StoredValue. Currently it is HashTable that deleted the StoredValue
      *
-     * @param htLock Hash table lock that must be held
+     * @param hbl Hash table bucket lock that must be held
      * @param v Reference to the StoredValue to be deleted
-     * @param bucket_num the hash bucket to look in
      *
      * @return true if an object was deleted, false otherwise
      */
-    bool deleteStoredValue(const std::unique_lock<std::mutex>& htLock,
-                           StoredValue& v,
-                           int bucketNum);
+    bool deleteStoredValue(const HashTable::HashBucketLock& hbl,
+                           StoredValue& v);
 
     /**
      * Queue an item for persistence and replication. Maybe track CAS drift
@@ -1141,19 +1133,17 @@ private:
      * Adds a new StoredValue in in-memory data structures like HT.
      * Assumes that HT bucket lock is grabbed.
      *
-     * @param htLock Hash table lock that must be held
+     * @param hbl Hash table bucket lock that must be held
      * @param itm Item to be added.
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
      *                    backfill queue; NULL if item need not be queued
-     * @param The hashtable bucket number
      *
      * @return Ptr of the StoredValue added and notification info
      */
     virtual std::pair<StoredValue*, VBNotifyCtx> addNewStoredValue(
-            const std::unique_lock<std::mutex>& htLock,
+            const HashTable::HashBucketLock& hbl,
             const Item& itm,
-            const VBQueueItemCtx* queueItmCtx,
-            int bucketNum) = 0;
+            const VBQueueItemCtx* queueItmCtx) = 0;
 
     /**
      * Logically (soft) delete item in all in-memory data structures. Also
@@ -1198,8 +1188,7 @@ private:
      * Add a temporary item in hash table and enqueue a background fetch for a
      * key.
      *
-     * @param lock Reference to the hash bucket lock
-     * @param bucket_num Hash bucket number
+     * @param hbl Reference to the hash table bucket lock
      * @param key the key to be bg fetched
      * @param cookie the cookie of the requestor
      * @param engine Reference to ep engine
@@ -1210,28 +1199,26 @@ private:
      *
      * @return ENGINE_ERROR_CODE status notified to be to the front end
      */
-    ENGINE_ERROR_CODE addTempItemAndBGFetch(std::unique_lock<std::mutex>& lock,
-                                            int bucket_num,
-                                            const DocKey& key,
-                                            const void* cookie,
-                                            EventuallyPersistentEngine& engine,
-                                            int bgFetchDelay,
-                                            bool metadataOnly,
-                                            bool isReplication = false);
+    ENGINE_ERROR_CODE
+    addTempItemAndBGFetch(HashTable::HashBucketLock& hbl,
+                          const DocKey& key,
+                          const void* cookie,
+                          EventuallyPersistentEngine& engine,
+                          int bgFetchDelay,
+                          bool metadataOnly,
+                          bool isReplication = false);
 
     /**
      * Adds a temporary StoredValue in in-memory data structures like HT.
      * Assumes that HT bucket lock is grabbed.
      *
-     * @param htLock Hash table lock that must be held
-     * @param bucketNum the locked partition where the key belongs
+     * @param hbl Hash table bucket lock that must be held
      * @param key the key for which a temporary item needs to be added
      * @param isReplication true if issued by consumer (for replication)
      *
      * @return Result indicating the status of the operation
      */
-    AddStatus addTempStoredValue(const std::unique_lock<std::mutex>& htLock,
-                                 int bucketNum,
+    AddStatus addTempStoredValue(const HashTable::HashBucketLock& hbl,
                                  const DocKey& key,
                                  bool isReplication = false);
 
