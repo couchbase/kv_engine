@@ -1132,7 +1132,7 @@ private:
             const std::unique_lock<std::mutex>& htLock,
             StoredValue& v,
             const Item& itm,
-            const VBQueueItemCtx* queueItmCtx);
+            const VBQueueItemCtx* queueItmCtx) = 0;
 
     /**
      * Adds a new StoredValue in in-memory data structures like HT.
@@ -1150,7 +1150,7 @@ private:
             const std::unique_lock<std::mutex>& htLock,
             const Item& itm,
             const VBQueueItemCtx* queueItmCtx,
-            int bucketNum);
+            int bucketNum) = 0;
 
     /**
      * Logically (soft) delete item in all in-memory data structures. Also
@@ -1175,7 +1175,7 @@ private:
             StoredValue& v,
             bool onlyMarkDeleted,
             const VBQueueItemCtx& queueItmCtx,
-            uint64_t bySeqno);
+            uint64_t bySeqno) = 0;
 
     /**
      * This function handles expiry relatead stuff before logically (soft)

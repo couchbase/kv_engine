@@ -44,7 +44,7 @@ public:
 /* Fill the bucket with the given number of docs. Returns the rate at which
  * items were added.
  */
-static size_t populateVbucket(MockVBucket& vbucket, size_t ndocs) {
+static size_t populateVbucket(MockEPVBucket& vbucket, size_t ndocs) {
     /* Set the hashTable to a sensible size */
     vbucket.ht.resize(ndocs);
 
@@ -129,19 +129,19 @@ protected:
 
         /* Create the vbucket */
         std::shared_ptr<Callback<uint16_t> > cb(new DummyCB());
-        vbucket.reset(new MockVBucket(0,
-                                      vbucket_state_active,
-                                      stats,
-                                      chkConfig,
-                                      nullptr,
-                                      0,
-                                      0,
-                                      0,
-                                      nullptr,
-                                      cb,
-                                      /*newSeqnoCb*/ nullptr,
-                                      config,
-                                      item_eviction_policy_t::VALUE_ONLY));
+        vbucket.reset(new MockEPVBucket(0,
+                                        vbucket_state_active,
+                                        stats,
+                                        chkConfig,
+                                        nullptr,
+                                        0,
+                                        0,
+                                        0,
+                                        nullptr,
+                                        cb,
+                                        /*newSeqnoCb*/ nullptr,
+                                        config,
+                                        item_eviction_policy_t::VALUE_ONLY));
     }
 
     static void TearDownTestCase() {
@@ -153,13 +153,13 @@ protected:
     static EPStats stats;
     static CheckpointConfig chkConfig;
     static Configuration config;
-    static std::unique_ptr<MockVBucket> vbucket;
+    static std::unique_ptr<MockEPVBucket> vbucket;
 };
 
 EPStats DefragmenterBenchmarkTest::stats;
 CheckpointConfig DefragmenterBenchmarkTest::chkConfig;
 Configuration DefragmenterBenchmarkTest::config;
-std::unique_ptr<MockVBucket> DefragmenterBenchmarkTest::vbucket;
+std::unique_ptr<MockEPVBucket> DefragmenterBenchmarkTest::vbucket;
 
 TEST_F(DefragmenterBenchmarkTest, Populate) {
     // How many items to create in the VBucket. Use a large number for
@@ -284,19 +284,19 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
     EPStats stats;
     CheckpointConfig chkConfig;
     Configuration config;
-    MockVBucket vbucket(0,
-                        vbucket_state_active,
-                        stats,
-                        chkConfig,
-                        nullptr,
-                        0,
-                        0,
-                        0,
-                        nullptr,
-                        cb,
-                        /*newSeqnoCb*/ nullptr,
-                        config,
-                        item_eviction_policy_t::VALUE_ONLY);
+    MockEPVBucket vbucket(0,
+                          vbucket_state_active,
+                          stats,
+                          chkConfig,
+                          nullptr,
+                          0,
+                          0,
+                          0,
+                          nullptr,
+                          cb,
+                          /*newSeqnoCb*/ nullptr,
+                          config,
+                          item_eviction_policy_t::VALUE_ONLY);
 
     // 1. Create a number of small documents. Doesn't really matter that
     //    they are small, main thing is we create enough to span multiple

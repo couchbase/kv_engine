@@ -22,42 +22,42 @@
 #pragma once
 
 #include "config.h"
-#include "vbucket.h"
+#include "ep_vb.h"
 
-class MockVBucket : public VBucket {
+class MockEPVBucket : public EPVBucket {
 public:
-    MockVBucket(id_type i,
-                vbucket_state_t newState,
-                EPStats& st,
-                CheckpointConfig& chkConfig,
-                KVShard* kvshard,
-                int64_t lastSeqno,
-                uint64_t lastSnapStart,
-                uint64_t lastSnapEnd,
-                std::unique_ptr<FailoverTable> table,
-                std::shared_ptr<Callback<id_type>> flusherCb,
-                NewSeqnoCallback newSeqnoCb,
-                Configuration& config,
-                item_eviction_policy_t evictionPolicy,
-                vbucket_state_t initState = vbucket_state_dead,
-                uint64_t purgeSeqno = 0,
-                uint64_t maxCas = 0)
-        : VBucket(i,
-                  vbucket_state_active,
-                  st,
-                  chkConfig,
-                  kvshard,
-                  lastSeqno,
-                  lastSnapStart,
-                  lastSnapEnd,
-                  nullptr,
-                  flusherCb,
-                  nullptr,
-                  config,
-                  evictionPolicy,
-                  initState,
-                  purgeSeqno,
-                  maxCas) {
+    MockEPVBucket(id_type i,
+                  vbucket_state_t newState,
+                  EPStats& st,
+                  CheckpointConfig& chkConfig,
+                  KVShard* kvshard,
+                  int64_t lastSeqno,
+                  uint64_t lastSnapStart,
+                  uint64_t lastSnapEnd,
+                  std::unique_ptr<FailoverTable> table,
+                  std::shared_ptr<Callback<id_type>> flusherCb,
+                  NewSeqnoCallback newSeqnoCb,
+                  Configuration& config,
+                  item_eviction_policy_t evictionPolicy,
+                  vbucket_state_t initState = vbucket_state_dead,
+                  uint64_t purgeSeqno = 0,
+                  uint64_t maxCas = 0)
+        : EPVBucket(i,
+                    vbucket_state_active,
+                    st,
+                    chkConfig,
+                    kvshard,
+                    lastSeqno,
+                    lastSnapStart,
+                    lastSnapEnd,
+                    nullptr,
+                    flusherCb,
+                    nullptr,
+                    config,
+                    evictionPolicy,
+                    initState,
+                    purgeSeqno,
+                    maxCas) {
     }
 
     MutationStatus public_processSet(Item& itm, const uint64_t cas) {

@@ -41,4 +41,24 @@ public:
               vbucket_state_t initState = vbucket_state_dead,
               uint64_t purgeSeqno = 0,
               uint64_t maxCas = 0);
+
+private:
+    std::pair<MutationStatus, VBNotifyCtx> updateStoredValue(
+            const std::unique_lock<std::mutex>& htLock,
+            StoredValue& v,
+            const Item& itm,
+            const VBQueueItemCtx* queueItmCtx) override;
+
+    std::pair<StoredValue*, VBNotifyCtx> addNewStoredValue(
+            const std::unique_lock<std::mutex>& htLock,
+            const Item& itm,
+            const VBQueueItemCtx* queueItmCtx,
+            int bucketNum) override;
+
+    VBNotifyCtx softDeleteStoredValue(
+            const std::unique_lock<std::mutex>& htLock,
+            StoredValue& v,
+            bool onlyMarkDeleted,
+            const VBQueueItemCtx& queueItmCtx,
+            uint64_t bySeqno) override;
 };

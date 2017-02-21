@@ -23,10 +23,10 @@
 #include <vector>
 
 #include "checkpoint.h"
+#include "ep_vb.h"
 #include "makestoreddockey.h"
 #include "stats.h"
 #include "thread_gate.h"
-#include "vbucket.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -204,7 +204,7 @@ static void launch_set_thread(void *arg) {
     }
 }
 
-typedef ::testing::Types<VBucket> VBucketTypes;
+typedef ::testing::Types<EPVBucket> VBucketTypes;
 TYPED_TEST_CASE(CheckpointTest, VBucketTypes);
 
 TYPED_TEST(CheckpointTest, basic_chk_test) {

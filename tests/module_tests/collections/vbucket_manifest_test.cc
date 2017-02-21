@@ -19,8 +19,8 @@
 #include "collections/manifest.h"
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_serialised_manifest_entry.h"
+#include "ep_vb.h"
 #include "tests/module_tests/makestoreddockey.h"
-#include "vbucket.h"
 
 #include <cJSON_utils.h>
 
@@ -205,7 +205,7 @@ protected:
     EPStats global_stats;
     CheckpointConfig checkpoint_config;
     Configuration config;
-    VBucket vbucket;
+    EPVBucket vbucket;
 };
 
 TEST_F(VBucketManifestTest, collectionExists) {

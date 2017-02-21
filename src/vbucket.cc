@@ -2536,33 +2536,6 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processExpiredItem(
     return {MutationStatus::NotFound, notifyCtx};
 }
 
-std::pair<MutationStatus, VBNotifyCtx> VBucket::updateStoredValue(
-        const std::unique_lock<std::mutex>& htLock,
-        StoredValue& v,
-        const Item& itm,
-        const VBQueueItemCtx* queueItmCtx) {
-    MutationStatus status = ht.unlocked_updateStoredValue(htLock, v, itm);
-
-    if (queueItmCtx) {
-        return {status, queueDirty(v, *queueItmCtx)};
-    }
-    return {status, VBNotifyCtx()};
-}
-
-std::pair<StoredValue*, VBNotifyCtx> VBucket::addNewStoredValue(
-        const std::unique_lock<std::mutex>& htLock,
-        const Item& itm,
-        const VBQueueItemCtx* queueItmCtx,
-        int bucketNum) {
-    StoredValue* v = ht.unlocked_addNewStoredValue(htLock, itm, bucketNum);
-
-    if (queueItmCtx) {
-        return {v, queueDirty(*v, *queueItmCtx)};
-    }
-
-    return {v, VBNotifyCtx()};
-}
-
 bool VBucket::deleteStoredValue(const std::unique_lock<std::mutex>& htLock,
                                 StoredValue& v,
                                 int bucketNum) {
@@ -2575,21 +2548,6 @@ bool VBucket::deleteStoredValue(const std::unique_lock<std::mutex>& htLock,
        by this point */
     ht.unlocked_del(htLock, v.getKey(), bucketNum);
     return true;
-}
-
-VBNotifyCtx VBucket::softDeleteStoredValue(
-        const std::unique_lock<std::mutex>& htLock,
-        StoredValue& v,
-        bool onlyMarkDeleted,
-        const VBQueueItemCtx& queueItmCtx,
-        uint64_t bySeqno) {
-    ht.unlocked_softDelete(htLock, v, onlyMarkDeleted);
-
-    if (queueItmCtx.genBySeqno == GenerateBySeqno::No) {
-        v.setBySeqno(bySeqno);
-    }
-
-    return queueDirty(v, queueItmCtx);
 }
 
 /* [TBD]: Get rid of std::unique_lock<std::mutex> lock */

@@ -47,7 +47,7 @@ static std::vector<StoredDocKey> generateKeys(int num, int start = 0) {
     return rv;
 }
 
-static void addOne(MockVBucket& vb,
+static void addOne(MockEPVBucket& vb,
                    const StoredDocKey& k,
                    AddStatus expect,
                    int expiry = 0) {
@@ -56,7 +56,7 @@ static void addOne(MockVBucket& vb,
                                                << k.c_str();
 }
 
-static void addMany(MockVBucket& vb,
+static void addMany(MockEPVBucket& vb,
                     std::vector<StoredDocKey>& keys,
                     AddStatus expect) {
     for (const auto& k : keys) {
@@ -64,7 +64,7 @@ static void addMany(MockVBucket& vb,
     }
 }
 
-static void verifyValue(MockVBucket& vb,
+static void verifyValue(MockEPVBucket& vb,
                         StoredDocKey& key,
                         const char* value,
                         bool trackReference,
@@ -85,26 +85,26 @@ class VBucketTest
 protected:
     void SetUp() {
         const auto eviction_policy = GetParam();
-        vbucket.reset(new MockVBucket(0,
-                                      vbucket_state_active,
-                                      global_stats,
-                                      checkpoint_config,
-                                      /*kvshard*/ nullptr,
-                                      /*lastSeqno*/ 1000,
-                                      /*lastSnapStart*/ 0,
-                                      /*lastSnapEnd*/ 0,
-                                      /*table*/ nullptr,
-                                      std::make_shared<DummyCB>(),
-                                      /*newSeqnoCb*/ nullptr,
-                                      config,
-                                      eviction_policy));
+        vbucket.reset(new MockEPVBucket(0,
+                                        vbucket_state_active,
+                                        global_stats,
+                                        checkpoint_config,
+                                        /*kvshard*/ nullptr,
+                                        /*lastSeqno*/ 1000,
+                                        /*lastSnapStart*/ 0,
+                                        /*lastSnapEnd*/ 0,
+                                        /*table*/ nullptr,
+                                        std::make_shared<DummyCB>(),
+                                        /*newSeqnoCb*/ nullptr,
+                                        config,
+                                        eviction_policy));
     }
 
     void TearDown() {
         vbucket.reset();
     }
 
-    std::unique_ptr<MockVBucket> vbucket;
+    std::unique_ptr<MockEPVBucket> vbucket;
     EPStats global_stats;
     CheckpointConfig checkpoint_config;
     Configuration config;
