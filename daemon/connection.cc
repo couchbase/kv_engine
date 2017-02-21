@@ -359,10 +359,6 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(cb::rbac::Privilege privile
     }
 
     if (ret == cb::rbac::PrivilegeAccess::Fail) {
-        // The rest of our system isn't fully RBAC aware yet, so that the
-        // standard unit tests fail due to invalid access.. For now
-        // let's allow them to proceed until they've fixed this..
-
         // @todo refactor this so that we may run this through a
         //       greenstack command context!
         std::string command;
@@ -371,14 +367,16 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(cb::rbac::Privilege privile
             command = memcached_opcode_2_text(mcbp->getCmd());
         }
 
-        if (isInternal()) {
-            LOG_NOTICE(nullptr,
-                       "%u RBAC %s missing privilege %s for %s with context: %s. Allowing anyway",
+        if (settings.isPrivilegeDebug()) {
+            LOG_NOTICE(this,
+                       "%u: RBAC privilege debug: %s command: [%s] bucket: [%s] Privilege: [%s] context: %s",
                        getId(),
                        getDescription().c_str(),
-                       cb::rbac::to_string(privilege).c_str(),
                        command.c_str(),
+                       all_buckets[bucketIndex].name,
+                       to_string(privilege).c_str(),
                        privilegeContext.to_string().c_str());
+
             return cb::rbac::PrivilegeAccess::Ok;
         } else {
             LOG_NOTICE(nullptr,
@@ -388,18 +386,6 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(cb::rbac::Privilege privile
                        cb::rbac::to_string(privilege).c_str(),
                        command.c_str(),
                        privilegeContext.to_string().c_str());
-        }
-
-        if (settings.isPrivilegeDebug()) {
-            LOG_NOTICE(this,
-                       "%u: RBAC privilege debug: %s command: [%s] bucket: [%s] Privilege: [%s]",
-                       getId(),
-                       getDescription().c_str(),
-                       command.c_str(),
-                       all_buckets[bucketIndex].name,
-                       to_string(privilege).c_str());
-
-            return cb::rbac::PrivilegeAccess::Ok;
         }
     }
 
