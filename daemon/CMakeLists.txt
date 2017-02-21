@@ -177,9 +177,9 @@ ADD_LIBRARY(memcached_daemon STATIC
 
 ADD_DEPENDENCIES(memcached_daemon generate_audit_descriptors)
 
-IF (NOT WIN32)
+IF (LIBEVENT_THREAD_LIB)
     LIST(APPEND MEMCACHED_EXTRA_LIBS ${LIBEVENT_THREAD_LIB})
-ENDIF (NOT WIN32)
+ENDIF (LIBEVENT_THREAD_LIB)
 
 TARGET_LINK_LIBRARIES(memcached_daemon
                       auditd
