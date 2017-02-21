@@ -263,7 +263,9 @@ TEST_P(ArithmeticTest, TestOperateOnStoredDocument) {
 
 TEST_P(ArithmeticTest, TestDocWithXattr) {
     auto& conn = getConnection();
-    conn.increment(name, 1);
+    EXPECT_EQ(0, conn.increment(name, 1));
+
+    auto& mcbp = dynamic_cast<MemcachedBinprotConnection&>(conn);
 
     // Add an xattr
     {
@@ -272,10 +274,13 @@ TEST_P(ArithmeticTest, TestDocWithXattr) {
         cmd.setKey(name);
         cmd.setPath("meta.author");
         cmd.setValue("\"Trond Norbye\"");
-        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH);
+        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH|SUBDOC_FLAG_MKDIR_P);
+        mcbp.sendCommand(cmd);
 
         BinprotResponse resp;
-        safe_do_command(cmd, resp, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        mcbp.recvResponse(resp);
+        ASSERT_TRUE(resp.isSuccess())
+                        << memcached_status_2_text(resp.getStatus());
     }
 
     // Perform the normal operation
@@ -288,10 +293,12 @@ TEST_P(ArithmeticTest, TestDocWithXattr) {
         cmd.setKey(name);
         cmd.setPath("meta.author");
         cmd.setFlags(SUBDOC_FLAG_XATTR_PATH);
+        mcbp.sendCommand(cmd);
 
         BinprotSubdocResponse resp;
-        safe_do_command(cmd, resp, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
+        mcbp.recvResponse(resp);
+        ASSERT_TRUE(resp.isSuccess())
+                        << memcached_status_2_text(resp.getStatus());
         EXPECT_EQ("\"Trond Norbye\"", resp.getValue());
     }
 }

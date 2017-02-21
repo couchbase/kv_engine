@@ -50,7 +50,7 @@ protected:
 };
 
 void RemoveTest::verify_MB_22553(const std::string& config) {
-    auto& conn = getConnection();
+    auto& conn = getAdminConnection();
     auto& connection = dynamic_cast<MemcachedBinprotConnection&>(conn);
 
     std::string name = "bucket-1";
@@ -177,9 +177,9 @@ TEST_P(RemoveTest, RemoveWithCas) {
  * document, and that the user attributes will be nuked off
  */
 TEST_P(RemoveTest, RemoveWithXattr) {
-    auto& conn = getConnection();
-
     createDocument();
+
+    auto& conn = getConnection();
     createXattr("meta.content-type", "\"application/json; charset=utf-8\"");
     createXattr("_rbac.attribute", "\"read-only\"");
     conn.remove(name, 0, 0);
@@ -193,7 +193,9 @@ TEST_P(RemoveTest, RemoveWithXattr) {
         FAIL() << "The user xattr should be gone!";
     } catch (const BinprotConnectionError& exp) {
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT,
-                  exp.getReason());
+                  exp.getReason())
+                    << memcached_status_2_text(
+                        protocol_binary_response_status(exp.getReason()));
     }
 }
 
