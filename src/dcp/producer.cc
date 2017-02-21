@@ -834,18 +834,8 @@ bool DcpProducer::handleSlowStream(uint16_t vbid,
         if (stream) {
             if (stream->getName().compare(name) == 0) {
                 ActiveStream* as = static_cast<ActiveStream*>(stream.get());
-                if (as) {
-                    LOG(EXTENSION_LOG_NOTICE, "%s (vb %" PRIu16 ")  Producer "
-                        "is handling slow stream;"
-                        " state:%s lastReadSeqno:%" PRIu64
-                        " lastSentSeqno:%" PRIu64,
-                        logHeader(), vbid,
-                        Stream::stateName(as->getState()),
-                        as->getLastReadSeqno(),
-                        as->getLastSentSeqno());
-                    as->handleSlowStream();
-                    return true;
-                }
+                as->handleSlowStream();
+                return true;
             }
         }
     }

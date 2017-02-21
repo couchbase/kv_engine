@@ -406,9 +406,11 @@ void ActiveStream::completeBackfill() {
             producer->getLogger().log(EXTENSION_LOG_NOTICE,
                     "(vb %" PRIu16 ") Backfill complete, %" PRIu64 " items "
                     "read from disk, %" PRIu64 " from memory, last seqno read: "
-                    "%" PRIu64 "\n", vb_, uint64_t(backfillItems.disk.load()),
+                    "%" PRIu64 ", pendingBackfill : %s",
+                    vb_, uint64_t(backfillItems.disk.load()),
                     uint64_t(backfillItems.memory.load()),
-                    lastReadSeqno.load());
+                    lastReadSeqno.load(),
+                    pendingBackfill ? "True" : "False");
 
             isBackfillTaskRunning = false;
             if (pendingBackfill) {
@@ -996,6 +998,13 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
 
     RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
     if (!vbucket) {
+        producer->getLogger().log(EXTENSION_LOG_WARNING,
+                                  "(vb %" PRIu16 ") Failed to schedule "
+                                  "backfill as unable to get vbucket; "
+                                  "lastReadSeqno : %" PRIu64 ", "
+                                  "reschedule : %s",
+                                  vb_, lastReadSeqno.load(),
+                                  reschedule ? "True" : "False");
         return;
     }
 
@@ -1068,6 +1077,17 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
         producer->scheduleBackfillManager(this, backfillStart, backfillEnd);
         isBackfillTaskRunning.store(true);
     } else {
+        if (reschedule) {
+            producer->getLogger().log(EXTENSION_LOG_NOTICE,
+                                      "(vb %" PRIu16 ") Did not schedule "
+                                      "backfill with reschedule : True; "
+                                      "backfillStart : %" PRIu64 ", "
+                                      "backfillEnd : %" PRIu64 ", "
+                                      "flags_ : %" PRIu32 ", "
+                                      "tryBackfill : %s",
+                                      vb_, backfillStart, backfillEnd, flags_,
+                                      tryBackfill ? "True" : "False");
+        }
         if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {
             endStream(END_STREAM_OK);
         } else if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
@@ -1098,6 +1118,16 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
 void ActiveStream::handleSlowStream()
 {
     LockHolder lh(streamMutex);
+    producer->getLogger().log(EXTENSION_LOG_NOTICE,
+                              "(vb %" PRIu16 ") Handling slow stream; "
+                              "state_ : %s, "
+                              "lastReadSeqno : %" PRIu64 ", "
+                              "lastSentSeqno : %" PRIu64 ", "
+                              "isBackfillTaskRunning : %s",
+                              vb_, stateName(state_),
+                              lastReadSeqno.load(),
+                              lastSentSeqno.load(),
+                              isBackfillTaskRunning.load() ? "True" : "False");
     switch (state_.load()) {
         case STREAM_BACKFILLING:
             if (isBackfillTaskRunning.load()) {
