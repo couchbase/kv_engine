@@ -109,14 +109,24 @@ enum class Privilege {
     IdleConnection,
     /**
      * The `XattrRead` privilege allows the connection to read the
-     * system attributes on the documents
+     * attributes on the documents
      */
     XattrRead,
     /**
+     * The `SystemXattrRead` privilege allows the connection to read
+     * the system attributes on the document.
+     */
+    SystemXattrRead,
+    /**
      * The `XattrWrite` privilege allows the connection to write to the
-     * system attributes on the documents
+     * attributes on the documents
      */
     XattrWrite,
+    /**
+     * The `SystemXattrWrite` privilege allows the connection to write to the
+     * system attributes on the documents
+     */
+    SystemXattrWrite,
     /**
      * The `CollectionManagement` privilege allows the connection to create or
      * delete collections.

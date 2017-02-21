@@ -40,7 +40,9 @@ static const std::unordered_map<std::string, Privilege> privilegemap = {
         {"MetaWrite", Privilege::MetaWrite},
         {"IdleConnection", Privilege::IdleConnection},
         {"XattrRead", Privilege::XattrRead},
+        {"SystemXattrRead", Privilege::SystemXattrRead},
         {"XattrWrite", Privilege::XattrWrite},
+        {"SystemXattrWrite", Privilege::SystemXattrWrite},
         {"CollectionManagement", Privilege::CollectionManagement},
         {"Impersonate", Privilege::Impersonate}};
 

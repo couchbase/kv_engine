@@ -773,6 +773,42 @@ static bool operate_single_json(SubdocCmdContext& context,
     return true;
 }
 
+static ENGINE_ERROR_CODE validate_xattr_privilege(SubdocCmdContext& context) {
+    auto key = context.get_xattr_key();
+    if (key.empty()) {
+        return ENGINE_SUCCESS;
+    }
+
+    cb::rbac::Privilege privilege;
+    // We've got an XATTR..
+    if (context.traits.is_mutator) {
+        if (cb::xattr::is_system_xattr(key)) {
+            privilege = cb::rbac::Privilege::SystemXattrWrite;
+        } else {
+            privilege = cb::rbac::Privilege::XattrWrite;
+        }
+    } else {
+        if (cb::xattr::is_system_xattr(key)) {
+            privilege = cb::rbac::Privilege::SystemXattrRead;
+        } else {
+            privilege = cb::rbac::Privilege::XattrRead;
+        }
+    }
+
+    auto access = context.connection.checkPrivilege(privilege);
+    switch (access) {
+    case cb::rbac::PrivilegeAccess::Ok:
+        return ENGINE_SUCCESS;
+    case cb::rbac::PrivilegeAccess::Fail:
+        return ENGINE_EACCESS;
+    case cb::rbac::PrivilegeAccess::Stale:
+        return ENGINE_AUTH_STALE;
+    }
+
+    throw std::logic_error(
+        "validate_xattr_privilege: invalid return value from checkPrivilege");
+}
+
 /**
  * Parse the XATTR blob and only operate on the single xattr
  * requested
@@ -785,6 +821,39 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
     context.setCurrentPhase(SubdocCmdContext::Phase::XATTR);
     if (context.getOperations().empty()) {
         return true;
+    }
+
+    // Does the user have the permission to perform XATTRs
+    auto access = validate_xattr_privilege(context);
+    if (access != ENGINE_SUCCESS) {
+        access = context.connection.remapErrorCode(access);
+        if (access == ENGINE_DISCONNECT) {
+            context.connection.setState(conn_closing);
+            return false;
+        }
+
+        switch (context.traits.path) {
+        case SubdocPath::SINGLE:
+            // Failure of a (the only) op stops execution and returns an
+            // error to the client.
+            mcbp_write_packet(&context.connection,
+                              engine_error_2_mcbp_protocol_error(access));
+            return false;
+
+        case SubdocPath::MULTI:
+            context.overall_status
+                = PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE;
+
+            {
+                // Mark all of them as failed..
+                auto& operations = context.getOperations();
+                for (auto op = operations.begin(); op != operations.end(); op++) {
+                    op->status = engine_error_2_mcbp_protocol_error(access);
+                }
+            }
+            return true;
+        }
+        throw std::logic_error("do_xattr_phase: unknown SubdocPath");
     }
 
     auto bodysize = context.in_doc.len;

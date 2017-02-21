@@ -70,5 +70,15 @@ cb::const_char_buffer get_body(const cb::const_char_buffer& payload);
 XATTR_PUBLIC_API
 cb::const_char_buffer get_xattr(const cb::const_char_buffer& payload);
 
+/**
+ * Check to see if the provided attribute represents a system
+ * attribute or not.
+ *
+ * @param attr the attribute to check (CAN'T BE EMPTY!)
+ */
+static inline bool is_system_xattr(cb::const_byte_buffer& attr) {
+    return *attr.data() == '_';
+}
+
 }
 }

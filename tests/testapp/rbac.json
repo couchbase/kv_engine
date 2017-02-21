@@ -11,6 +11,8 @@
         "TapConsumer",
         "TapProducer",
         "Write",
+        "SystemXattrRead",
+        "SystemXattrWrite",
         "XattrRead",
         "XattrWrite"
       ]
@@ -44,8 +46,8 @@
       "rbac_test": [
         "Read",
         "Write",
-        "XattrRead",
-        "XattrWrite"
+        "SystemXattrRead",
+        "SystemXattrWrite"
       ]
     },
     "privileges":[],

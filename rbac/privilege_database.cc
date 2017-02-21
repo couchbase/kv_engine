@@ -207,7 +207,9 @@ void PrivilegeContext::clearBucketPrivileges() {
     mask[int(Privilege::MetaRead)] = false;
     mask[int(Privilege::MetaWrite)] = false;
     mask[int(Privilege::XattrRead)] = false;
+    mask[int(Privilege::SystemXattrRead)] = false;
     mask[int(Privilege::XattrWrite)] = false;
+    mask[int(Privilege::SystemXattrWrite)] = false;
 }
 
 void PrivilegeContext::setBucketPrivileges() {
@@ -221,7 +223,9 @@ void PrivilegeContext::setBucketPrivileges() {
     mask[int(Privilege::MetaRead)] = true;
     mask[int(Privilege::MetaWrite)] = true;
     mask[int(Privilege::XattrRead)] = true;
+    mask[int(Privilege::SystemXattrRead)] = true;
     mask[int(Privilege::XattrWrite)] = true;
+    mask[int(Privilege::SystemXattrWrite)] = true;
 }
 
 PrivilegeContext createContext(const std::string& user,

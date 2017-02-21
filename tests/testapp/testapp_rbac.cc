@@ -180,6 +180,37 @@ protected:
         return conn.mutate(document, 0, type);
     }
 
+    BinprotResponse createXattr(MemcachedBinprotConnection& conn,
+                                const std::string& key,
+                                const std::string& value) {
+        BinprotSubdocCommand cmd;
+        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
+        cmd.setKey(name);
+        cmd.setPath(key);
+        cmd.setValue(value);
+        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+
+        conn.sendCommand(cmd);
+
+        BinprotResponse resp;
+        conn.recvResponse(resp);
+        return resp;
+    }
+
+    BinprotResponse getXattr(MemcachedBinprotConnection& conn,
+                             const std::string& key) {
+        BinprotSubdocCommand cmd;
+        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
+        cmd.setKey(name);
+        cmd.setPath(key);
+        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH);
+        conn.sendCommand(cmd);
+
+        BinprotResponse resp;
+        conn.recvResponse(resp);
+        return resp;
+    }
+
     MemcachedBinprotConnection& prepare(MemcachedBinprotConnection& c) {
         c.setDatatypeSupport(true);
         c.setMutationSeqnoSupport(true);
@@ -303,4 +334,70 @@ TEST_P(RbacRoleTest, Remove_WriteOnly) {
     auto& rw = getRWConnection();
     store(rw, Greenstack::MutationType::Add);
     rw.remove(name, 0, 0);
+}
+
+TEST_P(RbacRoleTest, NoAccessToUserXattrs) {
+    auto& rw = getRWConnection();
+    store(rw, Greenstack::MutationType::Add);
+
+    // The read only user should not have access to create a user xattr
+    auto resp = createXattr(getROConnection(), "meta.author", "\"larry\"");
+    ASSERT_FALSE(resp.isSuccess());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
+
+    // The write only user should have access to create a user xattr
+    resp = createXattr(getWOConnection(), "meta.author", "\"larry\"");
+    ASSERT_TRUE(resp.isSuccess());
+
+    // The read only user should be able to read it
+    resp = getXattr(getROConnection(), "meta.author");
+    ASSERT_TRUE(resp.isSuccess());
+
+    // The write only user should NOT be able to read it
+    resp = getXattr(getWOConnection(), "meta.author");
+    ASSERT_FALSE(resp.isSuccess());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
+
+    // The rw user only have access to the system xattrs. Read and write
+    // user xattrs should fail!
+    resp = createXattr(getRWConnection(), "meta.author", "\"larry\"");
+    ASSERT_FALSE(resp.isSuccess());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
+
+    resp = getXattr(getRWConnection(), "meta.author");
+    ASSERT_FALSE(resp.isSuccess());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
+}
+
+TEST_P(RbacRoleTest, NoAccessToSystemXattrs) {
+    auto& rw = getRWConnection();
+    store(rw, Greenstack::MutationType::Add);
+
+    // The read only user should not have access to create a system xattr
+    auto resp = createXattr(getROConnection(), "_meta.author", "\"larry\"");
+    ASSERT_FALSE(resp.isSuccess());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
+
+    // The write only user should not have access to create a system xattr
+    resp = createXattr(getROConnection(), "_meta.author", "\"larry\"");
+    ASSERT_FALSE(resp.isSuccess());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
+
+    // The read-write user should have access to create a system xattr
+    resp = createXattr(getRWConnection(), "_meta.author", "\"larry\"");
+    ASSERT_TRUE(resp.isSuccess());
+
+    // The read only user should not be able to read it
+    resp = getXattr(getROConnection(), "_meta.author");
+    ASSERT_FALSE(resp.isSuccess());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
+
+    // The write only user should not be able to read it
+    resp = getXattr(getWOConnection(), "_meta.author");
+    ASSERT_FALSE(resp.isSuccess());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
+
+    // The read write user should be able to read it
+    resp = getXattr(getRWConnection(), "_meta.author");
+    ASSERT_TRUE(resp.isSuccess());
 }
