@@ -178,6 +178,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/memory_tracker.cc
             src/murmurhash3.cc
             src/mutation_log.cc
+            src/mutation_log_entry.cc
             src/replicationthrottle.cc
             src/string_utils.cc
             src/storeddockey.cc

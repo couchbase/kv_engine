@@ -31,10 +31,6 @@ extern "C" {
 #include "ep_engine.h"
 #include "mutation_log.h"
 
-const char *mutation_log_type_names[] = {
-    "new", "del", "del_all", "commit1", "commit2", NULL
-};
-
 #ifdef WIN32
 ssize_t pread(file_handle_t fd, void *buf, size_t nbyte, uint64_t offset)
 {
@@ -254,10 +250,6 @@ static bool writeFully(file_handle_t fd, const uint8_t *buf, size_t nbytes) {
     }
 
     return true;
-}
-
-uint64_t MutationLogEntry::rowid() const {
-    return ntohll(_rowid);
 }
 
 MutationLog::MutationLog(const std::string &path,
@@ -714,21 +706,6 @@ void MutationLog::writeEntry(MutationLogEntry *mle) {
     delete mle;
 }
 
-static const char* logType(uint8_t t) {
-    switch(t) {
-    case ML_NEW:
-        return "new";
-        break;
-    case ML_COMMIT1:
-        return "commit1";
-        break;
-    case ML_COMMIT2:
-        return "commit2";
-        break;
-    }
-    return "UNKNOWN";
-}
-
 // ----------------------------------------------------------------------
 // Mutation log iterator
 // ----------------------------------------------------------------------
@@ -1001,18 +978,4 @@ size_t MutationLogHarvester::total() {
         rv += itemsSeen[i];
     }
     return rv;
-}
-
-// ----------------------------------------------------------------------
-// Output of entries
-// ----------------------------------------------------------------------
-
-std::ostream& operator <<(std::ostream &out, const MutationLogEntry &mle) {
-    out << "{MutationLogEntry rowid=" << mle.rowid()
-        << ", vbucket=" << mle.vbucket()
-        << ", magic=0x" << std::hex << static_cast<uint16_t>(mle.magic)
-        << std::dec
-        << ", type=" << logType(mle.type())
-        << ", key=``" << mle.key().data() << "''";
-    return out;
 }
