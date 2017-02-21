@@ -224,7 +224,7 @@ void MemcachedBinprotConnection::authenticate(const std::string& username,
     cbsasl_dispose(&client);
 
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("Authentication failed: ", response);
+        throw BinprotConnectionError("Authentication failed", response);
     }
 }
 
@@ -254,7 +254,7 @@ void MemcachedBinprotConnection::createBucket(const std::string& name,
     recvResponse(response);
 
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("Create bucket failed: ", response);
+        throw BinprotConnectionError("Create bucket failed", response);
     }
 }
 
@@ -265,7 +265,7 @@ void MemcachedBinprotConnection::deleteBucket(const std::string& name) {
     recvResponse(response);
 
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("Delete bucket failed: ", response);
+        throw BinprotConnectionError("Delete bucket failed", response);
     }
 }
 
@@ -308,7 +308,7 @@ std::vector<std::string> MemcachedBinprotConnection::listBuckets() {
     recvResponse(response);
 
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("List bucket failed: ", response);
+        throw BinprotConnectionError("List bucket failed", response);
     }
 
     std::vector<std::string> ret;
