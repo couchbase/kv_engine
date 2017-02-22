@@ -1135,9 +1135,12 @@ void KVBucket::snapshotStats() {
     getOneRWUnderlying()->snapshotStats(snap.smap);
 }
 
-void KVBucket::completeBGFetch(const DocKey& key, uint16_t vbucket,
-                               const void *cookie, hrtime_t init, bool isMeta) {
-    hrtime_t startTime(gethrtime());
+void KVBucket::completeBGFetch(const DocKey& key,
+                               uint16_t vbucket,
+                               const void* cookie,
+                               ProcessClock::time_point init,
+                               bool isMeta) {
+    ProcessClock::time_point startTime(ProcessClock::now());
     // Go find the data
     RememberingCallback<GetValue> gcb;
     if (isMeta) {
@@ -1169,11 +1172,9 @@ void KVBucket::completeBGFetch(const DocKey& key, uint16_t vbucket,
     delete gcb.val.getValue();
 }
 
-void KVBucket::completeBGFetchMulti(
-                                uint16_t vbId,
-                                std::vector<bgfetched_item_t> &fetchedItems,
-                                hrtime_t startTime)
-{
+void KVBucket::completeBGFetchMulti(uint16_t vbId,
+                                    std::vector<bgfetched_item_t>& fetchedItems,
+                                    ProcessClock::time_point startTime) {
     RCPtr<VBucket> vb = getVBucket(vbId);
     if (vb) {
         for (const auto& item : fetchedItems) {

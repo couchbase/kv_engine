@@ -816,7 +816,7 @@ void VBucket::incExpirationStat(const ExpireBy source) {
 ENGINE_ERROR_CODE VBucket::completeBGFetchForSingleItem(
         const DocKey& key,
         const VBucketBGFetchItem& fetched_item,
-        const hrtime_t startTime) {
+        const ProcessClock::time_point startTime) {
     ENGINE_ERROR_CODE status = fetched_item.value.getStatus();
     Item* fetchedValue = fetched_item.value.getValue();
     { // locking scope
@@ -910,7 +910,7 @@ ENGINE_ERROR_CODE VBucket::completeBGFetchForSingleItem(
         ++stats.bg_fetched;
     }
 
-    updateBGStats(fetched_item.initTime, startTime, gethrtime());
+    updateBGStats(fetched_item.initTime, startTime, ProcessClock::now());
     return status;
 }
 
@@ -2200,26 +2200,29 @@ void VBucket::decrDirtyQueuePendingWrites(size_t decrementBy)
     } while (!dirtyQueuePendingWrites.compare_exchange_strong(oldVal, newVal));
 }
 
-void VBucket::updateBGStats(const hrtime_t init,
-                            const hrtime_t start,
-                            const hrtime_t stop) {
-    if (stop >= start && start >= init) {
-        // skip the measurement if the counter wrapped...
-        ++stats.bgNumOperations;
-        hrtime_t w = (start - init) / 1000;
-        BlockTimer::log(start - init, "bgwait", stats.timingLog);
-        stats.bgWaitHisto.add(w);
-        stats.bgWait.fetch_add(w);
-        atomic_setIfLess(stats.bgMinWait, w);
-        atomic_setIfBigger(stats.bgMaxWait, w);
+void VBucket::updateBGStats(const ProcessClock::time_point init,
+                            const ProcessClock::time_point start,
+                            const ProcessClock::time_point stop) {
+    ++stats.bgNumOperations;
+    hrtime_t waitNs =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(start - init)
+                    .count();
+    hrtime_t w = waitNs / 1000;
+    BlockTimer::log(waitNs, "bgwait", stats.timingLog);
+    stats.bgWaitHisto.add(w);
+    stats.bgWait.fetch_add(w);
+    atomic_setIfLess(stats.bgMinWait, w);
+    atomic_setIfBigger(stats.bgMaxWait, w);
 
-        hrtime_t l = (stop - start) / 1000;
-        BlockTimer::log(stop - start, "bgload", stats.timingLog);
-        stats.bgLoadHisto.add(l);
-        stats.bgLoad.fetch_add(l);
-        atomic_setIfLess(stats.bgMinLoad, l);
-        atomic_setIfBigger(stats.bgMaxLoad, l);
-    }
+    hrtime_t lNs =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start)
+                    .count();
+    hrtime_t l = lNs / 1000;
+    BlockTimer::log(lNs, "bgload", stats.timingLog);
+    stats.bgLoadHisto.add(l);
+    stats.bgLoad.fetch_add(l);
+    atomic_setIfLess(stats.bgMinLoad, l);
+    atomic_setIfBigger(stats.bgMaxLoad, l);
 }
 
 std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(

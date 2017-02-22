@@ -2221,7 +2221,10 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
         // populate return value for remaining fetch items with the
         // same seqid
         fetch->value = returnVal;
-        st.readTimeHisto.add((gethrtime() - fetch->initTime) / 1000);
+        st.readTimeHisto.add(
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                        ProcessClock::now() - fetch->initTime)
+                        .count());
         if (errCode == COUCHSTORE_SUCCESS) {
             st.readSizeHisto.add(returnVal.getValue()->getKey().size() +
                                  returnVal.getValue()->getNBytes());

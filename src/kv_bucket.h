@@ -301,8 +301,8 @@ public:
      */
     void completeBGFetch(const DocKey& key,
                          uint16_t vbucket,
-                         const void *cookie,
-                         hrtime_t init,
+                         const void* cookie,
+                         ProcessClock::time_point init,
                          bool isMeta);
     /**
      * Complete a batch of background fetch of a non resident value or metadata.
@@ -314,8 +314,8 @@ public:
      *
      */
     void completeBGFetchMulti(uint16_t vbId,
-                              std::vector<bgfetched_item_t> &fetchedItems,
-                              hrtime_t start);
+                              std::vector<bgfetched_item_t>& fetchedItems,
+                              ProcessClock::time_point start);
 
     RCPtr<VBucket> getVBucket(uint16_t vbid) {
         return vbMap.getBucket(vbid);

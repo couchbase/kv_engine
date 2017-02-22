@@ -40,15 +40,18 @@ class PersistenceCallback;
 
 class VBucketBGFetchItem {
 public:
-    VBucketBGFetchItem(const void *c, bool meta_only) :
-        cookie(c), initTime(gethrtime()), metaDataOnly(meta_only)
-    { }
-    VBucketBGFetchItem(const GetValue& value_, const void* c,
-                       const hrtime_t& init_time, bool meta_only)
+    VBucketBGFetchItem(const void* c, bool meta_only)
+        : cookie(c), initTime(ProcessClock::now()), metaDataOnly(meta_only) {
+    }
+    VBucketBGFetchItem(const GetValue& value_,
+                       const void* c,
+                       const ProcessClock::time_point& init_time,
+                       bool meta_only)
         : value(value_),
           cookie(c),
           initTime(init_time),
-          metaDataOnly(meta_only) {}
+          metaDataOnly(meta_only) {
+    }
 
     ~VBucketBGFetchItem() {}
 
@@ -59,7 +62,7 @@ public:
 
     GetValue value;
     const void * cookie;
-    hrtime_t initTime;
+    ProcessClock::time_point initTime;
     bool metaDataOnly;
 };
 

@@ -203,15 +203,23 @@ private:
  */
 class SingleBGFetcherTask : public GlobalTask {
 public:
-    SingleBGFetcherTask(EventuallyPersistentEngine *e, const DocKey& k,
-                       uint16_t vbid, const void *c, bool isMeta,
-                       int sleeptime = 0, bool completeBeforeShutdown = false)
-        : GlobalTask(e, TaskId::SingleBGFetcherTask, sleeptime, completeBeforeShutdown),
+    SingleBGFetcherTask(EventuallyPersistentEngine* e,
+                        const DocKey& k,
+                        uint16_t vbid,
+                        const void* c,
+                        bool isMeta,
+                        int sleeptime = 0,
+                        bool completeBeforeShutdown = false)
+        : GlobalTask(e,
+                     TaskId::SingleBGFetcherTask,
+                     sleeptime,
+                     completeBeforeShutdown),
           key(k),
           vbucket(vbid),
           cookie(c),
           metaFetch(isMeta),
-          init(gethrtime()) {}
+          init(ProcessClock::now()) {
+    }
 
     bool run();
 
@@ -225,9 +233,9 @@ public:
 private:
     const StoredDocKey         key;
     uint16_t                   vbucket;
-    const void                *cookie;
+    const void*                cookie;
     bool                       metaFetch;
-    hrtime_t                   init;
+    ProcessClock::time_point   init;
 };
 
 /**

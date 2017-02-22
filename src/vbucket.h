@@ -556,7 +556,7 @@ public:
     ENGINE_ERROR_CODE completeBGFetchForSingleItem(
             const DocKey& key,
             const VBucketBGFetchItem& fetched_item,
-            const hrtime_t startTime);
+            const ProcessClock::time_point startTime);
 
     /**
      * Retrieve an item from the disk for vkey stats
@@ -1106,9 +1106,9 @@ private:
      * @param start the time when the background fetch was started
      * @param stop the time when the background fetch completed
      */
-    void updateBGStats(const hrtime_t init,
-                       const hrtime_t start,
-                       const hrtime_t stop);
+    void updateBGStats(const ProcessClock::time_point init,
+                       const ProcessClock::time_point start,
+                       const ProcessClock::time_point stop);
 
     /**
      * Updates an existing StoredValue in in-memory data structures like HT.

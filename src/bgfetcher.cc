@@ -57,10 +57,15 @@ void BgFetcher::notifyBGEvent(void) {
 
 size_t BgFetcher::doFetch(VBucket::id_type vbId,
                           vb_bgfetch_queue_t& itemsToFetch) {
-    hrtime_t startTime(gethrtime());
-    LOG(EXTENSION_LOG_DEBUG, "BgFetcher is fetching data, vBucket = %d "
-        "numDocs = %" PRIu64 ", startTime = %" PRIu64,
-        vbId, uint64_t(itemsToFetch.size()), startTime/1000000);
+    ProcessClock::time_point startTime(ProcessClock::now());
+    LOG(EXTENSION_LOG_DEBUG,
+        "BgFetcher is fetching data, vb:%" PRIu16 " numDocs:%" PRIu64 " "
+        "startTime:%" PRIu64,
+        vbId,
+        uint64_t(itemsToFetch.size()),
+        std::chrono::duration_cast<std::chrono::seconds>(
+                startTime.time_since_epoch())
+                .count());
 
     shard->getROUnderlying()->getMulti(vbId, itemsToFetch);
 
@@ -78,8 +83,11 @@ size_t BgFetcher::doFetch(VBucket::id_type vbId,
 
     if (fetchedItems.size() > 0) {
         store->completeBGFetchMulti(vbId, fetchedItems, startTime);
-        stats.getMultiHisto.add((gethrtime() - startTime) / 1000,
-                                fetchedItems.size());
+        stats.getMultiHisto.add(
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                        ProcessClock::now() - startTime)
+                        .count(),
+                fetchedItems.size());
     }
 
     clearItems(vbId, itemsToFetch);
