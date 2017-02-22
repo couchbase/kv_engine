@@ -667,3 +667,10 @@ void BinprotDcpMutationCommand::encode(std::vector<uint8_t>& buf) const {
     throw std::runtime_error(
         "BinprotDcpMutationCommand::encode: not implemented");
 }
+
+void BinprotSetParamCommand::encode(std::vector<uint8_t>& buf) const {
+    writeHeader(buf, value.size(), 4);
+    append(buf, uint32_t(type));
+    buf.insert(buf.end(), key.begin(), key.end());
+    buf.insert(buf.end(), value.begin(), value.end());
+}

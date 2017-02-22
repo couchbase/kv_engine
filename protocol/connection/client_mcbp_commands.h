@@ -1084,3 +1084,22 @@ private:
     uint16_t nmeta;
     uint8_t nru;
 };
+
+class BinprotSetParamCommand
+    : public BinprotGenericCommand {
+public:
+    BinprotSetParamCommand(protocol_binary_engine_param_t type_,
+                           const std::string& key_,
+                           const std::string& value_)
+        : BinprotGenericCommand(PROTOCOL_BINARY_CMD_SET_PARAM),
+          type(type_),
+          value(value_) {
+        setKey(key_);
+    }
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+protected:
+    const protocol_binary_engine_param_t type;
+    const std::string value;
+};
