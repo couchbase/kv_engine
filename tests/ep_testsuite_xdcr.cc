@@ -1262,13 +1262,23 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
           "Expected get_meta to succeed");
     check(last_deleted_flag, "Expected deleted flag to be set");
 
+    // Even though 2 get_meta calls are made, we may have one or two bg fetches
+    // done. That is if first bgfetch restores in HT, the deleted item from
+    // disk, before the second get_meta call tries to find that item in HT,
+    // we will have only 1 bgfetch
+    wait_for_stat_to_be_gte(h, h1, "ep_bg_meta_fetched", 1);
+    int exp_get_meta_ops = get_int_stat(h, h1, "ep_num_ops_get_meta");
+
     // Do get_meta for a non-existing key.
     char const *k2 = "k2";
     check(!get_meta(h, h1, k2), "Expected get meta to return false");
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(), "Expected enoent");
 
-    // Ensure all bg fetches completed (two were requested)
-    wait_for_stat_to_be(h, h1, "ep_bg_meta_fetched", 2);
+    // This call for get_meta may or may not result in bg fetch because
+    // bloomfilter may predict that key does not exist.
+    // However we still must increment the ep_num_ops_get_meta count
+    checkeq(exp_get_meta_ops + 1, get_int_stat(h, h1, "ep_num_ops_get_meta"),
+            "Num get meta ops not as expected");
 
     // Trigger the expiry pager and verify that two temp items are deleted
     set_param(h, h1, protocol_binary_engine_param_flush,
