@@ -108,6 +108,29 @@ void audit_dcp_open(const Connection *c) {
     }
 }
 
+void audit_set_privilege_debug_mode(const Connection* c, bool enable) {
+    auto root = create_memcached_audit_object(c);
+    cJSON_AddBoolToObject(root.get(), "enable", enable);
+    do_audit(c, MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED, root,
+             "Failed to send modifications in privilege debug state "
+             "audit event to audit daemon");
+}
+
+void audit_privilege_debug(const Connection* c,
+                           const std::string& command,
+                           const std::string& bucket,
+                           const std::string& privilege,
+                           const std::string& context) {
+    auto root = create_memcached_audit_object(c);
+    cJSON_AddStringToObject(root.get(), "command", command.c_str());
+    cJSON_AddStringToObject(root.get(), "bucket", bucket.c_str());
+    cJSON_AddStringToObject(root.get(), "privilege", privilege.c_str());
+    cJSON_AddStringToObject(root.get(), "context", context.c_str());
+
+    do_audit(c, MEMCACHED_AUDIT_PRIVILEGE_DEBUG, root,
+             "Failed to send privilege debug audit event to audit daemon");
+}
+
 void audit_command_access_failed(const McbpConnection *c) {
     auto root = create_memcached_audit_object(c);
     char buffer[256];

@@ -113,6 +113,47 @@
         "peername" : "",
         "sockname" : ""
       }
+    },
+    {
+      "id": 20486,
+      "name": "privilege debug configured",
+      "description": "The state of the privilege debug mode changed",
+      "sync": false,
+      "enabled": true,
+      "mandatory_fields": {
+        "enable": true,
+        "timestamp": "",
+        "real_userid": {
+          "source": "",
+          "user": ""
+        },
+        "peername": "",
+        "sockname": ""
+      },
+      "optional_fields": {
+      }
+    },
+    {
+      "id": 20487,
+      "name": "privilege debug",
+      "description": "Access to a resource was granted due to privilege debug",
+      "sync": false,
+      "enabled": true,
+      "mandatory_fields": {
+        "command": "",
+        "bucket": "",
+        "privilege": "",
+        "current_context": "",
+        "timestamp": "",
+        "real_userid": {
+          "source": "",
+          "user": ""
+        },
+        "peername": "",
+        "sockname": ""
+      },
+      "optional_fields": {
+      }
     }
   ]
 }

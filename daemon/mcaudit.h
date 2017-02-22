@@ -16,6 +16,10 @@
  */
 #pragma once
 
+#include <string>
+
+class Connection;
+class McbpConnection;
 
 /**
  * Send an audit event for an authentication failure
@@ -59,6 +63,29 @@ void audit_command_access_failed(const McbpConnection* c);
  * param c the connection object performing DCP Open
  */
 void audit_invalid_packet(const McbpConnection* c);
+
+/**
+ * Send an audit event for the change in privilege debug
+ *
+ * @param c the connection object toggling privilege debug
+ * @param enable if privilege debug is enabled or disabled
+ */
+void audit_set_privilege_debug_mode(const Connection* c, bool enable);
+
+/**
+ * Send an audit event for privilege debug allowing a command to pass
+ *
+ * @param c the connection object performing the operation
+ * @param command the command being executed
+ * @param bucket the bucket where the command is executed
+ * @param privilege the privilege granted
+ * @param context the current privilege context
+ */
+void audit_privilege_debug(const Connection* c,
+                           const std::string& command,
+                           const std::string& bucket,
+                           const std::string& privilege,
+                           const std::string& context);
 
 /**
  * Initialize the audit subsystem

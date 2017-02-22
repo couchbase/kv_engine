@@ -2060,7 +2060,14 @@ static void config_validate_executor(McbpConnection* c, void* packet) {
 }
 
 static void config_reload_executor(McbpConnection* c, void*) {
+    // We need to audit that the privilege debug mode changed and
+    // in order to do that we need the "connection" object so we can't
+    // do this by using the common "changed_listener"-interface.
+    bool old_priv_debug = settings.isPrivilegeDebug();
     reload_config_file();
+    if (settings.isPrivilegeDebug() != old_priv_debug) {
+        audit_set_privilege_debug_mode(c, settings.isPrivilegeDebug());
+    }
     mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 

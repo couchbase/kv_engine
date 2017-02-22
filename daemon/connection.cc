@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 #include "config.h"
+#include "mcaudit.h"
 #include "memcached.h"
 #include "runtime.h"
 #include "statemachine_mcbp.h"
@@ -347,15 +348,21 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(cb::rbac::Privilege privile
             command = memcached_opcode_2_text(mcbp->getCmd());
         }
 
+        const std::string privilege_string = cb::rbac::to_string(privilege);
+        const std::string context = privilegeContext.to_string();
+
         if (settings.isPrivilegeDebug()) {
+            audit_privilege_debug(this, command, all_buckets[bucketIndex].name,
+                                  privilege_string, context);
+
             LOG_NOTICE(this,
-                       "%u: RBAC privilege debug: %s command: [%s] bucket: [%s] Privilege: [%s] context: %s",
+                       "%u: RBAC privilege debug: %s command: [%s] bucket: [%s] privilege: [%s] context: %s",
                        getId(),
                        getDescription().c_str(),
                        command.c_str(),
                        all_buckets[bucketIndex].name,
-                       to_string(privilege).c_str(),
-                       privilegeContext.to_string().c_str());
+                       privilege_string.c_str(),
+                       context.c_str());
 
             return cb::rbac::PrivilegeAccess::Ok;
         } else {
@@ -363,9 +370,9 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(cb::rbac::Privilege privile
                        "%u RBAC %s missing privilege %s for %s with context: %s",
                        getId(),
                        getDescription().c_str(),
-                       cb::rbac::to_string(privilege).c_str(),
+                       privilege_string.c_str(),
                        command.c_str(),
-                       privilegeContext.to_string().c_str());
+                       context.c_str());
         }
     }
 
