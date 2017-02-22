@@ -438,16 +438,16 @@ int main(int argc, char** argv) {
                                               family,
                                               secure);
 
-        if (!user.empty()) {
-            connection.authenticate(user, password,
-                                    connection.getSaslMechanisms());
-        }
-
         // MEMCACHED_VERSION contains the git sha
         connection.hello("mctimings",
                          MEMCACHED_VERSION,
                          "command line utitilty to fetch command timings");
         connection.setXerrorSupport(true);
+
+        if (!user.empty()) {
+            connection.authenticate(user, password,
+                                    connection.getSaslMechanisms());
+        }
 
         if (!bucket.empty()) {
             connection.selectBucket(bucket);

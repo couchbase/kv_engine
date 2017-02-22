@@ -199,16 +199,16 @@ int main(int argc, char** argv) {
                                               family,
                                               secure);
 
+        // MEMCACHED_VERSION contains the git sha
+        connection.hello("mcctl",
+                         MEMCACHED_VERSION,
+                         "command line utility to get/set properties");
+        connection.setXerrorSupport(true);
+
         if (!user.empty()) {
             connection.authenticate(user, password,
                                     connection.getSaslMechanisms());
         }
-
-        // MEMCACHED_VERSION contains the git sha
-        connection.hello("mcctl",
-                         MEMCACHED_VERSION,
-                         "command line utitilty to get/set properties");
-        connection.setXerrorSupport(true);
 
         if (!bucket.empty()) {
             connection.selectBucket(bucket);
