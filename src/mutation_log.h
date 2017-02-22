@@ -352,8 +352,8 @@ public:
 
         const MutationLog* log;
         std::vector<uint8_t> entryBuf;
-        std::unique_ptr<uint8_t[]> buf;
-        uint8_t           *p;
+        std::vector<uint8_t> buf;
+        std::vector<uint8_t>::const_iterator p;
         off_t              offset;
         uint16_t           items;
         bool               isEnd;

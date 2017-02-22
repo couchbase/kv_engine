@@ -73,7 +73,8 @@ public:
      * @param buf a chunk of memory thought to contain a valid MutationLogEntry
      * @param buflen the length of said buf
      */
-    static MutationLogEntry* newEntry(uint8_t* buf, size_t buflen) {
+    static const MutationLogEntry* newEntry(
+            std::vector<uint8_t>::const_iterator itr, size_t buflen) {
         if (buflen < len(0)) {
             throw std::invalid_argument(
                     "MutationLogEntry::newEntry: buflen "
@@ -83,7 +84,7 @@ public:
                     std::to_string(len(0)) + ")");
         }
 
-        MutationLogEntry* me = reinterpret_cast<MutationLogEntry*>(buf);
+        const auto* me = reinterpret_cast<const MutationLogEntry*>(&(*itr));
 
         if (me->magic != MUTATION_LOG_MAGIC) {
             throw std::invalid_argument(
