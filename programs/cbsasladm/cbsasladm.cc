@@ -175,15 +175,16 @@ int main(int argc, char **argv) {
                                                   family,
                                                   secure);
 
-            // MEMCACHED_VERSION contains the git sha
-            connection.hello("cbsasladm",
-                             MEMCACHED_VERSION,
-                             "command line utitilty to manage the internal sasl db");
-
             if (!user.empty()) {
                 connection.authenticate(user, password,
                                         connection.getSaslMechanisms());
             }
+
+            // MEMCACHED_VERSION contains the git sha
+            connection.hello("cbsasladm",
+                             MEMCACHED_VERSION,
+                             "command line utility to manage the internal sasl db");
+            connection.setXerrorSupport(true);
 
             if (!bucket.empty()) {
                 connection.selectBucket(bucket);
