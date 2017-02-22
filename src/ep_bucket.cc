@@ -19,6 +19,7 @@
 
 #include "bgfetcher.h"
 #include "ep_engine.h"
+#include "ep_vb.h"
 #include "flusher.h"
 
 EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
@@ -238,20 +239,20 @@ RCPtr<VBucket> EPBucket::makeVBucket(
         uint64_t purgeSeqno,
         uint64_t maxCas) {
     auto flusherCb = std::make_shared<NotifyFlusherCB>(shard);
-    return RCPtr<VBucket>(new VBucket(id,
-                                      state,
-                                      stats,
-                                      engine.getCheckpointConfig(),
-                                      shard,
-                                      lastSeqno,
-                                      lastSnapStart,
-                                      lastSnapEnd,
-                                      std::move(table),
-                                      flusherCb,
-                                      std::move(newSeqnoCb),
-                                      engine.getConfiguration(),
-                                      eviction_policy,
-                                      initState,
-                                      purgeSeqno,
-                                      maxCas));
+    return RCPtr<VBucket>(new EPVBucket(id,
+                                        state,
+                                        stats,
+                                        engine.getCheckpointConfig(),
+                                        shard,
+                                        lastSeqno,
+                                        lastSnapStart,
+                                        lastSnapEnd,
+                                        std::move(table),
+                                        flusherCb,
+                                        std::move(newSeqnoCb),
+                                        engine.getConfiguration(),
+                                        eviction_policy,
+                                        initState,
+                                        purgeSeqno,
+                                        maxCas));
 }
