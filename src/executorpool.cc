@@ -551,6 +551,15 @@ ssize_t ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
         numWorkers[type] = desiredNumItems;
     } // release mutex
 
+    // MB-22938 wake all threads to avoid blocking if a thread is sleeping
+    // waiting for work. Without this, stopping a single thread could take
+    // up to 2s (MIN_SLEEP_TIME).
+    if (!removed.empty()) {
+        TaskQueue* sleepQ = getSleepQ(type);
+        size_t threadCount = threadQ.size();
+        sleepQ->doWake(threadCount);
+    }
+
     // We could not join the threads while holding the lock, as some operations
     // called from the threads (such as schedule) acquire the lock - we could
     // have caused deadlock by waiting for the thread to complete its task and
