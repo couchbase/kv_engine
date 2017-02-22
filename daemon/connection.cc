@@ -306,16 +306,6 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(cb::rbac::Privilege privile
             command = memcached_opcode_2_text(mcbp->getCmd());
         }
 
-        if (settings.isPrivilegeDebug()) {
-            LOG_NOTICE(this,
-                       "%u: RBAC privilege debug: %s Stale privilege context. command: [%s] bucket: [%s] Privilege: [%s]",
-                       getId(),
-                       getDescription().c_str(),
-                       command.c_str(),
-                       all_buckets[bucketIndex].name,
-                       to_string(privilege).c_str());
-        }
-
         // The privilege context we had could have been a dummy entry
         // (created when the client connected, and used until the
         // connection authenticates). Let's try to automatically update it,
@@ -346,16 +336,6 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(cb::rbac::Privilege privile
         }
 
         ret = privilegeContext.check(privilege);
-        if (settings.isPrivilegeDebug()) {
-            LOG_NOTICE(this,
-                       "%u: RBAC privilege debug: %s second check %s command: [%s] bucket: [%s] Privilege: [%s]",
-                       getId(),
-                       getDescription().c_str(),
-                       cb::rbac::to_string(ret).c_str(),
-                       command.c_str(),
-                       all_buckets[bucketIndex].name,
-                       to_string(privilege).c_str());
-        }
     }
 
     if (ret == cb::rbac::PrivilegeAccess::Fail) {
