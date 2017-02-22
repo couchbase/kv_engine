@@ -351,7 +351,7 @@ public:
         void prepItem();
 
         const MutationLog* log;
-        std::unique_ptr<uint8_t[]> entryBuf;
+        std::vector<uint8_t> entryBuf;
         std::unique_ptr<uint8_t[]> buf;
         uint8_t           *p;
         off_t              offset;

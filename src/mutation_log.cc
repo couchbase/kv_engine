@@ -710,40 +710,35 @@ void MutationLog::writeEntry(MutationLogEntry *mle) {
 // ----------------------------------------------------------------------
 
 MutationLog::iterator::iterator(const MutationLog* l, bool e)
-  : log(l),
-    entryBuf(),
-    buf(),
-    p(nullptr),
-    offset(l->header().blockSize() * l->header().blockCount()),
-    items(0),
-    isEnd(e)
-{
+    : log(l),
+      entryBuf(LOG_ENTRY_BUF_SIZE),
+      buf(),
+      p(nullptr),
+      offset(l->header().blockSize() * l->header().blockCount()),
+      items(0),
+      isEnd(e) {
 }
 
 MutationLog::iterator::iterator(const MutationLog::iterator& mit)
-  : log(mit.log),
-    entryBuf(),
-    buf(),
-    p(nullptr),
-    offset(mit.offset),
-    items(mit.items),
-    isEnd(mit.isEnd)
-{
+    : log(mit.log),
+      entryBuf(mit.entryBuf),
+      buf(),
+      p(nullptr),
+      offset(mit.offset),
+      items(mit.items),
+      isEnd(mit.isEnd) {
     if (mit.buf != NULL) {
         buf.reset(new uint8_t[log->header().blockSize()]());
         memcpy(buf.get(), mit.buf.get(), log->header().blockSize());
         p = buf.get() + (mit.p - mit.buf.get());
-    }
-
-    if (mit.entryBuf != NULL) {
-        entryBuf.reset(new uint8_t[LOG_ENTRY_BUF_SIZE]());
-        memcpy(entryBuf.get(), mit.entryBuf.get(), LOG_ENTRY_BUF_SIZE);
     }
 }
 
 MutationLog::iterator& MutationLog::iterator::operator=(const MutationLog::iterator& other)
 {
     log = other.log;
+    entryBuf = other.entryBuf;
+
     if (other.buf != nullptr) {
         buf.reset(new uint8_t[log->header().blockSize()]());
         memcpy(buf.get(), other.buf.get(), log->header().blockSize());
@@ -751,13 +746,6 @@ MutationLog::iterator& MutationLog::iterator::operator=(const MutationLog::itera
     } else {
         buf = nullptr;
         p = nullptr;
-    }
-
-    if (other.entryBuf != nullptr) {
-        entryBuf.reset(new uint8_t[LOG_ENTRY_BUF_SIZE]());
-        memcpy(entryBuf.get(), other.entryBuf.get(), LOG_ENTRY_BUF_SIZE);
-    } else {
-        entryBuf = nullptr;
     }
 
     offset = other.offset;
@@ -773,10 +761,7 @@ MutationLog::iterator::~iterator() {
 void MutationLog::iterator::prepItem() {
     MutationLogEntry *e = MutationLogEntry::newEntry(p,
                                                      bufferBytesRemaining());
-    if (entryBuf == NULL) {
-        entryBuf.reset(new uint8_t[LOG_ENTRY_BUF_SIZE]());
-    }
-    memcpy(entryBuf.get(), p, e->len());
+    std::copy_n(p, e->len(), entryBuf.begin());
 }
 
 MutationLog::iterator& MutationLog::iterator::operator++() {
@@ -804,11 +789,7 @@ bool MutationLog::iterator::operator!=(const MutationLog::iterator& rhs) const {
 }
 
 const MutationLogEntry* MutationLog::iterator::operator*() {
-    if (entryBuf == nullptr) {
-        throw std::logic_error("MutationLog::iterator::operator*(): "
-                "entryBuf is NULL");
-    }
-    return MutationLogEntry::newEntry(entryBuf.get(), LOG_ENTRY_BUF_SIZE);
+    return MutationLogEntry::newEntry(entryBuf.data(), entryBuf.size());
 }
 
 size_t MutationLog::iterator::bufferBytesRemaining() {
