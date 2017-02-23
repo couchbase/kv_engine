@@ -358,18 +358,18 @@ private:
 
 bool Configuration::parseConfiguration(const char *str,
                                        SERVER_HANDLE_V1* sapi) {
-    std::vector<ConfigItem *> config;
+    std::vector<std::unique_ptr<ConfigItem> > config;
 
     for (const auto& attribute : attributes) {
-        config.push_back(new ConfigItem(attribute.first.c_str(),
-                                        attribute.second.datatype));
+        config.push_back(std::make_unique<ConfigItem>(attribute.first.c_str(),
+                                                      attribute.second.datatype));
     }
 
     // we don't have a good support for alias yet...
-    config.push_back(new ConfigItem("cache_size", DT_SIZE));
+    config.push_back(std::make_unique<ConfigItem>("cache_size", DT_SIZE));
 
     // And add support for config files...
-    config.push_back(new ConfigItem("config_file", DT_CONFIGFILE));
+    config.push_back(std::make_unique<ConfigItem>("config_file", DT_CONFIGFILE));
 
     const int nelem = config.size();
     std::vector<config_item> items(nelem + 1);
@@ -411,10 +411,6 @@ bool Configuration::parseConfiguration(const char *str,
                 cb_free(*items[ii].value.dt_string);
             }
         }
-    }
-
-    for (const auto& configItem : config) {
-        delete configItem;
     }
 
     return ret;
