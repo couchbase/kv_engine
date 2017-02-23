@@ -173,9 +173,7 @@ std::string BackfillDiskLoad::getDescription() {
 
 void BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
     if (vBucketFilter(vb->getId())) {
-        item_eviction_policy_t policy =
-                                engine->getKVBucket()->getItemEvictionPolicy();
-        double num_items = static_cast<double>(vb->getNumItems(policy));
+        double num_items = static_cast<double>(vb->getNumItems());
 
         if (num_items == 0) {
             return;

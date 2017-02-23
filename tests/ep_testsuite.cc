@@ -3588,8 +3588,8 @@ static enum test_result test_curr_items_add_set(ENGINE_HANDLE *h, ENGINE_HANDLE_
     return SUCCESS;
 }
 
-static enum test_result test_curr_items_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_curr_items_delete(ENGINE_HANDLE *h,
+                                               ENGINE_HANDLE_V1 *h1) {
     // Verify initial case.
     verify_curr_items(h, h1, 0, "init");
 
@@ -7267,12 +7267,10 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("stats curr_items ADD SET", test_curr_items_add_set,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("stats curr_items DELETE", test_curr_items_delete,
-                 test_setup, teardown, NULL,
-                 /* TODO Ephemeral: curr_items not currently updated on DELETE*/prepare_skip_broken_under_ephemeral,
-                 cleanup),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("stats curr_items FLUSH", test_curr_items_flush,
                  test_setup, teardown, NULL,
-                 /* TODO Ephemeral: curr_items not currently updated on FLUSH*/prepare_skip_broken_under_ephemeral,
+                 /* TODO Ephemeral: flush command does not complete */prepare_skip_broken_under_ephemeral,
                  cleanup),
         TestCase("stats curr_items vbucket_state_dead", test_curr_items_dead,
                  test_setup, teardown, NULL, prepare, cleanup),
@@ -7295,7 +7293,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_all_keys_api,
                  test_setup, teardown,
                  NULL,
-                 /* TODO Ephemeral: curr_items not currently updated on DELETE*/prepare_skip_broken_under_ephemeral,
+                 /* TODO Ephemeral: need to implement getAllKeys from HT */prepare_skip_broken_under_ephemeral,
                  cleanup),
         TestCase("test ALL_KEYS api during bucket creation",
                  test_all_keys_api_during_bucket_creation,

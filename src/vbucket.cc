@@ -156,6 +156,7 @@ VBucket::VBucket(id_type i,
       dirtyQueuePendingWrites(0),
       metaDataDisk(0),
       numExpiredItems(0),
+      eviction(evictionPolicy),
       id(i),
       state(newState),
       initialState(initState),
@@ -176,7 +177,6 @@ VBucket::VBucket(id_type i,
       bucketDeletion(false),
       persistenceSeqno(0),
       newSeqnoCb(std::move(newSeqnoCb)),
-      eviction(evictionPolicy),
       multiBGFetchEnabled(kvshard
                                   ? kvshard->getROUnderlying()
                                             ->getStorageProperties()
@@ -541,14 +541,6 @@ size_t VBucket::getCheckpointFlushTimeout() {
     return chkFlushTimeout;
 }
 
-size_t VBucket::getNumItems(item_eviction_policy_t policy) const {
-    if (policy == VALUE_ONLY) {
-        return ht.getNumInMemoryItems();
-    } else {
-        return ht.getNumItems();
-    }
-}
-
 size_t VBucket::getNumNonResidentItems(item_eviction_policy_t policy) {
     if (policy == VALUE_ONLY) {
         return ht.getNumInMemoryNonResItems();
@@ -588,7 +580,7 @@ bool VBucket::isResidentRatioUnderThreshold(float threshold,
                 "policy (which is " + std::to_string(policy) +
                 ") must be FULL_EVICTION");
     }
-    size_t num_items = getNumItems(policy);
+    size_t num_items = getNumItems();
     size_t num_non_resident_items = getNumNonResidentItems(policy);
     if (threshold >= ((float)(num_items - num_non_resident_items) /
                                                                 num_items)) {
@@ -2191,7 +2183,7 @@ void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
                        item_eviction_policy_t policy) {
     addStat(NULL, toString(state), add_stat, c);
     if (details) {
-        size_t numItems = getNumItems(policy);
+        size_t numItems = getNumItems();
         size_t tempItems = getNumTempItems();
         addStat("num_items", numItems, add_stat, c);
         addStat("num_temp_items", tempItems, add_stat, c);

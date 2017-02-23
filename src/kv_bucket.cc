@@ -278,7 +278,7 @@ bool BloomFilterCallback::initTempFilter(uint16_t vbucketId) {
          */
 
          if (residentRatioAlert) {
-             estimated_count = round(1.25 * vb->getNumItems(eviction_policy));
+             estimated_count = round(1.25 * vb->getNumItems());
          } else {
              estimated_count = round(1.25 * (num_deletes +
                                       vb->getNumNonResidentItems(eviction_policy)));

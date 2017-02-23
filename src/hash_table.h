@@ -159,6 +159,13 @@ public:
     }
 
     /**
+     * Get the number of deleted items in the hash table.
+     */
+    size_t getNumDeletedItems() const {
+        return numDeletedItems;
+    }
+
+    /**
      * Get the number of in-memory non-resident items within this hash table.
      */
     size_t getNumInMemoryNonResItems(void) { return numNonResidentItems; }
@@ -166,7 +173,7 @@ public:
     /**
      * Get the number of non-resident and resident items managed by
      * this hash table. Includes items marked as deleted.
-     * Note that this will be equal to getNumItems() if
+     * Note that this will be equal to numItems if
      * VALUE_ONLY_EVICTION is chosen as a cache management.
      */
     size_t getNumItems(void) const {
@@ -542,6 +549,7 @@ public:
     std::atomic<uint64_t>     maxDeletedRevSeqno;
     std::atomic<size_t>       numTotalItems;
     std::atomic<size_t>       numNonResidentItems;
+    std::atomic<size_t> numDeletedItems;
     std::atomic<size_t>       numEjects;
     //! Memory consumed by items in this hashtable.
     std::atomic<size_t>       memSize;

@@ -684,8 +684,7 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie,
                     backfillRemaining.load(std::memory_order_relaxed),
                     add_stat, cookie);
 
-    item_eviction_policy_t iep = engine->getKVBucket()->getItemEvictionPolicy();
-    size_t vb_items = vb.getNumItems(iep);
+    size_t vb_items = vb.getNumItems();
     size_t chk_items = vb_items > 0 ?
                 vb.checkpointManager.getNumItemsForCursor(name_) : 0;
 

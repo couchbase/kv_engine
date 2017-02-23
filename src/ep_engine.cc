@@ -2888,7 +2888,7 @@ void VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
     ++numVbucket;
     item_eviction_policy_t policy = engine.getKVBucket()->
                                                        getItemEvictionPolicy();
-    numItems += vb->getNumItems(policy);
+    numItems += vb->getNumItems();
     numTempItems += vb->getNumTempItems();
     nonResident += vb->getNumNonResidentItems(policy);
 
@@ -5665,7 +5665,7 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
          */
         LOG(EXTENSION_LOG_NOTICE,"doDcpVbTakeoverStats - cannot find "
             "connection %s for vb:%" PRIu16, dcpName.c_str(), vbid);
-        size_t vb_items = vb->getNumItems(kvBucket->getItemEvictionPolicy());
+        size_t vb_items = vb->getNumItems();
 
         size_t del_items = 0;
         try {
@@ -5715,7 +5715,7 @@ EventuallyPersistentEngine::doTapVbTakeoverStats(const void *cookie,
     }
     std::string tapName("eq_tapq:");
     tapName.append(key);
-    size_t vb_items = vb->getNumItems(kvBucket->getItemEvictionPolicy());
+    size_t vb_items = vb->getNumItems();
 
     size_t del_items = 0;
     try {

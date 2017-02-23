@@ -39,10 +39,11 @@ std::ostream& operator<<(std::ostream& os, const HashTable::Position& pos) {
     return os;
 }
 
-HashTable::HashTable(EPStats &st, size_t s, size_t l)
+HashTable::HashTable(EPStats& st, size_t s, size_t l)
     : maxDeletedRevSeqno(0),
       numTotalItems(0),
       numNonResidentItems(0),
+      numDeletedItems(0),
       numEjects(0),
       memSize(0),
       cacheSize(0),
@@ -52,8 +53,7 @@ HashTable::HashTable(EPStats &st, size_t s, size_t l)
       visitors(0),
       numItems(0),
       numResizes(0),
-      numTempItems(0)
-{
+      numTempItems(0) {
     size = HashTable::getNumBuckets(s);
     n_locks = HashTable::getNumLocks(l);
     values = static_cast<StoredValue**>(cb_calloc(size, sizeof(StoredValue*)));
@@ -284,6 +284,11 @@ MutationStatus HashTable::unlocked_updateStoredValue(
         ++numTotalItems;
     }
 
+    if (v.isDeleted() && !itm.isDeleted()) {
+        numDeletedItems.fetch_sub(1, std::memory_order_relaxed);
+    }
+
+    /* setValue() will mark v as undeleted if required */
     v.setValue(itm, *this);
     return status;
 }
@@ -334,6 +339,7 @@ void HashTable::unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
         }
         v.del(*this);
     }
+    numDeletedItems.fetch_add(1, std::memory_order_relaxed);
 }
 
 StoredValue* HashTable::unlocked_find(const DocKey& key, int bucket_num,
@@ -401,6 +407,9 @@ StoredValue* HashTable::unlocked_release(
         } else {
             decrNumItems();
             decrNumTotalItems();
+            if (v->isDeleted()) {
+                numDeletedItems.fetch_sub(1, std::memory_order_relaxed);
+            }
         }
         return v;
     }
@@ -416,6 +425,9 @@ StoredValue* HashTable::unlocked_release(
             } else {
                 decrNumItems();
                 decrNumTotalItems();
+                if (v->isDeleted()) {
+                    numDeletedItems.fetch_sub(1, std::memory_order_relaxed);
+                }
             }
             return tmp;
         } else {

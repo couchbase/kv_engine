@@ -42,6 +42,8 @@ public:
               uint64_t purgeSeqno = 0,
               uint64_t maxCas = 0);
 
+    size_t getNumItems() const override;
+
 private:
     std::pair<MutationStatus, VBNotifyCtx> updateStoredValue(
             const std::unique_lock<std::mutex>& htLock,

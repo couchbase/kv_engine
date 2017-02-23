@@ -364,7 +364,7 @@ class VBucketEvictionTest : public VBucketTest {};
 // ejected from the HashTable.
 TEST_P(VBucketEvictionTest, EjectionResidentCount) {
     const auto eviction_policy = GetParam();
-    ASSERT_EQ(0, this->vbucket->getNumItems(eviction_policy));
+    ASSERT_EQ(0, this->vbucket->getNumItems());
     ASSERT_EQ(0, this->vbucket->getNumNonResidentItems(eviction_policy));
 
     Item item(makeStoredDocKey("key"), /*flags*/0, /*exp*/0,
@@ -373,7 +373,7 @@ TEST_P(VBucketEvictionTest, EjectionResidentCount) {
     EXPECT_EQ(MutationStatus::WasClean,
               this->vbucket->public_processSet(item, item.getCas()));
 
-    EXPECT_EQ(1, this->vbucket->getNumItems(eviction_policy));
+    EXPECT_EQ(1, this->vbucket->getNumItems());
     EXPECT_EQ(0, this->vbucket->getNumNonResidentItems(eviction_policy));
 
     // TODO-MT: Should acquire lock really (ok given this is currently
@@ -387,7 +387,7 @@ TEST_P(VBucketEvictionTest, EjectionResidentCount) {
 
     // After ejection, should still have 1 item in VBucket, but also have
     // 1 non-resident item.
-    EXPECT_EQ(1, this->vbucket->getNumItems(eviction_policy));
+    EXPECT_EQ(1, this->vbucket->getNumItems());
     EXPECT_EQ(1, this->vbucket->getNumNonResidentItems(eviction_policy));
 }
 

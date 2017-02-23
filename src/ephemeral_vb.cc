@@ -50,6 +50,10 @@ EphemeralVBucket::EphemeralVBucket(
               purgeSeqno,
               maxCas) {}
 
+size_t EphemeralVBucket::getNumItems() const {
+    return ht.getNumInMemoryItems() - ht.getNumDeletedItems();
+}
+
 std::pair<MutationStatus, VBNotifyCtx> EphemeralVBucket::updateStoredValue(
         const std::unique_lock<std::mutex>& htLock,
         StoredValue& v,

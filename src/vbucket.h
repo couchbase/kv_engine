@@ -481,7 +481,7 @@ public:
     void addStats(bool details, ADD_STAT add_stat, const void *c,
                   item_eviction_policy_t policy);
 
-    size_t getNumItems(item_eviction_policy_t policy) const;
+    virtual size_t getNumItems() const = 0;
 
     size_t getNumNonResidentItems(item_eviction_policy_t policy);
 
@@ -1089,6 +1089,9 @@ protected:
             GenerateCas generateCas = GenerateCas::Yes,
             bool isBackfillItem = false);
 
+    /* This member holds the eviction policy used */
+    const item_eviction_policy_t eviction;
+
 private:
     template <typename T>
     void addStat(const char *nm, const T &val, ADD_STAT add_stat, const void *c);
@@ -1316,9 +1319,6 @@ private:
     // A callback to be called when a new seqno is generated in the vbucket as
     // a result of a front end call
     NewSeqnoCallback newSeqnoCb;
-
-    // This member holds the eviction policy used
-    const item_eviction_policy_t eviction;
 
     const bool multiBGFetchEnabled;
 

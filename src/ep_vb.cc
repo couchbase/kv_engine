@@ -51,6 +51,14 @@ EPVBucket::EPVBucket(id_type i,
               maxCas) {
 }
 
+size_t EPVBucket::getNumItems() const {
+    if (eviction == VALUE_ONLY) {
+        return ht.getNumInMemoryItems();
+    } else {
+        return ht.getNumItems();
+    }
+}
+
 std::pair<MutationStatus, VBNotifyCtx> EPVBucket::updateStoredValue(
         const std::unique_lock<std::mutex>& htLock,
         StoredValue& v,

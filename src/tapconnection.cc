@@ -1746,8 +1746,7 @@ void TapProducer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpo
             // backfill and skip the checkpoint cursor registration.
             if (dumpQueue) {
                 if (vb->getState() == vbucket_state_active &&
-                    vb->getNumItems(engine_.getKVBucket()->
-                                                getItemEvictionPolicy()) > 0) {
+                    vb->getNumItems() > 0) {
                     backfill_vbuckets.push_back(vbid);
                 }
                 continue;
