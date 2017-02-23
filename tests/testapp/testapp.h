@@ -158,6 +158,7 @@ protected:
     static void ewouldblock_engine_disable();
 
     static void reconfigure();
+    static void reconfigure(unique_cJSON_ptr& memcached_cfg);
 
     // JSON configuration (as JSON object) memcached was configured with.
     static unique_cJSON_ptr memcached_cfg;

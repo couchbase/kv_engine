@@ -706,6 +706,45 @@ TEST_F(SettingsTest, SslCipherList) {
     }
 }
 
+TEST_F(SettingsTest, ClientCertAuth) {
+    // Ensure that we detect non-string values for client_cert_auth
+    nonStringValuesShouldFail("client_cert_auth");
+
+    unique_cJSON_ptr obj(cJSON_CreateObject());
+    cJSON_AddStringToObject(obj.get(), "client_cert_auth", "enable");
+    try {
+        Settings settings(obj);
+        EXPECT_EQ(ClientCertAuth::AuthVal::Enabled,
+            settings.getClientCertAuth());
+        EXPECT_TRUE(settings.has.client_cert_auth);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+
+    cJSON_AddStringToObject(obj.get(), "client_cert_auth", "disable");
+    try {
+        Settings settings(obj);
+        EXPECT_EQ(ClientCertAuth::AuthVal::Disabled,
+            settings.getClientCertAuth());
+        EXPECT_TRUE(settings.has.client_cert_auth);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+
+    cJSON_AddStringToObject(obj.get(), "client_cert_auth", "mandatory");
+    try {
+        Settings settings(obj);
+        EXPECT_EQ(ClientCertAuth::AuthVal::Mandatory,
+            settings.getClientCertAuth());
+        EXPECT_TRUE(settings.has.client_cert_auth);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+
+    cJSON_AddStringToObject(obj.get(), "client_cert_auth", "junk");
+    ASSERT_THROW({ Settings settings(obj); }, std::invalid_argument);
+}
+
 TEST_F(SettingsTest, SslMinimumProtocol) {
     nonStringValuesShouldFail("ssl_minimum_protocol");
 

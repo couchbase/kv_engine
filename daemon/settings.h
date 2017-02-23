@@ -174,6 +174,50 @@ enum class EventPriority {
     Default
 };
 
+/**
+ * Settings for enabling/disabling the ssl client authentication
+ */
+class ClientCertAuth {
+public:
+    enum AuthVal { Disabled, Enabled, Mandatory };
+    ClientCertAuth() {
+        val.store(AuthVal::Disabled);
+    };
+    AuthVal load() const {
+        return val.load();
+    }
+    void store(AuthVal v) {
+        val.store(v);
+    }
+    void store(const ClientCertAuth& c) {
+        store(c.load());
+    }
+    const std::string to_string() const {
+        return valMap.find(val)->second;
+    }
+    void store(std::string v) {
+        for (auto itr : valMap) {
+            if (itr.second == v) {
+                val = itr.first;
+                return;
+            }
+        }
+        throw std::invalid_argument(
+                "settings: \"ssl client auth\" invalid \
+                string value:" +
+                v);
+    }
+    bool operator!=(const ClientCertAuth& other) {
+        return val != other.load();
+    }
+
+private:
+    std::atomic<AuthVal> val;
+    typedef std::map<AuthVal, std::string> Vmap;
+    Vmap valMap = Vmap{{AuthVal::Disabled, "disable"},
+                       {AuthVal::Enabled, "enable"},
+                       {AuthVal::Mandatory, "mandatory"}};
+};
 
 /* When adding a setting, be sure to update process_stat_settings */
 /**
@@ -645,6 +689,54 @@ public:
     }
 
     /**
+     * Get the ssl client auth
+     *
+     * @return the value of the ssl client auth
+     */
+    const std::string getClientCertAuthStr() const {
+        return client_cert_auth.to_string();
+    }
+
+    /**
+     * Get the ssl client auth
+     *
+     * @return the value of the ssl client auth
+     */
+    const ClientCertAuth::AuthVal getClientCertAuth() {
+        return client_cert_auth.load();
+    }
+
+    /**
+     * Set the ssl client auth
+     *
+     * @param client_cert_auth the new value of client auth
+     */
+    void setClientCertAuth(const ClientCertAuth& client_cert_auth) {
+        Settings::client_cert_auth.store(client_cert_auth);
+        has.client_cert_auth = true;
+        notify_changed("client_cert_auth");
+    }
+
+    /**
+     * Set the ssl client auth
+     *
+     * @param client_cert_auth the new value of client auth
+     */
+    void setClientCertAuth(const std::string& client_cert_auth) {
+        /*
+         * ssl_flag = mandatory . Client must present a valid certificate. If
+         * the certificate cannot be verified or if none is presented then the
+         * connection will be terminated.
+         * ssl_flag = enable. If the certificate cannot be verified or if none
+         * is presented then we will fall back to the existing bucket
+         * authentication methods
+         */
+        Settings::client_cert_auth.store(client_cert_auth);
+        has.client_cert_auth = true;
+        notify_changed("client_cert_auth");
+    }
+
+    /**
      * Get the number of topkeys to track
      *
      * @return the number of keys to track
@@ -940,6 +1032,11 @@ protected:
     std::string ssl_minimum_protocol;
 
     /**
+     * ssl client authentication
+     */
+    ClientCertAuth client_cert_auth;
+
+    /**
      * The number of topkeys to track
      */
     int topkeys_size;
@@ -1009,6 +1106,7 @@ public:
         bool require_init;
         bool ssl_cipher_list;
         bool ssl_minimum_protocol;
+        bool client_cert_auth;
         bool topkeys_size;
         bool stdin_listen;
         bool exit_on_connection_close;

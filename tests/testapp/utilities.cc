@@ -329,10 +329,12 @@ int create_ssl_connection(SSL_CTX** ctx,
 {
     char uri[1024];
 
-    initialize_openssl();
-    if ((*ctx = SSL_CTX_new(SSLv23_client_method())) == NULL) {
-        fprintf(stderr, "Failed to create openssl client contex\n");
-        return 1;
+    if (*ctx == nullptr) {
+        initialize_openssl();
+        if ((*ctx = SSL_CTX_new(SSLv23_client_method())) == NULL) {
+            fprintf(stderr, "Failed to create openssl client contex\n");
+            return 1;
+        }
     }
 
     snprintf(uri, sizeof(uri), "%s:%s", host, port);

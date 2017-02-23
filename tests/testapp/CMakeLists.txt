@@ -35,6 +35,7 @@ list(APPEND TESTAPP_SOURCES
      testapp_sasl.h
      testapp_shutdown.cc
      testapp_ssl_utils.cc
+     testapp_ssl.cc
      testapp_stats.cc
      testapp_stats.h
      testapp_subdoc.cc
@@ -97,7 +98,7 @@ target_compile_options(memcached_testapp PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE})
 ADD_TEST(NAME memcached-basic-unit-tests-bulk
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp
-                    --gtest_filter=*-Transport/*:*PerfTest.*:ShutdownTest.*:RequireInitTest.*:*TransportProtocols*:*Greenstack*:AuditTest*:*ConnectionTimeout*:*ArithmeticTest*)
+                    --gtest_filter=*-Transport/*:*PerfTest.*:ShutdownTest.*:RequireInitTest.*:*TransportProtocols*:*Greenstack*:AuditTest*:*ConnectionTimeout*:*ArithmeticTest*:SslCertTest.*)
 SET_TESTS_PROPERTIES(memcached-basic-unit-tests-bulk PROPERTIES TIMEOUT 60)
 
 ADD_TEST(NAME memcached-basic-unit-tests-require-init
@@ -194,6 +195,12 @@ ADD_TEST(NAME memcached-xattr-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=TransportProtocols/XattrTest.*)
 SET_TESTS_PROPERTIES(memcached-xattr-tests PROPERTIES TIMEOUT 60)
+
+# Run the SSL cert tests
+ADD_TEST(NAME memcached-ssl-cert-tests
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND memcached_testapp --gtest_filter=SslCertTest.*)
+SET_TESTS_PROPERTIES(memcached-ssl-cert-tests PROPERTIES TIMEOUT 120)
 
 IF (MEMCACHED_USE_GREENSTACK)
    ADD_TEST(NAME memcached-greenstack-tests

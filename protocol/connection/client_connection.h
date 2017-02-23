@@ -114,6 +114,38 @@ public:
 };
 
 /**
+ * Store/retrieve the client ssl certificate and key
+ */
+class SslClientCert {
+public:
+    void add(const std::string& path) {
+        cert = joinPath(path, certName);
+        key = joinPath(path, keyName);
+        enable = true;
+    }
+
+    void disable() {
+        enable = false;
+    }
+
+    bool isEnabled() {
+        return enable;
+    }
+    // for joining the directory with certificate/key
+    std::string joinPath(std::string str, std::string append_path);
+
+    const std::string certName = "client.pem";
+    const std::string keyName = "client.key";
+
+    std::string cert;
+    std::string key;
+
+private:
+    bool enable;
+};
+extern SslClientCert sslCert;
+
+/**
  * The MemcachedConnection class is an abstract class representing a
  * connection to memcached. The concrete implementations of the class
  * implements the Memcached binary protocol and Greenstack.

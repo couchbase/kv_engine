@@ -659,6 +659,26 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
     }
 
     set_ssl_ctx_cipher_list(ctx);
+    int ssl_flags = 0;
+    switch (settings.getClientCertAuth()) {
+    case ClientCertAuth::AuthVal::Mandatory:
+        ssl_flags |= SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
+    // FALLTHROUGH
+    case ClientCertAuth::AuthVal::Enabled: {
+        ssl_flags |= SSL_VERIFY_PEER;
+        STACK_OF(X509_NAME)* certNames = SSL_load_client_CA_file(cert.c_str());
+        if (certNames == NULL) {
+            LOG_WARNING(nullptr, "Failed to read SSL cert %s", cert.c_str());
+            return false;
+        }
+        SSL_CTX_set_client_CA_list(ctx, certNames);
+        SSL_CTX_load_verify_locations(ctx, cert.c_str(), nullptr);
+        SSL_CTX_set_verify(ctx, ssl_flags, nullptr);
+        break;
+    }
+    case ClientCertAuth::AuthVal::Disabled:
+        break;
+    }
 
     enabled = true;
     error = false;

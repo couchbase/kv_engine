@@ -31,6 +31,8 @@
 #include <string>
 #include <limits>
 
+SslClientCert sslCert;
+
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the ConnectionMap class
 /////////////////////////////////////////////////////////////////////////
@@ -116,6 +118,15 @@ void ConnectionMap::initialize(cJSON* ports) {
 
         auto portval = static_cast<in_port_t>(port->valueint);
         bool useSsl = ssl->type == cJSON_True ? true : false;
+
+        if (useSsl) {
+            char* ssl_cert_dir = getenv("COUCHBASE_SSL_CLIENT_CERT_PATH");
+            if (ssl_cert_dir) {
+                sslCert.add(ssl_cert_dir);
+            } else {
+                sslCert.disable();
+            }
+        }
 
         MemcachedConnection* connection;
         if (strcmp(protocol->valuestring, "greenstack") == 0) {
@@ -252,6 +263,14 @@ SOCKET new_socket(std::string& host, in_port_t port, sa_family_t family) {
     return INVALID_SOCKET;
 }
 
+std::string SslClientCert::joinPath(std::string str, std::string append_path) {
+#ifdef WIN32
+    return str + "\\" + append_path;
+#else
+    return str + "/" + append_path;
+#endif
+}
+
 void MemcachedConnection::connect() {
     sock = new_socket(host, port, family);
     if (sock == INVALID_SOCKET) {
@@ -270,6 +289,19 @@ void MemcachedConnection::connect() {
         if ((context = SSL_CTX_new(SSLv23_client_method())) == NULL) {
             BIO_free_all(bio);
             throw std::runtime_error("Failed to create openssl client contex");
+        }
+        if (sslCert.isEnabled()) {
+            if (!SSL_CTX_use_certificate_file(
+                        context, sslCert.cert.c_str(), SSL_FILETYPE_PEM) ||
+                !SSL_CTX_use_PrivateKey_file(
+                        context, sslCert.key.c_str(), SSL_FILETYPE_PEM) ||
+                !SSL_CTX_check_private_key(context)) {
+                BIO_free_all(bio);
+                std::vector<char> ssl_err(1024);
+                ERR_error_string_n(ERR_get_error(), ssl_err.data(),
+                        ssl_err.size());
+                throw std::runtime_error(std::string("Failed to use SSL cert and key:") + ssl_err.data());
+            }
         }
 
         /* Ensure read/write operations only return after the

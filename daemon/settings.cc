@@ -515,6 +515,23 @@ static void handle_xattr_enabled(Settings& s, cJSON* obj) {
 }
 
 /**
+ * Handle the "client_cert_auth" tag in the settings
+ *
+ *  The value must be a string value
+ *
+ * @param s the settings object to update
+ * @param obj the object in the configuration
+ */
+static void handle_client_cert_auth(Settings& s, cJSON* obj) {
+    if (obj->type == cJSON_String) {
+        s.setClientCertAuth(obj->valuestring);
+    } else {
+        throw std::invalid_argument(
+                "\"client_cert_auth\" must be a string value");
+    }
+}
+
+/**
  * Handle the "extensions" tag in the settings
  *
  *  The value must be an array
@@ -593,36 +610,36 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
     };
 
     std::vector<settings_config_tokens> handlers = {
-        {"admin",                        ignore_entry},
-        {"rbac_file",                    handle_rbac_file},
-        {"privilege_debug",              handle_privilege_debug},
-        {"audit_file",                   handle_audit_file},
-        {"error_maps_dir",               handle_error_maps_dir},
-        {"threads",                      handle_threads},
-        {"interfaces",                   handle_interfaces},
-        {"extensions",                   handle_extensions},
-        {"require_init",                 handle_require_init},
-        {"require_sasl",                 handle_require_sasl},
-        {"default_reqs_per_event",       handle_reqs_event},
-        {"reqs_per_event_high_priority", handle_reqs_event},
-        {"reqs_per_event_med_priority",  handle_reqs_event},
-        {"reqs_per_event_low_priority",  handle_reqs_event},
-        {"verbosity",                    handle_verbosity},
-        {"connection_idle_time",         handle_connection_idle_time},
-        {"bio_drain_buffer_sz",          handle_bio_drain_buffer_sz},
-        {"datatype_support",             handle_datatype_support},
-        {"root",                         handle_root},
-        {"ssl_cipher_list",              handle_ssl_cipher_list},
-        {"ssl_minimum_protocol",         handle_ssl_minimum_protocol},
-        {"breakpad",                     handle_breakpad},
-        {"max_packet_size",              handle_max_packet_size},
-        {"stdin_listen",                 handle_stdin_listen},
-        {"exit_on_connection_close",     handle_exit_on_connection_close},
-        {"sasl_mechanisms",              handle_sasl_mechanisms},
-        {"ssl_sasl_mechanisms",          handle_ssl_sasl_mechanisms},
-        {"dedupe_nmvb_maps",             handle_dedupe_nmvb_maps},
-        {"xattr_enabled",                handle_xattr_enabled}
-    };
+            {"admin", ignore_entry},
+            {"rbac_file", handle_rbac_file},
+            {"privilege_debug", handle_privilege_debug},
+            {"audit_file", handle_audit_file},
+            {"error_maps_dir", handle_error_maps_dir},
+            {"threads", handle_threads},
+            {"interfaces", handle_interfaces},
+            {"extensions", handle_extensions},
+            {"require_init", handle_require_init},
+            {"require_sasl", handle_require_sasl},
+            {"default_reqs_per_event", handle_reqs_event},
+            {"reqs_per_event_high_priority", handle_reqs_event},
+            {"reqs_per_event_med_priority", handle_reqs_event},
+            {"reqs_per_event_low_priority", handle_reqs_event},
+            {"verbosity", handle_verbosity},
+            {"connection_idle_time", handle_connection_idle_time},
+            {"bio_drain_buffer_sz", handle_bio_drain_buffer_sz},
+            {"datatype_support", handle_datatype_support},
+            {"root", handle_root},
+            {"ssl_cipher_list", handle_ssl_cipher_list},
+            {"ssl_minimum_protocol", handle_ssl_minimum_protocol},
+            {"breakpad", handle_breakpad},
+            {"max_packet_size", handle_max_packet_size},
+            {"stdin_listen", handle_stdin_listen},
+            {"exit_on_connection_close", handle_exit_on_connection_close},
+            {"sasl_mechanisms", handle_sasl_mechanisms},
+            {"ssl_sasl_mechanisms", handle_ssl_sasl_mechanisms},
+            {"dedupe_nmvb_maps", handle_dedupe_nmvb_maps},
+            {"xattr_enabled", handle_xattr_enabled},
+            {"client_cert_auth", handle_client_cert_auth}};
 
     cJSON* obj = json->child;
     while (obj != nullptr) {
@@ -1039,6 +1056,15 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                   "Change SSL Cipher list from \"%s\" to \"%s\"",
                   ssl_cipher_list.c_str(), other.ssl_cipher_list.c_str());
             setSslCipherList(other.ssl_cipher_list);
+        }
+    }
+    if (other.has.client_cert_auth) {
+        if (client_cert_auth != other.client_cert_auth) {
+            logit(EXTENSION_LOG_NOTICE,
+                  "Change SSL client auth from \"%s\" to \"%s\"",
+                  getClientCertAuthStr().c_str(),
+                  other.getClientCertAuthStr().c_str());
+            setClientCertAuth(other.client_cert_auth);
         }
     }
     if (other.has.ssl_minimum_protocol) {

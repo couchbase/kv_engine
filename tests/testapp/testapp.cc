@@ -695,11 +695,13 @@ SOCKET create_connect_plain_socket(in_port_t port)
     return sock;
 }
 
-static SOCKET create_connect_ssl_socket(in_port_t port) {
+SOCKET create_connect_ssl_socket(in_port_t port, bool null_ctx = true) {
     char port_str[32];
     snprintf(port_str, 32, "%d", port);
 
-    EXPECT_EQ(nullptr, ssl_ctx);
+    if (null_ctx) {
+        EXPECT_EQ(nullptr, ssl_ctx);
+    }
     EXPECT_EQ(nullptr, bio);
     EXPECT_EQ(0, create_ssl_connection(&ssl_ctx, &bio, "127.0.0.1", port_str,
                                        NULL, NULL, 1));
@@ -801,6 +803,27 @@ void TestappTest::start_memcached_server(cJSON* config) {
         start_external_server();
     }
     parse_portnumber_file(port, ssl_port, 30);
+}
+
+void TestappTest::reconfigure(unique_cJSON_ptr& memcached_cfg) {
+    current_phase = phase_plain;
+    sock = connect_to_server_plain(port);
+    write_config_to_file(to_string(memcached_cfg, true), config_file);
+
+    sasl_auth("_admin", "password");
+    Frame frame;
+    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
+                     nullptr, 0, nullptr, 0);
+
+    safe_send(frame.payload.data(), frame.payload.size(), false);
+    union {
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+    safe_recv_packet(&buffer, sizeof(buffer));
+    mcbp_validate_response_header(&buffer.response,
+                                  PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
+                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
 
