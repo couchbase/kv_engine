@@ -17,15 +17,20 @@
 
 #include "config.h"
 
-#include <algorithm>
 #include <fcntl.h>
 #include <gtest/gtest.h>
-#include <map>
 #include <platform/strerror.h>
+#include <sys/stat.h>
+#include <algorithm>
+#include <fstream>
+#include <map>
 #include <set>
 #include <stdexcept>
-#include <sys/stat.h>
 #include <vector>
+
+extern "C" {
+#include "crc32.h"
+}
 
 #include "makestoreddockey.h"
 #include "mutation_log.h"
@@ -189,7 +194,6 @@ static bool loaderFun(void *arg, uint16_t vb, const DocKey& k) {
 }
 
 TEST_F(MutationLogTest, Logging) {
-    remove(tmp_log_filename.c_str());
 
     {
         MutationLog ml(tmp_log_filename.c_str());
@@ -244,7 +248,6 @@ TEST_F(MutationLogTest, Logging) {
 }
 
 TEST_F(MutationLogTest, LoggingDirty) {
-    remove(tmp_log_filename.c_str());
 
     {
         MutationLog ml(tmp_log_filename.c_str());
@@ -302,7 +305,6 @@ TEST_F(MutationLogTest, LoggingDirty) {
 }
 
 TEST_F(MutationLogTest, LoggingBadCRC) {
-    remove(tmp_log_filename.c_str());
 
     {
         MutationLog ml(tmp_log_filename.c_str());
@@ -367,7 +369,6 @@ TEST_F(MutationLogTest, LoggingBadCRC) {
 }
 
 TEST_F(MutationLogTest, LoggingShortRead) {
-    remove(tmp_log_filename.c_str());
 
     {
         MutationLog ml(tmp_log_filename.c_str());
@@ -459,7 +460,6 @@ TEST_F(MutationLogTest, Iterator) {
 }
 
 TEST_F(MutationLogTest, BatchLoad) {
-    remove(tmp_log_filename.c_str());
 
     {
         MutationLog ml(tmp_log_filename.c_str());
@@ -527,4 +527,121 @@ TEST_F(MutationLogTest, ReadOnly) {
 
     // But we should not be able to add items to a read only stream
     EXPECT_THROW(ml.newItem(4, makeStoredDocKey("key2"), 1), MutationLog::WriteException);
+}
+
+class MockMutationLogEntryV1 : public MutationLogEntryV1 {
+public:
+    /**
+     * Initialize a new entry inside the given buffer.
+     *
+     * @param r the rowid
+     * @param t the type of log entry
+     * @param vb the vbucket
+     * @param k the key
+     */
+    static MockMutationLogEntryV1* newEntry(uint8_t* buf,
+                                            uint64_t r,
+                                            MutationLogType t,
+                                            uint16_t vb,
+                                            const std::string& k) {
+        return new (buf) MockMutationLogEntryV1(r, t, vb, k);
+    }
+
+    MockMutationLogEntryV1(uint64_t r,
+                           MutationLogType t,
+                           uint16_t vb,
+                           const std::string& k)
+        : MutationLogEntryV1(r, t, vb, k) {
+    }
+};
+
+TEST_F(MutationLogTest, upgrade) {
+    // Craft a V1 format file
+    LogHeaderBlock headerBlock(MutationLogVersion::V1);
+    headerBlock.set(MIN_LOG_HEADER_SIZE);
+    const auto* ptr = reinterpret_cast<uint8_t*>(&headerBlock);
+
+    std::vector<uint8_t> toWrite(ptr, ptr + sizeof(LogHeaderBlock));
+    toWrite.resize(MIN_LOG_HEADER_SIZE);
+
+    // Make space for 2 byte CRC
+    uint16_t zero = 0x2233;
+    toWrite.insert(toWrite.end(),
+                   reinterpret_cast<uint8_t*>(&zero),
+                   reinterpret_cast<uint8_t*>(&zero) + sizeof(uint16_t));
+
+    // Add items
+    uint16_t items = 10;
+    uint16_t swapped = htons(items);
+    toWrite.insert(toWrite.end(),
+                   reinterpret_cast<uint8_t*>(&swapped),
+                   reinterpret_cast<uint8_t*>(&swapped) + sizeof(uint16_t));
+
+    const uint16_t vbid = 3;
+    std::vector<std::string> keys;
+    for (int ii = 0; ii < items; ii++) {
+        keys.push_back({"mykey" + std::to_string(ii)});
+        std::vector<uint8_t> bytes(
+                MockMutationLogEntryV1::len(keys.back().size()));
+        (void)MockMutationLogEntryV1::newEntry(
+                bytes.data(), 0, MutationLogType::New, vbid, keys.back());
+        toWrite.insert(toWrite.end(), bytes.begin(), bytes.end());
+    }
+
+    // Now commit1 and commit2
+    std::array<MutationLogType, 2> types = {
+            {MutationLogType::Commit1, MutationLogType::Commit2}};
+    for (auto t : types) {
+        std::string key = "";
+        std::vector<uint8_t> bytes(MockMutationLogEntryV1::len(key.size()));
+        (void)MockMutationLogEntryV1::newEntry(bytes.data(), 0, t, vbid, key);
+        toWrite.insert(toWrite.end(), bytes.begin(), bytes.end());
+    }
+
+    // Not handling multiple blocks, so check we're below 2x
+    ASSERT_LT(toWrite.size(), MIN_LOG_HEADER_SIZE * 2);
+    toWrite.resize(MIN_LOG_HEADER_SIZE * 2);
+
+    // Now calc the CRC and copy into the CRC location
+    // it (goes in the start of each block)
+    uint32_t crc32(crc32buf(&toWrite[MIN_LOG_HEADER_SIZE + 2],
+                            MIN_LOG_HEADER_SIZE - 2));
+    uint16_t crc16(htons(crc32 & 0xffff));
+    std::copy_n(reinterpret_cast<uint8_t*>(&crc16),
+                sizeof(uint16_t),
+                toWrite.begin() + MIN_LOG_HEADER_SIZE);
+
+    // Now write the file
+    {
+        std::ofstream logFile(tmp_log_filename,
+                              std::ios::out | std::ofstream::binary);
+        std::copy(toWrite.begin(),
+                  toWrite.end(),
+                  std::ostreambuf_iterator<char>(logFile));
+    }
+
+    {
+        MutationLog ml(tmp_log_filename.c_str());
+        ml.open();
+        MutationLogHarvester h(ml);
+        h.setVBucket(vbid);
+
+        // Ask for 2 items, ensure we get just two.
+        auto next_it = h.loadBatch(ml.begin(), 2);
+        EXPECT_NE(next_it, ml.end());
+
+        std::map<StoredDocKey, uint64_t> maps[vbid + 1];
+        h.apply(&maps, loaderFun);
+        for (int i = 0; i < 2; i++) {
+            EXPECT_TRUE(maps[vbid].count(makeStoredDocKey(keys[i])) == 1);
+        }
+
+        // Ask for the remainder
+        next_it = h.loadBatch(next_it, items - 2);
+        EXPECT_EQ(ml.end(), next_it);
+        h.apply(&maps, loaderFun);
+        for (int i = 2; i < items; i++) {
+            EXPECT_TRUE(maps[vbid].count(makeStoredDocKey(keys[i])) == 1);
+        }
+    }
 }

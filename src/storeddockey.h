@@ -152,7 +152,7 @@ struct hash<StoredDocKey> {
 };
 }
 
-class MutationLogEntry;
+class MutationLogEntryV2;
 class StoredValue;
 
 /**
@@ -233,7 +233,7 @@ protected:
      * These following classes are "white-listed". They know how to allocate
      * and construct this object so are allowed access to the constructor.
      */
-    friend class MutationLogEntry;
+    friend class MutationLogEntryV2;
     friend class StoredValue;
 
     SerialisedDocKey() : length(0), docNamespace(), bytes() {

@@ -71,7 +71,9 @@ const int MUTATION_LOG_COMPACTOR_FREQ(3600);
 
 const size_t MIN_LOG_HEADER_SIZE(4096);
 const size_t HEADER_RESERVED(4);
-const uint32_t LOG_VERSION(1);
+
+enum class MutationLogVersion { V1 = 1, V2 = 2, Current = V2 };
+
 const size_t LOG_ENTRY_BUF_SIZE(512);
 
 const uint8_t SYNC_COMMIT_1(1);
@@ -89,7 +91,11 @@ const uint8_t DEFAULT_SYNC_CONF(FLUSH_COMMIT_2 | SYNC_COMMIT_2);
  */
 class LogHeaderBlock {
 public:
-    LogHeaderBlock() : _version(htonl(LOG_VERSION)), _blockSize(0), _blockCount(0), _rdwr(1) {
+    LogHeaderBlock(MutationLogVersion version = MutationLogVersion::Current)
+        : _version(htonl(int(version))),
+          _blockSize(0),
+          _blockCount(0),
+          _rdwr(1) {
     }
 
     void set(uint32_t bs, uint32_t bc=1) {
@@ -108,8 +114,8 @@ public:
         memcpy(&_rdwr, buf.data() + offset, sizeof(_rdwr));
     }
 
-    uint32_t version() const {
-        return ntohl(_version);
+    MutationLogVersion version() const {
+        return MutationLogVersion(ntohl(_version));
     }
 
     uint32_t blockSize() const {
@@ -199,8 +205,7 @@ private:
  */
 class MutationLog {
 public:
-
-    MutationLog(const std::string &path, const size_t bs=4096);
+    MutationLog(const std::string& path, const size_t bs = MIN_LOG_HEADER_SIZE);
 
     ~MutationLog();
 
@@ -318,6 +323,50 @@ public:
     };
 
     /**
+     * The MutationLog::iterator will return MutationLogEntryHolder objects
+     * which handle resource destruction if necessary. In some cases the entry
+     * being read is a temporary heap allocation which will need deleting.
+     * Sometimes the entry is owned by the iterator and the iterator will
+     * sort the deletion.
+     */
+    class MutationLogEntryHolder {
+    public:
+        /**
+         * @param _mle A pointer to a buffer which contains a MutationLogEntry
+         * @param _destroye Set to true if the _mle buffer nust be deleted once
+         *        the holder's life is complete.
+         */
+        MutationLogEntryHolder(const uint8_t* _mle, bool _destroy)
+            : mle(_mle), destroy(_destroy) {
+        }
+
+        MutationLogEntryHolder(MutationLogEntryHolder&& rhs)
+            : mle(rhs.mle), destroy(rhs.destroy) {
+            rhs.mle = nullptr;
+        }
+
+        MutationLogEntryHolder(const MutationLogEntryHolder& rhs) = delete;
+
+        /**
+         * Destructor will delete the mle data only if we're told to by the
+         * constructing code
+         */
+        ~MutationLogEntryHolder() {
+            if (destroy) {
+                delete[] mle;
+            }
+        }
+
+        const MutationLogEntry* operator->() const {
+            return reinterpret_cast<const MutationLogEntry*>(mle);
+        }
+
+    private:
+        const uint8_t* mle;
+        bool destroy;
+    };
+
+    /**
      * An iterator for the mutation log.
      *
      * A ReadException may be thrown at any point along iteration.
@@ -338,7 +387,7 @@ public:
 
         bool operator!=(const iterator& rhs) const;
 
-        const MutationLogEntry* operator*();
+        MutationLogEntryHolder operator*();
 
     private:
 
@@ -346,9 +395,17 @@ public:
 
         iterator(const MutationLog* l, bool e=false);
 
+        /// @returns the length of the entry the iterator is currently at
+        size_t getCurrentEntryLen() const;
         void nextBlock();
         size_t bufferBytesRemaining();
         void prepItem();
+
+        /**
+         * Upgrades the entry the iterator is currently at and returns it
+         * via a MutationLogEntryHolder
+         */
+        MutationLogEntryHolder upgradeEntry() const;
 
         const MutationLog* log;
         std::vector<uint8_t> entryBuf;

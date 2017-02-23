@@ -124,7 +124,7 @@ ADD_CUSTOM_COMMAND(OUTPUT
                         genconfig
                   COMMENT "Generating code for configuration class")
 
-SET(KVSTORE_SOURCE src/crc32.c src/kvstore.cc)
+SET(KVSTORE_SOURCE src/kvstore.cc)
 SET(COUCH_KVSTORE_SOURCE src/couch-kvstore/couch-kvstore.cc
             src/couch-kvstore/couch-fs-stats.cc)
 SET(OBJECTREGISTRY_SOURCE src/objectregistry.cc)
@@ -145,6 +145,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/checkpoint_remover.cc
             src/conflict_resolution.cc
             src/connmap.cc
+            src/crc32.c
             src/dcp/backfill-manager.cc
             src/dcp/backfill.cc
             src/dcp/consumer.cc

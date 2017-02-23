@@ -392,11 +392,23 @@ void MutationLog::readInitialBlock() {
 
     headerBlock.set(buf);
 
-    // These are reserved for future use.
-    if (headerBlock.version() != LOG_VERSION ||
-            headerBlock.blockCount() != 1) {
+    // Check the version is one we can handle, V1 and V2.
+    switch (headerBlock.version()) {
+    case MutationLogVersion::V1:
+    case MutationLogVersion::V2:
+        break;
+    default: {
         std::stringstream ss;
-        ss << "HeaderBlock version/blockCount mismatch";
+        ss << "HeaderBlock version is unknown " +
+                        std::to_string(int(headerBlock.version()));
+        throw ReadException(ss.str());
+    }
+    }
+
+    if (headerBlock.blockCount() != 1) {
+        std::stringstream ss;
+        ss << "HeaderBlock blockCount mismatch " +
+                        std::to_string(headerBlock.blockCount());
         throw ReadException(ss.str());
     }
 
@@ -701,8 +713,6 @@ void MutationLog::writeEntry(MutationLogEntry *mle) {
     ++entries;
 
     ++itemsLogged[int(mle->type())];
-
-    delete mle;
 }
 
 // ----------------------------------------------------------------------
@@ -746,16 +756,47 @@ MutationLog::iterator::~iterator() {
 }
 
 void MutationLog::iterator::prepItem() {
-    const auto* e = MutationLogEntry::newEntry(p, bufferBytesRemaining());
-    std::copy_n(p, e->len(), entryBuf.begin());
+    size_t copyLen = 0;
+    // Determine which version we are reading and use that versions newEntry
+    // to obtain the copy length. newEntry also validates magic is valid and
+    // the length doesn't overflow bufferBytesRemaining()
+    switch (log->headerBlock.version()) {
+    case MutationLogVersion::V1: {
+        copyLen =
+                MutationLogEntryV1::newEntry(p, bufferBytesRemaining())->len();
+        break;
+    }
+    case MutationLogVersion::V2: {
+        copyLen =
+                MutationLogEntryV2::newEntry(p, bufferBytesRemaining())->len();
+        break;
+    }
+    }
+
+    std::copy_n(p, copyLen, entryBuf.begin());
+}
+
+size_t MutationLog::iterator::getCurrentEntryLen() const {
+    switch (log->headerBlock.version()) {
+    case MutationLogVersion::V1: {
+        return MutationLogEntryV1::newEntry(entryBuf.begin(), entryBuf.size())
+                ->len();
+    }
+    case MutationLogVersion::V2: {
+        return MutationLogEntryV2::newEntry(entryBuf.begin(), entryBuf.size())
+                ->len();
+    }
+    }
+    throw std::logic_error(
+            "MutationLog::iterator::getCurrentEntryLen unknown version " +
+            std::to_string(int(log->headerBlock.version())));
 }
 
 MutationLog::iterator& MutationLog::iterator::operator++() {
     if (--items == 0) {
         nextBlock();
     } else {
-        size_t l(operator*()->len());
-        p += l;
+        p += getCurrentEntryLen();
 
         prepItem();
     }
@@ -774,8 +815,87 @@ bool MutationLog::iterator::operator!=(const MutationLog::iterator& rhs) const {
     return ! operator==(rhs);
 }
 
-const MutationLogEntry* MutationLog::iterator::operator*() {
-    return MutationLogEntry::newEntry(entryBuf.begin(), entryBuf.size());
+/**
+ * Return a MutationLogEntryHolder which is built from a down-level entry
+ * The upgrade technique is to upgrade from n to n+1 without any skips, this
+ * simplifes each upgrade step, but may have a cost if many steps exist.
+ */
+MutationLog::MutationLogEntryHolder MutationLog::iterator::upgradeEntry()
+        const {
+    // The addition of more source versions would mean adding more const
+    // pointers here.
+    const MutationLogEntryV1* mleV1 = nullptr;
+    std::unique_ptr<uint8_t[]> allocated;
+
+    // With only two versions this code is a little unnecessary but will
+    // cause the addition of V3 to fail compile. The aim is that the addition of
+    // V3 should now be obvious. I.e. we can step V1->V2->V3 or V2->V3
+    switch (log->headerBlock.version()) {
+    case MutationLogVersion::V1: {
+        mleV1 = MutationLogEntryV1::newEntry(entryBuf.begin(), entryBuf.size());
+        break;
+    }
+    /* If V3 exists then add a case for V2, for example:
+    case MutationLogVersion::V2: {
+        mleV2 = MutationLogEntryV2::newEntry(entryBuf.begin(), entryBuf.size());
+        break;
+    }
+    */
+    case MutationLogVersion::Current: {
+        throw std::invalid_argument(
+                "MutationLog::iterator::upgradeEntry cannot"
+                " upgrade if version == current");
+    }
+    }
+
+    // Next switch runs the upgrade. Each version must be constructable from
+    // its parent. This means each step is much simpler and only needs to
+    // consider a single parent and there's no complexity of trying to jump
+    // versions.
+    // We start the upgrade at version + 1
+    switch (MutationLogVersion(int(log->headerBlock.version()) + 1)) {
+    case MutationLogVersion::V1: {
+        // fall through
+    }
+    case MutationLogVersion::V2: {
+        // Upgrade V1 to V2.
+        // Alloc a buffer using the length read from V1 as input to V2::len
+        allocated = std::make_unique<uint8_t[]>(
+                MutationLogEntryV2::len(mleV1->getKeylen()));
+
+        // Now in-place construct into the buffer
+        (void) new (allocated.get()) MutationLogEntryV2(*mleV1);
+        // If adding more cases, we should assign the above "new" pointer to a
+        // mleV2 and allow the next case to read it.
+
+        // fall through
+    }
+    /* If V3 exists then add a case (which is hit by V2 falling through)
+    case MutationLogVersion::V3: {
+        // Upgrade V2 to V3
+        // Alloc a buffer using the length read from V2 as input to V3::len
+        allocated = std::make_unique<uint8_t[]>(
+                MutationLogEntryV3::len(mleV2->getKeylen()));
+
+        // Now in-place construct into the new buffer and assign to mleV3
+        mleV3 = new (allocated.get()) MutationLogEntryV3(*mleV3);
+        // fall through
+    }
+    */
+    }
+
+    // transfer ownership to the MutationLogEntryHolder and mark that it's
+    // allocated requiring deletion once the holder is destructed
+    return {allocated.release(), true /*allocated*/};
+}
+
+MutationLog::MutationLogEntryHolder MutationLog::iterator::operator*() {
+    // If the file version is down-level return an upgraded entry
+    if (log->headerBlock.version() != MutationLogVersion::Current) {
+        return upgradeEntry();
+    } else {
+        return {entryBuf.data(), false /*not allocated*/};
+    }
 }
 
 size_t MutationLog::iterator::bufferBytesRemaining() {
@@ -836,7 +956,7 @@ void MutationLog::resetCounts(size_t *items) {
 bool MutationLogHarvester::load() {
     bool clean(false);
     std::set<uint16_t> shouldClear;
-    for (const MutationLogEntry* le : mlog) {
+    for (const auto& le : mlog) {
         ++itemsSeen[int(le->type())];
         clean = false;
 
@@ -879,7 +999,7 @@ MutationLog::iterator MutationLogHarvester::loadBatch(
     size_t count = 0;
     committed.clear();
     for (; it != mlog.end() && count < limit; ++it) {
-        const auto* le = *it;
+        const auto& le = *it;
         ++itemsSeen[int(le->type())];
 
         switch (le->type()) {
