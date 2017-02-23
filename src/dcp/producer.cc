@@ -81,7 +81,13 @@ bool DcpProducer::BufferLog::pauseIfFull() {
 
 void DcpProducer::BufferLog::unpauseIfSpaceAvailable() {
     ReaderLockHolder rlh(logLock);
-    if (getState_UNLOCKED() != Full) {
+    if (getState_UNLOCKED() == Full) {
+        LOG(EXTENSION_LOG_NOTICE, "%s Unable to notify paused connection "
+                    "because DcpProducer::BufferLog is full; "
+                    "ackedBytes:%" PRIu64 ", bytesSent:%" PRIu64 ", "
+                    "maxBytes:%" PRIu64 ,
+                    producer.logHeader(), ackedBytes, bytesSent, maxBytes);
+    } else {
         producer.notifyPaused(true);
     }
 }
@@ -93,6 +99,11 @@ void DcpProducer::BufferLog::acknowledge(size_t bytes) {
         release_UNLOCKED(bytes);
         ackedBytes += bytes;
         if (state == Full) {
+            LOG(EXTENSION_LOG_NOTICE, "%s Notifying paused connection now that "
+                "DcpProducer::Bufferlog is no longer full; "
+                "ackedBytes:%" PRIu64 ", bytesSent:%" PRIu64 ", "
+                "maxBytes:%" PRIu64 ,
+                producer.logHeader(), ackedBytes, bytesSent, maxBytes);
             producer.notifyPaused(true);
         }
     }
@@ -965,6 +976,10 @@ void DcpProducer::setDisconnect(bool disconnect) {
 void DcpProducer::notifyStreamReady(uint16_t vbucket) {
     if (ready.pushUnique(vbucket)) {
         log.unpauseIfSpaceAvailable();
+    } else {
+        LOG(EXTENSION_LOG_NOTICE, "%s (vb:%" PRIu16 ") Ignoring request to "
+            "notify stream is ready; vbucket is already in the ready "
+            "queue.", logHeader(), vbucket);
     }
 }
 
