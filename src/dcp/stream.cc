@@ -1078,15 +1078,26 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
         isBackfillTaskRunning.store(true);
     } else {
         if (reschedule) {
+            // Infrequent code path, see comment below.
             producer->getLogger().log(EXTENSION_LOG_NOTICE,
                                       "(vb %" PRIu16 ") Did not schedule "
                                       "backfill with reschedule : True; "
                                       "backfillStart : %" PRIu64 ", "
                                       "backfillEnd : %" PRIu64 ", "
                                       "flags_ : %" PRIu32 ", "
-                                      "tryBackfill : %s",
+                                      "tryBackfill : %s, "
+                                      "start_seqno_ : %" PRIu64 ", "
+                                      "end_seqno_ : %" PRIu64 ", "
+                                      "lastReadSeqno : %" PRIu64 ", "
+                                      "lastSentSeqno : %" PRIu64 ", "
+                                      "curChkSeqno : %" PRIu64 ", "
+                                      "itemsReady : %s",
                                       vb_, backfillStart, backfillEnd, flags_,
-                                      tryBackfill ? "True" : "False");
+                                      tryBackfill ? "True" : "False",
+                                      start_seqno_, end_seqno_,
+                                      lastReadSeqno.load(),
+                                      lastSentSeqno.load(), curChkSeqno.load(),
+                                      itemsReady ? "True" : "False");
         }
         if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {
             endStream(END_STREAM_OK);
