@@ -171,6 +171,12 @@ ADD_TEST(NAME memcached-rbac-tests
          COMMAND memcached_testapp --gtest_filter=TransportProtocols/RbacTest.*)
 SET_TESTS_PROPERTIES(memcached-rbac-tests PROPERTIES TIMEOUT 60)
 
+# Run the batch to verify remove
+ADD_TEST(NAME memcached-remove-tests
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND memcached_testapp --gtest_filter=TransportProtocols/RemoveTest.*)
+SET_TESTS_PROPERTIES(memcached-remove-tests PROPERTIES TIMEOUT 60)
+
 # Run the shutdown tests
 ADD_TEST(NAME memcached-shutdown-tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
