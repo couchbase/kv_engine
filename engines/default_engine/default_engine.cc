@@ -17,6 +17,12 @@
 #include "engines/default_engine.h"
 #include "engine_manager.h"
 
+// The default engine don't really use vbucket uuids, but in order
+// to run the unit tests and verify that we correctly convert the
+// vbucket uuid to network byte order it is nice to have a value
+// we may use for testing ;)
+#define DEFAULT_ENGINE_VBUCKET_UUID 0xdeadbeef
+
 static const engine_info* default_get_info(ENGINE_HANDLE* handle);
 static ENGINE_ERROR_CODE default_initialize(ENGINE_HANDLE* handle,
                                             const char* config_str);
@@ -395,8 +401,8 @@ static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
     } while (ret == ENGINE_KEY_EEXISTS && cas_in == 0);
 
     // vbucket UUID / seqno arn't supported by default engine, so just return
-    // zeros.
-    mut_info->vbucket_uuid = 0;
+    // a hardcoded vbucket uuid, and zero for the sequence number.
+    mut_info->vbucket_uuid = DEFAULT_ENGINE_VBUCKET_UUID;
     mut_info->seqno = 0;
 
     return ret;
@@ -851,7 +857,7 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
         item_info->cas = it->cas;
     }
 
-    item_info->vbucket_uuid = 0;
+    item_info->vbucket_uuid = DEFAULT_ENGINE_VBUCKET_UUID;
     item_info->seqno = 0;
     item_info->exptime = it->exptime;
     item_info->nbytes = it->nbytes;

@@ -128,7 +128,6 @@ ENGINE_ERROR_CODE RemoveCommandContext::storeItem() {
                             DocumentState::Deleted);
 
     if (ret == ENGINE_SUCCESS) {
-        connection.setCAS(new_cas);
 
         item_info info;
         if (!bucket_get_item_info(&connection, deleted.get(), &info)) {
@@ -136,8 +135,9 @@ ENGINE_ERROR_CODE RemoveCommandContext::storeItem() {
         }
 
         // Response includes vbucket UUID and sequence number
-        mutation_descr.vbucket_uuid = htonll(info.vbucket_uuid);
-        mutation_descr.seqno = htonll(info.seqno);
+        mutation_descr.vbucket_uuid = info.vbucket_uuid;
+        mutation_descr.seqno = info.seqno;
+        connection.setCAS(info.cas);
 
         state = State::SendResponse;
     } else if (ret == ENGINE_KEY_EEXISTS && input_cas == 0) {
@@ -186,9 +186,13 @@ ENGINE_ERROR_CODE RemoveCommandContext::sendResponse() {
 
     if (connection.isSupportsMutationExtras()) {
         // Response includes vbucket UUID and sequence number
-        if (!mcbp_response_handler(nullptr, 0,
+        // Make the byte ordering in the mutation descriptor
+        mutation_descr.vbucket_uuid = htonll(mutation_descr.vbucket_uuid);
+        mutation_descr.seqno = htonll(mutation_descr.seqno);
+
+        if (!mcbp_response_handler(nullptr, 0, // no key
                                    &mutation_descr, sizeof(mutation_descr),
-                                   nullptr, 0,
+                                   nullptr, 0, // no value
                                    PROTOCOL_BINARY_RAW_BYTES,
                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                    connection.getCAS(),
