@@ -85,30 +85,43 @@ TARGET_LINK_LIBRARIES(memcached_testapp
 
 target_compile_options(memcached_testapp PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE})
 
+# All tests should have a test timeout to avoid blocking our CI infrastructure
+# if there is a bug in the code causing it to hang forever. The test timeout
+# should be added right after the test is added to make it easy to see that
+# it is present.
+#
+# Roughly calibrated to be 2x what the expected time is on the
+# slowest Jenkins platform/config.
+
 # Run all unit tests we have't split into its own test target
 ADD_TEST(NAME memcached-basic-unit-tests-bulk
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp
                     --gtest_filter=*-Transport/*:*PerfTest.*:ShutdownTest.*:RequireInitTest.*:*TransportProtocols*:*Greenstack*:AuditTest*:*ConnectionTimeout*:*ArithmeticTest*)
+SET_TESTS_PROPERTIES(memcached-basic-unit-tests-bulk PROPERTIES TIMEOUT 60)
 
 ADD_TEST(NAME memcached-basic-unit-tests-require-init
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=RequireInitTest.*)
+SET_TESTS_PROPERTIES(memcached-basic-unit-tests-require-init PROPERTIES TIMEOUT 200)
 
 # Run the Arithmetic tests
 ADD_TEST(NAME memcached-arithmetic-unit-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=ArithmeticTest.*)
+SET_TESTS_PROPERTIES(memcached-arithmetic-unit-tests PROPERTIES TIMEOUT 60)
 
 # Run the Audit tests
 ADD_TEST(NAME memcached-audit-unit-tests
           WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
           COMMAND memcached_testapp --gtest_filter=AuditTest.*)
+SET_TESTS_PROPERTIES(memcached-audit-unit-tests PROPERTIES TIMEOUT 120)
 
 # Run the Bucket tests
 ADD_TEST(NAME memcached-bucket-unit-tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         COMMAND memcached_testapp --gtest_filter=TransportProtocols/BucketTest.*)
+SET_TESTS_PROPERTIES(memcached-bucket-unit-tests PROPERTIES TIMEOUT 400)
 
 # Run the DCP tests
 ADD_TEST(NAME memcached-dcp-unit-tests
@@ -120,31 +133,37 @@ SET_TESTS_PROPERTIES(memcached-dcp-unit-tests PROPERTIES TIMEOUT 60)
 ADD_TEST(NAME memcached-lock-unit-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=TransportProtocols/LockTest.*)
+SET_TESTS_PROPERTIES(memcached-lock-unit-tests PROPERTIES TIMEOUT 60)
 
 # Run the Normal get set tests
 ADD_TEST(NAME memcached-getset-unit-tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         COMMAND memcached_testapp --gtest_filter=TransportProtocols/GetSetTest.*)
+SET_TESTS_PROPERTIES(memcached-getset-unit-tests PROPERTIES TIMEOUT 400)
 
 # Run the sasl tests
 ADD_TEST(NAME memcached-sasl-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=TransportProtocols/SaslTest.*)
+SET_TESTS_PROPERTIES(memcached-sasl-tests PROPERTIES TIMEOUT 60)
 
 # Run the stats tests
 ADD_TEST(NAME memcached-stats-unit-tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         COMMAND memcached_testapp --gtest_filter=TransportProtocols/StatsTest.*)
+SET_TESTS_PROPERTIES(memcached-stats-unit-tests PROPERTIES TIMEOUT 60)
 
 # Run the unit tests for the memcached binary protocol over a plain socket
 ADD_TEST(NAME memcached-mcbp-unit-tests-plain
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         COMMAND memcached_testapp --gtest_filter=Transport/*/Plain:-*/BucketTest*:-*Greenstack*)
+SET_TESTS_PROPERTIES(memcached-mcbp-unit-tests-plain PROPERTIES TIMEOUT 200)
 
 # Run the unit tests for the memcached binary protocol over SSL
 ADD_TEST(NAME memcached-mcbp-unit-tests-ssl
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         COMMAND memcached_testapp --gtest_filter=Transport/*/SSL:-*/BucketTest*:-*Greenstack*)
+SET_TESTS_PROPERTIES(memcached-mcbp-unit-tests-ssl PROPERTIES TIMEOUT 400)
 
 # Run the RBAC tests
 ADD_TEST(NAME memcached-rbac-tests
@@ -156,17 +175,19 @@ SET_TESTS_PROPERTIES(memcached-rbac-tests PROPERTIES TIMEOUT 60)
 ADD_TEST(NAME memcached-shutdown-tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         COMMAND memcached_testapp --gtest_filter=ShutdownTest.*)
+SET_TESTS_PROPERTIES(memcached-shutdown-tests PROPERTIES TIMEOUT 60)
 
 # Run the connection timeout tests
 ADD_TEST(NAME memcached-connection-timeout-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=ConnectionTimeoutTest.*)
+SET_TESTS_PROPERTIES(memcached-connection-timeout-tests PROPERTIES TIMEOUT 60)
 
 # Run the XATTR tests
 ADD_TEST(NAME memcached-xattr-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=TransportProtocols/XattrTest.*)
-
+SET_TESTS_PROPERTIES(memcached-xattr-tests PROPERTIES TIMEOUT 60)
 
 IF (MEMCACHED_USE_GREENSTACK)
    ADD_TEST(NAME memcached-greenstack-tests
@@ -179,21 +200,4 @@ ENDIF(MEMCACHED_USE_GREENSTACK)
 ADD_TEST(NAME memcached-basic-perf-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=*PerfTest.* --gtest_output=xml:gtest_results/memcached_basic_perf_tests.xml)
-
-# Test timeouts. Roughly calibrated to be 2x what the expected time is on the
-# slowest Jenkins platform/config.
-SET_TESTS_PROPERTIES(memcached-arithmetic-unit-tests PROPERTIES TIMEOUT 60)
-SET_TESTS_PROPERTIES(memcached-audit-unit-tests PROPERTIES TIMEOUT 120)
 SET_TESTS_PROPERTIES(memcached-basic-perf-tests PROPERTIES TIMEOUT 400)
-SET_TESTS_PROPERTIES(memcached-basic-unit-tests-bulk PROPERTIES TIMEOUT 60)
-SET_TESTS_PROPERTIES(memcached-basic-unit-tests-require-init PROPERTIES TIMEOUT 200)
-SET_TESTS_PROPERTIES(memcached-bucket-unit-tests PROPERTIES TIMEOUT 400)
-SET_TESTS_PROPERTIES(memcached-getset-unit-tests PROPERTIES TIMEOUT 400)
-SET_TESTS_PROPERTIES(memcached-lock-unit-tests PROPERTIES TIMEOUT 60)
-SET_TESTS_PROPERTIES(memcached-mcbp-unit-tests-plain PROPERTIES TIMEOUT 200)
-SET_TESTS_PROPERTIES(memcached-mcbp-unit-tests-ssl PROPERTIES TIMEOUT 400)
-SET_TESTS_PROPERTIES(memcached-sasl-tests PROPERTIES TIMEOUT 60)
-SET_TESTS_PROPERTIES(memcached-shutdown-tests PROPERTIES TIMEOUT 60)
-SET_TESTS_PROPERTIES(memcached-stats-unit-tests PROPERTIES TIMEOUT 60)
-SET_TESTS_PROPERTIES(memcached-connection-timeout-tests PROPERTIES TIMEOUT 60)
-SET_TESTS_PROPERTIES(memcached-xattr-tests PROPERTIES TIMEOUT 60)
