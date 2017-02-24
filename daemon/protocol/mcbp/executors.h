@@ -28,6 +28,8 @@ void select_bucket_executor(McbpConnection* c, void* packet);
 
 void list_bucket_executor(McbpConnection* c, void*);
 
+void get_cmd_timer_executor(McbpConnection* c, void* packet);
+
 // DCP executor
 void dcp_add_stream_executor(McbpConnection* c, void* packet);
 void dcp_buffer_acknowledgement_executor(McbpConnection* c, void* packet);
