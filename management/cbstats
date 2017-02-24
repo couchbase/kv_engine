@@ -9,6 +9,10 @@ import itertools
 import mc_bin_client
 import re
 
+from collections import defaultdict, OrderedDict
+from operator import itemgetter
+from functools import total_ordering
+
 try:
     import simplejson as json
 except ImportError:
@@ -54,6 +58,177 @@ def stats_formatter(stats, prefix=" ", cmp=None):
                 s = stat + ":"
                 print "%s%s%s" % (prefix, s.ljust(longest), val)
 
+
+def table_formatter(columns, data, sort_by=None):
+    """Formats data in a top-style table.
+
+    Takes a list of Columns (holding a display name and alignment), and a list
+    of lists representing each row in the table. The data in the rows should be
+    in the same order as the Columns.
+    """
+    column_widths = [len(c) for c in columns]
+    for row in data:
+        for index, item in enumerate(row):
+            column_widths[index] = max([column_widths[index], len(str(item))])
+
+    template = ""
+    for index, column in enumerate(columns[:-1]):
+        align = ">" if column.ralign else "<"
+        template += "{{:{}{}}}  ".format(align,column_widths[index])
+    # Last line is not padded unless right aligned
+    # so only long lines will wrap, not all of them
+    template += ("{{:>{}}}  ".format(column_widths[-1])
+                if columns[-1].ralign else "{}")
+
+    sort_key = None
+
+    if sort_by is not None:
+        if type(sort_by) is int or (type(sort_by) is str and sort_by.isdigit()):
+            sort_key = itemgetter(int(sort_by))
+
+        elif type(sort_by) is str:
+            sort_by = sort_by.lower()
+            for index, column in enumerate(columns):
+                if sort_by == column.display_name.lower():
+                    sort_key = itemgetter(index)
+                    break
+
+    print template.format(*columns), "\n"
+    for row in sorted(data, key=sort_key):
+        print template.format(*row)
+
+@total_ordering
+class TaskStat(object):
+    """Represents a stat which must be sorted by a different value than is
+    displayed, i.e. pretty-printed timestamps
+    """
+    def __init__(self, display_value, value):
+        self.display_value = display_value
+        self.value = value
+
+    def __eq__(self, other):
+        return self.value == (other.value if hasattr(other, "value") else other)
+
+    def __lt__(self, other):
+        return self.value < (other.value if hasattr(other, "value") else other)
+
+    def __str__(self):
+        return self.display_value
+
+class Column(object):
+    def __init__(self, display_name, ralign):
+        self.display_name = display_name
+        self.ralign = ralign
+
+    def __str__(self):
+        return self.display_name
+
+    def __len__(self):
+        return len(str(self))
+
+def ps_time_stat(t):
+    """convenience method for constructing a stat displaying a ps-style
+    timestamp but sorting on the underlying time since epoch.
+    """
+    t = t / 1000
+    return TaskStat(ps_time_label(t), t)
+
+def tasks_stats_formatter(stats, sort_by=None, *args):
+    """Formats the data from ep_tasks in a top-like display"""
+    if stats:
+        if output_json:
+            stats_formatter(stats)
+        else:
+            cur_time = int(stats.pop("ep_tasks:cur_time"))
+
+            total_tasks = {"Reader":0,
+                           "Writer":0,
+                           "AuxIO":0,
+                           "NonIO":0}
+
+            running_tasks = total_tasks.copy()
+
+            states = ["R", "S", "D"]
+
+
+            tasks = json.loads(stats["ep_tasks:tasks"])
+
+            for task in tasks:
+                total_tasks[task["type"]]+=1
+
+                task["waketime_ns"] = (ps_time_stat(
+                                        (task["waketime_ns"] - cur_time))
+                                    if task["waketime_ns"] < BIG_VALUE
+                                    else TaskStat("*", task["waketime_ns"]))
+
+                task["total_runtime_ns"] = ps_time_stat(
+                                                   task["total_runtime_ns"])
+
+                if task["state"] == "RUNNING":
+                    # task is running
+                    task["runtime"] = ps_time_stat(cur_time -
+                                                   task["last_starttime"])
+                    task["waketime_ns"] = ps_time_stat(0)
+                    running_tasks[task["type"]]+=1
+                else:
+                    task["runtime"] = ps_time_stat(0)
+
+                task["state"] = task["state"][0]
+
+
+            running_tasks["Total"] = sum(running_tasks.values())
+            total_tasks["Total"] = len(tasks)
+
+            headers = (
+                "Tasks     Writer Reader AuxIO  NonIO  Total \n" +
+                "Running   {Writer:<6} {Reader:<6} "
+                "{AuxIO:<6} {NonIO:<6} {Total:<6}\n"
+                    .format(**running_tasks) +
+                "All       {Writer:<6} {Reader:<6} "
+                "{AuxIO:<6} {NonIO:<6} {Total:<6}\n"
+                    .format(**total_tasks)
+            )
+
+            print headers
+
+            table_columns = OrderedDict([
+                    (key, Column(*options)) for key, options in (
+                    # Stat            Display Name  Right Align
+                    ('tid',              ('TID',         True )),
+                    ('priority',         ('Pri',         True )),
+                    ('state',            ('St',          False)),
+                    ('bucket',           ('Bucket',      False)),
+                    ('waketime_ns',      ('SleepFor',    True )),
+                    ('runtime',          ('Runtime',     True )),
+                    ('total_runtime_ns', ('TotalRun',    True )),
+                    ('type',             ('Type',        False)),
+                    ('name',             ('Name',        False)),
+                    ('description',      ('Description', False)),
+                )])
+
+            table_data = []
+
+            for row in tasks:
+                table_data.append(tuple(row[key]
+                                        for key in table_columns.keys()))
+
+
+            table_formatter(table_columns.values(), table_data, sort_by)
+
+
+def ps_time_label(microseconds):
+    sign = "-" if microseconds < 0 else ""
+
+    centiseconds = abs(microseconds)//10000
+
+    seconds = centiseconds//100
+    centiseconds %= 100
+
+    minutes = seconds//60
+    seconds %= 60
+
+    return "{}{}:{:0>2}.{:0>2}".format(sign, minutes, seconds, centiseconds)
+
 def time_label(s):
     # -(2**64) -> '-inf'
     # 2**64 -> 'inf'
@@ -67,6 +242,11 @@ def time_label(s):
         return '-inf'
     elif s == 0:
         return '0'
+
+    isNegative = s < 0
+
+    s = abs(s)
+
     product = 1
     sizes = (('us', 1), ('ms', 1000), ('s', 1000), ('m', 60))
     sizeMap = []
@@ -79,8 +259,11 @@ def time_label(s):
     if lbl == 'm':
         mins = s / factor
         secs = (s % factor) / (factor / 60)
-        return '%d%s:%02ds' % (mins, lbl, secs)
-    return "%d%s" % (s / factor, lbl)
+        result = '%d%s:%02ds' % (mins, lbl, secs)
+    else:
+        result = "%d%s" % (s / factor, lbl)
+
+    return ("-" if isNegative else "") + result
 
 def sec_label(s):
     return time_label(s * 1000000)
@@ -473,6 +656,10 @@ def stats_dispatcher(mc, with_logs='no'):
                     print "        ---------"
 
 @cmd
+def stats_tasks(mc, *args):
+    tasks_stats_formatter(stats_perform(mc, 'tasks'), *args)
+
+@cmd
 def reset(mc):
     stats_perform(mc, 'reset')
 
@@ -487,6 +674,7 @@ def main():
     c.addCommand('scheduler', stats_scheduler, 'scheduler')
     c.addCommand('runtimes', stats_runtimes, 'runtimes')
     c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs]')
+    c.addCommand('tasks', stats_tasks, 'tasks [sort column]')
     c.addCommand('workload', stats_workload, 'workload')
     c.addCommand('failovers', stats_failovers, 'failovers [vbid]')
     c.addCommand('hash', stats_hash, 'hash [detail]')

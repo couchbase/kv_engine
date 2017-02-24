@@ -126,7 +126,9 @@ public:
     }
 
     void updateTaskStart(void) {
-        taskStart.setTimePoint(ProcessClock::now());
+        const ProcessClock::time_point& now = ProcessClock::now();
+        taskStart.setTimePoint(now);
+        currentTask->updateLastStartTime(now);
     }
 
     const std::string getStateName();

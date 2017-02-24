@@ -126,6 +126,7 @@ void ExecutorThread::run() {
                                                  getTaskStart());
             currentTask->getTaskable().logRunTime(currentTask->getTypeId(),
                                                   runtime);
+            currentTask->updateRuntime(runtime);
             if (engine) {
                 ObjectRegistry::onSwitchThread(NULL);
             }

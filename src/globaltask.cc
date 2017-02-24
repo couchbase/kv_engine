@@ -42,13 +42,15 @@ GlobalTask::GlobalTask(Taskable& t,
                        TaskId taskId,
                        double sleeptime,
                        bool completeBeforeShutdown)
-      : RCValue(),
-        blockShutdown(completeBeforeShutdown),
-        state(TASK_RUNNING),
-        uid(nextTaskId()),
-        typeId(taskId),
-        engine(NULL),
-        taskable(t) {
+    : RCValue(),
+      blockShutdown(completeBeforeShutdown),
+      state(TASK_RUNNING),
+      uid(nextTaskId()),
+      typeId(taskId),
+      engine(NULL),
+      taskable(t),
+      totalRuntime(0),
+      lastStartTime(0) {
     priority = getTaskPriority(taskId);
     snooze(sleeptime);
 }
@@ -146,3 +148,16 @@ std::array<TaskId, static_cast<int>(TaskId::TASK_COUNT)> GlobalTask::allTaskIds 
 #include "tasks.def.h"
 #undef TASK
 }};
+
+std::string to_string(task_state_t state) {
+    switch (state) {
+    case TASK_RUNNING:
+        return "RUNNING";
+    case TASK_SNOOZED:
+        return "SNOOZED";
+    case TASK_DEAD:
+        return "DEAD";
+    }
+    throw std::invalid_argument("to_string(task_state_t) unknown state " +
+                                std::to_string(static_cast<int>(state)));
+}

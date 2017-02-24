@@ -709,6 +709,7 @@ protected:
     ENGINE_ERROR_CODE doSchedulerStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doRunTimeStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doDispatcherStats(const void *cookie, ADD_STAT add_stat);
+    ENGINE_ERROR_CODE doTasksStats(const void* cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doKeyStats(const void *cookie, ADD_STAT add_stat,
                                  uint16_t vbid, const DocKey& key, bool validate=false);
     ENGINE_ERROR_CODE doTapVbTakeoverStats(const void *cookie,

@@ -17,19 +17,20 @@
 
 #include "config.h"
 
-#include <algorithm>
-#include <chrono>
-#include <platform/checked_snprintf.h>
-#include <platform/processclock.h>
-#include <platform/sysinfo.h>
-#include <queue>
-#include <sstream>
-
 #include "ep_engine.h"
 #include "statwriter.h"
 #include "taskqueue.h"
 #include "executorpool.h"
 #include "executorthread.h"
+
+#include <cJSON_utils.h>
+#include <platform/checked_snprintf.h>
+#include <platform/processclock.h>
+#include <platform/sysinfo.h>
+#include <algorithm>
+#include <chrono>
+#include <queue>
+#include <sstream>
 
 std::mutex ExecutorPool::initGuard;
 std::atomic<ExecutorPool*> ExecutorPool::instance;
@@ -880,6 +881,80 @@ void ExecutorPool::doWorkerStat(EventuallyPersistentEngine *engine,
         showJobLog("slow", threadQ[tidx]->getName().c_str(),
                    threadQ[tidx]->getSlowLog(), cookie, add_stat);
     }
+    ObjectRegistry::onSwitchThread(epe);
+}
+
+void ExecutorPool::doTasksStat(EventuallyPersistentEngine* engine,
+                               const void* cookie,
+                               ADD_STAT add_stat) {
+    if (engine->getEpStats().isShutdown) {
+        return;
+    }
+
+    EventuallyPersistentEngine* epe =
+            ObjectRegistry::onSwitchThread(NULL, true);
+
+    std::map<size_t, TaskQpair> taskLocatorCopy;
+
+    {
+        // Holding this lock will block scheduling new tasks and cancelling
+        // tasks, but threads can still take up work other than this
+        LockHolder lh(tMutex);
+
+        // Copy taskLocator
+        taskLocatorCopy = taskLocator;
+    }
+
+    char statname[80] = {0};
+    char prefix[] = "ep_tasks";
+
+    unique_cJSON_ptr list(cJSON_CreateArray());
+
+    for (auto& pair : taskLocatorCopy) {
+        size_t tid = pair.first;
+        ExTask& task = pair.second.first;
+
+        unique_cJSON_ptr obj(cJSON_CreateObject());
+
+        cJSON_AddNumberToObject(obj.get(), "tid", tid);
+        cJSON_AddStringToObject(
+                obj.get(), "state", to_string(task->getState()).c_str());
+        cJSON_AddStringToObject(
+                obj.get(), "name", GlobalTask::getTaskName(task->getTypeId()));
+        cJSON_AddStringToObject(
+                obj.get(), "bucket", task->getTaskable().getName().c_str());
+        cJSON_AddStringToObject(
+                obj.get(), "description", task->getDescription().data());
+        cJSON_AddNumberToObject(
+                obj.get(), "priority", task->getQueuePriority());
+        cJSON_AddNumberToObject(obj.get(),
+                                "waketime_ns",
+                                task->getWaketime().time_since_epoch().count());
+        cJSON_AddNumberToObject(
+                obj.get(), "total_runtime_ns", task->getTotalRuntime().count());
+        cJSON_AddNumberToObject(
+                obj.get(),
+                "last_starttime_ns",
+                to_ns_since_epoch(task->getLastStartTime()).count());
+        cJSON_AddStringToObject(
+                obj.get(),
+                "type",
+                TaskQueue::taskType2Str(
+                        GlobalTask::getTaskType(task->getTypeId()))
+                        .c_str());
+
+        cJSON_AddItemToArray(list.get(), obj.release());
+    }
+
+    checked_snprintf(statname, sizeof(statname), "%s:tasks", prefix);
+    add_casted_stat(statname, to_string(list, false), add_stat, cookie);
+
+    checked_snprintf(statname, sizeof(statname), "%s:cur_time", prefix);
+    add_casted_stat(statname,
+                    to_ns_since_epoch(ProcessClock::now()).count(),
+                    add_stat,
+                    cookie);
+
     ObjectRegistry::onSwitchThread(epe);
 }
 

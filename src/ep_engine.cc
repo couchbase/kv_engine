@@ -4110,6 +4110,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDispatcherStats(const void
     return ENGINE_SUCCESS;
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doTasksStats(const void* cookie,
+                                                           ADD_STAT add_stat) {
+    ExecutorPool::get()->doTasksStat(
+            ObjectRegistry::getCurrentEngine(), cookie, add_stat);
+    return ENGINE_SUCCESS;
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void
                                                               *cookie,
                                                               ADD_STAT
@@ -4314,6 +4321,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = doTimingStats(cookie, add_stat);
     } else if (statKey == "dispatcher") {
         rv = doDispatcherStats(cookie, add_stat);
+    } else if (statKey == "tasks") {
+        rv = doTasksStats(cookie, add_stat);
     } else if (statKey == "scheduler") {
         rv = doSchedulerStats(cookie, add_stat);
     } else if (statKey == "runtimes") {

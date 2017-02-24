@@ -136,6 +136,14 @@ public:
     void doWorkerStat(EventuallyPersistentEngine *engine, const void *cookie,
                       ADD_STAT add_stat);
 
+    /**
+     * Generates stats regarding currently running tasks, as displayed by
+     * cbstats tasks.
+     */
+    void doTasksStat(EventuallyPersistentEngine* engine,
+                     const void* cookie,
+                     ADD_STAT add_stat);
+
     void doTaskQStat(EventuallyPersistentEngine *engine, const void *cookie,
                      ADD_STAT add_stat);
 

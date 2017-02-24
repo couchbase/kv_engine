@@ -31,6 +31,8 @@ enum task_state_t {
     TASK_DEAD
 };
 
+std::string to_string(task_state_t state);
+
 enum class TaskId : int {
 #define TASK(name, type, prio) name,
 #include "tasks.def.h"
@@ -147,13 +149,31 @@ public:
         return ProcessClock::time_point(waketime_chrono);
     }
 
-    void updateWaketime(const ProcessClock::time_point tp) {
+    void updateWaketime(ProcessClock::time_point tp) {
         waketime = to_ns_since_epoch(tp).count();
     }
 
-    void updateWaketimeIfLessThan(const ProcessClock::time_point tp) {
+    void updateWaketimeIfLessThan(ProcessClock::time_point tp) {
         const int64_t tp_ns = to_ns_since_epoch(tp).count();
         atomic_setIfBigger(waketime, tp_ns);
+    }
+
+    ProcessClock::time_point getLastStartTime() const {
+        const auto waketime_chrono = std::chrono::nanoseconds(lastStartTime);
+        return ProcessClock::time_point(waketime_chrono);
+    }
+
+    void updateLastStartTime(ProcessClock::time_point tp) {
+        lastStartTime = to_ns_since_epoch(tp).count();
+    }
+
+    ProcessClock::duration getTotalRuntime() const {
+        return std::chrono::nanoseconds(totalRuntime);
+    }
+
+    void updateRuntime(ProcessClock::duration tp) {
+        totalRuntime += std::chrono::duration_cast<std::chrono::nanoseconds>(tp)
+                                .count();
     }
 
     queue_priority_t getQueuePriority() const {
@@ -184,6 +204,15 @@ public:
     static std::array<TaskId, static_cast<int>(TaskId::TASK_COUNT)> allTaskIds;
 
 protected:
+    /**
+     * We are using a int64_t as opposed to ProcessTime::time_point because we
+     * want the access to be atomic without the use of a mutex. The reason for
+     * this is that we update these timepoints in locations which have been
+     * shown to be pretty hot (e.g. CompareByDueDate) and we want to avoid
+     * the overhead of acquiring mutexes.
+     */
+    using atomic_time_point = std::atomic<int64_t>;
+    using atomic_duration = std::atomic<int64_t>;
     bool blockShutdown;
     std::atomic<task_state_t> state;
     const size_t uid;
@@ -195,17 +224,11 @@ protected:
     static std::atomic<size_t> task_id_counter;
     static size_t nextTaskId() { return task_id_counter.fetch_add(1); }
 
+    atomic_duration totalRuntime;
+    atomic_time_point lastStartTime;
 
 private:
-    /**
-     * We are using a uint64_t as opposed to ProcessTime::time_point because
-     * was want the access to be atomic without the use of a mutex.
-     * The reason for this is that the CompareByDueDate function has been shown
-     * to be pretty hot and we want to avoid the overhead of acquiring
-     * two mutexes (one for ExTask 1 and one for ExTask 2) for every invocation
-     * of the function.
-     */
-    std::atomic<int64_t> waketime; // used for priority_queue
+    atomic_time_point waketime; // used for priority_queue
 };
 
 typedef SingleThreadedRCPtr<GlobalTask> ExTask;
