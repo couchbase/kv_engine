@@ -111,16 +111,31 @@ ADD_LIBRARY(memcached_daemon STATIC
             protocol/mcbp/arithmetic_context.cc
             protocol/mcbp/arithmetic_context.h
             protocol/mcbp/command_context.h
+            protocol/mcbp/dcp_add_failover_log.cc
+            protocol/mcbp/dcp_add_failover_log.h
+            protocol/mcbp/dcp_add_stream_executor.cc
+            protocol/mcbp/dcp_buffer_acknowledgement_executor.cc
+            protocol/mcbp/dcp_close_stream_executor.cc
+            protocol/mcbp/dcp_control_executor.cc
             protocol/mcbp/dcp_deletion.cc
             protocol/mcbp/dcp_deletion.h
             protocol/mcbp/dcp_expiration.cc
             protocol/mcbp/dcp_expiration.h
+            protocol/mcbp/dcp_flush_executor.cc
+            protocol/mcbp/dcp_get_failover_log_executor.cc
             protocol/mcbp/dcp_mutation.cc
             protocol/mcbp/dcp_mutation.h
+            protocol/mcbp/dcp_noop_executor.cc
+            protocol/mcbp/dcp_open_executor.cc
+            protocol/mcbp/dcp_set_vbucket_state_executor.cc
+            protocol/mcbp/dcp_snapshot_marker_executor.cc
+            protocol/mcbp/dcp_stream_end_executor.cc
+            protocol/mcbp/dcp_stream_req_executor.cc
             protocol/mcbp/engine_errc_2_mcbp.cc
             protocol/mcbp/engine_errc_2_mcbp.h
             protocol/mcbp/engine_wrapper.cc
             protocol/mcbp/engine_wrapper.h
+            protocol/mcbp/executors.h
             protocol/mcbp/get_context.cc
             protocol/mcbp/get_context.h
             protocol/mcbp/get_locked_context.cc

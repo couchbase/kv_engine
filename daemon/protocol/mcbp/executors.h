@@ -27,3 +27,18 @@
 void select_bucket_executor(McbpConnection* c, void* packet);
 
 void list_bucket_executor(McbpConnection* c, void*);
+
+// DCP executor
+void dcp_add_stream_executor(McbpConnection* c, void* packet);
+void dcp_buffer_acknowledgement_executor(McbpConnection* c, void* packet);
+void dcp_close_stream_executor(McbpConnection* c, void* packet);
+void dcp_control_executor(McbpConnection* c, void* packet);
+void dcp_flush_executor(McbpConnection* c, void* packet);
+void dcp_get_failover_log_executor(McbpConnection* c, void* packet);
+void dcp_noop_executor(McbpConnection* c, void*);
+void dcp_open_executor(McbpConnection* c, void* packet);
+void dcp_set_vbucket_state_executor(McbpConnection* c, void* packet);
+void dcp_snapshot_marker_executor(McbpConnection* c, void* packet);
+void dcp_stream_end_executor(McbpConnection* c, void* packet);
+void dcp_stream_req_executor(McbpConnection* c, void* packet);
+
