@@ -87,7 +87,8 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
 
     /* Audit */
     setup(PROTOCOL_BINARY_CMD_AUDIT_PUT, require<Privilege::Audit>);
-    setup(PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD, require<Privilege::NodeManagement>);
+    setup(PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD,
+          require<Privilege::AuditManagement>);
 
     /* Shutdown the server */
     setup(PROTOCOL_BINARY_CMD_SHUTDOWN, require<Privilege::NodeManagement>);
@@ -132,8 +133,10 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_DCP_CONTROL, empty);
     /* End DCP */
 
-    setup(PROTOCOL_BINARY_CMD_STOP_PERSISTENCE, require<Privilege::NodeManagement>);
-    setup(PROTOCOL_BINARY_CMD_START_PERSISTENCE, require<Privilege::NodeManagement>);
+    setup(PROTOCOL_BINARY_CMD_STOP_PERSISTENCE,
+          require<Privilege::NodeManagement>);
+    setup(PROTOCOL_BINARY_CMD_START_PERSISTENCE,
+          require<Privilege::NodeManagement>);
     setup(PROTOCOL_BINARY_CMD_SET_PARAM, require<Privilege::NodeManagement>);
     setup(PROTOCOL_BINARY_CMD_GET_REPLICA, require<Privilege::Read>);
 
@@ -192,11 +195,13 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     /**
      * Command to enable data traffic after completion of warm
      */
-    setup(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC, require<Privilege::MetaWrite>);
+    setup(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC,
+          require<Privilege::NodeManagement>);
     /**
      * Command to disable data traffic temporarily
      */
-    setup(PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC, require<Privilege::MetaWrite>);
+    setup(PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC,
+          require<Privilege::NodeManagement>);
     /**
      * Command to change the vbucket filter for a given TAP producer.
      */
@@ -217,7 +222,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     /**
      * Command to set cluster configuration
      */
-    setup(PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG, require<Privilege::NodeManagement>);
+    setup(PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG, require<Privilege::SecurityManagement>);
     /**
      * Command that returns cluster configuration (open to anyone)
      */
@@ -274,9 +279,11 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     /* Scrub the data */
     setup(PROTOCOL_BINARY_CMD_SCRUB, require<Privilege::NodeManagement>);
     /* Refresh the ISASL data */
-    setup(PROTOCOL_BINARY_CMD_ISASL_REFRESH, require<Privilege::NodeManagement>);
+    setup(PROTOCOL_BINARY_CMD_ISASL_REFRESH,
+          require<Privilege::SecurityManagement>);
     /* Refresh the SSL certificates */
-    setup(PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH, require<Privilege::NodeManagement>);
+    setup(PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH,
+          require<Privilege::SecurityManagement>);
     /* Internal timer ioctl */
     setup(PROTOCOL_BINARY_CMD_GET_CMD_TIMER, require<Privilege::NodeManagement>);
     /* ns_server - memcached session validation */
@@ -287,7 +294,8 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_INIT_COMPLETE, require<Privilege::NodeManagement>);
 
     /* Refresh the RBAC data */
-    setup(PROTOCOL_BINARY_CMD_RBAC_REFRESH, require<Privilege::NodeManagement>);
+    setup(PROTOCOL_BINARY_CMD_RBAC_REFRESH,
+          require<Privilege::SecurityManagement>);
 
 
     if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {

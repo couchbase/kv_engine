@@ -45,6 +45,7 @@ static const std::unordered_map<std::string, Privilege> privilegemap = {
         {"XattrWrite", Privilege::XattrWrite},
         {"SystemXattrWrite", Privilege::SystemXattrWrite},
         {"CollectionManagement", Privilege::CollectionManagement},
+        {"SecurityManagement", Privilege::SecurityManagement},
         {"Impersonate", Privilege::Impersonate}};
 
 std::string to_string(const Privilege& privilege) {

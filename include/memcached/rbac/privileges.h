@@ -130,6 +130,13 @@ enum class Privilege {
     CollectionManagement,
 
     /**
+     * The `SecurityManagement` privilege allows the connection to perform
+     * security related functionality (like reloading password database,
+     * SSL certificates, reload RBAC database, set cluster config, )
+     */
+    SecurityManagement,
+
+    /**
      * The `Impersonate` privilege allows the connection to execute commands
      * by using a different authentication context. The intented use is
      * for other components in the system which is part of the TCB so that
