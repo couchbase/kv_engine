@@ -1046,7 +1046,8 @@ void MutationLogHarvester::apply(void *arg, mlCallbackWithQueue mlc) {
 
         // Remove any items which are no longer valid in the VBucket.
         for (auto it = committed[vb].begin(); it != committed[vb].end(); ) {
-            if ((vbucket->ht.find(*it, false) == nullptr)) {
+            if ((vbucket->ht.find(*it, TrackReference::No, WantsDeleted::No) ==
+                 nullptr)) {
                 it = committed[vb].erase(it);
             }
             else {

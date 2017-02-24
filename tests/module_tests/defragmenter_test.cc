@@ -337,8 +337,10 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
             /// Use stack and DocKey to minimuze heap pollution
             char key[16];
             snprintf(key, sizeof(key), "%d", i);
-            auto* item = vbucket.ht.find(DocKey(key,
-                                                DocNamespace::DefaultCollection));
+            auto* item = vbucket.ht.find(
+                    DocKey(key, DocNamespace::DefaultCollection),
+                    TrackReference::Yes,
+                    WantsDeleted::No);
             ASSERT_NE(nullptr, item);
 
             const uintptr_t page =

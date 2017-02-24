@@ -634,8 +634,10 @@ void LoadValueCallback::callback(CacheLookup &lookup)
 
         auto hbl = vb->ht.getLockedBucket(lookup.getKey());
 
-        StoredValue* v =
-                vb->ht.unlocked_find(lookup.getKey(), hbl.getBucketNum());
+        StoredValue* v = vb->ht.unlocked_find(lookup.getKey(),
+                                              hbl.getBucketNum(),
+                                              WantsDeleted::No,
+                                              TrackReference::Yes);
         if (v && v->isResident()) {
             setStatus(ENGINE_KEY_EEXISTS);
             return;

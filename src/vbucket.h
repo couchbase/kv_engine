@@ -509,9 +509,9 @@ public:
      */
     StoredValue* fetchValidValue(HashTable::HashBucketLock& hbl,
                                  const DocKey& key,
-                                 bool wantsDeleted = false,
-                                 bool trackReference = true,
-                                 bool queueExpired = true);
+                                 WantsDeleted wantsDeleted,
+                                 TrackReference trackReference,
+                                 QueueExpired queueExpired);
 
     /**
      * Complete the background fetch for the specified item. Depending on the
@@ -853,8 +853,8 @@ public:
      * @param engine Reference to ep engine
      * @param bgFetchDelay
      * @param[out] kstats On success the keystats for this item.
-     * @param wantsDeleted If true then return keystats even if the item is
-     *                     marked as deleted. If false then will return
+     * @param wantsDeleted If yes then return keystats even if the item is
+     *                     marked as deleted. If no then will return
      *                     ENGINE_KEY_ENOENT for deleted items.
      *
      * @return the result of the operation
@@ -864,7 +864,7 @@ public:
                                   EventuallyPersistentEngine& engine,
                                   int bgFetchDelay,
                                   struct key_stats& kstats,
-                                  bool wantsDeleted);
+                                  WantsDeleted wantsDeleted);
 
     /**
      * Gets a locked item for a given key.

@@ -87,7 +87,11 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
     { // locking scope
         ReaderLockHolder rlh(getStateLock());
         auto hbl = ht.getLockedBucket(key);
-        StoredValue* v = fetchValidValue(hbl, key, true);
+        StoredValue* v = fetchValidValue(hbl,
+                                         key,
+                                         WantsDeleted::Yes,
+                                         TrackReference::Yes,
+                                         QueueExpired::Yes);
 
         if (fetched_item.metaDataOnly) {
             if (status == ENGINE_SUCCESS) {
@@ -329,7 +333,11 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
                                        EventuallyPersistentEngine& engine,
                                        const int bgFetchDelay) {
     auto hbl = ht.getLockedBucket(key);
-    StoredValue* v = fetchValidValue(hbl, key, true);
+    StoredValue* v = fetchValidValue(hbl,
+                                     key,
+                                     WantsDeleted::Yes,
+                                     TrackReference::Yes,
+                                     QueueExpired::Yes);
 
     if (v) {
         if (v->isDeleted() || v->isTempDeletedItem() ||
@@ -381,7 +389,11 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
 void EPVBucket::completeStatsVKey(const DocKey& key,
                                   const RememberingCallback<GetValue>& gcb) {
     auto hbl = ht.getLockedBucket(key);
-    StoredValue* v = fetchValidValue(hbl, key, true);
+    StoredValue* v = fetchValidValue(hbl,
+                                     key,
+                                     WantsDeleted::Yes,
+                                     TrackReference::Yes,
+                                     QueueExpired::Yes);
 
     if (v && v->isTempInitialItem()) {
         if (gcb.val.getStatus() == ENGINE_SUCCESS) {
@@ -430,10 +442,8 @@ void EPVBucket::addStats(bool details, ADD_STAT add_stat, const void* c) {
 protocol_binary_response_status EPVBucket::evictKey(const DocKey& key,
                                                     const char** msg) {
     auto hbl = ht.getLockedBucket(key);
-    StoredValue* v = fetchValidValue(hbl,
-                                     key,
-                                     /*wantDeleted*/ false,
-                                     /*trackReference*/ false);
+    StoredValue* v = fetchValidValue(
+            hbl, key, WantsDeleted::No, TrackReference::No, QueueExpired::Yes);
 
     if (!v) {
         if (eviction == VALUE_ONLY) {

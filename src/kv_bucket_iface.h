@@ -597,14 +597,15 @@ public:
      * @param vbucket The vbucket the key belongs to.
      * @param cookie The client's cookie
      * @param[out] kstats On success the keystats for this item.
-     * @param wantsDeleted If true then return keystats even if the item is
-     *                     marked as deleted. If false then will return
+     * @param wantsDeleted If yes then return keystats even if the item is
+     *                     marked as deleted. If no then will return
      *                     ENGINE_KEY_ENOENT for deleted items.
      */
     virtual ENGINE_ERROR_CODE getKeyStats(const DocKey& key,
-                                          uint16_t vbucket, const void* cookie,
-                                          key_stats &kstats,
-                                          bool wantsDeleted) = 0;
+                                          uint16_t vbucket,
+                                          const void* cookie,
+                                          key_stats& kstats,
+                                          WantsDeleted wantsDeleted) = 0;
 
     virtual std::string validateKey(const DocKey& key, uint16_t vbucket,
                                     Item &diskItem) = 0;

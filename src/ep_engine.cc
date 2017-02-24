@@ -4163,7 +4163,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
         return rv;
     }
 
-    rv = kvBucket->getKeyStats(key, vbid, cookie, kstats, false);
+    rv = kvBucket->getKeyStats(key, vbid, cookie, kstats, WantsDeleted::No);
     if (rv == ENGINE_SUCCESS) {
         std::string valid("this_is_a_bug");
         if (validate) {
@@ -4693,8 +4693,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
         uint16_t keystatus = 0;
         struct key_stats kstats;
         memset(&kstats, 0, sizeof(key_stats));
-        ENGINE_ERROR_CODE rv = kvBucket->getKeyStats(key, vb_id, cookie, kstats,
-                                                     true);
+        ENGINE_ERROR_CODE rv = kvBucket->getKeyStats(
+                key, vb_id, cookie, kstats, WantsDeleted::Yes);
         if (rv == ENGINE_SUCCESS) {
             if (kstats.logically_deleted) {
                 keystatus = OBS_STATE_LOGICAL_DEL;

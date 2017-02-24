@@ -115,10 +115,8 @@ static std::vector<StoredDocKey> generateKeys(int num, int start=0) {
  */
 static bool del(HashTable& ht, const DocKey& key) {
     auto hbl = ht.getLockedBucket(key);
-    StoredValue* v = ht.unlocked_find(key,
-                                      hbl.getBucketNum(),
-                                      /*wantsDeleted*/ true,
-                                      /*trackReference*/ false);
+    StoredValue* v = ht.unlocked_find(
+            key, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
     if (!v) {
         return false;
     }
@@ -196,10 +194,12 @@ TEST_F(HashTableTest, ForwardDeletions) {
 }
 
 static void verifyFound(HashTable &h, const std::vector<StoredDocKey> &keys) {
-    EXPECT_FALSE(h.find(makeStoredDocKey("aMissingKey")));
+    EXPECT_FALSE(h.find(makeStoredDocKey("aMissingKey"),
+                        TrackReference::Yes,
+                        WantsDeleted::No));
 
     for (const auto& key : keys) {
-        EXPECT_TRUE(h.find(key));
+        EXPECT_TRUE(h.find(key, TrackReference::Yes, WantsDeleted::No));
     }
 }
 
@@ -387,7 +387,7 @@ TEST_F(HashTableTest, SizeStatsEject) {
     EXPECT_EQ(MutationStatus::WasClean, ht.set(i));
 
     item_eviction_policy_t policy = VALUE_ONLY;
-    StoredValue *v(ht.find(key));
+    StoredValue* v(ht.find(key, TrackReference::Yes, WantsDeleted::No));
     EXPECT_TRUE(v);
     v->markClean();
     EXPECT_TRUE(ht.unlocked_ejectItem(v, policy));
@@ -418,7 +418,7 @@ TEST_F(HashTableTest, SizeStatsEjectFlush) {
     EXPECT_EQ(MutationStatus::WasClean, ht.set(i));
 
     item_eviction_policy_t policy = VALUE_ONLY;
-    StoredValue *v(ht.find(key));
+    StoredValue* v(ht.find(key, TrackReference::Yes, WantsDeleted::No));
     EXPECT_TRUE(v);
     v->markClean();
     EXPECT_TRUE(ht.unlocked_ejectItem(v, policy));
@@ -440,7 +440,7 @@ TEST_F(HashTableTest, ItemAge) {
     EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
     // Test
-    StoredValue* v(ht.find(key));
+    StoredValue* v(ht.find(key, TrackReference::Yes, WantsDeleted::No));
     EXPECT_EQ(0, v->getValue()->getAge());
     v->getValue()->incrementAge();
     EXPECT_EQ(1, v->getValue()->getAge());
@@ -472,12 +472,12 @@ TEST_F(HashTableTest, NRUDefault) {
     EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
     // trackReferenced=false so we don't modify the NRU while validating it.
-    StoredValue* v(ht.find(key, /*trackReference*/false));
+    StoredValue* v(ht.find(key, TrackReference::No, WantsDeleted::No));
     EXPECT_NE(nullptr, v);
     EXPECT_EQ(INITIAL_NRU_VALUE, v->getNRUValue());
 
     // Check that find() by default /does/ update NRU.
-    v = ht.find(key);
+    v = ht.find(key, TrackReference::Yes, WantsDeleted::No);
     EXPECT_NE(nullptr, v);
     EXPECT_EQ(INITIAL_NRU_VALUE - 1, v->getNRUValue());
 }
@@ -493,7 +493,7 @@ TEST_F(HashTableTest, NRUMinimum) {
     EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
     // trackReferenced=false so we don't modify the NRU while validating it.
-    StoredValue* v(ht.find(key,/*trackReference*/false));
+    StoredValue* v(ht.find(key, TrackReference::No, WantsDeleted::No));
     EXPECT_NE(nullptr, v);
     EXPECT_EQ(MIN_NRU_VALUE, v->getNRUValue());
 }
@@ -525,7 +525,8 @@ TEST_F(HashTableTest, ReleaseItem) {
 
     /* Before removing the HT element, get its pointer as it must be deleted
        after the test */
-    std::unique_ptr<StoredValue> sv1(ht.find(removeKey1));
+    std::unique_ptr<StoredValue> sv1(
+            ht.find(removeKey1, TrackReference::Yes, WantsDeleted::No));
 
     auto hbl = ht.getLockedBucket(removeKey1);
     ht.unlocked_release(hbl, removeKey1);
@@ -539,7 +540,8 @@ TEST_F(HashTableTest, ReleaseItem) {
 
     /* Before removing the HT element, get its pointer as it must be deleted
        after the test */
-    std::unique_ptr<StoredValue> sv2(ht.find(removeKey2));
+    std::unique_ptr<StoredValue> sv2(
+            ht.find(removeKey2, TrackReference::Yes, WantsDeleted::No));
 
     auto hbl2 = ht.getLockedBucket(removeKey2);
     ht.unlocked_release(hbl2, removeKey2);

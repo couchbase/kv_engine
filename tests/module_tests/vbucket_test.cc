@@ -67,8 +67,8 @@ static void addMany(MockEPVBucket& vb,
 static void verifyValue(MockEPVBucket& vb,
                         StoredDocKey& key,
                         const char* value,
-                        bool trackReference,
-                        bool wantDeleted) {
+                        TrackReference trackReference,
+                        WantsDeleted wantDeleted) {
     StoredValue* v = vb.ht.find(key, trackReference, wantDeleted);
     EXPECT_NE(nullptr, v);
     value_t val = v->getValue();
@@ -164,15 +164,18 @@ TEST_P(VBucketTest, Add) {
     addMany(*this->vbucket, keys, AddStatus::Success);
 
     StoredDocKey missingKey = makeStoredDocKey("aMissingKey");
-    EXPECT_FALSE(this->vbucket->ht.find(missingKey));
+    EXPECT_FALSE(this->vbucket->ht.find(
+            missingKey, TrackReference::Yes, WantsDeleted::No));
 
     for (const auto& key : keys) {
-        EXPECT_TRUE(this->vbucket->ht.find(key));
+        EXPECT_TRUE(this->vbucket->ht.find(
+                key, TrackReference::Yes, WantsDeleted::No));
     }
 
     addMany(*this->vbucket, keys, AddStatus::Exists);
     for (const auto& key : keys) {
-        EXPECT_TRUE(this->vbucket->ht.find(key));
+        EXPECT_TRUE(this->vbucket->ht.find(
+                key, TrackReference::Yes, WantsDeleted::No));
     }
 
     // Verify we can read after a soft deletion.
@@ -180,7 +183,8 @@ TEST_P(VBucketTest, Add) {
               this->vbucket->public_processSoftDelete(keys[0], nullptr, 0));
     EXPECT_EQ(MutationStatus::NotFound,
               this->vbucket->public_processSoftDelete(keys[0], nullptr, 0));
-    EXPECT_FALSE(this->vbucket->ht.find(keys[0]));
+    EXPECT_FALSE(this->vbucket->ht.find(
+            keys[0], TrackReference::Yes, WantsDeleted::No));
 
     Item i(keys[0], 0, 0, "newtest", 7);
     EXPECT_EQ(AddStatus::UnDel, this->vbucket->public_processAdd(i));
@@ -197,7 +201,8 @@ TEST_P(VBucketTest, AddExpiry) {
     addOne(*this->vbucket, k, AddStatus::Success, ep_real_time() + 5);
     addOne(*this->vbucket, k, AddStatus::Exists, ep_real_time() + 5);
 
-    StoredValue* v = this->vbucket->ht.find(k);
+    StoredValue* v =
+            this->vbucket->ht.find(k, TrackReference::Yes, WantsDeleted::No);
     EXPECT_TRUE(v);
     EXPECT_FALSE(v->isExpired(ep_real_time()));
     EXPECT_TRUE(v->isExpired(ep_real_time() + 6));
@@ -227,7 +232,8 @@ TEST_P(VBucketTest, unlockedSoftDeleteWithValue) {
     ASSERT_EQ(MutationStatus::WasClean,
               this->vbucket->public_processSet(stored_item, stored_item.getCas()));
 
-    StoredValue* v(this->vbucket->ht.find(key, /*trackReference*/ false));
+    StoredValue* v(
+            this->vbucket->ht.find(key, TrackReference::No, WantsDeleted::No));
     EXPECT_NE(nullptr, v);
 
     // Create an item and set its state to deleted
@@ -243,8 +249,8 @@ TEST_P(VBucketTest, unlockedSoftDeleteWithValue) {
     verifyValue(*this->vbucket,
                 key,
                 "deletedvalue",
-                /*trackReference*/ true,
-                /*wantsDeleted*/ true);
+                TrackReference::Yes,
+                WantsDeleted::Yes);
 }
 
 /**
@@ -263,7 +269,8 @@ TEST_P(VBucketTest, updateDeletedItem) {
     ASSERT_EQ(MutationStatus::WasClean,
               this->vbucket->public_processSet(stored_item, stored_item.getCas()));
 
-    StoredValue* v(this->vbucket->ht.find(key, /*trackReference*/ false));
+    StoredValue* v(
+            this->vbucket->ht.find(key, TrackReference::No, WantsDeleted::No));
     EXPECT_NE(nullptr, v);
 
     ItemMetaData itm_meta;
@@ -272,8 +279,8 @@ TEST_P(VBucketTest, updateDeletedItem) {
     verifyValue(*this->vbucket,
                 key,
                 nullptr,
-                /*trackReference*/ true,
-                /*wantsDeleted*/ true);
+                TrackReference::Yes,
+                WantsDeleted::Yes);
 
     Item deleted_item(key, 0, 0, "deletedvalue", strlen("deletedvalue"));
     deleted_item.setDeleted();
@@ -286,8 +293,8 @@ TEST_P(VBucketTest, updateDeletedItem) {
     verifyValue(*this->vbucket,
                 key,
                 "deletedvalue",
-                /*trackReference*/ true,
-                /*wantDeleted*/ true);
+                TrackReference::Yes,
+                WantsDeleted::Yes);
 
     Item update_deleted_item(
             key, 0, 0, "updatedeletedvalue", strlen("updatedeletedvalue"));
@@ -301,8 +308,8 @@ TEST_P(VBucketTest, updateDeletedItem) {
     verifyValue(*this->vbucket,
                 key,
                 "updatedeletedvalue",
-                /*trackReference*/ true,
-                /*wantsDeleted*/ true);
+                TrackReference::Yes,
+                WantsDeleted::Yes);
 }
 
 TEST_P(VBucketTest, SizeStatsSoftDel) {
@@ -379,7 +386,8 @@ TEST_P(VBucketEvictionTest, EjectionResidentCount) {
 
     // TODO-MT: Should acquire lock really (ok given this is currently
     // single-threaded).
-    auto* stored_item = this->vbucket->ht.find(makeStoredDocKey("key"));
+    auto* stored_item = this->vbucket->ht.find(
+            makeStoredDocKey("key"), TrackReference::Yes, WantsDeleted::No);
     EXPECT_NE(nullptr, stored_item);
     // Need to clear the dirty flag to allow it to be ejected.
     stored_item->markClean();

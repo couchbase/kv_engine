@@ -301,8 +301,9 @@ public:
      *                     or not
      * @return a pointer to a StoredValue -- NULL if not found
      */
-    StoredValue *find(const DocKey& key, bool trackReference=true,
-                      bool wantsDeleted=false);
+    StoredValue* find(const DocKey& key,
+                      TrackReference trackReference,
+                      WantsDeleted wantsDeleted);
 
     /**
      * Find a resident item
@@ -373,9 +374,10 @@ public:
      *
      * @return a pointer to a StoredValue -- NULL if not found
      */
-    StoredValue* unlocked_find(const DocKey& key, int bucket_num,
-                               bool wantsDeleted=false,
-                               bool trackReference=true);
+    StoredValue* unlocked_find(const DocKey& key,
+                               int bucket_num,
+                               WantsDeleted wantsDeleted,
+                               TrackReference trackReference);
 
     /**
      * Get a lock holder holding a lock for the given bucket

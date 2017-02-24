@@ -603,8 +603,8 @@ bool KVBucket::isMetaDataResident(RCPtr<VBucket> &vb, const DocKey& key) {
     }
 
     auto hbl = vb->ht.getLockedBucket(key);
-    StoredValue* v =
-            vb->ht.unlocked_find(key, hbl.getBucketNum(), false, false);
+    StoredValue* v = vb->ht.unlocked_find(
+            key, hbl.getBucketNum(), WantsDeleted::No, TrackReference::No);
 
     if (v && !v->isTempItem()) {
         return true;
@@ -1410,7 +1410,11 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
     }
 
     auto hbl = vb->ht.getLockedBucket(key);
-    StoredValue* v = vb->fetchValidValue(hbl, key, true);
+    StoredValue* v = vb->fetchValidValue(hbl,
+                                         key,
+                                         WantsDeleted::Yes,
+                                         TrackReference::Yes,
+                                         QueueExpired::Yes);
 
     if (v) {
         if (v->isDeleted() || v->isTempNonExistentItem() ||
@@ -1443,7 +1447,7 @@ ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
                                         uint16_t vbucket,
                                         const void* cookie,
                                         struct key_stats& kstats,
-                                        bool wantsDeleted) {
+                                        WantsDeleted wantsDeleted) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
@@ -1457,7 +1461,8 @@ std::string KVBucket::validateKey(const DocKey& key, uint16_t vbucket,
                                   Item &diskItem) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     auto hbl = vb->ht.getLockedBucket(key);
-    StoredValue* v = vb->fetchValidValue(hbl, key, true, false, true);
+    StoredValue* v = vb->fetchValidValue(
+            hbl, key, WantsDeleted::Yes, TrackReference::No, QueueExpired::Yes);
 
     if (v) {
         if (v->isDeleted() || v->isTempNonExistentItem() ||
@@ -1608,8 +1613,11 @@ public:
     void callback(mutation_result &value) {
         if (value.first == 1) {
             auto hbl = vbucket->ht.getLockedBucket(queuedItem->getKey());
-            StoredValue* v = vbucket->fetchValidValue(
-                    hbl, queuedItem->getKey(), true, false);
+            StoredValue* v = vbucket->fetchValidValue(hbl,
+                                                      queuedItem->getKey(),
+                                                      WantsDeleted::Yes,
+                                                      TrackReference::No,
+                                                      QueueExpired::Yes);
             if (v) {
                 if (v->getCas() == cas) {
                     // mark this item clean only if current and stored cas
@@ -1639,8 +1647,11 @@ public:
             // we do not know the rowid of this object.
             if (value.first == 0) {
                 auto hbl = vbucket->ht.getLockedBucket(queuedItem->getKey());
-                StoredValue* v = vbucket->fetchValidValue(
-                        hbl, queuedItem->getKey(), true, false);
+                StoredValue* v = vbucket->fetchValidValue(hbl,
+                                                          queuedItem->getKey(),
+                                                          WantsDeleted::Yes,
+                                                          TrackReference::No,
+                                                          QueueExpired::Yes);
                 if (v) {
                     LOG(EXTENSION_LOG_WARNING,
                         "PersistenceCallback::callback: Persisting on "

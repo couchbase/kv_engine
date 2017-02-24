@@ -64,15 +64,19 @@ public:
 
     MutationStatus public_processSet(Item& itm, const uint64_t cas) {
         auto hbl = ht.getLockedBucket(itm.getKey());
-        StoredValue* v =
-                ht.unlocked_find(itm.getKey(), hbl.getBucketNum(), true, false);
+        StoredValue* v = ht.unlocked_find(itm.getKey(),
+                                          hbl.getBucketNum(),
+                                          WantsDeleted::Yes,
+                                          TrackReference::No);
         return processSet(hbl, v, itm, cas, true, false).first;
     }
 
     AddStatus public_processAdd(Item& itm) {
         auto hbl = ht.getLockedBucket(itm.getKey());
-        StoredValue* v =
-                ht.unlocked_find(itm.getKey(), hbl.getBucketNum(), true, false);
+        StoredValue* v = ht.unlocked_find(itm.getKey(),
+                                          hbl.getBucketNum(),
+                                          WantsDeleted::Yes,
+                                          TrackReference::No);
         return processAdd(hbl,
                           v,
                           itm,
@@ -86,7 +90,10 @@ public:
                                             uint64_t cas) {
         auto hbl = ht.getLockedBucket(key);
         if (!v) {
-            v = ht.unlocked_find(key, hbl.getBucketNum(), false, false);
+            v = ht.unlocked_find(key,
+                                 hbl.getBucketNum(),
+                                 WantsDeleted::No,
+                                 TrackReference::No);
             if (!v) {
                 return MutationStatus::NotFound;
             }
@@ -109,10 +116,8 @@ public:
 
     bool public_deleteStoredValue(const DocKey& key) {
         auto hbl = ht.getLockedBucket(key);
-        StoredValue* v = ht.unlocked_find(key,
-                                          hbl.getBucketNum(),
-                                          /*wantsDeleted*/ true,
-                                          /*trackReference*/ false);
+        StoredValue* v = ht.unlocked_find(
+                key, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
         if (!v) {
             return false;
         }

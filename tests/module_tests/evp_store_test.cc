@@ -236,14 +236,20 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsResident) {
 
     // Should start with key not existing.
     EXPECT_EQ(ENGINE_KEY_ENOENT,
-              store->getKeyStats(makeStoredDocKey("key"), 0, cookie, kstats,
-                                 /*wantsDeleted*/false));
+              store->getKeyStats(makeStoredDocKey("key"),
+                                 0,
+                                 cookie,
+                                 kstats,
+                                 WantsDeleted::No));
 
     store_item(0, makeStoredDocKey("key"), "value");
     EXPECT_EQ(ENGINE_SUCCESS,
-              store->getKeyStats(makeStoredDocKey("key"), 0, cookie, kstats,
-                                 /*wantsDeleted*/false))
-        << "Expected to get key stats on existing item";
+              store->getKeyStats(makeStoredDocKey("key"),
+                                 0,
+                                 cookie,
+                                 kstats,
+                                 WantsDeleted::No))
+            << "Expected to get key stats on existing item";
     EXPECT_EQ(vbucket_state_active, kstats.vb_state);
     EXPECT_FALSE(kstats.logically_deleted);
 }
@@ -265,8 +271,11 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsEjected) {
     // Setup a lambda for how we want to call getKeyStats (saves repeating the
     // same arguments for each instance below).
     auto do_getKeyStats = [this, &kstats]() {
-        return store->getKeyStats(makeStoredDocKey("key"), vbid, cookie, kstats,
-                                  /*wantsDeleted*/false);
+        return store->getKeyStats(makeStoredDocKey("key"),
+                                  vbid,
+                                  cookie,
+                                  kstats,
+                                  WantsDeleted::No);
     };
 
     if (GetParam() == "value_only") {
@@ -313,14 +322,20 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsDeleted) {
 
     // Should get ENOENT if we don't ask for deleted items.
     EXPECT_EQ(ENGINE_KEY_ENOENT,
-              kvbucket.getKeyStats(makeStoredDocKey("key"), 0, cookie,
-                                   kstats, /*wantsDeleted*/false));
+              kvbucket.getKeyStats(makeStoredDocKey("key"),
+                                   0,
+                                   cookie,
+                                   kstats,
+                                   WantsDeleted::No));
 
     // Should get success (and item flagged as deleted) if we ask for deleted
     // items.
     EXPECT_EQ(ENGINE_SUCCESS,
-              kvbucket.getKeyStats(makeStoredDocKey("key"), 0, cookie,
-                                  kstats, /*wantsDeleted*/true));
+              kvbucket.getKeyStats(makeStoredDocKey("key"),
+                                   0,
+                                   cookie,
+                                   kstats,
+                                   WantsDeleted::Yes));
     EXPECT_EQ(vbucket_state_active, kstats.vb_state);
     EXPECT_TRUE(kstats.logically_deleted);
 }
@@ -331,8 +346,11 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsNMVB) {
     key_stats kstats;
 
     EXPECT_EQ(ENGINE_NOT_MY_VBUCKET,
-              kvbucket.getKeyStats(makeStoredDocKey("key"), 1, cookie,
-                                   kstats, /*wantsDeleted*/false));
+              kvbucket.getKeyStats(makeStoredDocKey("key"),
+                                   1,
+                                   cookie,
+                                   kstats,
+                                   WantsDeleted::No));
 }
 
 // Replace tests //////////////////////////////////////////////////////////////

@@ -74,6 +74,10 @@ static inline std::string to_string(TrackCasDrift trackCasDrift) {
             std::to_string(static_cast<TrackCasDriftUType>(trackCasDrift)));
 }
 
+enum class WantsDeleted { No, Yes };
+enum class TrackReference { No, Yes };
+enum class QueueExpired { No, Yes };
+
 /**
  * The following options can be specified
  * for retrieving an item for get calls

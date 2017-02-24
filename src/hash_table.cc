@@ -213,8 +213,9 @@ void HashTable::resize(size_t newSize) {
     stats.memOverhead->fetch_add(memorySize());
 }
 
-StoredValue* HashTable::find(const DocKey& key, bool trackReference,
-                             bool wantsDeleted) {
+StoredValue* HashTable::find(const DocKey& key,
+                             TrackReference trackReference,
+                             WantsDeleted wantsDeleted) {
     if (!isActive()) {
         throw std::logic_error("HashTable::find: Cannot call on a "
                 "non-active object");
@@ -245,8 +246,10 @@ MutationStatus HashTable::set(Item& val) {
     }
 
     HashBucketLock hbl = getLockedBucket(val.getKey());
-    StoredValue* v =
-            unlocked_find(val.getKey(), hbl.getBucketNum(), true, false);
+    StoredValue* v = unlocked_find(val.getKey(),
+                                   hbl.getBucketNum(),
+                                   WantsDeleted::Yes,
+                                   TrackReference::No);
     if (v) {
         return unlocked_updateStoredValue(hbl.getHTLock(), *v, val);
     } else {
@@ -339,15 +342,17 @@ void HashTable::unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
     numDeletedItems.fetch_add(1, std::memory_order_relaxed);
 }
 
-StoredValue* HashTable::unlocked_find(const DocKey& key, int bucket_num,
-                                      bool wantsDeleted, bool trackReference) {
+StoredValue* HashTable::unlocked_find(const DocKey& key,
+                                      int bucket_num,
+                                      WantsDeleted wantsDeleted,
+                                      TrackReference trackReference) {
     StoredValue *v = values[bucket_num];
     while (v) {
         if (v->hasKey(key)) {
-            if (trackReference && !v->isDeleted()) {
+            if (trackReference == TrackReference::Yes && !v->isDeleted()) {
                 v->referenced();
             }
-            if (wantsDeleted || !v->isDeleted()) {
+            if (wantsDeleted == WantsDeleted::Yes || !v->isDeleted()) {
                 return v;
             } else {
                 return NULL;

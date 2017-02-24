@@ -57,8 +57,10 @@ void CacheCallback::callback(CacheLookup &lookup) {
     }
 
     auto hbl = vb->ht.getLockedBucket(lookup.getKey());
-    StoredValue* v = vb->ht.unlocked_find(
-            lookup.getKey(), hbl.getBucketNum(), false, false);
+    StoredValue* v = vb->ht.unlocked_find(lookup.getKey(),
+                                          hbl.getBucketNum(),
+                                          WantsDeleted::No,
+                                          TrackReference::No);
     if (v && v->isResident() && v->getBySeqno() == lookup.getBySeqno()) {
         ActiveStream* as = static_cast<ActiveStream*>(stream_.get());
         Item* it;
