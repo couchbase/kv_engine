@@ -16,63 +16,83 @@
  */
 
 #include "executors.h"
+#include "utilities.h"
 
 #include <daemon/mcbp.h>
 #include <daemon/buckets.h>
 
 void get_cmd_timer_executor(McbpConnection* c, void* packet) {
-    std::string str;
-    auto* req = reinterpret_cast<protocol_binary_request_get_cmd_timer*>(packet);
+    const auto* req = reinterpret_cast<protocol_binary_request_get_cmd_timer*>(packet);
     const char* key = (const char*)(req->bytes + sizeof(req->bytes));
     size_t keylen = ntohs(req->message.header.request.keylen);
     int index = c->getBucketIndex();
-    std::string bucket(key, keylen);
+    const std::string bucket(key, keylen);
+    const auto opcode = req->message.body.opcode;
 
+    if (keylen > 0 && bucket != all_buckets[index].name) {
+        // The user specified the current selected bucket
+        keylen = 0;
+    }
+
+    if (keylen > 0 || index == 0) {
+        // You need the Stats privilege in order to specify a bucket
+        auto ret = mcbp::checkPrivilege(*c, cb::rbac::Privilege::Stats);
+        if (ret != ENGINE_SUCCESS) {
+            ret = c->remapErrorCode(ret);
+            if (ret == ENGINE_DISCONNECT) {
+                c->setState(conn_closing);
+            } else {
+                mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+            }
+            return;
+        }
+    }
+
+    // At this point we know that the user have the appropriate access
+    // and should be permitted to perform the action
     if (bucket == "/all/") {
+        // The aggregated timings is stored in index 0 (no bucket)
         index = 0;
         keylen = 0;
     }
 
     if (keylen == 0) {
-        if (index == 0 && !c->isInternal()) {
-            // We're not connected to a bucket, and we didn't
-            // authenticate to a bucket.. Don't leak the
-            // global stats...
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
-            return;
-        }
-        str = all_buckets[index].timings.generate(req->message.body.opcode);
-        mcbp_response_handler(NULL, 0, NULL, 0, str.data(),
-                              uint32_t(str.length()),
+        const auto str = all_buckets[index].timings.generate(opcode);
+        mcbp_response_handler(nullptr, 0, // no key
+                              nullptr, 0, // no extras
+                              str.data(), uint32_t(str.length()),
                               PROTOCOL_BINARY_RAW_BYTES,
                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
                               0, c->getCookie());
         mcbp_write_and_free(c, &c->getDynamicBuffer());
-    } else if (c->isInternal()) {
-        bool found = false;
-        for (size_t ii = 1; ii < all_buckets.size() && !found; ++ii) {
-            // Need the lock to get the bucket state and name
-            cb_mutex_enter(&all_buckets[ii].mutex);
-            if ((all_buckets[ii].state == BucketState::Ready) &&
-                (bucket == all_buckets[ii].name)) {
-                str = all_buckets[ii].timings.generate(
-                    req->message.body.opcode);
-                found = true;
-            }
-            cb_mutex_exit(&all_buckets[ii].mutex);
+        return;
+    }
+
+
+    // The user specified a bucket... let's locate the bucket
+    std::string str;
+
+    bool found = false;
+    for (size_t ii = 1; ii < all_buckets.size() && !found; ++ii) {
+        // Need the lock to get the bucket state and name
+        cb_mutex_enter(&all_buckets[ii].mutex);
+        if ((all_buckets[ii].state == BucketState::Ready) &&
+            (bucket == all_buckets[ii].name)) {
+            str = all_buckets[ii].timings.generate(opcode);
+            found = true;
         }
-        if (found) {
-            mcbp_response_handler(NULL, 0, NULL, 0, str.data(),
-                                  uint32_t(str.length()),
-                                  PROTOCOL_BINARY_RAW_BYTES,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                  0, c->getCookie());
-            mcbp_write_and_free(c, &c->getDynamicBuffer());
-        } else {
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
-        }
+        cb_mutex_exit(&all_buckets[ii].mutex);
+    }
+
+    if (found) {
+        mcbp_response_handler(nullptr, 0, // no key
+                              nullptr, 0, // no extras
+                              str.data(), uint32_t(str.length()),
+                              PROTOCOL_BINARY_RAW_BYTES,
+                              PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                              0, c->getCookie());
+        mcbp_write_and_free(c, &c->getDynamicBuffer());
     } else {
-        // non-privileged connections can't specify bucket
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
     }
 }
