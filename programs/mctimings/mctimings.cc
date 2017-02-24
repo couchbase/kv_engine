@@ -282,7 +282,16 @@ static void request_cmd_timings(MemcachedBinprotConnection& connection,
             std::cerr << "Cannot find bucket: " << bucket << std::endl;
             break;
         case PROTOCOL_BINARY_RESPONSE_EACCESS:
-            std::cerr << "Not authorized to access timings data" << std::endl;
+            if (bucket == "/all/") {
+                std::cerr << "Not authorized to access aggregated timings data."
+                          << std::endl
+                          << "Try specifying a bucket by using -b bucketname"
+                          << std::endl;
+
+            } else {
+                std::cerr << "Not authorized to access timings data"
+                          << std::endl;
+            }
             break;
         default:
             std::cerr << "Command failed: "
@@ -382,7 +391,7 @@ int main(int argc, char** argv) {
     std::string host{"localhost"};
     std::string user{};
     std::string password{};
-    std::string bucket{};
+    std::string bucket{"/all/"};
     sa_family_t family = AF_UNSPEC;
     bool verbose = false;
     bool secure = false;
@@ -449,7 +458,7 @@ int main(int argc, char** argv) {
                                     connection.getSaslMechanisms());
         }
 
-        if (!bucket.empty()) {
+        if (!bucket.empty() && bucket != "/all/") {
             connection.selectBucket(bucket);
         }
 
