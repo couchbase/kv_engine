@@ -85,13 +85,9 @@ enum class Privilege {
      */
     DcpProducer,
     /**
-     * The `TapProducer` privilege allows for setting up a TAP stream
+     * The `Tap` privilege allows for setting up a TAP stream
      */
-    TapProducer,
-    /**
-     * The `TapConsumer` privilege allows for consuming TAP events
-     */
-    TapConsumer,
+    Tap,
     /**
      * The `MetaRead` privilege allows for reading the meta information
      * on documents.

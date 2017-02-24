@@ -115,8 +115,7 @@ PrivilegeMask UserEntry::parsePrivileges(const cJSON* priv, bool buckets) {
         ret[int(Privilege::Write)] = false;
         ret[int(Privilege::DcpConsumer)] = false;
         ret[int(Privilege::DcpProducer)] = false;
-        ret[int(Privilege::TapProducer)] = false;
-        ret[int(Privilege::TapConsumer)] = false;
+        ret[int(Privilege::Tap)] = false;
         ret[int(Privilege::MetaRead)] = false;
         ret[int(Privilege::MetaWrite)] = false;
         ret[int(Privilege::XattrRead)] = false;
@@ -202,8 +201,7 @@ void PrivilegeContext::clearBucketPrivileges() {
     mask[int(Privilege::SimpleStats)] = false;
     mask[int(Privilege::DcpConsumer)] = false;
     mask[int(Privilege::DcpProducer)] = false;
-    mask[int(Privilege::TapProducer)] = false;
-    mask[int(Privilege::TapConsumer)] = false;
+    mask[int(Privilege::Tap)] = false;
     mask[int(Privilege::MetaRead)] = false;
     mask[int(Privilege::MetaWrite)] = false;
     mask[int(Privilege::XattrRead)] = false;
@@ -218,8 +216,7 @@ void PrivilegeContext::setBucketPrivileges() {
     mask[int(Privilege::SimpleStats)] = true;
     mask[int(Privilege::DcpConsumer)] = true;
     mask[int(Privilege::DcpProducer)] = true;
-    mask[int(Privilege::TapProducer)] = true;
-    mask[int(Privilege::TapConsumer)] = true;
+    mask[int(Privilege::Tap)] = true;
     mask[int(Privilege::MetaRead)] = true;
     mask[int(Privilege::MetaWrite)] = true;
     mask[int(Privilege::XattrRead)] = true;
