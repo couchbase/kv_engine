@@ -17,6 +17,7 @@
 #include "config.h"
 #include "engine_wrapper.h"
 #include "stats_context.h"
+#include "utilities.h"
 
 #include <daemon/connections.h>
 #include <daemon/debug_helpers.h>
@@ -789,18 +790,11 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
                              key.size()});
         } else {
             if (iter->second.privileged) {
-                switch (connection.checkPrivilege(cb::rbac::Privilege::Stats)) {
-                case cb::rbac::PrivilegeAccess::Ok:
-                    ret = iter->second.handler(argument, connection);
-                    break;
-                case cb::rbac::PrivilegeAccess::Fail:
-                    ret = ENGINE_EACCESS;
-                    break;
-                case cb::rbac::PrivilegeAccess::Stale:
-                    ret = ENGINE_AUTH_STALE;
-                    break;
-                }
-            } else {
+                ret = mcbp::checkPrivilege(connection,
+                                           cb::rbac::Privilege::Stats);
+            }
+
+            if (ret == ENGINE_SUCCESS) {
                 ret = iter->second.handler(argument, connection);
             }
         }
