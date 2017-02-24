@@ -414,7 +414,7 @@ void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
 void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const uint32_t vb,
                    ItemMetaData* itemMeta, uint64_t cas_for_delete = 0,
-                   uint32_t options = 0,  const void *cookie = nullptr,
+                   uint32_t options = 0, const void *cookie = nullptr,
                    const std::vector<char>& nmeta = {});
 
 void return_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,

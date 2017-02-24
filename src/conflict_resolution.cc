@@ -24,11 +24,12 @@
  * from a remote node and this node. The conflict strategy works by picking
  * a winning document based on comparing meta data fields and finding a field
  * that has a larger value than the other documents field. The fields are
- * compared in the following order: rev seqno, cas, expiration, flags. If all
- * fields are equal than the local document is chosen as the winner.
+ * compared in the following order: rev seqno, cas, expiration, flags, datatype.
+ * If all fields are equal than the local document is chosen as the winner.
  */
 bool RevisionSeqnoResolution::resolve(const StoredValue& v,
                                       const ItemMetaData& meta,
+                                      const protocol_binary_datatype_t meta_datatype,
                                       bool isDelete) const {
     if (!v.isTempNonExistentItem()) {
         if (v.getRevSeqno() > meta.revSeqno) {
@@ -40,8 +41,11 @@ bool RevisionSeqnoResolution::resolve(const StoredValue& v,
                 if (isDelete || v.getExptime() > meta.exptime) {
                     return false;
                 } else if (v.getExptime() == meta.exptime) {
-                    if (v.getFlags() >= meta.flags) {
+                    if (v.getFlags() > meta.flags) {
                         return false;
+                    } else if (v.getFlags() == meta.flags) {
+                        return (mcbp::datatype::is_xattr(meta_datatype) &&
+                                !mcbp::datatype::is_xattr(v.getDatatype()));
                     }
                 }
             }
@@ -56,13 +60,14 @@ bool RevisionSeqnoResolution::resolve(const StoredValue& v,
  * from a remote node and this node. This conflict resolution works by picking
  * a winning document based on comparing meta data fields and finding a field
  * that has a larger value than the other document's fields. The fields are
- * compared in the following order: cas, rev seqno, expiration, flags.
+ * compared in the following order: cas, rev seqno, expiration, flags, datatype.
  * Regardless of conflict resolution mode, all CAS values are generated from
  * a Hybrid Logical Clock (HLC), so a larger CAS is the last write.
  * If all fields are equal than the local document is chosen as the winner.
  */
 bool LastWriteWinsResolution::resolve(const StoredValue& v,
                                       const ItemMetaData& meta,
+                                      const protocol_binary_datatype_t meta_datatype,
                                       bool isDelete) const {
     if (!v.isTempNonExistentItem()) {
         if (v.getCas() > meta.cas) {
@@ -74,8 +79,11 @@ bool LastWriteWinsResolution::resolve(const StoredValue& v,
                 if (isDelete || v.getExptime() > meta.exptime) {
                     return false;
                 } else if (v.getExptime() == meta.exptime) {
-                    if (v.getFlags() >= meta.flags) {
+                    if (v.getFlags() > meta.flags) {
                         return false;
+                    } else if (v.getFlags() == meta.flags) {
+                        return (mcbp::datatype::is_xattr(meta_datatype) &&
+                                !mcbp::datatype::is_xattr(v.getDatatype()));
                     }
                 }
             }

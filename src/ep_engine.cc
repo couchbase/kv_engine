@@ -5465,6 +5465,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
                                                   generateCas,
                                                   emd.get(), false);
 
+
     if (ret == ENGINE_SUCCESS) {
         ++stats.numOpsSetMeta;
         hrtime_t endTime(gethrtime());

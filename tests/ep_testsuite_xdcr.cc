@@ -1245,6 +1245,133 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
     return SUCCESS;
 }
 
+static enum test_result test_set_with_meta_xattr(ENGINE_HANDLE* h,
+                                                 ENGINE_HANDLE_V1* h1) {
+    const char* key = "set_with_meta_xattr_key";
+    const char* value = "somevalue";
+    const void* cookie = testHarness.create_cookie();
+
+    //store a value
+    item* i = nullptr;
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, nullptr, OPERATION_SET, key, value, &i),
+            "Failed set.");
+
+    h1->release(h, nullptr, i);
+
+    check(get_meta(h, h1, key), "Expected to get meta");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+
+    //init the meta data
+    ItemMetaData itm_meta;
+    itm_meta.revSeqno = last_meta.revSeqno;
+    itm_meta.cas = last_meta.cas;
+    itm_meta.exptime = last_meta.exptime;
+    itm_meta.flags = last_meta.flags;
+
+    int force = 0;
+    if (strstr(testHarness.get_current_testcase()->cfg,
+               "conflict_resolution_type=lww") != nullptr) {
+        force = FORCE_ACCEPT_WITH_META_OPS;
+    }
+
+    testHarness.set_xattr_support(cookie, true);
+
+    //set with the same meta data but now with xattr
+    set_with_meta(h, h1, key, strlen(key), value, strlen(value), 0, &itm_meta,
+                  last_meta.cas, force, PROTOCOL_BINARY_DATATYPE_XATTR, cookie);
+
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Expected the set_with_meta to be successful");
+
+    if (isPersistentBucket(h, h1)) {
+        wait_for_flusher_to_settle(h, h1);
+        //evict the key
+        evict_key(h, h1, key);
+
+        //set with the same meta data but now as RAW BYTES.
+        //This should result in a bg fetch
+        set_with_meta(h, h1, key, strlen(key), value, strlen(value), 0, &itm_meta,
+                      last_meta.cas, force, PROTOCOL_BINARY_RAW_BYTES, cookie);
+
+        checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+		"Expected return code to be EEXISTS");
+    }
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+static enum test_result test_delete_with_meta_xattr(ENGINE_HANDLE* h,
+                                                    ENGINE_HANDLE_V1* h1) {
+
+    const char* key = "delete_with_meta_xattr_key";
+    const char* value = "somevalue";
+    const void* cookie = testHarness.create_cookie();
+
+    //store a value
+    item* i = nullptr;
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, nullptr, OPERATION_SET, key, value, &i),
+            "Failed set.");
+
+    h1->release(h, nullptr, i);
+
+    if (isPersistentBucket(h, h1)) {
+        wait_for_flusher_to_settle(h, h1);
+    }
+
+    check(get_meta(h, h1, key), "Expected to get meta");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+
+    //init the meta data
+    ItemMetaData itm_meta;
+    itm_meta.revSeqno = last_meta.revSeqno;
+    itm_meta.cas = last_meta.cas;
+    itm_meta.exptime = last_meta.exptime;
+    itm_meta.flags = last_meta.flags;
+
+    int force = 0;
+    if (strstr(testHarness.get_current_testcase()->cfg,
+               "conflict_resolution_type=lww") != nullptr) {
+        force = FORCE_ACCEPT_WITH_META_OPS;
+    }
+
+    //delete with the same meta data
+    del_with_meta(h, h1, key, strlen(key), 0, &itm_meta,
+                  last_meta.cas, force, cookie, {});
+
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+            "Expected the delete with meta to fail");
+
+    testHarness.set_xattr_support(cookie, true);
+
+    //delete with the same meta data
+    del_with_meta(h, h1, key, strlen(key), 0, &itm_meta, last_meta.cas, force,
+                  cookie, {});
+
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+            "Expected the delete with meta to fail");
+
+    if (isPersistentBucket(h, h1)) {
+        //evict the key
+        evict_key(h, h1, key);
+
+        //delete with the same meta data again. This should result in a
+        //bg fetch
+        del_with_meta(h, h1, key, strlen(key), 0, &itm_meta,
+                      last_meta.cas, force, cookie, {});
+
+        checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+                "Expected delete with meta to fail with EEXISTS");
+    }
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
 static enum test_result test_exp_persisted_set_del(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
     check(!get_meta(h, h1, "key3"), "Expected to get meta");
@@ -2323,6 +2450,16 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test set meta lww conflict resolution",
                  test_set_meta_lww_conflict_resolution, test_setup, teardown,
                  "conflict_resolution_type=lww",prepare, cleanup),
+        TestCase("set with meta xattr", test_set_with_meta_xattr,
+                 test_setup, teardown, nullptr, prepare, cleanup),
+        TestCase("set with meta lww xattr", test_set_with_meta_xattr,
+                 test_setup, teardown, "conflict_resolution_type=lww",
+                 prepare, cleanup),
+        TestCase("delete with meta xattr", test_delete_with_meta_xattr,
+                 test_setup, teardown, nullptr, prepare, cleanup),
+        TestCase("delete with meta lww xattr", test_delete_with_meta_xattr,
+                 test_setup, teardown, "conflict_resolution_type=lww",
+                 prepare, cleanup),
         TestCase("temp item deletion", test_temp_item_deletion,
                  test_setup, teardown,
                  "exp_pager_stime=1",

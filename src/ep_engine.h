@@ -474,6 +474,13 @@ public:
         return isSupported;
     }
 
+    bool isXattrSupported(const void* cookie) {
+        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+        bool isSupported = serverApi->cookie->is_xattr_supported(cookie);
+        ObjectRegistry::onSwitchThread(epe);
+        return isSupported;
+    }
+
     uint8_t getOpcodeIfEwouldblockSet(const void *cookie) {
         EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
         uint8_t opcode = serverApi->cookie->get_opcode_if_ewouldblock_set(cookie);

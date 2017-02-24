@@ -917,14 +917,18 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
                                       TrackReference::No);
 
     bool maybeKeyExists = true;
+
+    bool xattrSupported = engine.isXattrSupported(cookie);
     if (!force) {
         if (v) {
             if (v->isTempInitialItem()) {
-                bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
+                bgFetch(itm.getKey(), cookie, engine, bgFetchDelay,
+                        !xattrSupported);
                 return ENGINE_EWOULDBLOCK;
             }
 
-            if (!(conflictResolver->resolve(*v, itm.getMetaData(), false))) {
+            if (!(conflictResolver->resolve(
+                        *v, itm.getMetaData(), itm.getDataType(), false))) {
                 ++stats.numOpsSetMetaResolutionFailed;
                 return ENGINE_KEY_EEXISTS;
             }
@@ -935,7 +939,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
                                              cookie,
                                              engine,
                                              bgFetchDelay,
-                                             true,
+                                             !xattrSupported,
                                              isReplication);
             } else {
                 maybeKeyExists = false;
@@ -1177,14 +1181,19 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
     auto hbl = ht.getLockedBucket(key);
     StoredValue* v = ht.unlocked_find(
             key, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
+    bool isXattrSupported = engine.isXattrSupported(cookie);
+
     if (!force) { // Need conflict resolution.
         if (v) {
             if (v->isTempInitialItem()) {
-                bgFetch(key, cookie, engine, bgFetchDelay, true);
+                bgFetch(key, cookie, engine, bgFetchDelay, !isXattrSupported);
                 return ENGINE_EWOULDBLOCK;
             }
 
-            if (!(conflictResolver->resolve(*v, itemMeta, true))) {
+            if (!(conflictResolver->resolve(*v,
+                                            itemMeta,
+                                            PROTOCOL_BINARY_RAW_BYTES,
+                                            true))) {
                 ++stats.numOpsDelMetaResolutionFailed;
                 return ENGINE_KEY_EEXISTS;
             }
@@ -1197,7 +1206,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
                                              cookie,
                                              engine,
                                              bgFetchDelay,
-                                             true,
+                                             !isXattrSupported,
                                              isReplication);
             } else {
                 // Even though bloomfilter predicted that item doesn't exist
