@@ -17,6 +17,7 @@
 
 #include <daemon/mcbp.h>
 #include "executors.h"
+#include "utilities.h"
 
 void dcp_noop_executor(McbpConnection* c, void*) {
     ENGINE_ERROR_CODE ret = c->getAiostat();
@@ -24,11 +25,16 @@ void dcp_noop_executor(McbpConnection* c, void*) {
     c->setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
-        ret = c->getBucketEngine()->dcp.noop(c->getBucketEngineAsV0(),
-                                             c->getCookie(),
-                                             c->binary_header.request.opaque);
+        // NOOP may be sent to a consumer or a producer...
+        ret = mcbp::haveDcpPrivilege(*c);
+        if (ret == ENGINE_SUCCESS) {
+            ret = c->getBucketEngine()->dcp.noop(c->getBucketEngineAsV0(),
+                                                 c->getCookie(),
+                                                 c->binary_header.request.opaque);
+        }
     }
 
+    ret = c->remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);

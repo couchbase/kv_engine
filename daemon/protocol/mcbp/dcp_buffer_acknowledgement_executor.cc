@@ -17,6 +17,7 @@
 
 #include <daemon/mcbp.h>
 #include "executors.h"
+#include "utilities.h"
 
 void dcp_buffer_acknowledgement_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_buffer_acknowledgement*>(packet);
@@ -26,15 +27,20 @@ void dcp_buffer_acknowledgement_executor(McbpConnection* c, void* packet) {
     c->setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
-        uint32_t bbytes;
-        memcpy(&bbytes, &req->message.body.buffer_bytes, 4);
-        ret = c->getBucketEngine()->dcp.buffer_acknowledgement(
-            c->getBucketEngineAsV0(), c->getCookie(),
-            c->binary_header.request.opaque,
-            c->binary_header.request.vbucket,
-            ntohl(bbytes));
+        ret = mcbp::haveDcpPrivilege(*c);
+
+        if (ret == ENGINE_SUCCESS) {
+            uint32_t bbytes;
+            memcpy(&bbytes, &req->message.body.buffer_bytes, 4);
+            ret = c->getBucketEngine()->dcp.buffer_acknowledgement(
+                c->getBucketEngineAsV0(), c->getCookie(),
+                c->binary_header.request.opaque,
+                c->binary_header.request.vbucket,
+                ntohl(bbytes));
+        }
     }
 
+    ret = c->remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
         c->setState(conn_new_cmd);

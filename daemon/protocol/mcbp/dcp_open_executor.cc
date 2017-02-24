@@ -18,6 +18,7 @@
 #include <daemon/mcaudit.h>
 #include <daemon/mcbp.h>
 #include "executors.h"
+#include "utilities.h"
 
 void dcp_open_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_open*>(packet);
@@ -29,17 +30,26 @@ void dcp_open_executor(McbpConnection* c, void* packet) {
     uint32_t flags = ntohl(req->message.body.flags);
 
     if (ret == ENGINE_SUCCESS) {
-        ret = c->getBucketEngine()->dcp.open(c->getBucketEngineAsV0(),
-                                             c->getCookie(),
-                                             req->message.header.request.opaque,
-                                             ntohl(req->message.body.seqno),
-                                             flags,
-                                             (void*)(req->bytes +
-                                                     sizeof(req->bytes)),
-                                             ntohs(
-                                                 req->message.header.request.keylen));
+        cb::rbac::Privilege privilege = cb::rbac::Privilege::DcpProducer;
+        if (flags & DCP_OPEN_NOTIFIER) {
+            privilege = cb::rbac::Privilege::DcpConsumer;
+        }
+
+        ret = mcbp::checkPrivilege(*c, privilege);
+        if (ret == ENGINE_SUCCESS) {
+            ret = c->getBucketEngine()->dcp.open(c->getBucketEngineAsV0(),
+                                                 c->getCookie(),
+                                                 req->message.header.request.opaque,
+                                                 ntohl(req->message.body.seqno),
+                                                 flags,
+                                                 (void*)(req->bytes +
+                                                         sizeof(req->bytes)),
+                                                 ntohs(
+                                                     req->message.header.request.keylen));
+        }
     }
 
+    ret = c->remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
         c->setDcpXattrAware((flags & DCP_OPEN_INCLUDE_XATTRS) != 0);

@@ -17,6 +17,7 @@
 
 #include <daemon/mcbp.h>
 #include "executors.h"
+#include "utilities.h"
 
 void dcp_control_executor(McbpConnection* c, void* packet) {
     ENGINE_ERROR_CODE ret = c->getAiostat();
@@ -24,17 +25,22 @@ void dcp_control_executor(McbpConnection* c, void* packet) {
     c->setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
-        auto* req = reinterpret_cast<protocol_binary_request_dcp_control*>(packet);
-        const uint8_t* key = req->bytes + sizeof(req->bytes);
-        uint16_t nkey = ntohs(req->message.header.request.keylen);
-        const uint8_t* value = key + nkey;
-        uint32_t nvalue = ntohl(req->message.header.request.bodylen) - nkey;
-        ret = c->getBucketEngine()->dcp.control(c->getBucketEngineAsV0(),
-                                                c->getCookie(),
-                                                c->binary_header.request.opaque,
-                                                key, nkey, value, nvalue);
+        ret = mcbp::haveDcpPrivilege(*c);
+
+        if (ret == ENGINE_SUCCESS) {
+            auto* req = reinterpret_cast<protocol_binary_request_dcp_control*>(packet);
+            const uint8_t* key = req->bytes + sizeof(req->bytes);
+            uint16_t nkey = ntohs(req->message.header.request.keylen);
+            const uint8_t* value = key + nkey;
+            uint32_t nvalue = ntohl(req->message.header.request.bodylen) - nkey;
+            ret = c->getBucketEngine()->dcp.control(c->getBucketEngineAsV0(),
+                                                    c->getCookie(),
+                                                    c->binary_header.request.opaque,
+                                                    key, nkey, value, nvalue);
+        }
     }
 
+    ret = c->remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);

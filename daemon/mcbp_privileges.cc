@@ -117,7 +117,6 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS, require<Privilege::MetaRead>);
 
     /* DCP */
-    // @todo ep-engine need to check the following
     setup(PROTOCOL_BINARY_CMD_DCP_OPEN, empty);
     setup(PROTOCOL_BINARY_CMD_DCP_ADD_STREAM, require<Privilege::DcpProducer>);
     setup(PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM, require<Privilege::DcpProducer>);
@@ -130,12 +129,9 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_DCP_EXPIRATION, require<Privilege::DcpConsumer>);
     setup(PROTOCOL_BINARY_CMD_DCP_FLUSH, require<Privilege::DcpConsumer>);
     setup(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE, require<Privilege::DcpConsumer>);
-    // @todo ep-engine need to check the following
     setup(PROTOCOL_BINARY_CMD_DCP_NOOP, empty);
     setup(PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT, empty);
     setup(PROTOCOL_BINARY_CMD_DCP_CONTROL, empty);
-    // This isn't used yet, so no one should have access to it...
-    // setup(PROTOCOL_BINARY_CMD_DCP_RESERVED4, );
     /* End DCP */
 
     setup(PROTOCOL_BINARY_CMD_STOP_PERSISTENCE, require<Privilege::NodeManagement>);
