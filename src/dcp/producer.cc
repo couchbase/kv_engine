@@ -976,10 +976,6 @@ void DcpProducer::setDisconnect(bool disconnect) {
 void DcpProducer::notifyStreamReady(uint16_t vbucket) {
     if (ready.pushUnique(vbucket)) {
         log.unpauseIfSpaceAvailable();
-    } else {
-        LOG(EXTENSION_LOG_NOTICE, "%s (vb:%" PRIu16 ") Ignoring request to "
-            "notify stream is ready; vbucket is already in the ready "
-            "queue.", logHeader(), vbucket);
     }
 }
 
