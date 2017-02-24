@@ -417,19 +417,21 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
     case ENGINE_UNKNOWN_COLLECTION:
         return ENGINE_EINVAL;
 
+    case ENGINE_EACCESS:break;
+    case ENGINE_NO_BUCKET:break;
+    case ENGINE_AUTH_STALE:break;
+    }
+
     // Seems like the rest of the components in our system isn't
     // prepared to receive access denied or authentincation stale.
     // For now we should just disconnect them
-    case ENGINE_EACCESS: // FALLTHROUGH
-    case ENGINE_AUTH_STALE:
+    auto errc = cb::make_error_condition(cb::engine_errc(code));
+    LOG_NOTICE(nullptr,
+               "%u - Client %s not aware of extended error code (%s). Disconnecting",
+               getId(), getDescription().c_str(), errc.message().c_str());
 
-    default:
-        LOG_INFO(nullptr,
-                 "%u - Client not aware of extended error codes %02x. Disconnecting",
-                 uint32_t(code));
 
-        return ENGINE_DISCONNECT;
-    }
+    return ENGINE_DISCONNECT;
 }
 
 void Connection::resetUsernameCache() {
