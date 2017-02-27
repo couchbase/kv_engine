@@ -180,6 +180,8 @@ ADD_LIBRARY(ep_objs OBJECT
             src/murmurhash3.cc
             src/mutation_log.cc
             src/mutation_log_entry.cc
+            src/pre_link_document_context.cc
+            src/pre_link_document_context.h
             src/replicationthrottle.cc
             src/string_utils.cc
             src/storeddockey.cc

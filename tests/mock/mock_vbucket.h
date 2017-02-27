@@ -98,7 +98,8 @@ public:
                                  VBQueueItemCtx(GenerateBySeqno::Yes,
                                                 GenerateCas::Yes,
                                                 TrackCasDrift::No,
-                                                /*isBackfillItem*/ false),
+                                                /*isBackfillItem*/ false,
+                                                /*preLinkDocCtx*/ nullptr),
                                  /*use_meta*/ false,
                                  /*bySeqno*/ v->getBySeqno())
                 .first;

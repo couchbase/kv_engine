@@ -100,8 +100,11 @@ protected:
                                 queue_op::set,
                                 /*revSeq*/ 0,
                                 /*bySeq*/ 0)};
-        return this->manager->queueDirty(
-                *this->vbucket, qi, GenerateBySeqno::Yes, GenerateCas::Yes);
+        return this->manager->queueDirty(*this->vbucket,
+                                         qi,
+                                         GenerateBySeqno::Yes,
+                                         GenerateCas::Yes,
+                                         /*preLinkDocCtx*/ nullptr);
     }
 
 
@@ -200,7 +203,8 @@ static void launch_set_thread(void *arg) {
         args->checkpoint_manager->queueDirty(*args->vbucket,
                                              qi,
                                              GenerateBySeqno::Yes,
-                                             GenerateCas::Yes);
+                                             GenerateCas::Yes,
+                                             /*preLinkDocCtx*/ nullptr);
     }
 }
 
@@ -279,8 +283,11 @@ TYPED_TEST(CheckpointTest, basic_chk_test) {
                             queue_op::flush,
                             0xffff,
                             0));
-    this->manager->queueDirty(
-            *this->vbucket, qi, GenerateBySeqno::Yes, GenerateCas::Yes);
+    this->manager->queueDirty(*this->vbucket,
+                              qi,
+                              GenerateBySeqno::Yes,
+                              GenerateCas::Yes,
+                              /*preLinkDocCtx*/ nullptr);
 
     rc = cb_join_thread(persistence_thread);
     EXPECT_EQ(0, rc);
@@ -377,8 +384,11 @@ TYPED_TEST(CheckpointTest, OneOpenCkpt) {
 
     // No set_ops in queue, expect queueDirty to return true (increase
     // persistence queue size).
-    EXPECT_TRUE(this->manager->queueDirty(
-            *this->vbucket, qi, GenerateBySeqno::Yes, GenerateCas::Yes));
+    EXPECT_TRUE(this->manager->queueDirty(*this->vbucket,
+                                          qi,
+                                          GenerateBySeqno::Yes,
+                                          GenerateCas::Yes,
+                                          /*preLinkDocCtx*/ nullptr));
     EXPECT_EQ(1, this->manager->getNumCheckpoints()); // Single open checkpoint.
     // 1x op_checkpoint_start,
     // 1x op_set
@@ -395,8 +405,11 @@ TYPED_TEST(CheckpointTest, OneOpenCkpt) {
                              queue_op::set,
                              /*revSeq*/ 21,
                              /*bySeq*/ 0));
-    EXPECT_FALSE(this->manager->queueDirty(
-            *this->vbucket, qi2, GenerateBySeqno::Yes, GenerateCas::Yes));
+    EXPECT_FALSE(this->manager->queueDirty(*this->vbucket,
+                                           qi2,
+                                           GenerateBySeqno::Yes,
+                                           GenerateCas::Yes,
+                                           /*preLinkDocCtx*/ nullptr));
     EXPECT_EQ(1, this->manager->getNumCheckpoints());
     EXPECT_EQ(2, this->manager->getNumOpenChkItems());
     EXPECT_EQ(1002, qi2->getBySeqno());
@@ -411,8 +424,11 @@ TYPED_TEST(CheckpointTest, OneOpenCkpt) {
                              queue_op::set,
                              /*revSeq*/ 0,
                              /*bySeq*/ 0));
-    EXPECT_TRUE(this->manager->queueDirty(
-            *this->vbucket, qi3, GenerateBySeqno::Yes, GenerateCas::Yes));
+    EXPECT_TRUE(this->manager->queueDirty(*this->vbucket,
+                                          qi3,
+                                          GenerateBySeqno::Yes,
+                                          GenerateCas::Yes,
+                                          /*preLinkDocCtx*/ nullptr));
     EXPECT_EQ(1, this->manager->getNumCheckpoints());
     EXPECT_EQ(3, this->manager->getNumOpenChkItems());
     EXPECT_EQ(1003, qi3->getBySeqno());
@@ -442,8 +458,11 @@ TYPED_TEST(CheckpointTest, Delete) {
                             queue_op::del,
                             /*revSeq*/ 10,
                             /*byseq*/ 0}};
-    EXPECT_TRUE(this->manager->queueDirty(
-            *this->vbucket, qi, GenerateBySeqno::Yes, GenerateCas::Yes));
+    EXPECT_TRUE(this->manager->queueDirty(*this->vbucket,
+                                          qi,
+                                          GenerateBySeqno::Yes,
+                                          GenerateCas::Yes,
+                                          /*preLinkDocCtx*/ nullptr));
 
     EXPECT_EQ(1, this->manager->getNumCheckpoints());  // Single open checkpoint.
     EXPECT_EQ(2, this->manager->getNumOpenChkItems()); // 1x op_checkpoint_start, 1x op_del
@@ -1046,10 +1065,12 @@ TYPED_TEST(CheckpointTest, SeqnoAndHLCOrdering) {
                                  queue_op::set,
                                  /*revSeq*/ 0,
                                  /*bySeq*/ 0));
-                EXPECT_TRUE(this->manager->queueDirty(*this->vbucket,
-                                                      qi,
-                                                      GenerateBySeqno::Yes,
-                                                      GenerateCas::Yes));
+                EXPECT_TRUE(
+                        this->manager->queueDirty(*this->vbucket,
+                                                  qi,
+                                                  GenerateBySeqno::Yes,
+                                                  GenerateCas::Yes,
+                                                  /*preLinkDocCtx*/ nullptr));
 
                 // Save seqno/cas
                 threadsData.push_back(std::make_pair(qi->getBySeqno(), qi->getCas()));

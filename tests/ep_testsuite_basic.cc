@@ -2001,6 +2001,45 @@ static enum test_result warmup_mb21769(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+/**
+ * Callback from the document API being called after the CAS was assigned
+ * to the object. We're allowed to modify the content, so let's just change
+ * the string.
+ *
+ * @param info info about the document
+ */
+static void pre_link_doc_callback(item_info& info) {
+    checkne(uint64_t(0), info.cas, "CAS value should be set");
+    // mock the actual value so we can see it was changed
+    memcpy(info.value[0].iov_base, "valuesome", 9);
+}
+
+/**
+ * Verify that we've hooked into the checkpoint and that the pre-link
+ * document api method is called.
+ */
+static test_result pre_link_document(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item_info info;
+    item* it;
+
+    PreLinkFunction function = pre_link_doc_callback;
+    testHarness.set_pre_link_function(function);
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, nullptr, OPERATION_SET, "key", "somevalue", &it),
+            "Failed set.");
+    h1->release(h, nullptr, it);
+    testHarness.set_pre_link_function({});
+
+    // Fetch the value and verify that the callback was called!
+    checkeq(ENGINE_SUCCESS, get(h, h1, nullptr, &it, "key", 0), "get failed");
+    check(h1->get_item_info(h, nullptr, it, &info), "Failed to get item info.");
+    checkeq(0, memcmp(info.value[0].iov_base, "valuesome", 9),
+           "Expected value to be modified");
+    h1->release(h, nullptr, it);
+
+    return SUCCESS;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Test manifest //////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -2126,6 +2165,9 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("set max_cas MB21190", set_max_cas_mb21190, test_setup, teardown, nullptr,
                  prepare, cleanup),
         TestCase("warmup_mb21769", warmup_mb21769, test_setup, teardown, nullptr,
+                 prepare, cleanup),
+
+        TestCase("pre_link_document", pre_link_document, test_setup, teardown, nullptr,
                  prepare, cleanup),
 
         // sentinel

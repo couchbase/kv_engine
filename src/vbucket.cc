@@ -732,10 +732,12 @@ size_t VBucket::getNumOfKeysInFilter() {
     }
 }
 
-VBNotifyCtx VBucket::queueDirty(StoredValue& v,
-                                const GenerateBySeqno generateBySeqno,
-                                const GenerateCas generateCas,
-                                const bool isBackfillItem) {
+VBNotifyCtx VBucket::queueDirty(
+        StoredValue& v,
+        const GenerateBySeqno generateBySeqno,
+        const GenerateCas generateCas,
+        const bool isBackfillItem,
+        PreLinkDocumentContext* preLinkDocumentContext) {
     VBNotifyCtx notifyCtx;
 
     queued_item qi(v.toItem(false, getId()));
@@ -750,8 +752,12 @@ VBNotifyCtx VBucket::queueDirty(StoredValue& v,
             checkpointManager.resetSnapshotRange();
         }
     } else {
-        notifyCtx.notifyFlusher = checkpointManager.queueDirty(
-                *this, qi, generateBySeqno, generateCas);
+        notifyCtx.notifyFlusher =
+                checkpointManager.queueDirty(*this,
+                                             qi,
+                                             generateBySeqno,
+                                             generateCas,
+                                             preLinkDocumentContext);
         notifyCtx.bySeqno = qi->getBySeqno();
         notifyCtx.notifyReplication = true;
         if (GenerateCas::Yes == generateCas) {
@@ -945,10 +951,12 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
         }
     }
 
+    PreLinkDocumentContext preLinkDocumentContext(engine, cookie, &itm);
     VBQueueItemCtx queueItmCtx(GenerateBySeqno::Yes,
                                GenerateCas::Yes,
                                TrackCasDrift::No,
-                               /*isBackfillItem*/ false);
+                               /*isBackfillItem*/ false,
+                               &preLinkDocumentContext);
 
     MutationStatus status;
     VBNotifyCtx notifyCtx;
@@ -1021,10 +1029,12 @@ ENGINE_ERROR_CODE VBucket::replace(Item& itm,
         if (eviction == FULL_EVICTION && v->isTempInitialItem()) {
             mtype = MutationStatus::NeedBgFetch;
         } else {
+            PreLinkDocumentContext preLinkDocumentContext(engine, cookie, &itm);
             VBQueueItemCtx queueItmCtx(GenerateBySeqno::Yes,
                                        GenerateCas::Yes,
                                        TrackCasDrift::No,
-                                       /*isBackfillItem*/ false);
+                                       /*isBackfillItem*/ false,
+                                       &preLinkDocumentContext);
             std::tie(mtype, notifyCtx) = processSet(hbl,
                                                     v,
                                                     itm,
@@ -1096,7 +1106,8 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm,
     VBQueueItemCtx queueItmCtx(genBySeqno,
                                GenerateCas::No,
                                TrackCasDrift::No,
-                               /*isBackfillItem*/ true);
+                               /*isBackfillItem*/ true,
+                               nullptr /* No pre link should happen */);
     MutationStatus status;
     VBNotifyCtx notifyCtx;
     std::tie(status, notifyCtx) = processSet(hbl,
@@ -1197,7 +1208,8 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
     VBQueueItemCtx queueItmCtx(genBySeqno,
                                genCas,
                                TrackCasDrift::Yes,
-                               /*isBackfillItem*/ false);
+                               /*isBackfillItem*/ false,
+                               nullptr /* No pre link step needed */);
     MutationStatus status;
     VBNotifyCtx notifyCtx;
     std::tie(status, notifyCtx) = processSet(hbl,
@@ -1334,7 +1346,8 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
                                   VBQueueItemCtx(GenerateBySeqno::Yes,
                                                  GenerateCas::Yes,
                                                  TrackCasDrift::No,
-                                                 /*isBackfillItem*/ false),
+                                                 /*isBackfillItem*/ false,
+                                                 nullptr /* no pre link */),
                                   /*use_meta*/ false,
                                   /*bySeqno*/ v->getBySeqno());
     }
@@ -1469,8 +1482,11 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
             delrv = MutationStatus::NotFound;
         }
     } else {
-        VBQueueItemCtx queueItmCtx(
-                genBySeqno, generateCas, TrackCasDrift::Yes, backfill);
+        VBQueueItemCtx queueItmCtx(genBySeqno,
+                                   generateCas,
+                                   TrackCasDrift::Yes,
+                                   backfill,
+                                   nullptr /* No pre link step needed */);
         std::tie(delrv, notifyCtx) = processSoftDelete(hbl.getHTLock(),
                                                        *v,
                                                        cas,
@@ -1578,10 +1594,12 @@ ENGINE_ERROR_CODE VBucket::add(Item& itm,
         }
     }
 
+    PreLinkDocumentContext preLinkDocumentContext(engine, cookie, &itm);
     VBQueueItemCtx queueItmCtx(GenerateBySeqno::Yes,
                                GenerateCas::Yes,
                                TrackCasDrift::No,
-                               /*isBackfillItem*/ false);
+                               /*isBackfillItem*/ false,
+                               &preLinkDocumentContext);
     AddStatus status;
     VBNotifyCtx notifyCtx;
     std::tie(status, notifyCtx) =
@@ -2334,7 +2352,8 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processExpiredItem(
                                   VBQueueItemCtx(GenerateBySeqno::Yes,
                                                  GenerateCas::Yes,
                                                  TrackCasDrift::No,
-                                                 /*isBackfillItem*/ false),
+                                                 /*isBackfillItem*/ false,
+                                                 nullptr /* no pre link */),
                                   v.getBySeqno());
     ht.updateMaxDeletedRevSeqno(v.getRevSeqno() + 1);
     return {MutationStatus::NotFound, notifyCtx};
@@ -2481,7 +2500,11 @@ int64_t VBucket::queueItem(Item* item) {
     item->setVBucketId(id);
     queued_item qi(item);
     checkpointManager.queueDirty(
-            *this, qi, GenerateBySeqno::Yes, GenerateCas::Yes);
+            *this,
+            qi,
+            GenerateBySeqno::Yes,
+            GenerateCas::Yes,
+            nullptr /* No pre link step as this is for system events */);
     return qi->getBySeqno();
 }
 
@@ -2493,7 +2516,8 @@ VBNotifyCtx VBucket::queueDirty(StoredValue& v,
     return queueDirty(v,
                       queueItmCtx.genBySeqno,
                       queueItmCtx.genCas,
-                      queueItmCtx.isBackfillItem);
+                      queueItmCtx.isBackfillItem,
+                      queueItmCtx.preLinkDocumentContext);
 }
 
 void VBucket::updateRevSeqNoOfNewStoredValue(StoredValue& v) {

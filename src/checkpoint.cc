@@ -1139,9 +1139,12 @@ void CheckpointManager::updateStatsForNewQueuedItem_UNLOCKED(const LockHolder&,
     checkpointList.back()->incrementMemConsumption(qi->size());
 }
 
-bool CheckpointManager::queueDirty(VBucket& vb, queued_item& qi,
-                                   const GenerateBySeqno generateBySeqno,
-                                   const GenerateCas generateCas) {
+bool CheckpointManager::queueDirty(
+        VBucket& vb,
+        queued_item& qi,
+        const GenerateBySeqno generateBySeqno,
+        const GenerateCas generateCas,
+        PreLinkDocumentContext* preLinkDocumentContext) {
     LockHolder lh(queueLock);
 
     bool canCreateNewCheckpoint = false;
@@ -1187,7 +1190,11 @@ bool CheckpointManager::queueDirty(VBucket& vb, queued_item& qi,
     // MB-20798: Allow the HLC to be created 'atomically' with the seqno as
     // we're holding the ::queueLock.
     if (GenerateCas::Yes == generateCas) {
-        qi->setCas(vb.nextHLCCas());
+        auto cas = vb.nextHLCCas();
+        qi->setCas(cas);
+        if (preLinkDocumentContext != nullptr) {
+            preLinkDocumentContext->setCas(cas);
+        }
     }
 
     uint64_t st = checkpointList.back()->getSnapshotStartSeqno();

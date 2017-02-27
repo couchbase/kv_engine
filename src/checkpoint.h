@@ -31,6 +31,7 @@
 #include "ep_types.h"
 #include "item.h"
 #include "locks.h"
+#include "pre_link_document_context.h"
 #include "stats.h"
 
 #define GIGANTOR ((size_t)1<<(sizeof(size_t)*8-1))
@@ -703,11 +704,18 @@ public:
      * @param vb the vbucket that a new item is pushed into.
      * @param qi item to be persisted.
      * @param generateBySeqno yes/no generate the seqno for the item
+     * @param preLinkDocumentContext A context object needed for the
+     *        pre link document API in the server API. It is notified
+     *        with the generated CAS before the object is made available
+     *        for other threads. May be nullptr if the document originates
+     *        from a context where the document shouldn't be updated.
      * @return true if an item queued increases the size of persistence queue by 1.
      */
-    bool queueDirty(VBucket& vb, queued_item& qi,
+    bool queueDirty(VBucket& vb,
+                    queued_item& qi,
                     const GenerateBySeqno generateBySeqno,
-                    const GenerateCas generateCas);
+                    const GenerateCas generateCas,
+                    PreLinkDocumentContext* preLinkDocumentContext);
 
     /*
      * Queue writing of the VBucket's state to persistent layer.
