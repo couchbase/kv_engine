@@ -1080,11 +1080,11 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
             // Infrequent code path, see comment below.
             producer->getLogger().log(EXTENSION_LOG_NOTICE,
                                       "(vb %" PRIu16 ") Did not schedule "
-                                      "backfill with reschedule : True; "
+                                      "backfill with reschedule : True, "
+                                      "tryBackfill : True; "
                                       "backfillStart : %" PRIu64 ", "
                                       "backfillEnd : %" PRIu64 ", "
                                       "flags_ : %" PRIu32 ", "
-                                      "tryBackfill : %s, "
                                       "start_seqno_ : %" PRIu64 ", "
                                       "end_seqno_ : %" PRIu64 ", "
                                       "lastReadSeqno : %" PRIu64 ", "
@@ -1092,7 +1092,6 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
                                       "curChkSeqno : %" PRIu64 ", "
                                       "itemsReady : %s",
                                       vb_, backfillStart, backfillEnd, flags_,
-                                      tryBackfill ? "True" : "False",
                                       start_seqno_, end_seqno_,
                                       lastReadSeqno.load(),
                                       lastSentSeqno.load(), curChkSeqno.load(),
