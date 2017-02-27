@@ -63,7 +63,7 @@ size_t BgFetcher::doFetch(VBucket::id_type vbId,
         "startTime:%" PRIu64,
         vbId,
         uint64_t(itemsToFetch.size()),
-        std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(
                 startTime.time_since_epoch())
                 .count());
 
@@ -84,7 +84,7 @@ size_t BgFetcher::doFetch(VBucket::id_type vbId,
     if (fetchedItems.size() > 0) {
         store->completeBGFetchMulti(vbId, fetchedItems, startTime);
         stats.getMultiHisto.add(
-                std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::duration_cast<std::chrono::microseconds>(
                         ProcessClock::now() - startTime)
                         .count(),
                 fetchedItems.size());

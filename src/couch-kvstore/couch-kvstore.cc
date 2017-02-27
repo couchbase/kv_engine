@@ -2222,7 +2222,7 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
         // same seqid
         fetch->value = returnVal;
         st.readTimeHisto.add(
-                std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::duration_cast<std::chrono::microseconds>(
                         ProcessClock::now() - fetch->initTime)
                         .count());
         if (errCode == COUCHSTORE_SUCCESS) {
