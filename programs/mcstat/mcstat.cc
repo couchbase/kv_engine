@@ -167,7 +167,7 @@ int main(int argc, char** argv) {
 
         // MEMCACHED_VERSION contains the git sha
         connection.hello("mcstat", MEMCACHED_VERSION,
-                         "command line utitilty to fetch stats");
+                         "command line utility to fetch stats");
         connection.setXerrorSupport(true);
 
         if (!user.empty()) {
