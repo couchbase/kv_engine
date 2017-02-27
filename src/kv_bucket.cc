@@ -1373,40 +1373,6 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key, uint16_t vbucket,
     return vb->getAndUpdateTtl(key, cookie, engine, bgFetchDelay, exptime);
 }
 
-ENGINE_ERROR_CODE KVBucket::statsVKey(const DocKey& key, uint16_t vbucket,
-                                      const void *cookie) {
-    RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (!vb) {
-        return ENGINE_NOT_MY_VBUCKET;
-    }
-
-    return vb->statsVKey(key, cookie, engine, bgFetchDelay);
-}
-
-void KVBucket::completeStatsVKey(const void* cookie, const DocKey& key,
-                                 uint16_t vbid, uint64_t bySeqNum) {
-    RememberingCallback<GetValue> gcb;
-
-    getROUnderlying(vbid)->get(key, vbid, gcb);
-    gcb.waitForValue();
-
-    if (eviction_policy == FULL_EVICTION) {
-        RCPtr<VBucket> vb = getVBucket(vbid);
-        if (vb) {
-            vb->completeStatsVKey(key, gcb);
-        }
-    }
-
-    if (gcb.val.getStatus() == ENGINE_SUCCESS) {
-        engine.addLookupResult(cookie, gcb.val.getValue());
-    } else {
-        engine.addLookupResult(cookie, NULL);
-    }
-
-    --stats.numRemainingBgJobs;
-    engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
-}
-
 GetValue KVBucket::getLocked(const DocKey& key, uint16_t vbucket,
                              rel_time_t currentTime, uint32_t lockTimeout,
                              const void *cookie) {

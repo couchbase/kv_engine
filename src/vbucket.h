@@ -569,10 +569,10 @@ public:
      *
      * @return VBReturnCtx indicates notifyCtx and operation result
      */
-    ENGINE_ERROR_CODE statsVKey(const DocKey& key,
-                                const void* cookie,
-                                EventuallyPersistentEngine& engine,
-                                int bgFetchDelay);
+    virtual ENGINE_ERROR_CODE statsVKey(const DocKey& key,
+                                        const void* cookie,
+                                        EventuallyPersistentEngine& engine,
+                                        int bgFetchDelay) = 0;
 
     /**
      * Complete the vkey stats for an item background fetched from disk.
@@ -581,8 +581,8 @@ public:
      * @param gcb Bgfetch cbk obj containing the item from disk
      *
      */
-    void completeStatsVKey(const DocKey& key,
-                           const RememberingCallback<GetValue>& gcb);
+    virtual void completeStatsVKey(
+            const DocKey& key, const RememberingCallback<GetValue>& gcb) = 0;
 
     /**
      * Set (add new or update) an item into in-memory structure like
@@ -1081,8 +1081,25 @@ protected:
             GenerateCas generateCas = GenerateCas::Yes,
             bool isBackfillItem = false);
 
+    /**
+     * Adds a temporary StoredValue in in-memory data structures like HT.
+     * Assumes that HT bucket lock is grabbed.
+     *
+     * @param hbl Hash table bucket lock that must be held
+     * @param key the key for which a temporary item needs to be added
+     * @param isReplication true if issued by consumer (for replication)
+     *
+     * @return Result indicating the status of the operation
+     */
+    AddStatus addTempStoredValue(const HashTable::HashBucketLock& hbl,
+                                 const DocKey& key,
+                                 bool isReplication = false);
+
     /* This member holds the eviction policy used */
     const item_eviction_policy_t eviction;
+
+    /* Reference to global (EP engine wide) stats */
+    EPStats& stats;
 
 private:
     template <typename T>
@@ -1209,20 +1226,6 @@ private:
                           bool isReplication = false);
 
     /**
-     * Adds a temporary StoredValue in in-memory data structures like HT.
-     * Assumes that HT bucket lock is grabbed.
-     *
-     * @param hbl Hash table bucket lock that must be held
-     * @param key the key for which a temporary item needs to be added
-     * @param isReplication true if issued by consumer (for replication)
-     *
-     * @return Result indicating the status of the operation
-     */
-    AddStatus addTempStoredValue(const HashTable::HashBucketLock& hbl,
-                                 const DocKey& key,
-                                 bool isReplication = false);
-
-    /**
      * Enqueue a background fetch for a key.
      *
      * @param key the key to be bg fetched
@@ -1266,7 +1269,6 @@ private:
     std::mutex                           pendingOpLock;
     std::vector<const void*>        pendingOps;
     hrtime_t                        pendingOpsStart;
-    EPStats                        &stats;
     uint64_t                        purge_seqno;
     std::atomic<bool>               takeover_backed_up;
 

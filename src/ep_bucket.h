@@ -84,4 +84,13 @@ public:
                                uint64_t lastSnapEnd,
                                uint64_t purgeSeqno,
                                uint64_t maxCas) override;
+
+    ENGINE_ERROR_CODE statsVKey(const DocKey& key,
+                                uint16_t vbucket,
+                                const void* cookie) override;
+
+    void completeStatsVKey(const void* cookie,
+                           const DocKey& key,
+                           uint16_t vbid,
+                           uint64_t bySeqNum) override;
 };

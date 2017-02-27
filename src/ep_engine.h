@@ -794,6 +794,7 @@ protected:
 
     friend class BGFetchCallback;
     friend class KVBucket;
+    friend class EPBucket;
 
     bool enableTraffic(bool enable) {
         bool inverse = !enable;

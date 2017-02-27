@@ -157,10 +157,10 @@ VBucket::VBucket(id_type i,
       metaDataDisk(0),
       numExpiredItems(0),
       eviction(evictionPolicy),
+      stats(st),
       id(i),
       state(newState),
       initialState(initState),
-      stats(st),
       purge_seqno(purgeSeqno),
       takeover_backed_up(false),
       persisted_snapshot_start(lastSnapStart),
@@ -912,90 +912,6 @@ ENGINE_ERROR_CODE VBucket::completeBGFetchForSingleItem(
 
     updateBGStats(fetched_item.initTime, startTime, ProcessClock::now());
     return status;
-}
-
-ENGINE_ERROR_CODE VBucket::statsVKey(const DocKey& key,
-                                     const void* cookie,
-                                     EventuallyPersistentEngine& engine,
-                                     const int bgFetchDelay) {
-    auto hbl = ht.getLockedBucket(key);
-    StoredValue* v = fetchValidValue(hbl, key, true);
-
-    if (v) {
-        if (v->isDeleted() || v->isTempDeletedItem() ||
-            v->isTempNonExistentItem()) {
-            return ENGINE_KEY_ENOENT;
-        }
-        ++stats.numRemainingBgJobs;
-        ExecutorPool* iom = ExecutorPool::get();
-        ExTask task = new VKeyStatBGFetchTask(&engine,
-                                              key,
-                                              getId(),
-                                              v->getBySeqno(),
-                                              cookie,
-                                              bgFetchDelay,
-                                              false);
-        iom->schedule(task, READER_TASK_IDX);
-        return ENGINE_EWOULDBLOCK;
-    } else {
-        if (eviction == VALUE_ONLY) {
-            return ENGINE_KEY_ENOENT;
-        } else {
-            AddStatus rv = addTempStoredValue(hbl, key);
-            switch (rv) {
-            case AddStatus::NoMem:
-                return ENGINE_ENOMEM;
-            case AddStatus::Exists:
-            case AddStatus::UnDel:
-            case AddStatus::Success:
-            case AddStatus::AddTmpAndBgFetch:
-                // Since the hashtable bucket is locked, we shouldn't get here
-                throw std::logic_error(
-                        "VBucket::statsVKey: "
-                        "Invalid result from unlocked_addTempItem (" +
-                        std::to_string(static_cast<uint16_t>(rv)) + ")");
-
-            case AddStatus::BgFetch: {
-                ++stats.numRemainingBgJobs;
-                ExecutorPool* iom = ExecutorPool::get();
-                ExTask task = new VKeyStatBGFetchTask(
-                        &engine, key, getId(), -1, cookie, bgFetchDelay, false);
-                iom->schedule(task, READER_TASK_IDX);
-            }
-            }
-            return ENGINE_EWOULDBLOCK;
-        }
-    }
-}
-
-void VBucket::completeStatsVKey(const DocKey& key,
-                                const RememberingCallback<GetValue>& gcb) {
-    auto hbl = ht.getLockedBucket(key);
-    StoredValue* v = fetchValidValue(hbl, key, eviction, true);
-
-    if (v && v->isTempInitialItem()) {
-        if (gcb.val.getStatus() == ENGINE_SUCCESS) {
-            ht.unlocked_restoreValue(
-                    hbl.getHTLock(), *(gcb.val.getValue()), *v);
-            if (!v->isResident()) {
-                throw std::logic_error(
-                        "VBucket::completeStatsVKey: "
-                        "storedvalue (which has seqno:" +
-                        std::to_string(v->getBySeqno()) +
-                        ") should be resident after calling restoreValue()");
-            }
-        } else if (gcb.val.getStatus() == ENGINE_KEY_ENOENT) {
-            v->setNonExistent();
-        } else {
-            // underlying kvstore couldn't fetch requested data
-            // log returned error and notify TMPFAIL to client
-            LOG(EXTENSION_LOG_WARNING,
-                "VBucket::completeStatsVKey: "
-                "Failed background fetch for vb:%" PRIu16 ", seqno:%" PRIu64,
-                getId(),
-                v->getBySeqno());
-        }
-    }
 }
 
 MutationStatus VBucket::setFromInternal(Item& itm) {

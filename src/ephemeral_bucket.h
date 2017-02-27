@@ -68,4 +68,14 @@ public:
     void notifyFlusher(const uint16_t vbid) override {
     }
 
+    ENGINE_ERROR_CODE statsVKey(const DocKey& key,
+                                uint16_t vbucket,
+                                const void* cookie) override {
+        return ENGINE_ENOTSUP;
+    }
+
+    void completeStatsVKey(const void* cookie,
+                           const DocKey& key,
+                           uint16_t vbid,
+                           uint64_t bySeqNum) override;
 };

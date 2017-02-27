@@ -57,3 +57,14 @@ RCPtr<VBucket> EphemeralBucket::makeVBucket(
                                                purgeSeqno,
                                                maxCas));
 }
+
+void EphemeralBucket::completeStatsVKey(const void* cookie,
+                                        const DocKey& key,
+                                        uint16_t vbid,
+                                        uint64_t bySeqNum) {
+    throw std::logic_error(
+            "EphemeralBucket::completeStatsVKey() "
+            "is not a valid call. Called on vb " +
+            std::to_string(vbid) + "for key: " +
+            std::string(reinterpret_cast<const char*>(key.data()), key.size()));
+}

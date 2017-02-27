@@ -41,6 +41,16 @@ public:
 
     size_t getNumItems() const override;
 
+    ENGINE_ERROR_CODE statsVKey(const DocKey& key,
+                                const void* cookie,
+                                EventuallyPersistentEngine& engine,
+                                int bgFetchDelay) override {
+        return ENGINE_ENOTSUP;
+    }
+
+    void completeStatsVKey(const DocKey& key,
+                           const RememberingCallback<GetValue>& gcb) override;
+
 private:
     std::pair<MutationStatus, VBNotifyCtx> updateStoredValue(
             const std::unique_lock<std::mutex>& htLock,

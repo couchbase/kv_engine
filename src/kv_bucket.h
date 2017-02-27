@@ -223,23 +223,6 @@ public:
     GetValue getAndUpdateTtl(const DocKey& key, uint16_t vbucket,
                              const void *cookie, time_t exptime);
 
-    /**
-     * Retrieve an item from the disk for vkey stats
-     *
-     * @param key the key to fetch
-     * @param vbucket the vbucket from which to retrieve the key
-     * @param cookie the connection cookie
-     * @param cb callback to return an item fetched from the disk
-     *
-     * @return a status resulting form executing the method
-     */
-    ENGINE_ERROR_CODE statsVKey(const DocKey& key,
-                                uint16_t vbucket,
-                                const void *cookie);
-
-    void completeStatsVKey(const void* cookie, const DocKey& key, uint16_t vbid,
-                           uint64_t bySeqNum);
-
     ENGINE_ERROR_CODE deleteItem(const DocKey& key,
                                  uint64_t& cas,
                                  uint16_t vbucket,

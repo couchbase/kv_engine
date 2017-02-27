@@ -153,7 +153,6 @@ std::unordered_map<std::string, StatProperties> stat_tests =
      // We add a document with the key __sentinel__ to vbucket 0 at the
      // start of the test and hence it is used for the key_vb0 stat.
      {"key_vb0", {"key example_doc 0", StatRuntime::Fast, {}} },
-     {"vkey_vb0", {"vkey example_doc 0", StatRuntime::Fast, {}} },
      {"kvtimings", {"kvtimings", StatRuntime::Slow, {}} },
      {"kvstore", {"kvstore", StatRuntime::Fast, {}} },
      {"info", {"info", StatRuntime::Fast, {}} },
@@ -1225,10 +1224,11 @@ static void perf_stat_latency_core(ENGINE_HANDLE *h,
 
     if (isPersistentBucket(h, h1)) {
         // Include persistence-specific stats
-        stat_tests.insert({{"diskinfo",
-                          {"diskinfo", StatRuntime::Fast, {}} },
-                      {"diskinfo-detail",
-                          {"diskinfo-detail", StatRuntime::Slow, {}}}});
+        stat_tests.insert(
+                {{"diskinfo", {"diskinfo", StatRuntime::Fast, {}}},
+                 {"diskinfo-detail",
+                  {"diskinfo-detail", StatRuntime::Slow, {}}},
+                 {"vkey_vb0", {"vkey example_doc 0", StatRuntime::Fast, {}}}});
     }
 
     if (isTapEnabled(h, h1)) {

@@ -6863,16 +6863,6 @@ static enum test_result test_mb19687_variable(ENGINE_HANDLE* h,
                 "key_vb_state"
             }
         },
-        {"vkey mykey",
-            {
-                "key_cas",
-                "key_exptime",
-                "key_flags",
-                "key_is_dirty",
-                "key_valid",
-                "key_vb_state"
-            }
-        },
         {"memory",
             {
                 "bytes",
@@ -6924,6 +6914,15 @@ static enum test_result test_mb19687_variable(ENGINE_HANDLE* h,
                                         "ep_warmup_min_item_threshold",
                                         "ep_warmup_estimated_key_count",
                                         "ep_warmup_estimated_value_count" } });
+    }
+
+    if (isPersistentBucket(h, h1)) {
+        statsKeys.insert( { "vkey mykey", { "key_cas",
+                                            "key_exptime",
+                                            "key_flags",
+                                            "key_is_dirty",
+                                            "key_valid",
+                                            "key_vb_state" } });
     }
 
     item_info info;
@@ -7252,7 +7251,7 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("stats key", test_key_stats, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("stats vkey", test_vkey_stats, test_setup,
-                 teardown, NULL, prepare, cleanup),
+                 teardown, NULL, prepare_ep_bucket, cleanup),
         TestCase("stats vkey callback tests", test_stats_vkey_valid_field,
                  test_setup, teardown, NULL, prepare_ep_bucket, cleanup),
         TestCase("warmup stats", test_warmup_stats, test_setup,
