@@ -51,6 +51,11 @@ public:
     void completeStatsVKey(const DocKey& key,
                            const RememberingCallback<GetValue>& gcb) override;
 
+    bool maybeKeyExistsInFilter(const DocKey& key) override {
+        /* There is no disk to indicate that a key may exist */
+        return false;
+    }
+
 private:
     std::pair<MutationStatus, VBNotifyCtx> updateStoredValue(
             const std::unique_lock<std::mutex>& htLock,

@@ -460,7 +460,7 @@ public:
     void createFilter(size_t key_count, double probability);
     void initTempFilter(size_t key_count, double probability);
     void addToFilter(const DocKey& key);
-    bool maybeKeyExistsInFilter(const DocKey& key);
+    virtual bool maybeKeyExistsInFilter(const DocKey& key);
     bool isTempFilterAvailable();
     void addToTempFilter(const DocKey& key);
     void swapFilter();
