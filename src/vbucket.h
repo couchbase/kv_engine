@@ -764,8 +764,19 @@ public:
      *                 evicted), or the reason why the request failed.
      *
      */
-    protocol_binary_response_status evictKey(const DocKey& key,
-                                             const char** msg);
+    virtual protocol_binary_response_status evictKey(const DocKey& key,
+                                                     const char** msg) = 0;
+
+    /**
+     * Eject a StoredValue from memory.
+     *
+     * @param v[in, out] Ref to the StoredValue to be ejected. Based on the
+     *                   VBucket type, policy in the vbucket contents of v and
+     *                   v itself may be changed
+     *
+     * @return true if an item is ejected.
+     */
+    virtual bool htUnlockedEjectItem(StoredValue*& v) = 0;
 
     /**
      * Add an item in the store

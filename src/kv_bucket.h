@@ -497,6 +497,10 @@ public:
         return vbMap.getShardByVbId(vbId)->getROUnderlying();
     }
 
+    protocol_binary_response_status evictKey(const DocKey& key,
+                                             VBucket::id_type vbucket,
+                                             const char** msg);
+
     void deleteExpiredItem(uint16_t, const DocKey&, time_t, uint64_t, ExpireBy);
     void deleteExpiredItems(std::list<std::pair<uint16_t, StoredDocKey>>&,
                             ExpireBy);

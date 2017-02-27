@@ -560,6 +560,17 @@ void KVBucket::wakeUpFlusher() {
     // Nothing do to - no flusher in this class
 }
 
+protocol_binary_response_status KVBucket::evictKey(const DocKey& key,
+                                                   VBucket::id_type vbucket,
+                                                   const char** msg) {
+    RCPtr<VBucket> vb = getVBucket(vbucket);
+    if (!vb || (vb->getState() != vbucket_state_active)) {
+        return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+    }
+
+    return vb->evictKey(key, msg);
+}
+
 void KVBucket::deleteExpiredItem(uint16_t vbid,
                                  const DocKey& key,
                                  time_t startTime,

@@ -1561,41 +1561,6 @@ void VBucket::deleteExpiredItem(const DocKey& key,
     incExpirationStat(source);
 }
 
-protocol_binary_response_status VBucket::evictKey(const DocKey& key,
-                                                  const char** msg) {
-    auto hbl = ht.getLockedBucket(key);
-    StoredValue* v = fetchValidValue(hbl,
-                                     key,
-                                     /*wantDeleted*/ false,
-                                     /*trackReference*/ false);
-
-    if (!v) {
-        if (eviction == VALUE_ONLY) {
-            *msg = "Not found.";
-            return PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
-        }
-        *msg = "Already ejected.";
-        return PROTOCOL_BINARY_RESPONSE_SUCCESS;
-    }
-
-    if (v->isResident()) {
-        if (ht.unlocked_ejectItem(v, eviction)) {
-            *msg = "Ejected.";
-
-            // Add key to bloom filter in case of full eviction mode
-            if (eviction == FULL_EVICTION) {
-                addToFilter(key);
-            }
-            return PROTOCOL_BINARY_RESPONSE_SUCCESS;
-        }
-        *msg = "Can't eject: Dirty object.";
-        return PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
-    }
-
-    *msg = "Already ejected.";
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
-}
-
 ENGINE_ERROR_CODE VBucket::add(Item& itm,
                                const void* cookie,
                                EventuallyPersistentEngine& engine,

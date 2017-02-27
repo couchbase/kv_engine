@@ -53,17 +53,6 @@ void EPBucket::deinitialize() {
     KVBucket::deinitialize();
 }
 
-protocol_binary_response_status EPBucket::evictKey(const DocKey& key,
-                                                   VBucket::id_type vbucket,
-                                                   const char** msg) {
-    RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (!vb || (vb->getState() != vbucket_state_active)) {
-        return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
-    }
-
-    return vb->evictKey(key, msg);
-}
-
 void EPBucket::reset() {
     KVBucket::reset();
 

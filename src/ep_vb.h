@@ -52,6 +52,11 @@ public:
     void completeStatsVKey(const DocKey& key,
                            const RememberingCallback<GetValue>& gcb) override;
 
+    protocol_binary_response_status evictKey(const DocKey& key,
+                                             const char** msg) override;
+
+    bool htUnlockedEjectItem(StoredValue*& v) override;
+
 private:
     std::pair<MutationStatus, VBNotifyCtx> updateStoredValue(
             const std::unique_lock<std::mutex>& htLock,

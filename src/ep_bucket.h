@@ -36,10 +36,6 @@ public:
 
     void deinitialize() override;
 
-    protocol_binary_response_status evictKey(const DocKey& key,
-                                             VBucket::id_type vbucket,
-                                             const char** msg) override;
-
     void reset() override;
 
     /// Start the Flusher for all shards in this bucket.

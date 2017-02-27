@@ -56,6 +56,19 @@ public:
         return false;
     }
 
+    protocol_binary_response_status evictKey(const DocKey& key,
+                                             const char** msg) override {
+        /* There is nothing (no disk) to evictKey to. Later on if we decide to
+           use this as a deletion, then we can handle it differently */
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    }
+
+    bool htUnlockedEjectItem(StoredValue*& v) override {
+        /* There is nothing (no disk) to evictKey to. Later on if we decide to
+           use this as a deletion, then we can handle it differently */
+        return false;
+    }
+
 private:
     std::pair<MutationStatus, VBNotifyCtx> updateStoredValue(
             const std::unique_lock<std::mutex>& htLock,

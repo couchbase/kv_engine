@@ -144,6 +144,45 @@ void EPVBucket::completeStatsVKey(const DocKey& key,
     }
 }
 
+protocol_binary_response_status EPVBucket::evictKey(const DocKey& key,
+                                                    const char** msg) {
+    auto hbl = ht.getLockedBucket(key);
+    StoredValue* v = fetchValidValue(hbl,
+                                     key,
+                                     /*wantDeleted*/ false,
+                                     /*trackReference*/ false);
+
+    if (!v) {
+        if (eviction == VALUE_ONLY) {
+            *msg = "Not found.";
+            return PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+        }
+        *msg = "Already ejected.";
+        return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    }
+
+    if (v->isResident()) {
+        if (ht.unlocked_ejectItem(v, eviction)) {
+            *msg = "Ejected.";
+
+            // Add key to bloom filter in case of full eviction mode
+            if (eviction == FULL_EVICTION) {
+                addToFilter(key);
+            }
+            return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+        }
+        *msg = "Can't eject: Dirty object.";
+        return PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
+    }
+
+    *msg = "Already ejected.";
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
+bool EPVBucket::htUnlockedEjectItem(StoredValue*& v) {
+    return ht.unlocked_ejectItem(v, eviction);
+}
+
 std::pair<MutationStatus, VBNotifyCtx> EPVBucket::updateStoredValue(
         const std::unique_lock<std::mutex>& htLock,
         StoredValue& v,
