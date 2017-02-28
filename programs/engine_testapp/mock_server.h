@@ -2,6 +2,7 @@
 #define MEMCACHED_MOCK_SERVER_H
 
 #include <memcached/engine.h>
+#include <memcached/engine_testapp.h>
 #include <platform/platform.h>
 
 #include <atomic>
@@ -36,10 +37,6 @@ struct mock_callbacks {
 struct mock_stats {
     uint64_t astat;
 };
-
-#ifdef  __cplusplus
-extern "C" {
-#endif
 
 MEMCACHED_PUBLIC_API void mock_init_alloc_hooks(void);
 
@@ -76,8 +73,6 @@ MEMCACHED_PUBLIC_API void destroy_mock_event_callbacks(void);
 
 MEMCACHED_PUBLIC_API int get_number_of_mock_cookie_references(const void *cookie);
 
-#ifdef  __cplusplus
-}
-#endif
+void mock_set_pre_link_function(PreLinkFunction function);
 
 #endif  /* MEMCACHED_MOCK_SERVER_H */

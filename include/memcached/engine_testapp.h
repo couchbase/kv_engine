@@ -3,15 +3,12 @@
 #pragma once
 
 #include <memcached/engine.h>
+#include <functional>
 
 enum class OutputFormat {
     Text,
     XML,
 };
-
-#ifdef    __cplusplus
-extern "C" {
-#endif
 
 enum test_result {
     SUCCESS = 11,
@@ -25,6 +22,8 @@ enum test_result {
 };
 
 typedef struct test engine_test_t;
+
+using PreLinkFunction = std::function<void(item_info&)>;
 
 struct test_harness {
     const char *engine_path;
@@ -55,6 +54,7 @@ struct test_harness {
                           const char *, bool, bool);
     void (*store_engine_specific)(const void *cookie,void *engine_data);
     int (*get_number_of_mock_cookie_references)(const void *cookie);
+    void (*set_pre_link_function)(PreLinkFunction function);
 };
 
 /*
@@ -107,7 +107,3 @@ typedef engine_test_t* (*GET_TESTS)(void);
 typedef bool (*SETUP_SUITE)(struct test_harness *);
 
 typedef bool (*TEARDOWN_SUITE)(void);
-
-#ifdef    __cplusplus
-}
-#endif

@@ -9,6 +9,7 @@
 #include <time.h>
 #include <memcached/allocator_hooks.h>
 #include <memcached/engine.h>
+#include <memcached/engine_testapp.h>
 #include <memcached/extension.h>
 #include <memcached/extension_loggers.h>
 #include <memcached/server_api.h>
@@ -180,8 +181,18 @@ static protocol_binary_response_status mock_engine_error2mcbp(const void* void_c
     return engine_error_2_mcbp_protocol_error(code);
 }
 
+static PreLinkFunction pre_link_function;
+
+void mock_set_pre_link_function(PreLinkFunction function) {
+    pre_link_function = function;
+}
+
 static ENGINE_ERROR_CODE mock_pre_link_document(const void* cookie,
                                                 item_info& info) {
+    if (pre_link_function) {
+        pre_link_function(info);
+    }
+
     return ENGINE_SUCCESS;
 }
 

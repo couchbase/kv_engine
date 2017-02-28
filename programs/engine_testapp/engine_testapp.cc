@@ -1333,6 +1333,7 @@ int main(int argc, char **argv) {
     harness.store_engine_specific = store_engine_specific;
     harness.get_number_of_mock_cookie_references = get_number_of_mock_cookie_references;
     harness.doc_namespace = DocNamespace::DefaultCollection;
+    harness.set_pre_link_function = mock_set_pre_link_function;
 
     /* Initialize logging. */
     if (log_to_stderr) {
