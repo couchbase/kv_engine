@@ -116,8 +116,9 @@ void SingleThreadedEPStoreTest::cancelAndPurgeTasks() {
 /**
  * Regression test for MB-22451: When handleSlowStream is called and in
  * STREAM_BACKFILLING state and currently have a backfill scheduled (or running)
- * ensure that when the backfill completes the new backfill is scheduled and
- * the backfilling flag remains true.
+ * ensure that when the backfill completes pendingBackfill remains true,
+ * isBackfillTaskRunning is false and, the stream state remains set to
+ * STREAM_BACKFILLING.
  */
 TEST_F(SingleThreadedEPStoreTest, test_mb22451) {
     // Make vbucket active.
@@ -161,11 +162,12 @@ TEST_F(SingleThreadedEPStoreTest, test_mb22451) {
     // The call to handleSlowStream should result in setting pendingBackfill
     // flag to true
     EXPECT_TRUE(mock_stream->public_getPendingBackfill())
-        << "pendingBackfill is not true";
+        << "handleSlowStream should set pendingBackfill to True";
     mock_stream->completeBackfill();
-    EXPECT_TRUE(mock_stream->public_isBackfillTaskRunning())
-        << "isBackfillRunning is not true";
-
+    EXPECT_FALSE(mock_stream->public_isBackfillTaskRunning())
+        << "completeBackfill should set isBackfillTaskRunning to False";
+    EXPECT_EQ(STREAM_BACKFILLING, mock_stream->getState())
+            << "stream state should not have changed";
     // Required to ensure that the backfillMgr is deleted
     producer->closeAllStreams();
 }

@@ -281,7 +281,7 @@ private:
 
     DcpResponse* next(std::lock_guard<std::mutex>& lh);
 
-    DcpResponse* backfillPhase();
+    DcpResponse* backfillPhase(std::lock_guard<std::mutex>& lh);
 
     DcpResponse* inMemoryPhase();
 
