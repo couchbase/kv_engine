@@ -445,9 +445,24 @@ protected:
     couchstore_error_t openDB_retry(std::string &dbfile, uint64_t options,
                                     FileOpsInterface *ops,
                                     Db **db, uint64_t *newFileRev);
-    couchstore_error_t saveDocs(uint16_t vbid, uint64_t rev, Doc **docs,
-                                DocInfo **docinfos, size_t docCount,
-                                kvstats_ctx &kvctx);
+
+    /**
+     * save the Documents held in docs to the file associated with vbid/rev
+     *
+     * @param vbid the vbucket file to open/write/commit
+     * @param rev the revision of the vbucket file to open/write/commit
+     * @param docs vector of Doc* to be written
+     * @param docsinfo vector of DocInfo* to be written (non const due to
+     *        couchstore API). Entry n corresponds to entry n of docs.
+     * @param kvctx a stats context object to update
+     * @returns COUCHSTORE_SUCCESS or a failure code (failure paths log)
+     */
+    couchstore_error_t saveDocs(uint16_t vbid,
+                                uint64_t rev,
+                                const std::vector<Doc*>& docs,
+                                std::vector<DocInfo*>& docinfos,
+                                kvstats_ctx& kvctx);
+
     void commitCallback(std::vector<CouchRequest *> &committedReqs,
                         kvstats_ctx &kvctx,
                         couchstore_error_t errCode);

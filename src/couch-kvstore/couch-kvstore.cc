@@ -1780,8 +1780,8 @@ bool CouchKVStore::commit2couchstore() {
         return success;
     }
 
-    Doc **docs = new Doc *[pendingCommitCnt];
-    DocInfo **docinfos = new DocInfo *[pendingCommitCnt];
+    std::vector<Doc*> docs(pendingCommitCnt);
+    std::vector<DocInfo*> docinfos(pendingCommitCnt);
 
     if (pendingReqsQ[0] == nullptr) {
         throw std::logic_error("CouchKVStore::commit2couchstore: "
@@ -1811,9 +1811,9 @@ bool CouchKVStore::commit2couchstore() {
     kvstats_ctx kvctx(configuration);
     kvctx.vbucket = vbucket2flush;
     // flush all
-    couchstore_error_t errCode = saveDocs(vbucket2flush, fileRev, docs,
-                                          docinfos, pendingCommitCnt,
-                                          kvctx);
+    couchstore_error_t errCode =
+            saveDocs(vbucket2flush, fileRev, docs, docinfos, kvctx);
+
     if (errCode) {
         success = false;
         logger.log(EXTENSION_LOG_WARNING,
@@ -1829,8 +1829,6 @@ bool CouchKVStore::commit2couchstore() {
         delete pendingReqsQ[i];
     }
     pendingReqsQ.clear();
-    delete [] docs;
-    delete [] docinfos;
     return success;
 }
 
@@ -1854,25 +1852,30 @@ static int readDocInfos(Db *db, DocInfo *docinfo, void *ctx) {
     return 0;
 }
 
-couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev,
-                                          Doc **docs, DocInfo **docinfos,
-                                          size_t docCount, kvstats_ctx &kvctx) {
+couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid,
+                                          uint64_t rev,
+                                          const std::vector<Doc*>& docs,
+                                          std::vector<DocInfo*>& docinfos,
+                                          kvstats_ctx& kvctx) {
     couchstore_error_t errCode;
     uint64_t fileRev = rev;
     DbInfo info;
     if (rev == 0) {
-        throw std::invalid_argument("CouchKVStore::saveDocs: rev must be non-zero");
+        throw std::invalid_argument(
+                "CouchKVStore::saveDocs: rev must be non-zero");
     }
 
-    Db *db = NULL;
+    DbHolder db(this);
     uint64_t newFileRev;
-    errCode = openDB(vbid, fileRev, &db, 0, &newFileRev);
+    errCode = openDB(vbid, fileRev, db.getDbAddress(), 0, &newFileRev);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.log(EXTENSION_LOG_WARNING,
                    "CouchKVStore::saveDocs: openDB error:%s, vb:%" PRIu16
                    ", rev:%" PRIu64 ", numdocs:%" PRIu64,
-                   couchstore_strerror(errCode), vbid, fileRev,
-                   uint64_t(docCount));
+                   couchstore_strerror(errCode),
+                   vbid,
+                   fileRev,
+                   uint64_t(docs.size()));
         return errCode;
     } else {
         vbucket_state *state = cachedVBStates[vbid];
@@ -1883,8 +1886,9 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev,
         }
 
         uint64_t maxDBSeqno = 0;
-        sized_buf *ids = new sized_buf[docCount];
-        for (size_t idx = 0; idx < docCount; idx++) {
+
+        std::vector<sized_buf> ids(docs.size());
+        for (size_t idx = 0; idx < docs.size(); idx++) {
             ids[idx] = docinfos[idx]->id;
             maxDBSeqno = std::max(maxDBSeqno, docinfos[idx]->db_seq);
             DocKey key = makeDocKey(ids[idx],
@@ -1892,52 +1896,57 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev,
             kvctx.keyStats[key] = std::make_pair(false,
                                                  !docinfos[idx]->deleted);
         }
-        couchstore_docinfos_by_id(db, ids, (unsigned) docCount, 0,
-                readDocInfos, &kvctx);
-        delete[] ids;
+        couchstore_docinfos_by_id(db.getDb(),
+                                  ids.data(),
+                                  (unsigned)ids.size(),
+                                  0,
+                                  readDocInfos,
+                                  &kvctx);
 
         hrtime_t cs_begin = gethrtime();
         uint64_t flags = COMPRESS_DOC_BODIES | COUCHSTORE_SEQUENCE_AS_IS;
-        errCode = couchstore_save_documents(db, docs, docinfos,
-                (unsigned) docCount, flags);
+        errCode = couchstore_save_documents(db.getDb(),
+                                            docs.data(),
+                                            docinfos.data(),
+                                            (unsigned)docs.size(),
+                                            flags);
         st.saveDocsHisto.add((gethrtime() - cs_begin) / 1000);
         if (errCode != COUCHSTORE_SUCCESS) {
             logger.log(EXTENSION_LOG_WARNING,
                        "CouchKVStore::saveDocs: couchstore_save_documents "
                        "error:%s [%s], vb:%" PRIu16 ", numdocs:%" PRIu64,
                        couchstore_strerror(errCode),
-                       couchkvstore_strerrno(db, errCode).c_str(), vbid,
-                       uint64_t(docCount));
-            closeDatabaseHandle(db);
+                       couchkvstore_strerrno(db.getDb(), errCode).c_str(),
+                       vbid,
+                       uint64_t(docs.size()));
             return errCode;
         }
 
-        errCode = saveVBState(db, *state);
+        errCode = saveVBState(db.getDb(), *state);
         if (errCode != COUCHSTORE_SUCCESS) {
             logger.log(EXTENSION_LOG_WARNING,
                        "CouchKVStore::saveDocs: saveVBState error:%s [%s]",
                        couchstore_strerror(errCode),
-                       couchkvstore_strerrno(db, errCode).c_str());
-            closeDatabaseHandle(db);
+                       couchkvstore_strerrno(db.getDb(), errCode).c_str());
             return errCode;
         }
 
         cs_begin = gethrtime();
-        errCode = couchstore_commit(db);
+        errCode = couchstore_commit(db.getDb());
         st.commitHisto.add((gethrtime() - cs_begin) / 1000);
         if (errCode) {
-            logger.log(EXTENSION_LOG_WARNING,
-                       "CouchKVStore::saveDocs: couchstore_commit error:%s [%s]",
-                       couchstore_strerror(errCode),
-                       couchkvstore_strerrno(db, errCode).c_str());
-            closeDatabaseHandle(db);
+            logger.log(
+                    EXTENSION_LOG_WARNING,
+                    "CouchKVStore::saveDocs: couchstore_commit error:%s [%s]",
+                    couchstore_strerror(errCode),
+                    couchkvstore_strerrno(db.getDb(), errCode).c_str());
             return errCode;
         }
 
-        st.batchSize.add(docCount);
+        st.batchSize.add(docs.size());
 
         // retrieve storage system stats for file fragmentation computation
-        couchstore_db_info(db, &info);
+        couchstore_db_info(db.getDb(), &info);
         cachedSpaceUsed[vbid] = info.space_used;
         cachedFileSize[vbid] = info.file_size;
         cachedDeleteCount[vbid] = info.deleted_count;
@@ -1951,13 +1960,11 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev,
                        info.last_sequence, maxDBSeqno, vbid);
         }
         state->highSeqno = info.last_sequence;
-
-        closeDatabaseHandle(db);
     }
 
     /* update stat */
     if(errCode == COUCHSTORE_SUCCESS) {
-        st.docsCommitted = docCount;
+        st.docsCommitted = docs.size();
     }
 
     return errCode;
