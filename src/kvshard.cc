@@ -33,14 +33,12 @@ KVShard::KVShard(uint16_t id, KVBucket& kvBucket)
       vbuckets(kvConfig.getMaxVBuckets()),
       highPriorityCount(0) {
     const std::string backend = kvConfig.getBackend();
-    uint16_t commitInterval = 1;
 
     if (backend == "couchdb") {
         rwStore.reset(KVStoreFactory::create(kvConfig, false));
         roStore.reset(KVStoreFactory::create(kvConfig, true));
     } else if (backend == "forestdb") {
         rwStore.reset(KVStoreFactory::create(kvConfig));
-        commitInterval = kvConfig.getMaxVBuckets() / kvConfig.getMaxShards();
     } else {
         throw std::logic_error(
                 "KVShard::KVShard: "
@@ -50,7 +48,7 @@ KVShard::KVShard(uint16_t id, KVBucket& kvBucket)
 
     if (kvBucket.getEPEngine().getConfiguration().getBucketType() ==
         "persistent") {
-        flusher = std::make_unique<Flusher>(&kvBucket, this, commitInterval);
+        flusher = std::make_unique<Flusher>(&kvBucket, this);
         bgFetcher = std::make_unique<BgFetcher>(kvBucket, *this);
     }
 }

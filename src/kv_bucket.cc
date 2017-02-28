@@ -532,16 +532,6 @@ const Flusher* KVBucket::getFlusher(uint16_t shardId) {
     return vbMap.shards[shardId]->getFlusher();
 }
 
-uint16_t KVBucket::getCommitInterval(uint16_t shardId) {
-    Flusher *flusher = vbMap.shards[shardId]->getFlusher();
-    return flusher->getCommitInterval();
-}
-
-uint16_t KVBucket::decrCommitInterval(uint16_t shardId) {
-    Flusher *flusher = vbMap.shards[shardId]->getFlusher();
-    return flusher->decrCommitInterval();
-}
-
 Warmup* KVBucket::getWarmup(void) const {
     return warmupTask.get();
 }
@@ -1900,16 +1890,8 @@ int KVBucket::flushVBucket(uint16_t vbid) {
             /* Perform an explicit commit to disk if the commit
              * interval reaches zero and if there is a non-zero number
              * of items to flush.
-             * The commit interval varies based on the underlying store. For couchstore,
-             * the commit interval is set 1, so a commit is performed on every
-             * flushVBucket call. For forestdb, in order to be more optimized for SSDs,
-             * a larger commit interval is set, so that there is a bigger batch of
-             * writes perfomed. Hence, a commit is not explicitly performed on
-             * each flushVBucket call.
              */
-            if ((items_flushed > 0) &&
-                (decrCommitInterval(shard->getId()) == 0)) {
-
+            if ((items_flushed > 0)) {
                 commit(shard->getId());
 
                 // Now the commit is complete, vBucket file must exist.

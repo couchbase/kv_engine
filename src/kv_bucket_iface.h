@@ -836,10 +836,6 @@ protected:
                                  vbucket_state_t allowedState,
                                  get_options_t options = TRACK_REFERENCE) = 0;
 
-    virtual uint16_t getCommitInterval(uint16_t shardId) = 0;
-
-    virtual uint16_t decrCommitInterval(uint16_t shardId) = 0;
-
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be
     // triggered whenever we want to check if we could enable traffic..

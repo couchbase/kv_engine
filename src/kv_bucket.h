@@ -769,10 +769,6 @@ protected:
                          vbucket_state_t allowedState,
                          get_options_t options = TRACK_REFERENCE);
 
-    uint16_t getCommitInterval(uint16_t shardId);
-
-    uint16_t decrCommitInterval(uint16_t shardId);
-
     /*
      * Helper method for the rollback function.
      * Drain the VB's checkpoints looking for items which have a seqno
