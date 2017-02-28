@@ -444,6 +444,9 @@ void Connection::resetUsernameCache() {
     }
 
     username.assign(reinterpret_cast<const char*>(unm));
+
+    domain = cb::sasl::get_domain(sasl_conn.get());
+
     updateDescription();
 }
 
@@ -455,6 +458,10 @@ void Connection::updateDescription() {
             description += "System, ";
         }
         description += getUsername();
+
+        if (domain == cb::sasl::Domain::Saslauthd) {
+            description += " (LDAP)";
+        }
         description += ")";
     } else {
         description += " (not authenticated)";

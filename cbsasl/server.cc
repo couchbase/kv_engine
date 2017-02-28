@@ -230,3 +230,8 @@ cbsasl_error_t cbsasl_getprop(cbsasl_conn_t* conn,
 
     return CBSASL_OK;
 }
+
+CBSASL_PUBLIC_API
+cb::sasl::Domain cb::sasl::get_domain(cbsasl_conn_t *conn) {
+    return conn->server->domain;
+}

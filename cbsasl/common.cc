@@ -16,6 +16,8 @@
 
 #include "cbsasl/cbsasl_internal.h"
 
+#include <stdexcept>
+
 CBSASL_PUBLIC_API
 void cbsasl_dispose(cbsasl_conn_t** conn) {
     if (conn != nullptr) {
@@ -28,4 +30,27 @@ static const bool use_saslauthd{getenv("CBAUTH_SOCKPATH") != nullptr};
 
 bool cbsasl_use_saslauthd() {
     return use_saslauthd;
+}
+
+CBSASL_PUBLIC_API
+cb::sasl::Domain cb::sasl::to_domain(const std::string& domain) {
+    if (domain == "builtin") {
+        return cb::sasl::Domain::Builtin;
+    } else if (domain == "saslauthd") {
+        return cb::sasl::Domain::Saslauthd;
+    }
+    throw std::invalid_argument("cb::sasl::to_domain: invalid domain " +
+                                domain);
+}
+
+CBSASL_PUBLIC_API
+std::string cb::sasl::to_string(cb::sasl::Domain& domain) {
+    switch (domain) {
+    case cb::sasl::Domain::Builtin:
+        return "builtin";
+    case cb::sasl::Domain::Saslauthd:
+        return "saslauthd";
+    }
+    throw std::invalid_argument("cb::sasl::to_string: invalid domain " +
+                                std::to_string(int(domain)));
 }

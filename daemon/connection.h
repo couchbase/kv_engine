@@ -192,6 +192,13 @@ public:
         return username.c_str();
     }
 
+    /**
+     * Get the domain where the user is defined (builtin or saslauthd)
+     */
+    cb::sasl::Domain getDomain() const {
+        return domain;
+    }
+
     cbsasl_conn_t* getSaslConn() const {
         return sasl_conn.get();
     }
@@ -405,6 +412,9 @@ protected:
 
     /** The username authenticated as */
     std::string username;
+
+    /** The domain where the user is defined */
+    cb::sasl::Domain domain;
 
     /** The description of the connection */
     std::string description;

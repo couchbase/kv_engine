@@ -95,7 +95,11 @@ cbsasl_error_t PlainServerBackend::start(cbsasl_conn_t* conn,
     cb::sasl::User user;
     if (!find_user(username, user)) {
         if (cbsasl_use_saslauthd()) {
-            return check(conn, username, userpw);
+            auto ret = check(conn, username, userpw);
+            if (ret == CBSASL_OK) {
+                conn->server->domain = cb::sasl::Domain::Saslauthd;
+            }
+            return ret;
         }
 
         return CBSASL_NOUSER;

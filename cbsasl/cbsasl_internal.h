@@ -145,6 +145,11 @@ public:
 class ServerConnection {
 public:
     /**
+     * The domain where the user is defined
+     */
+    cb::sasl::Domain domain{cb::sasl::Domain::Builtin};
+
+    /**
      * The username being bound to this SASL authentication
      */
     std::string username;

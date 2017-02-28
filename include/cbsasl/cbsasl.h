@@ -316,6 +316,7 @@ typedef int (* cbsasl_getopt_fn)(void* context,
 }
 
 #include <memory>
+#include <string>
 
 struct CbSaslDeleter {
     void operator()(cbsasl_conn_t *conn) {
@@ -326,6 +327,42 @@ struct CbSaslDeleter {
 };
 
 typedef std::unique_ptr<cbsasl_conn_t, CbSaslDeleter> unique_cbsasl_conn_t;
+
+namespace cb {
+namespace sasl {
+
+/**
+ * The Domain enum defines all of the legal states where the users may
+ * be defined.
+ */
+enum class Domain : uint8_t {
+    /**
+     * The user is defined locally on the node and authenticated
+     * through `cbsasl` (or by using SSL certificates)
+     */
+    Builtin,
+    /**
+     * The user is defined somewhere else but authenticated through
+     * `saslauthd`
+     */
+    Saslauthd
+};
+
+CBSASL_PUBLIC_API
+Domain to_domain(const std::string& domain);
+
+CBSASL_PUBLIC_API
+std::string to_string(Domain& domain);
+
+/**
+ * Get the domain where the user in the connection object is defined
+ */
+CBSASL_PUBLIC_API
+Domain get_domain(cbsasl_conn_t *conn);
+
+
+}
+}
 
 #endif
 
