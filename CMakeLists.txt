@@ -300,6 +300,27 @@ ADD_EXECUTABLE(ep-engine_string_utils_test
                src/string_utils.cc)
 TARGET_LINK_LIBRARIES(ep-engine_string_utils_test gtest gtest_main platform)
 
+ADD_EXECUTABLE(ep_engine_benchmarks
+               benchmarks/access_scanner_bench.cc
+               tests/mock/mock_synchronous_ep_engine.cc
+               $<TARGET_OBJECTS:ep_objs>
+               $<TARGET_OBJECTS:memory_tracking>
+               $<TARGET_OBJECTS:couchstore_test_fileops>
+               ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
+               ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
+               ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.cc
+               ${Memcached_SOURCE_DIR}/utilities/string_utilities.cc
+               benchmarks/benchmark_memory_tracker.cc)
+
+TARGET_LINK_LIBRARIES(ep_engine_benchmarks benchmark platform xattr couchstore
+        cJSON dirutils engine_utilities gtest gmock JSON_checker mcd_util
+        cbcompress ${MALLOC_LIBRARIES})
+TARGET_INCLUDE_DIRECTORIES(ep_engine_benchmarks PUBLIC
+                           ${benchmark_SOURCE_DIR}/include
+                           tests
+                           benchmarks
+                           ${Couchstore_SOURCE_DIR})
+
 ADD_TEST(ep-engine_atomic_ptr_test ep-engine_atomic_ptr_test)
 ADD_TEST(ep-engine_couch-fs-stats_test ep-engine_couch-fs-stats_test)
 ADD_TEST(ep-engine_ep_unit_tests ep-engine_ep_unit_tests)

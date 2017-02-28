@@ -142,7 +142,8 @@ public:
         if (getTaskName().compare("Snapshotting vbucket states") == 0 ||
             getTaskName().compare("Removing closed unreferenced checkpoints from memory") == 0 ||
             getTaskName().compare("Paging expired items.") == 0 ||
-            getTaskName().compare("Adjusting hash table sizes.") == 0) {
+            getTaskName().compare("Adjusting hash table sizes.") == 0 ||
+            getTaskName().compare("Generating access log") == 0) {
             checker = [=](bool taskRescheduled) {
                 // These tasks all schedule one other task
                 this->oneExecutes(taskRescheduled, 1);
