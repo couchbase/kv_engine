@@ -402,7 +402,7 @@
             "type": "size_t",
             "validator": {
                 "range": {
-                    "max": "NUM_CPU",
+                    "max": 512,
                     "min": 0
                 }
             }
@@ -414,7 +414,7 @@
             "type": "size_t",
             "validator": {
                 "range": {
-                    "max": "NUM_CPU",
+                    "max": 512,
                     "min": 0
                 }
             }
@@ -426,7 +426,7 @@
             "type": "size_t",
             "validator": {
                 "range": {
-                    "max": "NUM_CPU",
+                    "max": 512,
                     "min": 0
                 }
             }
@@ -438,7 +438,7 @@
             "type": "size_t",
             "validator": {
                 "range": {
-                    "max": "NUM_CPU",
+                    "max": 512,
                     "min": 0
                 }
             }
