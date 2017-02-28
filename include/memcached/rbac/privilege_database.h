@@ -24,6 +24,7 @@
 #include <cJSON.h>
 #include <memcached/rbac/privileges.h>
 
+#include <cbsasl/cbsasl.h>
 #include <bitset>
 #include <cstdint>
 #include <limits>
@@ -49,22 +50,6 @@ using PrivilegeMask = std::bitset<size_t(Privilege::Impersonate) + 1>;
  */
 class RBAC_PUBLIC_API UserEntry {
 public:
-    /**
-     * The Domain specifices where the user is defined.
-     */
-    enum class Domain {
-        /**
-         * The user is defined locally on the node and authenticated
-         * through `cbsasl` (or by using SSL certificates)
-         */
-        Builtin,
-        /**
-         * The user is defined somewhere else but authenticated through
-         * `saslauthd`
-         */
-        Saslauthd
-    };
-
     /**
      * Create a new UserEntry from the provided JSON
      *
@@ -94,8 +79,16 @@ public:
     /**
      * Get the domain where the user is defined.
      */
-    Domain getDomain() const {
+    cb::sasl::Domain getDomain() const {
         return domain;
+    }
+
+    /**
+     * Is this a system internal user or not? A system internal user is a
+     * user one of the system components use.
+     */
+    bool isInternal() const {
+        return internal;
     }
 
 protected:
@@ -112,7 +105,8 @@ protected:
 
     std::unordered_map<std::string, PrivilegeMask> buckets;
     PrivilegeMask privileges;
-    Domain domain;
+    cb::sasl::Domain domain;
+    bool internal;
 };
 
 /**
@@ -289,6 +283,19 @@ public:
                                    const std::string& bucket) const;
 
     /**
+     * Create the initial context for a given user
+     *
+     * @param user The username to look up
+     * @param domain The domain where the user exists
+     * @return A pair with a privilege context as the first element, and
+     *         a boolean indicating if this is a system user as the second
+     *         element.
+     * @throws cb::rbac::NoSuchUserException if the user doesn't exist
+     */
+    std::pair<PrivilegeContext, bool> createInitialContext(
+            const std::string& user, cb::sasl::Domain domain);
+
+    /**
      * The generation for this PrivilegeDatabase (a privilege context must
      * match this generation in order to be valid)
      */
@@ -315,6 +322,20 @@ protected:
 RBAC_PUBLIC_API
 PrivilegeContext createContext(const std::string& user,
                                const std::string& bucket);
+
+/**
+ * Create the initial context for a given user
+ *
+ * @param user The username to look up
+ * @param domain The domain where the user exists
+ * @return A pair with a privilege context as the first element, and
+ *         a boolean indicating if this is a system user as the second
+ *         element.
+ * @throws cb::rbac::NoSuchUserException if the user doesn't exist
+ */
+RBAC_PUBLIC_API
+std::pair<PrivilegeContext, bool> createInitialContext(const std::string& user,
+                                                       cb::sasl::Domain domain);
 
 /**
  * Load the named file and install it as the current privilege database

@@ -71,12 +71,14 @@ SaslAuthTask::SaslAuthTask(Cookie& cookie_,
 
 void SaslAuthTask::notifyExecutionComplete() {
     connection.resetUsernameCache();
+    std::pair<cb::rbac::PrivilegeContext, bool> context;
 
     if (error == CBSASL_OK) {
         // Authentication successful, but it still has to be defined in
         // our system
         try {
-            cb::rbac::createContext(connection.getUsername(), "");
+            context = cb::rbac::createInitialContext(connection.getUsername(),
+                                                     connection.getDomain());
         } catch (const cb::rbac::NoSuchUserException& e) {
             error = CBSASL_NO_RBAC_PROFILE;
             LOG_WARNING(&connection,
@@ -94,6 +96,12 @@ void SaslAuthTask::notifyExecutionComplete() {
 
         // @todo this should be from the security context of the user
         connection.setInternal(std::string{"_admin"} == connection.getUsername());
+
+        // Once ns_server starts passing on the "type" setting we can nuke
+        // the line ^^
+        if (context.second) {
+            connection.setInternal(context.second);
+        }
 
         /* associate the connection with the appropriate bucket */
         associate_bucket(&connection, connection.getUsername());

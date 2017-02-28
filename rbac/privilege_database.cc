@@ -64,22 +64,25 @@ UserEntry::UserEntry(const cJSON& root) {
 
     it = cJSON_GetObjectItem(json, "type");
     if (it == nullptr) {
-        domain = Domain::Builtin;
+        domain = cb::sasl::Domain::Builtin;
     } else if (it->type == cJSON_String) {
-        if (strcasecmp("builtin", it->valuestring) == 0) {
-            domain = Domain::Builtin;
-        } else if (strcasecmp("saslauthd", it->valuestring) == 0) {
-            domain = Domain::Saslauthd;
-        } else {
-            throw std::invalid_argument(
-                    "UserEntry::UserEntry::"
-                    " \"type\" should be \"builtin\" "
-                    "or \"saslauthd\"");
-        }
+        domain = cb::sasl::to_domain(it->valuestring);
     } else {
         throw std::invalid_argument(
                 "UserEntry::UserEntry::"
                 " \"type\" should be a string");
+    }
+
+    if ((it = cJSON_GetObjectItem(json, "internal")) == nullptr) {
+        internal = false;
+    } else if (it->type == cJSON_True) {
+        internal = true;
+    } else if (it->type == cJSON_False) {
+        internal = false;
+    } else {
+        throw std::invalid_argument(
+                "UserEntry::UserEntry::"
+                " \"internal\" should be true or false");
     }
 }
 
@@ -156,6 +159,15 @@ PrivilegeContext PrivilegeDatabase::createContext(
     return PrivilegeContext(generation, mask);
 }
 
+std::pair<PrivilegeContext, bool> PrivilegeDatabase::createInitialContext(
+        const std::string& user, cb::sasl::Domain domain) {
+    const auto& ue = lookup(user);
+    if (ue.getDomain() != domain) {
+        throw NoSuchBucketException(user.c_str());
+    }
+    return {PrivilegeContext(generation, ue.getPrivileges()), ue.isInternal()};
+}
+
 PrivilegeAccess PrivilegeContext::check(Privilege privilege) const {
     if (generation != cb::rbac::generation) {
         return PrivilegeAccess::Stale;
@@ -229,6 +241,12 @@ PrivilegeContext createContext(const std::string& user,
                                const std::string& bucket) {
     std::lock_guard<cb::ReaderLock> guard(rwlock.reader());
     return db->createContext(user, bucket);
+}
+
+std::pair<PrivilegeContext, bool> createInitialContext(
+        const std::string& user, cb::sasl::Domain domain) {
+    std::lock_guard<cb::ReaderLock> guard(rwlock.reader());
+    return db->createInitialContext(user, domain);
 }
 
 void loadPrivilegeDatabase(const std::string& filename) {

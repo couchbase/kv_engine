@@ -6,7 +6,7 @@ add_library(memcached_rbac SHARED
             )
 
 set_target_properties(memcached_rbac PROPERTIES SOVERSION 1.0.0)
-target_link_libraries(memcached_rbac cJSON platform)
+target_link_libraries(memcached_rbac cbsasl cJSON platform)
 
 generate_export_header(memcached_rbac
                        EXPORT_MACRO_NAME RBAC_PUBLIC_API
