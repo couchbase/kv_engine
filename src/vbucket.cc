@@ -822,7 +822,7 @@ ENGINE_ERROR_CODE VBucket::completeBGFetchForSingleItem(
     { // locking scope
         ReaderLockHolder rlh(getStateLock());
         auto hbl = ht.getLockedBucket(key);
-        StoredValue* v = fetchValidValue(hbl, key, eviction, true);
+        StoredValue* v = fetchValidValue(hbl, key, true);
 
         if (fetched_item.metaDataOnly) {
             if (status == ENGINE_SUCCESS) {

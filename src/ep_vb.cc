@@ -117,7 +117,7 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
 void EPVBucket::completeStatsVKey(const DocKey& key,
                                   const RememberingCallback<GetValue>& gcb) {
     auto hbl = ht.getLockedBucket(key);
-    StoredValue* v = fetchValidValue(hbl, key, eviction, true);
+    StoredValue* v = fetchValidValue(hbl, key, true);
 
     if (v && v->isTempInitialItem()) {
         if (gcb.val.getStatus() == ENGINE_SUCCESS) {
