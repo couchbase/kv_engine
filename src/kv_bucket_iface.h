@@ -714,7 +714,7 @@ public:
      */
     virtual int flushVBucket(uint16_t vbid) = 0;
 
-    virtual void commit(uint16_t shardId) = 0;
+    virtual void commit(KVStore& kvstore) = 0;
 
     virtual void addKVStoreStats(ADD_STAT add_stat, const void* cookie) = 0;
 

@@ -609,7 +609,7 @@ public:
      */
     int flushVBucket(uint16_t vbid);
 
-    void commit(uint16_t shardId);
+    void commit(KVStore& kvstore);
 
     void addKVStoreStats(ADD_STAT add_stat, const void* cookie);
 

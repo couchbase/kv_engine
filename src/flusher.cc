@@ -26,18 +26,18 @@
 
 bool Flusher::stop(bool isForceShutdown) {
     forceShutdownReceived = isForceShutdown;
-    enum flusher_state to = forceShutdownReceived ? stopped : stopping;
-    bool ret = transition_state(to);
+    State to = forceShutdownReceived ? State::Stopped : State::Stopping;
+    bool ret = transitionState(to);
     wake();
     return ret;
 }
 
 void Flusher::wait(void) {
     hrtime_t startt(gethrtime());
-    while (_state != stopped) {
+    while (_state != State::Stopped) {
         if (!ExecutorPool::get()->wake(taskId)) {
             std::stringstream ss;
-            ss << "Flusher task " << taskId << " vanished!";
+            ss << "Flusher::wait: taskId: " << taskId << " has vanished!";
             LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
             break;
         }
@@ -45,89 +45,94 @@ void Flusher::wait(void) {
     }
     hrtime_t endt(gethrtime());
     if ((endt - startt) > 1000) {
-        LOG(EXTENSION_LOG_NOTICE,  "Had to wait %s for shutdown\n",
+        LOG(EXTENSION_LOG_NOTICE,
+            "Flusher::wait: had to wait %s for shutdown\n",
             hrtime2text(endt - startt).c_str());
     }
 }
 
 bool Flusher::pause(void) {
-    return transition_state(pausing);
+    return transitionState(State::Pausing);
 }
 
 bool Flusher::resume(void) {
-    bool ret = transition_state(running);
+    bool ret = transitionState(State::Running);
     wake();
     return ret;
 }
 
-static bool validTransition(enum flusher_state from,
-                            enum flusher_state to)
-{
+bool Flusher::validTransition(State to) const {
     // we may go to stopping from all of the stats except stopped
-    if (to == stopping) {
-        return from != stopped;
+    if (to == State::Stopping) {
+        return _state.load() != State::Stopped;
     }
 
-    switch (from) {
-    case initializing:
-        return (to == running);
-    case running:
-        return (to == pausing);
-    case pausing:
-        return (to == paused || to == running);
-    case paused:
-        return (to == running);
-    case stopping:
-        return (to == stopped);
-    case stopped:
+    switch (_state.load()) {
+    case State::Initializing:
+        return (to == State::Running);
+    case State::Running:
+        return (to == State::Pausing);
+    case State::Pausing:
+        return (to == State::Paused || to == State::Running);
+    case State::Paused:
+        return (to == State::Running);
+    case State::Stopping:
+        return (to == State::Stopped);
+    case State::Stopped:
         return false;
     }
-    // This should be impossible (unless someone added new states)
-    throw std::logic_error("flusher::validTransition: called with invalid "
-                           "from:" + std::to_string(from));
+    throw std::logic_error(
+            "Flusher::validTransition: called with invalid "
+            "_state:" +
+            std::to_string(int(_state.load())));
 }
 
-const char * Flusher::stateName(enum flusher_state st) const {
-    static const char * const stateNames[] = {
-        "initializing", "running", "pausing", "paused", "stopping", "stopped"
-    };
-    if (st < initializing || st > stopped) {
-        throw std::invalid_argument("Flusher::stateName: st (which is " +
-                                        std::to_string(st) +
-                                        ") is not a valid flusher_state");
+const char* Flusher::stateName(State st) const {
+    switch (st) {
+    case State::Initializing:
+        return "initializing";
+    case State::Running:
+        return "running";
+    case State::Pausing:
+        return "pausing";
+    case State::Paused:
+        return "paused";
+    case State::Stopping:
+        return "stopping";
+    case State::Stopped:
+        return "stopped";
     }
-    return stateNames[st];
+    throw std::logic_error(
+            "Flusher::stateName: called with invalid "
+            "state:" +
+            std::to_string(int(st)));
 }
 
-bool Flusher::transition_state(enum flusher_state to) {
-
-    LOG(EXTENSION_LOG_DEBUG, "Attempting transition from %s to %s",
-        stateName(_state), stateName(to));
-
-    if (!forceShutdownReceived && !validTransition(_state, to)) {
-        LOG(EXTENSION_LOG_WARNING, "Invalid transitioning from %s to %s",
-            stateName(_state), stateName(to));
+bool Flusher::transitionState(State to) {
+    if (!forceShutdownReceived && !validTransition(to)) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Flusher::transitionState: invalid transition _state:%s, to:%s",
+            stateName(_state),
+            stateName(to));
         return false;
     }
 
-    LOG(EXTENSION_LOG_DEBUG, "Transitioning from %s to %s",
-        stateName(_state), stateName(to));
+    LOG(EXTENSION_LOG_DEBUG,
+        "Flusher::transitionState: from %s to %s",
+        stateName(_state),
+        stateName(to));
 
     _state = to;
     return true;
 }
 
-const char * Flusher::stateName() const {
+const char* Flusher::stateName() const {
     return stateName(_state);
 }
 
-enum flusher_state Flusher::state() const {
-    return _state;
-}
-
 void Flusher::initialize() {
-    LOG(EXTENSION_LOG_DEBUG, "Initializing flusher");
-    transition_state(running);
+    LOG(EXTENSION_LOG_DEBUG, "Flusher::initialize: initializing");
+    transitionState(State::Running);
 }
 
 void Flusher::schedule_UNLOCKED() {
@@ -143,8 +148,9 @@ void Flusher::start() {
     LockHolder lh(taskMutex);
     if (taskId) {
         LOG(EXTENSION_LOG_WARNING,
-            "Double start in flusher task id %" PRIu64 ": %s",
-            uint64_t(taskId.load()), stateName());
+            "Flusher::start: double start in flusher task id %" PRIu64 ": %s",
+            uint64_t(taskId.load()),
+            stateName());
         return;
     }
     schedule_UNLOCKED();
@@ -158,10 +164,10 @@ void Flusher::wake(void) {
 }
 
 bool Flusher::step(GlobalTask *task) {
-    flusher_state current_state = _state.load();
+    State currentState = _state.load();
 
-    switch (current_state) {
-    case initializing:
+    switch (currentState) {
+    case State::Initializing:
         if (task->getId() != taskId) {
             throw std::invalid_argument("Flusher::step: Argument "
                     "task->getId() (which is" + std::to_string(task->getId()) +
@@ -171,18 +177,18 @@ bool Flusher::step(GlobalTask *task) {
         initialize();
         return true;
 
-    case paused:
-    case pausing:
-        if (_state == pausing) {
-            transition_state(paused);
+    case State::Paused:
+    case State::Pausing:
+        if (currentState == State::Pausing) {
+            transitionState(State::Paused);
         }
         // Indefinitely put task to sleep..
         task->snooze(INT_MAX);
         return true;
 
-    case running:
+    case State::Running:
         flushVB();
-        if (_state == running) {
+        if (_state == State::Running) {
             double tosleep = computeMinSleepTime();
             if (tosleep > 0) {
                 task->snooze(tosleep);
@@ -190,26 +196,22 @@ bool Flusher::step(GlobalTask *task) {
         }
         return true;
 
-    case stopping:
-        {
-            std::stringstream ss;
-            ss << "Shutting down flusher (Write of all dirty items)"
-               << std::endl;
-            LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
-        }
+    case State::Stopping:
+        LOG(EXTENSION_LOG_DEBUG,
+            "Flusher::step: stopping flusher (write of all dirty items)");
         completeFlush();
-        LOG(EXTENSION_LOG_DEBUG, "Flusher stopped");
-        transition_state(stopped);
+        LOG(EXTENSION_LOG_DEBUG, "Flusher::step: stopped");
+        transitionState(State::Stopped);
         return false;
 
-    case stopped:
+    case State::Stopped:
         taskId = 0;
         return false;
     }
 
     // If we got here there was an unhandled switch case
-    throw std::logic_error("Flusher::step: Invalid state " +
-                               std::to_string(current_state));
+    throw std::logic_error("Flusher::step: invalid _state:" +
+                           std::to_string(int(currentState)));
 }
 
 void Flusher::completeFlush() {
@@ -261,7 +263,8 @@ void Flusher::flushVB(void) {
     }
 
     if (hpVbs.empty() && lpVbs.empty()) {
-        LOG(EXTENSION_LOG_INFO, "Trying to flush but no vbucket exist");
+        LOG(EXTENSION_LOG_INFO,
+            "Flusher::flushVB: Trying to flush but no vbuckets exist");
         return;
     } else if (!hpVbs.empty()) {
         uint16_t vbid = hpVbs.front();
