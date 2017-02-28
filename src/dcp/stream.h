@@ -281,7 +281,7 @@ protected:
 
 private:
 
-    DcpResponse* backfillPhase();
+    DcpResponse* backfillPhase(LockHolder& lh);
 
     DcpResponse* inMemoryPhase();
 

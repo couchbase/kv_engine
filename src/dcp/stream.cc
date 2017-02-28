@@ -238,7 +238,7 @@ DcpResponse* ActiveStream::next() {
             break;
         case STREAM_BACKFILLING:
             validTransition = true;
-            response = backfillPhase();
+            response = backfillPhase(lh);
             break;
         case STREAM_IN_MEMORY:
             validTransition = true;
@@ -283,6 +283,10 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
     uint64_t chkCursorSeqno = endSeqno;
 
     if (state_ != STREAM_BACKFILLING) {
+        producer->getLogger().log(EXTENSION_LOG_WARNING,
+                                  "(vb %" PRIu16 ") ActiveStream::"
+                                  "markDiskSnapshot: Unexpected state_:%s",
+                                  vb_, stateName(state_));
         return;
     }
 
@@ -290,9 +294,15 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
     firstMarkerSent = true;
 
     RCPtr<VBucket> vb = engine->getVBucket(vb_);
+    if (!vb) {
+        producer->getLogger().log(EXTENSION_LOG_WARNING,"(vb %" PRIu16 ") "
+                                  "ActiveStream::markDiskSnapshot, vbucket "
+                                  "does not exist", vb_);
+        return;
+    }
     // An atomic read of vbucket state without acquiring the
     // reader lock for state should suffice here.
-    if (vb && vb->getState() == vbucket_state_replica) {
+    if (vb->getState() == vbucket_state_replica) {
         if (end_seqno_ > endSeqno) {
             /* We possibly have items in the open checkpoint
                (incomplete snapshot) */
@@ -314,9 +324,7 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
                                     MARKER_FLAG_DISK));
     lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
 
-    if (!vb) {
-        endStream(END_STREAM_STATE);
-    } else if (!(flags_ & DCP_ADD_STREAM_FLAG_DISKONLY)) {
+    if (!(flags_ & DCP_ADD_STREAM_FLAG_DISKONLY)) {
         // Only re-register the cursor if we still need to get memory snapshots
         CursorRegResult result =
             vb->checkpointManager.registerCursorBySeqno(
@@ -384,26 +392,10 @@ void ActiveStream::completeBackfill() {
                     uint64_t(backfillItems.memory.load()),
                     lastReadSeqno.load(),
                     pendingBackfill ? "True" : "False");
-
-            isBackfillTaskRunning = false;
-            if (pendingBackfill) {
-                scheduleBackfill_UNLOCKED(true);
-                pendingBackfill = false;
-            }
-
-            bool expected = false;
-            if (itemsReady.compare_exchange_strong(expected, true)) {
-                producer->notifyStreamReady(vb_);
-            }
-
-            /**
-              * MB-22451: It is important that we return here because
-              * scheduleBackfill_UNLOCKED(true) can set
-              * isBackfillTaskRunning to true.  Therefore if we don't return we
-              * will set isBackfillTaskRunning prematurely back to false, (see
-              * below).
-              */
-            return;
+        } else {
+            producer->getLogger().log(EXTENSION_LOG_WARNING,
+                    "(vb %" PRIu16 ") ActiveStream::completeBackfill: "
+                    "Unexpected state_:%s", vb_, stateName(state_));
         }
     }
 
@@ -488,7 +480,7 @@ void ActiveStream::setVBucketStateAckRecieved() {
     }
 }
 
-DcpResponse* ActiveStream::backfillPhase() {
+DcpResponse* ActiveStream::backfillPhase(LockHolder& lh) {
     DcpResponse* resp = nextQueuedItem();
 
     if (resp && (resp->getEvent() == DCP_MUTATION ||
@@ -504,19 +496,27 @@ DcpResponse* ActiveStream::backfillPhase() {
     }
 
     if (!isBackfillTaskRunning && readyQ.empty()) {
+        // Given readyQ.empty() is True resp will be NULL
         backfillRemaining.store(0, std::memory_order_relaxed);
-        if (lastReadSeqno.load() >= end_seqno_) {
-            endStream(END_STREAM_OK);
-        } else if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
-            transitionState(STREAM_TAKEOVER_SEND);
-        } else if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {
-            endStream(END_STREAM_OK);
+        // The previous backfill has completed.  Check to see if another
+        // backfill needs to be scheduled.
+        if (pendingBackfill) {
+            scheduleBackfill_UNLOCKED(true);
+            pendingBackfill = false;
         } else {
-            transitionState(STREAM_IN_MEMORY);
-        }
+            if (lastReadSeqno.load() >= end_seqno_) {
+                endStream(END_STREAM_OK);
+            } else if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
+                transitionState(STREAM_TAKEOVER_SEND);
+            } else if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {
+                endStream(END_STREAM_OK);
+            } else {
+                transitionState(STREAM_IN_MEMORY);
+            }
 
-        if (!resp) {
-            resp = nextQueuedItem();
+            if (!resp) {
+                resp = nextQueuedItem();
+            }
         }
     }
 
@@ -528,6 +528,8 @@ DcpResponse* ActiveStream::inMemoryPhase() {
         endStream(END_STREAM_OK);
     } else if (readyQ.empty()) {
         if (pendingBackfill) {
+            // Moving the state from STREAM_IN_MEMORY to
+            // STREAM_BACKFILLING will result in a backfill being scheduled
             transitionState(STREAM_BACKFILLING);
             pendingBackfill = false;
             return NULL;
