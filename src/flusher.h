@@ -32,6 +32,17 @@
 #define NO_VBUCKETS_INSTANTIATED 0xFFFF
 #define RETRY_FLUSH_VBUCKET (-1)
 
+enum flusher_state {
+    initializing,
+    running,
+    pausing,
+    paused,
+    stopping,
+    stopped
+};
+
+class Flusher;
+
 const double DEFAULT_MIN_SLEEP_TIME = MIN_SLEEP_TIME;
 const double DEFAULT_MAX_SLEEP_TIME = 10.0;
 
@@ -44,7 +55,7 @@ class Flusher {
 public:
     Flusher(KVBucket* st, KVShard* k)
         : store(st),
-          _state(State::Initializing),
+          _state(initializing),
           taskId(0),
           minSleepTime(0.1),
           forceShutdownReceived(false),
@@ -55,9 +66,8 @@ public:
     }
 
     ~Flusher() {
-        if (_state != State::Stopped) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Flusher::~Flusher: being destroyed in state %s",
+        if (_state != stopped) {
+            LOG(EXTENSION_LOG_WARNING, "Flusher being destroyed in state %s",
                 stateName(_state));
             stop(true);
         }
@@ -71,6 +81,7 @@ public:
     void wake(void);
     bool step(GlobalTask *task);
 
+    enum flusher_state state() const;
     const char * stateName() const;
 
     void notifyFlushEvent(void) {
@@ -85,31 +96,21 @@ public:
     void setTaskId(size_t newId) { taskId = newId; }
 
 private:
-    enum class State {
-        Initializing,
-        Running,
-        Pausing,
-        Paused,
-        Stopping,
-        Stopped
-    };
-
-    bool transitionState(State to);
-    bool validTransition(State to) const;
+    bool transition_state(enum flusher_state to);
     void flushVB();
     void completeFlush();
     void initialize();
     void schedule_UNLOCKED();
     double computeMinSleepTime();
 
-    const char* stateName(State st) const;
+    const char * stateName(enum flusher_state st) const;
 
     bool canSnooze(void) {
         return lpVbs.empty() && hpVbs.empty() && !pendingMutation.load();
     }
 
     KVBucket* store;
-    std::atomic<State> _state;
+    std::atomic<enum flusher_state> _state;
 
     // Used for serializaling attempts to start the flusher from
     // different threads.

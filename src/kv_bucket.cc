@@ -1892,7 +1892,7 @@ int KVBucket::flushVBucket(uint16_t vbid) {
              * of items to flush.
              */
             if ((items_flushed > 0)) {
-                commit(*rwUnderlying);
+                commit(shard->getId());
 
                 // Now the commit is complete, vBucket file must exist.
                 if (vb->setBucketCreation(false)) {
@@ -1943,15 +1943,16 @@ int KVBucket::flushVBucket(uint16_t vbid) {
     return items_flushed;
 }
 
-void KVBucket::commit(KVStore& kvstore) {
-    std::list<PersistenceCallback*>& pcbs = kvstore.getPersistenceCbList();
+void KVBucket::commit(uint16_t shardId) {
+    KVStore *rwUnderlying = getRWUnderlyingByShard(shardId);
+    std::list<PersistenceCallback *>& pcbs = rwUnderlying->getPersistenceCbList();
     BlockTimer timer(&stats.diskCommitHisto, "disk_commit", stats.timingLog);
     hrtime_t commit_start = gethrtime();
 
-    while (!kvstore.commit()) {
+    while (!rwUnderlying->commit()) {
         ++stats.commitFailed;
-        LOG(EXTENSION_LOG_WARNING,
-            "KVBucket::commit: kvstore.commit failed!!! Retry in 1 sec...");
+        LOG(EXTENSION_LOG_WARNING, "Flusher commit failed!!! Retry in "
+            "1 sec...\n");
         sleep(1);
     }
 
@@ -1965,8 +1966,9 @@ void KVBucket::commit(KVStore& kvstore) {
             auto found = vbSet.find(vbid);
             if (found == vbSet.end()) {
                 vbSet.insert(vbid);
-                vb->ht.setNumTotalItems(
-                        getRWUnderlying(vbid)->getItemCount(vbid));
+                KVStore *rwUnderlying = getRWUnderlying(vbid);
+                size_t numTotalItems = rwUnderlying->getItemCount(vbid);
+                vb->ht.setNumTotalItems(numTotalItems);
             }
         }
     }
