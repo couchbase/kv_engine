@@ -56,7 +56,7 @@ HashTable::HashTable(EPStats& st, size_t s, size_t l)
       numTempItems(0) {
     size = HashTable::getNumBuckets(s);
     n_locks = HashTable::getNumLocks(l);
-    values = static_cast<StoredValue**>(cb_calloc(size, sizeof(StoredValue*)));
+    values.resize(size);
     mutexes = new std::mutex[n_locks];
     activeState = true;
 }
@@ -72,8 +72,6 @@ HashTable::~HashTable() {
 #endif
     }
     delete []mutexes;
-    cb_free(values);
-    values = NULL;
 }
 
 void HashTable::clear(bool deactivate) {
@@ -92,10 +90,11 @@ void HashTable::clear(bool deactivate) {
     }
     for (int i = 0; i < (int)size; i++) {
         while (values[i]) {
-            StoredValue *v = values[i];
-            rv.visit(v);
-            values[i] = v->next;
-            delete v;
+            // Take ownership of the StoredValue from the vector, update
+            // statistics and release it.
+            auto v = std::move(values[i]);
+            rv.visit(v.get());
+            values[i] = std::move(v->next);
         }
     }
 
@@ -180,12 +179,7 @@ void HashTable::resize(size_t newSize) {
     }
 
     // Get a place for the new items.
-    StoredValue **newValues = static_cast<StoredValue**>(cb_calloc(newSize,
-                                                        sizeof(StoredValue*)));
-    // If we can't allocate memory, don't move stuff around.
-    if (!newValues) {
-        return;
-    }
+    table_type newValues(newSize);
 
     stats.memOverhead->fetch_sub(memorySize());
     ++numResizes;
@@ -197,18 +191,19 @@ void HashTable::resize(size_t newSize) {
     // Move existing records into the new space.
     for (size_t i = 0; i < oldSize; i++) {
         while (values[i]) {
-            StoredValue *v = values[i];
-            values[i] = v->next;
+            // unlink the front element from the hash chain at values[i].
+            auto v = std::move(values[i]);
+            values[i] = std::move(v->next);
 
+            // And re-link it into the correct place in newValues.
             int newBucket = getBucketForHash(v->getKey().hash());
-            v->next = newValues[newBucket];
-            newValues[newBucket] = v;
+            v->next = std::move(newValues[newBucket]);
+            newValues[newBucket] = std::move(v);
         }
     }
 
-    // values still points to the old (now empty) table.
-    cb_free(values);
-    values = newValues;
+    // Finally assign the new table to values.
+    values = std::move(newValues);
 
     stats.memOverhead->fetch_add(memorySize());
 }
@@ -309,17 +304,17 @@ StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
                 "call on a non-active HT object");
     }
 
-    StoredValue* v = valFact(itm, values[hbl.getBucketNum()], *this);
-    values[hbl.getBucketNum()] = v;
-
+    // Create a new StoredValue and link it into the head of the bucket chain.
+    auto v = valFact(itm, std::move(values[hbl.getBucketNum()]), *this);
     if (v->isTempItem()) {
         ++numTempItems;
     } else {
         ++numItems;
         ++numTotalItems;
     }
+    values[hbl.getBucketNum()] = std::move(v);
 
-    return v;
+    return values[hbl.getBucketNum()].get();
 }
 
 void HashTable::unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
@@ -346,8 +341,7 @@ StoredValue* HashTable::unlocked_find(const DocKey& key,
                                       int bucket_num,
                                       WantsDeleted wantsDeleted,
                                       TrackReference trackReference) {
-    StoredValue *v = values[bucket_num];
-    while (v) {
+    for (StoredValue* v = values[bucket_num].get(); v; v = v->next.get()) {
         if (v->hasKey(key)) {
             if (trackReference == TrackReference::Yes && !v->isDeleted()) {
                 v->referenced();
@@ -358,17 +352,16 @@ StoredValue* HashTable::unlocked_find(const DocKey& key,
                 return NULL;
             }
         }
-        v = v->next;
     }
     return NULL;
 }
 
 void HashTable::unlocked_del(const HashBucketLock& hbl, const DocKey& key) {
-    delete unlocked_release(hbl, key);
+    unlocked_release(hbl, key).reset();
 }
 
-StoredValue* HashTable::unlocked_release(const HashBucketLock& hbl,
-                                         const DocKey& key) {
+std::unique_ptr<StoredValue> HashTable::unlocked_release(
+        const HashBucketLock& hbl, const DocKey& key) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
                 "HashTable::unlocked_remove: htLock "
@@ -380,57 +373,33 @@ StoredValue* HashTable::unlocked_release(const HashBucketLock& hbl,
                 "HashTable::unlocked_remove: Cannot call on a "
                 "non-active object");
     }
-    StoredValue* v = values[hbl.getBucketNum()];
 
-    /* An empty Hash Bucket when trying to remove a StoredValue indicates a
-       potential memory leak / error in our HashTable handling */
-    if (!v) {
+    // Remove the first (should only be one) StoredValue with the given key.
+    auto released = hashChainRemoveFirst(
+            values[hbl.getBucketNum()],
+            [key](const StoredValue* v) { return v->hasKey(key); });
+
+    if (!released) {
+        /* We shouldn't reach here, we must delete the StoredValue in the
+           HashTable */
         throw std::logic_error(
-                "HashTable::unlocked_remove: Trying to remove "
-                "(maybe delete) a value in empty hash bucket");
+                "HashTable::unlocked_del: StoredValue to be deleted "
+                "not found in HashTable; possibly HashTable leak");
     }
 
-    // Special case the first one
-    if (v->hasKey(key)) {
-        values[hbl.getBucketNum()] = v->next;
-        StoredValue::reduceCacheSize(*this, v->size());
-        StoredValue::reduceMetaDataSize(*this, stats, v->metaDataSize());
-        if (v->isTempItem()) {
-            --numTempItems;
-        } else {
-            decrNumItems();
-            decrNumTotalItems();
-            if (v->isDeleted()) {
-                numDeletedItems.fetch_sub(1, std::memory_order_relaxed);
-            }
-        }
-        return v;
-    }
-
-    while (v->next) {
-        if (v->next->hasKey(key)) {
-            StoredValue *tmp = v->next;
-            v->next = v->next->next;
-            StoredValue::reduceCacheSize(*this, tmp->size());
-            StoredValue::reduceMetaDataSize(*this, stats, tmp->metaDataSize());
-            if (tmp->isTempItem()) {
-                --numTempItems;
-            } else {
-                decrNumItems();
-                decrNumTotalItems();
-                if (v->isDeleted()) {
-                    numDeletedItems.fetch_sub(1, std::memory_order_relaxed);
-                }
-            }
-            return tmp;
-        } else {
-            v = v->next;
+    // Update statistics now the item has been removed.
+    StoredValue::reduceCacheSize(*this, released->size());
+    StoredValue::reduceMetaDataSize(*this, stats, released->metaDataSize());
+    if (released->isTempItem()) {
+        --numTempItems;
+    } else {
+        decrNumItems();
+        decrNumTotalItems();
+        if (released->isDeleted()) {
+            numDeletedItems.fetch_sub(1, std::memory_order_relaxed);
         }
     }
-    /* We cannot reach here, we must delete the StoredValue in the HashTable */
-    throw std::logic_error(
-            "HashTable::unlocked_del: StoredValue to be deleted "
-            "not found in HashTable; possibly HashTable leak");
+    return released;
 }
 
 void HashTable::visit(HashTableVisitor &visitor) {
@@ -454,7 +423,7 @@ void HashTable::visit(HashTableVisitor &visitor) {
             // on front-end threads.
             LockHolder lh(mutexes[l]);
 
-            StoredValue *v = values[i];
+            StoredValue* v = values[i].get();
             if (v) {
                 // TODO: Perf: This check seems costly - do we think it's still
                 // worth keeping?
@@ -468,7 +437,7 @@ void HashTable::visit(HashTableVisitor &visitor) {
                 }
             }
             while (v) {
-                StoredValue *tmp = v->next;
+                StoredValue* tmp = v->next.get();
                 visitor.visit(v);
                 v = tmp;
             }
@@ -489,7 +458,7 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
         LockHolder lh(mutexes[l]);
         for (int i = l; i < static_cast<int>(size); i+= n_locks) {
             size_t depth = 0;
-            StoredValue *p = values[i];
+            StoredValue* p = values[i].get();
             if (p) {
                 // TODO: Perf: This check seems costly - do we think it's still
                 // worth keeping?
@@ -506,7 +475,7 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
             while (p) {
                 depth++;
                 mem += p->size();
-                p = p->next;
+                p = p->next.get();
             }
             visitor.visit(i, depth, mem);
             ++visited;
@@ -560,9 +529,9 @@ HashTable::pauseResumeVisit(PauseResumeHashTableVisitor& visitor,
         for (; !paused && hash_bucket < size; hash_bucket += n_locks) {
             LockHolder lh(mutexes[lock]);
 
-            StoredValue *v = values[hash_bucket];
+            StoredValue* v = values[hash_bucket].get();
             while (!paused && v) {
-                StoredValue *tmp = v->next;
+                StoredValue* tmp = v->next.get();
                 paused = !visitor.visit(*v);
                 v = tmp;
             }
@@ -636,25 +605,16 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
                                             vptr->metaDataSize());
             StoredValue::reduceCacheSize(*this, vptr->size());
             int bucket_num = getBucketForHash(vptr->getKey().hash());
-            StoredValue *v = values[bucket_num];
-            // Remove the item from the hash table.
-            if (v == vptr) {
-                values[bucket_num] = v->next;
-            } else {
-                while (v->next) {
-                    if (v->next == vptr) {
-                        v->next = v->next->next;
-                        break;
-                    } else {
-                        v = v->next;
-                    }
-                }
-            }
 
-            if (vptr->isResident()) {
+            // Remove the item from the hash table.
+            auto removed = hashChainRemoveFirst(
+                    values[bucket_num],
+                    [vptr](const StoredValue* v) { return v == vptr; });
+
+            if (removed->isResident()) {
                 ++stats.numValueEjects;
             }
-            if (!vptr->isResident() && !v->isTempItem()) {
+            if (!removed->isResident() && !removed->isTempItem()) {
                 decrNumNonResidentItems(); // Decrement because the item is
                                            // fully evicted.
             }
@@ -662,8 +622,6 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
             ++numEjects;
             updateMaxDeletedRevSeqno(vptr->getRevSeqno());
 
-            delete vptr; // Free the item.
-            vptr = NULL;
             return true;
         } else {
             ++stats.numFailedEjects;
@@ -674,13 +632,10 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
 
 Item *HashTable::getRandomKeyFromSlot(int slot) {
     auto lh = getLockedBucket(slot);
-    StoredValue *v = values[slot];
-
-    while (v) {
+    for (StoredValue* v = values[slot].get(); v; v = v->next.get()) {
         if (!v->isTempItem() && !v->isDeleted() && v->isResident()) {
             return v->toItem(false, 0);
         }
-        v = v->next;
     }
 
     return NULL;

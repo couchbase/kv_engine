@@ -575,7 +575,8 @@ public:
      *
      * @return the StoredValue that is removed from the HT
      */
-    StoredValue* unlocked_release(const HashBucketLock& hbl, const DocKey& key);
+    std::unique_ptr<StoredValue> unlocked_release(const HashBucketLock& hbl,
+                                                  const DocKey& key);
 
     std::atomic<uint64_t>     maxDeletedRevSeqno;
     std::atomic<size_t>       numTotalItems;
@@ -590,6 +591,9 @@ public:
     std::atomic<size_t>       metaDataMemory;
 
 private:
+    // The container for actually holding the StoredValues.
+    using table_type = std::vector<std::unique_ptr<StoredValue>>;
+
     friend class StoredValue;
 
     inline bool isActive() const { return activeState; }
@@ -597,7 +601,7 @@ private:
 
     std::atomic<size_t> size;
     size_t               n_locks;
-    StoredValue        **values;
+    table_type values;
     std::mutex               *mutexes;
     EPStats&             stats;
     StoredValueFactory   valFact;
@@ -623,6 +627,42 @@ private:
     }
 
     Item *getRandomKeyFromSlot(int slot);
+
+    /** Searches for the first element in the specified hashChain which matches
+     * predicate p, and unlinks it from the chain.
+     *
+     * @param chain Linked list of StoredValues to scan.
+     * @param p Predicate to test each element against.
+     *          The signature of the predicate function should be equivalent
+     *          to the following:
+     *               bool pred(const StoredValue* a);
+     *
+     * @return The removed element, or NULL if no matching element was found.
+     */
+    template <typename Pred>
+    std::unique_ptr<StoredValue> hashChainRemoveFirst(
+            std::unique_ptr<StoredValue>& chain, Pred p) {
+        if (p(chain.get())) {
+            // Head element:
+            auto removed = std::move(chain);
+            chain = std::move(removed->next);
+            return removed;
+        }
+
+        // Not head element, start searching.
+        for (std::unique_ptr<StoredValue>* curr = &chain; curr->get()->next;
+             curr = &curr->get()->next) {
+            if (p(curr->get()->next.get())) {
+                // next element matches predicate - splice it out of the list.
+                auto removed = std::move(curr->get()->next);
+                curr->get()->next = std::move(removed->next);
+                return removed;
+            }
+        }
+
+        // No match found.
+        return nullptr;
+    }
 
     DISALLOW_COPY_AND_ASSIGN(HashTable);
 };

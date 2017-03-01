@@ -523,11 +523,6 @@ TEST_F(HashTableTest, ReleaseItem) {
     StoredDocKey removeKey1 =
             makeStoredDocKey(std::string("key" + std::to_string(0)));
 
-    /* Before removing the HT element, get its pointer as it must be deleted
-       after the test */
-    std::unique_ptr<StoredValue> sv1(
-            ht.find(removeKey1, TrackReference::Yes, WantsDeleted::No));
-
     auto hbl = ht.getLockedBucket(removeKey1);
     ht.unlocked_release(hbl, removeKey1);
     EXPECT_EQ(numItems - 1, ht.getNumItems());
@@ -537,11 +532,6 @@ TEST_F(HashTableTest, ReleaseItem) {
        hash bucket */
     StoredDocKey removeKey2 =
             makeStoredDocKey(std::string("key" + std::to_string(numItems - 1)));
-
-    /* Before removing the HT element, get its pointer as it must be deleted
-       after the test */
-    std::unique_ptr<StoredValue> sv2(
-            ht.find(removeKey2, TrackReference::Yes, WantsDeleted::No));
 
     auto hbl2 = ht.getLockedBucket(removeKey2);
     ht.unlocked_release(hbl2, removeKey2);

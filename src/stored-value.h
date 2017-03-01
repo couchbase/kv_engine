@@ -299,16 +299,17 @@ public:
     /**
      * Is this a temporary item created for processing a get-meta request?
      */
-     bool isTempItem() {
-         return(isTempNonExistentItem() || isTempDeletedItem() || isTempInitialItem());
+    bool isTempItem() const {
+        return (isTempNonExistentItem() || isTempDeletedItem() ||
+                isTempInitialItem());
 
      }
 
     /**
      * Is this an initial temporary item?
      */
-    bool isTempInitialItem() {
-        return bySeqno == state_temp_init;
+     bool isTempInitialItem() const {
+         return bySeqno == state_temp_init;
     }
 
     /**
@@ -321,8 +322,8 @@ public:
     /**
      * Is this a temporary item created for a deleted key?
      */
-    bool isTempDeletedItem() {
-         return bySeqno == state_deleted_key;
+    bool isTempDeletedItem() const {
+        return bySeqno == state_deleted_key;
 
      }
 
@@ -338,11 +339,11 @@ public:
      *
      * @return the amount of memory used by this item.
      */
-    size_t size() {
+    size_t size() const {
         return sizeof(StoredValue) + key.size() + valuelen();
     }
 
-    size_t metaDataSize() {
+    size_t metaDataSize() const {
         return sizeof(StoredValue) + key.size();
     }
 
@@ -477,9 +478,12 @@ public:
                                   bool isReplication = false);
 
 private:
-    StoredValue(const Item& itm, StoredValue* n, EPStats& stats, HashTable& ht)
+    StoredValue(const Item& itm,
+                std::unique_ptr<StoredValue> n,
+                EPStats& stats,
+                HashTable& ht)
         : value(itm.getValue()),
-          next(n),
+          next(std::move(n)),
           cas(itm.getCas()),
           revSeqno(itm.getRevSeqno()),
           bySeqno(itm.getBySeqno()),
@@ -520,7 +524,9 @@ private:
     friend class StoredValueFactory;
 
     value_t            value;          // 8 bytes
-    StoredValue        *next;          // 8 bytes
+    // Used to implement HashTable chaining (for elements hashing to the same
+    // bucket).
+    std::unique_ptr<StoredValue> next; // 8 bytes
     uint64_t           cas;            //!< CAS identifier.
     uint64_t           revSeqno;       //!< Revision id sequence number
     int64_t            bySeqno;        //!< By sequence id number
@@ -557,26 +563,24 @@ public:
      * Create a new StoredValue with the given item.
      *
      * @param itm the item the StoredValue should contain
-     * @param n the the top of the hash bucket into which this will be inserted
+     * @param next The StoredValue which will follow the new stored value in
+     *             the hash bucket chain, which this new item will take
+     *             ownership of. (Typically the top of the hash bucket into
+     *             which the new item is being inserted).
      * @param ht the hashtable that will contain the StoredValue instance
      *           created
      */
-    StoredValue* operator()(const Item& itm, StoredValue* n, HashTable& ht) {
-        return newStoredValue(itm, n, ht);
+    std::unique_ptr<StoredValue> operator()(const Item& itm,
+                                            std::unique_ptr<StoredValue> next,
+                                            HashTable& ht) {
+        // Allocate a buffer to store the StoredValue and any trailing bytes
+        // that maybe required.
+        return std::unique_ptr<StoredValue>(
+                new (::operator new(StoredValue::getRequiredStorage(itm)))
+                        StoredValue(itm, std::move(next), *stats, ht));
     }
 
 private:
-    StoredValue* newStoredValue(const Item& itm,
-                                StoredValue* n,
-                                HashTable& ht) {
-        // Allocate a buffer to store the StoredValue and any trailing bytes
-        // that maybe required.
-        StoredValue* t =
-                new (::operator new(StoredValue::getRequiredStorage(itm)))
-                        StoredValue(itm, n, *stats, ht);
-        return t;
-    }
-
     EPStats                *stats;
 };
 
