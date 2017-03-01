@@ -19,6 +19,7 @@
  * Tests for Collection functionality in EPStore.
  */
 #include "bgfetcher.h"
+#include "kvstore.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/mock/mock_global_task.h"
 #include "tests/module_tests/evp_store_test.h"
@@ -26,6 +27,7 @@
 
 #include <boost/optional/optional.hpp>
 
+#include <functional>
 #include <thread>
 
 class CollectionsTest : public EPBucketTest {
@@ -140,19 +142,55 @@ TEST_F(CollectionsTest, collections_basic) {
 
 class CollectionsFlushTest : public CollectionsTest {
 public:
+    void SetUp() override {
+        kvsc = std::make_unique<KVStoreConfig>(
+                1024, 4, test_dbname, "couchdb", 0, true /*persistnamespace*/);
+        kvs = std::unique_ptr<KVStore>(KVStoreFactory::create(*kvsc));
+
+        CollectionsTest::SetUp();
+    }
+
     void collectionsFlusher(int items);
 
 private:
-    void createCollectionAndFlush(const std::string& json,
-                                  const std::string& collection,
-                                  int items);
-    void deleteCollectionAndFlush(const std::string& json,
-                                  const std::string& collection,
-                                  int items);
-    void completeDeletionAndFlush(const std::string& collection,
-                                  int revision,
-                                  int items);
+    std::string createCollectionAndFlush(const std::string& json,
+                                         const std::string& collection,
+                                         int items);
+    std::string deleteCollectionAndFlush(const std::string& json,
+                                         const std::string& collection,
+                                         int items);
+    std::string completeDeletionAndFlush(const std::string& collection,
+                                         int revision,
+                                         int items);
+
+    std::string getManifest();
+
     void storeItems(const std::string& collection, DocNamespace ns, int items);
+
+    /**
+     * Create manifest object from jsonManifest and validate if we can write to
+     * the collection.
+     * @param jsonManifest - A JSON VB manifest
+     * @param collection - a collection name to test for writing
+     *
+     * @return true if the collection can be written
+     */
+    static bool canWrite(const std::string& jsonManifest,
+                         const std::string& collection);
+
+    /**
+     * Create manifest object from jsonManifest and validate if we cannot write
+     * to the collection.
+     * @param jsonManifest - A JSON VB manifest
+     * @param collection - a collection name to test for writing
+     *
+     * @return true if the collection cannot be written
+     */
+    static bool cannotWrite(const std::string& jsonManifest,
+                            const std::string& collection);
+
+    std::unique_ptr<KVStore> kvs;
+    std::unique_ptr<KVStoreConfig> kvsc;
 };
 
 void CollectionsFlushTest::storeItems(const std::string& collection,
@@ -164,60 +202,135 @@ void CollectionsFlushTest::storeItems(const std::string& collection,
     }
 }
 
-void CollectionsFlushTest::createCollectionAndFlush(
+std::string CollectionsFlushTest::createCollectionAndFlush(
         const std::string& json, const std::string& collection, int items) {
     RCPtr<VBucket> vb = store->getVBucket(vbid);
     vb->updateFromManifest(json);
     storeItems(collection, DocNamespace::Collections, items);
     flush_vbucket_to_disk(vbid, 1 + items); // create event + items
+    return getManifest();
 }
 
-void CollectionsFlushTest::deleteCollectionAndFlush(
+std::string CollectionsFlushTest::deleteCollectionAndFlush(
         const std::string& json, const std::string& collection, int items) {
     RCPtr<VBucket> vb = store->getVBucket(vbid);
     storeItems(collection, DocNamespace::Collections, items);
     vb->updateFromManifest(json);
     flush_vbucket_to_disk(vbid, items); // only flush items
+    return getManifest();
 }
 
-void CollectionsFlushTest::completeDeletionAndFlush(
+std::string CollectionsFlushTest::completeDeletionAndFlush(
         const std::string& collection, int revision, int items) {
     RCPtr<VBucket> vb = store->getVBucket(vbid);
     vb->completeDeletion(collection, revision);
     storeItems("defaultcollection", DocNamespace::DefaultCollection, items);
     flush_vbucket_to_disk(vbid, 1 + items); // delete event + items
+    return getManifest();
 }
 
-// Drive collection manifest changes and count how many items get flushed
+std::string CollectionsFlushTest::getManifest() {
+    return kvs->getCollectionsManifest(vbid);
+}
+
+bool CollectionsFlushTest::canWrite(const std::string& jsonManifest,
+                                    const std::string& collection) {
+    Collections::VB::Manifest manifest(jsonManifest);
+    return manifest.lock().doesKeyContainValidCollection(
+            {collection + "::", DocNamespace::Collections});
+}
+
+bool CollectionsFlushTest::cannotWrite(const std::string& jsonManifest,
+                                       const std::string& collection) {
+    return !canWrite(jsonManifest, collection);
+}
+
+/**
+ * Drive manifest state changes through the test's vbucket
+ *  1. Validate the flusher flushes the expected items
+ *  2. Validate the updated collections manifest changes
+ *  3. Use a validator function to check if a collection is (or is not)
+ *     writeable
+ */
 void CollectionsFlushTest::collectionsFlusher(int items) {
-    createCollectionAndFlush(
-            {R"({"revision":1,"separator":"::","collections":["$default","meat"]})"},
-            "meat",
-            items);
+    struct testFuctions {
+        std::function<std::string()> function;
+        std::function<bool(const std::string&)> validator;
+    };
 
-    deleteCollectionAndFlush(
-            {R"({"revision":2,"separator":"::","collections":["$default"]})"},
-            "meat",
-            items);
+    using std::placeholders::_1;
+    // Setup the test using a vector of functions to run
+    std::vector<testFuctions> test{
+            // First 3 steps - add,delete,complete for the meat collection
+            {// 0
+             std::bind(
+                     &CollectionsFlushTest::createCollectionAndFlush,
+                     this,
+                     R"({"revision":1,"separator":"::","collections":["$default","meat"]})",
+                     "meat",
+                     items),
+             std::bind(&CollectionsFlushTest::canWrite, _1, "meat")},
 
-    completeDeletionAndFlush("meat", 2, items);
+            {// 1
+             std::bind(
+                     &CollectionsFlushTest::deleteCollectionAndFlush,
+                     this,
+                     R"({"revision":2,"separator":"::","collections":["$default"]})",
+                     "meat",
+                     items),
+             std::bind(&CollectionsFlushTest::cannotWrite, _1, "meat")},
+            {// 2
+             std::bind(&CollectionsFlushTest::completeDeletionAndFlush,
+                       this,
+                       "meat",
+                       2,
+                       items),
+             std::bind(&CollectionsFlushTest::cannotWrite, _1, "meat")},
 
-    createCollectionAndFlush(
-            {R"({"revision":3,"separator":"::","collections":["$default","fruit"]})"},
-            "fruit",
-            items);
+            // Final 4 steps - add,delete,add,complete for the fruit collection
+            {// 3
+             std::bind(
+                     &CollectionsFlushTest::createCollectionAndFlush,
+                     this,
+                     R"({"revision":3,"separator":"::","collections":["$default","fruit"]})",
+                     "fruit",
+                     items),
+             std::bind(&CollectionsFlushTest::canWrite, _1, "fruit")},
+            {// 4
+             std::bind(
+                     &CollectionsFlushTest::deleteCollectionAndFlush,
+                     this,
+                     R"({"revision":4,"separator":"::","collections":["$default"]})",
+                     "fruit",
+                     items),
+             std::bind(&CollectionsFlushTest::cannotWrite, _1, "fruit")},
+            {// 5
+             std::bind(
+                     &CollectionsFlushTest::createCollectionAndFlush,
+                     this,
+                     R"({"revision":5,"separator":"::","collections":["$default","fruit"]})",
+                     "fruit",
+                     items),
+             std::bind(&CollectionsFlushTest::canWrite, _1, "fruit")},
+            {// 6
+             std::bind(&CollectionsFlushTest::completeDeletionAndFlush,
+                       this,
+                       "fruit",
+                       4,
+                       items),
+             std::bind(&CollectionsFlushTest::canWrite, _1, "fruit")}};
 
-    deleteCollectionAndFlush(
-            {R"({"revision":4,"separator":"::","collections":["$default"]})"},
-            "fruit",
-            items);
-
-    createCollectionAndFlush(
-            {R"({"revision":5,"separator":"::","collections":["$default","fruit"]})"},
-            "fruit",
-            items);
-
-    completeDeletionAndFlush("fruit", 4, items);
+    std::string m1;
+    int step = 0;
+    for (auto& f : test) {
+        auto m2 = f.function();
+        // The manifest should change for each step
+        EXPECT_NE(m1, m2);
+        EXPECT_TRUE(f.validator(m2))
+                << "Failed step " + std::to_string(step) + " validating " + m2;
+        m1 = m2;
+        step++;
+    }
 }
 
 TEST_F(CollectionsFlushTest, collections_flusher_no_items) {
