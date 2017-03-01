@@ -255,50 +255,35 @@ DcpResponse* ActiveStream::next() {
 }
 
 DcpResponse* ActiveStream::next(std::lock_guard<std::mutex>& lh) {
-    stream_state_t initState = state_;
-
     DcpResponse* response = NULL;
+    // Taking a copy of atomic to avoid compiler error
+    stream_state_t currentState = state_;
 
-    bool validTransition = false;
-    switch (initState) {
+    switch (currentState) {
         case STREAM_PENDING:
-            validTransition = true;
             break;
         case STREAM_BACKFILLING:
-            validTransition = true;
             response = backfillPhase();
             break;
         case STREAM_IN_MEMORY:
-            validTransition = true;
             response = inMemoryPhase();
             break;
         case STREAM_TAKEOVER_SEND:
-            validTransition = true;
             response = takeoverSendPhase();
             break;
         case STREAM_TAKEOVER_WAIT:
-            validTransition = true;
             response = takeoverWaitPhase();
             break;
         case STREAM_READING:
             // Not valid for an active stream.
+            throw std::logic_error("ActiveStream::next: Invalid state "
+                    "STREAM_READING for stream " +
+                    std::string(producer->logHeader()) + " vb " +
+                    std::to_string(vb_));
             break;
         case STREAM_DEAD:
-            validTransition = true;
             response = deadPhase();
             break;
-    }
-
-    if (!validTransition) {
-        throw std::invalid_argument("ActiveStream::transitionState:"
-                " invalid state " + std::to_string(state_) + " for stream " +
-                producer->logHeader() + " vb " + std::to_string(vb_));
-    }
-
-    stream_state_t newState = state_;
-
-    if (newState != STREAM_DEAD && newState != state_ && !response) {
-        return next(lh);
     }
 
     itemsReady.store(response ? true : false);
