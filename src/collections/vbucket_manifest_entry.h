@@ -91,7 +91,7 @@ public:
     }
 
     /**
-     * @return const_char_buffer initialised with address/sie of the internal
+     * @return const_char_buffer initialised with address/size of the internal
      *         collection-name string data.
      */
     cb::const_char_buffer getCharBuffer() const {

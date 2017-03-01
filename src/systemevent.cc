@@ -53,6 +53,14 @@ std::unique_ptr<Item> SystemEventFactory::make(SystemEvent se,
         // Note: uses CreateEventKey because we are deleting the create item
         key = Collections::CreateEventKey + keyExtra;
     }
+    case SystemEvent::CollectionsSeparatorChanged: {
+        // CollectionSeparatorChanged SystemEvent results in:
+        // An update to the persisted collection manifest (updating the
+        // "separator" field).
+        // No document is persisted.
+        key = Collections::SeparatorChangedKey + keyExtra;
+        break;
+    }
     }
 
     auto item = std::make_unique<Item>(DocKey(key, DocNamespace::System),
@@ -80,8 +88,9 @@ SystemEventFlushStatus SystemEventFlush::process(const queued_item& item) {
         saveCollectionsManifestItem(item);
         return SystemEventFlushStatus::Continue;
     }
-    case SystemEvent::BeginDeleteCollection: {
-        // This will update the manifest but should not write an Item
+    case SystemEvent::BeginDeleteCollection:
+    case SystemEvent::CollectionsSeparatorChanged: {
+        // These two will update the manifest but should not write an Item
         saveCollectionsManifestItem(item);
         return SystemEventFlushStatus::Skip;
     }
@@ -94,12 +103,14 @@ SystemEventFlushStatus SystemEventFlush::process(const queued_item& item) {
 bool SystemEventFlush::isUpsert(const Item& item) {
     if (item.getOperation() == queue_op::system_event) {
         // CreateCollection and DeleteCollection* are the only valid events.
-        // The ::process function should of skipped BeginDeleteCollection.
+        // The ::process function should of skipped BeginDeleteCollection and
+        // CollectionsSeparatorChanged
         switch (SystemEvent(item.getFlags())) {
         case SystemEvent::CreateCollection: {
             return true;
         }
-        case SystemEvent::BeginDeleteCollection: {
+        case SystemEvent::BeginDeleteCollection:
+        case SystemEvent::CollectionsSeparatorChanged: {
             throw std::logic_error("SystemEventFlush::isUpsert event " +
                                    to_string(SystemEvent(item.getFlags())) +
                                    " should neither delete or upsert ");

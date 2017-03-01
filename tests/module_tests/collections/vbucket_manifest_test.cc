@@ -99,7 +99,9 @@ public:
                 return false;
             }
         }
-        return true;
+
+        // finally check the separator's match
+        return rhs.separator == separator;
     }
 
     bool operator!=(const MockVBManifest& rhs) const {
@@ -199,6 +201,27 @@ public:
                                                  << vbm;
         }
         return ::testing::AssertionSuccess();
+    }
+
+    ::testing::AssertionResult noThrowUpdate(const char* json) {
+        try {
+            vbm.wlock().update(vbucket, {json});
+        } catch (std::exception& e) {
+            return ::testing::AssertionFailure()
+                   << "Exception thrown for update with " << json
+                   << ", e.what:" << e.what();
+        }
+        return checkJson();
+    }
+
+    ::testing::AssertionResult throwUpdate(const char* json) {
+        try {
+            vbm.wlock().update(vbucket, {json});
+            return ::testing::AssertionFailure()
+                   << "No exception thrown for update of " << json;
+        } catch (std::exception& e) {
+            return ::testing::AssertionSuccess();
+        }
     }
 
 protected:
@@ -470,4 +493,53 @@ TEST_F(VBucketManifestTest, doubleDelete) {
                         R"("collections":["$default"]})"});
 
     EXPECT_EQ(seqno, vbucket.getHighSeqno());
+}
+
+TEST_F(VBucketManifestTest, separatorChanges) {
+    // Can change separator to @ as only default exists
+    EXPECT_TRUE(noThrowUpdate(
+            R"({"revision":1, "separator":"@", "collections":["$default"]})"));
+
+    // Can change separator to / and add first collection
+    EXPECT_TRUE(noThrowUpdate(
+            R"({"revision":2, "separator":"/", "collections":["$default", "vegetable"]})"));
+
+    // Cannot change separator to ## because non-default collections exist
+    EXPECT_TRUE(throwUpdate(
+            R"({"revision":3, "separator":"##", "collections":["$default", "vegetable"]})"));
+
+    // Now just remove vegetable
+    EXPECT_TRUE(noThrowUpdate(
+            R"({"revision":3, "separator":"/", "collections":["$default"]})"));
+
+    // vegetable still exists (isDeleting), but change to ##
+    EXPECT_TRUE(noThrowUpdate(
+            R"({"revision":4, "separator":"##", "collections":["$default"]})"));
+
+    // Finish removal of vegetable
+    vbm.wlock().completeDeletion(vbucket, "vegetable", 4);
+
+    // Can change separator as only default exists
+    EXPECT_TRUE(noThrowUpdate(
+            R"({"revision":5, "separator":"@", "collections":["$default"]})"));
+
+    // Remove default
+    EXPECT_TRUE(noThrowUpdate(
+            R"({"revision":6, "separator":"/", "collections":[]})"));
+
+    // $default still exists (isDeleting), so cannot change to ##
+    EXPECT_TRUE(noThrowUpdate(
+            R"({"revision":7, "separator":"##", "collections":["$default"]})"));
+
+    vbm.wlock().completeDeletion(vbucket, "$default", 5);
+
+    // Can change separator as no collection exists
+    EXPECT_TRUE(noThrowUpdate(
+            R"({"revision":8, "separator":"-=-=-=-", "collections":[]})"));
+
+    // Add a collection and check the new separator
+    EXPECT_TRUE(noThrowUpdate(
+            R"({"revision":9, "separator":"-=-=-=-", "collections":["meat"]})"));
+    EXPECT_TRUE(vbm.lock().doesKeyContainValidCollection(
+            {"meat-=-=-=-bacon", DocNamespace::Collections}));
 }

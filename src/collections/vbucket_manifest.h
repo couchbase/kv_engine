@@ -207,6 +207,18 @@ public:
                                     int64_t finalEntrySeqno);
 
 private:
+
+    /**
+     * Return a std::string containing a JSON representation of a
+     * VBucket::Manifest. The input data should be a previously serialised
+     * object, i.e. the input to this function is the output of
+     * populateWithSerialisedData(cb::char_buffer out)
+     *
+     * @param buffer The raw data to process.
+     * @returns std::string containing a JSON representation of the manifest
+     */
+    static std::string serialToJson(cb::const_char_buffer buffer);
+
     /**
      * Update from a Collections::Manifest
      *
@@ -305,6 +317,7 @@ protected:
      *        DocKey
      * @param revision Manifest revision triggering the update, this value will
      *        be used for the JSON manifest update (as part of flushing).
+     * @returns The new Item object
      */
     std::unique_ptr<Item> createSystemEvent(SystemEvent se,
                                             cb::const_char_buffer collection,
@@ -312,9 +325,29 @@ protected:
                                             uint32_t revision) const;
 
     /**
-     * Create an Item that carries a system event and queue it.
-     * @param vb The Vbucket to update.
+     * Create a SystemEvent Item for a CollectionsSeparatorChanged. The Item's
+     * value will contain data for later consumption by serialToJson.
+     *
+     * @param separator The new separator
+     * @param revision The revision of the manifest triggering the change.
+     *
+     * @returns The new Item object
+     */
+    std::unique_ptr<Item> createSeparatorChangedEvent(uint32_t revision) const;
+
+    /**
+     * Create an Item that carries a system event and queue it to the vb
+     * checkpoint.
+     *
+     * @param vb The vbucket onto which the Item is queued.
      * @param se The SystemEvent to create and queue.
+     * @param collection The name of the collection being added/deleted
+     * @param revisionForKey The revision which is appended to the Item key to
+     *        ensure a key is unique, and in the case of deletion makes a key
+     *        which matches creation.
+     * @param revision The revision of the manifest which triggered the update.
+     *
+     * @returns The sequence number of the queued Item.
      */
     int64_t queueSystemEvent(::VBucket& vb,
                              SystemEvent se,
@@ -323,33 +356,63 @@ protected:
                              uint32_t revision) const;
 
     /**
+     * Create an Item that carries a CollectionsSeparatorChanged system event
+     * and queue it to the vb checkpoint.
+     *
+     * @param vb The vbucket onto which the Item is queued.
+     * @param revision The revision id of the manifest which changed the
+     *        separator.
+     */
+    int64_t queueSeparatorChanged(::VBucket& vb, uint32_t revision) const;
+
+    /**
      * Obtain how many bytes of storage are needed for a serialised copy
-     * of this object including if required, the size of the changing
-     * collection.
+     * of this object including the size of the modified collection.
+     *
      * @param collection The name of the collection being changed. It's size is
      *        included in the returned value.
+     * @returns how many bytes will be needed to serialise the manifest and
+     *          the collection being changed.
      */
     size_t getSerialisedDataSize(cb::const_char_buffer collection) const;
+
+    /**
+     * Obtain how many bytes of storage are needed for a serialised copy
+     * of this object.
+     *
+     * @returns how many bytes will be needed to serialise the manifest.
+     */
+    size_t getSerialisedDataSize() const;
 
     /**
      * Populate a buffer with the serialised state of the manifest and one
      * additional entry that is the collection being changed, i.e. the addition
      * or deletion.
      *
-     * @param out The location and size we wish to update
+     * @param out A buffer for the data to be written into.
      * @param revision The Manifest revision we are processing
      * @param collection The collection being added/deleted
-     * @param se The SystemEvent we're working on
      */
     void populateWithSerialisedData(cb::char_buffer out,
                                     cb::const_char_buffer collection,
-                                    uint32_t revision,
-                                    SystemEvent se) const;
+                                    uint32_t revision) const;
 
     /**
-     * Return the string for the key
+     * Populate a buffer with the serialised state of this object.
+     *
+     * @param out A buffer for the data to be written into.
+     */
+    void populateWithSerialisedData(cb::char_buffer out) const;
+
+    /**
+     * @returns the string for the given key from the cJSON object.
      */
     const char* getJsonEntry(cJSON* cJson, const char* key);
+
+    /**
+     * @returns true if the separator cannot be changed.
+     */
+    bool cannotChangeSeparator() const;
 
     /**
      * The current set of collections
@@ -364,7 +427,7 @@ protected:
     /**
      * The collection separator
      */
-    const std::string separator;
+    std::string separator;
 
     /**
      * shared lock to allow concurrent readers and safe updates
@@ -374,6 +437,9 @@ protected:
     friend std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
 };
 
+/// Note that the VB::Manifest << operator does not obtain the rwlock
+/// it is used internally in the object for exception string generation so must
+/// not double lock.
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
 
 } // end namespace VB

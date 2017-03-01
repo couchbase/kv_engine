@@ -45,8 +45,8 @@ namespace VB {
  */
 class SerialisedManifest {
 public:
-    static size_t getObjectSize() {
-        return sizeof(SerialisedManifest);
+    static size_t getObjectSize(uint32_t separatorLen) {
+        return sizeof(SerialisedManifest) + separatorLen;
     }
 
     void setEntryCount(uint32_t items) {
@@ -57,22 +57,62 @@ public:
         return itemCount;
     }
 
+    std::string getSeparator() const {
+        return {getSeparatorPtr(), separatorLen};
+    }
+
     /**
      * Return a non const pointer to where the entries can be written
      */
     char* getManifestEntryBuffer() {
-        return reinterpret_cast<char*>(this + 1);
+        return getSeparatorPtr() + separatorLen;
     }
 
     /**
      * Return a const pointer from where the entries can be read
      */
     const char* getManifestEntryBuffer() const {
-        return reinterpret_cast<const char*>(this + 1);
+        return getSeparatorPtr() + separatorLen;
     }
 
 private:
+
+    friend Collections::VB::Manifest;
+    static SerialisedManifest* make(char* address, const std::string& separator, cb::char_buffer out) {
+        return new (address) SerialisedManifest(separator, out);
+    }
+
+    /**
+     * Construct a SerialisedManifest to have 0 items and the separator string.
+     *
+     * @param separator The separator for the manifest
+     * @param out The buffer into which this object is being constructed
+     * @throws length_error if the consruction would access outside of out
+     */
+    SerialisedManifest(const std::string& separator, cb::char_buffer out) {
+        if (!((out.data() + out.size()) >=
+              (reinterpret_cast<char*>(this) +
+               getObjectSize(separator.size())))) {
+            throw std::length_error("SerialisedManifest::tryConstruction with separator size " +
+                                    std::to_string(separator.size()) +
+                                    " exceeds the buffer of size " +
+                                    std::to_string(out.size()));
+        }
+        itemCount = 0;
+        separatorLen = separator.size();
+        std::copy_n(separator.data(), separator.size(), getSeparatorPtr());
+    }
+
+    const char* getSeparatorPtr() const {
+        return reinterpret_cast<const char*>(this + 1);
+    }
+
+    char* getSeparatorPtr() {
+        return reinterpret_cast<char*>(this + 1);
+    }
+
     uint32_t itemCount;
+    uint32_t separatorLen;
 };
 
 class SerialisedManifestEntry {
@@ -122,6 +162,8 @@ public:
             return std::string(); // return nothing - collection gone
         case SystemEvent::DeleteCollectionSoft:
             return toJson(startSeqno, StoredValue::state_collection_open);
+        case SystemEvent::CollectionsSeparatorChanged:
+            return std::string(); // return nothing - no effect on entries
         }
 
         throw std::invalid_argument(
@@ -204,7 +246,7 @@ private:
         if (!((out.data() + out.size()) >=
               (reinterpret_cast<char*>(this) +
                getObjectSize(collection.size())))) {
-            throw std::length_error("tryConstruction with collection size " +
+            throw std::length_error("SerialisedManifestEntry::tryConstruction with collection size " +
                                     std::to_string(collection.size()) +
                                     " exceeds the buffer of size " +
                                     std::to_string(out.size()));

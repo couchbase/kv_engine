@@ -32,6 +32,7 @@ const char* const DefaultSeparator = "::";
 // SystemEvent keys
 const char* const CreateEventKey = "$collections::create:";
 const char* const DeleteEventKey = "$collections::delete:";
+const char* const SeparatorChangedKey = "$collections::separator:";
 
 // Couchstore private file name for manifest data
 const char CouchstoreManifest[] = "_local/collections_manifest";

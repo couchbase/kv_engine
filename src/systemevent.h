@@ -66,7 +66,14 @@ enum class SystemEvent : uint32_t {
      * delete also deleted the special marker document created by
      * CreateCollection.
      */
-    DeleteCollectionSoft
+    DeleteCollectionSoft,
+
+    /**
+     * The CollectionsSeparatorChanged system event is generated when a VBucket
+     * changes the separator used for identifying collections in keys. This
+     * must result in a vbucket manifest update but no item is stored.
+     */
+    CollectionsSeparatorChanged
 };
 
 static inline std::string to_string(const SystemEvent se) {
@@ -79,6 +86,8 @@ static inline std::string to_string(const SystemEvent se) {
         return "DeleteCollectionHard";
     case SystemEvent::DeleteCollectionSoft:
         return "DeleteCollectionSoft";
+    case SystemEvent::CollectionsSeparatorChanged:
+        return "CollectionSeparatorChanged";
     }
     throw std::invalid_argument("to_string(SystemEvent) unknown " +
                                 std::to_string(int(se)));

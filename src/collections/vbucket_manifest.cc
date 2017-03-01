@@ -40,6 +40,10 @@ Collections::VB::Manifest::Manifest(const std::string& manifest)
                 "Collections::VBucket::Manifest cJSON cannot parse json");
     }
 
+    // Load the separator
+    separator = getJsonEntry(cjson.get(), "separator");
+
+    // Load the collections array
     auto jsonCollections = cJSON_GetObjectItem(cjson.get(), "collections");
     if (!jsonCollections || jsonCollections->type != cJSON_Array) {
         throw std::invalid_argument(
@@ -64,6 +68,34 @@ void Collections::VB::Manifest::update(::VBucket& vb,
                                        const Collections::Manifest& manifest) {
     std::vector<std::string> additions, deletions;
     std::tie(additions, deletions) = processManifest(manifest);
+
+    if (separator != manifest.getSeparator()) {
+        // Can we change the separator? Only allowed to change if there are no
+        // collection or the only collection is the default collection
+        if (cannotChangeSeparator()) {
+            std::stringstream ss;
+            ss << *this;
+            throw std::invalid_argument(
+                    "Collections::VB::Manifest::update cannot update separator "
+                    "to " +
+                    manifest.getSeparator() + " " + ss.str());
+        } else {
+            // Change the separator then queue the event so the new separator
+            // is recorded in the serialised manifest
+            separator = manifest.getSeparator();
+
+            // Queue an event so that the manifest is flushed and DCP can
+            // replicate the change.
+            (void)queueSeparatorChanged(vb, manifest.getRevision());
+
+            LOG(EXTENSION_LOG_NOTICE,
+                "Changing collection separator for vb:%" PRIu16
+                ", from:%s, to:%s",
+                vb.getId(),
+                separator.c_str(),
+                manifest.getSeparator().c_str());
+        }
+    }
 
     // Process additions to the manifest
     for (const auto& collection : additions) {
@@ -256,8 +288,26 @@ std::unique_ptr<Item> Collections::VB::Manifest::createSystemEvent(
     populateWithSerialisedData(
             {const_cast<char*>(item->getData()), item->getNBytes()},
             collection,
-            revision,
-            se);
+            revision);
+
+    return item;
+}
+
+std::unique_ptr<Item> Collections::VB::Manifest::createSeparatorChangedEvent(
+        uint32_t revision) const {
+    // Create an item (to be queued and written to disk) that represents
+    // the change of the separator. We serialise the state of this object
+    // into the Item's value.
+
+    auto item =
+            SystemEventFactory::make(SystemEvent::CollectionsSeparatorChanged,
+                                     separator + std::to_string(revision),
+                                     getSerialisedDataSize());
+
+    // Quite rightly an Item's value is const, but in this case the Item is
+    // owned only by the local scope so is safe to mutate (by const_cast force)
+    populateWithSerialisedData(
+            {const_cast<char*>(item->getData()), item->getNBytes()});
 
     return item;
 }
@@ -274,9 +324,15 @@ int64_t Collections::VB::Manifest::queueSystemEvent(
                     .release());
 }
 
+int64_t Collections::VB::Manifest::queueSeparatorChanged(
+        ::VBucket& vb, uint32_t revision) const {
+    // Create and transfer Item ownership to the VBucket
+    return vb.queueItem(createSeparatorChangedEvent(revision).release());
+}
+
 size_t Collections::VB::Manifest::getSerialisedDataSize(
         cb::const_char_buffer collection) const {
-    size_t bytesNeeded = SerialisedManifest::getObjectSize();
+    size_t bytesNeeded = SerialisedManifest::getObjectSize(separator.size());
     for (const auto& collectionEntry : map) {
         // Skip if a collection in the map matches the collection being changed
         if (collectionEntry.second->getCharBuffer() == collection) {
@@ -290,12 +346,22 @@ size_t Collections::VB::Manifest::getSerialisedDataSize(
            SerialisedManifestEntry::getObjectSize(collection.size());
 }
 
+size_t Collections::VB::Manifest::getSerialisedDataSize() const {
+    size_t bytesNeeded = SerialisedManifest::getObjectSize(separator.size());
+    for (const auto& collectionEntry : map) {
+        // Skip if a collection in the map matches the collection being changed
+        bytesNeeded += SerialisedManifestEntry::getObjectSize(
+                collectionEntry.second->getCollectionName().size());
+    }
+
+    return bytesNeeded;
+}
+
 void Collections::VB::Manifest::populateWithSerialisedData(
         cb::char_buffer out,
         cb::const_char_buffer collection,
-        uint32_t revision,
-        SystemEvent se) const {
-    auto* sMan = reinterpret_cast<SerialisedManifest*>(out.data());
+        uint32_t revision) const {
+    auto* sMan = SerialisedManifest::make(out.data(), separator, out);
     uint32_t itemCounter = 1; // always a final entry
     char* serial = sMan->getManifestEntryBuffer();
 
@@ -328,13 +394,31 @@ void Collections::VB::Manifest::populateWithSerialisedData(
     sMan->setEntryCount(itemCounter);
 }
 
+void Collections::VB::Manifest::populateWithSerialisedData(
+        cb::char_buffer out) const {
+    auto* sMan = SerialisedManifest::make(out.data(), separator, out);
+    char* serial = sMan->getManifestEntryBuffer();
+
+    for (const auto& collectionEntry : map) {
+        auto* sme = SerialisedManifestEntry::make(
+                serial, *collectionEntry.second, out);
+        serial = sme->nextEntry();
+    }
+
+    sMan->setEntryCount(map.size());
+}
+
 std::string Collections::VB::Manifest::serialToJson(
         SystemEvent se, cb::const_char_buffer buffer, int64_t finalEntrySeqno) {
+    if (se == SystemEvent::CollectionsSeparatorChanged) {
+        return serialToJson(buffer);
+    }
+
     const auto* sMan =
             reinterpret_cast<const SerialisedManifest*>(buffer.data());
     const char* serial = sMan->getManifestEntryBuffer();
 
-    std::string json = "{\"collections\":[";
+    std::string json = R"({"separator":")" + sMan->getSeparator() + R"(","collections":[)";
     if (sMan->getEntryCount() > 1) {
         for (uint32_t ii = 1; ii < sMan->getEntryCount(); ii++) {
             const auto* sme =
@@ -361,6 +445,30 @@ std::string Collections::VB::Manifest::serialToJson(
     return json;
 }
 
+std::string Collections::VB::Manifest::serialToJson(
+        cb::const_char_buffer buffer) {
+    const auto* sMan =
+            reinterpret_cast<const SerialisedManifest*>(buffer.data());
+    const char* serial = sMan->getManifestEntryBuffer();
+
+    std::string json =
+            R"({"separator":")" + sMan->getSeparator() + R"(","collections":[)";
+
+    for (uint32_t ii = 0; ii < sMan->getEntryCount(); ii++) {
+        const auto* sme =
+                reinterpret_cast<const SerialisedManifestEntry*>(serial);
+        json += sme->toJson();
+        serial = sme->nextEntry();
+
+        if (ii < sMan->getEntryCount() - 1) {
+            json += ",";
+        }
+    }
+
+    json += "]}";
+    return json;
+}
+
 const char* Collections::VB::Manifest::getJsonEntry(cJSON* cJson,
                                                     const char* key) {
     auto jsonEntry = cJSON_GetObjectItem(cJson, key);
@@ -373,10 +481,25 @@ const char* Collections::VB::Manifest::getJsonEntry(cJSON* cJson,
     return jsonEntry->valuestring;
 }
 
+bool Collections::VB::Manifest::cannotChangeSeparator() const {
+    // If any non-default collection exists that isOpen, cannot change separator
+    for (const auto& manifestEntry : map) {
+        // If the manifestEntry is open and not found in the new manifest it
+        // must be deleted.
+        if (manifestEntry.second->isOpen() &&
+            manifestEntry.second->getCharBuffer() !=
+                    DefaultCollectionIdentifier) {
+            // Collection is open and is not $default - cannot change
+            return true;
+        }
+    }
+
+    return false;
+}
+
 std::ostream& Collections::VB::operator<<(
         std::ostream& os, const Collections::VB::Manifest& manifest) {
     os << "VBucket::Manifest: size:" << manifest.map.size() << std::endl;
-    std::lock_guard<cb::ReaderLock> readLock(manifest.rwlock.reader());
     for (auto& m : manifest.map) {
         os << *m.second << std::endl;
     }
