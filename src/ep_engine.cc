@@ -28,6 +28,7 @@
 #include "dcp/flow-control-manager.h"
 #include "dcp/producer.h"
 #include "ep_bucket.h"
+#include "ep_vb.h"
 #include "ephemeral_bucket.h"
 #include "failover-table.h"
 #include "flusher.h"
@@ -3024,6 +3025,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                         epstats.totalPersisted, add_stat, cookie);
         add_casted_stat("ep_uncommitted_items",
                         epstats.flusher_todo, add_stat, cookie);
+        add_casted_stat("ep_chk_persistence_timeout",
+                        EPVBucket::getCheckpointFlushTimeout(),
+                        add_stat,
+                        cookie);
     }
     add_casted_stat("ep_vbucket_del",
                     epstats.vbucketDeletions, add_stat, cookie);
@@ -3459,9 +3464,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
     add_casted_stat("ep_num_ops_get_meta_on_set_meta",
                     epstats.numOpsGetMetaOnSetWithMeta, add_stat, cookie);
-    add_casted_stat("ep_chk_persistence_timeout",
-                    VBucket::getCheckpointFlushTimeout(),
-                    add_stat, cookie);
     add_casted_stat("ep_chk_persistence_remains",
                     activeCountVisitor.getChkPersistRemaining() +
                     pendingCountVisitor.getChkPersistRemaining() +
@@ -3632,8 +3634,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
                         "addVBStats: Failed building stats: %s", error.what());
                 }
             } else {
-                vb->addStats(detailsRequested, add_stat, cookie,
-                             store->getItemEvictionPolicy());
+                vb->addStats(detailsRequested, add_stat, cookie);
             }
         }
 
@@ -5009,12 +5010,12 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
         break;
     case PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE:
         {
-            uint16_t keylen = ntohs(req->request.keylen);
-            uint32_t bodylen = ntohl(req->request.bodylen);
-            if ((bodylen - keylen) == 0) {
-                msg <<
-                "No checkpoint id is given for CMD_CHECKPOINT_PERSISTENCE!!!";
-                status = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        uint16_t keylen = ntohs(req->request.keylen);
+        uint32_t bodylen = ntohl(req->request.bodylen);
+        if ((bodylen - keylen) == 0) {
+            msg << "No checkpoint id is given for "
+                   "CMD_CHECKPOINT_PERSISTENCE!!!";
+            status = PROTOCOL_BINARY_RESPONSE_EINVAL;
             } else {
                 uint64_t chk_id;
                 memcpy(&chk_id, req->bytes + sizeof(req->bytes) + keylen,
@@ -5022,8 +5023,14 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                 chk_id = ntohll(chk_id);
                 void *es = getEngineSpecific(cookie);
                 if (!es) {
-                    vb->addHighPriorityVBEntry(chk_id, cookie, false);
+                    ENGINE_ERROR_CODE ret =
+                            vb->addHighPriorityVBEntry(chk_id, cookie, false);
                     storeEngineSpecific(cookie, this);
+
+                    if (ret == ENGINE_ENOTSUP) {
+                        return sendNotSupportedResponse(response, cookie);
+                    }
+
                     // Wake up the flusher if it is idle.
                     getKVBucket()->wakeUpFlusher();
                     return ENGINE_EWOULDBLOCK;
@@ -5078,8 +5085,14 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
         if (!es) {
             uint16_t persisted_seqno = vb->getPersistenceSeqno();
             if (seqno > persisted_seqno) {
-                vb->addHighPriorityVBEntry(seqno, cookie, true);
+                ENGINE_ERROR_CODE ret =
+                        vb->addHighPriorityVBEntry(seqno, cookie, true);
                 storeEngineSpecific(cookie, this);
+
+                if (ret == ENGINE_ENOTSUP) {
+                    return sendNotSupportedResponse(response, cookie);
+                }
+
                 return ENGINE_EWOULDBLOCK;
             }
         } else {
@@ -6284,6 +6297,21 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sendNotMyVBucketResponse(
                         clusterConfig.config.data(),
                         clusterConfig.config.size(), PROTOCOL_BINARY_RAW_BYTES,
                         PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, cas, cookie);
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::sendNotSupportedResponse(
+        ADD_RESPONSE response, const void* cookie) {
+    return sendResponse(response,
+                        nullptr,
+                        0,
+                        nullptr,
+                        0,
+                        nullptr,
+                        0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED,
+                        0,
+                        cookie);
 }
 
 EventuallyPersistentEngine::~EventuallyPersistentEngine() {

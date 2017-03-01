@@ -118,4 +118,11 @@ public:
         }
         return deleteStoredValue(hbl, *v);
     }
+
+    size_t public_queueBGFetchItem(
+            const DocKey& key,
+            std::unique_ptr<VBucketBGFetchItem> fetchItem,
+            BgFetcher* bgFetcher) {
+        return queueBGFetchItem(key, std::move(fetchItem), bgFetcher);
+    }
 };

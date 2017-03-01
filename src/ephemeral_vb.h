@@ -39,6 +39,27 @@ public:
                      uint64_t purgeSeqno = 0,
                      uint64_t maxCas = 0);
 
+    ENGINE_ERROR_CODE completeBGFetchForSingleItem(
+            const DocKey& key,
+            const VBucketBGFetchItem& fetched_item,
+            const ProcessClock::time_point startTime) override;
+
+    vb_bgfetch_queue_t getBGFetchItems() override;
+
+    bool hasPendingBGFetchItems() override;
+
+    ENGINE_ERROR_CODE addHighPriorityVBEntry(uint64_t id,
+                                             const void* cookie,
+                                             bool isBySeqno) override;
+
+    void notifyOnPersistence(EventuallyPersistentEngine& e,
+                             uint64_t id,
+                             bool isBySeqno) override;
+
+    void notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) override;
+
+    size_t getHighPriorityChkSize() override;
+
     size_t getNumItems() const override;
 
     ENGINE_ERROR_CODE statsVKey(const DocKey& key,
@@ -69,6 +90,12 @@ public:
         return false;
     }
 
+    void addStats(bool details, ADD_STAT add_stat, const void* c) override;
+
+    KVShard* getShard() override {
+        return nullptr;
+    }
+
 private:
     std::pair<MutationStatus, VBNotifyCtx> updateStoredValue(
             const std::unique_lock<std::mutex>& htLock,
@@ -87,6 +114,28 @@ private:
             bool onlyMarkDeleted,
             const VBQueueItemCtx& queueItmCtx,
             uint64_t bySeqno) override;
+
+    void bgFetch(const DocKey& key,
+                 const void* cookie,
+                 EventuallyPersistentEngine& engine,
+                 int bgFetchDelay,
+                 bool isMeta = false) override;
+
+    ENGINE_ERROR_CODE
+    addTempItemAndBGFetch(HashTable::HashBucketLock& hbl,
+                          const DocKey& key,
+                          const void* cookie,
+                          EventuallyPersistentEngine& engine,
+                          int bgFetchDelay,
+                          bool metadataOnly,
+                          bool isReplication = false) override;
+
+    GetValue getInternalNonResident(const DocKey& key,
+                                    const void* cookie,
+                                    EventuallyPersistentEngine& engine,
+                                    int bgFetchDelay,
+                                    get_options_t options,
+                                    const StoredValue& v) override;
 
     /**
      * Lock to synchronize order of bucket elements.

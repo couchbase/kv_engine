@@ -30,26 +30,10 @@
 #include <atomic>
 #include <queue>
 
-class BgFetcher;
 class EPStats;
 class ConflictResolution;
 class Configuration;
 class PreLinkDocumentContext;
-
-const size_t MIN_CHK_FLUSH_TIMEOUT = 10; // 10 sec.
-const size_t MAX_CHK_FLUSH_TIMEOUT = 30; // 30 sec.
-
-struct HighPriorityVBEntry {
-    HighPriorityVBEntry() :
-        cookie(NULL), id(0), start(gethrtime()), isBySeqno_(false) { }
-    HighPriorityVBEntry(const void *c, uint64_t idNum, bool isBySeqno) :
-        cookie(c), id(idNum), start(gethrtime()), isBySeqno_(isBySeqno) { }
-
-    const void *cookie;
-    uint64_t id;
-    hrtime_t start;
-    bool isBySeqno_;
-};
 
 /**
  * The following will be used to identify
@@ -191,7 +175,6 @@ public:
             vbucket_state_t newState,
             EPStats& st,
             CheckpointConfig& chkConfig,
-            KVShard* kvshard,
             int64_t lastSeqno,
             uint64_t lastSnapStart,
             uint64_t lastSnapEnd,
@@ -406,24 +389,13 @@ public:
         backfill.isBackfillPhase = backfillPhase;
     }
 
-    /*
+    /**
      * Returns the map of bgfetch items for this vbucket, clearing the
      * pendingBGFetches.
      */
-    vb_bgfetch_queue_t getBGFetchItems();
+    virtual vb_bgfetch_queue_t getBGFetchItems() = 0;
 
-    /* queue a background fetch of the specified item.
-     * Returns the number of pending background fetches after
-     * adding the specified item.
-     **/
-    size_t queueBGFetchItem(const DocKey& key,
-                            std::unique_ptr<VBucketBGFetchItem> fetch,
-                            BgFetcher* bgFetcher);
-
-    bool hasPendingBGFetchItems(void) {
-        LockHolder lh(pendingBGFetchesLock);
-        return !pendingBGFetches.empty();
-    }
+    virtual bool hasPendingBGFetchItems() = 0;
 
     static const char* toString(vbucket_state_t s) {
         switch(s) {
@@ -447,13 +419,14 @@ public:
         }
     }
 
-    void addHighPriorityVBEntry(uint64_t id, const void *cookie,
-                                bool isBySeqno);
-    void notifyOnPersistence(EventuallyPersistentEngine &e,
-                             uint64_t id, bool isBySeqno);
-    void notifyAllPendingConnsFailed(EventuallyPersistentEngine &e);
-    size_t getHighPriorityChkSize();
-    static size_t getCheckpointFlushTimeout();
+    virtual ENGINE_ERROR_CODE addHighPriorityVBEntry(uint64_t id,
+                                                     const void* cookie,
+                                                     bool isBySeqno) = 0;
+    virtual void notifyOnPersistence(EventuallyPersistentEngine& e,
+                                     uint64_t id,
+                                     bool isBySeqno) = 0;
+    virtual void notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) = 0;
+    virtual size_t getHighPriorityChkSize() = 0;
 
     /**
      * BloomFilter operations for vbucket
@@ -479,8 +452,9 @@ public:
     bool isResidentRatioUnderThreshold(float threshold,
                                        item_eviction_policy_t policy);
 
-    void addStats(bool details, ADD_STAT add_stat, const void *c,
-                  item_eviction_policy_t policy);
+    virtual void addStats(bool details, ADD_STAT add_stat, const void* c) = 0;
+
+    virtual KVShard* getShard() = 0;
 
     virtual size_t getNumItems() const = 0;
 
@@ -523,10 +497,6 @@ public:
         bool isBackfillPhase;
     } backfill;
 
-    KVShard *getShard(void) {
-        return shard;
-    }
-
     /**
      * Gets the valid StoredValue for the key and deletes an expired item if
      * desired by the caller. Requires the hash bucket to be locked
@@ -554,10 +524,10 @@ public:
      *
      * @return ENGINE_ERROR_CODE status notified to be to the front end
      */
-    ENGINE_ERROR_CODE completeBGFetchForSingleItem(
+    virtual ENGINE_ERROR_CODE completeBGFetchForSingleItem(
             const DocKey& key,
             const VBucketBGFetchItem& fetched_item,
-            const ProcessClock::time_point startTime);
+            const ProcessClock::time_point startTime) = 0;
 
     /**
      * Retrieve an item from the disk for vkey stats
@@ -1111,6 +1081,14 @@ protected:
                                  const DocKey& key,
                                  bool isReplication = false);
 
+    void _addStats(bool details, ADD_STAT add_stat, const void* c);
+
+    template <typename T>
+    void addStat(const char* nm,
+                 const T& val,
+                 ADD_STAT add_stat,
+                 const void* c);
+
     /* This member holds the eviction policy used */
     const item_eviction_policy_t eviction;
 
@@ -1118,30 +1096,13 @@ protected:
     EPStats& stats;
 
 private:
-    template <typename T>
-    void addStat(const char *nm, const T &val, ADD_STAT add_stat, const void *c);
-
-    void fireAllOps(EventuallyPersistentEngine &engine, ENGINE_ERROR_CODE code);
-
-    void adjustCheckpointFlushTimeout(size_t wall_time);
+    void fireAllOps(EventuallyPersistentEngine& engine, ENGINE_ERROR_CODE code);
 
     void decrDirtyQueueMem(size_t decrementBy);
 
     void decrDirtyQueueAge(uint32_t decrementBy);
 
     void decrDirtyQueuePendingWrites(size_t decrementBy);
-
-    /**
-     * Helper function to update stats after completion of a background fetch
-     * for either the value of metadata of a key.
-     *
-     * @param init the time of epstore's initialization
-     * @param start the time when the background fetch was started
-     * @param stop the time when the background fetch completed
-     */
-    void updateBGStats(const ProcessClock::time_point init,
-                       const ProcessClock::time_point start,
-                       const ProcessClock::time_point stop);
 
     /**
      * Updates an existing StoredValue in in-memory data structures like HT.
@@ -1232,14 +1193,14 @@ private:
      *
      * @return ENGINE_ERROR_CODE status notified to be to the front end
      */
-    ENGINE_ERROR_CODE
-    addTempItemAndBGFetch(HashTable::HashBucketLock& hbl,
-                          const DocKey& key,
-                          const void* cookie,
-                          EventuallyPersistentEngine& engine,
-                          int bgFetchDelay,
-                          bool metadataOnly,
-                          bool isReplication = false);
+    virtual ENGINE_ERROR_CODE addTempItemAndBGFetch(
+            HashTable::HashBucketLock& hbl,
+            const DocKey& key,
+            const void* cookie,
+            EventuallyPersistentEngine& engine,
+            int bgFetchDelay,
+            bool metadataOnly,
+            bool isReplication = false) = 0;
 
     /**
      * Enqueue a background fetch for a key.
@@ -1251,11 +1212,30 @@ private:
      * @param isMeta whether the fetch is for a non-resident value or metadata
      *               of a (possibly) deleted item
      */
-    void bgFetch(const DocKey& key,
-                 const void* cookie,
-                 EventuallyPersistentEngine& engine,
-                 int bgFetchDelay,
-                 bool isMeta = false);
+    virtual void bgFetch(const DocKey& key,
+                         const void* cookie,
+                         EventuallyPersistentEngine& engine,
+                         int bgFetchDelay,
+                         bool isMeta = false) = 0;
+
+    /**
+     * Get metadata and value for a non-resident key
+     *
+     * @param key key for which metadata and value should be retrieved
+     * @param cookie the cookie representing the client
+     * @param engine Reference to ep engine
+     * @param bgFetchDelay Delay in secs before we run the bgFetch task
+     * @param options flags indicating some retrieval related info
+     * @param v reference to the stored value of the non-resident key
+     *
+     * @return the result of the operation
+     */
+    virtual GetValue getInternalNonResident(const DocKey& key,
+                                            const void* cookie,
+                                            EventuallyPersistentEngine& engine,
+                                            int bgFetchDelay,
+                                            get_options_t options,
+                                            const StoredValue& v) = 0;
 
     /**
      * Internal wrapper function around the callback to be called when a new
@@ -1288,19 +1268,11 @@ private:
     uint64_t                        purge_seqno;
     std::atomic<bool>               takeover_backed_up;
 
-    std::mutex pendingBGFetchesLock;
-    vb_bgfetch_queue_t pendingBGFetches;
-
     /* snapshotMutex is used to update/read the pair {start, end} atomically,
        but not if reading a single field. */
     mutable std::mutex snapshotMutex;
     uint64_t persisted_snapshot_start;
     uint64_t persisted_snapshot_end;
-
-    std::mutex hpChksMutex;
-    std::list<HighPriorityVBEntry> hpChks;
-    std::atomic<size_t> numHpChks; // size of list hpChks (to avoid MB-9434)
-    KVShard *shard;
 
     std::mutex bfMutex;
     std::unique_ptr<BloomFilter> bFilter;
@@ -1324,10 +1296,6 @@ private:
     // A callback to be called when a new seqno is generated in the vbucket as
     // a result of a front end call
     NewSeqnoCallback newSeqnoCb;
-
-    const bool multiBGFetchEnabled;
-
-    static std::atomic<size_t> chkFlushTimeout;
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };

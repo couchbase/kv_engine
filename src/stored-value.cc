@@ -58,7 +58,7 @@ uint8_t StoredValue::incrNRUValue() {
     return ret;
 }
 
-uint8_t StoredValue::getNRUValue() {
+uint8_t StoredValue::getNRUValue() const {
     return nru;
 }
 

@@ -898,6 +898,18 @@ protected:
                               bool& skipConflictResolution,
                               int& keyOffset);
 
+    /**
+     * Sends NOT_SUPPORTED response, using the specified response callback
+     * to the specified connection via it's cookie.
+     *
+     * @param response callback func to send the response
+     * @param cookie conn cookie
+     *
+     * @return status of sending response
+     */
+    ENGINE_ERROR_CODE sendNotSupportedResponse(ADD_RESPONSE response,
+                                               const void* cookie);
+
     SERVER_HANDLE_V1 *serverApi;
     KVBucketIface* kvBucket;
     WorkLoadPolicy *workload;

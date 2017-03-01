@@ -6473,7 +6473,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_chk_max_items",
                 "ep_chk_period",
                 "ep_chk_persistence_remains",
-                "ep_chk_persistence_timeout",
                 "ep_chk_remover_stime",
                 "ep_clock_cas_drift_threshold_exceeded",
                 "ep_collections_prototype_enabled",
@@ -6743,7 +6742,8 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                           "ep_item_flush_expired",
                           "ep_item_flush_failed",
                           "ep_total_persisted",
-                          "ep_uncommitted_items"});
+                          "ep_uncommitted_items",
+                          "ep_chk_persistence_timeout"});
 
         // 'diskinfo and 'diskinfo detail' keys should be present now.
         statsKeys["diskinfo"] = {"ep_db_data_size", "ep_db_file_size"};

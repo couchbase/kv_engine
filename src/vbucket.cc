@@ -111,8 +111,6 @@ std::ostream& operator <<(std::ostream &out, const VBucketFilter &filter)
     return out;
 }
 
-std::atomic<size_t> VBucket::chkFlushTimeout(MIN_CHK_FLUSH_TIMEOUT);
-
 const vbucket_state_t VBucket::ACTIVE =
                      static_cast<vbucket_state_t>(htonl(vbucket_state_active));
 const vbucket_state_t VBucket::REPLICA =
@@ -126,7 +124,6 @@ VBucket::VBucket(id_type i,
                  vbucket_state_t newState,
                  EPStats& st,
                  CheckpointConfig& chkConfig,
-                 KVShard* kvshard,
                  int64_t lastSeqno,
                  uint64_t lastSnapStart,
                  uint64_t lastSnapEnd,
@@ -168,8 +165,6 @@ VBucket::VBucket(id_type i,
       takeover_backed_up(false),
       persisted_snapshot_start(lastSnapStart),
       persisted_snapshot_end(lastSnapEnd),
-      numHpChks(0),
-      shard(kvshard),
       rollbackItemCount(0),
       hlc(maxCas,
           std::chrono::microseconds(config.getHlcDriftAheadThresholdUs()),
@@ -179,12 +174,7 @@ VBucket::VBucket(id_type i,
       bucketCreation(false),
       bucketDeletion(false),
       persistenceSeqno(0),
-      newSeqnoCb(std::move(newSeqnoCb)),
-      multiBGFetchEnabled(kvshard
-                                  ? kvshard->getROUnderlying()
-                                            ->getStorageProperties()
-                                            .hasEfficientGet()
-                                  : false) {
+      newSeqnoCb(std::move(newSeqnoCb)) {
     if (config.getConflictResolutionType().compare("lww") == 0) {
         conflictResolver.reset(new LastWriteWinsResolution());
     } else {
@@ -209,11 +199,11 @@ VBucket::VBucket(id_type i,
 }
 
 VBucket::~VBucket() {
-    if (!pendingOps.empty() || !pendingBGFetches.empty()) {
+    if (!pendingOps.empty()) {
         LOG(EXTENSION_LOG_WARNING,
-            "Have %ld pending ops and %ld pending reads "
-            "while destroying vbucket\n",
-            pendingOps.size(), pendingBGFetches.size());
+            "~Vbucket(): vbucket:%" PRIu16 " has %ld pending ops",
+            id,
+            pendingOps.size());
     }
 
     stats.diskQueueSize.fetch_sub(dirtyQueueSize.load());
@@ -356,44 +346,6 @@ void VBucket::addStat(const char *nm, const T &val, ADD_STAT add_stat,
     }
 }
 
-size_t VBucket::queueBGFetchItem(const DocKey& key,
-                                 std::unique_ptr<VBucketBGFetchItem> fetch,
-                                 BgFetcher* bgFetcher) {
-    LockHolder lh(pendingBGFetchesLock);
-    vb_bgfetch_item_ctx_t& bgfetch_itm_ctx =
-        pendingBGFetches[key];
-
-    if (bgfetch_itm_ctx.bgfetched_list.empty()) {
-        bgfetch_itm_ctx.isMetaOnly = true;
-    }
-
-    if (!fetch->metaDataOnly) {
-        bgfetch_itm_ctx.isMetaOnly = false;
-    }
-
-    bgfetch_itm_ctx.bgfetched_list.push_back(std::move(fetch));
-
-    bgFetcher->addPendingVB(id);
-    return pendingBGFetches.size();
-}
-
-vb_bgfetch_queue_t VBucket::getBGFetchItems() {
-    vb_bgfetch_queue_t fetches;
-    LockHolder lh(pendingBGFetchesLock);
-    fetches.swap(pendingBGFetches);
-    return fetches;
-}
-
-void VBucket::addHighPriorityVBEntry(uint64_t id, const void *cookie,
-                                     bool isBySeqno) {
-    LockHolder lh(hpChksMutex);
-    if (shard) {
-        ++shard->highPriorityCount;
-    }
-    hpChks.push_back(HighPriorityVBEntry(cookie, id, isBySeqno));
-    numHpChks.store(hpChks.size());
-}
-
 void VBucket::handlePreExpiry(StoredValue& v) {
     value_t value = v.getValue();
     if (value) {
@@ -422,126 +374,6 @@ void VBucket::handlePreExpiry(StoredValue& v) {
             v.setValue(new_item, ht);
         }
     }
-}
-
-void VBucket::notifyOnPersistence(EventuallyPersistentEngine &e,
-                                  uint64_t idNum,
-                                  bool isBySeqno) {
-    std::unique_lock<std::mutex> lh(hpChksMutex);
-    std::map<const void*, ENGINE_ERROR_CODE> toNotify;
-    std::list<HighPriorityVBEntry>::iterator entry = hpChks.begin();
-
-    std::string logStr(isBySeqno
-                       ? "seqno persistence"
-                       : "checkpoint persistence");
-
-    while (entry != hpChks.end()) {
-        if (isBySeqno != entry->isBySeqno_) {
-            ++entry;
-            continue;
-        }
-
-        std::string logStr(isBySeqno ?
-                           "seqno persistence" :
-                           "checkpoint persistence");
-
-        hrtime_t wall_time(gethrtime() - entry->start);
-        size_t spent = wall_time / 1000000000;
-        if (entry->id <= idNum) {
-            toNotify[entry->cookie] = ENGINE_SUCCESS;
-            stats.chkPersistenceHisto.add(wall_time / 1000);
-            adjustCheckpointFlushTimeout(wall_time / 1000000000);
-            LOG(EXTENSION_LOG_NOTICE, "Notified the completion of %s "
-                "for vbucket %" PRIu16 ", Check for: %" PRIu64 ", "
-                "Persisted upto: %" PRIu64 ", cookie %p",
-                logStr.c_str(), id, entry->id, idNum, entry->cookie);
-            entry = hpChks.erase(entry);
-            if (shard) {
-                --shard->highPriorityCount;
-            }
-        } else if (spent > getCheckpointFlushTimeout()) {
-            adjustCheckpointFlushTimeout(spent);
-            e.storeEngineSpecific(entry->cookie, NULL);
-            toNotify[entry->cookie] = ENGINE_TMPFAIL;
-            LOG(EXTENSION_LOG_WARNING, "Notified the timeout on %s "
-                "for vbucket %" PRIu16 ", Check for: %" PRIu64 ", "
-                "Persisted upto: %" PRIu64 ", cookie %p",
-                logStr.c_str(), id, entry->id, idNum, entry->cookie);
-            entry = hpChks.erase(entry);
-            if (shard) {
-                --shard->highPriorityCount;
-            }
-        } else {
-            ++entry;
-        }
-    }
-    numHpChks.store(hpChks.size());
-    lh.unlock();
-
-    std::map<const void*, ENGINE_ERROR_CODE>::iterator itr = toNotify.begin();
-    for (; itr != toNotify.end(); ++itr) {
-        e.notifyIOComplete(itr->first, itr->second);
-    }
-
-}
-
-void VBucket::notifyAllPendingConnsFailed(EventuallyPersistentEngine &e) {
-    std::map<const void*, ENGINE_ERROR_CODE> toNotify;
-    {
-        LockHolder lh(hpChksMutex);
-        std::list<HighPriorityVBEntry>::iterator entry = hpChks.begin();
-        while (entry != hpChks.end()) {
-            toNotify[entry->cookie] = ENGINE_TMPFAIL;
-            e.storeEngineSpecific(entry->cookie, NULL);
-            entry = hpChks.erase(entry);
-            if (shard) {
-                --shard->highPriorityCount;
-            }
-        }
-    }
-
-    // Add all the pendingBGFetches to the toNotify map
-    {
-        LockHolder lh(pendingBGFetchesLock);
-        size_t num_of_deleted_pending_fetches = 0;
-        for (auto& bgf : pendingBGFetches) {
-            vb_bgfetch_item_ctx_t& bg_itm_ctx = bgf.second;
-            for (auto& bgitem : bg_itm_ctx.bgfetched_list) {
-                toNotify[bgitem->cookie] = ENGINE_NOT_MY_VBUCKET;
-                e.storeEngineSpecific(bgitem->cookie, nullptr);
-                ++num_of_deleted_pending_fetches;
-            }
-        }
-        stats.numRemainingBgItems.fetch_sub(num_of_deleted_pending_fetches);
-        pendingBGFetches.clear();
-    }
-
-    std::map<const void*, ENGINE_ERROR_CODE>::iterator itr = toNotify.begin();
-    for (; itr != toNotify.end(); ++itr) {
-        e.notifyIOComplete(itr->first, itr->second);
-    }
-
-    fireAllOps(e);
-}
-
-void VBucket::adjustCheckpointFlushTimeout(size_t wall_time) {
-    size_t middle = (MIN_CHK_FLUSH_TIMEOUT + MAX_CHK_FLUSH_TIMEOUT) / 2;
-
-    if (wall_time <= MIN_CHK_FLUSH_TIMEOUT) {
-        chkFlushTimeout = MIN_CHK_FLUSH_TIMEOUT;
-    } else if (wall_time <= middle) {
-        chkFlushTimeout = middle;
-    } else {
-        chkFlushTimeout = MAX_CHK_FLUSH_TIMEOUT;
-    }
-}
-
-size_t VBucket::getHighPriorityChkSize() {
-    return numHpChks.load();
-}
-
-size_t VBucket::getCheckpointFlushTimeout() {
-    return chkFlushTimeout;
 }
 
 size_t VBucket::getNumNonResidentItems(item_eviction_policy_t policy) {
@@ -820,107 +652,6 @@ void VBucket::incExpirationStat(const ExpireBy source) {
         break;
     }
     ++numExpiredItems;
-}
-
-ENGINE_ERROR_CODE VBucket::completeBGFetchForSingleItem(
-        const DocKey& key,
-        const VBucketBGFetchItem& fetched_item,
-        const ProcessClock::time_point startTime) {
-    ENGINE_ERROR_CODE status = fetched_item.value.getStatus();
-    Item* fetchedValue = fetched_item.value.getValue();
-    { // locking scope
-        ReaderLockHolder rlh(getStateLock());
-        auto hbl = ht.getLockedBucket(key);
-        StoredValue* v = fetchValidValue(hbl, key, true);
-
-        if (fetched_item.metaDataOnly) {
-            if (status == ENGINE_SUCCESS) {
-                if (v && v->isTempInitialItem()) {
-                    ht.unlocked_restoreMeta(hbl.getHTLock(), *fetchedValue, *v);
-                }
-            } else if (status == ENGINE_KEY_ENOENT) {
-                if (v && v->isTempInitialItem()) {
-                    v->setNonExistent();
-                }
-                /* If ENGINE_KEY_ENOENT is the status from storage and the temp
-                   key is removed from hash table by the time bgfetch returns
-                   (in case multiple bgfetch is scheduled for a key), we still
-                   need to return ENGINE_SUCCESS to the memcached worker thread,
-                   so that the worker thread can visit the ep-engine and figure
-                   out the correct flow */
-                status = ENGINE_SUCCESS;
-            } else {
-                if (v && !v->isTempInitialItem()) {
-                    status = ENGINE_SUCCESS;
-                }
-            }
-        } else {
-            bool restore = false;
-            if (v && v->isResident()) {
-                status = ENGINE_SUCCESS;
-            } else {
-                switch (eviction) {
-                case VALUE_ONLY:
-                    if (v && !v->isResident()) {
-                        restore = true;
-                    }
-                    break;
-                case FULL_EVICTION:
-                    if (v) {
-                        if (v->isTempInitialItem() || !v->isResident()) {
-                            restore = true;
-                        }
-                    }
-                    break;
-                default:
-                    throw std::logic_error("Unknown eviction policy");
-                }
-            }
-
-            if (restore) {
-                if (status == ENGINE_SUCCESS) {
-                    ht.unlocked_restoreValue(
-                            hbl.getHTLock(), *fetchedValue, *v);
-                    if (!v->isResident()) {
-                        throw std::logic_error(
-                                "VBucket::completeBGFetchForSingleItem: "
-                                "storedvalue (which has seqno " +
-                                std::to_string(v->getBySeqno()) +
-                                ") should be resident after calling "
-                                "restoreValue()");
-                    }
-                } else if (status == ENGINE_KEY_ENOENT) {
-                    v->setNonExistent();
-                    if (eviction == FULL_EVICTION) {
-                        // For the full eviction, we should notify
-                        // ENGINE_SUCCESS to the memcached worker thread,
-                        // so that the worker thread can visit the
-                        // ep-engine and figure out the correct error
-                        // code.
-                        status = ENGINE_SUCCESS;
-                    }
-                } else {
-                    // underlying kvstore couldn't fetch requested data
-                    // log returned error and notify TMPFAIL to client
-                    LOG(EXTENSION_LOG_WARNING,
-                        "Failed background fetch for vb:%" PRIu16
-                        ", seqno:%" PRIu64,
-                        getId(),
-                        v->getBySeqno());
-                    status = ENGINE_TMPFAIL;
-                }
-            }
-        }
-    } // locked scope ends
-
-    if (fetched_item.metaDataOnly) {
-        ++stats.bg_meta_fetched;
-    } else {
-        ++stats.bg_fetched;
-    }
-
-    updateBGStats(fetched_item.initTime, startTime, ProcessClock::now());
-    return status;
 }
 
 MutationStatus VBucket::setFromInternal(Item& itm) {
@@ -1321,6 +1052,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
             }
             v = ht.unlocked_find(key, hbl.getBucketNum(), true, false);
             v->setValue(*itm, ht);
+            /* Due to the above setValue() v is no longer a temp stored value*/
         }
     }
 
@@ -1772,14 +1504,8 @@ GetValue VBucket::getInternal(const DocKey& key,
 
         // If the value is not resident, wait for it...
         if (!v->isResident()) {
-            if (options & QUEUE_BG_FETCH) {
-                bgFetch(key, cookie, engine, bgFetchDelay);
-            }
-            return GetValue(NULL,
-                            ENGINE_EWOULDBLOCK,
-                            v->getBySeqno(),
-                            true,
-                            v->getNRUValue());
+            return getInternalNonResident(
+                    key, cookie, engine, bgFetchDelay, options, *v);
         }
 
         // Should we hide (return -1) for the items' CAS?
@@ -2016,16 +1742,17 @@ bool VBucket::deleteKey(const DocKey& key) {
     return deleteStoredValue(hbl, *v);
 }
 
-void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
-                       item_eviction_policy_t policy) {
+void VBucket::_addStats(bool details, ADD_STAT add_stat, const void* c) {
     addStat(NULL, toString(state), add_stat, c);
     if (details) {
         size_t numItems = getNumItems();
         size_t tempItems = getNumTempItems();
         addStat("num_items", numItems, add_stat, c);
         addStat("num_temp_items", tempItems, add_stat, c);
-        addStat("num_non_resident", getNumNonResidentItems(policy),
-                add_stat, c);
+        addStat("num_non_resident",
+                getNumNonResidentItems(eviction),
+                add_stat,
+                c);
         addStat("ht_memory", ht.memorySize(), add_stat, c);
         addStat("ht_item_memory", ht.getItemMemory(), add_stat, c);
         addStat("ht_cache_size", ht.cacheSize.load(), add_stat, c);
@@ -2040,16 +1767,6 @@ void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
         addStat("queue_drain", dirtyQueueDrain.load(), add_stat, c);
         addStat("queue_age", getQueueAge(), add_stat, c);
         addStat("pending_writes", dirtyQueuePendingWrites.load(), add_stat, c);
-
-        try {
-            DBFileInfo fileInfo = shard->getRWUnderlying()->getDbFileInfo(getId());
-            addStat("db_data_size", fileInfo.spaceUsed, add_stat, c);
-            addStat("db_file_size", fileInfo.fileSize, add_stat, c);
-        } catch (std::runtime_error& e) {
-            LOG(EXTENSION_LOG_WARNING,
-                "VBucket::addStats: Exception caught during getDbFileInfo "
-                "for vb:%" PRIu16 " - what(): %s", getId(), e.what());
-        }
 
         addStat("high_seqno", getHighSeqno(), add_stat, c);
         addStat("uuid", failovers->getLatestUUID(), add_stat, c);
@@ -2100,31 +1817,6 @@ void VBucket::decrDirtyQueuePendingWrites(size_t decrementBy)
             newVal = oldVal - decrementBy;
         }
     } while (!dirtyQueuePendingWrites.compare_exchange_strong(oldVal, newVal));
-}
-
-void VBucket::updateBGStats(const ProcessClock::time_point init,
-                            const ProcessClock::time_point start,
-                            const ProcessClock::time_point stop) {
-    ++stats.bgNumOperations;
-    hrtime_t waitNs =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(start - init)
-                    .count();
-    hrtime_t w = waitNs / 1000;
-    BlockTimer::log(waitNs, "bgwait", stats.timingLog);
-    stats.bgWaitHisto.add(w);
-    stats.bgWait.fetch_add(w);
-    atomic_setIfLess(stats.bgMinWait, w);
-    atomic_setIfBigger(stats.bgMaxWait, w);
-
-    hrtime_t lNs =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start)
-                    .count();
-    hrtime_t l = lNs / 1000;
-    BlockTimer::log(lNs, "bgload", stats.timingLog);
-    stats.bgLoadHisto.add(l);
-    stats.bgLoad.fetch_add(l);
-    atomic_setIfLess(stats.bgMinLoad, l);
-    atomic_setIfBigger(stats.bgMaxLoad, l);
 }
 
 std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
@@ -2401,37 +2093,6 @@ bool VBucket::deleteStoredValue(const HashTable::HashBucketLock& hbl,
     return true;
 }
 
-/* [TBD]: Get rid of std::unique_lock<std::mutex> lock */
-ENGINE_ERROR_CODE
-VBucket::addTempItemAndBGFetch(HashTable::HashBucketLock& hbl,
-                               const DocKey& key,
-                               const void* cookie,
-                               EventuallyPersistentEngine& engine,
-                               int bgFetchDelay,
-                               bool metadataOnly,
-                               bool isReplication) {
-    AddStatus rv = addTempStoredValue(hbl, key, isReplication);
-    switch (rv) {
-    case AddStatus::NoMem:
-        return ENGINE_ENOMEM;
-
-    case AddStatus::Exists:
-    case AddStatus::UnDel:
-    case AddStatus::Success:
-    case AddStatus::AddTmpAndBgFetch:
-        // Since the hashtable bucket is locked, we shouldn't get here
-        throw std::logic_error(
-                "VBucket::addTempItemAndBGFetch: "
-                "Invalid result from addTempItem: " +
-                std::to_string(static_cast<uint16_t>(rv)));
-
-    case AddStatus::BgFetch:
-        hbl.getHTLock().unlock();
-        bgFetch(key, cookie, engine, bgFetchDelay, metadataOnly);
-    }
-    return ENGINE_EWOULDBLOCK;
-}
-
 AddStatus VBucket::addTempStoredValue(const HashTable::HashBucketLock& hbl,
                                       const DocKey& key,
                                       bool isReplication) {
@@ -2454,39 +2115,6 @@ AddStatus VBucket::addTempStoredValue(const HashTable::HashBucketLock& hbl,
        does not apply for temp item. */
     StoredValue* v = nullptr;
     return processAdd(hbl, v, itm, true, isReplication, nullptr).first;
-}
-
-void VBucket::bgFetch(const DocKey& key,
-                      const void* cookie,
-                      EventuallyPersistentEngine& engine,
-                      const int bgFetchDelay,
-                      const bool isMeta) {
-    if (multiBGFetchEnabled) {
-        // schedule to the current batch of background fetch of the given
-        // vbucket
-        size_t bgfetch_size = queueBGFetchItem(
-                key,
-                std::make_unique<VBucketBGFetchItem>(cookie, isMeta),
-                shard->getBgFetcher());
-        if (shard) {
-            shard->getBgFetcher()->notifyBGEvent();
-        }
-        LOG(EXTENSION_LOG_DEBUG,
-            "Queued a background fetch, now at %" PRIu64,
-            uint64_t(bgfetch_size));
-    } else {
-        ++stats.numRemainingBgJobs;
-        stats.maxRemainingBgJobs.store(
-                std::max(stats.maxRemainingBgJobs.load(),
-                         stats.numRemainingBgJobs.load()));
-        ExecutorPool* iom = ExecutorPool::get();
-        ExTask task = new SingleBGFetcherTask(
-                &engine, key, getId(), cookie, isMeta, bgFetchDelay, false);
-        iom->schedule(task, READER_TASK_IDX);
-        LOG(EXTENSION_LOG_DEBUG,
-            "Queued a background fetch, now at %" PRIu64,
-            uint64_t(stats.numRemainingBgJobs.load()));
-    }
 }
 
 inline void VBucket::notifyNewSeqno(const VBNotifyCtx& notifyCtx) {

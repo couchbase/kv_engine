@@ -135,9 +135,10 @@ TEST_P(VBucketTest, GetBGFetchItemsPerformance) {
         auto fetchItem = std::make_unique<VBucketBGFetchItem>(
                 /*cookie*/ nullptr,
                 /*isMeta*/ false);
-        this->vbucket->queueBGFetchItem(makeStoredDocKey(std::to_string(ii)),
-                                        std::move(fetchItem),
-                                        &fetcher);
+        this->vbucket->public_queueBGFetchItem(
+                makeStoredDocKey(std::to_string(ii)),
+                std::move(fetchItem),
+                &fetcher);
     }
     auto items = this->vbucket->getBGFetchItems();
 }

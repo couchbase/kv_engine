@@ -40,7 +40,7 @@ public:
         ::operator delete(p);
     }
 
-    uint8_t getNRUValue();
+    uint8_t getNRUValue() const;
 
     void setNRUValue(uint8_t nru_val);
 
