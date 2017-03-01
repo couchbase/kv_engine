@@ -185,6 +185,8 @@ bool Flusher::step(GlobalTask *task) {
         if (_state == running) {
             double tosleep = computeMinSleepTime();
             if (tosleep > 0) {
+                store->commit(shard->getId());
+                resetCommitInterval();
                 task->snooze(tosleep);
             }
         }
@@ -198,6 +200,8 @@ bool Flusher::step(GlobalTask *task) {
             LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
         }
         completeFlush();
+        store->commit(shard->getId());
+        resetCommitInterval();
         LOG(EXTENSION_LOG_DEBUG, "Flusher stopped");
         transition_state(stopped);
         return false;
@@ -225,6 +229,18 @@ double Flusher::computeMinSleepTime() {
     }
     minSleepTime *= 2;
     return std::min(minSleepTime, DEFAULT_MAX_SLEEP_TIME);
+}
+
+uint16_t Flusher::decrCommitInterval(void) {
+    --currCommitInterval;
+    //When the current commit interval hits zero, then reset the
+    //current commit interval to the initial value
+    if (!currCommitInterval) {
+        currCommitInterval = initCommitInterval;
+        return 0;
+    }
+
+    return currCommitInterval;
 }
 
 void Flusher::flushVB(void) {
