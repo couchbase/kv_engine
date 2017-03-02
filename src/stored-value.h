@@ -98,14 +98,15 @@ public:
      * @return true if this item's key is equal to k
      */
     bool hasKey(const DocKey& k) const {
-        return key == k;
+        return getKey() == k;
     }
 
     /**
      * Get this item's key.
      */
     const SerialisedDocKey& getKey() const {
-        return key;
+        return *const_cast<const SerialisedDocKey*>(
+                const_cast<StoredValue&>(*this).key());
     }
 
     /**
@@ -464,10 +465,8 @@ public:
     }
 
     size_t getObjectSize() const {
-        // Size of fixed part of StoredValue, plus size of (variable) key,
-        // minus the fixed part of key - which is already included in fixed
-        // part of StoredValue.
-        return sizeof(*this) - sizeof(this->key) + key.getObjectSize();
+        // Size of fixed part of StoredValue, plus size of (variable) key.
+        return sizeof(*this) + getKey().getObjectSize();
     }
 
     /**
@@ -496,8 +495,12 @@ private:
           flags(itm.getFlags()),
           deleted(false),
           newCacheItem(true),
-          nru(itm.getNRUValue()),
-          key(itm.getKey()) {
+          nru(itm.getNRUValue()) {
+
+        // Placement-new the key which lives in memory directly after this
+        // object.
+        new (key()) SerialisedDocKey(itm.getKey());
+
         if (isTempInitialItem()) {
             markClean();
         } else {
@@ -512,16 +515,21 @@ private:
         increaseCacheSize(ht, size());
 
         ObjectRegistry::onCreateStoredValue(this);
-        static_assert(offsetof(StoredValue, key) ==
-                      (sizeof(StoredValue) - sizeof(key)),
-                      "key must be the final member of StoredValue");
+    }
+
+    /**
+     * Get the address of item's key .
+     */
+    SerialisedDocKey* key() {
+        // key is located immediately following the object.
+        return reinterpret_cast<SerialisedDocKey*>(this + 1);
     }
 
     /*
      * Return how many bytes are need to store Item as a StoredValue
      */
     static size_t getRequiredStorage(const Item& item) {
-        return sizeof(StoredValue) - sizeof(SerialisedDocKey) +
+        return sizeof(StoredValue) +
                SerialisedDocKey::getObjectSize(item.getKey().size());
     }
 
@@ -543,7 +551,6 @@ private:
     bool               deleted   :  1;
     bool               newCacheItem : 1;
     uint8_t            nru       :  2; //!< True if referenced since last sweep
-    SerialisedDocKey key; //!< The key itself.
 
     static void increaseMetaDataSize(HashTable &ht, EPStats &st, size_t by);
     static void reduceMetaDataSize(HashTable &ht, EPStats &st, size_t by);

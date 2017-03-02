@@ -45,7 +45,7 @@ public:
 
     /// Returns the number of bytes in the Fixed part of StoredValue
     static size_t getStoredValueFixedSize() {
-        return offsetof(StoredValue, key);
+        return sizeof(StoredValue);
     }
 
     /// Allow testing access to StoredValue::getRequiredStorage
