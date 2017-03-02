@@ -63,14 +63,14 @@ protected:
 
 // Check that the size calculation methods return the expected sizes.
 
-TEST_F(StoredValueTest, DISABLED_getObjectSize) {
+TEST_F(StoredValueTest, getObjectSize) {
     // Check the size are as expected: Fixed size of StoredValue, plus 3 bytes
     // for 'key', 1 byte for length of key and 1 byte for StoredDocKey namespace.
     EXPECT_EQ(getStoredValueFixedSize() + /*key*/3 + /*len*/1 + /*namespace*/1,
               sv->getObjectSize());
 }
 
-TEST_F(StoredValueTest, DISABLED_metaDataSize) {
+TEST_F(StoredValueTest, metaDataSize) {
     // Check metadata size reports correctly.
     EXPECT_EQ(getStoredValueFixedSize() + /*key*/3 + /*len*/1 + /*namespace*/1,
               sv->metaDataSize());
@@ -83,7 +83,7 @@ TEST_F(StoredValueTest, valuelen) {
                "meta";
 }
 
-TEST_F(StoredValueTest, DISABLED_size) {
+TEST_F(StoredValueTest, size) {
     // Check size reports correctly.
     EXPECT_EQ(getStoredValueFixedSize() + /*key*/ 3 + /*len*/ 1 +
                       /*namespace*/ 1 + /*valuelen*/ 5 + /*extmeta*/ 2,

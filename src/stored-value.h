@@ -341,11 +341,11 @@ public:
      * @return the amount of memory used by this item.
      */
     size_t size() const {
-        return sizeof(StoredValue) + key.size() + valuelen();
+        return getObjectSize() + valuelen();
     }
 
     size_t metaDataSize() const {
-        return sizeof(StoredValue) + key.size();
+        return getObjectSize();
     }
 
     /**
@@ -464,7 +464,10 @@ public:
     }
 
     size_t getObjectSize() const {
-        return sizeof(*this) + key.getObjectSize();
+        // Size of fixed part of StoredValue, plus size of (variable) key,
+        // minus the fixed part of key - which is already included in fixed
+        // part of StoredValue.
+        return sizeof(*this) - sizeof(this->key) + key.getObjectSize();
     }
 
     /**
@@ -518,7 +521,8 @@ private:
      * Return how many bytes are need to store Item as a StoredValue
      */
     static size_t getRequiredStorage(const Item& item) {
-        return sizeof(StoredValue) + SerialisedDocKey::getObjectSize(item.getKey().size());
+        return sizeof(StoredValue) - sizeof(SerialisedDocKey) +
+               SerialisedDocKey::getObjectSize(item.getKey().size());
     }
 
     friend class HashTable;

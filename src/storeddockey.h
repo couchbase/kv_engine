@@ -258,6 +258,10 @@ protected:
         std::memcpy(bytes, key.data(), key.size());
     }
 
+    /**
+     * Returns the size in bytes of this object - fixed size plus the variable
+     * length for the bytes making up the key.
+     */
     static size_t getObjectSize(size_t len) {
         return sizeof(SerialisedDocKey) + len - sizeof(SerialisedDocKey().bytes);
     }
