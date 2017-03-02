@@ -2001,16 +2001,23 @@ static enum test_result test_cas_options_and_nmeta(ENGINE_HANDLE *h,
     // Watson (4.6) accepts valid encodings, but ignores them
     std::vector<char> junkMeta = {-2,-1,2,3};
 
+    int force = 0;
+
+    if (strstr(testHarness.get_current_testcase()->cfg,
+               "conflict_resolution_type=lww") != nullptr) {
+        force = FORCE_ACCEPT_WITH_META_OPS;
+    }
+
     // Set the key and junk nmeta
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0,
-                  FORCE_ACCEPT_WITH_META_OPS, PROTOCOL_BINARY_RAW_BYTES,
+                  force, PROTOCOL_BINARY_RAW_BYTES,
                   nullptr, junkMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected EINVAL");
 
     // Set the key and junk nmeta that's quite large
     junkMeta.resize(std::numeric_limits<uint16_t>::max());
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0,
-                  FORCE_ACCEPT_WITH_META_OPS, PROTOCOL_BINARY_RAW_BYTES,
+                  force, PROTOCOL_BINARY_RAW_BYTES,
                   nullptr, junkMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected EINVAL");
 
@@ -2058,14 +2065,14 @@ static enum test_result test_cas_options_and_nmeta(ENGINE_HANDLE *h,
 
         // Set the key with a low CAS value and real nmeta
         set_with_meta(h, h1, "key1", 4, nullptr, 0, 0, &itemMeta, 0,
-                      FORCE_ACCEPT_WITH_META_OPS, PROTOCOL_BINARY_RAW_BYTES,
+                      force, PROTOCOL_BINARY_RAW_BYTES,
                       nullptr, validMetaVector);
         checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
                 "Expected success");
 
         itemMeta.cas++;
         del_with_meta(h, h1, "key1", 4, 0, &itemMeta, 0,
-                      FORCE_ACCEPT_WITH_META_OPS, nullptr, validMetaVector);
+                      force, nullptr, validMetaVector);
         checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
                 "Expected success");
     }
@@ -2080,14 +2087,14 @@ static enum test_result test_cas_options_and_nmeta(ENGINE_HANDLE *h,
 
         // Set the key with a low CAS value and real nmeta
         set_with_meta(h, h1, "key2", 4, nullptr, 0, 0, &itemMeta, 0,
-                      FORCE_ACCEPT_WITH_META_OPS, PROTOCOL_BINARY_RAW_BYTES,
+                      force, PROTOCOL_BINARY_RAW_BYTES,
                       nullptr, validMetaVector);
         checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
                 "Expected success");
 
         itemMeta.cas++;
         del_with_meta(h, h1, "key2", 4, 0, &itemMeta, 0,
-                      FORCE_ACCEPT_WITH_META_OPS, nullptr, validMetaVector);
+                      force, nullptr, validMetaVector);
         checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
                 "Expected success");
     }
@@ -2104,14 +2111,14 @@ static enum test_result test_cas_options_and_nmeta(ENGINE_HANDLE *h,
 
         // Set the key with a low CAS value and real nmeta
         set_with_meta(h, h1, "key3", 4, nullptr, 0, 0, &itemMeta, 0,
-                      FORCE_ACCEPT_WITH_META_OPS, PROTOCOL_BINARY_RAW_BYTES,
+                      force, PROTOCOL_BINARY_RAW_BYTES,
                       nullptr, validMetaVector);
         checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
                 "Expected success");
 
         itemMeta.cas++;
         del_with_meta(h, h1, "key3", 4, 0, &itemMeta, 0,
-                      FORCE_ACCEPT_WITH_META_OPS, nullptr, validMetaVector);
+                      force, nullptr, validMetaVector);
         checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
                 "Expected success");
     }
@@ -2128,14 +2135,14 @@ static enum test_result test_cas_options_and_nmeta(ENGINE_HANDLE *h,
 
         // Set the key with a low CAS value and real nmeta
         set_with_meta(h, h1, "key4", 4, NULL, 0, 0, &itemMeta, 0,
-                      FORCE_ACCEPT_WITH_META_OPS, PROTOCOL_BINARY_RAW_BYTES,
+                      force, PROTOCOL_BINARY_RAW_BYTES,
                       nullptr, validMetaVector);
         checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
                 "Expected success");
 
         itemMeta.cas++;
         del_with_meta(h, h1, "key4", 4, 0, &itemMeta, 0,
-                      FORCE_ACCEPT_WITH_META_OPS, nullptr, validMetaVector);
+                      force, nullptr, validMetaVector);
         checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
                 "Expected success");
     }
@@ -2271,9 +2278,13 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test CAS regeneration seqno del_with_meta seqno",
                  test_cas_regeneration_del_with_meta, test_setup, teardown,
                  "conflict_resolution_type=seqno", prepare, cleanup),
-        TestCase("test CAS options and nmeta",
+        TestCase("test CAS options and nmeta (lww)",
                  test_cas_options_and_nmeta, test_setup, teardown,
                  "conflict_resolution_type=lww",
+                 prepare, cleanup),
+        TestCase("test CAS options and nmeta (seqno)",
+                 test_cas_options_and_nmeta, test_setup, teardown,
+                 "conflict_resolution_type=seqno",
                  prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
