@@ -29,6 +29,7 @@
 // Forward declaration for StoredValue
 class HashTable;
 class StoredValueFactory;
+class StoredValueTest;
 
 /**
  * In-memory storage for an item.
@@ -522,6 +523,7 @@ private:
 
     friend class HashTable;
     friend class StoredValueFactory;
+    friend class StoredValueTest; // Needs to introspect layout of this class.
 
     value_t            value;          // 8 bytes
     // Used to implement HashTable chaining (for elements hashing to the same

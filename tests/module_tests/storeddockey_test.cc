@@ -248,6 +248,13 @@ TEST_P(StoredDocKeyTest, constructFromSerialisedDocKey) {
     EXPECT_EQ(serialKey->getDocNamespace(), key2.getDocNamespace());
 }
 
+TEST_P(StoredDocKeyTest, getObjectSize) {
+    auto key1 = SerialisedDocKey::make({"key_of_15_chars", GetParam()});
+
+    // Should be 15 bytes plus 1 byte namespace and 1 byte for length.
+    EXPECT_EQ(15 + 1 + 1, key1->getObjectSize());
+}
+
 static std::vector<DocNamespace> allDocNamespaces = {
         {DocNamespace::DefaultCollection,
          DocNamespace::Collections,
