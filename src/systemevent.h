@@ -104,10 +104,13 @@ public:
      * @param itemSize The returned Item can be requested to allocate a value
      *        of itemSize. Some SystemEvents will update the value with data to
      *        be persisted/replicated.
+     * @param seqno An OptionalSeqno - if defined the returned Item will have
+     *        the seqno value set as its bySeqno.
      */
     static std::unique_ptr<Item> make(SystemEvent se,
                                       const std::string& keyExtra,
-                                      size_t itemSize);
+                                      size_t itemSize,
+                                      OptionalSeqno seqno);
 };
 
 enum class SystemEventFlushStatus { Skip, Continue };

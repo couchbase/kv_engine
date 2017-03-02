@@ -2184,15 +2184,21 @@ inline void VBucket::notifyNewSeqno(const VBNotifyCtx& notifyCtx) {
  * Queue the item to the checkpoint and return the seqno the item was
  * allocated.
  */
-int64_t VBucket::queueItem(Item* item) {
+int64_t VBucket::queueItem(Item* item, OptionalSeqno seqno) {
     item->setVBucketId(id);
     queued_item qi(item);
     checkpointManager.queueDirty(
             *this,
             qi,
-            GenerateBySeqno::Yes,
+            seqno ? GenerateBySeqno::No : GenerateBySeqno::Yes,
             GenerateCas::Yes,
             nullptr /* No pre link step as this is for system events */);
+    VBNotifyCtx notifyCtx;
+    // If the seqno is initialized, skip replication notification
+    notifyCtx.notifyReplication = !seqno.is_initialized();
+    notifyCtx.notifyFlusher = true;
+    notifyCtx.bySeqno = qi->getBySeqno();
+    notifyNewSeqno(notifyCtx);
     return qi->getBySeqno();
 }
 

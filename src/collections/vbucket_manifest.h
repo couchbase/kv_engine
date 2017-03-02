@@ -142,6 +142,61 @@ public:
             manifest.completeDeletion(vb, collection, revision);
         }
 
+        /**
+         * Add a collection for a replica VB, this is for receiving
+         * collection updates via DCP and the collection already has a start
+         * seqno assigned.
+         *
+         * @param vb The vbucket to add the collection to.
+         * @param collection Name of the new collection.
+         * @param revision Manifest revision which added the collection.
+         * @param startSeqno The start-seqno assigned to the collection.
+         */
+        void replicaAdd(::VBucket& vb,
+                        cb::const_char_buffer collection,
+                        uint32_t revision,
+                        int64_t startSeqno) {
+            manifest.addCollection(
+                    vb, collection, revision, OptionalSeqno{startSeqno});
+        }
+
+        /**
+         * Begin a delete collection for a replica VB, this is for receiving
+         * collection updates via DCP and the collection already has an end
+         * seqno assigned.
+         *
+         * @param vb The vbucket to begin collection deletion on.
+         * @param collection Name of the deleted collection.
+         * @param revision manifest revision which started the deletion.
+         * @param endSeqno The end-seqno assigned to the end collection.
+         */
+        void replicaBeginDelete(::VBucket& vb,
+                                cb::const_char_buffer collection,
+                                uint32_t revision,
+                                int64_t endSeqno) {
+            manifest.beginCollectionDelete(
+                    vb, collection, revision, OptionalSeqno{endSeqno});
+        }
+
+        /**
+         * Change the separator for a replica VB, this is for receiving
+         * collection updates via DCP and the event already has an end seqno
+         * assigned.
+         *
+         * @param vb The vbucket to begin collection deletion on.
+         * @param separator The new separator.
+         * @param revision manifest revision which changed the separator.
+         * @param seqno The seqno orginally assigned to the active's system
+         * event.
+         */
+        void replicaChangeSeparator(::VBucket& vb,
+                                    cb::const_char_buffer separator,
+                                    uint32_t revision,
+                                    int64_t seqno) {
+            manifest.changeSeparator(
+                    vb, separator, revision, OptionalSeqno{seqno});
+        }
+
     private:
         std::unique_lock<cb::WriterLock> writeLock;
         Manifest& manifest;
@@ -206,6 +261,34 @@ public:
                                     cb::const_char_buffer buffer,
                                     int64_t finalEntrySeqno);
 
+    /**
+     * Get the system event data from a SystemEvent, that is the information
+     * that DCP would require to send a SystemEvent to a client.
+     *
+     * @param serialisedManifest Serialised manifest data created by
+     *        ::populateWithSerialisedData
+     * @returns a pair of buffers. The first buffer contains a pointer to
+     *          the collection name, the second buffer contains the revision.
+     *          Both buffers are pointing to data inside of the input param.
+     */
+    static std::pair<cb::const_char_buffer, cb::const_byte_buffer>
+    getSystemEventData(cb::const_char_buffer serialisedManifest);
+
+    /**
+     * Get the system event data from a SystemEvent, that is the information
+     * that DCP would require to send a SystemEvent to a client.
+     *
+     * This particular function returns separator changed data.
+     *
+     * @param serialisedManifest Serialised manifest data created by
+     *        ::populateWithSerialisedData
+     * @returns a pair of buffers. The first buffer contains a pointer to
+     *          the separator, the second buffer contains the revision.
+     *          Both buffers are pointing to data inside of the input param.
+     */
+    static std::pair<cb::const_char_buffer, cb::const_byte_buffer>
+    getSystemEventSeparatorData(cb::const_char_buffer serialisedManifest);
+
 private:
 
     /**
@@ -232,6 +315,48 @@ private:
      * @param manifest The incoming manifest to compare this object with.
      */
     void update(::VBucket& vb, const Collections::Manifest& manifest);
+
+    /**
+     * Add a collection to the manifest.
+     *
+     * @param vb The vbucket to add the collection to.
+     * @param collection Name of the new collection.
+     * @param revision manifest revision which added the collection.
+     * @param optionalSeqno Either a seqno to assign to the new collection or
+     *        none (none means the checkpoint will assign a seqno).
+     */
+    void addCollection(::VBucket& vb,
+                       cb::const_char_buffer collection,
+                       uint32_t revision,
+                       OptionalSeqno optionalSeqno);
+
+    /**
+     * Begin a delete of the collection.
+     *
+     * @param vb The vbucket to begin collection deletion on.
+     * @param collection Name of the deleted collection.
+     * @param revision manifest revision which started the deletion.
+     * @param optionalSeqno Either a seqno to assign to the delete of the
+     *        collection or none (none means the checkpoint assigns the seqno).
+     */
+    void beginCollectionDelete(::VBucket& vb,
+                               cb::const_char_buffer collection,
+                               uint32_t revision,
+                               OptionalSeqno optionalSeqno);
+
+    /**
+     * Change the separator.
+     *
+     * @param vb The vbucket to begin collection deletion on.
+     * @param separator The new separator.
+     * @param revision manifest revision which changed the separator.
+     * @param optionalSeqno Either a seqno to assign to the change event or none
+     *        (none means the checkpoint assigns the seqno).
+     */
+    void changeSeparator(::VBucket& vb,
+                         cb::const_char_buffer separator,
+                         uint32_t revision,
+                         OptionalSeqno optionalSeqno);
 
     /**
      * Complete the deletion of a collection.
@@ -262,23 +387,24 @@ private:
 
 protected:
     /**
-     * Add a collection to the manifest specifing the Collections::Manifest
-     * revision that it was seen in and the sequence number for the point in
-     * 'time' it was created.
+     * Add a collection entry to the manifest specifing the revision that it was
+     * seen in and the sequence number for the point in 'time' it was created.
      *
      * @param collection Name of the collection to add.
      * @param revision The revision of the Collections::Manifest triggering this
      *        add.
-     * @param seqno The seqno of an Item which represents the creation event.
+     * @param startSeqno The seqno of an Item which represents the creation
+     *        event.
+     * @param endSeqno
      */
-    void addCollection(cb::const_char_buffer collection,
-                       uint32_t revision,
-                       int64_t startSeqno,
-                       int64_t endSeqno);
+    void addCollectionEntry(cb::const_char_buffer collection,
+                            uint32_t revision,
+                            int64_t startSeqno,
+                            int64_t endSeqno);
 
     /**
-     * Begin the deletion process by marking the collection with the seqno that
-     * represents its end.
+     * Begin the deletion process by marking the collection entry with the seqno
+     * that represents its end.
      *
      * After "begin" delete a collection can be added again or fully deleted
      * by the completeDeletion method.
@@ -288,9 +414,9 @@ protected:
      * @param seqno The seqno of the deleted event mutation for the collection
      *        deletion,
      */
-    void beginDelCollection(cb::const_char_buffer collection,
-                            uint32_t revision,
-                            int64_t seqno);
+    void beginDeleteCollectionEntry(cb::const_char_buffer collection,
+                                    uint32_t revision,
+                                    int64_t seqno);
 
     /**
      * Processs a Collections::Manifest
@@ -313,27 +439,31 @@ protected:
      *
      * @param se SystemEvent to create.
      * @param collection The collection which is changing,
-     * @param revisionForKey the revision which will be appended to the events
-     *        DocKey
      * @param revision Manifest revision triggering the update, this value will
      *        be used for the JSON manifest update (as part of flushing).
-     * @returns The new Item object
+     * @param seqno An optional sequence number. If a seqno is specified, the
+     *        returned item will have its bySeqno set to seqno.
+     *
+     * @returns unique_ptr to a new Item that represents the requested
+     *          SystemEvent.
      */
     std::unique_ptr<Item> createSystemEvent(SystemEvent se,
                                             cb::const_char_buffer collection,
-                                            uint32_t revisionForKey,
-                                            uint32_t revision) const;
+                                            uint32_t revision,
+                                            OptionalSeqno seqno) const;
 
     /**
-     * Create a SystemEvent Item for a CollectionsSeparatorChanged. The Item's
+     * Create a SystemEvent Item for a Separator Changed. The Item's
      * value will contain data for later consumption by serialToJson.
      *
      * @param separator The new separator
      * @param revision The revision of the manifest triggering the change.
      *
-     * @returns The new Item object
+     * @returns unique_ptr to a new Item that represents the requested
+     *          SystemEvent.
      */
-    std::unique_ptr<Item> createSeparatorChangedEvent(uint32_t revision) const;
+    std::unique_ptr<Item> createSeparatorChangedEvent(
+            uint32_t revision, OptionalSeqno seqno) const;
 
     /**
      * Create an Item that carries a system event and queue it to the vb
@@ -342,18 +472,17 @@ protected:
      * @param vb The vbucket onto which the Item is queued.
      * @param se The SystemEvent to create and queue.
      * @param collection The name of the collection being added/deleted
-     * @param revisionForKey The revision which is appended to the Item key to
-     *        ensure a key is unique, and in the case of deletion makes a key
-     *        which matches creation.
      * @param revision The revision of the manifest which triggered the update.
+     * @param seqno An optional seqno which if set will be assigned to the
+     *        system event
      *
      * @returns The sequence number of the queued Item.
      */
     int64_t queueSystemEvent(::VBucket& vb,
                              SystemEvent se,
                              cb::const_char_buffer collection,
-                             uint32_t revisionForKey,
-                             uint32_t revision) const;
+                             uint32_t revision,
+                             OptionalSeqno seqno) const;
 
     /**
      * Create an Item that carries a CollectionsSeparatorChanged system event
@@ -363,7 +492,9 @@ protected:
      * @param revision The revision id of the manifest which changed the
      *        separator.
      */
-    int64_t queueSeparatorChanged(::VBucket& vb, uint32_t revision) const;
+    int64_t queueSeparatorChanged(::VBucket& vb,
+                                  uint32_t revision,
+                                  OptionalSeqno seqno) const;
 
     /**
      * Obtain how many bytes of storage are needed for a serialised copy
@@ -401,8 +532,10 @@ protected:
      * Populate a buffer with the serialised state of this object.
      *
      * @param out A buffer for the data to be written into.
+     * @param revision The Manifest revision we are processing
      */
-    void populateWithSerialisedData(cb::char_buffer out) const;
+    void populateWithSerialisedData(cb::char_buffer out,
+                                    uint32_t revision) const;
 
     /**
      * @returns the string for the given key from the cJSON object.

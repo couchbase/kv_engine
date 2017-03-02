@@ -20,6 +20,8 @@
 #include <string>
 #include <type_traits>
 
+#include <boost/optional/optional.hpp>
+
 enum class GenerateBySeqno {
     No, Yes
 };
@@ -101,3 +103,6 @@ enum class GetMetaVersion : uint8_t {
     V1 = 1, // returns deleted, flags, expiry and seqno
     V2 = 2, // The 'spock' version returns V1 + the datatype
 };
+
+/// Allow for methods to optionally accept a seqno
+using OptionalSeqno = boost::optional<int64_t>;

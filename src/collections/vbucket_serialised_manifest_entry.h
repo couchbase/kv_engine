@@ -25,6 +25,8 @@
 namespace Collections {
 namespace VB {
 
+class SerialisedManifestEntry;
+
 /**
  * A VB::Manifest is serialised into an Item when it is updated. The
  * Item carries a copy of the VB::Manifest down to the flusher so that
@@ -61,6 +63,26 @@ public:
         return {getSeparatorPtr(), separatorLen};
     }
 
+    cb::const_char_buffer getSeparatorBuffer() const {
+        return {getSeparatorPtr(), separatorLen};
+    }
+
+    cb::const_byte_buffer getRevisionBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(&revision), sizeof(revision)};
+    }
+
+    /**
+     * For code to locate the final entry this function is used to calculate
+     * a byte offset so that getFinalManifestEntry can return the final entry
+     * without any iteration.
+     *
+     * @param sme pointer to the final entry constructed in the serial manifest.
+     */
+    void calculateFinalEntryOffest(const SerialisedManifestEntry* sme) {
+        finalEntryOffset =
+                reinterpret_cast<const char*>(sme) - getManifestEntryBuffer();
+    }
+
     /**
      * Return a non const pointer to where the entries can be written
      */
@@ -75,21 +97,40 @@ public:
         return getSeparatorPtr() + separatorLen;
     }
 
+    /**
+     * Return the final entry in the SerialManifest - this entry is always the
+     * entry which is being created or deleted. DCP event generation can use
+     * this method to obtain the data needed to send to replicas.
+     *
+     * @return The entry which is being added or removed.
+     */
+    const SerialisedManifestEntry* getFinalManifestEntry() const {
+        return reinterpret_cast<const SerialisedManifestEntry*>(
+                getManifestEntryBuffer() + finalEntryOffset);
+    }
+
 private:
 
     friend Collections::VB::Manifest;
-    static SerialisedManifest* make(char* address, const std::string& separator, cb::char_buffer out) {
-        return new (address) SerialisedManifest(separator, out);
+    static SerialisedManifest* make(char* address,
+                                    const std::string& separator,
+                                    uint32_t revision,
+                                    cb::char_buffer out) {
+        return new (address) SerialisedManifest(separator, revision, out);
     }
 
     /**
      * Construct a SerialisedManifest to have 0 items and the separator string.
      *
      * @param separator The separator for the manifest
+     * @param revision The revision of the manifest which triggered the
+     *        creation of this serialised version.
      * @param out The buffer into which this object is being constructed
      * @throws length_error if the consruction would access outside of out
      */
-    SerialisedManifest(const std::string& separator, cb::char_buffer out) {
+    SerialisedManifest(const std::string& separator,
+                       uint32_t revision,
+                       cb::char_buffer out) {
         if (!((out.data() + out.size()) >=
               (reinterpret_cast<char*>(this) +
                getObjectSize(separator.size())))) {
@@ -100,6 +141,8 @@ private:
         }
         itemCount = 0;
         separatorLen = separator.size();
+        this->revision = revision;
+        finalEntryOffset = 0;
         std::copy_n(separator.data(), separator.size(), getSeparatorPtr());
     }
 
@@ -113,6 +156,8 @@ private:
 
     uint32_t itemCount;
     uint32_t separatorLen;
+    uint32_t revision;
+    uint32_t finalEntryOffset;
 };
 
 class SerialisedManifestEntry {
@@ -131,8 +176,16 @@ public:
         return getObjectSize(getCollectionNameLen());
     }
 
+    uint32_t getRevision() const {
+        return revision;
+    }
+
     void setRevision(uint32_t rev) {
         revision = rev;
+    }
+
+    cb::const_char_buffer getCollectionName() const {
+        return {getCollectionNamePtr(), size_t(collectionNameLen)};
     }
 
     size_t getCollectionNameLen() const {
@@ -213,7 +266,7 @@ private:
      * @return pointer to the collection name, located at the address after
      *         'this'.
      */
-    char* getCollectionName() {
+    char* getCollectionNamePtr() {
         return reinterpret_cast<char*>(this + 1);
     }
 
@@ -223,7 +276,7 @@ private:
      * @return const pointer to the collection name, located at the address
      *         after 'this'.
      */
-    const char* getCollectionName() const {
+    const char* getCollectionNamePtr() const {
         return reinterpret_cast<const char*>(this + 1);
     }
 
@@ -237,6 +290,8 @@ private:
      * @param startSeqno The startSeqno value to be used
      * @param endSeqno The endSeqno value to be used
      * @param collection The name of the collection to copy-in
+     * @throws std::length_error if the function would write outside of out's
+     *         bounds.
      */
     void tryConstruction(cb::char_buffer out,
                          uint32_t revision,
@@ -255,7 +310,7 @@ private:
         this->startSeqno = startSeqno;
         this->endSeqno = endSeqno;
         this->collectionNameLen = collection.size();
-        std::memcpy(getCollectionName(),
+        std::memcpy(getCollectionNamePtr(),
                     collection.data(),
                     this->collectionNameLen);
     }
@@ -266,11 +321,12 @@ private:
      *
      * @param _startSeqno The startSeqno value to be used
      * @param _endSeqno The endSeqno value to be used
+     * @return A std::string JSON object for this object.
      */
     std::string toJson(int64_t _startSeqno, int64_t _endSeqno) const {
         std::string json =
                 R"({"name":")" +
-                std::string(getCollectionName(), collectionNameLen) +
+                std::string(getCollectionNamePtr(), collectionNameLen) +
                 R"(","revision":")" + std::to_string(revision) + "\"," +
                 R"("startSeqno":")" + std::to_string(_startSeqno) + "\"," +
                 R"("endSeqno":")" + std::to_string(_endSeqno) + "\"}";

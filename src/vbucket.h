@@ -821,10 +821,12 @@ public:
     /**
      * Queue an Item to the checkpoint and return its seqno
      *
-     * @param an Item object to queue, can be any kind of item and will be given
-     *        a CAS and seqno by this function.
+     * @param item an Item object to queue, can be any kind of item and will be
+     *        given a CAS and seqno by this function.
+     * @param seqno An optional sequence number, if not specified checkpoint
+     *        queueing will assign a seqno to the Item.
      */
-    int64_t queueItem(Item* item);
+    int64_t queueItem(Item* item, OptionalSeqno seqno);
 
     /**
      * Insert an item into the VBucket during warmup. If we're trying to insert

@@ -29,10 +29,10 @@ Collections::VB::Manifest::Manifest(const std::string& manifest)
     : defaultCollectionExists(false), separator(DefaultSeparator) {
     if (manifest.empty()) {
         // Empty manifest, initialise the manifest with the default collection
-        addCollection(DefaultCollectionIdentifier,
-                      0,
-                      0,
-                      StoredValue::state_collection_open);
+        addCollectionEntry(DefaultCollectionIdentifier,
+                           0,
+                           0,
+                           StoredValue::state_collection_open);
         return;
     }
 
@@ -68,7 +68,7 @@ Collections::VB::Manifest::Manifest(const std::string& manifest)
         int64_t startSeqno = std::stoll(getJsonEntry(collection, "startSeqno"));
         int64_t endSeqno = std::stoll(getJsonEntry(collection, "endSeqno"));
         std::string collectionName(getJsonEntry(collection, "name"));
-        addCollection(collectionName, revision, startSeqno, endSeqno);
+        addCollectionEntry(collectionName, revision, startSeqno, endSeqno);
     }
 }
 
@@ -78,77 +78,57 @@ void Collections::VB::Manifest::update(::VBucket& vb,
     std::tie(additions, deletions) = processManifest(manifest);
 
     if (separator != manifest.getSeparator()) {
-        // Can we change the separator? Only allowed to change if there are no
-        // collection or the only collection is the default collection
-        if (cannotChangeSeparator()) {
-            std::stringstream ss;
-            ss << *this;
-            throw std::invalid_argument(
-                    "Collections::VB::Manifest::update cannot update separator "
-                    "to " +
-                    manifest.getSeparator() + " " + ss.str());
-        } else {
-            // Change the separator then queue the event so the new separator
-            // is recorded in the serialised manifest
-            separator = manifest.getSeparator();
-
-            // Queue an event so that the manifest is flushed and DCP can
-            // replicate the change.
-            (void)queueSeparatorChanged(vb, manifest.getRevision());
-
-            LOG(EXTENSION_LOG_NOTICE,
-                "Changing collection separator for vb:%" PRIu16
-                ", from:%s, to:%s",
-                vb.getId(),
-                separator.c_str(),
-                manifest.getSeparator().c_str());
-        }
+        changeSeparator(vb,
+                        manifest.getSeparator(),
+                        manifest.getRevision(),
+                        OptionalSeqno{/*no-seqno*/});
     }
 
     // Process additions to the manifest
     for (const auto& collection : additions) {
-        auto seqno = queueSystemEvent(vb,
-                                      SystemEvent::CreateCollection,
-                                      collection,
-                                      manifest.getRevision(),
-                                      manifest.getRevision());
-
-        LOG(EXTENSION_LOG_NOTICE,
-            "Adding collection:%s vb:%" PRIu16 " seqno:%" PRIu64,
-            collection.c_str(),
-            vb.getId(),
-            seqno);
-
-        addCollection(collection,
+        addCollection(vb,
+                      collection,
                       manifest.getRevision(),
-                      seqno,
-                      StoredValue::state_collection_open);
+                      OptionalSeqno{/*no-seqno*/});
     }
 
     // Process deletions to the manifest
     for (const auto& collection : deletions) {
-        auto itr = map.find(collection);
-
-        auto seqno = queueSystemEvent(vb,
-                                      SystemEvent::BeginDeleteCollection,
-                                      collection,
-                                      itr->second->getRevision(),
-                                      manifest.getRevision());
-
-        LOG(EXTENSION_LOG_NOTICE,
-            "Begin delete of collection:%s vb:%" PRIu16 " seqno:%" PRIu64,
-            collection.c_str(),
-            vb.getId(),
-            seqno);
-
-        beginDelCollection(collection, manifest.getRevision(), seqno);
+        beginCollectionDelete(vb,
+                              collection,
+                              manifest.getRevision(),
+                              OptionalSeqno{/*no-seqno*/});
     }
 }
 
-void Collections::VB::Manifest::addCollection(cb::const_char_buffer collection,
+void Collections::VB::Manifest::addCollection(::VBucket& vb,
+                                              cb::const_char_buffer collection,
                                               uint32_t revision,
-                                              int64_t startSeqno,
-                                              int64_t endSeqno) {
+                                              OptionalSeqno optionalSeqno) {
+    auto seqno = queueSystemEvent(vb,
+                                  SystemEvent::CreateCollection,
+                                  collection,
+                                  revision,
+                                  optionalSeqno);
+
+    LOG(EXTENSION_LOG_NOTICE,
+        "collections: vb:%" PRIu16 " adding collection:%.*s, revision:%" PRIu32
+        ", seqno:%" PRIu64,
+        vb.getId(),
+        int(collection.size()),
+        collection.data(),
+        revision,
+        seqno);
+
+    addCollectionEntry(
+            collection, revision, seqno, StoredValue::state_collection_open);
+}
+
+void Collections::VB::Manifest::addCollectionEntry(
+        cb::const_char_buffer collection,
+        uint32_t revision,
+        int64_t startSeqno,
+        int64_t endSeqno) {
     auto itr = map.find(collection);
     if (itr == map.end()) {
         auto m = std::make_unique<Collections::VB::ManifestEntry>(
@@ -171,7 +151,31 @@ void Collections::VB::Manifest::addCollection(cb::const_char_buffer collection,
     }
 }
 
-void Collections::VB::Manifest::beginDelCollection(
+void Collections::VB::Manifest::beginCollectionDelete(
+        ::VBucket& vb,
+        cb::const_char_buffer collection,
+        uint32_t revision,
+        OptionalSeqno optionalSeqno) {
+    auto seqno = queueSystemEvent(vb,
+                                  SystemEvent::BeginDeleteCollection,
+                                  collection,
+                                  revision,
+                                  optionalSeqno);
+
+    LOG(EXTENSION_LOG_NOTICE,
+        "collections: vb:%" PRIu16
+        " begin delete of collection:%.*s, revision:%" PRIu32
+        ", seqno:%" PRIu64,
+        vb.getId(),
+        int(collection.size()),
+        collection.data(),
+        revision,
+        seqno);
+
+    beginDeleteCollectionEntry(collection, revision, seqno);
+}
+
+void Collections::VB::Manifest::beginDeleteCollectionEntry(
         cb::const_char_buffer collection, uint32_t revision, int64_t seqno) {
     auto itr = map.find(collection);
     if (itr != map.end()) {
@@ -193,6 +197,14 @@ void Collections::VB::Manifest::completeDeletion(
         ::VBucket& vb, cb::const_char_buffer collection, uint32_t revision) {
     auto itr = map.find(collection);
 
+    LOG(EXTENSION_LOG_NOTICE,
+        "collections: vb:%" PRIu16
+        " complete delete of collection:%.*s, revision:%" PRIu32,
+        vb.getId(),
+        int(collection.size()),
+        collection.data(),
+        revision);
+
     if (itr == map.end()) {
         throw std::logic_error("completeDeletion: could not find collection:" +
                                cb::to_string(collection));
@@ -200,29 +212,62 @@ void Collections::VB::Manifest::completeDeletion(
 
     if (itr->second->isExclusiveDeleting()) {
         // When we find that the collection is not open, we can hard delete it.
-        // This means we are purging it completly from the manifest and will
+        // This means we are purging it completely from the manifest and will
         // generate a JSON manifest without an entry for the collection.
         queueSystemEvent(vb,
                          SystemEvent::DeleteCollectionHard,
                          collection,
                          revision,
-                         revision);
+                         OptionalSeqno{/*none*/});
         map.erase(itr);
     } else if (itr->second->isOpenAndDeleting()) {
         // When we find that the collection open and deleting we can soft delete
-        // it. This means we are just adjust the endseqno so that the entry
+        // it. This means we are just adjusting the endseqno so that the entry
         // returns true for isExclusiveOpen()
         queueSystemEvent(vb,
                          SystemEvent::DeleteCollectionSoft,
                          collection,
                          itr->second->getRevision(),
-                         itr->second->getRevision());
+                         OptionalSeqno{/*none*/});
         itr->second->resetEndSeqno(); // and reset the end to our special seqno
     } else {
         // This is an invalid request
         std::stringstream ss;
         ss << *itr->second;
         throw std::logic_error("completeDeletion: cannot delete:" + ss.str());
+    }
+}
+
+void Collections::VB::Manifest::changeSeparator(
+        ::VBucket& vb,
+        cb::const_char_buffer newSeparator,
+        uint32_t revision,
+        OptionalSeqno optionalSeqno) {
+    // Can we change the separator? Only allowed to change if there are no
+    // collections or the only collection is the default collection
+    if (cannotChangeSeparator()) {
+        std::stringstream ss;
+        ss << *this;
+        throw std::logic_error(
+                "Collections::VB::Manifest::changeSeparator cannot change "
+                "separator to " +
+                cb::to_string(newSeparator) + " " + ss.str());
+    } else {
+        LOG(EXTENSION_LOG_NOTICE,
+            "collections: vb:%" PRIu16
+            " changing collection separator from:%s, to:%*.s",
+            vb.getId(),
+            separator.c_str(),
+            int(newSeparator.size()),
+            newSeparator.data());
+
+        // Change the separator then queue the event so the new separator
+        // is recorded in the serialised manifest
+        separator = std::string(newSeparator.data(), newSeparator.size());
+
+        // Queue an event so that the manifest is flushed and DCP can
+        // replicate the change.
+        (void)queueSeparatorChanged(vb, revision, optionalSeqno);
     }
 }
 
@@ -277,8 +322,8 @@ bool Collections::VB::Manifest::doesKeyContainValidCollection(
 std::unique_ptr<Item> Collections::VB::Manifest::createSystemEvent(
         SystemEvent se,
         cb::const_char_buffer collection,
-        uint32_t revisionForKey,
-        uint32_t revision) const {
+        uint32_t revision,
+        OptionalSeqno seqno) const {
     // Create an item (to be queued and written to disk) that represents
     // the update of a collection and allows the checkpoint to update
     // the _local document with a persisted version of this object (the entire
@@ -288,8 +333,9 @@ std::unique_ptr<Item> Collections::VB::Manifest::createSystemEvent(
 
     auto item = SystemEventFactory::make(
             se,
-            cb::to_string(collection) + std::to_string(revisionForKey),
-            getSerialisedDataSize(collection));
+            cb::to_string(collection) + std::to_string(revision),
+            getSerialisedDataSize(collection),
+            seqno);
 
     // Quite rightly an Item's value is const, but in this case the Item is
     // owned only by the local scope so is safe to mutate (by const_cast force)
@@ -302,7 +348,7 @@ std::unique_ptr<Item> Collections::VB::Manifest::createSystemEvent(
 }
 
 std::unique_ptr<Item> Collections::VB::Manifest::createSeparatorChangedEvent(
-        uint32_t revision) const {
+        uint32_t revision, OptionalSeqno seqno) const {
     // Create an item (to be queued and written to disk) that represents
     // the change of the separator. We serialise the state of this object
     // into the Item's value.
@@ -310,12 +356,13 @@ std::unique_ptr<Item> Collections::VB::Manifest::createSeparatorChangedEvent(
     auto item =
             SystemEventFactory::make(SystemEvent::CollectionsSeparatorChanged,
                                      separator + std::to_string(revision),
-                                     getSerialisedDataSize());
+                                     getSerialisedDataSize(),
+                                     seqno);
 
     // Quite rightly an Item's value is const, but in this case the Item is
     // owned only by the local scope so is safe to mutate (by const_cast force)
     populateWithSerialisedData(
-            {const_cast<char*>(item->getData()), item->getNBytes()});
+            {const_cast<char*>(item->getData()), item->getNBytes()}, revision);
 
     return item;
 }
@@ -324,18 +371,18 @@ int64_t Collections::VB::Manifest::queueSystemEvent(
         ::VBucket& vb,
         SystemEvent se,
         cb::const_char_buffer collection,
-        uint32_t revisionForKey,
-        uint32_t revision) const {
+        uint32_t revision,
+        OptionalSeqno seq) const {
     // Create and transfer Item ownership to the VBucket
     return vb.queueItem(
-            createSystemEvent(se, collection, revisionForKey, revision)
-                    .release());
+            createSystemEvent(se, collection, revision, seq).release(), seq);
 }
 
 int64_t Collections::VB::Manifest::queueSeparatorChanged(
-        ::VBucket& vb, uint32_t revision) const {
+        ::VBucket& vb, uint32_t revision, OptionalSeqno seqno) const {
     // Create and transfer Item ownership to the VBucket
-    return vb.queueItem(createSeparatorChangedEvent(revision).release());
+    return vb.queueItem(createSeparatorChangedEvent(revision, seqno).release(),
+                        seqno);
 }
 
 size_t Collections::VB::Manifest::getSerialisedDataSize(
@@ -369,7 +416,7 @@ void Collections::VB::Manifest::populateWithSerialisedData(
         cb::char_buffer out,
         cb::const_char_buffer collection,
         uint32_t revision) const {
-    auto* sMan = SerialisedManifest::make(out.data(), separator, out);
+    auto* sMan = SerialisedManifest::make(out.data(), separator, revision, out);
     uint32_t itemCounter = 1; // always a final entry
     char* serial = sMan->getManifestEntryBuffer();
 
@@ -389,22 +436,25 @@ void Collections::VB::Manifest::populateWithSerialisedData(
         }
     }
 
+    SerialisedManifestEntry* finalSme = nullptr;
     if (finalEntry) {
         // delete
-        auto* sme =
+        finalSme =
                 SerialisedManifestEntry::make(serial, *finalEntry->get(), out);
-        sme->setRevision(revision);
+        finalSme->setRevision(revision);
     } else {
         // create
-        (void)SerialisedManifestEntry::make(serial, revision, collection, out);
+        finalSme = SerialisedManifestEntry::make(
+                serial, revision, collection, out);
     }
 
     sMan->setEntryCount(itemCounter);
+    sMan->calculateFinalEntryOffest(finalSme);
 }
 
 void Collections::VB::Manifest::populateWithSerialisedData(
-        cb::char_buffer out) const {
-    auto* sMan = SerialisedManifest::make(out.data(), separator, out);
+        cb::char_buffer out, uint32_t revision) const {
+    auto* sMan = SerialisedManifest::make(out.data(), separator, revision, out);
     char* serial = sMan->getManifestEntryBuffer();
 
     for (const auto& collectionEntry : map) {
@@ -503,6 +553,23 @@ bool Collections::VB::Manifest::cannotChangeSeparator() const {
     }
 
     return false;
+}
+
+std::pair<cb::const_char_buffer, cb::const_byte_buffer>
+Collections::VB::Manifest::getSystemEventData(
+        cb::const_char_buffer serialisedManifest) {
+    const auto* sm = reinterpret_cast<const SerialisedManifest*>(
+            serialisedManifest.data());
+    const auto* sme = sm->getFinalManifestEntry();
+    return std::make_pair(sme->getCollectionName(), sm->getRevisionBuffer());
+}
+
+std::pair<cb::const_char_buffer, cb::const_byte_buffer>
+Collections::VB::Manifest::getSystemEventSeparatorData(
+        cb::const_char_buffer serialisedManifest) {
+    const auto* sm = reinterpret_cast<const SerialisedManifest*>(
+            serialisedManifest.data());
+    return std::make_pair(sm->getSeparatorBuffer(), sm->getRevisionBuffer());
 }
 
 std::ostream& Collections::VB::operator<<(

@@ -87,13 +87,18 @@ public:
             auto itr = map.find(entry.getCollectionName());
             const auto& myEntry = *itr->second;
             return myEntry.getStartSeqno() == entry.getStartSeqno() &&
-                   myEntry.getEndSeqno() == entry.getEndSeqno();
+                   myEntry.getEndSeqno() == entry.getEndSeqno() &&
+                   myEntry.getRevision() == entry.getRevision();
         }
         return false;
     }
 
     bool operator==(const MockVBManifest& rhs) const {
         std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
+        if (rhs.size() != size()) {
+            return false;
+        }
+        // Check all collections match
         for (const auto& e : map) {
             if (!rhs.compareEntry(*e.second)) {
                 return false;
@@ -121,18 +126,13 @@ protected:
     }
 };
 
-class VBucketManifestTest : public ::testing::Test {
+/**
+ * Test class that owns an active and replica manifest.
+ * Updates applied to the active are applied to the replica by processing
+ * the active's checkpoint.
+ */
+class ActiveReplicaManifest {
 public:
-    // An enum to determine how to check the seqno as it's not wise to encode
-    // explicit value checks.
-    enum class CollectionState {
-        Open,
-        ExclusiveOpen,
-        Deleting,
-        ExclusiveDeleting,
-        OpenAndDeleting
-    };
-
     /// Dummy callback to replace the flusher callback so we can create VBuckets
     class DummyCB : public Callback<uint16_t> {
     public:
@@ -143,405 +143,564 @@ public:
         }
     };
 
-    VBucketManifestTest()
-        : vbm(),
-          vbucket(0,
-                  vbucket_state_active,
-                  global_stats,
-                  checkpoint_config,
-                  /*kvshard*/ nullptr,
-                  /*lastSeqno*/ 0,
-                  /*lastSnapStart*/ 0,
-                  /*lastSnapEnd*/ 0,
-                  /*table*/ nullptr,
-                  std::make_shared<DummyCB>(),
-                  /*newSeqnoCb*/ nullptr,
-                  config,
-                  VALUE_ONLY) {
+    ActiveReplicaManifest()
+        : active(),
+          replica(),
+          vbA(0,
+              vbucket_state_active,
+              global_stats,
+              checkpoint_config,
+              /*kvshard*/ nullptr,
+              /*lastSeqno*/ 0,
+              /*lastSnapStart*/ 0,
+              /*lastSnapEnd*/ 0,
+              /*table*/ nullptr,
+              std::make_shared<DummyCB>(),
+              /*newSeqnoCb*/ nullptr,
+              config,
+              VALUE_ONLY),
+          vbR(1,
+              vbucket_state_replica,
+              global_stats,
+              checkpoint_config,
+              /*kvshard*/ nullptr,
+              /*lastSeqno*/ 0,
+              /*lastSnapStart*/ 0,
+              /*lastSnapEnd*/ snapEnd,
+              /*table*/ nullptr,
+              std::make_shared<DummyCB>(),
+              /*newSeqnoCb*/ nullptr,
+              config,
+              VALUE_ONLY) {
     }
 
-    queued_item getLastSystemEvent() {
+    ::testing::AssertionResult update(const char* json) {
+        try {
+            active.wlock().update(vbA, {json});
+        } catch (std::exception& e) {
+            return ::testing::AssertionFailure()
+                   << "Exception thrown for update with " << json
+                   << ", e.what:" << e.what();
+        }
+        queued_item manifest;
+        try {
+            manifest = applyCheckpointEventsToReplica();
+        } catch (std::exception& e) {
+            return ::testing::AssertionFailure()
+                   << "Exception thrown for replica update, e.what:"
+                   << e.what();
+        }
+        if (active != replica) {
+            return ::testing::AssertionFailure()
+                   << "active doesn't match replica active:\n"
+                   << active << " replica:\n"
+                   << replica;
+        }
+        return checkJson(*manifest);
+    }
+
+    ::testing::AssertionResult completeDeletion(const std::string& collection,
+                                                uint32_t revision) {
+        try {
+            active.wlock().completeDeletion(vbA, collection, revision);
+            replica.wlock().completeDeletion(vbR, collection, revision);
+        } catch (std::exception& e) {
+            return ::testing::AssertionFailure()
+                   << "Exception thrown for completeDeletion with e.what:"
+                   << e.what();
+        }
+
+        // completeDeletion adds a new item without a seqno, which closes
+        // the snapshot, re-open the snapshot so tests can continue.
+        vbR.checkpointManager.updateCurrentSnapshotEnd(snapEnd);
+        return ::testing::AssertionSuccess();
+    }
+
+    ::testing::AssertionResult doesKeyContainValidCollection(DocKey key) {
+        if (!active.lock().doesKeyContainValidCollection(key)) {
+            return ::testing::AssertionFailure() << "active failed the key";
+        } else if (!replica.lock().doesKeyContainValidCollection(key)) {
+            return ::testing::AssertionFailure() << "replica failed the key";
+        }
+        return ::testing::AssertionSuccess();
+    }
+
+    bool isExclusiveOpen(const std::string& collection, uint32_t rev) {
+        return active.isExclusiveOpen(collection, rev) &&
+               replica.isExclusiveOpen(collection, rev);
+    }
+
+    bool isExclusiveDeleting(const std::string& collection, uint32_t rev) {
+        return active.isExclusiveDeleting(collection, rev) &&
+               replica.isExclusiveDeleting(collection, rev);
+    }
+
+    bool isOpenAndDeleting(const std::string& collection, uint32_t rev) {
+        return active.isOpenAndDeleting(collection, rev) &&
+               replica.isOpenAndDeleting(collection, rev);
+    }
+
+    bool checkSize(size_t s) {
+        return active.size() == s && replica.size() == s;
+    }
+
+    VBucket& getActiveVB() {
+        return vbA;
+    }
+
+    MockVBManifest& getActiveManifest() {
+        return active;
+    }
+
+private:
+    static std::string itemToJson(const Item& item) {
+        cb::const_char_buffer buffer(item.getData(), item.getNBytes());
+        return Collections::VB::Manifest::serialToJson(
+                SystemEvent(item.getFlags()), buffer, item.getBySeqno());
+    }
+
+    static void getEventsFromCheckpoint(VBucket& vb,
+                                        std::vector<queued_item>& events) {
         std::vector<queued_item> items;
-        vbucket.checkpointManager.getAllItemsForCursor(
+        vb.checkpointManager.getAllItemsForCursor(
                 CheckpointManager::pCursorName, items);
-        std::vector<queued_item> events;
         for (const auto& qi : items) {
             if (qi->getOperation() == queue_op::system_event) {
                 events.push_back(qi);
             }
         }
 
-        if (0 == events.size()) {
-            throw std::logic_error("Found no events");
+        if (events.empty()) {
+            throw std::logic_error("getEventsFromCheckpoint: no events in vb:" +
+                                   std::to_string(vb.getId()));
         }
-
-        return events.back();
-    }
-
-    std::string getLastEventJson() {
-        auto event = getLastSystemEvent();
-        cb::const_char_buffer buffer(event->getData(), event->getNBytes());
-        return Collections::VB::Manifest::serialToJson(
-                SystemEvent(event->getFlags()), buffer, event->getBySeqno());
     }
 
     /**
-     * Create a new VB::Manifest using the JSON we create from the tests
-     * vbm object (found in the vbucket checkpoint).
+     * 1. scan the VBucketManifestTestVBucket's checkpoint for all system
+     * events.
+     * 2. for all system-events, pretend to be the DcpConsumer and call
+     *    the VBucket's manifest's replica functions on.
+     * @param replicaVB A vbucket acting as the replica, we will create/delete
+     *        collections against this VB.
+     * @param replicaManfiest The replica VB's manifest, we will create/delete
+     *         collections against this manifest.
      *
-     * Then compare that the new manifest matches the tests current vbm.
-     * @returns gtest assertion with info about the mismatch on failure.
+     * @returns the last queued_item (which would be used to create a json
+     *          manifest)
      */
-    ::testing::AssertionResult checkJson() {
-        MockVBManifest newManifest(getLastEventJson());
-        if (newManifest != vbm) {
+    queued_item applyCheckpointEventsToReplica() {
+        std::vector<queued_item> events;
+        getEventsFromCheckpoint(vbA, events);
+        queued_item rv = events.back();
+        for (const auto& qi : events) {
+            if (qi->getOperation() == queue_op::system_event) {
+                auto dcpData = Collections::VB::Manifest::getSystemEventData(
+                        {qi->getData(), qi->getNBytes()});
+
+                // Extract the revision to a local
+                uint32_t revision = *reinterpret_cast<const uint32_t*>(
+                        dcpData.second.data());
+
+                switch (SystemEvent(qi->getFlags())) {
+                case SystemEvent::CreateCollection: {
+                    replica.wlock().replicaAdd(
+                            vbR, dcpData.first, revision, qi->getBySeqno());
+                    break;
+                }
+                case SystemEvent::BeginDeleteCollection: {
+                    replica.wlock().replicaBeginDelete(
+                            vbR, dcpData.first, revision, qi->getBySeqno());
+                    break;
+                }
+                case SystemEvent::CollectionsSeparatorChanged: {
+                    auto dcpData = Collections::VB::Manifest::
+                            getSystemEventSeparatorData(
+                                    {qi->getData(), qi->getNBytes()});
+                    replica.wlock().replicaChangeSeparator(
+                            vbR, dcpData.first, revision, qi->getBySeqno());
+                    break;
+                }
+                case SystemEvent::DeleteCollectionSoft:
+                case SystemEvent::DeleteCollectionHard:
+
+                    // Nothing todo for these events
+                    break;
+                }
+            }
+        }
+        return rv;
+    }
+
+    /**
+     * Take SystemEvent item and obtain the JSON manifest.
+     * Next create a new/temp MockVBManifest from the JSON.
+     * Finally check that this new object is equal to the test class's active
+     *
+     * @returns gtest assertion fail (with details) or success
+     */
+    ::testing::AssertionResult checkJson(const Item& manifest) {
+        MockVBManifest newManifest(itemToJson(manifest));
+        if (active != newManifest) {
             return ::testing::AssertionFailure() << "manifest mismatch\n"
                                                  << "generated\n"
-                                                 << newManifest << "\nfrom\n"
-                                                 << vbm;
+                                                 << newManifest << "\nvs\n"
+                                                 << active;
         }
         return ::testing::AssertionSuccess();
     }
 
-    ::testing::AssertionResult noThrowUpdate(const char* json) {
-        try {
-            vbm.wlock().update(vbucket, {json});
-        } catch (std::exception& e) {
-            return ::testing::AssertionFailure()
-                   << "Exception thrown for update with " << json
-                   << ", e.what:" << e.what();
-        }
-        return checkJson();
-    }
-
-    ::testing::AssertionResult throwUpdate(const char* json) {
-        try {
-            vbm.wlock().update(vbucket, {json});
-            return ::testing::AssertionFailure()
-                   << "No exception thrown for update of " << json;
-        } catch (std::exception& e) {
-            return ::testing::AssertionSuccess();
-        }
-    }
-
-protected:
-    MockVBManifest vbm;
+    MockVBManifest active;
+    MockVBManifest replica;
     EPStats global_stats;
     CheckpointConfig checkpoint_config;
     Configuration config;
-    EPVBucket vbucket;
+    EPVBucket vbA;
+    EPVBucket vbR;
+
+    static const int64_t snapEnd{200};
+};
+
+class VBucketManifestTest : public ::testing::Test {
+public:
+    ActiveReplicaManifest manifest;
 };
 
 TEST_F(VBucketManifestTest, collectionExists) {
-    vbm.wlock().update(
-            vbucket,
-            {R"({"revision":0,"separator":"::","collections":["vegetable"]})"});
-    EXPECT_TRUE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
-    EXPECT_TRUE(vbm.isExclusiveOpen("vegetable", 0));
-
-    EXPECT_TRUE(checkJson());
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":0,"separator":"::","collections":["vegetable"]})"));
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            {"vegetable::carrot", DocNamespace::Collections}));
+    EXPECT_TRUE(manifest.isExclusiveOpen("vegetable", 0));
 }
 
 TEST_F(VBucketManifestTest, defaultCollectionExists) {
-    EXPECT_TRUE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("anykey", DocNamespace::DefaultCollection)));
-    vbm.wlock().update(vbucket,
-                       {R"({"revision":1,"separator":"::","collections":[]})"});
-    EXPECT_FALSE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("anykey", DocNamespace::DefaultCollection)));
-
-    EXPECT_TRUE(checkJson());
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            {"anykey", DocNamespace::DefaultCollection}));
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":1,"separator":"::","collections":[]})"));
+    EXPECT_FALSE(manifest.doesKeyContainValidCollection(
+            {"anykey", DocNamespace::DefaultCollection}));
 }
 
 TEST_F(VBucketManifestTest, updates) {
-    EXPECT_EQ(1, vbm.size());
-    EXPECT_TRUE(vbm.isExclusiveOpen("$default", 0));
+    EXPECT_TRUE(manifest.checkSize(1));
+    EXPECT_TRUE(manifest.isExclusiveOpen("$default", 0));
 
-    vbm.wlock().update(vbucket, {R"({"revision":1, "separator":"::",
-                "collections":["$default","vegetable"]})"});
-    EXPECT_EQ(2, vbm.size());
-    EXPECT_TRUE(vbm.isExclusiveOpen("vegetable", 1));
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":1,"separator":"::",)"
+            R"("collections":["$default","vegetable"]})"));
+    EXPECT_TRUE(manifest.checkSize(2));
+    EXPECT_TRUE(manifest.isExclusiveOpen("vegetable", 1));
 
-    vbm.wlock().update(vbucket, {R"({"revision":2, "separator":"::",
-                "collections":["$default", "vegetable", "fruit"]})"});
-    EXPECT_EQ(3, vbm.size());
-    EXPECT_TRUE(vbm.isExclusiveOpen("fruit", 2));
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":2,"separator":"::",)"
+            R"("collections":["$default", "vegetable", "fruit"]})"));
+    EXPECT_TRUE(manifest.checkSize(3));
+    EXPECT_TRUE(manifest.isExclusiveOpen("fruit", 2));
 
-    vbm.wlock().update(vbucket, {R"({"revision":3, "separator":"::",
-            "collections":
-            ["$default", "vegetable", "fruit", "meat", "dairy"]})"});
-    EXPECT_EQ(5, vbm.size());
-    EXPECT_TRUE(vbm.isExclusiveOpen("meat", 3));
-    EXPECT_TRUE(vbm.isExclusiveOpen("dairy", 3));
-
-    EXPECT_TRUE(checkJson());
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":3,"separator":"::",)"
+            R"("collections":["$default", "vegetable", "fruit", "meat", "dairy"]})"));
+    EXPECT_TRUE(manifest.checkSize(5));
+    EXPECT_TRUE(manifest.isExclusiveOpen("meat", 3));
+    EXPECT_TRUE(manifest.isExclusiveOpen("dairy", 3));
 }
 
 TEST_F(VBucketManifestTest, updates2) {
-    vbm.wlock().update(vbucket, {R"({"revision":0, "separator":"::",
-        "collections":["$default", "vegetable", "fruit", "meat", "dairy"]})"});
-    EXPECT_EQ(5, vbm.size());
-
-    EXPECT_TRUE(checkJson());
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":0,"separator":"::",)"
+            R"("collections":["$default", "vegetable", "fruit", "meat", "dairy"]})"));
+    EXPECT_TRUE(manifest.checkSize(5));
 
     // Remove meat and dairy, size is not affected because the delete is only
     // starting
-    vbm.wlock().update(vbucket, {R"({"revision":1, "separator":"::",
-        "collections":["$default", "vegetable", "fruit"]})"});
-    EXPECT_EQ(5, vbm.size());
-    EXPECT_TRUE(vbm.isExclusiveDeleting("meat", 1));
-    EXPECT_TRUE(vbm.isExclusiveDeleting("dairy", 1));
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":1,"separator":"::",)"
+            R"("collections":["$default", "vegetable", "fruit"]})"));
+    EXPECT_TRUE(manifest.checkSize(5));
+    EXPECT_TRUE(manifest.isExclusiveDeleting("meat", 1));
+    EXPECT_TRUE(manifest.isExclusiveDeleting("dairy", 1));
 
     // But vegetable is accessible, the others are locked out
-    EXPECT_TRUE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("anykey", DocNamespace::DefaultCollection)));
-    EXPECT_TRUE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
-    EXPECT_FALSE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("dairy::milk", DocNamespace::Collections)));
-    EXPECT_FALSE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("meat::chicken", DocNamespace::Collections)));
-
-    EXPECT_TRUE(checkJson());
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            {"anykey", DocNamespace::DefaultCollection}));
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            {"vegetable::carrot", DocNamespace::Collections}));
+    EXPECT_FALSE(manifest.doesKeyContainValidCollection(
+            {"dairy::milk", DocNamespace::Collections}));
+    EXPECT_FALSE(manifest.doesKeyContainValidCollection(
+            {"meat::chicken", DocNamespace::Collections}));
 }
 
 TEST_F(VBucketManifestTest, updates3) {
-    vbm.wlock().update(vbucket, {R"({"revision":0,"separator":"::",
-        "collections":["$default", "vegetable", "fruit", "meat", "dairy"]})"});
-    EXPECT_EQ(5, vbm.size());
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":0,"separator":"::",)"
+            R"("collections":["$default", "vegetable", "fruit", "meat", "dairy"]})"));
+    EXPECT_TRUE(manifest.checkSize(5));
 
     // Remove everything
-    vbm.wlock().update(
-            vbucket, {R"({"revision":1, "separator":"::","collections":[]})"});
-    EXPECT_EQ(5, vbm.size());
-    EXPECT_TRUE(vbm.isExclusiveDeleting("$default", 1));
-    EXPECT_TRUE(vbm.isExclusiveDeleting("vegetable", 1));
-    EXPECT_TRUE(vbm.isExclusiveDeleting("fruit", 1));
-    EXPECT_TRUE(vbm.isExclusiveDeleting("meat", 1));
-    EXPECT_TRUE(vbm.isExclusiveDeleting("dairy", 1));
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":1, "separator":"::","collections":[]})"));
+    EXPECT_TRUE(manifest.checkSize(5));
+    EXPECT_TRUE(manifest.isExclusiveDeleting("$default", 1));
+    EXPECT_TRUE(manifest.isExclusiveDeleting("vegetable", 1));
+    EXPECT_TRUE(manifest.isExclusiveDeleting("fruit", 1));
+    EXPECT_TRUE(manifest.isExclusiveDeleting("meat", 1));
+    EXPECT_TRUE(manifest.isExclusiveDeleting("dairy", 1));
 
     // But vegetable is accessible, the others are 'locked' out
-    EXPECT_FALSE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
-    EXPECT_FALSE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("dairy::milk", DocNamespace::Collections)));
-    EXPECT_FALSE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("meat::chicken", DocNamespace::Collections)));
-    EXPECT_FALSE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("fruit::apple", DocNamespace::Collections)));
-    EXPECT_FALSE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("anykey", DocNamespace::DefaultCollection)));
-
-    EXPECT_TRUE(checkJson());
+    EXPECT_FALSE(manifest.doesKeyContainValidCollection(
+            {"vegetable::carrot", DocNamespace::Collections}));
+    EXPECT_FALSE(manifest.doesKeyContainValidCollection(
+            {"dairy::milk", DocNamespace::Collections}));
+    EXPECT_FALSE(manifest.doesKeyContainValidCollection(
+            {"meat::chicken", DocNamespace::Collections}));
+    EXPECT_FALSE(manifest.doesKeyContainValidCollection(
+            {"fruit::apple", DocNamespace::Collections}));
+    EXPECT_FALSE(manifest.doesKeyContainValidCollection(
+            {"anykey", DocNamespace::DefaultCollection}));
 }
 
 TEST_F(VBucketManifestTest, add_beginDelete_add) {
     // add vegetable
-    vbm.wlock().update(
-            vbucket,
-            {R"({"revision":0,"separator":"::","collections":["vegetable"]})"});
-    EXPECT_EQ(2, vbm.size());
-    EXPECT_TRUE(vbm.isExclusiveOpen("vegetable", 0));
-    EXPECT_TRUE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":0,"separator":"::","collections":["vegetable"]})"));
+    EXPECT_TRUE(manifest.checkSize(2));
+    EXPECT_TRUE(manifest.isExclusiveOpen("vegetable", 0));
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            {"vegetable::carrot", DocNamespace::Collections}));
 
     // remove vegetable
-    vbm.wlock().update(vbucket,
-                       {R"({"revision":1,"separator":"::","collections":[]})"});
-    EXPECT_EQ(2, vbm.size());
-    EXPECT_TRUE(vbm.isExclusiveDeleting("vegetable", 1));
-    EXPECT_FALSE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":1,"separator":"::","collections":[]})"));
+    EXPECT_TRUE(manifest.checkSize(2));
+    EXPECT_TRUE(manifest.isExclusiveDeleting("vegetable", 1));
+    EXPECT_FALSE(manifest.doesKeyContainValidCollection(
+            {"vegetable::carrot", DocNamespace::Collections}));
     // add vegetable
-    vbm.wlock().update(
-            vbucket,
-            {R"({"revision":2,"separator":"::","collections":["vegetable"]})"});
-    EXPECT_EQ(2, vbm.size());
-    EXPECT_TRUE(vbm.isOpenAndDeleting("vegetable", 2));
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":2,"separator":"::","collections":["vegetable"]})"));
+    EXPECT_TRUE(manifest.checkSize(2));
+    EXPECT_TRUE(manifest.isOpenAndDeleting("vegetable", 2));
 
-    EXPECT_TRUE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
-
-    EXPECT_TRUE(checkJson());
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            {"vegetable::carrot", DocNamespace::Collections}));
 }
 
 TEST_F(VBucketManifestTest, add_beginDelete_delete) {
     // add vegetable
-    vbm.wlock().update(
-            vbucket,
-            {R"({"revision":0,"separator":"::","collections":["vegetable"]})"});
-    EXPECT_EQ(2, vbm.size());
-    EXPECT_TRUE(vbm.isExclusiveOpen("vegetable", 0));
-    EXPECT_TRUE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":0,"separator":"::","collections":["vegetable"]})"));
+    EXPECT_TRUE(manifest.checkSize(2));
+    EXPECT_TRUE(manifest.checkSize(2));
+    EXPECT_TRUE(manifest.isExclusiveOpen("vegetable", 0));
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            {"vegetable::carrot", DocNamespace::Collections}));
 
     // remove vegetable
-    vbm.wlock().update(vbucket,
-                       {R"({"revision":1,"separator":"::","collections":[]})"});
-    EXPECT_EQ(2, vbm.size());
-    EXPECT_TRUE(vbm.isExclusiveDeleting("vegetable", 1));
-    EXPECT_FALSE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":1,"separator":"::","collections":[]})"));
+    EXPECT_TRUE(manifest.checkSize(2));
+    EXPECT_TRUE(manifest.isExclusiveDeleting("vegetable", 1));
+    EXPECT_FALSE(manifest.doesKeyContainValidCollection(
+            {"vegetable::carrot", DocNamespace::Collections}));
 
     // finally remove vegetable
-    vbm.wlock().completeDeletion(vbucket, {"vegetable"}, 1);
-    EXPECT_EQ(1, vbm.size());
-    EXPECT_FALSE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
-
-    EXPECT_TRUE(checkJson());
+    EXPECT_TRUE(manifest.completeDeletion("vegetable", 1));
+    EXPECT_TRUE(manifest.checkSize(1));
+    EXPECT_FALSE(manifest.doesKeyContainValidCollection(
+            {"vegetable::carrot", DocNamespace::Collections}));
 }
 
 TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
     // add vegetable
-    vbm.wlock().update(
-            vbucket,
-            {R"({"revision":0,"separator":"::","collections":["vegetable"]})"});
-    EXPECT_EQ(2, vbm.size());
-    EXPECT_TRUE(vbm.isExclusiveOpen("vegetable", 0));
-    EXPECT_TRUE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":0,"separator":"::","collections":["vegetable"]})"));
+    EXPECT_TRUE(manifest.checkSize(2));
+    EXPECT_TRUE(manifest.isExclusiveOpen("vegetable", 0));
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            {"vegetable::carrot", DocNamespace::Collections}));
 
     // remove vegetable
-    vbm.wlock().update(vbucket,
-                       {R"({"revision":1,"separator":"::","collections":[]})"});
-    EXPECT_EQ(2, vbm.size());
-    EXPECT_TRUE(vbm.isExclusiveDeleting("vegetable", 1));
-    EXPECT_FALSE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":1,"separator":"::","collections":[]})"));
+    EXPECT_TRUE(manifest.checkSize(2));
+    EXPECT_TRUE(manifest.isExclusiveDeleting("vegetable", 1));
+    EXPECT_FALSE(manifest.doesKeyContainValidCollection(
+            {"vegetable::carrot", DocNamespace::Collections}));
 
     // add vegetable
-    vbm.wlock().update(
-            vbucket,
-            {R"({"revision":2,"separator":"::","collections":["vegetable"]})"});
-    EXPECT_EQ(2, vbm.size());
-    EXPECT_TRUE(vbm.isOpenAndDeleting("vegetable", 2));
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":2,"separator":"::","collections":["vegetable"]})"));
+    EXPECT_TRUE(manifest.checkSize(2));
+    EXPECT_TRUE(manifest.isOpenAndDeleting("vegetable", 2));
 
-    EXPECT_TRUE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            {"vegetable::carrot", DocNamespace::Collections}));
 
     // finally remove vegetable
-    vbm.wlock().completeDeletion(vbucket, {"vegetable"}, 3);
-    EXPECT_EQ(2, vbm.size());
+    EXPECT_TRUE(manifest.completeDeletion("vegetable", 3));
+    EXPECT_TRUE(manifest.checkSize(2));
 
     // No longer OpenAndDeleting, now ExclusiveOpen
-    EXPECT_TRUE(vbm.isExclusiveOpen("vegetable", 2));
+    EXPECT_TRUE(manifest.isExclusiveOpen("vegetable", 2));
 
-    EXPECT_TRUE(vbm.lock().doesKeyContainValidCollection(
-            makeStoredDocKey("vegetable::carrot", DocNamespace::Collections)));
-
-    EXPECT_TRUE(checkJson());
-
-    Collections::VB::Manifest g("");
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            {"vegetable::carrot", DocNamespace::Collections}));
 }
 
 TEST_F(VBucketManifestTest, invalidDeletes) {
     // add vegetable
-    vbm.wlock().update(vbucket,
-                       {R"({"revision":1,"separator":"::",)"
-                        R"("collections":["$default","vegetable"]})"});
+    EXPECT_TRUE(manifest.update(R"({"revision":1,"separator":"::",)"
+                                R"("collections":["$default","vegetable"]})"));
     // Delete vegetable
-    vbm.wlock().update(vbucket,
-                       {R"({"revision":2,"separator":"::",)"
-                        R"("collections":["$default"]})"});
+    EXPECT_TRUE(manifest.update(R"({"revision":2,"separator":"::",)"
+                                R"("collections":["$default"]})"));
 
-    EXPECT_THROW(vbm.wlock().completeDeletion(vbucket, {"unknown"}, 1),
-                 std::logic_error);
-    EXPECT_THROW(vbm.wlock().completeDeletion(vbucket, {"$default"}, 1),
-                 std::logic_error);
-    EXPECT_NO_THROW(vbm.wlock().completeDeletion(vbucket, {"vegetable"}, 1));
+    // Invalid.
+    EXPECT_FALSE(manifest.completeDeletion("unknown", 1));
+    EXPECT_FALSE(manifest.completeDeletion("$default", 1));
+
+    EXPECT_TRUE(manifest.completeDeletion("vegetable", 1));
 
     // Delete $default
-    vbm.wlock().update(vbucket,
-                       {R"({"revision":3,"separator":"::",)"
-                        R"("collections":[]})"});
+    EXPECT_TRUE(manifest.update(R"({"revision":3,"separator":"::",)"
+                                R"("collections":[]})"));
     // Add $default
-    vbm.wlock().update(vbucket,
-                       {R"({"revision":4,"separator":"::",)"
-                        R"("collections":["$default"]})"});
-    EXPECT_NO_THROW(vbm.wlock().completeDeletion(vbucket, {"$default"}, 3));
+    EXPECT_TRUE(manifest.update(R"({"revision":4,"separator":"::",)"
+                                R"("collections":["$default"]})"));
+    EXPECT_TRUE(manifest.completeDeletion("$default", 3));
 }
 
 // Check that a deleting collection doesn't keep adding system events
 TEST_F(VBucketManifestTest, doubleDelete) {
-    auto seqno = vbucket.getHighSeqno();
+    auto seqno = manifest.getActiveVB().getHighSeqno();
     // add vegetable
-    vbm.wlock().update(vbucket,
-                       {R"({"revision":1,"separator":"::",)"
-                        R"("collections":["$default","vegetable"]})"});
-    EXPECT_LT(seqno, vbucket.getHighSeqno());
-    seqno = vbucket.getHighSeqno();
+    EXPECT_TRUE(manifest.update(R"({"revision":1,"separator":"::",)"
+                                R"("collections":["$default","vegetable"]})"));
+    EXPECT_LT(seqno, manifest.getActiveVB().getHighSeqno());
+    seqno = manifest.getActiveVB().getHighSeqno();
 
-    // same again, should have be nothing created or deleted
-    vbm.wlock().update(vbucket,
-                       {R"({"revision":2,"separator":"::",)"
-                        R"("collections":["$default","vegetable"]})"});
+    // Apply same manifest (different revision). Nothing will be created or
+    // deleted. Apply direct to vbm, not via manifest.update as that would
+    // complain about the lack of events
+    manifest.getActiveManifest().wlock().update(
+            manifest.getActiveVB(),
+            {R"({"revision":2,"separator":"::",)"
+             R"("collections":["$default","vegetable"]})"});
 
-    EXPECT_EQ(seqno, vbucket.getHighSeqno());
-    seqno = vbucket.getHighSeqno();
+    EXPECT_EQ(seqno, manifest.getActiveVB().getHighSeqno());
+    seqno = manifest.getActiveVB().getHighSeqno();
 
     // Now delete vegetable
-    vbm.wlock().update(vbucket,
-                       {R"({"revision":3,"separator":"::",)"
-                        R"("collections":["$default"]})"});
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":3,"separator":"::","collections":["$default"]})"));
 
-    EXPECT_LT(seqno, vbucket.getHighSeqno());
-    seqno = vbucket.getHighSeqno();
+    EXPECT_LT(seqno, manifest.getActiveVB().getHighSeqno());
+    seqno = manifest.getActiveVB().getHighSeqno();
 
     // same again, should have be nothing created or deleted
-    vbm.wlock().update(vbucket,
-                       {R"({"revision":4,"separator":"::",)"
-                        R"("collections":["$default"]})"});
+    manifest.getActiveManifest().wlock().update(
+            manifest.getActiveVB(),
+            {R"({"revision":4,"separator":"::",)"
+             R"("collections":["$default"]})"});
 
-    EXPECT_EQ(seqno, vbucket.getHighSeqno());
+    EXPECT_EQ(seqno, manifest.getActiveVB().getHighSeqno());
 }
 
-TEST_F(VBucketManifestTest, separatorChanges) {
+// This test changes the separator and propagates to the replica (all done
+// via the noThrow helper functions).
+TEST_F(VBucketManifestTest, active_replica_separatorChanges) {
     // Can change separator to @ as only default exists
-    EXPECT_TRUE(noThrowUpdate(
+    EXPECT_TRUE(manifest.update(
             R"({"revision":1, "separator":"@", "collections":["$default"]})"));
 
     // Can change separator to / and add first collection
-    EXPECT_TRUE(noThrowUpdate(
+    EXPECT_TRUE(manifest.update(
             R"({"revision":2, "separator":"/", "collections":["$default", "vegetable"]})"));
 
     // Cannot change separator to ## because non-default collections exist
-    EXPECT_TRUE(throwUpdate(
+    EXPECT_FALSE(manifest.update(
             R"({"revision":3, "separator":"##", "collections":["$default", "vegetable"]})"));
 
     // Now just remove vegetable
-    EXPECT_TRUE(noThrowUpdate(
+    EXPECT_TRUE(manifest.update(
             R"({"revision":3, "separator":"/", "collections":["$default"]})"));
 
     // vegetable still exists (isDeleting), but change to ##
-    EXPECT_TRUE(noThrowUpdate(
+    EXPECT_TRUE(manifest.update(
             R"({"revision":4, "separator":"##", "collections":["$default"]})"));
 
     // Finish removal of vegetable
-    vbm.wlock().completeDeletion(vbucket, "vegetable", 4);
+    EXPECT_TRUE(manifest.completeDeletion("vegetable", 4));
 
     // Can change separator as only default exists
-    EXPECT_TRUE(noThrowUpdate(
+    EXPECT_TRUE(manifest.update(
             R"({"revision":5, "separator":"@", "collections":["$default"]})"));
 
     // Remove default
-    EXPECT_TRUE(noThrowUpdate(
+    EXPECT_TRUE(manifest.update(
             R"({"revision":6, "separator":"/", "collections":[]})"));
 
     // $default still exists (isDeleting), so cannot change to ##
-    EXPECT_TRUE(noThrowUpdate(
+    EXPECT_TRUE(manifest.update(
             R"({"revision":7, "separator":"##", "collections":["$default"]})"));
 
-    vbm.wlock().completeDeletion(vbucket, "$default", 5);
+    EXPECT_TRUE(manifest.completeDeletion("$default", 5));
 
     // Can change separator as no collection exists
-    EXPECT_TRUE(noThrowUpdate(
+    EXPECT_TRUE(manifest.update(
             R"({"revision":8, "separator":"-=-=-=-", "collections":[]})"));
 
     // Add a collection and check the new separator
-    EXPECT_TRUE(noThrowUpdate(
+    EXPECT_TRUE(manifest.update(
             R"({"revision":9, "separator":"-=-=-=-", "collections":["meat"]})"));
-    EXPECT_TRUE(vbm.lock().doesKeyContainValidCollection(
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             {"meat-=-=-=-bacon", DocNamespace::Collections}));
+}
+
+TEST_F(VBucketManifestTest, replica_add_remove) {
+    // add vegetable
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":1,"separator":"::","collections":)"
+            R"(["$default","vegetable"]})"));
+
+    // add meat & dairy
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":2,"separator":"::","collections":)"
+            R"(["$default","vegetable","meat","dairy"]})"));
+
+    // remove vegetable
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":3,"separator":"::","collections":)"
+            R"(["$default","meat","dairy"]})"));
+
+    // remove $default
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":4,"separator":"::","collections":)"
+            R"(["meat","dairy"]})"));
+
+    // Check we can access the remaining collections
+    EXPECT_FALSE(manifest.doesKeyContainValidCollection(
+            {"vegetable::carrot", DocNamespace::Collections}));
+    EXPECT_FALSE(manifest.doesKeyContainValidCollection(
+            {"anykey", DocNamespace::DefaultCollection}));
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            {"meat::sausage", DocNamespace::Collections}));
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            {"dairy::butter", DocNamespace::Collections}));
+}
+
+TEST_F(VBucketManifestTest, replica_add_remove_completeDelete) {
+    // add vegetable
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":1,"separator":"::","collections":["$default","vegetable"]})"));
+
+    // remove vegetable
+    EXPECT_TRUE(manifest.update(
+            R"({"revision":2,"separator":"::","collections":["$default"]})"));
+
+    // Finish removal of vegetable
+    EXPECT_TRUE(manifest.completeDeletion("vegetable", 2));
 }
