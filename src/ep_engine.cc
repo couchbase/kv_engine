@@ -5707,6 +5707,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
         if (nmeta > 0) {
             try {
                 emd.reset(new ExtendedMetaData(request->bytes +
+                                               sizeof(request->bytes) +
                                                nkey +
                                                keyOffset, nmeta));
             } catch (const std::bad_alloc&) {
