@@ -42,7 +42,6 @@ bool VBucketMemoryDeletionTask::run() {
     TRACE_EVENT("ep-engine/task", "VBucketMemoryDeletionTask",
                 vbucket->getId());
     vbucket->notifyAllPendingConnsFailed(e);
-    vbucket->ht.clear();
     vbucket.reset();
     return false;
 }
