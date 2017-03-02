@@ -1476,9 +1476,14 @@ couchstore_error_t CouchKVStore::openDB_retry(std::string &dbfile,
                    dbfile.c_str(), options);
         *newFileRev = checkNewRevNum(dbfile);
         ++retry;
-        if (retry == MAX_OPEN_DB_RETRY - 1 && options == 0 &&
+        if (retry == MAX_OPEN_DB_RETRY - 1 &&
+            !(options & COUCHSTORE_OPEN_FLAG_CREATE) &&
+            !(options & COUCHSTORE_OPEN_FLAG_RDONLY) &&
             errCode == COUCHSTORE_ERROR_NO_SUCH_FILE) {
-            options = COUCHSTORE_OPEN_FLAG_CREATE;
+            // Last retry:
+            // if file still doesn't exist, attempt to create it
+            // if we are allowed (i.e., not read-only mode).
+            options |= COUCHSTORE_OPEN_FLAG_CREATE;
         }
     }
     return errCode;
