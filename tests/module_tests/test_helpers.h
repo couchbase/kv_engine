@@ -15,17 +15,31 @@
  *   limitations under the License.
  */
 
+/*
+ * Helper functions / code for unit tests
+ */
+
 #pragma once
 
-#include "ep_types.h"
-#include "storeddockey.h"
+#include "config.h"
 
-/*
+#include "item.h"
+
+/// Creates an item with the given vbucket id, key and value.
+Item make_item(
+        uint16_t vbid,
+        const StoredDocKey& key,
+        const std::string& value,
+        uint32_t exptime = 0,
+        protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON);
+
+/**
  * Create a StoredDocKey object from a std::string.
  * By default places the key in the default namespace,
  * DocNamespace::DefaultCollection.
  */
-inline StoredDocKey makeStoredDocKey(const std::string& string,
-                                     DocNamespace ns = DocNamespace::DefaultCollection) {
+inline StoredDocKey makeStoredDocKey(
+        const std::string& string,
+        DocNamespace ns = DocNamespace::DefaultCollection) {
     return StoredDocKey(string, ns);
 }

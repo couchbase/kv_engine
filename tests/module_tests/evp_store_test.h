@@ -40,13 +40,6 @@ protected:
 
     void TearDown() override;
 
-    // Creates an item with the given vbucket id, key and value.
-    static Item make_item(uint16_t vbid, const StoredDocKey& key,
-                          const std::string& value,
-                          uint32_t exptime = 0,
-                          protocol_binary_datatype_t datatype =
-                                  PROTOCOL_BINARY_DATATYPE_JSON);
-
     // Stores an item into the given vbucket. Returns the item stored.
     Item store_item(uint16_t vbid, const StoredDocKey& key,
                     const std::string& value,

@@ -17,15 +17,16 @@
 
 #include "config.h"
 
-#include <gtest/gtest.h>
-#include <platform/cb_malloc.h>
-
 #include "../mock/mock_vbucket.h"
 #include "bgfetcher.h"
 #include "item.h"
-#include "makestoreddockey.h"
 #include "programs/engine_testapp/mock_server.h"
+#include "tests/module_tests/test_helpers.h"
 #include "vbucket.h"
+
+#include <gtest/gtest.h>
+#include <platform/cb_malloc.h>
+
 
 /**
  * Dummy callback to replace the flusher callback.

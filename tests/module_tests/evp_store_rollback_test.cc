@@ -21,8 +21,8 @@
 
 #include "dcp/dcpconnmap.h"
 #include "evp_store_test.h"
-#include "makestoreddockey.h"
 #include "programs/engine_testapp/mock_server.h"
+#include "tests/module_tests/test_helpers.h"
 
 class RollbackTest : public EPBucketTest,
                      public ::testing::WithParamInterface<std::string>

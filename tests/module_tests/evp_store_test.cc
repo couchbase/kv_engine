@@ -34,10 +34,10 @@
 #include "dcp/flow-control-manager.h"
 #include "ep_engine.h"
 #include "flusher.h"
-#include "makestoreddockey.h"
 #include "replicationthrottle.h"
 #include "tapconnmap.h"
 #include "tasks.h"
+#include "tests/module_tests/test_helpers.h"
 #include "vbucketmemorydeletiontask.h"
 
 #include "programs/engine_testapp/mock_server.h"
@@ -99,18 +99,6 @@ void EPBucketTest::TearDown() {
     // has been destroyed (to allow the tasks the engine has
     // registered a chance to be unregistered).
     ExecutorPool::shutdown();
-}
-
-Item EPBucketTest::make_item(uint16_t vbid,
-                             const StoredDocKey& key,
-                             const std::string& value,
-                             uint32_t exptime,
-                             protocol_binary_datatype_t datatype) {
-    uint8_t ext_meta[EXT_META_LEN] = {datatype};
-    Item item(key, /*flags*/0, /*exp*/exptime, value.c_str(), value.size(),
-              ext_meta, sizeof(ext_meta));
-    item.setVBucketId(vbid);
-    return item;
 }
 
 Item EPBucketTest::store_item(uint16_t vbid,

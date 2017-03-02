@@ -19,8 +19,8 @@
 
 #include "../mock/mock_vbucket.h"
 #include "daemon/alloc_hooks.h"
-#include "makestoreddockey.h"
 #include "programs/engine_testapp/mock_server.h"
+#include "tests/module_tests/test_helpers.h"
 
 #include <gtest/gtest.h>
 #include <iomanip>

@@ -22,8 +22,8 @@
 #include "callbacks.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "kvstore.h"
-#include "makestoreddockey.h"
 #include "src/internal.h"
+#include "tests/module_tests/test_helpers.h"
 #include "tests/test_fileops.h"
 
 #include <gmock/gmock.h>

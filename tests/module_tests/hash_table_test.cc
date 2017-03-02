@@ -17,21 +17,19 @@
 
 #include "config.h"
 
-#include <item.h>
-#include <kv_bucket.h>
+#include "item.h"
+#include "kv_bucket.h"
+#include "programs/engine_testapp/mock_server.h"
+#include "stats.h"
+#include "tests/module_tests/test_helpers.h"
+#include "threadtests.h"
+
+#include <gtest/gtest.h>
 #include <platform/cb_malloc.h>
-#include <signal.h>
-#include <stats.h>
 
 #include <algorithm>
 #include <limits>
-
-#include "makestoreddockey.h"
-#include "threadtests.h"
-
-#include "programs/engine_testapp/mock_server.h"
-
-#include <gtest/gtest.h>
+#include <signal.h>
 
 EPStats global_stats;
 

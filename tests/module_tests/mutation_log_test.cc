@@ -32,8 +32,8 @@ extern "C" {
 #include "crc32.h"
 }
 
-#include "makestoreddockey.h"
 #include "mutation_log.h"
+#include "tests/module_tests/test_helpers.h"
 
 // Windows doesn't have a truncate() function, implement one.
 #if defined(WIN32)

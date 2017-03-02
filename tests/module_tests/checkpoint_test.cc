@@ -26,8 +26,8 @@
 #include "configuration.h"
 #include "failover-table.h"
 #include "item_pager.h"
-#include "makestoreddockey.h"
 #include "stats.h"
+#include "tests/module_tests/test_helpers.h"
 #include "thread_gate.h"
 #include "ep_vb.h"
 

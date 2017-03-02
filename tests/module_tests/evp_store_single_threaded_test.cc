@@ -19,12 +19,13 @@
 #include "evp_store_test.h"
 #include "evp_store_single_threaded_test.h"
 #include "fakes/fake_executorpool.h"
-#include "makestoreddockey.h"
 #include "taskqueue.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_stream.h"
 #include "programs/engine_testapp/mock_server.h"
+#include "tests/module_tests/test_helpers.h"
+
 #include <string_utilities.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>

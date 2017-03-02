@@ -22,8 +22,9 @@
 #include "evp_engine_test.h"
 
 #include "ep_engine.h"
-#include "makestoreddockey.h"
 #include "programs/engine_testapp/mock_server.h"
+#include "tests/module_tests/test_helpers.h"
+
 #include <platform/dirutils.h>
 
 void EventuallyPersistentEngineTest::SetUp() {

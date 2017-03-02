@@ -16,7 +16,7 @@
  */
 
 #include "collections/collections_dockey.h"
-#include "tests/module_tests/makestoreddockey.h"
+#include "tests/module_tests/test_helpers.h"
 
 #include <gtest/gtest.h>
 

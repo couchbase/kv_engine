@@ -19,10 +19,8 @@
 #include <gtest/gtest.h>
 
 #include "bloomfilter.h"
-#include "makestoreddockey.h"
-
 #include "murmurhash3.h"
-
+#include "tests/module_tests/test_helpers.h"
 
 class BloomFilterDocKeyTest : public BloomFilter,
                               public ::testing::TestWithParam<
