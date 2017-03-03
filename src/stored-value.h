@@ -23,6 +23,8 @@
 #include "item_pager.h"
 #include "utility.h"
 
+#include <boost/intrusive/list.hpp>
+
 class HashTable;
 
 /**
@@ -68,15 +70,59 @@ class HashTable;
  *   length  {   | ...               |
  *               +-------------------+
  *
+ * OrderedStoredValue is a "subclass" of StoredValue, which is used by
+ * Ephemeral buckets as it supports maintaining a seqno ordering of items in
+ * memory (for Persistent buckets this ordering is maintained on-disk).
+ *
+ * The implementation of OrderedStoredValue is tightly coupled to StoredValue
+ * so it will be described here:
+ *
+ * OrderedStoredValue has the fixed length members of StoredValue, then it's
+ * own fixed length fields (seqno list), followed finally by the variable
+ * length key (again, allocated contiguously):
+ *
+ *              StoredValue::UniquePtr
+ *                          |
+ *                          V
+ *               .--------------------.
+ *               | OrderedStoredValue |
+ *               +--------------------+
+ *           {   | value [ptr]        | ======> Blob (nullptr if evicted)
+ *           {   | next  [ptr]        | ======> StoredValue (next in hash chain).
+ *     fixed {   | StoredValue fixed ...
+ *    length {   + - - - - - - - - - -+
+ *           {   | seqno next [ptr]   |
+ *           {   | seqno prev [ptr]   |
+ *               + - - - - - - - - - -+
+ *  variable {   | key[]              |
+ *   length  {   | ...                |
+ *               +--------------------+
+ *
+ * To support dynamic dispatch (for example to lookup the key, whose location
+ * varies depending if it's StoredValue or OrderedStoredValue), we choose to
+ * use a manual flag-based dispatching (as opposed to a normal vTable based
+ * approach) as the per-object costs are much cheaper - 1 bit for the flag vs.
+ * 8 bytes for a vTable ptr.
+ * StoredValue::isOrderedStoredValue is set to false for StoredValue objects,
+ * and true for OrderedStoredValue objects, and then any methods
+ * needing dynamic dispatch read the value of the flag. Note this means that
+ * the 'base' class (StoredValue) needs to know about all possible subclasses
+ * (only one currently) and what class-specific code to call.
+ * Similary, deletion of OrderedStoredValue objects is delicate - we cannot
+ * safely delete via the base-class pointer directly, as that would only run
+ * ~StoredValue and not the members of the derived class. Instead a custom
+ * deleter is associated with StoredValue::UniquePtr, which checks the flag
+ * and dispatches to the correct destructor.
  */
 class StoredValue {
 public:
-    // Owning pointer type for StoredValue objects.
-    using UniquePtr = std::unique_ptr<StoredValue>;
+    // Custom deleter for StoredValue objects.
+    struct Deleter {
+        void operator()(StoredValue* val);
+    };
 
-    void operator delete(void* p) {
-        ::operator delete(p);
-    }
+    // Owning pointer type for StoredValue objects.
+    using UniquePtr = std::unique_ptr<StoredValue, Deleter>;
 
     uint8_t getNRUValue() const;
 
@@ -497,14 +543,11 @@ public:
     static const int64_t state_temp_init;
     static const int64_t state_collection_open;
 
-    ~StoredValue() {
-        ObjectRegistry::onDeleteStoredValue(this);
-    }
-
-    size_t getObjectSize() const {
-        // Size of fixed part of StoredValue, plus size of (variable) key.
-        return sizeof(*this) + getKey().getObjectSize();
-    }
+    /**
+     * Return the size in byte of this object; both the fixed fields and the
+     * variable-length key. Doesn't include value size (allocated externally).
+     */
+    inline size_t getObjectSize() const;
 
     /**
      * Reallocates the dynamic members of StoredValue. Used as part of
@@ -523,8 +566,25 @@ public:
                SerialisedDocKey::getObjectSize(item.getKey().size());
     }
 
-private:
-    StoredValue(const Item& itm, UniquePtr n, EPStats& stats, HashTable& ht)
+protected:
+    /**
+     * Constructor - protected as allocation needs to be done via
+     * StoredValueFactory.
+     *
+     * @param itm Item to base this StoredValue on.
+     * @param n The StoredValue which will follow the new stored value in
+     *           the hash bucket chain, which this new item will take
+     *           ownership of. (Typically the top of the hash bucket into
+     *           which the new item is being inserted).
+     * @param stats EPStats to update for this new StoredValue
+     * @param ht HashTable to update stats for this new StoredValue.
+     * @param isOrdered Are we constructing an OrderedStoredValue?
+     */
+    StoredValue(const Item& itm,
+                UniquePtr n,
+                EPStats& stats,
+                HashTable& ht,
+                bool isOrdered)
         : value(itm.getValue()),
           next(std::move(n)),
           cas(itm.getCas()),
@@ -535,6 +595,7 @@ private:
           flags(itm.getFlags()),
           deleted(false),
           newCacheItem(true),
+          isOrdered(isOrdered),
           nru(itm.getNRUValue()) {
 
         // Placement-new the key which lives in memory directly after this
@@ -557,13 +618,16 @@ private:
         ObjectRegistry::onCreateStoredValue(this);
     }
 
+    // Destructor. protected, as needs to be carefully deleted (via
+    // StoredValue::Destructor) depending on the value of isOrdered flag.
+    ~StoredValue() {
+        ObjectRegistry::onDeleteStoredValue(this);
+    }
+
     /**
      * Get the address of item's key .
      */
-    SerialisedDocKey* key() {
-        // key is located immediately following the object.
-        return reinterpret_cast<SerialisedDocKey*>(this + 1);
-    }
+    inline SerialisedDocKey* key();
 
     friend class HashTable;
     friend class StoredValueFactory;
@@ -581,6 +645,7 @@ private:
     bool               _isDirty  :  1; // 1 bit
     bool               deleted   :  1;
     bool               newCacheItem : 1;
+    const bool isOrdered : 1; //!< Is this an instance of OrderedStoredValue?
     uint8_t            nru       :  2; //!< True if referenced since last sweep
 
     static void increaseMetaDataSize(HashTable &ht, EPStats &st, size_t by);
@@ -591,3 +656,60 @@ private:
 
     DISALLOW_COPY_AND_ASSIGN(StoredValue);
 };
+
+/**
+ * Subclass of StoredValue which additionally supports sequence number ordering.
+ *
+ * See StoredValue for implementation details.
+ */
+class OrderedStoredValue : public StoredValue {
+public:
+    // Intrusive linked-list for sequence number ordering.
+    boost::intrusive::list_member_hook<> seqno_hook;
+
+    /// Return how many bytes are need to store Item as an OrderedStoredValue
+    static size_t getRequiredStorage(const Item& item) {
+        return sizeof(OrderedStoredValue) +
+               SerialisedDocKey::getObjectSize(item.getKey());
+    }
+
+protected:
+    SerialisedDocKey* key() {
+        return reinterpret_cast<SerialisedDocKey*>(this + 1);
+    }
+
+private:
+    // Constructor. Private, as needs to be carefully created via
+    // OrderedStoredValueFactory.
+    OrderedStoredValue(const Item& itm,
+                       UniquePtr n,
+                       EPStats& stats,
+                       HashTable& ht)
+        : StoredValue(itm, std::move(n), stats, ht, /*isOrdered*/ true) {
+    }
+
+    // Grant friendship so our factory can call our (private) constructor.
+    friend class OrderedStoredValueFactory;
+
+    // Grant friendship to base class so it can perform flag dispatch to our
+    // overridden protected methods.
+    friend class StoredValue;
+};
+
+SerialisedDocKey* StoredValue::key() {
+    // key is located immediately following the object.
+    if (isOrdered) {
+        return static_cast<OrderedStoredValue*>(this)->key();
+    } else {
+        return reinterpret_cast<SerialisedDocKey*>(this + 1);
+    }
+}
+
+size_t StoredValue::getObjectSize() const {
+    // Size of fixed part of OrderedStoredValue or StoredValue, plus size of
+    // (variable) key.
+    if (isOrdered) {
+        return sizeof(OrderedStoredValue) + getKey().getObjectSize();
+    }
+    return sizeof(*this) + getKey().getObjectSize();
+}

@@ -154,3 +154,11 @@ void StoredValue::reallocate() {
     value_t new_val(Blob::Copy(*value));
     value.reset(new_val);
 }
+
+void StoredValue::Deleter::operator()(StoredValue* val) {
+    if (val->isOrdered) {
+        delete static_cast<OrderedStoredValue*>(val);
+    } else {
+        delete val;
+    }
+}

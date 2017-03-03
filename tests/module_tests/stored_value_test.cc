@@ -28,14 +28,19 @@
 
 #include <gtest/gtest.h>
 
-// Test fixture for StoredValue tests.
-class StoredValueTest : public ::testing::Test {
+/**
+ * Test fixture for StoredValue tests. Type-parameterized to test both
+ * StoredValue and OrderedStoredValue.
+ */
+template <typename Factory>
+class ValueTest : public ::testing::Test {
 public:
-    StoredValueTest()
+    ValueTest()
         : stats(),
           factory(stats),
-          ht(stats, /*size:default*/0, /*locks*/1),
-          item(make_item(0, makeStoredDocKey("key"), "value")) {}
+          ht(stats, /*size:default*/ 0, /*locks*/ 1),
+          item(make_item(0, makeStoredDocKey("key"), "value")) {
+    }
 
     void SetUp() override {
         // Create an initial stored value for testing - key length (3) and
@@ -44,54 +49,83 @@ public:
     }
 
     /// Returns the number of bytes in the Fixed part of StoredValue
-    static size_t getStoredValueFixedSize() {
-        return sizeof(StoredValue);
+    static size_t getFixedSize() {
+        return sizeof(typename Factory::value_type);
     }
 
     /// Allow testing access to StoredValue::getRequiredStorage
     static size_t public_getRequiredStorage(const Item& item) {
-        return StoredValue::getRequiredStorage(item);
+        return Factory::value_type::getRequiredStorage(item);
     }
 
 protected:
     EPStats stats;
-    StoredValueFactory factory;
+    Factory factory;
     HashTable ht;
     Item item;
     StoredValue::UniquePtr sv;
 };
 
+using ValueFactories =
+        ::testing::Types<StoredValueFactory, OrderedStoredValueFactory>;
+TYPED_TEST_CASE(ValueTest, ValueFactories);
+
 // Check that the size calculation methods return the expected sizes.
 
-TEST_F(StoredValueTest, getObjectSize) {
-    // Check the size are as expected: Fixed size of StoredValue, plus 3 bytes
-    // for 'key', 1 byte for length of key and 1 byte for StoredDocKey namespace.
-    EXPECT_EQ(getStoredValueFixedSize() + /*key*/3 + /*len*/1 + /*namespace*/1,
-              sv->getObjectSize());
+TYPED_TEST(ValueTest, getObjectSize) {
+    // Check the size are as expected: Fixed size of (Ordered)StoredValue, plus
+    // 3 bytes
+    // for 'key', 1 byte for length of key and 1 byte for StoredDocKey
+    // namespace.
+    EXPECT_EQ(this->getFixedSize() + /*key*/ 3 + /*len*/ 1 +
+                      /*namespace*/ 1,
+              this->sv->getObjectSize());
 }
 
-TEST_F(StoredValueTest, metaDataSize) {
+TYPED_TEST(ValueTest, metaDataSize) {
     // Check metadata size reports correctly.
-    EXPECT_EQ(getStoredValueFixedSize() + /*key*/3 + /*len*/1 + /*namespace*/1,
-              sv->metaDataSize());
+    EXPECT_EQ(this->getFixedSize() + /*key*/ 3 + /*len*/ 1 +
+                      /*namespace*/ 1,
+              this->sv->metaDataSize());
 }
 
-TEST_F(StoredValueTest, valuelen) {
+TYPED_TEST(ValueTest, valuelen) {
     // Check valuelen reports correctly.
-    EXPECT_EQ(/*value length*/ 5 + /*extmeta*/ 2, sv->valuelen())
+    EXPECT_EQ(/*value length*/ 5 + /*extmeta*/ 2, this->sv->valuelen())
             << "valuelen() expected to be sum of raw value length + extended "
                "meta";
 }
 
-TEST_F(StoredValueTest, size) {
+TYPED_TEST(ValueTest, size) {
     // Check size reports correctly.
-    EXPECT_EQ(getStoredValueFixedSize() + /*key*/ 3 + /*len*/ 1 +
+    EXPECT_EQ(this->getFixedSize() + /*key*/ 3 + /*len*/ 1 +
                       /*namespace*/ 1 + /*valuelen*/ 5 + /*extmeta*/ 2,
-              sv->size());
+              this->sv->size());
 }
 
-TEST_F(StoredValueTest, getRequiredStorage) {
-    EXPECT_EQ(sv->getObjectSize(), public_getRequiredStorage(item))
+TYPED_TEST(ValueTest, getRequiredStorage) {
+    EXPECT_EQ(this->sv->getObjectSize(),
+              this->public_getRequiredStorage(this->item))
             << "Actual object size doesn't match what getRequiredStorage "
                "predicted";
+}
+
+/// Check that StoredValue / OrderedStoredValue don't unexpectedly change in
+/// size (we've carefully crafted them to be as efficient as possible).
+TEST(StoredValueTest, expectedSize) {
+    EXPECT_EQ(56, sizeof(StoredValue))
+            << "Unexpected change in StoredValue fixed size";
+    auto item = make_item(0, makeStoredDocKey("k"), "v");
+    EXPECT_EQ(59, StoredValue::getRequiredStorage(item))
+            << "Unexpected change in StoredValue storage size for item: "
+            << item;
+}
+
+TEST(OrderedStoredValueTest, expectedSize) {
+    EXPECT_EQ(72, sizeof(OrderedStoredValue))
+            << "Unexpected change in OrderedStoredValue fixed size";
+    auto item = make_item(0, makeStoredDocKey("k"), "v");
+    EXPECT_EQ(75, OrderedStoredValue::getRequiredStorage(item))
+            << "Unexpected change in OrderedStoredValue storage size for item: "
+            << item;
 }

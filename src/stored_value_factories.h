@@ -18,7 +18,7 @@
 #pragma once
 
 /**
- * Factory for creating StoredValue objects.
+ * Factories for creating StoredValue and subclasses of StoredValue.
  */
 
 #include <memory>
@@ -69,7 +69,39 @@ public:
         // that maybe required.
         return StoredValue::UniquePtr(
                 new (::operator new(StoredValue::getRequiredStorage(itm)))
-                        StoredValue(itm, std::move(next), *stats, ht));
+                        StoredValue(itm,
+                                    std::move(next),
+                                    *stats,
+                                    ht,
+                                    /*isOrdered*/ false));
+    }
+
+private:
+    EPStats* stats;
+};
+
+/**
+ * Creator of OrderedStoredValue instances.
+ */
+class OrderedStoredValueFactory : public AbstractStoredValueFactory {
+public:
+    using value_type = OrderedStoredValue;
+
+    OrderedStoredValueFactory(EPStats& s) : stats(&s) {
+    }
+
+    /**
+     * Create a new OrderedStoredValue with the given item.
+     */
+    StoredValue::UniquePtr operator()(const Item& itm,
+                                      StoredValue::UniquePtr next,
+                                      HashTable& ht) override {
+        // Allocate a buffer to store the OrderStoredValue and any trailing
+        // bytes required for the key.
+        return StoredValue::UniquePtr(
+                new (::operator new(
+                        OrderedStoredValue::getRequiredStorage(itm)))
+                        OrderedStoredValue(itm, std::move(next), *stats, ht));
     }
 
 private:
