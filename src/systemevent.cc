@@ -32,25 +32,25 @@ std::unique_ptr<Item> SystemEventFactory::make(SystemEvent se,
     }
     case SystemEvent::BeginDeleteCollection: {
         // BeginDeleteCollection SystemEvent results in:
-        // 1) The deletion of the special marker document representing the
-        //    creation.
-        // 2) An update to the persisted collection manifest.
-        // Note: uses CreateEventKey because we are deleting it.
-        key = Collections::CreateEventKey + keyExtra;
+        // 1) An update to the persisted collection manifest.
+        // 2) Trigger DCP to tell clients the collection is being deleted.
+        key = Collections::DeleteEventKey + keyExtra;
         break;
     }
     case SystemEvent::DeleteCollectionHard: {
         // DeleteCollectionHard SystemEvent results in:
-        // An update to the persisted collection manifest removing an entry.
-        // No document is persisted.
-        key = Collections::DeleteEventKey + keyExtra;
+        // 1. An update to the persisted collection manifest removing an entry.
+        // 2. A deletion of the SystemEvent::CreateCollection document.
+        // Note: uses CreateEventKey because we are deleting the create item
+        key = Collections::CreateEventKey + keyExtra;
     }
     case SystemEvent::DeleteCollectionSoft: {
         // DeleteCollectionHard SystemEvent results in:
-        // An update to the persisted collection manifest (updating the end
+        // 1. An update to the persisted collection manifest (updating the end
         // seqno).
-        // No document is persisted.
-        key = Collections::DeleteEventKey + keyExtra;
+        // 2. A deletion of the SystemEvent::CreateCollection document.
+        // Note: uses CreateEventKey because we are deleting the create item
+        key = Collections::CreateEventKey + keyExtra;
     }
     }
 
