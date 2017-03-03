@@ -180,6 +180,7 @@ public:
             uint64_t lastSnapEnd,
             std::unique_ptr<FailoverTable> table,
             std::shared_ptr<Callback<id_type>> flusherCb,
+            std::unique_ptr<AbstractStoredValueFactory> valFact,
             NewSeqnoCallback newSeqnoCb,
             Configuration& config,
             item_eviction_policy_t evictionPolicy,

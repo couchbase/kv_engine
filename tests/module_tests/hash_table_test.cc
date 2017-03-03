@@ -21,6 +21,7 @@
 #include "kv_bucket.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "stats.h"
+#include "stored_value_factories.h"
 #include "tests/module_tests/test_helpers.h"
 #include "threadtests.h"
 
@@ -128,10 +129,14 @@ static bool del(HashTable& ht, const DocKey& key) {
 
 // Test fixture for HashTable tests.
 class HashTableTest : public ::testing::Test {
+public:
+    static std::unique_ptr<StoredValueFactory> makeFactory() {
+        return std::make_unique<StoredValueFactory>(global_stats);
+    }
 };
 
 TEST_F(HashTableTest, Size) {
-    HashTable h(global_stats, /*size*/0, /*locks*/1);
+    HashTable h(global_stats, makeFactory(), /*size*/0, /*locks*/1);
     ASSERT_EQ(0, count(h));
 
     store(h, makeStoredDocKey("testkey"));
@@ -140,7 +145,7 @@ TEST_F(HashTableTest, Size) {
 }
 
 TEST_F(HashTableTest, SizeTwo) {
-    HashTable h(global_stats, /*size*/0, /*locks*/1);
+    HashTable h(global_stats, makeFactory(), /*size*/0, /*locks*/1);
     ASSERT_EQ(0, count(h));
 
     auto keys = generateKeys(5);
@@ -153,7 +158,7 @@ TEST_F(HashTableTest, SizeTwo) {
 
 TEST_F(HashTableTest, ReverseDeletions) {
     size_t initialSize = global_stats.currentSize.load();
-    HashTable h(global_stats, 5, 1);
+    HashTable h(global_stats, makeFactory(), 5, 1);
     ASSERT_EQ(0, count(h));
     const int nkeys = 1000;
 
@@ -173,7 +178,7 @@ TEST_F(HashTableTest, ReverseDeletions) {
 
 TEST_F(HashTableTest, ForwardDeletions) {
     size_t initialSize = global_stats.currentSize.load();
-    HashTable h(global_stats, 5, 1);
+    HashTable h(global_stats, makeFactory(), 5, 1);
     ASSERT_EQ(5, h.getSize());
     ASSERT_EQ(1, h.getNumLocks());
     ASSERT_EQ(0, count(h));
@@ -211,12 +216,12 @@ static void testFind(HashTable &h) {
 }
 
 TEST_F(HashTableTest, Find) {
-    HashTable h(global_stats, 5, 1);
+    HashTable h(global_stats, makeFactory(), 5, 1);
     testFind(h);
 }
 
 TEST_F(HashTableTest, Resize) {
-    HashTable h(global_stats, 5, 3);
+    HashTable h(global_stats, makeFactory(), 5, 3);
 
     auto keys = generateKeys(1000);
     storeMany(h, keys);
@@ -270,7 +275,7 @@ private:
 };
 
 TEST_F(HashTableTest, ConcurrentAccessResize) {
-    HashTable h(global_stats, 5, 3);
+    HashTable h(global_stats, makeFactory(), 5, 3);
 
     auto keys = generateKeys(2000);
     h.resize(keys.size());
@@ -284,7 +289,7 @@ TEST_F(HashTableTest, ConcurrentAccessResize) {
 }
 
 TEST_F(HashTableTest, AutoResize) {
-    HashTable h(global_stats, 5, 3);
+    HashTable h(global_stats, makeFactory(), 5, 3);
 
     ASSERT_EQ(5, h.getSize());
 
@@ -299,7 +304,7 @@ TEST_F(HashTableTest, AutoResize) {
 }
 
 TEST_F(HashTableTest, DepthCounting) {
-    HashTable h(global_stats, 5, 1);
+    HashTable h(global_stats, makeFactory(), 5, 1);
     const int nkeys = 5000;
 
     auto keys = generateKeys(nkeys);
@@ -312,7 +317,7 @@ TEST_F(HashTableTest, DepthCounting) {
 }
 
 TEST_F(HashTableTest, PoisonKey) {
-    HashTable h(global_stats, 5, 1);
+    HashTable h(global_stats, makeFactory(), 5, 1);
 
     store(h, makeStoredDocKey("A\\NROBs_oc)$zqJ1C.9?XU}Vn^(LW\"`+K/4lykF[ue0{ram;fvId6h=p&Zb3T~SQ]82'ixDP"));
     EXPECT_EQ(1, count(h));
@@ -320,7 +325,7 @@ TEST_F(HashTableTest, PoisonKey) {
 
 TEST_F(HashTableTest, SizeStats) {
     global_stats.reset();
-    HashTable ht(global_stats, 5, 1);
+    HashTable ht(global_stats, makeFactory(), 5, 1);
     ASSERT_EQ(0, ht.memSize.load());
     ASSERT_EQ(0, ht.cacheSize.load());
     size_t initialSize = global_stats.currentSize.load();
@@ -345,7 +350,7 @@ TEST_F(HashTableTest, SizeStats) {
 
 TEST_F(HashTableTest, SizeStatsFlush) {
     global_stats.reset();
-    HashTable ht(global_stats, 5, 1);
+    HashTable ht(global_stats, makeFactory(), 5, 1);
     ASSERT_EQ(0, ht.memSize.load());
     ASSERT_EQ(0, ht.cacheSize.load());
     size_t initialSize = global_stats.currentSize.load();
@@ -370,7 +375,7 @@ TEST_F(HashTableTest, SizeStatsFlush) {
 
 TEST_F(HashTableTest, SizeStatsEject) {
     global_stats.reset();
-    HashTable ht(global_stats, 5, 1);
+    HashTable ht(global_stats, makeFactory(), 5, 1);
     ASSERT_EQ(0, ht.memSize.load());
     ASSERT_EQ(0, ht.cacheSize.load());
     size_t initialSize = global_stats.currentSize.load();
@@ -401,7 +406,7 @@ TEST_F(HashTableTest, SizeStatsEject) {
 
 TEST_F(HashTableTest, SizeStatsEjectFlush) {
     global_stats.reset();
-    HashTable ht(global_stats, 5, 1);
+    HashTable ht(global_stats, makeFactory(), 5, 1);
     ASSERT_EQ(0, ht.memSize.load());
     ASSERT_EQ(0, ht.cacheSize.load());
     size_t initialSize = global_stats.currentSize.load();
@@ -432,7 +437,7 @@ TEST_F(HashTableTest, SizeStatsEjectFlush) {
 
 TEST_F(HashTableTest, ItemAge) {
     // Setup
-    HashTable ht(global_stats, 5, 1);
+    HashTable ht(global_stats, makeFactory(), 5, 1);
     StoredDocKey key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", strlen("value"));
     EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
@@ -463,7 +468,7 @@ TEST_F(HashTableTest, ItemAge) {
 // Check not specifying results in the INITIAL_NRU_VALUE.
 TEST_F(HashTableTest, NRUDefault) {
     // Setup
-    HashTable ht(global_stats, 5, 1);
+    HashTable ht(global_stats, makeFactory(), 5, 1);
     StoredDocKey key = makeStoredDocKey("key");
 
     Item item(key, 0, 0, "value", strlen("value"));
@@ -483,7 +488,7 @@ TEST_F(HashTableTest, NRUDefault) {
 // Check a specific NRU value (minimum)
 TEST_F(HashTableTest, NRUMinimum) {
     // Setup
-    HashTable ht(global_stats, 5, 1);
+    HashTable ht(global_stats, makeFactory(), 5, 1);
     StoredDocKey key = makeStoredDocKey("key");
 
     Item item(key, 0, 0, "value", strlen("value"));
@@ -499,7 +504,7 @@ TEST_F(HashTableTest, NRUMinimum) {
 /* Test release from HT (but not deletion) of an (HT) element */
 TEST_F(HashTableTest, ReleaseItem) {
     /* Setup with 2 hash buckets and 1 lock */
-    HashTable ht(global_stats, 2, 1);
+    HashTable ht(global_stats, makeFactory(), 2, 1);
 
     /* Write 5 items (there are 2 hash buckets, we want to test removing a head
        element and a non-head element) */

@@ -18,6 +18,7 @@
 #include "ephemeral_vb.h"
 
 #include "failover-table.h"
+#include "stored_value_factories.h"
 
 EphemeralVBucket::EphemeralVBucket(
         id_type i,
@@ -44,6 +45,7 @@ EphemeralVBucket::EphemeralVBucket(
               lastSnapEnd,
               std::move(table),
               /*flusherCb*/nullptr,
+              std::make_unique<OrderedStoredValueFactory>(st),
               std::move(newSeqnoCb),
               config,
               evictionPolicy,

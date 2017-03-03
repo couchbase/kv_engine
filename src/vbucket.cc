@@ -34,6 +34,7 @@
 #define STATWRITER_NAMESPACE vbucket
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
+#include "stored_value_factories.h"
 
 #include "vbucket.h"
 
@@ -129,13 +130,14 @@ VBucket::VBucket(id_type i,
                  uint64_t lastSnapEnd,
                  std::unique_ptr<FailoverTable> table,
                  std::shared_ptr<Callback<id_type> > flusherCb,
+                 std::unique_ptr<AbstractStoredValueFactory> valFact,
                  NewSeqnoCallback newSeqnoCb,
                  Configuration& config,
                  item_eviction_policy_t evictionPolicy,
                  vbucket_state_t initState,
                  uint64_t purgeSeqno,
                  uint64_t maxCas)
-    : ht(st),
+    : ht(st, std::move(valFact)),
       checkpointManager(st,
                         i,
                         chkConfig,

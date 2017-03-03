@@ -22,6 +22,7 @@
 #include "executorpool.h"
 #include "failover-table.h"
 #include "kvshard.h"
+#include "stored_value_factories.h"
 
 /* Macros */
 const size_t MIN_CHK_FLUSH_TIMEOUT = 10; // 10 sec.
@@ -55,6 +56,7 @@ EPVBucket::EPVBucket(id_type i,
               lastSnapEnd,
               std::move(table),
               flusherCb,
+              std::make_unique<StoredValueFactory>(st),
               std::move(newSeqnoCb),
               config,
               evictionPolicy,

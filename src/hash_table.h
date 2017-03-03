@@ -163,10 +163,14 @@ public:
      * Create a HashTable.
      *
      * @param st the global stats reference
+     * @param svFactory Factory to use for constructing stored values
      * @param s the number of hash table buckets
      * @param l the number of locks in the hash table
      */
-    HashTable(EPStats &st, size_t s = 0, size_t l = 0);
+    HashTable(EPStats& st,
+              std::unique_ptr<AbstractStoredValueFactory> svFactory,
+              size_t s = 0,
+              size_t l = 0);
 
     ~HashTable();
 

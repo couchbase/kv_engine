@@ -41,7 +41,9 @@ std::ostream& operator<<(std::ostream& os, const HashTable::Position& pos) {
     return os;
 }
 
-HashTable::HashTable(EPStats& st, size_t s, size_t l)
+HashTable::HashTable(EPStats& st,
+                     std::unique_ptr<AbstractStoredValueFactory> svFactory,
+                     size_t s, size_t l)
     : maxDeletedRevSeqno(0),
       numTotalItems(0),
       numNonResidentItems(0),
@@ -51,7 +53,7 @@ HashTable::HashTable(EPStats& st, size_t s, size_t l)
       cacheSize(0),
       metaDataMemory(0),
       stats(st),
-      valFact(std::make_unique<StoredValueFactory>(st)),
+      valFact(std::move(svFactory)),
       visitors(0),
       numItems(0),
       numResizes(0),
