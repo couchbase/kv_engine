@@ -112,6 +112,171 @@ void SingleThreadedEPStoreTest::cancelAndPurgeTasks() {
     }
 }
 
+/*
+ * The following test checks to see if data is lost after a cursor is
+ * re-registered after being dropped.
+ *
+ * It first sets-up an active stream associated with the active vbucket 0.  We
+ * then move the stream into a STREAM_IN_MEMORY state, which results in creating
+ * a DCP cursor (in addition to the persistence cursor created on construction
+ * of the stream).
+ *
+ * We then add two documents closing the previous checkpoint and opening a new
+ * one after each add.  This means that after adding 2 documents we have 3
+ * checkpoints, (and 2 cursors).
+ *
+ * We then call handleSlowStream which results in the DCP cursor being dropped,
+ * the steam being moved into the STREAM_BACKFILLING state and, the
+ * pendingBackfill flag being set.
+ *
+ * As the DCP cursor is dropped we can remove the first checkpoint which the
+ * persistence cursor has moved past.  As the DCP stream no longer has its own
+ * cursor it will use the persistence cursor.  Therefore we need to schedule a
+ * backfill task, which clears the pendingBackfill flag.
+ *
+ * The key part of the test is that we now move the persistence cursor on by
+ * adding two more documents, and again closing the previous checkpoint and
+ * opening a new one after each add.
+ *
+ * Now that the persistence cursor has moved on we can remove the earlier
+ * checkpoints.
+ *
+ * We now run the backfill task that we scheduled for the active stream.
+ * And the key result of the test is whether it backfills all 4 documents.
+ * If it does then we have demonstrated that data is not lost.
+ *
+ */
+TEST_F(SingleThreadedEPStoreTest, MB22960_cursor_dropping_data_loss) {
+    // Make vbucket active.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto vb = store->getVbMap().getBucket(vbid);
+    auto& ckpt_mgr = vb->checkpointManager;
+    EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
+    EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+
+    // Create a Mock Dcp producer
+    dcp_producer_t producer = new MockDcpProducer(*engine,
+                                                  cookie,
+                                                  "test_producer",
+                                                  /*notifyOnly*/false);
+    // Create a Mock Active Stream
+    stream_t stream = new MockActiveStream(
+            static_cast<EventuallyPersistentEngine*>(engine.get()),
+            producer,
+            producer->getName(),
+            /*flags*/0,
+            /*opaque*/0, vbid,
+            /*st_seqno*/0,
+            /*en_seqno*/~0,
+            /*vb_uuid*/0xabcd,
+            /*snap_start_seqno*/0,
+            /*snap_end_seqno*/~0);
+
+    MockActiveStream* mock_stream =
+            static_cast<MockActiveStream*>(stream.get());
+
+    EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+    mock_stream->public_transitionState(STREAM_BACKFILLING);
+    EXPECT_EQ(2, ckpt_mgr.getNumOfCursors());
+    EXPECT_EQ(STREAM_IN_MEMORY, mock_stream->getState())
+                    << "stream state should have transitioned to "
+                       "STREAM_IN_MEMORY";
+
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    EXPECT_EQ(1, store->flushVBucket(vbid));
+    ckpt_mgr.createNewCheckpoint();
+    EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
+
+    store_item(vbid, makeStoredDocKey("key2"), "value");
+    EXPECT_EQ(1, store->flushVBucket(vbid));
+    ckpt_mgr.createNewCheckpoint();
+    EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
+
+    // can't remove checkpoint because of DCP stream.
+    bool new_ckpt_created;
+    EXPECT_EQ(0, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
+    EXPECT_EQ(2, ckpt_mgr.getNumOfCursors());
+
+    mock_stream->handleSlowStream();
+
+    EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+    EXPECT_EQ(STREAM_IN_MEMORY, mock_stream->getState())
+                    << "stream state should not have changed";
+    EXPECT_TRUE(mock_stream->public_getPendingBackfill())
+        << "pendingBackfill is not true";
+    EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
+
+    // Because we dropped the cursor we can now remove checkpoint
+    EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
+    EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
+
+    //schedule a backfill
+    mock_stream->next();
+    //pendingBackfill has now been cleared
+    EXPECT_FALSE(mock_stream->public_getPendingBackfill())
+        << "pendingBackfill is not false";
+    // we are now in backfill mode
+    EXPECT_TRUE(mock_stream->public_isBackfillTaskRunning())
+        << "isBackfillRunning is not true";
+
+    //Add a doc and close previous checkpoint
+    store_item(vbid, makeStoredDocKey("key3"), "value");
+    EXPECT_EQ(1, store->flushVBucket(vbid));
+    ckpt_mgr.createNewCheckpoint();
+    EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
+    EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+
+    // Now remove the earlier checkpoint
+    EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
+    EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
+    EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+
+    //Add a doc and close previous checkpoint
+    store_item(vbid, makeStoredDocKey("key4"), "value");
+    EXPECT_EQ(1, store->flushVBucket(vbid));
+    ckpt_mgr.createNewCheckpoint();
+    EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
+    EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+
+    // Now remove the earlier checkpoint
+    EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
+    EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
+    EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    EXPECT_EQ(2, lpAuxioQ.getFutureQueueSize());
+    // backfill:create()
+    runNextTask(lpAuxioQ);
+    // backfill:scan()
+    runNextTask(lpAuxioQ);
+    // backfill:complete()
+    runNextTask(lpAuxioQ);
+    DcpResponse* resp = mock_stream->next();
+    delete resp;
+    // backfillPhase() - take doc "key1" off the ReadyQ
+    resp = mock_stream->next();
+    delete resp;
+    // backfillPhase - take doc "key2" off the ReadyQ
+    resp = mock_stream->next();
+    delete resp;
+    // backfillPhase - take doc "key3" off the ReadyQ
+    resp = mock_stream->next();
+    delete resp;
+    // backfillPhase() - take doc "key4" off the ReadyQ
+    // isBackfillTaskRunning is not running and ReadyQ is now empty so also
+    // transitionState from STREAM_BACKFILLING to STREAM_IN_MEMORY
+    resp = mock_stream->next();
+    delete resp;
+    EXPECT_EQ(STREAM_IN_MEMORY, mock_stream->getState())
+                     << "stream state should have transitioned to "
+                        "STREAM_IN_MEMORY";
+    // inMemoryPhase.  ReadyQ is empty and pendingBackfill is false and so
+    // return NULL
+    resp = mock_stream->next();
+    EXPECT_EQ(NULL, resp);
+    EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
+    EXPECT_EQ(2, ckpt_mgr.getNumOfCursors());
+}
 
 /**
  * Regression test for MB-22451: When handleSlowStream is called and in
