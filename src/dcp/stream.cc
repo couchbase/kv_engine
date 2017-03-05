@@ -1711,6 +1711,11 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dc
                     transitionState(StreamState::Dead);
                 }
                 break;
+            case DcpResponse::Event::SystemEvent: {
+                    ret = processSystemEvent(*static_cast<SystemEventMessage*>(
+                            dcpResponse.get()));
+                    break;
+                }
             default:
                 consumer->getLogger().log(
                         EXTENSION_LOG_WARNING,
@@ -1777,6 +1782,11 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
                     transitionState(StreamState::Dead);
                 }
                 break;
+            case DcpResponse::Event::SystemEvent: {
+                    ret = processSystemEvent(
+                            *static_cast<SystemEventMessage*>(response.get()));
+                    break;
+                }
             default:
                 consumer->getLogger().log(EXTENSION_LOG_WARNING,
                                           "PassiveStream::processBufferedMessages:"
@@ -1933,6 +1943,91 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
     }
 
     return ret;
+}
+
+ENGINE_ERROR_CODE PassiveStream::processSystemEvent(
+        const SystemEventMessage& event) {
+    RCPtr<VBucket> vb = engine->getVBucket(vb_);
+
+    if (!vb) {
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
+    // Depending on the event, extras is different and key may even be empty
+    // The specific handler will know how to interpret.
+    switch (event.getSystemEvent()) {
+    case SystemEvent::CreateCollection: {
+        rv = processCreateCollection(*vb, {event});
+        break;
+    }
+    case SystemEvent::BeginDeleteCollection: {
+        rv = processBeginDeleteCollection(*vb, {event});
+        break;
+    }
+    case SystemEvent::CollectionsSeparatorChanged: {
+        rv = processSeparatorChanged(*vb, {event});
+        break;
+    }
+    case SystemEvent::DeleteCollectionSoft:
+    case SystemEvent::DeleteCollectionHard: {
+        rv = ENGINE_EINVAL; // Producer won't send
+        break;
+    }
+    }
+
+    if (rv != ENGINE_SUCCESS) {
+        consumer->getLogger().log(EXTENSION_LOG_WARNING,
+            "Got an error code %d while trying to process system event", rv);
+    } else {
+        handleSnapshotEnd(vb, *event.getBySeqno());
+    }
+
+    return rv;
+}
+
+ENGINE_ERROR_CODE PassiveStream::processCreateCollection(
+        VBucket& vb, const CollectionsEvent& event) {
+    try {
+        vb.replicaAddCollection(event.getKey(),
+                                event.getRevision(),
+                                event.getBySeqno());
+    } catch (std::exception& e) {
+        LOG(EXTENSION_LOG_WARNING,
+            "PassiveStream::processCreateCollection exception %s",
+            e.what());
+        return ENGINE_EINVAL;
+    }
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE PassiveStream::processBeginDeleteCollection(
+        VBucket& vb, const CollectionsEvent& event) {
+    try {
+        vb.replicaBeginDeleteCollection(event.getKey(),
+                                        event.getRevision(),
+                                        event.getBySeqno());
+    } catch (std::exception& e) {
+        LOG(EXTENSION_LOG_WARNING,
+            "PassiveStream::processBeginDeleteCollection exception %s",
+            e.what());
+        return ENGINE_EINVAL;
+    }
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE PassiveStream::processSeparatorChanged(
+        VBucket& vb, const CollectionsEvent& event) {
+    try {
+        vb.replicaChangeCollectionSeparator(
+                event.getKey(), event.getRevision(), event.getBySeqno());
+    } catch (std::exception& e) {
+        LOG(EXTENSION_LOG_WARNING,
+            "PassiveStream::processSeparatorChanged exception %s",
+            e.what());
+        return ENGINE_EINVAL;
+    }
+    return ENGINE_SUCCESS;
 }
 
 void PassiveStream::processMarker(SnapshotMarker* marker) {

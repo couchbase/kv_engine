@@ -1171,3 +1171,39 @@ SingleThreadedRCPtr<PassiveStream> DcpConsumer::findStream(uint16_t vbid) {
 void DcpConsumer::notifyPaused(bool schedule) {
     engine_.getDcpConnMap().notifyPausedConnection(this, schedule);
 }
+
+ENGINE_ERROR_CODE DcpConsumer::systemEvent(uint32_t opaque,
+                                           uint16_t vbucket,
+                                           uint32_t event,
+                                           uint64_t bySeqno,
+                                           cb::const_byte_buffer key,
+                                           cb::const_byte_buffer eventData) {
+    lastMessageTime = ep_current_time();
+
+    ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
+    auto stream = findStream(vbucket);
+    if (stream && stream->getOpaque() == opaque && stream->isActive()) {
+        try {
+            err = stream->messageReceived(
+                    std::make_unique<SystemEventConsumerMessage>(
+                            opaque,
+                            SystemEvent(event),
+                            bySeqno,
+                            key,
+                            eventData));
+        } catch (const std::bad_alloc&) {
+            return ENGINE_ENOMEM;
+        }
+    }
+
+    if (err == ENGINE_TMPFAIL) {
+        notifyVbucketReady(vbucket);
+        return ENGINE_SUCCESS;
+    }
+
+    flowControl.incrFreedBytes(SystemEventMessage::baseMsgBytes + key.size() +
+                               eventData.size());
+    notifyConsumerIfNecessary(true /*schedule*/);
+
+    return err;
+}

@@ -518,6 +518,40 @@ protected:
 
     ENGINE_ERROR_CODE processDeletion(MutationResponse* deletion);
 
+    /**
+     * Handle DCP system events against this stream.
+     *
+     * @param event The system-event to process against the stream.
+     */
+    ENGINE_ERROR_CODE processSystemEvent(const SystemEventMessage& event);
+
+    /**
+     * Process a create collection event, creating the collection on vb
+     *
+     * @param vb Vbucket onto which the collection is created.
+     * @param event The collection system event creating the collection.
+     */
+    ENGINE_ERROR_CODE processCreateCollection(VBucket& vb,
+                                              const CollectionsEvent& event);
+
+    /**
+     * Process a begin delete collection event.
+     *
+     * @param vb Vbucket which we apply the delete on.
+     * @param event The collection system event deleting the collection.
+     */
+    ENGINE_ERROR_CODE processBeginDeleteCollection(
+            VBucket& vb, const CollectionsEvent& event);
+
+    /**
+     * Process a collections change separator event.
+     *
+     * @param vb Vbucket which we apply the delete on.
+     * @param event The collection system event changing the separator.
+     */
+    ENGINE_ERROR_CODE processSeparatorChanged(VBucket& vb,
+                                              const CollectionsEvent& event);
+
     void handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno);
 
     void processMarker(SnapshotMarker* marker);

@@ -516,6 +516,50 @@ public:
         manifest.wlock().completeDeletion(*this, collection, revision);
     }
 
+    /**
+     * Add a collection to this vbucket with a pre-assigned seqno. I.e.
+     * this VB is a replica.
+     *
+     * @param collection collection name to add.
+     * @param revision revision of the collection to add.
+     * @param bySeqno The seqno assigned to the collection create event.
+     */
+    void replicaAddCollection(cb::const_char_buffer collection,
+                              uint32_t revision,
+                              int64_t bySeqno) {
+        manifest.wlock().replicaAdd(*this, collection, revision, bySeqno);
+    }
+
+    /**
+     * Delete a collection from this vbucket with a pre-assigned seqno. I.e.
+     * this VB is a replica.
+     *
+     * @param collection collection name to delete.
+     * @param revision revision of the manifest starting the delete.
+     * @param bySeqno The seqno assigned to the collection delete event.
+     */
+    void replicaBeginDeleteCollection(cb::const_char_buffer collection,
+                                      uint32_t revision,
+                                      int64_t bySeqno) {
+        manifest.wlock().replicaBeginDelete(
+                *this, collection, revision, bySeqno);
+    }
+
+    /**
+     * Delete a collection from this vbucket with a pre-assigned seqno. I.e.
+     * this VB is a replica.
+     *
+     * @param separator The new separator.
+     * @param revision The revision which changed the separator.
+     * @param bySeqno The seqno assigned to the change separator event.
+     */
+    void replicaChangeCollectionSeparator(cb::const_char_buffer separator,
+                                          uint32_t revision,
+                                          int64_t bySeqno) {
+        manifest.wlock().replicaChangeSeparator(
+                *this, separator, revision, bySeqno);
+    }
+
     static const vbucket_state_t ACTIVE;
     static const vbucket_state_t REPLICA;
     static const vbucket_state_t PENDING;

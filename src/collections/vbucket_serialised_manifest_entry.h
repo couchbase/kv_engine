@@ -184,6 +184,9 @@ public:
         revision = rev;
     }
 
+    /**
+     * @return the entry's collection name as a const byte buffer
+     */
     cb::const_char_buffer getCollectionName() const {
         return {getCollectionNamePtr(), size_t(collectionNameLen)};
     }

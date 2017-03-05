@@ -110,6 +110,23 @@ public:
      */
     bool handleResponse(protocol_binary_response_header* resp) override;
 
+    /**
+     * Push a systemEvent onto this DCP consumer for consumption by a VB
+     *
+     * @param opaque The opaque for the stream.
+     * @param vbucket The vbucket the event is being sent to.
+     * @param event The SystemEvent value as a uint32_t.
+     * @param bySeqno The seqno of the event.
+     * @param key The event's key.
+     * @param eventData The event's specific data.
+     */
+    ENGINE_ERROR_CODE systemEvent(uint32_t opaque,
+                                  uint16_t vbucket,
+                                  uint32_t event,
+                                  uint64_t bySeqno,
+                                  cb::const_byte_buffer key,
+                                  cb::const_byte_buffer eventData);
+
     bool doRollback(uint32_t opaque, uint16_t vbid, uint64_t rollbackSeqno);
 
     void addStats(ADD_STAT add_stat, const void *c) override;
