@@ -2092,32 +2092,6 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processExpiredItem(
     return {MutationStatus::NotFound, notifyCtx};
 }
 
-std::pair<MutationStatus, VBNotifyCtx> VBucket::updateStoredValue(
-        const std::unique_lock<std::mutex>& htLock,
-        StoredValue& v,
-        const Item& itm,
-        const VBQueueItemCtx* queueItmCtx) {
-    MutationStatus status = ht.unlocked_updateStoredValue(htLock, v, itm);
-
-    if (queueItmCtx) {
-        return {status, queueDirty(v, *queueItmCtx)};
-    }
-    return {status, VBNotifyCtx()};
-}
-
-std::pair<StoredValue*, VBNotifyCtx> VBucket::addNewStoredValue(
-        const HashTable::HashBucketLock& hbl,
-        const Item& itm,
-        const VBQueueItemCtx* queueItmCtx) {
-    StoredValue* v = ht.unlocked_addNewStoredValue(hbl, itm);
-
-    if (queueItmCtx) {
-        return {v, queueDirty(*v, *queueItmCtx)};
-    }
-
-    return {v, VBNotifyCtx()};
-}
-
 bool VBucket::deleteStoredValue(const HashTable::HashBucketLock& hbl,
                                 StoredValue& v) {
     if (!v.isDeleted() && v.isLocked(ep_current_time())) {
