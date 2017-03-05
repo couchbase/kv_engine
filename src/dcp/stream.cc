@@ -58,14 +58,17 @@ std::string to_string(const DcpEvent event) {
         "to_string(DcpEvent): " + std::to_string(int(event)));
 }
 
-static const char* snapshotTypeToString(snapshot_type_t type) {
-    static const char * const snapshotTypes[] = { "none", "disk", "memory" };
-    if (type < none || type > memory) {
-        throw std::invalid_argument("snapshotTypeToString: type (which is " +
-                                    std::to_string(type) +
-                                    ") is not a valid snapshot_type_t");
+const char* to_string(Stream::Snapshot type) {
+    switch (type) {
+    case Stream::Snapshot::None:
+        return "none";
+    case Stream::Snapshot::Disk:
+        return "disk";
+    case Stream::Snapshot::Memory:
+        return "memory";
     }
-    return snapshotTypes[type];
+    throw std::logic_error("to_string(Stream::Snapshot): called with invalid "
+            "Snapshot type:" + std::to_string(int(type)));
 }
 
 const uint64_t Stream::dcpMaxSeqno = std::numeric_limits<uint64_t>::max();
@@ -1450,7 +1453,7 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, dcp_consumer_t c,
     : Stream(name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid,
              snap_start_seqno, snap_end_seqno),
       engine(e), consumer(c), last_seqno(vb_high_seqno), cur_snapshot_start(0),
-      cur_snapshot_end(0), cur_snapshot_type(none), cur_snapshot_ack(false) {
+      cur_snapshot_end(0), cur_snapshot_type(Snapshot::None), cur_snapshot_ack(false) {
     LockHolder lh(streamMutex);
     pushToReadyQ(new StreamRequest(vb, opaque, flags, st_seqno, en_seqno,
                                   vb_uuid, snap_start_seqno, snap_end_seqno));
@@ -1863,7 +1866,8 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
 
     cur_snapshot_start.store(marker->getStartSeqno());
     cur_snapshot_end.store(marker->getEndSeqno());
-    cur_snapshot_type.store((marker->getFlags() & MARKER_FLAG_DISK) ? disk : memory);
+    cur_snapshot_type.store((marker->getFlags() & MARKER_FLAG_DISK) ?
+            Snapshot::Disk : Snapshot::Memory);
 
     if (vb) {
         if (marker->getFlags() & MARKER_FLAG_DISK && vb->getHighSeqno() == 0) {
@@ -1911,7 +1915,8 @@ void PassiveStream::processSetVBucketState(SetVBucketState* state) {
 
 void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno) {
     if (byseqno == cur_snapshot_end.load()) {
-        if (cur_snapshot_type.load() == disk && vb->isBackfillPhase()) {
+        if (cur_snapshot_type.load() == Snapshot::Disk &&
+                vb->isBackfillPhase()) {
             vb->setBackfillPhase(false);
             uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
             vb->checkpointManager.checkAndAddNewCheckpoint(id, *vb);
@@ -1937,7 +1942,7 @@ void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno) {
             }
             cur_snapshot_ack = false;
         }
-        cur_snapshot_type.store(none);
+        cur_snapshot_type.store(Snapshot::None);
     }
 }
 
@@ -1972,10 +1977,9 @@ void PassiveStream::addStats(ADD_STAT add_stat, const void *c) {
 
         checked_snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_type",
                          name_.c_str(), vb_);
-        add_casted_stat(buf, snapshotTypeToString(cur_snapshot_type.load()),
-                        add_stat, c);
+        add_casted_stat(buf, to_string(cur_snapshot_type.load()), add_stat, c);
 
-        if (cur_snapshot_type.load() != none) {
+        if (cur_snapshot_type.load() != Snapshot::None) {
             checked_snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_start",
                              name_.c_str(), vb_);
             add_casted_stat(buf, cur_snapshot_start.load(), add_stat, c);

@@ -67,12 +67,6 @@ enum stream_type_t {
     STREAM_PASSIVE
 };
 
-enum snapshot_type_t {
-    none,
-    disk,
-    memory
-};
-
 enum process_items_error_t {
     all_processed,
     more_to_process,
@@ -86,6 +80,13 @@ enum backfill_source_t {
 
 class Stream : public RCValue {
 public:
+
+    enum class Snapshot {
+           None,
+           Disk,
+           Memory
+       };
+
     Stream(const std::string &name, uint32_t flags, uint32_t opaque,
            uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
            uint64_t vb_uuid, uint64_t snap_start_seqno,
@@ -183,6 +184,8 @@ private:
      */
     std::atomic <uint64_t> readyQueueMemory;
 };
+
+const char* to_string(Stream::Snapshot type);
 
 
 class ActiveStreamCheckpointProcessorTask;
@@ -510,7 +513,7 @@ protected:
 
     std::atomic<uint64_t> cur_snapshot_start;
     std::atomic<uint64_t> cur_snapshot_end;
-    std::atomic<snapshot_type_t> cur_snapshot_type;
+    std::atomic<Snapshot> cur_snapshot_type;
     bool cur_snapshot_ack;
 
     struct Buffer {
