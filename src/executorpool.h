@@ -168,19 +168,19 @@ public:
         return numWorkers[NONIO_TASK_IDX];
     }
 
-    void setMaxReaders(uint16_t v) {
+    void setNumReaders(uint16_t v) {
         adjustWorkers(READER_TASK_IDX, v);
     }
 
-    void setMaxWriters(uint16_t v) {
+    void setNumWriters(uint16_t v) {
         adjustWorkers(WRITER_TASK_IDX, v);
     }
 
-    void setMaxAuxIO(uint16_t v) {
+    void setNumAuxIO(uint16_t v) {
         adjustWorkers(AUXIO_TASK_IDX, v);
     }
 
-    void setMaxNonIO(uint16_t v) {
+    void setNumNonIO(uint16_t v) {
         adjustWorkers(NONIO_TASK_IDX, v);
     }
 

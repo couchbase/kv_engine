@@ -115,7 +115,7 @@ TEST_F(ExecutorPoolTest, register_taskable_test) {
 }
 
 /* This test creates an ExecutorPool, and attempts to verify that calls to
- * setMaxWriters are able to dynamically create more workers than were present
+ * setNumWriters are able to dynamically create more workers than were present
  * at initialisation. A ThreadGate is used to confirm that two tasks
  * of type WRITER_TASK_IDX can run concurrently
  *
@@ -130,7 +130,7 @@ TEST_F(ExecutorPoolTest, increase_workers) {
             numReaders + numWriters + numAuxIO + numNonIO;
 
     // This will allow us to check that numWriters + 1 writer tasks can run
-    // concurrently after setMaxWriters has been called.
+    // concurrently after setNumWriters has been called.
     ThreadGate tg{numWriters + 1};
 
     TestExecutorPool pool(5, // MaxThreads
@@ -154,7 +154,7 @@ TEST_F(ExecutorPoolTest, increase_workers) {
     EXPECT_EQ(numWriters, pool.getNumWriters());
     ASSERT_EQ(originalWorkers, pool.getNumWorkersStat());
 
-    pool.setMaxWriters(numWriters + 1);
+    pool.setNumWriters(numWriters + 1);
 
     EXPECT_EQ(numWriters + 1, pool.getNumWriters());
     ASSERT_EQ(originalWorkers + 1, pool.getNumWorkersStat());
@@ -167,7 +167,7 @@ TEST_F(ExecutorPoolTest, increase_workers) {
 
 TEST_F(ExecutorPoolDynamicWorkerTest, decrease_workers) {
     EXPECT_EQ(2, pool->getNumWriters());
-    pool->setMaxWriters(1);
+    pool->setNumWriters(1);
     EXPECT_EQ(1, pool->getNumWriters());
 }
 
@@ -220,12 +220,12 @@ TEST_F(ExecutorPoolDynamicWorkerTest, new_worker_naming_test) {
     EXPECT_TRUE(pool->threadExists("writer_worker_0"));
     EXPECT_TRUE(pool->threadExists("writer_worker_1"));
 
-    pool->setMaxWriters(1);
+    pool->setNumWriters(1);
 
     EXPECT_TRUE(pool->threadExists("writer_worker_0"));
     EXPECT_FALSE(pool->threadExists("writer_worker_1"));
 
-    pool->setMaxWriters(2);
+    pool->setNumWriters(2);
 
     EXPECT_TRUE(pool->threadExists("writer_worker_0"));
     EXPECT_TRUE(pool->threadExists("writer_worker_1"));

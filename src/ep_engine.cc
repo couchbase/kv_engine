@@ -524,22 +524,26 @@ static protocol_binary_response_status setFlushParam(
         } else if (strcmp(keyz, "warmup_min_items_threshold") == 0) {
             e->getConfiguration().setWarmupMinItemsThreshold(
                 std::stoull(valz));
-        } else if (strcmp(keyz, "max_num_readers") == 0) {
+        } else if (strcmp(keyz, "max_num_readers") == 0 ||
+                   strcmp(keyz, "num_reader_threads") == 0) {
             size_t value = std::stoull(valz);
-            e->getConfiguration().setMaxNumReaders(value);
-            ExecutorPool::get()->setMaxReaders(value);
-        } else if (strcmp(keyz, "max_num_writers") == 0) {
+            e->getConfiguration().setNumReaderThreads(value);
+            ExecutorPool::get()->setNumReaders(value);
+        } else if (strcmp(keyz, "max_num_writers") == 0 ||
+                   strcmp(keyz, "num_writer_threads") == 0) {
             size_t value = std::stoull(valz);
-            e->getConfiguration().setMaxNumWriters(value);
-            ExecutorPool::get()->setMaxWriters(value);
-        } else if (strcmp(keyz, "max_num_auxio") == 0) {
+            e->getConfiguration().setNumWriterThreads(value);
+            ExecutorPool::get()->setNumWriters(value);
+        } else if (strcmp(keyz, "max_num_auxio") == 0 ||
+                   strcmp(keyz, "num_auxio_threads") == 0) {
             size_t value = std::stoull(valz);
-            e->getConfiguration().setMaxNumAuxio(value);
-            ExecutorPool::get()->setMaxAuxIO(value);
-        } else if (strcmp(keyz, "max_num_nonio") == 0) {
+            e->getConfiguration().setNumAuxioThreads(value);
+            ExecutorPool::get()->setNumAuxIO(value);
+        } else if (strcmp(keyz, "max_num_nonio") == 0 ||
+                   strcmp(keyz, "num_nonio_threads") == 0) {
             size_t value = std::stoull(valz);
-            e->getConfiguration().setMaxNumNonio(value);
-            ExecutorPool::get()->setMaxNonIO(value);
+            e->getConfiguration().setNumNonioThreads(value);
+            ExecutorPool::get()->setNumNonIO(value);
         } else if (strcmp(keyz, "bfilter_enabled") == 0) {
             e->getConfiguration().setBfilterEnabled(cb_stob(valz));
         } else if (strcmp(keyz, "bfilter_residency_threshold") == 0) {

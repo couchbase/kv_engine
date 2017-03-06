@@ -132,9 +132,11 @@ ExecutorPool *ExecutorPool::get(void) {
             EventuallyPersistentEngine *epe =
                                    ObjectRegistry::onSwitchThread(NULL, true);
             tmp = new ExecutorPool(config.getMaxThreads(),
-                    NUM_TASK_GROUPS, config.getMaxNumReaders(),
-                    config.getMaxNumWriters(), config.getMaxNumAuxio(),
-                    config.getMaxNumNonio());
+                                   NUM_TASK_GROUPS,
+                                   config.getNumReaderThreads(),
+                                   config.getNumWriterThreads(),
+                                   config.getNumAuxioThreads(),
+                                   config.getNumNonioThreads());
             ObjectRegistry::onSwitchThread(epe);
             instance.store(tmp);
         }

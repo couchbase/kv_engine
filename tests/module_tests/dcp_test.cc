@@ -69,10 +69,10 @@ protected:
 
         // Set AuxIO threads to zero, so that the producer's
         // ActiveStreamCheckpointProcesserTask doesn't run.
-        ExecutorPool::get()->setMaxAuxIO(0);
+        ExecutorPool::get()->setNumAuxIO(0);
         // Set NonIO threads to zero, so the connManager
         // task does not run.
-        ExecutorPool::get()->setMaxNonIO(0);
+        ExecutorPool::get()->setNumNonIO(0);
     }
 
     void TearDown() override {
@@ -80,8 +80,8 @@ protected:
          * the excess looping but not getting work. We now need to set the
          * AuxIO and NonIO back to 1 to allow dead tasks to be cleaned up
          */
-        ExecutorPool::get()->setMaxAuxIO(1);
-        ExecutorPool::get()->setMaxNonIO(1);
+        ExecutorPool::get()->setNumAuxIO(1);
+        ExecutorPool::get()->setNumNonIO(1);
 
         EventuallyPersistentEngineTest::TearDown();
     }
