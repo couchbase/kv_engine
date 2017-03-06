@@ -60,6 +60,7 @@ Connection::Connection(SOCKET sfd, event_base* b)
       internal(false),
       authenticated(false),
       username("unknown"),
+      domain(cb::sasl::Domain::Builtin),
       nodelay(false),
       refcount(0),
       engine_storage(nullptr),
