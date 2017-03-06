@@ -17,6 +17,8 @@
 
 #include "hash_table.h"
 
+#include "stored_value_factories.h"
+
 #include <cstring>
 
 #ifndef DEFAULT_HT_SIZE
@@ -49,7 +51,7 @@ HashTable::HashTable(EPStats& st, size_t s, size_t l)
       cacheSize(0),
       metaDataMemory(0),
       stats(st),
-      valFact(st),
+      valFact(std::make_unique<StoredValueFactory>(st)),
       visitors(0),
       numItems(0),
       numResizes(0),
@@ -305,7 +307,7 @@ StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
     }
 
     // Create a new StoredValue and link it into the head of the bucket chain.
-    auto v = valFact(itm, std::move(values[hbl.getBucketNum()]), *this);
+    auto v = (*valFact)(itm, std::move(values[hbl.getBucketNum()]), *this);
     if (v->isTempItem()) {
         ++numTempItems;
     } else {
@@ -360,7 +362,7 @@ void HashTable::unlocked_del(const HashBucketLock& hbl, const DocKey& key) {
     unlocked_release(hbl, key).reset();
 }
 
-std::unique_ptr<StoredValue> HashTable::unlocked_release(
+StoredValue::UniquePtr HashTable::unlocked_release(
         const HashBucketLock& hbl, const DocKey& key) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(

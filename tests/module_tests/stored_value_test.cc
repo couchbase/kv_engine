@@ -22,8 +22,8 @@
 #include "config.h"
 
 #include "hash_table.h"
-#include "stored-value.h"
 #include "stats.h"
+#include "stored_value_factories.h"
 #include "tests/module_tests/test_helpers.h"
 
 #include <gtest/gtest.h>
@@ -58,7 +58,7 @@ protected:
     StoredValueFactory factory;
     HashTable ht;
     Item item;
-    std::unique_ptr<StoredValue> sv;
+    StoredValue::UniquePtr sv;
 };
 
 // Check that the size calculation methods return the expected sizes.

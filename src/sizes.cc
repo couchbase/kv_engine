@@ -71,7 +71,6 @@ int main(int, char **) {
     display("GIGANTOR", GIGANTOR);
     display("Stored Value", sizeof(StoredValue));
 
-    display("Stored Value Factory", sizeof(StoredValueFactory));
     display("Blob", sizeof(Blob));
     display("value_t", sizeof(value_t));
     display("HashTable", sizeof(HashTable));

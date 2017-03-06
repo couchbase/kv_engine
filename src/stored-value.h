@@ -15,8 +15,7 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_STORED_VALUE_H_
-#define SRC_STORED_VALUE_H_ 1
+#pragma once
 
 #include "config.h"
 
@@ -24,18 +23,56 @@
 #include "item_pager.h"
 #include "utility.h"
 
-#include <platform/cb_malloc.h>
-
-// Forward declaration for StoredValue
 class HashTable;
-class StoredValueFactory;
-class StoredValueTest;
 
 /**
  * In-memory storage for an item.
+ *
+ * This class represents a single document which is present in the HashTable -
+ * essentially this is value_type used by HashTable.
+ *
+ * It contains the documents' key, related metadata (CAS, rev, seqno, ...).
+ * It also has a pointer to the documents' value - which may be null if the
+ * value of the item is not currently resident (for example it's been evicted to
+ * save memory).
+ * Additionally it contains flags to help HashTable manage the state of the
+ * item - such as dirty flag, NRU bits, and a `next` pointer to support
+ * chaining of StoredValues which hash to the same hash bucket.
+ *
+ * The key of the item is of variable length (from 1 to ~256 bytes). As an
+ * optimization, we allocate the key directly after the fixed size of
+ * StoredValue, so StoredValue and its key are contiguous in memory. This saves
+ * us the cost of an indirection compared to storing the key out-of-line, and
+ * the space of a pointer in StoredValue to point to the out-of-line
+ * allocation. It does, however complicate the management of StoredValue
+ * objects as they are now variable-sized - they must be created using a
+ * factory method (StoredValueFactory) and must be heap-allocated, managed
+ * using a unique_ptr (StoredValue::UniquePtr).
+ *
+ * Graphically the looks like:
+ *
+ *              StoredValue::UniquePtr
+ *                          |
+ *                          V
+ *               .-------------------.
+ *               | StoredValue       |
+ *               +-------------------+
+ *           {   | value [ptr]       | ======> Blob (nullptr if evicted)
+ *           {   | next  [ptr]       | ======> StoredValue (next in hash chain).
+ *     fixed {   | CAS               |
+ *    length {   | revSeqno          |
+ *           {   | ...               |
+ *           {   | internal flags: isDirty, deleted, isOrderedStoredValue ...
+ *               + - - - - - - - - - +
+ *  variable {   | key[]             |
+ *   length  {   | ...               |
+ *               +-------------------+
+ *
  */
 class StoredValue {
 public:
+    // Owning pointer type for StoredValue objects.
+    using UniquePtr = std::unique_ptr<StoredValue>;
 
     void operator delete(void* p) {
         ::operator delete(p);
@@ -480,11 +517,14 @@ public:
                                   const Item& item,
                                   bool isReplication = false);
 
+    /// Return how many bytes are need to store Item as a StoredValue
+    static size_t getRequiredStorage(const Item& item) {
+        return sizeof(StoredValue) +
+               SerialisedDocKey::getObjectSize(item.getKey().size());
+    }
+
 private:
-    StoredValue(const Item& itm,
-                std::unique_ptr<StoredValue> n,
-                EPStats& stats,
-                HashTable& ht)
+    StoredValue(const Item& itm, UniquePtr n, EPStats& stats, HashTable& ht)
         : value(itm.getValue()),
           next(std::move(n)),
           cas(itm.getCas()),
@@ -525,22 +565,13 @@ private:
         return reinterpret_cast<SerialisedDocKey*>(this + 1);
     }
 
-    /*
-     * Return how many bytes are need to store Item as a StoredValue
-     */
-    static size_t getRequiredStorage(const Item& item) {
-        return sizeof(StoredValue) +
-               SerialisedDocKey::getObjectSize(item.getKey().size());
-    }
-
     friend class HashTable;
     friend class StoredValueFactory;
-    friend class StoredValueTest; // Needs to introspect layout of this class.
 
     value_t            value;          // 8 bytes
     // Used to implement HashTable chaining (for elements hashing to the same
     // bucket).
-    std::unique_ptr<StoredValue> next; // 8 bytes
+    UniquePtr next; // 8 bytes
     uint64_t           cas;            //!< CAS identifier.
     uint64_t           revSeqno;       //!< Revision id sequence number
     int64_t            bySeqno;        //!< By sequence id number
@@ -560,41 +591,3 @@ private:
 
     DISALLOW_COPY_AND_ASSIGN(StoredValue);
 };
-
-/**
- * Creator of StoredValue instances.
- */
-class StoredValueFactory {
-public:
-
-    /**
-     * Create a new StoredValueFactory of the given type.
-     */
-    StoredValueFactory(EPStats &s) : stats(&s) { }
-
-    /**
-     * Create a new StoredValue with the given item.
-     *
-     * @param itm the item the StoredValue should contain
-     * @param next The StoredValue which will follow the new stored value in
-     *             the hash bucket chain, which this new item will take
-     *             ownership of. (Typically the top of the hash bucket into
-     *             which the new item is being inserted).
-     * @param ht the hashtable that will contain the StoredValue instance
-     *           created
-     */
-    std::unique_ptr<StoredValue> operator()(const Item& itm,
-                                            std::unique_ptr<StoredValue> next,
-                                            HashTable& ht) {
-        // Allocate a buffer to store the StoredValue and any trailing bytes
-        // that maybe required.
-        return std::unique_ptr<StoredValue>(
-                new (::operator new(StoredValue::getRequiredStorage(itm)))
-                        StoredValue(itm, std::move(next), *stats, ht));
-    }
-
-private:
-    EPStats                *stats;
-};
-
-#endif  // SRC_STORED_VALUE_H_

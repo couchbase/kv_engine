@@ -21,6 +21,7 @@
 #include "storeddockey.h"
 #include "stored-value.h"
 
+class AbstractStoredValueFactory;
 class HashTableStatVisitor;
 class HashTableVisitor;
 class HashTableDepthVisitor;
@@ -575,7 +576,7 @@ public:
      *
      * @return the StoredValue that is removed from the HT
      */
-    std::unique_ptr<StoredValue> unlocked_release(const HashBucketLock& hbl,
+    StoredValue::UniquePtr unlocked_release(const HashBucketLock& hbl,
                                                   const DocKey& key);
 
     std::atomic<uint64_t>     maxDeletedRevSeqno;
@@ -592,7 +593,7 @@ public:
 
 private:
     // The container for actually holding the StoredValues.
-    using table_type = std::vector<std::unique_ptr<StoredValue>>;
+    using table_type = std::vector<StoredValue::UniquePtr>;
 
     friend class StoredValue;
 
@@ -604,7 +605,7 @@ private:
     table_type values;
     std::mutex               *mutexes;
     EPStats&             stats;
-    StoredValueFactory   valFact;
+    std::unique_ptr<AbstractStoredValueFactory> valFact;
     std::atomic<size_t>       visitors;
     std::atomic<size_t>       numItems;
     std::atomic<size_t>       numResizes;
@@ -640,8 +641,8 @@ private:
      * @return The removed element, or NULL if no matching element was found.
      */
     template <typename Pred>
-    std::unique_ptr<StoredValue> hashChainRemoveFirst(
-            std::unique_ptr<StoredValue>& chain, Pred p) {
+    StoredValue::UniquePtr hashChainRemoveFirst(StoredValue::UniquePtr& chain,
+                                                Pred p) {
         if (p(chain.get())) {
             // Head element:
             auto removed = std::move(chain);
@@ -650,7 +651,7 @@ private:
         }
 
         // Not head element, start searching.
-        for (std::unique_ptr<StoredValue>* curr = &chain; curr->get()->next;
+        for (StoredValue::UniquePtr* curr = &chain; curr->get()->next;
              curr = &curr->get()->next) {
             if (p(curr->get()->next.get())) {
                 // next element matches predicate - splice it out of the list.
