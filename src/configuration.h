@@ -27,6 +27,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "locks.h"
@@ -371,6 +372,15 @@ public:
      */
     ValueChangedValidator *setValueValidator(const std::string &key,
                                              ValueChangedValidator *validator);
+    /**
+     * Adds an alias for a configuration. Values can be set in configuration
+     * under the original or aliased named, but setters/getters will only be
+     * generated for the main name.
+     *
+     * @param key the key to which the alias refers
+     * @param alias the new alias
+     */
+    void addAlias(const std::string& key, const std::string& alias);
 
 protected:
     /**
@@ -462,9 +472,11 @@ private:
     void initialize();
 
     struct value_t {
-        value_t() : validator(NULL) { val.v_string = 0; }
-        std::vector<ValueChangedListener *> changeListener;
-        ValueChangedValidator *validator;
+        value_t() {
+            val.v_string = 0;
+        }
+        std::vector<std::unique_ptr<ValueChangedListener>> changeListener;
+        std::unique_ptr<ValueChangedValidator> validator;
         config_datatype datatype;
         union {
             size_t v_size;
@@ -473,11 +485,30 @@ private:
             bool v_bool;
             const char *v_string;
         } val;
+
+        std::vector<ValueChangedListener*> copyListeners() {
+            std::vector<ValueChangedListener*> copy;
+
+            std::transform(changeListener.begin(),
+                           changeListener.end(),
+                           std::back_inserter(copy),
+                           [](std::unique_ptr<ValueChangedListener>& listener)
+                                   -> ValueChangedListener* {
+                               return listener.get();
+                           });
+            return copy;
+        }
+
+        ~value_t() {
+            if (datatype == DT_STRING) {
+                cb_free((void*)val.v_string);
+            }
+        }
     };
 
     // Access to the configuration variables is protected by the mutex
     mutable std::mutex mutex;
-    std::map<std::string, value_t> attributes;
+    std::map<std::string, std::shared_ptr<value_t>> attributes;
 
     friend std::ostream& operator<< (std::ostream& out,
                                      const Configuration &config);

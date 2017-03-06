@@ -28,6 +28,7 @@
 #include <map>
 
 #include <ctype.h>
+#include <vector>
 
 #include "cJSON.h"
 
@@ -251,6 +252,37 @@ static bool isReadOnly(cJSON *o) {
     return true;
 }
 
+static bool hasAliases(cJSON* o) {
+    cJSON* i = cJSON_GetObjectItem(o, "aliases");
+    if (i == NULL) {
+        return false;
+    }
+
+    if (i->type == cJSON_String || i->type == cJSON_Array) {
+        return true;
+    }
+
+    return false;
+}
+
+static std::vector<std::string> getAliases(cJSON* o) {
+    cJSON* aliases = cJSON_GetObjectItem(o, "aliases");
+
+    std::vector<std::string> output;
+
+    if (aliases->type == cJSON_String) {
+        output.emplace_back(aliases->valuestring);
+    } else if (aliases->type == cJSON_Array) {
+        int count = cJSON_GetArraySize(aliases);
+
+        for (int i = 0; i < count; i++) {
+            output.emplace_back(cJSON_GetArrayItem(aliases, i)->valuestring);
+        }
+    }
+
+    return output;
+}
+
 static string getDatatype(const std::string &key, cJSON *o) {
     cJSON *i = cJSON_GetObjectItem(o, "type");
     cb_assert(i != NULL && i->type == cJSON_String);
@@ -360,7 +392,12 @@ static void generate(cJSON *o) {
         initialization << "    setValueValidator(\"" << config_name
                        << "\", " << validator << ");" << endl;
     }
-
+    if (hasAliases(o)) {
+        for (std::string alias : getAliases(o)) {
+            initialization << "    addAlias(\"" << config_name << "\", \""
+                           << alias << "\");" << endl;
+        }
+    }
 
     // Generate the getter
     implementation << type << " Configuration::" << getGetterPrefix(type)
