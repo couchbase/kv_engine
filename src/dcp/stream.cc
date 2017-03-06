@@ -33,30 +33,6 @@
 
 #include <memory>
 
-std::string to_string(const DcpEvent event) {
-    switch (event) {
-    case DcpEvent::Mutation:
-        return "mutation";
-    case DcpEvent::Deletion:
-        return "deletion";
-    case DcpEvent::Expiration:
-        return "expiration";
-    case DcpEvent::Flush:
-        return "flush";
-    case DcpEvent::SetVbucket:
-        return "set vbucket";
-    case DcpEvent::StreamReq:
-        return "stream req";
-    case DcpEvent::StreamEnd:
-        return "stream end";
-    case DcpEvent::SnapshotMarker:
-        return "snapshot marker";
-    case DcpEvent::AddStream:
-        return "add stream";
-    }
-    throw std::invalid_argument(
-        "to_string(DcpEvent): " + std::to_string(int(event)));
-}
 
 const char* to_string(Stream::Snapshot type) {
     switch (type) {
@@ -472,9 +448,9 @@ void ActiveStream::setVBucketStateAckRecieved() {
 DcpResponse* ActiveStream::backfillPhase(std::lock_guard<std::mutex>& lh) {
     DcpResponse* resp = nextQueuedItem();
 
-    if (resp && (resp->getEvent() == DcpEvent::Mutation ||
-         resp->getEvent() == DcpEvent::Deletion ||
-         resp->getEvent() == DcpEvent::Expiration)) {
+    if (resp && (resp->getEvent() == DcpResponse::Event::Mutation ||
+         resp->getEvent() == DcpResponse::Event::Deletion ||
+         resp->getEvent() == DcpResponse::Event::Expiration)) {
         MutationResponse* m = static_cast<MutationResponse*>(resp);
         producer->recordBackfillManagerBytesSent(m->getItem()->size());
         bufferedBackfill.bytes.fetch_sub(m->getItem()->size());
@@ -708,9 +684,9 @@ DcpResponse* ActiveStream::nextQueuedItem() {
     if (!readyQ.empty()) {
         DcpResponse* response = readyQ.front();
         if (producer->bufferLogInsert(response->getMessageSize())) {
-            if (response->getEvent() == DcpEvent::Mutation ||
-                    response->getEvent() == DcpEvent::Deletion ||
-                    response->getEvent() == DcpEvent::Expiration) {
+            if (response->getEvent() == DcpResponse::Event::Mutation ||
+                    response->getEvent() == DcpResponse::Event::Deletion ||
+                    response->getEvent() == DcpResponse::Event::Expiration) {
                 lastSentSeqno.store(
                         dynamic_cast<MutationResponse*>(response)->getBySeqno());
 
@@ -1567,9 +1543,9 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dc
     }
 
     switch (dcpResponse->getEvent()) {
-        case DcpEvent::Mutation:
-        case DcpEvent::Deletion:
-        case DcpEvent::Expiration:
+        case DcpResponse::Event::Mutation:
+        case DcpResponse::Event::Deletion:
+        case DcpResponse::Event::Expiration:
         {
             uint64_t bySeqno =
                 static_cast<MutationResponse*>(dcpResponse.get())->getBySeqno();
@@ -1585,7 +1561,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dc
             last_seqno.store(bySeqno);
             break;
         }
-        case DcpEvent::SnapshotMarker:
+        case DcpResponse::Event::SnapshotMarker:
         {
             auto s = static_cast<SnapshotMarker*>(dcpResponse.get());
             uint64_t snapStart = s->getStartSeqno();
@@ -1601,8 +1577,8 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dc
             }
             break;
         }
-        case DcpEvent::SetVbucket:
-        case DcpEvent::StreamEnd:
+        case DcpResponse::Event::SetVbucket:
+        case DcpResponse::Event::StreamEnd:
         {
             /* No validations necessary */
             break;
@@ -1611,7 +1587,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dc
         {
             consumer->getLogger().log(EXTENSION_LOG_WARNING,
                 "(vb %d) Unknown DCP op received: %s; Disconnecting connection..",
-                vb_, to_string(dcpResponse->getEvent()).c_str());
+                vb_, dcpResponse->to_string());
             return ENGINE_DISCONNECT;
         }
     }
@@ -1620,20 +1596,20 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dc
         /* Process the response here itself rather than buffering it */
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
         switch (dcpResponse->getEvent()) {
-            case DcpEvent::Mutation:
+            case DcpResponse::Event::Mutation:
                 ret = processMutation(static_cast<MutationResponse*>(dcpResponse.get()));
                 break;
-            case DcpEvent::Deletion:
-            case DcpEvent::Expiration:
+            case DcpResponse::Event::Deletion:
+            case DcpResponse::Event::Expiration:
                 ret = processDeletion(static_cast<MutationResponse*>(dcpResponse.get()));
                 break;
-            case DcpEvent::SnapshotMarker:
+            case DcpResponse::Event::SnapshotMarker:
                 processMarker(static_cast<SnapshotMarker*>(dcpResponse.get()));
                 break;
-            case DcpEvent::SetVbucket:
+            case DcpResponse::Event::SetVbucket:
                 processSetVBucketState(static_cast<SetVBucketState*>(dcpResponse.get()));
                 break;
-            case DcpEvent::StreamEnd:
+            case DcpResponse::Event::StreamEnd:
                 {
                     LockHolder lh(streamMutex);
                     transitionState(STREAM_DEAD);
@@ -1644,7 +1620,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dc
                 throw std::logic_error("PassiveStream::messageReceived: (vb " +
                                        std::to_string(vb_) +
                                        ") received unknown message type " +
-                                       to_string(dcpResponse->getEvent()));
+                                       dcpResponse->to_string());
         }
         if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
             return ret;
@@ -1684,20 +1660,20 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
         message_bytes = response->getMessageSize();
 
         switch (response->getEvent()) {
-            case DcpEvent::Mutation:
+            case DcpResponse::Event::Mutation:
                 ret = processMutation(static_cast<MutationResponse*>(response.get()));
                 break;
-            case DcpEvent::Deletion:
-            case DcpEvent::Expiration:
+            case DcpResponse::Event::Deletion:
+            case DcpResponse::Event::Expiration:
                 ret = processDeletion(static_cast<MutationResponse*>(response.get()));
                 break;
-            case DcpEvent::SnapshotMarker:
+            case DcpResponse::Event::SnapshotMarker:
                 processMarker(static_cast<SnapshotMarker*>(response.get()));
                 break;
-            case DcpEvent::SetVbucket:
+            case DcpResponse::Event::SetVbucket:
                 processSetVBucketState(static_cast<SetVBucketState*>(response.get()));
                 break;
-            case DcpEvent::StreamEnd:
+            case DcpResponse::Event::StreamEnd:
                 {
                     LockHolder lh(streamMutex);
                     transitionState(STREAM_DEAD);
@@ -1709,7 +1685,7 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
                                           "(vb %" PRIu16 ") PassiveStream ignoring "
                                           "unknown message type %s",
                                           vb_,
-                                          to_string(response->getEvent()).c_str());
+                                          response->to_string());
                 continue;
         }
 

@@ -471,14 +471,14 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL,
                                                                      true);
     switch (resp->getEvent()) {
-        case DcpEvent::StreamEnd:
+        case DcpResponse::Event::StreamEnd:
         {
             StreamEndResponse *se = static_cast<StreamEndResponse*>(resp);
             ret = producers->stream_end(getCookie(), se->getOpaque(),
                                         se->getVbucket(), se->getFlags());
             break;
         }
-        case DcpEvent::Mutation:
+        case DcpResponse::Event::Mutation:
         {
             if (itmCpy == nullptr) {
                 throw std::logic_error(
@@ -499,7 +499,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                                       mutationResponse->getItem()->getNRUValue());
             break;
         }
-        case DcpEvent::Deletion:
+        case DcpResponse::Event::Deletion:
         {
             if (itmCpy == nullptr) {
                 throw std::logic_error(
@@ -518,7 +518,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                                       meta.first, meta.second);
             break;
         }
-        case DcpEvent::SnapshotMarker:
+        case DcpResponse::Event::SnapshotMarker:
         {
             SnapshotMarker *s = static_cast<SnapshotMarker*>(resp);
             ret = producers->marker(getCookie(), s->getOpaque(),
@@ -528,7 +528,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                                     s->getFlags());
             break;
         }
-        case DcpEvent::SetVbucket:
+        case DcpResponse::Event::SetVbucket:
         {
             SetVBucketState *s = static_cast<SetVBucketState*>(resp);
             ret = producers->set_vbucket_state(getCookie(), s->getOpaque(),
@@ -539,7 +539,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         {
             LOG(EXTENSION_LOG_WARNING, "%s Unexpected dcp event (%s), "
                 "disconnecting", logHeader(),
-                to_string(resp->getEvent()).c_str());
+                resp->to_string());
             ret = ENGINE_DISCONNECT;
             break;
         }
@@ -929,25 +929,26 @@ DcpResponse* DcpProducer::getNextItem() {
             }
 
             switch (op->getEvent()) {
-                case DcpEvent::SnapshotMarker:
-                case DcpEvent::Mutation:
-                case DcpEvent::Deletion:
-                case DcpEvent::Expiration:
-                case DcpEvent::StreamEnd:
-                case DcpEvent::SetVbucket:
+                case DcpResponse::Event::SnapshotMarker:
+                case DcpResponse::Event::Mutation:
+                case DcpResponse::Event::Deletion:
+                case DcpResponse::Event::Expiration:
+                case DcpResponse::Event::StreamEnd:
+                case DcpResponse::Event::SetVbucket:
                     break;
                 default:
                     throw std::logic_error(
                             std::string("DcpProducer::getNextItem: "
                             "Producer (") + logHeader() + ") is attempting to "
                             "write an unexpected event:" +
-                            to_string(op->getEvent()));
+                            op->to_string());
             }
 
             ready.pushUnique(vbucket);
 
-            if (op->getEvent() == DcpEvent::Mutation || op->getEvent() == DcpEvent::Deletion ||
-                op->getEvent() == DcpEvent::Expiration) {
+            if (op->getEvent() == DcpResponse::Event::Mutation ||
+                    op->getEvent() == DcpResponse::Event::Deletion ||
+                op->getEvent() == DcpResponse::Event::Expiration) {
                 itemsSent++;
             }
 

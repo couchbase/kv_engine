@@ -23,20 +23,6 @@
 #include "ext_meta_parser.h"
 #include "item.h"
 
-enum class DcpEvent : uint8_t {
-    Mutation,
-    Deletion,
-    Expiration,
-    Flush,
-    SetVbucket,
-    StreamReq,
-    StreamEnd,
-    SnapshotMarker,
-    AddStream
-};
-
-std::string to_string(const DcpEvent event);
-
 enum dcp_marker_flag_t {
     MARKER_FLAG_MEMORY = 0x01,
     MARKER_FLAG_DISK   = 0x02,
@@ -46,7 +32,19 @@ enum dcp_marker_flag_t {
 
 class DcpResponse {
 public:
-    DcpResponse(DcpEvent event, uint32_t opaque)
+    enum class Event {
+        Mutation,
+        Deletion,
+        Expiration,
+        Flush,
+        SetVbucket,
+        StreamReq,
+        StreamEnd,
+        SnapshotMarker,
+        AddStream
+    };
+
+    DcpResponse(Event event, uint32_t opaque)
         : opaque_(opaque), event_(event) {}
 
     virtual ~DcpResponse() {}
@@ -55,7 +53,7 @@ public:
         return opaque_;
     }
 
-    DcpEvent getEvent() {
+    Event getEvent() {
         return event_;
     }
 
@@ -64,17 +62,17 @@ public:
      */
     bool isMetaEvent() const {
         switch (event_) {
-        case DcpEvent::Mutation:
-        case DcpEvent::Deletion:
-        case DcpEvent::Expiration:
-        case DcpEvent::Flush:
+        case Event::Mutation:
+        case Event::Deletion:
+        case Event::Expiration:
+        case Event::Flush:
             return false;
 
-        case DcpEvent::SetVbucket:
-        case DcpEvent::StreamReq:
-        case DcpEvent::StreamEnd:
-        case DcpEvent::SnapshotMarker:
-        case DcpEvent::AddStream:
+        case Event::SetVbucket:
+        case Event::StreamReq:
+        case Event::StreamEnd:
+        case Event::SnapshotMarker:
+        case Event::AddStream:
             return true;
         }
         throw std::invalid_argument(
@@ -84,9 +82,11 @@ public:
 
     virtual uint32_t getMessageSize() = 0;
 
+    const char* to_string() const;
+
 private:
     uint32_t opaque_;
-    DcpEvent event_;
+    Event event_;
 };
 
 class StreamRequest : public DcpResponse {
@@ -94,7 +94,7 @@ public:
     StreamRequest(uint16_t vbucket, uint32_t opaque, uint32_t flags,
                   uint64_t startSeqno, uint64_t endSeqno, uint64_t vbucketUUID,
                   uint64_t snapStartSeqno, uint64_t snapEndSeqno)
-        : DcpResponse(DcpEvent::StreamReq, opaque), startSeqno_(startSeqno),
+        : DcpResponse(Event::StreamReq, opaque), startSeqno_(startSeqno),
           endSeqno_(endSeqno), vbucketUUID_(vbucketUUID),
           snapStartSeqno_(snapStartSeqno), snapEndSeqno_(snapEndSeqno),
           flags_(flags), vbucket_(vbucket) {}
@@ -148,7 +148,7 @@ private:
 class AddStreamResponse : public DcpResponse {
 public:
     AddStreamResponse(uint32_t opaque, uint32_t streamOpaque, uint16_t status)
-        : DcpResponse(DcpEvent::AddStream, opaque), streamOpaque_(streamOpaque),
+        : DcpResponse(Event::AddStream, opaque), streamOpaque_(streamOpaque),
           status_(status) {}
 
     ~AddStreamResponse() {}
@@ -175,7 +175,7 @@ private:
 class SnapshotMarkerResponse : public DcpResponse {
 public:
     SnapshotMarkerResponse(uint32_t opaque, uint16_t status)
-        : DcpResponse(DcpEvent::SnapshotMarker, opaque), status_(status) {}
+        : DcpResponse(Event::SnapshotMarker, opaque), status_(status) {}
 
     uint16_t getStatus() {
         return status_;
@@ -194,7 +194,7 @@ private:
 class SetVBucketStateResponse : public DcpResponse {
 public:
     SetVBucketStateResponse(uint32_t opaque, uint16_t status)
-        : DcpResponse(DcpEvent::SetVbucket, opaque), status_(status) {}
+        : DcpResponse(Event::SetVbucket, opaque), status_(status) {}
 
     uint16_t getStatus() {
         return status_;
@@ -213,7 +213,7 @@ private:
 class StreamEndResponse : public DcpResponse {
 public:
     StreamEndResponse(uint32_t opaque, uint32_t flags, uint16_t vbucket)
-        : DcpResponse(DcpEvent::StreamEnd, opaque), flags_(flags),
+        : DcpResponse(Event::StreamEnd, opaque), flags_(flags),
           vbucket_(vbucket) {}
 
     uint16_t getFlags() {
@@ -238,7 +238,7 @@ private:
 class SetVBucketState : public DcpResponse {
 public:
     SetVBucketState(uint32_t opaque, uint16_t vbucket, vbucket_state_t state)
-        : DcpResponse(DcpEvent::SetVbucket, opaque), vbucket_(vbucket),
+        : DcpResponse(Event::SetVbucket, opaque), vbucket_(vbucket),
           state_(state) {}
 
     uint16_t getVBucket() {
@@ -264,7 +264,7 @@ class SnapshotMarker : public DcpResponse {
 public:
     SnapshotMarker(uint32_t opaque, uint16_t vbucket, uint64_t start_seqno,
                    uint64_t end_seqno, uint32_t flags)
-        : DcpResponse(DcpEvent::SnapshotMarker, opaque), vbucket_(vbucket),
+        : DcpResponse(Event::SnapshotMarker, opaque), vbucket_(vbucket),
           start_seqno_(start_seqno), end_seqno_(end_seqno), flags_(flags) {}
 
     uint32_t getVBucket() {
@@ -300,7 +300,7 @@ class MutationResponse : public DcpResponse {
 public:
     MutationResponse(queued_item item, uint32_t opaque,
                      ExtendedMetaData *e = NULL)
-        : DcpResponse(item->isDeleted() ? DcpEvent::Deletion : DcpEvent::Mutation, opaque),
+        : DcpResponse(item->isDeleted() ? Event::Deletion : Event::Mutation, opaque),
           item_(item), emd(e) {}
 
     queued_item& getItem() {

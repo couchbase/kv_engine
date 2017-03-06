@@ -33,3 +33,28 @@ const uint32_t SetVBucketStateResponse::baseMsgBytes = 24;
 const uint32_t StreamEndResponse::baseMsgBytes = 28;
 const uint32_t SetVBucketState::baseMsgBytes = 25;
 const uint32_t SnapshotMarker::baseMsgBytes = 44;
+
+const char* DcpResponse::to_string() const {
+    switch (event_) {
+    case Event::Mutation:
+        return "mutation";
+    case Event::Deletion:
+        return "deletion";
+    case Event::Expiration:
+        return "expiration";
+    case Event::Flush:
+        return "flush";
+    case Event::SetVbucket:
+        return "set vbucket";
+    case Event::StreamReq:
+        return "stream req";
+    case Event::StreamEnd:
+        return "stream end";
+    case Event::SnapshotMarker:
+        return "snapshot marker";
+    case Event::AddStream:
+        return "add stream";
+    }
+    throw std::logic_error(
+        "DcpResponse::to_string(): " + std::to_string(int(event_)));
+}
