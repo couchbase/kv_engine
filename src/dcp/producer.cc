@@ -659,11 +659,10 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
     return ENGINE_EINVAL;
 }
 
-ENGINE_ERROR_CODE DcpProducer::handleResponse(
-                                        protocol_binary_response_header *resp) {
+bool DcpProducer::handleResponse(protocol_binary_response_header* resp) {
     lastReceiveTime = ep_current_time();
     if (doDisconnect()) {
-        return ENGINE_DISCONNECT;
+        return false;
     }
 
     uint8_t opcode = resp->response.opcode;
@@ -696,24 +695,24 @@ ENGINE_ERROR_CODE DcpProducer::handleResponse(
             }
         }
 
-        return ENGINE_SUCCESS;
+        return true;
     } else if (opcode == PROTOCOL_BINARY_CMD_DCP_MUTATION ||
         opcode == PROTOCOL_BINARY_CMD_DCP_DELETION ||
         opcode == PROTOCOL_BINARY_CMD_DCP_EXPIRATION ||
         opcode == PROTOCOL_BINARY_CMD_DCP_STREAM_END) {
         // TODO: When nacking is implemented we need to handle these responses
-        return ENGINE_SUCCESS;
+        return true;
     } else if (opcode == PROTOCOL_BINARY_CMD_DCP_NOOP) {
         if (noopCtx.opaque == resp->response.opaque) {
             noopCtx.pendingRecv = false;
-            return ENGINE_SUCCESS;
+            return true;
         }
     }
 
     LOG(EXTENSION_LOG_WARNING, "%s Trying to handle an unknown response %d, "
         "disconnecting", logHeader(), opcode);
 
-    return ENGINE_DISCONNECT;
+    return false;
 }
 
 ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque, uint16_t vbucket) {

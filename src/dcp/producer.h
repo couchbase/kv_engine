@@ -53,7 +53,15 @@ public:
     ENGINE_ERROR_CODE control(uint32_t opaque, const void* key, uint16_t nkey,
                               const void* value, uint32_t nvalue);
 
-    ENGINE_ERROR_CODE handleResponse(protocol_binary_response_header *resp);
+    /**
+     * Sub-classes must implement a method that processes a response
+     * to a request initiated by itself.
+     *
+     * @param resp A mcbp response message to process.
+     * @returns true/false which will be converted to SUCCESS/DISCONNECT by the
+     *          engine.
+     */
+    bool handleResponse(protocol_binary_response_header* resp);
 
     void addStats(ADD_STAT add_stat, const void *c);
 

@@ -268,8 +268,15 @@ public:
 
     virtual ENGINE_ERROR_CODE step(struct dcp_message_producers* producers);
 
-    virtual ENGINE_ERROR_CODE handleResponse(
-                                        protocol_binary_response_header *resp);
+    /**
+     * Sub-classes must implement a method that processes a response
+     * to a request initiated by itself.
+     *
+     * @param resp A mcbp response message to process.
+     * @returns true/false which will be converted to SUCCESS/DISCONNECT by the
+     *          engine.
+     */
+    virtual bool handleResponse(protocol_binary_response_header* resp);
 
     EventuallyPersistentEngine& engine() {
         return engine_;

@@ -316,11 +316,10 @@ ENGINE_ERROR_CODE ConnHandler::step(struct dcp_message_producers* producers) {
     return ENGINE_DISCONNECT;
 }
 
-ENGINE_ERROR_CODE ConnHandler::handleResponse(
-                                        protocol_binary_response_header *resp) {
+bool ConnHandler::handleResponse(protocol_binary_response_header* resp) {
     logger.log(EXTENSION_LOG_WARNING, "Disconnecting - This connection doesn't "
         "support the dcp response handler API");
-    return ENGINE_DISCONNECT;
+    return false;
 }
 
 const Logger& ConnHandler::getLogger() const {

@@ -1640,7 +1640,9 @@ static ENGINE_ERROR_CODE EvpDcpResponseHandler(ENGINE_HANDLE* handle,
     auto engine = acquireEngine(handle);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        return conn->handleResponse(response);
+        if (conn->handleResponse(response)) {
+            return ENGINE_SUCCESS;
+        }
     }
     return ENGINE_DISCONNECT;
 }

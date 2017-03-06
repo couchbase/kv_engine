@@ -636,10 +636,9 @@ bool RollbackTask::run() {
     return false;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::handleResponse(
-                                        protocol_binary_response_header *resp) {
+bool DcpConsumer::handleResponse(protocol_binary_response_header* resp) {
     if (doDisconnect()) {
-        return ENGINE_DISCONNECT;
+        return false;
     }
 
     uint8_t opcode = resp->response.opcode;
@@ -651,12 +650,12 @@ ENGINE_ERROR_CODE DcpConsumer::handleResponse(
             LOG(EXTENSION_LOG_WARNING,
                 "Received response with opaque %" PRIu32 " and that opaque "
                 "does not exist in opaqueMap", opaque);
-            return ENGINE_KEY_ENOENT;
+            return false;
         } else if (!isValidOpaque(opaque, oitr->second.second)) {
             LOG(EXTENSION_LOG_WARNING, "Received response with opaque %" PRIu32
                 " and that stream does not exist for vb:%" PRIu16,
                 opaque, oitr->second.second);
-            return ENGINE_KEY_ENOENT;
+            return false;
         }
         protocol_binary_response_dcp_stream_req* pkt =
             reinterpret_cast<protocol_binary_response_dcp_stream_req*>(resp);
@@ -671,7 +670,7 @@ ENGINE_ERROR_CODE DcpConsumer::handleResponse(
                 LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Received rollback "
                     "request with incorrect bodylen of %" PRIu64 ", disconnecting",
                     logHeader(), vbid, bodylen);
-                return ENGINE_DISCONNECT;
+                return false;
             }
             uint64_t rollbackSeqno = 0;
             memcpy(&rollbackSeqno, body, sizeof(uint64_t));
@@ -683,27 +682,27 @@ ENGINE_ERROR_CODE DcpConsumer::handleResponse(
             ExTask task = new RollbackTask(&engine_, opaque, vbid,
                                            rollbackSeqno, this);
             ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
-            return ENGINE_SUCCESS;
+            return true;
         }
 
         if (((bodylen % 16) != 0 || bodylen == 0) && status == ENGINE_SUCCESS) {
             LOG(EXTENSION_LOG_WARNING, "%s (vb %d)Got a stream response with a "
                 "bad failover log (length %" PRIu64 "), disconnecting",
                 logHeader(), vbid, bodylen);
-            return ENGINE_DISCONNECT;
+            return false;
         }
 
         streamAccepted(opaque, status, body, bodylen);
-        return ENGINE_SUCCESS;
+        return true;
     } else if (opcode == PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT ||
                opcode == PROTOCOL_BINARY_CMD_DCP_CONTROL) {
-        return ENGINE_SUCCESS;
+        return true;
     }
 
     LOG(EXTENSION_LOG_WARNING, "%s Trying to handle an unknown response %d, "
         "disconnecting", logHeader(), opcode);
 
-    return ENGINE_DISCONNECT;
+    return false;
 }
 
 bool DcpConsumer::doRollback(uint32_t opaque, uint16_t vbid,
