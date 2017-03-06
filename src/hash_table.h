@@ -20,6 +20,7 @@
 #include "config.h"
 #include "storeddockey.h"
 #include "stored-value.h"
+#include <platform/non_negative_counter.h>
 
 class AbstractStoredValueFactory;
 class HashTableStatVisitor;
@@ -584,6 +585,8 @@ public:
     std::atomic<size_t>       numTotalItems;
     cb::NonNegativeCounter<size_t> numNonResidentItems;
     cb::NonNegativeCounter<size_t> numDeletedItems;
+    std::array<cb::NonNegativeCounter<size_t>, mcbp::datatype::highest + 1>
+            datatypeCounts;
     std::atomic<size_t>       numEjects;
     //! Memory consumed by items in this hashtable.
     std::atomic<size_t>       memSize;

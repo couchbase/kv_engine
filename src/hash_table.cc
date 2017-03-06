@@ -48,6 +48,7 @@ HashTable::HashTable(EPStats& st,
       numTotalItems(0),
       numNonResidentItems(0),
       numDeletedItems(0),
+      datatypeCounts(),
       numEjects(0),
       memSize(0),
       cacheSize(0),
@@ -105,6 +106,7 @@ void HashTable::clear(bool deactivate) {
 
     stats.currentSize.fetch_sub(clearedMemSize - clearedValSize);
 
+    datatypeCounts.fill(0);
     numTotalItems.store(0);
     numItems.store(0);
     numTempItems.store(0);
@@ -290,6 +292,13 @@ MutationStatus HashTable::unlocked_updateStoredValue(
         --numDeletedItems;
     }
 
+    // If the item we are replacing is resident then we need to make sure we
+    // appropriately alter the datatype stats.
+    if (v.getDatatype() != itm.getDataType()) {
+        --datatypeCounts[v.getDatatype()];
+        ++datatypeCounts[itm.getDataType()];
+    }
+
     /* setValue() will mark v as undeleted if required */
     v.setValue(itm, *this);
     return status;
@@ -316,6 +325,7 @@ StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
     } else {
         ++numItems;
         ++numTotalItems;
+        ++datatypeCounts[v->getDatatype()];
     }
     values[hbl.getBucketNum()] = std::move(v);
 
@@ -360,6 +370,8 @@ void HashTable::unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
     if (!v.isResident() && !v.isDeleted() && !v.isTempItem()) {
         decrNumNonResidentItems();
     }
+
+    --datatypeCounts[v.getDatatype()];
 
     if (onlyMarkDeleted) {
         v.markDeleted();
@@ -432,6 +444,7 @@ StoredValue::UniquePtr HashTable::unlocked_release(
     } else {
         decrNumItems();
         decrNumTotalItems();
+        --datatypeCounts[released->getDatatype()];
         if (released->isDeleted()) {
             --numDeletedItems;
         }
@@ -624,7 +637,6 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
         throw std::invalid_argument("HashTable::unlocked_ejectItem: "
                 "Unable to delete NULL StoredValue");
     }
-
     if (policy == VALUE_ONLY) {
         bool rv = vptr->ejectValue(*this, policy);
         if (rv) {
@@ -656,6 +668,7 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
                                            // fully evicted.
             }
             decrNumItems(); // Decrement because the item is fully evicted.
+            --datatypeCounts[vptr->getDatatype()];
             ++numEjects;
             updateMaxDeletedRevSeqno(vptr->getRevSeqno());
 
@@ -692,6 +705,7 @@ bool HashTable::unlocked_restoreValue(
         /* set it back to false as we created a temp item by setting it to true
            when bg fetch is scheduled (full eviction mode). */
         v.setNewCacheItem(false);
+        ++datatypeCounts[itm.getDataType()];
     } else {
         decrNumNonResidentItems();
     }
@@ -722,5 +736,6 @@ void HashTable::unlocked_restoreMeta(const std::unique_lock<std::mutex>& htLock,
         --numTempItems;
         ++numItems;
         ++numNonResidentItems;
+        ++datatypeCounts[v.getDatatype()];
     }
 }

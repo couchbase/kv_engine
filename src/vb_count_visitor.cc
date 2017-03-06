@@ -63,5 +63,10 @@ void VBucketCountVisitor::visitBucket(VBucketPtr& vb) {
         auto driftExceptionCounters = vb->getHLCDriftExceptionCounters();
         totalHLCDriftExceptionCounters.ahead += driftExceptionCounters.ahead;
         totalHLCDriftExceptionCounters.behind += driftExceptionCounters.behind;
+
+        // Iterate over each datatype combination
+        for (uint8_t ii = 0; ii < datatypeCounts.size(); ++ii) {
+            datatypeCounts[ii] += vb->ht.datatypeCounts[ii];
+        }
     }
 }

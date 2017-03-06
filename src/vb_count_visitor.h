@@ -54,6 +54,7 @@ public:
           backfillQueueSize(0),
           pendingWrites(0),
           chkPersistRemaining(0),
+          datatypeCounts{{0}},
           queueAge(0),
           rollbackItemCount(0),
           numHpVBReqs(0),
@@ -154,6 +155,13 @@ public:
         return chkPersistRemaining;
     }
 
+    size_t getDatatypeCount(protocol_binary_datatype_t datatype) const {
+        return datatypeCounts[datatype];
+    }
+    const size_t getNumDatatypes() const {
+        return datatypeCounts.size();
+    }
+
     uint64_t getRollbackItemCount() {
         return rollbackItemCount;
     }
@@ -197,6 +205,7 @@ private:
     size_t backfillQueueSize;
     size_t pendingWrites;
     size_t chkPersistRemaining;
+    std::array<size_t, mcbp::datatype::highest + 1> datatypeCounts;
     uint64_t queueAge;
     uint64_t rollbackItemCount;
     size_t numHpVBReqs;
