@@ -363,7 +363,8 @@
         },
         "max_size": {
             "default": "0",
-            "type": "size_t"
+            "type": "size_t",
+            "aliases":["cache_size"]
         },
         "max_vbuckets": {
             "default": "1024",

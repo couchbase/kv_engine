@@ -193,11 +193,7 @@ void Configuration::setParameter(const std::string &key, size_t value) {
             attributes[key] = std::make_shared<value_t>();
         }
         attributes[key]->datatype = DT_SIZE;
-        if (key.compare("cache_size") == 0) {
-            attributes["max_size"]->val.v_size = value;
-        } else {
-            attributes[key]->val.v_size = value;
-        }
+        attributes[key]->val.v_size = value;
 
         copy = attributes[key]->copyListeners();
     }
@@ -220,11 +216,7 @@ void Configuration::setParameter(const std::string &key, ssize_t value) {
             attributes[key] = std::make_shared<value_t>();
         }
         attributes[key]->datatype = DT_SSIZE;
-        if (key.compare("cache_size") == 0) {
-            attributes["max_size"]->val.v_ssize = value;
-        } else {
-            attributes[key]->val.v_ssize = value;
-        }
+        attributes[key]->val.v_ssize = value;
 
         copy = attributes[key]->copyListeners();
     }
@@ -379,9 +371,6 @@ bool Configuration::parseConfiguration(const char *str,
         config.push_back(std::make_unique<ConfigItem>(
                 attribute.first.c_str(), attribute.second->datatype));
     }
-
-    // we don't have a good support for alias yet...
-    config.push_back(std::make_unique<ConfigItem>("cache_size", DT_SIZE));
 
     // And add support for config files...
     config.push_back(std::make_unique<ConfigItem>("config_file", DT_CONFIGFILE));
