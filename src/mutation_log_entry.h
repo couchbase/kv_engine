@@ -162,11 +162,11 @@ protected:
     friend std::ostream& operator<<(std::ostream& out,
                                     const MutationLogEntryV1& e);
 
-    uint64_t _rowid;
-    uint16_t _vbucket;
-    uint8_t magic;
-    MutationLogType _type;
-    uint8_t keylen;
+    const uint64_t _rowid;
+    const uint16_t _vbucket;
+    const uint8_t magic;
+    const MutationLogType _type;
+    const uint8_t keylen;
     char _key[1];
 
     DISALLOW_COPY_AND_ASSIGN(MutationLogEntryV1);
@@ -340,12 +340,12 @@ private:
                   r, t, vb, {nullptr, 0, DocNamespace::DefaultCollection}) {
     }
 
-    uint64_t _rowid;
-    uint16_t _vbucket;
-    uint8_t magic;
-    MutationLogType _type;
-    uint8_t pad; // explicit padding to ensure _key is the final member
-    SerialisedDocKey _key;
+    const uint64_t _rowid;
+    const uint16_t _vbucket;
+    const uint8_t magic;
+    const MutationLogType _type;
+    const uint8_t pad; // explicit padding to ensure _key is the final member
+    const SerialisedDocKey _key;
 
     DISALLOW_COPY_AND_ASSIGN(MutationLogEntryV2);
 
