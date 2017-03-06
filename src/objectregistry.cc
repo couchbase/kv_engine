@@ -72,6 +72,9 @@ void ObjectRegistry::initialize(get_allocation_size func) {
     getAllocSize = func;
 }
 
+void ObjectRegistry::reset() {
+    getAllocSize = defaultGetAllocSize;
+}
 
 void ObjectRegistry::onCreateBlob(const Blob *blob)
 {

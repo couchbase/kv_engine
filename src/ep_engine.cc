@@ -1728,6 +1728,7 @@ void destroy_engine() {
     // A single MemoryTracker exists for *all* buckets
     // and must be destroyed before unloading the shared object.
     MemoryTracker::destroyInstance();
+    ObjectRegistry::reset();
 }
 
 static bool EvpGetItemInfo(ENGINE_HANDLE* handle, const void*,
