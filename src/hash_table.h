@@ -20,6 +20,7 @@
 #include "config.h"
 #include "storeddockey.h"
 #include "stored-value.h"
+#include <platform/non_negative_counter.h>
 
 class AbstractStoredValueFactory;
 class HashTableStatVisitor;
@@ -606,6 +607,8 @@ public:
 
     std::atomic<uint64_t>     maxDeletedRevSeqno;
     std::atomic<size_t>       numTotalItems;
+    std::array<cb::NonNegativeCounter<size_t>, mcbp::datatype::highest + 1>
+            datatypeCounts;
     std::atomic<size_t>       numNonResidentItems;
     std::atomic<size_t> numDeletedItems;
     std::atomic<size_t>       numEjects;

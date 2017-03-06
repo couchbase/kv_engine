@@ -1331,6 +1331,18 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
             active.getTotalHLCDriftExceptionCounters().ahead +
                     replica.getTotalHLCDriftExceptionCounters().ahead);
 
+    for (uint8_t ii = 0; ii < active.getNumDatatypes(); ++ii) {
+        std::string name = "ep_active_datatype_";
+        name += mcbp::datatype::to_string(ii);
+        DO_STAT(name.c_str(), active.getDatatypeCount(ii));
+    }
+
+    for (uint8_t ii = 0; ii < replica.getNumDatatypes(); ++ii) {
+        std::string name = "ep_replica_datatype_";
+        name += mcbp::datatype::to_string(ii);
+        DO_STAT(name.c_str(), replica.getDatatypeCount(ii));
+    }
+
 #undef DO_STAT
 }
 
