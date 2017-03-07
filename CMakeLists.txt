@@ -336,7 +336,8 @@ ADD_LIBRARY(ep_testsuite_basic SHARED
    tests/mock/mock_dcp.cc
 )
 SET_TARGET_PROPERTIES(ep_testsuite_basic PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep_testsuite_basic JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+TARGET_LINK_LIBRARIES(ep_testsuite_basic engine_utilities JSON_checker dirutils
+                      platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
 ADD_DEPENDENCIES(ep_testsuite engine_testapp)
 
 ADD_LIBRARY(ep_testsuite_dcp SHARED

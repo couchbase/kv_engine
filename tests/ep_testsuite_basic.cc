@@ -2040,6 +2040,50 @@ static test_result pre_link_document(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+/**
+ * verify that get_if works as expected
+ */
+static test_result get_if(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+    item* it;
+    const std::string key("get_if");
+
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, nullptr, OPERATION_SET, key.c_str(), "somevalue", &it),
+            "Failed set.");
+    h1->release(h, nullptr, it);
+
+    auto doc = h1->get_if(h,
+                          nullptr,
+                          DocKey(key, testHarness.doc_namespace),
+                          0,
+                          [](const item_info&) { return true; });
+    check(doc, "document should be found");
+
+    doc = h1->get_if(h,
+                     nullptr,
+                     DocKey(key, testHarness.doc_namespace),
+                     0,
+                     [](const item_info&) { return false; });
+    check(!doc, "document should not be found");
+
+    try {
+        doc = h1->get_if(h,
+                         nullptr,
+                         DocKey(std::string{"no"}, testHarness.doc_namespace),
+                         0,
+                         [](const item_info&) { return false; });
+        fprintf(stderr,
+                "%s:%d Test failed: `expected get_if to throw exception'\n",
+                __FILE__, __LINE__);
+        return FAIL;
+    } catch (const cb::engine_error& error) {
+        check(error.code() == cb::engine_errc::no_such_key,
+                "document should not exist");
+    }
+
+    return SUCCESS;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Test manifest //////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -2171,6 +2215,9 @@ BaseTestCase testsuite_testcases[] = {
                  prepare, cleanup),
 
         TestCase("pre_link_document", pre_link_document, test_setup, teardown, nullptr,
+                 prepare, cleanup),
+
+        TestCase("engine get_if", get_if, test_setup, teardown, nullptr,
                  prepare, cleanup),
 
         // sentinel

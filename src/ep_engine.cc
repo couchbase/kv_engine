@@ -1,7 +1,6 @@
-
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2010 Couchbase, Inc
+ *     Copyright 2017 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -254,6 +253,14 @@ static ENGINE_ERROR_CODE EvpGet(ENGINE_HANDLE* handle,
     }
 
     return acquireEngine(handle)->get(cookie, itm, key, vbucket, options);
+}
+
+static cb::unique_item_ptr EvpGetIf(ENGINE_HANDLE* handle,
+                                    const void* cookie,
+                                    const DocKey& key,
+                                    uint16_t vbucket,
+                                    std::function<bool(const item_info&)>filter) {
+    return acquireEngine(handle)->get_if(cookie, key, vbucket, filter);
 }
 
 static ENGINE_ERROR_CODE EvpGetLocked(ENGINE_HANDLE* handle,
@@ -1799,6 +1806,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::remove = EvpItemDelete;
     ENGINE_HANDLE_V1::release = EvpItemRelease;
     ENGINE_HANDLE_V1::get = EvpGet;
+    ENGINE_HANDLE_V1::get_if = EvpGetIf;
     ENGINE_HANDLE_V1::get_locked = EvpGetLocked;
     ENGINE_HANDLE_V1::unlock = EvpUnlock;
     ENGINE_HANDLE_V1::get_stats = EvpGetStats;
@@ -2125,6 +2133,41 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie){
         LOG(EXTENSION_LOG_NOTICE, "Completed bucket deleteAll operation");
         return ENGINE_SUCCESS;
     }
+}
+
+cb::unique_item_ptr EventuallyPersistentEngine::get_if(const void* cookie,
+                                                       const DocKey& key,
+                                                       uint16_t vbucket,
+                                                       std::function<bool(const item_info&)>filter) {
+    const auto options = static_cast<get_options_t>(
+            HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP | HIDE_LOCKED_CAS |
+            GET_DELETED_VALUE | QUEUE_BG_FETCH);
+
+    BlockTimer timer(&stats.getCmdHisto);
+    const GetValue gv(kvBucket->get(key, vbucket, cookie, options));
+    ENGINE_ERROR_CODE status = gv.getStatus();
+
+    if (status != ENGINE_SUCCESS) {
+        if ((status == ENGINE_KEY_ENOENT || status == ENGINE_NOT_MY_VBUCKET) &&
+            isDegradedMode()) {
+            status = ENGINE_TMPFAIL;
+        }
+
+        // We failed to fetch the item
+        throw cb::engine_error(cb::engine_errc(status), "get_if");
+    }
+
+    auto* item = gv.getValue();
+    cb::unique_item_ptr ret{
+            item, cb::ItemDeleter{reinterpret_cast<ENGINE_HANDLE*>(this)}};
+
+    if (!filter(item->toItemInfo(0))) {
+        // the client don't care about this thing..
+        ret.reset(nullptr);
+    }
+
+    // Return the item or "null" if the client don't want the item
+    return ret;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::get_locked(const void* cookie,
