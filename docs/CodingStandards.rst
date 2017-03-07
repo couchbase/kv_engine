@@ -1119,6 +1119,10 @@ In general, names should be in camel case (e.g. ``TextFileReader`` and
 * **Type names** (including classes, structs, enums, typedefs, etc) should be
   nouns and start with an upper-case letter (e.g. ``TextFileReader``).
 
+* **Type template parameters** (e.g. ``template <typename Param>
+  ...`` or ``template <class MyClass>``) are types, so they should
+  follow the naming convensions for types.
+
 * **Variable names** should be nouns (as they represent state).  The name should
   be camel case, and start with an lower case letter (e.g. ``leader`` or
   ``boats``).
