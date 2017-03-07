@@ -229,6 +229,8 @@ ADD_SUBDIRECTORY(daemon)
 
 CONFIGURE_FILE(tests/cert/testapp.pem tests/cert/testapp.pem COPYONLY)
 CONFIGURE_FILE(tests/cert/testapp.cert tests/cert/testapp.cert COPYONLY)
+CONFIGURE_FILE(tests/cert/client.pem tests/cert/client.pem COPYONLY)
+CONFIGURE_FILE(tests/cert/client.key tests/cert/client.key COPYONLY)
 # Second copy to test changing at runtime
 CONFIGURE_FILE(tests/cert/testapp.pem tests/cert/testapp2.pem COPYONLY)
 CONFIGURE_FILE(tests/cert/testapp.cert tests/cert/testapp2.cert COPYONLY)
