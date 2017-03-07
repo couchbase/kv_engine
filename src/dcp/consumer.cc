@@ -676,14 +676,7 @@ bool DcpConsumer::handleResponse(protocol_binary_response_header* resp) {
             uint64_t rollbackSeqno = 0;
             memcpy(&rollbackSeqno, body, sizeof(uint64_t));
             rollbackSeqno = ntohll(rollbackSeqno);
-
-            LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Received rollback request "
-                "to rollback seq no. %" PRIu64, logHeader(), vbid, rollbackSeqno);
-
-            ExTask task = new RollbackTask(&engine_, opaque, vbid,
-                                           rollbackSeqno, this);
-            ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
-            return true;
+            return handleRollbackResponse(vbid, opaque, rollbackSeqno);
         }
 
         if (((bodylen % 16) != 0 || bodylen == 0) && status == ENGINE_SUCCESS) {
@@ -704,6 +697,46 @@ bool DcpConsumer::handleResponse(protocol_binary_response_header* resp) {
         "disconnecting", logHeader(), opcode);
 
     return false;
+}
+
+bool DcpConsumer::handleRollbackResponse(uint16_t vbid,
+                                         uint32_t opaque,
+                                         uint64_t rollbackSeqno) {
+    auto vb = engine_.getVBucket(vbid);
+    auto stream = findStream(vbid);
+
+    if (!(vb && stream)) {
+        LOG(EXTENSION_LOG_WARNING,
+            "%s (vb %d) handleRollbackResponse: vb:%s, stream:%s",
+            logHeader(),
+            vbid,
+            vb.get() ? "ok" : "nullptr",
+            stream.get() ? "ok" : "nullptr");
+        return false;
+    }
+
+    auto entries = vb->failovers->getNumEntries();
+    if (rollbackSeqno == 0 && entries > 1) {
+        LOG(EXTENSION_LOG_NOTICE,
+            "%s (vb %d) Received rollback request. Rollback to 0 yet have %ld "
+            "entries remaining. Retrying with previous failover entry",
+            logHeader(),
+            vbid,
+            entries);
+        vb->failovers->removeLatestEntry();
+
+        stream->streamRequest(vb->failovers->getLatestEntry().vb_uuid);
+    } else {
+        LOG(EXTENSION_LOG_NOTICE,
+            "%s (vb %d) Received rollback request. Rolling back to seqno:%" PRIu64,
+            logHeader(),
+            vbid,
+            rollbackSeqno);
+        ExTask task =
+                new RollbackTask(&engine_, opaque, vbid, rollbackSeqno, this);
+        ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
+    }
+    return true;
 }
 
 bool DcpConsumer::doRollback(uint32_t opaque, uint16_t vbid,

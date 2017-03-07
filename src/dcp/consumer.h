@@ -223,6 +223,25 @@ protected:
     process_items_error_t drainStreamsBufferedItems(SingleThreadedRCPtr<PassiveStream>& stream,
                                                     size_t yieldThreshold);
 
+    /**
+     * This function is called when an addStream command gets a rollback
+     * error from the producer.
+     *
+     * The function will either trigger a rollback to rollbackSeqno or
+     * trigger the request of a new stream using the next (older) failover table
+     * entry.
+     *
+     * @param vbid The vbucket the response is for.
+     * @param opaque Unique handle for the stream's request/response.
+     * @param rollbackSeqno The seqno to rollback to.
+     *
+     * @returns true/false which will be converted to SUCCESS/DISCONNECT by the
+     *          engine.
+     */
+    bool handleRollbackResponse(uint16_t vbid,
+                                uint32_t opaque,
+                                uint64_t rollbackSeqno);
+
     uint64_t opaqueCounter;
     size_t processorTaskId;
     std::atomic<enum process_items_error_t> processorTaskState;

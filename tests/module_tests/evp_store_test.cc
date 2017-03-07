@@ -107,6 +107,29 @@ Item KVBucketTest::store_item(uint16_t vbid,
     return item;
 }
 
+::testing::AssertionResult KVBucketTest::store_items(
+        int nitems,
+        uint16_t vbid,
+        const DocKey& key,
+        const std::string& value,
+        uint32_t exptime,
+        protocol_binary_datatype_t datatype) {
+    for (int ii = 0; ii < nitems; ii++) {
+        auto keyii = makeStoredDocKey(
+                std::string(reinterpret_cast<const char*>(key.data()),
+                            key.size()) +
+                        std::to_string(ii),
+                key.getDocNamespace());
+        auto item = make_item(vbid, keyii, value, exptime, datatype);
+        auto err = store->set(item, nullptr);
+        if (ENGINE_SUCCESS != err) {
+            return ::testing::AssertionFailure()
+                   << "Failed to store " << keyii.data() << " error:" << err;
+        }
+    }
+    return ::testing::AssertionSuccess();
+}
+
 void KVBucketTest::flush_vbucket_to_disk(uint16_t vbid, int expected) {
     int result;
     const auto time_limit = std::chrono::seconds(10);

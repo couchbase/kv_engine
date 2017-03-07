@@ -49,6 +49,14 @@ failover_entry_t FailoverTable::getLatestEntry() const {
     return table.front();
 }
 
+void FailoverTable::removeLatestEntry() {
+    std::lock_guard<std::mutex> lh(lock);
+    if (!table.empty()) {
+        table.pop_front();
+        cacheTableJSON();
+    }
+}
+
 uint64_t FailoverTable::getLatestUUID() const {
     return latest_uuid.load();
 }
@@ -410,4 +418,25 @@ void FailoverTable::sanitizeFailoverTable()
 
 size_t FailoverTable::getNumErroneousEntriesErased() const {
     return erroneousEntriesErased;
+}
+
+std::ostream& operator<<(std::ostream& os, const failover_entry_t& entry) {
+    os << R"({"vb_uuid":")" << entry.vb_uuid << R"(", "by_seqno":")"
+       << entry.by_seqno << "\"}";
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const FailoverTable& table) {
+    std::lock_guard<std::mutex> lh(table.lock);
+    os << "FailoverTable: max_entries:" << table.max_entries
+       << ", erroneousEntriesErased:" << table.erroneousEntriesErased
+       << ", latest_uuid:" << table.latest_uuid << "\n";
+    os << "  cachedTableJSON:" << table.cachedTableJSON << "\n";
+    os << "  table: {\n";
+    for (const auto& e : table.table) {
+        os << "    " << e << "\n";
+    }
+    os << "  }";
+
+    return os;
 }

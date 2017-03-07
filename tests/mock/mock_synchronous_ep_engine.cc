@@ -28,7 +28,9 @@
 
 SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
     : EventuallyPersistentEngine(get_mock_server_api) {
-    maxFailoverEntries = 1;
+
+    // Tests may need to create multiple failover table entries, so allow that
+    maxFailoverEntries = 5;
 
     // Merge any extra config into the main configuration.
     if (extra_config.size() > 0) {

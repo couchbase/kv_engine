@@ -1520,19 +1520,9 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, dcp_consumer_t c,
       engine(e), consumer(c), last_seqno(vb_high_seqno), cur_snapshot_start(0),
       cur_snapshot_end(0), cur_snapshot_type(Snapshot::None), cur_snapshot_ack(false) {
     LockHolder lh(streamMutex);
-    pushToReadyQ(new StreamRequest(vb, opaque, flags, st_seqno, en_seqno,
-                                  vb_uuid, snap_start_seqno, snap_end_seqno));
-    itemsReady.store(true);
     type_ = STREAM_PASSIVE;
-
-    const char* type = (flags & DCP_ADD_STREAM_FLAG_TAKEOVER) ? "takeover" : "";
-    consumer->getLogger().log(EXTENSION_LOG_NOTICE,
-        "(vb %" PRId16 ") Attempting to add %s stream"
-        " with start seqno %" PRIu64 ", end seqno %" PRIu64 ","
-        " vbucket uuid %" PRIu64 ", snap start seqno %" PRIu64 ","
-        " snap end seqno %" PRIu64 ", and vb_high_seqno %" PRIu64 "",
-        vb, type, st_seqno, en_seqno, vb_uuid,
-        snap_start_seqno, snap_end_seqno, vb_high_seqno);
+    streamRequest_UNLOCKED(vb_uuid);
+    itemsReady.store(true);
 }
 
 PassiveStream::~PassiveStream() {
@@ -1544,6 +1534,47 @@ PassiveStream::~PassiveStream() {
             " last_seqno is %" PRIu64 ", unAckedBytes is %" PRIu32 ".",
             vb_, last_seqno.load(), unackedBytes);
     }
+}
+
+void PassiveStream::streamRequest(uint64_t vb_uuid) {
+    {
+        std::unique_lock<std::mutex> lh(streamMutex);
+        streamRequest_UNLOCKED(vb_uuid);
+    }
+
+    bool expected = false;
+    if (itemsReady.compare_exchange_strong(expected, true)) {
+        consumer->notifyStreamReady(vb_);
+    }
+}
+
+void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
+    pushToReadyQ(new StreamRequest(vb_,
+                                   opaque_,
+                                   flags_,
+                                   start_seqno_,
+                                   end_seqno_,
+                                   vb_uuid,
+                                   snap_start_seqno_,
+                                   snap_end_seqno_));
+
+    const char* type = (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER)
+        ? "takeover stream" : "stream";
+    consumer->getLogger().log(
+            EXTENSION_LOG_NOTICE,
+            "(vb %" PRId16 ") Attempting to add %s: opaque_:%" PRIu32 ", "
+            "start_seqno_:%" PRIu64 ", end_seqno_:%" PRIu64 ", "
+            "vb_uuid:%" PRIu64 ", snap_start_seqno_:%" PRIu64 ", "
+            "snap_end_seqno_:%" PRIu64 ", last_seqno:%" PRIu64,
+            vb_,
+            type,
+            opaque_,
+            start_seqno_,
+            end_seqno_,
+            vb_uuid,
+            snap_start_seqno_,
+            snap_end_seqno_,
+            last_seqno.load());
 }
 
 uint32_t PassiveStream::setDead(end_stream_status_t status) {

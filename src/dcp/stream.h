@@ -491,6 +491,14 @@ public:
 
     uint32_t setDead(end_stream_status_t status);
 
+    /**
+     * Place a StreamRequest message into the readyQueue, requesting a DCP
+     * stream for the given UUID.
+     *
+     * @params vb_uuid The UUID to use in the StreamRequest.
+     */
+    void streamRequest(uint64_t vb_uuid);
+
     void acceptStream(uint16_t status, uint32_t add_opaque);
 
     void reconnectStream(RCPtr<VBucket> &vb, uint32_t new_opaque,
@@ -519,6 +527,15 @@ protected:
     uint32_t clearBuffer_UNLOCKED();
 
     const char* getEndStreamStatusStr(end_stream_status_t status);
+
+    /**
+     * Push a StreamRequest into the readyQueue. The StreamRequest is initiaised
+     * from the object's state except for the uuid.
+     * This function assumes the caller is holding streamMutex.
+     *
+     * @params vb_uuid The VB UUID to use in the StreamRequest.
+     */
+    void streamRequest_UNLOCKED(uint64_t vb_uuid);
 
     EventuallyPersistentEngine* engine;
     dcp_consumer_t consumer;

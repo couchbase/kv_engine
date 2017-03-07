@@ -57,6 +57,19 @@ public:
                     protocol_binary_datatype_t datatype =
                             PROTOCOL_BINARY_DATATYPE_JSON);
 
+    /**
+     * Store multiple items into the vbucket, the given key will have an
+     * iteration appended to it.
+     */
+    ::testing::AssertionResult store_items(
+            int nitems,
+            uint16_t vbid,
+            const DocKey& key,
+            const std::string& value,
+            uint32_t exptime = 0,
+            protocol_binary_datatype_t datatype =
+                    PROTOCOL_BINARY_DATATYPE_JSON);
+
     /* Flush the given vbucket to disk, so any outstanding dirty items are
      * written (and are clean).
      */

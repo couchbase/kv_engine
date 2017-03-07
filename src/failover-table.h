@@ -56,6 +56,11 @@ class FailoverTable {
     failover_entry_t getLatestEntry() const;
 
     /**
+     * Remove the latest entry from the failover table
+     */
+    void removeLatestEntry();
+
+    /**
      * Returns the cached version of the latest UUID
      */
     uint64_t getLatestUUID() const;
@@ -197,5 +202,10 @@ class FailoverTable {
     std::string cachedTableJSON;
     std::atomic<uint64_t> latest_uuid;
 
+    friend std::ostream& operator<<(std::ostream& os,
+                                    const FailoverTable& table);
     DISALLOW_COPY_AND_ASSIGN(FailoverTable);
 };
+
+std::ostream& operator<<(std::ostream& os, const failover_entry_t& entry);
+std::ostream& operator<<(std::ostream& os, const FailoverTable& table);
