@@ -381,6 +381,21 @@ public:
         }
     }
 
+    static cb::unique_item_ptr get_if(ENGINE_HANDLE* handle,
+                                      const void* cookie,
+                                      const DocKey& key,
+                                      uint16_t vbucket,
+                                      std::function<bool(const item_info&)> filter) {
+        EWB_Engine* ewb = to_engine(handle);
+        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        if (ewb->should_inject_error(Cmd::GET, cookie, err)) {
+            throw cb::engine_error(cb::engine_errc::would_block, "ewb");
+        } else {
+            return ewb->real_engine->get_if(
+                    ewb->real_handle, cookie, key, vbucket, filter);
+        }
+    }
+
     static ENGINE_ERROR_CODE get_locked(ENGINE_HANDLE* handle,
                                         const void* cookie,
                                         item** item,
@@ -1134,6 +1149,7 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     ENGINE_HANDLE_V1::remove = remove;
     ENGINE_HANDLE_V1::release = release;
     ENGINE_HANDLE_V1::get = get;
+    ENGINE_HANDLE_V1::get_if = get_if;
     ENGINE_HANDLE_V1::get_locked = get_locked;
     ENGINE_HANDLE_V1::unlock = unlock;
     ENGINE_HANDLE_V1::store = store;

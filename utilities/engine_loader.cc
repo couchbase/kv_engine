@@ -152,6 +152,10 @@ static bool validate_engine_interface(const ENGINE_HANDLE_V1* v1,
     check(remove);
     check(release);
     check(get);
+#if 0
+    // We can't enforce this until I've merged the ep-engine patch
+    check(get_if);
+#endif
     check(get_locked);
     check(unlock);
     check(store);
@@ -161,7 +165,6 @@ static bool validate_engine_interface(const ENGINE_HANDLE_V1* v1,
     check(item_set_cas);
     check(get_item_info);
     check(set_item_info);
-
 #undef check
 
     return ret;

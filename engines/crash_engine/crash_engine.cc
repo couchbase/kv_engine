@@ -169,6 +169,14 @@ static ENGINE_ERROR_CODE get(ENGINE_HANDLE* handle,
     return ENGINE_FAILED;
 }
 
+static cb::unique_item_ptr get_if(ENGINE_HANDLE*,
+                                  const void*,
+                                  const DocKey&,
+                                  uint16_t,
+                                  std::function<bool(const item_info&)>) {
+    throw cb::engine_error(cb::engine_errc::failed, "crash_engine");
+}
+
 static ENGINE_ERROR_CODE get_locked(ENGINE_HANDLE* handle,
                                     const void* cookie,
                                     item** item,
@@ -257,6 +265,7 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     engine->engine.remove = item_delete;
     engine->engine.release = item_release;
     engine->engine.get = get;
+    engine->engine.get_if = get_if;
     engine->engine.get_locked = get_locked;
     engine->engine.unlock = unlock;
     engine->engine.get_stats = get_stats;

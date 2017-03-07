@@ -43,6 +43,7 @@ public:
         ENGINE_HANDLE_V1::remove = item_delete;
         ENGINE_HANDLE_V1::release = item_release;
         ENGINE_HANDLE_V1::get = get;
+        ENGINE_HANDLE_V1::get_if = get_if;
         ENGINE_HANDLE_V1::get_locked = get_locked;
         ENGINE_HANDLE_V1::unlock = unlock;
         ENGINE_HANDLE_V1::get_stats = get_stats;
@@ -128,6 +129,14 @@ private:
     static ENGINE_ERROR_CODE get(ENGINE_HANDLE*, const void*, item**,
                                  const DocKey&, uint16_t, DocumentState) {
         return ENGINE_NO_BUCKET;
+    }
+
+    static cb::unique_item_ptr get_if(ENGINE_HANDLE*,
+                                      const void*,
+                                      const DocKey&,
+                                      uint16_t,
+                                      std::function<bool(const item_info&)>) {
+        throw cb::engine_error(cb::engine_errc::no_bucket, "no bucket");
     }
 
     static ENGINE_ERROR_CODE get_locked(ENGINE_HANDLE*, const void*, item**,

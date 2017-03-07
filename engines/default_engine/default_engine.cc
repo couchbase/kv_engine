@@ -62,6 +62,11 @@ static ENGINE_ERROR_CODE default_get(ENGINE_HANDLE* handle,
                                      const DocKey& key,
                                      uint16_t vbucket,
                                      DocumentState);
+static cb::unique_item_ptr default_get_if(ENGINE_HANDLE*,
+                                          const void*,
+                                          const DocKey&,
+                                          uint16_t,
+                                          std::function<bool(const item_info&)>);
 static ENGINE_ERROR_CODE default_get_locked(ENGINE_HANDLE* handle,
                                             const void* cookie,
                                             item** item,
@@ -160,6 +165,7 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     engine->engine.remove = default_item_delete;
     engine->engine.release = default_item_release;
     engine->engine.get = default_get;
+    engine->engine.get_if = default_get_if;
     engine->engine.get_locked = default_get_locked;
     engine->engine.unlock = default_unlock;
     engine->engine.get_stats = default_get_stats;
@@ -429,6 +435,41 @@ static ENGINE_ERROR_CODE default_get(ENGINE_HANDLE* handle,
    } else {
       return ENGINE_KEY_ENOENT;
    }
+}
+
+static cb::unique_item_ptr default_get_if(
+        ENGINE_HANDLE* handle,
+        const void* cookie,
+        const DocKey& key,
+        uint16_t vbucket,
+        std::function<bool(const item_info&)> filter) {
+    struct default_engine* engine = get_handle(handle);
+
+    if (!handled_vbucket(engine, vbucket)) {
+        throw cb::engine_error(cb::engine_errc::not_my_vbucket, "");
+    }
+
+    const auto any = static_cast<DocumentState>(
+            uint8_t(DocumentState::Alive) | uint8_t(DocumentState::Deleted));
+
+    cb::unique_item_ptr ret(
+            item_get(engine, cookie, key.data(), key.size(), any),
+            cb::ItemDeleter{handle});
+    if (!ret) {
+        throw cb::engine_error(cb::engine_errc::no_such_key, "");
+    }
+
+    item_info info;
+    if (!get_item_info(handle, cookie, ret.get(), &info)) {
+        throw cb::engine_error(cb::engine_errc::failed,
+                               "default_get_if: get_item_info failed");
+    }
+
+    if (!filter(info)) {
+        ret.reset(nullptr);
+    }
+
+    return ret;
 }
 
 static ENGINE_ERROR_CODE default_get_locked(ENGINE_HANDLE* handle,

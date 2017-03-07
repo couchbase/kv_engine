@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <sys/types.h>
 #include <utility>
@@ -361,6 +362,39 @@ typedef struct engine_interface_v1 {
                               const DocKey& key,
                               uint16_t vbucket,
                               DocumentState allowed_states);
+
+    /**
+     * Optionally retrieve an item
+     *
+     * @param handle the engine handle
+     * @param cookie The cookie provided by the frontend
+     * @param key the key to look up
+     * @param vbucket the virtual bucket id
+     * @param filter callback filter to see if the item should be returned
+     *               or not. If filter returns false the item should be
+     *               skipped.
+     * @return The item
+     * @thows cb::engine_error with:
+     *
+     *   * `cb::engine_errc::no_bucket` The client is bound to the dummy
+     *                                  `no bucket` which don't allow
+     *                                  allocations.
+     *
+     *   * `cb::engine_errc::disconnect` The client should be disconnected
+     *
+     *   * `cb::engine_errc::not_my_vbucket` The requested vbucket belongs
+     *                                       to someone else
+     *
+     *   * `cb::engine_errc::would_block` The engine would block the frontend
+     *                                    and started a background task to
+     *                                    perform the operation and will
+     *                                    notify the cookie when it is done.
+     */
+    cb::unique_item_ptr (*get_if)(ENGINE_HANDLE* handle,
+                                  const void* cookie,
+                                  const DocKey& key,
+                                  uint16_t vbucket,
+                                  std::function<bool(const item_info&)> filter);
 
     /**
      * Lock and Retrieve an item.
