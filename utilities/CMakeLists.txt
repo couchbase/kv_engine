@@ -4,7 +4,7 @@ ADD_LIBRARY(mcd_util SHARED
             extension_loggers.cc
             protocol2text.cc
             util.cc)
-TARGET_LINK_LIBRARIES(mcd_util platform)
+TARGET_LINK_LIBRARIES(mcd_util engine_utilities platform)
 SET_TARGET_PROPERTIES(mcd_util PROPERTIES SOVERSION 1.0.0)
 INSTALL(TARGETS mcd_util
         RUNTIME DESTINATION bin

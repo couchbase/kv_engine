@@ -133,45 +133,65 @@ bool create_engine_instance(engine_reference* engine_ref,
     return true;
 }
 
+static void logit(EXTENSION_LOGGER_DESCRIPTOR *logger, const char* field) {
+    logger->log(EXTENSION_LOG_WARNING, nullptr,
+                "Failed to initialize engine, missing implementation for %s",
+                field);
+}
+
+static bool validate_engine_interface(const ENGINE_HANDLE_V1* v1,
+                                      EXTENSION_LOGGER_DESCRIPTOR *logger) {
+    bool ret = true;
+#define check(a) if (v1->a == nullptr) { logit(logger, #a); ret = false; }
+
+    check(get_info);
+    check(initialize);
+    check(destroy);
+    check(allocate);
+    check(allocate_ex);
+    check(remove);
+    check(release);
+    check(get);
+    check(get_locked);
+    check(unlock);
+    check(store);
+    check(flush);
+    check(get_stats);
+    check(reset_stats);
+    check(item_set_cas);
+    check(get_item_info);
+    check(set_item_info);
+
+#undef check
+
+    return ret;
+}
+
+
 bool init_engine_instance(ENGINE_HANDLE *engine,
                           const char *config_str,
                           EXTENSION_LOGGER_DESCRIPTOR *logger)
 {
-    ENGINE_HANDLE_V1 *engine_v1 = NULL;
     ENGINE_ERROR_CODE error;
 
     if (engine->interface == 1) {
-        engine_v1 = (ENGINE_HANDLE_V1*)engine;
-
-        /* validate that the required engine interface is implemented: */
-        if (engine_v1->get_info == NULL || engine_v1->initialize == NULL ||
-            engine_v1->destroy == NULL ||
-            engine_v1->allocate == nullptr ||
-            engine_v1->allocate_ex == nullptr ||
-            engine_v1->remove == NULL || engine_v1->release == NULL ||
-            engine_v1->get == NULL || engine_v1->get_locked == NULL ||
-            engine_v1->unlock == NULL || engine_v1->store == NULL ||
-            engine_v1->flush == NULL ||
-            engine_v1->get_stats == NULL || engine_v1->reset_stats == NULL ||
-            engine_v1->item_set_cas == NULL ||
-            engine_v1->get_item_info == NULL || engine_v1->set_item_info == NULL)
-        {
-            logger->log(EXTENSION_LOG_WARNING, NULL,
-                        "Failed to initialize engine; it does not implement the engine interface.");
+        auto engine_v1 = reinterpret_cast<ENGINE_HANDLE_V1*>(engine);
+        if (!validate_engine_interface(engine_v1, logger)) {
+            // error already logged
             return false;
         }
 
         error = engine_v1->initialize(engine, config_str);
         if (error != ENGINE_SUCCESS) {
             engine_v1->destroy(engine, false);
-            logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Failed to initialize instance. Error code: %d\n",
-                    error);
+            cb::engine_error err{cb::engine_errc(error),
+                                 "Failed to initialize instance"};
+            logger->log(EXTENSION_LOG_WARNING, nullptr, "%s", err.what());
             return false;
         }
     } else {
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                 "Unsupported interface level\n");
+        logger->log(EXTENSION_LOG_WARNING, nullptr,
+                    "Unsupported interface level %" PRIu64, engine->interface);
         return false;
     }
     return true;
