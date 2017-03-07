@@ -162,3 +162,10 @@ void StoredValue::Deleter::operator()(StoredValue* val) {
         delete val;
     }
 }
+
+OrderedStoredValue* StoredValue::toOrderedStoredValue() {
+    if (isOrdered) {
+        return static_cast<OrderedStoredValue*>(this);
+    }
+    throw std::bad_cast();
+}

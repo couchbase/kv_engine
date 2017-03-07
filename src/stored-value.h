@@ -26,6 +26,7 @@
 #include <boost/intrusive/list.hpp>
 
 class HashTable;
+class OrderedStoredValue;
 
 /**
  * In-memory storage for an item.
@@ -554,6 +555,15 @@ public:
      * defragmentation.
      */
     void reallocate();
+
+    /**
+     * Returns pointer to the subclass OrderedStoredValue if it the object is
+     * of the type, if not throws a bad_cast.
+     *
+     * Equivalent to dynamic cast, but done manually as we wanted to avoid
+     * vptr per object.
+     */
+    OrderedStoredValue* toOrderedStoredValue();
 
     /* [TBD] : Move this function out of StoredValue class */
     static bool hasAvailableSpace(EPStats&,

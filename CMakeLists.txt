@@ -185,6 +185,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/pre_link_document_context.cc
             src/pre_link_document_context.h
             src/replicationthrottle.cc
+            src/linked_list.cc
             src/string_utils.cc
             src/storeddockey.cc
             src/stored-value.cc
@@ -221,6 +222,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
                tests/mock/mock_dcp.cc
                tests/mock/mock_synchronous_ep_engine.cc
                tests/module_tests/atomic_unordered_map_test.cc
+               tests/module_tests/basic_ll_test.cc
                tests/module_tests/bloomfilter_test.cc
                tests/module_tests/checkpoint_test.cc
                tests/module_tests/collections/collection_dockey_test.cc

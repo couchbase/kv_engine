@@ -18,8 +18,10 @@
 #pragma once
 
 #include "config.h"
-
 #include "vbucket.h"
+
+/* Forward declarations */
+class SequenceList;
 
 class EphemeralVBucket : public VBucket {
 public:
@@ -150,4 +152,7 @@ private:
      * ii) queueLock in 'CheckpointManager'.
      */
     mutable std::mutex sequenceLock;
+
+    /* Data structure for in-memory sequential storage */
+    std::unique_ptr<SequenceList> seqList;
 };

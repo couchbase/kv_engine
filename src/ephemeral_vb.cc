@@ -16,26 +16,25 @@
  */
 
 #include "ephemeral_vb.h"
-
 #include "failover-table.h"
+#include "linked_list.h"
 #include "stored_value_factories.h"
 
-EphemeralVBucket::EphemeralVBucket(
-        id_type i,
-        vbucket_state_t newState,
-        EPStats& st,
-        CheckpointConfig& chkConfig,
-        KVShard* kvshard,
-        int64_t lastSeqno,
-        uint64_t lastSnapStart,
-        uint64_t lastSnapEnd,
-        std::unique_ptr<FailoverTable> table,
-        NewSeqnoCallback newSeqnoCb,
-        Configuration& config,
-        item_eviction_policy_t evictionPolicy,
-        vbucket_state_t initState,
-        uint64_t purgeSeqno,
-        uint64_t maxCas)
+EphemeralVBucket::EphemeralVBucket(id_type i,
+                                   vbucket_state_t newState,
+                                   EPStats& st,
+                                   CheckpointConfig& chkConfig,
+                                   KVShard* kvshard,
+                                   int64_t lastSeqno,
+                                   uint64_t lastSnapStart,
+                                   uint64_t lastSnapEnd,
+                                   std::unique_ptr<FailoverTable> table,
+                                   NewSeqnoCallback newSeqnoCb,
+                                   Configuration& config,
+                                   item_eviction_policy_t evictionPolicy,
+                                   vbucket_state_t initState,
+                                   uint64_t purgeSeqno,
+                                   uint64_t maxCas)
     : VBucket(i,
               newState,
               st,
@@ -44,14 +43,16 @@ EphemeralVBucket::EphemeralVBucket(
               lastSnapStart,
               lastSnapEnd,
               std::move(table),
-              /*flusherCb*/nullptr,
+              /*flusherCb*/ nullptr,
               std::make_unique<OrderedStoredValueFactory>(st),
               std::move(newSeqnoCb),
               config,
               evictionPolicy,
               initState,
               purgeSeqno,
-              maxCas) {}
+              maxCas),
+      seqList(std::make_unique<BasicLinkedList>()) {
+}
 
 size_t EphemeralVBucket::getNumItems() const {
     return ht.getNumInMemoryItems() - ht.getNumDeletedItems();
@@ -155,9 +156,18 @@ std::pair<StoredValue*, VBNotifyCtx> EphemeralVBucket::addNewStoredValue(
 
     std::lock_guard<std::mutex> lh(sequenceLock);
 
-    /* Add the newly added stored value to Ephemeral VBucket data structure.
-     (Coming soon)
-     */
+    /* Add to the sequential storage */
+    try {
+        seqList->appendToList(lh, *v->toOrderedStoredValue());
+    } catch (const std::bad_cast& e) {
+        throw std::logic_error(
+                "EphemeralVBucket::addNewStoredValue(): Error " +
+                std::string(e.what()) + " for vbucket: " +
+                std::to_string(getId()) + " for key: " +
+                std::string(reinterpret_cast<const char*>(v->getKey().data()),
+                            v->getKey().size()));
+    }
+
     if (queueItmCtx) {
         return {v, queueDirty(*v, *queueItmCtx)};
     }
