@@ -21,7 +21,6 @@
 
 #include "atomic.h"
 #include "failover-table.h"
-#include "locks.h"
 #define STATWRITER_NAMESPACE failovers
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
@@ -45,17 +44,17 @@ FailoverTable::FailoverTable(const std::string& json, size_t capacity)
 
 FailoverTable::~FailoverTable() { }
 
-failover_entry_t FailoverTable::getLatestEntry() {
-    LockHolder lh(lock);
+failover_entry_t FailoverTable::getLatestEntry() const {
+    std::lock_guard<std::mutex> lh(lock);
     return table.front();
 }
 
-uint64_t FailoverTable::getLatestUUID() {
+uint64_t FailoverTable::getLatestUUID() const {
     return latest_uuid.load();
 }
 
 void FailoverTable::createEntry(uint64_t high_seqno) {
-    LockHolder lh(lock);
+    std::lock_guard<std::mutex> lh(lock);
 
     // Our failover table represents only *our* branch of history.
     // We must remove branches we've diverged from.
@@ -86,10 +85,10 @@ void FailoverTable::createEntry(uint64_t high_seqno) {
 }
 
 bool FailoverTable::getLastSeqnoForUUID(uint64_t uuid,
-                                        uint64_t *seqno) {
-    LockHolder lh(lock);
-    table_t::iterator curr_itr = table.begin();
-    table_t::iterator prev_itr;
+                                        uint64_t *seqno) const {
+    std::lock_guard<std::mutex> lh(lock);
+    table_t::const_iterator curr_itr = table.begin();
+    table_t::const_iterator prev_itr;
 
     if (curr_itr->vb_uuid == uuid) {
         return false;
@@ -118,10 +117,10 @@ std::pair<bool, std::string> FailoverTable::needsRollback(
         uint64_t snap_start_seqno,
         uint64_t snap_end_seqno,
         uint64_t purge_seqno,
-        uint64_t* rollback_seqno) {
+        uint64_t* rollback_seqno) const {
     /* Start with upper as vb highSeqno */
     uint64_t upper = cur_seqno;
-    LockHolder lh(lock);
+    std::lock_guard<std::mutex> lh(lock);
 
     if (start_seqno == 0) {
         return std::make_pair(false, std::string());
@@ -146,7 +145,7 @@ std::pair<bool, std::string> FailoverTable::needsRollback(
                                       "could miss purged deletions");
     }
 
-    table_t::reverse_iterator itr;
+    table_t::const_reverse_iterator itr;
     for (itr = table.rbegin(); itr != table.rend(); ++itr) {
         if (itr->vb_uuid == vb_uuid) {
             if (++itr != table.rend()) {
@@ -196,7 +195,7 @@ void FailoverTable::pruneEntries(uint64_t seqno) {
         throw std::invalid_argument("FailoverTable::pruneEntries: "
                                     "cannot prune entry zero");
     }
-    LockHolder lh(lock);
+    std::lock_guard<std::mutex> lh(lock);
 
     auto seqno_too_high = [seqno](failover_entry_t& entry) {
         return entry.by_seqno > seqno;
@@ -219,7 +218,7 @@ void FailoverTable::pruneEntries(uint64_t seqno) {
 }
 
 std::string FailoverTable::toJSON() {
-    LockHolder lh(lock);
+    std::lock_guard<std::mutex> lh(lock);
     // Here we are explictly forcing a copy of the object to
     // work around std::string copy-on-write data-race issues
     // seen on some versions of libstdc++ - see MB-18510
@@ -240,7 +239,7 @@ void FailoverTable::cacheTableJSON() {
 
 void FailoverTable::addStats(const void* cookie, uint16_t vbid,
                              ADD_STAT add_stat) {
-    LockHolder lh(lock);
+    std::lock_guard<std::mutex> lh(lock);
     try {
         char statname[80] = {0};
         checked_snprintf(statname, sizeof(statname), "vb_%d:num_entries", vbid);
@@ -269,7 +268,7 @@ void FailoverTable::addStats(const void* cookie, uint16_t vbid,
 
 ENGINE_ERROR_CODE FailoverTable::addFailoverLog(const void* cookie,
                                                 dcp_add_failover_log callback) {
-    LockHolder lh(lock);
+    std::lock_guard<std::mutex> lh(lock);
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     size_t logsize = table.size();
 
@@ -343,7 +342,7 @@ bool FailoverTable::loadFromJSON(const std::string& json) {
 }
 
 void FailoverTable::replaceFailoverLog(uint8_t* bytes, uint32_t length) {
-    LockHolder lh(lock);
+    std::lock_guard<std::mutex> lh(lock);
     if ((length % 16) != 0 || length == 0) {
         throw std::invalid_argument("FailoverTable::replaceFailoverLog: "
                 "length (which is " + std::to_string(length) +

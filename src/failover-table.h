@@ -53,12 +53,12 @@ class FailoverTable {
     /**
      * Returns the latest entry in the failover table
      */
-    failover_entry_t getLatestEntry();
+    failover_entry_t getLatestEntry() const;
 
     /**
      * Returns the cached version of the latest UUID
      */
-    uint64_t getLatestUUID();
+    uint64_t getLatestUUID() const;
 
     /**
      * Creates a new entry in the table
@@ -80,7 +80,7 @@ class FailoverTable {
      * @return true if the last sequence number seen of a given UUID is
      *              retrieved from the failover log
      */
-    bool getLastSeqnoForUUID(uint64_t uuid, uint64_t *seqno);
+    bool getLastSeqnoForUUID(uint64_t uuid, uint64_t *seqno) const;
 
     /**
      * Finds a rollback point based on the failover log of a remote client
@@ -111,7 +111,7 @@ class FailoverTable {
                                                uint64_t snap_start_seqno,
                                                uint64_t snap_end_seqno,
                                                uint64_t purge_seqno,
-                                               uint64_t* rollback_seqno);
+                                               uint64_t* rollback_seqno) const;
 
     /**
      * Delete all entries in failover table uptil the specified sequence
@@ -178,9 +178,9 @@ class FailoverTable {
      * @param snap_start_seqno the start sequence number of the snapshot
      * @param snap_end_seqno the end sequence number of the snapshot
      */
-    void adjustSnapshotRange(uint64_t start_seqno,
-                             uint64_t &snap_start_seqno,
-                             uint64_t &snap_end_seqno);
+    static void adjustSnapshotRange(uint64_t start_seqno,
+                                    uint64_t &snap_start_seqno,
+                                    uint64_t &snap_end_seqno);
 
     /**
      * Remove any wrong entries in failover table
@@ -189,7 +189,7 @@ class FailoverTable {
      */
     void sanitizeFailoverTable();
 
-    std::mutex lock;
+    mutable std::mutex lock;
     table_t table;
     size_t max_entries;
     size_t erroneousEntriesErased;
