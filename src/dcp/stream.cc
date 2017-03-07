@@ -653,8 +653,10 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie,
          *  But just in case it does happen: log the event and return status of
          *  does_not_exist to ensure rebalance does not hang.
          */
-        LOG(EXTENSION_LOG_WARNING, "ActiveStream::addTakeoverStats: "
-            "Stream %s has the state of STREAM_DEAD", name_.c_str());
+        producer->getLogger().log(EXTENSION_LOG_WARNING,
+                                  "(vb %" PRIu16 ") "
+                                  "ActiveStream::addTakeoverStats: Stream has "
+                                  "status STREAM_DEAD", vb_);
         add_casted_stat("status", "does_not_exist", add_stat, cookie);
         add_casted_stat("estimate", 0, add_stat, cookie);
         add_casted_stat("backfillRemaining", 0, add_stat, cookie);
