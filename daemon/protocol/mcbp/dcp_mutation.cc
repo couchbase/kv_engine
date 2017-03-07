@@ -90,6 +90,9 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
         if (c->isDcpXattrAware()) {
             if (mcbp::datatype::is_xattr(info.datatype)) {
                 buffer.len = cb::xattr::get_body_offset({buffer.buf, buffer.len});
+                // MB-23085 - Remove all other datatype flags as we're only
+                //            sending the xattrs
+                info.datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
             } else {
                 buffer.len = 0;
                 info.datatype = PROTOCOL_BINARY_RAW_BYTES;
