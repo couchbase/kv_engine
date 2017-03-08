@@ -196,21 +196,21 @@ static void usage() {
               << "    warmup_min_items_threshold   - Item number threshold (%) during warmup to enable"
               << std::endl
               << "                                   traffic" << std::endl
-              << "    max_num_readers              - Override default number of global threads that"
+              << "    num_reader_threads           - Override default number of global threads that"
               << std::endl
-              << "                                   prioritize read operations."
+              << "                                   perform read operations."
               << std::endl
-              << "    max_num_writers              - Override default number of global threads that"
+              << "    num_writer_threads           - Override default number of global threads that"
               << std::endl
-              << "                                   prioritize write operations."
+              << "                                   perform write operations."
               << std::endl
-              << "    max_num_auxio                - Override default number of global threads that"
+              << "    num_auxio_threads            - Override default number of global threads that"
               << std::endl
-              << "                                   prioritize auxio operations."
+              << "                                   perform auxio operations."
               << std::endl
-              << "    max_num_nonio                - Override default number of global threads that"
+              << "    num_nonio_threads            - Override default number of global threads that"
               << std::endl
-              << "                                   prioritize nonio operations."
+              << "                                   perform nonio operations."
               << std::endl
               << std::endl
               << "  Available params for set tap_param:" << std::endl
