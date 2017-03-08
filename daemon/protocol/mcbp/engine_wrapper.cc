@@ -82,7 +82,7 @@ ENGINE_ERROR_CODE bucket_get(McbpConnection* c,
                                      item_, key, vbucket, document_state);
 }
 
-cb::unique_item_ptr bucket_get_if(McbpConnection* c, item** item_,
+cb::unique_item_ptr bucket_get_if(McbpConnection* c,
                                   const DocKey& key,
                                   uint16_t vbucket,
                                   std::function<bool(const item_info&)> filter) {

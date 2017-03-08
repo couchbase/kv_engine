@@ -374,11 +374,13 @@ typedef struct engine_interface_v1 {
      *               or not. If filter returns false the item should be
      *               skipped.
      * @return The item
-     * @thows cb::engine_error with:
+     * @thows cb::engine_error with (but not limited to):
      *
      *   * `cb::engine_errc::no_bucket` The client is bound to the dummy
      *                                  `no bucket` which don't allow
      *                                  allocations.
+     *
+     *   * `cb::engine_errc::no_such_key` The named document does not exist
      *
      *   * `cb::engine_errc::disconnect` The client should be disconnected
      *
