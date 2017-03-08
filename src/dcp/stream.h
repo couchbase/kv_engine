@@ -37,16 +37,6 @@ class SetVBucketState;
 class SnapshotMarker;
 class DcpResponse;
 
-enum stream_state_t {
-    STREAM_PENDING,
-    STREAM_BACKFILLING,
-    STREAM_IN_MEMORY,
-    STREAM_TAKEOVER_SEND,
-    STREAM_TAKEOVER_WAIT,
-    STREAM_READING,
-    STREAM_DEAD
-};
-
 enum end_stream_status_t {
     //! The stream ended due to all items being streamed
     END_STREAM_OK,
@@ -110,8 +100,6 @@ public:
 
     uint64_t getSnapEndSeqno() { return snap_end_seqno_; }
 
-    stream_state_t getState() { return state_; }
-
     stream_type_t getType() { return type_; }
 
     virtual void addStats(ADD_STAT add_stat, const void *c);
@@ -130,19 +118,45 @@ public:
         // Stream defaults to do nothing
     }
 
-    bool isActive() {
-        return state_ != STREAM_DEAD;
-    }
+    /// @returns true if state_ is not Dead
+    bool isActive() const;
+
+    /// @Returns true if state_ is Backfilling
+    bool isBackfilling() const;
+
+    /// @Returns true if state_ is InMemory
+    bool isInMemory() const;
+
+    /// @Returns true if state_ is Pending
+    bool isPending() const;
+
+    /// @Returns true if state_ is TakeoverSend
+    bool isTakeoverSend() const;
+
+    /// @Returns true if state_ is TakeoverWait
+    bool isTakeoverWait() const;
 
     void clear() {
         LockHolder lh(streamMutex);
         clear_UNLOCKED();
     }
 
-    /// Return a string describing the given stream state.
-    static const char* stateName(stream_state_t st);
-
 protected:
+
+    // The StreamState is protected as it needs to be accessed by sub-classes
+    enum class StreamState {
+          Pending,
+          Backfilling,
+          InMemory,
+          TakeoverSend,
+          TakeoverWait,
+          Reading,
+          Dead
+      };
+
+    static const std::string to_string(Stream::StreamState type);
+
+    StreamState getState() const { return state_; }
 
     void clear_UNLOCKED();
 
@@ -163,7 +177,7 @@ protected:
     uint64_t vb_uuid_;
     uint64_t snap_start_seqno_;
     uint64_t snap_end_seqno_;
-    std::atomic<stream_state_t> state_;
+    std::atomic<StreamState> state_;
     stream_type_t type_;
 
     std::atomic<bool> itemsReady;
@@ -204,8 +218,8 @@ public:
 
     void setActive() {
         LockHolder lh(streamMutex);
-        if (state_ == STREAM_PENDING) {
-            transitionState(STREAM_BACKFILLING);
+        if (isPending()) {
+            transitionState(StreamState::Backfilling);
         }
     }
 
@@ -267,7 +281,7 @@ protected:
     /* The transitionState function is protected (as opposed to private) for
      * testing purposes.
      */
-    void transitionState(stream_state_t newState);
+    void transitionState(StreamState newState);
 
     /* Indicates that a backfill has been scheduled and has not yet completed.
      * Is protected (as opposed to private) for testing purposes.
@@ -444,7 +458,7 @@ public:
                    uint64_t snap_end_seqno);
 
     ~NotifierStream() {
-        transitionState(STREAM_DEAD);
+        transitionState(StreamState::Dead);
     }
 
     DcpResponse* next();
@@ -455,7 +469,7 @@ public:
 
 private:
 
-    void transitionState(stream_state_t newState);
+    void transitionState(StreamState newState);
 
     dcp_producer_t producer;
 };
@@ -490,7 +504,7 @@ public:
 
 protected:
 
-     bool transitionState(stream_state_t newState);
+    bool transitionState(StreamState newState);
 
     ENGINE_ERROR_CODE processMutation(MutationResponse* mutation);
 

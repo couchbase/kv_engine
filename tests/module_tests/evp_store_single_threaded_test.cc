@@ -117,7 +117,7 @@ void SingleThreadedEPStoreTest::cancelAndPurgeTasks() {
  * re-registered after being dropped.
  *
  * It first sets-up an active stream associated with the active vbucket 0.  We
- * then move the stream into a STREAM_IN_MEMORY state, which results in creating
+ * then move the stream into a StreamInMemory state, which results in creating
  * a DCP cursor (in addition to the persistence cursor created on construction
  * of the stream).
  *
@@ -126,7 +126,7 @@ void SingleThreadedEPStoreTest::cancelAndPurgeTasks() {
  * checkpoints, (and 2 cursors).
  *
  * We then call handleSlowStream which results in the DCP cursor being dropped,
- * the steam being moved into the STREAM_BACKFILLING state and, the
+ * the steam being moved into the StreamBackfilling state and, the
  * pendingBackfill flag being set.
  *
  * As the DCP cursor is dropped we can remove the first checkpoint which the
@@ -176,11 +176,14 @@ TEST_F(SingleThreadedEPStoreTest, MB22960_cursor_dropping_data_loss) {
             static_cast<MockActiveStream*>(stream.get());
 
     EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
-    mock_stream->public_transitionState(STREAM_BACKFILLING);
+    mock_stream->transitionStateToBackfilling();
     EXPECT_EQ(2, ckpt_mgr.getNumOfCursors());
-    EXPECT_EQ(STREAM_IN_MEMORY, mock_stream->getState())
-                    << "stream state should have transitioned to "
-                       "STREAM_IN_MEMORY";
+    // When we call transitionStateToBackfilling going from a StreamPending
+    // state to a StreamBackfilling state, we end up calling
+    // scheduleBackfill_UNLOCKED and as no backfill is required we end-up in a
+    // StreamInMemory state.
+    EXPECT_TRUE(mock_stream->isInMemory())
+        << "stream state should have transitioned to StreamInMemory";
 
     store_item(vbid, makeStoredDocKey("key1"), "value");
     EXPECT_EQ(1, store->flushVBucket(vbid));
@@ -200,8 +203,8 @@ TEST_F(SingleThreadedEPStoreTest, MB22960_cursor_dropping_data_loss) {
     mock_stream->handleSlowStream();
 
     EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
-    EXPECT_EQ(STREAM_IN_MEMORY, mock_stream->getState())
-                    << "stream state should not have changed";
+    EXPECT_TRUE(mock_stream->isInMemory())
+        << "stream state should not have changed";
     EXPECT_TRUE(mock_stream->public_getPendingBackfill())
         << "pendingBackfill is not true";
     EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
@@ -264,12 +267,11 @@ TEST_F(SingleThreadedEPStoreTest, MB22960_cursor_dropping_data_loss) {
     delete resp;
     // backfillPhase() - take doc "key4" off the ReadyQ
     // isBackfillTaskRunning is not running and ReadyQ is now empty so also
-    // transitionState from STREAM_BACKFILLING to STREAM_IN_MEMORY
+    // transitionState from StreamBackfilling to StreamInMemory
     resp = mock_stream->next();
     delete resp;
-    EXPECT_EQ(STREAM_IN_MEMORY, mock_stream->getState())
-                     << "stream state should have transitioned to "
-                        "STREAM_IN_MEMORY";
+    EXPECT_TRUE(mock_stream->isInMemory())
+        << "stream state should have transitioned to StreamInMemory";
     // inMemoryPhase.  ReadyQ is empty and pendingBackfill is false and so
     // return NULL
     resp = mock_stream->next();
@@ -280,10 +282,10 @@ TEST_F(SingleThreadedEPStoreTest, MB22960_cursor_dropping_data_loss) {
 
 /**
  * Regression test for MB-22451: When handleSlowStream is called and in
- * STREAM_BACKFILLING state and currently have a backfill scheduled (or running)
+ * StreamBackfilling state and currently have a backfill scheduled (or running)
  * ensure that when the backfill completes pendingBackfill remains true,
  * isBackfillTaskRunning is false and, the stream state remains set to
- * STREAM_BACKFILLING.
+ * StreamBackfilling.
  */
 TEST_F(SingleThreadedEPStoreTest, test_mb22451) {
     // Make vbucket active.
@@ -316,13 +318,13 @@ TEST_F(SingleThreadedEPStoreTest, test_mb22451) {
 
     /**
       * The core of the test follows:
-      * Call completeBackfill whilst we are in the state of STREAM_BACKFILLING
+      * Call completeBackfill whilst we are in the state of StreamBackfilling
       * and the pendingBackfill flag is set to true.
       * We expect that on leaving completeBackfill the isBackfillRunning flag is
       * set to true.
       */
     mock_stream->public_setBackfillTaskRunning(true);
-    mock_stream->public_transitionState(STREAM_BACKFILLING);
+    mock_stream->transitionStateToBackfilling();
     mock_stream->handleSlowStream();
     // The call to handleSlowStream should result in setting pendingBackfill
     // flag to true
@@ -331,8 +333,8 @@ TEST_F(SingleThreadedEPStoreTest, test_mb22451) {
     mock_stream->completeBackfill();
     EXPECT_FALSE(mock_stream->public_isBackfillTaskRunning())
         << "completeBackfill should set isBackfillTaskRunning to False";
-    EXPECT_EQ(STREAM_BACKFILLING, mock_stream->getState())
-            << "stream state should not have changed";
+    EXPECT_TRUE(mock_stream->isBackfilling())
+        << "stream state should not have changed";
     // Required to ensure that the backfillMgr is deleted
     producer->closeAllStreams();
 }

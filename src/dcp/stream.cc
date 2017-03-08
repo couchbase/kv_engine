@@ -57,7 +57,7 @@ Stream::Stream(const std::string &name, uint32_t flags, uint32_t opaque,
       start_seqno_(start_seqno), end_seqno_(end_seqno), vb_uuid_(vb_uuid),
       snap_start_seqno_(snap_start_seqno),
       snap_end_seqno_(snap_end_seqno),
-      state_(STREAM_PENDING), itemsReady(false),
+      state_(StreamState::Pending), itemsReady(false),
       readyQ_non_meta_items(0),
       readyQueueMemory(0) {
 }
@@ -66,6 +66,51 @@ Stream::~Stream() {
     // NB: reusing the "unlocked" method without a lock because we're
     // destructing and should not take any locks.
     clear_UNLOCKED();
+}
+
+const std::string Stream::to_string(Stream::StreamState st) {
+    switch(st) {
+    case StreamState::Pending:
+        return "pending";
+    case StreamState::Backfilling:
+        return "backfilling";
+    case StreamState::InMemory:
+        return "in-memory";
+    case StreamState::TakeoverSend:
+        return "takeover-send";
+    case StreamState::TakeoverWait:
+        return "takeover-wait";
+    case StreamState::Reading:
+        return "reading";
+    case StreamState::Dead:
+        return "dead";
+    }
+    throw std::invalid_argument(
+        "Stream::to_string(StreamState): " + std::to_string(int(st)));
+}
+
+bool Stream::isActive() const {
+    return state_.load() != StreamState::Dead;
+}
+
+bool Stream::isBackfilling() const {
+    return state_.load() == StreamState::Backfilling;
+}
+
+bool Stream::isInMemory() const {
+    return state_.load() == StreamState::InMemory;
+}
+
+bool Stream::isPending() const {
+    return state_.load() == StreamState::Pending;
+}
+
+bool Stream::isTakeoverSend() const {
+    return state_.load() == StreamState::TakeoverSend;
+}
+
+bool Stream::isTakeoverWait() const {
+    return state_.load() == StreamState::TakeoverWait;
 }
 
 void Stream::clear_UNLOCKED() {
@@ -118,19 +163,6 @@ uint64_t Stream::getReadyQueueMemory() {
     return readyQueueMemory.load(std::memory_order_relaxed);
 }
 
-const char* Stream::stateName(stream_state_t st) {
-    static const char * const stateNames[] = {
-        "pending", "backfilling", "in-memory", "takeover-send", "takeover-wait",
-        "reading", "dead"
-    };
-    if (st < STREAM_PENDING || st > STREAM_DEAD) {
-        throw std::invalid_argument("Stream::stateName: st (which is " +
-                                        std::to_string(st) +
-                                        ") is not a valid stream_state_t");
-    }
-    return stateNames[st];
-}
-
 void Stream::addStats(ADD_STAT add_stat, const void *c) {
     try {
         const int bsize = 1024;
@@ -158,7 +190,7 @@ void Stream::addStats(ADD_STAT add_stat, const void *c) {
         add_casted_stat(buffer, snap_end_seqno_, add_stat, c);
         checked_snprintf(buffer, bsize, "%s:stream_%d_state", name_.c_str(),
                          vb_);
-        add_casted_stat(buffer, stateName(state_), add_stat, c);
+        add_casted_stat(buffer, to_string(state_.load()), add_stat, c);
     } catch (std::exception& error) {
         LOG(EXTENSION_LOG_WARNING,
             "Stream::addStats: Failed to build stats: %s", error.what());
@@ -225,7 +257,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
 }
 
 ActiveStream::~ActiveStream() {
-    transitionState(STREAM_DEAD);
+    transitionState(StreamState::Dead);
 }
 
 DcpResponse* ActiveStream::next() {
@@ -235,32 +267,30 @@ DcpResponse* ActiveStream::next() {
 
 DcpResponse* ActiveStream::next(std::lock_guard<std::mutex>& lh) {
     DcpResponse* response = NULL;
-    // Taking a copy of atomic to avoid compiler error
-    stream_state_t currentState = state_;
 
-    switch (currentState) {
-        case STREAM_PENDING:
+    switch (state_.load()) {
+        case StreamState::Pending:
             break;
-        case STREAM_BACKFILLING:
+        case StreamState::Backfilling:
             response = backfillPhase(lh);
             break;
-        case STREAM_IN_MEMORY:
+        case StreamState::InMemory:
             response = inMemoryPhase();
             break;
-        case STREAM_TAKEOVER_SEND:
+        case StreamState::TakeoverSend:
             response = takeoverSendPhase();
             break;
-        case STREAM_TAKEOVER_WAIT:
+        case StreamState::TakeoverWait:
             response = takeoverWaitPhase();
             break;
-        case STREAM_READING:
+        case StreamState::Reading:
             // Not valid for an active stream.
             throw std::logic_error("ActiveStream::next: Invalid state "
-                    "STREAM_READING for stream " +
+                    "StreamReading for stream " +
                     std::string(producer->logHeader()) + " vb " +
                     std::to_string(vb_));
             break;
-        case STREAM_DEAD:
+        case StreamState::Dead:
             response = deadPhase();
             break;
     }
@@ -274,11 +304,11 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
         LockHolder lh(streamMutex);
         uint64_t chkCursorSeqno = endSeqno;
 
-        if (state_ != STREAM_BACKFILLING) {
+        if (!isBackfilling()) {
             producer->getLogger().log(EXTENSION_LOG_WARNING,
                                       "(vb %" PRIu16 ") ActiveStream::"
                                       "markDiskSnapshot: Unexpected state_:%s",
-                                      vb_, stateName(state_));
+                                      vb_, to_string(state_.load()).c_str());
             return;
         }
 
@@ -338,7 +368,7 @@ bool ActiveStream::backfillReceived(Item* itm, backfill_source_t backfill_source
 
     if (itm->shouldReplicate()) {
         std::unique_lock<std::mutex> lh(streamMutex);
-        if (state_ == STREAM_BACKFILLING) {
+        if (isBackfilling()) {
             if (!producer->recordBackfillManagerBytesRead(itm->size())) {
                 delete itm;
                 return false;
@@ -374,7 +404,7 @@ bool ActiveStream::backfillReceived(Item* itm, backfill_source_t backfill_source
 void ActiveStream::completeBackfill() {
     {
         LockHolder lh(streamMutex);
-        if (state_ == STREAM_BACKFILLING) {
+        if (isBackfilling()) {
             producer->getLogger().log(EXTENSION_LOG_NOTICE,
                     "(vb %" PRIu16 ") Backfill complete, %" PRIu64 " items "
                     "read from disk, %" PRIu64 " from memory, last seqno read: "
@@ -386,7 +416,8 @@ void ActiveStream::completeBackfill() {
         } else {
             producer->getLogger().log(EXTENSION_LOG_WARNING,
                     "(vb %" PRIu16 ") ActiveStream::completeBackfill: "
-                    "Unexpected state_:%s", vb_, stateName(state_));
+                    "Unexpected state_:%s",
+                    vb_, to_string(state_.load()).c_str());
         }
     }
 
@@ -408,14 +439,14 @@ void ActiveStream::snapshotMarkerAckReceived() {
 
 void ActiveStream::setVBucketStateAckRecieved() {
     std::unique_lock<std::mutex> lh(streamMutex);
-    if (state_ == STREAM_TAKEOVER_WAIT) {
+    if (isTakeoverWait()) {
         if (takeoverState == vbucket_state_pending) {
             producer->getLogger().log(EXTENSION_LOG_INFO,
                 "(vb %" PRIu16 ") Receive ack for set vbucket state to pending "
                 "message", vb_);
 
             takeoverState = vbucket_state_active;
-            transitionState(STREAM_TAKEOVER_SEND);
+            transitionState(StreamState::TakeoverSend);
             lh.unlock();
 
             engine->getKVBucket()->setVBucketState(vb_, vbucket_state_dead,
@@ -440,7 +471,7 @@ void ActiveStream::setVBucketStateAckRecieved() {
     } else {
         producer->getLogger().log(EXTENSION_LOG_WARNING,
             "(vb %" PRIu16 ") Unexpected ack for set vbucket op on stream '%s' "
-            "state '%s'", vb_, name_.c_str(), stateName(state_));
+            "state '%s'", vb_, name_.c_str(), to_string(state_.load()).c_str());
     }
 
 }
@@ -472,11 +503,11 @@ DcpResponse* ActiveStream::backfillPhase(std::lock_guard<std::mutex>& lh) {
             if (lastReadSeqno.load() >= end_seqno_) {
                 endStream(END_STREAM_OK);
             } else if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
-                transitionState(STREAM_TAKEOVER_SEND);
+                transitionState(StreamState::TakeoverSend);
             } else if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {
                 endStream(END_STREAM_OK);
             } else {
-                transitionState(STREAM_IN_MEMORY);
+                transitionState(StreamState::InMemory);
             }
 
             if (!resp) {
@@ -493,9 +524,9 @@ DcpResponse* ActiveStream::inMemoryPhase() {
         endStream(END_STREAM_OK);
     } else if (readyQ.empty()) {
         if (pendingBackfill) {
-            // Moving the state from STREAM_IN_MEMORY to
-            // STREAM_BACKFILLING will result in a backfill being scheduled
-            transitionState(STREAM_BACKFILLING);
+            // Moving the state from InMemory to Backfilling will result in a
+            // backfill being scheduled
+            transitionState(StreamState::Backfilling);
             pendingBackfill = false;
             return NULL;
         } else if (nextCheckpointItem()) {
@@ -535,7 +566,7 @@ DcpResponse* ActiveStream::takeoverSendPhase() {
     DcpResponse* resp = NULL;
     if (producer->bufferLogInsert(SetVBucketState::baseMsgBytes)) {
         resp = new SetVBucketState(opaque_, vb_, takeoverState);
-        transitionState(STREAM_TAKEOVER_WAIT);
+        transitionState(StreamState::TakeoverWait);
     }
     return resp;
 }
@@ -607,7 +638,7 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
                          name_.c_str(), vb_);
         add_casted_stat(buffer, bufferedBackfill.items, add_stat, c);
 
-        if ((state_ == STREAM_TAKEOVER_SEND) && takeoverStart != 0) {
+        if (isTakeoverSend() && takeoverStart != 0) {
             checked_snprintf(buffer, bsize, "%s:stream_%d_takeover_since",
                              name_.c_str(), vb_);
             add_casted_stat(buffer, ep_current_time() - takeoverStart, add_stat,
@@ -624,7 +655,7 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie,
     LockHolder lh(streamMutex);
 
     add_casted_stat("name", name_, add_stat, cookie);
-    if (state_ == STREAM_DEAD) {
+    if (!isActive()) {
         /**
          *  There is not a legitimate case where the stream is already dead.
          *  ns-server cleans-up old streams towards the end of a vbucket move.
@@ -635,7 +666,7 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie,
         producer->getLogger().log(EXTENSION_LOG_WARNING,
                                   "(vb %" PRIu16 ") "
                                   "ActiveStream::addTakeoverStats: Stream has "
-                                  "status STREAM_DEAD", vb_);
+                                  "status StreamDead", vb_);
         add_casted_stat("status", "does_not_exist", add_stat, cookie);
         add_casted_stat("estimate", 0, add_stat, cookie);
         add_casted_stat("backfillRemaining", 0, add_stat, cookie);
@@ -643,7 +674,7 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie,
     }
 
     size_t total = backfillRemaining.load(std::memory_order_relaxed);
-    if (state_ == STREAM_BACKFILLING) {
+    if (isBackfilling()) {
         add_casted_stat("status", "backfilling", add_stat, cookie);
     } else {
         add_casted_stat("status", "in-memory", add_stat, cookie);
@@ -690,7 +721,7 @@ DcpResponse* ActiveStream::nextQueuedItem() {
                 lastSentSeqno.store(
                         dynamic_cast<MutationResponse*>(response)->getBySeqno());
 
-                if (state_ == STREAM_BACKFILLING) {
+                if (isBackfilling()) {
                     backfillItems.sent++;
                 } else {
                     itemsFromMemoryPhase++;
@@ -855,7 +886,7 @@ void ActiveStream::snapshot(std::deque<MutationResponse*>& items, bool mark) {
 
     LockHolder lh(streamMutex);
 
-    if ((state_ == STREAM_DEAD) || (state_ == STREAM_BACKFILLING)) {
+    if (!isActive() || isBackfilling()) {
         // If stream was closed forcefully by the time the checkpoint items
         // retriever task completed, or if we decided to switch the stream to
         // backfill state from in-memory state, none of the acquired mutations
@@ -882,7 +913,7 @@ void ActiveStream::snapshot(std::deque<MutationResponse*>& items, bool mark) {
             flags |= MARKER_FLAG_CHK;
         }
 
-        if (state_ == STREAM_TAKEOVER_SEND) {
+        if (isTakeoverSend()) {
             waitForSnapshot++;
             flags |= MARKER_FLAG_ACK;
         }
@@ -917,7 +948,7 @@ uint32_t ActiveStream::setDead(end_stream_status_t status) {
 }
 
 void ActiveStream::notifySeqnoAvailable(uint64_t seqno) {
-    if (state_ != STREAM_DEAD) {
+    if (isActive()) {
         bool inverse = false;
         if (itemsReady.compare_exchange_strong(inverse, true)) {
             producer->notifyStreamReady(vb_);
@@ -926,9 +957,9 @@ void ActiveStream::notifySeqnoAvailable(uint64_t seqno) {
 }
 
 void ActiveStream::endStream(end_stream_status_t reason) {
-    if (state_ != STREAM_DEAD) {
+    if (isActive()) {
         pendingBackfill = false;
-        if (state_ == STREAM_BACKFILLING) {
+        if (isBackfilling()) {
             // If Stream were in Backfilling state, clear out the
             // backfilled items to clear up the backfill buffer.
             clear_UNLOCKED();
@@ -936,7 +967,7 @@ void ActiveStream::endStream(end_stream_status_t reason) {
             bufferedBackfill.bytes = 0;
             bufferedBackfill.items = 0;
         }
-        transitionState(STREAM_DEAD);
+        transitionState(StreamState::Dead);
         if (reason != END_STREAM_DISCONNECTED) {
             pushToReadyQ(new StreamEndResponse(opaque_, reason, vb_));
         }
@@ -1068,9 +1099,9 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
         if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {
             endStream(END_STREAM_OK);
         } else if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
-            transitionState(STREAM_TAKEOVER_SEND);
+            transitionState(StreamState::TakeoverSend);
         } else {
-            transitionState(STREAM_IN_MEMORY);
+            transitionState(StreamState::InMemory);
         }
         if (reschedule) {
             /* Cursor was dropped, but we will not do backfill.
@@ -1101,12 +1132,12 @@ void ActiveStream::handleSlowStream()
                               "lastReadSeqno : %" PRIu64 ", "
                               "lastSentSeqno : %" PRIu64 ", "
                               "isBackfillTaskRunning : %s",
-                              vb_, stateName(state_),
+                              vb_, to_string(state_.load()).c_str(),
                               lastReadSeqno.load(),
                               lastSentSeqno.load(),
                               isBackfillTaskRunning.load() ? "True" : "False");
     switch (state_.load()) {
-        case STREAM_BACKFILLING:
+        case StreamState::Backfilling:
             if (isBackfillTaskRunning.load()) {
                 /* Drop the existing cursor and set pending backfill */
                 dropCheckpointCursor_UNLOCKED();
@@ -1115,23 +1146,23 @@ void ActiveStream::handleSlowStream()
                 scheduleBackfill_UNLOCKED(true);
             }
             break;
-        case STREAM_IN_MEMORY:
+        case StreamState::InMemory:
             /* Drop the existing cursor and set pending backfill */
             dropCheckpointCursor_UNLOCKED();
             pendingBackfill = true;
             break;
-        case STREAM_TAKEOVER_SEND:
+        case StreamState::TakeoverSend:
             /* To be handled later if needed */
-        case STREAM_TAKEOVER_WAIT:
+        case StreamState::TakeoverWait:
             /* To be handled later if needed */
-        case STREAM_DEAD:
+        case StreamState::Dead:
             /* To be handled later if needed */
             break;
-        case STREAM_PENDING:
-        case STREAM_READING:
+        case StreamState::Pending:
+        case StreamState::Reading:
             throw std::logic_error("ActiveStream::handleSlowStream: "
                                    "called with state " +
-                                   std::to_string(state_.load()) + " . " +
+                                   to_string(state_.load()) + " "
                                    "for stream " + producer->logHeader() +
                                    "; vb " + std::to_string(vb_));
     }
@@ -1156,10 +1187,11 @@ const char* ActiveStream::getEndStreamStatusStr(end_stream_status_t status)
     return msg.c_str();
 }
 
-void ActiveStream::transitionState(stream_state_t newState) {
+void ActiveStream::transitionState(StreamState newState) {
     producer->getLogger().log(EXTENSION_LOG_DEBUG,
                               "(vb %d) Transitioning from %s to %s",
-                              vb_, stateName(state_), stateName(newState));
+                              vb_, to_string(state_.load()).c_str(),
+                              to_string(newState).c_str());
 
     if (state_ == newState) {
         return;
@@ -1167,38 +1199,42 @@ void ActiveStream::transitionState(stream_state_t newState) {
 
     bool validTransition = false;
     switch (state_.load()) {
-        case STREAM_PENDING:
-            if (newState == STREAM_BACKFILLING || newState == STREAM_DEAD) {
+        case StreamState::Pending:
+            if (newState == StreamState::Backfilling ||
+                    newState == StreamState::Dead) {
                 validTransition = true;
             }
             break;
-        case STREAM_BACKFILLING:
-            if(newState == STREAM_IN_MEMORY ||
-               newState == STREAM_TAKEOVER_SEND ||
-               newState == STREAM_DEAD) {
+        case StreamState::Backfilling:
+            if(newState == StreamState::InMemory ||
+               newState == StreamState::TakeoverSend ||
+               newState == StreamState::Dead) {
                 validTransition = true;
             }
             break;
-        case STREAM_IN_MEMORY:
-            if (newState == STREAM_BACKFILLING || newState == STREAM_DEAD) {
+        case StreamState::InMemory:
+            if (newState == StreamState::Backfilling ||
+                    newState == StreamState::Dead) {
                 validTransition = true;
             }
             break;
-        case STREAM_TAKEOVER_SEND:
-            if (newState == STREAM_TAKEOVER_WAIT || newState == STREAM_DEAD) {
+        case StreamState::TakeoverSend:
+            if (newState == StreamState::TakeoverWait ||
+                    newState == StreamState::Dead) {
                 validTransition = true;
             }
             break;
-        case STREAM_TAKEOVER_WAIT:
-            if (newState == STREAM_TAKEOVER_SEND || newState == STREAM_DEAD) {
+        case StreamState::TakeoverWait:
+            if (newState == StreamState::TakeoverSend ||
+                    newState == StreamState::Dead) {
                 validTransition = true;
             }
             break;
-        case STREAM_READING:
+        case StreamState::Reading:
             // Active stream should never be in READING state.
             validTransition = false;
             break;
-        case STREAM_DEAD:
+        case StreamState::Dead:
             // Once DEAD, no other transitions should occur.
             validTransition = false;
             break;
@@ -1206,23 +1242,23 @@ void ActiveStream::transitionState(stream_state_t newState) {
 
     if (!validTransition) {
         throw std::invalid_argument("ActiveStream::transitionState:"
-                " newState (which is " + std::to_string(newState) +
+                " newState (which is " + to_string(newState) +
                 ") is not valid for current state (which is " +
-                std::to_string(state_) + ")");
+                to_string(state_.load()) + ")");
     }
 
-    stream_state_t oldState = state_.load();
+    StreamState oldState = state_.load();
     state_ = newState;
 
     switch (newState) {
-        case STREAM_BACKFILLING:
-            if (STREAM_PENDING == oldState) {
+        case StreamState::Backfilling:
+            if (StreamState::Pending == oldState) {
                 scheduleBackfill_UNLOCKED(false /* reschedule */);
-            } else if (STREAM_IN_MEMORY == oldState) {
+            } else if (StreamState::InMemory == oldState) {
                 scheduleBackfill_UNLOCKED(true /* reschedule */);
             }
             break;
-        case STREAM_IN_MEMORY:
+        case StreamState::InMemory:
             // Check if the producer has sent up till the last requested
             // sequence number already, if not - move checkpoint items into
             // the ready queue.
@@ -1237,11 +1273,11 @@ void ActiveStream::transitionState(stream_state_t newState) {
                 nextCheckpointItem();
             }
             break;
-        case STREAM_TAKEOVER_SEND:
+        case StreamState::TakeoverSend:
             takeoverStart = ep_current_time();
             nextCheckpointItem();
             break;
-        case STREAM_DEAD:
+        case StreamState::Dead:
             {
                 RCPtr<VBucket> vb = engine->getVBucket(vb_);
                 if (vb) {
@@ -1249,19 +1285,20 @@ void ActiveStream::transitionState(stream_state_t newState) {
                 }
                 break;
             }
-        case STREAM_TAKEOVER_WAIT:
-        case STREAM_PENDING:
+        case StreamState::TakeoverWait:
+        case StreamState::Pending:
             break;
-        case STREAM_READING:
+        case StreamState::Reading:
             throw std::logic_error("ActiveStream::transitionState:"
-                    " newState can't be " + std::to_string(newState) + "!");
+                    " newState can't be " + to_string(newState) +
+                    "!");
     }
 }
 
 size_t ActiveStream::getItemsRemaining() {
     RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
 
-    if (!vbucket || state_ == STREAM_DEAD) {
+    if (!vbucket || !isActive()) {
         return 0;
     }
 
@@ -1326,7 +1363,7 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e, dcp_producer_t p,
     RCPtr<VBucket> vbucket = e->getVBucket(vb_);
     if (vbucket && static_cast<uint64_t>(vbucket->getHighSeqno()) > st_seqno) {
         pushToReadyQ(new StreamEndResponse(opaque_, END_STREAM_OK, vb_));
-        transitionState(STREAM_DEAD);
+        transitionState(StreamState::Dead);
         itemsReady.store(true);
     }
 
@@ -1339,8 +1376,8 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e, dcp_producer_t p,
 
 uint32_t NotifierStream::setDead(end_stream_status_t status) {
     std::unique_lock<std::mutex> lh(streamMutex);
-    if (state_ != STREAM_DEAD) {
-        transitionState(STREAM_DEAD);
+    if (isActive()) {
+        transitionState(StreamState::Dead);
         if (status != END_STREAM_DISCONNECTED) {
             pushToReadyQ(new StreamEndResponse(opaque_, status, vb_));
             lh.unlock();
@@ -1355,9 +1392,9 @@ uint32_t NotifierStream::setDead(end_stream_status_t status) {
 
 void NotifierStream::notifySeqnoAvailable(uint64_t seqno) {
     std::unique_lock<std::mutex> lh(streamMutex);
-    if (state_ != STREAM_DEAD && start_seqno_ < seqno) {
+    if (isActive() && start_seqno_ < seqno) {
         pushToReadyQ(new StreamEndResponse(opaque_, END_STREAM_OK, vb_));
-        transitionState(STREAM_DEAD);
+        transitionState(StreamState::Dead);
         lh.unlock();
         bool inverse = false;
         if (itemsReady.compare_exchange_strong(inverse, true)) {
@@ -1384,10 +1421,10 @@ DcpResponse* NotifierStream::next() {
     return response;
 }
 
-void NotifierStream::transitionState(stream_state_t newState) {
+void NotifierStream::transitionState(StreamState newState) {
     producer->getLogger().log(EXTENSION_LOG_DEBUG,
         "(vb %d) Transitioning from %s to %s", vb_,
-        stateName(state_), stateName(newState));
+        to_string(state_.load()).c_str(), to_string(newState).c_str());
 
     if (state_ == newState) {
         return;
@@ -1395,27 +1432,27 @@ void NotifierStream::transitionState(stream_state_t newState) {
 
     bool validTransition = false;
     switch (state_.load()) {
-        case STREAM_PENDING:
-            if (newState == STREAM_DEAD) {
+        case StreamState::Pending:
+            if (newState == StreamState::Dead) {
                 validTransition = true;
             }
             break;
 
-        case STREAM_BACKFILLING:
-        case STREAM_IN_MEMORY:
-        case STREAM_TAKEOVER_SEND:
-        case STREAM_TAKEOVER_WAIT:
-        case STREAM_READING:
-        case STREAM_DEAD:
+        case StreamState::Backfilling:
+        case StreamState::InMemory:
+        case StreamState::TakeoverSend:
+        case StreamState::TakeoverWait:
+        case StreamState::Reading:
+        case StreamState::Dead:
             // No other state transitions are valid for a notifier stream.
             break;
     }
 
     if (!validTransition) {
         throw std::invalid_argument("NotifierStream::transitionState:"
-                " newState (which is " + std::to_string(newState) +
+                " newState (which is " + to_string(newState) +
                 ") is not valid for current state (which is " +
-                std::to_string(state_) + ")");
+                to_string(state_.load()) + ")");
     }
     state_ = newState;
 }
@@ -1448,7 +1485,7 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, dcp_consumer_t c,
 
 PassiveStream::~PassiveStream() {
     uint32_t unackedBytes = clearBuffer_UNLOCKED();
-    if (transitionState(STREAM_DEAD)) {
+    if (transitionState(StreamState::Dead)) {
         // Destructed a "live" stream, log it.
         consumer->getLogger().log(EXTENSION_LOG_NOTICE,
             "(vb %" PRId16 ") Destructing stream."
@@ -1466,7 +1503,7 @@ uint32_t PassiveStream::setDead(end_stream_status_t status) {
     bool killed = false;
 
     LockHolder slh(streamMutex);
-    if (transitionState(STREAM_DEAD)) {
+    if (transitionState(StreamState::Dead)) {
         killed = true;
     }
 
@@ -1485,11 +1522,11 @@ uint32_t PassiveStream::setDead(end_stream_status_t status) {
 
 void PassiveStream::acceptStream(uint16_t status, uint32_t add_opaque) {
     std::unique_lock<std::mutex> lh(streamMutex);
-    if (state_ == STREAM_PENDING) {
+    if (isPending()) {
         if (status == ENGINE_SUCCESS) {
-            transitionState(STREAM_READING);
+            transitionState(StreamState::Reading);
         } else {
-            transitionState(STREAM_DEAD);
+            transitionState(StreamState::Dead);
         }
         pushToReadyQ(new AddStreamResponse(add_opaque, opaque_, status));
         lh.unlock();
@@ -1538,7 +1575,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dc
         return ENGINE_EINVAL;
     }
 
-    if (state_ == STREAM_DEAD) {
+    if (!isActive()) {
         return ENGINE_KEY_ENOENT;
     }
 
@@ -1612,7 +1649,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dc
             case DcpResponse::Event::StreamEnd:
                 {
                     LockHolder lh(streamMutex);
-                    transitionState(STREAM_DEAD);
+                    transitionState(StreamState::Dead);
                 }
                 break;
             default:
@@ -1628,7 +1665,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dc
     }
 
     // Only buffer if the stream is not dead
-    if (state_.load() != STREAM_DEAD) {
+    if (isActive()) {
         buffer.push(std::move(dcpResponse));
     }
     return ENGINE_TMPFAIL;
@@ -1645,7 +1682,7 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
         /* If the stream is in dead state we should not process any remaining
            items in the buffer, we should rather clear them */
-        if (state_ == STREAM_DEAD) {
+        if (!isActive()) {
             total_bytes_processed += clearBuffer_UNLOCKED();
             processed_bytes = total_bytes_processed;
             return all_processed;
@@ -1676,7 +1713,7 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
             case DcpResponse::Event::StreamEnd:
                 {
                     LockHolder lh(streamMutex);
-                    transitionState(STREAM_DEAD);
+                    transitionState(StreamState::Dead);
                 }
                 break;
             default:
@@ -1700,7 +1737,7 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
 
         // If we failed and the stream is not dead, stash the DcpResponse at the
         // front of the queue and break the loop.
-        if (failed && state_.load() != STREAM_DEAD) {
+        if (failed && isActive()) {
             buffer.push_front(std::move(response), lh);
             break;
         }
@@ -1953,7 +1990,8 @@ void PassiveStream::addStats(ADD_STAT add_stat, const void *c) {
 
         checked_snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_type",
                          name_.c_str(), vb_);
-        add_casted_stat(buf, to_string(cur_snapshot_type.load()), add_stat, c);
+        add_casted_stat(buf, ::to_string(cur_snapshot_type.load()),
+                        add_stat, c);
 
         if (cur_snapshot_type.load() != Snapshot::None) {
             checked_snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_start",
@@ -1989,10 +2027,10 @@ uint32_t PassiveStream::clearBuffer_UNLOCKED() {
     return unackedBytes;
 }
 
-bool PassiveStream::transitionState(stream_state_t newState) {
+bool PassiveStream::transitionState(StreamState newState) {
     consumer->getLogger().log(EXTENSION_LOG_DEBUG,
         "(vb %d) Transitioning from %s to %s",
-        vb_, stateName(state_), stateName(newState));
+        vb_, to_string(state_.load()).c_str(), to_string(newState).c_str());
 
     if (state_ == newState) {
         return false;
@@ -2000,35 +2038,37 @@ bool PassiveStream::transitionState(stream_state_t newState) {
 
     bool validTransition = false;
     switch (state_.load()) {
-        case STREAM_PENDING:
-            if (newState == STREAM_READING || newState == STREAM_DEAD) {
+        case StreamState::Pending:
+            if (newState == StreamState::Reading ||
+                    newState == StreamState::Dead) {
                 validTransition = true;
             }
             break;
 
-        case STREAM_BACKFILLING:
-        case STREAM_IN_MEMORY:
-        case STREAM_TAKEOVER_SEND:
-        case STREAM_TAKEOVER_WAIT:
+        case StreamState::Backfilling:
+        case StreamState::InMemory:
+        case StreamState::TakeoverSend:
+        case StreamState::TakeoverWait:
             // Not valid for passive streams
             break;
 
-        case STREAM_READING:
-            if (newState == STREAM_PENDING || newState == STREAM_DEAD) {
+        case StreamState::Reading:
+            if (newState == StreamState::Pending ||
+                    newState == StreamState::Dead) {
                 validTransition = true;
             }
             break;
 
-        case STREAM_DEAD:
+        case StreamState::Dead:
             // Once 'dead' shouldn't transition away from it.
             break;
     }
 
     if (!validTransition) {
         throw std::invalid_argument("PassiveStream::transitionState:"
-                " newState (which is" + std::to_string(newState) +
+                " newState (which is" + to_string(newState) +
                 ") is not valid for current state (which is " +
-                std::to_string(state_) + ")");
+                to_string(state_.load()) + ")");
     }
 
     state_ = newState;

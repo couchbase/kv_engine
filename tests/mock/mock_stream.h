@@ -79,12 +79,12 @@ public:
         return isBackfillTaskRunning;
     }
 
-    void public_transitionState(stream_state_t newState) {
-        transitionState(newState);
-    }
-
     bool public_getPendingBackfill() const {
         return pendingBackfill;
+    }
+
+    void transitionStateToBackfilling() {
+        transitionState(StreamState::Backfilling);
     }
 };
 
@@ -102,8 +102,7 @@ public:
                     end_seqno, vb_uuid, snap_start_seqno, snap_end_seqno,
                     vb_high_seqno) {}
 
-    // Expose underlying protected PassiveStream methods as public
-    bool public_transitionState(stream_state_t newState) {
-        return transitionState(newState);
+    void transitionStateToDead() {
+        transitionState(StreamState::Dead);
     }
 };

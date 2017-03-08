@@ -258,8 +258,8 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         std::lock_guard<StreamsMap> guard(streams);
         auto it = streams.find(vbucket, guard);
         if (it.second) {
-            auto& vb = it.first;
-            if (vb->getState() != STREAM_DEAD) {
+            auto& stream = it.first;
+            if (stream->isActive()) {
                 LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed"
                     " because a stream already exists for this vbucket",
                     logHeader(), vbucket);

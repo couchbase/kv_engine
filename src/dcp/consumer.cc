@@ -922,8 +922,7 @@ void DcpConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body
         uint16_t vbucket = oitr->second.second;
 
         auto stream = findStream(vbucket);
-        if (stream && stream->getOpaque() == opaque &&
-            stream->getState() == STREAM_PENDING) {
+        if (stream && stream->getOpaque() == opaque && stream->isPending()) {
             if (status == ENGINE_SUCCESS) {
                 RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
                 vb->failovers->replaceFailoverLog(body, bodylen);

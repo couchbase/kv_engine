@@ -646,7 +646,7 @@ TEST_F(ConnectionTest, test_consumer_add_stream) {
     MockPassiveStream *stream = static_cast<MockPassiveStream*>
                                     ((consumer->getVbucketStream(vbid)).get());
 
-    stream->public_transitionState(STREAM_DEAD);
+    stream->transitionStateToDead();
 
     /* Add a passive stream on the same vb */
     ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(/*opaque*/0, vbid,
