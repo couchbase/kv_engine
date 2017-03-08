@@ -2052,11 +2052,18 @@ static test_result get_if(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
             "Failed set.");
     h1->release(h, nullptr, it);
 
+    if (isPersistentBucket(h, h1)) {
+        wait_for_flusher_to_settle(h, h1);
+        evict_key(h, h1, key.c_str(), 0, "Ejected.");
+    }
+
     auto doc = h1->get_if(h,
                           nullptr,
                           DocKey(key, testHarness.doc_namespace),
                           0,
-                          [](const item_info&) { return true; });
+                          [](const item_info&) {
+                              return true;
+                          });
     check(doc, "document should be found");
 
     doc = h1->get_if(h,

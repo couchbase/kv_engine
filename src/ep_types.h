@@ -92,5 +92,6 @@ enum get_options_t {
     DELETE_TEMP = 0x0010, // whether temporary items need to be deleted
     HIDE_LOCKED_CAS = 0x0020, // whether locked items should have their CAS
     // hidden (return -1).
-    GET_DELETED_VALUE = 0x0040 // whether to retrieve value of a deleted item
+    GET_DELETED_VALUE = 0x0040, // whether to retrieve value of a deleted item
+    ALLOW_META_ONLY = 0x0080 // Allow only the meta to be returned for an item
 };

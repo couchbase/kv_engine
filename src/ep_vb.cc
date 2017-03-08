@@ -655,7 +655,12 @@ GetValue EPVBucket::getInternalNonResident(const DocKey& key,
                                            const StoredValue& v) {
     if (options & QUEUE_BG_FETCH) {
         bgFetch(key, cookie, engine, bgFetchDelay);
+    } else if (options & get_options_t::ALLOW_META_ONLY) {
+        // You can't both ask for a background fetch and just the meta...
+        return GetValue(v.toItem(false, 0), ENGINE_SUCCESS, v.getBySeqno(),
+                        true, v.getNRUValue());
     }
+
     return GetValue(
             NULL, ENGINE_EWOULDBLOCK, v.getBySeqno(), true, v.getNRUValue());
 }
