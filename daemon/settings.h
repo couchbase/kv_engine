@@ -179,14 +179,14 @@ enum class EventPriority {
  */
 class ClientCertAuth {
 public:
-    enum AuthVal { Disabled, Enabled, Mandatory };
+    enum class Mode { Disabled, Enabled, Mandatory };
     ClientCertAuth() {
-        val.store(AuthVal::Disabled);
+        val.store(Mode::Disabled);
     };
-    AuthVal load() const {
+    Mode load() const {
         return val.load();
     }
-    void store(AuthVal v) {
+    void store(Mode v) {
         val.store(v);
     }
     void store(const ClientCertAuth& c) {
@@ -212,11 +212,11 @@ public:
     }
 
 private:
-    std::atomic<AuthVal> val;
-    typedef std::map<AuthVal, std::string> Vmap;
-    Vmap valMap = Vmap{{AuthVal::Disabled, "disable"},
-                       {AuthVal::Enabled, "enable"},
-                       {AuthVal::Mandatory, "mandatory"}};
+    std::atomic<Mode> val;
+    typedef std::map<Mode, std::string> Vmap;
+    Vmap valMap = Vmap{{Mode::Disabled, "disable"},
+                       {Mode::Enabled, "enable"},
+                       {Mode::Mandatory, "mandatory"}};
 };
 
 /* When adding a setting, be sure to update process_stat_settings */
@@ -702,7 +702,7 @@ public:
      *
      * @return the value of the ssl client auth
      */
-    const ClientCertAuth::AuthVal getClientCertAuth() {
+    const ClientCertAuth::Mode getClientCertAuth() {
         return client_cert_auth.load();
     }
 

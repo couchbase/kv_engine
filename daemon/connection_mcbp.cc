@@ -661,10 +661,10 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
     set_ssl_ctx_cipher_list(ctx);
     int ssl_flags = 0;
     switch (settings.getClientCertAuth()) {
-    case ClientCertAuth::AuthVal::Mandatory:
+    case ClientCertAuth::Mode::Mandatory:
         ssl_flags |= SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
     // FALLTHROUGH
-    case ClientCertAuth::AuthVal::Enabled: {
+    case ClientCertAuth::Mode::Enabled: {
         ssl_flags |= SSL_VERIFY_PEER;
         STACK_OF(X509_NAME)* certNames = SSL_load_client_CA_file(cert.c_str());
         if (certNames == NULL) {
@@ -676,7 +676,7 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
         SSL_CTX_set_verify(ctx, ssl_flags, nullptr);
         break;
     }
-    case ClientCertAuth::AuthVal::Disabled:
+    case ClientCertAuth::Mode::Disabled:
         break;
     }
 

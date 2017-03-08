@@ -714,7 +714,7 @@ TEST_F(SettingsTest, ClientCertAuth) {
     cJSON_AddStringToObject(obj.get(), "client_cert_auth", "enable");
     try {
         Settings settings(obj);
-        EXPECT_EQ(ClientCertAuth::AuthVal::Enabled,
+        EXPECT_EQ(ClientCertAuth::Mode::Enabled,
             settings.getClientCertAuth());
         EXPECT_TRUE(settings.has.client_cert_auth);
     } catch (std::exception& exception) {
@@ -724,7 +724,7 @@ TEST_F(SettingsTest, ClientCertAuth) {
     cJSON_AddStringToObject(obj.get(), "client_cert_auth", "disable");
     try {
         Settings settings(obj);
-        EXPECT_EQ(ClientCertAuth::AuthVal::Disabled,
+        EXPECT_EQ(ClientCertAuth::Mode::Disabled,
             settings.getClientCertAuth());
         EXPECT_TRUE(settings.has.client_cert_auth);
     } catch (std::exception& exception) {
@@ -734,7 +734,7 @@ TEST_F(SettingsTest, ClientCertAuth) {
     cJSON_AddStringToObject(obj.get(), "client_cert_auth", "mandatory");
     try {
         Settings settings(obj);
-        EXPECT_EQ(ClientCertAuth::AuthVal::Mandatory,
+        EXPECT_EQ(ClientCertAuth::Mode::Mandatory,
             settings.getClientCertAuth());
         EXPECT_TRUE(settings.has.client_cert_auth);
     } catch (std::exception& exception) {
