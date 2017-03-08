@@ -26,10 +26,17 @@
 #pragma once
 
 #include <mutex>
+#include <vector>
+
 #include "config.h"
+#include "item.h"
+#include "memcached/engine_error.h"
 
 /* Forward declarations */
 class OrderedStoredValue;
+
+/* [EPHE TODO]: Check if uint64_t can be used instead */
+using seqno_t = int64_t;
 
 /**
  * SequenceList is the abstract base class for the classes that hold ordered
@@ -61,7 +68,43 @@ public:
     virtual ~SequenceList() {
     }
 
-    /* Add a new item at the end of the list */
+    /**
+     * Add a new item at the end of the list.
+     *
+     * @param seqLock A sequence lock the calling module is expected to hold.
+     * @param v Ref to orderedStoredValue which will placed into the linked list
+     *          Its intrusive list links will be updated.
+     */
     virtual void appendToList(std::lock_guard<std::mutex>& seqLock,
                               OrderedStoredValue& v) = 0;
+
+    /**
+     * Provides point-in-time snapshots which can be used for incremental
+     * replication.
+     *
+     * Copies the StoredValues as a vector of ref counterd items starting from
+     * 'start + 1' seqno into 'items' as a snapshot.
+     *
+     * Since we use monotonically increasing point-in-time snapshots we cannot
+     * guarantee that the snapshot ends at the requested end seqno. Due to
+     * dedups we may have to send till a higher seqno in the snapshot.
+     *
+     * @param start requested start seqno
+     * @param end requested end seqno
+     *
+     * @return ENGINE_SUCCESS and items in the snapshot
+     *         ENGINE_ENOMEM on no memory to copy items
+     *         ENGINE_ERANGE on incorrect start and end
+     */
+    virtual std::pair<ENGINE_ERROR_CODE, std::vector<queued_item>> rangeRead(
+            seqno_t start, seqno_t end) = 0;
+
+    /**
+     * Updates the highSeqno in the list. Since seqno is generated and managed
+     * outside the list, the module managing it must update this after the seqno
+     * is generated for the item already put in the list.
+     *
+     * @param seqno high seqno
+     */
+    virtual void updateHighSeqno(seqno_t seqno) = 0;
 };

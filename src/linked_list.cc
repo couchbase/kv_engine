@@ -18,7 +18,12 @@
 #include "linked_list.h"
 #include <mutex>
 
-BasicLinkedList::BasicLinkedList() : SequenceList() {
+BasicLinkedList::BasicLinkedList(uint16_t vbucketId)
+    : SequenceList(),
+      readRange(0, 0),
+      highSeqno(0),
+      highestDedupedSeqno(0),
+      vbid(vbucketId) {
 }
 
 BasicLinkedList::~BasicLinkedList() {
@@ -35,4 +40,86 @@ void BasicLinkedList::appendToList(std::lock_guard<std::mutex>& seqLock,
     std::lock_guard<std::mutex> lckGd(writeLock);
 
     seqList.push_back(v);
+}
+
+std::pair<ENGINE_ERROR_CODE, std::vector<queued_item>>
+BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
+    if ((start > end) || (start <= 0)) {
+        LOG(EXTENSION_LOG_WARNING,
+            "BasicLinkedList::rangeRead(): "
+            "(vb:%d) ERANGE: start %" PRIi64 " > end %" PRIi64,
+            vbid,
+            start,
+            end);
+        return {ENGINE_ERANGE, {}};
+    }
+
+    /* Allows only 1 rangeRead for now */
+    std::lock_guard<std::mutex> lckGd(rangeReadLock);
+
+    {
+        std::lock_guard<SpinLock> lh(rangeLock);
+        if (start > highSeqno) {
+            LOG(EXTENSION_LOG_WARNING,
+                "BasicLinkedList::rangeRead(): "
+                "(vb:%d) ERANGE: start %" PRIi64 " > highSeqno %" PRIi64,
+                vbid,
+                start,
+                static_cast<seqno_t>(highSeqno));
+            /* If the request is for an invalid range, return before iterating
+               through the list */
+            return {ENGINE_ERANGE, {}};
+        }
+
+        /* Mark the initial read range */
+        end = std::min(end, static_cast<seqno_t>(highSeqno));
+        end = std::max(end, static_cast<seqno_t>(highestDedupedSeqno));
+        readRange = SeqRange(1, end);
+    }
+
+    /* Read items in the range */
+    std::vector<queued_item> items;
+
+    for (auto& osv : seqList) {
+        {
+            std::lock_guard<SpinLock> lh(rangeLock);
+            readRange.setBegin(osv.getBySeqno()); /* [EPHE TODO]: should we
+                                                     update the min every time ?
+                                                   */
+        }
+
+        if (osv.getBySeqno() > end) {
+            /* we are done */
+            break;
+        } else if (osv.getBySeqno() < start) {
+            /* skip this item */
+            continue;
+        } /* else */
+
+        try {
+            items.push_back(osv.toItem(false, vbid));
+        } catch (const std::bad_alloc&) {
+            LOG(EXTENSION_LOG_WARNING,
+                "BasicLinkedList::rangeRead(): "
+                "(vb %d) ENOMEM while trying to copy "
+                "item with seqno %" PRIi64 "before streaming it",
+                vbid,
+                osv.getBySeqno());
+            return {ENGINE_ENOMEM, {}};
+        }
+    }
+
+    /* Done with range read, reset the range */
+    {
+        std::lock_guard<SpinLock> lh(rangeLock);
+        readRange.reset();
+    }
+
+    /* Return all the range read items */
+    return {ENGINE_SUCCESS, items};
+}
+
+void BasicLinkedList::updateHighSeqno(seqno_t seqno) {
+    std::lock_guard<SpinLock> lh(rangeLock);
+    highSeqno = seqno;
 }

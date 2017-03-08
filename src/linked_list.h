@@ -22,14 +22,13 @@
 
 #pragma once
 
+#include "atomic.h"
 #include "config.h"
+#include "monotonic.h"
 #include "seqlist.h"
 #include "stored-value.h"
 
 #include <boost/intrusive/list.hpp>
-
-/* [EPHE TODO]: Check if uint64_t can be used instead */
-using seqno_t = int64_t;
 
 /* This option will configure "list" to use the member hook */
 using MemberHookOption =
@@ -39,6 +38,64 @@ using MemberHookOption =
 
 /* This list will use the member hook */
 using OrderedLL = boost::intrusive::list<OrderedStoredValue, MemberHookOption>;
+
+/**
+ * Class that represents a range of sequence numbers.
+ * SeqRange is closed, that is, both begin and end are inclusive.
+ *
+ * Note: begin <= 0 is considered an default/inactive range and can be set
+ *       only by ctor or by reset.
+ */
+class SeqRange {
+public:
+    SeqRange(const seqno_t beginVal, const seqno_t endVal)
+        : end(endVal), begin(beginVal) {
+        if ((end < begin) || (begin < 0)) {
+            throw std::invalid_argument("Trying to create invalid SeqRange: [" +
+                                        std::to_string(begin) + ", " +
+                                        std::to_string(end) + "]");
+        }
+    }
+
+    SeqRange& operator=(const SeqRange& other) {
+        begin = other.begin;
+        end = other.end;
+        return *this;
+    }
+
+    /**
+     * Returns true if the range overlaps with another.
+     */
+    bool overlaps(const SeqRange& other) const {
+        return std::max(begin, other.begin) <= std::min(end, other.end);
+    }
+
+    /**
+     *  Returns true if the seqno falls in the range
+     */
+    bool fallsInRange(const seqno_t seqno) const {
+        return (seqno >= begin) && (seqno <= end);
+    }
+
+    void reset() {
+        begin = 0;
+        end = 0;
+    }
+
+    void setBegin(const seqno_t start) {
+        if ((start <= 0) || (start > end)) {
+            throw std::invalid_argument(
+                    "Trying to set incorrect begin " + std::to_string(start) +
+                    " on SeqRange: [" + std::to_string(begin) + ", " +
+                    std::to_string(end) + "]");
+        }
+        begin = start;
+    }
+
+private:
+    seqno_t end;
+    seqno_t begin;
+};
 
 /**
  * This class implements SequenceList as a basic doubly linked list.
@@ -65,12 +122,17 @@ using OrderedLL = boost::intrusive::list<OrderedStoredValue, MemberHookOption>;
  */
 class BasicLinkedList : public SequenceList {
 public:
-    BasicLinkedList();
+    BasicLinkedList(uint16_t vbucketId);
 
     ~BasicLinkedList();
 
     void appendToList(std::lock_guard<std::mutex>& seqLock,
                       OrderedStoredValue& v) override;
+
+    std::pair<ENGINE_ERROR_CODE, std::vector<queued_item>> rangeRead(
+            seqno_t start, seqno_t end) override;
+
+    void updateHighSeqno(seqno_t seqno) override;
 
 protected:
     /* Underlying data structure that holds the items in an Ordered Sequence */
@@ -81,4 +143,50 @@ protected:
      * 'seqList'
      */
     mutable std::mutex writeLock;
+
+private:
+    /**
+     * Used to mark of the range where point-in-time snapshot is happening.
+     * To get a valid point-in-time snapshot and for correct list iteration we
+     * must not de-duplicate an item in the list in this range.
+     */
+    SeqRange readRange;
+
+    /**
+     * Lock that protects readRange.
+     * We use spinlock here since the lock is held only for very small time
+     * periods.
+     */
+    SpinLock rangeLock;
+
+    /**
+     * Lock that serializes range reads on the 'seqList'.
+     * We need to serialize range reads because, range reads set a list level
+     * range in which items are read. If we have multiple range reads then we
+     * must handle the races in the updation of the range to have most inclusive
+     * range.
+     * For now we use this lock to allow only one range read at a time.
+     */
+    std::mutex rangeReadLock;
+
+    /**
+     * We need to keep track of the highest seqno separately because there is a
+     * small window wherein the last element of the list (though in correct
+     * order) does not have a seqno.
+     *
+     * highseqno is monotonically increasing and is reset to a lower value
+     * only in case of a rollback.
+     */
+    Monotonic<seqno_t> highSeqno;
+
+    /**
+     * We need to this to send out point-in-time snapshots in range read
+     *
+     * highestDedupedSeqno is monotonically increasing and is reset to a lower
+     * value only in case of a rollback.
+     */
+    Monotonic<seqno_t> highestDedupedSeqno;
+
+    /* Used only to log debug messages */
+    const uint16_t vbid;
 };

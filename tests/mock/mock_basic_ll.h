@@ -29,7 +29,7 @@
 
 class MockBasicLinkedList : public BasicLinkedList {
 public:
-    MockBasicLinkedList() : BasicLinkedList() {
+    MockBasicLinkedList() : BasicLinkedList(0) {
     }
 
     std::vector<seqno_t> getAllSeqnoForVerification() const {

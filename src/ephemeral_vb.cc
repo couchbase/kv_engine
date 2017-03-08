@@ -51,7 +51,7 @@ EphemeralVBucket::EphemeralVBucket(id_type i,
               initState,
               purgeSeqno,
               maxCas),
-      seqList(std::make_unique<BasicLinkedList>()) {
+      seqList(std::make_unique<BasicLinkedList>(i)) {
 }
 
 size_t EphemeralVBucket::getNumItems() const {
@@ -168,14 +168,15 @@ std::pair<StoredValue*, VBNotifyCtx> EphemeralVBucket::addNewStoredValue(
                             v->getKey().size()));
     }
 
+    VBNotifyCtx notifyCtx;
     if (queueItmCtx) {
-        return {v, queueDirty(*v, *queueItmCtx)};
+        notifyCtx = queueDirty(*v, *queueItmCtx);
     }
 
-    /* PlaceHolder for post seqno generation operation in EphemeralVBucket
-     * data structure
-     */
-    return {v, VBNotifyCtx()};
+    /* Update the high seqno in the sequential storage */
+    seqList->updateHighSeqno(v->getBySeqno());
+
+    return {v, notifyCtx};
 }
 
 VBNotifyCtx EphemeralVBucket::softDeleteStoredValue(

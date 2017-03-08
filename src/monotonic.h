@@ -17,6 +17,8 @@
 
 #pragma once
 
+#include <limits>
+
 /**
  * Monotonic is a class template for simple types T. It provides guarentee
  * of updating the class objects by only values that are greater than what is
@@ -48,6 +50,11 @@ public:
 
     operator T() const {
         return val;
+    }
+
+    /* Can be used to lower the value */
+    void reset(const T& v) {
+        val = v.val;
     }
 
 private:
