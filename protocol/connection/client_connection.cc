@@ -31,7 +31,44 @@
 #include <string>
 #include <limits>
 
-SslClientCert sslCert;
+/**
+ * Store/retrieve the client ssl certificate and key
+ */
+class SslClientCert {
+public:
+    void add(const std::string& path) {
+        cert = joinPath(path, certName);
+        key = joinPath(path, keyName);
+        enable = true;
+    }
+
+    void disable() {
+        enable = false;
+    }
+
+    bool isEnabled() {
+        return enable;
+    }
+
+    std::string cert;
+    std::string key;
+
+private:
+    // for joining the directory with certificate/key
+    static std::string joinPath(std::string str, std::string append_path) {
+        auto ret = str + "/" + append_path;
+#ifdef WIN32
+        std::replace(ret.begin(), ret.end(), '/', '\\');
+#endif
+        return ret;
+    }
+
+    bool enable{false};
+    const std::string certName = "client.pem";
+    const std::string keyName = "client.key";
+};
+
+static SslClientCert sslCert;
 
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the ConnectionMap class
@@ -261,14 +298,6 @@ SOCKET new_socket(std::string& host, in_port_t port, sa_family_t family) {
 
     freeaddrinfo(ai);
     return INVALID_SOCKET;
-}
-
-std::string SslClientCert::joinPath(std::string str, std::string append_path) {
-#ifdef WIN32
-    return str + "\\" + append_path;
-#else
-    return str + "/" + append_path;
-#endif
 }
 
 void MemcachedConnection::connect() {
