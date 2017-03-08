@@ -710,9 +710,9 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
          * number we are looking for is higher than anything currently assigned
          *  and there is already an assert above for this case.
          */
-        LOG(EXTENSION_LOG_WARNING, "Cursor not registered into vb %d "
-            " for stream '%s' because seqno %" PRIu64 " is too high",
-            vbucketId, name.c_str(), startBySeqno);
+        throw std::logic_error(
+                "CheckpointManager::registerCursorBySeqno the sequences number "
+                "is higher than anything currently assigned");
     }
     return result;
 }

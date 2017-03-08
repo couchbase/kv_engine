@@ -367,12 +367,21 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
         lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
 
         if (!(flags_ & DCP_ADD_STREAM_FLAG_DISKONLY)) {
-            // Only re-register the cursor if we still need to get memory snapshots
-            CursorRegResult result =
-                vb->checkpointManager.registerCursorBySeqno(
-                                                    name_, chkCursorSeqno,
-                                                    MustSendCheckpointEnd::NO);
-            curChkSeqno = result.first;
+            // Only re-register the cursor if we still need to get memory
+            // snapshots
+            try {
+                CursorRegResult result =
+                        vb->checkpointManager.registerCursorBySeqno(
+                                name_, chkCursorSeqno,
+                                MustSendCheckpointEnd::NO);
+
+                curChkSeqno = result.first;
+            } catch(std::exception& error) {
+                producer->getLogger().log(EXTENSION_LOG_WARNING,
+                        "(vb %" PRIu16 ") Failed to register cursor: %s",
+                        vb_, error.what());
+                endStream(END_STREAM_STATE);
+            }
         }
     }
     bool inverse = false;
@@ -1052,13 +1061,17 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
         }
         tryBackfill = true;
     } else {
-        CursorRegResult result =
-            vbucket->checkpointManager.registerCursorBySeqno(
-                                                name_,
-                                                lastReadSeqno.load(),
-                                                MustSendCheckpointEnd::NO);
-        curChkSeqno = result.first;
-        tryBackfill = result.second;
+        try {
+            std::tie(curChkSeqno, tryBackfill) =
+                    vbucket->checkpointManager.registerCursorBySeqno(
+                            name_, lastReadSeqno.load(),
+                            MustSendCheckpointEnd::NO);
+        } catch(std::exception& error) {
+            producer->getLogger().log(EXTENSION_LOG_WARNING,
+                                      "(vb %" PRIu16 ") Failed to register "
+                                      "cursor: %s", vb_, error.what());
+            endStream(END_STREAM_STATE);
+        }
 
         if (lastReadSeqno.load() > curChkSeqno) {
             throw std::logic_error("ActiveStream::scheduleBackfill_UNLOCKED: "
@@ -1116,6 +1129,30 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
                                       lastReadSeqno.load(),
                                       lastSentSeqno.load(), curChkSeqno.load(),
                                       itemsReady ? "True" : "False");
+
+            /* Cursor was dropped, but we will not do backfill.
+             * This may happen in a corner case where, the memory usage is high
+             * due to other vbuckets and persistence cursor moves ahead of
+             * replication cursor to new checkpoint open but does not persist
+             * items yet.
+             *
+             * Because we dropped the cursor but did not do a backfill (and
+             * therefore did not re-register a cursor in markDiskSnapshot) we
+             * must re-register the cursor here.
+             */
+            try {
+                CursorRegResult result =
+                            vbucket->checkpointManager.registerCursorBySeqno(
+                            name_, lastReadSeqno.load(),
+                            MustSendCheckpointEnd::NO);
+
+                    curChkSeqno = result.first;
+            } catch (std::exception& error) {
+                producer->getLogger().log(EXTENSION_LOG_WARNING,
+                                          "(vb %" PRIu16 ") Failed to register "
+                                          "cursor: %s", vb_, error.what());
+                endStream(END_STREAM_STATE);
+            }
         }
         if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {
             endStream(END_STREAM_OK);
@@ -1125,17 +1162,15 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
             transitionState(StreamState::InMemory);
         }
         if (reschedule) {
-            /* Cursor was dropped, but we will not do backfill.
-               This may happen in a corner case where, the memory
-               usage is high due to other vbuckets and persistence cursor moves
-               ahead of replication cursor to new checkpoint open but does not
-               persist items yet.
-               Note: (1) We must not notify when we schedule backfill for the
-                         first time because the stream is not yet in producer
-                         conn list of streams
-                     (2) It is not absolutely necessary to notify immediately
-                         as conn manager or an incoming items will cause a
-                         notification eventually, but wouldn't hurt to do so */
+            /*
+             * It is not absolutely necessary to notify immediately as conn
+             * manager or an incoming item will cause a notification eventually,
+             * but wouldn't hurt to do so.
+             *
+             * Note: must not notify when we schedule a backfill for the first
+             * time (i.e. when reschedule is false) because the stream is not
+             * yet in producer conn list of streams.
+             */
             bool inverse = false;
             if (itemsReady.compare_exchange_strong(inverse, true)) {
                 producer->notifyStreamReady(vb_);
