@@ -133,6 +133,12 @@ public:
         return state_ != STREAM_DEAD;
     }
 
+    /// @Returns true if state_ is Backfilling
+    bool isBackfilling() const;
+
+    /// @Returns true if state_ is InMemory
+    bool isInMemory() const;
+
     void clear() {
         LockHolder lh(streamMutex);
         clear_UNLOCKED();

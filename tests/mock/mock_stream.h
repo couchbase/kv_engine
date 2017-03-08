@@ -86,4 +86,8 @@ public:
     bool public_getPendingBackfill() const {
         return pendingBackfill;
     }
+
+    void transitionStateToBackfilling() {
+        transitionState(STREAM_BACKFILLING);
+    }
 };
