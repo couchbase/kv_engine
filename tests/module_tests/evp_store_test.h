@@ -76,7 +76,7 @@ public:
 
     // The store under test. Wrapped in a mock to expose some normally
     // protected members. Uses a raw pointer as this is owned by the engine.
-    MockEPStore* store;
+    MockEPBucket* store;
 
     // The (mock) server cookie.
     const void* cookie;

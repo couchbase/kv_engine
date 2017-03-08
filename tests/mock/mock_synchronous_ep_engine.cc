@@ -59,7 +59,7 @@ SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
     tapConfig = new TapConfig(*this);
 }
 
-void SynchronousEPEngine::setEPStore(KVBucket* store) {
+void SynchronousEPEngine::setKVBucket(KVBucket* store) {
     cb_assert(kvBucket == nullptr);
     kvBucket = store;
 }
@@ -69,9 +69,9 @@ void SynchronousEPEngine::initializeConnmaps() {
     tapConnMap->initialize(TAP_CONN_NOTIFIER);
 }
 
-MockEPStore::MockEPStore(EventuallyPersistentEngine& theEngine)
+MockEPBucket::MockEPBucket(EventuallyPersistentEngine& theEngine)
     : EPBucket(theEngine) {
-    // Perform a limited set of setup (normally done by EPStore::initialize) -
+    // Perform a limited set of setup (normally done by EPBucket::initialize) -
     // enough such that objects which are assumed to exist are present.
 
     // Create the closed checkpoint removed task. Note we do _not_ schedule
@@ -80,6 +80,6 @@ MockEPStore::MockEPStore(EventuallyPersistentEngine& theEngine)
             &engine, stats, theEngine.getConfiguration().getChkRemoverStime());
 }
 
-VBucketMap& MockEPStore::getVbMap() {
+VBucketMap& MockEPBucket::getVbMap() {
     return vbMap;
 }

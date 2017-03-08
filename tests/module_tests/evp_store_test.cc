@@ -62,8 +62,8 @@ void EPBucketTest::SetUp() {
     engine.reset(new SynchronousEPEngine(config));
     ObjectRegistry::onSwitchThread(engine.get());
 
-    store = new MockEPStore(*engine);
-    engine->setEPStore(store);
+    store = new MockEPBucket(*engine);
+    engine->setKVBucket(store);
 
     // Ensure that EPEngine is hold about necessary server callbacks
     // (client disconnect, bucket delete).

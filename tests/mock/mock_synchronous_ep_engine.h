@@ -20,7 +20,7 @@
 #include <ep_bucket.h>
 #include <ep_engine.h>
 
-class MockEPStore;
+class MockEPBucket;
 
 /* A class which subclasses the real EPEngine. Its main purpose is to allow
  * us to construct and setup an EPStore without starting all the various
@@ -36,7 +36,7 @@ class SynchronousEPEngine : public EventuallyPersistentEngine {
 public:
     SynchronousEPEngine(const std::string& extra_config);
 
-    void setEPStore(KVBucket* store);
+    void setKVBucket(KVBucket* store);
 
     /* Allow us to call normally protected methods */
 
@@ -65,15 +65,13 @@ public:
     void initializeConnmaps();
 };
 
-/* Subclass of EPStore to expose normally non-public members for test
+
+/* Subclass of EPBucket to expose normally non-public members for test
  * purposes.
  */
-class MockEPStore : public EPBucket {
+class MockEPBucket : public EPBucket {
 public:
-    MockEPStore(EventuallyPersistentEngine& theEngine);
-
-    virtual ~MockEPStore() {
-    }
+    MockEPBucket(EventuallyPersistentEngine& theEngine);
 
     VBucketMap& getVbMap();
 
