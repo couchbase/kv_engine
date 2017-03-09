@@ -120,6 +120,7 @@ static inline std::error_condition make_error_condition(engine_errc e) {
     return std::error_condition(int(e), engine_error_category());
 }
 
+ENGINE_UTILITIES_PUBLIC_API
 std::string to_string(engine_errc ev);
 
 }
