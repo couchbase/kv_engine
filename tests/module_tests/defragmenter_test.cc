@@ -374,7 +374,7 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
     // many documents were removed.
     // Allow some extra, to handle any increase in data structure sizes used
     // to actually manage the objects.
-    const double fuzz_factor = 1.2;
+    const double fuzz_factor = 1.3;
     const size_t all_docs_size = mem_used_1 - mem_used_0;
     const size_t remaining_size = (all_docs_size / num_docs) * num_remaining;
     const size_t expected_mem = (mem_used_0 + remaining_size) * fuzz_factor;
