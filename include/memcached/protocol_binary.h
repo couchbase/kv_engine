@@ -1353,7 +1353,8 @@ enum class Feature : uint16_t {
     TCPDELAY = 0x05,
     XATTR = 0x06,
     XERROR = 0x07,
-    SELECT_BUCKET = 0x08
+    SELECT_BUCKET = 0x08,
+    COLLECTIONS = 0x09
 };
 }
 using protocol_binary_hello_features_t = mcbp::Feature;
@@ -2200,6 +2201,8 @@ inline std::string to_string(const Feature& feature) {
         return "XERROR";
     case Feature::SELECT_BUCKET:
         return "Select Bucket";
+    case Feature::COLLECTIONS:
+        return "COLLECTIONS";
     }
     throw std::invalid_argument("mcbp::to_string: unknown feature: " +
                                 std::to_string(uint16_t(feature)));

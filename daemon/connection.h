@@ -355,6 +355,22 @@ public:
         Connection::xerror_support = xerror_support;
     }
 
+    bool isCollectionsSupported() const {
+        return collections_support;
+    }
+
+    void setCollectionsSupported(bool collections_support) {
+        Connection::collections_support = collections_support;
+    }
+
+    DocNamespace getDocNamespace() const {
+        if (isCollectionsSupported()) {
+            return DocNamespace::Collections;
+        } else {
+            return DocNamespace::DefaultCollection;
+        }
+    }
+
     /**
      * Remap the current error code
      *
@@ -481,6 +497,18 @@ protected:
      * silently disconnect the client)
      */
     bool xerror_support;
+
+    /**
+     * Is COLLECTIONS supported for this connection or not. Collection aware
+     * clients are allowed to encode operations to occur against their defined
+     * collections or the legacy default collection (and receive new errors).
+     * Collection aware clients also see mutations/deletions for all collection
+     * if they are subscribed to DCP.
+     * Collections unaware clients can only target operations at the legacy
+     * default collection and receive no new errors. They also only ever see
+     * default collection mutations/deletions etc... when subscribed to DCP.
+     */
+    bool collections_support;
 };
 
 /**

@@ -427,7 +427,7 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
             STATS_HIT(&c, get);
         }
         update_topkeys(DocKey(reinterpret_cast<const uint8_t*>(key),
-                              keylen, DocNamespace::DefaultCollection), &c);
+                              keylen, c.getDocNamespace()), &c);
         return;
     } while (auto_retry && attempts < MAXIMUM_ATTEMPTS);
 
@@ -544,7 +544,7 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
 
         if (ret == ENGINE_SUCCESS) {
             DocKey get_key(reinterpret_cast<const uint8_t*>(key),
-                           keylen, DocNamespace::DefaultCollection);
+                           keylen, c.getDocNamespace());
             DocumentState state = DocumentState::Alive;
             if (ctx.do_allow_deleted_docs) {
                 state = static_cast<DocumentState>(
@@ -1092,7 +1092,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         if (ret == ENGINE_SUCCESS) {
             context.out_doc_len = context.in_doc.len;
             DocKey allocate_key(reinterpret_cast<const uint8_t*>(key),
-                                keylen, DocNamespace::DefaultCollection);
+                                keylen, connection.getDocNamespace());
             // Calculate the updated document length - use the last operation result.
             ret = bucket_allocate(&connection, &new_doc, allocate_key,
                                   context.out_doc_len,

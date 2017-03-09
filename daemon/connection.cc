@@ -418,7 +418,7 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
     case ENGINE_LOCKED_TMPFAIL:
         return ENGINE_TMPFAIL;
     case ENGINE_UNKNOWN_COLLECTION:
-        return ENGINE_EINVAL;
+        return isCollectionsSupported() ? code : ENGINE_EINVAL;
 
     case ENGINE_EACCESS:break;
     case ENGINE_NO_BUCKET:break;

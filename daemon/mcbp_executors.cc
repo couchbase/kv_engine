@@ -246,7 +246,7 @@ static void process_bin_unknown_packet(McbpConnection* c) {
                               sizeof(c->binary_header.request) +
                               c->binary_header.request.extlen),
                               c->binary_header.request.keylen,
-                              DocNamespace::DefaultCollection), c);
+                              c->getDocNamespace()), c);
         break;
     }
     case ENGINE_EWOULDBLOCK:

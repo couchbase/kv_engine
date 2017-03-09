@@ -30,7 +30,7 @@ MutationCommandContext::MutationCommandContext(McbpConnection& c,
       operation(req->message.header.request.cas == 0 ? op_ : OPERATION_CAS),
       key(req->bytes + sizeof(req->bytes),
           ntohs(req->message.header.request.keylen),
-          DocNamespace::DefaultCollection),
+          c.getDocNamespace()),
       value(reinterpret_cast<const char*>(key.data() + key.size()),
             ntohl(req->message.header.request.bodylen) - key.size() -
             req->message.header.request.extlen),

@@ -66,7 +66,7 @@ public:
           mode(mode_),
           key(req->bytes + sizeof(req->bytes),
               ntohs(req->message.header.request.keylen),
-              DocNamespace::DefaultCollection),
+              c.getDocNamespace()),
           value(reinterpret_cast<const char*>(key.data() + key.size()),
                 ntohl(req->message.header.request.bodylen) - key.size()),
           vbucket(ntohs(req->message.header.request.vbucket)),

@@ -22,7 +22,7 @@ ENGINE_ERROR_CODE bucket_unknown_command(McbpConnection* c,
     return c->getBucketEngine()->unknown_command(c->getBucketEngineAsV0(),
                                                  c->getCookie(),
                                                  request, response,
-                                                 DocNamespace::DefaultCollection);
+                                                 c->getDocNamespace());
 }
 
 void bucket_item_set_cas(McbpConnection* c, item* it, uint64_t cas) {

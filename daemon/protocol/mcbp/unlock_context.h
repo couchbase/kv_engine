@@ -40,7 +40,7 @@ public:
         : SteppableCommandContext(c),
           key(req->bytes + sizeof(req->bytes),
               ntohs(req->message.header.request.keylen),
-              DocNamespace::DefaultCollection),
+              c.getDocNamespace()),
           vbucket(ntohs(req->message.header.request.vbucket)),
           cas(ntohll(req->message.header.request.cas)),
           state(State::Unlock) {

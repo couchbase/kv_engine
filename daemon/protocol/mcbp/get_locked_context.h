@@ -60,7 +60,7 @@ public:
         : SteppableCommandContext(c),
           key(req->bytes + sizeof(req->message.header.bytes) + req->message.header.request.extlen,
               ntohs(req->message.header.request.keylen),
-              DocNamespace::DefaultCollection),
+              c.getDocNamespace()),
           vbucket(ntohs(req->message.header.request.vbucket)),
           lock_timeout(get_exptime(*req)),
           it(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
