@@ -110,7 +110,7 @@ SET_TESTS_PROPERTIES(memcached-basic-unit-tests-require-init PROPERTIES TIMEOUT 
 ADD_TEST(NAME memcached-arithmetic-unit-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=ArithmeticTest.*)
-SET_TESTS_PROPERTIES(memcached-arithmetic-unit-tests PROPERTIES TIMEOUT 60)
+SET_TESTS_PROPERTIES(memcached-arithmetic-unit-tests PROPERTIES TIMEOUT 120)
 
 # Run the Audit tests
 ADD_TEST(NAME memcached-audit-unit-tests
@@ -128,13 +128,13 @@ SET_TESTS_PROPERTIES(memcached-bucket-unit-tests PROPERTIES TIMEOUT 400)
 ADD_TEST(NAME memcached-dcp-unit-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=TransportProtocols/DcpTest.*)
-SET_TESTS_PROPERTIES(memcached-dcp-unit-tests PROPERTIES TIMEOUT 60)
+SET_TESTS_PROPERTIES(memcached-dcp-unit-tests PROPERTIES TIMEOUT 120)
 
 # Run all of the lock tests
 ADD_TEST(NAME memcached-lock-unit-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=TransportProtocols/LockTest.*)
-SET_TESTS_PROPERTIES(memcached-lock-unit-tests PROPERTIES TIMEOUT 60)
+SET_TESTS_PROPERTIES(memcached-lock-unit-tests PROPERTIES TIMEOUT 120)
 
 # Run the Normal get set tests
 ADD_TEST(NAME memcached-getset-unit-tests
@@ -146,13 +146,13 @@ SET_TESTS_PROPERTIES(memcached-getset-unit-tests PROPERTIES TIMEOUT 400)
 ADD_TEST(NAME memcached-sasl-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=TransportProtocols/SaslTest.*)
-SET_TESTS_PROPERTIES(memcached-sasl-tests PROPERTIES TIMEOUT 60)
+SET_TESTS_PROPERTIES(memcached-sasl-tests PROPERTIES TIMEOUT 120)
 
 # Run the stats tests
 ADD_TEST(NAME memcached-stats-unit-tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         COMMAND memcached_testapp --gtest_filter=TransportProtocols/StatsTest.*)
-SET_TESTS_PROPERTIES(memcached-stats-unit-tests PROPERTIES TIMEOUT 60)
+SET_TESTS_PROPERTIES(memcached-stats-unit-tests PROPERTIES TIMEOUT 120)
 
 # Run the unit tests for the memcached binary protocol over a plain socket
 ADD_TEST(NAME memcached-mcbp-unit-tests-plain
@@ -170,31 +170,31 @@ SET_TESTS_PROPERTIES(memcached-mcbp-unit-tests-ssl PROPERTIES TIMEOUT 400)
 ADD_TEST(NAME memcached-rbac-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=TransportProtocols/RbacTest.*)
-SET_TESTS_PROPERTIES(memcached-rbac-tests PROPERTIES TIMEOUT 60)
+SET_TESTS_PROPERTIES(memcached-rbac-tests PROPERTIES TIMEOUT 120)
 
 # Run the batch to verify remove
 ADD_TEST(NAME memcached-remove-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=TransportProtocols/RemoveTest.*)
-SET_TESTS_PROPERTIES(memcached-remove-tests PROPERTIES TIMEOUT 60)
+SET_TESTS_PROPERTIES(memcached-remove-tests PROPERTIES TIMEOUT 120)
 
 # Run the shutdown tests
 ADD_TEST(NAME memcached-shutdown-tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         COMMAND memcached_testapp --gtest_filter=ShutdownTest.*)
-SET_TESTS_PROPERTIES(memcached-shutdown-tests PROPERTIES TIMEOUT 60)
+SET_TESTS_PROPERTIES(memcached-shutdown-tests PROPERTIES TIMEOUT 120)
 
 # Run the connection timeout tests
 ADD_TEST(NAME memcached-connection-timeout-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=ConnectionTimeoutTest.*)
-SET_TESTS_PROPERTIES(memcached-connection-timeout-tests PROPERTIES TIMEOUT 60)
+SET_TESTS_PROPERTIES(memcached-connection-timeout-tests PROPERTIES TIMEOUT 120)
 
 # Run the XATTR tests
 ADD_TEST(NAME memcached-xattr-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=TransportProtocols/XattrTest.*)
-SET_TESTS_PROPERTIES(memcached-xattr-tests PROPERTIES TIMEOUT 60)
+SET_TESTS_PROPERTIES(memcached-xattr-tests PROPERTIES TIMEOUT 120)
 
 # Run the SSL cert tests
 ADD_TEST(NAME memcached-ssl-cert-tests
