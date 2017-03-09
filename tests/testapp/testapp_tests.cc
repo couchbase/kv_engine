@@ -26,8 +26,9 @@
 #include <time.h>
 #include <evutil.h>
 #include <snappy-c.h>
-#include <gtest/gtest.h>
+#include <valgrind/valgrind.h>
 
+#include <gtest/gtest.h>
 #include <atomic>
 #include <algorithm>
 #include <string>
@@ -2262,6 +2263,10 @@ TEST_P(McdTestappTest, PipelineHuge) {
                        1023 * 1024);
 }
 
+#ifndef THREAD_SANITIZER
+// These tests are disabled under valgrind as they take a lot
+// of time and don't really expose any new features in the server
+
 /* support set, get, delete */
 void test_pipeline_impl(int cmd, int result, const char* key_root,
                         uint32_t messages_in_stream, size_t value_size) {
@@ -2368,6 +2373,10 @@ void test_pipeline_impl(int cmd, int result, const char* key_root,
 }
 
 TEST_P(McdTestappTest, PipelineSet) {
+    if (RUNNING_ON_VALGRIND) {
+        return;
+    }
+
     // This is a large, long test. Disable ewouldblock_engine while
     // running it to speed it up.
     ewouldblock_engine_disable();
@@ -2387,6 +2396,10 @@ TEST_P(McdTestappTest, PipelineSet) {
 }
 
 TEST_P(McdTestappTest, PipelineSetGetDel) {
+    if (RUNNING_ON_VALGRIND) {
+        return;
+    }
+
     const char key_root[] = "key_set_get_del";
 
     // This is a large, long test. Disable ewouldblock_engine while
@@ -2404,6 +2417,10 @@ TEST_P(McdTestappTest, PipelineSetGetDel) {
 }
 
 TEST_P(McdTestappTest, PipelineSetDel) {
+    if (RUNNING_ON_VALGRIND) {
+        return;
+    }
+
     // This is a large, long test. Disable ewouldblock_engine while
     // running it to speed it up.
     ewouldblock_engine_disable();
@@ -2416,6 +2433,7 @@ TEST_P(McdTestappTest, PipelineSetDel) {
                        PROTOCOL_BINARY_RESPONSE_SUCCESS, "key_root",
                        5000, 256);
 }
+#endif
 
 /* Send one character to the SSL port, then check memcached correctly closes
  * the connection (and doesn't hold it open for ever trying to read) more bytes

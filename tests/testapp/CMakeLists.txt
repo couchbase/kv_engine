@@ -4,6 +4,8 @@ IF (MEMCACHED_USE_GREENSTACK)
          testapp_greenstack.h)
 ENDIF (MEMCACHED_USE_GREENSTACK)
 
+INCLUDE_DIRECTORIES(AFTER ${Platform_SOURCE_DIR}/external)
+
 list(APPEND TESTAPP_SOURCES
      ${Memcached_SOURCE_DIR}/daemon/ssl_utils.cc
      ${Memcached_SOURCE_DIR}/daemon/ssl_utils.h
