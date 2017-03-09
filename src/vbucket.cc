@@ -1498,7 +1498,7 @@ MutationStatus VBucket::insertFromWarmup(Item& itm,
                 return MutationStatus::InvalidCas;
             }
         }
-        updateStoredValue(hbl.getHTLock(), *v, itm, /*queueItmCtx*/ nullptr);
+        updateStoredValue(hbl, *v, itm, /*queueItmCtx*/ nullptr);
     }
 
     v->markClean();
@@ -1927,7 +1927,11 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
         if (!hasMetaData) {
             itm.setRevSeqno(v->getRevSeqno() + 1);
         }
-        return updateStoredValue(hbl.getHTLock(), *v, itm, queueItmCtx);
+        MutationStatus status;
+        VBNotifyCtx notifyCtx;
+        std::tie(v, status, notifyCtx) =
+                updateStoredValue(hbl, *v, itm, queueItmCtx);
+        return {status, notifyCtx};
     } else if (cas != 0) {
         return {MutationStatus::NotFound, VBNotifyCtx()};
     } else {
@@ -1985,8 +1989,9 @@ std::pair<AddStatus, VBNotifyCtx> VBucket::processAdd(
         if (!v->isTempItem()) {
             itm.setRevSeqno(v->getRevSeqno() + 1);
         }
-        rv.second =
-                updateStoredValue(hbl.getHTLock(), *v, itm, queueItmCtx).second;
+
+        std::tie(v, std::ignore, rv.second) =
+                updateStoredValue(hbl, *v, itm, queueItmCtx);
     } else {
         if (itm.getBySeqno() != StoredValue::state_temp_init) {
             if (eviction == FULL_EVICTION && maybeKeyExists) {

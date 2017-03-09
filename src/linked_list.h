@@ -129,10 +129,18 @@ public:
     void appendToList(std::lock_guard<std::mutex>& seqLock,
                       OrderedStoredValue& v) override;
 
+    SequenceList::UpdateStatus updateListElem(
+            std::lock_guard<std::mutex>& seqLock,
+            OrderedStoredValue& v) override;
+
     std::pair<ENGINE_ERROR_CODE, std::vector<queued_item>> rangeRead(
             seqno_t start, seqno_t end) override;
 
     void updateHighSeqno(seqno_t seqno) override;
+
+    void markItemStale(OrderedStoredValue& v) override;
+
+    uint64_t getNumStaleItems() const override;
 
 protected:
     /* Underlying data structure that holds the items in an Ordered Sequence */
@@ -144,7 +152,6 @@ protected:
      */
     mutable std::mutex writeLock;
 
-private:
     /**
      * Used to mark of the range where point-in-time snapshot is happening.
      * To get a valid point-in-time snapshot and for correct list iteration we
@@ -159,6 +166,7 @@ private:
      */
     SpinLock rangeLock;
 
+private:
     /**
      * Lock that serializes range reads on the 'seqList'.
      * We need to serialize range reads because, range reads set a list level
@@ -186,6 +194,13 @@ private:
      * value only in case of a rollback.
      */
     Monotonic<seqno_t> highestDedupedSeqno;
+
+    /**
+     * Indicates the number of elements in the list that are stale (old,
+     * duplicate values). Stale items are owned by the list and hence must
+     * periodically clean them up.
+     */
+    uint64_t numStaleItems;
 
     /* Used only to log debug messages */
     const uint16_t vbid;

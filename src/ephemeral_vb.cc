@@ -123,29 +123,71 @@ size_t EphemeralVBucket::getHighPriorityChkSize() {
     return 0;
 }
 
-std::pair<MutationStatus, VBNotifyCtx> EphemeralVBucket::updateStoredValue(
-        const std::unique_lock<std::mutex>& htLock,
-        StoredValue& v,
-        const Item& itm,
-        const VBQueueItemCtx* queueItmCtx) {
+std::tuple<StoredValue*, MutationStatus, VBNotifyCtx>
+EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
+                                    StoredValue& v,
+                                    const Item& itm,
+                                    const VBQueueItemCtx* queueItmCtx) {
     std::lock_guard<std::mutex> lh(sequenceLock);
 
-    /* Update the StoredValue in HT + EphemeralVBucket data structure.
-     From the EphemeralVBucket data structure we will know whether to update
-     the current StoredValue or mark the current StoredValue as stale and
-     add a new StoredValue.
-     (Coming soon)
-     */
-    MutationStatus status = ht.unlocked_updateStoredValue(htLock, v, itm);
+    OrderedStoredValue* osv = v.toOrderedStoredValue();
 
-    if (queueItmCtx) {
-        return {status, queueDirty(v, *queueItmCtx)};
+    /* Update the OrderedStoredValue in hash table + Ordered data structure
+       (list) */
+    auto res = seqList->updateListElem(lh, *osv);
+
+    StoredValue* newSv = &v;
+    MutationStatus status(MutationStatus::WasClean);
+    switch (res) {
+    case SequenceList::UpdateStatus::Success:
+        /* OrderedStoredValue moved to end of the list, just update its
+           value */
+        status = ht.unlocked_updateStoredValue(hbl.getHTLock(), v, itm);
+        break;
+
+    case SequenceList::UpdateStatus::Append: {
+        /* OrderedStoredValue cannot be moved to end of the list,
+           due to a range read. Hence, release the storedvalue from the
+           hash table, indicate the list to mark the OrderedStoredValue
+           stale (old duplicate) and add a new StoredValue for the itm.
+
+           Note: It is important to remove item from hash table before
+                 marking stale because once marked stale list assumes the
+                 ownership of the item and delete it anytime. */
+        /* Release current storedValue from hash table */
+        /* [EPHE TODO]: Write a HT func to release the StoredValue directly
+                        than taking key as a param and deleting
+                        (MB-23184) */
+        ht.unlocked_release(hbl, v.getKey()).release();
+
+        /* Add a new storedvalue for the item */
+        newSv = ht.unlocked_addNewStoredValue(hbl, itm);
+        status = MutationStatus::WasClean;
+
+        OrderedStoredValue* newOsv = newSv->toOrderedStoredValue();
+        seqList->appendToList(lh, *newOsv);
+    } break;
     }
 
-    /* PlaceHolder for post seqno generation operation in EphemeralVBucket
-     * data structure
-     */
-    return {status, VBNotifyCtx()};
+    VBNotifyCtx notifyCtx;
+    if (queueItmCtx) {
+        /* Put on checkpoint mgr */
+        notifyCtx = queueDirty(*newSv, *queueItmCtx);
+    }
+
+    /* Update the high seqno in the sequential storage */
+    seqList->updateHighSeqno(newSv->getBySeqno());
+
+    if (res == SequenceList::UpdateStatus::Append) {
+        /* Mark the un-updated storedValue as stale. This must be done after
+           the new storedvalue for the item is visible for range read in the
+           list. This is because we do not want the seqlist to delete the stale
+           item before its latest copy is added to the list.
+           (item becomes visible for range read only after updating the list
+            with the seqno of the item) */
+        seqList->markItemStale(*osv);
+    }
+    return std::make_tuple(newSv, status, notifyCtx);
 }
 
 std::pair<StoredValue*, VBNotifyCtx> EphemeralVBucket::addNewStoredValue(
@@ -158,7 +200,7 @@ std::pair<StoredValue*, VBNotifyCtx> EphemeralVBucket::addNewStoredValue(
 
     /* Add to the sequential storage */
     try {
-        seqList->appendToList(lh, *v->toOrderedStoredValue());
+        seqList->appendToList(lh, *(v->toOrderedStoredValue()));
     } catch (const std::bad_cast& e) {
         throw std::logic_error(
                 "EphemeralVBucket::addNewStoredValue(): Error " +
@@ -170,6 +212,7 @@ std::pair<StoredValue*, VBNotifyCtx> EphemeralVBucket::addNewStoredValue(
 
     VBNotifyCtx notifyCtx;
     if (queueItmCtx) {
+        /* Put on checkpoint mgr */
         notifyCtx = queueDirty(*v, *queueItmCtx);
     }
 

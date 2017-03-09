@@ -41,4 +41,10 @@ public:
         }
         return allSeqnos;
     }
+
+    /* Register fake read range for testing */
+    void registerFakeReadRange(seqno_t start, seqno_t end) {
+        std::lock_guard<SpinLock> lh(rangeLock);
+        readRange = SeqRange(start, end);
+    }
 };

@@ -606,8 +606,8 @@ protected:
           deleted(false),
           newCacheItem(true),
           isOrdered(isOrdered),
+          stale(false),
           nru(itm.getNRUValue()) {
-
         // Placement-new the key which lives in memory directly after this
         // object.
         new (key()) SerialisedDocKey(itm.getKey());
@@ -656,6 +656,7 @@ protected:
     bool               deleted   :  1;
     bool               newCacheItem : 1;
     const bool isOrdered : 1; //!< Is this an instance of OrderedStoredValue?
+    bool stale : 1; //!< indicates if a newer instance of the item is added
     uint8_t            nru       :  2; //!< True if referenced since last sweep
 
     static void increaseMetaDataSize(HashTable &ht, EPStats &st, size_t by);
@@ -676,6 +677,22 @@ class OrderedStoredValue : public StoredValue {
 public:
     // Intrusive linked-list for sequence number ordering.
     boost::intrusive::list_member_hook<> seqno_hook;
+
+    /**
+     * True if a newer version of the same key exists in the HashTable.
+     * Note: Only true for OrderedStoredValues which are no longer in the
+     *       HashTable (and only live in SequenceList)
+     */
+    bool isStale() const {
+        return stale;
+    }
+
+    /**
+     * Marks that newer instance of this item is added in the HashTable
+     */
+    void markStale() {
+        stale = true;
+    }
 
     /// Return how many bytes are need to store Item as an OrderedStoredValue
     static size_t getRequiredStorage(const Item& item) {

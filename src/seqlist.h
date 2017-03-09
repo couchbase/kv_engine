@@ -65,6 +65,13 @@ using seqno_t = int64_t;
  */
 class SequenceList {
 public:
+    /**
+     * Indicates whether the updateListElem is successful or the list is
+     * allowing
+     * only appends at the moment.
+     */
+    enum class UpdateStatus { Success, Append };
+
     virtual ~SequenceList() {
     }
 
@@ -77,6 +84,23 @@ public:
      */
     virtual void appendToList(std::lock_guard<std::mutex>& seqLock,
                               OrderedStoredValue& v) = 0;
+
+    /**
+     * If possible, update an existing element the list and move it to end.
+     * If there is a range read in the position of the element being updated
+     * we do not allow the update and indicate the caller to do an append.
+     *
+     * @param seqLock A sequence lock the calling module is expected to hold.
+     * @param v Ref to orderedStoredValue which will placed into the linked list
+     *          Its intrusive list links will be updated.
+     *
+     * @return UpdateStatus::Success list element has been updated and moved to
+     *                               end.
+     *         UpdateStatus::Append list element is *not* updated. Caller must
+     *                              handle the append.
+     */
+    virtual SequenceList::UpdateStatus updateListElem(
+            std::lock_guard<std::mutex>& seqLock, OrderedStoredValue& v) = 0;
 
     /**
      * Provides point-in-time snapshots which can be used for incremental
@@ -107,4 +131,20 @@ public:
      * @param seqno high seqno
      */
     virtual void updateHighSeqno(seqno_t seqno) = 0;
+
+    /**
+     * Mark an OrderedStoredValue stale. We do it in the list because is good
+     * to serialize it other list writes on the stale values and for book
+     * keeping.
+     *
+     * @param v Ref to orderedStoredValue
+     */
+    virtual void markItemStale(OrderedStoredValue& v) = 0;
+
+    /**
+     * Returns the number of stale items in the list.
+     *
+     * @return count of stale items
+     */
+    virtual uint64_t getNumStaleItems() const = 0;
 };

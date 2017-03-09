@@ -498,17 +498,18 @@ size_t EPVBucket::queueBGFetchItem(const DocKey& key,
     return pendingBGFetches.size();
 }
 
-std::pair<MutationStatus, VBNotifyCtx> EPVBucket::updateStoredValue(
-        const std::unique_lock<std::mutex>& htLock,
-        StoredValue& v,
-        const Item& itm,
-        const VBQueueItemCtx* queueItmCtx) {
-    MutationStatus status = ht.unlocked_updateStoredValue(htLock, v, itm);
+std::tuple<StoredValue*, MutationStatus, VBNotifyCtx>
+EPVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
+                             StoredValue& v,
+                             const Item& itm,
+                             const VBQueueItemCtx* queueItmCtx) {
+    MutationStatus status =
+            ht.unlocked_updateStoredValue(hbl.getHTLock(), v, itm);
 
     if (queueItmCtx) {
-        return {status, queueDirty(v, *queueItmCtx)};
+        return std::make_tuple(&v, status, queueDirty(v, *queueItmCtx));
     }
-    return {status, VBNotifyCtx()};
+    return std::make_tuple(&v, status, VBNotifyCtx());
 }
 
 std::pair<StoredValue*, VBNotifyCtx> EPVBucket::addNewStoredValue(

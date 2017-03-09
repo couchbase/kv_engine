@@ -64,7 +64,7 @@ protected:
                                            const int numItems) {
         const seqno_t last = startSeqno + numItems;
         const std::string val("data");
-        std::vector<OrderedStoredValue*> sv(numItems);
+        std::vector<OrderedStoredValue*> sv;
         std::vector<seqno_t> expectedSeqno;
 
         /* Get a fake sequence lock */
@@ -84,12 +84,42 @@ protected:
                       /*bySeqno*/ i);
             EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
-            sv[i - 1] = ht.find(key, TrackReference::Yes, WantsDeleted::No)
-                                ->toOrderedStoredValue();
-            basicLL->appendToList(lg, *(sv[i - 1]));
+            sv.push_back(ht.find(key, TrackReference::Yes, WantsDeleted::No)
+                                 ->toOrderedStoredValue());
+            basicLL->appendToList(lg, *(sv.back()));
+            basicLL->updateHighSeqno(i);
             expectedSeqno.push_back(i);
         }
         return expectedSeqno;
+    }
+
+    void updateItem(seqno_t highSeqno, const std::string& key) {
+        /* Get a fake sequence lock */
+        std::mutex fakeSeqLock;
+        std::lock_guard<std::mutex> lg(fakeSeqLock);
+
+        OrderedStoredValue* osv = ht.find(makeStoredDocKey(key),
+                                          TrackReference::Yes,
+                                          WantsDeleted::No)
+                                          ->toOrderedStoredValue();
+        EXPECT_EQ(SequenceList::UpdateStatus::Success,
+                  basicLL->updateListElem(lg, *osv));
+        osv->setBySeqno(highSeqno + 1);
+        basicLL->updateHighSeqno(highSeqno + 1);
+    }
+
+    void updateItemDuringRangeRead(seqno_t highSeqno, const std::string& key) {
+        /* Get a fake sequence lock */
+        std::mutex fakeSeqLock;
+        std::lock_guard<std::mutex> lg(fakeSeqLock);
+
+        OrderedStoredValue* osv = ht.find(makeStoredDocKey(key),
+                                          TrackReference::Yes,
+                                          WantsDeleted::No)
+                                          ->toOrderedStoredValue();
+
+        EXPECT_EQ(SequenceList::UpdateStatus::Append,
+                  basicLL->updateListElem(lg, *osv));
     }
 
     /* We need a HashTable because StoredValue is created only in the HashTable
@@ -185,4 +215,82 @@ TEST_F(BasicLinkedListTest, TestRangeReadNegatives) {
     /* Now do a range read with start > highSeqno */
     std::tie(status, items) = basicLL->rangeRead(numItems + 1, numItems + 2);
     EXPECT_EQ(ENGINE_ERANGE, status);
+}
+
+TEST_F(BasicLinkedListTest, UpdateFirstElem) {
+    const int numItems = 3;
+    const std::string keyPrefix("key");
+
+    /* Add 3 new items */
+    addNewItemsToList(1, keyPrefix, numItems);
+
+    /* Update the first item in the list */
+    updateItem(numItems, keyPrefix + std::to_string(1));
+
+    /* Check if the updated element has moved to the end */
+    std::vector<seqno_t> expectedSeqno = {2, 3, 4};
+    EXPECT_EQ(expectedSeqno, basicLL->getAllSeqnoForVerification());
+}
+
+TEST_F(BasicLinkedListTest, UpdateMiddleElem) {
+    const int numItems = 3;
+    const std::string keyPrefix("key");
+
+    /* Add 3 new items */
+    addNewItemsToList(1, keyPrefix, numItems);
+
+    /* Update a middle item in the list */
+    updateItem(numItems, keyPrefix + std::to_string(numItems - 1));
+
+    /* Check if the updated element has moved to the end */
+    std::vector<seqno_t> expectedSeqno = {1, 3, 4};
+    EXPECT_EQ(expectedSeqno, basicLL->getAllSeqnoForVerification());
+}
+
+TEST_F(BasicLinkedListTest, UpdateLastElem) {
+    const int numItems = 3;
+    const std::string keyPrefix("key");
+
+    /* Add 3 new items */
+    addNewItemsToList(1, keyPrefix, numItems);
+
+    /* Update the last item in the list */
+    updateItem(numItems, keyPrefix + std::to_string(numItems));
+
+    /* Check if the updated element has moved to the end */
+    std::vector<seqno_t> expectedSeqno = {1, 2, 4};
+    EXPECT_EQ(expectedSeqno, basicLL->getAllSeqnoForVerification());
+}
+
+TEST_F(BasicLinkedListTest, WriteNewAfterUpdate) {
+    const int numItems = 3;
+    const std::string keyPrefix("key");
+
+    /* Add 3 new items */
+    addNewItemsToList(1, keyPrefix, numItems);
+
+    /* Update an item in the list */
+    updateItem(numItems, keyPrefix + std::to_string(numItems - 1));
+
+    /* Add a new item after update */
+    addNewItemsToList(
+            numItems + /* +1 is update, another +1 for next */ 2, keyPrefix, 1);
+
+    /* Check if the new element is added correctly */
+    std::vector<seqno_t> expectedSeqno = {1, 3, 4, 5};
+    EXPECT_EQ(expectedSeqno, basicLL->getAllSeqnoForVerification());
+}
+
+TEST_F(BasicLinkedListTest, UpdateDuringRangeRead) {
+    const int numItems = 3;
+    const std::string keyPrefix("key");
+
+    /* Add 3 new items */
+    addNewItemsToList(1, keyPrefix, numItems);
+
+    basicLL->registerFakeReadRange(1, numItems);
+
+    /* Update an item in the list when a fake range read is happening */
+    updateItemDuringRangeRead(numItems,
+                              keyPrefix + std::to_string(numItems - 1));
 }

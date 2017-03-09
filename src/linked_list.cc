@@ -23,14 +23,19 @@ BasicLinkedList::BasicLinkedList(uint16_t vbucketId)
       readRange(0, 0),
       highSeqno(0),
       highestDedupedSeqno(0),
+      numStaleItems(0),
       vbid(vbucketId) {
 }
 
 BasicLinkedList::~BasicLinkedList() {
     /* Delete stale items here, other items are deleted by the hash
-       table (coming soon) */
+       table */
+    seqList.remove_and_dispose_if(
+            [](const OrderedStoredValue& v) { return v.isStale(); },
+            [](OrderedStoredValue* v) { delete v; });
 
-    /* Erase all the list elements */
+    /* Erase all the list elements (does not destroy elements, just removes
+       them from the list) */
     seqList.clear();
 }
 
@@ -40,6 +45,29 @@ void BasicLinkedList::appendToList(std::lock_guard<std::mutex>& seqLock,
     std::lock_guard<std::mutex> lckGd(writeLock);
 
     seqList.push_back(v);
+}
+
+SequenceList::UpdateStatus BasicLinkedList::updateListElem(
+        std::lock_guard<std::mutex>& seqLock, OrderedStoredValue& v) {
+    /* Allow only one write to the list at a time */
+    std::lock_guard<std::mutex> lckGd(writeLock);
+
+    /* Lock that needed for consistent read of SeqRange 'readRange' */
+    std::lock_guard<SpinLock> lh(rangeLock);
+
+    if (readRange.fallsInRange(v.getBySeqno())) {
+        /* Range read is in middle of a point-in-time snapshot, hence we cannot
+           move the element to the end of the list. Return a temp failure */
+        return UpdateStatus::Append;
+    }
+
+    /* Since there is no other reads or writes happenning in this range, we can
+       move the item to the end of the list */
+    auto it = seqList.iterator_to(v);
+    seqList.erase(it);
+    seqList.push_back(v);
+
+    return UpdateStatus::Success;
 }
 
 std::pair<ENGINE_ERROR_CODE, std::vector<queued_item>>
@@ -122,4 +150,17 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
 void BasicLinkedList::updateHighSeqno(seqno_t seqno) {
     std::lock_guard<SpinLock> lh(rangeLock);
     highSeqno = seqno;
+}
+
+void BasicLinkedList::markItemStale(OrderedStoredValue& v) {
+    /* Safer to serialize with the deletion of stale values */
+    std::lock_guard<std::mutex> lckGd(writeLock);
+
+    ++numStaleItems;
+    v.markStale();
+}
+
+uint64_t BasicLinkedList::getNumStaleItems() const {
+    std::lock_guard<std::mutex> lckGd(writeLock);
+    return numStaleItems;
 }

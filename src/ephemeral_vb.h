@@ -99,8 +99,8 @@ public:
     }
 
 private:
-    std::pair<MutationStatus, VBNotifyCtx> updateStoredValue(
-            const std::unique_lock<std::mutex>& htLock,
+    std::tuple<StoredValue*, MutationStatus, VBNotifyCtx> updateStoredValue(
+            const HashTable::HashBucketLock& hbl,
             StoredValue& v,
             const Item& itm,
             const VBQueueItemCtx* queueItmCtx) override;

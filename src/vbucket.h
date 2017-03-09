@@ -1115,14 +1115,17 @@ private:
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
      *                    backfill queue; NULL if item need not be queued
      *
-     * @return Result indicating the status of the operation and notification
-     *                info
+     * @return pointer to the updated StoredValue. It can be same as that of
+     *         v or different value if a new StoredValue is created for the
+     *         update.
+     *         status of the operation.
+     *         notification info.
      */
-    virtual std::pair<MutationStatus, VBNotifyCtx> updateStoredValue(
-            const std::unique_lock<std::mutex>& htLock,
-            StoredValue& v,
-            const Item& itm,
-            const VBQueueItemCtx* queueItmCtx) = 0;
+    virtual std::tuple<StoredValue*, MutationStatus, VBNotifyCtx>
+    updateStoredValue(const HashTable::HashBucketLock& hbl,
+                      StoredValue& v,
+                      const Item& itm,
+                      const VBQueueItemCtx* queueItmCtx) = 0;
 
     /**
      * Adds a new StoredValue in in-memory data structures like HT.
