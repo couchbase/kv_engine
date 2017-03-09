@@ -862,6 +862,15 @@ private:
                                                   const void* cookie,
                                                   protocol_binary_response_header* response);
 
+    static ENGINE_ERROR_CODE dcp_system_event(ENGINE_HANDLE* handle,
+                                              const void* cookie,
+                                              uint32_t opaque,
+                                              uint16_t vbucket,
+                                              uint32_t event,
+                                              uint64_t bySeqno,
+                                              cb::const_byte_buffer key,
+                                              cb::const_byte_buffer eventData);
+
     // Base class for all fault injection modes.
     struct FaultInjectMode {
         FaultInjectMode(ENGINE_ERROR_CODE injected_error_)
@@ -1200,6 +1209,7 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     ENGINE_HANDLE_V1::dcp.set_vbucket_state = dcp_set_vbucket_state;
     ENGINE_HANDLE_V1::dcp.noop = dcp_noop;
     ENGINE_HANDLE_V1::dcp.response_handler = dcp_response_handler;
+    ENGINE_HANDLE_V1::dcp.system_event = dcp_system_event;
 
     std::memset(&info, 0, sizeof(info.buffer));
     info.eng_info.description = "EWOULDBLOCK Engine";
@@ -1561,6 +1571,29 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_response_handler(ENGINE_HANDLE* handle,
         return ewb->real_engine->dcp.response_handler(ewb->real_handle,
                                                       cookie,
                                                       response);
+    }
+}
+
+ENGINE_ERROR_CODE EWB_Engine::dcp_system_event(ENGINE_HANDLE* handle,
+                                               const void* cookie,
+                                               uint32_t opaque,
+                                               uint16_t vbucket,
+                                               uint32_t event,
+                                               uint64_t bySeqno,
+                                               cb::const_byte_buffer key,
+                                               cb::const_byte_buffer eventData) {
+    EWB_Engine* ewb = to_engine(handle);
+    if (ewb->real_engine->dcp.response_handler == nullptr) {
+        return ENGINE_ENOTSUP;
+    } else {
+        return ewb->real_engine->dcp.system_event(ewb->real_handle,
+                                                  cookie,
+                                                  opaque,
+                                                  vbucket,
+                                                  event,
+                                                  bySeqno,
+                                                  key,
+                                                  eventData);
     }
 }
 

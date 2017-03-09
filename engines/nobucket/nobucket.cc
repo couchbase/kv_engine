@@ -69,6 +69,7 @@ public:
         ENGINE_HANDLE_V1::dcp.expiration = dcp_expiration;
         ENGINE_HANDLE_V1::dcp.flush = dcp_flush;
         ENGINE_HANDLE_V1::dcp.set_vbucket_state = dcp_set_vbucket_state;
+        ENGINE_HANDLE_V1::dcp.system_event = dcp_system_event;
         info.description = "Disconnect engine v1.0";
     };
 
@@ -290,6 +291,17 @@ private:
     static ENGINE_ERROR_CODE dcp_set_vbucket_state(ENGINE_HANDLE*, const void*,
                                                    uint32_t, uint16_t,
                                                    vbucket_state_t) {
+        return ENGINE_NO_BUCKET;
+    }
+
+    static ENGINE_ERROR_CODE dcp_system_event(ENGINE_HANDLE* handle,
+                                              const void* cookie,
+                                              uint32_t opaque,
+                                              uint16_t vbucket,
+                                              uint32_t event,
+                                              uint64_t bySeqno,
+                                              cb::const_byte_buffer key,
+                                              cb::const_byte_buffer eventData) {
         return ENGINE_NO_BUCKET;
     }
 };
