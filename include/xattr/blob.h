@@ -89,6 +89,19 @@ public:
     cb::byte_buffer get(const cb::const_byte_buffer& key) const;
 
     /**
+     * Helper method to use from tests to look up a value
+     *
+     * @param key The key to look up
+     * @return a buffer containing it's value. If not found the buffer length
+     *         is 0
+     */
+    cb::byte_buffer get(const std::string& key) const {
+        cb::const_byte_buffer k{reinterpret_cast<const uint8_t*>(key.data()),
+                                key.size()};
+        return get(k);
+    }
+
+    /**
      * Remove a given key (and its value) from the blob.
      *
      * @param key The key to remove

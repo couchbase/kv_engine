@@ -164,4 +164,16 @@ TEST(XattrBlob, MB_22691) {
 
     auto value = blob.get(to_const_byte_buffer("integer"));
     EXPECT_EQ(0, value.len);
+
+    const std::vector<std::string> keys = {"start", "integer", "in", "int",
+                                           "double", "for", "try", "as",
+                                           "while", "else", "end"};
+    for (const auto& key : keys) {
+        blob.set(key, std::string("1"));
+    }
+
+    for (const auto& key : keys) {
+        auto entry = blob.get(key);
+        EXPECT_FALSE(entry.empty()) << "Key: " << key << " is missing";
+    }
 }

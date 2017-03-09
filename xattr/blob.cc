@@ -41,6 +41,8 @@ cb::byte_buffer Blob::get(const cb::const_byte_buffer& key) const {
                     // jump to the next key!!
                     current += size;
                 }
+            } else {
+                current += size;
             }
         }
     } catch (const std::out_of_range& ex) {
