@@ -6739,10 +6739,16 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
     if (isPersistentBucket(h, h1)) {
         // Add data_size and file_size stats to toplevel group.
         auto& eng_stats = statsKeys.at("");
+
+        // Using explicit initializer lists due to http://stackoverflow
+        // .com/questions/36557969/invalid-iterator-range-while-inserting
+        // -initializer-list-to-an-stdvector
         eng_stats.insert(eng_stats.end(),
-                         {"ep_db_data_size", "ep_db_file_size"});
+                         std::initializer_list<std::string>{"ep_db_data_size",
+                                                            "ep_db_file_size"});
         eng_stats.insert(eng_stats.end(),
-                         {"ep_flusher_state", "ep_flusher_todo"});
+                         std::initializer_list<std::string>{"ep_flusher_state",
+                                                            "ep_flusher_todo"});
         eng_stats.insert(eng_stats.end(),
                          {"ep_commit_num",
                           "ep_commit_time",
