@@ -2003,20 +2003,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     checkpointConfig = new CheckpointConfig(*this);
     CheckpointConfig::addConfigChangeListener(*this);
 
-    const std::string bucketType = configuration.getBucketType();
-    if (bucketType == "persistent") {
-        kvBucket = new EPBucket(*this);
-    } else if (bucketType == "ephemeral") {
-        // Disable warmup - it is not applicable to Ephemeral buckets.
-        configuration.setWarmup(false);
-        // Disable TAP - not supported for Ephemeral.
-        configuration.setTap(false);
-
-        kvBucket = new EphemeralBucket(*this);
-    } else {
-        throw std::invalid_argument(bucketType + " is not a recognized bucket "
-                                    "type");
-    }
+    kvBucket = makeBucket(configuration);
 
     initializeEngineCallbacks();
 
@@ -2037,7 +2024,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     LOG(EXTENSION_LOG_NOTICE,
         "EP Engine: Initialization of %s bucket complete",
-        bucketType.c_str());
+        configuration.getBucketType().c_str());
 
     return ENGINE_SUCCESS;
 }
@@ -3738,11 +3725,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
             return ENGINE_NOT_MY_VBUCKET;
         }
 
-        StatVBucketVisitor::addVBStats(cookie, add_stat, vb, kvBucket,
+        StatVBucketVisitor::addVBStats(cookie, add_stat, vb, kvBucket.get(),
                                        prevStateRequested, details);
     }
     else {
-        StatVBucketVisitor svbv(kvBucket, cookie, add_stat,
+        StatVBucketVisitor svbv(kvBucket.get(), cookie, add_stat,
                                 prevStateRequested, details);
         kvBucket->visit(svbv);
     }
@@ -3911,7 +3898,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(
         RCPtr<VBucket> vb = getVBucket(vbucket_id);
 
         StatCheckpointVisitor::addCheckpointStat(cookie, add_stat,
-                                                 kvBucket, vb);
+                                                 kvBucket.get(), vb);
     }
 
     return ENGINE_SUCCESS;
@@ -6396,10 +6383,24 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sendNotSupportedResponse(
                         cookie);
 }
 
+std::unique_ptr<KVBucket> EventuallyPersistentEngine::makeBucket(
+        Configuration& config) {
+    const auto bucketType = config.getBucketType();
+    if (bucketType == "persistent") {
+        return std::make_unique<EPBucket>(*this);
+    } else if (bucketType == "ephemeral") {
+        EphemeralBucket::reconfigureForEphemeral(configuration);
+        return std::make_unique<EphemeralBucket>(*this);
+    }
+    throw std::invalid_argument(bucketType +
+                                " is not a recognized bucket "
+                                "type");
+}
+
 EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     kvBucket->deinitialize();
     LOG(EXTENSION_LOG_NOTICE, "~EPEngine: Completed deinitialize.");
-    delete kvBucket;
+    kvBucket.reset();
     LOG(EXTENSION_LOG_NOTICE, "~EPEngine: Deleted KvBucket.");
     delete workload;
     delete dcpConnMap_;

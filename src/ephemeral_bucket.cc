@@ -71,3 +71,10 @@ void EphemeralBucket::completeStatsVKey(const void* cookie,
             std::to_string(vbid) + "for key: " +
             std::string(reinterpret_cast<const char*>(key.data()), key.size()));
 }
+
+void EphemeralBucket::reconfigureForEphemeral(Configuration& config) {
+    // Disable warmup - it is not applicable to Ephemeral buckets.
+    config.setWarmup(false);
+    // Disable TAP - not supported for Ephemeral.
+    config.setTap(false);
+}

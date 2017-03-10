@@ -36,7 +36,7 @@ class SynchronousEPEngine : public EventuallyPersistentEngine {
 public:
     SynchronousEPEngine(const std::string& extra_config);
 
-    void setKVBucket(KVBucket* store);
+    void setKVBucket(std::unique_ptr<KVBucket> store);
 
     /* Allow us to call normally protected methods */
 

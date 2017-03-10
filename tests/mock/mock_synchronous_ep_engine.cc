@@ -59,9 +59,9 @@ SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
     tapConfig = new TapConfig(*this);
 }
 
-void SynchronousEPEngine::setKVBucket(KVBucket* store) {
+void SynchronousEPEngine::setKVBucket(std::unique_ptr<KVBucket> store) {
     cb_assert(kvBucket == nullptr);
-    kvBucket = store;
+    kvBucket = std::move(store);
 }
 
 void SynchronousEPEngine::initializeConnmaps() {

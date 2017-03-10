@@ -63,7 +63,7 @@ void EPBucketTest::SetUp() {
     ObjectRegistry::onSwitchThread(engine.get());
 
     store = new MockEPBucket(*engine);
-    engine->setKVBucket(store);
+    engine->setKVBucket(std::unique_ptr<KVBucket>(store));
 
     // Ensure that EPEngine is hold about necessary server callbacks
     // (client disconnect, bucket delete).

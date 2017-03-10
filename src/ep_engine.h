@@ -591,7 +591,7 @@ public:
         return stats;
     }
 
-    KVBucketIface* getKVBucket() { return kvBucket; }
+    KVBucket* getKVBucket() { return kvBucket.get(); }
 
     TapConnMap &getTapConnMap() { return *tapConnMap; }
 
@@ -915,8 +915,18 @@ protected:
     ENGINE_ERROR_CODE sendNotSupportedResponse(ADD_RESPONSE response,
                                                const void* cookie);
 
+
+    /**
+     * Factory method for constructing the correct bucket type given the
+     * configuration.
+     * @param config Configuration to create bucket based on. Note this
+     *               object may be modified to ensure the config is valid
+     *               for the selected bucket type.
+     */
+    std::unique_ptr<KVBucket> makeBucket(Configuration& config);
+
     SERVER_HANDLE_V1 *serverApi;
-    KVBucketIface* kvBucket;
+    std::unique_ptr<KVBucket> kvBucket;
     WorkLoadPolicy *workload;
     bucket_priority_t workloadPriority;
 

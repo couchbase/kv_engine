@@ -79,4 +79,12 @@ public:
                            const DocKey& key,
                            uint16_t vbid,
                            uint64_t bySeqNum) override;
+
+    // Static methods /////////////////////////////////////////////////////////
+
+    /** Apply necessary modifications to the Configuration for an Ephemeral
+     *  bucket (e.g. disable features which are not applicable).
+     * @param config Configuration to modify.
+     */
+    static void reconfigureForEphemeral(Configuration& config);
 };
