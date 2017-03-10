@@ -538,10 +538,19 @@ extern "C"
     #define PROTOCOL_BINARY_DATATYPE_JSON uint8_t(1)
     #define PROTOCOL_BINARY_DATATYPE_SNAPPY uint8_t(2)
     #define PROTOCOL_BINARY_DATATYPE_XATTR uint8_t(4)
+
+    /*
+     * Bitmask that defines the datatypes that can be resident in memory. For
+     * example, DATATYPE_COMPRESSED is excluded as resident items are not
+     * compressed.
+     * This is useful for efficiently storing statistics about datatypes.
+     */
+    #define RESIDENT_DATATYPE_MASK uint8_t(5);
 #else
     // The old style versions will go away as we move over to C++ everywhere
     #define PROTOCOL_BINARY_RAW_BYTES ((uint8_t)0)
 #endif
+
 
     /**
      * Definitions for extended (flexible) metadata
@@ -2225,6 +2234,9 @@ inline std::string to_string(const Feature& feature) {
 // Create a namespace to handle the Datatypes
 namespace mcbp {
 namespace datatype {
+const uint8_t highest = PROTOCOL_BINARY_DATATYPE_XATTR |
+                        PROTOCOL_BINARY_DATATYPE_SNAPPY |
+                        PROTOCOL_BINARY_DATATYPE_JSON;
 inline bool is_raw(const protocol_binary_datatype_t datatype) {
     return datatype == PROTOCOL_BINARY_RAW_BYTES;
 }
@@ -2244,13 +2256,7 @@ inline bool is_xattr(const protocol_binary_datatype_t datatype) {
            PROTOCOL_BINARY_DATATYPE_XATTR;
 }
 
-inline protocol_binary_datatype_t get_all() {
-    return PROTOCOL_BINARY_DATATYPE_XATTR |
-           PROTOCOL_BINARY_DATATYPE_SNAPPY | PROTOCOL_BINARY_DATATYPE_JSON;
-}
-
 inline bool is_valid(const protocol_binary_datatype_t datatype) {
-    static uint8_t highest = get_all();
     return datatype <= highest;
 }
 

@@ -90,7 +90,7 @@ TEST(DatatypeTest, EnableFeatures) {
 TEST(DatatypeTest, Intersect0) {
     Datatype datatype;
 
-    protocol_binary_datatype_t d1 = mcbp::datatype::get_all();
+    protocol_binary_datatype_t d1 = mcbp::datatype::highest;
     auto d2 = datatype.getIntersection(d1);
     EXPECT_FALSE(mcbp::datatype::is_json(d2));
     EXPECT_FALSE(mcbp::datatype::is_xattr(d2));
@@ -102,7 +102,7 @@ TEST(DatatypeTest, Intersect1) {
     Datatype datatype;
     datatype.enable(mcbp::Feature::JSON);
 
-    protocol_binary_datatype_t d1 = mcbp::datatype::get_all();
+    protocol_binary_datatype_t d1 = mcbp::datatype::highest;
     auto d2 = datatype.getIntersection(d1);
     EXPECT_TRUE(mcbp::datatype::is_json(d2));
     EXPECT_FALSE(mcbp::datatype::is_xattr(d2));
@@ -115,7 +115,7 @@ TEST(DatatypeTest, Intersect2) {
     datatype.enable(mcbp::Feature::JSON);
     datatype.enable(mcbp::Feature::XATTR);
 
-    protocol_binary_datatype_t d1 = mcbp::datatype::get_all();
+    protocol_binary_datatype_t d1 = mcbp::datatype::highest;
     auto d2 = datatype.getIntersection(d1);
     EXPECT_TRUE(mcbp::datatype::is_json(d2));
     EXPECT_TRUE(mcbp::datatype::is_xattr(d2));
@@ -127,7 +127,7 @@ TEST(DatatypeTest, IntersectAll) {
     Datatype datatype;
     datatype.enableAll();
 
-    protocol_binary_datatype_t d1 = mcbp::datatype::get_all();
+    protocol_binary_datatype_t d1 = mcbp::datatype::highest;
     auto d2 = datatype.getIntersection(d1);
     EXPECT_TRUE(mcbp::datatype::is_json(d2));
     EXPECT_TRUE(mcbp::datatype::is_xattr(d2));
@@ -149,6 +149,6 @@ TEST(DatatypeTest, Raw1) {
 TEST(DatatypeTest, RawAll) {
     Datatype datatype;
     datatype.enableAll();
-    protocol_binary_datatype_t d1 = mcbp::datatype::get_all();
+    protocol_binary_datatype_t d1 = mcbp::datatype::highest;
     EXPECT_EQ(d1, datatype.getRaw());
 }
