@@ -71,6 +71,7 @@ void StoredValue::restoreValue(const Item& itm) {
         bySeqno = itm.getBySeqno();
         nru = INITIAL_NRU_VALUE;
     }
+    datatype = itm.getDataType();
     deleted = itm.isDeleted();
     value = itm.getValue();
 }
@@ -78,6 +79,7 @@ void StoredValue::restoreValue(const Item& itm) {
 void StoredValue::restoreMeta(const Item& itm) {
     cas = itm.getCas();
     flags = itm.getFlags();
+    datatype = itm.getDataType();
     exptime = itm.getExptime();
     revSeqno = itm.getRevSeqno();
     if (itm.isDeleted()) {
@@ -138,6 +140,11 @@ Item* StoredValue::toItem(bool lck, uint16_t vbucket) const {
     Item* itm = new Item(getKey(), getFlags(), getExptime(), value,
                          lck ? static_cast<uint64_t>(-1) : getCas(),
                          bySeqno, vbucket, getRevSeqno());
+
+    // This is a partial item...
+    if (value.get() == nullptr) {
+        itm->setDataType(datatype);
+    }
 
     itm->setNRUValue(nru);
 

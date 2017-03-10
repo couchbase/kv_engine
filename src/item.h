@@ -392,6 +392,9 @@ public:
         if (bySeqno == 0) {
             throw std::invalid_argument("Item(): bySeqno must be non-zero");
         }
+        // Update the cached version of the datatype
+        getDataType();
+
         ObjectRegistry::onCreateItem(this);
     }
 
@@ -516,11 +519,17 @@ public:
     }
 
     protocol_binary_datatype_t getDataType() const {
-        return value.get() ? value->getDataType() : PROTOCOL_BINARY_RAW_BYTES;
+        if (value.get()) {
+            datatype = value->getDataType();
+        }
+        return datatype;
     }
 
-    void setDataType(protocol_binary_datatype_t datatype) {
-        value->setDataType(datatype);
+    void setDataType(protocol_binary_datatype_t datatype_) {
+        if (value.get()) {
+            value->setDataType(datatype_);
+        }
+        datatype = datatype_;
     }
 
     const char* getExtMeta() const {
@@ -720,6 +729,13 @@ private:
     uint16_t vbucketId;
     queue_op op;
     uint8_t nru  : 2;
+
+    // Keep a cached version of the datatype. It allows for using
+    // "partial" items created from from the hashtable. Every time the
+    // caller tries to get / set the datatype we first try to use the
+    // real value in the actual blob. If the blob isn't there we use
+    // this cached version.
+    mutable protocol_binary_datatype_t datatype = PROTOCOL_BINARY_RAW_BYTES;
 
     static std::atomic<uint64_t> casCounter;
     static const uint32_t metaDataSize;

@@ -65,6 +65,7 @@ class OrderedStoredValue;
  *     fixed {   | CAS               |
  *    length {   | revSeqno          |
  *           {   | ...               |
+ *           {   | datatype          |
  *           {   | internal flags: isDirty, deleted, isOrderedStoredValue ...
  *               + - - - - - - - - - +
  *  variable {   | key[]             |
@@ -231,6 +232,20 @@ public:
     }
 
     /**
+     * get the items datatype
+     */
+    protocol_binary_datatype_t getDatatype() const {
+        return datatype;
+    }
+
+    /**
+     * Set the items datatype
+     */
+    void setDatatype(protocol_binary_datatype_t type) {
+        datatype = type;
+    }
+
+    /**
      * Set a new value for this item.
      *
      * @param itm the item with a new value
@@ -242,6 +257,7 @@ public:
         value = itm.getValue();
         deleted = itm.isDeleted();
         flags = itm.getFlags();
+        datatype = itm.getDataType();
         bySeqno = itm.getBySeqno();
 
         cas = itm.getCas();
@@ -603,6 +619,7 @@ protected:
           lock_expiry(0),
           exptime(itm.getExptime()),
           flags(itm.getFlags()),
+          datatype(itm.getDataType()),
           deleted(false),
           newCacheItem(true),
           isOrdered(isOrdered),
@@ -652,6 +669,7 @@ protected:
     rel_time_t         lock_expiry;    //!< getl lock expiration
     uint32_t           exptime;        //!< Expiration time of this item.
     uint32_t           flags;          // 4 bytes
+    protocol_binary_datatype_t datatype; // 1 byte
     bool               _isDirty  :  1; // 1 bit
     bool               deleted   :  1;
     bool               newCacheItem : 1;
