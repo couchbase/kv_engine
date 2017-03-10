@@ -1619,6 +1619,23 @@ static ENGINE_ERROR_CODE EvpDcpResponseHandler(ENGINE_HANDLE* handle,
     return ENGINE_DISCONNECT;
 }
 
+static ENGINE_ERROR_CODE EvpDcpSystemEvent(ENGINE_HANDLE* handle,
+                                           const void* cookie,
+                                           uint32_t opaque,
+                                           uint16_t vbucket,
+                                           uint32_t event,
+                                           uint64_t bySeqno,
+                                           cb::const_byte_buffer key,
+                                           cb::const_byte_buffer eventData) {
+    auto engine = acquireEngine(handle);
+    ConnHandler* conn = engine->getConnHandler(cookie);
+    if (conn) {
+        return conn->systemEvent(
+                opaque, vbucket, event, bySeqno, key, eventData);
+    }
+    return ENGINE_DISCONNECT;
+}
+
 static void EvpHandleDisconnect(const void* cookie,
                                 ENGINE_EVENT_TYPE type,
                                 const void* event_data,
@@ -1813,6 +1830,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::dcp.buffer_acknowledgement = EvpDcpBufferAcknowledgement;
     ENGINE_HANDLE_V1::dcp.control = EvpDcpControl;
     ENGINE_HANDLE_V1::dcp.response_handler = EvpDcpResponseHandler;
+    ENGINE_HANDLE_V1::dcp.system_event = EvpDcpSystemEvent;
     ENGINE_HANDLE_V1::set_log_level = EvpSetLogLevel;
 
     serverApi = getServerApiFunc();

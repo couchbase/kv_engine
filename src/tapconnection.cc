@@ -322,6 +322,18 @@ bool ConnHandler::handleResponse(protocol_binary_response_header* resp) {
     return false;
 }
 
+ENGINE_ERROR_CODE ConnHandler::systemEvent(uint32_t opaque,
+                                           uint16_t vbucket,
+                                           uint32_t event,
+                                           uint64_t bySeqno,
+                                           cb::const_byte_buffer key,
+                                           cb::const_byte_buffer eventData) {
+    logger.log(EXTENSION_LOG_WARNING,
+               "Disconnecting - This connection doesn't "
+               "support the dcp system_event API");
+    return ENGINE_DISCONNECT;
+}
+
 const Logger& ConnHandler::getLogger() const {
     return logger;
 }

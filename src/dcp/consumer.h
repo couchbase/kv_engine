@@ -125,7 +125,7 @@ public:
                                   uint32_t event,
                                   uint64_t bySeqno,
                                   cb::const_byte_buffer key,
-                                  cb::const_byte_buffer eventData);
+                                  cb::const_byte_buffer eventData) override;
 
     bool doRollback(uint32_t opaque, uint16_t vbid, uint64_t rollbackSeqno);
 
