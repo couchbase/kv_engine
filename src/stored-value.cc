@@ -176,3 +176,17 @@ OrderedStoredValue* StoredValue::toOrderedStoredValue() {
     }
     throw std::bad_cast();
 }
+
+bool StoredValue::operator==(const StoredValue& other) const {
+    return (cas == other.cas && revSeqno == other.revSeqno &&
+            bySeqno == other.bySeqno && lock_expiry == other.lock_expiry &&
+            exptime == other.exptime && flags == other.flags &&
+            _isDirty == other._isDirty && deleted == other.deleted &&
+            newCacheItem == other.newCacheItem &&
+            isOrdered == other.isOrdered && stale == other.stale &&
+            nru == other.nru && getKey() == other.getKey());
+}
+
+bool OrderedStoredValue::operator==(const OrderedStoredValue& other) const {
+    return StoredValue::operator==(other);
+}

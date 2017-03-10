@@ -581,6 +581,14 @@ public:
      */
     OrderedStoredValue* toOrderedStoredValue();
 
+    /**
+     * Check if the contents of the StoredValue is same as that of the other
+     * one. Does not consider the intrusive hash bucket link.
+     *
+     * @param other The StoredValue to be compared with
+     */
+    bool operator==(const StoredValue& other) const;
+
     /* [TBD] : Move this function out of StoredValue class */
     static bool hasAvailableSpace(EPStats&,
                                   const Item& item,
@@ -652,6 +660,50 @@ protected:
     }
 
     /**
+     * Copy constructor - protected as allocation needs to be done via
+     * StoredValueFactory.
+     *
+     * @param other StoredValue being copied
+     * @param n The StoredValue which will follow the new stored value in
+     *           the hash bucket chain, which this new item will take
+     *           ownership of. (Typically the top of the hash bucket into
+     *           which the new item is being inserted).
+     * @param stats EPStats to update for this new StoredValue
+     * @param ht HashTable to update stats for this new StoredValue.
+     */
+    StoredValue(const StoredValue& other,
+                UniquePtr n,
+                EPStats& stats,
+                HashTable& ht)
+        : value(other.value),
+          next(std::move(n)),
+          cas(other.cas),
+          revSeqno(other.revSeqno),
+          bySeqno(other.bySeqno),
+          lock_expiry(other.lock_expiry),
+          exptime(other.exptime),
+          flags(other.flags),
+          _isDirty(other._isDirty),
+          deleted(other.deleted),
+          newCacheItem(other.newCacheItem),
+          isOrdered(other.isOrdered),
+          stale(other.stale),
+          nru(other.nru) {
+        // Placement-new the key which lives in memory directly after this
+        // object.
+        StoredDocKey sKey(other.getKey());
+        new (key()) SerialisedDocKey(sKey);
+
+        increaseMetaDataSize(ht, stats, metaDataSize());
+        increaseCacheSize(ht, size());
+
+        ObjectRegistry::onCreateStoredValue(this);
+    }
+
+    /* Do not allow assignment */
+    StoredValue& operator=(const StoredValue& other) = delete;
+
+    /**
      * Get the address of item's key .
      */
     inline SerialisedDocKey* key();
@@ -682,8 +734,6 @@ protected:
     static void increaseCacheSize(HashTable &ht, size_t by);
     static void reduceCacheSize(HashTable &ht, size_t by);
     static double mutation_mem_threshold;
-
-    DISALLOW_COPY_AND_ASSIGN(StoredValue);
 };
 
 /**
@@ -712,6 +762,14 @@ public:
         stale = true;
     }
 
+    /**
+     * Check if the contents of the StoredValue is same as that of the other
+     * one. Does not consider the intrusive hash bucket link.
+     *
+     * @param other The StoredValue to be compared with
+     */
+    bool operator==(const OrderedStoredValue& other) const;
+
     /// Return how many bytes are need to store Item as an OrderedStoredValue
     static size_t getRequiredStorage(const Item& item) {
         return sizeof(OrderedStoredValue) +
@@ -732,6 +790,22 @@ private:
                        HashTable& ht)
         : StoredValue(itm, std::move(n), stats, ht, /*isOrdered*/ true) {
     }
+
+    // Copy Constructor. Private, as needs to be carefully created via
+    // OrderedStoredValueFactory.
+    //
+    // Only StoredValue part (Hash Chain included) is copied. Hence the copied
+    // StoredValue will be in the HashTable, but not in the ordered
+    // data structure.
+    OrderedStoredValue(const StoredValue& other,
+                       UniquePtr n,
+                       EPStats& stats,
+                       HashTable& ht)
+        : StoredValue(other, std::move(n), stats, ht) {
+    }
+
+    /* Do not allow assignment */
+    OrderedStoredValue& operator=(const OrderedStoredValue& other) = delete;
 
     // Grant friendship so our factory can call our (private) constructor.
     friend class OrderedStoredValueFactory;

@@ -129,8 +129,12 @@ static bool del(HashTable& ht, const DocKey& key) {
 
 // Test fixture for HashTable tests.
 class HashTableTest : public ::testing::Test {
-public:
-    static std::unique_ptr<StoredValueFactory> makeFactory() {
+protected:
+    static std::unique_ptr<AbstractStoredValueFactory> makeFactory(
+            bool isOrdered = false) {
+        if (isOrdered) {
+            return std::make_unique<OrderedStoredValueFactory>(global_stats);
+        }
         return std::make_unique<StoredValueFactory>(global_stats);
     }
 };
@@ -539,4 +543,70 @@ TEST_F(HashTableTest, ReleaseItem) {
     auto hbl2 = ht.getLockedBucket(removeKey2);
     ht.unlocked_release(hbl2, removeKey2);
     EXPECT_EQ(numItems - 2, ht.getNumItems());
+}
+
+/* Test copying an element in HT */
+TEST_F(HashTableTest, CopyItem) {
+    /* Setup with 2 hash buckets and 1 lock. Note: Copying is allowed only on
+       OrderedStoredValues and hence hash table must have
+       OrderedStoredValueFactory */
+    HashTable ht(global_stats, makeFactory(true), 2, 1);
+
+    /* Write 3 items */
+    const int numItems = 3;
+    auto keys = generateKeys(numItems);
+    storeMany(ht, keys);
+
+    /* Replace the StoredValue in the HT by its copy */
+    StoredDocKey copyKey = makeStoredDocKey(std::string(std::to_string(0)));
+    auto hbl = ht.getLockedBucket(copyKey);
+    StoredValue* replaceSv = ht.unlocked_find(
+            copyKey, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
+
+    auto res = ht.unlocked_replaceByCopy(hbl, *replaceSv);
+
+    /* Validate the copied contents */
+    EXPECT_EQ(*replaceSv, *(res.first));
+
+    /* Validate the HT element replace (hence released from HT) */
+    EXPECT_EQ(replaceSv, res.second.get());
+
+    /* Validate the HT count */
+    EXPECT_EQ(numItems, ht.getNumItems());
+}
+
+/* Test copying a deleted element in HT */
+TEST_F(HashTableTest, CopyDeletedItem) {
+    /* Setup with 2 hash buckets and 1 lock. Note: Copying is allowed only on
+       OrderedStoredValues and hence hash table must have
+       OrderedStoredValueFactory */
+    HashTable ht(global_stats, makeFactory(true), 2, 1);
+
+    /* Write 3 items */
+    const int numItems = 3;
+    auto keys = generateKeys(numItems);
+    storeMany(ht, keys);
+
+    /* Delete a StoredValue */
+    StoredDocKey copyKey = makeStoredDocKey(std::string(std::to_string(0)));
+    auto hbl = ht.getLockedBucket(copyKey);
+    StoredValue* replaceSv = ht.unlocked_find(
+            copyKey, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
+
+    ht.unlocked_softDelete(
+            hbl.getHTLock(), *replaceSv, /* onlyMarkDeleted */ false);
+    EXPECT_EQ(numItems, ht.getNumItems());
+    EXPECT_EQ(1, ht.getNumDeletedItems());
+
+    /* Replace the StoredValue in the HT by its copy */
+    auto res = ht.unlocked_replaceByCopy(hbl, *replaceSv);
+
+    /* Validate the copied contents */
+    EXPECT_EQ(*replaceSv, *(res.first));
+
+    /* Validate the HT element replace (hence released from HT) */
+    EXPECT_EQ(replaceSv, res.second.get());
+
+    /* Validate the HT count */
+    EXPECT_EQ(numItems, ht.getNumItems());
 }

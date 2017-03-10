@@ -356,6 +356,24 @@ public:
                                             const Item& itm);
 
     /**
+     * Replaces a StoredValue in the HT with its copy, and releases the
+     * ownership of the StoredValue.
+     * We need this when we want to update (or soft delete) the StoredValue
+     * without an item for the update (or soft delete) and still keep around
+     * stale StoredValue.
+     * Assumes that HT bucket lock is grabbed.
+     *
+     * @param hbl Hash table bucket lock that must be held.
+     * @param vToCopy StoredValue to be replaced by its copy.
+     *
+     * @return Ptr of the copy of the StoredValue added. This is owned by the
+     *         hash table.
+     *         UniquePtr to the StoredValue replaced by its copy. This is NOT
+     *         owned by the hash table anymore.
+     */
+    std::pair<StoredValue*, StoredValue::UniquePtr> unlocked_replaceByCopy(
+            const HashBucketLock& hbl, const StoredValue& vToCopy);
+    /**
      * Logically (soft) delete the item in ht
      * Assumes that HT bucket lock is grabbed.
      * Also assumes that v is in the hash table.

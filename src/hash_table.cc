@@ -321,6 +321,38 @@ StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
     return values[hbl.getBucketNum()].get();
 }
 
+std::pair<StoredValue*, StoredValue::UniquePtr>
+HashTable::unlocked_replaceByCopy(const HashBucketLock& hbl,
+                                  const StoredValue& vToCopy) {
+    if (!hbl.getHTLock()) {
+        throw std::invalid_argument(
+                "HashTable::unlocked_replaceByCopy: htLock "
+                "not held");
+    }
+
+    if (!isActive()) {
+        throw std::invalid_argument(
+                "HashTable::unlocked_replaceByCopy: Cannot "
+                "call on a non-active HT object");
+    }
+
+    /* Release (remove) the StoredValue from the hash table */
+    auto releasedSv = unlocked_release(hbl, vToCopy.getKey());
+
+    /* Copy the StoredValue and link it into the head of the bucket chain. */
+    auto newSv = valFact->copyStoredValue(
+            vToCopy, std::move(values[hbl.getBucketNum()]), *this);
+    if (newSv->isTempItem()) {
+        ++numTempItems;
+    } else {
+        ++numItems;
+        ++numTotalItems;
+    }
+    values[hbl.getBucketNum()] = std::move(newSv);
+
+    return {values[hbl.getBucketNum()].get(), std::move(releasedSv)};
+}
+
 void HashTable::unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
                                     StoredValue& v,
                                     bool onlyMarkDeleted) {
