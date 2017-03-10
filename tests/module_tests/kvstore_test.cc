@@ -1062,7 +1062,10 @@ TEST_F(CouchKVStoreErrorInjectionTest, closeDB_close_file) {
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, close(_, _)).Times(AnyNumber());
         EXPECT_CALL(ops, close(_, _))
-            .WillOnce(Return(COUCHSTORE_ERROR_FILE_CLOSE)).RetiresOnSaturation();
+                .WillOnce(DoAll(IgnoreResult(Invoke(ops.get_wrapped(),
+                                                    &FileOpsInterface::close)),
+                                Return(COUCHSTORE_ERROR_FILE_CLOSE)))
+                .RetiresOnSaturation();
 
         populate_items(1);
     }
