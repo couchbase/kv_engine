@@ -30,6 +30,9 @@
 #include <deque>
 
 class VBucketCountVisitor;
+namespace Collections {
+class Manager;
+}
 
 /**
  * VBucket visitor callback adaptor.
@@ -740,6 +743,12 @@ public:
             uint64_t maxCas = 0,
             const std::string& collectionsManifest = "") = 0;
 
+    /**
+     * Method to handle set_collections commands
+     * @param json a buffer containing a JSON manifest to apply to the bucket
+     */
+    cb::engine_error setCollections(cb::const_char_buffer json);
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be
@@ -859,6 +868,8 @@ protected:
 
     std::mutex compactionLock;
     std::list<CompTaskEntry> compactionTasks;
+
+    std::unique_ptr<Collections::Manager> collectionsManager;
 
     friend class KVBucketTest;
 

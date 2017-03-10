@@ -34,6 +34,7 @@
 
 #include "access_scanner.h"
 #include "checkpoint_remover.h"
+#include "collections/manager.h"
 #include "conflict_resolution.h"
 #include "connmap.h"
 #include "dcp/dcpconnmap.h"
@@ -351,7 +352,8 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
       bgFetchDelay(0),
       backfillMemoryThreshold(0.95),
       statsSnapshotTaskId(0),
-      lastTransTimePerItem(0) {
+      lastTransTimePerItem(0),
+      collectionsManager(std::make_unique<Collections::Manager>()) {
     cachedResidentRatio.activeRatio.store(0);
     cachedResidentRatio.replicaRatio.store(0);
 
@@ -817,6 +819,11 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
 
         // Before adding the VB to the map increment the revision
         getRWUnderlying(vbid)->incrementRevision(vbid);
+
+        // If active, update the VB from the bucket's collection state
+        if (to == vbucket_state_active) {
+            collectionsManager->update(*newvb);
+        }
 
         if (vbMap.addBucket(newvb) == ENGINE_ERANGE) {
             return ENGINE_ERANGE;
@@ -2790,4 +2797,14 @@ void KVBucket::initializeExpiryPager(Configuration& config) {
                                    new EPStoreValueChangeListener(*this));
     config.addValueChangedListener("exp_pager_initial_run_time",
                                    new EPStoreValueChangeListener(*this));
+}
+
+cb::engine_error KVBucket::setCollections(cb::const_char_buffer json) {
+    // cJSON can't accept a size so we must create a string
+    std::string manifest(json.data(), json.size());
+
+    // Inhibit VB state changes whilst updating the vbuckets
+    LockHolder lh(vbsetMutex);
+
+    return collectionsManager->update(*this, manifest);
 }

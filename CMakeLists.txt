@@ -151,7 +151,8 @@ SET(OBJECTREGISTRY_SOURCE src/objectregistry.cc)
 SET(CONFIG_SOURCE src/configuration.cc
   ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.cc)
 
-SET(COLLECTIONS_SOURCE src/collections/manifest.cc
+SET(COLLECTIONS_SOURCE src/collections/manager.cc
+                       src/collections/manifest.cc
                        src/collections/vbucket_manifest.cc
                        src/collections/vbucket_manifest_entry.cc)
 

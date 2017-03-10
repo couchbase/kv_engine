@@ -822,6 +822,12 @@ public:
      */
     virtual size_t getNumPersistedDeletes(uint16_t vbid) = 0;
 
+    /**
+     * Method to handle set_collections commands
+     * @param json a buffer containing a JSON manifest to apply to the bucket
+     */
+    virtual cb::engine_error setCollections(cb::const_char_buffer json) = 0;
+
 protected:
 
     // Methods called during warmup

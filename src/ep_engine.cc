@@ -1764,6 +1764,12 @@ static ENGINE_ERROR_CODE EvpGetClusterConfig(ENGINE_HANDLE* handle,
     return callback(cookie, config, len);
 }
 
+static cb::engine_error EvpCollectionsSetManifest(ENGINE_HANDLE* handle,
+                                                  cb::const_char_buffer json) {
+    auto engine = acquireEngine(handle);
+    return engine->getKVBucket()->setCollections(json);
+}
+
 void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
     va_list va;
     va_start(va, fmt);
@@ -1832,6 +1838,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::dcp.response_handler = EvpDcpResponseHandler;
     ENGINE_HANDLE_V1::dcp.system_event = EvpDcpSystemEvent;
     ENGINE_HANDLE_V1::set_log_level = EvpSetLogLevel;
+    ENGINE_HANDLE_V1::collections.set_manifest = EvpCollectionsSetManifest;
 
     serverApi = getServerApiFunc();
     memset(&info, 0, sizeof(info));

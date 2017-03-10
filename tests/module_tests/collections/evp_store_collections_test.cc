@@ -880,3 +880,69 @@ TEST_F(CollectionsDcpTest, test_dcp_separator_many) {
     // And done
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
 }
+
+class CollectionsManagerTest : public CollectionsTest {};
+
+/**
+ * Test checks that setCollections propagates the collection data to active
+ * vbuckets.
+ */
+TEST_F(CollectionsManagerTest, basic) {
+    // Add some more VBuckets just so there's some iteration happening
+    const int extraVbuckets = 2;
+    for (int vb = vbid + 1; vb <= (vbid + extraVbuckets); vb++) {
+        store->setVBucketState(vb, vbucket_state_active, false);
+    }
+
+    store->setCollections(
+            {R"({"revision":1,"separator":"@@","collections":["$default", "meat"]})"});
+
+    // Check all vbuckets got the collections
+    for (int vb = vbid; vb <= (vbid + extraVbuckets); vb++) {
+        auto vbp = store->getVBucket(vb);
+        EXPECT_EQ("@@", vbp->lockCollections().getSeparator());
+        EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
+                {"meat@@bacon", DocNamespace::Collections}));
+        EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
+                {"anykey", DocNamespace::DefaultCollection}));
+    }
+}
+
+/**
+ * Test checks that setCollections propagates the collection data to active
+ * vbuckets and not the replicas
+ */
+TEST_F(CollectionsManagerTest, basic2) {
+    // Add some more VBuckets just so there's some iteration happening
+    const int extraVbuckets = 2;
+    // Add active and replica
+    for (int vb = vbid + 1; vb <= (vbid + extraVbuckets); vb++) {
+        if (vb & 1) {
+            store->setVBucketState(vb, vbucket_state_active, false);
+        } else {
+            store->setVBucketState(vb, vbucket_state_replica, false);
+        }
+    }
+
+    store->setCollections(
+            {R"({"revision":1,"separator":"@@","collections":["$default", "meat"]})"});
+
+    // Check all vbuckets got the collections
+    for (int vb = vbid; vb <= (vbid + extraVbuckets); vb++) {
+        auto vbp = store->getVBucket(vb);
+        if (vbp->getState() == vbucket_state_active) {
+            EXPECT_EQ("@@", vbp->lockCollections().getSeparator());
+            EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
+                    {"meat@@bacon", DocNamespace::Collections}));
+            EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
+                    {"anykey", DocNamespace::DefaultCollection}));
+        } else {
+            // Replica will be in default constructed settings
+            EXPECT_EQ("::", vbp->lockCollections().getSeparator());
+            EXPECT_FALSE(vbp->lockCollections().doesKeyContainValidCollection(
+                    {"meat@@bacon", DocNamespace::Collections}));
+            EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
+                    {"anykey", DocNamespace::DefaultCollection}));
+        }
+    }
+}
