@@ -45,6 +45,31 @@ static cbsasl_error_t check(cbsasl_conn_t* conn,
 }
 #endif
 
+/**
+ * ns_server creates a legacy bucket user as part of the upgrade
+ * process which is used by the XDCR clients when they connect
+ * to they system. These clients _always_ connect by using PLAIN
+ * authentication so we should look up and try those users first.
+ * If it exists and we have a matching password we're good to go,
+ * otherwise we'll have to try the "normal" user.
+ */
+static bool try_legacy_user(cbsasl_conn_t* conn,
+                            const std::string& username,
+                            const std::string& password) {
+    const std::string lecacy_username{username + ";legacy"};
+    cb::sasl::User user;
+    if (!find_user(lecacy_username, user)) {
+        return false;
+    }
+
+    if (cb::sasl::plain::check_password(user, password) == CBSASL_OK) {
+        conn->server->username.assign(lecacy_username);
+        return true;
+    }
+
+    return false;
+}
+
 cbsasl_error_t PlainServerBackend::start(cbsasl_conn_t* conn,
                                          const char* input,
                                          unsigned inputlen,
@@ -92,6 +117,11 @@ cbsasl_error_t PlainServerBackend::start(cbsasl_conn_t* conn,
 
     conn->server->username.assign(username);
     const std::string userpw(password, pwlen);
+
+    if (try_legacy_user(conn, username, userpw)) {
+        return CBSASL_OK;
+    }
+
     cb::sasl::User user;
     if (!find_user(username, user)) {
         if (cbsasl_use_saslauthd()) {

@@ -403,5 +403,17 @@
   },
   "superman": {
     "type": "builtin"
+  },
+  "legacy;legacy": {
+    "buckets": {
+      "default": ["all"]
+    },
+    "type": "builtin"
+  },
+  "legacy": {
+    "buckets": {
+      "default": ["all"]
+    },
+    "type": "builtin"
   }
 }

@@ -94,7 +94,7 @@ void SaslAuthTask::notifyExecutionComplete() {
                  connection.getId(), connection.getPeername().c_str(),
                  connection.getUsername());
 
-        // @todo this should be from the security context of the user
+        // @todo this should be from the security context of the user (MB-23060)
         connection.setInternal(std::string{"_admin"} == connection.getUsername());
 
         // Once ns_server starts passing on the "type" setting we can nuke
@@ -104,7 +104,12 @@ void SaslAuthTask::notifyExecutionComplete() {
         }
 
         /* associate the connection with the appropriate bucket */
-        associate_bucket(&connection, connection.getUsername());
+        std::string username = connection.getUsername();
+        auto idx = username.find(";legacy");
+        if (idx != username.npos) {
+            username.resize(idx);
+        }
+        associate_bucket(&connection, username.c_str());
     } else {
         connection.setAuthenticated(false);
     }

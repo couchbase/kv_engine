@@ -30,7 +30,10 @@ int main(void) {
             << "bucket-2 secret" << std::endl
             << "smith smithpassword" << std::endl
             << "jones jonespassword" << std::endl
-            << "larry larrypassword" << std::endl;
+            << "larry larrypassword" << std::endl
+            << "legacy;legacy legacy" << std::endl
+            << "legacy new" << std::endl;
+
 
     isaslpw.close();
 

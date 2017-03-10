@@ -29,6 +29,7 @@ list(APPEND TESTAPP_SOURCES
      testapp_errmap.cc
      testapp_flush.cc
      testapp_getset.cc
+     testapp_legacy_users.cc
      testapp_lock.cc
      testapp_rbac.cc
      testapp_remove.cc
@@ -131,6 +132,12 @@ ADD_TEST(NAME memcached-dcp-unit-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=TransportProtocols/DcpTest.*)
 SET_TESTS_PROPERTIES(memcached-dcp-unit-tests PROPERTIES TIMEOUT 120)
+
+# Run the tests with legacy users
+ADD_TEST(NAME memcached-legacy-users-tests
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND memcached_testapp --gtest_filter=LegacyUsersTest.*)
+SET_TESTS_PROPERTIES(memcached-legacy-users-tests PROPERTIES TIMEOUT 60)
 
 # Run all of the lock tests
 ADD_TEST(NAME memcached-lock-unit-tests
