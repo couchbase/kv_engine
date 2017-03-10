@@ -44,7 +44,7 @@ public:
 
 protected:
     void SetUp() {
-        basicLL = std::make_unique<MockBasicLinkedList>();
+        basicLL = std::make_unique<MockBasicLinkedList>(global_stats);
     }
 
     void TearDown() {
@@ -350,6 +350,8 @@ TEST_F(BasicLinkedListTest, MarkStale) {
     /* Release the item from the hash table */
     auto ownedSv = releaseFromHashTable(keyPrefix + std::to_string(numItems));
     OrderedStoredValue* nonOwnedSvPtr = ownedSv.get()->toOrderedStoredValue();
+    size_t svSize = ownedSv->size();
+    size_t svMetaDataSize = ownedSv->metaDataSize();
 
     /* Mark the item stale */
     basicLL->markItemStale(std::move(ownedSv));
@@ -362,4 +364,8 @@ TEST_F(BasicLinkedListTest, MarkStale) {
 
     /* Check if the total item count in the linked list is 1 */
     EXPECT_EQ(1, basicLL->getNumItems());
+
+    /* Check memory usage of the list as it owns the stale item */
+    EXPECT_EQ(svSize, basicLL->getMemorySize());
+    EXPECT_EQ(svMetaDataSize, basicLL->getMetaDataMemorySize());
 }

@@ -18,14 +18,17 @@
 #include "linked_list.h"
 #include <mutex>
 
-BasicLinkedList::BasicLinkedList(uint16_t vbucketId)
+BasicLinkedList::BasicLinkedList(uint16_t vbucketId, EPStats& st)
     : SequenceList(),
       readRange(0, 0),
+      staleSize(0),
+      staleMetaDataSize(0),
       highSeqno(0),
       highestDedupedSeqno(0),
       numStaleItems(0),
       numDeletedItems(0),
-      vbid(vbucketId) {
+      vbid(vbucketId),
+      st(st) {
 }
 
 BasicLinkedList::~BasicLinkedList() {
@@ -33,7 +36,10 @@ BasicLinkedList::~BasicLinkedList() {
        table */
     seqList.remove_and_dispose_if(
             [](const OrderedStoredValue& v) { return v.isStale(); },
-            [](OrderedStoredValue* v) { delete v; });
+            [this](OrderedStoredValue* v) {
+                this->st.currentSize.fetch_sub(v->metaDataSize());
+                delete v;
+            });
 
     /* Erase all the list elements (does not destroy elements, just removes
        them from the list) */
@@ -160,6 +166,11 @@ void BasicLinkedList::markItemStale(StoredValue::UniquePtr ownedSv) {
     /* Release the StoredValue as BasicLinkedList does not want it to be of
        owned type */
     StoredValue* v = ownedSv.release();
+
+    /* Update the stats tracking the memory owned by the list */
+    staleSize.fetch_add(v->size());
+    staleMetaDataSize.fetch_add(v->metaDataSize());
+    st.currentSize.fetch_add(v->metaDataSize());
 
     /* Safer to serialize with the deletion of stale values */
     std::lock_guard<std::mutex> lckGd(writeLock);

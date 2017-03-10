@@ -29,7 +29,7 @@
 
 class MockBasicLinkedList : public BasicLinkedList {
 public:
-    MockBasicLinkedList() : BasicLinkedList(0) {
+    MockBasicLinkedList(EPStats& st) : BasicLinkedList(0, st) {
     }
 
     std::vector<seqno_t> getAllSeqnoForVerification() const {
@@ -46,5 +46,13 @@ public:
     void registerFakeReadRange(seqno_t start, seqno_t end) {
         std::lock_guard<SpinLock> lh(rangeLock);
         readRange = SeqRange(start, end);
+    }
+
+    size_t getMemorySize() const {
+        return staleSize.load();
+    }
+
+    size_t getMetaDataMemorySize() const {
+        return staleMetaDataSize.load();
     }
 };

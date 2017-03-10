@@ -53,7 +53,7 @@ EphemeralVBucket::EphemeralVBucket(id_type i,
               purgeSeqno,
               maxCas,
               collectionsManifest),
-      seqList(std::make_unique<BasicLinkedList>(i)) {
+      seqList(std::make_unique<BasicLinkedList>(i, st)) {
 }
 
 size_t EphemeralVBucket::getNumItems() const {

@@ -28,6 +28,7 @@
 #include "seqlist.h"
 #include "stored-value.h"
 
+#include <relaxed_atomic.h>
 #include <boost/intrusive/list.hpp>
 
 /* This option will configure "list" to use the member hook */
@@ -122,7 +123,7 @@ private:
  */
 class BasicLinkedList : public SequenceList {
 public:
-    BasicLinkedList(uint16_t vbucketId);
+    BasicLinkedList(uint16_t vbucketId, EPStats& st);
 
     ~BasicLinkedList();
 
@@ -170,6 +171,14 @@ protected:
      */
     SpinLock rangeLock;
 
+    /* Overall memory consumed by (stale) OrderedStoredValues owned by the
+       list */
+    Couchbase::RelaxedAtomic<size_t> staleSize;
+
+    /* Metadata memory consumed by (stale) OrderedStoredValues owned by the
+       list */
+    Couchbase::RelaxedAtomic<size_t> staleMetaDataSize;
+
 private:
     /**
      * Lock that serializes range reads on the 'seqList'.
@@ -216,4 +225,7 @@ private:
 
     /* Used only to log debug messages */
     const uint16_t vbid;
+
+    /* Ep engine stats handle to track stats */
+    EPStats& st;
 };
