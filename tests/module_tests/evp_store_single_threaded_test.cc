@@ -149,7 +149,7 @@ void SingleThreadedEPStoreTest::cancelAndPurgeTasks() {
 TEST_F(SingleThreadedEPStoreTest, MB22960_cursor_dropping_data_loss) {
     // Make vbucket active.
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-    auto vb = store->getVbMap().getBucket(vbid);
+    auto vb = store->getVBuckets().getBucket(vbid);
     auto& ckpt_mgr = vb->checkpointManager;
     EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
     EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
@@ -499,7 +499,7 @@ TEST_F(SingleThreadedEPStoreTest, MB19892_BackfillNotDeleted) {
     store_item(vbid, makeStoredDocKey("key"), "value");
 
     // Force a new checkpoint.
-    auto vb = store->getVbMap().getBucket(vbid);
+    auto vb = store->getVBuckets().getBucket(vbid);
     auto& ckpt_mgr = vb->checkpointManager;
     ckpt_mgr.createNewCheckpoint();
 
@@ -685,7 +685,7 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
     store_item(vbid, makeStoredDocKey("key"), "value");
 
     // Force a new checkpoint.
-    RCPtr<VBucket> vb = store->getVbMap().getBucket(vbid);
+    RCPtr<VBucket> vb = store->getVBuckets().getBucket(vbid);
     CheckpointManager& ckpt_mgr = vb->checkpointManager;
     ckpt_mgr.createNewCheckpoint();
     auto lpWriterQ = task_executor->getLpTaskQ()[WRITER_TASK_IDX];

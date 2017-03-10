@@ -93,8 +93,8 @@ protected:
         // of the item has been restored.
         store->setVBucketState(vbid, vbucket_state_replica, false);
         ASSERT_EQ(ENGINE_SUCCESS, store->rollback(vbid, item_v1.getBySeqno()));
-        auto result = store->public_getInternal(a, vbid, /*cookie*/nullptr,
-                                                vbucket_state_replica, {});
+        auto result = getInternal(
+                a, vbid, /*cookie*/ nullptr, vbucket_state_replica, {});
         ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
         EXPECT_EQ(item_v1, *result.getValue())
             << "Fetched item after rollback should match item_v1";
@@ -253,7 +253,7 @@ TEST_P(RollbackTest, MB21784) {
 
     // Assert the checkpointmanager clear function (called during rollback)
     // has set the opencheckpointid to zero
-    auto vb = store->getVbMap().getBucket(vbid);
+    auto vb = store->getVBucket(vbid);
     auto& ckpt_mgr = vb->checkpointManager;
     EXPECT_EQ(0, ckpt_mgr.getOpenCheckpointId()) << "opencheckpointId not zero";
 

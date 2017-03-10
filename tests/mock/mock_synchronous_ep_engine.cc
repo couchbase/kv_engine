@@ -68,18 +68,3 @@ void SynchronousEPEngine::initializeConnmaps() {
     dcpConnMap_->initialize(DCP_CONN_NOTIFIER);
     tapConnMap->initialize(TAP_CONN_NOTIFIER);
 }
-
-MockEPBucket::MockEPBucket(EventuallyPersistentEngine& theEngine)
-    : EPBucket(theEngine) {
-    // Perform a limited set of setup (normally done by EPBucket::initialize) -
-    // enough such that objects which are assumed to exist are present.
-
-    // Create the closed checkpoint removed task. Note we do _not_ schedule
-    // it, unlike EPStore::initialize
-    chkTask = new ClosedUnrefCheckpointRemoverTask(
-            &engine, stats, theEngine.getConfiguration().getChkRemoverStime());
-}
-
-VBucketMap& MockEPBucket::getVbMap() {
-    return vbMap;
-}

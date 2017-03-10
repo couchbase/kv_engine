@@ -20,8 +20,6 @@
 #include <ep_bucket.h>
 #include <ep_engine.h>
 
-class MockEPBucket;
-
 /* A class which subclasses the real EPEngine. Its main purpose is to allow
  * us to construct and setup an EPStore without starting all the various
  * background tasks which are normally started by EPEngine as part of creating
@@ -63,27 +61,8 @@ public:
      * so must be done after executorpool is created
      */
     void initializeConnmaps();
-};
 
-
-/* Subclass of EPBucket to expose normally non-public members for test
- * purposes.
- */
-class MockEPBucket : public EPBucket {
-public:
-    MockEPBucket(EventuallyPersistentEngine& theEngine);
-
-    VBucketMap& getVbMap();
-
-    void public_stopWarmup() {
-        stopWarmup();
-    }
-
-    GetValue public_getInternal(const StoredDocKey& key,
-                                uint16_t vbucket,
-                                const void* cookie,
-                                vbucket_state_t allowedState,
-                                get_options_t options) {
-        return getInternal(key, vbucket, cookie, allowedState, options);
+    std::unique_ptr<KVBucket> public_makeBucket(Configuration& config) {
+        return makeBucket(config);
     }
 };

@@ -849,6 +849,8 @@ protected:
     std::mutex compactionLock;
     std::list<CompTaskEntry> compactionTasks;
 
+    friend class EPBucketTest;
+
     DISALLOW_COPY_AND_ASSIGN(KVBucket);
 };
 

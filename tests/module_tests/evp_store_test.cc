@@ -62,8 +62,13 @@ void EPBucketTest::SetUp() {
     engine.reset(new SynchronousEPEngine(config));
     ObjectRegistry::onSwitchThread(engine.get());
 
-    store = new MockEPBucket(*engine);
-    engine->setKVBucket(std::unique_ptr<KVBucket>(store));
+    engine->setKVBucket(engine->public_makeBucket(engine->getConfiguration()));
+    store = engine->getKVBucket();
+
+    store->chkTask = new ClosedUnrefCheckpointRemoverTask(
+            engine.get(),
+            engine->getEpStats(),
+            engine->getConfiguration().getChkRemoverStime());
 
     // Ensure that EPEngine is hold about necessary server callbacks
     // (client disconnect, bucket delete).
@@ -143,6 +148,15 @@ void EPBucketTest::evict_key(uint16_t vbid, const StoredDocKey& key) {
     const char* msg;
     EXPECT_EQ(ENGINE_SUCCESS, store->evictKey(key, vbid, &msg));
     EXPECT_STREQ("Ejected.", msg);
+}
+
+
+GetValue EPBucketTest::getInternal(const StoredDocKey& key,
+                                   uint16_t vbucket,
+                                   const void* cookie,
+                                   vbucket_state_t allowedState,
+                                   get_options_t options) {
+    return store->getInternal(key, vbucket, cookie, allowedState, options);
 }
 
 // Verify that when handling a bucket delete with open DCP

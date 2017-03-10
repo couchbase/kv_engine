@@ -65,6 +65,13 @@ public:
      */
     void evict_key(uint16_t vbid, const StoredDocKey& key);
 
+    /// Exposes the normally-protected getInternal method from the store.
+    GetValue getInternal(const StoredDocKey& key,
+                         uint16_t vbucket,
+                         const void* cookie,
+                         vbucket_state_t allowedState,
+                         get_options_t options);
+
     static const char test_dbname[];
 
     std::string config_string;
@@ -76,7 +83,7 @@ public:
 
     // The store under test. Wrapped in a mock to expose some normally
     // protected members. Uses a raw pointer as this is owned by the engine.
-    MockEPBucket* store;
+    KVBucket* store;
 
     // The (mock) server cookie.
     const void* cookie;
