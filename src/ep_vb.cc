@@ -527,19 +527,19 @@ std::pair<StoredValue*, VBNotifyCtx> EPVBucket::addNewStoredValue(
     return {v, VBNotifyCtx()};
 }
 
-VBNotifyCtx EPVBucket::softDeleteStoredValue(
-        const std::unique_lock<std::mutex>& htLock,
+std::tuple<StoredValue*, VBNotifyCtx> EPVBucket::softDeleteStoredValue(
+        const HashTable::HashBucketLock& hbl,
         StoredValue& v,
         bool onlyMarkDeleted,
         const VBQueueItemCtx& queueItmCtx,
         uint64_t bySeqno) {
-    ht.unlocked_softDelete(htLock, v, onlyMarkDeleted);
+    ht.unlocked_softDelete(hbl.getHTLock(), v, onlyMarkDeleted);
 
     if (queueItmCtx.genBySeqno == GenerateBySeqno::No) {
         v.setBySeqno(bySeqno);
     }
 
-    return queueDirty(v, queueItmCtx);
+    return std::make_tuple(&v, queueDirty(v, queueItmCtx));
 }
 
 void EPVBucket::bgFetch(const DocKey& key,

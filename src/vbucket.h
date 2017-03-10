@@ -1017,7 +1017,7 @@ protected:
      * in-memory structure like HT, and checkpoint mgr.
      * Assumes that HT bucket lock is grabbed.
      *
-     * @param htLock Hash table lock that must be held
+     * @param hbl Hash table bucket lock that must be held
      * @param v Reference to the StoredValue to be soft deleted
      * @param cas the expected CAS of the item (or 0 to override)
      * @param metadata ref to item meta data
@@ -1026,11 +1026,14 @@ protected:
      * @param use_meta Indicates if v must be updated with the metadata
      * @param bySeqno seqno of the key being deleted
      *
-     * @return Result indicating the status of the operation and notification
-     *                info
+     * @return pointer to the updated StoredValue. It can be same as that of
+     *         v or different value if a new StoredValue is created for the
+     *         update.
+     *         status of the operation.
+     *         notification info.
      */
-    std::pair<MutationStatus, VBNotifyCtx> processSoftDelete(
-            const std::unique_lock<std::mutex>& htLock,
+    std::tuple<MutationStatus, StoredValue*, VBNotifyCtx> processSoftDelete(
+            const HashTable::HashBucketLock& hbl,
             StoredValue& v,
             uint64_t cas,
             const ItemMetaData& metadata,
@@ -1183,7 +1186,7 @@ private:
      * Assumes that HT bucket lock is grabbed.
      * Also assumes that v is in the hash table.
      *
-     * @param htLock Hash table lock that must be held
+     * @param hbl Hash table bucket lock that must be held
      * @param v Reference to the StoredValue to be soft deleted
      * @param onlyMarkDeleted indicates if we must reset the StoredValue or
      *                        just mark deleted
@@ -1191,10 +1194,13 @@ private:
      *                    backfill queue
      * @param bySeqno seqno of the key being deleted
      *
-     * @return Notification info
+     * @return pointer to the updated StoredValue. It can be same as that of
+     *         v or different value if a new StoredValue is created for the
+     *         update.
+     *         notification info.
      */
-    virtual VBNotifyCtx softDeleteStoredValue(
-            const std::unique_lock<std::mutex>& htLock,
+    virtual std::tuple<StoredValue*, VBNotifyCtx> softDeleteStoredValue(
+            const HashTable::HashBucketLock& hbl,
             StoredValue& v,
             bool onlyMarkDeleted,
             const VBQueueItemCtx& queueItmCtx,
@@ -1205,14 +1211,17 @@ private:
      * deleting an item in in-memory structures like HT, and checkpoint mgr.
      * Assumes that HT bucket lock is grabbed.
      *
-     * @param htLock Hash table lock that must be held
+     * @param hbl Hash table bucket lock that must be held
      * @param v Reference to the StoredValue to be soft deleted
      *
-     * @return Result indicating the status of the operation and notification
-     *                info
+     * @return status of the operation.
+     *         pointer to the updated StoredValue. It can be same as that of
+     *         v or different value if a new StoredValue is created for the
+     *         update.
+     *         notification info.
      */
-    std::pair<MutationStatus, VBNotifyCtx> processExpiredItem(
-            const std::unique_lock<std::mutex>& htLock, StoredValue& v);
+    std::tuple<MutationStatus, StoredValue*, VBNotifyCtx> processExpiredItem(
+            const HashTable::HashBucketLock& hbl, StoredValue& v);
 
     /**
      * Add a temporary item in hash table and enqueue a background fetch for a

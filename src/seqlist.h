@@ -31,9 +31,7 @@
 #include "config.h"
 #include "item.h"
 #include "memcached/engine_error.h"
-
-/* Forward declarations */
-class OrderedStoredValue;
+#include "stored-value.h"
 
 /* [EPHE TODO]: Check if uint64_t can be used instead */
 using seqno_t = int64_t;
@@ -127,19 +125,23 @@ public:
      * Updates the highSeqno in the list. Since seqno is generated and managed
      * outside the list, the module managing it must update this after the seqno
      * is generated for the item already put in the list.
-     *
-     * @param seqno high seqno
-     */
-    virtual void updateHighSeqno(seqno_t seqno) = 0;
-
-    /**
-     * Mark an OrderedStoredValue stale. We do it in the list because is good
-     * to serialize it other list writes on the stale values and for book
-     * keeping.
+     * If the last OrderedStoredValue added to the list is soft deleted then
+     * it also updates the deleted items count in the list
      *
      * @param v Ref to orderedStoredValue
      */
-    virtual void markItemStale(OrderedStoredValue& v) = 0;
+    virtual void updateHighSeqno(const OrderedStoredValue& v) = 0;
+
+    /**
+     * Mark an OrderedStoredValue stale and assumes its ownership.
+     * Note: It is upto the sequential data structure implementation how it
+     *       wants to own the OrderedStoredValue (as owned type vs non-owned
+     *       type)
+     *
+     * @param ownedSv StoredValue whose ownership is passed to the sequential
+     *                data strucuture.
+     */
+    virtual void markItemStale(StoredValue::UniquePtr ownedSv) = 0;
 
     /**
      * Returns the number of stale items in the list.
@@ -147,4 +149,18 @@ public:
      * @return count of stale items
      */
     virtual uint64_t getNumStaleItems() const = 0;
+
+    /**
+     * Returns the number of deleted items in the list.
+     *
+     * @return count of deleted items
+     */
+    virtual uint64_t getNumDeletedItems() const = 0;
+
+    /**
+     * Returns the number of items in the list.
+     *
+     * @return count of items
+     */
+    virtual uint64_t getNumItems() const = 0;
 };

@@ -24,6 +24,7 @@ BasicLinkedList::BasicLinkedList(uint16_t vbucketId)
       highSeqno(0),
       highestDedupedSeqno(0),
       numStaleItems(0),
+      numDeletedItems(0),
       vbid(vbucketId) {
 }
 
@@ -147,20 +148,37 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
     return {ENGINE_SUCCESS, items};
 }
 
-void BasicLinkedList::updateHighSeqno(seqno_t seqno) {
+void BasicLinkedList::updateHighSeqno(const OrderedStoredValue& v) {
     std::lock_guard<SpinLock> lh(rangeLock);
-    highSeqno = seqno;
+    highSeqno = v.getBySeqno();
+    if (v.isDeleted()) {
+        ++numDeletedItems;
+    }
 }
 
-void BasicLinkedList::markItemStale(OrderedStoredValue& v) {
+void BasicLinkedList::markItemStale(StoredValue::UniquePtr ownedSv) {
+    /* Release the StoredValue as BasicLinkedList does not want it to be of
+       owned type */
+    StoredValue* v = ownedSv.release();
+
     /* Safer to serialize with the deletion of stale values */
     std::lock_guard<std::mutex> lckGd(writeLock);
 
     ++numStaleItems;
-    v.markStale();
+    v->toOrderedStoredValue()->markStale();
 }
 
 uint64_t BasicLinkedList::getNumStaleItems() const {
     std::lock_guard<std::mutex> lckGd(writeLock);
     return numStaleItems;
+}
+
+uint64_t BasicLinkedList::getNumDeletedItems() const {
+    std::lock_guard<std::mutex> lckGd(writeLock);
+    return numDeletedItems;
+}
+
+uint64_t BasicLinkedList::getNumItems() const {
+    std::lock_guard<std::mutex> lckGd(writeLock);
+    return seqList.size();
 }

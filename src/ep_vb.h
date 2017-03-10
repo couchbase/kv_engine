@@ -125,8 +125,8 @@ private:
             const Item& itm,
             const VBQueueItemCtx* queueItmCtx) override;
 
-    VBNotifyCtx softDeleteStoredValue(
-            const std::unique_lock<std::mutex>& htLock,
+    std::tuple<StoredValue*, VBNotifyCtx> softDeleteStoredValue(
+            const HashTable::HashBucketLock& hbl,
             StoredValue& v,
             bool onlyMarkDeleted,
             const VBQueueItemCtx& queueItmCtx,

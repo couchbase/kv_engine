@@ -64,7 +64,7 @@ protected:
                                            const int numItems) {
         const seqno_t last = startSeqno + numItems;
         const std::string val("data");
-        std::vector<OrderedStoredValue*> sv;
+        OrderedStoredValue* sv;
         std::vector<seqno_t> expectedSeqno;
 
         /* Get a fake sequence lock */
@@ -84,42 +84,78 @@ protected:
                       /*bySeqno*/ i);
             EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
 
-            sv.push_back(ht.find(key, TrackReference::Yes, WantsDeleted::No)
-                                 ->toOrderedStoredValue());
-            basicLL->appendToList(lg, *(sv.back()));
-            basicLL->updateHighSeqno(i);
+            sv = ht.find(key, TrackReference::Yes, WantsDeleted::No)
+                         ->toOrderedStoredValue();
+            basicLL->appendToList(lg, *sv);
+            basicLL->updateHighSeqno(*sv);
             expectedSeqno.push_back(i);
         }
         return expectedSeqno;
     }
 
+    /**
+     * Updates an existing item with key == key and assigns it a seqno of
+     * highSeqno + 1. To be called when there is no range read.
+     */
     void updateItem(seqno_t highSeqno, const std::string& key) {
         /* Get a fake sequence lock */
         std::mutex fakeSeqLock;
         std::lock_guard<std::mutex> lg(fakeSeqLock);
 
         OrderedStoredValue* osv = ht.find(makeStoredDocKey(key),
-                                          TrackReference::Yes,
-                                          WantsDeleted::No)
+                                          TrackReference::No,
+                                          WantsDeleted::Yes)
                                           ->toOrderedStoredValue();
         EXPECT_EQ(SequenceList::UpdateStatus::Success,
                   basicLL->updateListElem(lg, *osv));
         osv->setBySeqno(highSeqno + 1);
-        basicLL->updateHighSeqno(highSeqno + 1);
+        basicLL->updateHighSeqno(*osv);
     }
 
+    /**
+     * Updates an existing item with key == key.
+     * To be called when there is range read.
+     */
     void updateItemDuringRangeRead(seqno_t highSeqno, const std::string& key) {
         /* Get a fake sequence lock */
         std::mutex fakeSeqLock;
         std::lock_guard<std::mutex> lg(fakeSeqLock);
 
         OrderedStoredValue* osv = ht.find(makeStoredDocKey(key),
-                                          TrackReference::Yes,
-                                          WantsDeleted::No)
+                                          TrackReference::No,
+                                          WantsDeleted::Yes)
                                           ->toOrderedStoredValue();
 
         EXPECT_EQ(SequenceList::UpdateStatus::Append,
                   basicLL->updateListElem(lg, *osv));
+    }
+
+    /**
+     * Deletes an existing item with key == key, puts it onto the linked list
+     * and assigns it a seqno of highSeqno + 1.
+     * To be called when there is no range read.
+     */
+    void softDeleteItem(seqno_t highSeqno, const std::string& key) {
+        { /* hbl lock scope */
+            auto hbl = ht.getLockedBucket(makeStoredDocKey(key));
+            StoredValue* sv = ht.unlocked_find(makeStoredDocKey(key),
+                                               hbl.getBucketNum(),
+                                               WantsDeleted::Yes,
+                                               TrackReference::No);
+
+            ht.unlocked_softDelete(
+                    hbl.getHTLock(), *sv, /* onlyMarkDeleted */ false);
+        }
+
+        updateItem(highSeqno, key);
+    }
+
+    /**
+     * Release a StoredValue with 'key' from the hash table
+     */
+    StoredValue::UniquePtr releaseFromHashTable(const std::string& key) {
+        auto hbl = ht.getLockedBucket(makeStoredDocKey(key));
+        return ht.unlocked_release(hbl, makeStoredDocKey(key));
     }
 
     /* We need a HashTable because StoredValue is created only in the HashTable
@@ -144,9 +180,6 @@ TEST_F(BasicLinkedListTest, TestRangeRead) {
     /* Add 3 new items */
     addNewItemsToList(1, std::string("key"), numItems);
 
-    /* Update the high seqno */
-    basicLL->updateHighSeqno(numItems);
-
     /* Now do a range read */
     ENGINE_ERROR_CODE status;
     std::vector<queued_item> items;
@@ -162,9 +195,6 @@ TEST_F(BasicLinkedListTest, TestRangeReadTillInf) {
 
     /* Add 3 new items */
     addNewItemsToList(1, std::string("key"), numItems);
-
-    /* Update the high seqno */
-    basicLL->updateHighSeqno(numItems);
 
     /* Now do a range read */
     ENGINE_ERROR_CODE status;
@@ -183,9 +213,6 @@ TEST_F(BasicLinkedListTest, TestRangeReadFromMid) {
     /* Add 3 new items */
     addNewItemsToList(1, std::string("key"), numItems);
 
-    /* Update the high seqno */
-    basicLL->updateHighSeqno(numItems);
-
     /* Now do a range read */
     ENGINE_ERROR_CODE status;
     std::vector<queued_item> items;
@@ -201,9 +228,6 @@ TEST_F(BasicLinkedListTest, TestRangeReadNegatives) {
 
     /* Add 3 new items */
     addNewItemsToList(1, std::string("key"), numItems);
-
-    /* Update the high seqno */
-    basicLL->updateHighSeqno(numItems);
 
     ENGINE_ERROR_CODE status;
     std::vector<queued_item> items;
@@ -293,4 +317,49 @@ TEST_F(BasicLinkedListTest, UpdateDuringRangeRead) {
     /* Update an item in the list when a fake range read is happening */
     updateItemDuringRangeRead(numItems,
                               keyPrefix + std::to_string(numItems - 1));
+}
+
+TEST_F(BasicLinkedListTest, DeletedItem) {
+    const std::string keyPrefix("key");
+    const int numItems = 1;
+
+    int numDeleted = basicLL->getNumDeletedItems();
+
+    /* Add an item */
+    addNewItemsToList(numItems, keyPrefix, 1);
+
+    /* Delete the item */
+    softDeleteItem(numItems, keyPrefix + std::to_string(numItems));
+
+    /* Check if the delete is added correctly */
+    std::vector<seqno_t> expectedSeqno = {numItems + 1};
+    EXPECT_EQ(expectedSeqno, basicLL->getAllSeqnoForVerification());
+    EXPECT_EQ(numDeleted + 1, basicLL->getNumDeletedItems());
+}
+
+TEST_F(BasicLinkedListTest, MarkStale) {
+    const std::string keyPrefix("key");
+    const int numItems = 1;
+
+    /* To begin with we expect 0 stale items */
+    EXPECT_EQ(0, basicLL->getNumStaleItems());
+
+    /* Add an item */
+    addNewItemsToList(numItems, keyPrefix, 1);
+
+    /* Release the item from the hash table */
+    auto ownedSv = releaseFromHashTable(keyPrefix + std::to_string(numItems));
+    OrderedStoredValue* nonOwnedSvPtr = ownedSv.get()->toOrderedStoredValue();
+
+    /* Mark the item stale */
+    basicLL->markItemStale(std::move(ownedSv));
+
+    /* Check if the StoredValue is marked stale */
+    EXPECT_TRUE(nonOwnedSvPtr->isStale());
+
+    /* Check if the stale count incremented to 1 */
+    EXPECT_EQ(1, basicLL->getNumStaleItems());
+
+    /* Check if the total item count in the linked list is 1 */
+    EXPECT_EQ(1, basicLL->getNumItems());
 }

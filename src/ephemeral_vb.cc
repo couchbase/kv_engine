@@ -132,14 +132,14 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
                                     const VBQueueItemCtx* queueItmCtx) {
     std::lock_guard<std::mutex> lh(sequenceLock);
 
-    OrderedStoredValue* osv = v.toOrderedStoredValue();
-
     /* Update the OrderedStoredValue in hash table + Ordered data structure
        (list) */
-    auto res = seqList->updateListElem(lh, *osv);
+    auto res = seqList->updateListElem(lh, *(v.toOrderedStoredValue()));
 
     StoredValue* newSv = &v;
+    StoredValue::UniquePtr ownedSv;
     MutationStatus status(MutationStatus::WasClean);
+
     switch (res) {
     case SequenceList::UpdateStatus::Success:
         /* OrderedStoredValue moved to end of the list, just update its
@@ -155,19 +155,17 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
 
            Note: It is important to remove item from hash table before
                  marking stale because once marked stale list assumes the
-                 ownership of the item and delete it anytime. */
+                 ownership of the item and may delete it anytime. */
         /* Release current storedValue from hash table */
         /* [EPHE TODO]: Write a HT func to release the StoredValue directly
                         than taking key as a param and deleting
                         (MB-23184) */
-        ht.unlocked_release(hbl, v.getKey()).release();
+        ownedSv = ht.unlocked_release(hbl, v.getKey());
 
         /* Add a new storedvalue for the item */
         newSv = ht.unlocked_addNewStoredValue(hbl, itm);
-        status = MutationStatus::WasClean;
 
-        OrderedStoredValue* newOsv = newSv->toOrderedStoredValue();
-        seqList->appendToList(lh, *newOsv);
+        seqList->appendToList(lh, *(newSv->toOrderedStoredValue()));
     } break;
     }
 
@@ -178,7 +176,7 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
     }
 
     /* Update the high seqno in the sequential storage */
-    seqList->updateHighSeqno(newSv->getBySeqno());
+    seqList->updateHighSeqno(*(newSv->toOrderedStoredValue()));
 
     if (res == SequenceList::UpdateStatus::Append) {
         /* Mark the un-updated storedValue as stale. This must be done after
@@ -187,7 +185,7 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
            item before its latest copy is added to the list.
            (item becomes visible for range read only after updating the list
             with the seqno of the item) */
-        seqList->markItemStale(*osv);
+        seqList->markItemStale(std::move(ownedSv));
     }
     return std::make_tuple(newSv, status, notifyCtx);
 }
@@ -219,36 +217,72 @@ std::pair<StoredValue*, VBNotifyCtx> EphemeralVBucket::addNewStoredValue(
     }
 
     /* Update the high seqno in the sequential storage */
-    seqList->updateHighSeqno(v->getBySeqno());
+    seqList->updateHighSeqno(*(v->toOrderedStoredValue()));
 
     return {v, notifyCtx};
 }
 
-VBNotifyCtx EphemeralVBucket::softDeleteStoredValue(
-        const std::unique_lock<std::mutex>& htLock,
+std::tuple<StoredValue*, VBNotifyCtx> EphemeralVBucket::softDeleteStoredValue(
+        const HashTable::HashBucketLock& hbl,
         StoredValue& v,
         bool onlyMarkDeleted,
         const VBQueueItemCtx& queueItmCtx,
         uint64_t bySeqno) {
     std::lock_guard<std::mutex> lh(sequenceLock);
 
-    /* Soft delete the StoredValue in HT + EphemeralVBucket data structure.
-     From the EphemeralVBucket data structure we will know whether to update
-     (soft delete) the current StoredValue or mark the current StoredValue
-     as stale and add a new softDeleted StoredValue.
-     (Coming soon)
-     */
-    ht.unlocked_softDelete(htLock, v, onlyMarkDeleted);
+    StoredValue* newSv = &v;
+    StoredValue::UniquePtr ownedSv;
 
-    if (queueItmCtx.genBySeqno == GenerateBySeqno::No) {
-        v.setBySeqno(bySeqno);
+    /* Update the OrderedStoredValue in hash table + Ordered data structure
+       (list) */
+    auto res = seqList->updateListElem(lh, *(v.toOrderedStoredValue()));
+
+    switch (res) {
+    case SequenceList::UpdateStatus::Success:
+        /* OrderedStoredValue is moved to end of the list, do nothing */
+        break;
+
+    case SequenceList::UpdateStatus::Append: {
+        /* OrderedStoredValue cannot be moved to end of the list,
+           due to a range read. Hence, replace the storedvalue in the
+           hash table with its copy and indicate the list to mark the
+           OrderedStoredValue stale (old duplicate).
+
+           Note: It is important to remove item from hash table before
+                 marking stale because once marked stale list assumes the
+                 ownership of the item and may delete it anytime. */
+
+        /* Release current storedValue from hash table */
+        /* [EPHE TODO]: Write a HT func to replace the StoredValue directly
+                        than taking key as a param and deleting (MB-23184) */
+        std::tie(newSv, ownedSv) = ht.unlocked_replaceByCopy(hbl, v);
+
+        seqList->appendToList(lh, *(newSv->toOrderedStoredValue()));
+    } break;
     }
 
-    return queueDirty(v, queueItmCtx);
+    /* Delete the storedvalue */
+    ht.unlocked_softDelete(hbl.getHTLock(), *newSv, onlyMarkDeleted);
 
-    /* PlaceHolder for post seqno generation operation in EphemeralVBucket
-     * data structure
-     */
+    if (queueItmCtx.genBySeqno == GenerateBySeqno::No) {
+        newSv->setBySeqno(bySeqno);
+    }
+
+    VBNotifyCtx notifyCtx = queueDirty(*newSv, queueItmCtx);
+
+    /* Update the high seqno in the sequential storage */
+    seqList->updateHighSeqno(*(newSv->toOrderedStoredValue()));
+
+    if (res == SequenceList::UpdateStatus::Append) {
+        /* Mark the un-updated storedValue as stale. This must be done after
+           the new storedvalue for the item is visible for range read in the
+           list. This is because we do not want the seqlist to delete the stale
+           item before its latest copy is added to the list.
+           (item becomes visible for range read only after updating the list
+           with the seqno of the item) */
+        seqList->markItemStale(std::move(ownedSv));
+    }
+    return std::make_tuple(newSv, notifyCtx);
 }
 
 void EphemeralVBucket::bgFetch(const DocKey& key,

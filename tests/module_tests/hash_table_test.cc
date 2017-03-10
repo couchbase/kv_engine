@@ -527,21 +527,48 @@ TEST_F(HashTableTest, ReleaseItem) {
        might have a rare case wherein 4 items are hashed to one bucket and
        "removeKey1" would be a lone element in the other hash bucket) a head
        element of a hash bucket */
-    StoredDocKey removeKey1 =
+    StoredDocKey releaseKey1 =
             makeStoredDocKey(std::string("key" + std::to_string(0)));
 
-    auto hbl = ht.getLockedBucket(removeKey1);
-    ht.unlocked_release(hbl, removeKey1);
+    auto hbl = ht.getLockedBucket(releaseKey1);
+    StoredValue* vToRelease1 = ht.unlocked_find(releaseKey1,
+                                                hbl.getBucketNum(),
+                                                WantsDeleted::Yes,
+                                                TrackReference::No);
+
+    auto releasedSv1 = ht.unlocked_release(hbl, releaseKey1);
+
+    /* Validate the copied contents */
+    EXPECT_EQ(*vToRelease1, *(releasedSv1));
+
+    /* Validate the HT element replace (hence released from HT) */
+    EXPECT_EQ(vToRelease1, releasedSv1.get());
+
+    /* Validate the HT count */
     EXPECT_EQ(numItems - 1, ht.getNumItems());
 
     hbl.getHTLock().unlock();
+
     /* Remove the element added last. This is certainly the head element of a
        hash bucket */
-    StoredDocKey removeKey2 =
+    StoredDocKey releaseKey2 =
             makeStoredDocKey(std::string("key" + std::to_string(numItems - 1)));
 
-    auto hbl2 = ht.getLockedBucket(removeKey2);
-    ht.unlocked_release(hbl2, removeKey2);
+    auto hbl2 = ht.getLockedBucket(releaseKey2);
+    StoredValue* vToRelease2 = ht.unlocked_find(releaseKey2,
+                                                hbl.getBucketNum(),
+                                                WantsDeleted::Yes,
+                                                TrackReference::No);
+
+    auto releasedSv2 = ht.unlocked_release(hbl2, releaseKey2);
+
+    /* Validate the copied contents */
+    EXPECT_EQ(*vToRelease2, *(releasedSv2));
+
+    /* Validate the HT element replace (hence released from HT) */
+    EXPECT_EQ(vToRelease2, releasedSv2.get());
+
+    /* Validate the HT count */
     EXPECT_EQ(numItems - 2, ht.getNumItems());
 }
 

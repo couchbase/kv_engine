@@ -100,18 +100,20 @@ public:
         }
         ItemMetaData metadata;
         metadata.revSeqno = v->getRevSeqno() + 1;
-        return processSoftDelete(hbl.getHTLock(),
-                                 *v,
-                                 cas,
-                                 metadata,
-                                 VBQueueItemCtx(GenerateBySeqno::Yes,
-                                                GenerateCas::Yes,
-                                                TrackCasDrift::No,
-                                                /*isBackfillItem*/ false,
-                                                /*preLinkDocCtx*/ nullptr),
-                                 /*use_meta*/ false,
-                                 /*bySeqno*/ v->getBySeqno())
-                .first;
+        MutationStatus status;
+        std::tie(status, std::ignore, std::ignore) =
+                processSoftDelete(hbl,
+                                  *v,
+                                  cas,
+                                  metadata,
+                                  VBQueueItemCtx(GenerateBySeqno::Yes,
+                                                 GenerateCas::Yes,
+                                                 TrackCasDrift::No,
+                                                 /*isBackfillItem*/ false,
+                                                 /*preLinkDocCtx*/ nullptr),
+                                  /*use_meta*/ false,
+                                  /*bySeqno*/ v->getBySeqno());
+        return status;
     }
 
     bool public_deleteStoredValue(const DocKey& key) {

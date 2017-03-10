@@ -136,11 +136,15 @@ public:
     std::pair<ENGINE_ERROR_CODE, std::vector<queued_item>> rangeRead(
             seqno_t start, seqno_t end) override;
 
-    void updateHighSeqno(seqno_t seqno) override;
+    void updateHighSeqno(const OrderedStoredValue& v) override;
 
-    void markItemStale(OrderedStoredValue& v) override;
+    void markItemStale(StoredValue::UniquePtr ownedSv) override;
 
     uint64_t getNumStaleItems() const override;
+
+    uint64_t getNumDeletedItems() const override;
+
+    uint64_t getNumItems() const override;
 
 protected:
     /* Underlying data structure that holds the items in an Ordered Sequence */
@@ -201,6 +205,14 @@ private:
      * periodically clean them up.
      */
     uint64_t numStaleItems;
+
+    /**
+     * Indicates the number of logically deleted items in the list.
+     * Since we are append-only, distributed cache supporting incremental
+     * replication, we need to keep deleted items for while and periodically
+     * purge them
+     */
+    uint64_t numDeletedItems;
 
     /* Used only to log debug messages */
     const uint16_t vbid;
