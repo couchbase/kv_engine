@@ -347,6 +347,12 @@ RBAC_PUBLIC_API
 void loadPrivilegeDatabase(const std::string& filename);
 
 /**
+ * Check if the specified user have access to the specified bucket
+ */
+RBAC_PUBLIC_API
+bool mayAccessBucket(const std::string& user, const std::string& bucket);
+
+/**
  * Initialize the RBAC module
  */
 RBAC_PUBLIC_API

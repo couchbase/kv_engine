@@ -109,7 +109,14 @@ void SaslAuthTask::notifyExecutionComplete() {
         if (idx != username.npos) {
             username.resize(idx);
         }
-        associate_bucket(&connection, username.c_str());
+
+        if (cb::rbac::mayAccessBucket(connection.getUsername(), username)) {
+            associate_bucket(&connection, username.c_str());
+        } else {
+            // the user don't have access to that bucket, move the
+            // connection to the "no bucket"
+            associate_bucket(&connection, "");
+        }
     } else {
         connection.setAuthenticated(false);
     }

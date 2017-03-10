@@ -401,3 +401,30 @@ TEST_P(RbacRoleTest, NoAccessToSystemXattrs) {
     resp = getXattr(getRWConnection(), "_meta.author");
     ASSERT_TRUE(resp.isSuccess());
 }
+
+TEST_P(RbacRoleTest, DontAutoselectBucket) {
+    auto& conn = getAdminConnection();
+    conn.createBucket("larry", "", Greenstack::BucketType::Memcached);
+    conn.authenticate("larry", "larrypassword", "PLAIN");
+
+    auto& c = dynamic_cast<MemcachedBinprotConnection&>(conn);
+    c.setDatatypeSupport(true);
+    c.setMutationSeqnoSupport(true);
+    c.setXerrorSupport(true);
+    c.setXattrSupport(true);
+
+    // If we try to run a get request it should return no bucket
+    BinprotSubdocCommand cmd;
+    cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
+    cmd.setKey("foo");
+    cmd.setPath("doc.meta");
+    c.sendCommand(cmd);
+
+    BinprotResponse resp;
+    c.recvResponse(resp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NO_BUCKET, resp.getStatus());
+
+    c.reconnect();
+    conn = getAdminConnection();
+    conn.deleteBucket("larry");
+}

@@ -284,5 +284,16 @@ void destroy() {
     db.reset();
 }
 
+bool mayAccessBucket(const std::string& user, const std::string& bucket) {
+    try {
+        cb::rbac::createContext(user, bucket);
+        return true;
+    } catch (const Exception&) {
+        // The user do not have access to the bucket
+    }
+
+    return false;
+}
+
 } // namespace rbac
 } // namespace cb
