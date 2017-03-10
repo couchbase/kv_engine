@@ -430,7 +430,7 @@ public:
      }
 
     size_t valuelen() const {
-        if (isDeleted() || !isResident()) {
+        if (!isResident()) {
             return 0;
         }
         return value->length();

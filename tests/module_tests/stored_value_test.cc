@@ -96,6 +96,23 @@ TYPED_TEST(ValueTest, valuelen) {
                "meta";
 }
 
+TYPED_TEST(ValueTest, valuelenDeletedWithValue) {
+    // Check valuelen reports correctly for a StoredValue just marked delete
+    // (with xattrs deleted items can have value)
+    this->sv->markDeleted();
+    EXPECT_EQ(/*value length*/ 5 + /*extmeta*/ 2, this->sv->valuelen())
+            << "valuelen() expected to be sum of raw value length + extended "
+               "meta as we want to keep deleted body";
+}
+
+TYPED_TEST(ValueTest, valuelenDeletedWithoutValue) {
+    // Check valuelen reports correctly for a StoredValue logically delete
+    this->sv->del(this->ht);
+    EXPECT_EQ(0, this->sv->valuelen())
+            << "valuelen() expected to be 0 as we do not want to keep deleted "
+               "body";
+}
+
 TYPED_TEST(ValueTest, size) {
     // Check size reports correctly.
     EXPECT_EQ(this->getFixedSize() + /*key*/ 3 + /*len*/ 1 +
