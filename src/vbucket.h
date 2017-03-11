@@ -383,13 +383,13 @@ public:
         }
         stats.memOverhead->fetch_sub(num_items * sizeof(queued_item));
     }
+
     bool isBackfillPhase() {
-        LockHolder lh(backfill.mutex);
-        return backfill.isBackfillPhase;
+        return backfill.isBackfillPhase.load();
     }
+
     void setBackfillPhase(bool backfillPhase) {
-        LockHolder lh(backfill.mutex);
-        backfill.isBackfillPhase = backfillPhase;
+        backfill.isBackfillPhase.store(backfillPhase);
     }
 
     /**
@@ -527,7 +527,7 @@ public:
     struct {
         std::mutex mutex;
         std::queue<queued_item> items;
-        bool isBackfillPhase;
+        std::atomic<bool> isBackfillPhase;
     } backfill;
 
     /**
