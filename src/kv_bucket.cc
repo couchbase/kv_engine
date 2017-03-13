@@ -471,19 +471,7 @@ bool KVBucket::initialize() {
     itmpTask = new ItemPager(&engine, stats);
     ExecutorPool::get()->schedule(itmpTask, NONIO_TASK_IDX);
 
-    {
-        LockHolder elh(expiryPager.mutex);
-        expiryPager.enabled = config.isExpPagerEnabled();
-    }
-
-    size_t expiryPagerSleeptime = config.getExpPagerStime();
-    setExpiryPagerSleeptime(expiryPagerSleeptime);
-    config.addValueChangedListener("exp_pager_stime",
-                                   new EPStoreValueChangeListener(*this));
-    config.addValueChangedListener("exp_pager_enabled",
-                                   new EPStoreValueChangeListener(*this));
-    config.addValueChangedListener("exp_pager_initial_run_time",
-                                   new EPStoreValueChangeListener(*this));
+    initializeExpiryPager(config);
 
     ExTask htrTask = make_STRCPtr<HashtableResizerTask>(this, 10);
     ExecutorPool::get()->schedule(htrTask, NONIO_TASK_IDX);
@@ -2669,4 +2657,20 @@ void KVBucket::notifyFlusher(const uint16_t vbid) {
 void KVBucket::notifyReplication(const uint16_t vbid, const int64_t bySeqno) {
     engine.getTapConnMap().notifyVBConnections(vbid);
     engine.getDcpConnMap().notifyVBConnections(vbid, bySeqno);
+}
+
+void KVBucket::initializeExpiryPager(Configuration& config) {
+    {
+        LockHolder elh(expiryPager.mutex);
+        expiryPager.enabled = config.isExpPagerEnabled();
+    }
+
+    setExpiryPagerSleeptime(config.getExpPagerStime());
+
+    config.addValueChangedListener("exp_pager_stime",
+                                   new EPStoreValueChangeListener(*this));
+    config.addValueChangedListener("exp_pager_enabled",
+                                   new EPStoreValueChangeListener(*this));
+    config.addValueChangedListener("exp_pager_initial_run_time",
+                                   new EPStoreValueChangeListener(*this));
 }

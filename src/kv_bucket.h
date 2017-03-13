@@ -791,6 +791,9 @@ protected:
     /* Notify replication of a new seqno being added in the vbucket */
     void notifyReplication(const uint16_t vbid, const int64_t bySeqno);
 
+    /// Helper method from initialize() to setup the expiry pager
+    void initializeExpiryPager(Configuration& config);
+
     friend class Warmup;
     friend class PersistenceCallback;
 
