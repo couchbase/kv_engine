@@ -1532,7 +1532,7 @@ TEST_P(McdTestappTest, Hello) {
         char bytes[1024];
     } buffer;
     const char *useragent = "hello world";
-    uint16_t features[4];
+    uint16_t features[5];
     uint16_t *ptr;
     size_t len;
 
@@ -1540,6 +1540,7 @@ TEST_P(McdTestappTest, Hello) {
     features[1] = htons(uint16_t(mcbp::Feature::TCPNODELAY));
     features[2] = htons(uint16_t(mcbp::Feature::MUTATION_SEQNO));
     features[3] = htons(uint16_t(mcbp::Feature::XATTR));
+    features[4] = htons(uint16_t(mcbp::Feature::SELECT_BUCKET));
 
     memset(buffer.bytes, 0, sizeof(buffer.bytes));
 
@@ -1554,7 +1555,7 @@ TEST_P(McdTestappTest, Hello) {
                                   PROTOCOL_BINARY_CMD_HELLO,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    EXPECT_EQ(8u, buffer.response.message.header.response.bodylen);
+    EXPECT_EQ(10u, buffer.response.message.header.response.bodylen);
     ptr = (uint16_t*)(buffer.bytes + sizeof(buffer.response));
     EXPECT_EQ(uint16_t(mcbp::Feature::DATATYPE), ntohs(*ptr));
     ptr++;
@@ -1563,6 +1564,8 @@ TEST_P(McdTestappTest, Hello) {
     EXPECT_EQ(uint16_t(mcbp::Feature::MUTATION_SEQNO), ntohs(*ptr));
     ptr++;
     EXPECT_EQ(uint16_t(mcbp::Feature::XATTR), ntohs(*ptr));
+    ptr++;
+    EXPECT_EQ(uint16_t(mcbp::Feature::SELECT_BUCKET), ntohs(*ptr));
 
     features[0] = 0xffff;
     len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),

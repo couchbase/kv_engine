@@ -98,6 +98,10 @@ void process_hello_packet_executor(McbpConnection* c, void* packet) {
                 added = true;
             }
             break;
+        case mcbp::Feature::SELECT_BUCKET:
+            // The select bucket is only informative ;-)
+            added = true;
+            break;
         }
 
         if (added) {
