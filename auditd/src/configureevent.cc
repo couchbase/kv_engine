@@ -25,7 +25,7 @@ bool ConfigureEvent::process(Audit& audit) {
         audit.notify_io_complete(cookie, ENGINE_SUCCESS);
         return true;
     } else {
-        Audit::log_error(AuditErrorCode::CONFIGURATION_ERROR, "");
+        Audit::log_error(AuditErrorCode::CONFIGURATION_ERROR);
         audit.notify_io_complete(cookie, ENGINE_FAILED);
         return false;
     }

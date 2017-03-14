@@ -55,7 +55,7 @@ bool Event::process(Audit& audit) {
         return true;
     }
     if (!audit.auditfile.ensure_open()) {
-        Audit::log_error(AuditErrorCode::OPEN_AUDITFILE_ERROR, NULL);
+        Audit::log_error(AuditErrorCode::OPEN_AUDITFILE_ERROR);
         cJSON_Delete(json_payload);
         return false;
     }
@@ -71,7 +71,7 @@ bool Event::process(Audit& audit) {
     if (success) {
         return true;
     } else {
-        Audit::log_error(AuditErrorCode::WRITE_EVENT_TO_DISK_ERROR, NULL);
+        Audit::log_error(AuditErrorCode::WRITE_EVENT_TO_DISK_ERROR);
         return false;
     }
 }

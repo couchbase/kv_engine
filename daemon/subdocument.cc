@@ -474,13 +474,25 @@ get_document_for_searching(McbpConnection& c, const item* item,
         return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
 
-    // Check CAS matches (if specified by the user)
-    if ((in_cas != 0) && in_cas != info.cas) {
+    if (info.cas == -1ull) {
+        // Check that item is not locked:
+        if (in_cas == 0 || in_cas == -1ull) {
+            if (c.remapErrorCode(ENGINE_LOCKED_TMPFAIL) == ENGINE_LOCKED_TMPFAIL) {
+                return PROTOCOL_BINARY_RESPONSE_LOCKED;
+            } else {
+                return PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+            }
+
+        }
+        // If the user *did* supply the CAS, we will validate it later on
+        // when the mutation is actually applied. In any event, we don't
+        // run the following branch on locked documents.
+    } else if ((in_cas != 0) && in_cas != info.cas) {
+        // Check CAS matches (if specified by the user).
         return PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
     }
 
-    // Set CAS - same irrespective of datatype.
-    cas = info.cas;
+    cas = in_cas ? in_cas : info.cas;
     flags = info.flags;
     document.buf = static_cast<char*>(info.value[0].iov_base);
     document.len = info.value[0].iov_len;
