@@ -1072,7 +1072,8 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
                                   "from %" PRIu64 " to %" PRIu64 ", reschedule "
                                   "flag : %s", vb_, backfillStart, backfillEnd,
                                   reschedule ? "True" : "False");
-        producer->scheduleBackfillManager(this, backfillStart, backfillEnd);
+        producer->scheduleBackfillManager(
+                *vbucket, this, backfillStart, backfillEnd);
         isBackfillTaskRunning.store(true);
     } else {
         if (reschedule) {

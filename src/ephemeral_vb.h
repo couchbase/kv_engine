@@ -18,6 +18,7 @@
 #pragma once
 
 #include "config.h"
+#include "dcp/backfill.h"
 #include "vbucket.h"
 
 /* Forward declarations */
@@ -96,6 +97,14 @@ public:
     void addStats(bool details, ADD_STAT add_stat, const void* c) override;
 
     KVShard* getShard() override {
+        return nullptr;
+    }
+
+    UniqueDCPBackfillPtr createDCPBackfill(EventuallyPersistentEngine* e,
+                                           const stream_t& stream,
+                                           uint64_t startSeqno,
+                                           uint64_t endSeqno) const override {
+        /* [EPHE TODO] : Create a memory backfill obj */
         return nullptr;
     }
 

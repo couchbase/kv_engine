@@ -112,7 +112,10 @@ public:
     void notifyBackfillManager();
     bool recordBackfillManagerBytesRead(uint32_t bytes);
     void recordBackfillManagerBytesSent(uint32_t bytes);
-    void scheduleBackfillManager(const stream_t& s, uint64_t start, uint64_t end);
+    void scheduleBackfillManager(const VBucket& vb,
+                                 const stream_t& s,
+                                 uint64_t start,
+                                 uint64_t end);
 
     bool isExtMetaDataEnabled () {
         return enableExtMetaData;

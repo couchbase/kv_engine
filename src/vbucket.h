@@ -22,6 +22,8 @@
 #include "bloomfilter.h"
 #include "checkpoint.h"
 #include "collections/vbucket_manifest.h"
+#include "dcp/dcp-types.h"
+//#include "dcp/backfill.h"
 #include "hash_table.h"
 #include "hlc.h"
 #include "item_pager.h"
@@ -35,6 +37,8 @@ class EPStats;
 class ConflictResolution;
 class Configuration;
 class PreLinkDocumentContext;
+class EventuallyPersistentEngine;
+class DCPBackfill;
 
 /**
  * The following will be used to identify
@@ -935,6 +939,23 @@ public:
      * @return indicates if the operation is succcessful
      */
     bool deleteKey(const DocKey& key);
+
+    /**
+     * Creates a DCP backfill object
+     *
+     * @param e ptr to EventuallyPersistentEngine
+     * @param stream ref to the stream for which this backfill obj is created
+     * @param startSeqno requested start sequence number of the backfill
+     * @param endSeqno requested start sequence number of the backfill
+     *
+     * @return pointer to the backfill object created. Caller to own this
+     *         object and hence must handle deletion.
+     */
+    virtual std::unique_ptr<DCPBackfill> createDCPBackfill(
+            EventuallyPersistentEngine* e,
+            const stream_t& stream,
+            uint64_t startSeqno,
+            uint64_t endSeqno) const = 0;
 
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;

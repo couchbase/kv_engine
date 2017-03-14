@@ -140,15 +140,17 @@ BackfillManager::~BackfillManager() {
     }
 }
 
-
-void BackfillManager::schedule(const stream_t& stream, uint64_t start, uint64_t end) {
+void BackfillManager::schedule(const VBucket& vb,
+                               const stream_t& stream,
+                               uint64_t start,
+                               uint64_t end) {
     LockHolder lh(lock);
+    UniqueDCPBackfillPtr backfill =
+            vb.createDCPBackfill(engine, stream, start, end);
     if (engine->getDcpConnMap().canAddBackfillToActiveQ()) {
-        activeBackfills.push_back(
-                std::make_unique<DCPBackfillDisk>(engine, stream, start, end));
+        activeBackfills.push_back(std::move(backfill));
     } else {
-        pendingBackfills.push_back(
-                std::make_unique<DCPBackfillDisk>(engine, stream, start, end));
+        pendingBackfills.push_back(std::move(backfill));
     }
 
     if (managerTask && !managerTask->isdead()) {
