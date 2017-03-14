@@ -510,7 +510,7 @@ static enum test_result test_getl_delete_with_bad_cas(ENGINE_HANDLE *h,
             "Expected getl to succeed on key");
     h1->release(h, nullptr, locked);
 
-    checkeq(ENGINE_TMPFAIL, del(h, h1, "key", cas, 0), "Expected TMPFAIL");
+    checkeq(ENGINE_LOCKED_TMPFAIL, del(h, h1, "key", cas, 0), "Expected TMPFAIL");
 
     return SUCCESS;
 }
@@ -543,12 +543,12 @@ static enum test_result test_getl_set_del_with_meta(ENGINE_HANDLE *h,
     //do a set with meta
     set_with_meta(h, h1, key, strlen(key), newval, strlen(newval), 0,
                   &itm_meta, last_cas);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+    checkeq(PROTOCOL_BINARY_RESPONSE_LOCKED, last_status.load(),
           "Expected item to be locked");
 
     //do a del with meta
     del_with_meta(h, h1, key, strlen(key), 0, &itm_meta, last_cas);
-    checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
+    checkeq(PROTOCOL_BINARY_RESPONSE_LOCKED, last_status.load(),
           "Expected item to be locked");
     return SUCCESS;
 }
@@ -630,7 +630,7 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas = 0;
     i = NULL;
 
-    checkeq(ENGINE_TMPFAIL, del(h, h1, key, 0, 0), "Delete failed");
+    checkeq(ENGINE_LOCKED_TMPFAIL, del(h, h1, key, 0, 0), "Delete failed");
 
 
     /* bug MB 2699 append after getl should fail with ENGINE_TMPFAIL */

@@ -718,8 +718,10 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
         ret = ENGINE_ENOMEM;
         break;
     case MutationStatus::InvalidCas:
-    case MutationStatus::IsLocked:
         ret = ENGINE_KEY_EEXISTS;
+        break;
+    case MutationStatus::IsLocked:
+        ret = ENGINE_LOCKED;
         break;
     case MutationStatus::NotFound:
         if (cas_op) {
@@ -795,7 +797,7 @@ ENGINE_ERROR_CODE VBucket::replace(Item& itm,
             ret = ENGINE_ENOMEM;
             break;
         case MutationStatus::IsLocked:
-            ret = ENGINE_KEY_EEXISTS;
+            ret = ENGINE_LOCKED;
             break;
         case MutationStatus::InvalidCas:
         case MutationStatus::NotFound:
@@ -977,8 +979,10 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
         ret = ENGINE_ENOMEM;
         break;
     case MutationStatus::InvalidCas:
-    case MutationStatus::IsLocked:
         ret = ENGINE_KEY_EEXISTS;
+        break;
+    case MutationStatus::IsLocked:
+        ret = ENGINE_LOCKED;
         break;
     case MutationStatus::WasDirty:
     case MutationStatus::WasClean: {
@@ -1116,7 +1120,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
         ret = ENGINE_KEY_EEXISTS;
         break;
     case MutationStatus::IsLocked:
-        ret = ENGINE_TMPFAIL;
+        ret = ENGINE_LOCKED_TMPFAIL;
         break;
     case MutationStatus::NotFound:
         ret = ENGINE_KEY_ENOENT;
@@ -1264,7 +1268,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
     case MutationStatus::InvalidCas:
         return ENGINE_KEY_EEXISTS;
     case MutationStatus::IsLocked:
-        return ENGINE_TMPFAIL;
+        return ENGINE_LOCKED_TMPFAIL;
     case MutationStatus::NotFound:
         return ENGINE_KEY_ENOENT;
     case MutationStatus::WasDirty:
