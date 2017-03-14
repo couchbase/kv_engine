@@ -51,6 +51,17 @@
                 }
             }
         },
+        "alog_max_stored_items": {
+            "default": "1024",
+            "desr": "The maximum number of items the Access Scanner will hold in memory before commiting them to disk",
+            "type": "size_t",
+            "dynamic": false,
+            "validator": {
+                "range": {
+                    "min": 1
+                }
+            }
+        },
         "backend": {
             "default": "couchdb",
             "dynamic": false,

@@ -26,14 +26,17 @@
 #include "ep_engine.h"
 #include "mutation_log.h"
 
+#include <numeric>
+
 class ItemAccessVisitor : public VBucketVisitor,
-                          public HashTableVisitor {
+                          public PauseResumeHashTableVisitor {
 public:
     ItemAccessVisitor(KVBucket& _store,
                       EPStats& _stats,
                       uint16_t sh,
                       std::atomic<bool>& sfin,
-                      AccessScanner& aS)
+                      AccessScanner& aS,
+                      uint64_t items_to_scan)
         : VBucketVisitor(VBucketFilter(
                   _store.getVBuckets().getShard(sh)->getVBuckets())),
           store(_store),
@@ -42,7 +45,8 @@ public:
           taskStart(gethrtime()),
           shardID(sh),
           stateFinalizer(sfin),
-          as(aS) {
+          as(aS),
+          items_to_scan(items_to_scan) {
         Configuration &conf = store.getEPEngine().getConfiguration();
         name = conf.getAlogPath();
         std::stringstream s;
@@ -63,16 +67,19 @@ public:
         }
     }
 
-    void visit(StoredValue *v) override {
-        if (log && v->isResident()) {
-            if (v->isExpired(startTime) || v->isDeleted()) {
+    bool visit(StoredValue& v) override {
+        if (log && v.isResident()) {
+            if (v.isExpired(startTime) || v.isDeleted()) {
                 LOG(EXTENSION_LOG_INFO,
-                "INFO: Skipping expired/deleted item: %" PRIu64, v->getBySeqno());
+                    "INFO: Skipping expired/deleted item: %" PRIu64,
+                    v.getBySeqno());
             } else {
-                accessed.push_back(std::make_pair(v->getBySeqno(),
-                                                  StoredDocKey(v->getKey())));
+                accessed.push_back(std::make_pair(v.getBySeqno(),
+                                                  StoredDocKey(v.getKey())));
+                return ++items_scanned < items_to_scan;
             }
         }
+        return true;
     }
 
     void update() {
@@ -91,14 +98,19 @@ public:
         if (log == nullptr) {
             return;
         }
-
+        HashTable::Position ht_start;
         if (vBucketFilter(vb->getId())) {
-            vb->ht.visit(*this);
+            while (ht_start != vb->ht.endPosition()) {
+                ht_start = vb->ht.pauseResumeVisit(*this, ht_start);
+                update();
+                log->commit1();
+                log->commit2();
+                items_scanned = 0;
+            }
         }
     }
 
     void complete() override {
-        update();
 
         if (log == nullptr) {
             updateStateFinalizer(false);
@@ -174,6 +186,8 @@ private:
         }
     }
 
+    VBucketFilter vBucketFilter;
+
     KVBucket& store;
     EPStats& stats;
     rel_time_t startTime;
@@ -188,23 +202,33 @@ private:
     std::unique_ptr<MutationLog> log;
     std::atomic<bool> &stateFinalizer;
     AccessScanner &as;
+
+    // The number items scanned since last pause
+    uint64_t items_scanned;
+    // The number of items to scan before we pause
+    const uint64_t items_to_scan;
+
     RCPtr<VBucket> currentBucket;
 };
 
-AccessScanner::AccessScanner(KVBucket&_store, EPStats &st,
-                             double sleeptime, bool useStartTime,
+AccessScanner::AccessScanner(KVBucket& _store,
+                             EPStats& st,
+                             double sleeptime,
+                             bool useStartTime,
                              bool completeBeforeShutdown)
-    : GlobalTask(&_store.getEPEngine(), TaskId::AccessScanner, sleeptime,
+    : GlobalTask(&_store.getEPEngine(),
+                 TaskId::AccessScanner,
+                 sleeptime,
                  completeBeforeShutdown),
       completedCount(0),
       store(_store),
       stats(st),
       sleepTime(sleeptime),
       available(true) {
-
     Configuration &conf = store.getEPEngine().getConfiguration();
     residentRatioThreshold = conf.getAlogResidentRatioThreshold();
     alogPath = conf.getAlogPath();
+    maxStoredItems = conf.getAlogMaxStoredItems();
     double initialSleep = sleeptime;
     if (useStartTime) {
         size_t startTime = conf.getAlogTaskTime();
@@ -285,7 +309,7 @@ bool AccessScanner::run() {
                 stats.accessScannerSkips++;
             } else {
                 auto pv = std::make_unique<ItemAccessVisitor>(
-                        store, stats, i, available, *this);
+                        store, stats, i, available, *this, maxStoredItems);
                 ExTask task = new VBCBAdaptor(&store,
                                               TaskId::AccessScannerVisitor,
                                               std::move(pv),

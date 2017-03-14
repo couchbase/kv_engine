@@ -86,6 +86,7 @@ protected:
     void SetUp(const benchmark::State& state) override {
         // If the access scanner is running then it will always scan
         varConfig = "alog_resident_ratio_threshold=100;";
+        varConfig += "alog_max_stored_items=2048";
         EngineFixture::SetUp(state);
     }
 };
