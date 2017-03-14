@@ -91,10 +91,24 @@ public:
         }
 
         /**
-         * @returns the current separator
+         * @returns a copy of the current separator
          */
         std::string getSeparator() const {
             return manifest.getSeparator();
+        }
+
+        /**
+         * @returns true/false if $default exists
+         */
+        bool doesDefaultCollectionExist() const {
+            return manifest.doesDefaultCollectionExist();
+        }
+
+        /**
+         * @returns true/false if the collection exists
+         */
+        bool doesCollectionExist(cb::const_char_buffer collection) const {
+            return manifest.doesCollectionExist(collection);
         }
 
     private:
@@ -397,6 +411,21 @@ private:
      */
     std::string getSeparator() const {
         return separator;
+    }
+
+
+    /**
+     * @returns true/false if $default exists
+     */
+    bool doesDefaultCollectionExist() const {
+        return defaultCollectionExists;
+    }
+
+    /**
+     * @returns true/false if the collection exists
+     */
+    bool doesCollectionExist(cb::const_char_buffer collection) const {
+        return map.count(collection) != 0;
     }
 
 protected:

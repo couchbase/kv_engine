@@ -26,11 +26,13 @@
 
 namespace Collections {
 
-Manifest::Manifest() : revision(0), separator(DefaultSeparator) {
+Manifest::Manifest()
+    : revision(0), defaultCollectionExists(true), separator(DefaultSeparator) {
     collections.push_back(DefaultCollectionIdentifier.data());
 }
 
-Manifest::Manifest(const std::string& json) {
+Manifest::Manifest(const std::string& json)
+    : revision(-1), defaultCollectionExists(false) {
     if (!checkUTF8JSON(reinterpret_cast<const unsigned char*>(json.data()),
                        json.size())) {
         throw std::invalid_argument("Manifest::Manifest input not valid json");
@@ -85,6 +87,11 @@ Manifest::Manifest(const std::string& json) {
                         (!collection ? " nullptr"
                                      : std::to_string(collection->type)));
             } else if (validCollection(collection->valuestring)) {
+                if (std::strncmp(collection->valuestring,
+                                 DefaultCollectionIdentifier.data(),
+                                 DefaultCollectionIdentifier.size()) == 0) {
+                    defaultCollectionExists = true;
+                }
                 collections.push_back(collection->valuestring);
             } else {
                 throw std::invalid_argument(

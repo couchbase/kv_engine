@@ -52,6 +52,10 @@ public:
         return separator;
     }
 
+    bool doesDefaultCollectionExist() const {
+        return defaultCollectionExists;
+    }
+
     std::vector<std::string>::const_iterator begin() const {
         return collections.begin();
     }
@@ -86,6 +90,7 @@ private:
     static bool validCollection(const char* collection);
 
     int revision;
+    bool defaultCollectionExists;
     std::string separator;
     std::vector<std::string> collections;
 };
