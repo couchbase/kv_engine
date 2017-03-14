@@ -509,7 +509,7 @@ public:
     /**
      * Return true if this is a new cache item.
      */
-    bool isNewCacheItem(void) {
+    bool isNewCacheItem() const {
         return newCacheItem;
     }
 
@@ -735,7 +735,11 @@ protected:
     static void increaseCacheSize(HashTable &ht, size_t by);
     static void reduceCacheSize(HashTable &ht, size_t by);
     static double mutation_mem_threshold;
+
+    friend std::ostream& operator<<(std::ostream& os, const StoredValue& sv);
 };
+
+std::ostream& operator<<(std::ostream& os, const StoredValue& sv);
 
 /**
  * Subclass of StoredValue which additionally supports sequence number ordering.

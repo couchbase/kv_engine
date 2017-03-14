@@ -193,6 +193,44 @@ bool StoredValue::operator==(const StoredValue& other) const {
             nru == other.nru && getKey() == other.getKey());
 }
 
+std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
+
+    // type, address
+    os << (sv.isOrdered ? "OSV @" : " SV @") << &sv << " ";
+
+    // datatype: XCJ
+    os << (mcbp::datatype::is_xattr(sv.getDatatype()) ? 'X' : '.');
+    os << (mcbp::datatype::is_compressed(sv.getDatatype()) ? 'C' : '.');
+    os << (mcbp::datatype::is_json(sv.getDatatype()) ? 'J' : '.');
+    os << ' ';
+
+    // dirty (Written), deleted, new
+    os << (sv.isDirty() ? 'W' : '.');
+    os << (sv.isDeleted() ? 'D' : '.');
+    os << (sv.isNewCacheItem() ? 'N' : '.');
+    os << ' ';
+
+    // seqno, revid
+    os << "seq:" << sv.getBySeqno() << " rev:" << sv.getRevSeqno();
+    os << " key:\"" << sv.getKey();
+    os << "\" val:[";
+    if (sv.getValue().get()) {
+        const char* data = sv.getValue()->getData();
+        // print up to first 40 bytes of value.
+        const size_t limit = std::min(size_t(40), sv.getValue()->vlength());
+        for (size_t ii = 0; ii < limit; ii++) {
+            os << data[ii];
+        }
+        if (limit < sv.getValue()->vlength()) {
+            os << " <cut>";
+        }
+    } else {
+        os << "<null>";
+    }
+    os << "]";
+    return os;
+}
+
 bool OrderedStoredValue::operator==(const OrderedStoredValue& other) const {
     return StoredValue::operator==(other);
 }

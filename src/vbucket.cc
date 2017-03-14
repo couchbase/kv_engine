@@ -381,7 +381,7 @@ void VBucket::handlePreExpiry(StoredValue& v) {
     }
 }
 
-size_t VBucket::getNumNonResidentItems(item_eviction_policy_t policy) {
+size_t VBucket::getNumNonResidentItems(item_eviction_policy_t policy) const {
     if (policy == VALUE_ONLY) {
         return ht.getNumInMemoryNonResItems();
     } else {
@@ -1823,6 +1823,13 @@ void VBucket::postProcessRollback(const RollbackResult& rollbackResult,
                          rollbackResult.snapEndSeqno);
     incrRollbackItemCount(prevHighSeqno - rollbackResult.highSeqno);
     setBackfillPhase(false);
+}
+
+void VBucket::dump() const {
+    std::cerr << "VBucket[" << this << "] with state: " << toString(getState())
+              << " numItems:" << getNumItems()
+              << " numNonResident:" << getNumNonResidentItems(eviction)
+              << std::endl;
 }
 
 void VBucket::_addStats(bool details, ADD_STAT add_stat, const void* c) {

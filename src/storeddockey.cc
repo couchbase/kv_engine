@@ -21,3 +21,11 @@
 std::ostream& operator<<(std::ostream& os, const StoredDocKey& key) {
     return os << "ns:" << int(key.getDocNamespace()) << " " << key.c_str();
 }
+
+std::ostream& operator<<(std::ostream& os, const SerialisedDocKey& key) {
+    os << "ns:" << int(key.getDocNamespace()) << " ";
+    for (size_t ii = 0; ii < key.size(); ++ii) {
+        os << static_cast<char>(key.data()[ii]);
+    }
+    return os;
+}

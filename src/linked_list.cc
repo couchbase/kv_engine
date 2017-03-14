@@ -197,3 +197,19 @@ uint64_t BasicLinkedList::getNumItems() const {
     std::lock_guard<std::mutex> lckGd(writeLock);
     return seqList.size();
 }
+
+void BasicLinkedList::dump() const {
+    std::cerr << *this << std::endl;
+}
+
+std::ostream& operator <<(std::ostream& os, const BasicLinkedList& ll) {
+    os << "BasicLinkedList[" << &ll << "] with numItems:"
+       << ll.getNumItems() << " deletedItems:" << ll.getNumDeletedItems()
+       << " staleItems:" << ll.getNumStaleItems() << " elements:["
+       << std::endl;
+    for (const auto& val : ll.seqList) {
+        os << "    " << val << std::endl;
+    }
+    os << "]" << std::endl;
+    return os;
+}

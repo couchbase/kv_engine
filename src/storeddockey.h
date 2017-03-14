@@ -271,5 +271,7 @@ protected:
     uint8_t bytes[1];
 };
 
+std::ostream& operator<<(std::ostream& os, const SerialisedDocKey& key);
+
 static_assert(std::is_standard_layout<SerialisedDocKey>::value,
               "SeralisedDocKey: must satisfy is_standard_layout");

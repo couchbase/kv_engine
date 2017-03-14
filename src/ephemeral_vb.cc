@@ -76,6 +76,14 @@ void EphemeralVBucket::addStats(bool details,
     _addStats(details, add_stat, c);
 }
 
+void EphemeralVBucket::dump() const {
+    std::cerr << "EphemeralVBucket[" << this
+              << "] with state: " << toString(getState())
+              << " numItems:" << getNumItems()
+              << std::endl;
+    seqList->dump();
+}
+
 ENGINE_ERROR_CODE EphemeralVBucket::completeBGFetchForSingleItem(
         const DocKey& key,
         const VBucketBGFetchItem& fetched_item,

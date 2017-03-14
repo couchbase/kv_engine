@@ -163,4 +163,9 @@ public:
      * @return count of items
      */
     virtual uint64_t getNumItems() const = 0;
+
+    /**
+     * Debug - prints a representation of the list to stderr.
+     */
+    virtual void dump() const = 0;
 };

@@ -118,6 +118,8 @@ public:
     std::pair<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>> inMemoryBackfill(
             uint64_t start, uint64_t end);
 
+    void dump() const override;
+
 private:
     std::tuple<StoredValue*, MutationStatus, VBNotifyCtx> updateStoredValue(
             const HashTable::HashBucketLock& hbl,

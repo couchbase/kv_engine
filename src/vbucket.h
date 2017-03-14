@@ -465,7 +465,7 @@ public:
 
     virtual size_t getNumItems() const = 0;
 
-    size_t getNumNonResidentItems(item_eviction_policy_t policy);
+    size_t getNumNonResidentItems(item_eviction_policy_t policy) const;
 
     size_t getNumTempItems(void) {
         return ht.getNumTempItems();
@@ -976,6 +976,11 @@ public:
      */
     void postProcessRollback(const RollbackResult& rollbackResult,
                              uint64_t prevHighSeqno);
+
+    /**
+     * Debug - print a textual description of the VBucket to stderr.
+     */
+    virtual void dump() const;
 
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;

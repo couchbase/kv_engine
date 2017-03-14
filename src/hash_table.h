@@ -208,7 +208,7 @@ public:
     /**
      * Get the number of in-memory non-resident items within this hash table.
      */
-    size_t getNumInMemoryNonResItems(void) { return numNonResidentItems; }
+    size_t getNumInMemoryNonResItems() const { return numNonResidentItems; }
 
     /**
      * Get the number of non-resident and resident items managed by

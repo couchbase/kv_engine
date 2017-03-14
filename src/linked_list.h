@@ -147,6 +147,8 @@ public:
 
     uint64_t getNumItems() const override;
 
+    void dump() const override;
+
 protected:
     /* Underlying data structure that holds the items in an Ordered Sequence */
     OrderedLL seqList;
@@ -228,4 +230,10 @@ private:
 
     /* Ep engine stats handle to track stats */
     EPStats& st;
+
+    friend std::ostream& operator<<(std::ostream& os,
+                                    const BasicLinkedList& ll);
 };
+
+/// Outputs a textual description of the BasicLinkedList
+std::ostream& operator <<(std::ostream& os, const BasicLinkedList& ll);
