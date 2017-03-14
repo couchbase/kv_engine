@@ -51,6 +51,14 @@ ProcessClock::time_point SingleThreadedEPStoreTest::runNextTask(TaskQueue& taskQ
 
 void SingleThreadedEPStoreTest::SetUp() {
     SingleThreadedExecutorPool::replaceExecutorPoolWithFake();
+
+    // Disable warmup - we don't want to have to run/wait for the Warmup tasks
+    // to complete (and there's nothing to warmup from anyways).
+    if (!config_string.empty()) {
+        config_string += ";";
+    }
+    config_string += "warmup=false";
+
     EPBucketTest::SetUp();
 
     task_executor = reinterpret_cast<SingleThreadedExecutorPool*>
@@ -70,8 +78,10 @@ void SingleThreadedEPStoreTest::setVBucketStateAndRunPersistTask(uint16_t vbid,
     EXPECT_EQ(ENGINE_SUCCESS,
               store->setVBucketState(vbid, newState, /*transfer*/false));
 
-    // Trigger the flusher to flush state to disk.
-    EXPECT_EQ(0, store->flushVBucket(vbid));
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        // Trigger the flusher to flush state to disk.
+        EXPECT_EQ(0, store->flushVBucket(vbid));
+    }
 }
 
 void SingleThreadedEPStoreTest::shutdownAndPurgeTasks() {

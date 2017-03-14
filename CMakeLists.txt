@@ -244,6 +244,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
                tests/module_tests/failover_table_test.cc
                tests/module_tests/futurequeue_test.cc
                tests/module_tests/hash_table_test.cc
+               tests/module_tests/item_pager_test.cc
                tests/module_tests/kvstore_test.cc
                tests/module_tests/memory_tracker_test.cc
                tests/module_tests/mock_hooks_api.cc

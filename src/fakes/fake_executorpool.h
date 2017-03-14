@@ -141,6 +141,7 @@ public:
         // Configure a checker to run, some tasks are subtly different
         if (getTaskName().compare("Snapshotting vbucket states") == 0 ||
             getTaskName().compare("Removing closed unreferenced checkpoints from memory") == 0 ||
+            getTaskName().compare("Paging out items.") == 0 ||
             getTaskName().compare("Paging expired items.") == 0 ||
             getTaskName().compare("Adjusting hash table sizes.") == 0 ||
             getTaskName().compare("Generating access log") == 0) {

@@ -157,6 +157,15 @@ GetValue KVBucketTest::getInternal(const StoredDocKey& key,
     return store->getInternal(key, vbucket, cookie, allowedState, options);
 }
 
+void KVBucketTest::createAndScheduleItemPager() {
+    store->itmpTask = new ItemPager(engine.get(), engine->getEpStats());
+    ExecutorPool::get()->schedule(store->itmpTask, NONIO_TASK_IDX);
+}
+
+void KVBucketTest::initializeExpiryPager() {
+    store->initializeExpiryPager(engine->getConfiguration());
+}
+
 // Verify that when handling a bucket delete with open DCP
 // connections, we don't deadlock when notifying the front-end
 // connection.

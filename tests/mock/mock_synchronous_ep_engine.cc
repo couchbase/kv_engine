@@ -57,6 +57,8 @@ SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
     replicationThrottle = new ReplicationThrottle(configuration, stats);
 
     tapConfig = new TapConfig(*this);
+
+    enableTraffic(true);
 }
 
 void SynchronousEPEngine::setKVBucket(std::unique_ptr<KVBucket> store) {
