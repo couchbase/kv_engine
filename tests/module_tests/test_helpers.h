@@ -24,6 +24,7 @@
 #include "config.h"
 
 #include "item.h"
+#include "programs/engine_testapp/mock_server.h"
 
 /// Creates an item with the given vbucket id, key and value.
 Item make_item(
@@ -43,3 +44,27 @@ inline StoredDocKey makeStoredDocKey(
         DocNamespace ns = DocNamespace::DefaultCollection) {
     return StoredDocKey(string, ns);
 }
+
+/**
+ * Class which moves time forward when created by the given amount, and upon
+ * destruction returns time to where it was.
+ *
+ * Allows tests to manipulate server time, but need to ensure any adjustments
+ * are restored so as to not affect other later tests.
+ */
+class TimeTraveller {
+public:
+    TimeTraveller(int by)
+        : by(by) {
+        mock_time_travel(by);
+    }
+
+    ~TimeTraveller() {
+        // restore original timeline.
+        mock_time_travel(-by);
+    }
+
+private:
+    // Amount of time travel.
+    int by;
+};

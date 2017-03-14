@@ -208,7 +208,7 @@ TEST_P(VBucketTest, AddExpiry) {
     EXPECT_FALSE(v->isExpired(ep_real_time()));
     EXPECT_TRUE(v->isExpired(ep_real_time() + 6));
 
-    mock_time_travel(6);
+    TimeTraveller biffTannen(6);
     EXPECT_TRUE(v->isExpired(ep_real_time()));
 
     addOne(*this->vbucket, k, AddStatus::UnDel, ep_real_time() + 5);

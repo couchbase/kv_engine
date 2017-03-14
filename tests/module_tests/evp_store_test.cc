@@ -41,8 +41,6 @@
 #include "tests/module_tests/test_helpers.h"
 #include "vbucketmemorydeletiontask.h"
 
-#include "programs/engine_testapp/mock_server.h"
-
 #include <chrono>
 #include <platform/dirutils.h>
 #include <thread>
@@ -693,7 +691,7 @@ TEST_P(EPStoreEvictionTest, mb22824) {
 
     // Store key and force expiry
     store_item(0, key, "value", 1);
-    mock_time_travel(20);
+    TimeTraveller docBrown(20);
 
     uint32_t deleted = false;
     ItemMetaData itemMeta1;

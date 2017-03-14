@@ -27,11 +27,11 @@
 #include "dcp/producer.h"
 #include "dcp/stream.h"
 #include "evp_engine_test.h"
-#include "programs/engine_testapp/mock_server.h"
 #include "../mock/mock_dcp.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_stream.h"
+#include "test_helpers.h"
 
 #include <gtest/gtest.h>
 
@@ -359,7 +359,7 @@ TEST_F(ConnectionTest, test_maybesendnoop_noop_already_pending) {
     std::unique_ptr<dcp_message_producers> producers(
             get_dcp_producers(handle, engine_v1));
     const auto send_time = ep_current_time();
-    mock_time_travel(engine->getConfiguration().getDcpIdleTimeout() + 1);
+    TimeTraveller marty(engine->getConfiguration().getDcpIdleTimeout() + 1);
     producer.setNoopEnabled(true);
     producer.setNoopSendTime(send_time);
     ENGINE_ERROR_CODE ret = producer.maybeSendNoop(producers.get());
