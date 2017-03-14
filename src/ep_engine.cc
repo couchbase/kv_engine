@@ -2962,11 +2962,9 @@ void EventuallyPersistentEngine::queueBackfill(const VBucketFilter
 
 void VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
     ++numVbucket;
-    item_eviction_policy_t policy = engine.getKVBucket()->
-                                                       getItemEvictionPolicy();
     numItems += vb->getNumItems();
     numTempItems += vb->getNumTempItems();
-    nonResident += vb->getNumNonResidentItems(policy);
+    nonResident += vb->getNumNonResidentItems();
 
     if (vb->getHighPriorityChkSize() > 0) {
         chkPersistRemaining++;
@@ -3025,16 +3023,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                                                            ADD_STAT add_stat) {
     VBucketCountAggregator aggregator;
 
-    VBucketCountVisitor activeCountVisitor(*this, vbucket_state_active);
+    VBucketCountVisitor activeCountVisitor(vbucket_state_active);
     aggregator.addVisitor(&activeCountVisitor);
 
-    VBucketCountVisitor replicaCountVisitor(*this, vbucket_state_replica);
+    VBucketCountVisitor replicaCountVisitor(vbucket_state_replica);
     aggregator.addVisitor(&replicaCountVisitor);
 
-    VBucketCountVisitor pendingCountVisitor(*this, vbucket_state_pending);
+    VBucketCountVisitor pendingCountVisitor(vbucket_state_pending);
     aggregator.addVisitor(&pendingCountVisitor);
 
-    VBucketCountVisitor deadCountVisitor(*this, vbucket_state_dead);
+    VBucketCountVisitor deadCountVisitor(vbucket_state_dead);
     aggregator.addVisitor(&deadCountVisitor);
 
     kvBucket->visit(aggregator);

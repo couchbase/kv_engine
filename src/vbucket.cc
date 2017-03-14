@@ -381,8 +381,8 @@ void VBucket::handlePreExpiry(StoredValue& v) {
     }
 }
 
-size_t VBucket::getNumNonResidentItems(item_eviction_policy_t policy) const {
-    if (policy == VALUE_ONLY) {
+size_t VBucket::getNumNonResidentItems() const {
+    if (eviction == VALUE_ONLY) {
         return ht.getNumInMemoryNonResItems();
     } else {
         size_t num_items = ht.getNumItems();
@@ -413,15 +413,14 @@ void VBucket::markDirty(const DocKey& key) {
     }
 }
 
-bool VBucket::isResidentRatioUnderThreshold(float threshold,
-                                            item_eviction_policy_t policy) {
-    if (policy != FULL_EVICTION) {
+bool VBucket::isResidentRatioUnderThreshold(float threshold) {
+    if (eviction != FULL_EVICTION) {
         throw std::invalid_argument("VBucket::isResidentRatioUnderThreshold: "
-                "policy (which is " + std::to_string(policy) +
+                "policy (which is " + std::to_string(eviction) +
                 ") must be FULL_EVICTION");
     }
     size_t num_items = getNumItems();
-    size_t num_non_resident_items = getNumNonResidentItems(policy);
+    size_t num_non_resident_items = getNumNonResidentItems();
     if (threshold >= ((float)(num_items - num_non_resident_items) /
                                                                 num_items)) {
         return true;
@@ -1828,8 +1827,7 @@ void VBucket::postProcessRollback(const RollbackResult& rollbackResult,
 void VBucket::dump() const {
     std::cerr << "VBucket[" << this << "] with state: " << toString(getState())
               << " numItems:" << getNumItems()
-              << " numNonResident:" << getNumNonResidentItems(eviction)
-              << std::endl;
+              << " numNonResident:" << getNumNonResidentItems() << std::endl;
 }
 
 void VBucket::_addStats(bool details, ADD_STAT add_stat, const void* c) {
@@ -1839,10 +1837,7 @@ void VBucket::_addStats(bool details, ADD_STAT add_stat, const void* c) {
         size_t tempItems = getNumTempItems();
         addStat("num_items", numItems, add_stat, c);
         addStat("num_temp_items", tempItems, add_stat, c);
-        addStat("num_non_resident",
-                getNumNonResidentItems(eviction),
-                add_stat,
-                c);
+        addStat("num_non_resident", getNumNonResidentItems(), add_stat, c);
         addStat("ht_memory", ht.memorySize(), add_stat, c);
         addStat("ht_item_memory", ht.getItemMemory(), add_stat, c);
         addStat("ht_cache_size", ht.cacheSize.load(), add_stat, c);

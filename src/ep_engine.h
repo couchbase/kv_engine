@@ -93,9 +93,7 @@ private:
  */
 class VBucketCountVisitor : public VBucketVisitor {
 public:
-    VBucketCountVisitor(EventuallyPersistentEngine &e,
-                        vbucket_state_t state) :
-        engine(e),
+    VBucketCountVisitor(vbucket_state_t state) :
         desired_state(state), numItems(0),
         numTempItems(0),nonResident(0),
         numVbucket(0), htMemory(0),
@@ -160,7 +158,6 @@ public:
     HLC::DriftExceptions getTotalHLCDriftExceptionCounters() {return totalHLCDriftExceptionCounters;}
 
 private:
-    EventuallyPersistentEngine &engine;
     vbucket_state_t desired_state;
 
     size_t numItems;
@@ -779,7 +776,7 @@ protected:
             (stats.getMaxDataSize() > stats.memOverhead->load());
         if (haveEvidenceWeCanFreeMemory) {
             // Look for more evidence by seeing if we have resident items.
-            VBucketCountVisitor countVisitor(*this, vbucket_state_active);
+            VBucketCountVisitor countVisitor(vbucket_state_active);
             kvBucket->visit(countVisitor);
 
             haveEvidenceWeCanFreeMemory = countVisitor.getNonResident() <

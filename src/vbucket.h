@@ -456,8 +456,7 @@ public:
     }
 
     // Applicable only for FULL EVICTION POLICY
-    bool isResidentRatioUnderThreshold(float threshold,
-                                       item_eviction_policy_t policy);
+    bool isResidentRatioUnderThreshold(float threshold);
 
     virtual void addStats(bool details, ADD_STAT add_stat, const void* c) = 0;
 
@@ -465,7 +464,7 @@ public:
 
     virtual size_t getNumItems() const = 0;
 
-    size_t getNumNonResidentItems(item_eviction_policy_t policy) const;
+    size_t getNumNonResidentItems() const;
 
     size_t getNumTempItems(void) {
         return ht.getNumTempItems();

@@ -276,11 +276,9 @@ bool AccessScanner::run() {
         bool deleteAccessLogFiles = false;
         /* Get the resident ratio */
         VBucketCountAggregator aggregator;
-        VBucketCountVisitor activeCountVisitor(store.getEPEngine(),
-                                               vbucket_state_active);
+        VBucketCountVisitor activeCountVisitor(vbucket_state_active);
         aggregator.addVisitor(&activeCountVisitor);
-        VBucketCountVisitor replicaCountVisitor(store.getEPEngine(),
-                                                vbucket_state_replica);
+        VBucketCountVisitor replicaCountVisitor(vbucket_state_replica);
         aggregator.addVisitor(&replicaCountVisitor);
 
         store.visit(aggregator);

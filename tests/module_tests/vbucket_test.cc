@@ -374,7 +374,7 @@ class VBucketEvictionTest : public VBucketTest {};
 TEST_P(VBucketEvictionTest, EjectionResidentCount) {
     const auto eviction_policy = GetParam();
     ASSERT_EQ(0, this->vbucket->getNumItems());
-    ASSERT_EQ(0, this->vbucket->getNumNonResidentItems(eviction_policy));
+    ASSERT_EQ(0, this->vbucket->getNumNonResidentItems());
 
     Item item(makeStoredDocKey("key"), /*flags*/0, /*exp*/0,
               /*data*/nullptr, /*ndata*/0);
@@ -383,7 +383,7 @@ TEST_P(VBucketEvictionTest, EjectionResidentCount) {
               this->vbucket->public_processSet(item, item.getCas()));
 
     EXPECT_EQ(1, this->vbucket->getNumItems());
-    EXPECT_EQ(0, this->vbucket->getNumNonResidentItems(eviction_policy));
+    EXPECT_EQ(0, this->vbucket->getNumNonResidentItems());
 
     // TODO-MT: Should acquire lock really (ok given this is currently
     // single-threaded).
@@ -398,7 +398,7 @@ TEST_P(VBucketEvictionTest, EjectionResidentCount) {
     // After ejection, should still have 1 item in VBucket, but also have
     // 1 non-resident item.
     EXPECT_EQ(1, this->vbucket->getNumItems());
-    EXPECT_EQ(1, this->vbucket->getNumNonResidentItems(eviction_policy));
+    EXPECT_EQ(1, this->vbucket->getNumNonResidentItems());
 }
 
 // Regression test for MB-21448 - if an attempt is made to perform a CAS

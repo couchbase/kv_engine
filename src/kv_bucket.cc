@@ -214,9 +214,9 @@ public:
                  * the residency threshold, consider all items, otherwise
                  * consider deleted and non-resident items only.
                  */
-                 bool residentRatioLessThanThreshold = vb->isResidentRatioUnderThreshold(
-                                                           store.getBfiltersResidencyThreshold(),
-                                                           store.getItemEvictionPolicy());
+                bool residentRatioLessThanThreshold =
+                        vb->isResidentRatioUnderThreshold(
+                                store.getBfiltersResidencyThreshold());
                  if (residentRatioLessThanThreshold) {
                      vb->addToTempFilter(key);
                  } else {
@@ -259,8 +259,7 @@ bool BloomFilterCallback::initTempFilter(uint16_t vbucketId) {
          * the threshold from configuration.
          */
         bool residentRatioAlert = vb->isResidentRatioUnderThreshold(
-                                          store.getBfiltersResidencyThreshold(),
-                                          eviction_policy);
+                store.getBfiltersResidencyThreshold());
 
         /**
          * Based on resident ratio against threshold, estimate count.
@@ -281,7 +280,7 @@ bool BloomFilterCallback::initTempFilter(uint16_t vbucketId) {
              estimated_count = round(1.25 * vb->getNumItems());
          } else {
              estimated_count = round(1.25 * (num_deletes +
-                                      vb->getNumNonResidentItems(eviction_policy)));
+                                      vb->getNumNonResidentItems()));
          }
     }
 
