@@ -47,7 +47,7 @@
 #include <platform/dirutils.h>
 #include <thread>
 
-void EPBucketTest::SetUp() {
+void KVBucketTest::SetUp() {
     // Paranoia - kill any existing files in case they are left over
     // from a previous run.
     cb::io::rmrf(test_dbname);
@@ -80,7 +80,7 @@ void EPBucketTest::SetUp() {
     cookie = create_mock_cookie();
 }
 
-void EPBucketTest::TearDown() {
+void KVBucketTest::TearDown() {
     destroy_mock_cookie(cookie);
     destroy_mock_event_callbacks();
     engine->getDcpConnMap().manageConnections();
@@ -94,7 +94,7 @@ void EPBucketTest::TearDown() {
     ExecutorPool::shutdown();
 }
 
-Item EPBucketTest::store_item(uint16_t vbid,
+Item KVBucketTest::store_item(uint16_t vbid,
                               const StoredDocKey& key,
                               const std::string& value,
                               uint32_t exptime,
@@ -109,7 +109,7 @@ Item EPBucketTest::store_item(uint16_t vbid,
     return item;
 }
 
-void EPBucketTest::flush_vbucket_to_disk(uint16_t vbid, int expected) {
+void KVBucketTest::flush_vbucket_to_disk(uint16_t vbid, int expected) {
     int result;
     const auto time_limit = std::chrono::seconds(10);
     const auto deadline = std::chrono::steady_clock::now() + time_limit;
@@ -132,7 +132,7 @@ void EPBucketTest::flush_vbucket_to_disk(uint16_t vbid, int expected) {
     ASSERT_EQ(expected, result) << "Unexpected items in flush_vbucket_to_disk";
 }
 
-void EPBucketTest::delete_item(uint16_t vbid, const StoredDocKey& key) {
+void KVBucketTest::delete_item(uint16_t vbid, const StoredDocKey& key) {
     uint64_t cas = 0;
     EXPECT_EQ(ENGINE_SUCCESS,
               store->deleteItem(key,
@@ -144,14 +144,14 @@ void EPBucketTest::delete_item(uint16_t vbid, const StoredDocKey& key) {
                                 /*mutation_descr_t*/ nullptr));
 }
 
-void EPBucketTest::evict_key(uint16_t vbid, const StoredDocKey& key) {
+void KVBucketTest::evict_key(uint16_t vbid, const StoredDocKey& key) {
     const char* msg;
     EXPECT_EQ(ENGINE_SUCCESS, store->evictKey(key, vbid, &msg));
     EXPECT_STREQ("Ejected.", msg);
 }
 
 
-GetValue EPBucketTest::getInternal(const StoredDocKey& key,
+GetValue KVBucketTest::getInternal(const StoredDocKey& key,
                                    uint16_t vbucket,
                                    const void* cookie,
                                    vbucket_state_t allowedState,
@@ -724,4 +724,4 @@ INSTANTIATE_TEST_CASE_P(FullAndValueEviction,
                         });
 
 
-const char EPBucketTest::test_dbname[] = "ep_engine_ep_unit_tests_db";
+const char KVBucketTest::test_dbname[] = "ep_engine_ep_unit_tests_db";
