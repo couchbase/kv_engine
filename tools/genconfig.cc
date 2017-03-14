@@ -41,7 +41,6 @@ stringstream implementation;
 typedef string (*getValidatorCode)(const std::string &, cJSON*);
 
 std::map<string, getValidatorCode> validators;
-map<string, string> getters;
 map<string, string> datatypes;
 
 static string getDatatype(const std::string& key, cJSON* o);
@@ -221,11 +220,6 @@ static void initialize() {
         << "#include <platform/sysinfo.h>" << endl;
     validators["range"] = getRangeValidatorCode;
     validators["enum"] = getEnumValidatorCode;
-    getters["std::string"] = "getString";
-    getters["bool"] = "getBool";
-    getters["size_t"] = "getInteger";
-    getters["ssize_t"] = "getSignedInteger";
-    getters["float"] = "getFloat";
     datatypes["bool"] = "bool";
     datatypes["size_t"] = "size_t";
     datatypes["ssize_t"] = "ssize_t";
@@ -402,8 +396,10 @@ static void generate(cJSON *o) {
     // Generate the getter
     implementation << type << " Configuration::" << getGetterPrefix(type)
                    << cppname << "() const {" << endl
-                   << "    return " << getters[type] << "(\""
-                   << config_name << "\");" << endl << "}" << endl;
+                   << "    return "
+                   << "getParameter<" << datatypes[type] << ">(\""
+                   << config_name << "\");" << endl
+                   << "}" << endl;
 
     if  (!isReadOnly(o)) {
         // generate the setter

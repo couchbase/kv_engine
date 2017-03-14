@@ -282,82 +282,46 @@ class ConfigurationShim : public Configuration {
      */
 
 public:
-
-    void usetParameter(const std::string &key, bool value) {
-        setParameter(key, value);
-    }
-    void usetParameter(const std::string &key, size_t value) {
-        setParameter(key, value);
-    }
-    void usetParameter(const std::string &key, ssize_t value) {
-        setParameter(key, value);
-    }
-    void usetParameter(const std::string &key, float value) {
-        setParameter(key, value);
-    }
-    void usetParameter(const std::string &key, const char *value) {
-        setParameter(key, value);
-    }
-    void usetParameter(const std::string &key, const std::string &value) {
-        setParameter(key, value);
-    }
-
-    bool ugetBool(const std::string &key) const {
-        return getBool(key);
-    }
-    size_t ugetInteger(const std::string &key) const {
-        return getInteger(key);
-    }
-
-    ssize_t ugetSignedInteger(const std::string &key) const {
-        return getSignedInteger(key);
-    }
-    float ugetFloat(const std::string &key) const {
-        return getFloat(key);
-    }
-    std::string ugetString(const std::string &key) const {
-        return getString(key);
-    }
+    using Configuration::setParameter;
+    using Configuration::getParameter;
 };
 
 TEST(ConfigurationTest, SetGetWorks) {
     ConfigurationShim configuration;
 
-    configuration.usetParameter("bool", false);
-    EXPECT_EQ(configuration.ugetBool("bool"), false);
+    configuration.setParameter("bool", false);
+    EXPECT_EQ(configuration.getParameter<bool>("bool"), false);
 
-    configuration.usetParameter("size", (size_t) 100);
-    EXPECT_EQ(configuration.ugetInteger("size"), 100);
+    configuration.setParameter("size", (size_t)100);
+    EXPECT_EQ(configuration.getParameter<size_t>("size"), 100);
 
-    configuration.usetParameter("ssize", (ssize_t) -100);
-    EXPECT_EQ(configuration.ugetSignedInteger("ssize"), -100);
+    configuration.setParameter("ssize", (ssize_t)-100);
+    EXPECT_EQ(configuration.getParameter<ssize_t>("ssize"), -100);
 
-    configuration.usetParameter("float", (float) 123.5);
-    EXPECT_EQ(configuration.ugetFloat("float"), 123.5);
+    configuration.setParameter("float", (float)123.5);
+    EXPECT_EQ(configuration.getParameter<float>("float"), 123.5);
 
-    configuration.usetParameter("char*", "hello");
-    EXPECT_EQ(configuration.ugetString("char*"), "hello");
+    configuration.setParameter("char*", "hello");
+    EXPECT_EQ(configuration.getParameter<std::string>("char*"), "hello");
 
-    configuration.usetParameter("string", std::string("hello"));
-    EXPECT_EQ(configuration.ugetString("string"), "hello");
+    configuration.setParameter("string", std::string("hello"));
+    EXPECT_EQ(configuration.getParameter<std::string>("string"), "hello");
 }
 
 TEST(ConfigurationTest, ValidatorWorks) {
     ConfigurationShim configuration;
     std::string key{"test_key"};
 
-    configuration.usetParameter(key, (size_t) 110);
+    configuration.setParameter(key, (size_t)110);
     EXPECT_NO_THROW(configuration.setValueValidator(key, (new SizeRangeValidator())->min(10)->max(100)));
-    EXPECT_NO_THROW(configuration.usetParameter(key, (size_t) 10));
-    EXPECT_NO_THROW(configuration.usetParameter(key, (size_t) 100));
-    EXPECT_THROW(configuration.usetParameter(key, (size_t) 9), std::range_error);
+    EXPECT_NO_THROW(configuration.setParameter(key, (size_t)10));
+    EXPECT_NO_THROW(configuration.setParameter(key, (size_t)100));
+    EXPECT_THROW(configuration.setParameter(key, (size_t)9), std::range_error);
 
-    CB_EXPECT_THROW_MSG(
-            configuration.usetParameter(key, (size_t) 9),
-            std::range_error,
-            "Validation Error, test_key takes values between 10 and 100 (Got: 9)"
-    );
-
+    CB_EXPECT_THROW_MSG(configuration.setParameter(key, (size_t)9),
+                        std::range_error,
+                        "Validation Error, test_key takes values between 10 "
+                        "and 100 (Got: 9)");
 }
 
 class MockValueChangedListener : public ValueChangedListener {
@@ -384,7 +348,7 @@ TEST(ChangeListenerTest, ChangeListenerSSizeRegression) {
     // Create listeners
     auto mvcl = new MockValueChangedListener;
     // set parameter once so entry in attributes is present to add a listener
-    configuration.usetParameter(key, (ssize_t)1);
+    configuration.setParameter(key, (ssize_t)1);
 
     EXPECT_CALL(*mvcl, ssizeValueChanged("test_key", 2)).Times(1);
     EXPECT_CALL(*mvcl, sizeValueChanged(_, _)).Times(0);
@@ -393,5 +357,5 @@ TEST(ChangeListenerTest, ChangeListenerSSizeRegression) {
     configuration.addValueChangedListener(key, mvcl);
 
     // change parameters
-    configuration.usetParameter(key, (ssize_t)2);
+    configuration.setParameter(key, (ssize_t)2);
 }

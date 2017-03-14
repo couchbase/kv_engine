@@ -16,16 +16,14 @@
  */
 
 #include "config.h"
+#include "configuration.h"
 
-#include <algorithm>
-#include <iostream>
-#include <limits>
-#include <sstream>
-#include <vector>
-
+#include <boost/variant.hpp>
 #include <platform/cb_malloc.h>
 
-#include "configuration.h"
+#include <algorithm>
+#include <sstream>
+#include <vector>
 
 #ifdef AUTOCONF_BUILD
 #include "generated_configuration.cc"
@@ -35,258 +33,117 @@
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 
+// Used to get a name from a type to use in logging
+template <typename T>
+struct type_name {
+    static char* const value;
+};
+
+#define TYPENAME(type) \
+    template <>        \
+    char* const type_name<type>::value = (char* const) #type;
+
+TYPENAME(bool)
+TYPENAME(size_t)
+TYPENAME(ssize_t)
+TYPENAME(float)
+TYPENAME(std::string)
+#undef TYPENAME
+
 Configuration::Configuration() {
     initialize();
 }
 
-std::string Configuration::getString(const std::string &key) const {
-    LockHolder lh(mutex);
+struct Configuration::value_t {
+    std::vector<std::unique_ptr<ValueChangedListener>> changeListener;
+    std::unique_ptr<ValueChangedValidator> validator;
 
-    const auto iter = attributes.find(key);
-    if (iter == attributes.end()) {
-        return std::string();
+    // At the moment, the order of these template parameters must
+    // match the order of the types in config_datatype. Looking
+    // for a cleaner method.
+    boost::variant<size_t, ssize_t, float, bool, std::string> value;
+
+    std::vector<ValueChangedListener*> copyListeners() {
+        std::vector<ValueChangedListener*> copy;
+
+        std::transform(
+                changeListener.begin(),
+                changeListener.end(),
+                std::back_inserter(copy),
+                [](std::unique_ptr<ValueChangedListener>& listener)
+                        -> ValueChangedListener* { return listener.get(); });
+        return copy;
     }
-    if (iter->second->datatype != DT_STRING) {
-        throw std::invalid_argument("Configuration::getString: key (which is " +
-                                    std::to_string(iter->second->datatype) +
-                                    ") is not DT_STRING");
+};
+
+template <class T>
+void Configuration::setParameter(const std::string& key, T value) {
+    std::vector<ValueChangedListener*> copy;
+    {
+        std::lock_guard<std::mutex> lh(mutex);
+        auto validator = attributes.find(key);
+        if (validator != attributes.end()) {
+            if (validator->second->validator) {
+                validator->second->validator->validate(key, value);
+            }
+        } else {
+            attributes[key] = std::make_shared<value_t>();
+        }
+        attributes[key]->value = value;
+        copy = attributes[key]->copyListeners();
     }
 
-    if (iter->second->val.v_string) {
-        return std::string(iter->second->val.v_string);
+    for (auto* listener : copy) {
+        listener->valueChanged(key, value);
     }
-    return std::string();
 }
 
-bool Configuration::getBool(const std::string &key) const {
-    LockHolder lh(mutex);
-
-    const auto iter = attributes.find(key);
-    if (iter == attributes.end()) {
-        return false;
-    }
-    if (iter->second->datatype != DT_BOOL) {
-        throw std::invalid_argument("Configuration::getBool: key (which is " +
-                                    std::to_string(iter->second->datatype) +
-                                    ") is not DT_BOOL");
-    }
-    return iter->second->val.v_bool;
+template <>
+void Configuration::setParameter<const char*>(const std::string& key,
+                                              const char* value) {
+    setParameter(key, std::string(value));
 }
 
-float Configuration::getFloat(const std::string &key) const {
+template <class T>
+T Configuration::getParameter(const std::string& key) const {
     LockHolder lh(mutex);
 
     const auto iter = attributes.find(key);
     if (iter == attributes.end()) {
-        return 0;
+        return T();
     }
-    if (iter->second->datatype != DT_FLOAT) {
-        throw std::invalid_argument("Configuration::getFloat: key (which is " +
-                                    std::to_string(iter->second->datatype) +
-                                    ") is not DT_FLOAT");
-    }
-    return iter->second->val.v_float;
-}
 
-size_t Configuration::getInteger(const std::string &key) const {
-    LockHolder lh(mutex);
+    T* value = boost::get<T>(&iter->second->value);
 
-    const auto iter = attributes.find(key);
-    if (iter == attributes.end()) {
-        return 0;
-    }
-    if (iter->second->datatype != DT_SIZE) {
+    if (value == nullptr) {
+        std::cerr << iter->second->value << std::endl;
         throw std::invalid_argument(
-                "Configuration::getInteger: key (which is " +
-                std::to_string(iter->second->datatype) + ") is not DT_SIZE");
+                "Configuration::getParameter: key \"" + key + "\" (which is " +
+                std::to_string(iter->second->value.which()) + ") is not " +
+                type_name<T>::value);
     }
-    return iter->second->val.v_size;
+    return *value;
 }
 
-ssize_t Configuration::getSignedInteger(const std::string &key) const {
-    LockHolder lh(mutex);
+template bool Configuration::getParameter<bool>(const std::string& key) const;
+template size_t Configuration::getParameter<size_t>(
+        const std::string& key) const;
+template ssize_t Configuration::getParameter<ssize_t>(
+        const std::string& key) const;
+template float Configuration::getParameter<float>(const std::string& key) const;
+template std::string Configuration::getParameter<std::string>(
+        const std::string& key) const;
 
-    const auto iter = attributes.find(key);
-    if (iter == attributes.end()) {
-        return 0;
-    }
-    if (iter->second->datatype != DT_SSIZE) {
-        throw std::invalid_argument(
-                "Configuration::getSignedInteger: key "
-                "(which is " +
-                std::to_string(iter->second->datatype) + ") is not DT_SSIZE");
-    }
-    return iter->second->val.v_ssize;
-}
-
-std::ostream& operator <<(std::ostream &out, const Configuration &config) {
+std::ostream& operator<<(std::ostream& out, const Configuration& config) {
     LockHolder lh(config.mutex);
     for (const auto& attribute : config.attributes) {
         std::stringstream line;
-        line << attribute.first.c_str();
-        line << " = [";
-        switch (attribute.second->datatype) {
-        case DT_BOOL:
-            if (attribute.second->val.v_bool) {
-                line << "true";
-            } else {
-                line << "false";
-            }
-            break;
-        case DT_STRING:
-            line << attribute.second->val.v_string;
-            break;
-        case DT_SIZE:
-            line << attribute.second->val.v_size;
-            break;
-        case DT_SSIZE:
-            line << attribute.second->val.v_ssize;
-            break;
-        case DT_FLOAT:
-            line << attribute.second->val.v_float;
-            break;
-        case DT_CONFIGFILE:
-            continue;
-        default:
-            // ignore
-            ;
-        }
-        line << "]" << std::endl;
+        line << std::boolalpha << attribute.first.c_str() << " = ["
+             << attribute.second->value << "]" << std::endl;
         out << line.str();
     }
 
     return out;
-}
-
-void Configuration::setParameter(const std::string &key, bool value) {
-    std::vector<ValueChangedListener*> copy;
-    {
-        std::lock_guard<std::mutex> lh(mutex);
-        auto validator = attributes.find(key);
-        if (validator != attributes.end()) {
-            if (validator->second->validator) {
-                validator->second->validator->validateBool(key, value);
-            }
-        } else {
-            attributes[key] = std::make_shared<value_t>();
-        }
-        attributes[key]->datatype = DT_BOOL;
-        attributes[key]->val.v_bool = value;
-        copy = attributes[key]->copyListeners();
-    }
-
-    for (auto* listener : copy) {
-        listener->booleanValueChanged(key, value);
-    }
-}
-
-void Configuration::setParameter(const std::string &key, size_t value) {
-    std::vector<ValueChangedListener*> copy;
-    {
-        std::lock_guard<std::mutex> lh(mutex);
-        auto validator = attributes.find(key);
-        if (validator != attributes.end()) {
-            if (validator->second->validator) {
-                validator->second->validator->validateSize(key, value);
-            }
-        } else {
-            attributes[key] = std::make_shared<value_t>();
-        }
-        attributes[key]->datatype = DT_SIZE;
-        attributes[key]->val.v_size = value;
-
-        copy = attributes[key]->copyListeners();
-    }
-
-    for (auto* listener : copy) {
-        listener->sizeValueChanged(key, value);
-    }
-}
-
-void Configuration::setParameter(const std::string &key, ssize_t value) {
-    std::vector<ValueChangedListener*> copy;
-    {
-        std::lock_guard<std::mutex> lh(mutex);
-        auto validator = attributes.find(key);
-        if (validator != attributes.end()) {
-            if (validator->second->validator) {
-                validator->second->validator->validateSSize(key, value);
-            }
-        } else {
-            attributes[key] = std::make_shared<value_t>();
-        }
-        attributes[key]->datatype = DT_SSIZE;
-        attributes[key]->val.v_ssize = value;
-
-        copy = attributes[key]->copyListeners();
-    }
-
-    for (auto* listener : copy) {
-        listener->ssizeValueChanged(key, value);
-    }
-}
-
-void Configuration::setParameter(const std::string &key, float value) {
-    std::vector<ValueChangedListener*> copy;
-    {
-        std::lock_guard<std::mutex> lh(mutex);
-
-        auto validator = attributes.find(key);
-        if (validator != attributes.end()) {
-            if (validator->second->validator) {
-                validator->second->validator->validateFloat(key, value);
-            }
-        } else {
-            attributes[key] = std::make_shared<value_t>();
-        }
-
-        attributes[key]->datatype = DT_FLOAT;
-        attributes[key]->val.v_float = value;
-        copy = attributes[key]->copyListeners();
-    }
-
-    for (auto* listener : copy) {
-        listener->floatValueChanged(key, value);
-    }
-}
-
-void Configuration::setParameter(const std::string &key,
-                                 const std::string &value) {
-    if (value.length() == 0) {
-        setParameter(key, (const char *)NULL);
-    } else {
-        setParameter(key, value.c_str());
-    }
-}
-
-void Configuration::setParameter(const std::string &key, const char *value) {
-    std::vector<ValueChangedListener*> copy;
-    {
-        std::lock_guard<std::mutex> lh(mutex);
-        auto attr = attributes.find(key);
-        if (attr != attributes.end()) {
-            if (attr->second->validator) {
-                attr->second->validator->validateString(key, value);
-            }
-            if (attr->second->datatype == DT_STRING) {
-                cb_free((void*)attr->second->val.v_string);
-            }
-        } else {
-            attributes[key] = std::make_shared<value_t>();
-        }
-
-        attributes[key]->datatype = DT_STRING;
-        attributes[key]->val.v_string = NULL;
-        if (value != NULL) {
-            attributes[key]->val.v_string = cb_strdup(value);
-        }
-
-        copy = attributes[key]->copyListeners();
-    }
-
-    for (auto* listener : copy) {
-        listener->stringValueChanged(key, value);
-    }
 }
 
 void Configuration::addAlias(const std::string& key, const std::string& alias) {
@@ -317,29 +174,7 @@ void Configuration::addStats(ADD_STAT add_stat, const void *c) const {
     LockHolder lh(mutex);
     for (const auto& attribute :  attributes) {
         std::stringstream value;
-        switch (attribute.second->datatype) {
-        case DT_BOOL:
-            value << std::boolalpha << attribute.second->val.v_bool
-                  << std::noboolalpha;
-            break;
-        case DT_STRING:
-            value << attribute.second->val.v_string;
-            break;
-        case DT_SIZE:
-            value << attribute.second->val.v_size;
-            break;
-        case DT_SSIZE:
-            value << attribute.second->val.v_ssize;
-            break;
-        case DT_FLOAT:
-            value << attribute.second->val.v_float;
-            break;
-        case DT_CONFIGFILE:
-        default:
-            // ignore
-            ;
-        }
-
+        value << std::boolalpha << attribute.second->value;
         std::stringstream key;
         key << "ep_" << attribute.first;
         std::string k = key.str();
@@ -369,7 +204,8 @@ bool Configuration::parseConfiguration(const char *str,
 
     for (const auto& attribute : attributes) {
         config.push_back(std::make_unique<ConfigItem>(
-                attribute.first.c_str(), attribute.second->datatype));
+                attribute.first.c_str(),
+                config_datatype(attribute.second->value.which())));
     }
 
     // And add support for config files...
@@ -389,7 +225,9 @@ bool Configuration::parseConfiguration(const char *str,
             if (ret) {
                 switch (items[ii].datatype) {
                 case DT_STRING:
-                    setParameter(items[ii].key, *(items[ii].value.dt_string));
+                    setParameter(items[ii].key,
+                                 const_cast<const char*>(
+                                         *(items[ii].value.dt_string)));
                     break;
                 case DT_SIZE:
                     setParameter(items[ii].key, *items[ii].value.dt_size);

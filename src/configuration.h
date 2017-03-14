@@ -21,14 +21,11 @@
 
 #include <memcached/engine.h>
 
-#include <algorithm>
 #include <iostream>
 #include <limits>
 #include <map>
 #include <set>
 #include <string>
-#include <unordered_set>
-#include <vector>
 
 #include "locks.h"
 #include "utility.h"
@@ -43,6 +40,30 @@
  */
 class ValueChangedListener {
 public:
+    void valueChanged(const std::string& key, bool value) {
+        booleanValueChanged(key, value);
+    }
+
+    void valueChanged(const std::string& key, size_t value) {
+        sizeValueChanged(key, value);
+    }
+
+    void valueChanged(const std::string& key, ssize_t value) {
+        ssizeValueChanged(key, value);
+    }
+
+    void valueChanged(const std::string& key, float value) {
+        floatValueChanged(key, value);
+    }
+
+    void valueChanged(const std::string& key, std::string value) {
+        stringValueChanged(key, value.c_str());
+    }
+
+    void valueChanged(const std::string& key, const char* value) {
+        stringValueChanged(key, value);
+    }
+
     /**
      * Callback if when a boolean configuration value changed
      * @param key the key who changed
@@ -102,6 +123,29 @@ public:
  */
 class ValueChangedValidator {
 public:
+    void validate(const std::string& key, bool value) {
+        validateBool(key, value);
+    }
+
+    void validate(const std::string& key, size_t value) {
+        validateSize(key, value);
+    }
+
+    void validate(const std::string& key, ssize_t value) {
+        validateSSize(key, value);
+    }
+
+    void validate(const std::string& key, float value) {
+        validateFloat(key, value);
+    }
+
+    void validate(const std::string& key, const char* value) {
+        validateString(key, value);
+    }
+    void validate(const std::string& key, std::string value) {
+        validateString(key, value.c_str());
+    }
+
     /**
      * Validator for boolean values
      * @param key the key that is about to change
@@ -385,52 +429,13 @@ public:
 protected:
     /**
      * Set the configuration parameter for a given key to
-     * a boolean value.
+     * a new value (size_t, ssize_t, float, bool, string)
      * @param key the key to specify
      * @param value the new value
      * @throws runtime_error if the validation failed
      */
-    void setParameter(const std::string &key, bool value);
-    /**
-     * Set the configuration parameter for a given key to
-     * a size_t value.
-     * @param key the key to specify
-     * @param value the new value
-     * @throws runtime_error if the validation failed
-     */
-    void setParameter(const std::string &key, size_t value);
-    /**
-     * Set the configuration parameter for a given key to
-     * a ssize_t value.
-     * @param key the key to specify
-     * @param value the new value
-     * @throws runtime_error if the validation failed
-     */
-    void setParameter(const std::string &key, ssize_t value);
-    /**
-     * Set the configuration parameter for a given key to
-     * a floating value.
-     * @param key the key to specify
-     * @param value the new value
-     * @throws runtime_error if the validation failed
-     */
-    void setParameter(const std::string &key, float value);
-    /**
-     * Set the configuration parameter for a given key to
-     * a character string
-     * @param key the key to specify
-     * @param value the new value
-     * @throws runtime_error if the validation failed
-     */
-    void setParameter(const std::string &key, const char *value);
-    /**
-     * Set the configuration parameter for a given key to
-     * a string.
-     * @param key the key to specify
-     * @param value the new value
-     * @throws runtime_error if the validation failed
-     */
-    void setParameter(const std::string &key, const std::string &value);
+    template <class T>
+    void setParameter(const std::string& key, T value);
 
     /**
      * Get the configuration parameter for a given key
@@ -438,73 +443,12 @@ protected:
      * @return value the value
      * @throws runtime_error if the validation failed
      */
-    bool getBool(const std::string& key) const;
-
-    /**
-     * Get the configuration parameter for a given key
-     * @param key the key to specify
-     * @return value the value
-     */
-    size_t getInteger(const std::string& key) const;
-
-    /**
-     * Get the configuration parameter for a given key
-     * @param key the key to specify
-     * @return value the value
-     */
-    ssize_t getSignedInteger(const std::string& key) const;
-
-    /**
-     * Get the configuration parameter for a given key
-     * @param key the key to specify
-     * @return value the value
-     */
-    float getFloat(const std::string& key) const;
-
-    /**
-     * Get the configuration parameter for a given key
-     * @param key the key to specify
-     * @return value the value
-     */
-    std::string getString(const std::string& key) const;
+    template <class T>
+    T getParameter(const std::string& key) const;
 
 private:
     void initialize();
-
-    struct value_t {
-        value_t() {
-            val.v_string = 0;
-        }
-        std::vector<std::unique_ptr<ValueChangedListener>> changeListener;
-        std::unique_ptr<ValueChangedValidator> validator;
-        config_datatype datatype;
-        union {
-            size_t v_size;
-            ssize_t v_ssize;
-            float v_float;
-            bool v_bool;
-            const char *v_string;
-        } val;
-
-        std::vector<ValueChangedListener*> copyListeners() {
-            std::vector<ValueChangedListener*> copy;
-
-            std::transform(changeListener.begin(),
-                           changeListener.end(),
-                           std::back_inserter(copy),
-                           [](std::unique_ptr<ValueChangedListener>& listener)
-                                   -> ValueChangedListener* {
-                               return listener.get();
-                           });
-            return copy;
-        }
-
-        ~value_t() {
-            if (datatype == DT_STRING) {
-                cb_free((void*)val.v_string);
-            }
-        }
-    };
+    struct value_t;
 
     // Access to the configuration variables is protected by the mutex
     mutable std::mutex mutex;
@@ -513,5 +457,11 @@ private:
     friend std::ostream& operator<< (std::ostream& out,
                                      const Configuration &config);
 };
+
+// This specialisation is needed to convert char* to std::string to store in
+// the variant.
+template <>
+void Configuration::setParameter<const char*>(const std::string& key,
+                                              const char* value);
 
 #endif  // SRC_CONFIGURATION_H_
