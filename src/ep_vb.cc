@@ -476,7 +476,8 @@ protocol_binary_response_status EPVBucket::evictKey(const DocKey& key,
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-bool EPVBucket::htUnlockedEjectItem(StoredValue*& v) {
+bool EPVBucket::htUnlockedEjectItem(const HashTable::HashBucketLock& lh,
+                                    StoredValue*& v) {
     return ht.unlocked_ejectItem(v, eviction);
 }
 

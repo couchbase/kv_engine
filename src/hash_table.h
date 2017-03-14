@@ -703,7 +703,7 @@ public:
      *
      * @param v a pointer to a value in the hash table
      */
-    virtual void visit(StoredValue *v) = 0;
+    virtual void visit(const HashTable::HashBucketLock& lh, StoredValue* v) = 0;
 
     /**
      * True if the visiting should continue.
@@ -712,34 +712,6 @@ public:
      * to visit items.
      */
     virtual bool shouldContinue() { return true; }
-};
-
-/**
- * Hash table visitor that collects stats of what's inside.
- */
-class HashTableStatVisitor : public HashTableVisitor {
-public:
-
-    HashTableStatVisitor()
-        : numNonResident(0), numTotal(0), memSize(0), valSize(0), cacheSize(0) {}
-
-    void visit(StoredValue *v) {
-        ++numTotal;
-        memSize += v->size();
-        valSize += v->valuelen();
-
-        if (v->isResident()) {
-            cacheSize += v->size();
-        } else {
-            ++numNonResident;
-        }
-    }
-
-    size_t numNonResident;
-    size_t numTotal;
-    size_t memSize;
-    size_t valSize;
-    size_t cacheSize;
 };
 
 /**

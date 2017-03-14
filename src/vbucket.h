@@ -783,7 +783,8 @@ public:
      *
      * @return true if an item is ejected.
      */
-    virtual bool htUnlockedEjectItem(StoredValue*& v) = 0;
+    virtual bool htUnlockedEjectItem(const HashTable::HashBucketLock& lh,
+                                     StoredValue*& v) = 0;
 
     /**
      * Add an item in the store

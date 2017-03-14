@@ -609,9 +609,10 @@ void LoadStorageKVPairCallback::purge() {
             }
         }
 
-        void visit(StoredValue *v) override {
-            currentBucket->ht.unlocked_ejectItem(v,
-                                             epstore.getItemEvictionPolicy());
+        void visit(const HashTable::HashBucketLock& lh,
+                   StoredValue* v) override {
+            currentBucket->ht.unlocked_ejectItem(
+                    v, epstore.getItemEvictionPolicy());
         }
 
     private:

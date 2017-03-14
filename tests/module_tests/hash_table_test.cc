@@ -42,7 +42,7 @@ public:
 
     Counter(bool v) : count(), deleted(), verify(v) {}
 
-    void visit(StoredValue *v) {
+    void visit(const HashTable::HashBucketLock& lh, StoredValue* v) {
         if (v->isDeleted()) {
             ++deleted;
         } else {

@@ -79,8 +79,6 @@ HashTable::~HashTable() {
 }
 
 void HashTable::clear(bool deactivate) {
-    HashTableStatVisitor rv;
-
     if (!deactivate) {
         // If not deactivating, assert we're already active.
         if (!isActive()) {
@@ -92,17 +90,20 @@ void HashTable::clear(bool deactivate) {
     if (deactivate) {
         setActiveState(false);
     }
+    size_t clearedMemSize = 0;
+    size_t clearedValSize = 0;
     for (int i = 0; i < (int)size; i++) {
         while (values[i]) {
             // Take ownership of the StoredValue from the vector, update
             // statistics and release it.
             auto v = std::move(values[i]);
-            rv.visit(v.get());
+            clearedMemSize += v->size();
+            clearedValSize += v->valuelen();
             values[i] = std::move(v->next);
         }
     }
 
-    stats.currentSize.fetch_sub(rv.memSize - rv.valSize);
+    stats.currentSize.fetch_sub(clearedMemSize - clearedValSize);
 
     numTotalItems.store(0);
     numItems.store(0);
@@ -457,7 +458,7 @@ void HashTable::visit(HashTableVisitor &visitor) {
         for (int i = l; i < static_cast<int>(size); i+= n_locks) {
             // (re)acquire mutex on each HashBucket, to minimise any impact
             // on front-end threads.
-            LockHolder lh(mutexes[l]);
+            HashBucketLock lh(i, mutexes[l]);
 
             StoredValue* v = values[i].get();
             if (v) {
@@ -474,7 +475,7 @@ void HashTable::visit(HashTableVisitor &visitor) {
             }
             while (v) {
                 StoredValue* tmp = v->next.get();
-                visitor.visit(v);
+                visitor.visit(lh, v);
                 v = tmp;
             }
             ++visited;

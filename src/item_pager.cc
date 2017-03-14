@@ -73,7 +73,7 @@ public:
         wasHighMemoryUsage(s.isMemoryUsageTooHigh()),
         taskStart(gethrtime()), pager_phase(phase) {}
 
-    void visit(StoredValue *v) override {
+    void visit(const HashTable::HashBucketLock& lh, StoredValue* v) override {
         // Delete expired items for an active vbucket.
         bool isExpired = (currentBucket->getState() == vbucket_state_active) &&
             v->isExpired(startTime) && !v->isDeleted();
@@ -95,11 +95,11 @@ public:
 
         if (*pager_phase == PAGING_UNREFERENCED &&
             v->getNRUValue() == MAX_NRU_VALUE) {
-            doEviction(v);
+            doEviction(lh, v);
         } else if (*pager_phase == PAGING_RANDOM &&
                    v->incrNRUValue() == MAX_NRU_VALUE &&
                    r <= percent) {
-            doEviction(v);
+            doEviction(lh, v);
         }
     }
 
@@ -221,11 +221,11 @@ private:
         }
     }
 
-    void doEviction(StoredValue *v) {
+    void doEviction(const HashTable::HashBucketLock& lh, StoredValue* v) {
         item_eviction_policy_t policy = store.getItemEvictionPolicy();
         StoredDocKey key(v->getKey());
 
-        if (currentBucket->htUnlockedEjectItem(v)) {
+        if (currentBucket->htUnlockedEjectItem(lh, v)) {
             ++ejected;
 
             /**
