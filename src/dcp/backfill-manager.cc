@@ -15,14 +15,17 @@
  *   limitations under the License.
  */
 
-#include <phosphor/phosphor.h>
 #include "config.h"
-#include "ep_engine.h"
+
 #include "connmap.h"
+#include "ep_engine.h"
+
 #include "dcp/backfill-manager.h"
-#include "dcp/backfill.h"
+#include "dcp/backfill_disk.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
+
+#include <phosphor/phosphor.h>
 
 static const size_t sleepTime = 1;
 
@@ -143,9 +146,11 @@ BackfillManager::~BackfillManager() {
 void BackfillManager::schedule(const stream_t& stream, uint64_t start, uint64_t end) {
     LockHolder lh(lock);
     if (engine->getDcpConnMap().canAddBackfillToActiveQ()) {
-        activeBackfills.push_back(new DCPBackfill(engine, stream, start, end));
+        activeBackfills.push_back(
+                new DCPBackfillDisk(engine, stream, start, end));
     } else {
-        pendingBackfills.push_back(new DCPBackfill(engine, stream, start, end));
+        pendingBackfills.push_back(
+                new DCPBackfillDisk(engine, stream, start, end));
     }
 
     if (managerTask && !managerTask->isdead()) {
@@ -238,7 +243,7 @@ backfill_status_t BackfillManager::backfill() {
         std::list<DCPBackfill*> toDelete;
         std::list<DCPBackfill*>::iterator a_itr = activeBackfills.begin();
         while (a_itr != activeBackfills.end()) {
-            if ((*a_itr)->isDead()) {
+            if ((*a_itr)->isStreamDead()) {
                 (*a_itr)->cancel();
                 toDelete.push_back(*a_itr);
                 a_itr = activeBackfills.erase(a_itr);

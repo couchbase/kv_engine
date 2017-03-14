@@ -15,85 +15,72 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_DCP_BACKFILL_H_
-#define SRC_DCP_BACKFILL_H_ 1
+#pragma once
 
 #include "config.h"
 
-#include "callbacks.h"
 #include "dcp/stream.h"
 
 class EventuallyPersistentEngine;
 class ScanContext;
 
-enum backfill_state_t {
-    backfill_state_init,
-    backfill_state_scanning,
-    backfill_state_completing,
-    backfill_state_done
-};
-
+/**
+ * Indicates the status of the backfill that is run
+ */
 enum backfill_status_t {
     backfill_success,
     backfill_finished,
     backfill_snooze
 };
 
-class CacheCallback : public Callback<CacheLookup> {
-public:
-    CacheCallback(EventuallyPersistentEngine* e, stream_t &s);
-
-    void callback(CacheLookup &lookup);
-
-private:
-    EventuallyPersistentEngine* engine_;
-    stream_t stream_;
-};
-
-class DiskCallback : public Callback<GetValue> {
-public:
-    DiskCallback(stream_t &s);
-
-    void callback(GetValue &val);
-
-private:
-    stream_t stream_;
-};
-
 class DCPBackfill {
 public:
-    DCPBackfill(EventuallyPersistentEngine* e, const stream_t& s,
-                uint64_t start_seqno, uint64_t end_seqno);
-
-    backfill_status_t run();
-
-    uint16_t getVBucketId();
-
-    uint64_t getEndSeqno();
-
-    bool isDead() {
-        return !stream->isActive();
+    DCPBackfill(const stream_t& s, uint64_t startSeqno, uint64_t endSeqno)
+        : stream(s), startSeqno(startSeqno), endSeqno(endSeqno) {
     }
 
-    void cancel();
+    virtual ~DCPBackfill() {
+    }
 
-private:
+    /**
+     * Run the DCP backfill and return the status of the run
+     *
+     * @return status of the current run
+     */
+    virtual backfill_status_t run() = 0;
 
-    backfill_status_t create();
+    /**
+     * Get the id of the vbucket for which this object is created
+     *
+     * @return vbid
+     */
+    virtual uint16_t getVBucketId() = 0;
 
-    backfill_status_t scan();
+    /**
+     * Indicates if the DCP stream associated with the backfill is dead
+     *
+     * @return true if stream is in dead state; else false
+     */
+    virtual bool isStreamDead() = 0;
 
-    backfill_status_t complete(bool cancelled);
+    /**
+     * Cancels the backfill
+     */
+    virtual void cancel() = 0;
 
-    void transitionState(backfill_state_t newState);
+protected:
+    /**
+     * Ptr to the associated DCP stream
+     */
+    stream_t stream;
 
-    EventuallyPersistentEngine *engine;
-    stream_t                    stream;
-    uint64_t                    startSeqno;
-    uint64_t                    endSeqno;
-    ScanContext*                scanCtx;
-    backfill_state_t            state;
-    std::mutex                       lock;
+    /**
+     * Start seqno of the backfill
+     */
+    uint64_t startSeqno;
+
+    /**
+     * End seqno of the backfill
+     */
+    uint64_t endSeqno;
 };
-
-#endif  // SRC_DCP_BACKFILL_H_

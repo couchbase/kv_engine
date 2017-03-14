@@ -149,7 +149,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/connmap.cc
             src/crc32.c
             src/dcp/backfill-manager.cc
-            src/dcp/backfill.cc
+            src/dcp/backfill_disk.cc
             src/dcp/consumer.cc
             src/dcp/dcpconnmap.cc
             src/dcp/flow-control.cc
