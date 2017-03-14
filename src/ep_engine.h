@@ -268,8 +268,8 @@ public:
                               uint32_t opaque,
                               uint32_t seqno,
                               uint32_t flags,
-                              const void *stream_name,
-                              uint16_t nname);
+                              cb::const_char_buffer stream_name,
+                              cb::const_byte_buffer jsonExtra);
 
     ENGINE_ERROR_CODE dcpAddStream(const void* cookie,
                                    uint32_t opaque,

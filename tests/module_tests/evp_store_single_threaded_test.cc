@@ -636,8 +636,12 @@ TEST_F(SingleThreadedEPBucketTest, MB19892_BackfillNotDeleted) {
     // Create a DCP producer, and start a stream request.
     std::string name{"test_producer"};
     EXPECT_EQ(ENGINE_SUCCESS,
-              engine->dcpOpen(cookie, /*opaque:unused*/{}, /*seqno:unused*/{},
-                              DCP_OPEN_PRODUCER, name.data(), name.size()));
+              engine->dcpOpen(cookie,
+                              /*opaque:unused*/ {},
+                              /*seqno:unused*/ {},
+                              DCP_OPEN_PRODUCER,
+                              name,
+                              {}));
 
     uint64_t rollbackSeqno;
     auto dummy_dcp_add_failover_cb = [](vbucket_failover_t* entry,
@@ -833,8 +837,12 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
     // Create a DCP producer, and start a stream request.
     std::string name("test_producer");
     EXPECT_EQ(ENGINE_SUCCESS,
-              engine->dcpOpen(cookie, /*opaque:unused*/{}, /*seqno:unused*/{},
-                              DCP_OPEN_PRODUCER, name.data(), name.size()));
+              engine->dcpOpen(cookie,
+                              /*opaque:unused*/ {},
+                              /*seqno:unused*/ {},
+                              DCP_OPEN_PRODUCER,
+                              name,
+                              {}));
 
     // Expect to have an ActiveStreamCheckpointProcessorTask, which is
     // initially snoozed (so we can't run it).

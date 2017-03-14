@@ -862,8 +862,8 @@ static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
     uint64_t vb_uuid = get_ull_stat(h, h1, uuid.c_str(), "failovers");
     uint32_t streamOpaque = opaque;
 
-    checkeq(h1->dcp.open(h, cookie, ++streamOpaque, 0, DCP_OPEN_PRODUCER,
-                             (void*)name.c_str(), name.length()),
+    checkeq(h1->dcp.open(
+                    h, cookie, ++streamOpaque, 0, DCP_OPEN_PRODUCER, name, {}),
             ENGINE_SUCCESS,
             "Failed dcp producer open connection");
 

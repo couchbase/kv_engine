@@ -1364,16 +1364,15 @@ static ENGINE_ERROR_CODE EvpDcpStep(ENGINE_HANDLE* handle,
     return ENGINE_DISCONNECT;
 }
 
-
 static ENGINE_ERROR_CODE EvpDcpOpen(ENGINE_HANDLE* handle,
                                     const void* cookie,
                                     uint32_t opaque,
                                     uint32_t seqno,
                                     uint32_t flags,
-                                    void* name,
-                                    uint16_t nname) {
+                                    cb::const_char_buffer name,
+                                    cb::const_byte_buffer jsonExtra) {
     return acquireEngine(handle)->dcpOpen(
-            cookie, opaque, seqno, flags, name, nname);
+            cookie, opaque, seqno, flags, name, jsonExtra);
 }
 
 static ENGINE_ERROR_CODE EvpDcpAddStream(ENGINE_HANDLE* handle,
@@ -6012,16 +6011,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(const void *cookie,
     return ret;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(const void* cookie,
-                                                       uint32_t opaque,
-                                                       uint32_t seqno,
-                                                       uint32_t flags,
-                                                       const void *stream_name,
-                                                       uint16_t nname)
-{
+ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
+        const void* cookie,
+        uint32_t opaque,
+        uint32_t seqno,
+        uint32_t flags,
+        cb::const_char_buffer stream_name,
+        cb::const_byte_buffer jsonExtra) {
     (void) opaque;
     (void) seqno;
-    std::string connName(static_cast<const char*>(stream_name), nname);
+    std::string connName = cb::to_string(stream_name);
 
     if (reserveCookie(cookie) != ENGINE_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING, "Cannot create DCP connection because cookie"
