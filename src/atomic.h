@@ -242,6 +242,10 @@ public:
         : value(other.gimme()) {
     }
 
+    SingleThreadedRCPtr(std::unique_ptr<T>&& other)
+        : SingleThreadedRCPtr(other.release()) {
+    }
+
     ~SingleThreadedRCPtr() {
         if (value && static_cast<RCValue *>(value)->_rc_decref() == 0) {
             delete value;
