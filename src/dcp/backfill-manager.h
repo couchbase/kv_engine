@@ -51,6 +51,8 @@
 #include "dcp/producer.h"
 #include "dcp/stream.h"
 
+#include <list>
+
 class EventuallyPersistentEngine;
 
 class BackfillManager : public std::enable_shared_from_this<BackfillManager> {
@@ -78,11 +80,11 @@ private:
     void moveToActiveQueue();
 
     std::mutex lock;
-    std::list<DCPBackfill*> activeBackfills;
-    std::list<std::pair<rel_time_t, DCPBackfill*> > snoozingBackfills;
+    std::list<UniqueDCPBackfillPtr> activeBackfills;
+    std::list<std::pair<rel_time_t, UniqueDCPBackfillPtr> > snoozingBackfills;
     //! When the number of (activeBackfills + snoozingBackfills) crosses a
     //!   threshold we use waitingBackfills
-    std::list<DCPBackfill*> pendingBackfills;
+    std::list<UniqueDCPBackfillPtr> pendingBackfills;
     EventuallyPersistentEngine* engine;
     ExTask managerTask;
 

@@ -119,26 +119,24 @@ BackfillManager::~BackfillManager() {
     }
 
     while (!activeBackfills.empty()) {
-        DCPBackfill* backfill = activeBackfills.front();
+        UniqueDCPBackfillPtr backfill = std::move(activeBackfills.front());
         activeBackfills.pop_front();
         backfill->cancel();
-        delete backfill;
         engine->getDcpConnMap().decrNumActiveSnoozingBackfills();
     }
 
     while (!snoozingBackfills.empty()) {
-        DCPBackfill* backfill = (snoozingBackfills.front()).second;
+        UniqueDCPBackfillPtr backfill =
+                std::move((snoozingBackfills.front()).second);
         snoozingBackfills.pop_front();
         backfill->cancel();
-        delete backfill;
         engine->getDcpConnMap().decrNumActiveSnoozingBackfills();
     }
 
     while (!pendingBackfills.empty()) {
-        DCPBackfill* backfill = pendingBackfills.front();
+        UniqueDCPBackfillPtr backfill = std::move(pendingBackfills.front());
         pendingBackfills.pop_front();
         backfill->cancel();
-        delete backfill;
     }
 }
 
@@ -147,10 +145,10 @@ void BackfillManager::schedule(const stream_t& stream, uint64_t start, uint64_t 
     LockHolder lh(lock);
     if (engine->getDcpConnMap().canAddBackfillToActiveQ()) {
         activeBackfills.push_back(
-                new DCPBackfillDisk(engine, stream, start, end));
+                std::make_unique<DCPBackfillDisk>(engine, stream, start, end));
     } else {
         pendingBackfills.push_back(
-                new DCPBackfillDisk(engine, stream, start, end));
+                std::make_unique<DCPBackfillDisk>(engine, stream, start, end));
     }
 
     if (managerTask && !managerTask->isdead()) {
@@ -240,12 +238,12 @@ backfill_status_t BackfillManager::backfill() {
         // If the buffer is full check to make sure we don't have any backfills
         // that no longer have active streams and remove them. This prevents an
         // issue where we have dead backfills taking up buffer space.
-        std::list<DCPBackfill*> toDelete;
-        std::list<DCPBackfill*>::iterator a_itr = activeBackfills.begin();
-        while (a_itr != activeBackfills.end()) {
+        std::list<UniqueDCPBackfillPtr> toDelete;
+        for (auto a_itr = activeBackfills.begin();
+             a_itr != activeBackfills.end();) {
             if ((*a_itr)->isStreamDead()) {
                 (*a_itr)->cancel();
-                toDelete.push_back(*a_itr);
+                toDelete.push_back(std::move(*a_itr));
                 a_itr = activeBackfills.erase(a_itr);
                 engine->getDcpConnMap().decrNumActiveSnoozingBackfills();
             } else {
@@ -256,14 +254,13 @@ backfill_status_t BackfillManager::backfill() {
         lh.unlock();
         bool reschedule = !toDelete.empty();
         while (!toDelete.empty()) {
-            DCPBackfill* backfill = toDelete.front();
+            UniqueDCPBackfillPtr backfill = std::move(toDelete.front());
             toDelete.pop_front();
-            delete backfill;
         }
         return reschedule ? backfill_success : backfill_snooze;
     }
 
-    DCPBackfill* backfill = activeBackfills.front();
+    UniqueDCPBackfillPtr backfill = std::move(activeBackfills.front());
     activeBackfills.pop_front();
 
     lh.unlock();
@@ -275,11 +272,10 @@ backfill_status_t BackfillManager::backfill() {
 
     switch (status) {
         case backfill_success:
-            activeBackfills.push_back(backfill);
+            activeBackfills.push_back(std::move(backfill));
             break;
         case backfill_finished:
             lh.unlock();
-            delete backfill;
             engine->getDcpConnMap().decrNumActiveSnoozingBackfills();
             break;
         case backfill_snooze: {
@@ -287,13 +283,12 @@ backfill_status_t BackfillManager::backfill() {
             RCPtr<VBucket> vb = engine->getVBucket(vbid);
             if (vb) {
                 snoozingBackfills.push_back(
-                        std::make_pair(ep_current_time(), backfill));
+                        std::make_pair(ep_current_time(), std::move(backfill)));
             } else {
                 lh.unlock();
                 LOG(EXTENSION_LOG_WARNING, "Deleting the backfill, as vbucket %d "
                     "seems to have been deleted!", vbid);
                 backfill->cancel();
-                delete backfill;
                 engine->getDcpConnMap().decrNumActiveSnoozingBackfills();
             }
             break;
@@ -307,19 +302,22 @@ void BackfillManager::moveToActiveQueue() {
     // Order in below AND is important
     while (!pendingBackfills.empty()
            && engine->getDcpConnMap().canAddBackfillToActiveQ()) {
-        activeBackfills.push_back(pendingBackfills.front());
-        pendingBackfills.pop_front();
+        activeBackfills.splice(activeBackfills.end(),
+                               pendingBackfills,
+                               pendingBackfills.begin());
     }
 
     while (!snoozingBackfills.empty()) {
-        std::pair<rel_time_t, DCPBackfill*> snoozer = snoozingBackfills.front();
+        std::pair<rel_time_t, UniqueDCPBackfillPtr> snoozer =
+                std::move(snoozingBackfills.front());
+        snoozingBackfills.pop_front();
         // If snoozing task is found to be sleeping for greater than
         // allowed snoozetime, push into active queue
         if (snoozer.first + sleepTime <= ep_current_time()) {
-            DCPBackfill* bfill = snoozer.second;
-            activeBackfills.push_back(bfill);
-            snoozingBackfills.pop_front();
+            activeBackfills.push_back(std::move(snoozer.second));
         } else {
+            // Push back the popped snoozing backfill
+            snoozingBackfills.push_back(std::move(snoozer));
             break;
         }
     }

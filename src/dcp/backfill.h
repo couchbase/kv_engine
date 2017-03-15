@@ -84,3 +84,5 @@ protected:
      */
     uint64_t endSeqno;
 };
+
+using UniqueDCPBackfillPtr = std::unique_ptr<DCPBackfill>;
