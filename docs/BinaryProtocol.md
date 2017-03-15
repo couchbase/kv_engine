@@ -1474,6 +1474,8 @@ The following features is defined:
 | 0x0004 | Mutation seqno |
 | 0x0005 | TCP Delay |
 | 0x0006 | XATTR |
+| 0x0007 | XERROR |
+| 0x0008 | Select bucket |
 
 * `Datatype` - The client understands the 'non-null' values in the
   [datatype field](#data-types). The server expects the client to fill
@@ -1489,6 +1491,16 @@ The following features is defined:
 * `XATTR` - The client requests the server to add XATTRs to the stream for
             commands where it makes sense (GetWithMeta, SetWithMeta,
             DcpMutation etc)
+* `XERROR` - The client requests the server to send extended error codes
+             instead of disconnecting the client when new errors occur
+             (note that some errors may be remapped to more generic
+             error codes instead of disconnecting)
+* `Select bucket` - This is purely informational (it does not enable/disable
+                    anything on the server). It may be used from the client
+                    to know if it should be able to run select bucket or not
+                    (select bucket was a privileged command pre-spock. In
+                    spock all users may run select bucket, but only to a
+                    bucket they have access to).
 
 Response:
 
