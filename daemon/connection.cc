@@ -269,6 +269,8 @@ cJSON* Connection::toJSON() const {
                                 isSupportsDatatype());
         json_add_bool_to_object(features, "mutation_extras",
                                 isSupportsMutationExtras());
+        json_add_bool_to_object(features, "xattr", isXattrSupport());
+        json_add_bool_to_object(features, "xerror", isXerrorSupport());
 
         cJSON_AddItemToObject(obj, "features", features);
 
