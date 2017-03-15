@@ -2188,7 +2188,7 @@ AddStatus VBucket::addTempStoredValue(const HashTable::HashBucketLock& hbl,
     return processAdd(hbl, v, itm, true, isReplication, nullptr).first;
 }
 
-inline void VBucket::notifyNewSeqno(const VBNotifyCtx& notifyCtx) {
+void VBucket::notifyNewSeqno(const VBNotifyCtx& notifyCtx) {
     if (newSeqnoCb) {
         newSeqnoCb->callback(getId(), notifyCtx);
     }

@@ -114,7 +114,7 @@ protected:
         }
     }
 
-    void runItemPager() {
+    void runItemPager(size_t online_vb_count = 1) {
         auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
 
         // Item pager consists of two Tasks - the parent ItemPager task,
@@ -125,7 +125,11 @@ protected:
         runNextTask(lpNonioQ, "Paging out items.");
         ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
         ASSERT_EQ(2, lpNonioQ.getFutureQueueSize());
-        runNextTask(lpNonioQ, "Item pager on vb 0");
+        for (size_t ii = 0; ii < online_vb_count; ii++) {
+            runNextTask(lpNonioQ, "Item pager on vb 0");
+        }
+        // Once complete, should jsut have a single 'Paging out items' task in
+        // the future queue.
         ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
         ASSERT_EQ(1, lpNonioQ.getFutureQueueSize());
     }
@@ -173,13 +177,8 @@ TEST_P(STItemPagerTest, ServerQuotaReached) {
 
     runItemPager();
 
-    if (GetParam() == "persistent") {
-        // TODO: Currently this fails under Ephemeral because doEviction calls
-        // EphemeralVB::htUnlockedEjectItem
-        // which always returns false. Need to use a new pager which calls delete.
-        EXPECT_LT(stats.getTotalMemoryUsed(), stats.mem_low_wat.load())
+    EXPECT_LT(stats.getTotalMemoryUsed(), stats.mem_low_wat.load())
             << "Expected to be below low watermark after running item pager";
-    }
 }
 
 // Test that when the server quota is reached, we delete items which have
@@ -241,6 +240,77 @@ TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
     }
 }
 
+/**
+ * Test fixture for Ephemeral-only item pager tests.
+ */
+class STEphemeralItemPagerTest : public STItemPagerTest {
+};
+
+// For Ephemeral buckets, replica items should not be paged out (deleted) -
+// as that would cause the replica to have a diverging history from the active.
+TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
+    const uint16_t active_vb = 0;
+    const uint16_t replica_vb = 1;
+    // Set vBucket 1 online, initially as active (so we can populate it).
+    store->setVBucketState(replica_vb, vbucket_state_active, false);
+
+    auto& stats = engine->getEpStats();
+    ASSERT_LE(stats.getTotalMemoryUsed(), 40 * 1024)
+        << "Expected to start with less than 40KB of memory used";
+    ASSERT_LT(stats.getTotalMemoryUsed(), stats.mem_low_wat.load())
+        << "Expected to start below low watermark";
+
+    // Populate vbid 0 (active) until we reach the low watermark.
+    size_t active_count = 0;
+    const std::string value(1024, 'x'); // 1KB value to use for documents.
+    do {
+        auto key = makeStoredDocKey("key_" + std::to_string(active_count));
+        auto item = make_item(active_vb, key, value);
+        // Set NRU of item to maximum; so will be a candidate for paging out
+        // straight away.
+        item.setNRUValue(MAX_NRU_VALUE);
+        uint64_t cas;
+        ASSERT_EQ(ENGINE_SUCCESS,
+                  engine->store(nullptr, &item, &cas, OPERATION_SET));
+        active_count++;
+    } while (stats.getTotalMemoryUsed() < stats.mem_low_wat.load());
+
+    ASSERT_GE(active_count, 10)
+            << "Expected at least 10 active items before hitting low watermark";
+
+    // Populate vbid 1 (replica) until we reach the high watermark.
+    size_t replica_count = 0;
+    ENGINE_ERROR_CODE result;
+    do {
+        auto key = makeStoredDocKey("key_" + std::to_string(replica_count));
+        auto item = make_item(replica_vb, key, value);
+        // Set NRU of item to maximum; so will be a candidate for paging out
+        // straight away (not that replica Items /should/ get paged out in
+        // this test).
+        item.setNRUValue(MAX_NRU_VALUE);
+
+        uint64_t cas;
+        result = engine->store(nullptr, &item, &cas, OPERATION_SET);
+    } while (result == ENGINE_SUCCESS && ++replica_count);
+    ASSERT_EQ(ENGINE_TMPFAIL, result);
+    ASSERT_GE(replica_count, 10)
+        << "Expected at least 10 replica items before hitting high watermark";
+
+    // Flip vb 1 to be a replica (and hence should not be a candidate for
+    // any paging out.
+    store->setVBucketState(replica_vb, vbucket_state_replica, false);
+
+    runItemPager(2);
+
+    EXPECT_EQ(replica_count, store->getVBucket(replica_vb)->getNumItems())
+        << "Replica count should be unchanged after Item Pager";
+
+    EXPECT_LT(stats.getTotalMemoryUsed(), stats.mem_low_wat.load())
+            << "Expected to be below low watermark after running item pager";
+
+    EXPECT_LT(store->getVBucket(active_vb)->getNumItems(), active_count)
+        << "Active count should have decreased after Item Pager";
+}
 
 /**
  * Test fixture for expiry pager tests - enables the Expiry Pager (in addition
@@ -379,6 +449,13 @@ INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
 INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         STExpiryPagerTest,
                         ::testing::Values("ephemeral", "persistent"),
+                        [](const ::testing::TestParamInfo<std::string>& info) {
+                            return info.param;
+                        });
+
+INSTANTIATE_TEST_CASE_P(Ephemeral,
+                        STEphemeralItemPagerTest,
+                        ::testing::Values("ephemeral"),
                         [](const ::testing::TestParamInfo<std::string>& info) {
                             return info.param;
                         });

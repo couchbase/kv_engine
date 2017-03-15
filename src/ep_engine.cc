@@ -585,6 +585,8 @@ static protocol_binary_response_status setFlushParam(
             }
         } else if (strcmp(keyz, "vb_state_persist_run") == 0) {
             e->runVbStatePersistTask(std::stoi(valz));
+        } else if (strcmp(keyz, "ephemeral_full_policy") == 0) {
+            e->getConfiguration().setEphemeralFullPolicy(valz);
         } else {
             msg = "Unknown config param";
             rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;

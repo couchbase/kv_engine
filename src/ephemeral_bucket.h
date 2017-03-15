@@ -32,6 +32,8 @@ class EphemeralBucket : public KVBucket {
 public:
     EphemeralBucket(EventuallyPersistentEngine& theEngine);
 
+    bool initialize() override;
+
     /// Eviction not supported for Ephemeral buckets - without some backing
     /// storage, there is nowhere to evict /to/.
     protocol_binary_response_status evictKey(const DocKey& key,

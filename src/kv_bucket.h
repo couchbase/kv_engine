@@ -555,6 +555,9 @@ public:
     void enableExpiryPager();
     void disableExpiryPager();
 
+    void enableItemPager();
+    void disableItemPager();
+
     void enableAccessScannerTask();
     void disableAccessScannerTask();
     void setAccessScannerSleeptime(size_t val, bool useStartTime);

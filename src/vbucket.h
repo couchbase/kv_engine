@@ -775,8 +775,14 @@ public:
                                                      const char** msg) = 0;
 
     /**
-     * Eject a StoredValue from memory.
+     * Page out a StoredValue from memory.
      *
+     * The definition of "page out" is up to the underlying VBucket
+     * implementation - this may mean simply ejecting the value from memory
+     * (Value Eviction), removing the entire document from memory (Full Eviction),
+     * or actually deleting the document (Ephemeral Buckets).
+     *
+     * @param lh Bucket lock associated with the StoredValue.
      * @param v[in, out] Ref to the StoredValue to be ejected. Based on the
      *                   VBucket type, policy in the vbucket contents of v and
      *                   v itself may be changed
@@ -1163,6 +1169,14 @@ protected:
                                  const DocKey& key,
                                  bool isReplication = false);
 
+    /**
+     * Internal wrapper function around the callback to be called when a new
+     * seqno is generated in the vbucket
+     *
+     * @param notifyCtx holds info needed for notification
+     */
+    void notifyNewSeqno(const VBNotifyCtx& notifyCtx);
+
     void _addStats(bool details, ADD_STAT add_stat, const void* c);
 
     template <typename T>
@@ -1327,14 +1341,6 @@ private:
                                             int bgFetchDelay,
                                             get_options_t options,
                                             const StoredValue& v) = 0;
-
-    /**
-     * Internal wrapper function around the callback to be called when a new
-     * seqno is generated in the vbucket
-     *
-     * @param notifyCtx holds info needed for notification
-     */
-    void notifyNewSeqno(const VBNotifyCtx& notifyCtx);
 
     /**
      * Update the revision seqno of a newly StoredValue item.

@@ -467,8 +467,9 @@ bool KVBucket::initialize() {
         warmupCompleted();
     }
 
+    // Always create the item pager; but leave scheduling up to the specific
+    // KVBucket subclasses.
     itmpTask = new ItemPager(&engine, stats);
-    ExecutorPool::get()->schedule(itmpTask, NONIO_TASK_IDX);
 
     initializeExpiryPager(config);
 
@@ -2227,6 +2228,15 @@ void KVBucket::disableExpiryPager() {
     } else {
         LOG(EXTENSION_LOG_DEBUG, "Expiry Pager already disabled!");
     }
+}
+
+void KVBucket::enableItemPager() {
+    ExecutorPool::get()->cancel(itmpTask->getId());
+    ExecutorPool::get()->schedule(itmpTask, NONIO_TASK_IDX);
+}
+
+void KVBucket::disableItemPager() {
+    ExecutorPool::get()->cancel(itmpTask->getId());
 }
 
 void KVBucket::enableAccessScannerTask() {

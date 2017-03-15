@@ -88,11 +88,7 @@ public:
     }
 
     bool htUnlockedEjectItem(const HashTable::HashBucketLock& lh,
-                             StoredValue*& v) override {
-        /* There is nothing (no disk) to evictKey to. Later on if we decide to
-           use this as a deletion, then we can handle it differently */
-        return false;
-    }
+                             StoredValue*& v) override;
 
     void addStats(bool details, ADD_STAT add_stat, const void* c) override;
 

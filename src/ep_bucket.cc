@@ -37,6 +37,8 @@ EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
 bool EPBucket::initialize() {
     KVBucket::initialize();
 
+    enableItemPager();
+
     if (!startBgFetcher()) {
         LOG(EXTENSION_LOG_FATAL,
            "EPBucket::initialize: Failed to create and start bgFetchers");
