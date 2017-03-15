@@ -62,7 +62,7 @@ void CacheCallback::callback(CacheLookup& lookup) {
                                           WantsDeleted::No,
                                           TrackReference::No);
     if (v && v->isResident() && v->getBySeqno() == lookup.getBySeqno()) {
-        Item* it;
+        std::unique_ptr<Item> it;
         try {
             it = v->toItem(false, lookup.getVBucketId());
         } catch (const std::bad_alloc&) {
@@ -77,7 +77,7 @@ void CacheCallback::callback(CacheLookup& lookup) {
             return;
         }
         hbl.getHTLock().unlock();
-        if (!stream_->backfillReceived(it, BACKFILL_FROM_MEMORY)) {
+        if (!stream_->backfillReceived(std::move(it), BACKFILL_FROM_MEMORY)) {
             setStatus(ENGINE_ENOMEM); // Pause the backfill
         } else {
             setStatus(ENGINE_KEY_EEXISTS);
@@ -104,7 +104,8 @@ void DiskCallback::callback(GetValue& val) {
         throw std::invalid_argument("DiskCallback::callback: val is NULL");
     }
 
-    if (!stream_->backfillReceived(val.getValue(), BACKFILL_FROM_DISK)) {
+    if (!stream_->backfillReceived(std::unique_ptr<Item>(val.getValue()),
+                                   BACKFILL_FROM_DISK)) {
         setStatus(ENGINE_ENOMEM); // Pause the backfill
     } else {
         setStatus(ENGINE_SUCCESS);

@@ -136,10 +136,16 @@ bool StoredValue::hasAvailableSpace(EPStats &st, const Item &itm,
     }
 }
 
-Item* StoredValue::toItem(bool lck, uint16_t vbucket) const {
-    Item* itm = new Item(getKey(), getFlags(), getExptime(), value,
-                         lck ? static_cast<uint64_t>(-1) : getCas(),
-                         bySeqno, vbucket, getRevSeqno());
+std::unique_ptr<Item> StoredValue::toItem(bool lck, uint16_t vbucket) const {
+    auto itm =
+            std::make_unique<Item>(getKey(),
+                                   getFlags(),
+                                   getExptime(),
+                                   value,
+                                   lck ? static_cast<uint64_t>(-1) : getCas(),
+                                   bySeqno,
+                                   vbucket,
+                                   getRevSeqno());
 
     // This is a partial item...
     if (value.get() == nullptr) {

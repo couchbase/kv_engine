@@ -316,7 +316,7 @@ public:
      * @param rnd a randomization input
      * @return an item -- NULL if not fount
      */
-    Item *getRandomKey(long rnd);
+    std::unique_ptr<Item> getRandomKey(long rnd);
 
     /**
      * Set an Item into the this hashtable
@@ -649,7 +649,7 @@ private:
         return bucket_num % n_locks;
     }
 
-    Item *getRandomKeyFromSlot(int slot);
+    std::unique_ptr<Item> getRandomKeyFromSlot(int slot);
 
     /** Searches for the first element in the specified hashChain which matches
      * predicate p, and unlinks it from the chain.

@@ -237,7 +237,8 @@ public:
 
     void markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno);
 
-    bool backfillReceived(Item* itm, backfill_source_t backfill_source);
+    bool backfillReceived(std::unique_ptr<Item> itm,
+                          backfill_source_t backfill_source);
 
     void completeBackfill();
 

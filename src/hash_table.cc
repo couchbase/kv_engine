@@ -223,11 +223,11 @@ StoredValue* HashTable::find(const DocKey& key,
     return unlocked_find(key, hbl.getBucketNum(), wantsDeleted, trackReference);
 }
 
-Item* HashTable::getRandomKey(long rnd) {
+std::unique_ptr<Item> HashTable::getRandomKey(long rnd) {
     /* Try to locate a partition */
     size_t start = rnd % size;
     size_t curr = start;
-    Item *ret;
+    std::unique_ptr<Item> ret;
 
     do {
         ret = getRandomKeyFromSlot(curr++);
@@ -666,7 +666,7 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
     }
 }
 
-Item *HashTable::getRandomKeyFromSlot(int slot) {
+std::unique_ptr<Item> HashTable::getRandomKeyFromSlot(int slot) {
     auto lh = getLockedBucket(slot);
     for (StoredValue* v = values[slot].get(); v; v = v->next.get()) {
         if (!v->isTempItem() && !v->isDeleted() && v->isResident()) {
@@ -674,7 +674,7 @@ Item *HashTable::getRandomKeyFromSlot(int slot) {
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 bool HashTable::unlocked_restoreValue(

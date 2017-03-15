@@ -390,8 +390,9 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
     }
 }
 
-bool ActiveStream::backfillReceived(Item* itm, backfill_source_t backfill_source) {
-    if (nullptr == itm) {
+bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
+                                    backfill_source_t backfill_source) {
+    if (!itm) {
         return false;
     }
 
@@ -399,16 +400,15 @@ bool ActiveStream::backfillReceived(Item* itm, backfill_source_t backfill_source
         std::unique_lock<std::mutex> lh(streamMutex);
         if (isBackfilling()) {
             if (!producer->recordBackfillManagerBytesRead(itm->size())) {
-                delete itm;
                 return false;
             }
 
             bufferedBackfill.bytes.fetch_add(itm->size());
             bufferedBackfill.items++;
-
-            pushToReadyQ(new MutationResponse(itm, opaque_, nullptr));
-
             lastReadSeqno.store(itm->getBySeqno());
+
+            pushToReadyQ(new MutationResponse(std::move(itm), opaque_, nullptr));
+
             lh.unlock();
             bool inverse = false;
             if (itemsReady.compare_exchange_strong(inverse, true)) {
@@ -420,11 +420,7 @@ bool ActiveStream::backfillReceived(Item* itm, backfill_source_t backfill_source
             } else {
                 backfillItems.disk++;
             }
-        } else {
-            delete itm;
         }
-    } else {
-        delete itm;
     }
 
     return true;

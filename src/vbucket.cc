@@ -1442,9 +1442,10 @@ GetValue VBucket::getAndUpdateTtl(const DocKey& key,
             v->setRevSeqno(v->getRevSeqno() + 1);
         }
 
-        GetValue rv(v->toItem(v->isLocked(ep_current_time()), getId()),
-                    ENGINE_SUCCESS,
-                    v->getBySeqno());
+        GetValue rv(
+                v->toItem(v->isLocked(ep_current_time()), getId()).release(),
+                ENGINE_SUCCESS,
+                v->getBySeqno());
 
         if (exptime_mutated) {
             VBNotifyCtx notifyCtx = queueDirty(*v);
@@ -1566,7 +1567,7 @@ GetValue VBucket::getInternal(const DocKey& key,
         // Should we hide (return -1) for the items' CAS?
         const bool hide_cas =
                 (options & HIDE_LOCKED_CAS) && v->isLocked(ep_current_time());
-        return GetValue(v->toItem(hide_cas, getId()),
+        return GetValue(v->toItem(hide_cas, getId()).release(),
                         ENGINE_SUCCESS,
                         v->getBySeqno(),
                         false,
@@ -1740,11 +1741,11 @@ GetValue VBucket::getLocked(const DocKey& key,
         // acquire lock and increment cas value
         v->lock(currentTime + lockTimeout);
 
-        Item* it = v->toItem(false, getId());
+        auto it = v->toItem(false, getId());
         it->setCas(nextHLCCas());
         v->setCas(it->getCas());
 
-        return GetValue(it);
+        return GetValue(it.release());
 
     } else {
         // No value found in the hashtable.

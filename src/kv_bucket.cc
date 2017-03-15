@@ -1244,7 +1244,7 @@ GetValue KVBucket::getRandomKey() {
 
     const long start = random() % max;
     long curr = start;
-    Item *itm = NULL;
+    std::unique_ptr<Item> itm;
 
     while (itm == NULL) {
         RCPtr<VBucket> vb = getVBucket(curr++);
@@ -1259,8 +1259,8 @@ GetValue KVBucket::getRandomKey() {
             vb = getVBucket(curr++);
         }
 
-        if ((itm = vb->ht.getRandomKey(random())) != NULL) {
-            GetValue rv(itm, ENGINE_SUCCESS);
+        if ((itm = vb->ht.getRandomKey(random()))) {
+            GetValue rv(itm.release(), ENGINE_SUCCESS);
             return rv;
         }
 

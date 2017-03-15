@@ -68,9 +68,9 @@ backfill_status_t DCPBackfillMemory::run() {
     stream->markDiskSnapshot(items.front()->getBySeqno(),
                              items.back()->getBySeqno());
 
-    /* Copy every item to the stream */
+    /* Move every item to the stream */
     for (auto& item : items) {
-        stream->backfillReceived(item.release(), BACKFILL_FROM_MEMORY);
+        stream->backfillReceived(std::move(item), BACKFILL_FROM_MEMORY);
     }
 
     /* Indicate completion to the stream */

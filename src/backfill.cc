@@ -63,12 +63,13 @@ void ItemResidentCallback::callback(CacheLookup &lookup) {
                                           WantsDeleted::No,
                                           TrackReference::Yes);
     if (v && v->isResident() && v->getBySeqno() == lookup.getBySeqno()) {
-        Item* it = v->toItem(false, lookup.getVBucketId());
+        auto it = v->toItem(false, lookup.getVBucketId());
         hbl.getHTLock().unlock();
         CompletedBGFetchTapOperation tapop(connToken,
                                            lookup.getVBucketId(), true);
-        if (!connMap.performOp(tapConnName, tapop, it)) {
-            delete it;
+        if (connMap.performOp(tapConnName, tapop, it.get())) {
+            // On success performOp has taken ownership of the item.
+            it.release();
         }
         setStatus(ENGINE_KEY_EEXISTS);
     } else {

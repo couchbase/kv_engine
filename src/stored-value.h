@@ -526,7 +526,7 @@ public:
      * @param lck if true, the new item will return a locked CAS ID.
      * @param vbucket the vbucket containing this item.
      */
-    Item *toItem(bool lck, uint16_t vbucket) const;
+    std::unique_ptr<Item> toItem(bool lck, uint16_t vbucket) const;
 
     /**
      * Set the memory threshold on the current bucket quota for accepting a new mutation
