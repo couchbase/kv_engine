@@ -176,22 +176,22 @@ void MemoryTrackerTest::AccountingTestThread(void* arg) {
 // Test that the various memory allocation / deletion functions are correctly
 // accounted for, when run in a parallel thread.
 TEST_F(MemoryTrackerTest, Accounting) {
-    mc_add_new_hook(NewHook);
-    mc_add_delete_hook(DeleteHook);
+    AllocHooks::add_new_hook(NewHook);
+    AllocHooks::add_delete_hook(DeleteHook);
 
     cb_thread_t tid;
     ASSERT_EQ(0, cb_create_thread(&tid, AccountingTestThread, 0, 0));
     ASSERT_EQ(0, cb_join_thread(tid));
 
-    mc_remove_new_hook(NewHook);
-    mc_remove_delete_hook(DeleteHook);
+    AllocHooks::remove_new_hook(NewHook);
+    AllocHooks::remove_delete_hook(DeleteHook);
 }
 
 
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
 
-    init_alloc_hooks();
+    AllocHooks::initialize();
 
     return RUN_ALL_TESTS();
 }

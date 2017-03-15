@@ -49,7 +49,7 @@ using SetCallbackFunc = std::function<ENGINE_ERROR_CODE(
 static ENGINE_ERROR_CODE setReleaseFreeMemory(Connection* c,
                                               const StrToStrMap&,
                                               const std::string& value) {
-    mc_release_free_memory();
+    AllocHooks::release_free_memory();
     LOG_NOTICE(c, "%u: IOCTL_SET: release_free_memory called", c->getId());
     return ENGINE_SUCCESS;
 }
