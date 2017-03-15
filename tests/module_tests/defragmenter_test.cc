@@ -207,11 +207,11 @@ TEST_F(DefragmenterBenchmarkTest, DefragAge10_20ms) {
 static size_t get_mapped_bytes(void) {
     size_t mapped_bytes;
     allocator_stats stats = {0};
-    std::vector<allocator_ext_stat> extra_stats(mc_get_extra_stats_size());
+    std::vector<allocator_ext_stat> extra_stats(AllocHooks::get_extra_stats_size());
     stats.ext_stats_size = extra_stats.size();
     stats.ext_stats = extra_stats.data();
 
-    mc_get_allocator_stats(&stats);
+    AllocHooks::get_allocator_stats(&stats);
     mapped_bytes = stats.heap_size - stats.free_mapped_size
         - stats.free_unmapped_size;
     return mapped_bytes;
@@ -368,7 +368,7 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
 
     // Release free memory back to OS to minimize our footprint after
     // removing the documents above.
-    mc_release_free_memory();
+    AllocHooks::release_free_memory();
 
     // Sanity check - mem_used should have reduced down by approximately how
     // many documents were removed.
@@ -405,13 +405,13 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
         << previous_mapped << "). ";
 
     // 3. Enable defragmenter and trigger defragmentation
-    mc_enable_thread_cache(false);
+    AllocHooks::enable_thread_cache(false);
 
     DefragmentVisitor visitor(0);
     visitor.visit(vbucket.getId(), vbucket.ht);
 
-    mc_enable_thread_cache(true);
-    mc_release_free_memory();
+    AllocHooks::enable_thread_cache(true);
+    AllocHooks::release_free_memory();
 
     // Check that mapped memory has decreased after defragmentation - should be
     // less than 50% of the amount before defrag (this is pretty conservative,
