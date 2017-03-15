@@ -100,7 +100,7 @@ public:
         return nullptr;
     }
 
-    UniqueDCPBackfillPtr createDCPBackfill(EventuallyPersistentEngine* e,
+    UniqueDCPBackfillPtr createDCPBackfill(EventuallyPersistentEngine& e,
                                            const active_stream_t& stream,
                                            uint64_t startSeqno,
                                            uint64_t endSeqno) const override {

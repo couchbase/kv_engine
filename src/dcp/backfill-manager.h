@@ -57,7 +57,7 @@ class EventuallyPersistentEngine;
 
 class BackfillManager : public std::enable_shared_from_this<BackfillManager> {
 public:
-    BackfillManager(EventuallyPersistentEngine* e);
+    BackfillManager(EventuallyPersistentEngine& e);
 
     ~BackfillManager();
 
@@ -88,7 +88,7 @@ private:
     //! When the number of (activeBackfills + snoozingBackfills) crosses a
     //!   threshold we use waitingBackfills
     std::list<UniqueDCPBackfillPtr> pendingBackfills;
-    EventuallyPersistentEngine* engine;
+    EventuallyPersistentEngine& engine;
     ExTask managerTask;
 
     //! The scan buffer is for the current stream being backfilled

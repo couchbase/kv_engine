@@ -36,12 +36,12 @@ enum backfill_state_t {
 /* Callback to get the items that are found to be in the cache */
 class CacheCallback : public Callback<CacheLookup> {
 public:
-    CacheCallback(EventuallyPersistentEngine* e, active_stream_t& s);
+    CacheCallback(EventuallyPersistentEngine& e, active_stream_t& s);
 
     void callback(CacheLookup& lookup);
 
 private:
-    EventuallyPersistentEngine* engine_;
+    EventuallyPersistentEngine& engine_;
     active_stream_t stream_;
 };
 
@@ -65,7 +65,7 @@ private:
  */
 class DCPBackfillDisk : public DCPBackfill {
 public:
-    DCPBackfillDisk(EventuallyPersistentEngine* e,
+    DCPBackfillDisk(EventuallyPersistentEngine& e,
                     const active_stream_t& s,
                     uint64_t startSeqno,
                     uint64_t endSeqno);
@@ -110,7 +110,7 @@ private:
      */
     void transitionState(backfill_state_t newState);
 
-    EventuallyPersistentEngine* engine;
+    EventuallyPersistentEngine& engine;
 
     ScanContext* scanCtx;
     backfill_state_t state;

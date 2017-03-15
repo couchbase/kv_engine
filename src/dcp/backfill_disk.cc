@@ -35,7 +35,7 @@ static std::string backfillStateToString(backfill_state_t state) {
     return "<invalid>:" + std::to_string(state);
 }
 
-CacheCallback::CacheCallback(EventuallyPersistentEngine* e, active_stream_t& s)
+CacheCallback::CacheCallback(EventuallyPersistentEngine& e, active_stream_t& s)
     : engine_(e), stream_(s) {
     if (stream_.get() == nullptr) {
         throw std::invalid_argument("CacheCallback(): stream is NULL");
@@ -50,7 +50,7 @@ CacheCallback::CacheCallback(EventuallyPersistentEngine* e, active_stream_t& s)
 
 void CacheCallback::callback(CacheLookup& lookup) {
     RCPtr<VBucket> vb =
-            engine_->getKVBucket()->getVBucket(lookup.getVBucketId());
+            engine_.getKVBucket()->getVBucket(lookup.getVBucketId());
     if (!vb) {
         setStatus(ENGINE_SUCCESS);
         return;
@@ -111,7 +111,7 @@ void DiskCallback::callback(GetValue& val) {
     }
 }
 
-DCPBackfillDisk::DCPBackfillDisk(EventuallyPersistentEngine* e,
+DCPBackfillDisk::DCPBackfillDisk(EventuallyPersistentEngine& e,
                                  const active_stream_t& s,
                                  uint64_t startSeqno,
                                  uint64_t endSeqno)
@@ -159,7 +159,7 @@ backfill_status_t DCPBackfillDisk::create() {
     uint16_t vbid = stream->getVBucket();
 
     uint64_t lastPersistedSeqno =
-            engine->getKVBucket()->getLastPersistedSeqno(vbid);
+            engine.getKVBucket()->getLastPersistedSeqno(vbid);
 
     if (lastPersistedSeqno < endSeqno) {
         stream->getLogger().log(EXTENSION_LOG_NOTICE,
@@ -173,7 +173,7 @@ backfill_status_t DCPBackfillDisk::create() {
         return backfill_snooze;
     }
 
-    KVStore* kvstore = engine->getKVBucket()->getROUnderlying(vbid);
+    KVStore* kvstore = engine.getKVBucket()->getROUnderlying(vbid);
     ValueFilter valFilter = ValueFilter::VALUES_DECOMPRESSED;
     if (stream->isCompressionEnabled()) {
         valFilter = ValueFilter::VALUES_COMPRESSED;
@@ -203,7 +203,7 @@ backfill_status_t DCPBackfillDisk::scan() {
         return complete(true);
     }
 
-    KVStore* kvstore = engine->getKVBucket()->getROUnderlying(vbid);
+    KVStore* kvstore = engine.getKVBucket()->getROUnderlying(vbid);
     scan_error_t error = kvstore->scan(scanCtx);
 
     if (error == scan_again) {
@@ -217,7 +217,7 @@ backfill_status_t DCPBackfillDisk::scan() {
 
 backfill_status_t DCPBackfillDisk::complete(bool cancelled) {
     uint16_t vbid = stream->getVBucket();
-    KVStore* kvstore = engine->getKVBucket()->getROUnderlying(vbid);
+    KVStore* kvstore = engine.getKVBucket()->getROUnderlying(vbid);
     kvstore->destroyScanContext(scanCtx);
 
     stream->completeBackfill();

@@ -184,7 +184,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
         supportsCursorDropping = true;
     }
 
-    backfillMgr.reset(new BackfillManager(&engine_));
+    backfillMgr.reset(new BackfillManager(engine_));
 
     checkpointCreatorTask = new ActiveStreamCheckpointProcessorTask(e);
     ExecutorPool::get()->schedule(checkpointCreatorTask, AUXIO_TASK_IDX);
