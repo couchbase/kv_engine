@@ -28,6 +28,7 @@ class VBucket;
 namespace Collections {
 
 class Manifest;
+class Filter;
 
 /**
  * Collections::Manager provides some bucket level management functions
@@ -55,6 +56,13 @@ public:
      * occurs.
      */
     void update(VBucket& vb) const;
+
+    /**
+     * make a Collections::Filter
+     * @throws for bad json or incorrect collections
+     */
+    std::unique_ptr<Filter> makeFilter(bool collectionsEnabled,
+                                       const std::string& json) const;
 
 private:
     mutable std::mutex lock;

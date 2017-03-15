@@ -612,27 +612,37 @@ TEST_F(CollectionsTest, test_dcp_consumer) {
     consumer->cancelTask();
 }
 
+extern uint8_t dcp_last_op;
+extern std::string dcp_last_key;
+
 class CollectionsDcpTest : public CollectionsTest {
 public:
     CollectionsDcpTest()
-        : cookieC(create_mock_cookie()),
-          cookieP(create_mock_cookie()),
-          producers(get_dcp_producers(nullptr, nullptr)) {
+        : cookieC(create_mock_cookie()), cookieP(create_mock_cookie()) {
     }
 
     // Setup a producer/consumer ready for the test
     void SetUp() override {
         CollectionsTest::SetUp();
+        producers = get_dcp_producers(
+                reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
+                reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+        createDcpObjects({/*no filter*/}, true /*collections on*/);
+    }
 
+    void createDcpObjects(const std::string& filter, bool dcpCollectionAware) {
         CollectionsDcpTest::consumer =
                 new MockDcpConsumer(*engine, cookieC, "test_consumer");
 
-        producer = new MockDcpProducer(*engine,
-                                       cookieP,
-                                       "test_producer",
-                                       /*notifyOnly*/ false,
-                                       /*startTask*/ false,
-                                       DcpProducer::MutationType::KeyAndValue);
+        int flags = (dcpCollectionAware) ? DCP_OPEN_COLLECTIONS : 0;
+        producer = new MockDcpProducer(
+                *engine,
+                cookieP,
+                "test_producer",
+                flags,
+                {reinterpret_cast<const uint8_t*>(filter.data()),
+                 filter.size()},
+                false /*startTask*/);
 
         // Create the task object, but don't schedule
         producer->createCheckpointProcessorTask();
@@ -694,6 +704,9 @@ public:
                                              cb::const_byte_buffer eventData) {
         (void)cookie;
         (void)vbucket; // ignored as we are connecting VBn to VBn+1
+        dcp_last_op = PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT;
+        dcp_last_key.assign(reinterpret_cast<const char*>(key.data()),
+                            key.size());
         return consumer->systemEvent(
                 opaque, replicaVB, event, bySeqno, key, eventData);
     }
@@ -948,4 +961,241 @@ TEST_F(CollectionsManagerTest, basic2) {
                     {"anykey", DocNamespace::DefaultCollection}));
         }
     }
+}
+
+class CollectionsFilteredDcpErrorTest : public CollectionsTest {
+public:
+    CollectionsFilteredDcpErrorTest() : cookieP(create_mock_cookie()) {
+    }
+    void SetUp() override {
+        CollectionsTest::SetUp();
+    }
+
+    void TearDown() override {
+        destroy_mock_cookie(cookieP);
+        producer.reset();
+        EPBucketTest::TearDown();
+    }
+
+protected:
+    SingleThreadedRCPtr<MockDcpProducer> producer;
+    const void* cookieP;
+};
+
+TEST_F(CollectionsFilteredDcpErrorTest, error1) {
+    // Set some collections
+    store->setCollections(
+            {R"({"revision":1,"separator":"::","collections":["$default", "meat", "dairy"]})"});
+
+    std::string filter = R"({"collections":["fruit"]})";
+    cb::const_byte_buffer buffer{
+            reinterpret_cast<const uint8_t*>(filter.data()), filter.size()};
+    // Can't create a filter for unknown collections
+    EXPECT_THROW(std::make_unique<MockDcpProducer>(*engine,
+                                                   cookieP,
+                                                   "test_producer",
+                                                   DCP_OPEN_COLLECTIONS,
+                                                   buffer,
+                                                   false /*startTask*/),
+                 std::invalid_argument);
+}
+
+TEST_F(CollectionsFilteredDcpErrorTest, error2) {
+    // Set some collections
+    store->setCollections(
+            {R"({"revision":1,"separator":"::","collections":["$default", "meat", "dairy"]})"});
+
+    std::string filter = R"({"collections":["meat"]})";
+    cb::const_byte_buffer buffer{
+            reinterpret_cast<const uint8_t*>(filter.data()), filter.size()};
+    // Can't create a filter for unknown collections
+    producer = std::make_unique<MockDcpProducer>(*engine,
+                                                 cookieP,
+                                                 "test_producer",
+                                                 DCP_OPEN_COLLECTIONS,
+                                                 buffer,
+                                                 false /*startTask*/);
+
+    // Remove dairy
+    store->setCollections(
+            {R"({"revision":2,"separator":"::","collections":["$default", "dairy"]})"});
+
+    // Now should be prevented from creating a new stream
+    uint64_t rollbackSeqno = 0;
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+              producer->streamRequest(0, // flags
+                                      1, // opaque
+                                      vbid,
+                                      0, // start_seqno
+                                      ~0ull, // end_seqno
+                                      0, // vbucket_uuid,
+                                      0, // snap_start_seqno,
+                                      0, // snap_end_seqno,
+                                      &rollbackSeqno,
+                                      &CollectionsDcpTest::dcpAddFailoverLog));
+}
+
+class CollectionsFilteredDcpTest : public CollectionsDcpTest {
+public:
+    CollectionsFilteredDcpTest() : CollectionsDcpTest() {
+
+    }
+
+    void SetUp() override {
+        CollectionsTest::SetUp();
+        producers = get_dcp_producers(
+                reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
+                reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+    }
+};
+
+TEST_F(CollectionsFilteredDcpTest, filtering) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Perform a create of meat/dairy via the bucket level (filters are
+    // worked out from the bucket manifest)
+    store->setCollections(
+            {R"({"revision":1,"separator":"::","collections":["$default","meat", "dairy"]})"});
+
+    // Setup filtered DCP
+    createDcpObjects(R"({"collections":["dairy"]})", true);
+
+    // Store collection documents
+    std::array<std::string, 2> expectedKeys = {{"dairy::one", "dairy::two"}};
+    store_item(vbid, {"meat::one", DocNamespace::Collections}, "value");
+    store_item(vbid, {expectedKeys[0], DocNamespace::Collections}, "value");
+    store_item(vbid, {"meat::two", DocNamespace::Collections}, "value");
+    store_item(vbid, {expectedKeys[1], DocNamespace::Collections}, "value");
+    store_item(vbid, {"meat::three", DocNamespace::Collections}, "value");
+
+    auto vb0Stream = producer->findStream(0);
+    ASSERT_NE(nullptr, vb0Stream.get());
+
+    producer->notifySeqnoAvailable(vb->getId(), vb->getHighSeqno());
+
+    // Step which will notify the snapshot task
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+
+    EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
+
+    // Now call run on the snapshot task to move checkpoint into DCP stream
+    producer->getCheckpointSnapshotTask().run();
+
+    // snapshot marker
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
+
+    // SystemEvent createCollection
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
+    EXPECT_EQ("dairy", dcp_last_key);
+
+    // Now step DCP to transfer keys, only two keys are expected as all "meat"
+    // keys are filtered
+    for (auto& key : expectedKeys) {
+        EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+        EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
+        EXPECT_EQ(key, dcp_last_key);
+    }
+    // And no more
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+}
+
+TEST_F(CollectionsFilteredDcpTest, default_only) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Perform a create of meat/dairy via the bucket level (filters are
+    // worked out from the bucket manifest)
+    store->setCollections(
+            {R"({"revision":1,"separator":"::","collections":["$default","meat", "dairy"]})"});
+
+    // Setup DCP
+    createDcpObjects({/*no filter*/}, false /*don't know about collections*/);
+
+    // Store collection documents and one default collection document
+    store_item(vbid, {"meat::one", DocNamespace::Collections}, "value");
+    store_item(vbid, {"dairy::one", DocNamespace::Collections}, "value");
+    store_item(vbid, {"anykey", DocNamespace::DefaultCollection}, "value");
+    store_item(vbid, {"dairy::two", DocNamespace::Collections}, "value");
+    store_item(vbid, {"meat::three", DocNamespace::Collections}, "value");
+
+    auto vb0Stream = producer->findStream(0);
+    ASSERT_NE(nullptr, vb0Stream.get());
+
+    producer->notifySeqnoAvailable(vb->getId(), vb->getHighSeqno());
+
+    // Step which will notify the snapshot task
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+
+    EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
+
+    // Now call run on the snapshot task to move checkpoint into DCP stream
+    producer->getCheckpointSnapshotTask().run();
+
+    // snapshot marker
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
+
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
+    EXPECT_EQ("anykey", dcp_last_key);
+
+    // And no more
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+}
+
+TEST_F(CollectionsFilteredDcpTest, stream_closes) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Perform a create of meat via the bucket level (filters are worked out
+    // from the bucket manifest)
+    store->setCollections(
+            {R"({"revision":1,"separator":"::","collections":["$default","meat"]})"});
+
+    // Setup filtered DCP
+    createDcpObjects(R"({"collections":["meat"]})", true);
+
+    auto vb0Stream = producer->findStream(0);
+    ASSERT_NE(nullptr, vb0Stream.get());
+
+    // Perform a delete of meat via the bucket level (filters are worked out
+    // from the bucket manifest)
+    store->setCollections(
+            {R"({"revision":2,"separator":"::","collections":["$default"]})"});
+
+    producer->notifySeqnoAvailable(vb->getId(), vb->getHighSeqno());
+
+    // Now step DCP to transfer system events. We expect that the stream will
+    // close once we transfer DeleteCollection
+
+    EXPECT_NE(nullptr, consumer->getVbucketStream(1).get());
+
+    // Step which will notify the snapshot task
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+
+    EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
+
+    // Now call run on the snapshot task to move checkpoint into DCP stream
+    producer->getCheckpointSnapshotTask().run();
+
+    // Next step which will process a snapshot marker
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+
+    // Now step the producer to transfer the collection creation
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+
+    // Not dead yet...
+    EXPECT_TRUE(vb0Stream->isActive());
+
+    // Now step the producer to transfer the collection deletion
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+
+    // Done... collection deletion of meat has closed the stream
+    EXPECT_FALSE(vb0Stream->isActive());
+
+    // Now step the producer to transfer the close stream
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+
+    // And no more
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
 }

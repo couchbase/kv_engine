@@ -30,12 +30,10 @@ public:
     MockDcpProducer(EventuallyPersistentEngine& theEngine,
                     const void* cookie,
                     const std::string& name,
-                    bool isNotifier,
-                    bool startTask = true,
-                    DcpProducer::MutationType mutationType =
-                            DcpProducer::MutationType::KeyAndValue)
-        : DcpProducer(theEngine, cookie, name,
-                      isNotifier, startTask, mutationType) {
+                    uint32_t flags,
+                    cb::const_byte_buffer jsonExtra,
+                    bool startTask = true)
+        : DcpProducer(theEngine, cookie, name, flags, jsonExtra, startTask) {
         backfillMgr.reset(new MockDcpBackfillManager(engine_));
     }
 
@@ -119,4 +117,10 @@ public:
         return dynamic_cast<MockDcpBackfillManager*>(backfillMgr.get())
                 ->getBackfillBufferFullStatus();
     }
+
+    const Collections::Filter& getFilter() {
+        return *filter;
+    }
 };
+
+using mock_dcp_producer_t = SingleThreadedRCPtr<MockDcpProducer>;

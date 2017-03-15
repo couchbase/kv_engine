@@ -97,6 +97,10 @@ public:
             return manifest.getSeparator();
         }
 
+        DocKey makeCollectionsDocKey(::DocKey key) const {
+            return Collections::DocKey::make(key, manifest.getSeparator());
+        }
+
         /**
          * @returns true/false if $default exists
          */

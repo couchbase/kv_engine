@@ -125,11 +125,10 @@ ENGINE_ERROR_CODE DcpConnMap::addPassiveStream(ConnHandler& conn,
     return conn.addStream(opaque, vbucket, flags);
 }
 
-DcpProducer *DcpConnMap::newProducer(const void* cookie,
-                                     const std::string &name,
-                                     bool notifyOnly,
-                                     bool isKeyOnly)
-{
+DcpProducer* DcpConnMap::newProducer(const void* cookie,
+                                     const std::string& name,
+                                     uint32_t flags,
+                                     cb::const_byte_buffer jsonExtra) {
     LockHolder lh(connsLock);
 
     std::string conn_name("eq_dcpq:");
@@ -159,9 +158,7 @@ DcpProducer *DcpConnMap::newProducer(const void* cookie,
     }
 
     DcpProducer* dcp = new DcpProducer(
-            engine, cookie, conn_name, notifyOnly, true /*startTask*/,
-            isKeyOnly ? DcpProducer::MutationType::KeyOnly :
-                    DcpProducer::MutationType::KeyAndValue);
+            engine, cookie, conn_name, flags, jsonExtra, true /*startTask*/);
     LOG(EXTENSION_LOG_INFO, "%s Connection created", dcp->logHeader());
     map_[cookie] = dcp;
 
@@ -301,7 +298,6 @@ void DcpConnMap::disconnect(const void *cookie) {
 void DcpConnMap::manageConnections() {
     std::list<connection_t> release;
     std::list<connection_t> toNotify;
-    
     {
         LockHolder lh(connsLock);
         while (!deadConnections.empty()) {

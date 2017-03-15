@@ -749,6 +749,8 @@ public:
      */
     cb::engine_error setCollections(cb::const_char_buffer json);
 
+    const Collections::Manager& getCollectionsManager() const;
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be

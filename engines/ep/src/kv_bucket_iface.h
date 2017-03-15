@@ -37,6 +37,9 @@ class PersistenceCallback;
 class Producer;
 class VBucketMap;
 class Warmup;
+namespace Collections {
+class Manager;
+}
 
 /**
  * vbucket-aware hashtable visitor.
@@ -827,6 +830,8 @@ public:
      * @param json a buffer containing a JSON manifest to apply to the bucket
      */
     virtual cb::engine_error setCollections(cb::const_char_buffer json) = 0;
+
+    virtual const Collections::Manager& getCollectionsManager() const = 0;
 
 protected:
 

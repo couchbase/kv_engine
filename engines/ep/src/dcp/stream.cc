@@ -19,17 +19,18 @@
 
 #include <platform/checked_snprintf.h>
 
-#include "ep_engine.h"
-#include "failover-table.h"
-#include "kvstore.h"
-#include "statwriter.h"
+#include "collections/vbucket_filter.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/backfill.h"
 #include "dcp/consumer.h"
 #include "dcp/producer.h"
 #include "dcp/response.h"
 #include "dcp/stream.h"
+#include "ep_engine.h"
+#include "failover-table.h"
+#include "kvstore.h"
 #include "replicationthrottle.h"
+#include "statwriter.h"
 
 #include <memory>
 
@@ -145,16 +146,20 @@ void Stream::clear_UNLOCKED() {
     }
 }
 
-void Stream::pushToReadyQ(DcpResponse* resp)
-{
-   /* expect streamMutex.ownsLock() == true */
+void Stream::pushToReadyQ(DcpResponse* resp) {
+    /* expect streamMutex.ownsLock() == true */
     if (resp) {
-        readyQ.push(resp);
-        if (!resp->isMetaEvent()) {
-            readyQ_non_meta_items++;
+        if (queueResponse(resp)) {
+            readyQ.push(resp);
+            if (!resp->isMetaEvent()) {
+                readyQ_non_meta_items++;
+            }
+            readyQueueMemory.fetch_add(resp->getMessageSize(),
+                                       std::memory_order_relaxed);
+        } else {
+            delete resp;
+            return;
         }
-        readyQueueMemory.fetch_add(resp->getMessageSize(),
-                                   std::memory_order_relaxed);
     }
 }
 
@@ -232,7 +237,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            uint64_t vb_uuid,
                            uint64_t snap_start_seqno,
                            uint64_t snap_end_seqno,
-                           bool isKeyOnly)
+                           bool isKeyOnly,
+                           std::unique_ptr<Collections::VB::Filter> filter)
     : Stream(n,
              flags,
              opaque,
@@ -258,7 +264,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       producer(p),
       lastSentSnapEndSeqno(0),
       chkptItemsExtractionInProgress(false),
-      keyOnly(isKeyOnly) {
+      keyOnly(isKeyOnly),
+      filter(std::move(filter)) {
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
         type = "takeover ";
@@ -708,6 +715,8 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
         LOG(EXTENSION_LOG_WARNING,
             "ActiveStream::addStats: Failed to build stats: %s", error.what());
     }
+
+    filter->addStats(add_stat, c, name_, vb_);
 }
 
 void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie,
@@ -785,8 +794,8 @@ DcpResponse* ActiveStream::nextQueuedItem() {
                 }
             }
 
-            // See if the currentSeparator needs changing
-            maybeChangeSeparator(response);
+            // See if the response is a system-event
+            processSystemEvent(response);
             popFromReadyQ();
             return response;
         }
@@ -1451,25 +1460,60 @@ void ActiveStream::dropCheckpointCursor_UNLOCKED()
     vbucket->checkpointManager.removeCursor(name_);
 }
 
-void ActiveStream::maybeChangeSeparator(DcpResponse* response) {
+void ActiveStream::processSystemEvent(DcpResponse* response) {
     if (response->getEvent() == DcpResponse::Event::SystemEvent) {
         auto se = static_cast<SystemEventProducerMessage*>(response);
         if (se->getSystemEvent() == SystemEvent::CollectionsSeparatorChanged) {
             currentSeparator =
                     std::string(se->getKey().data(), se->getKey().size());
+        } else if (se->getSystemEvent() == SystemEvent::BeginDeleteCollection &&
+                   filter->remove(se->getKey())) {
+            // Filter empty, so endStream
+            endStream(END_STREAM_CLOSED);
         }
     }
 }
 
-NotifierStream::NotifierStream(EventuallyPersistentEngine* e, dcp_producer_t p,
-                               const std::string &name, uint32_t flags,
-                               uint32_t opaque, uint16_t vb, uint64_t st_seqno,
-                               uint64_t en_seqno, uint64_t vb_uuid,
+bool ActiveStream::queueResponse(DcpResponse* resp) const {
+    if ((resp->getEvent() == DcpResponse::Event::Mutation ||
+         resp->getEvent() == DcpResponse::Event::Deletion ||
+         resp->getEvent() == DcpResponse::Event::Expiration)) {
+        auto m = static_cast<MutationResponse*>(resp);
+        if (filter->allow(m->getItem()->getKey())) {
+            return true;
+        } else {
+            return false;
+        }
+    } else if (resp->getEvent() == DcpResponse::Event::SystemEvent) {
+        return filter->allowSystemEvent(static_cast<SystemEventMessage*>(resp));
+    }
+    return true;
+}
+
+NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
+                               dcp_producer_t p,
+                               const std::string& name,
+                               uint32_t flags,
+                               uint32_t opaque,
+                               uint16_t vb,
+                               uint64_t st_seqno,
+                               uint64_t en_seqno,
+                               uint64_t vb_uuid,
                                uint64_t snap_start_seqno,
-                               uint64_t snap_end_seqno)
-    : Stream(name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid,
-             snap_start_seqno, snap_end_seqno, Type::Notifier),
-      producer(p) {
+                               uint64_t snap_end_seqno,
+                               std::unique_ptr<Collections::VB::Filter> filter)
+    : Stream(name,
+             flags,
+             opaque,
+             vb,
+             st_seqno,
+             en_seqno,
+             vb_uuid,
+             snap_start_seqno,
+             snap_end_seqno,
+             Type::Notifier),
+      producer(p),
+      filter(std::move(filter)) {
     LockHolder lh(streamMutex);
     VBucketPtr vbucket = e->getVBucket(vb_);
     if (vbucket && static_cast<uint64_t>(vbucket->getHighSeqno()) > st_seqno) {
@@ -1481,6 +1525,10 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e, dcp_producer_t p,
     producer->getLogger().log(EXTENSION_LOG_NOTICE,
         "(vb %d) stream created with start seqno %" PRIu64 " and end seqno %"
         PRIu64, vb, st_seqno, en_seqno);
+}
+
+NotifierStream::~NotifierStream() {
+    transitionState(StreamState::Dead);
 }
 
 uint32_t NotifierStream::setDead(end_stream_status_t status) {
@@ -1564,6 +1612,25 @@ void NotifierStream::transitionState(StreamState newState) {
                 to_string(state_.load()) + ")");
     }
     state_ = newState;
+}
+
+bool NotifierStream::queueResponse(DcpResponse* resp) const {
+    if ((resp->getEvent() == DcpResponse::Event::Mutation ||
+         resp->getEvent() == DcpResponse::Event::Deletion ||
+         resp->getEvent() == DcpResponse::Event::Expiration)) {
+        auto m = static_cast<MutationResponse*>(resp);
+        if (filter->allow(m->getItem()->getKey())) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+    return true;
+}
+
+void NotifierStream::addStats(ADD_STAT add_stat, const void* c) {
+    Stream::addStats(add_stat, c);
+    filter->addStats(add_stat, c, name_, vb_);
 }
 
 PassiveStream::PassiveStream(EventuallyPersistentEngine* e, dcp_consumer_t c,

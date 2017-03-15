@@ -6061,11 +6061,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
     }
 
     ConnHandler *handler = NULL;
-    const bool keyOnly = flags & DCP_OPEN_NO_VALUE;
-    if (flags & DCP_OPEN_PRODUCER) {
-        handler = dcpConnMap_->newProducer(cookie, connName, false, keyOnly);
-    } else if (flags & DCP_OPEN_NOTIFIER) {
-        handler = dcpConnMap_->newProducer(cookie, connName, true, keyOnly);
+    if (flags & (DCP_OPEN_PRODUCER | DCP_OPEN_NOTIFIER)) {
+        handler = dcpConnMap_->newProducer(cookie, connName, flags, jsonExtra);
     } else {
         handler = dcpConnMap_->newConsumer(cookie, connName);
     }

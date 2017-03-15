@@ -16,13 +16,15 @@
  */
 
 #include "dcp/producer.h"
-
 #include "backfill.h"
+#include "collections/filter.h"
+#include "collections/manager.h"
+#include "collections/vbucket_filter.h"
 #include "common.h"
-#include "ep_engine.h"
-#include "failover-table.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/dcpconnmap.h"
+#include "ep_engine.h"
+#include "failover-table.h"
 
 #include <memcached/server_api.h>
 #include <vector>
@@ -129,17 +131,23 @@ void DcpProducer::BufferLog::addStats(ADD_STAT add_stat, const void *c) {
 DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
                          const void* cookie,
                          const std::string& name,
-                         bool isNotifier,
-                         bool startTask,
-                         MutationType mutType)
+                         uint32_t flags,
+                         cb::const_byte_buffer jsonFilter,
+                         bool startTask)
     : Producer(e, cookie, name),
       rejectResp(NULL),
-      notifyOnly(isNotifier),
+      notifyOnly((flags & DCP_OPEN_NOTIFIER) != 0),
       lastSendTime(ep_current_time()),
       log(*this),
       itemsSent(0),
       totalBytesSent(0),
-      mutationType(mutType) {
+      mutationType(((flags & DCP_OPEN_NO_VALUE) != 0)
+                           ? DcpProducer::MutationType::KeyOnly
+                           : DcpProducer::MutationType::KeyAndValue),
+      filter(e.getKVBucket()->getCollectionsManager().makeFilter(
+              (flags & DCP_OPEN_COLLECTIONS) != 0,
+              {reinterpret_cast<const char*>(jsonFilter.data()),
+               jsonFilter.size()})) {
     setSupportAck(true);
     setReserved(true);
     setPaused(true);
@@ -361,18 +369,48 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         return ENGINE_ERANGE;
     }
 
+    // Create the filter for the stream
+    std::unique_ptr<Collections::VB::Filter> vbFilter;
+    try {
+        vbFilter = std::make_unique<Collections::VB::Filter>(*filter,
+                                                             vb->getManifest());
+    } catch(std::exception& e) {
+        LOG(EXTENSION_LOG_INFO,
+            "%s (vb %d) Stream request filter failed construction e.what:%s",
+            logHeader(),
+            vbucket,
+            e.what());
+        return ENGINE_UNKNOWN_COLLECTION;
+    }
+
     stream_t s;
     if (notifyOnly) {
-        s = new NotifierStream(&engine_, this, getName(), flags,
-                               opaque, vbucket, notifySeqno,
-                               end_seqno, vbucket_uuid,
-                               snap_start_seqno, snap_end_seqno);
+        s = new NotifierStream(&engine_,
+                               this,
+                               getName(),
+                               flags,
+                               opaque,
+                               vbucket,
+                               notifySeqno,
+                               end_seqno,
+                               vbucket_uuid,
+                               snap_start_seqno,
+                               snap_end_seqno,
+                               std::move(vbFilter));
     } else {
-        s = new ActiveStream(&engine_, this, getName(), flags,
-                             opaque, vbucket, start_seqno,
-                             end_seqno, vbucket_uuid,
-                             snap_start_seqno, snap_end_seqno,
-                             (mutationType == MutationType::KeyOnly));
+        s = new ActiveStream(&engine_,
+                             this,
+                             getName(),
+                             flags,
+                             opaque,
+                             vbucket,
+                             start_seqno,
+                             end_seqno,
+                             vbucket_uuid,
+                             snap_start_seqno,
+                             snap_end_seqno,
+                             (mutationType == MutationType::KeyOnly),
+                             std::move(vbFilter));
     }
 
     {

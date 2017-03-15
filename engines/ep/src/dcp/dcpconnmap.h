@@ -21,6 +21,8 @@
 
 #include "connmap.h"
 
+#include <platform/sized_buffer.h>
+
 #include <atomic>
 #include <list>
 #include <string>
@@ -39,14 +41,13 @@ public:
      * the given name.
      * @param cookie The cookie representing the client
      * @param name The name of the connection
-     * @param notifyOnly If true the producer to be created only notifies,
-     *        i.e. no data is sent.
-     * @param isKeyOnly States if items sent from active streams should contain
-     *        only the key.
+     * @param flags The DCP open flags (as per protocol)
+     * @param jsonExtra An optional JSON document for additional configuration
      */
-    DcpProducer *newProducer(const void* cookie, const std::string &name,
-                             bool notifyOnly, bool isKeyOnly);
-
+    DcpProducer* newProducer(const void* cookie,
+                             const std::string& name,
+                             uint32_t flags,
+                             cb::const_byte_buffer jsonExtra);
 
     /**
      * Create a new consumer and add it in the list of TapConnections

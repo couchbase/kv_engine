@@ -17,7 +17,9 @@
 
 #pragma once
 
+#include "collections/vbucket_filter.h"
 #include "dcp/stream.h"
+#include "tests/mock/mock_dcp_producer.h"
 
 /*
  * Mock of the ActiveStream class. Wraps the real ActiveStream, but exposes
@@ -26,29 +28,30 @@
 class MockActiveStream : public ActiveStream {
 public:
     MockActiveStream(EventuallyPersistentEngine* e,
-                     dcp_producer_t p,
-                     const std::string& name,
+                     mock_dcp_producer_t p,
                      uint32_t flags,
                      uint32_t opaque,
-                     uint16_t vb,
+                     const VBucket& vb,
                      uint64_t st_seqno,
                      uint64_t en_seqno,
                      uint64_t vb_uuid,
                      uint64_t snap_start_seqno,
                      uint64_t snap_end_seqno,
-                     bool isKeyOnly = false)
+                     bool isKeyOnly)
         : ActiveStream(e,
                        p,
-                       name,
+                       p->getName(),
                        flags,
                        opaque,
-                       vb,
+                       vb.getId(),
                        st_seqno,
                        en_seqno,
                        vb_uuid,
                        snap_start_seqno,
                        snap_end_seqno,
-                       isKeyOnly) {
+                       isKeyOnly,
+                       std::make_unique<Collections::VB::Filter>(
+                               p->getFilter(), vb.getManifest())) {
     }
 
     // Expose underlying protected ActiveStream methods as public
