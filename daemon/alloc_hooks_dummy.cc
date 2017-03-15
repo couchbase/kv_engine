@@ -33,19 +33,19 @@ void DummyAllocHooks::initialize() {
 }
 
 bool DummyAllocHooks::add_new_hook(void (* hook)(const void* ptr, size_t size)) {
-    return false;
+    return cb_add_new_hook(hook);
 }
 
 bool DummyAllocHooks::remove_new_hook(void (* hook)(const void* ptr, size_t size)) {
-    return false;
+    return cb_remove_new_hook(hook);
 }
 
 bool DummyAllocHooks::add_delete_hook(void (* hook)(const void* ptr)) {
-    return false;
+    return cb_add_delete_hook(hook);
 }
 
 bool DummyAllocHooks::remove_delete_hook(void (* hook)(const void* ptr)) {
-    return false;
+    return cb_remove_delete_hook(hook);
 }
 
 int DummyAllocHooks::get_extra_stats_size() {
