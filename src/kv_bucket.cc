@@ -118,8 +118,6 @@ public:
             store.setCompactionWriteQueueCap(value);
         } else if (key.compare("exp_pager_stime") == 0) {
             store.setExpiryPagerSleeptime(value);
-        } else if (key.compare("exp_pager_initial_run_time") == 0) {
-            store.setExpiryPagerTasktime(value);
         } else if (key.compare("alog_sleep_time") == 0) {
             store.setAccessScannerSleeptime(value, false);
         } else if (key.compare("alog_task_time") == 0) {
@@ -132,14 +130,20 @@ public:
             store.setBackfillMemoryThreshold(backfill_threshold);
         } else if (key.compare("compaction_exp_mem_threshold") == 0) {
             store.setCompactionExpMemThreshold(value);
-        } else if (key.compare("replication_throttle_queue_cap") == 0) {
-            store.getEPEngine().getReplicationThrottle().setQueueCap(value);
         } else if (key.compare("replication_throttle_cap_pcnt") == 0) {
             store.getEPEngine().getReplicationThrottle().setCapPercent(value);
         } else {
             LOG(EXTENSION_LOG_WARNING,
                 "Failed to change value for unknown variable, %s\n",
                 key.c_str());
+        }
+    }
+
+    virtual void ssizeValueChanged(const std::string& key, ssize_t value) {
+        if (key.compare("exp_pager_initial_run_time") == 0) {
+            store.setExpiryPagerTasktime(value);
+        } else if (key.compare("replication_throttle_queue_cap") == 0) {
+            store.getEPEngine().getReplicationThrottle().setQueueCap(value);
         }
     }
 

@@ -17,6 +17,7 @@
 
 #include "configuration.h"
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 /* Like EXPECT_THROW except you can check the exception's `what()` */
@@ -357,4 +358,40 @@ TEST(ConfigurationTest, ValidatorWorks) {
             "Validation Error, test_key takes values between 10 and 100 (Got: 9)"
     );
 
+}
+
+class MockValueChangedListener : public ValueChangedListener {
+public:
+    MOCK_METHOD2(booleanValueChanged, void(const std::string&, bool));
+    MOCK_METHOD2(sizeValueChanged, void(const std::string&, size_t));
+    MOCK_METHOD2(ssizeValueChanged, void(const std::string&, ssize_t));
+    MOCK_METHOD2(floatValueChanged, void(const std::string&, float));
+    MOCK_METHOD2(stringValueChanged, void(const std::string&, const char*));
+};
+
+using ::testing::_;
+
+TEST(ChangeListenerTest, ChangeListenerSSizeRegression) {
+    /*
+     * Confirming that setting a config parameter of type ssize_t
+     * correctly calls ssizeValueChanged on Changelisteners. Previously, it
+     * instead called sizeValueChanged - and some code had become dependent on
+     * this.
+     */
+    ConfigurationShim configuration;
+    std::string key{"test_key"};
+
+    // Create listeners
+    auto mvcl = new MockValueChangedListener;
+    // set parameter once so entry in attributes is present to add a listener
+    configuration.usetParameter(key, (ssize_t)1);
+
+    EXPECT_CALL(*mvcl, ssizeValueChanged("test_key", 2)).Times(1);
+    EXPECT_CALL(*mvcl, sizeValueChanged(_, _)).Times(0);
+
+    // add listeners
+    configuration.addValueChangedListener(key, mvcl);
+
+    // change parameters
+    configuration.usetParameter(key, (ssize_t)2);
 }

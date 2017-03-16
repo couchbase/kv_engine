@@ -222,7 +222,7 @@ void Configuration::setParameter(const std::string &key, ssize_t value) {
     }
 
     for (auto* listener : copy) {
-        listener->sizeValueChanged(key, value);
+        listener->ssizeValueChanged(key, value);
     }
 }
 
