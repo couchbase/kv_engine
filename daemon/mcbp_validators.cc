@@ -1049,6 +1049,11 @@ static protocol_binary_response_status mutate_with_meta_validator(const Cookie& 
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
+    if (mcbp::datatype::is_xattr(datatype) && !may_accept_xattr(cookie)) {
+        // Datatype is XATTR and xattrs is not supported in the connection.
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
     // extlen, the size dicates what is encoded.
     switch (extlen) {
