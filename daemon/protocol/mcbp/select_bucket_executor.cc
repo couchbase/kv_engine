@@ -38,6 +38,8 @@ void select_bucket_executor(McbpConnection* c, void* packet) {
     try {
         cb::rbac::createContext(c->getUsername(), bucketname);
         if (associate_bucket(c, bucketname.c_str())) {
+            LOG_INFO(c, "%u: SELECT_BUCKET [%s] OK (%s)", c->getId(),
+                     bucketname.c_str(), c->getDescription().c_str());
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
         } else {
             if (oldIndex != c->getBucketIndex()) {
@@ -45,9 +47,15 @@ void select_bucket_executor(McbpConnection* c, void* packet) {
                 // with..
                 associate_bucket(c, all_buckets[oldIndex].name);
             }
+            LOG_INFO(c, "%u: SELECT_BUCKET [%s] FAILED. No such bucket (%s)",
+                     c->getId(), bucketname.c_str(),
+                     c->getDescription().c_str());
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
         }
     } catch (const cb::rbac::Exception& error) {
+        LOG_INFO(c, "%u: SELECT_BUCKET [%s] FAILED. No access to bucket (%s)",
+                 c->getId(), bucketname.c_str(),
+                 c->getDescription().c_str());
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
     }
 }
