@@ -69,8 +69,6 @@ std::unique_ptr<Item> SystemEventFactory::make(SystemEvent se,
                                        nullptr, /*no data to copy-in*/
                                        itemSize);
 
-    item->setOperation(queue_op::system_event);
-
     return item;
 }
 
