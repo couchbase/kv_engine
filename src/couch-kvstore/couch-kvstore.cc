@@ -2247,10 +2247,16 @@ std::string CouchKVStore::readCollectionsManifest(Db& db) {
     auto errCode = couchstore_open_local_document(
             &db, (void*)id.buf, id.size, lDoc.getLocalDocAddress());
     if (errCode != COUCHSTORE_SUCCESS) {
-        logger.log(EXTENSION_LOG_WARNING,
+        if (errCode == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
+            logger.log(EXTENSION_LOG_NOTICE,
+                   "CouchKVStore::readCollectionsManifest: doc not found");
+        } else {
+            logger.log(EXTENSION_LOG_WARNING,
                    "CouchKVStore::readCollectionsManifest: "
                    "couchstore_open_local_document error:%s",
                    couchstore_strerror(errCode));
+        }
+
         return {};
     }
 
