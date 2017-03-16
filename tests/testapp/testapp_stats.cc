@@ -46,7 +46,7 @@ TEST_P(StatsTest, DISABLED_StatsResetIsPrivileged) {
         EXPECT_TRUE(error.isAccessDenied());
     }
 
-    conn.authenticate("_admin", "password", "PLAIN");
+    conn.authenticate("@admin", "password", "PLAIN");
     conn.stats("reset");
     conn.reconnect();
     ASSERT_THROW(conn.stats("reset"), ConnectionError);
@@ -85,7 +85,7 @@ TEST_P(StatsTest, TestReset) {
 
     // Just ensure that the "reset timings" is detected
     // @todo add a separate test case for cmd timings stats
-    conn.authenticate("_admin", "password", "PLAIN");
+    conn.authenticate("@admin", "password", "PLAIN");
     conn.selectBucket("default");
     stats = conn.stats("reset timings");
 
@@ -182,7 +182,7 @@ TEST_P(StatsTest, DISABLED_TestAuditNoAccess) {
 
 TEST_P(StatsTest, TestAudit) {
     MemcachedConnection& conn = getConnection();
-    conn.authenticate("_admin", "password", "PLAIN");
+    conn.authenticate("@admin", "password", "PLAIN");
 
     unique_cJSON_ptr stats;
     stats = conn.stats("audit");
@@ -215,7 +215,7 @@ TEST_P(StatsTest, DISABLED_TestBucketDetailsNoAccess) {
 
 TEST_P(StatsTest, TestBucketDetails) {
     MemcachedConnection& conn = getConnection();
-    conn.authenticate("_admin", "password", "PLAIN");
+    conn.authenticate("@admin", "password", "PLAIN");
 
     unique_cJSON_ptr stats;
     stats = conn.stats("bucket_details");

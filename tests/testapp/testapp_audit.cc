@@ -60,7 +60,7 @@ public:
         }
 
         auto& connection = getConnection();
-        connection.authenticate("_admin", "password", "PLAIN");
+        connection.authenticate("@admin", "password", "PLAIN");
         connection.reloadAuditConfiguration();
         connection.reconnect();
     }

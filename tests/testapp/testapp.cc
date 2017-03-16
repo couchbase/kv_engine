@@ -138,7 +138,7 @@ void TestappTest::CreateTestBucket()
     // to the server (and not one that might have been catched by the
     // idle-timer, but not yet noticed on the client side)
     conn.reconnect();
-    conn.authenticate("_admin", "password", "PLAIN");
+    conn.authenticate("@admin", "password", "PLAIN");
 
     conn.createBucket(BUCKET_NAME, BUCKET_CONFIG,
                       Greenstack::BucketType::EWouldBlock);
@@ -171,7 +171,7 @@ void TestappTest::TearDownTestCase() {
     if (server_pid != reinterpret_cast<pid_t>(-1)) {
         current_phase = phase_plain;
         sock = connect_to_server_plain(port);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, sasl_auth("_admin",
+        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, sasl_auth("@admin",
                                                               "password"));
         union {
             protocol_binary_request_delete_bucket request;
@@ -810,7 +810,7 @@ void TestappTest::reconfigure(unique_cJSON_ptr& memcached_cfg) {
     sock = connect_to_server_plain(port);
     write_config_to_file(to_string(memcached_cfg, true), config_file);
 
-    sasl_auth("_admin", "password");
+    sasl_auth("@admin", "password");
     Frame frame;
     mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
                      nullptr, 0, nullptr, 0);
@@ -1187,7 +1187,7 @@ MemcachedConnection& TestappTest::getConnection() {
 
 MemcachedConnection& TestappTest::getAdminConnection() {
     auto& conn = getConnection();
-    conn.authenticate("_admin", "password", "PLAIN");
+    conn.authenticate("@admin", "password", "PLAIN");
     return conn;
 }
 

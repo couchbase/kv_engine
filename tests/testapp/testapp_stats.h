@@ -30,7 +30,7 @@ public:
 protected:
     void resetBucket() {
         MemcachedConnection& conn = getConnection();
-        ASSERT_NO_THROW(conn.authenticate("_admin", "password", "PLAIN"));
+        ASSERT_NO_THROW(conn.authenticate("@admin", "password", "PLAIN"));
         ASSERT_NO_THROW(conn.selectBucket("default"));
         ASSERT_NO_THROW(conn.stats("reset"));
         ASSERT_NO_THROW(conn.reconnect());

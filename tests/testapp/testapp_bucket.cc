@@ -157,7 +157,7 @@ TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
     conn.createBucket("bucket", "", Greenstack::BucketType::Memcached);
 
     auto second_conn = conn.clone();
-    second_conn->authenticate("_admin", "password", "PLAIN");
+    second_conn->authenticate("@admin", "password", "PLAIN");
     second_conn->selectBucket("bucket");
 
     // We need to get the second connection sitting the `conn_nread` state in
@@ -214,10 +214,10 @@ TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
     conn.createBucket("bucket", "default_engine.so",
                       Greenstack::BucketType::EWouldBlock);
     auto second_conn = conn.clone();
-    second_conn->authenticate("_admin", "password", "PLAIN");
+    second_conn->authenticate("@admin", "password", "PLAIN");
     second_conn->selectBucket("bucket");
     auto connection = conn.clone();
-    connection->authenticate("_admin", "password", "PLAIN");
+    connection->authenticate("@admin", "password", "PLAIN");
 
     auto cwd = cb::io::getcwd();
     auto testfile = cwd + "/" + cb::io::mktemp("lockfile");
@@ -289,7 +289,7 @@ TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
     auto& conn = getAdminConnection();
 
     auto second_conn = conn.clone();
-    second_conn->authenticate("_admin", "password", "PLAIN");
+    second_conn->authenticate("@admin", "password", "PLAIN");
     auto* mcbp_conn = dynamic_cast<MemcachedBinprotConnection*>(second_conn.get());
 
 

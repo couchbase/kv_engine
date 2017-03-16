@@ -40,6 +40,14 @@ cb::RWLock rwlock;
 std::unique_ptr<PrivilegeDatabase> db;
 
 UserEntry::UserEntry(const cJSON& root) {
+    if (root.string == nullptr) {
+        throw std::invalid_argument(
+            "UserEntry::UserEntry: string can't be nullptr. It should contain username");
+    }
+
+    // All system internal users is prefixed with @
+    internal = root.string[0] == '@';
+
     auto* json = const_cast<cJSON*>(&root);
     const auto* it = cJSON_GetObjectItem(json, "privileges");
     if (it != nullptr) {
@@ -71,18 +79,6 @@ UserEntry::UserEntry(const cJSON& root) {
         throw std::invalid_argument(
                 "UserEntry::UserEntry::"
                 " \"type\" should be a string");
-    }
-
-    if ((it = cJSON_GetObjectItem(json, "internal")) == nullptr) {
-        internal = false;
-    } else if (it->type == cJSON_True) {
-        internal = true;
-    } else if (it->type == cJSON_False) {
-        internal = false;
-    } else {
-        throw std::invalid_argument(
-                "UserEntry::UserEntry::"
-                " \"internal\" should be true or false");
     }
 }
 

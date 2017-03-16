@@ -55,7 +55,7 @@ TEST_P(RbacTest, DontAllowUnknownUsers) {
 
 TEST_P(RbacTest, ReloadRbacData_HaveAccess) {
     auto& conn = reinterpret_cast<MemcachedBinprotConnection&>(getConnection());
-    conn.authenticate("_admin", "password", "PLAIN");
+    conn.authenticate("@admin", "password", "PLAIN");
     BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_RBAC_REFRESH, {}, {});
     conn.sendCommand(cmd);
 

@@ -46,7 +46,7 @@ protected:
             testIllegalLogin("wtf", mech);
     }
     void testWrongPassword(const std::string& mech) {
-            testIllegalLogin("_admin", mech);
+            testIllegalLogin("@admin", mech);
     }
 
     std::vector<std::string> mechanisms;

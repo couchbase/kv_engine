@@ -89,19 +89,11 @@ void SaslAuthTask::notifyExecutionComplete() {
 
     if (error == CBSASL_OK) {
         connection.setAuthenticated(true);
+        connection.setInternal(context.second);
         audit_auth_success(&connection);
         LOG_INFO(&connection, "%u: Client %s authenticated as %s",
                  connection.getId(), connection.getPeername().c_str(),
                  connection.getUsername());
-
-        // @todo this should be from the security context of the user (MB-23060)
-        connection.setInternal(std::string{"_admin"} == connection.getUsername());
-
-        // Once ns_server starts passing on the "type" setting we can nuke
-        // the line ^^
-        if (context.second) {
-            connection.setInternal(context.second);
-        }
 
         /* associate the connection with the appropriate bucket */
         std::string username = connection.getUsername();

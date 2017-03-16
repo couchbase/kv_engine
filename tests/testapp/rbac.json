@@ -18,8 +18,7 @@
       ]
     },
     "privileges": [],
-    "type": "builtin",
-    "internal": true
+    "type": "builtin"
   },
   "smith": {
     "buckets": {
@@ -53,7 +52,7 @@
     "privileges":[],
     "type": "builtin"
   },
-  "_admin": {
+  "@admin": {
     "buckets": {
       "default": [
         "all"
@@ -374,8 +373,7 @@
     "privileges": [
       "all"
     ],
-    "type": "builtin",
-    "internal": true
+    "type": "builtin"
   },
   "bucket-1": {
     "buckets": {
@@ -386,8 +384,7 @@
     "privileges": [
       "all"
     ],
-    "type": "builtin",
-    "internal": true
+    "type": "builtin"
   },
   "bucket-2": {
     "buckets": {
@@ -398,8 +395,7 @@
     "privileges": [
       "all"
     ],
-    "type": "builtin",
-    "internal": true
+    "type": "builtin"
   },
   "superman": {
     "type": "builtin"

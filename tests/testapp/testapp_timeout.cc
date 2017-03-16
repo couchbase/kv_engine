@@ -72,7 +72,7 @@ protected:
         conn.reconnect();
 
         if (admin) {
-            ASSERT_NO_THROW(conn.authenticate("_admin", "password", "PLAIN"));
+            ASSERT_NO_THROW(conn.authenticate("@admin", "password", "PLAIN"));
         }
 
         unique_cJSON_ptr json;

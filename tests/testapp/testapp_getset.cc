@@ -439,7 +439,7 @@ TEST_P(GetSetTest, TestPerpendCasMismatch) {
 
 TEST_P(GetSetTest, TestIllegalVbucket) {
     auto& conn = getConnection();
-    conn.authenticate("_admin", "password", "PLAIN");
+    conn.authenticate("@admin", "password", "PLAIN");
     // A memcached bucket only use vbucket 0
     conn.createBucket("bucket", "", Greenstack::BucketType::Memcached);
     conn.selectBucket("bucket");

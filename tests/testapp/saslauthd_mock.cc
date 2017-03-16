@@ -127,7 +127,7 @@ void SaslauthdMock::processOne() {
         sendResult(client, "NO unknown realm");
         close(client);
     } else if (username == "superman" && passwd == "<3LoisLane<3") {
-        sendResult(client, "OK welcome \"_admin\"");
+        sendResult(client, "OK welcome \"@admin\"");
         close(client);
     } else {
         sendResult(client, "NO I don't like you");

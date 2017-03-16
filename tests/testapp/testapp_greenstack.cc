@@ -61,7 +61,7 @@ TEST_P(GreenstackTest, TestHello) {
 TEST_P(GreenstackTest, TestSaslFail) {
     MemcachedGreenstackConnection& connection = getConnection();
     connection.hello("memcached_testapp", "1,0", "TestSaslFail");
-    EXPECT_THROW(connection.authenticate("_admin", "foo",
+    EXPECT_THROW(connection.authenticate("@admin", "foo",
                                          connection.getSaslMechanisms()),
                  std::runtime_error);
     connection.reconnect();
@@ -70,21 +70,21 @@ TEST_P(GreenstackTest, TestSaslFail) {
 TEST_P(GreenstackTest, TestSaslPlain) {
     MemcachedGreenstackConnection& connection = getConnection();
     connection.hello("memcached_testapp", "1,0", "TestSaslPlain");
-    connection.authenticate("_admin", "password", "PLAIN");
+    connection.authenticate("@admin", "password", "PLAIN");
     connection.reconnect();
 }
 
 TEST_P(GreenstackTest, TestSaslCramMd5) {
     MemcachedGreenstackConnection& connection = getConnection();
     connection.hello("memcached_testapp", "1,0", "TestSaslCramMd5");
-    connection.authenticate("_admin", "password", "CRAM-MD5");
+    connection.authenticate("@admin", "password", "CRAM-MD5");
     connection.reconnect();
 }
 
 TEST_P(GreenstackTest, TestSaslAutoSelectMechs) {
     MemcachedGreenstackConnection& connection = getConnection();
     connection.hello("memcached_testapp", "1,0", "TestSaslCramMd5");
-    connection.authenticate("_admin", "password",
+    connection.authenticate("@admin", "password",
                             connection.getSaslMechanisms());
     connection.reconnect();
 }
@@ -92,7 +92,7 @@ TEST_P(GreenstackTest, TestSaslAutoSelectMechs) {
 TEST_P(GreenstackTest, TestCreateDeleteBucket) {
     MemcachedGreenstackConnection& connection = getConnection();
     connection.hello("memcached_testapp", "1,0", "TestSaslCramMd5");
-    connection.authenticate("_admin", "password",
+    connection.authenticate("@admin", "password",
                             connection.getSaslMechanisms());
     connection.createBucket(name, "", Greenstack::BucketType::Memcached);
     connection.deleteBucket(name);

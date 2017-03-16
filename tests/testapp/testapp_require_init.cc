@@ -66,7 +66,7 @@ protected:
      */
     void setControlToken() {
         auto& conn = connectionMap.getConnection(Protocol::Memcached, false);
-        ASSERT_NO_THROW(conn.authenticate("_admin", "password", "PLAIN"));
+        ASSERT_NO_THROW(conn.authenticate("@admin", "password", "PLAIN"));
 
         Frame frame;
 
@@ -154,7 +154,7 @@ TEST_F(RequireInitTest, InitializeNotAuthorized) {
 
 TEST_F(RequireInitTest, InitializeWrongToken) {
     auto& conn = connectionMap.getConnection(Protocol::Memcached, false);
-    ASSERT_NO_THROW(conn.authenticate("_admin", "password", "PLAIN"));
+    ASSERT_NO_THROW(conn.authenticate("@admin", "password", "PLAIN"));
 
     Frame frame;
     mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_INIT_COMPLETE, NULL, 0, NULL,
@@ -176,7 +176,7 @@ TEST_F(RequireInitTest, InitializeWrongToken) {
 
 TEST_F(RequireInitTest, InitializeSuccess) {
     auto& conn = connectionMap.getConnection(Protocol::Memcached, false);
-    ASSERT_NO_THROW(conn.authenticate("_admin", "password", "PLAIN"));
+    ASSERT_NO_THROW(conn.authenticate("@admin", "password", "PLAIN"));
 
     Frame frame;
     mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_INIT_COMPLETE, NULL, 0, NULL,
