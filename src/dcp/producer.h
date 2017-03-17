@@ -113,7 +113,7 @@ public:
     bool recordBackfillManagerBytesRead(uint32_t bytes);
     void recordBackfillManagerBytesSent(uint32_t bytes);
     void scheduleBackfillManager(const VBucket& vb,
-                                 const stream_t& s,
+                                 const active_stream_t& s,
                                  uint64_t start,
                                  uint64_t end);
 

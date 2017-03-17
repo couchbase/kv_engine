@@ -957,7 +957,7 @@ public:
      */
     virtual std::unique_ptr<DCPBackfill> createDCPBackfill(
             EventuallyPersistentEngine* e,
-            const stream_t& stream,
+            const active_stream_t& stream,
             uint64_t startSeqno,
             uint64_t endSeqno) const = 0;
 

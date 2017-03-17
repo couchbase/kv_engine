@@ -141,7 +141,7 @@ BackfillManager::~BackfillManager() {
 }
 
 void BackfillManager::schedule(const VBucket& vb,
-                               const stream_t& stream,
+                               const active_stream_t& stream,
                                uint64_t start,
                                uint64_t end) {
     LockHolder lh(lock);

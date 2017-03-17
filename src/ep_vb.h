@@ -103,7 +103,7 @@ public:
     }
 
     UniqueDCPBackfillPtr createDCPBackfill(EventuallyPersistentEngine* e,
-                                           const stream_t& stream,
+                                           const active_stream_t& stream,
                                            uint64_t startSeqno,
                                            uint64_t endSeqno) const override {
         /* create a disk backfill object */

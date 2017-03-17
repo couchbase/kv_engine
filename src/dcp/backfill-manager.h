@@ -64,7 +64,7 @@ public:
     void addStats(connection_t conn, ADD_STAT add_stat, const void *c);
 
     void schedule(const VBucket& vb,
-                  const stream_t& stream,
+                  const active_stream_t& stream,
                   uint64_t start,
                   uint64_t end);
 

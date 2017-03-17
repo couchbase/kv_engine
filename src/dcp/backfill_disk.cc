@@ -35,7 +35,7 @@ static std::string backfillStateToString(backfill_state_t state) {
     return "<invalid>:" + std::to_string(state);
 }
 
-CacheCallback::CacheCallback(EventuallyPersistentEngine* e, stream_t& s)
+CacheCallback::CacheCallback(EventuallyPersistentEngine* e, active_stream_t& s)
     : engine_(e), stream_(s) {
     if (stream_.get() == nullptr) {
         throw std::invalid_argument("CacheCallback(): stream is NULL");
@@ -62,22 +62,22 @@ void CacheCallback::callback(CacheLookup& lookup) {
                                           WantsDeleted::No,
                                           TrackReference::No);
     if (v && v->isResident() && v->getBySeqno() == lookup.getBySeqno()) {
-        ActiveStream* as = static_cast<ActiveStream*>(stream_.get());
         Item* it;
         try {
             it = v->toItem(false, lookup.getVBucketId());
         } catch (const std::bad_alloc&) {
             setStatus(ENGINE_ENOMEM);
-            as->getLogger().log(EXTENSION_LOG_WARNING,
-                                "Alloc error when trying to create an "
-                                "item copy from hash table. Item seqno:%" PRIi64
-                                ", vb:%" PRIu16,
-                                v->getBySeqno(),
-                                lookup.getVBucketId());
+            stream_->getLogger().log(
+                    EXTENSION_LOG_WARNING,
+                    "Alloc error when trying to create an "
+                    "item copy from hash table. Item seqno:%" PRIi64
+                    ", vb:%" PRIu16,
+                    v->getBySeqno(),
+                    lookup.getVBucketId());
             return;
         }
         hbl.getHTLock().unlock();
-        if (!as->backfillReceived(it, BACKFILL_FROM_MEMORY)) {
+        if (!stream_->backfillReceived(it, BACKFILL_FROM_MEMORY)) {
             setStatus(ENGINE_ENOMEM); // Pause the backfill
         } else {
             setStatus(ENGINE_KEY_EEXISTS);
@@ -87,7 +87,7 @@ void CacheCallback::callback(CacheLookup& lookup) {
     }
 }
 
-DiskCallback::DiskCallback(stream_t& s) : stream_(s) {
+DiskCallback::DiskCallback(active_stream_t& s) : stream_(s) {
     if (stream_.get() == nullptr) {
         throw std::invalid_argument("DiskCallback(): stream is NULL");
     }
@@ -104,8 +104,7 @@ void DiskCallback::callback(GetValue& val) {
         throw std::invalid_argument("DiskCallback::callback: val is NULL");
     }
 
-    ActiveStream* as = static_cast<ActiveStream*>(stream_.get());
-    if (!as->backfillReceived(val.getValue(), BACKFILL_FROM_DISK)) {
+    if (!stream_->backfillReceived(val.getValue(), BACKFILL_FROM_DISK)) {
         setStatus(ENGINE_ENOMEM); // Pause the backfill
     } else {
         setStatus(ENGINE_SUCCESS);
@@ -113,7 +112,7 @@ void DiskCallback::callback(GetValue& val) {
 }
 
 DCPBackfillDisk::DCPBackfillDisk(EventuallyPersistentEngine* e,
-                                 const stream_t& s,
+                                 const active_stream_t& s,
                                  uint64_t startSeqno,
                                  uint64_t endSeqno)
     : DCPBackfill(s, startSeqno, endSeqno),
@@ -162,23 +161,21 @@ backfill_status_t DCPBackfillDisk::create() {
     uint64_t lastPersistedSeqno =
             engine->getKVBucket()->getLastPersistedSeqno(vbid);
 
-    ActiveStream* as = static_cast<ActiveStream*>(stream.get());
-
     if (lastPersistedSeqno < endSeqno) {
-        as->getLogger().log(EXTENSION_LOG_NOTICE,
-                            "(vb %d) Rescheduling backfill"
-                            "because backfill up to seqno %" PRIu64
-                            " is needed but only up to "
-                            "%" PRIu64 " is persisted",
-                            vbid,
-                            endSeqno,
-                            lastPersistedSeqno);
+        stream->getLogger().log(EXTENSION_LOG_NOTICE,
+                                "(vb %d) Rescheduling backfill"
+                                "because backfill up to seqno %" PRIu64
+                                " is needed but only up to "
+                                "%" PRIu64 " is persisted",
+                                vbid,
+                                endSeqno,
+                                lastPersistedSeqno);
         return backfill_snooze;
     }
 
     KVStore* kvstore = engine->getKVBucket()->getROUnderlying(vbid);
     ValueFilter valFilter = ValueFilter::VALUES_DECOMPRESSED;
-    if (as->isCompressionEnabled()) {
+    if (stream->isCompressionEnabled()) {
         valFilter = ValueFilter::VALUES_COMPRESSED;
     }
 
@@ -189,8 +186,8 @@ backfill_status_t DCPBackfillDisk::create() {
             cb, cl, vbid, startSeqno, DocumentFilter::ALL_ITEMS, valFilter);
 
     if (scanCtx) {
-        as->incrBackfillRemaining(scanCtx->documentCount);
-        as->markDiskSnapshot(startSeqno, scanCtx->maxSeqno);
+        stream->incrBackfillRemaining(scanCtx->documentCount);
+        stream->markDiskSnapshot(startSeqno, scanCtx->maxSeqno);
         transitionState(backfill_state_scanning);
     } else {
         transitionState(backfill_state_done);
@@ -223,17 +220,17 @@ backfill_status_t DCPBackfillDisk::complete(bool cancelled) {
     KVStore* kvstore = engine->getKVBucket()->getROUnderlying(vbid);
     kvstore->destroyScanContext(scanCtx);
 
-    ActiveStream* as = static_cast<ActiveStream*>(stream.get());
-    as->completeBackfill();
+    stream->completeBackfill();
 
     EXTENSION_LOG_LEVEL severity =
             cancelled ? EXTENSION_LOG_NOTICE : EXTENSION_LOG_INFO;
-    as->getLogger().log(severity,
-                        "(vb %d) Backfill task (%" PRIu64 " to %" PRIu64 ") %s",
-                        vbid,
-                        startSeqno,
-                        endSeqno,
-                        cancelled ? "cancelled" : "finished");
+    stream->getLogger().log(severity,
+                            "(vb %d) Backfill task (%" PRIu64 " to %" PRIu64
+                            ") %s",
+                            vbid,
+                            startSeqno,
+                            endSeqno,
+                            cancelled ? "cancelled" : "finished");
 
     transitionState(backfill_state_done);
 

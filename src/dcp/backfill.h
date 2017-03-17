@@ -35,7 +35,9 @@ enum backfill_status_t {
 
 class DCPBackfill {
 public:
-    DCPBackfill(const stream_t& s, uint64_t startSeqno, uint64_t endSeqno)
+    DCPBackfill(const active_stream_t& s,
+                uint64_t startSeqno,
+                uint64_t endSeqno)
         : stream(s), startSeqno(startSeqno), endSeqno(endSeqno) {
     }
 
@@ -70,9 +72,10 @@ public:
 
 protected:
     /**
-     * Ptr to the associated DCP stream
+     * Ptr to the associated Active DCP stream. Backfill can be run for only
+     * an active DCP stream
      */
-    stream_t stream;
+    active_stream_t stream;
 
     /**
      * Start seqno of the backfill

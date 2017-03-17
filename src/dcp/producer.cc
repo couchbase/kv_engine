@@ -760,7 +760,7 @@ void DcpProducer::recordBackfillManagerBytesSent(uint32_t bytes) {
 }
 
 void DcpProducer::scheduleBackfillManager(const VBucket& vb,
-                                          const stream_t& s,
+                                          const active_stream_t& s,
                                           uint64_t start,
                                           uint64_t end) {
     backfillMgr->schedule(vb, s, start, end);
