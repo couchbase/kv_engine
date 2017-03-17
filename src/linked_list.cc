@@ -115,7 +115,12 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
     /* Read items in the range */
     std::vector<queued_item> items;
 
-    for (auto& osv : seqList) {
+    for (const auto& osv : seqList) {
+        if (osv.getBySeqno() > end) {
+            /* we are done */
+            break;
+        }
+
         {
             std::lock_guard<SpinLock> lh(rangeLock);
             readRange.setBegin(osv.getBySeqno()); /* [EPHE TODO]: should we
@@ -123,13 +128,10 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
                                                    */
         }
 
-        if (osv.getBySeqno() > end) {
-            /* we are done */
-            break;
-        } else if (osv.getBySeqno() < start) {
+        if (osv.getBySeqno() < start) {
             /* skip this item */
             continue;
-        } /* else */
+        }
 
         try {
             items.push_back(osv.toItem(false, vbid));

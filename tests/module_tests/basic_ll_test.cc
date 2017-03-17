@@ -223,6 +223,22 @@ TEST_F(BasicLinkedListTest, TestRangeReadFromMid) {
     EXPECT_EQ(numItems, items.back()->getBySeqno());
 }
 
+TEST_F(BasicLinkedListTest, TestRangeReadStopBeforeEnd) {
+    const int numItems = 3;
+
+    /* Add 3 new items */
+    addNewItemsToList(1, std::string("key"), numItems);
+
+    /* Now request for a range read of just 2 items */
+    ENGINE_ERROR_CODE status;
+    std::vector<queued_item> items;
+    std::tie(status, items) = basicLL->rangeRead(1, numItems - 1);
+
+    EXPECT_EQ(ENGINE_SUCCESS, status);
+    EXPECT_EQ(numItems - 1, items.size());
+    EXPECT_EQ(numItems - 1, items.back()->getBySeqno());
+}
+
 TEST_F(BasicLinkedListTest, TestRangeReadNegatives) {
     const int numItems = 3;
 
