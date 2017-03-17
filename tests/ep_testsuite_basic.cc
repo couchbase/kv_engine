@@ -2008,10 +2008,12 @@ static enum test_result warmup_mb21769(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  *
  * @param info info about the document
  */
+static uint64_t pre_link_seqno(0);
 static void pre_link_doc_callback(item_info& info) {
     checkne(uint64_t(0), info.cas, "CAS value should be set");
     // mock the actual value so we can see it was changed
     memcpy(info.value[0].iov_base, "valuesome", 9);
+    pre_link_seqno = info.seqno;
 }
 
 /**
@@ -2035,6 +2037,7 @@ static test_result pre_link_document(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(h1->get_item_info(h, nullptr, it, &info), "Failed to get item info.");
     checkeq(0, memcmp(info.value[0].iov_base, "valuesome", 9),
            "Expected value to be modified");
+    checkeq(pre_link_seqno, info.seqno, "Sequence numbers should match");
     h1->release(h, nullptr, it);
 
     return SUCCESS;

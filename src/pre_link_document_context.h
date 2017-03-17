@@ -24,10 +24,10 @@ class Item;
 /**
  * The PreLinkDocumetnContext is a helper class used when items are modified
  * by the frontend. It carries the context of the calling thread down to
- * where the CAS is generated, and fires the callback to the front-end
- * before the object is made available for other threads.
+ * where the CAS and seqno are generated, and fires the callback to the
+ * front-end before the object is made available for other threads.
  *
- * The initial use of this is to allow the "CAS macro expansion" in
+ * The initial use of this is to allow the "(CAS & Seqno) macro expansion" in
  * extended attributes.
  *
  * See the Document API in the server interface for more description
@@ -49,14 +49,15 @@ public:
     }
 
     /**
-     * Set the CAS value
+     * Set the CAS and Seqno values
      *
      * This method should be called _before_ the item is made available
      * for other threads
      *
      * @param cas the new CAS value for the object
+     * @param seqno the new seqno value for the object
      */
-    void setCas(uint64_t cas);
+    void preLink(uint64_t cas, uint64_t seqno);
 
     PreLinkDocumentContext(const PreLinkDocumentContext&) = delete;
 

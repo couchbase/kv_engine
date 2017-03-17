@@ -1194,7 +1194,7 @@ bool CheckpointManager::queueDirty(
         auto cas = vb.nextHLCCas();
         qi->setCas(cas);
         if (preLinkDocumentContext != nullptr) {
-            preLinkDocumentContext->setCas(cas);
+            preLinkDocumentContext->preLink(cas, lastBySeqno);
         }
     }
 
