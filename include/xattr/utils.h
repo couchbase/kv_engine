@@ -19,6 +19,8 @@
 #include <platform/sized_buffer.h>
 #include <xattr/visibility.h>
 
+#include <string>
+
 namespace cb {
 /**
  * The XATTR support in Couchbase is implemented in the core by storing them
@@ -79,6 +81,9 @@ cb::const_char_buffer get_xattr(const cb::const_char_buffer& payload);
 static inline bool is_system_xattr(cb::const_byte_buffer& attr) {
     return *attr.data() == '_';
 }
-
+namespace macros {
+static cb::const_char_buffer CAS = {"\"${Mutation.CAS}\"", 17};
+static cb::const_char_buffer SEQNO = {"\"${Mutation.seqno}\"", 19};
+}
 }
 }

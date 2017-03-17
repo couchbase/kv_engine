@@ -24,12 +24,17 @@
 #include "subdocument_traits.h"
 
 #include "xattr/key_validator.h"
+#include "xattr/utils.h"
 
 static bool validate_macro(const cb::const_byte_buffer& value) {
-    static cb::const_byte_buffer doc_cas{(const uint8_t*)"\"${Mutation.CAS}\"",
-                                         17};
-    return ((value.len == doc_cas.len) &&
-            std::memcmp(value.buf, doc_cas.buf, doc_cas.len) == 0);
+    return ((value.len == cb::xattr::macros::CAS.len) &&
+            std::memcmp(value.buf,
+                        cb::xattr::macros::CAS.buf,
+                        cb::xattr::macros::CAS.len) == 0) ||
+           ((value.len == cb::xattr::macros::SEQNO.len) &&
+            std::memcmp(value.buf,
+                        cb::xattr::macros::SEQNO.buf,
+                        cb::xattr::macros::SEQNO.len) == 0);
 }
 
 /**

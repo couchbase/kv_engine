@@ -22,6 +22,35 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
     ::testing::Values(TransportProtocols::McbpPlain),
     ::testing::PrintToStringParamName());
 
+TEST_P(XattrTest, TestSeqnoMacroExpansion) {
+    // Test that we don't replace it when we don't send EXPAND_MACROS
+    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                       name,
+                       "_sync.seqno",
+                       "\"${Mutation.seqno}\"",
+                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    resp = subdoc_get("_sync.seqno", SUBDOC_FLAG_XATTR_PATH);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ("\"${Mutation.seqno}\"", resp.getValue());
+
+    // Verify that we expand the macro to something that isn't the macro
+    // literal. i.e. If we send ${Mutation.SEQNO} we want to check that we
+    // replaced that with something else (hopefully the correct value).
+    // Unfortunately, unlike the cas, we do not get the seqno so we cannot
+    // check it.
+    resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                  name,
+                  "_sync.seqno",
+                  "\"${Mutation.seqno}\"",
+                  SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+
+    resp = subdoc_get("_sync.seqno", SUBDOC_FLAG_XATTR_PATH);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_NE("\"${Mutation.seqno}\"", resp.getValue());
+}
+
 TEST_P(XattrTest, TestMacroExpansionAndIsolation) {
     // This test verifies that you can have the same path in xattr's
     // and in the document without one affecting the other.

@@ -908,7 +908,9 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
 
     std::unique_ptr<char[]> temp_doc;
     cb::const_char_buffer document{(const char*)value_buf.buf, value_buf.len};
-    context.generate_cas_padding(document);
+
+    context.generate_macro_padding(document, cb::xattr::macros::CAS);
+    context.generate_macro_padding(document, cb::xattr::macros::SEQNO);
 
     bool modified;
     if (!operate_single_json(context, document, temp_doc, modified)) {

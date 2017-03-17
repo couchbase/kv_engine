@@ -28,6 +28,8 @@
 #include <platform/compress.h>
 #include <platform/sized_buffer.h>
 
+#include <unordered_map>
+
 /** Subdoc command context. An instance of this exists for the lifetime of
  *  each subdocument command, and it used to hold information which needs to
  *  persist across calls to subdoc_executor; for example when one or more
@@ -88,12 +90,14 @@ public:
      * @return the buffer we want to pass on to subdoc instead of the macro
      *         name
      */
-    cb::const_char_buffer get_padded_macro(const cb::const_char_buffer macro);
+    cb::const_char_buffer get_padded_macro(cb::const_char_buffer macro);
 
     /**
-     * Generate a cas padding we may use to substitute "${Mutation.CAS}" with.
-     * it needs to be wide enough so that we can do an in-place replacement
-     * with the actual CAS in the pre_link_document callback.
+     * Generate macro padding we may use to substitute a macro with. E.g. We
+     * replace "${Mutation.CAS}" or "${Mutation.seqno}" with the generated
+     * padding. It needs to be wide enough so that we can do an in-place
+     * replacement with the actual CAS or seqno in the pre_link_document
+     * callback.
      *
      * We can't really use a hardcoded value (as we would limit the user
      * for what they could inject in their documents, and we don't want to
@@ -116,7 +120,8 @@ public:
      * @param payload the JSON value for the xattr to perform macro
      *                substitution in
      */
-    void generate_cas_padding(const cb::const_char_buffer payload);
+    void generate_macro_padding(cb::const_char_buffer payload,
+                                cb::const_char_buffer macro);
 
     Operations& getOperations(const Phase phase) {
         switch (phase) {
@@ -299,8 +304,16 @@ private:
     // The phase we're currently operating in
     Phase currentPhase;
 
+    template <typename T>
+    std::string macroToString(T macroValue);
+
+    void substituteMacro(cb::const_char_buffer macroName,
+                         const std::string& macroValue,
+                         cb::byte_buffer& value);
+
     // The xattr key being accessed in this command
     cb::const_byte_buffer xattr_key;
 
-    std::string padded_cas_macro;
+    using MacroPair = std::pair<cb::const_char_buffer, std::string>;
+    std::vector<MacroPair> paddedMacros;
 }; // class SubdocCmdContext

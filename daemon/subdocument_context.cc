@@ -19,10 +19,11 @@
 #include "subdocument.h"
 #include "subdocument_context.h"
 
+#include <xattr/blob.h>
+
 #include <iomanip>
 #include <random>
 #include <sstream>
-#include <xattr/blob.h>
 
 SubdocCmdContext::OperationSpec::OperationSpec(SubdocCmdTraits traits_,
                                                protocol_binary_subdoc_flag flags_,
@@ -62,13 +63,16 @@ uint64_t SubdocCmdContext::getOperationValueBytesTotal() const {
     return result;
 }
 
+template <typename T>
+std::string SubdocCmdContext::macroToString(T macroValue) {
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+    ss << "\"0x" << std::setw(sizeof(T) * 2) << macroValue << "\"";
+    return ss.str();
+}
+
 ENGINE_ERROR_CODE SubdocCmdContext::pre_link_document(item_info& info) {
     if (do_macro_expansion) {
-        auto cas = htonll(info.cas);
-        std::stringstream ss;
-        ss << std::hex << std::setfill('0');
-        ss << "\"0x" << std::setw(16) << cas << "\"";
-
         auto bodyoffset = cb::xattr::get_body_offset(
             {static_cast<const char*>(info.value[0].iov_base),
              info.value[0].iov_len});
@@ -86,31 +90,67 @@ ENGINE_ERROR_CODE SubdocCmdContext::pre_link_document(item_info& info) {
             return ENGINE_SUCCESS;
         }
 
-        // Do an in-place substitution of the real cas value where we
-        // wrote the padded cas string.
-        uint8_t* root = value.buf;
-        uint8_t* end = value.buf + value.len;
-        auto* needle = padded_cas_macro.data();
-        auto* needle_end = padded_cas_macro.data() + padded_cas_macro.length();
+        // Replace the CAS
+        if (std::any_of(std::begin(paddedMacros),
+                        std::end(paddedMacros),
+                        [](const MacroPair& m) {
+                            return m.first == cb::xattr::macros::CAS;
+                        })) {
+            substituteMacro(cb::xattr::macros::CAS,
+                            macroToString(htonll(info.cas)),
+                            value);
+        }
 
-        // time to find and replace the string
-        auto cas_string = ss.str();
-        const size_t len = cas_string.length();
-
-        while ((root = std::search(root, end, needle, needle_end)) != end) {
-            std::copy(cas_string.data(), cas_string.data() + len, root);
-            root += len;
+        // Replace the Seqno
+        if (std::any_of(std::begin(paddedMacros),
+                        std::end(paddedMacros),
+                        [](const MacroPair& m) {
+                            return m.first == cb::xattr::macros::SEQNO;
+                        })) {
+            substituteMacro(
+                    cb::xattr::macros::SEQNO, macroToString(info.seqno), value);
         }
     }
 
     return ENGINE_SUCCESS;
 }
 
-cb::const_char_buffer SubdocCmdContext::get_padded_macro(const cb::const_char_buffer) {
-    return {padded_cas_macro.data(), padded_cas_macro.length()};
+void SubdocCmdContext::substituteMacro(cb::const_char_buffer macroName,
+                                       const std::string& macroValue,
+                                       cb::byte_buffer& value) {
+    // Do an in-place substitution of the real macro value where we
+    // wrote the padded macro string.
+    uint8_t* root = value.buf;
+    uint8_t* end = value.buf + value.len;
+    auto& macro = std::find_if(std::begin(paddedMacros),
+                               std::end(paddedMacros),
+                               [macroName](const MacroPair& m) {
+                                   return m.first == macroName;
+                               })
+                          ->second;
+    auto* needle = macro.data();
+    auto* needle_end = macro.data() + macro.length();
+
+    // This replaces ALL instances of the padded string
+    while ((root = std::search(root, end, needle, needle_end)) != end) {
+        std::copy(macroValue.data(),
+                  macroValue.data() + macroValue.length(),
+                  root);
+        root += macroValue.length();
+    }
 }
 
-void SubdocCmdContext::generate_cas_padding(const cb::const_char_buffer payload) {
+cb::const_char_buffer SubdocCmdContext::get_padded_macro(
+        cb::const_char_buffer macro) {
+    return std::find_if(
+                   std::begin(paddedMacros),
+                   std::end(paddedMacros),
+                   [macro](const MacroPair& a) { return a.first == macro; })
+            ->second;
+}
+
+void SubdocCmdContext::generate_macro_padding(cb::const_char_buffer payload,
+                                              cb::const_char_buffer macro) {
     if (!do_macro_expansion) {
         // macro expansion is not needed
         return;
@@ -140,7 +180,7 @@ void SubdocCmdContext::generate_cas_padding(const cb::const_char_buffer payload)
             if (cb::strnstr(payload.buf, candidate.c_str(), payload.len)) {
                 unique = false;
             } else {
-                padded_cas_macro = candidate;
+                paddedMacros.push_back(std::make_pair(macro, candidate));
             }
         }
     }
