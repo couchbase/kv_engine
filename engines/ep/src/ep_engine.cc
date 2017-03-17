@@ -6060,6 +6060,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
         return ENGINE_DISCONNECT;
     }
 
+    // Require that replication streams are opened with collections (only if
+    // we're running with the collections prototype). Eventually ns_server will
+    // request collection DCP and we won't need this...
+    // @todo MB-24547
+    static const std::string replicationConnName = "replication:";
+    if (getConfiguration().isCollectionsPrototypeEnabled() &&
+        !connName.compare(0, replicationConnName.size(), replicationConnName) &&
+        (flags & DCP_OPEN_COLLECTIONS) == 0) {
+        // Fail DCP open, we need to have replication streams with DCP enabled
+        return ENGINE_DISCONNECT;
+    }
+
     ConnHandler *handler = NULL;
     if (flags & (DCP_OPEN_PRODUCER | DCP_OPEN_NOTIFIER)) {
         handler = dcpConnMap_->newProducer(cookie, connName, flags, jsonExtra);
