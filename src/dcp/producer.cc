@@ -439,10 +439,12 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             itmCpy = mutationResponse->getItemCopy();
         } catch (const std::bad_alloc&) {
             rejectResp = resp;
-            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) ENOMEM while trying to copy "
-                "item with seqno %" PRIu64 "before streaming it", logHeader(),
+            LOG(EXTENSION_LOG_WARNING,
+                "%s (vb %d) ENOMEM while trying to copy "
+                "item with seqno %" PRIu64 "before streaming it",
+                logHeader(),
                 mutationResponse->getVBucket(),
-                mutationResponse->getBySeqno());
+                *mutationResponse->getBySeqno());
             return ENGINE_ENOMEM;
         }
 
@@ -492,7 +494,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                                       mutationResponse->getOpaque(),
                                       itmCpy,
                                       mutationResponse->getVBucket(),
-                                      mutationResponse->getBySeqno(),
+                                      *mutationResponse->getBySeqno(),
                                       mutationResponse->getRevSeqno(),
                                       0 /* lock time */,
                                       meta.first, meta.second,
@@ -513,7 +515,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                                       mutationResponse->getOpaque(),
                                       itmCpy,
                                       mutationResponse->getVBucket(),
-                                      mutationResponse->getBySeqno(),
+                                      *mutationResponse->getBySeqno(),
                                       mutationResponse->getRevSeqno(),
                                       meta.first, meta.second);
             break;

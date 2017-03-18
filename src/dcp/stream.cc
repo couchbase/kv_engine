@@ -715,11 +715,9 @@ DcpResponse* ActiveStream::nextQueuedItem() {
     if (!readyQ.empty()) {
         DcpResponse* response = readyQ.front();
         if (producer->bufferLogInsert(response->getMessageSize())) {
-            if (response->getEvent() == DcpResponse::Event::Mutation ||
-                    response->getEvent() == DcpResponse::Event::Deletion ||
-                    response->getEvent() == DcpResponse::Event::Expiration) {
-                lastSentSeqno.store(
-                        dynamic_cast<MutationResponse*>(response)->getBySeqno());
+            auto seqno = response->getBySeqno();
+            if (seqno) {
+                lastSentSeqno.store(*seqno);
 
                 if (isBackfilling()) {
                     backfillItems.sent++;
@@ -906,8 +904,10 @@ void ActiveStream::snapshot(std::deque<MutationResponse*>& items, bool mark) {
 
     if (isCurrentSnapshotCompleted()) {
         uint32_t flags = MARKER_FLAG_MEMORY;
-        uint64_t snapStart = items.front()->getBySeqno();
-        uint64_t snapEnd = items.back()->getBySeqno();
+
+        // MB-16181: @todo change items to be DcpResponse
+        uint64_t snapStart = *items.front()->getBySeqno();
+        uint64_t snapEnd = *items.back()->getBySeqno();
 
         if (mark) {
             flags |= MARKER_FLAG_CHK;
@@ -1580,53 +1580,30 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dc
         return ENGINE_KEY_ENOENT;
     }
 
-    switch (dcpResponse->getEvent()) {
-        case DcpResponse::Event::Mutation:
-        case DcpResponse::Event::Deletion:
-        case DcpResponse::Event::Expiration:
-        {
-            uint64_t bySeqno =
-                static_cast<MutationResponse*>(dcpResponse.get())->getBySeqno();
-            if (bySeqno <= last_seqno.load()) {
-                consumer->getLogger().log(EXTENSION_LOG_WARNING,
-                    "(vb %d) Erroneous (out of sequence) mutation received, "
-                    "with opaque: %" PRIu32 ", its seqno (%" PRIu64 ") is not "
-                    "greater than last received seqno (%" PRIu64 "); "
-                    "Dropping mutation!",
-                    vb_, opaque_, bySeqno, last_seqno.load());
-                return ENGINE_ERANGE;
-            }
-            last_seqno.store(bySeqno);
-            break;
-        }
-        case DcpResponse::Event::SnapshotMarker:
-        {
-            auto s = static_cast<SnapshotMarker*>(dcpResponse.get());
-            uint64_t snapStart = s->getStartSeqno();
-            uint64_t snapEnd = s->getEndSeqno();
-            if (snapStart < last_seqno.load() && snapEnd <= last_seqno.load()) {
-                consumer->getLogger().log(EXTENSION_LOG_WARNING,
-                    "(vb %d) Erroneous snapshot marker received, with "
-                    "opaque: %" PRIu32 ", its start "
-                    "(%" PRIu64 "), and end (%" PRIu64 ") are less than last "
-                    "received seqno (%" PRIu64 "); Dropping marker!",
-                    vb_, opaque_, snapStart, snapEnd, last_seqno.load());
-                return ENGINE_ERANGE;
-            }
-            break;
-        }
-        case DcpResponse::Event::SetVbucket:
-        case DcpResponse::Event::StreamEnd:
-        {
-            /* No validations necessary */
-            break;
-        }
-        default:
-        {
+    auto seqno = dcpResponse->getBySeqno();
+    if (seqno) {
+        if (uint64_t(*seqno) <= last_seqno.load()) {
             consumer->getLogger().log(EXTENSION_LOG_WARNING,
-                "(vb %d) Unknown DCP op received: %s; Disconnecting connection..",
-                vb_, dcpResponse->to_string());
-            return ENGINE_DISCONNECT;
+                "(vb %d) Erroneous (out of sequence) message (%s) received, "
+                "with opaque: %" PRIu32 ", its seqno (%" PRIu64 ") is not "
+                "greater than last received seqno (%" PRIu64 "); "
+                "Dropping mutation!",
+                vb_, dcpResponse->to_string(), opaque_, *seqno, last_seqno.load());
+            return ENGINE_ERANGE;
+        }
+        last_seqno.store(*seqno);
+    } else if(dcpResponse->getEvent() == DcpResponse::Event::SnapshotMarker) {
+        auto s = static_cast<SnapshotMarker*>(dcpResponse.get());
+        uint64_t snapStart = s->getStartSeqno();
+        uint64_t snapEnd = s->getEndSeqno();
+        if (snapStart < last_seqno.load() && snapEnd <= last_seqno.load()) {
+            consumer->getLogger().log(EXTENSION_LOG_WARNING,
+                "(vb %d) Erroneous snapshot marker received, with "
+                "opaque: %" PRIu32 ", its start "
+                "(%" PRIu64 "), and end (%" PRIu64 ") are less than last "
+                "received seqno (%" PRIu64 "); Dropping marker!",
+                vb_, opaque_, snapStart, snapEnd, last_seqno.load());
+            return ENGINE_ERANGE;
         }
     }
 
@@ -1654,11 +1631,13 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dc
                 }
                 break;
             default:
-                // Above switch should've returned DISCONNECT, throw an exception
-                throw std::logic_error("PassiveStream::messageReceived: (vb " +
-                                       std::to_string(vb_) +
-                                       ") received unknown message type " +
-                                       dcpResponse->to_string());
+                consumer->getLogger().log(
+                        EXTENSION_LOG_WARNING,
+                        "(vb %d) Unknown event:%d, opaque:%" PRIu32,
+                        vb_,
+                        dcpResponse->getEvent(),
+                        opaque_);
+                return ENGINE_DISCONNECT;
         }
         if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
             return ret;
@@ -1764,15 +1743,15 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    if (mutation->getBySeqno() < cur_snapshot_start.load() ||
-        mutation->getBySeqno() > cur_snapshot_end.load()) {
+    if (uint64_t(*mutation->getBySeqno()) < cur_snapshot_start.load() ||
+        uint64_t(*mutation->getBySeqno()) > cur_snapshot_end.load()) {
         consumer->getLogger().log(EXTENSION_LOG_WARNING,
             "(vb %d) Erroneous mutation [sequence "
             "number does not fall in the expected snapshot range : "
             "{snapshot_start (%" PRIu64 ") <= seq_no (%" PRIu64 ") <= "
             "snapshot_end (%" PRIu64 ")]; Dropping the mutation!",
             vb_, cur_snapshot_start.load(),
-            mutation->getBySeqno(), cur_snapshot_end.load());
+            *mutation->getBySeqno(), cur_snapshot_end.load());
         return ENGINE_ERANGE;
     }
 
@@ -1811,7 +1790,7 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
         consumer->getLogger().log(EXTENSION_LOG_WARNING,
             "Got an error code %d while trying to process mutation", ret);
     } else {
-        handleSnapshotEnd(vb, mutation->getBySeqno());
+        handleSnapshotEnd(vb, *mutation->getBySeqno());
     }
 
     return ret;
@@ -1823,15 +1802,15 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    if (deletion->getBySeqno() < cur_snapshot_start.load() ||
-        deletion->getBySeqno() > cur_snapshot_end.load()) {
+    if (uint64_t(*deletion->getBySeqno()) < cur_snapshot_start.load() ||
+        uint64_t(*deletion->getBySeqno()) > cur_snapshot_end.load()) {
         consumer->getLogger().log(EXTENSION_LOG_WARNING,
             "(vb %d) Erroneous deletion [sequence "
             "number does not fall in the expected snapshot range : "
             "{snapshot_start (%" PRIu64 ") <= seq_no (%" PRIu64 ") <= "
             "snapshot_end (%" PRIu64 ")]; Dropping the deletion!",
             vb_, cur_snapshot_start.load(),
-            deletion->getBySeqno(), cur_snapshot_end.load());
+            *deletion->getBySeqno(), cur_snapshot_end.load());
         return ENGINE_ERANGE;
     }
 
@@ -1844,7 +1823,7 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
         LOG(EXTENSION_LOG_WARNING,
             "%s Invalid CAS (0x%" PRIx64 ") received for deletion {vb:%" PRIu16
             ", seqno:%" PRId64 "}. Regenerating new CAS",
-            consumer->logHeader(), meta.cas, vb_, deletion->getBySeqno());
+            consumer->logHeader(), meta.cas, vb_, *deletion->getBySeqno());
         meta.cas = Item::nextCas();
     }
 
@@ -1858,7 +1837,7 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
                                                 vb->isBackfillPhase(),
                                                 GenerateBySeqno::No,
                                                 GenerateCas::No,
-                                                deletion->getBySeqno(),
+                                                *deletion->getBySeqno(),
                                                 deletion->getExtMetaData(),
                                                 true);
     if (ret == ENGINE_KEY_ENOENT) {
@@ -1869,7 +1848,7 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
         consumer->getLogger().log(EXTENSION_LOG_WARNING,
             "Got an error code %d while trying to process deletion", ret);
     } else {
-        handleSnapshotEnd(vb, deletion->getBySeqno());
+        handleSnapshotEnd(vb, *deletion->getBySeqno());
     }
 
     return ret;

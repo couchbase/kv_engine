@@ -20,6 +20,7 @@
 
 #include "config.h"
 
+#include "ep_types.h"
 #include "ext_meta_parser.h"
 #include "item.h"
 
@@ -55,6 +56,18 @@ public:
 
     Event getEvent() {
         return event_;
+    }
+
+    /**
+     * Not all DcpResponse sub-classes have a seqno. MutationResponse (events
+     * Mutation, Deletion and Expiration) have a seqno and would return an
+     * OptionalSeqno with a seqno.
+     *
+     * @return OptionalSeqno with no value - certain sub-classes may have a
+     *         seqno.
+     */
+    virtual OptionalSeqno getBySeqno() const {
+        return OptionalSeqno{/*no-seqno*/};
     }
 
     /* Returns true if this response is a meta event (i.e. not an operation on
@@ -315,8 +328,11 @@ public:
         return item_->getVBucketId();
     }
 
-    uint64_t getBySeqno() {
-        return item_->getBySeqno();
+    /**
+     * @return OptionalSeqno with the underlying Item's seqno.
+     */
+    OptionalSeqno getBySeqno() const {
+        return OptionalSeqno{item_->getBySeqno()};
     }
 
     uint64_t getRevSeqno() {
