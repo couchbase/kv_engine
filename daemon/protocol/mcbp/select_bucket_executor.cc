@@ -20,42 +20,36 @@
 #include <daemon/memcached.h>
 #include <daemon/mcbp.h>
 
-void select_bucket_executor(McbpConnection* c, void* packet) {
-    if (!c->isAuthenticated()) {
-        // One have to authenticate to the server before trying to
-        // select a bucket
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
-        return;
+ENGINE_ERROR_CODE select_bucket(McbpConnection& connection) {
+    if (!connection.isAuthenticated()) {
+        return ENGINE_EACCESS;
     }
-
-    auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(packet);
-    std::string bucketname{
-        reinterpret_cast<const char*>(req->bytes + (sizeof(req->bytes))),
-        ntohs(req->message.header.request.keylen)};
-
-    auto oldIndex = c->getBucketIndex();
+    const auto key = connection.getKey();
+    // Unfortunately we need to copy it over to a std::string as the
+    // internal methods expects the string to be terminated with '\0'
+    const std::string bucketname{key.data(), key.size()};
+    auto oldIndex = connection.getBucketIndex();
 
     try {
-        cb::rbac::createContext(c->getUsername(), bucketname);
-        if (associate_bucket(c, bucketname.c_str())) {
-            LOG_INFO(c, "%u: SELECT_BUCKET [%s] OK (%s)", c->getId(),
-                     bucketname.c_str(), c->getDescription().c_str());
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        cb::rbac::createContext(connection.getUsername(), bucketname);
+        if (associate_bucket(&connection, bucketname.c_str())) {
+            return ENGINE_SUCCESS;
         } else {
-            if (oldIndex != c->getBucketIndex()) {
+            if (oldIndex != connection.getBucketIndex()) {
                 // try to jump back to the bucket we used to be associated
                 // with..
-                associate_bucket(c, all_buckets[oldIndex].name);
+                associate_bucket(&connection, all_buckets[oldIndex].name);
             }
-            LOG_INFO(c, "%u: SELECT_BUCKET [%s] FAILED. No such bucket (%s)",
-                     c->getId(), bucketname.c_str(),
-                     c->getDescription().c_str());
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
+            return ENGINE_KEY_ENOENT;
         }
     } catch (const cb::rbac::Exception& error) {
-        LOG_INFO(c, "%u: SELECT_BUCKET [%s] FAILED. No access to bucket (%s)",
-                 c->getId(), bucketname.c_str(),
-                 c->getDescription().c_str());
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
+        return ENGINE_EACCESS;
     }
+}
+
+void select_bucket_executor(McbpConnection* c, void*) {
+    c->logCommand();
+    auto ret = select_bucket(*c);
+    c->logResponse(ret);
+    mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
 }
