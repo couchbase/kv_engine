@@ -21,11 +21,12 @@
 #include <daemon/mcbp.h>
 #include <daemon/buckets.h>
 
-void get_cmd_timer_executor(McbpConnection* c, void* packet) {
-    const auto* req = reinterpret_cast<protocol_binary_request_get_cmd_timer*>(packet);
+std::pair<ENGINE_ERROR_CODE, std::string> get_cmd_timer(
+        McbpConnection& connection,
+        const protocol_binary_request_get_cmd_timer* req) {
     const char* key = (const char*)(req->bytes + sizeof(req->bytes));
     size_t keylen = ntohs(req->message.header.request.keylen);
-    int index = c->getBucketIndex();
+    int index = connection.getBucketIndex();
     const std::string bucket(key, keylen);
     const auto opcode = req->message.body.opcode;
 
@@ -36,15 +37,9 @@ void get_cmd_timer_executor(McbpConnection* c, void* packet) {
 
     if (keylen > 0 || index == 0) {
         // You need the Stats privilege in order to specify a bucket
-        auto ret = mcbp::checkPrivilege(*c, cb::rbac::Privilege::Stats);
+        auto ret = mcbp::checkPrivilege(connection, cb::rbac::Privilege::Stats);
         if (ret != ENGINE_SUCCESS) {
-            ret = c->remapErrorCode(ret);
-            if (ret == ENGINE_DISCONNECT) {
-                c->setState(conn_closing);
-            } else {
-                mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-            }
-            return;
+            return std::make_pair(ret, "");
         }
     }
 
@@ -57,17 +52,9 @@ void get_cmd_timer_executor(McbpConnection* c, void* packet) {
     }
 
     if (keylen == 0) {
-        const auto str = all_buckets[index].timings.generate(opcode);
-        mcbp_response_handler(nullptr, 0, // no key
-                              nullptr, 0, // no extras
-                              str.data(), uint32_t(str.length()),
-                              PROTOCOL_BINARY_RAW_BYTES,
-                              PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                              0, c->getCookie());
-        mcbp_write_and_free(c, &c->getDynamicBuffer());
-        return;
+        return std::make_pair(ENGINE_SUCCESS,
+                              all_buckets[index].timings.generate(opcode));
     }
-
 
     // The user specified a bucket... let's locate the bucket
     std::string str;
@@ -85,14 +72,48 @@ void get_cmd_timer_executor(McbpConnection* c, void* packet) {
     }
 
     if (found) {
-        mcbp_response_handler(nullptr, 0, // no key
-                              nullptr, 0, // no extras
-                              str.data(), uint32_t(str.length()),
-                              PROTOCOL_BINARY_RAW_BYTES,
-                              PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                              0, c->getCookie());
-        mcbp_write_and_free(c, &c->getDynamicBuffer());
+        return std::make_pair(ENGINE_SUCCESS, str);
+    }
+
+    return std::make_pair(ENGINE_KEY_ENOENT, "");
+}
+
+void get_cmd_timer_executor(McbpConnection* c, void* packet) {
+    c->logCommand();
+    std::pair<ENGINE_ERROR_CODE, std::string> ret;
+    try {
+        ret = get_cmd_timer(
+                *c,
+                reinterpret_cast<protocol_binary_request_get_cmd_timer*>(
+                        packet));
+    } catch (const std::bad_alloc&) {
+        ret.first = ENGINE_ENOMEM;
+    }
+
+    if (ret.first == ENGINE_SUCCESS) {
+        if (mcbp_response_handler(nullptr,
+                                  0, // no key
+                                  nullptr,
+                                  0, // no extras
+                                  ret.second.data(),
+                                  uint32_t(ret.second.size()),
+                                  PROTOCOL_BINARY_RAW_BYTES,
+                                  PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                  0,
+                                  c->getCookie())) {
+            c->logResponse(ret.first);
+            mcbp_write_and_free(c, &c->getDynamicBuffer());
+            return;
+        }
+        ret.first = ENGINE_ENOMEM;
+    }
+
+    ret.first = c->remapErrorCode(ret.first);
+    c->logResponse(ret.first);
+
+    if (ret.first == ENGINE_DISCONNECT) {
+        c->setState(conn_closing);
     } else {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
+        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret.first));
     }
 }
