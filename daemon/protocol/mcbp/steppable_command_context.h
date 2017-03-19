@@ -31,8 +31,7 @@ class McbpConnection;
  */
 class SteppableCommandContext : public CommandContext {
 public:
-    SteppableCommandContext(McbpConnection& c) : connection(c) {
-    }
+    SteppableCommandContext(McbpConnection& c);
 
     virtual ~SteppableCommandContext() {
     }

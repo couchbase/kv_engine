@@ -21,6 +21,7 @@
 #include "statemachine_mcbp.h"
 #include "mc_time.h"
 
+#include <cctype>
 #include <exception>
 #include <utilities/protocol2text.h>
 #include <platform/cb_malloc.h>
@@ -1386,6 +1387,61 @@ void McbpConnection::setPriority(const Connection::Priority& priority) {
 
 protocol_binary_response_status McbpConnection::validateCommand(protocol_binary_command command) {
     return Bucket::validateMcbpCommand(this, command, cookie);
+}
+
+void McbpConnection::logCommand() const {
+    if (settings.getVerbose() == 0) {
+        // Info is not enabled.. we don't want to try to format
+        // output
+        return;
+    }
+
+    LOG_INFO(this,
+             "%u> %s %s",
+             getId(),
+             memcached_opcode_2_text(getCmd()),
+             getPrintableKey().c_str());
+}
+
+void McbpConnection::logResponse(const char* reason) const {
+    LOG_INFO(this,
+             "%u< %s %s - %s",
+             getId(),
+             memcached_opcode_2_text(getCmd()),
+             getPrintableKey().c_str(),
+             reason);
+}
+
+void McbpConnection::logResponse(ENGINE_ERROR_CODE code) const {
+    if (settings.getVerbose() == 0) {
+        // Info is not enabled.. we don't want to try to format
+        // output
+        return;
+    }
+
+    if (code == ENGINE_EWOULDBLOCK || code == ENGINE_WANT_MORE) {
+        // These are temporary states
+        return;
+    }
+
+    logResponse(cb::to_string(cb::engine_errc(code)).c_str());
+}
+
+std::string McbpConnection::getPrintableKey() const {
+    const auto key = getKey();
+
+    std::string buffer;
+    buffer.reserve(key.size());
+
+    for (size_t ii = 0; ii < key.len; ++ii) {
+        if (std::isgraph(key.buf[ii])) {
+            buffer[ii] = key.buf[ii];
+        } else {
+            buffer[ii] = '.';
+        }
+    }
+
+    return buffer;
 }
 
 int PipeConnection::sendmsg(struct msghdr* m) {

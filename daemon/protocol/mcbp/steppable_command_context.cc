@@ -18,6 +18,11 @@
 #include <daemon/mcbp.h>
 #include <daemon/stats.h>
 
+SteppableCommandContext::SteppableCommandContext(McbpConnection& c)
+    : connection(c) {
+    connection.logCommand();
+}
+
 void SteppableCommandContext::drive() {
     ENGINE_ERROR_CODE ret = connection.getAiostat();
     connection.setAiostat(ENGINE_SUCCESS);
@@ -41,6 +46,7 @@ void SteppableCommandContext::drive() {
         }
     }
 
+    connection.logResponse(ret);
     ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:

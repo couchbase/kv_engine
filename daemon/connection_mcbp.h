@@ -317,6 +317,12 @@ public:
         return ret;
     }
 
+    /**
+     * Get a printable key from the header. Replace all non-printable
+     * charachters with '.'
+     */
+    std::string getPrintableKey() const;
+
     const protocol_binary_request_header& getBinaryHeader() const {
         return binary_header;
     }
@@ -722,6 +728,24 @@ public:
     void resetCommandContext() {
         commandContext.reset();
     }
+
+    /**
+     * Log the start of processing a command received from the client in the
+     * generic form which (may change over time, but currently it) looks like:
+     *
+     *     id> COMMAND KEY
+     */
+    void logCommand() const;
+
+    /**
+     * Log the end of processing a command and the result of the command:
+     *
+     *     id< COMMAND KEY - STATUS
+     *
+     * @param code The execution result
+     */
+    void logResponse(ENGINE_ERROR_CODE code) const;
+
     /**
      * Try to enable SSL for this connection
      *
@@ -813,6 +837,8 @@ protected:
      * @return true upon success, false otherwise
      */
     bool initializeEvent();
+
+    void logResponse(const char* reason) const;
 
     /**
      * The state machine we're currently using
