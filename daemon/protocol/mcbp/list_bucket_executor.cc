@@ -20,10 +20,10 @@
 #include <daemon/memcached.h>
 #include <daemon/mcbp.h>
 
-void list_bucket_executor(McbpConnection* c, void*) {
-    if (!c->isAuthenticated()) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
-        return;
+std::pair<ENGINE_ERROR_CODE, std::string> list_bucket(
+        McbpConnection& connection) {
+    if (!connection.isAuthenticated()) {
+        return std::make_pair(ENGINE_EACCESS, "");
     }
 
     // The list bucket command is a bit racy (as it other threads may
@@ -31,45 +31,69 @@ void list_bucket_executor(McbpConnection* c, void*) {
     // we don't care about that (we don't want to hold a lock for the
     // entire period, _AND_ the access could be changed right after we
     // built the response anyway.
+    std::string blob;
+    // The blob string will contain all of the buckets, and to
+    // avoid too many reallocations we should probably just reserve
+    // a chunk
+    blob.reserve(100);
+
+    for (auto& bucket : all_buckets) {
+        std::string bucketname;
+        cb_mutex_enter(&bucket.mutex);
+        if (bucket.state == BucketState::Ready) {
+            bucketname = bucket.name;
+        }
+        cb_mutex_exit(&bucket.mutex);
+
+        try {
+            // Check if the user have access to the bucket
+            cb::rbac::createContext(connection.getUsername(), bucketname);
+            blob += bucketname + " ";
+        } catch (const cb::rbac::Exception&) {
+            // The client doesn't have access to this bucket
+        }
+    }
+
+    if (blob.size() > 0) {
+        /* remove trailing " " */
+        blob.pop_back();
+    }
+
+    return std::make_pair(ENGINE_SUCCESS, blob);
+}
+
+void list_bucket_executor(McbpConnection* c, void*) {
+    c->logCommand();
+    std::pair<ENGINE_ERROR_CODE, std::string> ret;
     try {
-        std::string blob;
-        // The blob string will contain all of the buckets, and to
-        // avoid too many reallocations we should probably just reserve
-        // a chunk
-        blob.reserve(100);
+        ret = list_bucket(*c);
+    } catch (std::bad_alloc&) {
+        ret.first = ENGINE_ENOMEM;
+    }
 
-        for (auto& bucket : all_buckets) {
-            std::string bucketname;
-            cb_mutex_enter(&bucket.mutex);
-            if (bucket.state == BucketState::Ready) {
-                bucketname = bucket.name;
-            }
-            cb_mutex_exit(&bucket.mutex);
-
-            try {
-                // Check if the user have access to the bucket
-                cb::rbac::createContext(c->getUsername(), bucketname);
-                blob += bucketname + " ";
-            } catch (const cb::rbac::Exception&){
-                // The client doesn't have access to this bucket
-            }
-        }
-
-        if (blob.size() > 0) {
-            /* remove trailing " " */
-            blob.pop_back();
-        }
-
-        if (mcbp_response_handler(NULL, 0, NULL, 0, blob.data(),
-                                  uint32_t(blob.size()),
+    if (ret.first == ENGINE_SUCCESS) {
+        if (mcbp_response_handler(nullptr,
+                                  0,
+                                  nullptr,
+                                  0,
+                                  ret.second.data(),
+                                  uint32_t(ret.second.size()),
                                   PROTOCOL_BINARY_RAW_BYTES,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
+                                  PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                  0,
                                   c->getCookie())) {
+            c->logResponse(ret.first);
             mcbp_write_and_free(c, &c->getDynamicBuffer());
-        } else {
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+            return;
         }
-    } catch (const std::bad_alloc&) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+        ret.first = ENGINE_ENOMEM;
+    }
+    ret.first = c->remapErrorCode(ret.first);
+    c->logResponse(ret.first);
+
+    if (ret.first == ENGINE_DISCONNECT) {
+        c->setState(conn_closing);
+    } else {
+        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret.first));
     }
 }
