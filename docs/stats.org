@@ -740,6 +740,7 @@ another colon.  For example, if your client is named, =slave1=, the
 | items_remaining       | The amount of items remaining to be sent               |
 | items_sent            | The amount of items already sent to the consumer       |
 | last_sent_time        | The last time this connection sent a message           |
+| last_receive_time     | The last time this connection received a message       |
 | max_buffer_bytes      | The maximum amount of bytes that can be sent without   |
 |                       | receiving an ack from the consumer                     |
 | noop_enabled          | Whether or not this connection sends noops             |
