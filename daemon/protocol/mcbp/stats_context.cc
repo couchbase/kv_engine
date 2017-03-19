@@ -789,16 +789,6 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
             {"subdoc_execute", {false, stat_subdoc_execute_executor}},
             {"responses", {false, stat_responses_json_executor}}};
 
-    if (settings.getVerbose() > 1) {
-        char buffer[1024];
-        if (key_to_printable_buffer(buffer, sizeof(buffer), connection.getId(),
-                                    true, "STATS",
-                                    reinterpret_cast<const char*>(key.data()),
-                                    key.size()) != -1) {
-            LOG_DEBUG(&connection, "%s", buffer);
-        }
-    }
-
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     if (key.empty()) {

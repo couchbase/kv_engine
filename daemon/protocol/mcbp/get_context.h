@@ -30,7 +30,6 @@ public:
     // for the functions with the same name to figure out what each
     // state does
     enum class State : uint8_t {
-        Initialize,
         GetItem,
         NoSuchItem,
         InflateItem,
@@ -46,7 +45,7 @@ public:
               DocNamespace::DefaultCollection),
           vbucket(ntohs(req->message.header.request.vbucket)),
           it(nullptr),
-          state(State::Initialize) {
+          state(State::GetItem) {
     }
 
     ~GetCommandContext() override;
@@ -71,15 +70,6 @@ protected:
         return connection.getCmd() == PROTOCOL_BINARY_CMD_GETK ||
                connection.getCmd() == PROTOCOL_BINARY_CMD_GETKQ;
     }
-
-    /**
-     * This is the initial state of the Get operation. It may log the
-     * operation (and it would be the place where you would add a phosphor
-     * trace if you wanted to trace get requests
-     *
-     * @return ENGINE_SUCCESS (always)
-     */
-    ENGINE_ERROR_CODE initialize();
 
     /**
      * Try to lookup the named item in the underlying engine. Given that

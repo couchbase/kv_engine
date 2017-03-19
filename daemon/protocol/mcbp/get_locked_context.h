@@ -31,7 +31,6 @@ public:
     // for the functions with the same name to figure out what each
     // state does
     enum class State : uint8_t {
-        Initialize,
         GetAndLockItem,
         InflateItem,
         SendResponse,
@@ -65,7 +64,7 @@ public:
           vbucket(ntohs(req->message.header.request.vbucket)),
           lock_timeout(get_exptime(*req)),
           it(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
-          state(State::Initialize) {
+          state(State::GetAndLockItem) {
     }
 
 protected:
@@ -77,15 +76,6 @@ protected:
      *         data, or start processing the next command)
      */
     ENGINE_ERROR_CODE step() override;
-
-    /**
-     * This is the initial state of the Get operation. It may log the
-     * operation (and it would be the place where you would add a phosphor
-     * trace if you wanted to trace get requests
-     *
-     * @return ENGINE_SUCCESS (always)
-     */
-    ENGINE_ERROR_CODE initialize();
 
     /**
      * Try to lookup the named item in the underlying engine. Given that

@@ -27,21 +27,6 @@ GetCommandContext::~GetCommandContext() {
     }
 }
 
-ENGINE_ERROR_CODE GetCommandContext::initialize() {
-    if (settings.getVerbose() > 1) {
-        char buffer[1024];
-        if (key_to_printable_buffer(buffer, sizeof(buffer),
-                                    connection.getId(), true,
-                                    "GET",
-                                    reinterpret_cast<const char*>(key.data()),
-                                    key.size()) != -1) {
-            LOG_DEBUG(&connection, "%s", buffer);
-        }
-    }
-    state = State::GetItem;
-    return ENGINE_SUCCESS;
-}
-
 ENGINE_ERROR_CODE GetCommandContext::getItem() {
     auto ret = bucket_get(&connection, &it, key, vbucket);
     if (ret == ENGINE_SUCCESS) {
@@ -171,9 +156,6 @@ ENGINE_ERROR_CODE GetCommandContext::step() {
     ENGINE_ERROR_CODE ret;
     do {
         switch (state) {
-        case State::Initialize:
-            ret = initialize();
-            break;
         case State::GetItem:
             ret = getItem();
             break;

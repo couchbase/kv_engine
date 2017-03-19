@@ -20,21 +20,6 @@
 #include <daemon/debug_helpers.h>
 #include <daemon/mcbp.h>
 
-ENGINE_ERROR_CODE UnlockCommandContext::initialize() {
-    if (settings.getVerbose() > 1) {
-        char buffer[1024];
-        if (key_to_printable_buffer(buffer, sizeof(buffer),
-                                    connection.getId(), true,
-                                    "UNLOCK",
-                                    reinterpret_cast<const char*>(key.data()),
-                                    key.size()) != -1) {
-            LOG_DEBUG(&connection, "%s", buffer);
-        }
-    }
-    state = State::Unlock;
-    return ENGINE_SUCCESS;
-}
-
 ENGINE_ERROR_CODE UnlockCommandContext::unlock() {
     auto ret = bucket_unlock(connection, key, vbucket, cas);
     if (ret == ENGINE_SUCCESS) {
@@ -50,9 +35,6 @@ ENGINE_ERROR_CODE UnlockCommandContext::step() {
     ENGINE_ERROR_CODE ret;
     do {
         switch (state) {
-        case State::Initialize:
-            ret = initialize();
-            break;
         case State::Unlock:
             ret = unlock();
             break;

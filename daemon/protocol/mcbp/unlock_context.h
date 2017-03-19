@@ -31,7 +31,6 @@ public:
     // for the functions with the same name to figure out what each
     // state does
     enum class State : uint8_t {
-        Initialize,
         Unlock,
         Done
     };
@@ -44,7 +43,7 @@ public:
               DocNamespace::DefaultCollection),
           vbucket(ntohs(req->message.header.request.vbucket)),
           cas(ntohll(req->message.header.request.cas)),
-          state(State::Initialize) {
+          state(State::Unlock) {
     }
 
 protected:
@@ -56,15 +55,6 @@ protected:
      *         data, or start processing the next command)
      */
     ENGINE_ERROR_CODE step() override;
-
-    /**
-     * This is the initial state of the Unlock operation. It may log the
-     * operation (and it would be the place where you would add a phosphor
-     * trace if you wanted to trace get requests
-     *
-     * @return ENGINE_SUCCESS (always)
-     */
-    ENGINE_ERROR_CODE initialize();
 
     /**
      * Unlock the document (this is the state the statemachine would
