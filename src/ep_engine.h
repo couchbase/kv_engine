@@ -298,10 +298,11 @@ public:
         return ret;
     }
 
-    cb::unique_item_ptr get_if(const void* cookie,
-                               const DocKey& key,
-                               uint16_t vbucket,
-                               std::function<bool(const item_info&)>filter);
+    cb::EngineErrorItemPair get_if(const void* cookie,
+                                   const DocKey& key,
+                                   uint16_t vbucket,
+                                   std::function<bool(
+                                       const item_info&)> filter);
 
     ENGINE_ERROR_CODE get_locked(const void* cookie,
                                  item** itm,

@@ -2064,29 +2064,21 @@ static test_result get_if(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
                           [](const item_info&) {
                               return true;
                           });
-    check(doc, "document should be found");
+    check(doc.second, "document should be found");
 
     doc = h1->get_if(h,
                      nullptr,
                      DocKey(key, testHarness.doc_namespace),
                      0,
                      [](const item_info&) { return false; });
-    check(!doc, "document should not be found");
+    check(!doc.second, "document should not be found");
 
-    try {
-        doc = h1->get_if(h,
-                         nullptr,
-                         DocKey(std::string{"no"}, testHarness.doc_namespace),
-                         0,
-                         [](const item_info&) { return false; });
-        fprintf(stderr,
-                "%s:%d Test failed: `expected get_if to throw exception'\n",
-                __FILE__, __LINE__);
-        return FAIL;
-    } catch (const cb::engine_error& error) {
-        check(error.code() == cb::engine_errc::no_such_key,
-                "document should not exist");
-    }
+    doc = h1->get_if(h,
+                     nullptr,
+                     DocKey(std::string{"no"}, testHarness.doc_namespace),
+                     0,
+                     [](const item_info&) { return true; });
+    check(!doc.second, "non-existing document should not be found");
 
     return SUCCESS;
 }

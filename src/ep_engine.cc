@@ -255,11 +255,12 @@ static ENGINE_ERROR_CODE EvpGet(ENGINE_HANDLE* handle,
     return acquireEngine(handle)->get(cookie, itm, key, vbucket, options);
 }
 
-static cb::unique_item_ptr EvpGetIf(ENGINE_HANDLE* handle,
-                                    const void* cookie,
-                                    const DocKey& key,
-                                    uint16_t vbucket,
-                                    std::function<bool(const item_info&)>filter) {
+static cb::EngineErrorItemPair EvpGetIf(ENGINE_HANDLE* handle,
+                                        const void* cookie,
+                                        const DocKey& key,
+                                        uint16_t vbucket,
+                                        std::function<bool(
+                                            const item_info&)> filter) {
     return acquireEngine(handle)->get_if(cookie, key, vbucket, filter);
 }
 
@@ -2124,10 +2125,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie){
     }
 }
 
-cb::unique_item_ptr EventuallyPersistentEngine::get_if(const void* cookie,
+cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(const void* cookie,
                                                        const DocKey& key,
                                                        uint16_t vbucket,
                                                        std::function<bool(const item_info&)>filter) {
+
+    auto* handle = reinterpret_cast<ENGINE_HANDLE*>(this);
 
     // Fetch an item from the hashtable (without trying to schedule a bg-fetch
     // and pass it through the filter. If the filter accepts the document
@@ -2140,7 +2143,7 @@ cb::unique_item_ptr EventuallyPersistentEngine::get_if(const void* cookie,
                                                   DELETE_TEMP |
                                                   HIDE_LOCKED_CAS |
                                                   GET_DELETED_VALUE |
-            ALLOW_META_ONLY);
+                                                  ALLOW_META_ONLY);
         if (ii == 1 || kvBucket->getItemEvictionPolicy() == FULL_EVICTION) {
             options = static_cast<get_options_t>(int(options) | QUEUE_BG_FETCH);
         }
@@ -2160,14 +2163,13 @@ cb::unique_item_ptr EventuallyPersistentEngine::get_if(const void* cookie,
             }
             // FALLTHROUGH
         default:
-            // We failed to fetch the item
-            throw cb::engine_error(cb::engine_errc(status), "get_if");
+            return std::make_pair(cb::engine_errc(status),
+                                  cb::unique_item_ptr{nullptr,
+                                                      cb::ItemDeleter{handle}});
         }
 
         auto* item = gv.getValue();
-        cb::unique_item_ptr ret{item,
-                                cb::ItemDeleter{
-                                    reinterpret_cast<ENGINE_HANDLE*>(this)}};
+        cb::unique_item_ptr ret{item, cb::ItemDeleter{handle}};
 
         const RCPtr<VBucket> vb = getKVBucket()->getVBucket(vbucket);
         const uint64_t vb_uuid = vb ? vb->failovers->getLatestUUID() : 0;
@@ -2175,13 +2177,17 @@ cb::unique_item_ptr EventuallyPersistentEngine::get_if(const void* cookie,
         // Currently
         if (filter(item->toItemInfo(vb_uuid))) {
             if (!gv.isPartial()) {
-                return ret;
+                return std::make_pair(cb::engine_errc::success,
+                               cb::unique_item_ptr{ret.release(),
+                                                   cb::ItemDeleter{handle}});
             }
             // We want this item, but we need to fetch it off disk
         } else {
             // the client don't care about this thing..
             ret.reset(nullptr);
-            return ret;
+            return std::make_pair(cb::engine_errc::success,
+                                  cb::unique_item_ptr{ret.release(),
+                                                      cb::ItemDeleter{handle}});
         }
     }
 
