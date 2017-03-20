@@ -98,6 +98,16 @@ public:
 
     virtual uint32_t getMessageSize() = 0;
 
+    /**
+     * Return approximately how many bytes this response message is using
+     * for use in buffered backfill accounting. Note that certain sub-classes
+     * have never been accounted for, only MutationResponse is used in the
+     * accounting, hence this abstract method returns 0.
+     */
+    virtual size_t getApproximateSize() const {
+        return 0;
+    }
+
     const char* to_string() const;
 
 private:
@@ -351,6 +361,14 @@ public:
             body += emd->getExtMeta().second;
         }
         return base + body;
+    }
+
+    /**
+     * @returns a size representing approximatley the memory used, in this case
+     * the item's size.
+     */
+    size_t getApproximateSize() const {
+        return item_->size();
     }
 
     ExtendedMetaData* getExtMetaData() {

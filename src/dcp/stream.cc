@@ -399,15 +399,20 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
     if (itm->shouldReplicate()) {
         std::unique_lock<std::mutex> lh(streamMutex);
         if (isBackfilling()) {
-            if (!producer->recordBackfillManagerBytesRead(itm->size())) {
+            auto resp = std::make_unique<MutationResponse>(
+                    std::move(itm), opaque_, nullptr);
+            if (!producer->recordBackfillManagerBytesRead(
+                        resp->getApproximateSize())) {
+                // Deleting resp may also delete itm (which is owned by resp)
+                resp.reset();
                 return false;
             }
 
-            bufferedBackfill.bytes.fetch_add(itm->size());
+            bufferedBackfill.bytes.fetch_add(resp->getApproximateSize());
             bufferedBackfill.items++;
-            lastReadSeqno.store(itm->getBySeqno());
+            lastReadSeqno.store(uint64_t(*resp->getBySeqno()));
 
-            pushToReadyQ(new MutationResponse(std::move(itm), opaque_, nullptr));
+            pushToReadyQ(resp.release());
 
             lh.unlock();
             bool inverse = false;
@@ -504,15 +509,17 @@ void ActiveStream::setVBucketStateAckRecieved() {
 DcpResponse* ActiveStream::backfillPhase(std::lock_guard<std::mutex>& lh) {
     DcpResponse* resp = nextQueuedItem();
 
-    if (resp && (resp->getEvent() == DcpResponse::Event::Mutation ||
-         resp->getEvent() == DcpResponse::Event::Deletion ||
-         resp->getEvent() == DcpResponse::Event::Expiration)) {
-        MutationResponse* m = static_cast<MutationResponse*>(resp);
-        producer->recordBackfillManagerBytesSent(m->getItem()->size());
-        bufferedBackfill.bytes.fetch_sub(m->getItem()->size());
+    if (resp) {
+        producer->recordBackfillManagerBytesSent(resp->getApproximateSize());
+        bufferedBackfill.bytes.fetch_sub(resp->getApproximateSize());
         bufferedBackfill.items--;
-        if (backfillRemaining.load(std::memory_order_relaxed) > 0) {
-            backfillRemaining.fetch_sub(1, std::memory_order_relaxed);
+
+        // Only DcpResponse objects representing items from "disk" have a size
+        // so only update backfillRemaining when non-zero
+        if (resp->getApproximateSize()) {
+            if (backfillRemaining.load(std::memory_order_relaxed) > 0) {
+                backfillRemaining.fetch_sub(1, std::memory_order_relaxed);
+            }
         }
     }
 
