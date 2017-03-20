@@ -119,12 +119,6 @@ DCPBackfillDisk::DCPBackfillDisk(EventuallyPersistentEngine& e,
       engine(e),
       scanCtx(nullptr),
       state(backfill_state_init) {
-    if (stream->getType() != STREAM_ACTIVE) {
-        throw std::invalid_argument(
-                "DCPBackfillDisk(): stream->getType() "
-                "(which is " +
-                std::to_string(stream->getType()) + ") is not ACTIVE");
-    }
 }
 
 backfill_status_t DCPBackfillDisk::run() {

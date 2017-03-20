@@ -77,8 +77,9 @@ SequenceList::UpdateStatus BasicLinkedList::updateListElem(
     return UpdateStatus::Success;
 }
 
-std::pair<ENGINE_ERROR_CODE, std::vector<queued_item>>
+std::pair<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>>
 BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
+    std::vector<UniqueItemPtr> empty;
     if ((start > end) || (start <= 0)) {
         LOG(EXTENSION_LOG_WARNING,
             "BasicLinkedList::rangeRead(): "
@@ -86,7 +87,8 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
             vbid,
             start,
             end);
-        return {ENGINE_ERANGE, {}};
+        return {ENGINE_ERANGE, std::move(empty)
+                /* MSVC not happy with std::vector<UniqueItemPtr>() */};
     }
 
     /* Allows only 1 rangeRead for now */
@@ -103,7 +105,7 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
                 static_cast<seqno_t>(highSeqno));
             /* If the request is for an invalid range, return before iterating
                through the list */
-            return {ENGINE_ERANGE, {}};
+            return {ENGINE_ERANGE, std::move(empty)};
         }
 
         /* Mark the initial read range */
@@ -113,7 +115,7 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
     }
 
     /* Read items in the range */
-    std::vector<queued_item> items;
+    std::vector<UniqueItemPtr> items;
 
     for (const auto& osv : seqList) {
         if (osv.getBySeqno() > end) {
@@ -134,7 +136,7 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
         }
 
         try {
-            items.push_back(osv.toItem(false, vbid));
+            items.push_back(UniqueItemPtr(osv.toItem(false, vbid)));
         } catch (const std::bad_alloc&) {
             LOG(EXTENSION_LOG_WARNING,
                 "BasicLinkedList::rangeRead(): "
@@ -142,7 +144,7 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
                 "item with seqno %" PRIi64 "before streaming it",
                 vbid,
                 osv.getBySeqno());
-            return {ENGINE_ENOMEM, {}};
+            return {ENGINE_ENOMEM, std::move(empty)};
         }
     }
 
@@ -153,7 +155,7 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
     }
 
     /* Return all the range read items */
-    return {ENGINE_SUCCESS, items};
+    return {ENGINE_SUCCESS, std::move(items)};
 }
 
 void BasicLinkedList::updateHighSeqno(const OrderedStoredValue& v) {

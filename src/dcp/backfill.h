@@ -21,7 +21,6 @@
 
 #include "dcp/stream.h"
 
-class EventuallyPersistentEngine;
 class ScanContext;
 
 /**

@@ -16,6 +16,7 @@
  */
 
 #include "ephemeral_vb.h"
+#include "dcp/backfill_memory.h"
 #include "failover-table.h"
 #include "linked_list.h"
 #include "stored_value_factories.h"
@@ -123,6 +124,21 @@ void EphemeralVBucket::notifyAllPendingConnsFailed(
 
 size_t EphemeralVBucket::getHighPriorityChkSize() {
     return 0;
+}
+
+std::unique_ptr<DCPBackfill> EphemeralVBucket::createDCPBackfill(
+        EventuallyPersistentEngine& e,
+        const active_stream_t& stream,
+        uint64_t startSeqno,
+        uint64_t endSeqno) {
+    /* create a memory backfill object */
+    return std::make_unique<DCPBackfillMemory>(
+            this, stream, startSeqno, endSeqno);
+}
+
+std::pair<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>>
+EphemeralVBucket::inMemoryBackfill(uint64_t start, uint64_t end) {
+    return seqList->rangeRead(start, end);
 }
 
 std::tuple<StoredValue*, MutationStatus, VBNotifyCtx>

@@ -952,7 +952,7 @@ public:
      * @param e ref to EventuallyPersistentEngine
      * @param stream ref to the stream for which this backfill obj is created
      * @param startSeqno requested start sequence number of the backfill
-     * @param endSeqno requested start sequence number of the backfill
+     * @param endSeqno requested end sequence number of the backfill
      *
      * @return pointer to the backfill object created. Caller to own this
      *         object and hence must handle deletion.
@@ -961,7 +961,7 @@ public:
             EventuallyPersistentEngine& e,
             const active_stream_t& stream,
             uint64_t startSeqno,
-            uint64_t endSeqno) const = 0;
+            uint64_t endSeqno) = 0;
 
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;

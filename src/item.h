@@ -752,6 +752,7 @@ bool operator==(const Item& lhs, const Item& rhs);
 std::ostream& operator<<(std::ostream& os, const Item& item);
 
 typedef SingleThreadedRCPtr<Item> queued_item;
+using UniqueItemPtr = std::unique_ptr<Item>;
 
 /**
  * Order QueuedItem objects by their keys and by sequence numbers.

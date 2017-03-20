@@ -126,7 +126,7 @@ public:
     void notifyBackfillManager();
     bool recordBackfillManagerBytesRead(uint32_t bytes);
     void recordBackfillManagerBytesSent(uint32_t bytes);
-    void scheduleBackfillManager(const VBucket& vb,
+    void scheduleBackfillManager(VBucket& vb,
                                  const active_stream_t& s,
                                  uint64_t start,
                                  uint64_t end);

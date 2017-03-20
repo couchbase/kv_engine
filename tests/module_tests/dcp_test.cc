@@ -87,9 +87,17 @@ protected:
     }
 };
 
-class StreamTest : public DCPTest {
+class StreamTest : public DCPTest,
+                   public ::testing::WithParamInterface<std::string> {
 protected:
-    void TearDown() {
+    void SetUp() override {
+        bucketType = GetParam();
+        DCPTest::SetUp();
+        vb0 = engine->getVBucket(0);
+        EXPECT_TRUE(vb0) << "Failed to get valid VBucket object for id 0";
+    }
+
+    void TearDown() override {
         producer->clearCheckpointProcessorTaskQueues();
         // Destroy various engine objects
         vb0.reset();
@@ -113,8 +121,7 @@ protected:
                                       /*vb_uuid*/0xabcd,
                                       /*snap_start_seqno*/0,
                                       /*snap_end_seqno*/~0);
-        vb0 = engine->getVBucket(0);
-        EXPECT_TRUE(vb0) << "Failed to get valid VBucket object for id 0";
+
         EXPECT_FALSE(vb0->checkpointManager.registerCursor(
                                                            producer->getName(),
                                                            1, false,
@@ -132,8 +139,7 @@ protected:
  * doesn't incorrectly return false (meaning that there are no more checkpoint
  * items to send).
  */
-TEST_F(StreamTest, test_mb17766) {
-
+TEST_P(StreamTest, test_mb17766) {
     // Add an item.
     store_item(vbid, "key", "value");
 
@@ -163,8 +169,7 @@ TEST_F(StreamTest, test_mb17766) {
 
 // Check that the items remaining statistic is accurate and is unaffected
 // by de-duplication.
-TEST_F(StreamTest, MB17653_ItemsRemaining) {
-
+TEST_P(StreamTest, MB17653_ItemsRemaining) {
     auto& manager = engine->getKVBucket()->getVBucket(vbid)->checkpointManager;
 
     ASSERT_EQ(1, manager.getNumOpenChkItems())
@@ -241,8 +246,7 @@ TEST_F(StreamTest, MB17653_ItemsRemaining) {
         << "Should have 0 items remaining after advancing cursor and draining readyQ";
 }
 
-TEST_F(StreamTest, test_mb18625) {
-
+TEST_P(StreamTest, test_mb18625) {
     // Add an item.
     store_item(vbid, "key", "value");
 
@@ -273,6 +277,52 @@ TEST_F(StreamTest, test_mb18625) {
     // Expect no other message to be queued after stream end message
     EXPECT_EQ(0, (mock_stream->public_readyQ()).size())
         << "Expected no more messages in the readyQ";
+}
+
+/* Stream items from a DCP backfill */
+TEST_P(StreamTest, BackfillOnly) {
+    /* Add 3 items */
+    int numItems = 3;
+    for (int i = 0; i < numItems; ++i) {
+        std::string key("key" + std::to_string(i));
+        store_item(vbid, key, "value");
+    }
+
+    /* Create new checkpoint so that we can remove the current checkpoint
+       and force a backfill in the DCP stream */
+    auto& ckpt_mgr = vb0->checkpointManager;
+    ckpt_mgr.createNewCheckpoint();
+
+    /* Flush all items to the disk for a persistent bucket */
+    if (bucketType == "persistent") {
+        // EXPECT_EQ(1, engine->getKVBucket()->flushVBucket(vbid));
+        setup_dcp_stream(); // [TODO]: Check why TearDown() crashes without this
+        return; // [TODO]: Debug why flushVBucket does not work
+    }
+
+    /* Remove the old checkpoint */
+    bool new_ckpt_created;
+    EXPECT_EQ(numItems,
+              ckpt_mgr.removeClosedUnrefCheckpoints(*vb0, new_ckpt_created));
+
+    /* Set up a DCP stream for the backfill */
+    setup_dcp_stream();
+    MockActiveStream* mock_stream =
+            static_cast<MockActiveStream*>(stream.get());
+
+    /* We want the backfill task to run in a background thread */
+    ExecutorPool::get()->setNumAuxIO(1);
+    mock_stream->transitionStateToBackfilling();
+
+    /* Wait for the backfill task to complete */
+    while (numItems != mock_stream->getLastReadSeqno()) {
+        usleep(10);
+    }
+
+    /* Verify that all items are read in the backfill */
+    EXPECT_EQ(numItems, mock_stream->getNumBackfillItems());
+    /* [TODO]: Expand the testcase to check if snapshot marker, all individual
+               items are read correctly */
 }
 
 class ConnectionTest : public DCPTest {
@@ -993,3 +1043,11 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify_paused) {
     notifyTest.connMap->notifyAllPausedConnections();
     EXPECT_EQ(1, notifyTest.getCallbacks());
 }
+
+// Test cases which run in both Full and Value eviction
+INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
+                        StreamTest,
+                        ::testing::Values("persistent", "ephemeral"),
+                        [](const ::testing::TestParamInfo<std::string>& info) {
+                            return info.param;
+                        });

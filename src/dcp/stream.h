@@ -294,6 +294,17 @@ protected:
      */
     bool pendingBackfill;
 
+    //! Stats to track items read and sent from the backfill phase
+    struct {
+        std::atomic<size_t> memory;
+        std::atomic<size_t> disk;
+        std::atomic<size_t> sent;
+    } backfillItems;
+
+    /* The last sequence number queued from disk or memory and is
+       snapshotted and put onto readyQ */
+    std::atomic<uint64_t> lastReadSeqno;
+
 private:
 
     DcpResponse* next(std::lock_guard<std::mutex>& lh);
@@ -334,10 +345,6 @@ private:
        snapshotted and put onto readyQ */
     std::atomic<uint64_t> lastReadSeqnoUnSnapshotted;
 
-    /* The last sequence number queued from disk or memory and is
-       snapshotted and put onto readyQ */
-    std::atomic<uint64_t> lastReadSeqno;
-
     //! The last sequence number sent to the network layer
     std::atomic<uint64_t> lastSentSeqno;
 
@@ -353,13 +360,6 @@ private:
      * must acquire the streamMutex lock.
      */
     std::atomic <size_t> backfillRemaining;
-
-    //! Stats to track items read and sent from the backfill phase
-    struct {
-        std::atomic<size_t> memory;
-        std::atomic<size_t> disk;
-        std::atomic<size_t> sent;
-    } backfillItems;
 
     //! The amount of items that have been sent during the memory phase
     std::atomic<size_t> itemsFromMemoryPhase;

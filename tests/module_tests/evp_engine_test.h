@@ -30,6 +30,10 @@
 class EventuallyPersistentEngine;
 
 class EventuallyPersistentEngineTest : public ::testing::Test {
+public:
+    EventuallyPersistentEngineTest() : bucketType("persistent") {
+    }
+
 protected:
     void SetUp() override;
 
@@ -50,4 +54,5 @@ protected:
     ENGINE_HANDLE* handle;
     ENGINE_HANDLE_V1* engine_v1;
     EventuallyPersistentEngine* engine;
+    std::string bucketType;
 };

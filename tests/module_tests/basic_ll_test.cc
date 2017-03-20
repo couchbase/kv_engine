@@ -182,7 +182,7 @@ TEST_F(BasicLinkedListTest, TestRangeRead) {
 
     /* Now do a range read */
     ENGINE_ERROR_CODE status;
-    std::vector<queued_item> items;
+    std::vector<UniqueItemPtr> items;
     std::tie(status, items) = basicLL->rangeRead(1, numItems);
 
     EXPECT_EQ(ENGINE_SUCCESS, status);
@@ -198,7 +198,7 @@ TEST_F(BasicLinkedListTest, TestRangeReadTillInf) {
 
     /* Now do a range read */
     ENGINE_ERROR_CODE status;
-    std::vector<queued_item> items;
+    std::vector<UniqueItemPtr> items;
     std::tie(status, items) =
             basicLL->rangeRead(1, std::numeric_limits<seqno_t>::max());
 
@@ -215,7 +215,7 @@ TEST_F(BasicLinkedListTest, TestRangeReadFromMid) {
 
     /* Now do a range read */
     ENGINE_ERROR_CODE status;
-    std::vector<queued_item> items;
+    std::vector<UniqueItemPtr> items;
     std::tie(status, items) = basicLL->rangeRead(2, numItems);
 
     EXPECT_EQ(ENGINE_SUCCESS, status);
@@ -231,7 +231,7 @@ TEST_F(BasicLinkedListTest, TestRangeReadStopBeforeEnd) {
 
     /* Now request for a range read of just 2 items */
     ENGINE_ERROR_CODE status;
-    std::vector<queued_item> items;
+    std::vector<UniqueItemPtr> items;
     std::tie(status, items) = basicLL->rangeRead(1, numItems - 1);
 
     EXPECT_EQ(ENGINE_SUCCESS, status);
@@ -246,7 +246,7 @@ TEST_F(BasicLinkedListTest, TestRangeReadNegatives) {
     addNewItemsToList(1, std::string("key"), numItems);
 
     ENGINE_ERROR_CODE status;
-    std::vector<queued_item> items;
+    std::vector<UniqueItemPtr> items;
 
     /* Now do a range read with start > end */
     std::tie(status, items) = basicLL->rangeRead(2, 1);

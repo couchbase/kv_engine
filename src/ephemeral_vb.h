@@ -18,7 +18,6 @@
 #pragma once
 
 #include "config.h"
-#include "dcp/backfill.h"
 #include "vbucket.h"
 
 /* Forward declarations */
@@ -100,13 +99,24 @@ public:
         return nullptr;
     }
 
-    UniqueDCPBackfillPtr createDCPBackfill(EventuallyPersistentEngine& e,
-                                           const active_stream_t& stream,
-                                           uint64_t startSeqno,
-                                           uint64_t endSeqno) const override {
-        /* [EPHE TODO] : Create a memory backfill obj */
-        return nullptr;
-    }
+    std::unique_ptr<DCPBackfill> createDCPBackfill(
+            EventuallyPersistentEngine& e,
+            const active_stream_t& stream,
+            uint64_t startSeqno,
+            uint64_t endSeqno) override;
+
+    /**
+     * Reads backfill items from in memory ordered data structure
+     *
+     * @param startSeqno requested start sequence number of the backfill
+     * @param endSeqno requested end sequence number of the backfill
+     *
+     * @return ENGINE_SUCCESS and items in the snapshot
+     *         ENGINE_ENOMEM on no memory to copy items
+     *         ENGINE_ERANGE on incorrect start and end
+     */
+    std::pair<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>> inMemoryBackfill(
+            uint64_t start, uint64_t end);
 
 private:
     std::tuple<StoredValue*, MutationStatus, VBNotifyCtx> updateStoredValue(

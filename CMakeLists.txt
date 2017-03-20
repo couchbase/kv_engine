@@ -150,6 +150,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/crc32.c
             src/dcp/backfill-manager.cc
             src/dcp/backfill_disk.cc
+            src/dcp/backfill_memory.cc
             src/dcp/consumer.cc
             src/dcp/dcpconnmap.cc
             src/dcp/flow-control.cc

@@ -105,7 +105,7 @@ public:
     UniqueDCPBackfillPtr createDCPBackfill(EventuallyPersistentEngine& e,
                                            const active_stream_t& stream,
                                            uint64_t startSeqno,
-                                           uint64_t endSeqno) const override {
+                                           uint64_t endSeqno) override {
         /* create a disk backfill object */
         return std::make_unique<DCPBackfillDisk>(
                 e, stream, startSeqno, endSeqno);

@@ -197,21 +197,41 @@ void Stream::addStats(ADD_STAT add_stat, const void *c) {
     }
 }
 
-ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
-                           const std::string &n, uint32_t flags,
-                           uint32_t opaque, uint16_t vb, uint64_t st_seqno,
-                           uint64_t en_seqno, uint64_t vb_uuid,
-                           uint64_t snap_start_seqno, uint64_t snap_end_seqno)
-    :  Stream(n, flags, opaque, vb, st_seqno, en_seqno, vb_uuid,
-              snap_start_seqno, snap_end_seqno),
-       isBackfillTaskRunning(false), pendingBackfill(false),
-       lastReadSeqnoUnSnapshotted(st_seqno), lastReadSeqno(st_seqno),
-       lastSentSeqno(st_seqno), curChkSeqno(st_seqno),
-       takeoverState(vbucket_state_pending), backfillRemaining(0),
-       itemsFromMemoryPhase(0), firstMarkerSent(false), waitForSnapshot(0),
-       engine(e), producer(p), lastSentSnapEndSeqno(0),
-       chkptItemsExtractionInProgress(false) {
-
+ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
+                           dcp_producer_t p,
+                           const std::string& n,
+                           uint32_t flags,
+                           uint32_t opaque,
+                           uint16_t vb,
+                           uint64_t st_seqno,
+                           uint64_t en_seqno,
+                           uint64_t vb_uuid,
+                           uint64_t snap_start_seqno,
+                           uint64_t snap_end_seqno)
+    : Stream(n,
+             flags,
+             opaque,
+             vb,
+             st_seqno,
+             en_seqno,
+             vb_uuid,
+             snap_start_seqno,
+             snap_end_seqno),
+      isBackfillTaskRunning(false),
+      pendingBackfill(false),
+      lastReadSeqno(st_seqno),
+      lastReadSeqnoUnSnapshotted(st_seqno),
+      lastSentSeqno(st_seqno),
+      curChkSeqno(st_seqno),
+      takeoverState(vbucket_state_pending),
+      backfillRemaining(0),
+      itemsFromMemoryPhase(0),
+      firstMarkerSent(false),
+      waitForSnapshot(0),
+      engine(e),
+      producer(p),
+      lastSentSnapEndSeqno(0),
+      chkptItemsExtractionInProgress(false) {
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
         type = "takeover ";

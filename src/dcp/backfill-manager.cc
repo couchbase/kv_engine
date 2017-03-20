@@ -142,7 +142,7 @@ BackfillManager::~BackfillManager() {
     }
 }
 
-void BackfillManager::schedule(const VBucket& vb,
+void BackfillManager::schedule(VBucket& vb,
                                const active_stream_t& stream,
                                uint64_t start,
                                uint64_t end) {

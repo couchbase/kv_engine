@@ -118,7 +118,7 @@ public:
      *         ENGINE_ENOMEM on no memory to copy items
      *         ENGINE_ERANGE on incorrect start and end
      */
-    virtual std::pair<ENGINE_ERROR_CODE, std::vector<queued_item>> rangeRead(
+    virtual std::pair<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>> rangeRead(
             seqno_t start, seqno_t end) = 0;
 
     /**

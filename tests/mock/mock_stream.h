@@ -86,6 +86,14 @@ public:
     void transitionStateToBackfilling() {
         transitionState(StreamState::Backfilling);
     }
+
+    int getNumBackfillItems() const {
+        return backfillItems.memory + backfillItems.disk;
+    }
+
+    int getLastReadSeqno() const {
+        return lastReadSeqno;
+    }
 };
 
 /* Mock of the PassiveStream class. Wraps the real PassiveStream, but exposes

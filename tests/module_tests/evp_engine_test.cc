@@ -48,6 +48,10 @@ void EventuallyPersistentEngineTest::SetUp() {
         config += ";";
     }
     config += "dbname=" + std::string(test_dbname);
+
+    // Set the bucketType
+    config += ";bucket_type=" + bucketType;
+
     EXPECT_EQ(ENGINE_SUCCESS, engine->initialize(config.c_str()))
         << "Failed to initialize engine.";
 

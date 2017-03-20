@@ -110,6 +110,11 @@ private:
      */
     void transitionState(backfill_state_t newState);
 
+    /**
+     * Ptr to the ep-engine.
+     * [TODO]: Check if ep-engine ptr is really needed or we can do with a
+     *         ptr/ref to kvbucket/vbucket.
+     */
     EventuallyPersistentEngine& engine;
 
     ScanContext* scanCtx;
