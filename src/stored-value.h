@@ -683,6 +683,7 @@ protected:
           lock_expiry(other.lock_expiry),
           exptime(other.exptime),
           flags(other.flags),
+          datatype(other.datatype),
           _isDirty(other._isDirty),
           deleted(other.deleted),
           newCacheItem(other.newCacheItem),
