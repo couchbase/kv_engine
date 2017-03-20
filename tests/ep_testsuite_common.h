@@ -188,6 +188,12 @@ enum test_result prepare(engine_test_t *test);
 enum test_result prepare_ep_bucket(engine_test_t* test);
 
 /**
+ * Prepare a test which is only applicable for ephemeral buckets
+ * (EphemeralBucket) - for other types it should be skipped.
+ */
+enum test_result prepare_ephemeral_bucket(engine_test_t* test);
+
+/**
  * Prepare a test which is only applicable to full eviction mode - for
  * for other eviction types it should be skipped.
  */

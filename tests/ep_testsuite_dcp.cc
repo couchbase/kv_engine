@@ -1758,13 +1758,13 @@ static enum test_result test_dcp_producer_stream_req_partial(ENGINE_HANDLE *h,
     //   {201,300} - DELETE(key0..key99), in memory (as persistence has been stopped).
     //
     // We request a start and end which lie in the middle of checkpoints -
-    // start at 95 and end at 209. We should recieve to the end of
-    // complete checkpoints, i.e. from 95 all the way to 300.
+    // start at 105 and end at 209. We should recieve to the end of
+    // complete checkpoints, i.e. from 105 all the way to 300.
     DcpStreamCtx ctx;
     ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    ctx.seqno = {95, 209};
-    ctx.snapshot = {95, 95};
-    ctx.exp_mutations = 105; // 95 to 200
+    ctx.seqno = {105, 209};
+    ctx.snapshot = {105, 105};
+    ctx.exp_mutations = 95; // 105 to 200
     ctx.exp_deletions = 100; // 201 to 300
     ctx.exp_markers = 2;
 
@@ -1777,8 +1777,9 @@ static enum test_result test_dcp_producer_stream_req_partial(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_producer_stream_req_full(ENGINE_HANDLE *h,
-                                                          ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_producer_stream_req_full_merged_snapshots(
+                                                        ENGINE_HANDLE *h,
+                                                        ENGINE_HANDLE_V1 *h1) {
     const int num_items = 300, batch_items = 100;
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
@@ -1796,6 +1797,7 @@ static enum test_result test_dcp_producer_stream_req_full(ENGINE_HANDLE *h,
     ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     ctx.seqno = {0, get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno")};
     ctx.exp_mutations = num_items;
+    /* Disk backfill sends all items in disk as one snapshot */
     ctx.exp_markers = 1;
 
     TestDcpConsumer tdc("unittest", cookie);
@@ -1807,7 +1809,40 @@ static enum test_result test_dcp_producer_stream_req_full(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_producer_stream_req_disk(ENGINE_HANDLE *h,
+static enum test_result test_dcp_producer_stream_req_full(ENGINE_HANDLE *h,
+                                                          ENGINE_HANDLE_V1 *h1)
+{
+    const int num_items = 300, batch_items = 100;
+    for (int start_seqno = 0; start_seqno < num_items;
+         start_seqno += batch_items) {
+        wait_for_flusher_to_settle(h, h1);
+        write_items(h, h1, batch_items, start_seqno);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
+
+    const void *cookie = testHarness.create_cookie();
+
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno")};
+    ctx.exp_mutations = num_items;
+    /* Memory backfill sends items from checkpoint snapshots as much as possible
+       Relies on backfill only when checkpoint snapshot is cleaned up */
+    ctx.exp_markers = 2;
+
+    TestDcpConsumer tdc("unittest", cookie);
+    tdc.addStreamCtx(ctx);
+    tdc.run(h, h1);
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+static enum test_result test_dcp_producer_stream_req_backfill(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
     const int num_items = 400, batch_items = 200;
     for (int start_seqno = 0; start_seqno < num_items;
@@ -1871,7 +1906,7 @@ static enum test_result test_dcp_producer_stream_req_diskonly(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_producer_backfill_limits(ENGINE_HANDLE *h,
+static enum test_result test_dcp_producer_disk_backfill_limits(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1)
 {
     const int num_items = 3;
@@ -2144,7 +2179,7 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
 
     /* Expecting for Disk backfill + in memory snapshot merge.
        Wait for a checkpoint to be removed */
-    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
+    wait_for_stat_to_be_lte(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
 
     /* Part (ii): Open a stream (in a DCP conn) and see if all the items are
                   received correctly */
@@ -4340,7 +4375,7 @@ static enum test_result test_dcp_replica_stream_all(ENGINE_HANDLE *h,
 
     /* Disk backfill + in memory stream from replica */
     /* Wait for a checkpoint to be removed */
-    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
+    wait_for_stat_to_be_lte(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
 
     DcpStreamCtx ctx;
     ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
@@ -5667,14 +5702,14 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test dcp replica stream backfill",
                  test_dcp_replica_stream_backfill, test_setup, teardown,
                  "chk_remover_stime=1;max_checkpoints=2",
-                 /* TODO Ephemeral: ep_queue_size not hitting zero here and test times out*/prepare_skip_broken_under_ephemeral,
+                 prepare,
                  cleanup),
         TestCase("test dcp replica stream in-memory",
                  test_dcp_replica_stream_in_memory, test_setup, teardown,
                  "chk_remover_stime=1;max_checkpoints=2", prepare, cleanup),
         TestCase("test dcp replica stream all", test_dcp_replica_stream_all,
                  test_setup, teardown, "chk_remover_stime=1;max_checkpoints=2",
-                 /* TODO Ephemeral: ep_queue_size not hitting zero here and test times out*/prepare_skip_broken_under_ephemeral,
+                 prepare,
                  cleanup),
         TestCase("test dcp producer stream open",
                  test_dcp_producer_stream_req_open, test_setup, teardown,
@@ -5692,27 +5727,38 @@ BaseTestCase testsuite_testcases[] = {
                     during this test and create extra checkpoints we don't want.*/
                  "chk_remover_stime=1;chk_max_items=100;"
                  "chk_period=1000000",
-                 /* TODO Ephemeral: waiting for ep_items_rm_from_checkpoints to be 100 which doesn't happen*/prepare_skip_broken_under_ephemeral,
+                 prepare,
+                 cleanup),
+        TestCase("test producer stream request (full merged snapshots)",
+                 test_dcp_producer_stream_req_full_merged_snapshots, test_setup,
+                 teardown,
+                 "chk_remover_stime=1;chk_max_items=100",
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("test producer stream request (full)",
                  test_dcp_producer_stream_req_full, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100",
-                 /* TODO Ephemeral: waiting for vb_0:num_checkpoints to go from 3 -> 1 which doesn't happen*/prepare_skip_broken_under_ephemeral,
+                 prepare_ephemeral_bucket,
                  cleanup),
-        TestCase("test producer stream request (disk)",
-                 test_dcp_producer_stream_req_disk, test_setup, teardown,
-                 "chk_remover_stime=1;chk_max_items=100",
-                 /* TODO Ephemeral: waiting for ep_items_rm_from_checkpoints to be 200 which doesn't happen*/prepare_skip_broken_under_ephemeral,
+        TestCase("test producer stream request (backfill)",
+                 test_dcp_producer_stream_req_backfill, test_setup, teardown,
+                 "chk_remover_stime=1;chk_max_items=100", prepare,
                  cleanup),
         TestCase("test producer stream request (disk only)",
                  test_dcp_producer_stream_req_diskonly, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100",
-                 /* TODO Ephemeral: waiting for vb_0:num_checkpoints to go from 3 -> 1 which doesn't happen*/prepare_skip_broken_under_ephemeral,
+                 /* [EPHE TODO]: the test uses DCP_ADD_STREAM_FLAG_DISKONLY flg;
+                    new test case to be written once we decide the intended
+                    effect of DCP_ADD_STREAM_FLAG_DISKONLY in ephemeral */
+                 prepare_skip_broken_under_ephemeral,
                  cleanup),
-        TestCase("test producer backfill limits",
-                 test_dcp_producer_backfill_limits, test_setup, teardown,
+        TestCase("test producer disk backfill limits",
+                 test_dcp_producer_disk_backfill_limits, test_setup, teardown,
                  "dcp_scan_item_limit=100;dcp_scan_byte_limit=100",
-                 /* TODO Ephemeral: Fails with (Expected `3', got `0' - End Seqno didn't match)*/prepare_skip_broken_under_ephemeral,
+                 /* [EPHE TODO]: the test validates the disk backfill task runs;
+                    new test case to be written once we decide the intended
+                    effect of DCP_ADD_STREAM_FLAG_DISKONLY in ephemeral */
+                 prepare_skip_broken_under_ephemeral,
                  cleanup),
         TestCase("test producer stream request (memory only)",
                  test_dcp_producer_stream_req_mem, test_setup, teardown,
@@ -5720,7 +5766,8 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test producer stream request (DGM)",
                  test_dcp_producer_stream_req_dgm, test_setup, teardown,
                  "chk_remover_stime=1;max_size=6291456",
-                 /* TODO Ephemeral: Population phase times out (with ETMPFAIL) Maybe related to item pager?*/prepare_skip_broken_under_ephemeral,
+                 /* not needed in ephemeral as it is DGM case */
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("test producer stream request (latest flag)",
                  test_dcp_producer_stream_latest, test_setup, teardown, NULL,
@@ -5730,8 +5777,7 @@ BaseTestCase testsuite_testcases[] = {
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
         TestCase("test producer keep stream open replica",
                  test_dcp_producer_keep_stream_open_replica, test_setup,
-                 teardown, "chk_remover_stime=1;chk_max_items=100",
-                 /* TODO Ephemeral: waiting for vb_0:num_checkpoints to go from 3 -> 2 which doesn't happen*/prepare_skip_broken_under_ephemeral,
+                 teardown, "chk_remover_stime=1;chk_max_items=100", prepare,
                  cleanup),
         TestCase("test producer stream cursor movement",
                  test_dcp_producer_stream_cursor_movement, test_setup, teardown,
@@ -5749,7 +5795,10 @@ BaseTestCase testsuite_testcases[] = {
                     ratio gets to 90%. See test body for more details. */
                  "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
                  "chk_remover_stime=1;max_size=6291456;chk_max_items=8000",
-                 /* TODO Ephemeral: hangs. Not clear why*/prepare_skip_broken_under_ephemeral,
+                 /* [EPHE TODO]: hangs because of eviction. Need to figure out
+                    how to handle cursor dropping in case of high memory usage
+                    in ephemeral */
+                 prepare_skip_broken_under_ephemeral,
                  cleanup),
         TestCase("test dcp cursor dropping backfill",
                  test_dcp_cursor_dropping_backfill, test_setup, teardown,
@@ -5758,7 +5807,10 @@ BaseTestCase testsuite_testcases[] = {
                   ratio gets to 90%. See test body for more details. */
                  "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
                  "chk_remover_stime=1;max_size=6291456;chk_max_items=8000",
-                 /* TODO Ephemeral: hangs. Not clear why*/prepare_skip_broken_under_ephemeral,
+                 /* [EPHE TODO]: hangs because of eviction. Need to figure out
+                  how to handle cursor dropping in case of high memory usage
+                  in ephemeral */
+                 prepare_skip_broken_under_ephemeral,
                  cleanup),
         TestCase("test dcp value compression",
                  test_dcp_value_compression, test_setup, teardown,
@@ -5782,16 +5834,14 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown, NULL,
                  prepare_ep_bucket,  // relies on persistence (disk queue)
                  cleanup),
+        /* [TODO]: Write a test case for backoff based on high memory usage */
         TestCase("test dcp reconnect full snapshot", test_dcp_reconnect_full,
                  test_setup, teardown, "dcp_enable_noop=false",
-                 /* TODO Ephemeral: Fails as diskQueue stat never drains to
-                    zero - as we are calling queueBackfillItem() to add items
-                    for persistence. This needs changing - maybe add them directly
-                    to the ordered VBucket ? */prepare_skip_broken_under_ephemeral,
+                 prepare,
                  cleanup),
         TestCase("test reconnect partial snapshot", test_dcp_reconnect_partial,
                  test_setup, teardown, "dcp_enable_noop=false",
-                 /* TODO: Ephemeral as above, queue_size never hits zero*/prepare_skip_broken_under_ephemeral,
+                 prepare,
                  cleanup),
         TestCase("test crash full snapshot", test_dcp_crash_reconnect_full,
                  test_setup, teardown, "dcp_enable_noop=false", prepare,
@@ -5813,7 +5863,9 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test partial rollback on consumer",
                 test_partialrollback_for_consumer, test_setup, teardown,
                 "dcp_enable_noop=false",
-                prepare_ep_bucket,  // Relies on stopping persistence for setup.
+                 /* [EPHE TODO]: to be revisited once rollback is written for
+                    ephemeral */
+                prepare_skip_broken_under_ephemeral,
                 cleanup),
         TestCase("test change dcp buffer log size", test_dcp_buffer_log_size,
                 test_setup, teardown, NULL, prepare, cleanup),
@@ -5854,11 +5906,15 @@ BaseTestCase testsuite_testcases[] = {
                  cleanup),
         TestCase("dcp last items purged", test_dcp_last_items_purged, test_setup,
                  teardown, NULL,
-                 /* TODO: Ephemeral fails as purge_seqno doesn't match high seqno. This should work when we add Ephemeral compaction*/prepare_skip_broken_under_ephemeral,
+                 /* [EPHE TODO]:: Ephemeral fails as purge_seqno doesn't match
+                    high seqno. This should work when we add Ephemeral purge */
+                 prepare_skip_broken_under_ephemeral,
                  cleanup),
         TestCase("dcp rollback after purge", test_dcp_rollback_after_purge,
                  test_setup, teardown, NULL,
-                 /* TODO: Ephemeral fails as purge_seqno doesn't match high seqno. This should work when we add Ephemeral compaction*/prepare_skip_broken_under_ephemeral,
+                 /* [EPHE TODO]:: Ephemeral fails as purge_seqno doesn't match
+                  high seqno. This should work when we add Ephemeral purge */
+                 prepare_skip_broken_under_ephemeral,
                  cleanup),
         TestCase("dcp erroneous mutations scenario", test_dcp_erroneous_mutations,
                  test_setup, teardown, NULL, prepare, cleanup),
