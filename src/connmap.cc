@@ -41,24 +41,26 @@ const double ConnNotifier::DEFAULT_MIN_STIME = 1.0;
  */
 class ConnNotifierCallback : public GlobalTask {
 public:
-    ConnNotifierCallback(EventuallyPersistentEngine *e, ConnNotifier *notifier)
-    : GlobalTask(e, TaskId::ConnNotifierCallback),
-      connNotifier(notifier) { }
+    ConnNotifierCallback(EventuallyPersistentEngine* e, ConnNotifier* notifier)
+        : GlobalTask(e, TaskId::ConnNotifierCallback),
+          connNotifier(notifier),
+          description(connNotifier->getNotifierType() == TAP_CONN_NOTIFIER
+                              ? "TAP connection notifier"
+                              : "DCP connection notifier") {
+    }
+
 
     bool run(void) {
         return connNotifier->notifyConnections();
     }
 
-    std::string getDescription() {
-        if (connNotifier->getNotifierType() == TAP_CONN_NOTIFIER) {
-            return std::string("TAP connection notifier");
-        } else {
-            return std::string("DCP connection notifier");
-        }
+    cb::const_char_buffer getDescription() {
+        return description;
     }
 
 private:
     ConnNotifier *connNotifier;
+    const cb::const_char_buffer description;
 };
 
 void ConnNotifier::start() {
@@ -132,8 +134,8 @@ public:
                !connmap->isDeadConnectionsEmpty();
     }
 
-    std::string getDescription() {
-        return std::string("Connection Manager");
+    cb::const_char_buffer getDescription() {
+        return "Connection Manager";
     }
 
 private:

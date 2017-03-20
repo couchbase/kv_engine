@@ -52,10 +52,11 @@ public:
 
     bool run();
 
-    std::string getDescription();
+    cb::const_char_buffer getDescription();
 
 private:
     const std::string           name;
+    const std::string description;
     EventuallyPersistentEngine *engine;
     TapConnMap                    &connMap;
     KVStore                    *store;

@@ -87,7 +87,6 @@ WorkLoadMonitor::WorkLoadMonitor(EventuallyPersistentEngine *e,
                completeBeforeShutdown) {
     prevNumMutations = getNumMutations();
     prevNumGets = getNumGets();
-    desc = "Monitoring a workload pattern";
 }
 
 size_t WorkLoadMonitor::getNumMutations() {

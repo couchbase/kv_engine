@@ -25,6 +25,7 @@
 #include "../mock/mock_stream.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/module_tests/test_helpers.h"
+#include "tests/module_tests/test_task.h"
 
 #include <string_utilities.h>
 #include <xattr/blob.h>
@@ -525,7 +526,7 @@ TEST_F(SingleThreadedEPStoreTest, MB20235_wake_and_work_count) {
             return false;
         }
 
-        std::string getDescription() {
+        cb::const_char_buffer getDescription() {
             return "Test MB20235";
         }
     };
@@ -884,19 +885,6 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
 TEST_F(SingleThreadedEPStoreTest, MB18953_taskWake) {
     auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
 
-    class TestTask : public GlobalTask {
-    public:
-        TestTask(EventuallyPersistentEngine* e, TaskId id)
-          : GlobalTask(e, id, 0.0, false) {}
-
-        // returning true will also drive the ExecutorPool::reschedule path.
-        bool run() { return true; }
-
-        std::string getDescription() {
-            return std::string("TestTask ") + GlobalTask::getTaskName(getTypeId());
-        }
-    };
-
     ExTask hpTask = new TestTask(engine.get(),
                                  TaskId::PendingOpsNotification);
     task_executor->schedule(hpTask, NONIO_TASK_IDX);
@@ -934,24 +922,21 @@ TEST_F(SingleThreadedEPStoreTest, MB18953_taskWake) {
 TEST_F(SingleThreadedEPStoreTest, MB20735_rescheduleWaketime) {
     auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
 
-    class TestTask : public GlobalTask {
+    class SnoozingTestTask : public TestTask {
     public:
-        TestTask(EventuallyPersistentEngine* e, TaskId id)
-          : GlobalTask(e, id, 0.0, false) {}
+        SnoozingTestTask(EventuallyPersistentEngine* e, TaskId id)
+            : TestTask(e, id) {
+        }
 
-        bool run() {
+        bool run() override {
             snooze(0.1); // snooze for 100milliseconds only
             // Rescheduled to run 100 milliseconds later..
             return true;
         }
-
-        std::string getDescription() {
-            return std::string("TestTask ") + GlobalTask::getTaskName(getTypeId());
-        }
     };
 
-    TestTask *task = new TestTask(engine.get(),
-                                 TaskId::PendingOpsNotification);
+    TestTask* task =
+            new SnoozingTestTask(engine.get(), TaskId::PendingOpsNotification);
     ExTask hpTask = task;
     task_executor->schedule(hpTask, NONIO_TASK_IDX);
 

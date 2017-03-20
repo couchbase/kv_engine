@@ -117,7 +117,7 @@ public:
 
     const std::string& getName() const { return name; }
 
-    const std::string getTaskName();
+    cb::const_char_buffer getTaskName();
 
     const std::string getTaskableName();
 

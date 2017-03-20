@@ -38,7 +38,7 @@ public:
                   bool completeBeforeShutdown = false);
 
     bool run();
-    std::string getDescription();
+    cb::const_char_buffer getDescription();
     std::atomic<size_t> completedCount;
 
 private:

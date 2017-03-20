@@ -49,9 +49,8 @@ public:
 
     bool run(void);
 
-    std::string getDescription() {
-        return std::string(
-                "Removing closed unreferenced checkpoints from memory");
+    cb::const_char_buffer getDescription() {
+        return "Removing closed unreferenced checkpoints from memory";
     }
 
 private:

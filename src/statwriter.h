@@ -23,6 +23,7 @@
 
 #include <atomic>
 #include <platform/histogram.h>
+#include <platform/sized_buffer.h>
 #include "objectregistry.h"
 
 #include <cstring>
@@ -57,6 +58,16 @@ template <typename T>
 void add_casted_stat(const char *k, const std::atomic<T> &v,
                             ADD_STAT add_stat, const void *cookie) {
     add_casted_stat(k, v.load(), add_stat, cookie);
+}
+
+template <>
+inline void add_casted_stat(const char* k,
+                     const cb::const_char_buffer& v,
+                     ADD_STAT add_stat,
+                     const void* cookie) {
+    EventuallyPersistentEngine* e = ObjectRegistry::onSwitchThread(NULL, true);
+    add_stat(k, static_cast<uint16_t>(strlen(k)), v.data(), v.size(), cookie);
+    ObjectRegistry::onSwitchThread(e);
 }
 
 /// @cond DETAILS

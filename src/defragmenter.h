@@ -108,7 +108,7 @@ public:
 
     void stop(void);
 
-    std::string getDescription();
+    cb::const_char_buffer getDescription();
 
 private:
 

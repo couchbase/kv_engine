@@ -44,7 +44,7 @@ public:
 
     bool run();
 
-    std::string getDescription();
+    cb::const_char_buffer getDescription();
 
 private:
     // A weak pointer to the backfill manager which owns this
@@ -82,10 +82,8 @@ bool BackfillManagerTask::run() {
     return true;
 }
 
-std::string BackfillManagerTask::getDescription() {
-    std::stringstream ss;
-    ss << "Backfilling items for a DCP Connection";
-    return ss.str();
+cb::const_char_buffer BackfillManagerTask::getDescription() {
+    return "Backfilling items for a DCP Connection";
 }
 
 BackfillManager::BackfillManager(EventuallyPersistentEngine& e)

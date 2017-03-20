@@ -679,13 +679,11 @@ void TapProducer::rollback() {
  */
 class ResumeCallback : public GlobalTask {
 public:
-    ResumeCallback(EventuallyPersistentEngine &e, Producer *c,
-                   double sleepTime)
+    ResumeCallback(EventuallyPersistentEngine& e, Producer* c, double sleepTime)
         : GlobalTask(&e, TaskId::ResumeCallback, sleepTime),
-          engine(e), conn(c) {
-        std::stringstream ss;
-        ss << "Resuming suspended tap connection: " << conn->getName();
-        descr = ss.str();
+          engine(e),
+          conn(c),
+          descr("Resuming suspended tap connection: " + conn->getName()) {
     }
 
     bool run(void) {
@@ -701,14 +699,14 @@ public:
         return false;
     }
 
-    std::string getDescription() {
+    cb::const_char_buffer getDescription() {
         return descr;
     }
 
 private:
     EventuallyPersistentEngine &engine;
     SingleThreadedRCPtr<ConnHandler> conn;
-    std::string descr;
+    const std::string descr;
 };
 
 void TapProducer::suspendedConnection_UNLOCKED(bool value)

@@ -109,9 +109,12 @@ void ExecutorThread::run() {
             updateTaskStart();
             rel_time_t startReltime = ep_current_time();
 
+            const auto curTaskDescr = currentTask->getDescription();
             LOG(EXTENSION_LOG_DEBUG,
-                "%s: Run task \"%s\" id %" PRIu64,
-                getName().c_str(), currentTask->getDescription().c_str(),
+                "%s: Run task \"%.*s\" id %" PRIu64,
+                getName().c_str(),
+                int(curTaskDescr.size()),
+                curTaskDescr.data(),
                 uint64_t(currentTask->getId()));
 
             // Now Run the Task ....
@@ -128,7 +131,7 @@ void ExecutorThread::run() {
             }
 
             addLogEntry(currentTask->getTaskable().getName() +
-                        currentTask->getDescription(),
+                        to_string(currentTask->getDescription()),
                        q->getQueueType(), runtime, startReltime,
                        (runtime > std::chrono::seconds(
                                currentTask->maxExpectedDuration())));
@@ -152,15 +155,18 @@ void ExecutorThread::run() {
                 if (new_waketime < getWaketime()) {
                     setWaketime(new_waketime);
                 }
-                LOG(EXTENSION_LOG_DEBUG, "%s: Reschedule a task"
-                        " \"%s\" id %" PRIu64 "[%" PRIu64 " %" PRIu64 " |%" PRIu64 "]",
-                        name.c_str(),
-                        currentTask->getDescription().c_str(),
-                        uint64_t(currentTask->getId()),
-                        uint64_t(to_ns_since_epoch(new_waketime).count()),
-                        uint64_t(to_ns_since_epoch(currentTask->getWaketime()).
-                                 count()),
-                        uint64_t(to_ns_since_epoch(getWaketime()).count()));
+                LOG(EXTENSION_LOG_DEBUG,
+                    "%s: Reschedule a task"
+                    " \"%.*s\" id %" PRIu64 "[%" PRIu64 " %" PRIu64 " |%" PRIu64
+                    "]",
+                    name.c_str(),
+                    int(curTaskDescr.size()),
+                    curTaskDescr.data(),
+                    uint64_t(currentTask->getId()),
+                    uint64_t(to_ns_since_epoch(new_waketime).count()),
+                    uint64_t(to_ns_since_epoch(currentTask->getWaketime())
+                                     .count()),
+                    uint64_t(to_ns_since_epoch(getWaketime()).count()));
             }
             manager->doneWork(taskType);
         }
@@ -176,12 +182,12 @@ void ExecutorThread::setCurrentTask(ExTask newTask) {
     currentTask = newTask;
 }
 
-const std::string ExecutorThread::getTaskName() {
+cb::const_char_buffer ExecutorThread::getTaskName() {
     LockHolder lh(currentTaskMutex);
     if (currentTask) {
         return currentTask->getDescription();
     } else {
-        return std::string("Not currently running any task");
+        return "Not currently running any task";
     }
 }
 

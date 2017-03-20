@@ -122,6 +122,7 @@ BackfillDiskLoad::BackfillDiskLoad(const std::string& n,
                                    bool shutdown)
     : GlobalTask(e, TaskId::BackfillDiskLoad, sleeptime, shutdown),
       name(n),
+      description("Loading TAP backfill from disk: vb " + std::to_string(vbid)),
       engine(e),
       connMap(cm),
       store(s),
@@ -191,10 +192,8 @@ bool BackfillDiskLoad::run() {
     return false;
 }
 
-std::string BackfillDiskLoad::getDescription() {
-    std::stringstream rv;
-    rv << "Loading TAP backfill from disk: vb " << vbucket;
-    return rv.str();
+cb::const_char_buffer BackfillDiskLoad::getDescription() {
+    return description;
 }
 
 BackFillVisitor::BackFillVisitor(EventuallyPersistentEngine* e,

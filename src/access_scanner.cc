@@ -331,8 +331,8 @@ void AccessScanner::updateAlogTime(double sleepSecs) {
     stats.alogTime.store(_waketime.tv_sec);
 }
 
-std::string AccessScanner::getDescription() {
-    return std::string("Generating access log");
+cb::const_char_buffer AccessScanner::getDescription() {
+    return "Generating access log";
 }
 
 void AccessScanner::deleteAlogFile(const std::string& fileName) {

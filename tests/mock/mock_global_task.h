@@ -32,7 +32,7 @@ public:
     bool run() override {
         return false;
     }
-    std::string getDescription() override {
+    cb::const_char_buffer getDescription() override {
         return "MockGlobalTask";
     }
 

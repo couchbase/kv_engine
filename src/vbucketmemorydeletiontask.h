@@ -30,7 +30,7 @@ public:
                               RCPtr<VBucket>& vb,
                               double delay);
 
-    std::string getDescription();
+    cb::const_char_buffer getDescription();
 
     bool run();
 

@@ -401,9 +401,8 @@ public:
       iterationsBeforeYield(e.getConfiguration()
                             .getDcpProducerSnapshotMarkerYieldLimit()) { }
 
-    std::string getDescription() {
-        std::string rv("Process checkpoint(s) for DCP producer");
-        return rv;
+    cb::const_char_buffer getDescription() {
+        return "Process checkpoint(s) for DCP producer";
     }
 
     bool run();

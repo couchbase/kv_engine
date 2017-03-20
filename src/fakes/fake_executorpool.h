@@ -93,7 +93,7 @@ public:
     /*
      * Cancel all tasks with a matching name
      */
-    void cancelByName(std::string name) {
+    void cancelByName(cb::const_char_buffer name) {
         LockHolder lh(tMutex);
         for (auto& it : taskLocator) {
             if (it.second.first->getDescription() == name) {
@@ -139,12 +139,12 @@ public:
         }
 
         // Configure a checker to run, some tasks are subtly different
-        if (getTaskName().compare("Snapshotting vbucket states") == 0 ||
-            getTaskName().compare("Removing closed unreferenced checkpoints from memory") == 0 ||
-            getTaskName().compare("Paging out items.") == 0 ||
-            getTaskName().compare("Paging expired items.") == 0 ||
-            getTaskName().compare("Adjusting hash table sizes.") == 0 ||
-            getTaskName().compare("Generating access log") == 0) {
+        if (getTaskName() == "Snapshotting vbucket states" ||
+            getTaskName() == "Removing closed unreferenced checkpoints from memory" ||
+            getTaskName() == "Paging out items." ||
+            getTaskName() == "Paging expired items." ||
+            getTaskName() == "Adjusting hash table sizes." ||
+            getTaskName() == "Generating access log") {
             checker = [=](bool taskRescheduled) {
                 // These tasks all schedule one other task
                 this->oneExecutes(taskRescheduled, 1);
@@ -156,7 +156,7 @@ public:
         }
     }
 
-    void runCurrentTask(const std::string& expectedTask) {
+    void runCurrentTask(cb::const_char_buffer expectedTask) {
         EXPECT_EQ(expectedTask, getTaskName());
         run();
     }

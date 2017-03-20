@@ -68,7 +68,9 @@ public:
         phase = item_phase;
     }
 
-    std::string getDescription() { return std::string("Paging out items."); }
+    cb::const_char_buffer getDescription() {
+        return "Paging out items.";
+    }
 
 private:
 
@@ -101,8 +103,8 @@ public:
 
     bool run(void);
 
-    std::string getDescription() {
-        return std::string("Paging expired items.");
+    cb::const_char_buffer getDescription() {
+        return "Paging expired items.";
     }
 
 private:

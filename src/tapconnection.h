@@ -708,6 +708,8 @@ public:
         : GlobalTask(&e, TaskId::BGFetchCallback, sleeptime, false),
           name(n),
           key(k),
+          description(std::string("Fetching item from disk for tap: ") +
+                      key.c_str()),
           epe(e),
           init(gethrtime()),
           connToken(token),
@@ -715,15 +717,14 @@ public:
 
     bool run();
 
-    std::string getDescription() {
-        std::stringstream ss;
-        ss << "Fetching item from disk for tap: " << key.data();
-        return ss.str();
+    cb::const_char_buffer getDescription() {
+        return description;
     }
 
 private:
     const std::string name;
     const StoredDocKey key;
+    const std::string description;
     EventuallyPersistentEngine& epe;
     hrtime_t init;
     hrtime_t connToken;

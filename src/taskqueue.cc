@@ -212,8 +212,12 @@ void TaskQueue::_schedule(ExTask &task) {
 
         futureQueue.push(task);
 
-        LOG(EXTENSION_LOG_DEBUG, "%s: Schedule a task \"%s\" id %" PRIu64,
-            name.c_str(), task->getDescription().c_str(), uint64_t(task->getId()));
+        LOG(EXTENSION_LOG_DEBUG,
+            "%s: Schedule a task \"%.*s\" id %" PRIu64,
+            name.c_str(),
+            int(task->getDescription().size()),
+            task->getDescription().data(),
+            uint64_t(task->getId()));
 
         sleepQ = manager->getSleepQ(queueType);
         _doWake_UNLOCKED(numToWake);
@@ -236,8 +240,12 @@ void TaskQueue::_wake(ExTask &task) {
     size_t readyCount = 1;
     {
         LockHolder lh(mutex);
-        LOG(EXTENSION_LOG_DEBUG, "%s: Wake a task \"%s\" id %" PRIu64,
-            name.c_str(), task->getDescription().c_str(), uint64_t(task->getId()));
+        LOG(EXTENSION_LOG_DEBUG,
+            "%s: Wake a task \"%.*s\" id %" PRIu64,
+            name.c_str(),
+            int(task->getDescription().size()),
+            task->getDescription().data(),
+            uint64_t(task->getId()));
 
         std::queue<ExTask> notReady;
         // Wake thread-count-serialized tasks too

@@ -41,10 +41,9 @@ public:
                 double sleep = 0,
                 bool shutdown = false);
 
-    std::string getDescription() {
-        std::stringstream rv;
-        rv << label << " on vb " << currentvb.load();
-        return rv.str();
+    cb::const_char_buffer getDescription() {
+        std::unique_lock<std::mutex> lock(description.mutex);
+        return description.text;
     }
 
     bool run(void);
@@ -56,6 +55,14 @@ private:
     const char                 *label;
     double                      sleepTime;
     std::atomic<uint16_t>       currentvb;
+
+    struct {
+        std::mutex mutex;
+        std::string text;
+    } description;
+
+    /// re-calculate the description (when the currentVB changes).
+    void updateDescription();
 
     DISALLOW_COPY_AND_ASSIGN(VBCBAdaptor);
 };

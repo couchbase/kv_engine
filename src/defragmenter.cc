@@ -48,7 +48,8 @@ bool DefragmenterTask::run(void) {
 
         // Print start status.
         std::stringstream ss;
-        ss << getDescription() << " for bucket '" << engine->getName() << "'";
+        ss << to_string(getDescription()) << " for bucket '"
+           << engine->getName() << "'";
         if (epstore_position == engine->getKVBucket()->startPosition()) {
             ss << " starting. ";
         } else {
@@ -95,7 +96,8 @@ bool DefragmenterTask::run(void) {
 
         // Print status.
         ss.str("");
-        ss << getDescription() << " for bucket '" << engine->getName() << "'";
+        ss << to_string(getDescription()) << " for bucket '"
+           << engine->getName() << "'";
         if (completed) {
             ss << " finished.";
         } else {
@@ -129,8 +131,8 @@ void DefragmenterTask::stop(void) {
     }
 }
 
-std::string DefragmenterTask::getDescription(void) {
-    return std::string("Memory defragmenter");
+cb::const_char_buffer DefragmenterTask::getDescription() {
+    return "Memory defragmenter";
 }
 
 size_t DefragmenterTask::getSleepTime() const {

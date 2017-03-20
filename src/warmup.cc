@@ -57,10 +57,8 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() {
-        std::stringstream ss;
-        ss<<"Warmup - initialize";
-        return ss.str();
+    cb::const_char_buffer getDescription() {
+        return "Warmup - initialize";
     }
 
     bool run() {
@@ -76,17 +74,17 @@ private:
 
 class WarmupCreateVBuckets : public GlobalTask {
 public:
-    WarmupCreateVBuckets(KVBucket& st, uint16_t sh, Warmup *w):
-        GlobalTask(&st.getEPEngine(), TaskId::WarmupCreateVBuckets, 0, false),
-        _shardId(sh),
-        _warmup(w) {
+    WarmupCreateVBuckets(KVBucket& st, uint16_t sh, Warmup* w)
+        : GlobalTask(&st.getEPEngine(), TaskId::WarmupCreateVBuckets, 0, false),
+          _shardId(sh),
+          _warmup(w),
+          _description("Warmup - creating vbuckets: shard " +
+                       std::to_string(_shardId)) {
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() {
-        std::stringstream ss;
-        ss<<"Warmup - creating vbuckets: shard "<<_shardId;
-        return ss.str();
+    cb::const_char_buffer getDescription() {
+        return _description;
     }
 
     bool run() {
@@ -99,22 +97,25 @@ public:
 private:
     uint16_t _shardId;
     Warmup* _warmup;
+    const std::string _description;
 };
 
 class WarmupEstimateDatabaseItemCount : public GlobalTask {
 public:
-    WarmupEstimateDatabaseItemCount(KVBucket& st, uint16_t sh, Warmup* w):
-        GlobalTask(&st.getEPEngine(), TaskId::WarmupEstimateDatabaseItemCount,
-                   0, false),
-        _shardId(sh),
-        _warmup(w) {
+    WarmupEstimateDatabaseItemCount(KVBucket& st, uint16_t sh, Warmup* w)
+        : GlobalTask(&st.getEPEngine(),
+                     TaskId::WarmupEstimateDatabaseItemCount,
+                     0,
+                     false),
+          _shardId(sh),
+          _warmup(w),
+          _description("Warmup - estimate item count: shard " +
+                       std::to_string(_shardId)) {
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() {
-        std::stringstream ss;
-        ss<<"Warmup - estimate item count: shard "<<_shardId;
-        return ss.str();
+    cb::const_char_buffer getDescription() {
+        return _description;
     }
 
     bool run() {
@@ -127,21 +128,21 @@ public:
 private:
     uint16_t _shardId;
     Warmup* _warmup;
+    const std::string _description;
 };
 
 class WarmupKeyDump : public GlobalTask {
 public:
-    WarmupKeyDump(KVBucket& st, uint16_t sh, Warmup* w) :
-        GlobalTask(&st.getEPEngine(), TaskId::WarmupKeyDump, 0, false),
-        _shardId(sh),
-        _warmup(w) {
+    WarmupKeyDump(KVBucket& st, uint16_t sh, Warmup* w)
+        : GlobalTask(&st.getEPEngine(), TaskId::WarmupKeyDump, 0, false),
+          _shardId(sh),
+          _warmup(w),
+          _description("Warmup - key dump: shard " + std::to_string(_shardId)) {
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() {
-        std::stringstream ss;
-        ss<<"Warmup - key dump: shard "<<_shardId;
-        return ss.str();
+    cb::const_char_buffer getDescription() {
+        return _description;
     }
 
     bool run() {
@@ -154,6 +155,7 @@ public:
 private:
     uint16_t _shardId;
     Warmup* _warmup;
+    const std::string _description;
 };
 
 class WarmupCheckforAccessLog : public GlobalTask {
@@ -165,10 +167,8 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() {
-        std::stringstream ss;
-        ss<<"Warmup - check for access log";
-        return ss.str();
+    cb::const_char_buffer getDescription() {
+        return "Warmup - check for access log";
     }
 
     bool run() {
@@ -184,17 +184,17 @@ private:
 
 class WarmupLoadAccessLog : public GlobalTask {
 public:
-    WarmupLoadAccessLog(KVBucket& st, uint16_t sh, Warmup* w) :
-        GlobalTask(&st.getEPEngine(), TaskId::WarmupLoadAccessLog, 0, false),
-        _shardId(sh),
-        _warmup(w) {
+    WarmupLoadAccessLog(KVBucket& st, uint16_t sh, Warmup* w)
+        : GlobalTask(&st.getEPEngine(), TaskId::WarmupLoadAccessLog, 0, false),
+          _shardId(sh),
+          _warmup(w),
+          _description("Warmup - loading access log: shard " +
+                       std::to_string(_shardId)) {
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() {
-        std::stringstream ss;
-        ss<<"Warmup - loading access log: shard "<<_shardId;
-        return ss.str();
+    cb::const_char_buffer getDescription() {
+        return _description;
     }
 
     bool run() {
@@ -207,21 +207,22 @@ public:
 private:
     uint16_t _shardId;
     Warmup* _warmup;
+    const std::string _description;
 };
 
 class WarmupLoadingKVPairs : public GlobalTask {
 public:
-    WarmupLoadingKVPairs(KVBucket& st, uint16_t sh, Warmup* w) :
-        GlobalTask(&st.getEPEngine(), TaskId::WarmupLoadingKVPairs, 0, false),
-        _shardId(sh),
-        _warmup(w) {
+    WarmupLoadingKVPairs(KVBucket& st, uint16_t sh, Warmup* w)
+        : GlobalTask(&st.getEPEngine(), TaskId::WarmupLoadingKVPairs, 0, false),
+          _shardId(sh),
+          _warmup(w),
+          _description("Warmup - loading KV Pairs: shard " +
+                       std::to_string(_shardId)) {
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() {
-        std::stringstream ss;
-        ss<<"Warmup - loading KV Pairs: shard "<<_shardId;
-        return ss.str();
+    cb::const_char_buffer getDescription() {
+        return _description;
     }
 
     bool run() {
@@ -234,6 +235,7 @@ public:
 private:
     uint16_t _shardId;
     Warmup* _warmup;
+    const std::string _description;
 };
 
 class WarmupLoadingData : public GlobalTask {
@@ -241,14 +243,14 @@ public:
     WarmupLoadingData(KVBucket& st, uint16_t sh, Warmup* w) :
         GlobalTask(&st.getEPEngine(), TaskId::WarmupLoadingData, 0, false),
         _shardId(sh),
-        _warmup(w) {
+        _warmup(w),
+        _description("Warmup - loading data: shard " +
+                     std::to_string(_shardId)) {
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() {
-        std::stringstream ss;
-        ss<<"Warmup - loading data: shard "<<_shardId;
-        return ss.str();
+    cb::const_char_buffer getDescription() {
+        return _description;
     }
 
     bool run() {
@@ -261,6 +263,7 @@ public:
 private:
     uint16_t _shardId;
     Warmup* _warmup;
+    const std::string _description;
 };
 
 class WarmupCompletion : public GlobalTask {
@@ -271,10 +274,8 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() {
-        std::stringstream ss;
-        ss<<"Warmup - completion";
-        return ss.str();
+    cb::const_char_buffer getDescription() {
+        return "Warmup - completion";
     }
 
     bool run() {

@@ -40,10 +40,9 @@ public:
     ConnectionReaperCallback(EventuallyPersistentEngine &e, ConnMap& cm,
                              connection_t &conn)
         : GlobalTask(&e, TaskId::ConnectionReaperCallback),
-          connMap(cm), connection(conn) {
-        std::stringstream ss;
-        ss << "Reaping tap or dcp connection: " << connection->getName();
-        descr = ss.str();
+          connMap(cm),
+          connection(conn),
+          descr("Reaping tap or dcp connection: " + connection->getName()) {
     }
 
     bool run(void) {
@@ -56,14 +55,14 @@ public:
         return false;
     }
 
-    std::string getDescription() {
+    cb::const_char_buffer getDescription() {
         return descr;
     }
 
 private:
     ConnMap &connMap;
     connection_t connection;
-    std::string descr;
+    const std::string descr;
 };
 
 class ConnMapValueChangeListener : public ValueChangedListener {

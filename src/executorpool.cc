@@ -304,17 +304,22 @@ bool ExecutorPool::_cancel(size_t taskId, bool eraseTask) {
     }
 
     ExTask task = itr->second.first;
-    LOG(EXTENSION_LOG_DEBUG, "Cancel task %s id %" PRIu64 " on bucket %s %s",
-            task->getDescription().c_str(), uint64_t(task->getId()),
-            task->getTaskable().getName().c_str(), eraseTask ? "final erase" : "!");
+    LOG(EXTENSION_LOG_DEBUG,
+        "Cancel task %.*s id %" PRIu64 " on bucket %s %s",
+        int(task->getDescription().size()),
+        task->getDescription().data(),
+        uint64_t(task->getId()),
+        task->getTaskable().getName().c_str(),
+        eraseTask ? "final erase" : "!");
 
     task->cancel(); // must be idempotent, just set state to dead
 
     if (eraseTask) { // only internal threads can erase tasks
         if (!task->isdead()) {
-            throw std::logic_error("ExecutorPool::_cancel: task '"
-                    + task->getDescription() + "' is not dead after calling "
-                            "cancel() on it");
+            throw std::logic_error("ExecutorPool::_cancel: task '" +
+                                   to_string(task->getDescription()) +
+                                   "' is not dead after calling "
+                                   "cancel() on it");
         }
         taskLocator.erase(itr);
         tMutex.notify_all();
@@ -628,10 +633,12 @@ bool ExecutorPool::_stopTaskGroup(task_gid_t taskGID,
             TaskQueue *q = itr->second.second;
             if (task->getTaskable().getGID() == taskGID &&
                 (taskType == NO_TASK_TYPE || q->queueType == taskType)) {
-                LOG(EXTENSION_LOG_NOTICE, "Stopping Task id %" PRIu64 " %s %s ",
+                LOG(EXTENSION_LOG_NOTICE,
+                    "Stopping Task id %" PRIu64 " %s %.*s",
                     uint64_t(task->getId()),
                     task->getTaskable().getName().c_str(),
-                    task->getDescription().c_str());
+                    int(task->getDescription().size()),
+                    task->getDescription().data());
                 // If force flag is set during shutdown, cancel all tasks
                 // without considering the blockShutdown status of the task.
                 if (force || !task->blockShutdown) {
@@ -834,7 +841,7 @@ static void addWorkerStats(const char *prefix, ExecutorThread *t,
         checked_snprintf(statname, sizeof(statname), "%s:state", prefix);
         add_casted_stat(statname, t->getStateName().c_str(), add_stat, cookie);
         checked_snprintf(statname, sizeof(statname), "%s:task", prefix);
-        add_casted_stat(statname, t->getTaskName().c_str(), add_stat, cookie);
+        add_casted_stat(statname, t->getTaskName(), add_stat, cookie);
 
         if (strcmp(t->getStateName().c_str(), "running") == 0) {
             checked_snprintf(statname, sizeof(statname), "%s:runtime", prefix);

@@ -18,28 +18,11 @@
 #include <gtest/gtest.h>
 
 #include "futurequeue.h"
+#include "tests/module_tests/test_task.h"
 
 class FutureQueueTest : public ::testing::TestWithParam<std::string> {
 public:
     FutureQueue<> queue;
-};
-
-class TestTask : public GlobalTask {
-public:
-    TestTask(EventuallyPersistentEngine* e,
-             TaskId id,
-             int o = 0)
-      : GlobalTask(e, id, 0.0, false),
-        order(o) {}
-
-    // returning true will also drive the ExecutorPool::reschedule path.
-    bool run() { return true; }
-
-    std::string getDescription() {
-        return std::string("TestTask ") + GlobalTask::getTaskName(getTypeId());
-    }
-
-    int order;
 };
 
 TEST_F(FutureQueueTest, initAssumptions) {

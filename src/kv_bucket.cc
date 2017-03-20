@@ -313,14 +313,16 @@ class ExpiredItemsCallback : public Callback<uint16_t&, const DocKey&, uint64_t&
 
 class PendingOpsNotification : public GlobalTask {
 public:
-    PendingOpsNotification(EventuallyPersistentEngine &e, RCPtr<VBucket> &vb) :
-        GlobalTask(&e, TaskId::PendingOpsNotification, 0, false),
-        engine(e), vbucket(vb) { }
+    PendingOpsNotification(EventuallyPersistentEngine& e, RCPtr<VBucket>& vb)
+        : GlobalTask(&e, TaskId::PendingOpsNotification, 0, false),
+          engine(e),
+          vbucket(vb),
+          description("Notify pending operations for vbucket " +
+                      std::to_string(vbucket->getId())) {
+    }
 
-    std::string getDescription() {
-        std::stringstream ss;
-        ss << "Notify pending operations for vbucket " << vbucket->getId();
-        return ss.str();
+    cb::const_char_buffer getDescription() {
+        return description;
     }
 
     bool run(void) {
@@ -333,6 +335,7 @@ public:
 private:
     EventuallyPersistentEngine &engine;
     RCPtr<VBucket> vbucket;
+    const std::string description;
 };
 
 KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
@@ -2373,7 +2376,8 @@ VBCBAdaptor::VBCBAdaptor(KVBucket* s,
       label(l),
       sleepTime(sleep),
       currentvb(0) {
-    const VBucketFilter &vbFilter = visitor->getVBucketFilter();
+    updateDescription();
+    const VBucketFilter& vbFilter = visitor->getVBucketFilter();
     for (auto vbid : store->getVBuckets().getBuckets()) {
         if (vbFilter(vbid)) {
             vbList.push(vbid);
@@ -2385,6 +2389,7 @@ bool VBCBAdaptor::run(void) {
     if (!vbList.empty()) {
         TRACE_EVENT("ep-engine/task", "VBCBAdaptor", vbList.front());
         currentvb.store(vbList.front());
+        updateDescription();
         RCPtr<VBucket> vb = store->getVBucket(currentvb);
         if (vb) {
             if (visitor->pauseVisitor()) {
@@ -2401,6 +2406,12 @@ bool VBCBAdaptor::run(void) {
         visitor->complete();
     }
     return !isdone;
+}
+
+void VBCBAdaptor::updateDescription() {
+    std::unique_lock<std::mutex> lock(description.mutex);
+    description.text =
+            std::string(label) + " on vb " + std::to_string(currentvb.load());
 }
 
 void KVBucket::resetUnderlyingStats(void)

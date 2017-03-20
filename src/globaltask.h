@@ -19,6 +19,7 @@
 
 #include <array>
 #include <platform/processclock.h>
+#include <platform/sized_buffer.h>
 
 #include "atomic.h"
 #include "config.h"
@@ -81,7 +82,7 @@ public:
      *
      * @return A description of this task
      */
-    virtual std::string getDescription(void) = 0;
+    virtual cb::const_char_buffer getDescription() = 0;
 
     virtual int maxExpectedDuration(void) {
         return 3600;
@@ -179,7 +180,7 @@ protected:
     bool blockShutdown;
     std::atomic<task_state_t> state;
     const size_t uid;
-    TaskId typeId;
+    const TaskId typeId;
     TaskPriority priority;
     EventuallyPersistentEngine *engine;
     Taskable& taskable;

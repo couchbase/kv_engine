@@ -46,7 +46,7 @@ public:
 
     bool run();
 
-    std::string getDescription() {
+    cb::const_char_buffer getDescription() {
         return desc;
     }
 
@@ -66,19 +66,19 @@ public:
     VBDeleteTask(EventuallyPersistentEngine *e, uint16_t vbid, const void* c,
                  bool completeBeforeShutdown = true)
         : GlobalTask(e, TaskId::VBDeleteTask, 0, completeBeforeShutdown),
-          vbucketId(vbid), cookie(c) {}
+          vbucketId(vbid), cookie(c),
+          description("Deleting VBucket:" + std::to_string(vbucketId)) {}
 
     bool run();
 
-    std::string getDescription() {
-        std::stringstream ss;
-        ss<<"Deleting VBucket:"<<vbucketId;
-        return ss.str();
+    cb::const_char_buffer getDescription() {
+        return description;
     }
 
 private:
     uint16_t vbucketId;
     const void* cookie;
+    const std::string description;
 };
 
 /**
@@ -96,7 +96,7 @@ public:
 
     bool run();
 
-    std::string getDescription() {
+    cb::const_char_buffer getDescription() {
         return desc;
     }
 
@@ -119,9 +119,8 @@ public:
 
     bool run();
 
-    std::string getDescription() {
-        std::string rv("Updating stat snapshot on disk");
-        return rv;
+    cb::const_char_buffer getDescription() {
+        return "Updating stat snapshot on disk";
     }
 
 private:
@@ -142,8 +141,8 @@ public:
 
     bool run();
 
-    std::string getDescription() {
-        return std::string("Batching background fetch");
+    cb::const_char_buffer getDescription() {
+        return "Batching background fetch";
     }
 
 private:
@@ -161,10 +160,8 @@ public:
 
     bool run();
 
-    std::string getDescription() {
-        std::stringstream ss;
-        ss << "Performing flush_all operation.";
-        return ss.str();
+    cb::const_char_buffer getDescription() {
+        return "Performing flush_all operation.";
     }
 };
 
@@ -180,21 +177,24 @@ public:
           key(k),
           vbucket(vbid),
           bySeqNum(s),
-          cookie(c) {}
+          cookie(c),
+          description("Fetching item from disk for vkey stat: key{" +
+                      std::string(key.c_str()) + "} vb:" +
+                      std::to_string(vbucket)) {
+    }
 
     bool run();
 
-    std::string getDescription() {
-        std::string s = "Fetching item from disk for vkey stat: key{" +
-                        std::string(key.c_str()) + "} vb:" + std::to_string(vbucket);
-        return s;
+    cb::const_char_buffer getDescription() {
+        return description;
     }
 
 private:
-    StoredDocKey                     key;
-    uint16_t                         vbucket;
+    const StoredDocKey key;
+    const uint16_t vbucket;
     uint64_t                         bySeqNum;
     const void                      *cookie;
+    const std::string description;
 };
 
 /**
@@ -218,24 +218,25 @@ public:
           vbucket(vbid),
           cookie(c),
           metaFetch(isMeta),
-          init(ProcessClock::now()) {
+          init(ProcessClock::now()),
+          description("Fetching item from disk: key{" +
+                      std::string(key.c_str()) + "}, vb:" +
+                      std::to_string(vbucket)) {
     }
 
     bool run();
 
-    std::string getDescription() {
-        std::string s = "Fetching item from disk: key{" +
-                        std::string(key.c_str()) + "}, vb:" +
-                        std::to_string(vbucket);
-        return s;
+    cb::const_char_buffer getDescription() {
+        return description;
     }
 
 private:
-    const StoredDocKey         key;
-    uint16_t                   vbucket;
+    const StoredDocKey key;
+    const uint16_t vbucket;
     const void*                cookie;
     bool                       metaFetch;
     ProcessClock::time_point   init;
+    const std::string description;
 };
 
 /**
@@ -248,8 +249,8 @@ public:
 
     bool run();
 
-    std::string getDescription() {
-        return desc;
+    cb::const_char_buffer getDescription() {
+        return "Monitoring a workload pattern";
     }
 
 private:
@@ -259,5 +260,4 @@ private:
 
     size_t prevNumMutations;
     size_t prevNumGets;
-    std::string desc;
 };

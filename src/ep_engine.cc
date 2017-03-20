@@ -3868,7 +3868,7 @@ public:
         return false;
     }
 
-    std::string getDescription() {
+    cb::const_char_buffer getDescription() {
         return "checkpoint stats for all vbuckets";
     }
 
@@ -6105,15 +6105,25 @@ private:
  */
 class FetchAllKeysTask : public GlobalTask {
 public:
-    FetchAllKeysTask(EventuallyPersistentEngine *e, const void *c,
-                     ADD_RESPONSE resp, const DocKey start_key_,
-                     uint16_t vbucket, uint32_t count_) :
-        GlobalTask(e, TaskId::FetchAllKeysTask, 0, false), engine(e), cookie(c),
-        response(resp), start_key(start_key_), vbid(vbucket),
-        count(count_) { }
+    FetchAllKeysTask(EventuallyPersistentEngine* e,
+                     const void* c,
+                     ADD_RESPONSE resp,
+                     const DocKey start_key_,
+                     uint16_t vbucket,
+                     uint32_t count_)
+        : GlobalTask(e, TaskId::FetchAllKeysTask, 0, false),
+          engine(e),
+          cookie(c),
+          description("Running the ALL_DOCS api on vbucket: " +
+                      std::to_string(vbucket)),
+          response(resp),
+          start_key(start_key_),
+          vbid(vbucket),
+          count(count_) {
+    }
 
-    std::string getDescription() {
-        return std::string("Running the ALL_DOCS api on vbucket: %d", vbid);
+    cb::const_char_buffer getDescription() {
+        return description;
     }
 
     bool run() {
@@ -6148,6 +6158,7 @@ public:
 private:
     EventuallyPersistentEngine *engine;
     const void *cookie;
+    const std::string description;
     ADD_RESPONSE response;
     StoredDocKey start_key;
     uint16_t vbid;

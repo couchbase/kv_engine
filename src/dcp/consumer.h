@@ -290,19 +290,28 @@ protected:
 class RollbackTask : public GlobalTask {
 public:
     RollbackTask(EventuallyPersistentEngine* e,
-                 uint32_t opaque_, uint16_t vbid_,
-                 uint64_t rollbackSeqno_, dcp_consumer_t conn):
-        GlobalTask(e, TaskId::RollbackTask, 0, false), engine(e),
-        opaque(opaque_), vbid(vbid_), rollbackSeqno(rollbackSeqno_),
-        cons(conn) { }
+                 uint32_t opaque_,
+                 uint16_t vbid_,
+                 uint64_t rollbackSeqno_,
+                 dcp_consumer_t conn)
+        : GlobalTask(e, TaskId::RollbackTask, 0, false),
+          description("Running rollback task for vbucket " +
+                      std::to_string(vbid_)),
+          engine(e),
+          opaque(opaque_),
+          vbid(vbid_),
+          rollbackSeqno(rollbackSeqno_),
+          cons(conn) {
+    }
 
-    std::string getDescription() {
-        return std::string("Running rollback task for vbucket %d", vbid);
+    cb::const_char_buffer getDescription() {
+        return description;
     }
 
     bool run();
 
 private:
+    const std::string description;
     EventuallyPersistentEngine *engine;
     uint32_t opaque;
     uint16_t vbid;

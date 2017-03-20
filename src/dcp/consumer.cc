@@ -43,7 +43,9 @@ public:
               double sleeptime = 1,
               bool completeBeforeShutdown = true)
         : GlobalTask(e, TaskId::Processor, sleeptime, completeBeforeShutdown),
-          conn(c) {}
+          conn(c),
+          description("Processing buffered items for " + conn->getName()) {
+    }
 
     ~Processor() {
         DcpConsumer* consumer = static_cast<DcpConsumer*>(conn.get());
@@ -89,14 +91,13 @@ public:
         return true;
     }
 
-    std::string getDescription() {
-        std::stringstream ss;
-        ss << "Processing buffered items for " << conn->getName();
-        return ss.str();
+    cb::const_char_buffer getDescription() {
+        return description;
     }
 
 private:
-    connection_t conn;
+    const connection_t conn;
+    const std::string description;
 };
 
 DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,

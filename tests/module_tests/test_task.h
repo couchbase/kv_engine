@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2010 Couchbase, Inc
+ *     Copyright 2017 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -15,31 +15,24 @@
  *   limitations under the License.
  */
 
-#pragma once
+#include "globaltask.h"
 
-#include "config.h"
-
-#include "tasks.h"
-
-#include <string>
-
-class KVBucketIface;
-
-/**
- * Look around at hash tables and verify they're all sized
- * appropriately.
- */
-class HashtableResizerTask : public GlobalTask {
+class TestTask : public GlobalTask {
 public:
-
-    HashtableResizerTask(KVBucketIface* s, double sleepTime);
-
-    bool run(void);
-
-    cb::const_char_buffer getDescription() {
-        return "Adjusting hash table sizes.";
+    TestTask(EventuallyPersistentEngine* e, TaskId id, int o = 0)
+        : GlobalTask(e, id, 0.0, false),
+          order(o),
+          description(std::string("TestTask ") +
+                      GlobalTask::getTaskName(getTypeId())) {
     }
 
-private:
-    KVBucketIface* store;
+    // returning true will also drive the ExecutorPool::reschedule path.
+    bool run() { return true; }
+
+    cb::const_char_buffer getDescription() {
+        return description;
+    }
+
+    int order;
+    const std::string description;
 };
