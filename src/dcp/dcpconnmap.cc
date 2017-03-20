@@ -152,7 +152,8 @@ DcpProducer *DcpConnMap::newProducer(const void* cookie,
         }
     }
 
-    DcpProducer *dcp = new DcpProducer(engine, cookie, conn_name, notifyOnly);
+    DcpProducer* dcp = new DcpProducer(
+            engine, cookie, conn_name, notifyOnly, true /*startTask*/);
     LOG(EXTENSION_LOG_INFO, "%s Connection created", dcp->logHeader());
     map_[cookie] = dcp;
 

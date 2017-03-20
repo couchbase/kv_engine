@@ -127,11 +127,18 @@ void DcpProducer::BufferLog::addStats(ADD_STAT add_stat, const void *c) {
     }
 }
 
-DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
-                         const std::string &name, bool isNotifier)
-    : Producer(e, cookie, name), rejectResp(NULL),
-      notifyOnly(isNotifier), lastSendTime(ep_current_time()), log(*this),
-      itemsSent(0), totalBytesSent(0) {
+DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
+                         const void* cookie,
+                         const std::string& name,
+                         bool isNotifier,
+                         bool startTask)
+    : Producer(e, cookie, name),
+      rejectResp(NULL),
+      notifyOnly(isNotifier),
+      lastSendTime(ep_current_time()),
+      log(*this),
+      itemsSent(0),
+      totalBytesSent(0) {
     setSupportAck(true);
     setReserved(true);
     setPaused(true);
@@ -186,15 +193,19 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
 
     backfillMgr.reset(new BackfillManager(engine_));
 
-    checkpointCreatorTask = new ActiveStreamCheckpointProcessorTask(e);
-    ExecutorPool::get()->schedule(checkpointCreatorTask, AUXIO_TASK_IDX);
+    if (startTask) {
+        createCheckpointProcessorTask();
+        scheduleCheckpointProcessorTask();
+    }
 }
 
 DcpProducer::~DcpProducer() {
     backfillMgr.reset();
     delete rejectResp;
 
-    ExecutorPool::get()->cancel(checkpointCreatorTask->getId());
+    if (checkpointCreatorTask) {
+        ExecutorPool::get()->cancel(checkpointCreatorTask->getId());
+    }
 }
 
 ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
@@ -1092,12 +1103,28 @@ bool DcpProducer::bufferLogInsert(size_t bytes) {
     return log.insert(bytes);
 }
 
+void DcpProducer::createCheckpointProcessorTask() {
+    checkpointCreatorTask = new ActiveStreamCheckpointProcessorTask(engine_);
+}
+
+void DcpProducer::scheduleCheckpointProcessorTask() {
+    ExecutorPool::get()->schedule(checkpointCreatorTask, AUXIO_TASK_IDX);
+}
+
 void DcpProducer::scheduleCheckpointProcessorTask(const stream_t& s) {
+    if (!checkpointCreatorTask) {
+        throw std::logic_error(
+                "DcpProducer::scheduleCheckpointProcessorTask task is null");
+    }
     static_cast<ActiveStreamCheckpointProcessorTask*>(checkpointCreatorTask.get())
         ->schedule(s);
 }
 
 void DcpProducer::clearCheckpointProcessorTaskQueues() {
+    if (!checkpointCreatorTask) {
+        throw std::logic_error(
+                "DcpProducer::clearCheckpointProcessorTaskQueues task is null");
+    }
     static_cast<ActiveStreamCheckpointProcessorTask*>(checkpointCreatorTask.get())
         ->clearQueues();
 }

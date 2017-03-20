@@ -25,10 +25,13 @@
  */
 class MockDcpProducer: public DcpProducer {
 public:
-    MockDcpProducer(EventuallyPersistentEngine &theEngine, const void *cookie,
-                    const std::string &name, bool isNotifier)
-    : DcpProducer(theEngine, cookie, name, isNotifier)
-    {}
+    MockDcpProducer(EventuallyPersistentEngine& theEngine,
+                    const void* cookie,
+                    const std::string& name,
+                    bool isNotifier,
+                    bool startTask = true)
+        : DcpProducer(theEngine, cookie, name, isNotifier, startTask) {
+    }
 
     ENGINE_ERROR_CODE maybeDisconnect() {
         return DcpProducer::maybeDisconnect();
@@ -60,5 +63,20 @@ public:
 
     bool getNoopEnabled() {
         return noopCtx.enabled;
+    }
+
+    /**
+     * Create the ActiveStreamCheckpointProcessorTask and assign to
+     * checkpointCreatorTask
+     */
+    void createCheckpointProcessorTask() {
+        DcpProducer::createCheckpointProcessorTask();
+    }
+
+    /**
+     * Schedule the checkpointCreatorTask on the ExecutorPool
+     */
+    void scheduleCheckpointProcessorTask() {
+        DcpProducer::scheduleCheckpointProcessorTask();
     }
 };

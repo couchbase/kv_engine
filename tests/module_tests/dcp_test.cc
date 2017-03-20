@@ -100,8 +100,11 @@ protected:
 
     // Setup a DCP producer and attach a stream and cursor to it.
     void setup_dcp_stream() {
-        producer = new DcpProducer(*engine, /*cookie*/nullptr,
-                                   "test_producer", /*notifyOnly*/false);
+        producer = new DcpProducer(*engine,
+                                   /*cookie*/ nullptr,
+                                   "test_producer",
+                                   /*notifyOnly*/ false,
+                                   /*startTask*/ true);
         stream = new MockActiveStream(engine, producer,
                                       producer->getName(), /*flags*/0,
                                       /*opaque*/0, vbid,

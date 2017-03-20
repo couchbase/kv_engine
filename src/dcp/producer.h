@@ -29,9 +29,23 @@ class DcpResponse;
 
 class DcpProducer : public Producer {
 public:
-
-    DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
-                const std::string &n, bool notifyOnly);
+    /**
+     * Construct a DCP Producer
+     *
+     * @param e The engine.
+     * @param cookie Cookie of the connection creating the producer.
+     * @param n A name chosen by the client.
+     * @param notifyOnly If true the producer only notifies, i.e. no data is
+     *        sent.
+     * @param startTask If true an internal checkpoint task is created and
+     *        started. Test code may wish to defer or manually handle the task
+     *         creation.
+     */
+    DcpProducer(EventuallyPersistentEngine& e,
+                const void* cookie,
+                const std::string& n,
+                bool notifyOnly,
+                bool startTask);
 
     ~DcpProducer();
 
@@ -242,6 +256,17 @@ protected:
      *  has not passed.
      */
     ENGINE_ERROR_CODE maybeSendNoop(struct dcp_message_producers* producers);
+
+    /**
+     * Create the ActiveStreamCheckpointProcessorTask and assign to
+     * checkpointCreatorTask
+     */
+    void createCheckpointProcessorTask();
+
+    /**
+     * Schedule the checkpointCreatorTask on the ExecutorPool
+     */
+    void scheduleCheckpointProcessorTask();
 
     struct {
         rel_time_t sendTime;
