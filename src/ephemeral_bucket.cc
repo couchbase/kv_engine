@@ -18,6 +18,7 @@
 #include "ephemeral_bucket.h"
 
 #include "ep_engine.h"
+#include "ep_types.h"
 #include "ephemeral_vb.h"
 #include "failover-table.h"
 
@@ -70,6 +71,11 @@ void EphemeralBucket::completeStatsVKey(const void* cookie,
             "is not a valid call. Called on vb " +
             std::to_string(vbid) + "for key: " +
             std::string(reinterpret_cast<const char*>(key.data()), key.size()));
+}
+
+RollbackResult EphemeralBucket::doRollback(uint16_t vbid,
+                                           uint64_t rollbackSeqno) {
+    return {}; // TBD in next commit
 }
 
 void EphemeralBucket::reconfigureForEphemeral(Configuration& config) {

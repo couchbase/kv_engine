@@ -1334,13 +1334,13 @@ void CheckpointManager::dump() const {
     std::cerr << *this << std::endl;
 }
 
-void CheckpointManager::clear(RCPtr<VBucket> &vb, uint64_t seqno) {
+void CheckpointManager::clear(VBucket& vb, uint64_t seqno) {
     LockHolder lh(queueLock);
-    clear_UNLOCKED(vb->getState(), seqno);
+    clear_UNLOCKED(vb.getState(), seqno);
 
     // Reset the disk write queue size stat for the vbucket
-    size_t currentDqSize = vb->dirtyQueueSize.load();
-    vb->dirtyQueueSize.fetch_sub(currentDqSize);
+    size_t currentDqSize = vb.dirtyQueueSize.load();
+    vb.dirtyQueueSize.fetch_sub(currentDqSize);
     stats.diskQueueSize.fetch_sub(currentDqSize);
 }
 

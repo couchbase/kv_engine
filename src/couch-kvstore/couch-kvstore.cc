@@ -45,6 +45,7 @@
 
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
+#include "ep_types.h"
 #define STATWRITER_NAMESPACE couchstore_engine
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE

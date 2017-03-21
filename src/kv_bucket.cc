@@ -2466,93 +2466,6 @@ KVStore *KVBucket::getOneRWUnderlying(void) {
     return vbMap.shards[EP_PRIMARY_SHARD]->getRWUnderlying();
 }
 
-class Rollback : public RollbackCB {
-public:
-    Rollback(EventuallyPersistentEngine& e)
-        : RollbackCB(), engine(e) {
-
-    }
-
-    void callback(GetValue& val) {
-        if (val.getValue() == nullptr) {
-            throw std::invalid_argument("Rollback::callback: val is NULL");
-        }
-        if (dbHandle == nullptr) {
-            throw std::logic_error("Rollback::callback: dbHandle is NULL");
-        }
-        Item *itm = val.getValue();
-        RCPtr<VBucket> vb = engine.getVBucket(itm->getVBucketId());
-        RememberingCallback<GetValue> gcb;
-        engine.getKVBucket()->getROUnderlying(
-                    itm->getVBucketId())->getWithHeader(dbHandle,
-                                                        itm->getKey(),
-                                                        itm->getVBucketId(),
-                                                        gcb);
-        gcb.waitForValue();
-        if (gcb.val.getStatus() == ENGINE_SUCCESS) {
-            Item *it = gcb.val.getValue();
-            if (it->isDeleted()) {
-                bool ret = vb->deleteKey(it->getKey());
-                if(!ret) {
-                    setStatus(ENGINE_KEY_ENOENT);
-                } else {
-                    setStatus(ENGINE_SUCCESS);
-                }
-            } else {
-                MutationStatus mtype = vb->setFromInternal(*it);
-
-                if (mtype == MutationStatus::NoMem) {
-                    setStatus(ENGINE_ENOMEM);
-                }
-            }
-            delete it;
-        } else if (gcb.val.getStatus() == ENGINE_KEY_ENOENT) {
-            bool ret = vb->deleteKey(itm->getKey());
-            if (!ret) {
-                setStatus(ENGINE_KEY_ENOENT);
-            } else {
-                setStatus(ENGINE_SUCCESS);
-            }
-        } else {
-            LOG(EXTENSION_LOG_WARNING, "Unexpected Error Status: %d",
-                gcb.val.getStatus());
-        }
-        delete itm;
-    }
-
-private:
-    EventuallyPersistentEngine& engine;
-};
-
-/*
- * Purge all unpersisted items from the current checkpoint(s) and fixup
- * the hashtable for any that are > the rollbackSeqno.
- */
-void KVBucket::rollbackCheckpoint(RCPtr<VBucket> &vb,
-                                  int64_t rollbackSeqno) {
-    std::vector<queued_item> items;
-    vb->checkpointManager.getAllItemsForCursor(CheckpointManager::pCursorName,
-                                               items);
-    for (const auto& item : items) {
-        if (item->getBySeqno() > rollbackSeqno &&
-            !item->isCheckPointMetaItem()) {
-            RememberingCallback<GetValue> gcb;
-            getROUnderlying(vb->getId())->get(item->getKey(),
-                                              vb->getId(),
-                                              gcb);
-            gcb.waitForValue();
-
-            if (gcb.val.getStatus() == ENGINE_SUCCESS) {
-                vb->setFromInternal(*gcb.val.getValue());
-            } else {
-                vb->deleteKey(item->getKey());
-            }
-
-            delete gcb.val.getValue();
-        }
-    }
-}
-
 ENGINE_ERROR_CODE KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
     LockHolder vbset(vbsetMutex);
 
@@ -2563,22 +2476,20 @@ ENGINE_ERROR_CODE KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
     }
 
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+    if (!vb) {
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
     ReaderLockHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_replica) {
         uint64_t prevHighSeqno = static_cast<uint64_t>
                                         (vb->checkpointManager.getHighSeqno());
         if (rollbackSeqno != 0) {
-            std::shared_ptr<Rollback> cb(new Rollback(engine));
-            KVStore* rwUnderlying = vbMap.getShardByVbId(vbid)->getRWUnderlying();
-            RollbackResult result = rwUnderlying->rollback(vbid, rollbackSeqno, cb);
+            RollbackResult result = doRollback(vbid, rollbackSeqno);
 
             if (result.success) {
-                rollbackCheckpoint(vb, rollbackSeqno);
-                vb->failovers->pruneEntries(result.highSeqno);
-                vb->checkpointManager.clear(vb, result.highSeqno);
-                vb->setPersistedSnapshot(result.snapStartSeqno, result.snapEndSeqno);
-                vb->incrRollbackItemCount(prevHighSeqno - result.highSeqno);
-                vb->setBackfillPhase(false);
+                rollbackUnpersistedItems(*vb, rollbackSeqno);
+                vb->postProcessRollback(result, prevHighSeqno);
                 return ENGINE_SUCCESS;
             }
         }

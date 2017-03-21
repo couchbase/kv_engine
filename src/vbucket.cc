@@ -24,9 +24,10 @@
 #include <vector>
 
 #include "atomic.h"
-#include "conflict_resolution.h"
 #include "bgfetcher.h"
+#include "conflict_resolution.h"
 #include "ep_engine.h"
+#include "ep_types.h"
 #include "failover-table.h"
 #include "flusher.h"
 #include "pre_link_document_context.h"
@@ -1812,6 +1813,16 @@ bool VBucket::deleteKey(const DocKey& key) {
         return false;
     }
     return deleteStoredValue(hbl, *v);
+}
+
+void VBucket::postProcessRollback(const RollbackResult& rollbackResult,
+                                  uint64_t prevHighSeqno) {
+    failovers->pruneEntries(rollbackResult.highSeqno);
+    checkpointManager.clear(*this, rollbackResult.highSeqno);
+    setPersistedSnapshot(rollbackResult.snapStartSeqno,
+                         rollbackResult.snapEndSeqno);
+    incrRollbackItemCount(prevHighSeqno - rollbackResult.highSeqno);
+    setBackfillPhase(false);
 }
 
 void VBucket::_addStats(bool details, ADD_STAT add_stat, const void* c) {

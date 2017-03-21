@@ -90,4 +90,8 @@ public:
                            const DocKey& key,
                            uint16_t vbid,
                            uint64_t bySeqNum) override;
+
+    RollbackResult doRollback(uint16_t vbid, uint64_t rollbackSeqno) override;
+
+    void rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) override;
 };

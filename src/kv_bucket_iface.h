@@ -842,6 +842,30 @@ protected:
                                  vbucket_state_t allowedState,
                                  get_options_t options = TRACK_REFERENCE) = 0;
 
+    /**
+     * Do rollback of data on the underlying disk / data structure
+     *
+     * @param vbid vBucket id
+     * @param rollbackSeqno intended point (in seqno) of rollback
+     *
+     * @result object that indicates if rollback was successful,
+     *         highSeqno of the vBucket after rollback,
+     *         and the last snaspshot range in the vb after rollback.
+     */
+    virtual RollbackResult doRollback(uint16_t vbid,
+                                      uint64_t rollbackSeqno) = 0;
+
+    /*
+     * Helper method for the rollback function.
+     * Purge all unpersisted items from the current checkpoint(s) and fixup
+     * the hashtable for any that are > the rollbackSeqno.
+     *
+     * @param vb ref to vBucket on which rollback is done
+     * @param rollbackSeqno intended point (in seqno) of rollback
+     */
+    virtual void rollbackUnpersistedItems(VBucket& vb,
+                                          int64_t rollbackSeqno) = 0;
+
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be
     // triggered whenever we want to check if we could enable traffic..

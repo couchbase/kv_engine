@@ -284,3 +284,88 @@ void EPBucket::completeStatsVKey(const void* cookie,
     --stats.numRemainingBgJobs;
     engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
 }
+
+/* Class that handles the disk callback during the rollback */
+class EPDiskRollbackCB : public RollbackCB {
+public:
+    EPDiskRollbackCB(EventuallyPersistentEngine& e) : RollbackCB(), engine(e) {
+    }
+
+    void callback(GetValue& val) {
+        if (val.getValue() == nullptr) {
+            throw std::invalid_argument(
+                    "EPDiskRollbackCB::callback: val is NULL");
+        }
+        if (dbHandle == nullptr) {
+            throw std::logic_error(
+                    "EPDiskRollbackCB::callback: dbHandle is NULL");
+        }
+        UniqueItemPtr itm(val.getValue());
+        RCPtr<VBucket> vb = engine.getVBucket(itm->getVBucketId());
+        RememberingCallback<GetValue> gcb;
+        engine.getKVBucket()
+                ->getROUnderlying(itm->getVBucketId())
+                ->getWithHeader(
+                        dbHandle, itm->getKey(), itm->getVBucketId(), gcb);
+        gcb.waitForValue();
+        if (gcb.val.getStatus() == ENGINE_SUCCESS) {
+            UniqueItemPtr it(gcb.val.getValue());
+            if (it->isDeleted()) {
+                bool ret = vb->deleteKey(it->getKey());
+                if (!ret) {
+                    setStatus(ENGINE_KEY_ENOENT);
+                } else {
+                    setStatus(ENGINE_SUCCESS);
+                }
+            } else {
+                MutationStatus mtype = vb->setFromInternal(*it);
+
+                if (mtype == MutationStatus::NoMem) {
+                    setStatus(ENGINE_ENOMEM);
+                }
+            }
+        } else if (gcb.val.getStatus() == ENGINE_KEY_ENOENT) {
+            bool ret = vb->deleteKey(itm->getKey());
+            if (!ret) {
+                setStatus(ENGINE_KEY_ENOENT);
+            } else {
+                setStatus(ENGINE_SUCCESS);
+            }
+        } else {
+            LOG(EXTENSION_LOG_WARNING,
+                "EPDiskRollbackCB::callback:Unexpected Error Status: %d",
+                gcb.val.getStatus());
+        }
+    }
+
+private:
+    EventuallyPersistentEngine& engine;
+};
+
+RollbackResult EPBucket::doRollback(uint16_t vbid, uint64_t rollbackSeqno) {
+    auto cb = std::make_shared<EPDiskRollbackCB>(engine);
+    KVStore* rwUnderlying = vbMap.getShardByVbId(vbid)->getRWUnderlying();
+    return rwUnderlying->rollback(vbid, rollbackSeqno, cb);
+}
+
+void EPBucket::rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) {
+    std::vector<queued_item> items;
+    vb.checkpointManager.getAllItemsForCursor(CheckpointManager::pCursorName,
+                                              items);
+    for (const auto& item : items) {
+        if (item->getBySeqno() > rollbackSeqno &&
+            !item->isCheckPointMetaItem()) {
+            RememberingCallback<GetValue> gcb;
+            getROUnderlying(vb.getId())->get(item->getKey(), vb.getId(), gcb);
+            gcb.waitForValue();
+
+            if (gcb.val.getStatus() == ENGINE_SUCCESS) {
+                vb.setFromInternal(*gcb.val.getValue());
+            } else {
+                vb.deleteKey(item->getKey());
+            }
+
+            delete gcb.val.getValue();
+        }
+    }
+}

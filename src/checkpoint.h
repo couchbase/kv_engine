@@ -763,7 +763,7 @@ public:
     /**
      * Clear all the checkpoints managed by this checkpoint manager.
      */
-    void clear(RCPtr<VBucket> &vb, uint64_t seqno);
+    void clear(VBucket& vb, uint64_t seqno);
 
     /**
      * If a given cursor currently points to the checkpoint_end dummy item,

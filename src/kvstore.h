@@ -34,8 +34,10 @@
 #include "item.h"
 #include "logger.h"
 
+/* Forward declarations */
 class KVStore;
 class PersistenceCallback;
+class RollbackResult;
 
 class VBucketBGFetchItem {
 public:
@@ -149,18 +151,6 @@ public:
     ~NoLookupCallback() {}
     void callback(CacheLookup&) {}
 };
-
-typedef struct RollbackResult {
-    RollbackResult(bool _success, uint64_t _highSeqno, uint64_t _snapStartSeqno,
-                   uint64_t _snapEndSeqno)
-        : success(_success), highSeqno(_highSeqno),
-          snapStartSeqno(_snapStartSeqno), snapEndSeqno(_snapEndSeqno) {}
-
-    bool success;
-    uint64_t highSeqno;
-    uint64_t snapStartSeqno;
-    uint64_t snapEndSeqno;
-} RollbackResult;
 
 struct vbucket_state {
     vbucket_state() = default;

@@ -106,3 +106,31 @@ enum class GetMetaVersion : uint8_t {
 
 /// Allow for methods to optionally accept a seqno
 using OptionalSeqno = boost::optional<int64_t>;
+
+/**
+ * Captures the result of a rollback request.
+ * Contains if the rollback was successful, highSeqno of the vBucket after
+ * rollback, and the last snaspshot range in the vb after rollback.
+ */
+class RollbackResult {
+public:
+    RollbackResult(bool success,
+                   uint64_t highSeqno,
+                   uint64_t snapStartSeqno,
+                   uint64_t snapEndSeqno)
+        : success(success),
+          highSeqno(highSeqno),
+          snapStartSeqno(snapStartSeqno),
+          snapEndSeqno(snapEndSeqno) {
+    }
+
+    /* default constructor */
+    RollbackResult()
+        : success(false), highSeqno(0), snapStartSeqno(0), snapEndSeqno(0) {
+    }
+
+    bool success;
+    uint64_t highSeqno;
+    uint64_t snapStartSeqno;
+    uint64_t snapEndSeqno;
+};

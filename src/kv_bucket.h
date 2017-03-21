@@ -776,13 +776,6 @@ protected:
                          vbucket_state_t allowedState,
                          get_options_t options = TRACK_REFERENCE);
 
-    /*
-     * Helper method for the rollback function.
-     * Drain the VB's checkpoints looking for items which have a seqno
-     * above the rollbackSeqno and must be rolled back themselves.
-     */
-    void rollbackCheckpoint(RCPtr<VBucket> &vb, int64_t rollbackSeqno);
-
     bool resetVBucket_UNLOCKED(uint16_t vbid, LockHolder& vbset);
 
     ENGINE_ERROR_CODE setVBucketState_UNLOCKED(uint16_t vbid, vbucket_state_t state,

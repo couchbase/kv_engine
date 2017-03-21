@@ -23,7 +23,6 @@
 #include "checkpoint.h"
 #include "collections/vbucket_manifest.h"
 #include "dcp/dcp-types.h"
-//#include "dcp/backfill.h"
 #include "hash_table.h"
 #include "hlc.h"
 #include "item_pager.h"
@@ -39,6 +38,7 @@ class Configuration;
 class PreLinkDocumentContext;
 class EventuallyPersistentEngine;
 class DCPBackfill;
+class RollbackResult;
 
 /**
  * The following will be used to identify
@@ -962,6 +962,20 @@ public:
             const active_stream_t& stream,
             uint64_t startSeqno,
             uint64_t endSeqno) = 0;
+
+    /**
+     * Update failovers, checkpoint mgr and other vBucket members after
+     * rollback.
+     *
+     * @param rollbackResult contains high seqno of the vBucket after rollback,
+     *                       snapshot start seqno of the last snapshot in the
+     *                       vBucket after the rollback,
+     *                       snapshot end seqno of the last snapshot in the
+     *                       vBucket after the rollback
+     * @param prevHighSeqno high seqno before the rollback
+     */
+    void postProcessRollback(const RollbackResult& rollbackResult,
+                             uint64_t prevHighSeqno);
 
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;

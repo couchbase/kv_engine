@@ -18,6 +18,9 @@
 
 #include "kv_bucket.h"
 
+/* Forward declarations */
+class RollbackResult;
+
 /**
  * Ephemeral Bucket
  *
@@ -79,6 +82,12 @@ public:
                            const DocKey& key,
                            uint16_t vbid,
                            uint64_t bySeqNum) override;
+
+    RollbackResult doRollback(uint16_t vbid, uint64_t rollbackSeqno) override;
+
+    void rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) override {
+        // No op
+    }
 
     // Static methods /////////////////////////////////////////////////////////
 
