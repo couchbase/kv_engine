@@ -1629,6 +1629,16 @@ static bool is_xattr_supported(const void* void_cookie) {
     return cookie->connection->isXattrSupport();
 }
 
+static bool is_collections_supported(const void* void_cookie) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    cookie->validate();
+
+    if (cookie->connection == nullptr) {
+        throw std::runtime_error("is_collections_supported: cookie must represent connection");
+    }
+    return cookie->connection->isCollectionsSupported();
+}
+
 static uint8_t get_opcode_if_ewouldblock_set(const void *void_cookie) {
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
@@ -1965,6 +1975,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         server_cookie_api.is_datatype_supported = is_datatype_supported;
         server_cookie_api.is_mutation_extras_supported = is_mutation_extras_supported;
         server_cookie_api.is_xattr_supported = is_xattr_supported;
+        server_cookie_api.is_collections_supported = is_collections_supported;
         server_cookie_api.get_opcode_if_ewouldblock_set = get_opcode_if_ewouldblock_set;
         server_cookie_api.validate_session_cas = validate_session_cas;
         server_cookie_api.decrement_session_ctr = decrement_session_ctr;

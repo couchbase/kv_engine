@@ -112,6 +112,15 @@ extern "C" {
         bool (*is_xattr_supported)(const void *cookie);
 
         /**
+         * Check if collections are supported by the connection.
+         *
+         * @param cookie The cookie provided by the frontend
+         *
+         * @return true if supported or else false.
+         */
+        bool (*is_collections_supported)(const void *cookie);
+
+        /**
          * Retrieve the opcode of the connection, if
          * ewouldblock flag is set. Please note that the ewouldblock
          * flag for a connection is cleared before calling into

@@ -24,6 +24,7 @@ struct mock_connstruct {
     bool handle_mutation_extras;
     bool handle_datatype_support;
     bool handle_xattr_support;
+    bool handle_collections_support;
     cb_mutex_t mutex;
     cb_cond_t cond;
     int references;
@@ -55,6 +56,9 @@ MEMCACHED_PUBLIC_API void mock_set_mutation_extras_handling(const void *cookie,
 
 MEMCACHED_PUBLIC_API void mock_set_xattr_support(const void *cookie,
                                                  bool enable);
+
+MEMCACHED_PUBLIC_API void mock_set_collections_support(const void *cookie,
+                                                       bool enable);
 
 MEMCACHED_PUBLIC_API void mock_set_datatype_support(const void *cookie,
                                                     bool enable);

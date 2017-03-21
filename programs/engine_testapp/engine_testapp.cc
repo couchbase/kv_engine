@@ -1361,6 +1361,7 @@ int main(int argc, char **argv) {
     harness.set_mutation_extras_handling = mock_set_mutation_extras_handling;
     harness.set_datatype_support = mock_set_datatype_support;
     harness.set_xattr_support = mock_set_xattr_support;
+    harness.set_collections_support = mock_set_collections_support;
     harness.lock_cookie = lock_mock_cookie;
     harness.unlock_cookie = unlock_mock_cookie;
     harness.waitfor_cookie = waitfor_mock_cookie;
