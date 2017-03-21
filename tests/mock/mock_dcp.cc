@@ -39,6 +39,7 @@ uint64_t dcp_last_snap_start_seqno;
 uint64_t dcp_last_snap_end_seqno;
 uint64_t dcp_last_byseqno;
 uint64_t dcp_last_revseqno;
+uint8_t dcp_last_collection_len;
 std::string dcp_last_meta;
 std::string dcp_last_value;
 std::string dcp_last_key;
@@ -188,8 +189,17 @@ static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
     dcp_last_value.assign(static_cast<const char*>(item->getData()),
                           item->getNBytes());
     dcp_last_nru = nru;
-    dcp_last_packet_size = 55 + dcp_last_key.length() +
+
+    // @todo: MB-24391: We are querying the header length with collections
+    // off, which if we extended our testapp tests to do collections may not be
+    // correct. For now collections testing is done via GTEST tests and isn't
+    // reliant on dcp_last_packet_size so this doesn't cause any problems.
+    dcp_last_packet_size =
+            protocol_binary_request_dcp_mutation::getHeaderLength(false);
+    dcp_last_packet_size = dcp_last_packet_size + dcp_last_key.length() +
                            item->getNBytes() + nmeta;
+
+    dcp_last_collection_len = collectionLen;
     if (engine_handle_v1 && engine_handle) {
         engine_handle_v1->release(engine_handle, NULL, item);
     }
@@ -216,10 +226,15 @@ static ENGINE_ERROR_CODE mock_deletion(const void* cookie,
     dcp_last_byseqno = by_seqno;
     dcp_last_revseqno = rev_seqno;
     dcp_last_meta.assign(static_cast<const char*>(meta), nmeta);
-    dcp_last_packet_size =
-            42 + dcp_last_key.length() + item->getNBytes() + nmeta;
+
+    // @todo: MB-24391 as above.
+    dcp_last_packet_size = dcp_last_key.length() + item->getNBytes() + nmeta;
+    dcp_last_packet_size +=
+            protocol_binary_request_dcp_deletion::getHeaderLength(false);
+
     dcp_last_value.assign(static_cast<const char*>(item->getData()),
                           item->getNBytes());
+    dcp_last_collection_len = collectionLen;
 
     if (engine_handle_v1 && engine_handle) {
         engine_handle_v1->release(engine_handle, nullptr, item);

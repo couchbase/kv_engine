@@ -211,6 +211,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/replicationthrottle.cc
             src/linked_list.cc
             src/seqlist.cc
+            src/stats.cc
             src/string_utils.cc
             src/storeddockey.cc
             src/stored-value.cc

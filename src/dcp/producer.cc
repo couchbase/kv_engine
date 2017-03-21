@@ -517,7 +517,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                     meta.first,
                     meta.second,
                     mutationResponse->getItem()->getNRUValue(),
-                    0);
+                    mutationResponse->getCollectionLen());
             break;
         }
         case DcpResponse::Event::Deletion:
@@ -538,7 +538,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                                       mutationResponse->getRevSeqno(),
                                       meta.first,
                                       meta.second,
-                                      0);
+                                      mutationResponse->getCollectionLen());
             break;
         }
         case DcpResponse::Event::SnapshotMarker:
