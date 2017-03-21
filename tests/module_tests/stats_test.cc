@@ -33,11 +33,11 @@ static void add_stats(const char *key, const uint16_t klen,
     vals[k] = v;
 }
 
-class StatTest : public SingleThreadedEPStoreTest {
+class StatTest : public SingleThreadedEPBucketTest {
 protected:
 
     void SetUp() {
-        SingleThreadedEPStoreTest::SetUp();
+        SingleThreadedEPBucketTest::SetUp();
         store->setVBucketState(vbid, vbucket_state_active, false);
     }
 

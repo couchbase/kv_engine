@@ -134,7 +134,7 @@ void SingleThreadedKVBucketTest::cancelAndPurgeTasks() {
  * At the end of the test we should have 2 cursors: 1 persistence cursor and 1
  * DCP stream cursor.
  */
-TEST_F(SingleThreadedEPStoreTest, MB22421_reregister_cursor) {
+TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
     // Make vbucket active.
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
@@ -222,7 +222,7 @@ TEST_F(SingleThreadedEPStoreTest, MB22421_reregister_cursor) {
  * If it does then we have demonstrated that data is not lost.
  *
  */
-TEST_F(SingleThreadedEPStoreTest, MB22960_cursor_dropping_data_loss) {
+TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
     // Make vbucket active.
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
@@ -363,7 +363,7 @@ TEST_F(SingleThreadedEPStoreTest, MB22960_cursor_dropping_data_loss) {
  * isBackfillTaskRunning is false and, the stream state remains set to
  * StreamBackfilling.
  */
-TEST_F(SingleThreadedEPStoreTest, test_mb22451) {
+TEST_F(SingleThreadedEPBucketTest, test_mb22451) {
     // Make vbucket active.
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     // Store a single Item
@@ -420,7 +420,7 @@ TEST_F(SingleThreadedEPStoreTest, test_mb22451) {
  * yet when doTapVbTakeoverStats() is called as part of
  * tapNotify / TAP_OPAQUE_INITIAL_VBUCKET_STREAM.
  */
-TEST_F(SingleThreadedEPStoreTest, MB19695_doTapVbTakeoverStats) {
+TEST_F(SingleThreadedEPBucketTest, MB19695_doTapVbTakeoverStats) {
     auto* task_executor = reinterpret_cast<SingleThreadedExecutorPool*>
         (ExecutorPool::get());
 
@@ -472,7 +472,7 @@ TEST_F(SingleThreadedEPStoreTest, MB19695_doTapVbTakeoverStats) {
  * 1. We cannot create a stream against a dead vb (MB-17230)
  * 2. No tasks are scheduled as a side-effect of the streamRequest attempt.
  */
-TEST_F(SingleThreadedEPStoreTest, MB19428_no_streams_against_dead_vbucket) {
+TEST_F(SingleThreadedEPBucketTest, MB19428_no_streams_against_dead_vbucket) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     store_item(vbid, makeStoredDocKey("key"), "value");
@@ -504,7 +504,7 @@ TEST_F(SingleThreadedEPStoreTest, MB19428_no_streams_against_dead_vbucket) {
                                            /*snap_start*/0,
                                            /*snap_end*/0,
                                            &rollbackSeqno,
-                                           SingleThreadedEPStoreTest::fakeDcpAddFailoverLog);
+                                           SingleThreadedEPBucketTest::fakeDcpAddFailoverLog);
 
         EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, err) << "Unexpected error code";
 
@@ -517,7 +517,7 @@ TEST_F(SingleThreadedEPStoreTest, MB19428_no_streams_against_dead_vbucket) {
  * Test that TaskQueue::wake results in a sensible ExecutorPool work count
  * Incorrect counting can result in the run loop spinning for many threads.
  */
-TEST_F(SingleThreadedEPStoreTest, MB20235_wake_and_work_count) {
+TEST_F(SingleThreadedEPBucketTest, MB20235_wake_and_work_count) {
     class TestTask : public GlobalTask {
     public:
         TestTask(EventuallyPersistentEngine *e, double s) :
@@ -565,7 +565,7 @@ TEST_F(SingleThreadedEPStoreTest, MB20235_wake_and_work_count) {
 // descriptors, which can prevent ns_server from cleaning up old vBucket files
 // and consequently re-adding a node to the cluster.
 //
-TEST_F(SingleThreadedEPStoreTest, MB19892_BackfillNotDeleted) {
+TEST_F(SingleThreadedEPBucketTest, MB19892_BackfillNotDeleted) {
     // Make vbucket active.
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
@@ -615,7 +615,7 @@ TEST_F(SingleThreadedEPStoreTest, MB19892_BackfillNotDeleted) {
  * Test that the DCP processor returns a 'yield' return code when
  * working on a large enough buffer size.
  */
-TEST_F(SingleThreadedEPStoreTest, MB18452_yield_dcp_processor) {
+TEST_F(SingleThreadedEPBucketTest, MB18452_yield_dcp_processor) {
 
     // We need a replica VB
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
@@ -733,10 +733,10 @@ static ENGINE_ERROR_CODE dummy_dcp_add_failover_cb(vbucket_failover_t* entry,
 
 // Test performs engine deletion interleaved with tasks so redefine TearDown
 // for this tests needs.
-class MB20054_SingleThreadedEPStoreTest : public SingleThreadedEPStoreTest {
+class MB20054_SingleThreadedEPStoreTest : public SingleThreadedEPBucketTest {
 public:
     void SetUp() {
-        SingleThreadedEPStoreTest::SetUp();
+        SingleThreadedEPBucketTest::SetUp();
         engine->initializeConnmaps();
     }
 
@@ -882,7 +882,7 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
  * into the readyQueue, thus allowing for high-priority tasks to dominiate
  * a taskqueue.
  */
-TEST_F(SingleThreadedEPStoreTest, MB18953_taskWake) {
+TEST_F(SingleThreadedEPBucketTest, MB18953_taskWake) {
     auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
 
     ExTask hpTask = new TestTask(engine.get(),
@@ -919,7 +919,7 @@ TEST_F(SingleThreadedEPStoreTest, MB18953_taskWake) {
 /*
  * MB-20735 waketime is not correctly picked up on reschedule
  */
-TEST_F(SingleThreadedEPStoreTest, MB20735_rescheduleWaketime) {
+TEST_F(SingleThreadedEPBucketTest, MB20735_rescheduleWaketime) {
     auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
 
     class SnoozingTestTask : public TestTask {
@@ -950,7 +950,7 @@ TEST_F(SingleThreadedEPStoreTest, MB20735_rescheduleWaketime) {
  * Tests that we stream from only active vbuckets for DCP clients with that
  * preference
  */
-TEST_F(SingleThreadedEPStoreTest, stream_from_active_vbucket_only) {
+TEST_F(SingleThreadedEPBucketTest, stream_from_active_vbucket_only) {
     std::map<vbucket_state_t, bool> states;
     states[vbucket_state_active] = true; /* Positive test case */
     states[vbucket_state_replica] = false; /* Negative test case */
@@ -979,7 +979,7 @@ TEST_F(SingleThreadedEPStoreTest, stream_from_active_vbucket_only) {
                                            /*snap_start*/0,
                                            /*snap_end*/0,
                                            &rollbackSeqno,
-                                           SingleThreadedEPStoreTest::fakeDcpAddFailoverLog);
+                                           SingleThreadedEPBucketTest::fakeDcpAddFailoverLog);
 
         if (it.second) {
             EXPECT_EQ(ENGINE_SUCCESS, err) << "Unexpected error code";
@@ -990,7 +990,7 @@ TEST_F(SingleThreadedEPStoreTest, stream_from_active_vbucket_only) {
     }
 }
 
-TEST_F(SingleThreadedEPStoreTest, pre_expiry_xattrs) {
+TEST_F(SingleThreadedEPBucketTest, pre_expiry_xattrs) {
     auto& kvbucket = *engine->getKVBucket();
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);

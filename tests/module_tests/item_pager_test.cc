@@ -32,7 +32,7 @@
  * Parameterised on the bucket_type (i.e. Ephemeral or Peristent).
  */
 class STParameterizedBucketTest
-        : public SingleThreadedEPStoreTest,
+        : public SingleThreadedEPBucketTest,
           public ::testing::WithParamInterface<std::string> {
 protected:
     void SetUp() override;
@@ -43,7 +43,7 @@ void STParameterizedBucketTest::SetUp() {
         config_string += ";";
     }
     config_string += "bucket_type=" + GetParam();
-    SingleThreadedEPStoreTest::SetUp();
+    SingleThreadedEPBucketTest::SetUp();
 }
 
 /**
