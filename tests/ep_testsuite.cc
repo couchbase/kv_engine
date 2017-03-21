@@ -6841,6 +6841,21 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
         vb_details.push_back("vb_0:db_file_size");
     }
 
+    if (isEphemeralBucket(h, h1)) {
+        auto& vb_details = statsKeys.at("vbucket-details 0");
+        vb_details.insert(vb_details.end(),
+                          {"vb_0:seqlist_count",
+                           "vb_0:seqlist_deleted_count",
+                           "vb_0:seqlist_high_seqno",
+                           "vb_0:seqlist_highest_deduped_seqno",
+                           "vb_0:seqlist_range_read_begin",
+                           "vb_0:seqlist_range_read_count",
+                           "vb_0:seqlist_range_read_end",
+                           "vb_0:seqlist_stale_count",
+                           "vb_0:seqlist_stale_metadata_bytes",
+                           "vb_0:seqlist_stale_value_bytes"});
+    }
+
     if (isTapEnabled(h, h1)) {
         statsKeys["tap"] = {"ep_replication_throttle_queue_cap",
                             "ep_replication_throttle_threshold",

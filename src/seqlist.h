@@ -151,6 +151,16 @@ public:
     virtual uint64_t getNumStaleItems() const = 0;
 
     /**
+     * Return the count of bytes of the values of stale items in the list.
+     */
+    virtual size_t getStaleValueBytes() const = 0;
+
+    /**
+     * Return the count of bytes of the metadata of stale items in the list.
+     */
+    virtual size_t getStaleMetadataBytes() const = 0;
+
+    /**
      * Returns the number of deleted items in the list.
      *
      * @return count of deleted items
@@ -163,6 +173,26 @@ public:
      * @return count of items
      */
     virtual uint64_t getNumItems() const = 0;
+
+    /**
+     * Returns the highSeqno in the list.
+     */
+    virtual uint64_t getHighSeqno() const = 0;
+
+    /**
+     * Returns the highest de-duplicated sequence number in the list.
+     */
+    virtual uint64_t getHighestDedupedSeqno() const = 0;
+
+    /**
+     * Returns the current range read begin sequence number.
+     */
+    virtual uint64_t getRangeReadBegin() const = 0;
+
+    /**
+     * Returns the current range read end sequence number.
+     */
+    virtual uint64_t getRangeReadEnd() const = 0;
 
     /**
      * Debug - prints a representation of the list to stderr.

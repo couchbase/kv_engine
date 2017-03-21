@@ -427,6 +427,10 @@ bool isPersistentBucket(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
     return get_str_stat(h, h1, "ep_bucket_type") == "persistent";
 }
 
+bool isEphemeralBucket(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+    return get_str_stat(h, h1, "ep_bucket_type") == "ephemeral";
+}
+
 bool isTapEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
     return get_bool_stat(h, h1, "ep_tap");
 }

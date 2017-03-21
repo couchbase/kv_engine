@@ -188,6 +188,14 @@ uint64_t BasicLinkedList::getNumStaleItems() const {
     return numStaleItems;
 }
 
+size_t BasicLinkedList::getStaleValueBytes() const {
+    return staleSize;
+}
+
+size_t BasicLinkedList::getStaleMetadataBytes() const {
+    return staleMetaDataSize;
+}
+
 uint64_t BasicLinkedList::getNumDeletedItems() const {
     std::lock_guard<std::mutex> lckGd(writeLock);
     return numDeletedItems;
@@ -196,6 +204,26 @@ uint64_t BasicLinkedList::getNumDeletedItems() const {
 uint64_t BasicLinkedList::getNumItems() const {
     std::lock_guard<std::mutex> lckGd(writeLock);
     return seqList.size();
+}
+
+uint64_t BasicLinkedList::getHighSeqno() const {
+    std::lock_guard<SpinLock> lh(rangeLock);
+    return highSeqno;
+}
+
+uint64_t BasicLinkedList::getHighestDedupedSeqno() const {
+    std::lock_guard<std::mutex> lckGd(writeLock);
+    return highestDedupedSeqno;
+}
+
+uint64_t BasicLinkedList::getRangeReadBegin() const {
+    std::lock_guard<SpinLock> lh(rangeLock);
+    return readRange.getBegin();
+}
+
+uint64_t BasicLinkedList::getRangeReadEnd() const {
+    std::lock_guard<SpinLock> lh(rangeLock);
+    return readRange.getEnd();
 }
 
 void BasicLinkedList::dump() const {

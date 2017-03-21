@@ -521,6 +521,22 @@ The stats below are listed for each vbucket.
 | logical_clock_ticks           | How many times this vbucket's HLC has      |
 |                               | returned logical clock ticks.              |
 
+For Ephemeral buckets, the following additional statistics are listed for
+each vbucket:
+
+| Stat                          | Description                                                                                                                                   |
+|-------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------|
+| seqlist_count                 | number of documents in this VBucket's sequence list.                                                                                          |
+| seqlist_deleted_count         | Count of deleted documents in this VBucket's sequence list.                                                                                   |
+| seqlist_high_seqno            | High sequence number in sequence list for this VBucket.                                                                                       |
+| seqlist_highest_deduped_seqno | Highest de-duplicated sequence number in sequence list for this VBucket.                                                                      |
+| seqlist_read_range_begin      | Starting sequence number for this VBucket's sequence list read range. Marks the lower bound of possible stale documents in the sequence list. |
+| seqlist_read_range_end        | Ending sequence number for this VBucket's sequence list read range. Marks the upper bound of possible stale documents in the sequence list.   |
+| seqlist_read_range_count      | Count of elements for this VBucket's sequence list read range (i.e. end - begin).                                                             |
+| seqlist_stale_count           | Count of stale documents in this VBucket's sequence list.                                                                                     |
+| seqlist_stale_value_bytes     | Number of bytes of stale values in this VBucket's sequence list.                                                                              |
+| seqlist_stale_metadata_bytes  | Number of bytes of stale metadata (key + fixed metadata) in this VBucket's sequence list.                                                     |
+
 ** vBucket seqno stats
 
 | Stats                         | Description                                |

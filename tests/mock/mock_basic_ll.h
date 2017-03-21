@@ -47,12 +47,4 @@ public:
         std::lock_guard<SpinLock> lh(rangeLock);
         readRange = SeqRange(start, end);
     }
-
-    size_t getMemorySize() const {
-        return staleSize.load();
-    }
-
-    size_t getMetaDataMemorySize() const {
-        return staleMetaDataSize.load();
-    }
 };

@@ -256,6 +256,9 @@ bool isWarmupEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
 // Returns true if the given engine is a persistent bucket (EPBucket).
 bool isPersistentBucket(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
 
+// Returns true if the given engine is an ephemeral bucket (EphemeralBucket).
+bool isEphemeralBucket(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
+
 // Returns true if the given engine has Tap enabled.
 bool isTapEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
 

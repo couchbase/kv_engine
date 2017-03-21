@@ -83,6 +83,10 @@ public:
         end = 0;
     }
 
+    seqno_t getBegin() const {
+        return begin;
+    }
+
     void setBegin(const seqno_t start) {
         if ((start <= 0) || (start > end)) {
             throw std::invalid_argument(
@@ -91,6 +95,10 @@ public:
                     std::to_string(end) + "]");
         }
         begin = start;
+    }
+
+    seqno_t getEnd() const {
+        return end;
     }
 
 private:
@@ -143,9 +151,21 @@ public:
 
     uint64_t getNumStaleItems() const override;
 
+    size_t getStaleValueBytes() const override;
+
+    size_t getStaleMetadataBytes() const override;
+
     uint64_t getNumDeletedItems() const override;
 
     uint64_t getNumItems() const override;
+
+    uint64_t getHighSeqno() const override;
+
+    uint64_t getHighestDedupedSeqno() const override;
+
+    uint64_t getRangeReadBegin() const override;
+
+    uint64_t getRangeReadEnd() const override;
 
     void dump() const override;
 
@@ -171,7 +191,7 @@ protected:
      * We use spinlock here since the lock is held only for very small time
      * periods.
      */
-    SpinLock rangeLock;
+    mutable SpinLock rangeLock;
 
     /* Overall memory consumed by (stale) OrderedStoredValues owned by the
        list */
@@ -199,6 +219,8 @@ private:
      *
      * highseqno is monotonically increasing and is reset to a lower value
      * only in case of a rollback.
+     *
+     * Guarded by rangeLock.
      */
     Monotonic<seqno_t> highSeqno;
 

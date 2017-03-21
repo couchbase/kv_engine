@@ -382,6 +382,6 @@ TEST_F(BasicLinkedListTest, MarkStale) {
     EXPECT_EQ(1, basicLL->getNumItems());
 
     /* Check memory usage of the list as it owns the stale item */
-    EXPECT_EQ(svSize, basicLL->getMemorySize());
-    EXPECT_EQ(svMetaDataSize, basicLL->getMetaDataMemorySize());
+    EXPECT_EQ(svSize, basicLL->getStaleValueBytes());
+    EXPECT_EQ(svMetaDataSize, basicLL->getStaleMetadataBytes());
 }

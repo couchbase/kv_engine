@@ -96,7 +96,39 @@ bool EphemeralVBucket::pageOut(const HashTable::HashBucketLock& lh,
 void EphemeralVBucket::addStats(bool details,
                                 ADD_STAT add_stat,
                                 const void* c) {
+    // Include base class statistics:
     _addStats(details, add_stat, c);
+
+    if (details) {
+        // Ephemeral-specific details
+        addStat("seqlist_count", seqList->getNumItems(), add_stat, c);
+        addStat("seqlist_deleted_count",
+                seqList->getNumDeletedItems(),
+                add_stat,
+                c);
+        addStat("seqlist_high_seqno", seqList->getHighSeqno(), add_stat, c);
+        addStat("seqlist_highest_deduped_seqno",
+                seqList->getHighestDedupedSeqno(),
+                add_stat,
+                c);
+        const auto rr_begin = seqList->getRangeReadBegin();
+        const auto rr_end = seqList->getRangeReadEnd();
+        addStat("seqlist_range_read_begin", rr_begin, add_stat, c);
+        addStat("seqlist_range_read_end", rr_end, add_stat, c);
+        addStat("seqlist_range_read_count", rr_end - rr_begin, add_stat, c);
+        addStat("seqlist_stale_count",
+                seqList->getNumStaleItems(),
+                add_stat,
+                c);
+        addStat("seqlist_stale_value_bytes",
+                seqList->getStaleValueBytes(),
+                add_stat,
+                c);
+        addStat("seqlist_stale_metadata_bytes",
+                seqList->getStaleValueBytes(),
+                add_stat,
+                c);
+    }
 }
 
 void EphemeralVBucket::dump() const {
