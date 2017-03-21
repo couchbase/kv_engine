@@ -669,8 +669,8 @@ public:
     ENGINE_ERROR_CODE rollback(uint16_t vbid, uint64_t rollbackSeqno);
 
     void wakeUpItemPager() {
-        if (itmpTask->getState() == TASK_SNOOZED) {
-            ExecutorPool::get()->wake(itmpTask->getId());
+        if (itemPagerTask->getState() == TASK_SNOOZED) {
+            ExecutorPool::get()->wake(itemPagerTask->getId());
         }
     }
 
@@ -808,7 +808,7 @@ protected:
     EPStats                        &stats;
     std::unique_ptr<Warmup> warmupTask;
     VBucketMap                      vbMap;
-    ExTask                          itmpTask;
+    ExTask itemPagerTask;
     ExTask                          chkTask;
     float                           bfilterResidencyThreshold;
     ExTask                          defragmenterTask;

@@ -75,7 +75,7 @@ bool EphemeralBucket::initialize() {
     // Item pager - only scheduled if "auto_delete" is specified as the bucket
     // full policy, but always add a value changed listener so we can handle
     // dynamic config changes (and later schedule it).
-    itmpTask = new ItemPager(&engine, stats);
+    itemPagerTask = new ItemPager(&engine, stats);
     if (config.getEphemeralFullPolicy() == "auto_delete") {
         enableItemPager();
     }
