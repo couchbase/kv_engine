@@ -25,11 +25,11 @@
 #include "fakes/fake_executorpool.h"
 
 /*
- * A subclass of EPBucketTest which uses a fake ExecutorPool,
+ * A subclass of KVBucketTest which uses a fake ExecutorPool,
  * which will not spawn ExecutorThreads and hence not run any tasks
  * automatically in the background. All tasks must be manually run().
  */
-class SingleThreadedEPStoreTest : public EPBucketTest {
+class SingleThreadedKVBucketTest : public KVBucketTest {
 public:
     /*
      * Run the next task from the taskQ
@@ -49,7 +49,8 @@ protected:
     void TearDown() override;
 
     /*
-     * Change the vbucket state and run the VBStatePeristTask
+     * Change the vbucket state, and run the VBStatePeristTask (if necessary
+     * for this bucket type).
      * On return the state will be changed and the task completed.
      */
     void setVBucketStateAndRunPersistTask(uint16_t vbid,
@@ -72,4 +73,14 @@ protected:
     }
 
     SingleThreadedExecutorPool* task_executor;
+};
+
+/**
+ * Test fixture for single-threaded tests on EPBucket.
+ */
+class SingleThreadedEPStoreTest : public SingleThreadedKVBucketTest {
+    // Note this class is currently identical to it's parent class as the
+    // default bucket_type in configuration.json is EPBucket, therefore
+    // SingleThreadedKVBucketTest already defaults to creating EPBucket.
+    // Introducing this subclass to just make the name more descriptive.
 };

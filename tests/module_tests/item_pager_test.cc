@@ -31,14 +31,14 @@
  *
  * Parameterised on the bucket_type (i.e. Ephemeral or Peristent).
  */
-class SingleThreadedKVBucketTest
+class STParameterizedBucketTest
         : public SingleThreadedEPStoreTest,
           public ::testing::WithParamInterface<std::string> {
 protected:
     void SetUp() override;
 };
 
-void SingleThreadedKVBucketTest::SetUp() {
+void STParameterizedBucketTest::SetUp() {
     if (!config_string.empty()) {
         config_string += ";";
     }
@@ -53,7 +53,7 @@ void SingleThreadedKVBucketTest::SetUp() {
  * NOTE: All the tests using this (including subclasses) require memory
  * tracking to be enabled.
  */
-class STBucketQuotaTest : public SingleThreadedKVBucketTest {
+class STBucketQuotaTest : public STParameterizedBucketTest {
 public:
     static void SetUpTestCase() {
         // Setup the MemoryTracker.
@@ -69,7 +69,7 @@ protected:
         config_string += "max_size=" + std::to_string(200 * 1024) +
                          ";mem_low_wat=" + std::to_string(120 * 1024) +
                          ";mem_high_wat=" + std::to_string(160 * 1024);
-        SingleThreadedKVBucketTest::SetUp();
+        STParameterizedBucketTest::SetUp();
 
         // Sanity check - need memory tracker to be able to check our memory
         // usage.

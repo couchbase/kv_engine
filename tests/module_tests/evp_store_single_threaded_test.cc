@@ -33,7 +33,7 @@
 
 #include <thread>
 
-ProcessClock::time_point SingleThreadedEPStoreTest::runNextTask(
+ProcessClock::time_point SingleThreadedKVBucketTest::runNextTask(
         TaskQueue& taskQ, const std::string& expectedTaskName) {
     CheckedExecutor executor(task_executor, taskQ);
 
@@ -42,7 +42,7 @@ ProcessClock::time_point SingleThreadedEPStoreTest::runNextTask(
     return executor.completeCurrentTask();
 }
 
-ProcessClock::time_point SingleThreadedEPStoreTest::runNextTask(TaskQueue& taskQ) {
+ProcessClock::time_point SingleThreadedKVBucketTest::runNextTask(TaskQueue& taskQ) {
     CheckedExecutor executor(task_executor, taskQ);
 
     // Run the task
@@ -50,7 +50,7 @@ ProcessClock::time_point SingleThreadedEPStoreTest::runNextTask(TaskQueue& taskQ
     return executor.completeCurrentTask();
 }
 
-void SingleThreadedEPStoreTest::SetUp() {
+void SingleThreadedKVBucketTest::SetUp() {
     SingleThreadedExecutorPool::replaceExecutorPoolWithFake();
 
     // Disable warmup - we don't want to have to run/wait for the Warmup tasks
@@ -60,18 +60,18 @@ void SingleThreadedEPStoreTest::SetUp() {
     }
     config_string += "warmup=false";
 
-    EPBucketTest::SetUp();
+    KVBucketTest::SetUp();
 
     task_executor = reinterpret_cast<SingleThreadedExecutorPool*>
     (ExecutorPool::get());
 }
 
-void SingleThreadedEPStoreTest::TearDown() {
+void SingleThreadedKVBucketTest::TearDown() {
     shutdownAndPurgeTasks();
-    EPBucketTest::TearDown();
+    KVBucketTest::TearDown();
 }
 
-void SingleThreadedEPStoreTest::setVBucketStateAndRunPersistTask(uint16_t vbid,
+void SingleThreadedKVBucketTest::setVBucketStateAndRunPersistTask(uint16_t vbid,
                                                                  vbucket_state_t
                                                                  newState) {
     // Change state - this should add 1 set_vbucket_state op to the
@@ -85,7 +85,7 @@ void SingleThreadedEPStoreTest::setVBucketStateAndRunPersistTask(uint16_t vbid,
     }
 }
 
-void SingleThreadedEPStoreTest::shutdownAndPurgeTasks() {
+void SingleThreadedKVBucketTest::shutdownAndPurgeTasks() {
     engine->getEpStats().isShutdown = true;
     task_executor->cancelAndClearAll();
 
@@ -105,7 +105,7 @@ void SingleThreadedEPStoreTest::shutdownAndPurgeTasks() {
     }
 }
 
-void SingleThreadedEPStoreTest::cancelAndPurgeTasks() {
+void SingleThreadedKVBucketTest::cancelAndPurgeTasks() {
     task_executor->cancelAll();
     for (task_type_t t :
         {WRITER_TASK_IDX, READER_TASK_IDX, AUXIO_TASK_IDX, NONIO_TASK_IDX}) {
