@@ -169,12 +169,14 @@ static ENGINE_ERROR_CODE get(ENGINE_HANDLE* handle,
     return ENGINE_FAILED;
 }
 
-static cb::unique_item_ptr get_if(ENGINE_HANDLE*,
-                                  const void*,
-                                  const DocKey&,
-                                  uint16_t,
-                                  std::function<bool(const item_info&)>) {
-    throw cb::engine_error(cb::engine_errc::failed, "crash_engine");
+static cb::EngineErrorItemPair get_if(ENGINE_HANDLE* handle,
+                                      const void*,
+                                      const DocKey&,
+                                      uint16_t,
+                                      std::function<bool(const item_info&)>) {
+    return std::make_pair(cb::engine_errc::failed,
+                          cb::unique_item_ptr{nullptr,
+                                              cb::ItemDeleter{handle}});
 }
 
 static ENGINE_ERROR_CODE get_locked(ENGINE_HANDLE* handle,

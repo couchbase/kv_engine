@@ -118,32 +118,26 @@ void check_and_destroy_mock_connstruct(struct mock_connstruct* c, const void* co
  * EWOULDBLOCK wrapper.
  * Will recall "engine_function" with EWOULDBLOCK retry logic.
  **/
-static cb::unique_item_ptr do_blocking_engine_call(
+static cb::EngineErrorItemPair do_blocking_engine_call(
         ENGINE_HANDLE* handle,
         struct mock_connstruct* c,
-        std::function<cb::unique_item_ptr()> engine_function) {
+        std::function<cb::EngineErrorItemPair()> engine_function) {
     c->nblocks = 0;
     cb_mutex_enter(&c->mutex);
-    while (true) {
-        try {
-            auto ret = engine_function();
-            cb_mutex_exit(&c->mutex);
-            return ret;
-        } catch (const cb::engine_error& err) {
-            if (err.code() != cb::engine_errc::would_block) {
-                cb_mutex_exit(&c->mutex);
-                throw err;
-            }
 
-            ++c->nblocks;
-            cb_cond_wait(&c->cond, &c->mutex);
-            if (c->status != ENGINE_SUCCESS) {
-                cb_mutex_exit(&c->mutex);
-                throw cb::engine_error(cb::engine_errc(c->status),
-                                       "mock_engine");
-            }
+    auto ret = engine_function();
+    while (ret.first == cb::engine_errc::would_block && c->handle_ewouldblock) {
+        ++c->nblocks;
+        cb_cond_wait(&c->cond, &c->mutex);
+        if (c->status == ENGINE_SUCCESS) {
+            ret = engine_function();
+        } else {
+            return std::make_pair(cb::engine_errc(c->status),
+                                  cb::unique_item_ptr{nullptr,
+                                                      cb::ItemDeleter{handle}});
         }
     }
+    return ret;
 }
 
 static ENGINE_ERROR_CODE call_engine_and_handle_EWOULDBLOCK(
@@ -234,11 +228,12 @@ static ENGINE_ERROR_CODE mock_get(ENGINE_HANDLE* handle,
     return ret;
 }
 
-static cb::unique_item_ptr mock_get_if(ENGINE_HANDLE* handle,
-                                       const void* cookie,
-                                       const DocKey& key,
-                                       uint16_t vbucket,
-                                       std::function<bool(const item_info&)> filter) {
+static cb::EngineErrorItemPair mock_get_if(ENGINE_HANDLE* handle,
+                                           const void* cookie,
+                                           const DocKey& key,
+                                           uint16_t vbucket,
+                                           std::function<bool(
+                                               const item_info&)> filter) {
     struct mock_connstruct* c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->get_if,
                                get_engine_from_handle(handle),
@@ -247,14 +242,9 @@ static cb::unique_item_ptr mock_get_if(ENGINE_HANDLE* handle,
                                vbucket,
                                filter);
 
-    try {
-        auto ret = do_blocking_engine_call(handle, c, engine_fn);
-        check_and_destroy_mock_connstruct(c, cookie);
-        return ret;
-    } catch (const cb::engine_error& err) {
-        check_and_destroy_mock_connstruct(c, cookie);
-        throw err;
-    }
+    auto ret = do_blocking_engine_call(handle, c, engine_fn);
+    check_and_destroy_mock_connstruct(c, cookie);
+    return ret;
 }
 
 static ENGINE_ERROR_CODE mock_get_locked(ENGINE_HANDLE* handle,

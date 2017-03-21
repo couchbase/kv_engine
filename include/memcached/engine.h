@@ -200,6 +200,8 @@ typedef struct {
 namespace cb {
 class ItemDeleter;
 typedef std::unique_ptr<item, ItemDeleter> unique_item_ptr;
+
+using EngineErrorItemPair = std::pair<cb::engine_errc, cb::unique_item_ptr>;
 }
 
 /**
@@ -373,30 +375,14 @@ typedef struct engine_interface_v1 {
      * @param filter callback filter to see if the item should be returned
      *               or not. If filter returns false the item should be
      *               skipped.
-     * @return The item
-     * @thows cb::engine_error with (but not limited to):
-     *
-     *   * `cb::engine_errc::no_bucket` The client is bound to the dummy
-     *                                  `no bucket` which don't allow
-     *                                  allocations.
-     *
-     *   * `cb::engine_errc::no_such_key` The named document does not exist
-     *
-     *   * `cb::engine_errc::disconnect` The client should be disconnected
-     *
-     *   * `cb::engine_errc::not_my_vbucket` The requested vbucket belongs
-     *                                       to someone else
-     *
-     *   * `cb::engine_errc::would_block` The engine would block the frontend
-     *                                    and started a background task to
-     *                                    perform the operation and will
-     *                                    notify the cookie when it is done.
+     * @return A pair of the error code and (optionally) the item
      */
-    cb::unique_item_ptr (*get_if)(ENGINE_HANDLE* handle,
-                                  const void* cookie,
-                                  const DocKey& key,
-                                  uint16_t vbucket,
-                                  std::function<bool(const item_info&)> filter);
+    cb::EngineErrorItemPair (* get_if)(ENGINE_HANDLE* handle,
+                                       const void* cookie,
+                                       const DocKey& key,
+                                       uint16_t vbucket,
+                                       std::function<bool(
+                                           const item_info&)> filter);
 
     /**
      * Lock and Retrieve an item.

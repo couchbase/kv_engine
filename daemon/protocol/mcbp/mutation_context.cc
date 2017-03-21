@@ -123,42 +123,51 @@ ENGINE_ERROR_CODE MutationCommandContext::validateInput() {
 }
 
 ENGINE_ERROR_CODE MutationCommandContext::getExistingItemToPreserveXattr() {
-    item* it;
-    auto ret = bucket_get(&connection, &it, key, vbucket);
-    if (ret == ENGINE_SUCCESS) {
-        existing.reset(it);
-        if (!bucket_get_item_info(&connection, existing.get(),
-                                  &existing_info)) {
-            return ENGINE_FAILED;
-        }
-
-        if (input_cas != 0) {
-            if (existing_info.cas == uint64_t(-1)) {
-                // The object in the cache is locked... lets try to use
-                // the cas provided by the user to override this
-                existing_info.cas = input_cas;
-            } else if (input_cas != existing_info.cas) {
-                return ENGINE_KEY_EEXISTS;
-            }
-        } else if (existing_info.cas == uint64_t(-1)) {
-            return ENGINE_LOCKED;
-        }
-
-        if (mcbp::datatype::is_xattr(existing_info.datatype)) {
-            cb::const_char_buffer payload{
-                static_cast<const char*>(existing_info.value[0].iov_base),
-                existing_info.value[0].iov_len};
-
-            xattr_size = cb::xattr::get_body_offset(payload);
-        }
-        state = State::AllocateNewItem;
-    } else if (ret == ENGINE_KEY_ENOENT && operation == OPERATION_SET && input_cas == 0) {
-        // replace and cas should fail, but set with CAS == 0 should work.
-        state = State::AllocateNewItem;
-        ret = ENGINE_SUCCESS;
+    // Try to fetch the previous version of the document _iff_ it contains
+    // any xattrs so that we can preserve those by copying them over to
+    // the new document. Documents without any xattrs can safely be
+    // ignored. The motivation to use get_if over a normal get is for the
+    // value eviction case where the underlying engine would have to read
+    // the value off disk in order to return it via get() even if we don't
+    // need it (and would throw it away in the frontend).
+    auto pair = bucket_get_if(&connection, key, vbucket,
+                             [](const item_info& info) {
+                                 return mcbp::datatype::is_xattr(info.datatype);
+                             });
+    if (pair.first != cb::engine_errc::no_such_key &&
+        pair.first != cb::engine_errc::success) {
+        return ENGINE_ERROR_CODE(pair.first);
     }
 
-    return ret;
+    existing = std::move(pair.second);
+    if (!existing) {
+        state = State::AllocateNewItem;
+        return ENGINE_SUCCESS;
+    }
+
+    if (!bucket_get_item_info(&connection, existing.get(), &existing_info)) {
+        return ENGINE_FAILED;
+    }
+
+    if (input_cas != 0) {
+        if (existing_info.cas == uint64_t(-1)) {
+            // The object in the cache is locked... lets try to use
+            // the cas provided by the user to override this
+            existing_info.cas = input_cas;
+        } else if (input_cas != existing_info.cas) {
+            return ENGINE_KEY_EEXISTS;
+        }
+    } else if (existing_info.cas == uint64_t(-1)) {
+        return ENGINE_LOCKED;
+    }
+
+    cb::const_char_buffer payload{
+        static_cast<const char*>(existing_info.value[0].iov_base),
+        existing_info.value[0].iov_len};
+    xattr_size = cb::xattr::get_body_offset(payload);
+
+    state = State::AllocateNewItem;
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {

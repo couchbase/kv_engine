@@ -62,11 +62,14 @@ static ENGINE_ERROR_CODE default_get(ENGINE_HANDLE* handle,
                                      const DocKey& key,
                                      uint16_t vbucket,
                                      DocumentState);
-static cb::unique_item_ptr default_get_if(ENGINE_HANDLE*,
-                                          const void*,
-                                          const DocKey&,
-                                          uint16_t,
-                                          std::function<bool(const item_info&)>);
+
+static cb::EngineErrorItemPair default_get_if(ENGINE_HANDLE*,
+                                              const void*,
+                                              const DocKey&,
+                                              uint16_t,
+                                              std::function<bool(
+                                                  const item_info&)>);
+
 static ENGINE_ERROR_CODE default_get_locked(ENGINE_HANDLE* handle,
                                             const void* cookie,
                                             item** item,
@@ -437,7 +440,7 @@ static ENGINE_ERROR_CODE default_get(ENGINE_HANDLE* handle,
    }
 }
 
-static cb::unique_item_ptr default_get_if(
+static cb::EngineErrorItemPair default_get_if(
         ENGINE_HANDLE* handle,
         const void* cookie,
         const DocKey& key,
@@ -446,7 +449,9 @@ static cb::unique_item_ptr default_get_if(
     struct default_engine* engine = get_handle(handle);
 
     if (!handled_vbucket(engine, vbucket)) {
-        throw cb::engine_error(cb::engine_errc::not_my_vbucket, "");
+        return std::make_pair(cb::engine_errc::not_my_vbucket,
+                              cb::unique_item_ptr{nullptr,
+                                                  cb::ItemDeleter{handle}});
     }
 
     const auto any = static_cast<DocumentState>(
@@ -456,7 +461,9 @@ static cb::unique_item_ptr default_get_if(
             item_get(engine, cookie, key.data(), key.size(), any),
             cb::ItemDeleter{handle});
     if (!ret) {
-        throw cb::engine_error(cb::engine_errc::no_such_key, "");
+        return std::make_pair(cb::engine_errc::no_such_key,
+                              cb::unique_item_ptr{nullptr,
+                                                  cb::ItemDeleter{handle}});
     }
 
     item_info info;
@@ -469,7 +476,9 @@ static cb::unique_item_ptr default_get_if(
         ret.reset(nullptr);
     }
 
-    return ret;
+    return std::make_pair(cb::engine_errc::success,
+                          cb::unique_item_ptr{ret.release(),
+                                              cb::ItemDeleter{handle}});
 }
 
 static ENGINE_ERROR_CODE default_get_locked(ENGINE_HANDLE* handle,
