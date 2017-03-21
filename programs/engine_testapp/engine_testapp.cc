@@ -183,6 +183,41 @@ static ENGINE_ERROR_CODE mock_allocate(ENGINE_HANDLE* handle,
     return ret;
 }
 
+static std::pair<cb::unique_item_ptr, item_info> mock_allocate_ex(ENGINE_HANDLE* handle,
+                 const void* cookie,
+                 const DocKey& key,
+                 const size_t nbytes,
+                 const size_t priv_nbytes,
+                 const int flags,
+                 const rel_time_t exptime,
+                 uint8_t datatype,
+                 uint16_t vbucket) {
+    struct mock_connstruct* c = get_or_create_mock_connstruct(cookie);
+    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->allocate_ex,
+                               get_engine_from_handle(handle),
+                               static_cast<const void*>(c),
+                               key, nbytes, priv_nbytes, flags, exptime,
+                               datatype, vbucket);
+
+    c->nblocks = 0;
+    cb_mutex_enter(&c->mutex);
+
+    try {
+        auto ret = engine_fn();
+        cb_mutex_exit(&c->mutex);
+        check_and_destroy_mock_connstruct(c, cookie);
+        return ret;
+    } catch (const cb::engine_error& error) {
+        cb_mutex_exit(&c->mutex);
+        check_and_destroy_mock_connstruct(c, cookie);
+        if (error.code() == cb::engine_errc::would_block) {
+            throw std::logic_error("mock_allocate_ex: allocate_ex should not block!");
+        }
+        throw error;
+    }
+    throw std::logic_error("mock_allocate_ex: Should never get here");
+}
+
 static ENGINE_ERROR_CODE mock_remove(ENGINE_HANDLE* handle,
                                      const void* cookie,
                                      const DocKey& key,
@@ -803,6 +838,7 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
         mock_engine->me.initialize = mock_initialize;
         mock_engine->me.destroy = mock_destroy;
         mock_engine->me.allocate = mock_allocate;
+        mock_engine->me.allocate_ex = mock_allocate_ex;
         mock_engine->me.remove = mock_remove;
         mock_engine->me.release = mock_release;
         mock_engine->me.get = mock_get;
