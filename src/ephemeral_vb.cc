@@ -70,8 +70,8 @@ void EphemeralVBucket::completeStatsVKey(
             std::string(reinterpret_cast<const char*>(key.data()), key.size()));
 }
 
-bool EphemeralVBucket::htUnlockedEjectItem(const HashTable::HashBucketLock& lh,
-                                           StoredValue*& v) {
+bool EphemeralVBucket::pageOut(const HashTable::HashBucketLock& lh,
+                               StoredValue*& v) {
     // We only delete from active vBuckets to ensure that replicas stay in
     // sync with the active (the delete from active is sent via DCP to the
     // the replicas as an explicit delete).

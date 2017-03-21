@@ -94,8 +94,7 @@ public:
     protocol_binary_response_status evictKey(const DocKey& key,
                                              const char** msg) override;
 
-    bool htUnlockedEjectItem(const HashTable::HashBucketLock& lh,
-                             StoredValue*& v) override;
+    bool pageOut(const HashTable::HashBucketLock& lh, StoredValue*& v) override;
 
     void addStats(bool details, ADD_STAT add_stat, const void* c) override;
 

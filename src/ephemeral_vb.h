@@ -87,8 +87,7 @@ public:
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
-    bool htUnlockedEjectItem(const HashTable::HashBucketLock& lh,
-                             StoredValue*& v) override;
+    bool pageOut(const HashTable::HashBucketLock& lh, StoredValue*& v) override;
 
     void addStats(bool details, ADD_STAT add_stat, const void* c) override;
 

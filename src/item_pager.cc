@@ -225,7 +225,7 @@ private:
         item_eviction_policy_t policy = store.getItemEvictionPolicy();
         StoredDocKey key(v->getKey());
 
-        if (currentBucket->htUnlockedEjectItem(lh, v)) {
+        if (currentBucket->pageOut(lh, v)) {
             ++ejected;
 
             /**
