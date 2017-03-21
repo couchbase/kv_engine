@@ -19,43 +19,48 @@
  * Unit test for stats
  */
 
-#include "evp_store_single_threaded_test.h"
+#include "stats_test.h"
+
 #include <gmock/gmock.h>
 
-static std::map<std::string, std::string> vals;
-
-static void add_stats(const char *key, const uint16_t klen,
-                      const char *val, const uint32_t vlen,
-                      const void *cookie) {
-    (void)cookie;
-    std::string k(key, klen);
-    std::string v(val, vlen);
-    vals[k] = v;
+void StatTest::SetUp() {
+    SingleThreadedEPBucketTest::SetUp();
+    store->setVBucketState(vbid, vbucket_state_active, false);
 }
 
-class StatTest : public SingleThreadedEPBucketTest {
-protected:
+std::map<std::string, std::string> StatTest::get_stat(const char* statkey) {
+    // Define a lambda to use as the ADD_STAT callback. Note we cannot use
+    // a capture for the statistics map (as it's a C-style callback), so
+    // instead pass via the cookie.
+    using StatMap = std::map<std::string, std::string>;
+    StatMap stats;
+    auto add_stats = [](const char* key,
+                        const uint16_t klen,
+                        const char* val,
+                        const uint32_t vlen,
+                        const void* cookie) {
+        auto* stats = reinterpret_cast<StatMap*>(const_cast<void*>(cookie));
+        std::string k(key, klen);
+        std::string v(val, vlen);
+        (*stats)[k] = v;
+    };
 
-    void SetUp() {
-        SingleThreadedEPBucketTest::SetUp();
-        store->setVBucketState(vbid, vbucket_state_active, false);
-    }
-
-    void get_stat(const char *statname, const char *statkey = NULL) {
-        vals.clear();
-        ENGINE_HANDLE *handle = reinterpret_cast<ENGINE_HANDLE*>(engine.get());
-        EXPECT_EQ(ENGINE_SUCCESS, engine->get_stats(handle, NULL, statkey,
-                                                       statkey == NULL ? 0 :
-                                                               strlen(statkey),
-                                                               add_stats))
+    ENGINE_HANDLE* handle = reinterpret_cast<ENGINE_HANDLE*>(engine.get());
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->get_stats(handle,
+                                &stats,
+                                statkey,
+                                statkey == NULL ? 0 : strlen(statkey),
+                                add_stats))
         << "Failed to get stats.";
-    }
-};
+
+    return stats;
+}
 
 TEST_F(StatTest, vbucket_seqno_stats_test) {
     using namespace testing;
     const std::string vbucket = "vb_" + std::to_string(vbid);
-    get_stat(nullptr, "vbucket-seqno");
+    auto vals = get_stat("vbucket-seqno");
 
     EXPECT_THAT(vals, UnorderedElementsAre(
             Key(vbucket + ":uuid"),
