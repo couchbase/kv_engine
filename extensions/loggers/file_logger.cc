@@ -717,6 +717,18 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
         }
     }
 
+    if (getenv("CB_MINIMIZE_LOGGER_SLEEPTIME") != nullptr) {
+        sleeptime = 1;
+    }
+
+    if (getenv("CB_MAXIMIZE_LOGGER_CYCLE_SIZE") != nullptr) {
+        cyclesz = 1024 * 1024 * 1024; // use up to 1 GB log size
+    }
+
+    if (getenv("CB_MAXIMIZE_LOGGER_BUFFER_SIZE") != nullptr) {
+        buffersz = 8 * 1024 * 1024; // use two 8MB log buffers
+    }
+
     if (fname == NULL) {
         fname = cb_strdup("memcached");
     }
