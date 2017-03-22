@@ -74,7 +74,8 @@ Connection::Connection(SOCKET sfd, event_base* b)
       clustermap_revno(-2),
       trace_enabled(false),
       xattr_support(false),
-      xerror_support(false) {
+      xerror_support(false),
+      collections_support(false) {
     MEMCACHED_CONN_CREATE(this);
     bucketIndex.store(0);
     updateDescription();
