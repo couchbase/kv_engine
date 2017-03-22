@@ -197,7 +197,8 @@ Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
         return nullptr;
     }
 
-    LOG_INFO(nullptr, "%u: Using protocol: %s", c->getId(),
+    LOG_INFO(nullptr, "%u: Accepted new client %s using protocol: %s",
+             c->getId(), c->getDescription().c_str(),
              to_string(c->getProtocol()));
 
     stats.total_conns++;
