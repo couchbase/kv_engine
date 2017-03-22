@@ -283,6 +283,9 @@ public:
      */
     void snapshotStats(void);
 
+    virtual void getAggregatedVBucketStats(const void* cookie,
+                                           ADD_STAT add_stat);
+
    /**
      * Complete a background fetch of a non resident value or metadata.
      *

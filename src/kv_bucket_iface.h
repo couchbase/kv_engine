@@ -390,6 +390,13 @@ public:
     virtual void snapshotStats(void) = 0;
 
     /**
+     * Get summarized vBucket stats for this bucket - total for all
+     * active,replica buckets.
+     */
+    virtual void getAggregatedVBucketStats(const void* cookie,
+                                           ADD_STAT add_stat) = 0;
+
+    /**
      * Get file statistics
      *
      * @param cookie Cookie associated with ADD_STAT

@@ -50,6 +50,7 @@
 #include "warmup.h"
 #include "connmap.h"
 #include "replicationthrottle.h"
+#include "statwriter.h"
 #include "tapconnmap.h"
 #include "vbucketmemorydeletiontask.h"
 
@@ -1132,6 +1133,178 @@ void KVBucket::snapshotStats() {
         snap.smap["ep_shutdown_time"] = ss.str();
     }
     getOneRWUnderlying()->snapshotStats(snap.smap);
+}
+
+void KVBucket::getAggregatedVBucketStats(const void* cookie,
+                                         ADD_STAT add_stat) {
+    // Create visitors for each of the four vBucket states, and collect
+    // stats for each.
+    VBucketCountVisitor active(vbucket_state_active);
+    VBucketCountVisitor replica(vbucket_state_replica);
+    VBucketCountVisitor pending(vbucket_state_pending);
+    VBucketCountVisitor dead(vbucket_state_dead);
+
+    VBucketCountAggregator aggregator;
+    aggregator.addVisitor(&replica);
+    aggregator.addVisitor(&active);
+    aggregator.addVisitor(&pending);
+    aggregator.addVisitor(&dead);
+    visit(aggregator);
+
+    updateCachedResidentRatio(active.getMemResidentPer(),
+                              replica.getMemResidentPer());
+    engine.getReplicationThrottle().adjustWriteQueueCap(active.getNumItems() +
+                                                        replica.getNumItems() +
+                                                        pending.getNumItems());
+
+    // Simplify the repetition of calling add_casted_stat with `add_stat` and
+    // cookie each time. (Note: if we had C++14 we could use a polymorphic
+    // lambda, but for now will have to stick to C++98 and macros :).
+#define DO_STAT(k, v) do { add_casted_stat(k, v, add_stat, cookie); } while (0)
+
+    // Top-level stats:
+    DO_STAT("ep_flush_all", isDeleteAllScheduled());
+    DO_STAT("curr_items", active.getNumItems());
+    DO_STAT("curr_temp_items", active.getNumTempItems());
+    DO_STAT("curr_items_tot",
+            active.getNumItems() + replica.getNumItems() +
+                    pending.getNumItems());
+
+    // Active vBuckets:
+    DO_STAT("vb_active_num", active.getVBucketNumber());
+    DO_STAT("vb_active_curr_items", active.getNumItems());
+    DO_STAT("vb_active_num_non_resident", active.getNonResident());
+    DO_STAT("vb_active_perc_mem_resident", active.getMemResidentPer());
+    DO_STAT("vb_active_eject", active.getEjects());
+    DO_STAT("vb_active_expired", active.getExpired());
+    DO_STAT("vb_active_meta_data_memory", active.getMetaDataMemory());
+    DO_STAT("vb_active_meta_data_disk", active.getMetaDataDisk());
+    DO_STAT("vb_active_ht_memory", active.getHashtableMemory());
+    DO_STAT("vb_active_itm_memory", active.getItemMemory());
+    DO_STAT("vb_active_ops_create", active.getOpsCreate());
+    DO_STAT("vb_active_ops_update", active.getOpsUpdate());
+    DO_STAT("vb_active_ops_delete", active.getOpsDelete());
+    DO_STAT("vb_active_ops_reject", active.getOpsReject());
+    DO_STAT("vb_active_queue_size", active.getQueueSize());
+    DO_STAT("vb_active_queue_memory", active.getQueueMemory());
+    DO_STAT("vb_active_queue_age", active.getAge());
+    DO_STAT("vb_active_queue_pending", active.getPendingWrites());
+    DO_STAT("vb_active_queue_fill", active.getQueueFill());
+    DO_STAT("vb_active_queue_drain", active.getQueueDrain());
+    DO_STAT("vb_active_rollback_item_count", active.getRollbackItemCount());
+
+    // Replica vBuckets:
+    DO_STAT("vb_replica_num", replica.getVBucketNumber());
+    DO_STAT("vb_replica_curr_items", replica.getNumItems());
+    DO_STAT("vb_replica_num_non_resident", replica.getNonResident());
+    DO_STAT("vb_replica_perc_mem_resident", replica.getMemResidentPer());
+    DO_STAT("vb_replica_eject", replica.getEjects());
+    DO_STAT("vb_replica_expired", replica.getExpired());
+    DO_STAT("vb_replica_meta_data_memory", replica.getMetaDataMemory());
+    DO_STAT("vb_replica_meta_data_disk", replica.getMetaDataDisk());
+    DO_STAT("vb_replica_ht_memory", replica.getHashtableMemory());
+    DO_STAT("vb_replica_itm_memory", replica.getItemMemory());
+    DO_STAT("vb_replica_ops_create", replica.getOpsCreate());
+    DO_STAT("vb_replica_ops_update", replica.getOpsUpdate());
+    DO_STAT("vb_replica_ops_delete", replica.getOpsDelete());
+    DO_STAT("vb_replica_ops_reject", replica.getOpsReject());
+    DO_STAT("vb_replica_queue_size", replica.getQueueSize());
+    DO_STAT("vb_replica_queue_memory", replica.getQueueMemory());
+    DO_STAT("vb_replica_queue_age", replica.getAge());
+    DO_STAT("vb_replica_queue_pending", replica.getPendingWrites());
+    DO_STAT("vb_replica_queue_fill", replica.getQueueFill());
+    DO_STAT("vb_replica_queue_drain", replica.getQueueDrain());
+    DO_STAT("vb_replica_rollback_item_count", replica.getRollbackItemCount());
+
+    // Pending vBuckets:
+    DO_STAT("vb_pending_num", pending.getVBucketNumber());
+    DO_STAT("vb_pending_curr_items", pending.getNumItems());
+    DO_STAT("vb_pending_num_non_resident", pending.getNonResident());
+    DO_STAT("vb_pending_perc_mem_resident", pending.getMemResidentPer());
+    DO_STAT("vb_pending_eject", pending.getEjects());
+    DO_STAT("vb_pending_expired", pending.getExpired());
+    DO_STAT("vb_pending_meta_data_memory", pending.getMetaDataMemory());
+    DO_STAT("vb_pending_meta_data_disk", pending.getMetaDataDisk());
+    DO_STAT("vb_pending_ht_memory", pending.getHashtableMemory());
+    DO_STAT("vb_pending_itm_memory", pending.getItemMemory());
+    DO_STAT("vb_pending_ops_create", pending.getOpsCreate());
+    DO_STAT("vb_pending_ops_update", pending.getOpsUpdate());
+    DO_STAT("vb_pending_ops_delete", pending.getOpsDelete());
+    DO_STAT("vb_pending_ops_reject", pending.getOpsReject());
+    DO_STAT("vb_pending_queue_size", pending.getQueueSize());
+    DO_STAT("vb_pending_queue_memory", pending.getQueueMemory());
+    DO_STAT("vb_pending_queue_age", pending.getAge());
+    DO_STAT("vb_pending_queue_pending", pending.getPendingWrites());
+    DO_STAT("vb_pending_queue_fill", pending.getQueueFill());
+    DO_STAT("vb_pending_queue_drain", pending.getQueueDrain());
+    DO_STAT("vb_pending_rollback_item_count", pending.getRollbackItemCount());
+
+    // Dead vBuckets:
+    DO_STAT("vb_dead_num", dead.getVBucketNumber());
+
+    // Totals:
+    DO_STAT("ep_vb_total",
+            active.getVBucketNumber() + replica.getVBucketNumber() +
+                    pending.getVBucketNumber() + dead.getVBucketNumber());
+    DO_STAT("ep_total_new_items",
+            active.getOpsCreate() + replica.getOpsCreate() +
+                    pending.getOpsCreate());
+    DO_STAT("ep_total_del_items",
+            active.getOpsDelete() + replica.getOpsDelete() +
+                    pending.getOpsDelete());
+    DO_STAT("ep_diskqueue_memory",
+            active.getQueueMemory() + replica.getQueueMemory() +
+                    pending.getQueueMemory());
+    DO_STAT("ep_diskqueue_fill",
+            active.getQueueFill() + replica.getQueueFill() +
+                    pending.getQueueFill());
+    DO_STAT("ep_diskqueue_drain",
+            active.getQueueDrain() + replica.getQueueDrain() +
+                    pending.getQueueDrain());
+    DO_STAT("ep_diskqueue_pending",
+            active.getPendingWrites() + replica.getPendingWrites() +
+                    pending.getPendingWrites());
+    DO_STAT("ep_meta_data_memory",
+            active.getMetaDataMemory() + replica.getMetaDataMemory() +
+                    pending.getMetaDataMemory());
+    DO_STAT("ep_meta_data_disk",
+            active.getMetaDataDisk() + replica.getMetaDataDisk() +
+                    pending.getMetaDataDisk());
+    DO_STAT("ep_total_cache_size",
+            active.getCacheSize() + replica.getCacheSize() +
+                    pending.getCacheSize());
+    DO_STAT("rollback_item_count",
+            active.getRollbackItemCount() + replica.getRollbackItemCount() +
+                    pending.getRollbackItemCount());
+    DO_STAT("ep_num_non_resident",
+            active.getNonResident() + pending.getNonResident() +
+                    replica.getNonResident());
+    DO_STAT("ep_chk_persistence_remains",
+            active.getChkPersistRemaining() + pending.getChkPersistRemaining() +
+                    replica.getChkPersistRemaining());
+
+    // Add stats for tracking HLC drift
+    DO_STAT("ep_active_hlc_drift", active.getTotalAbsHLCDrift().total);
+    DO_STAT("ep_active_hlc_drift_count", active.getTotalAbsHLCDrift().updates);
+    DO_STAT("ep_replica_hlc_drift", replica.getTotalAbsHLCDrift().total);
+    DO_STAT("ep_replica_hlc_drift_count",
+            replica.getTotalAbsHLCDrift().updates);
+
+    DO_STAT("ep_active_ahead_exceptions",
+            active.getTotalHLCDriftExceptionCounters().ahead);
+    DO_STAT("ep_active_behind_exceptions",
+            active.getTotalHLCDriftExceptionCounters().behind);
+    DO_STAT("ep_replica_ahead_exceptions",
+            replica.getTotalHLCDriftExceptionCounters().ahead);
+    DO_STAT("ep_replica_behind_exceptions",
+            replica.getTotalHLCDriftExceptionCounters().behind);
+
+    // A single total for ahead exceptions accross all active/replicas
+    DO_STAT("ep_clock_cas_drift_threshold_exceeded",
+            active.getTotalHLCDriftExceptionCounters().ahead +
+                    replica.getTotalHLCDriftExceptionCounters().ahead);
+
+#undef DO_STAT
 }
 
 void KVBucket::completeBGFetch(const DocKey& key,
