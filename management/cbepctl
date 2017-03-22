@@ -4,46 +4,13 @@ import time
 import sys
 
 import clitool
+import cli_auth_utils
 import exceptions
 import mc_bin_client
 import memcacheConstants
 import sys
 
-def cmd(f):
-    """Decorate a function with code to authenticate based on 1-3
-    additional arguments."""
-
-    def g(*args, **kwargs):
-        mc = args[0]
-        n = f.func_code.co_argcount
-
-        bucket = kwargs.get('bucketName', None) or 'default'
-        username = kwargs.get('username', None) or bucket
-        password = kwargs.get('password', None) or ''
-
-        if username:
-            try:
-                mc.sasl_auth_plain(username, password)
-            except mc_bin_client.MemcachedError:
-                print ("Authentication error for user:{} bucket:{}"
-                       .format(username, bucket))
-                sys.exit(1)
-
-        if kwargs.get('allBuckets', None):
-            buckets = mc.stats('bucket')
-            for bucket in buckets.iterkeys():
-                print '*' * 78
-                print bucket
-                print
-                mc.bucket_select(bucket)
-                f(*args[:n])
-        elif bucket is not None:
-            mc.bucket_select(bucket)
-            f(*args[:n])
-        else:
-            f(*args[:n])
-
-    return g
+cmd = cli_auth_utils.cmd_decorator
 
 @cmd
 def set_param(mc, type, key, val):
@@ -278,13 +245,12 @@ Available params for "set_vbucket_param":
 
     """)
 
+    c = cli_auth_utils.get_authed_clitool()
+
     c.addCommand('drain', drain, "drain")
     c.addCommand('set', set_param, 'set type param value')
     c.addCommand('set_vbucket_param', set_vbucket_param, 'type vbucket value')
     c.addCommand('start', start, 'start')
     c.addCommand('stop', stop, 'stop')
-    c.addFlag('-a', 'allBuckets', 'iterate over all buckets (requires admin u/p)')
-    c.addOption('-b', 'bucketName', 'the bucket to get stats from (Default: default)')
-    c.addOption('-u', 'username', 'the user as which to authenticate (Default: bucketName)')
-    c.addOption('-p', 'password', 'the password for the bucket if one exists')
+
     c.execute()

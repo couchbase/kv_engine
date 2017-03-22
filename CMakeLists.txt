@@ -472,6 +472,7 @@ INSTALL(PROGRAMS
 
 INSTALL(FILES
         management/clitool.py
+        management/cli_auth_utils.py
         management/mc_bin_client.py
         management/mc_bin_server.py
         management/memcacheConstants.py
