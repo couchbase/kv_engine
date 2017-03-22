@@ -19,6 +19,7 @@
  * Tests for Collection functionality in EPStore.
  */
 #include "bgfetcher.h"
+#include "dcp/dcpconnmap.h"
 #include "kvstore.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/mock/mock_global_task.h"
@@ -454,11 +455,41 @@ TEST_F(CollectionsTest, checkpoint_consistency) {
     }
 }
 
+class CollectionsWarmupTest : public CollectionsTest {
+public:
+    void SetUp() override {
+        CollectionsTest::SetUp();
+
+        // Create a second engine which we will warmup in the test.
+        // Note we now create an EventuallyPersistentEngine as this engine will
+        // manage the warmup tasks itself.
+        ENGINE_HANDLE* h;
+        EXPECT_EQ(ENGINE_SUCCESS, create_instance(1, get_mock_server_api, &h))
+                << "Failed to create ep engine instance";
+        EXPECT_EQ(1, h->interface) << "Unexpected engine handle version";
+
+        epEngine.reset(reinterpret_cast<EventuallyPersistentEngine*>(h));
+    }
+
+    void TearDown() override {
+        epEngine->destroy(true);
+        destroy_mock_cookie(cookie);
+        destroy_mock_event_callbacks();
+        engine->getDcpConnMap().manageConnections();
+        ObjectRegistry::onSwitchThread(nullptr);
+        engine.reset();
+        epEngine.reset();
+        destroy_engine();
+    }
+
+    std::unique_ptr<EventuallyPersistentEngine> epEngine;
+};
+
 //
 // Create a collection then create a second engine which will warmup from the
 // persisted collection state and should have the collection accessible.
 //
-TEST_F(CollectionsTest, warmup) {
+TEST_F(CollectionsWarmupTest, warmup) {
     RCPtr<VBucket> vb = store->getVBucket(vbid);
 
     // Add the meat collection
@@ -479,31 +510,19 @@ TEST_F(CollectionsTest, warmup) {
 
     flush_vbucket_to_disk(vbid, 1);
 
-    // Create a second engine and warmup - should come up with the collection
-    // enabled as it loads the manifest from disk
+    ObjectRegistry::onSwitchThread(epEngine.get());
 
-    // Note we now create an EventuallyPersistentEngine as we need warmup to
-    // complete. This engine will manage the warmup tasks itself.
-    ENGINE_HANDLE* h;
-    EXPECT_EQ(ENGINE_SUCCESS, create_instance(1, get_mock_server_api, &h))
-            << "Failed to create ep engine instance";
-    EXPECT_EQ(1, h->interface) << "Unexpected engine handle version";
-
-    std::unique_ptr<EventuallyPersistentEngine> engine2(
-            reinterpret_cast<EventuallyPersistentEngine*>(h));
-    ObjectRegistry::onSwitchThread(engine2.get());
-
-    // Add dbname to config string.
+    // Add dbname to config string and then initialise which will warmup
     std::string config = config_string;
     if (config.size() > 0) {
         config += ";";
     }
-    config += "dbname=" + std::string(test_dbname);
-    EXPECT_EQ(ENGINE_SUCCESS, engine2->initialize(config.c_str()))
-            << "Failed to initialize engine2.";
+    config += "couch_bucket=warmup_bucket;dbname=" + std::string(test_dbname);
+    EXPECT_EQ(ENGINE_SUCCESS, epEngine->initialize(config.c_str()))
+            << "Failed to initialize epEngine.";
 
     // Wait for warmup to complete.
-    while (engine2->getKVBucket()->isWarmingUp()) {
+    while (epEngine->getKVBucket()->isWarmingUp()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
@@ -516,7 +535,7 @@ TEST_F(CollectionsTest, warmup) {
         item.setVBucketId(vbid);
         uint64_t cas;
         EXPECT_EQ(ENGINE_SUCCESS,
-                  engine2->store(nullptr, &item, &cas, OPERATION_SET));
+                  epEngine->store(nullptr, &item, &cas, OPERATION_SET));
     }
     {
         Item item({"dairy-+-milk", DocNamespace::Collections},
@@ -527,14 +546,6 @@ TEST_F(CollectionsTest, warmup) {
         item.setVBucketId(vbid);
         uint64_t cas;
         EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
-                  engine2->store(nullptr, &item, &cas, OPERATION_SET));
+                  epEngine->store(nullptr, &item, &cas, OPERATION_SET));
     }
-
-    // Because we manually created a new engine we must manually bring it down
-    engine2->destroy(true);
-
-    // Force the callbacks whilst engine2 is still valid
-    destroy_mock_event_callbacks();
-
-    ObjectRegistry::onSwitchThread(nullptr);
 }
