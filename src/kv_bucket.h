@@ -29,6 +29,8 @@
 
 #include <deque>
 
+class VBucketCountVisitor;
+
 /**
  * VBucket visitor callback adaptor.
  */

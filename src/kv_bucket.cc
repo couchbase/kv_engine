@@ -53,6 +53,7 @@
 #include "statwriter.h"
 #include "tapconnmap.h"
 #include "vbucketmemorydeletiontask.h"
+#include "vb_count_visitor.h"
 
 class StatsValueChangeListener : public ValueChangedListener {
 public:

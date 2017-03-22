@@ -196,6 +196,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/tapconnmap.cc
             src/tasks.cc
             src/taskqueue.cc
+            src/vb_count_visitor.cc
             src/vbucket.cc
             src/vbucketmap.cc
             src/vbucketmemorydeletiontask.cc

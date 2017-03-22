@@ -41,6 +41,7 @@
 #undef STATWRITER_NAMESPACE
 #include "string_utils.h"
 #include "tapconnmap.h"
+#include "vb_count_visitor.h"
 #include "warmup.h"
 
 #include <JSON_checker.h>
@@ -2948,6 +2949,30 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::processTapAck(const void *cookie,
     return connection->processAck(seqno, status, key);
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::memoryCondition() {
+    // Do we think it's possible we could free something?
+    bool haveEvidenceWeCanFreeMemory =
+        (stats.getMaxDataSize() > stats.memOverhead->load());
+    if (haveEvidenceWeCanFreeMemory) {
+        // Look for more evidence by seeing if we have resident items.
+        VBucketCountVisitor countVisitor(vbucket_state_active);
+        kvBucket->visit(countVisitor);
+
+        haveEvidenceWeCanFreeMemory = countVisitor.getNonResident() <
+            countVisitor.getNumItems();
+    }
+    if (haveEvidenceWeCanFreeMemory) {
+        ++stats.tmp_oom_errors;
+        // Wake up the item pager task as memory usage
+        // seems to have exceeded high water mark
+        getKVBucket()->wakeUpItemPager();
+        return ENGINE_TMPFAIL;
+    } else {
+        ++stats.oom_errors;
+        return ENGINE_ENOMEM;
+    }
+}
+
 void EventuallyPersistentEngine::queueBackfill(const VBucketFilter
                                                              &backfillVBFilter,
                                                Producer *tc)
@@ -2959,53 +2984,6 @@ void EventuallyPersistentEngine::queueBackfill(const VBucketFilter
                          NONIO_TASK_IDX,
                          TaskId::BackfillVisitorTask,
                          1);
-}
-
-void VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
-    ++numVbucket;
-    numItems += vb->getNumItems();
-    numTempItems += vb->getNumTempItems();
-    nonResident += vb->getNumNonResidentItems();
-
-    if (vb->getHighPriorityChkSize() > 0) {
-        chkPersistRemaining++;
-    }
-
-    if (desired_state != vbucket_state_dead) {
-        htMemory += vb->ht.memorySize();
-        htItemMemory += vb->ht.getItemMemory();
-        htCacheSize += vb->ht.cacheSize;
-        numEjects += vb->ht.getNumEjects();
-        numExpiredItems += vb->numExpiredItems;
-        metaDataMemory += vb->ht.metaDataMemory;
-        metaDataDisk += vb->metaDataDisk;
-        opsCreate += vb->opsCreate;
-        opsUpdate += vb->opsUpdate;
-        opsDelete += vb->opsDelete;
-        opsReject += vb->opsReject;
-
-        queueSize += vb->dirtyQueueSize;
-        queueMemory += vb->dirtyQueueMem;
-        queueFill += vb->dirtyQueueFill;
-        queueDrain += vb->dirtyQueueDrain;
-        queueAge += vb->getQueueAge();
-        pendingWrites += vb->dirtyQueuePendingWrites;
-        rollbackItemCount += vb->getRollbackItemCount();
-
-        /*
-         * The bucket stat reports the total drift of the vbuckets.
-         */
-        auto absHLCDrift = vb->getHLCDriftStats();
-        totalAbsHLCDrift.total += absHLCDrift.total;
-        totalAbsHLCDrift.updates += absHLCDrift.updates;
-
-        /*
-         * Total up the exceptions
-         */
-        auto driftExceptionCounters = vb->getHLCDriftExceptionCounters();
-        totalHLCDriftExceptionCounters.ahead += driftExceptionCounters.ahead;
-        totalHLCDriftExceptionCounters.behind += driftExceptionCounters.behind;
-    }
 }
 
 void VBucketCountAggregator::visitBucket(RCPtr<VBucket> &vb) {
