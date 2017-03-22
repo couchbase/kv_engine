@@ -179,10 +179,8 @@ void renderToText(const std::string& name,
                   const std::vector<Stats<T> >& value_stats,
                   const std::string& unit) {
 
-    int printed = 0;
-
-    printf("%s %n", description.c_str(), &printed);
-    fillLineWith('=', 88-printed);
+    printf("%s", description.c_str());
+    fillLineWith('=', 88 - description.length());
 
     // From these find the start and end for the spark graphs which covers the
     // a "reasonable sample" of each value set. We define that as from the 5th
