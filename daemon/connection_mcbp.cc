@@ -1435,14 +1435,10 @@ void McbpConnection::logResponse(ENGINE_ERROR_CODE code) const {
 std::string McbpConnection::getPrintableKey() const {
     const auto key = getKey();
 
-    std::string buffer;
-    buffer.reserve(key.size());
-
-    for (size_t ii = 0; ii < key.len; ++ii) {
-        if (std::isgraph(key.buf[ii])) {
-            buffer[ii] = key.buf[ii];
-        } else {
-            buffer[ii] = '.';
+    std::string buffer{key.data(), key.size()};
+    for (auto& ii : buffer) {
+        if (!std::isgraph(ii)) {
+            ii = '.';
         }
     }
 
