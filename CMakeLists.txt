@@ -177,6 +177,7 @@ ENDIF (WIN32)
 # the unit tests so let's just stash them in a variable
 LIST(APPEND CBSASL_SOURCES
      ${Memcached_SOURCE_DIR}/include/cbsasl/cbsasl.h
+     ${Memcached_SOURCE_DIR}/include/cbsasl/saslauthd_config.h
      ${Memcached_SOURCE_DIR}/include/cbsasl/visibility.h
      ${Memcached_SOURCE_DIR}/cbsasl/cbsasl_internal.h
      ${Memcached_SOURCE_DIR}/cbsasl/client.cc
@@ -194,6 +195,7 @@ LIST(APPEND CBSASL_SOURCES
      ${Memcached_SOURCE_DIR}/cbsasl/pwconv.h
      ${Memcached_SOURCE_DIR}/cbsasl/pwfile.cc
      ${Memcached_SOURCE_DIR}/cbsasl/pwfile.h
+     ${Memcached_SOURCE_DIR}/cbsasl/saslauthd_config.cc
      ${Memcached_SOURCE_DIR}/cbsasl/scram-sha/scram-sha.cc
      ${Memcached_SOURCE_DIR}/cbsasl/scram-sha/scram-sha.h
      ${Memcached_SOURCE_DIR}/cbsasl/scram-sha/stringutils.cc

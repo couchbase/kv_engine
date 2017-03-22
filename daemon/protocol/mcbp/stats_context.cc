@@ -430,6 +430,10 @@ static void process_stat_settings(ADD_STAT add_stat_callback,
             settings.isXattrEnabled());
     add_stat(cookie, add_stat_callback, "privilege_debug",
              settings.isPrivilegeDebug());
+
+    add_stat(cookie, add_stat_callback, "saslauthd_socketpath",
+             cb::sasl::saslauthd::get_socketpath().c_str());
+
 }
 
 static void append_bin_stats(const char* key, const uint16_t klen,

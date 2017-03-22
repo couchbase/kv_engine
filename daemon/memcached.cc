@@ -475,6 +475,10 @@ static void verbosity_changed_listener(const std::string&, Settings &s) {
     perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
 }
 
+static void saslauthd_socketpath_changed_listener(const std::string&, Settings &s) {
+    cb::sasl::saslauthd::set_socketpath(s.getSaslauthdSocketpath());
+}
+
 static void interfaces_changed_listener(const std::string&, Settings &s) {
     for (const auto& ifc : s.getInterfaces()) {
         auto* port = get_listening_port_instance(ifc.port);
@@ -536,7 +540,8 @@ static void settings_init(void) {
                                ssl_cipher_list_changed_listener);
     settings.addChangeListener("verbosity", verbosity_changed_listener);
     settings.addChangeListener("interfaces", interfaces_changed_listener);
-
+    settings.addChangeListener("saslauthd_socketpath",
+                               saslauthd_socketpath_changed_listener);
     struct interface default_interface;
     settings.addInterface(default_interface);
 
@@ -634,6 +639,16 @@ static void update_settings_from_config(void)
         }
     }
     settings.loadErrorMaps(settings.getErrorMapsDir());
+
+    // If the user didn't set a socket path, use the default
+    if (settings.getSaslauthdSocketpath().empty()) {
+        const char* path = getenv("CBAUTH_SOCKPATH");
+        if (path == nullptr) {
+            path = "/var/run/saslauthd/mux";
+        }
+
+        settings.setSaslauthdSocketpath(path);
+    }
 }
 
 struct {

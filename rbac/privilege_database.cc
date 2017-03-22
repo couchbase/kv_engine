@@ -159,7 +159,7 @@ std::pair<PrivilegeContext, bool> PrivilegeDatabase::createInitialContext(
         const std::string& user, cb::sasl::Domain domain) {
     const auto& ue = lookup(user);
     if (ue.getDomain() != domain) {
-        throw NoSuchBucketException(user.c_str());
+        throw NoSuchUserException(user.c_str());
     }
     return {PrivilegeContext(generation, ue.getPrivileges()), ue.isInternal()};
 }

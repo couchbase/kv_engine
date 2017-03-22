@@ -474,7 +474,7 @@ cbsasl_error_t ScramShaServerBackend::step(cbsasl_conn_t* conn,
 
     std::stringstream out;
 
-    if (user.isDummy() && cbsasl_use_saslauthd()) {
+    if (user.isDummy() && cb::sasl::saslauthd::is_configured()) {
         addAttribute(out, 'e', "scram-not-supported-for-ldap-users", false);
     } else {
         auto serverSignature = getServerSignature();

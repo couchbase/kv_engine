@@ -18,6 +18,8 @@
 #define CBSASL_CBSASL_H 1
 
 #include <cbsasl/visibility.h>
+#include <cbsasl/saslauthd_config.h>
+
 
 #ifdef __cplusplus
 extern "C" {

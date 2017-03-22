@@ -398,7 +398,7 @@
     "type": "builtin"
   },
   "superman": {
-    "type": "builtin"
+    "type": "saslauthd"
   },
   "legacy;legacy": {
     "buckets": {

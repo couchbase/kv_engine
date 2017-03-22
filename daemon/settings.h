@@ -25,6 +25,7 @@
 #include <deque>
 #include <map>
 #include <memcached/engine.h>
+#include <mutex>
 #include <platform/dynamic.h>
 #include <relaxed_atomic.h>
 #include <string>
@@ -649,6 +650,26 @@ public:
     }
 
     /**
+     * Get the configured socket path for Saslauthd
+     */
+    std::string getSaslauthdSocketpath() const {
+        std::lock_guard<std::mutex> guard(saslauthd_socketpath.mutex);
+        return saslauthd_socketpath.path;
+    }
+
+    /**
+     * Set the socket path for Saslauthd
+     */
+    void setSaslauthdSocketpath(const std::string& path) {
+        {
+            std::lock_guard<std::mutex> guard(saslauthd_socketpath.mutex);
+            saslauthd_socketpath.path.assign(path);
+            has.saslauthd_socketpath = true;
+        }
+        notify_changed("saslauthd_socketpath");
+    }
+
+    /**
      * Get the list of SSL ciphers to use
      *
      * @return the list of available SSL ciphers to use
@@ -1063,6 +1084,14 @@ protected:
     std::string ssl_sasl_mechanisms;
 
     /**
+     * The socket path where saslauthd may connect to
+     */
+    struct {
+        mutable std::mutex mutex;
+        std::string path;
+    } saslauthd_socketpath;
+
+    /**
      * Should we deduplicate the cluster maps from the Not My VBucket messages
      */
     std::atomic_bool dedupe_nmvb_maps;
@@ -1092,6 +1121,7 @@ public:
         bool extensions;
         bool audit;
         bool require_sasl;
+        bool saslauthd_socketpath;
         bool reqs_per_event_high_priority;
         bool reqs_per_event_med_priority;
         bool reqs_per_event_low_priority;

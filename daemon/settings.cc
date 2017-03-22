@@ -446,6 +446,26 @@ static void handle_exit_on_connection_close(Settings& s, cJSON* obj) {
 }
 
 /**
+ * Handle the "saslauthd_socketpath" tag in the settings
+ *
+ * The value must be a string
+ *
+ * @param s the settings object to update
+ * @param obj the object in the configuration
+ */
+static void handle_saslauthd_socketpath(Settings& s, cJSON* obj) {
+    if (obj->type != cJSON_String) {
+        throw std::invalid_argument("\"saslauthd_socketpath\" must be a string");
+    }
+
+    // We allow non-existing files, because we want to be
+    // able to have it start to work if the user end up installing the
+    // package after the configuration is set (and it'll just start to
+    // work).
+    s.setSaslauthdSocketpath(obj->valuestring);
+}
+
+/**
  * Handle the "sasl_mechanisms" tag in the settings
  *
  * The value must be a string
@@ -635,6 +655,7 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
             {"max_packet_size", handle_max_packet_size},
             {"stdin_listen", handle_stdin_listen},
             {"exit_on_connection_close", handle_exit_on_connection_close},
+            {"saslauthd_socketpath", handle_saslauthd_socketpath},
             {"sasl_mechanisms", handle_sasl_mechanisms},
             {"ssl_sasl_mechanisms", handle_ssl_sasl_mechanisms},
             {"dedupe_nmvb_maps", handle_dedupe_nmvb_maps},
@@ -1200,6 +1221,18 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             logit(EXTENSION_LOG_NOTICE, "%s privilege debug",
                   value ? "Enable" : "Disable");
             setPrivilegeDebug(value);
+        }
+    }
+
+    if (other.has.saslauthd_socketpath) {
+        // @todo fixme
+        auto path = other.getSaslauthdSocketpath();
+        if (path != saslauthd_socketpath.path) {
+            logit(EXTENSION_LOG_NOTICE,
+                  "Change saslauthd socket path from \"%s\" to \"%s\"",
+                  saslauthd_socketpath.path.c_str(),
+                  path.c_str());
+            setSaslauthdSocketpath(path);
         }
     }
 }

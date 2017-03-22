@@ -18,6 +18,7 @@
 #include "cbsasl/pwfile.h"
 #include "check_password.h"
 
+#include <platform/dirutils.h>
 #include <cstring>
 
 #ifdef WIN32
@@ -25,22 +26,29 @@
 static cbsasl_error_t check(cbsasl_conn_t* conn,
                             const std::string& username,
                             const std::string &passwd) {
-    throw std::runtime_error("check: saslauthd is not supported on Windows");
+    return CBSASL_NOUSER;
 }
 #else
+#include <unistd.h>
 #include "saslauthd.h"
 static cbsasl_error_t check(cbsasl_conn_t* conn,
                             const std::string& username,
                             const std::string &passwd) {
-    try {
-        static const char* socketfile = getenv("CBAUTH_SOCKPATH");
-        Saslauthd saslauthd(socketfile);
-        return saslauthd.check(username, passwd);
-    } catch (const std::exception& e) {
-        cbsasl_log(conn, cbsasl_loglevel_t::Error,
-                   "Failed to validate [" + username + "] through saslauthd: " +
-                   e.what());
-        return CBSASL_FAIL;
+    const auto socketfile = cb::sasl::saslauthd::get_socketpath();
+    if (socketfile.empty() || access(socketfile.c_str(), F_OK) == -1) {
+        // No saslauthd path
+        return CBSASL_NOUSER;
+    } else {
+        try {
+            Saslauthd saslauthd(socketfile);
+            return saslauthd.check(username, passwd);
+        } catch (const std::exception& e) {
+            cbsasl_log(conn,
+                       cbsasl_loglevel_t::Error,
+                       "Failed to validate [" + username +
+                               "] through saslauthd: " + e.what());
+            return CBSASL_FAIL;
+        }
     }
 }
 #endif
@@ -124,15 +132,11 @@ cbsasl_error_t PlainServerBackend::start(cbsasl_conn_t* conn,
 
     cb::sasl::User user;
     if (!find_user(username, user)) {
-        if (cbsasl_use_saslauthd()) {
-            auto ret = check(conn, username, userpw);
-            if (ret == CBSASL_OK) {
-                conn->server->domain = cb::sasl::Domain::Saslauthd;
-            }
-            return ret;
+        auto ret = check(conn, username, userpw);
+        if (ret == CBSASL_OK) {
+            conn->server->domain = cb::sasl::Domain::Saslauthd;
         }
-
-        return CBSASL_NOUSER;
+        return ret;
     }
 
     return cb::sasl::plain::check_password(user, userpw);
