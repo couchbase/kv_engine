@@ -511,8 +511,13 @@ McbpConnection::TryReadResult McbpConnection::tryReadNetwork() {
             }
         }
         if (res == 0) {
-            return isPipeConnection() ?
-                   TryReadResult::NoDataReceived : TryReadResult::SocketClosed;
+            if (isPipeConnection()) {
+                return TryReadResult::NoDataReceived;
+            }
+            LOG_INFO(this,
+                     "%u Closing connection as the other side closed the connection %s",
+                     getId(), getDescription().c_str());
+            return TryReadResult::SocketClosed;
         }
         if (res == -1) {
             auto error = GetLastNetworkError();
