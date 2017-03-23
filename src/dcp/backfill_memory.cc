@@ -64,7 +64,9 @@ backfill_status_t DCPBackfillMemory::run() {
     }
 
     /* Put items onto readyQ of the DCP stream */
-    /* Mark disk snaspshot */
+    stream->incrBackfillRemaining(items.size());
+
+    /* Mark disk snapshot */
     stream->markDiskSnapshot(items.front()->getBySeqno(),
                              items.back()->getBySeqno());
 

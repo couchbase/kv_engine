@@ -321,6 +321,11 @@ TEST_P(StreamTest, BackfillOnly) {
 
     /* Verify that all items are read in the backfill */
     EXPECT_EQ(numItems, mock_stream->getNumBackfillItems());
+
+    /* Since backfill items are sitting in the readyQ, check if the stat is
+       updated correctly */
+    EXPECT_EQ(numItems, mock_stream->getNumBackfillItemsRemaining());
+
     /* [TODO]: Expand the testcase to check if snapshot marker, all individual
                items are read correctly */
 }

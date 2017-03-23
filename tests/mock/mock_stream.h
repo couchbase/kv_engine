@@ -94,6 +94,10 @@ public:
     int getLastReadSeqno() const {
         return lastReadSeqno;
     }
+
+    int getNumBackfillItemsRemaining() const {
+        return backfillRemaining;
+    }
 };
 
 /* Mock of the PassiveStream class. Wraps the real PassiveStream, but exposes

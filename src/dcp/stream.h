@@ -306,6 +306,13 @@ protected:
        snapshotted and put onto readyQ */
     std::atomic<uint64_t> lastReadSeqno;
 
+    /* backfillRemaining is a stat recording the amount of
+     * items remaining to be read from disk.  It is an atomic
+     * because otherwise the function incrBackfillRemaining
+     * must acquire the streamMutex lock.
+     */
+    std::atomic<size_t> backfillRemaining;
+
 private:
 
     DcpResponse* next(std::lock_guard<std::mutex>& lh);
@@ -354,13 +361,6 @@ private:
 
     //! The current vbucket state to send in the takeover stream
     vbucket_state_t takeoverState;
-
-    /* backfillRemaining is a stat recording the amount of
-     * items remaining to be read from disk.  It is an atomic
-     * because otherwise the function incrBackfillRemaining
-     * must acquire the streamMutex lock.
-     */
-    std::atomic <size_t> backfillRemaining;
 
     //! The amount of items that have been sent during the memory phase
     std::atomic<size_t> itemsFromMemoryPhase;
