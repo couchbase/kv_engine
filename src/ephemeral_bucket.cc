@@ -20,6 +20,7 @@
 #include "ep_engine.h"
 #include "ep_types.h"
 #include "ephemeral_vb.h"
+#include "ephemeral_vb_count_visitor.h"
 #include "failover-table.h"
 
 #include <platform/sized_buffer.h>
@@ -148,4 +149,69 @@ size_t EphemeralBucket::getNumPersistedDeletes(uint16_t vbid) {
        This is needed by ns-server during vb-takeover */
     RCPtr<VBucket> vb = getVBucket(vbid);
     return vb->getNumInMemoryDeletes();
+}
+
+// Protected methods //////////////////////////////////////////////////////////
+
+std::unique_ptr<VBucketCountVisitor> EphemeralBucket::makeVBCountVisitor(
+        vbucket_state_t state) {
+    return std::make_unique<EphemeralVBucket::CountVisitor>(state);
+}
+
+void EphemeralBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
+                                                   VBucketCountVisitor& replica,
+                                                   VBucketCountVisitor& pending,
+                                                   VBucketCountVisitor& dead,
+                                                   const void* cookie,
+                                                   ADD_STAT add_stat) {
+
+    // The CountVisitors passed in are expected to all be Ephemeral subclasses.
+    auto& ephActive = dynamic_cast<EphemeralVBucket::CountVisitor&>(active);
+    auto& ephReplica = dynamic_cast<EphemeralVBucket::CountVisitor&>(replica);
+    auto& ephPending = dynamic_cast<EphemeralVBucket::CountVisitor&>(pending);
+
+    // Add stats for the base class:
+    KVBucket::appendAggregatedVBucketStats(
+            active, replica, pending, dead, cookie, add_stat);
+
+    // Add Ephemeral-specific stats.
+
+#define DO_STAT(k, v)                            \
+    do {                                         \
+        add_casted_stat(k, v, add_stat, cookie); \
+    } while (0)
+
+    // Active vBuckets:
+    DO_STAT("vb_active_seqlist_count", ephActive.seqlistCount);
+    DO_STAT("vb_active_seqlist_deleted_count", ephActive.seqlistDeletedCount);
+    DO_STAT("vb_active_seqlist_read_range_count",
+            ephActive.seqlistReadRangeCount);
+    DO_STAT("vb_active_seqlist_stale_count", ephActive.seqlistStaleCount);
+    DO_STAT("vb_active_seqlist_stale_value_bytes",
+            ephActive.seqlistStaleValueBytes);
+    DO_STAT("vb_active_seqlist_stale_metadata_bytes",
+            ephActive.seqlistStaleMetadataBytes);
+
+    // Replica vBuckets:
+    DO_STAT("vb_replica_seqlist_count", ephReplica.seqlistCount);
+    DO_STAT("vb_replica_seqlist_deleted_count", ephReplica.seqlistDeletedCount);
+    DO_STAT("vb_replica_seqlist_read_range_count",
+            ephReplica.seqlistReadRangeCount);
+    DO_STAT("vb_replica_seqlist_stale_count", ephReplica.seqlistStaleCount);
+    DO_STAT("vb_replica_seqlist_stale_value_bytes",
+            ephReplica.seqlistStaleValueBytes);
+    DO_STAT("vb_replica_seqlist_stale_metadata_bytes",
+            ephReplica.seqlistStaleMetadataBytes);
+
+    // Pending vBuckets:
+    DO_STAT("vb_pending_seqlist_count", ephPending.seqlistCount);
+    DO_STAT("vb_pending_seqlist_deleted_count", ephPending.seqlistDeletedCount);
+    DO_STAT("vb_pending_seqlist_read_range_count",
+            ephPending.seqlistReadRangeCount);
+    DO_STAT("vb_pending_seqlist_stale_count", ephPending.seqlistStaleCount);
+    DO_STAT("vb_pending_seqlist_stale_value_bytes",
+            ephPending.seqlistStaleValueBytes);
+    DO_STAT("vb_pending_seqlist_stale_metadata_bytes",
+            ephPending.seqlistStaleMetadataBytes);
+#undef DO_STAT
 }

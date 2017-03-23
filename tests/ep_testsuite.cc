@@ -6842,6 +6842,29 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
     }
 
     if (isEphemeralBucket(h, h1)) {
+        auto& eng_stats = statsKeys.at("");
+        eng_stats.insert(eng_stats.end(),
+                         {"vb_active_seqlist_count",
+                          "vb_active_seqlist_deleted_count",
+                          "vb_active_seqlist_read_range_count",
+                          "vb_active_seqlist_stale_count",
+                          "vb_active_seqlist_stale_value_bytes",
+                          "vb_active_seqlist_stale_metadata_bytes",
+
+                          "vb_replica_seqlist_count",
+                          "vb_replica_seqlist_deleted_count",
+                          "vb_replica_seqlist_read_range_count",
+                          "vb_replica_seqlist_stale_count",
+                          "vb_replica_seqlist_stale_value_bytes",
+                          "vb_replica_seqlist_stale_metadata_bytes",
+
+                          "vb_pending_seqlist_count",
+                          "vb_pending_seqlist_deleted_count",
+                          "vb_pending_seqlist_read_range_count",
+                          "vb_pending_seqlist_stale_count",
+                          "vb_pending_seqlist_stale_value_bytes",
+                          "vb_pending_seqlist_stale_metadata_bytes"});
+
         auto& vb_details = statsKeys.at("vbucket-details 0");
         vb_details.insert(vb_details.end(),
                           {"vb_0:seqlist_count",

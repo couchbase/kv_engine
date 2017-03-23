@@ -160,9 +160,10 @@ public:
         return totalHLCDriftExceptionCounters;
     }
 
-private:
+protected:
     vbucket_state_t desired_state;
 
+private:
     size_t numItems;
     size_t numTempItems;
     size_t nonResident;

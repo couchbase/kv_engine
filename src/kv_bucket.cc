@@ -1140,28 +1140,47 @@ void KVBucket::getAggregatedVBucketStats(const void* cookie,
                                          ADD_STAT add_stat) {
     // Create visitors for each of the four vBucket states, and collect
     // stats for each.
-    VBucketCountVisitor active(vbucket_state_active);
-    VBucketCountVisitor replica(vbucket_state_replica);
-    VBucketCountVisitor pending(vbucket_state_pending);
-    VBucketCountVisitor dead(vbucket_state_dead);
+    auto active = makeVBCountVisitor(vbucket_state_active);
+    auto replica = makeVBCountVisitor(vbucket_state_replica);
+    auto pending = makeVBCountVisitor(vbucket_state_pending);
+    auto dead = makeVBCountVisitor(vbucket_state_dead);
 
     VBucketCountAggregator aggregator;
-    aggregator.addVisitor(&replica);
-    aggregator.addVisitor(&active);
-    aggregator.addVisitor(&pending);
-    aggregator.addVisitor(&dead);
+    aggregator.addVisitor(active.get());
+    aggregator.addVisitor(replica.get());
+    aggregator.addVisitor(pending.get());
+    aggregator.addVisitor(dead.get());
     visit(aggregator);
 
-    updateCachedResidentRatio(active.getMemResidentPer(),
-                              replica.getMemResidentPer());
-    engine.getReplicationThrottle().adjustWriteQueueCap(active.getNumItems() +
-                                                        replica.getNumItems() +
-                                                        pending.getNumItems());
+    updateCachedResidentRatio(active->getMemResidentPer(),
+                              replica->getMemResidentPer());
+    engine.getReplicationThrottle().adjustWriteQueueCap(active->getNumItems() +
+                                                        replica->getNumItems() +
+                                                        pending->getNumItems());
 
-    // Simplify the repetition of calling add_casted_stat with `add_stat` and
-    // cookie each time. (Note: if we had C++14 we could use a polymorphic
-    // lambda, but for now will have to stick to C++98 and macros :).
-#define DO_STAT(k, v) do { add_casted_stat(k, v, add_stat, cookie); } while (0)
+    // And finally actually return the stats using the ADD_STAT callback.
+    appendAggregatedVBucketStats(
+            *active, *replica, *pending, *dead, cookie, add_stat);
+}
+
+std::unique_ptr<VBucketCountVisitor> KVBucket::makeVBCountVisitor(
+        vbucket_state_t state) {
+    return std::make_unique<VBucketCountVisitor>(state);
+}
+
+void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
+                                            VBucketCountVisitor& replica,
+                                            VBucketCountVisitor& pending,
+                                            VBucketCountVisitor& dead,
+                                            const void* cookie,
+                                            ADD_STAT add_stat) {
+// Simplify the repetition of calling add_casted_stat with `add_stat` and
+// cookie each time. (Note: if we had C++14 we could use a polymorphic
+// lambda, but for now will have to stick to C++98 and macros :).
+#define DO_STAT(k, v)                            \
+    do {                                         \
+        add_casted_stat(k, v, add_stat, cookie); \
+    } while (0)
 
     // Top-level stats:
     DO_STAT("ep_flush_all", isDeleteAllScheduled());

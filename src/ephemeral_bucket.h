@@ -100,4 +100,15 @@ public:
      * @param config Configuration to modify.
      */
     static void reconfigureForEphemeral(Configuration& config);
+
+protected:
+    std::unique_ptr<VBucketCountVisitor> makeVBCountVisitor(
+            vbucket_state_t state) override;
+
+    void appendAggregatedVBucketStats(VBucketCountVisitor& active,
+                                      VBucketCountVisitor& replica,
+                                      VBucketCountVisitor& pending,
+                                      VBucketCountVisitor& dead,
+                                      const void* cookie,
+                                      ADD_STAT add_stat) override;
 };

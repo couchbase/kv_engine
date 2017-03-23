@@ -25,6 +25,8 @@ class SequenceList;
 
 class EphemeralVBucket : public VBucket {
 public:
+    class CountVisitor;
+
     EphemeralVBucket(id_type i,
                      vbucket_state_t newState,
                      EPStats& st,
