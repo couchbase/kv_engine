@@ -861,16 +861,19 @@ TEST_F(CollectionsDcpTest, test_dcp_separator_many) {
     // The replica should have the :: separator
     EXPECT_EQ("::", replica->lockCollections().getSeparator());
 
-    // Now step the producer to transfer the separator
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    std::array<std::string, 3> expectedData = {{"@@", ":", ","}};
+    for (auto expected : expectedData) {
+        // Now step the producer to transfer the separator
+        EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
 
-    // The producer should now have the new separator
-    EXPECT_EQ(",", producer->getCurrentSeparatorForStream(vbid));
+        // The producer should now have the new separator
+        EXPECT_EQ(expected, producer->getCurrentSeparatorForStream(vbid));
 
-    // The replica should now have the new separator
-    EXPECT_EQ(",", replica->lockCollections().getSeparator());
+        // The replica should now have the new separator
+        EXPECT_EQ(expected, replica->lockCollections().getSeparator());
+    }
 
-    // Now step the producer to transfer the collection
+    // Now step the producer to transfer the create "meat"
     EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
 
     // Collection should now be live on the replica with the final separator

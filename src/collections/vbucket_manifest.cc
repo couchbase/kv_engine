@@ -255,7 +255,7 @@ void Collections::VB::Manifest::changeSeparator(
     } else {
         LOG(EXTENSION_LOG_NOTICE,
             "collections: vb:%" PRIu16
-            " changing collection separator from:%s, to:%*.s",
+            " changing collection separator from:%s, to:%.*s",
             vb.getId(),
             separator.c_str(),
             int(newSeparator.size()),
@@ -333,7 +333,8 @@ std::unique_ptr<Item> Collections::VB::Manifest::createSystemEvent(
 
     auto item = SystemEventFactory::make(
             se,
-            cb::to_string(collection) + std::to_string(revision),
+            separator,
+            cb::to_string(collection) + separator + std::to_string(revision),
             getSerialisedDataSize(collection),
             seqno);
 
@@ -354,6 +355,7 @@ std::unique_ptr<Item> Collections::VB::Manifest::createSeparatorChangedEvent(
     // We serialise the state of this object  into the Item's value.
     auto item =
             SystemEventFactory::make(SystemEvent::CollectionsSeparatorChanged,
+                                     separator,
                                      {/*empty string*/},
                                      getSerialisedDataSize(),
                                      seqno);

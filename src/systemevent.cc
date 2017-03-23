@@ -21,51 +21,13 @@
 #include "dcp/response.h"
 #include "kvstore.h"
 
-std::unique_ptr<Item> SystemEventFactory::make(SystemEvent se,
-                                               const std::string& keyExtra,
-                                               size_t itemSize,
-                                               OptionalSeqno seqno) {
-    std::string key;
-    switch (se) {
-    case SystemEvent::CreateCollection: {
-        // CreateCollection SystemEvent results in:
-        // 1) A special marker document representing the creation.
-        // 2) An update to the persisted collection manifest.
-        key = Collections::CreateEventKey + keyExtra;
-        break;
-    }
-    case SystemEvent::BeginDeleteCollection: {
-        // BeginDeleteCollection SystemEvent results in:
-        // 1) An update to the persisted collection manifest.
-        // 2) Trigger DCP to tell clients the collection is being deleted.
-        key = Collections::DeleteEventKey + keyExtra;
-        break;
-    }
-    case SystemEvent::DeleteCollectionHard: {
-        // DeleteCollectionHard SystemEvent results in:
-        // 1. An update to the persisted collection manifest removing an entry.
-        // 2. A deletion of the SystemEvent::CreateCollection document.
-        // Note: uses CreateEventKey because we are deleting the create item
-        key = Collections::CreateEventKey + keyExtra;
-    }
-    case SystemEvent::DeleteCollectionSoft: {
-        // DeleteCollectionHard SystemEvent results in:
-        // 1. An update to the persisted collection manifest (updating the end
-        // seqno).
-        // 2. A deletion of the SystemEvent::CreateCollection document.
-        // Note: uses CreateEventKey because we are deleting the create item
-        key = Collections::CreateEventKey + keyExtra;
-    }
-    case SystemEvent::CollectionsSeparatorChanged: {
-        // CollectionSeparatorChanged SystemEvent results in:
-        // An update to the persisted collection manifest (updating the
-        // "separator" field) and a document is persisted.
-        // Note: the key of this document is fixed so only 1 document exists
-        // regardless of the changes made.
-        key = Collections::SeparatorChangedKey;
-        break;
-    }
-    }
+std::unique_ptr<Item> SystemEventFactory::make(
+        SystemEvent se,
+        const std::string& collectionsSeparator,
+        const std::string& keyExtra,
+        size_t itemSize,
+        OptionalSeqno seqno) {
+    std::string key = makeKey(se, collectionsSeparator, keyExtra);
 
     auto item = std::make_unique<Item>(DocKey(key, DocNamespace::System),
                                        uint32_t(se) /*flags*/,
@@ -78,6 +40,32 @@ std::unique_ptr<Item> SystemEventFactory::make(SystemEvent se,
     }
 
     return item;
+}
+
+// Build a key using the separator so we can split it if needed
+std::string SystemEventFactory::makeKey(SystemEvent se,
+                                        const std::string& collectionsSeparator,
+                                        const std::string& keyExtra) {
+    std::string key = Collections::SystemEventPrefix;
+    switch (se) {
+    case SystemEvent::CreateCollection:
+    case SystemEvent::DeleteCollectionSoft:
+    case SystemEvent::DeleteCollectionHard: {
+        // These all operate on the same key
+        key += collectionsSeparator + Collections::CreateEventKey +
+               collectionsSeparator + keyExtra;
+        break;
+    }
+    case SystemEvent::BeginDeleteCollection: {
+        key += collectionsSeparator + Collections::DeleteEventKey + keyExtra;
+        break;
+    }
+    case SystemEvent::CollectionsSeparatorChanged: {
+        key += collectionsSeparator + Collections::SeparatorChangedKey;
+        break;
+    }
+    }
+    return key;
 }
 
 ProcessStatus SystemEventFlush::process(const queued_item& item) {

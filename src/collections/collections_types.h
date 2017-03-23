@@ -30,9 +30,10 @@ static cb::const_char_buffer DefaultCollectionIdentifier(
 const char* const DefaultSeparator = "::";
 
 // SystemEvent keys
-const char* const CreateEventKey = "$collections::create:";
-const char* const DeleteEventKey = "$collections::delete:";
-const char* const SeparatorChangedKey = "$collections::separator:";
+const char* const SystemEventPrefix = "$collections";
+const char* const CreateEventKey = "create";
+const char* const DeleteEventKey = "delete";
+const char* const SeparatorChangedKey = "separator";
 
 // Couchstore private file name for manifest data
 const char CouchstoreManifest[] = "_local/collections_manifest";

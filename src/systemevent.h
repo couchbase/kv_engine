@@ -110,9 +110,15 @@ public:
      *        the seqno value set as its bySeqno.
      */
     static std::unique_ptr<Item> make(SystemEvent se,
+                                      const std::string& collectionsSeparator,
                                       const std::string& keyExtra,
                                       size_t itemSize,
                                       OptionalSeqno seqno);
+
+private:
+    static std::string makeKey(SystemEvent se,
+                               const std::string& collectionsSeparator,
+                               const std::string& keyExtra);
 };
 
 enum class ProcessStatus { Skip, Continue };

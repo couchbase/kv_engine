@@ -21,6 +21,7 @@
 
 TEST(SystemEventTest, make) {
     auto value = SystemEventFactory::make(SystemEvent::CreateCollection,
+                                          "::",
                                           "SUFFIX",
                                           0,
                                           OptionalSeqno(/*none*/));
@@ -31,6 +32,7 @@ TEST(SystemEventTest, make) {
     EXPECT_EQ(-1, value->getBySeqno());
 
     value = SystemEventFactory::make(SystemEvent::CreateCollection,
+                                     "::",
                                      "SUFFIX",
                                      100,
                                      OptionalSeqno(/*none*/));
@@ -41,6 +43,7 @@ TEST(SystemEventTest, make) {
 
     value = SystemEventFactory::make(SystemEvent::BeginDeleteCollection,
                                      "SUFFIX",
+                                     "::",
                                      100,
                                      OptionalSeqno(/*none*/));
     EXPECT_EQ(queue_op::system_event, value->getOperation());
@@ -50,6 +53,7 @@ TEST(SystemEventTest, make) {
 
     value = SystemEventFactory::make(SystemEvent::BeginDeleteCollection,
                                      "SUFFIX",
+                                     "::",
                                      100,
                                      OptionalSeqno(122));
     EXPECT_EQ(queue_op::system_event, value->getOperation());
