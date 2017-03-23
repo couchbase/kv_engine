@@ -3991,7 +3991,7 @@ EventuallyPersistentStore::rollback(uint16_t vbid,
             RollbackResult result = rwUnderlying->rollback(vbid, rollbackSeqno, cb);
 
             if (result.success) {
-                rollbackCheckpoint(vb, rollbackSeqno);
+                rollbackCheckpoint(vb, result.highSeqno);
                 vb->failovers->pruneEntries(result.highSeqno);
                 vb->checkpointManager.clear(vb, result.highSeqno);
                 vb->setPersistedSnapshot(result.snapStartSeqno, result.snapEndSeqno);

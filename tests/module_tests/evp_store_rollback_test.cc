@@ -224,13 +224,58 @@ TEST_P(RollbackTest, RollbackAfterDeletionNoFlush) {
     rollback_after_deletion_test(/*flush_before_rollback*/false);
 }
 
-TEST_P(RollbackTest, RollbackToMiddleOfACheckpoint) {
+TEST_P(RollbackTest, RollbackToMiddleOfAPersistedSnapshot) {
     rollback_to_middle_test(true);
 }
 
-TEST_P(RollbackTest, RollbackToMiddleOfACheckpointNoFlush) {
+TEST_P(RollbackTest, RollbackToMiddleOfAPersistedSnapshotNoFlush) {
     rollback_to_middle_test(false);
 }
+
+#if !defined(_MSC_VER) || _MSC_VER != 1800
+TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {
+    /* need to store a certain number of keys because rollback
+       'bails (rolls back to 0)' if the rollback is too much. */
+    const int numItems = 10;
+    for (int i = 0; i < numItems; i++) {
+        std::string key = "key_" + std::to_string(i);
+        store_item(vbid, key.c_str(), "not rolled back");
+    }
+
+    /* the roll back function will rewind disk to key11. */
+    auto rollback_item =
+    store_item(vbid, "key11", "rollback pt");
+
+    ASSERT_EQ(numItems + 1, store->flushVBucket(vbid));
+
+    /* Keys to be lost in rollback */
+    auto item_v1 = store_item(vbid, "rollback-cp-1", "hope to keep till here");
+    /* ask to rollback to here; this item is in a checkpoint and
+       is not persisted */
+    auto rollbackReqSeqno = item_v1.getBySeqno();
+
+    auto item_v2 = store_item(vbid, "rollback-cp-2", "gone");
+
+    /* do rollback */
+    store->setVBucketState(vbid, vbucket_state_replica, false);
+    EXPECT_EQ(ENGINE_SUCCESS, store->rollback(vbid, rollbackReqSeqno));
+
+    /* confirm that we have rolled back to the disk snapshot */
+    EXPECT_EQ(rollback_item.getBySeqno(),
+              store->getVBucket(vbid)->getHighSeqno());
+
+    /* since we rely only on disk snapshots currently, we must lose the items in
+       the checkpoints */
+    for (int i = 0; i < 2; i++) {
+        auto res = store->get(std::string("rollback-cp-" + std::to_string(i)),
+                              vbid,
+                              nullptr,
+                              {});
+        EXPECT_EQ(ENGINE_KEY_ENOENT, res.getStatus())
+                << "A key set after the rollback point was found";
+    }
+}
+#endif
 
 /*
  * The opencheckpointid of a bucket can be zero after a rollback.
