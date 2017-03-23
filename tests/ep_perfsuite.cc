@@ -120,8 +120,9 @@ struct StatProperties {
      const std::string key;
      const StatRuntime runtime;
      std::vector<hrtime_t> timings;
- };
+};
 
+const auto& make_stat_pair = std::make_pair<std::string, StatProperties>;
 
 /**
   * The following table is used as input for each of the stats test.
@@ -131,40 +132,43 @@ struct StatProperties {
   * is used to determine the number of iterations of get_stats to invoke),
   * and finally a vector containing the latency timings for the stat.
   */
-std::unordered_map<std::string, StatProperties> stat_tests =
-    {{"engine", {"", StatRuntime::Slow, {}} },
-     {"dcpagg", {"dcpagg _", StatRuntime::Fast, {}} },
-     {"dcp", {"dcp", StatRuntime::Fast, {}} },
-     {"hash", {"hash", StatRuntime::Slow, {}} },
-     {"vbucket", {"vbucket", StatRuntime::Fast, {}} },
-     {"vb-details", {"vbucket-details", StatRuntime::Slow, {}} },
-     {"vb-details_vb0", {"vbucket-details 0", StatRuntime::Fast, {}} },
-     {"vb-seqno", {"vbucket-seqno", StatRuntime::Slow, {}} },
-     {"vb-seqno_vb0", {"vbucket-seqno 0", StatRuntime::Fast, {}} },
-     {"prev-vbucket", {"prev-vbucket", StatRuntime::Fast, {}} },
-     {"checkpoint", {"checkpoint", StatRuntime::Slow, {}} },
-     {"checkpoint_vb0", {"checkpoint 0", StatRuntime::Fast, {}} },
-     {"timings", {"timings", StatRuntime::Fast, {}} },
-     {"dispatcher", {"dispatcher", StatRuntime::Slow, {}} },
-     {"scheduler", {"scheduler", StatRuntime::Fast, {}} },
-     {"runtimes", {"runtimes", StatRuntime::Fast, {}} },
-     {"memory", {"memory", StatRuntime::Fast, {}} },
-     {"uuid", {"uuid", StatRuntime::Fast, {}} },
-     // We add a document with the key __sentinel__ to vbucket 0 at the
-     // start of the test and hence it is used for the key_vb0 stat.
-     {"key_vb0", {"key example_doc 0", StatRuntime::Fast, {}} },
-     {"kvtimings", {"kvtimings", StatRuntime::Slow, {}} },
-     {"kvstore", {"kvstore", StatRuntime::Fast, {}} },
-     {"info", {"info", StatRuntime::Fast, {}} },
-     {"allocator", {"allocator", StatRuntime::Slow, {}} },
-     {"config", {"config", StatRuntime::Fast, {}} },
-     {"dcp-vbtakeover", {"dcp-vbtakeover 0 DCP",
-                         StatRuntime::Fast, {}}
-     },
-     {"workload", {"workload", StatRuntime::Fast, {}} },
-     {"failovers_vb0", {"failovers 0", StatRuntime::Fast, {}} },
-     {"failovers", {"failovers", StatRuntime::Slow, {}} },
-    };
+std::unordered_map<std::string, StatProperties> stat_tests = {
+        make_stat_pair("engine", {"", StatRuntime::Slow, {}}),
+        make_stat_pair("dcpagg", {"dcpagg _", StatRuntime::Fast, {}}),
+        make_stat_pair("dcp", {"dcp", StatRuntime::Fast, {}}),
+        make_stat_pair("hash", {"hash", StatRuntime::Slow, {}}),
+        make_stat_pair("vbucket", {"vbucket", StatRuntime::Fast, {}}),
+        make_stat_pair("vb-details",
+                       {"vbucket-details", StatRuntime::Slow, {}}),
+        make_stat_pair("vb-details_vb0",
+                       {"vbucket-details 0", StatRuntime::Fast, {}}),
+        make_stat_pair("vb-seqno", {"vbucket-seqno", StatRuntime::Slow, {}}),
+        make_stat_pair("vb-seqno_vb0",
+                       {"vbucket-seqno 0", StatRuntime::Fast, {}}),
+        make_stat_pair("prev-vbucket", {"prev-vbucket", StatRuntime::Fast, {}}),
+        make_stat_pair("checkpoint", {"checkpoint", StatRuntime::Slow, {}}),
+        make_stat_pair("checkpoint_vb0",
+                       {"checkpoint 0", StatRuntime::Fast, {}}),
+        make_stat_pair("timings", {"timings", StatRuntime::Fast, {}}),
+        make_stat_pair("dispatcher", {"dispatcher", StatRuntime::Slow, {}}),
+        make_stat_pair("scheduler", {"scheduler", StatRuntime::Fast, {}}),
+        make_stat_pair("runtimes", {"runtimes", StatRuntime::Fast, {}}),
+        make_stat_pair("memory", {"memory", StatRuntime::Fast, {}}),
+        make_stat_pair("uuid", {"uuid", StatRuntime::Fast, {}}),
+        // We add a document with the key __sentinel__ to vbucket 0 at the
+        // start of the test and hence it is used for the key_vb0 stat.
+        make_stat_pair("key_vb0", {"key example_doc 0", StatRuntime::Fast, {}}),
+        make_stat_pair("kvtimings", {"kvtimings", StatRuntime::Slow, {}}),
+        make_stat_pair("kvstore", {"kvstore", StatRuntime::Fast, {}}),
+        make_stat_pair("info", {"info", StatRuntime::Fast, {}}),
+        make_stat_pair("allocator", {"allocator", StatRuntime::Slow, {}}),
+        make_stat_pair("config", {"config", StatRuntime::Fast, {}}),
+        make_stat_pair("dcp-vbtakeover",
+                       {"dcp-vbtakeover 0 DCP", StatRuntime::Fast, {}}),
+        make_stat_pair("workload", {"workload", StatRuntime::Fast, {}}),
+        make_stat_pair("failovers_vb0", {"failovers 0", StatRuntime::Fast, {}}),
+        make_stat_pair("failovers", {"failovers", StatRuntime::Slow, {}}),
+};
 
 static void fillLineWith(const char c, int spaces) {
     for (int i = 0; i < spaces; ++i) {
@@ -1223,19 +1227,24 @@ static void perf_stat_latency_core(ENGINE_HANDLE *h,
     if (isPersistentBucket(h, h1)) {
         // Include persistence-specific stats
         stat_tests.insert(
-                {{"diskinfo", {"diskinfo", StatRuntime::Fast, {}}},
-                 {"diskinfo-detail",
-                  {"diskinfo-detail", StatRuntime::Slow, {}}},
-                 {"vkey_vb0", {"vkey example_doc 0", StatRuntime::Fast, {}}}});
+                {make_stat_pair("diskinfo",
+                                {"diskinfo", StatRuntime::Fast, {}}),
+                 make_stat_pair("diskinfo-detail",
+                                {"diskinfo-detail", StatRuntime::Slow, {}}),
+                 make_stat_pair(
+                         "vkey_vb0",
+                         {"vkey example_doc 0", StatRuntime::Fast, {}})});
     }
 
     if (isTapEnabled(h, h1)) {
         // Include TAP-specific stats.
-        stat_tests.insert({{"tap", {"tap", StatRuntime::Fast, {}}},
-                           {"tapagg", {"tapagg _", StatRuntime::Fast, {}}},
-                           {"tap-vbtakeover", {"tap-vbtakeover 0 tap-connection",
-                                               StatRuntime::Fast, {}}
-        }});
+        stat_tests.insert(
+                {make_stat_pair("tap", {"tap", StatRuntime::Fast, {}}),
+                 make_stat_pair("tapagg", {"tapagg _", StatRuntime::Fast, {}}),
+                 make_stat_pair("tap-vbtakeover",
+                                {"tap-vbtakeover 0 tap-connection",
+                                 StatRuntime::Fast,
+                                 {}})});
     }
 
     for (auto& stat : stat_tests) {
