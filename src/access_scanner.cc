@@ -75,8 +75,7 @@ public:
                     "INFO: Skipping expired/deleted item: %" PRIu64,
                     v.getBySeqno());
             } else {
-                accessed.push_back(std::make_pair(v.getBySeqno(),
-                                                  StoredDocKey(v.getKey())));
+                accessed.push_back(StoredDocKey(v.getKey()));
                 return ++items_scanned < items_to_scan;
             }
         }
@@ -86,7 +85,7 @@ public:
     void update() {
         if (log != nullptr) {
             for (auto it = accessed.begin(); it != accessed.end(); ++it) {
-                log->newItem(currentBucket->getId(), it->second, it->first);
+                log->newItem(currentBucket->getId(), *it);
             }
         }
         accessed.clear();
@@ -198,7 +197,7 @@ private:
     std::string name;
     uint16_t shardID;
 
-    std::list<std::pair<uint64_t, StoredDocKey> > accessed;
+    std::vector<StoredDocKey> accessed;
 
     std::unique_ptr<MutationLog> log;
     std::atomic<bool> &stateFinalizer;

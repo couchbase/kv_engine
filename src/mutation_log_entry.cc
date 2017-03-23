@@ -49,8 +49,8 @@ std::ostream& operator<<(std::ostream& out, const MutationLogEntryV1& mle) {
 }
 
 std::ostream& operator<<(std::ostream& out, const MutationLogEntryV2& mle) {
-    out << "{MutationLogEntryV2 rowid=" << mle.rowid()
-        << ", vbucket=" << mle.vbucket() << ", magic=0x" << std::hex
+    out << "{MutationLogEntryV2"
+        << " vbucket=" << mle.vbucket() << ", magic=0x" << std::hex
         << static_cast<uint16_t>(mle.magic) << std::dec
         << ", type=" << to_string(mle.type()) << ", key=``" << mle.key().data()
         << "''";

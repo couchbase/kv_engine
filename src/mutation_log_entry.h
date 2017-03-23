@@ -176,7 +176,8 @@ std::ostream& operator<<(std::ostream& out, const MutationLogEntryV1& mle);
 
 /**
  * An entry in the MutationLog.
- * This is the V2 layout which stores document namespaces.
+ * This is the V2 layout which stores document namespaces and removes the rowid
+ * (sequence number) as it was unused.
  */
 class MutationLogEntryV2 {
 public:
@@ -188,8 +189,7 @@ public:
      * key is initialised into the default collection
      */
     MutationLogEntryV2(const MutationLogEntryV1& mleV1)
-        : _rowid(mleV1._rowid),
-          _vbucket(mleV1._vbucket),
+        : _vbucket(mleV1._vbucket),
           magic(MagicMarker),
           _type(mleV1._type),
           pad(0),
@@ -207,22 +207,20 @@ public:
      * @param k the key
      */
     static MutationLogEntryV2* newEntry(uint8_t* buf,
-                                        uint64_t r,
                                         MutationLogType t,
                                         uint16_t vb,
                                         const DocKey& k) {
-        return new (buf) MutationLogEntryV2(r, t, vb, k);
+        return new (buf) MutationLogEntryV2(t, vb, k);
     }
 
     static MutationLogEntryV2* newEntry(uint8_t* buf,
-                                        uint64_t r,
                                         MutationLogType t,
                                         uint16_t vb) {
         if (MutationLogType::Commit1 != t && MutationLogType::Commit2 != t) {
             throw std::invalid_argument(
                     "MutationLogEntryV2::newEntry: invalid type");
         }
-        return new (buf) MutationLogEntryV2(r, t, vb);
+        return new (buf) MutationLogEntryV2(t, vb);
     }
 
     /**
@@ -293,13 +291,6 @@ public:
     }
 
     /**
-     * This entry's rowid.
-     */
-    uint64_t rowid() const {
-        return ntohll(_rowid);
-    }
-
-    /**
      * This entry's vbucket.
      */
     uint16_t vbucket() const {
@@ -317,16 +308,8 @@ private:
     friend std::ostream& operator<<(std::ostream& out,
                                     const MutationLogEntryV2& e);
 
-    MutationLogEntryV2(uint64_t r,
-                       MutationLogType t,
-                       uint16_t vb,
-                       const DocKey& k)
-        : _rowid(htonll(r)),
-          _vbucket(htons(vb)),
-          magic(MagicMarker),
-          _type(t),
-          pad(0),
-          _key(k) {
+    MutationLogEntryV2(MutationLogType t, uint16_t vb, const DocKey& k)
+        : _vbucket(htons(vb)), magic(MagicMarker), _type(t), pad(0), _key(k) {
         (void)pad;
         // Assert that _key is the final member
         static_assert(
@@ -335,12 +318,11 @@ private:
                 "_key must be the final member of MutationLogEntryV2");
     }
 
-    MutationLogEntryV2(uint64_t r, MutationLogType t, uint16_t vb)
+    MutationLogEntryV2(MutationLogType t, uint16_t vb)
         : MutationLogEntryV2(
-                  r, t, vb, {nullptr, 0, DocNamespace::DefaultCollection}) {
+                  t, vb, {nullptr, 0, DocNamespace::DefaultCollection}) {
     }
 
-    const uint64_t _rowid;
     const uint16_t _vbucket;
     const uint8_t magic;
     const MutationLogType _type;

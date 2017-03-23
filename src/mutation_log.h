@@ -209,7 +209,7 @@ public:
 
     ~MutationLog();
 
-    void newItem(uint16_t vbucket, const DocKey& key, uint64_t rowid);
+    void newItem(uint16_t vbucket, const DocKey& key);
 
     void commit1();
 

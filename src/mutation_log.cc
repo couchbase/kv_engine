@@ -288,10 +288,10 @@ void MutationLog::disable() {
     }
 }
 
-void MutationLog::newItem(uint16_t vbucket, const DocKey& key, uint64_t rowid) {
+void MutationLog::newItem(uint16_t vbucket, const DocKey& key) {
     if (isEnabled()) {
         MutationLogEntry* mle = MutationLogEntry::newEntry(
-                entryBuffer.get(), rowid, MutationLogType::New, vbucket, key);
+                entryBuffer.get(), MutationLogType::New, vbucket, key);
         writeEntry(mle);
     }
 }
@@ -312,7 +312,7 @@ void MutationLog::sync() {
 void MutationLog::commit1() {
     if (isEnabled()) {
         MutationLogEntry* mle = MutationLogEntry::newEntry(
-                entryBuffer.get(), 0, MutationLogType::Commit1, 0);
+                entryBuffer.get(), MutationLogType::Commit1, 0);
         writeEntry(mle);
 
         if ((getSyncConfig() & FLUSH_COMMIT_1) != 0) {
@@ -327,7 +327,7 @@ void MutationLog::commit1() {
 void MutationLog::commit2() {
     if (isEnabled()) {
         MutationLogEntry* mle = MutationLogEntry::newEntry(
-                entryBuffer.get(), 0, MutationLogType::Commit2, 0);
+                entryBuffer.get(), MutationLogType::Commit2, 0);
         writeEntry(mle);
 
         if ((getSyncConfig() & FLUSH_COMMIT_2) != 0) {

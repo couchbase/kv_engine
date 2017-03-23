@@ -106,7 +106,7 @@ TEST_F(MutationLogTest, Unconfigured) {
     MutationLog ml("");
     ml.open();
     ASSERT_FALSE(ml.isEnabled());
-    ml.newItem(3, makeStoredDocKey("somekey"),  931);
+    ml.newItem(3, makeStoredDocKey("somekey"));
     ml.commit1();
     ml.commit2();
     ml.flush();
@@ -199,10 +199,10 @@ TEST_F(MutationLogTest, Logging) {
         MutationLog ml(tmp_log_filename.c_str());
         ml.open();
 
-        ml.newItem(2, makeStoredDocKey("key1"), 2);
+        ml.newItem(2, makeStoredDocKey("key1"));
         ml.commit1();
         ml.commit2();
-        ml.newItem(3, makeStoredDocKey("key2"), 3);
+        ml.newItem(3, makeStoredDocKey("key2"));
         ml.commit1();
         ml.commit2();
         // Remaining:   3:key2, 2:key1
@@ -253,13 +253,13 @@ TEST_F(MutationLogTest, LoggingDirty) {
         MutationLog ml(tmp_log_filename.c_str());
         ml.open();
 
-        ml.newItem(3, makeStoredDocKey("key1"),  1);
-        ml.newItem(2, makeStoredDocKey("key1"),  2);
+        ml.newItem(3, makeStoredDocKey("key1"));
+        ml.newItem(2, makeStoredDocKey("key1"));
         ml.commit1();
         ml.commit2();
         // This will be dropped from the normal loading path
         // because there's no commit.
-        ml.newItem(3, makeStoredDocKey("key2"),  3);
+        ml.newItem(3, makeStoredDocKey("key2"));
         // Remaining:   3:key1, 2:key1
 
         EXPECT_EQ(3, ml.itemsLogged[int(MutationLogType::New)]);
@@ -310,10 +310,10 @@ TEST_F(MutationLogTest, LoggingBadCRC) {
         MutationLog ml(tmp_log_filename.c_str());
         ml.open();
 
-        ml.newItem(2, makeStoredDocKey("key1"),  2);
+        ml.newItem(2, makeStoredDocKey("key1"));
         ml.commit1();
         ml.commit2();
-        ml.newItem(3, makeStoredDocKey("key2"),  3);
+        ml.newItem(3, makeStoredDocKey("key2"));
         ml.commit1();
         ml.commit2();
         // Remaining:   3:key2, 2:key1
@@ -374,10 +374,10 @@ TEST_F(MutationLogTest, LoggingShortRead) {
         MutationLog ml(tmp_log_filename.c_str());
         ml.open();
 
-        ml.newItem(2, makeStoredDocKey("key1"),  2);
+        ml.newItem(2, makeStoredDocKey("key1"));
         ml.commit1();
         ml.commit2();
-        ml.newItem(3, makeStoredDocKey("key2"),  3);
+        ml.newItem(3, makeStoredDocKey("key2"));
         ml.commit1();
         ml.commit2();
         // Remaining:   3:key2, 2:key1
@@ -428,9 +428,9 @@ TEST_F(MutationLogTest, Iterator) {
     {
         MutationLog ml(tmp_log_filename.c_str());
         ml.open();
-        ml.newItem(0, makeStoredDocKey("key1"),  0);
-        ml.newItem(0, makeStoredDocKey("key2"),  1);
-        ml.newItem(0, makeStoredDocKey("key3"),  2);
+        ml.newItem(0, makeStoredDocKey("key1"));
+        ml.newItem(0, makeStoredDocKey("key2"));
+        ml.newItem(0, makeStoredDocKey("key3"));
         ml.commit1();
         ml.commit2();
 
@@ -469,7 +469,7 @@ TEST_F(MutationLogTest, BatchLoad) {
         // the requested number.
         for (size_t ii = 0; ii < 10; ii++) {
             std::string key = std::string("key") + std::to_string(ii);
-            ml.newItem(ii % 2, makeStoredDocKey(key),  ii);
+            ml.newItem(ii % 2, makeStoredDocKey(key));
         }
         ml.commit1();
         ml.commit2();
@@ -519,14 +519,15 @@ TEST_F(MutationLogTest, ReadOnly) {
 
     MutationLog m2(tmp_log_filename);
     m2.open();
-    m2.newItem(3, makeStoredDocKey("key1"), 1);
+    m2.newItem(3, makeStoredDocKey("key1"));
     m2.close();
 
     // We should be able to open the file now
     ml.open(true);
 
     // But we should not be able to add items to a read only stream
-    EXPECT_THROW(ml.newItem(4, makeStoredDocKey("key2"), 1), MutationLog::WriteException);
+    EXPECT_THROW(ml.newItem(4, makeStoredDocKey("key2")),
+                 MutationLog::WriteException);
 }
 
 class MockMutationLogEntryV1 : public MutationLogEntryV1 {
