@@ -260,7 +260,7 @@
             "type": "bool"
         },
         "ephemeral_full_policy": {
-            "default": "fail_new_data",
+            "default": "auto_delete",
             "descr": "How should an Ephemeral bucket becoming full be handled?",
             "type": "std::string",
             "validator": {
