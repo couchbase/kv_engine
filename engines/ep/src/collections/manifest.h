@@ -73,6 +73,11 @@ public:
         return std::find(begin(), end(), collection);
     }
 
+    /**
+     * Write to std::cerr this
+     */
+    void dump() const;
+
 private:
     /**
      * Check if the C-string input has a length > 0 and < 250.
@@ -89,10 +94,14 @@ private:
      */
     static bool validCollection(const char* collection);
 
+    friend std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
+
     int revision;
     bool defaultCollectionExists;
     std::string separator;
     std::vector<std::string> collections;
 };
+
+std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
 
 } // end namespace Collections

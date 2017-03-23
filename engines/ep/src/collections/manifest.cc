@@ -23,6 +23,7 @@
 #include <cJSON_utils.h>
 
 #include <cstring>
+#include <iostream>
 
 namespace Collections {
 
@@ -116,5 +117,21 @@ bool Manifest::validCollection(const char* collection) {
         return false;
     }
     return collection[0] != '_';
+}
+
+void Manifest::dump() const {
+    std::cerr << *this << std::endl;
+}
+
+std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
+    os << "Collections::Manifest"
+       << ": revision:" << manifest.revision
+       << ", defaultCollectionExists:" << manifest.defaultCollectionExists
+       << ", separator:" << manifest.separator
+       << ", collections.size:" << manifest.collections.size() << std::endl;
+    for (const auto& entry : manifest.collections) {
+        os << "collection:" << entry << "\n";
+    }
+    return os;
 }
 }

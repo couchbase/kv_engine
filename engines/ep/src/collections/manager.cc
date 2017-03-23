@@ -86,3 +86,38 @@ std::unique_ptr<Collections::Filter> Collections::Manager::makeFilter(
     }
     return std::make_unique<Collections::Filter>(jsonFilter, *current);
 }
+
+// This method is really to aid development and allow the dumping of the VB
+// collection data to the logs.
+void Collections::Manager::logAll(KVBucket& bucket) const {
+    std::stringstream ss;
+    ss << *this;
+    LOG(EXTENSION_LOG_NOTICE, "%s", ss.str().c_str());
+    for (int i = 0; i < bucket.getVBuckets().getSize(); i++) {
+        auto vb = bucket.getVBuckets().getBucket(i);
+        if (vb) {
+            std::stringstream vbss;
+            vbss << vb->lockCollections();
+            LOG(EXTENSION_LOG_NOTICE,
+                "vb:%d: %s %s",
+                i,
+                VBucket::toString(vb->getState()),
+                vbss.str().c_str());
+        }
+    }
+}
+
+void Collections::Manager::dump() const {
+    std::cerr << *this;
+}
+
+std::ostream& Collections::operator<<(std::ostream& os,
+                                      const Collections::Manager& manager) {
+    std::lock_guard<std::mutex> lg(manager.lock);
+    if (manager.current) {
+        os << "Collections::Manager current:" << *manager.current << "\n";
+    } else {
+        os << "Collections::Manager current:nullptr\n";
+    }
+    return os;
+}

@@ -115,7 +115,16 @@ public:
             return manifest.isCollectionOpen(collection);
         }
 
+        /**
+         * Dump the manifest to std::cerr
+         */
+        void dump() {
+            std::cerr << manifest << std::endl;
+        }
+
     private:
+        friend std::ostream& operator<<(std::ostream& os,
+                                        const Manifest::ReadHandle& readHandle);
         std::unique_lock<cb::ReaderLock> readLock;
         const Manifest& manifest;
     };
@@ -211,7 +220,7 @@ public:
          * @param vb The vbucket to begin collection deletion on.
          * @param separator The new separator.
          * @param revision manifest revision which changed the separator.
-         * @param seqno The seqno orginally assigned to the active's system
+         * @param seqno The seqno originally assigned to the active's system
          * event.
          */
         void replicaChangeSeparator(::VBucket& vb,
@@ -220,6 +229,13 @@ public:
                                     int64_t seqno) {
             manifest.changeSeparator(
                     vb, separator, revision, OptionalSeqno{seqno});
+        }
+
+        /**
+         * Dump the manifest to std::cerr
+         */
+        void dump() {
+            std::cerr << manifest << std::endl;
         }
 
     private:
@@ -625,6 +641,10 @@ protected:
 /// it is used internally in the object for exception string generation so must
 /// not double lock.
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
+
+/// This is the locked version for printing the manifest
+std::ostream& operator<<(std::ostream& os,
+                         const Manifest::ReadHandle& readHandle);
 
 } // end namespace VB
 } // end namespace Collections

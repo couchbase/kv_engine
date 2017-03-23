@@ -575,9 +575,20 @@ Collections::VB::Manifest::getSystemEventSeparatorData(
 
 std::ostream& Collections::VB::operator<<(
         std::ostream& os, const Collections::VB::Manifest& manifest) {
-    os << "VBucket::Manifest: size:" << manifest.map.size() << std::endl;
+    os << "VBucket::Manifest"
+       << ": defaultCollectionExists:" << manifest.defaultCollectionExists
+       << ", separator:" << manifest.separator
+       << ", map.size:" << manifest.map.size() << std::endl;
     for (auto& m : manifest.map) {
         os << *m.second << std::endl;
     }
+
+    return os;
+}
+
+std::ostream& Collections::VB::operator<<(
+        std::ostream& os,
+        const Collections::VB::Manifest::ReadHandle& readHandle) {
+    os << readHandle.manifest;
     return os;
 }

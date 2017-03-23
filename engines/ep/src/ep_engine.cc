@@ -20,6 +20,7 @@
 #include "ep_engine.h"
 
 #include "backfill.h"
+#include "collections/manager.h"
 #include "common.h"
 #include "connmap.h"
 #include "dcp/consumer.h"
@@ -4477,6 +4478,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         } else {
             return ENGINE_EINVAL;
         }
+    } else if (statKey == "collections" &&
+               configuration.isCollectionsPrototypeEnabled()) {
+        // @todo MB-24546 For development, just log everything.
+        kvBucket->getCollectionsManager().logAll(*kvBucket.get());
+        rv = ENGINE_SUCCESS;
     }
 
     return rv;

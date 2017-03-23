@@ -64,10 +64,24 @@ public:
     std::unique_ptr<Filter> makeFilter(bool collectionsEnabled,
                                        const std::string& json) const;
 
+    /**
+     * For development, log as much collections stuff as we can
+     */
+    void logAll(KVBucket& bucket) const;
+
+    /**
+     * Write to std::cerr this
+     */
+    void dump() const;
+
 private:
+    friend std::ostream& operator<<(std::ostream& os, const Manager& manager);
+
     mutable std::mutex lock;
 
     /// Store the most recent (current) manifest received
     std::unique_ptr<Manifest> current;
 };
+
+std::ostream& operator<<(std::ostream& os, const Manager& manager);
 }
