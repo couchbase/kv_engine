@@ -854,6 +854,11 @@ void enable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 void start_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    if (!isPersistentBucket(h, h1)) {
+        // Nothing to do for non-persistent buckets
+        return;
+    }
+
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_START_PERSISTENCE);
     check(h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
           "Failed to stop persistence.");

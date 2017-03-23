@@ -289,9 +289,7 @@ public:
     }
 
     // Returns the last persisted sequence number for the VBucket
-    uint64_t getPersistenceSeqno() const {
-        return persistenceSeqno.load();
-    }
+    virtual uint64_t getPersistenceSeqno() const = 0;
 
     void setPersistenceSeqno(uint64_t seqno) {
         persistenceSeqno.store(seqno);
@@ -1191,6 +1189,9 @@ protected:
     /* Reference to global (EP engine wide) stats */
     EPStats& stats;
 
+    /* last seqno that is persisted on the disk */
+    std::atomic<uint64_t> persistenceSeqno;
+
 private:
     void fireAllOps(EventuallyPersistentEngine& engine, ENGINE_ERROR_CODE code);
 
@@ -1385,7 +1386,6 @@ private:
     std::atomic<bool> bucketCreation;
     // Flag to indicate the bucket is being deleted
     std::atomic<bool> bucketDeletion;
-    std::atomic<uint64_t> persistenceSeqno;
 
     // Ptr to the item conflict resolution module
     std::unique_ptr<ConflictResolution> conflictResolver;

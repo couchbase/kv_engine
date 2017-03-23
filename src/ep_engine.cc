@@ -5097,14 +5097,8 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                 chk_id = ntohll(chk_id);
                 void *es = getEngineSpecific(cookie);
                 if (!es) {
-                    ENGINE_ERROR_CODE ret =
-                            vb->addHighPriorityVBEntry(chk_id, cookie, false);
+                    vb->addHighPriorityVBEntry(chk_id, cookie, false);
                     storeEngineSpecific(cookie, this);
-
-                    if (ret == ENGINE_ENOTSUP) {
-                        return sendNotSupportedResponse(response, cookie);
-                    }
-
                     // Wake up the flusher if it is idle.
                     getKVBucket()->wakeUpFlusher();
                     return ENGINE_EWOULDBLOCK;
@@ -5159,14 +5153,8 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
         if (!es) {
             uint16_t persisted_seqno = vb->getPersistenceSeqno();
             if (seqno > persisted_seqno) {
-                ENGINE_ERROR_CODE ret =
-                        vb->addHighPriorityVBEntry(seqno, cookie, true);
+                vb->addHighPriorityVBEntry(seqno, cookie, true);
                 storeEngineSpecific(cookie, this);
-
-                if (ret == ENGINE_ENOTSUP) {
-                    return sendNotSupportedResponse(response, cookie);
-                }
-
                 return ENGINE_EWOULDBLOCK;
             }
         } else {

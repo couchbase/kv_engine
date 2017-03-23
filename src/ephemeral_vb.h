@@ -116,6 +116,15 @@ public:
 
     void dump() const override;
 
+    uint64_t getPersistenceSeqno() const override {
+        /* We do not have persistence in an ephemeral vb. hence we return
+           the last seen seqno (highSeqno) as the persisted seqno.
+           This is needed because higher layers like ns_server have long
+           considered persisted seqno as last seen seqno for certain operations
+           like vb takeover */
+        return static_cast<uint64_t>(getHighSeqno());
+    }
+
 private:
     std::tuple<StoredValue*, MutationStatus, VBNotifyCtx> updateStoredValue(
             const HashTable::HashBucketLock& hbl,

@@ -4164,11 +4164,17 @@ static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
 
     wait_for_flusher_to_settle(h, h1);
 
-    int total_persisted = get_int_stat(h, h1, "ep_total_persisted");
+    int total_persisted = 0;
     high_seqno = get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno");
 
-    checkeq(total_persisted, num_items,
-          "Expected ep_total_persisted equals the number of items");
+    if (isPersistentBucket(h, h1)) {
+        total_persisted = get_int_stat(h, h1, "ep_total_persisted");
+        checkeq(total_persisted,
+                num_items,
+                "Expected ep_total_persisted equals the number of items");
+    } else {
+        total_persisted = high_seqno;
+    }
 
     observe_seqno(h, h1, 1, vb_uuid);
 
@@ -4190,10 +4196,19 @@ static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
     high_seqno = get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno");
     observe_seqno(h, h1, 1, vb_uuid);
 
+    if (!isPersistentBucket(h, h1)) {
+        /* if bucket is not persistent then total_persisted == high_seqno */
+        total_persisted = high_seqno;
+    }
     check_observe_seqno(false, 0, 1, vb_uuid, total_persisted, high_seqno);
     start_persistence(h, h1);
     wait_for_flusher_to_settle(h, h1);
-    total_persisted = get_int_stat(h, h1, "ep_total_persisted");
+
+    if (isPersistentBucket(h, h1)) {
+        total_persisted = get_int_stat(h, h1, "ep_total_persisted");
+    } else {
+        total_persisted = high_seqno;
+    }
 
     observe_seqno(h, h1, 1, vb_uuid);
 
@@ -7224,7 +7239,7 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test observe not my vbucket", test_observe_errors, test_setup,
                  teardown, NULL, prepare_ep_bucket, cleanup),
         TestCase("test observe seqno basic tests", test_observe_seqno_basic_tests,
-                 test_setup, teardown, NULL, prepare_ep_bucket, cleanup),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test observe seqno failover", test_observe_seqno_failover,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test observe seqno error", test_observe_seqno_error,

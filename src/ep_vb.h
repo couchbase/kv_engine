@@ -111,6 +111,10 @@ public:
                 e, stream, startSeqno, endSeqno);
     }
 
+    uint64_t getPersistenceSeqno() const override {
+        return persistenceSeqno.load();
+    }
+
     static size_t getCheckpointFlushTimeout();
 
 protected:
