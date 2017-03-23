@@ -5,14 +5,15 @@ Binary memcached test client.
 Copyright (c) 2007  Dustin Sallings <dustin@spy.net>
 """
 
+import exceptions
+import hmac
+import json
+import random
+import select
+import socket
+import struct
 import sys
 import time
-import hmac
-import socket
-import random
-import struct
-import exceptions
-import select
 
 from memcacheConstants import REQ_MAGIC_BYTE, RES_MAGIC_BYTE
 from memcacheConstants import REQ_PKT_FMT, RES_PKT_FMT, MIN_RECV_PACKET
@@ -35,11 +36,38 @@ class TimeoutError(exceptions.Exception):
         str += 'passed or the connectivity to a server to be connected'
         return str
 
+
+# This metaclass causes any instantiation of MemcachedError to transparently
+# construct the appropriate subclass if the error code is known.
+class MemcachedErrorMetaclass(type):
+    _dispatch = {}
+    def __new__(meta, name, bases, dct):
+        cls = (super(MemcachedErrorMetaclass, meta)
+               .__new__(meta, name, bases, dct))
+        if 'ERRCODE' in dct:
+            meta._dispatch[dct['ERRCODE']] = cls
+        return cls
+
+    def __call__(cls, *args, **kwargs):
+        err = None
+        if 'status' in kwargs:
+            err = kwargs['status']
+        elif len(args):
+            err = args[0]
+
+        if err in cls._dispatch:
+            cls = cls._dispatch[err]
+
+        return (super(MemcachedErrorMetaclass, cls)
+                .__call__(*args, **kwargs))
+
 class MemcachedError(exceptions.Exception):
     """Error raised when a command fails."""
 
+    __metaclass__ = MemcachedErrorMetaclass
+
     def __init__(self, status, msg):
-        supermsg='Memcached error #' + `status`
+        supermsg='Memcached error #' + repr(status)
         if msg: supermsg += ":  " + msg
         exceptions.Exception.__init__(self, supermsg)
 
@@ -48,6 +76,48 @@ class MemcachedError(exceptions.Exception):
 
     def __repr__(self):
         return "<MemcachedError #%d ``%s''>" % (self.status, self.msg)
+
+class ErrorKeyEnoent(MemcachedError): ERRCODE = 0x1
+class ErrorKeyEexists(MemcachedError): ERRCODE = 0x2
+class ErrorE2big(MemcachedError): ERRCODE = 0x3
+class ErrorEinval(MemcachedError): ERRCODE = 0x4
+class ErrorNotStored(MemcachedError): ERRCODE = 0x5
+class ErrorDeltaBadval(MemcachedError): ERRCODE = 0x6
+class ErrorNotMyVbucket(MemcachedError): ERRCODE = 0x7
+class ErrorNoBucket(MemcachedError): ERRCODE = 0x8
+class ErrorLocked(MemcachedError): ERRCODE = 0x9
+class ErrorAuthStale(MemcachedError): ERRCODE = 0x1f
+class ErrorAuthError(MemcachedError): ERRCODE = 0x20
+class ErrorAuthContinue(MemcachedError): ERRCODE = 0x21
+class ErrorErange(MemcachedError): ERRCODE = 0x22
+class ErrorRollback(MemcachedError): ERRCODE = 0x23
+class ErrorEaccess(MemcachedError): ERRCODE = 0x24
+class ErrorNotInitialized(MemcachedError): ERRCODE = 0x25
+class ErrorUnknownCommand(MemcachedError): ERRCODE = 0x81
+class ErrorEnomem(MemcachedError): ERRCODE = 0x82
+class ErrorNotSupported(MemcachedError): ERRCODE = 0x83
+class ErrorEinternal(MemcachedError): ERRCODE = 0x84
+class ErrorEbusy(MemcachedError): ERRCODE = 0x85
+class ErrorEtmpfail(MemcachedError): ERRCODE = 0x86
+class ErrorXattrEinval(MemcachedError): ERRCODE = 0x87
+class ErrorUnknownCollection(MemcachedError): ERRCODE = 0x88
+class ErrorSubdocPathEnoent(MemcachedError): ERRCODE = 0xc0
+class ErrorSubdocPathMismatch(MemcachedError): ERRCODE = 0xc1
+class ErrorSubdocPathEinval(MemcachedError): ERRCODE = 0xc2
+class ErrorSubdocPathE2big(MemcachedError): ERRCODE = 0xc3
+class ErrorSubdocPathE2deep(MemcachedError): ERRCODE = 0xc4
+class ErrorSubdocValueCantinsert(MemcachedError): ERRCODE = 0xc5
+class ErrorSubdocDocNotjson(MemcachedError): ERRCODE = 0xc6
+class ErrorSubdocNumErange(MemcachedError): ERRCODE = 0xc7
+class ErrorSubdocDeltaEinval(MemcachedError): ERRCODE = 0xc8
+class ErrorSubdocPathEexists(MemcachedError): ERRCODE = 0xc9
+class ErrorSubdocValueEtoodeep(MemcachedError): ERRCODE = 0xca
+class ErrorSubdocInvalidCombo(MemcachedError): ERRCODE = 0xcb
+class ErrorSubdocMultiPathFailure(MemcachedError): ERRCODE = 0xcc
+class ErrorSubdocSuccessDeleted(MemcachedError): ERRCODE = 0xcd
+class ErrorSubdocXattrInvalidFlagCombo(MemcachedError): ERRCODE = 0xce
+class ErrorSubdocXattrInvalidKeyCombo(MemcachedError): ERRCODE = 0xcf
+class ErrorSubdocXattrUnknownMacro(MemcachedError): ERRCODE = 0xd0
 
 class MemcachedClient(object):
     """Simple memcached client."""
@@ -65,6 +135,8 @@ class MemcachedClient(object):
         self.s.setblocking(0)
         self.r=random.Random()
         self.features = []
+        self.error_map = None
+        self.error_map_version = 1
 
     def close(self):
         self.s.close()
@@ -117,7 +189,13 @@ class MemcachedClient(object):
         assert myopaque is None or opaque == myopaque, \
             "expected opaque %x, got %x" % (myopaque, opaque)
         if errcode != 0:
-            raise MemcachedError(errcode,  rv)
+            if self.error_map is None:
+                msg = rv
+            else:
+                err = self.error_map['errors'].get(errcode, rv)
+                msg = "{name} : {desc} : {rv}".format(rv=rv, **err)
+
+            raise MemcachedError(errcode,  msg)
         return cmd, opaque, cas, keylen, extralen, rv
 
     def _handleSingleResponse(self, myopaque):
@@ -454,3 +532,17 @@ class MemcachedClient(object):
         opaque, cas, data = self._doCmd(
             memcacheConstants.CMD_LIST_BUCKETS, '', '', '', 0)
         return data.strip().split(' ')
+
+    def get_error_map(self):
+        _, _, errmap = self._doCmd(memcacheConstants.CMD_GET_ERROR_MAP, '',
+                    struct.pack("!H", self.error_map_version))
+
+        errmap = json.loads(errmap)
+
+        errmap['errors'] = {int(k, 16):v
+                            for k,v in errmap['errors'].iteritems()}
+        return errmap
+
+    def enable_xerror(self):
+        self.features.append(memcacheConstants.FEATURE_XERROR)
+        self.error_map = self.get_error_map()
