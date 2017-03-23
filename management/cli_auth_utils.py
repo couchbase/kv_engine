@@ -3,8 +3,9 @@
 import clitool
 import inspect
 import mc_bin_client
+import memcacheConstants
 import sys
-
+import os
 
 def cmd_decorator(f):
     """Decorate a function with code to authenticate based on 1-3
@@ -32,6 +33,10 @@ def cmd_decorator(f):
                 print ("Authentication error for user:{} bucket:{}"
                        .format(username, bucket))
                 sys.exit(1)
+
+        mc.hello("{} {}".format(os.path.split(sys.argv[0])[1],
+                                os.getenv("EP_ENGINE_VERSION",
+                                          "unknown version")))
 
         if kwargs.get('allBuckets', None):
             buckets = mc.list_buckets()

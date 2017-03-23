@@ -64,6 +64,7 @@ class MemcachedClient(object):
             self.s.connect_ex((host, port))
         self.s.setblocking(0)
         self.r=random.Random()
+        self.features = []
 
     def close(self):
         self.s.close()
@@ -135,6 +136,11 @@ class MemcachedClient(object):
 
     def _cat(self, cmd, key, cas, val):
         return self._doCmd(cmd, key, val, '', cas)
+
+    def hello(self, name):
+        return self._doCmd(memcacheConstants.CMD_HELLO, name,
+                           struct.pack('>' + 'H' * len(self.features),
+                                       *self.features))
 
     def append(self, key, value, cas=0):
         return self._cat(memcacheConstants.CMD_APPEND, key, cas, value)
