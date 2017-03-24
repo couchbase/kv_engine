@@ -366,7 +366,9 @@ typedef struct engine_interface_v1 {
                               DocumentState allowed_states);
 
     /**
-     * Optionally retrieve an item
+     * Optionally retrieve an item. Only non-deleted items may be fetched
+     * through this interface (Documents in deleted state may be evicted
+     * from memory and we don't want to go to disk in order to fetch these)
      *
      * @param handle the engine handle
      * @param cookie The cookie provided by the frontend
