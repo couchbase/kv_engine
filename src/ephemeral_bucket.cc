@@ -182,6 +182,7 @@ void EphemeralBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     } while (0)
 
     // Active vBuckets:
+    DO_STAT("vb_active_auto_delete_count", ephActive.autoDeleteCount);
     DO_STAT("vb_active_seqlist_count", ephActive.seqlistCount);
     DO_STAT("vb_active_seqlist_deleted_count", ephActive.seqlistDeletedCount);
     DO_STAT("vb_active_seqlist_read_range_count",
@@ -193,6 +194,7 @@ void EphemeralBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
             ephActive.seqlistStaleMetadataBytes);
 
     // Replica vBuckets:
+    DO_STAT("vb_replica_auto_delete_count", ephReplica.autoDeleteCount);
     DO_STAT("vb_replica_seqlist_count", ephReplica.seqlistCount);
     DO_STAT("vb_replica_seqlist_deleted_count", ephReplica.seqlistDeletedCount);
     DO_STAT("vb_replica_seqlist_read_range_count",
@@ -204,6 +206,7 @@ void EphemeralBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
             ephReplica.seqlistStaleMetadataBytes);
 
     // Pending vBuckets:
+    DO_STAT("vb_pending_auto_delete_count", ephPending.autoDeleteCount);
     DO_STAT("vb_pending_seqlist_count", ephPending.seqlistCount);
     DO_STAT("vb_pending_seqlist_deleted_count", ephPending.seqlistDeletedCount);
     DO_STAT("vb_pending_seqlist_read_range_count",

@@ -54,7 +54,8 @@ EphemeralVBucket::EphemeralVBucket(id_type i,
               purgeSeqno,
               maxCas,
               collectionsManifest),
-      seqList(std::make_unique<BasicLinkedList>(i, st)) {
+      seqList(std::make_unique<BasicLinkedList>(i, st)),
+      autoDeleteCount(0) {
 }
 
 size_t EphemeralVBucket::getNumItems() const {
@@ -90,6 +91,9 @@ bool EphemeralVBucket::pageOut(const HashTable::HashBucketLock& lh,
             lh, *v, /*onlyMarkDeleted*/ false, queueCtx, 0);
     ht.updateMaxDeletedRevSeqno(newSv->getRevSeqno());
     notifyNewSeqno(notifyCtx);
+
+    autoDeleteCount++;
+
     return true;
 }
 
@@ -101,6 +105,7 @@ void EphemeralVBucket::addStats(bool details,
 
     if (details) {
         // Ephemeral-specific details
+        addStat("auto_delete_count", autoDeleteCount.load(), add_stat, c);
         addStat("seqlist_count", seqList->getNumItems(), add_stat, c);
         addStat("seqlist_deleted_count",
                 seqList->getNumDeletedItems(),
@@ -149,6 +154,10 @@ ENGINE_ERROR_CODE EphemeralVBucket::completeBGFetchForSingleItem(
             "is not valid. Called on vb " +
             std::to_string(getId()) + "for key: " +
             std::string(reinterpret_cast<const char*>(key.data()), key.size()));
+}
+
+void EphemeralVBucket::resetStats() {
+    autoDeleteCount.reset();
 }
 
 vb_bgfetch_queue_t EphemeralVBucket::getBGFetchItems() {

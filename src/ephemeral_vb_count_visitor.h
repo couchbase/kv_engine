@@ -31,6 +31,7 @@ public:
 
     void visitBucket(RCPtr<VBucket> &vb) override;
 
+    size_t autoDeleteCount = 0;
     uint64_t seqlistCount = 0;
     uint64_t seqlistDeletedCount = 0;
     uint64_t seqlistReadRangeCount = 0;

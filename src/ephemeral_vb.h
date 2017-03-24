@@ -49,6 +49,8 @@ public:
             const VBucketBGFetchItem& fetched_item,
             const ProcessClock::time_point startTime) override;
 
+    void resetStats() override;
+
     vb_bgfetch_queue_t getBGFetchItems() override;
 
     bool hasPendingBGFetchItems() override;
@@ -184,4 +186,9 @@ private:
 
     /* Data structure for in-memory sequential storage */
     std::unique_ptr<SequenceList> seqList;
+
+    /**
+     * Count of how many items have been deleted via the 'auto_delete' policy
+     */
+    EPStats::Counter autoDeleteCount;
 };

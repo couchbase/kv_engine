@@ -27,6 +27,7 @@ void EphemeralVBucket::CountVisitor::visitBucket(RCPtr<VBucket>& vb) {
     // Then append Ephemeral-specific:
     if (desired_state != vbucket_state_dead) {
         auto& ephVB = dynamic_cast<EphemeralVBucket&>(*vb);
+        autoDeleteCount += ephVB.autoDeleteCount;
         seqlistCount += ephVB.seqList->getNumItems();
         seqlistDeletedCount += ephVB.seqList->getNumDeletedItems();
         seqlistReadRangeCount += ephVB.seqList->getRangeReadEnd() -

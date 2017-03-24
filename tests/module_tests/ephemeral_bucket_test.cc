@@ -41,6 +41,7 @@ TEST_F(EphemeralBucketStatTest, VBSeqlistStats) {
 
     stats = get_stat("vbucket-details 0");
 
+    EXPECT_EQ("0", stats.at("vb_0:auto_delete_count"));
     EXPECT_EQ("2", stats.at("vb_0:seqlist_count"))
         << "Expected both current and deleted documents";
     EXPECT_EQ("1", stats.at("vb_0:seqlist_deleted_count"));
@@ -52,4 +53,17 @@ TEST_F(EphemeralBucketStatTest, VBSeqlistStats) {
     EXPECT_EQ("0", stats.at("vb_0:seqlist_stale_count"));
     EXPECT_EQ("0", stats.at("vb_0:seqlist_stale_value_bytes"));
     EXPECT_EQ("0", stats.at("vb_0:seqlist_stale_metadata_bytes"));
+
+    // Trigger the "automatic" deletion of an item by paging it out.
+    auto vb = store->getVBucket(vbid);
+    auto key = makeStoredDocKey("doc");
+    auto lock = vb->ht.getLockedBucket(key);
+    auto* value = vb->fetchValidValue(
+            lock, key, WantsDeleted::No, TrackReference::Yes, QueueExpired::No);
+    ASSERT_TRUE(vb->pageOut(lock, value));
+
+    stats = get_stat("vbucket-details 0");
+    EXPECT_EQ("1", stats.at("vb_0:auto_delete_count"));
+    EXPECT_EQ("2", stats.at("vb_0:seqlist_deleted_count"));
+    EXPECT_EQ("5", stats.at("vb_0:seqlist_high_seqno"));
 }

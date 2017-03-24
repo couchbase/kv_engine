@@ -336,7 +336,8 @@ public:
     void incrMetaDataDisk(const Item& qi);
     void decrMetaDataDisk(const Item& qi);
 
-    void resetStats();
+    /// Reset all statistics assocated with this vBucket.
+    virtual void resetStats();
 
     // Get age sum in millisecond
     uint64_t getQueueAge() {
