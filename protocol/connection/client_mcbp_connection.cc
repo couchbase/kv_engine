@@ -87,7 +87,7 @@ std::unique_ptr<MemcachedConnection> MemcachedBinprotConnection::clone() {
 void MemcachedBinprotConnection::sendFrame(const Frame& frame) {
     MemcachedConnection::sendFrame(frame);
     if (packet_dump) {
-        Couchbase::MCBP::dump(frame.payload.data(), std::cerr);
+        cb::mcbp::dump(frame.payload.data(), std::cerr);
     }
 }
 
@@ -113,7 +113,7 @@ void MemcachedBinprotConnection::recvFrame(Frame& frame) {
 
     MemcachedConnection::read(frame, bodylen);
     if (packet_dump) {
-        Couchbase::MCBP::dump(frame.payload.data(), std::cerr);
+        cb::mcbp::dump(frame.payload.data(), std::cerr);
     }
 
     // fixup the length bits in the header to be in host local order:

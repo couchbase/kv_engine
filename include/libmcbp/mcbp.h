@@ -22,8 +22,16 @@
 #include <ostream>
 #include <vector>
 
-namespace Couchbase {
-    namespace MCBP {
-        void dump(const uint8_t* packet, std::ostream &out);
-    }
+namespace cb {
+namespace mcbp {
+
+/**
+ * Dump a raw packet to the named stream (the packet is expected to contain
+ * a valid packet)
+ *
+ * @param packet pointer to the first byte of a correctly encoded mcbp packet
+ * @param out where to dump the bytes
+ */
+void dump(const uint8_t* packet, std::ostream& out);
+}
 }

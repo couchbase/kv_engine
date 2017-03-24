@@ -116,7 +116,7 @@ static void sendCommand(BIO* bio,
 void sendCommand(BIO* bio, const std::vector<uint8_t>& buffer) {
     ensure_send(bio, buffer.data(), buffer.size());
     if (packet_dump) {
-        Couchbase::MCBP::dump(buffer.data(), std::cerr);
+        cb::mcbp::dump(buffer.data(), std::cerr);
     }
 }
 
@@ -128,7 +128,7 @@ void readResponse(BIO* bio, std::vector<uint8_t>& buffer) {
     memcpy(buffer.data(), res.bytes, sizeof(res.bytes));
     ensure_recv(bio, buffer.data() + sizeof(res.bytes), bodylen);
     if (packet_dump) {
-        Couchbase::MCBP::dump(buffer.data(), std::cerr);
+        cb::mcbp::dump(buffer.data(), std::cerr);
     }
 
     auto* r = reinterpret_cast<protocol_binary_response_header*>(buffer.data());

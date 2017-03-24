@@ -422,7 +422,7 @@ static void dump_response(const protocol_binary_response_header* res,
     }
 }
 
-void Couchbase::MCBP::dump(const uint8_t* packet, std::ostream& out) {
+void cb::mcbp::dump(const uint8_t* packet, std::ostream& out) {
     auto* req = reinterpret_cast<const protocol_binary_request_header*>(packet);
     auto* res = reinterpret_cast<const protocol_binary_response_header*>(packet);
 
