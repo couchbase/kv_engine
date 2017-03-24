@@ -103,9 +103,10 @@ std::ostream& operator<<(std::ostream& os, const GetOpcodes& o) {
     return os;
 }
 
-// Test the validators for GET, GETQ, GETK, GETKQ
+// Test the validators for GET, GETQ, GETK, GETKQ, GET_META and GETQ_META
 class GetValidatorTest : public ValidatorTest,
                          public ::testing::WithParamInterface<GetOpcodes> {
+public:
     virtual void SetUp() override {
         ValidatorTest::SetUp();
         memset(&request, 0, sizeof(request));
@@ -116,12 +117,29 @@ class GetValidatorTest : public ValidatorTest,
         request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
+    GetValidatorTest()
+        : request(*reinterpret_cast<protocol_binary_request_get*>(blob)),
+          bodylen(request.message.header.request.bodylen) {
+        // empty
+    }
+
 protected:
+
+    protocol_binary_response_status validateExtendedExtlen(uint8_t version) {
+        bodylen = htonl(ntohl(bodylen) + 1);
+        request.message.header.request.extlen = 1;
+        blob[sizeof(protocol_binary_request_get)] = version;
+        return validate();
+    }
+
     protocol_binary_response_status validate() {
         auto opcode = (protocol_binary_command)GetParam();
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
-    protocol_binary_request_get request;
+
+    protocol_binary_request_get& request;
+    uint32_t& bodylen;
+    uint8_t blob[sizeof(protocol_binary_request_get) + 1];
 };
 
 TEST_P(GetValidatorTest, CorrectMessage) {
@@ -133,13 +151,59 @@ TEST_P(GetValidatorTest, InvalidMagic) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
+TEST_P(GetValidatorTest, ExtendedExtlenV1) {
+    switch (GetParam()) {
+    case GetOpcodes::Get:
+    case GetOpcodes::GetQ:
+    case GetOpcodes::GetK:
+    case GetOpcodes::GetKQ:
+        // Extended extlen is only supported for *Meta
+        return;
+    case GetOpcodes::GetMeta:
+    case GetOpcodes::GetQMeta:
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validateExtendedExtlen(1));
+        break;
+    }
+}
+
+TEST_P(GetValidatorTest, ExtendedExtlenV2) {
+    switch (GetParam()) {
+    case GetOpcodes::Get:
+    case GetOpcodes::GetQ:
+    case GetOpcodes::GetK:
+    case GetOpcodes::GetKQ:
+        // Extended extlen is only supported for *Meta
+        return;
+    case GetOpcodes::GetMeta:
+    case GetOpcodes::GetQMeta:
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validateExtendedExtlen(2));
+        break;
+    }
+}
+
+TEST_P(GetValidatorTest, InvalidExtendedExtlenVersion) {
+    switch (GetParam()) {
+    case GetOpcodes::Get:
+    case GetOpcodes::GetQ:
+    case GetOpcodes::GetK:
+    case GetOpcodes::GetKQ:
+        // Extended extlen is only supported for *Meta
+        return;
+    case GetOpcodes::GetMeta:
+    case GetOpcodes::GetQMeta:
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validateExtendedExtlen(3));
+        break;
+    }
+}
+
 TEST_P(GetValidatorTest, InvalidExtlen) {
+    bodylen = htonl(ntohl(bodylen) + 21);
     request.message.header.request.extlen = 21;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 TEST_P(GetValidatorTest, NoKey) {
-    // key != bodylen
     request.message.header.request.keylen = 0;
+    bodylen = 0;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 TEST_P(GetValidatorTest, InvalidDatatype) {
@@ -150,6 +214,10 @@ TEST_P(GetValidatorTest, InvalidCas) {
     request.message.header.request.cas = 1;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
+
+
+// @todo add test case for the extra legal modes for the
+// get meta case
 
 INSTANTIATE_TEST_CASE_P(GetOpcodes,
                         GetValidatorTest,

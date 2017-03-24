@@ -1034,6 +1034,32 @@ static protocol_binary_response_status tap_validator(const Cookie& cookie) {
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
+static protocol_binary_response_status get_meta_validator(const Cookie& cookie)
+{
+    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
+    uint32_t extlen = req->message.header.request.extlen;
+    uint32_t klen = ntohs(req->message.header.request.keylen);
+    uint32_t blen = ntohl(req->message.header.request.bodylen);
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        extlen > 1 || klen == 0 || (klen + extlen) != blen ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES ||
+        req->message.header.request.cas != 0) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    if (extlen == 1) {
+        const uint8_t* extdata = req->bytes + sizeof(req->bytes);
+        if (*extdata > 2) {
+            // 1 == return conflict resolution mode
+            // 2 == return datatype
+            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+    }
+
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
 static protocol_binary_response_status mutate_with_meta_validator(const Cookie& cookie) {
     auto req = static_cast<protocol_binary_request_get_meta*>(McbpConnection::getPacket(cookie));
 
@@ -1215,8 +1241,8 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_TAP_OPAQUE, tap_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET, tap_validator);
 
-    chains.push_unique(PROTOCOL_BINARY_CMD_GET_META, get_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_GETQ_META, get_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_GET_META, get_meta_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_GETQ_META, get_meta_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_SET_WITH_META, mutate_with_meta_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_SETQ_WITH_META, mutate_with_meta_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_ADD_WITH_META, mutate_with_meta_validator);
