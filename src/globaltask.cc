@@ -86,7 +86,10 @@ void GlobalTask::snooze(const double secs) {
  */
 const char* GlobalTask::getTaskName(TaskId id) {
     switch(id) {
-#define TASK(name, prio) case TaskId::name: {return #name;}
+#define TASK(name, type, prio) \
+    case TaskId::name: {       \
+        return #name;          \
+    }
 #include "tasks.def.h"
 #undef TASK
         case TaskId::TASK_COUNT: {
@@ -103,7 +106,10 @@ const char* GlobalTask::getTaskName(TaskId id) {
  */
 TaskPriority GlobalTask::getTaskPriority(TaskId id) {
    switch(id) {
-#define TASK(name, prio) case TaskId::name: {return TaskPriority::name;}
+#define TASK(name, type, prio)     \
+    case TaskId::name: {           \
+        return TaskPriority::name; \
+    }
 #include "tasks.def.h"
 #undef TASK
         case TaskId::TASK_COUNT: {
@@ -115,8 +121,28 @@ TaskPriority GlobalTask::getTaskPriority(TaskId id) {
     return TaskPriority::PRIORITY_COUNT;
 }
 
+/*
+ * Generate a switch statement from tasks.def.h that maps TaskId to task type
+ */
+task_type_t GlobalTask::getTaskType(TaskId id) {
+    switch (id) {
+#define TASK(name, type, prio) \
+    case TaskId::name: {       \
+        return type;           \
+    }
+#include "tasks.def.h"
+#undef TASK
+    case TaskId::TASK_COUNT: {
+        throw std::invalid_argument(
+                "GlobalTask::getTaskType(TaskId::TASK_COUNT) called.");
+    }
+    }
+    throw std::logic_error("GlobalTask::getTaskType() unknown id " +
+                           std::to_string(static_cast<int>(id)));
+}
+
 std::array<TaskId, static_cast<int>(TaskId::TASK_COUNT)> GlobalTask::allTaskIds = {{
-#define TASK(name, prio) TaskId::name,
+#define TASK(name, type, prio) TaskId::name,
 #include "tasks.def.h"
 #undef TASK
 }};

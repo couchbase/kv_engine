@@ -23,6 +23,7 @@
 
 #include "atomic.h"
 #include "config.h"
+#include "task_type.h"
 
 enum task_state_t {
     TASK_RUNNING,
@@ -31,7 +32,7 @@ enum task_state_t {
 };
 
 enum class TaskId : int {
-#define TASK(name, prio) name,
+#define TASK(name, type, prio) name,
 #include "tasks.def.h"
 #undef TASK
     TASK_COUNT
@@ -40,7 +41,7 @@ enum class TaskId : int {
 typedef int queue_priority_t;
 
 enum class TaskPriority : int {
-#define TASK(name, prio) name = prio,
+#define TASK(name, type, prio) name = prio,
 #include "tasks.def.h"
 #undef TASK
     PRIORITY_COUNT
@@ -170,6 +171,12 @@ public:
      * The data used is generated from tasks.def.h
      */
     static TaskPriority getTaskPriority(TaskId id);
+
+    /*
+     * Lookup the task type for TaskId id.
+     * The data used is generated from tasks.def.h
+     */
+    static task_type_t getTaskType(TaskId id);
 
     /*
      * A vector of all TaskId generated from tasks.def.h
