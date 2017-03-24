@@ -714,8 +714,7 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie,
 
     size_t del_items = 0;
     try {
-        del_items = engine->getKVBucket()->getRWUnderlying(vb_)->
-                                                    getNumPersistedDeletes(vb_);
+        del_items = engine->getKVBucket()->getNumPersistedDeletes(vb_);
     } catch (std::runtime_error& e) {
         producer->getLogger().log(EXTENSION_LOG_WARNING,
             "ActiveStream:addTakeoverStats: exception while getting num persisted "

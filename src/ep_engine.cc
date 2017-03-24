@@ -5785,8 +5785,7 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
 
         size_t del_items = 0;
         try {
-            del_items = kvBucket->getRWUnderlying(vbid)->
-                                                getNumPersistedDeletes(vbid);
+            del_items = kvBucket->getNumPersistedDeletes(vbid);
         } catch (std::runtime_error& e) {
             LOG(EXTENSION_LOG_WARNING,
                 "doDcpVbTakeoverStats: exception while getting num "

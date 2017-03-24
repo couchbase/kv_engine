@@ -141,3 +141,11 @@ void EphemeralBucket::reconfigureForEphemeral(Configuration& config) {
     // Disable TAP - not supported for Ephemeral.
     config.setTap(false);
 }
+
+size_t EphemeralBucket::getNumPersistedDeletes(uint16_t vbid) {
+    /* the name is getNumPersistedDeletes, in ephemeral buckets the equivalent
+       meaning is the number of deletes seen by the vbucket.
+       This is needed by ns-server during vb-takeover */
+    RCPtr<VBucket> vb = getVBucket(vbid);
+    return vb->getNumInMemoryDeletes();
+}

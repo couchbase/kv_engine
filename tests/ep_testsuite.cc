@@ -1347,18 +1347,49 @@ static enum test_result test_vbucket_create(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     return verify_vbucket_state(h, h1, 1, vbucket_state_active) ? SUCCESS : FAIL;
 }
 
-static enum test_result test_takeover_stats_race_with_vb_create(ENGINE_HANDLE *h,
-                                                                ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_takeover_stats_race_with_vb_create_TAP(
+                                    ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_active),
           "Failed to set vbucket state information");
 
-    int del_items = get_int_stat(h, h1, "on_disk_deletes", "dcp-vbtakeover 1");
+    checkeq(0,
+            get_int_stat(h, h1, "on_disk_deletes", "tap-vbtakeover 1"),
+            "Invalid number of on-disk deletes");
 
-    checkeq(0, del_items, "Invalid number of on-disk deletes");
+    return SUCCESS;
+}
 
-    del_items = get_int_stat(h, h1, "on_disk_deletes", "tap-vbtakeover 1");
+static enum test_result test_takeover_stats_race_with_vb_create_DCP(
+                                    ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+          "Failed to set vbucket state information");
 
-    checkeq(0, del_items, "Invalid number of on-disk deletes");
+    checkeq(0,
+            get_int_stat(h, h1, "on_disk_deletes", "dcp-vbtakeover 1"),
+            "Invalid number of on-disk deletes");
+
+    return SUCCESS;
+}
+
+static enum test_result test_takeover_stats_num_persisted_deletes(
+                                    ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    /* set an item */
+    std::string key("key");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key.c_str(), "data", nullptr),
+            "Failed to store an item");
+
+    /* delete the item */
+    checkeq(ENGINE_SUCCESS, del(h, h1, key.c_str(), 0, 0),
+            "Failed to delete the item");
+
+    /* wait for persistence */
+    wait_for_flusher_to_settle(h, h1);
+
+    /* check if persisted deletes stats is got correctly */
+    checkeq(1,
+            get_int_stat(h, h1, "on_disk_deletes", "dcp-vbtakeover 0"),
+            "Invalid number of on-disk deletes");
 
     return SUCCESS;
 }
@@ -7497,9 +7528,27 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test sync vbucket destroy restart",
                  test_sync_vbucket_destroy_restart, test_setup, teardown, NULL,
                  prepare, cleanup),
-        TestCase("test takeover stats race with vbucket create",
-                 test_takeover_stats_race_with_vb_create, test_setup, teardown, NULL,
-                 prepare_tap, cleanup),
+        TestCase("test takeover stats race with vbucket create (TAP)",
+                 test_takeover_stats_race_with_vb_create_TAP,
+                 test_setup,
+                 teardown,
+                 NULL,
+                 prepare_tap,
+                 cleanup),
+        TestCase("test takeover stats race with vbucket create (DCP)",
+                 test_takeover_stats_race_with_vb_create_DCP,
+                 test_setup,
+                 teardown,
+                 NULL,
+                 prepare,
+                 cleanup),
+        TestCase("test num persisted deletes (takeover stats)",
+                 test_takeover_stats_num_persisted_deletes,
+                 test_setup,
+                 teardown,
+                 NULL,
+                 prepare,
+                 cleanup),
 
         // stats uuid
         TestCase("test stats uuid", test_uuid_stats, test_setup, teardown,

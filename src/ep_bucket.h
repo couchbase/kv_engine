@@ -94,4 +94,8 @@ public:
     RollbackResult doRollback(uint16_t vbid, uint64_t rollbackSeqno) override;
 
     void rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) override;
+
+    size_t getNumPersistedDeletes(uint16_t vbid) override {
+        return getROUnderlying(vbid)->getNumPersistedDeletes(vbid);
+    }
 };

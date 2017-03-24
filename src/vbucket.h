@@ -986,6 +986,20 @@ public:
      */
     virtual void dump() const;
 
+    /**
+     * Returns the number of deletes in the memory
+     *
+     * @return number of deletes
+     */
+    size_t getNumInMemoryDeletes() const {
+        /* couchbase vbuckets: this is generally (after deletes are persisted)
+                               zero as hash table doesn't keep deletes after
+                               they are persisted.
+           ephemeral vbuckets: we keep deletes in both hash table and ordered
+                               data structure. */
+        return ht.getNumDeletedItems();
+    }
+
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
 
