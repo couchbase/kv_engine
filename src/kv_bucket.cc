@@ -2508,7 +2508,7 @@ ENGINE_ERROR_CODE KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
             RollbackResult result = doRollback(vbid, rollbackSeqno);
 
             if (result.success) {
-                rollbackUnpersistedItems(*vb, rollbackSeqno);
+                rollbackUnpersistedItems(*vb, result.highSeqno);
                 vb->postProcessRollback(result, prevHighSeqno);
                 return ENGINE_SUCCESS;
             }
