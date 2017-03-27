@@ -1160,9 +1160,13 @@ ScanContext* CouchKVStore::initScanContext(std::shared_ptr<Callback<GetValue> > 
                    "CouchKVStore::initScanContext: couchstore_db_info error:%s",
                    couchstore_strerror(errorCode));
         closeDatabaseHandle(db);
-        throw std::runtime_error("Failed to read DB info for backfill. vb:" +
-                                 std::to_string(vbid) + " rev:" +
-                                 std::to_string(rev));
+        LOG(EXTENSION_LOG_WARNING,
+            "CouchKVStore::initScanContext: Failed to read DB info for "
+            "backfill. vb:%" PRIu16 " rev:%" PRIu64 " error: %s",
+            vbid,
+            rev,
+            couchstore_strerror(errorCode));
+        return NULL;
     }
 
     uint64_t count = 0;
@@ -1171,11 +1175,16 @@ ScanContext* CouchKVStore::initScanContext(std::shared_ptr<Callback<GetValue> > 
                                          std::numeric_limits<uint64_t>::max(),
                                          &count);
     if (errorCode != COUCHSTORE_SUCCESS) {
-        std::string err("CouchKVStore::initScanContext:Failed to obtain changes "
-                        "count with error: " +
-                        std::string(couchstore_strerror(errorCode)));
         closeDatabaseHandle(db);
-        throw std::runtime_error(err);
+        LOG(EXTENSION_LOG_WARNING,
+            "CouchKVStore::initScanContext:Failed to obtain changes "
+            "count for vb:%" PRIu16 " rev:%" PRIu64 " start_seqno:%" PRIu64
+            " error: %s",
+            vbid,
+            rev,
+            startSeqno,
+            couchstore_strerror(errorCode));
+        return NULL;
     }
 
     size_t scanId = scanCounter++;

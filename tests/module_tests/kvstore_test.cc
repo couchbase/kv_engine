@@ -830,17 +830,14 @@ TEST_F(CouchKVStoreErrorInjectionTest, initScanContext_changes_count) {
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
 
         ScanContext* scanCtx = nullptr;
-        try {
-            scanCtx = kvstore->initScanContext(cb, cl, 0, 0,
-                                               DocumentFilter::ALL_ITEMS,
-                                               ValueFilter::VALUES_DECOMPRESSED);
-            EXPECT_TRUE(false) << "kvstore->initScanContext(cb, cl, 0, 0, "
-                                  "DocumentFilter::ALL_ITEMS, "
-                                  "ValueFilter::VALUES_DECOMPRESSED); should "
-                                  "have thrown a runtime_error";
-        } catch (const std::runtime_error& e) {
-            EXPECT_THAT(std::string(e.what()), VCE(COUCHSTORE_ERROR_READ));
-        }
+        scanCtx = kvstore->initScanContext(cb, cl, 0, 0,
+                                           DocumentFilter::ALL_ITEMS,
+                                           ValueFilter::VALUES_DECOMPRESSED);
+        EXPECT_EQ(nullptr, scanCtx)
+                << "kvstore->initScanContext(cb, cl, 0, 0, "
+                   "DocumentFilter::ALL_ITEMS, "
+                   "ValueFilter::VALUES_DECOMPRESSED); should "
+                   "have returned NULL";
 
         kvstore->destroyScanContext(scanCtx);
     }

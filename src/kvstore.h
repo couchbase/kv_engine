@@ -934,11 +934,21 @@ public:
                             const DocKey start_key, uint32_t count,
                             std::shared_ptr<Callback<const DocKey&>> cb) = 0;
 
-    virtual ScanContext* initScanContext(std::shared_ptr<Callback<GetValue> > cb,
-                                         std::shared_ptr<Callback<CacheLookup> > cl,
-                                         uint16_t vbid, uint64_t startSeqno,
-                                         DocumentFilter options,
-                                         ValueFilter valOptions) = 0;
+    /**
+     * Create a KVStore Scan Context with the given options. On success,
+     * returns a pointer to the ScanContext. The caller can then call scan()
+     * to execute the scan. The context should be deleted by the caller using
+     * destroyScanContext() when finished with.
+     *
+     * If the ScanContext cannot be created, returns null.
+     */
+    virtual ScanContext* initScanContext(
+            std::shared_ptr<Callback<GetValue> > cb,
+            std::shared_ptr<Callback<CacheLookup> > cl,
+            uint16_t vbid,
+            uint64_t startSeqno,
+            DocumentFilter options,
+            ValueFilter valOptions) = 0;
 
     virtual scan_error_t scan(ScanContext* sctx) = 0;
 
