@@ -22,6 +22,8 @@
 #include <memcached/rbac.h>
 #include <memcached/types.h>
 
+#include <string>
+
 typedef struct {
     /**
      * The current time.
@@ -235,6 +237,24 @@ typedef struct {
      */
     protocol_binary_response_status (*engine_error2mcbp)(
             const void* cookie, ENGINE_ERROR_CODE code);
+
+    /**
+     * Get the log information to be used for a log entry.
+     *
+     * The typical log entry from the core is:
+     *
+     *  `id> message` - Data read from ta client
+     *  `id: message` - Status messages for this client
+     *  `id< message` - Data sent back to the client
+     *
+     * If the caller wants to dump more information about the connection
+     * (like socket name, peer name, user name) the pair returns this
+     * info as the second field. The info may be invalidated by the core
+     * at any time (but not while the engine is operating in a single call
+     * from the core) so it should _not_ be cached.
+     */
+    std::pair<uint32_t, std::string> (*get_log_info)(const void* cookie);
+
 } SERVER_COOKIE_API;
 
 struct SERVER_DOCUMENT_API {

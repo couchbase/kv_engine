@@ -67,6 +67,7 @@ mock_connstruct::mock_connstruct()
       references(1) {
     cb_mutex_initialize(&mutex);
     cb_cond_initialize(&cond);
+    description = "[ you - me ]";
 }
 
 /* Forward declarations */
@@ -186,6 +187,11 @@ static protocol_binary_response_status mock_engine_error2mcbp(const void* void_c
     }
 
     return engine_error_2_mcbp_protocol_error(code);
+}
+
+static std::pair<uint32_t, std::string> mock_get_log_info(const void* cookie) {
+    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
+    return std::make_pair(uint32_t(c->sfd), c->description);
 }
 
 static PreLinkFunction pre_link_function;
@@ -429,6 +435,7 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       server_cookie_api.set_priority = mock_set_priority;
       server_cookie_api.check_privilege = mock_check_privilege;
       server_cookie_api.engine_error2mcbp = mock_engine_error2mcbp;
+      server_cookie_api.get_log_info = mock_get_log_info;
       server_stat_api.evicting = mock_count_eviction;
 
       extension_api.register_extension = mock_register_extension;

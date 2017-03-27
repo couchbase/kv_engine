@@ -731,6 +731,17 @@ uint64_t get_connection_id(const void *void_cookie) {
     return uint64_t(cookie->connection);
 }
 
+std::pair<uint32_t, std::string> cookie_get_log_info(const void* void_cookie) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    cookie->validate();
+    if (cookie->connection == nullptr) {
+        throw std::logic_error("get_log_prefix: connection can't be null");
+    }
+
+    return std::make_pair(cookie->connection->getId(),
+                          cookie->connection->getDescription());
+}
+
 /**
  * Check if the cookie holds the privilege
  *
@@ -2002,6 +2013,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         server_cookie_api.get_connection_id = get_connection_id;
         server_cookie_api.check_privilege = check_privilege;
         server_cookie_api.engine_error2mcbp = engine_error2mcbp;
+        server_cookie_api.get_log_info = cookie_get_log_info;
 
         server_stat_api.evicting = count_eviction;
 

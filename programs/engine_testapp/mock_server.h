@@ -28,6 +28,7 @@ struct mock_connstruct {
     cb_mutex_t mutex;
     cb_cond_t cond;
     int references;
+    std::string description;
 };
 
 struct mock_callbacks {
