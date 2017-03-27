@@ -1134,8 +1134,8 @@ void CheckpointManager::updateStatsForNewQueuedItem_UNLOCKED(const LockHolder&,
     ++stats.totalEnqueued;
     if (checkpointConfig.isPersistenceEnabled()) {
         ++stats.diskQueueSize;
+        vb.doStatsForQueueing(*qi, qi->size());
     }
-    vb.doStatsForQueueing(*qi, qi->size());
     // Update the checkpoint's memory usage
     checkpointList.back()->incrementMemConsumption(qi->size());
 }

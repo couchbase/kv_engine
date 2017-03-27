@@ -1195,6 +1195,7 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
                     pending.getNumItems());
 
     // Active vBuckets:
+    DO_STAT("vb_active_backfill_queue_size", active.getBackfillQueueSize());
     DO_STAT("vb_active_num", active.getVBucketNumber());
     DO_STAT("vb_active_curr_items", active.getNumItems());
     DO_STAT("vb_active_num_non_resident", active.getNonResident());
@@ -1218,6 +1219,7 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     DO_STAT("vb_active_rollback_item_count", active.getRollbackItemCount());
 
     // Replica vBuckets:
+    DO_STAT("vb_replica_backfill_queue_size", replica.getBackfillQueueSize());
     DO_STAT("vb_replica_num", replica.getVBucketNumber());
     DO_STAT("vb_replica_curr_items", replica.getNumItems());
     DO_STAT("vb_replica_num_non_resident", replica.getNonResident());
@@ -1241,6 +1243,7 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     DO_STAT("vb_replica_rollback_item_count", replica.getRollbackItemCount());
 
     // Pending vBuckets:
+    DO_STAT("vb_pending_backfill_queue_size", pending.getBackfillQueueSize());
     DO_STAT("vb_pending_num", pending.getVBucketNumber());
     DO_STAT("vb_pending_curr_items", pending.getNumItems());
     DO_STAT("vb_pending_num_non_resident", pending.getNonResident());

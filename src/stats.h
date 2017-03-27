@@ -65,6 +65,7 @@ public:
         warmupNumReadCap(0),
         replicationThrottleWriteQueueCap(0),
         diskQueueSize(0),
+        vbBackfillQueueSize(0),
         flusher_todo(0),
         flusherCommits(0),
         cumulativeFlushTime(0),
@@ -215,6 +216,8 @@ public:
 
     //! Amount of items waiting for persistence
     cb::NonNegativeCounter<size_t> diskQueueSize;
+    //! Number of items in vbucket backfill queue
+    cb::NonNegativeCounter<size_t> vbBackfillQueueSize;
     //! Size of the in-process (output) queue.
     Counter flusher_todo;
     //! Number of transaction commits.

@@ -115,6 +115,9 @@ public:
         return persistenceSeqno.load();
     }
 
+    void queueBackfillItem(queued_item& qi,
+                           const GenerateBySeqno generateBySeqno) override;
+
     static size_t getCheckpointFlushTimeout();
 
 protected:

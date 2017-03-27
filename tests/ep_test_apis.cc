@@ -1379,13 +1379,17 @@ bool wait_for_warmup_complete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 void wait_for_flusher_to_settle(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    if (!isPersistentBucket(h, h1)) {
-        // Nothing to do for non-persistent buckets
-        return;
-    }
-
     wait_for_stat_to_be(h, h1, "ep_queue_size", 0);
 
+    /* check that vb backfill queue is empty as well */
+    checkeq(0,
+            get_int_stat(h, h1, "ep_vb_backfill_queue_size", 0),
+            "even though disk queue is empty, vb backfill queue is not!!");
+
+    if (!isPersistentBucket(h, h1)) {
+        // We don't run flusher in non-persistent buckets
+        return;
+    }
     // We also need to to wait for any outstanding flushes to disk to
     // complete - specifically so when in full eviction mode we have
     // waited for the item counts in each vBucket to be synced with

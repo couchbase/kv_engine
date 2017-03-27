@@ -56,6 +56,7 @@ For introductory information on stats within Couchbase, start with the
 | ep_item_flush_expired              | Number of times an item is not flushed |
 |                                    | due to the expiry of the item          |
 | ep_queue_size                      | Number of items queued for storage     |
+| ep_vb_backfill_queue_size          | Number of items in vb backfill queues  |
 | ep_flusher_todo                    | Number of items currently being        |
 |                                    | written                                |
 | ep_flusher_state                   | Current state of the flusher thread    |
@@ -397,6 +398,7 @@ For introductory information on stats within Couchbase, start with the
 | vb_active_ops_delete          | Number of delete operations                |
 | vb_active_ops_reject          | Number of rejected operations              |
 | vb_active_queue_size          | Active items in disk queue                 |
+| vb_active_backfill_queue_size | Items in active vbucket backfill queue     |
 | vb_active_queue_memory        | Memory used for disk queue                 |
 | vb_active_queue_age           | Sum of disk queue item age in milliseconds |
 | vb_active_queue_pending       | Total bytes of pending writes              |
@@ -425,6 +427,7 @@ For introductory information on stats within Couchbase, start with the
 | vb_replica_ops_delete         | Number of delete operations                |
 | vb_replica_ops_reject         | Number of rejected operations              |
 | vb_replica_queue_size         | Replica items in disk queue                |
+| vb_replica_backfill_queue_size| Items in replica vbucket backfill queue    |
 | vb_replica_queue_memory       | Memory used for disk queue                 |
 | vb_replica_queue_age          | Sum of disk queue item age in milliseconds |
 | vb_replica_queue_pending      | Total bytes of pending writes              |
@@ -453,6 +456,7 @@ For introductory information on stats within Couchbase, start with the
 | vb_pending_ops_delete         | Number of delete operations                |
 | vb_pending_ops_reject         | Number of rejected operations              |
 | vb_pending_queue_size         | Pending items in disk queue                |
+| vb_pending_backfill_queue_size| Items in pending vbucket backfill queue    |
 | vb_pending_queue_memory       | Memory used for disk queue                 |
 | vb_pending_queue_age          | Sum of disk queue item age in milliseconds |
 | vb_pending_queue_pending      | Total bytes of pending writes              |
@@ -484,6 +488,7 @@ The stats below are listed for each vbucket.
 | ops_delete                    | Number of delete operations                |
 | ops_reject                    | Number of rejected operations              |
 | queue_size                    | Pending items in disk queue                |
+| backfill_queue_size           | Items in backfill queue                    |
 | queue_memory                  | Memory used for disk queue                 |
 | queue_age                     | Sum of disk queue item age in milliseconds |
 | queue_fill                    | Total enqueued items                       |

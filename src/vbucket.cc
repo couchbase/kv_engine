@@ -212,6 +212,7 @@ VBucket::~VBucket() {
     }
 
     stats.diskQueueSize.fetch_sub(dirtyQueueSize.load());
+    stats.vbBackfillQueueSize.fetch_sub(getBackfillSize());
 
     // Clear out the bloomfilter(s)
     clearFilter();
@@ -583,7 +584,8 @@ VBNotifyCtx VBucket::queueDirty(
     queued_item qi(v.toItem(false, getId()));
 
     if (isBackfillItem) {
-        notifyCtx.notifyFlusher = queueBackfillItem(qi, generateBySeqno);
+        queueBackfillItem(qi, generateBySeqno);
+        notifyCtx.notifyFlusher = true;
         /* During backfill on a TAP receiver we need to update the snapshot
          range in the checkpoint. Has to be done here because in case of TAP
          backfill, above, we use vb.queueBackfillItem() instead of
@@ -1847,6 +1849,7 @@ void VBucket::_addStats(bool details, ADD_STAT add_stat, const void* c) {
         addStat("ops_delete", opsDelete.load(), add_stat, c);
         addStat("ops_reject", opsReject.load(), add_stat, c);
         addStat("queue_size", dirtyQueueSize.load(), add_stat, c);
+        addStat("backfill_queue_size", getBackfillSize(), add_stat, c);
         addStat("queue_memory", dirtyQueueMem.load(), add_stat, c);
         addStat("queue_fill", dirtyQueueFill.load(), add_stat, c);
         addStat("queue_drain", dirtyQueueDrain.load(), add_stat, c);

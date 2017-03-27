@@ -480,6 +480,22 @@ bool EPVBucket::pageOut(const HashTable::HashBucketLock& lh, StoredValue*& v) {
     return ht.unlocked_ejectItem(v, eviction);
 }
 
+void EPVBucket::queueBackfillItem(queued_item& qi,
+                                  const GenerateBySeqno generateBySeqno) {
+    LockHolder lh(backfill.mutex);
+    if (GenerateBySeqno::Yes == generateBySeqno) {
+        qi->setBySeqno(checkpointManager.nextBySeqno());
+    } else {
+        checkpointManager.setBySeqno(qi->getBySeqno());
+    }
+    backfill.items.push(qi);
+    ++stats.diskQueueSize;
+    ++stats.vbBackfillQueueSize;
+    ++stats.totalEnqueued;
+    doStatsForQueueing(*qi, qi->size());
+    stats.memOverhead->fetch_add(sizeof(queued_item));
+}
+
 size_t EPVBucket::queueBGFetchItem(const DocKey& key,
                                    std::unique_ptr<VBucketBGFetchItem> fetch,
                                    BgFetcher* bgFetcher) {

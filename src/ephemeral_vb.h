@@ -129,6 +129,9 @@ public:
         return static_cast<uint64_t>(getHighSeqno());
     }
 
+    void queueBackfillItem(queued_item& qi,
+                           const GenerateBySeqno generateBySeqno) override;
+
 private:
     std::tuple<StoredValue*, MutationStatus, VBNotifyCtx> updateStoredValue(
             const HashTable::HashBucketLock& hbl,

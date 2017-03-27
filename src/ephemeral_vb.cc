@@ -213,6 +213,31 @@ EphemeralVBucket::inMemoryBackfill(uint64_t start, uint64_t end) {
     return seqList->rangeRead(start, end);
 }
 
+/* Vb level backfill queue is for items in a huge snapshot (disk backfill
+   snapshots from DCP are typically huge) that could not be fit on a
+   checkpoint. They update all stats, checkpoint seqno, but are not put
+   on checkpoint and are directly persisted from the queue.
+
+   In ephemeral buckets we must not add backfill items from DCP (on
+   replica vbuckets), to the vb backfill queue because we have put them on
+   linkedlist already. Also we do not have the flusher task to drain the
+   items from that queue.
+   (Unlike checkpoints, the items in this queue is not cleaned up
+    in a background cleanup task).
+
+   But we must be careful to update certain stats and checkpoint seqno
+   like in a regular couchbase bucket. */
+void EphemeralVBucket::queueBackfillItem(
+        queued_item& qi, const GenerateBySeqno generateBySeqno) {
+    if (GenerateBySeqno::Yes == generateBySeqno) {
+        qi->setBySeqno(checkpointManager.nextBySeqno());
+    } else {
+        checkpointManager.setBySeqno(qi->getBySeqno());
+    }
+    ++stats.totalEnqueued;
+    stats.memOverhead->fetch_add(sizeof(queued_item));
+}
+
 std::tuple<StoredValue*, MutationStatus, VBNotifyCtx>
 EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
                                     StoredValue& v,

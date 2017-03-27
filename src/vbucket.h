@@ -362,21 +362,21 @@ public:
         LockHolder lh(backfill.mutex);
         return backfill.items.size();
     }
-    bool queueBackfillItem(queued_item& qi,
-                           const GenerateBySeqno generateBySeqno) {
-        LockHolder lh(backfill.mutex);
-        if (GenerateBySeqno::Yes == generateBySeqno) {
-            qi->setBySeqno(checkpointManager.nextBySeqno());
-        } else {
-            checkpointManager.setBySeqno(qi->getBySeqno());
-        }
-        backfill.items.push(qi);
-        ++stats.diskQueueSize;
-        ++stats.totalEnqueued;
-        doStatsForQueueing(*qi, qi->size());
-        stats.memOverhead->fetch_add(sizeof(queued_item));
-        return true;
-    }
+
+    /**
+     * Process an item that is got from a backfill (TAP or DCP).
+     * It puts it onto a queue for persistence and/or generates a seqno and
+     * updates stats
+     *
+     * @param qi item to be processed
+     * @param generateBySeqno indicates if a new seqno must generated or the
+     *                        seqno in the item must be used
+     *
+     *
+     */
+    virtual void queueBackfillItem(queued_item& qi,
+                                   const GenerateBySeqno generateBySeqno) = 0;
+
     void getBackfillItems(std::vector<queued_item> &items) {
         LockHolder lh(backfill.mutex);
         size_t num_items = backfill.items.size();
@@ -384,6 +384,7 @@ public:
             items.push_back(backfill.items.front());
             backfill.items.pop();
         }
+        stats.vbBackfillQueueSize.fetch_sub(num_items);
         stats.memOverhead->fetch_sub(num_items * sizeof(queued_item));
     }
 
