@@ -37,20 +37,24 @@ def cmd_decorator(f):
         mc.hello("{} {}".format(os.path.split(sys.argv[0])[1],
                                 os.getenv("EP_ENGINE_VERSION",
                                           "unknown version")))
-
-        if kwargs.get('allBuckets', None):
-            buckets = mc.list_buckets()
-            for bucket in buckets:
-                print '*' * 78
-                print bucket
-                print
+        try:
+            if kwargs.get('allBuckets', None):
+                buckets = mc.list_buckets()
+                for bucket in buckets:
+                    print '*' * 78
+                    print bucket
+                    print
+                    mc.bucket_select(bucket)
+                    f(*args)
+            elif bucket is not None:
                 mc.bucket_select(bucket)
                 f(*args)
-        elif bucket is not None:
-            mc.bucket_select(bucket)
-            f(*args)
-        else:
-            f(*args)
+            else:
+                f(*args)
+        except mc_bin_client.ErrorEaccess:
+            print ("No access to bucket:{} - permission denied "
+                   "or bucket does not exist.".format(bucket))
+            sys.exit(1)
 
     return g
 
