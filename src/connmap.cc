@@ -67,7 +67,7 @@ void ConnNotifier::start() {
     bool inverse = false;
     pendingNotification.compare_exchange_strong(inverse, true);
     ExTask connotifyTask = new ConnNotifierCallback(&connMap.getEngine(), this);
-    task = ExecutorPool::get()->schedule(connotifyTask, NONIO_TASK_IDX);
+    task = ExecutorPool::get()->schedule(connotifyTask);
 }
 
 void ConnNotifier::stop() {
@@ -163,7 +163,7 @@ void ConnMap::initialize(conn_notifier_type ntype) {
     connNotifier_ = new ConnNotifier(ntype, *this);
     connNotifier_->start();
     ExTask connMgr = new ConnManager(&engine, this);
-    ExecutorPool::get()->schedule(connMgr, NONIO_TASK_IDX);
+    ExecutorPool::get()->schedule(connMgr);
 }
 
 ConnMap::~ConnMap() {

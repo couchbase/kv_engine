@@ -277,7 +277,7 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
                                               cookie,
                                               bgFetchDelay,
                                               false);
-        iom->schedule(task, READER_TASK_IDX);
+        iom->schedule(task);
         return ENGINE_EWOULDBLOCK;
     } else {
         if (eviction == VALUE_ONLY) {
@@ -302,7 +302,7 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
                 ExecutorPool* iom = ExecutorPool::get();
                 ExTask task = new VKeyStatBGFetchTask(
                         &engine, key, getId(), -1, cookie, bgFetchDelay, false);
-                iom->schedule(task, READER_TASK_IDX);
+                iom->schedule(task);
             }
             }
             return ENGINE_EWOULDBLOCK;
@@ -504,7 +504,7 @@ void EPVBucket::bgFetch(const DocKey& key,
         ExecutorPool* iom = ExecutorPool::get();
         ExTask task = new SingleBGFetcherTask(
                 &engine, key, getId(), cookie, isMeta, bgFetchDelay, false);
-        iom->schedule(task, READER_TASK_IDX);
+        iom->schedule(task);
         LOG(EXTENSION_LOG_DEBUG,
             "Queued a background fetch, now at %" PRIu64,
             uint64_t(stats.numRemainingBgJobs.load()));

@@ -147,7 +147,6 @@ bool ClosedUnrefCheckpointRemoverTask::run(void) {
                 std::make_unique<CheckpointVisitor>(kvBucket, stats, available);
         kvBucket->visit(std::move(pv),
                         "Checkpoint Remover",
-                        NONIO_TASK_IDX,
                         TaskId::ClosedUnrefCheckpointRemoverVisitorTask);
     }
     snooze(sleepTime);

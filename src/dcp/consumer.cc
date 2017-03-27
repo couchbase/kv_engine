@@ -131,7 +131,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     pendingSupportCursorDropping = true;
 
     ExTask task = new Processor(&engine, this, 1);
-    processorTaskId = ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
+    processorTaskId = ExecutorPool::get()->schedule(task);
 }
 
 DcpConsumer::~DcpConsumer() {
@@ -735,7 +735,7 @@ bool DcpConsumer::handleRollbackResponse(uint16_t vbid,
             rollbackSeqno);
         ExTask task =
                 new RollbackTask(&engine_, opaque, vbid, rollbackSeqno, this);
-        ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
+        ExecutorPool::get()->schedule(task);
     }
     return true;
 }

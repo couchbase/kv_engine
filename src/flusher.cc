@@ -141,7 +141,7 @@ void Flusher::schedule_UNLOCKED() {
                                   this,
                                   shard->getId());
     this->setTaskId(task->getId());
-    iom->schedule(task, WRITER_TASK_IDX);
+    iom->schedule(task);
 }
 
 void Flusher::start() {

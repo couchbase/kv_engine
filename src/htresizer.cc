@@ -53,7 +53,6 @@ bool HashtableResizerTask::run(void) {
     auto pv = std::make_unique<ResizingVisitor>();
     store->visit(std::move(pv),
                  "Hashtable resizer",
-                 NONIO_TASK_IDX,
                  TaskId::HashtableResizerVisitorTask);
 
     snooze(FREQUENCY);

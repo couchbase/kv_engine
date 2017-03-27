@@ -726,7 +726,7 @@ void Warmup::stop(void)
 void Warmup::scheduleInitialize()
 {
     ExTask task = make_STRCPtr<WarmupInitialize>(store, this);
-    ExecutorPool::get()->schedule(task, READER_TASK_IDX);
+    ExecutorPool::get()->schedule(task);
 }
 
 void Warmup::initialize()
@@ -754,7 +754,7 @@ void Warmup::scheduleCreateVBuckets()
     threadtask_count = 0;
     for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
         ExTask task = make_STRCPtr<WarmupCreateVBuckets>(store, i, this);
-        ExecutorPool::get()->schedule(task, READER_TASK_IDX);
+        ExecutorPool::get()->schedule(task);
     }
 }
 
@@ -831,7 +831,7 @@ void Warmup::scheduleEstimateDatabaseItemCount()
     for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
         ExTask task =
                 make_STRCPtr<WarmupEstimateDatabaseItemCount>(store, i, this);
-        ExecutorPool::get()->schedule(task, READER_TASK_IDX);
+        ExecutorPool::get()->schedule(task);
     }
 }
 
@@ -867,7 +867,7 @@ void Warmup::scheduleKeyDump()
     threadtask_count = 0;
     for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
         ExTask task = make_STRCPtr<WarmupKeyDump>(store, i, this);
-        ExecutorPool::get()->schedule(task, READER_TASK_IDX);
+        ExecutorPool::get()->schedule(task);
     }
 
 }
@@ -919,7 +919,7 @@ void Warmup::keyDumpforShard(uint16_t shardId)
 void Warmup::scheduleCheckForAccessLog()
 {
     ExTask task = make_STRCPtr<WarmupCheckforAccessLog>(store, this);
-    ExecutorPool::get()->schedule(task, READER_TASK_IDX);
+    ExecutorPool::get()->schedule(task);
 }
 
 void Warmup::checkForAccessLog()
@@ -959,7 +959,7 @@ void Warmup::scheduleLoadingAccessLog()
     threadtask_count = 0;
     for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
         ExTask task = make_STRCPtr<WarmupLoadAccessLog>(store, i, this);
-        ExecutorPool::get()->schedule(task, READER_TASK_IDX);
+        ExecutorPool::get()->schedule(task);
     }
 }
 
@@ -1081,7 +1081,7 @@ void Warmup::scheduleLoadingKVPairs()
     threadtask_count = 0;
     for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
         ExTask task = make_STRCPtr<WarmupLoadingKVPairs>(store, i, this);
-        ExecutorPool::get()->schedule(task, READER_TASK_IDX);
+        ExecutorPool::get()->schedule(task);
     }
 
 }
@@ -1127,7 +1127,7 @@ void Warmup::scheduleLoadingData()
     threadtask_count = 0;
     for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
         ExTask task = make_STRCPtr<WarmupLoadingData>(store, i, this);
-        ExecutorPool::get()->schedule(task, READER_TASK_IDX);
+        ExecutorPool::get()->schedule(task);
     }
 }
 
@@ -1162,7 +1162,7 @@ void Warmup::loadDataforShard(uint16_t shardId)
 
 void Warmup::scheduleCompletion() {
     ExTask task = make_STRCPtr<WarmupCompletion>(store, this);
-    ExecutorPool::get()->schedule(task, READER_TASK_IDX);
+    ExecutorPool::get()->schedule(task);
 }
 
 void Warmup::done()

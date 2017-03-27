@@ -483,22 +483,22 @@ bool KVBucket::initialize() {
     initializeExpiryPager(config);
 
     ExTask htrTask = make_STRCPtr<HashtableResizerTask>(this, 10);
-    ExecutorPool::get()->schedule(htrTask, NONIO_TASK_IDX);
+    ExecutorPool::get()->schedule(htrTask);
 
     size_t checkpointRemoverInterval = config.getChkRemoverStime();
     chkTask = new ClosedUnrefCheckpointRemoverTask(&engine, stats,
                                                    checkpointRemoverInterval);
-    ExecutorPool::get()->schedule(chkTask, NONIO_TASK_IDX);
+    ExecutorPool::get()->schedule(chkTask);
 
     ExTask workloadMonitorTask = make_STRCPtr<WorkLoadMonitor>(&engine, false);
-    ExecutorPool::get()->schedule(workloadMonitorTask, NONIO_TASK_IDX);
+    ExecutorPool::get()->schedule(workloadMonitorTask);
 
 #if HAVE_JEMALLOC
     /* Only create the defragmenter task if we have an underlying memory
      * allocator which can facilitate defragmenting memory.
      */
     defragmenterTask = new DefragmenterTask(&engine, stats);
-    ExecutorPool::get()->schedule(defragmenterTask, NONIO_TASK_IDX);
+    ExecutorPool::get()->schedule(defragmenterTask);
 #endif
 
     return true;
@@ -778,7 +778,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(uint16_t vbid,
             to == vbucket_state_active) {
             ExTask notifyTask =
                     make_STRCPtr<PendingOpsNotification>(engine, vb);
-            ExecutorPool::get()->schedule(notifyTask, NONIO_TASK_IDX);
+            ExecutorPool::get()->schedule(notifyTask);
         }
         scheduleVBStatePersist(vbid);
     } else if (vbid < vbMap.getSize()) {
@@ -876,11 +876,11 @@ bool KVBucket::completeVBucketDeletion(uint16_t vbid, const void* cookie) {
 void KVBucket::scheduleVBDeletion(RCPtr<VBucket> &vb, const void* cookie,
                                   double delay) {
     ExTask delTask = make_STRCPtr<VBucketMemoryDeletionTask>(engine, vb, delay);
-    ExecutorPool::get()->schedule(delTask, NONIO_TASK_IDX);
+    ExecutorPool::get()->schedule(delTask);
 
     if (vb->setBucketDeletion(true)) {
         ExTask task = make_STRCPtr<VBDeleteTask>(&engine, vb->getId(), cookie);
-        ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
+        ExecutorPool::get()->schedule(task);
     }
 }
 
@@ -956,7 +956,7 @@ ENGINE_ERROR_CODE KVBucket::scheduleCompaction(uint16_t vbid, compaction_ctx c,
         }
     }
 
-    ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
+    ExecutorPool::get()->schedule(task);
 
     LOG(EXTENSION_LOG_DEBUG,
         "Scheduled compaction task %" PRIu64 " on db %d,"
@@ -1935,7 +1935,7 @@ bool KVBucket::scheduleDeleteAllTask(const void* cookie) {
         deleteAllTaskCtx.cookie = cookie;
         deleteAllTaskCtx.delay.compare_exchange_strong(inverse, true);
         ExTask task = make_STRCPtr<DeleteAllTask>(&engine);
-        ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
+        ExecutorPool::get()->schedule(task);
         return true;
     } else {
         return false;
@@ -2299,7 +2299,7 @@ void KVBucket::warmupCompleted() {
     // 60 sec by default.
     ExecutorPool *iom = ExecutorPool::get();
     ExTask task = make_STRCPtr<StatSnap>(&engine, 0, false);
-    statsSnapshotTaskId = iom->schedule(task, WRITER_TASK_IDX);
+    statsSnapshotTaskId = iom->schedule(task);
 }
 
 bool KVBucket::maybeEnableTraffic()
@@ -2387,7 +2387,7 @@ void KVBucket::setExpiryPagerSleeptime(size_t val) {
     if (expiryPager.enabled) {
         ExTask expTask = make_STRCPtr<ExpiredItemPager>(
                 &engine, stats, expiryPager.sleeptime);
-        expiryPager.task = ExecutorPool::get()->schedule(expTask, NONIO_TASK_IDX);
+        expiryPager.task = ExecutorPool::get()->schedule(expTask);
     } else {
         LOG(EXTENSION_LOG_DEBUG, "Expiry pager disabled, "
                                  "enabling it will make exp_pager_stime (%lu)"
@@ -2401,8 +2401,7 @@ void KVBucket::setExpiryPagerTasktime(ssize_t val) {
         ExecutorPool::get()->cancel(expiryPager.task);
         ExTask expTask = make_STRCPtr<ExpiredItemPager>(
                 &engine, stats, expiryPager.sleeptime, val);
-        expiryPager.task = ExecutorPool::get()->schedule(expTask,
-                                                         NONIO_TASK_IDX);
+        expiryPager.task = ExecutorPool::get()->schedule(expTask);
     } else {
         LOG(EXTENSION_LOG_DEBUG, "Expiry pager disabled, "
                                  "enabling it will make exp_pager_stime (%lu)"
@@ -2418,8 +2417,7 @@ void KVBucket::enableExpiryPager() {
         ExecutorPool::get()->cancel(expiryPager.task);
         ExTask expTask = make_STRCPtr<ExpiredItemPager>(
                 &engine, stats, expiryPager.sleeptime);
-        expiryPager.task = ExecutorPool::get()->schedule(expTask,
-                                                         NONIO_TASK_IDX);
+        expiryPager.task = ExecutorPool::get()->schedule(expTask);
     } else {
         LOG(EXTENSION_LOG_DEBUG, "Expiry Pager already enabled!");
     }
@@ -2437,7 +2435,7 @@ void KVBucket::disableExpiryPager() {
 
 void KVBucket::enableItemPager() {
     ExecutorPool::get()->cancel(itemPagerTask->getId());
-    ExecutorPool::get()->schedule(itemPagerTask, NONIO_TASK_IDX);
+    ExecutorPool::get()->schedule(itemPagerTask);
 }
 
 void KVBucket::disableItemPager() {
@@ -2458,8 +2456,7 @@ void KVBucket::enableAccessScannerTask() {
         if (accessScanner.sleeptime != 0) {
             ExTask task = make_STRCPtr<AccessScanner>(
                     *this, stats, accessScanner.sleeptime, true);
-            accessScanner.task = ExecutorPool::get()->schedule(task,
-                                                               AUXIO_TASK_IDX);
+            accessScanner.task = ExecutorPool::get()->schedule(task);
         } else {
             LOG(EXTENSION_LOG_NOTICE, "Did not enable access scanner task, "
                                       "as alog_sleep_time is set to zero!");
@@ -2493,8 +2490,7 @@ void KVBucket::setAccessScannerSleeptime(size_t val, bool useStartTime) {
         if (accessScanner.sleeptime != 0) {
             ExTask task = make_STRCPtr<AccessScanner>(
                     *this, stats, accessScanner.sleeptime, useStartTime);
-            accessScanner.task = ExecutorPool::get()->schedule(task,
-                                                               AUXIO_TASK_IDX);
+            accessScanner.task = ExecutorPool::get()->schedule(task);
         }
     }
 }
@@ -2508,8 +2504,7 @@ void KVBucket::resetAccessScannerStartTime() {
             // re-schedule task according to the new task start hour
             ExTask task = make_STRCPtr<AccessScanner>(
                     *this, stats, accessScanner.sleeptime, true);
-            accessScanner.task = ExecutorPool::get()->schedule(task,
-                                                               AUXIO_TASK_IDX);
+            accessScanner.task = ExecutorPool::get()->schedule(task);
         }
     }
 }

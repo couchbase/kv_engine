@@ -716,7 +716,7 @@ void TapProducer::suspendedConnection_UNLOCKED(bool value)
         if (config.getBackoffSleepTime() > 0 && !isSuspended()) {
             ExTask resTapTask = new ResumeCallback(engine_, this,
                                     config.getBackoffSleepTime());
-            ExecutorPool::get()->schedule(resTapTask, NONIO_TASK_IDX);
+            ExecutorPool::get()->schedule(resTapTask);
             logger.log(EXTENSION_LOG_NOTICE, "Suspend for %.2f secs",
                        config.getBackoffSleepTime());
         } else {
@@ -1055,7 +1055,7 @@ const char *TapProducer::opaqueCmdToString(uint32_t opaque_code) {
 void TapProducer::queueBGFetch_UNLOCKED(const StoredDocKey& key, uint64_t id, uint16_t vb) {
     ExTask task = new BGFetchCallback(engine(), getName(), key, vb,
                                       getConnectionToken(), 0);
-    ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
+    ExecutorPool::get()->schedule(task);
     ++bgJobIssued;
     std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.find(vb);
     if (it != checkpointState_.end()) {

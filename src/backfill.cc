@@ -223,7 +223,7 @@ void BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
         ExTask task = new BackfillDiskLoad(name, engine, connMap,
                                           underlying, vb->getId(), 0, connToken,
                                           0, false);
-        ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
+        ExecutorPool::get()->schedule(task);
     }
 }
 

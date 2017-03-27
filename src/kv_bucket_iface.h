@@ -559,7 +559,6 @@ public:
      */
     virtual size_t visit(std::unique_ptr<VBucketVisitor> visitor,
                          const char* lbl,
-                         task_type_t taskGroup,
                          TaskId id,
                          double sleepTime = 0) = 0;
 

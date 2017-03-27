@@ -429,9 +429,10 @@ TaskQueue* ExecutorPool::_getTaskQueue(const Taskable& t,
     return q;
 }
 
-size_t ExecutorPool::_schedule(ExTask task, task_type_t qidx) {
+size_t ExecutorPool::_schedule(ExTask task) {
     LockHolder lh(tMutex);
-    TaskQueue *q = _getTaskQueue(task->getTaskable(), qidx);
+    TaskQueue* q = _getTaskQueue(task->getTaskable(),
+                                 GlobalTask::getTaskType(task->getTypeId()));
     TaskQpair tqp(task, q);
     taskLocator[task->getId()] = tqp;
 
@@ -440,9 +441,9 @@ size_t ExecutorPool::_schedule(ExTask task, task_type_t qidx) {
     return task->getId();
 }
 
-size_t ExecutorPool::schedule(ExTask task, task_type_t qidx) {
+size_t ExecutorPool::schedule(ExTask task) {
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-    size_t rv = _schedule(task, qidx);
+    size_t rv = _schedule(task);
     ObjectRegistry::onSwitchThread(epe);
     return rv;
 }

@@ -589,7 +589,7 @@ TEST_F(SingleThreadedEPBucketTest, MB20235_wake_and_work_count) {
     EXPECT_EQ(0, lpAuxioQ.getFutureQueueSize());
 
     // schedule the task, futureQueue grows
-    task_executor->schedule(task, AUXIO_TASK_IDX);
+    task_executor->schedule(task);
     EXPECT_EQ(lpAuxioQ.getReadyQueueSize(), task_executor->getTotReadyTasks());
     EXPECT_EQ(lpAuxioQ.getReadyQueueSize(),
               task_executor->getNumReadyTasks(AUXIO_TASK_IDX));
@@ -938,11 +938,11 @@ TEST_F(SingleThreadedEPBucketTest, MB18953_taskWake) {
 
     ExTask hpTask = new TestTask(engine.get(),
                                  TaskId::PendingOpsNotification);
-    task_executor->schedule(hpTask, NONIO_TASK_IDX);
+    task_executor->schedule(hpTask);
 
     ExTask lpTask = new TestTask(engine.get(),
                                  TaskId::DefragmenterTask);
-    task_executor->schedule(lpTask, NONIO_TASK_IDX);
+    task_executor->schedule(lpTask);
 
     runNextTask(lpNonioQ, "TestTask PendingOpsNotification"); // hptask goes first
     // Ensure that a wake to the hpTask doesn't mean the lpTask gets ignored
@@ -989,7 +989,7 @@ TEST_F(SingleThreadedEPBucketTest, MB20735_rescheduleWaketime) {
     TestTask* task =
             new SnoozingTestTask(engine.get(), TaskId::PendingOpsNotification);
     ExTask hpTask = task;
-    task_executor->schedule(hpTask, NONIO_TASK_IDX);
+    task_executor->schedule(hpTask);
 
     ProcessClock::time_point waketime = runNextTask(lpNonioQ,
                                     "TestTask PendingOpsNotification");

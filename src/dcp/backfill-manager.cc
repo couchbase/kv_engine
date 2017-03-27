@@ -159,7 +159,7 @@ void BackfillManager::schedule(VBucket& vb,
     }
 
     managerTask.reset(new BackfillManagerTask(engine, shared_from_this()));
-    ExecutorPool::get()->schedule(managerTask, AUXIO_TASK_IDX);
+    ExecutorPool::get()->schedule(managerTask);
 }
 
 bool BackfillManager::bytesRead(uint32_t bytes) {

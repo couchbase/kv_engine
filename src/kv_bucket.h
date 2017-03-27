@@ -423,12 +423,10 @@ public:
      */
     size_t visit(std::unique_ptr<VBucketVisitor> visitor,
                  const char* lbl,
-                 task_type_t taskGroup,
                  TaskId id,
                  double sleepTime = 0) {
         return ExecutorPool::get()->schedule(
-                new VBCBAdaptor(this, id, std::move(visitor), lbl, sleepTime),
-                taskGroup);
+                new VBCBAdaptor(this, id, std::move(visitor), lbl, sleepTime));
     }
 
     /**

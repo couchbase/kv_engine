@@ -2993,7 +2993,6 @@ void EventuallyPersistentEngine::queueBackfill(const VBucketFilter
             this, *tapConnMap, tc, backfillVBFilter);
     getKVBucket()->visit(std::move(bfv),
                          "Backfill task",
-                         NONIO_TASK_IDX,
                          TaskId::BackfillVisitorTask,
                          1);
 }
@@ -3603,7 +3602,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(
         void* es = getEngineSpecific(cookie);
         if (es == NULL) {
             ExTask task = new StatCheckpointTask(this, cookie, add_stat);
-            ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
+            ExecutorPool::get()->schedule(task);
             storeEngineSpecific(cookie, this);
             return ENGINE_EWOULDBLOCK;
         } else {
@@ -5927,7 +5926,7 @@ EventuallyPersistentEngine::getAllKeys(const void* cookie,
 
     ExTask task = new FetchAllKeysTask(this, cookie, response, start_key,
                                        vbucket, count);
-    ExecutorPool::get()->schedule(task, READER_TASK_IDX);
+    ExecutorPool::get()->schedule(task);
     return ENGINE_EWOULDBLOCK;
 }
 

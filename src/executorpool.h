@@ -188,7 +188,7 @@ public:
 
     size_t getNumSleepers(void) { return numSleepers; }
 
-    size_t schedule(ExTask task, task_type_t qidx);
+    size_t schedule(ExTask task);
 
     static ExecutorPool *get(void);
 
@@ -206,7 +206,7 @@ protected:
     virtual bool _startWorkers(void);
     ssize_t _adjustWorkers(task_type_t type, size_t desiredNumItems);
     bool _snooze(size_t taskId, double tosleep);
-    size_t _schedule(ExTask task, task_type_t qidx);
+    size_t _schedule(ExTask task);
     void _registerTaskable(Taskable& taskable);
     void _unregisterTaskable(Taskable& taskable, bool force);
     bool _stopTaskGroup(task_gid_t taskGID, task_type_t qidx, bool force);

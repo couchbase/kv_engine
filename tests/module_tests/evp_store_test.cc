@@ -182,7 +182,7 @@ GetValue KVBucketTest::getInternal(const StoredDocKey& key,
 
 void KVBucketTest::createAndScheduleItemPager() {
     store->itemPagerTask = new ItemPager(engine.get(), engine->getEpStats());
-    ExecutorPool::get()->schedule(store->itemPagerTask, NONIO_TASK_IDX);
+    ExecutorPool::get()->schedule(store->itemPagerTask);
 }
 
 void KVBucketTest::initializeExpiryPager() {

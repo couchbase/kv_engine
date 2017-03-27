@@ -314,7 +314,7 @@ bool AccessScanner::run() {
                                               "Item Access Scanner",
                                               sleepTime,
                                               true);
-                ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
+                ExecutorPool::get()->schedule(task);
             }
         }
     }

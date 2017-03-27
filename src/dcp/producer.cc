@@ -1110,7 +1110,7 @@ void DcpProducer::createCheckpointProcessorTask() {
 }
 
 void DcpProducer::scheduleCheckpointProcessorTask() {
-    ExecutorPool::get()->schedule(checkpointCreatorTask, AUXIO_TASK_IDX);
+    ExecutorPool::get()->schedule(checkpointCreatorTask);
 }
 
 void DcpProducer::scheduleCheckpointProcessorTask(const stream_t& s) {

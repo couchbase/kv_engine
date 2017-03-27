@@ -38,7 +38,7 @@ void BgFetcher::start() {
     ExecutorPool* iom = ExecutorPool::get();
     ExTask task = new MultiBGFetcherTask(&(store->getEPEngine()), this, false);
     this->setTaskId(task->getId());
-    iom->schedule(task, READER_TASK_IDX);
+    iom->schedule(task);
 }
 
 void BgFetcher::stop() {

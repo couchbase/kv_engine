@@ -307,7 +307,6 @@ bool ItemPager::run(void) {
                                                   &phase);
         kvBucket->visit(std::move(pv),
                         "Item pager",
-                        NONIO_TASK_IDX,
                         TaskId::ItemPagerVisitor);
     }
 
@@ -377,7 +376,6 @@ bool ExpiredItemPager::run(void) {
         // track spawned tasks for shutdown..
         kvBucket->visit(std::move(pv),
                         "Expired item remover",
-                        NONIO_TASK_IDX,
                         TaskId::ExpiredItemPagerVisitor,
                         10);
     }

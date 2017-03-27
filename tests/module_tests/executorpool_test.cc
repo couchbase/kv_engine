@@ -147,7 +147,7 @@ TEST_F(ExecutorPoolTest, increase_workers) {
 
     for (size_t i = 0; i < numWriters + 1; ++i) {
         ExTask task = makeTask(taskable, tg, i);
-        pool.schedule(task, WRITER_TASK_IDX);
+        pool.schedule(task);
         tasks.push_back(task);
     }
 

@@ -119,7 +119,7 @@ BENCHMARK_DEFINE_F(AccessLogBenchEngine, MemoryOverhead)
         state.SetLabel("AccessScanner");
         task = make_STRCPtr<AccessScanner>(
                 *(engine->getKVBucket()), engine->getEpStats(), 1000);
-        ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
+        ExecutorPool::get()->schedule(task);
     } else {
         state.SetLabel("Control");
     }
