@@ -257,8 +257,8 @@ void DcpConnMap::disconnect(const void *cookie) {
         if (itr != map_.end()) {
             conn = itr->second;
             if (conn.get()) {
-                LOG(EXTENSION_LOG_NOTICE, "%s Removing connection %p",
-                    conn->logHeader(), cookie);
+                conn->getLogger().log(EXTENSION_LOG_NOTICE,
+                                      "Removing connection %p", cookie);
                 conn->setDisconnect(true);
                 map_.erase(itr);
             }
