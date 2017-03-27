@@ -119,6 +119,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
                                             getDcpConsumerProcessBufferedMessagesBatchSize()) {
     Configuration& config = engine.getConfiguration();
     setSupportAck(false);
+    logger.setId(engine.getServerApi()->cookie->get_log_info(cookie).first);
     setLogHeader("DCP (Consumer) " + getName() + " -");
     setReserved(true);
 

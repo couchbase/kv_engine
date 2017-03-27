@@ -62,6 +62,13 @@ public:
     // Minimum log level messages will be printed at.
     EXTENSION_LOG_LEVEL min_log_level;
 
+    void setId(uint32_t id) {
+        Logger::id = id;
+    }
+
+protected:
+    uint32_t id;
+
 private:
     // memcached (server) logger API which is actually used to output messages
     // to the underlying log file.

@@ -25,7 +25,8 @@
 
 Logger::Logger(const std::string& prefix_)
     : prefix(prefix_),
-      min_log_level(EXTENSION_LOG_DETAIL) {
+      min_log_level(EXTENSION_LOG_DETAIL),
+      id(0) {
 }
 
 void Logger::log(EXTENSION_LOG_LEVEL severity, const char* fmt, ...) const
@@ -83,9 +84,15 @@ void Logger::vlog(EXTENSION_LOG_LEVEL severity, const char* fmt, va_list va) con
         int nw = vsnprintf(buffer + pos, sizeof(buffer) - pos, fmt, va);
         if (nw > 0 && size_t(nw) < (sizeof(buffer) - pos)) {
             if (engine) {
-                logger->log(severity, NULL, "(%s) %s",
-                            engine->getName().c_str(),
-                            buffer);
+                if (id == 0) {
+                    logger->log(severity, NULL, "(%s) %s",
+                                engine->getName().c_str(),
+                                buffer);
+                } else {
+                    logger->log(severity, NULL, "%u: (%s) %s", id,
+                                engine->getName().c_str(),
+                                buffer);
+                }
             } else {
                 logger->log(severity, NULL, "(No Engine) %s", buffer);
             }

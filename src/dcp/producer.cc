@@ -16,6 +16,7 @@
  */
 
 #include <vector>
+#include <memcached/server_api.h>
 
 #include "dcp/producer.h"
 
@@ -143,6 +144,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     setReserved(true);
     setPaused(true);
 
+    logger.setId(e.getServerApi()->cookie->get_log_info(cookie).first);
     if (notifyOnly) {
         setLogHeader("DCP (Notifier) " + getName() + " -");
     } else {
