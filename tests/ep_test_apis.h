@@ -274,8 +274,11 @@ void extendCheckpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       uint32_t checkpoint_num);
 ENGINE_ERROR_CODE checkpointPersistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                         uint64_t checkpoint_id, uint16_t vb);
-ENGINE_ERROR_CODE seqnoPersistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                   uint16_t vbucket, uint64_t seqno);
+ENGINE_ERROR_CODE seqnoPersistence(ENGINE_HANDLE* h,
+                                   ENGINE_HANDLE_V1* h1,
+                                   const void* cookie,
+                                   uint16_t vbucket,
+                                   uint64_t seqno);
 
 // Stats Operations
 int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,

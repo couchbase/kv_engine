@@ -20,20 +20,6 @@
 #include "dcp/backfill_disk.h"
 #include "vbucket.h"
 
-struct HighPriorityVBEntry {
-    HighPriorityVBEntry()
-        : cookie(NULL), id(0), start(gethrtime()), isBySeqno_(false) {
-    }
-    HighPriorityVBEntry(const void* c, uint64_t idNum, bool isBySeqno)
-        : cookie(c), id(idNum), start(gethrtime()), isBySeqno_(isBySeqno) {
-    }
-
-    const void* cookie;
-    uint64_t id;
-    hrtime_t start;
-    bool isBySeqno_;
-};
-
 /**
  * Eventually Peristent VBucket (EPVBucket) is a child class of VBucket.
  * It implements the logic of VBucket that is related only to persistence.
@@ -69,17 +55,15 @@ public:
 
     bool hasPendingBGFetchItems() override;
 
-    ENGINE_ERROR_CODE addHighPriorityVBEntry(uint64_t id,
-                                             const void* cookie,
-                                             bool isBySeqno) override;
+    void addHighPriorityVBEntry(uint64_t seqnoOrChkId,
+                                const void* cookie,
+                                HighPriorityVBNotify reqType) override;
 
-    void notifyOnPersistence(EventuallyPersistentEngine& e,
-                             uint64_t id,
-                             bool isBySeqno) override;
+    void notifyHighPriorityRequests(EventuallyPersistentEngine& engine,
+                                    uint64_t id,
+                                    HighPriorityVBNotify notifyType) override;
 
     void notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) override;
-
-    size_t getHighPriorityChkSize() override;
 
     size_t getNumItems() const override;
 
@@ -117,8 +101,6 @@ public:
 
     void queueBackfillItem(queued_item& qi,
                            const GenerateBySeqno generateBySeqno) override;
-
-    static size_t getCheckpointFlushTimeout();
 
 protected:
     /**
@@ -176,8 +158,6 @@ private:
                        const ProcessClock::time_point start,
                        const ProcessClock::time_point stop);
 
-    void adjustCheckpointFlushTimeout(size_t wall_time);
-
     GetValue getInternalNonResident(const DocKey& key,
                                     const void* cookie,
                                     EventuallyPersistentEngine& engine,
@@ -191,13 +171,6 @@ private:
     std::mutex pendingBGFetchesLock;
     vb_bgfetch_queue_t pendingBGFetches;
 
-    /* Members to handle high priority VB (persistence related) tasks */
-    std::mutex hpChksMutex;
-    std::list<HighPriorityVBEntry> hpChks;
-    std::atomic<size_t> numHpChks; // size of list hpChks (to avoid MB-9434)
-
     /* Pointer to the shard to which this VBucket belongs to */
     KVShard* shard;
-
-    static std::atomic<size_t> chkFlushTimeout;
 };

@@ -93,6 +93,9 @@ public:
 
     size_t getNumPersistedDeletes(uint16_t vbid) override;
 
+    void notifyNewSeqno(const uint16_t vbid,
+                        const VBNotifyCtx& notifyCtx) override;
+
     // Static methods /////////////////////////////////////////////////////////
 
     /** Apply necessary modifications to the Configuration for an Ephemeral

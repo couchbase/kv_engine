@@ -755,11 +755,6 @@ public:
             uint64_t maxCas = 0,
             const std::string& collectionsManifest = "") = 0;
 
-    /**
-     * Notify all the clients of a new seqno being added in the vbucket
-     */
-    void notifyNewSeqno(const uint16_t vbid, const VBNotifyCtx& notifyCtx);
-
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be

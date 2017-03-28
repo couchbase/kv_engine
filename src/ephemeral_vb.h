@@ -55,17 +55,15 @@ public:
 
     bool hasPendingBGFetchItems() override;
 
-    ENGINE_ERROR_CODE addHighPriorityVBEntry(uint64_t id,
-                                             const void* cookie,
-                                             bool isBySeqno) override;
+    void addHighPriorityVBEntry(uint64_t seqnoOrChkId,
+                                const void* cookie,
+                                HighPriorityVBNotify reqType) override;
 
-    void notifyOnPersistence(EventuallyPersistentEngine& e,
-                             uint64_t id,
-                             bool isBySeqno) override;
+    void notifyHighPriorityRequests(EventuallyPersistentEngine& engine,
+                                    uint64_t id,
+                                    HighPriorityVBNotify notifyType) override;
 
     void notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) override;
-
-    size_t getHighPriorityChkSize() override;
 
     size_t getNumItems() const override;
 

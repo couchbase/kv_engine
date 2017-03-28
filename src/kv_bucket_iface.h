@@ -817,6 +817,9 @@ public:
 
     /**
      * Notify all the clients of a new seqno being added in the vbucket
+     *
+     * @param vbid vBucket number
+     * @param notifyCtx notify information
      */
     virtual void notifyNewSeqno(const uint16_t vbid,
                                 const VBNotifyCtx& notifyCtx) = 0;

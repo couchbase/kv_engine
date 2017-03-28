@@ -29,6 +29,7 @@
 #include "monotonic.h"
 
 #include <platform/non_negative_counter.h>
+#include <relaxed_atomic.h>
 #include <atomic>
 #include <queue>
 
@@ -79,6 +80,25 @@ struct VBQueueItemCtx {
     TrackCasDrift trackCasDrift;
     bool isBackfillItem;
     PreLinkDocumentContext* preLinkDocumentContext;
+};
+
+/**
+ * Structure that holds seqno based or checkpoint persistence based high
+ * priority requests to a vbucket
+ */
+struct HighPriorityVBEntry {
+    HighPriorityVBEntry(const void* c,
+                        uint64_t idNum,
+                        HighPriorityVBNotify reqType)
+        : cookie(c), id(idNum), reqType(reqType), start(gethrtime()) {
+    }
+
+    const void* cookie;
+    uint64_t id;
+    HighPriorityVBNotify reqType;
+
+    /* for stats (histogram) */
+    hrtime_t start;
 };
 
 typedef std::unique_ptr<Callback<const uint16_t, const VBNotifyCtx&>>
@@ -426,14 +446,42 @@ public:
         }
     }
 
-    virtual ENGINE_ERROR_CODE addHighPriorityVBEntry(uint64_t id,
-                                                     const void* cookie,
-                                                     bool isBySeqno) = 0;
-    virtual void notifyOnPersistence(EventuallyPersistentEngine& e,
-                                     uint64_t id,
-                                     bool isBySeqno) = 0;
+    /**
+     * Add high priority request on the vbucket. This is an async request made
+     * by modules like ns-server during rebalance. The request is for a response
+     * from the vbucket when it 'sees' beyond a certain sequence number or when
+     * a certain checkpoint is persisted.
+     * Depending on the vbucket type, the meaning 'seeing' a sequence number
+     * changes. That is, it could mean persisted in case of EPVBucket and
+     * added to the sequenced data structure in case of EphemeralVBucket.
+     *
+     * @param seqnoOrChkId seqno to be seen or checkpoint id to be persisted
+     * @param cookie cookie of conn to be notified
+     * @param reqType indicating request for seqno or chk persistence
+     */
+    virtual void addHighPriorityVBEntry(uint64_t seqnoOrChkId,
+                                        const void* cookie,
+                                        HighPriorityVBNotify reqType) = 0;
+
+    /**
+     * Notify the high priority requests on the vbucket.
+     * This is the response to async requests made by modules like ns-server
+     * during rebalance.
+     *
+     * @param engine Ref to ep-engine
+     * @param id seqno or checkpoint id causing the notification(s).
+     * @param notifyType indicating notify for seqno or chk persistence
+     */
+    virtual void notifyHighPriorityRequests(
+            EventuallyPersistentEngine& engine,
+            uint64_t id,
+            HighPriorityVBNotify notifyType) = 0;
+
     virtual void notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) = 0;
-    virtual size_t getHighPriorityChkSize() = 0;
+
+    size_t getHighPriorityChkSize() {
+        return numHpVBReqs.load();
+    }
 
     /**
      * BloomFilter operations for vbucket
@@ -1046,6 +1094,8 @@ public:
         return ht.getNumDeletedItems();
     }
 
+    static size_t getCheckpointFlushTimeout();
+
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
 
@@ -1235,6 +1285,44 @@ protected:
      */
     void notifyNewSeqno(const VBNotifyCtx& notifyCtx);
 
+    /**
+     * VBucket internal function to store high priority requests on the vbucket.
+     *
+     * @param seqnoOrChkId seqno to be seen or checkpoint id to be persisted
+     * @param cookie cookie of conn to be notified
+     * @param reqType request type indicating seqno or chk persistence
+     */
+    void _addHighPriorityVBEntry(uint64_t seqnoOrChkId,
+                                 const void* cookie,
+                                 HighPriorityVBNotify reqType);
+
+    /**
+     * Get high priority notifications for a seqno or checkpoint persisted
+     *
+     * @param engine Ref to ep-engine
+     * @param id seqno or checkpoint id for which notifies are to be found
+     * @param notifyType indicating notify for seqno or chk persistence
+     *
+     * @return map of notifies with conn cookie as the key and notify status as
+     *         the value
+     */
+    std::map<const void*, ENGINE_ERROR_CODE> getHighPriorityNotifies(
+            EventuallyPersistentEngine& engine,
+            uint64_t idNum,
+            HighPriorityVBNotify notifyType);
+
+    /**
+     * Get all high priority notifications as temporary failures because they
+     * could not be completed.
+     *
+     * @param engine Ref to ep-engine
+     *
+     * @return map of notifies with conn cookie as the key and notify status as
+     *         the value
+     */
+    std::map<const void*, ENGINE_ERROR_CODE> tmpFailAndGetAllHpNotifies(
+            EventuallyPersistentEngine& engine);
+
     void _addStats(bool details, ADD_STAT add_stat, const void* c);
 
     template <typename T>
@@ -1251,6 +1339,15 @@ protected:
 
     /* last seqno that is persisted on the disk */
     std::atomic<uint64_t> persistenceSeqno;
+
+    /* holds all high priority async requests to the vbucket */
+    std::list<HighPriorityVBEntry> hpVBReqs;
+
+    /* synchronizes access to hpVBReqs */
+    std::mutex hpVBReqsMutex;
+
+    /* size of list hpVBReqs (to avoid MB-9434) */
+    Couchbase::RelaxedAtomic<size_t> numHpVBReqs;
 
 private:
     void fireAllOps(EventuallyPersistentEngine& engine, ENGINE_ERROR_CODE code);
@@ -1416,6 +1513,8 @@ private:
      */
     void incExpirationStat(ExpireBy source);
 
+    void adjustCheckpointFlushTimeout(size_t wall_time);
+
     id_type                         id;
     std::atomic<vbucket_state_t>    state;
     cb::RWLock                      stateLock;
@@ -1456,6 +1555,8 @@ private:
 
     /// The VBucket collection state
     Collections::VB::Manifest manifest;
+
+    static std::atomic<size_t> chkFlushTimeout;
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };

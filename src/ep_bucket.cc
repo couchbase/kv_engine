@@ -371,3 +371,13 @@ void EPBucket::rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) {
         }
     }
 }
+
+void EPBucket::notifyNewSeqno(const uint16_t vbid,
+                              const VBNotifyCtx& notifyCtx) {
+    if (notifyCtx.notifyFlusher) {
+        notifyFlusher(vbid);
+    }
+    if (notifyCtx.notifyReplication) {
+        notifyReplication(vbid, notifyCtx.bySeqno);
+    }
+}

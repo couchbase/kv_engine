@@ -39,6 +39,13 @@
 
 #include "vbucket.h"
 
+/* Macros */
+const size_t MIN_CHK_FLUSH_TIMEOUT = 10; // 10 sec.
+const size_t MAX_CHK_FLUSH_TIMEOUT = 30; // 30 sec.
+
+/* Statics definitions */
+std::atomic<size_t> VBucket::chkFlushTimeout(MIN_CHK_FLUSH_TIMEOUT);
+
 VBucketFilter VBucketFilter::filter_diff(const VBucketFilter &other) const {
     std::vector<uint16_t> tmp(acceptable.size() + other.size());
     std::vector<uint16_t>::iterator end;
@@ -163,6 +170,7 @@ VBucket::VBucket(id_type i,
       eviction(evictionPolicy),
       stats(st),
       persistenceSeqno(0),
+      numHpVBReqs(0),
       id(i),
       state(newState),
       initialState(initState),
@@ -2242,4 +2250,100 @@ void VBucket::updateRevSeqNoOfNewStoredValue(StoredValue& v) {
         ++seqno;
     }
     v.setRevSeqno(seqno);
+}
+
+void VBucket::_addHighPriorityVBEntry(uint64_t seqnoOrChkId,
+                                      const void* cookie,
+                                      HighPriorityVBNotify reqType) {
+    std::unique_lock<std::mutex> lh(hpVBReqsMutex);
+    hpVBReqs.push_back(HighPriorityVBEntry(cookie, seqnoOrChkId, reqType));
+    numHpVBReqs.store(hpVBReqs.size());
+}
+
+std::map<const void*, ENGINE_ERROR_CODE> VBucket::getHighPriorityNotifies(
+        EventuallyPersistentEngine& engine,
+        uint64_t idNum,
+        HighPriorityVBNotify notifyType) {
+    std::unique_lock<std::mutex> lh(hpVBReqsMutex);
+    std::map<const void*, ENGINE_ERROR_CODE> toNotify;
+
+    auto entry = hpVBReqs.begin();
+
+    while (entry != hpVBReqs.end()) {
+        if (notifyType != entry->reqType) {
+            ++entry;
+            continue;
+        }
+
+        std::string logStr(to_string(notifyType));
+
+        hrtime_t wall_time(gethrtime() - entry->start);
+        size_t spent = wall_time / 1000000000;
+        if (entry->id <= idNum) {
+            toNotify[entry->cookie] = ENGINE_SUCCESS;
+            stats.chkPersistenceHisto.add(wall_time / 1000);
+            adjustCheckpointFlushTimeout(wall_time / 1000000000);
+            LOG(EXTENSION_LOG_NOTICE,
+                "Notified the completion of %s "
+                "for vbucket %" PRIu16 ", Check for: %" PRIu64
+                ", "
+                "Persisted upto: %" PRIu64 ", cookie %p",
+                logStr.c_str(),
+                getId(),
+                entry->id,
+                idNum,
+                entry->cookie);
+            entry = hpVBReqs.erase(entry);
+        } else if (spent > getCheckpointFlushTimeout()) {
+            adjustCheckpointFlushTimeout(spent);
+            engine.storeEngineSpecific(entry->cookie, NULL);
+            toNotify[entry->cookie] = ENGINE_TMPFAIL;
+            LOG(EXTENSION_LOG_WARNING,
+                "Notified the timeout on %s "
+                "for vbucket %" PRIu16 ", Check for: %" PRIu64
+                ", "
+                "Persisted upto: %" PRIu64 ", cookie %p",
+                logStr.c_str(),
+                getId(),
+                entry->id,
+                idNum,
+                entry->cookie);
+            entry = hpVBReqs.erase(entry);
+        } else {
+            ++entry;
+        }
+    }
+    numHpVBReqs.store(hpVBReqs.size());
+    return toNotify;
+}
+
+std::map<const void*, ENGINE_ERROR_CODE> VBucket::tmpFailAndGetAllHpNotifies(
+        EventuallyPersistentEngine& engine) {
+    std::map<const void*, ENGINE_ERROR_CODE> toNotify;
+
+    LockHolder lh(hpVBReqsMutex);
+
+    for (auto& entry : hpVBReqs) {
+        toNotify[entry.cookie] = ENGINE_TMPFAIL;
+        engine.storeEngineSpecific(entry.cookie, NULL);
+    }
+    hpVBReqs.clear();
+
+    return toNotify;
+}
+
+void VBucket::adjustCheckpointFlushTimeout(size_t wall_time) {
+    size_t middle = (MIN_CHK_FLUSH_TIMEOUT + MAX_CHK_FLUSH_TIMEOUT) / 2;
+
+    if (wall_time <= MIN_CHK_FLUSH_TIMEOUT) {
+        chkFlushTimeout = MIN_CHK_FLUSH_TIMEOUT;
+    } else if (wall_time <= middle) {
+        chkFlushTimeout = middle;
+    } else {
+        chkFlushTimeout = MAX_CHK_FLUSH_TIMEOUT;
+    }
+}
+
+size_t VBucket::getCheckpointFlushTimeout() {
+    return chkFlushTimeout;
 }

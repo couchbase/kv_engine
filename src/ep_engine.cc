@@ -3059,7 +3059,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
         add_casted_stat("ep_uncommitted_items",
                         epstats.flusher_todo, add_stat, cookie);
         add_casted_stat("ep_chk_persistence_timeout",
-                        EPVBucket::getCheckpointFlushTimeout(),
+                        VBucket::getCheckpointFlushTimeout(),
                         add_stat,
                         cookie);
     }
@@ -4799,7 +4799,10 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                 chk_id = ntohll(chk_id);
                 void *es = getEngineSpecific(cookie);
                 if (!es) {
-                    vb->addHighPriorityVBEntry(chk_id, cookie, false);
+                    vb->addHighPriorityVBEntry(
+                            chk_id,
+                            cookie,
+                            HighPriorityVBNotify::ChkPersistence);
                     storeEngineSpecific(cookie, this);
                     // Wake up the flusher if it is idle.
                     getKVBucket()->wakeUpFlusher();
@@ -4855,7 +4858,8 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
         if (!es) {
             uint16_t persisted_seqno = vb->getPersistenceSeqno();
             if (seqno > persisted_seqno) {
-                vb->addHighPriorityVBEntry(seqno, cookie, true);
+                vb->addHighPriorityVBEntry(
+                        seqno, cookie, HighPriorityVBNotify::Seqno);
                 storeEngineSpecific(cookie, this);
                 return ENGINE_EWOULDBLOCK;
             }

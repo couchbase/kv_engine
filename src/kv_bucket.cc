@@ -2165,8 +2165,10 @@ int KVBucket::flushVBucket(uint16_t vbid) {
             vb->checkpointManager.itemsPersisted();
             uint64_t seqno = vb->getPersistenceSeqno();
             uint64_t chkid = vb->checkpointManager.getPersistenceCursorPreChkId();
-            vb->notifyOnPersistence(engine, seqno, true);
-            vb->notifyOnPersistence(engine, chkid, false);
+            vb->notifyHighPriorityRequests(
+                    engine, seqno, HighPriorityVBNotify::Seqno);
+            vb->notifyHighPriorityRequests(
+                    engine, chkid, HighPriorityVBNotify::ChkPersistence);
             if (chkid > 0 && chkid != vb->getPersistenceCheckpointId()) {
                 vb->setPersistenceCheckpointId(chkid);
             }
@@ -2765,16 +2767,6 @@ ENGINE_ERROR_CODE KVBucket::forceMaxCas(uint16_t vbucket, uint64_t cas) {
 std::ostream& operator<<(std::ostream& os, const KVBucket::Position& pos) {
     os << "vbucket:" << pos.vbucket_id;
     return os;
-}
-
-void KVBucket::notifyNewSeqno(const uint16_t vbid,
-                              const VBNotifyCtx& notifyCtx) {
-    if (notifyCtx.notifyFlusher) {
-        notifyFlusher(vbid);
-    }
-    if (notifyCtx.notifyReplication) {
-        notifyReplication(vbid, notifyCtx.bySeqno);
-    }
 }
 
 void KVBucket::notifyFlusher(const uint16_t vbid) {

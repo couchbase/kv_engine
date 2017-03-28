@@ -98,4 +98,7 @@ public:
     size_t getNumPersistedDeletes(uint16_t vbid) override {
         return getROUnderlying(vbid)->getNumPersistedDeletes(vbid);
     }
+
+    void notifyNewSeqno(const uint16_t vbid,
+                        const VBNotifyCtx& notifyCtx) override;
 };

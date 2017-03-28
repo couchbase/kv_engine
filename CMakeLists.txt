@@ -164,6 +164,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/ep_vb.cc
             src/ep_engine.cc
             src/ep_time.cc
+            src/ep_types.cc
             src/ephemeral_bucket.cc
             src/ephemeral_vb.cc
             src/ephemeral_vb_count_visitor.cc

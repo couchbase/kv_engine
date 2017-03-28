@@ -494,15 +494,19 @@ ENGINE_ERROR_CODE checkpointPersistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return rv;
 }
 
-ENGINE_ERROR_CODE seqnoPersistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                   uint16_t vbucket, uint64_t seqno) {
+ENGINE_ERROR_CODE seqnoPersistence(ENGINE_HANDLE* h,
+                                   ENGINE_HANDLE_V1* h1,
+                                   const void* cookie,
+                                   uint16_t vbucket,
+                                   uint64_t seqno) {
     seqno = htonll(seqno);
     char buffer[8];
     memcpy(buffer, &seqno, sizeof(uint64_t));
     protocol_binary_request_header* request =
         createPacket(PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE, vbucket, 0, buffer, 8);
 
-    ENGINE_ERROR_CODE rv = h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace);
+    ENGINE_ERROR_CODE rv = h1->unknown_command(
+            h, cookie, request, add_response, testHarness.doc_namespace);
     cb_free(request);
     return rv;
 }

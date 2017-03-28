@@ -887,24 +887,6 @@ extern "C" {
         compact_db(ctx->h, ctx->h1, 0, 0, 99, ctx->items, 1);
     }
 
-    static void seqno_persistence_thread(void *arg) {
-        struct handle_pair *hp = static_cast<handle_pair *>(arg);
-
-        for (int j = 0; j < 1000; ++j) {
-            std::stringstream ss;
-            ss << "key" << j;
-            item *i;
-            checkeq(ENGINE_SUCCESS,
-                    store(hp->h, hp->h1, NULL, OPERATION_SET,
-                          ss.str().c_str(), ss.str().c_str(), &i, 0, 0),
-                    "Failed to store a value");
-            hp->h1->release(hp->h, NULL, i);
-        }
-
-        check(seqnoPersistence(hp->h, hp->h1, 0, 2003) == ENGINE_TMPFAIL,
-              "Expected temp failure for seqno persistence request");
-    }
-
     static void writer_thread(void *args) {
         struct writer_thread_ctx *wtc = static_cast<writer_thread_ctx *>(args);
 
@@ -4396,25 +4378,57 @@ static enum test_result test_dcp_replica_stream_all(ENGINE_HANDLE *h,
 
 static enum test_result test_dcp_persistence_seqno(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
-    const int  n_threads = 2;
-    cb_thread_t threads[n_threads];
-    struct handle_pair hp = {h, h1};
-
-    for (int i = 0; i < n_threads; ++i) {
-        int r = cb_create_thread(&threads[i], seqno_persistence_thread, &hp, 0);
-        cb_assert(r == 0);
-    }
-
-    for (int i = 0; i < n_threads; ++i) {
-        int r = cb_join_thread(threads[i]);
-        cb_assert(r == 0);
-    }
+    /* write 2 items */
+    const int num_items = 2;
+    write_items(h, h1, num_items, 0, "key", "somevalue");
 
     wait_for_flusher_to_settle(h, h1);
 
-    check(seqnoPersistence(h, h1, 0, 2000) == ENGINE_SUCCESS,
-          "Expected success for seqno persistence request");
+    checkeq(ENGINE_SUCCESS,
+            seqnoPersistence(h, h1, nullptr, /*vbid*/ 0, /*seqno*/ num_items),
+            "Expected success for seqno persistence request");
 
+    /* the test chooses to handle the EWOULDBLOCK here */
+    const void* cookie = testHarness.create_cookie();
+    testHarness.set_ewouldblock_handling(cookie, false);
+
+    /* seqno 'num_items + 1' is not yet seen buy the vbucket */
+    checkeq(ENGINE_EWOULDBLOCK,
+            seqnoPersistence(
+                    h, h1, cookie, /*vbid*/ 0, /*seqno*/ num_items + 1),
+            "Expected temp failure for seqno persistence request");
+
+    /* acquire the mutex to wait on the condition variable */
+    testHarness.lock_cookie(cookie);
+
+    /* write another item to reach seqno 'num_items +  1'.
+       the notification (arising from the write) will not win the race to
+       notify the condition variable since the mutex is still held.
+       Note: we need another writer thread because in ephemeral buckets, the
+             writer thread itself notifies the waiting condition variable,
+             hence it cannot be this thread (as we are in the mutex associated
+             with the condition variable) */
+    cb_thread_t writerThread;
+    struct writer_thread_ctx t1 = {h, h1, 1, /*vbid*/0};
+    checkeq(0,
+            cb_create_thread(&writerThread, writer_thread, &t1, 0),
+            "Error creating the writer thread");
+
+    /* now wait on the condition variable; the condition variable is signaled
+       by the notification from the seqnoPersistence request that had received
+       EWOULDBLOCK */
+    testHarness.waitfor_cookie(cookie);
+
+    /* unlock the mutex */
+    testHarness.unlock_cookie(cookie);
+
+    /* delete the cookie created */
+    testHarness.destroy_cookie(cookie);
+
+    /* wait for the writer thread to complete */
+    checkeq(0,
+            cb_join_thread(writerThread),
+            "Error in writer thread join");
     return SUCCESS;
 }
 
@@ -5902,7 +5916,7 @@ BaseTestCase testsuite_testcases[] = {
                  teardown, NULL, prepare, cleanup),
         TestCase("dcp persistence seqno", test_dcp_persistence_seqno, test_setup,
                  teardown, NULL,
-                 prepare_ep_bucket,  // Needs persistence.
+                 prepare,  // Needs persistence.
                  cleanup),
         TestCase("dcp last items purged", test_dcp_last_items_purged, test_setup,
                  teardown, NULL,

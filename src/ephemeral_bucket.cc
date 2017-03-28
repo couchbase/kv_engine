@@ -151,6 +151,22 @@ size_t EphemeralBucket::getNumPersistedDeletes(uint16_t vbid) {
     return vb->getNumInMemoryDeletes();
 }
 
+void EphemeralBucket::notifyNewSeqno(const uint16_t vbid,
+                                     const VBNotifyCtx& notifyCtx) {
+    if (notifyCtx.notifyFlusher) {
+        notifyFlusher(vbid);
+    }
+    if (notifyCtx.notifyReplication) {
+        notifyReplication(vbid, notifyCtx.bySeqno);
+    }
+
+    /* In ephemeral buckets we must notify high priority requests as well.
+       We do not wait for persistence to notify high priority requests */
+    RCPtr<VBucket> vb = getVBucket(vbid);
+    vb->notifyHighPriorityRequests(
+            engine, notifyCtx.bySeqno, HighPriorityVBNotify::Seqno);
+}
+
 // Protected methods //////////////////////////////////////////////////////////
 
 std::unique_ptr<VBucketCountVisitor> EphemeralBucket::makeVBCountVisitor(

@@ -134,3 +134,11 @@ public:
     uint64_t snapStartSeqno;
     uint64_t snapEndSeqno;
 };
+
+enum class HighPriorityVBNotify { Seqno, ChkPersistence };
+
+/**
+ * Overloads the to_string method to give the string format of a member of the
+ * class HighPriorityVBNotify
+ */
+std::string to_string(HighPriorityVBNotify hpNotifyType);

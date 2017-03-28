@@ -24,13 +24,6 @@
 #include "kvshard.h"
 #include "stored_value_factories.h"
 
-/* Macros */
-const size_t MIN_CHK_FLUSH_TIMEOUT = 10; // 10 sec.
-const size_t MAX_CHK_FLUSH_TIMEOUT = 30; // 30 sec.
-
-/* Statics definitions */
-std::atomic<size_t> EPVBucket::chkFlushTimeout(MIN_CHK_FLUSH_TIMEOUT);
-
 EPVBucket::EPVBucket(id_type i,
                      vbucket_state_t newState,
                      EPStats& st,
@@ -70,7 +63,6 @@ EPVBucket::EPVBucket(id_type i,
                                             ->getStorageProperties()
                                             .hasEfficientGet()
                                   : false),
-      numHpChks(0),
       shard(kvshard) {
 }
 
@@ -199,101 +191,34 @@ bool EPVBucket::hasPendingBGFetchItems() {
     return !pendingBGFetches.empty();
 }
 
-ENGINE_ERROR_CODE EPVBucket::addHighPriorityVBEntry(uint64_t id,
-                                                    const void* cookie,
-                                                    bool isBySeqno) {
-    LockHolder lh(hpChksMutex);
+void EPVBucket::addHighPriorityVBEntry(uint64_t seqnoOrChkId,
+                                       const void* cookie,
+                                       HighPriorityVBNotify reqType) {
     if (shard) {
         ++shard->highPriorityCount;
     }
-    hpChks.push_back(HighPriorityVBEntry(cookie, id, isBySeqno));
-    numHpChks.store(hpChks.size());
-    return ENGINE_SUCCESS;
+    _addHighPriorityVBEntry(seqnoOrChkId, cookie, reqType);
 }
 
-void EPVBucket::notifyOnPersistence(EventuallyPersistentEngine& e,
-                                    uint64_t idNum,
-                                    bool isBySeqno) {
-    std::unique_lock<std::mutex> lh(hpChksMutex);
-    std::map<const void*, ENGINE_ERROR_CODE> toNotify;
-    std::list<HighPriorityVBEntry>::iterator entry = hpChks.begin();
+void EPVBucket::notifyHighPriorityRequests(EventuallyPersistentEngine& engine,
+                                           uint64_t idNum,
+                                           HighPriorityVBNotify notifyType) {
+    auto toNotify = getHighPriorityNotifies(engine, idNum, notifyType);
 
-    std::string logStr(isBySeqno ? "seqno persistence"
-                                 : "checkpoint persistence");
-
-    while (entry != hpChks.end()) {
-        if (isBySeqno != entry->isBySeqno_) {
-            ++entry;
-            continue;
-        }
-
-        std::string logStr(isBySeqno ? "seqno persistence"
-                                     : "checkpoint persistence");
-
-        hrtime_t wall_time(gethrtime() - entry->start);
-        size_t spent = wall_time / 1000000000;
-        if (entry->id <= idNum) {
-            toNotify[entry->cookie] = ENGINE_SUCCESS;
-            stats.chkPersistenceHisto.add(wall_time / 1000);
-            adjustCheckpointFlushTimeout(wall_time / 1000000000);
-            LOG(EXTENSION_LOG_NOTICE,
-                "Notified the completion of %s "
-                "for vbucket %" PRIu16 ", Check for: %" PRIu64
-                ", "
-                "Persisted upto: %" PRIu64 ", cookie %p",
-                logStr.c_str(),
-                getId(),
-                entry->id,
-                idNum,
-                entry->cookie);
-            entry = hpChks.erase(entry);
-            if (shard) {
-                --shard->highPriorityCount;
-            }
-        } else if (spent > getCheckpointFlushTimeout()) {
-            adjustCheckpointFlushTimeout(spent);
-            e.storeEngineSpecific(entry->cookie, NULL);
-            toNotify[entry->cookie] = ENGINE_TMPFAIL;
-            LOG(EXTENSION_LOG_WARNING,
-                "Notified the timeout on %s "
-                "for vbucket %" PRIu16 ", Check for: %" PRIu64
-                ", "
-                "Persisted upto: %" PRIu64 ", cookie %p",
-                logStr.c_str(),
-                getId(),
-                entry->id,
-                idNum,
-                entry->cookie);
-            entry = hpChks.erase(entry);
-            if (shard) {
-                --shard->highPriorityCount;
-            }
-        } else {
-            ++entry;
-        }
+    if (shard) {
+        shard->highPriorityCount.fetch_sub(toNotify.size());
     }
-    numHpChks.store(hpChks.size());
-    lh.unlock();
 
-    std::map<const void*, ENGINE_ERROR_CODE>::iterator itr = toNotify.begin();
-    for (; itr != toNotify.end(); ++itr) {
-        e.notifyIOComplete(itr->first, itr->second);
+    for (auto& notify : toNotify) {
+        engine.notifyIOComplete(notify.first, notify.second);
     }
 }
 
 void EPVBucket::notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) {
-    std::map<const void*, ENGINE_ERROR_CODE> toNotify;
-    {
-        LockHolder lh(hpChksMutex);
-        std::list<HighPriorityVBEntry>::iterator entry = hpChks.begin();
-        while (entry != hpChks.end()) {
-            toNotify[entry->cookie] = ENGINE_TMPFAIL;
-            e.storeEngineSpecific(entry->cookie, NULL);
-            entry = hpChks.erase(entry);
-            if (shard) {
-                --shard->highPriorityCount;
-            }
-        }
+    auto toNotify = tmpFailAndGetAllHpNotifies(e);
+
+    if (shard) {
+        shard->highPriorityCount.fetch_sub(toNotify.size());
     }
 
     // Add all the pendingBGFetches to the toNotify map
@@ -312,16 +237,11 @@ void EPVBucket::notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) {
         pendingBGFetches.clear();
     }
 
-    std::map<const void*, ENGINE_ERROR_CODE>::iterator itr = toNotify.begin();
-    for (; itr != toNotify.end(); ++itr) {
-        e.notifyIOComplete(itr->first, itr->second);
+    for (auto& notify : toNotify) {
+        e.notifyIOComplete(notify.first, notify.second);
     }
 
     fireAllOps(e);
-}
-
-size_t EPVBucket::getHighPriorityChkSize() {
-    return numHpChks.load();
 }
 
 size_t EPVBucket::getNumItems() const {
@@ -645,22 +565,6 @@ void EPVBucket::updateBGStats(const ProcessClock::time_point init,
     stats.bgLoad.fetch_add(l);
     atomic_setIfLess(stats.bgMinLoad, l);
     atomic_setIfBigger(stats.bgMaxLoad, l);
-}
-
-void EPVBucket::adjustCheckpointFlushTimeout(size_t wall_time) {
-    size_t middle = (MIN_CHK_FLUSH_TIMEOUT + MAX_CHK_FLUSH_TIMEOUT) / 2;
-
-    if (wall_time <= MIN_CHK_FLUSH_TIMEOUT) {
-        chkFlushTimeout = MIN_CHK_FLUSH_TIMEOUT;
-    } else if (wall_time <= middle) {
-        chkFlushTimeout = middle;
-    } else {
-        chkFlushTimeout = MAX_CHK_FLUSH_TIMEOUT;
-    }
-}
-
-size_t EPVBucket::getCheckpointFlushTimeout() {
-    return chkFlushTimeout;
 }
 
 GetValue EPVBucket::getInternalNonResident(const DocKey& key,

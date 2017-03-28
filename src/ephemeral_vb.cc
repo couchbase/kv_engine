@@ -174,28 +174,32 @@ bool EphemeralVBucket::hasPendingBGFetchItems() {
             std::to_string(getId()));
 }
 
-ENGINE_ERROR_CODE EphemeralVBucket::addHighPriorityVBEntry(uint64_t id,
-                                                           const void* cookie,
-                                                           bool isBySeqno) {
-    return ENGINE_ENOTSUP;
+void EphemeralVBucket::addHighPriorityVBEntry(uint64_t seqnoOrChkId,
+                                              const void* cookie,
+                                              HighPriorityVBNotify reqType) {
+    _addHighPriorityVBEntry(seqnoOrChkId, cookie, reqType);
 }
 
-void EphemeralVBucket::notifyOnPersistence(EventuallyPersistentEngine& e,
-                                           uint64_t idNum,
-                                           bool isBySeqno) {
-    throw std::logic_error(
-            "EphemeralVBucket::notifyOnPersistence() is not valid. "
-            "Called on vb " +
-            std::to_string(getId()));
+void EphemeralVBucket::notifyHighPriorityRequests(
+        EventuallyPersistentEngine& engine,
+        uint64_t idNum,
+        HighPriorityVBNotify notifyType) {
+    auto toNotify = getHighPriorityNotifies(engine, idNum, notifyType);
+
+    for (auto& notify : toNotify) {
+        engine.notifyIOComplete(notify.first, notify.second);
+    }
 }
 
 void EphemeralVBucket::notifyAllPendingConnsFailed(
         EventuallyPersistentEngine& e) {
-    fireAllOps(e);
-}
+    auto toNotify = tmpFailAndGetAllHpNotifies(e);
 
-size_t EphemeralVBucket::getHighPriorityChkSize() {
-    return 0;
+    for (auto& notify : toNotify) {
+        e.notifyIOComplete(notify.first, notify.second);
+    }
+
+    fireAllOps(e);
 }
 
 std::unique_ptr<DCPBackfill> EphemeralVBucket::createDCPBackfill(
