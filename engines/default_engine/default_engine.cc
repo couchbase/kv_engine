@@ -454,11 +454,8 @@ static cb::EngineErrorItemPair default_get_if(
                                                   cb::ItemDeleter{handle}});
     }
 
-    const auto any = static_cast<DocumentState>(
-            uint8_t(DocumentState::Alive) | uint8_t(DocumentState::Deleted));
-
     cb::unique_item_ptr ret(
-            item_get(engine, cookie, key.data(), key.size(), any),
+            item_get(engine, cookie, key.data(), key.size(), DocumentState::Alive),
             cb::ItemDeleter{handle});
     if (!ret) {
         return std::make_pair(cb::engine_errc::no_such_key,
