@@ -249,6 +249,8 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
                                     const VBQueueItemCtx* queueItmCtx) {
     std::lock_guard<std::mutex> lh(sequenceLock);
 
+    const bool recreatingDeletedItem = v.isDeleted();
+
     /* Update the OrderedStoredValue in hash table + Ordered data structure
        (list) */
     auto res = seqList->updateListElem(lh, *(v.toOrderedStoredValue()));
@@ -294,6 +296,11 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
 
     /* Update the high seqno in the sequential storage */
     seqList->updateHighSeqno(*(newSv->toOrderedStoredValue()));
+    if (recreatingDeletedItem) {
+        ++opsCreate;
+    } else {
+        ++opsUpdate;
+    }
 
     if (res == SequenceList::UpdateStatus::Append) {
         /* Mark the un-updated storedValue as stale. This must be done after
@@ -335,6 +342,7 @@ std::pair<StoredValue*, VBNotifyCtx> EphemeralVBucket::addNewStoredValue(
 
     /* Update the high seqno in the sequential storage */
     seqList->updateHighSeqno(*(v->toOrderedStoredValue()));
+    ++opsCreate;
 
     return {v, notifyCtx};
 }
@@ -389,6 +397,7 @@ std::tuple<StoredValue*, VBNotifyCtx> EphemeralVBucket::softDeleteStoredValue(
 
     /* Update the high seqno in the sequential storage */
     seqList->updateHighSeqno(*(newSv->toOrderedStoredValue()));
+    ++opsDelete;
 
     if (res == SequenceList::UpdateStatus::Append) {
         /* Mark the un-updated storedValue as stale. This must be done after

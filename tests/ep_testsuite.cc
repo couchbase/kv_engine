@@ -1944,14 +1944,15 @@ static enum test_result test_item_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
     check_key_value(h, h1, "key1", "someothervalue", 14);
 
-    if (isPersistentBucket(h, h1)) {
-        checkeq(3, get_int_stat(h, h1, "vb_active_ops_create"),
-                "Expected 3 creations");
-        checkeq(1, get_int_stat(h, h1, "vb_active_ops_update"),
-                "Expected 1 updation");
-        checkeq(1, get_int_stat(h, h1, "vb_active_ops_delete"),
-                "Expected 1 deletion");
-    }
+    checkeq(3,
+            get_int_stat(h, h1, "vb_active_ops_create"),
+            "Expected 3 creations");
+    checkeq(1,
+            get_int_stat(h, h1, "vb_active_ops_update"),
+            "Expected 1 updation");
+    checkeq(1,
+            get_int_stat(h, h1, "vb_active_ops_delete"),
+            "Expected 1 deletion");
 
     return SUCCESS;
 }
@@ -7356,7 +7357,7 @@ BaseTestCase testsuite_testcases[] = {
 
         // Stats tests
         TestCase("item stats", test_item_stats, test_setup, teardown, NULL,
-                 prepare_ep_bucket, cleanup),
+                 prepare, cleanup),
         TestCase("stats", test_stats, test_setup, teardown, NULL,
                  prepare, cleanup),
         TestCase("io stats", test_io_stats, test_setup, teardown,
