@@ -1215,6 +1215,19 @@ ScanContext* CouchKVStore::initScanContext(std::shared_ptr<Callback<GetValue> > 
     return sctx;
 }
 
+static couchstore_docinfos_options getDocFilter(const DocumentFilter& filter) {
+    switch (filter) {
+    case DocumentFilter::ALL_ITEMS:
+        return COUCHSTORE_NO_OPTIONS;
+    case DocumentFilter::NO_DELETES:
+        return COUCHSTORE_NO_DELETES;
+    }
+
+    std::string err("getDocFilter: Illegal document filter!" +
+                    std::to_string(static_cast<int>(filter)));
+    throw std::runtime_error(err);
+}
+
 scan_error_t CouchKVStore::scan(ScanContext* ctx) {
     if (!ctx) {
         return scan_failed;
@@ -1235,27 +1248,16 @@ scan_error_t CouchKVStore::scan(ScanContext* ctx) {
         db = itr->second;
     }
 
-    couchstore_docinfos_options options;
-    switch (ctx->docFilter) {
-        case DocumentFilter::NO_DELETES:
-            options = COUCHSTORE_NO_DELETES;
-            break;
-        case DocumentFilter::ALL_ITEMS:
-            options = COUCHSTORE_NO_OPTIONS;
-            break;
-        default:
-            std::string err("CouchKVStore::scan: Illegal document filter!" +
-                            std::to_string(static_cast<int>(ctx->docFilter)));
-            throw std::runtime_error(err);
-    }
-
     uint64_t start = ctx->startSeqno;
     if (ctx->lastReadSeqno != 0) {
         start = ctx->lastReadSeqno + 1;
     }
 
     couchstore_error_t errorCode;
-    errorCode = couchstore_changes_since(db, start, options, recordDbDumpC,
+    errorCode = couchstore_changes_since(db,
+                                         start,
+                                         getDocFilter(ctx->docFilter),
+                                         recordDbDumpC,
                                          static_cast<void*>(ctx));
     if (errorCode != COUCHSTORE_SUCCESS) {
         if (errorCode == COUCHSTORE_ERROR_CANCEL) {
