@@ -505,9 +505,8 @@ public:
                                              VBucket::id_type vbucket,
                                              const char** msg);
 
-    void deleteExpiredItem(uint16_t, const DocKey&, time_t, uint64_t, ExpireBy);
-    void deleteExpiredItems(std::list<std::pair<uint16_t, StoredDocKey>>&,
-                            ExpireBy);
+    void deleteExpiredItem(Item& it, time_t startTime, ExpireBy source);
+    void deleteExpiredItems(std::list<Item>&, ExpireBy);
 
     /**
      * Get the memoized storage properties from the DB.kv

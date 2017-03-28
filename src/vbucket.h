@@ -932,14 +932,12 @@ public:
     /**
      * Delete an expired item
      *
-     * @param key key to be deleted
+     * @param it item to be deleted
      * @param startTime the time to be compared with this item's expiry time
-     * @param revSeqno revision id sequence number
      * @param source Expiry source
      */
-    void deleteExpiredItem(const DocKey& key,
+    void deleteExpiredItem(const Item& it,
                            time_t startTime,
-                           uint64_t revSeqno,
                            ExpireBy source);
 
     /**

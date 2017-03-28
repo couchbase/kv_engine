@@ -624,10 +624,11 @@ public:
 
     virtual KVStore* getROUnderlying(uint16_t vbId) = 0;
 
-    virtual void deleteExpiredItem(
-            uint16_t, const DocKey&, time_t, uint64_t, ExpireBy) = 0;
-    virtual void deleteExpiredItems(
-            std::list<std::pair<uint16_t, StoredDocKey>>&, ExpireBy) = 0;
+    virtual void deleteExpiredItem(Item& it,
+                                   time_t startTime,
+                                   ExpireBy source) = 0;
+
+    virtual void deleteExpiredItems(std::list<Item>&, ExpireBy) = 0;
 
     /**
      * Get the memoized storage properties from the DB.kv

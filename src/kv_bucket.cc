@@ -300,17 +300,14 @@ bool BloomFilterCallback::initTempFilter(uint16_t vbucketId) {
     return true;
 }
 
-class ExpiredItemsCallback : public Callback<uint16_t&, const DocKey&, uint64_t&,
-                                             time_t&> {
+class ExpiredItemsCallback : public Callback<Item&, time_t&> {
     public:
         ExpiredItemsCallback(KVBucket& store)
             : epstore(store) { }
 
-        void callback(uint16_t& vbid, const DocKey& key, uint64_t& revSeqno,
-                      time_t& startTime) {
+        void callback(Item& it, time_t& startTime) {
             if (epstore.compactionCanExpireItems()) {
-                epstore.deleteExpiredItem(
-                        vbid, key, startTime, revSeqno, ExpireBy::Compactor);
+                epstore.deleteExpiredItem(it, startTime, ExpireBy::Compactor);
             }
         }
 
@@ -559,28 +556,39 @@ protocol_binary_response_status KVBucket::evictKey(const DocKey& key,
     return vb->evictKey(key, msg);
 }
 
-void KVBucket::deleteExpiredItem(uint16_t vbid,
-                                 const DocKey& key,
+void KVBucket::deleteExpiredItem(Item& it,
                                  time_t startTime,
-                                 uint64_t revSeqno,
                                  ExpireBy source) {
-    VBucketPtr vb = getVBucket(vbid);
+    VBucketPtr vb = getVBucket(it.getVBucketId());
+
     if (vb) {
+        auto info = it.toItemInfo(vb->failovers->getLatestUUID());
+        if (engine.getServerApi()->document->pre_expiry(info)) {
+            // The payload is modified and contains data we should use
+            value_t value(Blob::New(static_cast<char*>(info.value[0].iov_base),
+                                    info.value[0].iov_len,
+                                    &info.datatype, 1));
+            it.setValue(value);
+        } else {
+            // We should drop the entire body
+            it.setValue({});
+        }
+
         // Obtain reader access to the VB state change lock so that
         // the VB can't switch state whilst we're processing
         ReaderLockHolder rlh(vb->getStateLock());
         if (vb->getState() == vbucket_state_active) {
-            vb->deleteExpiredItem(key, startTime, revSeqno, source);
+            vb->deleteExpiredItem(it, startTime, source);
         }
     }
 }
 
 void KVBucket::deleteExpiredItems(
-        std::list<std::pair<uint16_t, StoredDocKey>>& keys, ExpireBy source) {
+        std::list<Item>& itms, ExpireBy source) {
     std::list<std::pair<uint16_t, std::string> >::iterator it;
     time_t startTime = ep_real_time();
-    for (const auto& it : keys) {
-        deleteExpiredItem(it.first, it.second, startTime, 0, source);
+    for (auto& it : itms) {
+        deleteExpiredItem(it, startTime, source);
     }
 }
 

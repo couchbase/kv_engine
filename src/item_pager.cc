@@ -78,8 +78,8 @@ public:
         bool isExpired = (currentBucket->getState() == vbucket_state_active) &&
             v->isExpired(startTime) && !v->isDeleted();
         if (isExpired || v->isTempNonExistentItem() || v->isTempDeletedItem()) {
-            expired.push_back(std::make_pair(currentBucket->getId(),
-                                             StoredDocKey(v->getKey())));
+            std::unique_ptr<Item> it = v->toItem(false, currentBucket->getId());
+            expired.push_back(*it.get());
             return;
         }
 
@@ -238,7 +238,7 @@ private:
         }
     }
 
-    std::list<std::pair<uint16_t, StoredDocKey> > expired;
+    std::list<Item> expired;
 
     KVBucketIface& store;
     EPStats &stats;

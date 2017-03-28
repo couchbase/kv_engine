@@ -1068,9 +1068,9 @@ TEST_F(SingleThreadedEPBucketTest, pre_expiry_xattrs) {
                          deleted, datatype);
     auto prev_revseqno = metadata.revSeqno;
     EXPECT_EQ(1, prev_revseqno) << "Unexpected revision sequence number";
+    itm.setRevSeqno(1);
+    kvbucket.deleteExpiredItem(itm, ep_real_time() + 1, ExpireBy::Pager);
 
-    kvbucket.deleteExpiredItem(vbid, makeStoredDocKey("key"),
-                               ep_real_time() + 1, 1, ExpireBy::Pager);
     get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
                                                        HONOR_STATES |
                                                        TRACK_REFERENCE |

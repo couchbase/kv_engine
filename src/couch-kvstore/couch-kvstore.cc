@@ -741,7 +741,64 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
     return 1;
 }
 
-static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
+/**
+ * Notify the expiry callback that a document has expired
+ *
+ * @param info     document information for the expired item
+ * @param metadata metadata of the document
+ * @param item     buffer containing data and size
+ * @param ctx      context for compaction
+ * @param currtime current time
+ */
+static int notify_expired_item(DocInfo& info,
+                               MetaData& metadata,
+                               sized_buf item,
+                               compaction_ctx& ctx,
+                               time_t currtime) {
+    std::array<uint8_t, 1> ext_meta = {{metadata.getDataType()}};
+    cb::char_buffer data;
+    cb::compression::Buffer inflated;
+
+    if (mcbp::datatype::is_xattr(metadata.getDataType())) {
+        if (item.buf == nullptr) {
+            // We need to pass on the entire document to the callback
+            return COUCHSTORE_COMPACT_NEED_BODY;
+        }
+
+        if (info.content_meta | COUCH_DOC_IS_COMPRESSED) {
+            using namespace cb::compression;
+
+            if (!inflate(Algorithm::Snappy,
+                         item.buf, item.size, inflated)) {
+                LOG(EXTENSION_LOG_WARNING,
+                    "time_purge_hook: failed to inflate document with seqno %" PRIu64 ""
+                    "revno: %" PRIu64, info.db_seq, info.rev_seq);
+                return COUCHSTORE_ERROR_CORRUPT;
+            }
+            data = {inflated.data.get(),inflated.len};
+        }
+    }
+
+    // Collections: TODO: Restore to stored namespace
+    Item it(makeDocKey(info.id, ctx.config->shouldPersistDocNamespace()),
+            metadata.getFlags(),
+            metadata.getExptime(),
+            data.buf,
+            data.len,
+            &ext_meta[0],
+            EXT_META_LEN,
+            metadata.getCas(),
+            info.db_seq,
+            ctx.db_file_id,
+            info.rev_seq);
+
+    it.setRevSeqno(info.rev_seq);
+    ctx.expiryCallback->callback(it, currtime);
+
+    return COUCHSTORE_SUCCESS;
+}
+
+static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
     compaction_ctx* ctx = static_cast<compaction_ctx*>(ctx_p);
     const uint16_t vbid = ctx->db_file_id;
 
@@ -791,12 +848,19 @@ static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
         } else {
             time_t currtime = ep_real_time();
             if (exptime && exptime < currtime) {
-                // Collections: TODO: Permanently restore to stored namespace
-                DocKey key = makeDocKey(
-                        info->id,
-                        ctx->config->shouldPersistDocNamespace());
-                ctx->expiryCallback->callback(ctx->db_file_id, key,
-                                              info->rev_seq, currtime);
+                int ret;
+                try {
+                    ret = notify_expired_item(*info, *metadata, item,
+                                             *ctx, currtime);
+                } catch (const std::bad_alloc&) {
+                    LOG(EXTENSION_LOG_WARNING,
+                        "time_purge_hook: memory allocation failed");
+                    return COUCHSTORE_ERROR_ALLOC_FAIL;
+                }
+
+                if (ret != COUCHSTORE_SUCCESS) {
+                    return ret;
+                }
             }
         }
     }

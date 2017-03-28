@@ -1298,17 +1298,23 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
     return ENGINE_SUCCESS;
 }
 
-void VBucket::deleteExpiredItem(const DocKey& key,
+void VBucket::deleteExpiredItem(const Item& it,
                                 time_t startTime,
-                                uint64_t revSeqno,
                                 ExpireBy source) {
+
+    // The item is correctly trimmed (by the caller). Fetch the one in the
+    // hashtable and replace it if the CAS match (same item; no race).
+    // If not found in the hashtable we should add it as a deleted item
+    const DocKey& key = it.getKey();
     auto hbl = ht.getLockedBucket(key);
     StoredValue* v = ht.unlocked_find(
             key, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
     if (v) {
+        if (v->getCas() != it.getCas()) {
+            return;
+        }
+
         if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
-            // This is a temporary item whose background fetch for metadata
-            // has completed.
             bool deleted = deleteStoredValue(hbl, *v);
             if (!deleted) {
                 throw std::logic_error(
@@ -1318,7 +1324,6 @@ void VBucket::deleteExpiredItem(const DocKey& key,
                         std::to_string(hbl.getBucketNum()));
             }
         } else if (v->isExpired(startTime) && !v->isDeleted()) {
-            handlePreExpiry(*v);
             VBNotifyCtx notifyCtx;
             std::tie(std::ignore, std::ignore, notifyCtx) =
                     processExpiredItem(hbl, *v);
@@ -1342,7 +1347,8 @@ void VBucket::deleteExpiredItem(const DocKey& key,
                                      WantsDeleted::Yes,
                                      TrackReference::No);
                 v->setDeleted();
-                v->setRevSeqno(revSeqno);
+                v->setRevSeqno(it.getRevSeqno());
+                v->setValue(it, ht);
                 VBNotifyCtx notifyCtx;
                 std::tie(std::ignore, std::ignore, notifyCtx) =
                         processExpiredItem(hbl, *v);

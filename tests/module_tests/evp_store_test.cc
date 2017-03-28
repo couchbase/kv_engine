@@ -36,6 +36,10 @@
 #include "tests/module_tests/test_helpers.h"
 #include "vbucketdeletiontask.h"
 
+#include <string_utilities.h>
+#include <xattr/blob.h>
+#include <xattr/utils.h>
+
 #include <thread>
 
 // Verify that when handling a bucket delete with open DCP
@@ -396,6 +400,64 @@ TEST_P(EPStoreEvictionTest, TouchCmdDuringBgFetch) {
     }
     EXPECT_EQ(numTouchCmds + 1 /* Initial item store */,
               store->getVBucket(vbid)->getHighSeqno());
+}
+
+TEST_P(EPStoreEvictionTest, xattrExpiryOnFullyEvictedItem) {
+    if (GetParam() == "value_only") {
+        return;
+    }
+
+    cb::xattr::Blob builder;
+
+    //Add a few values
+    builder.set(to_const_byte_buffer("_meta"),
+                to_const_byte_buffer("{\"rev\":10}"));
+    builder.set(to_const_byte_buffer("foo"),
+                to_const_byte_buffer("{\"blob\":true}"));
+
+    auto blob = builder.finalize();
+    auto blob_data = to_string(blob);
+    auto itm = store_item(vbid,
+                          makeStoredDocKey("key"),
+                          blob_data,
+                          0,
+                          {cb::engine_errc::success},
+                          (PROTOCOL_BINARY_DATATYPE_JSON |
+                           PROTOCOL_BINARY_DATATYPE_XATTR));
+
+    GetValue gv = store->getAndUpdateTtl(makeStoredDocKey("key"), vbid, cookie,
+                                         time(NULL) + 120);
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    std::unique_ptr<Item> get_itm(gv.getValue());
+
+    flush_vbucket_to_disk(vbid);
+    evict_key(vbid, makeStoredDocKey("key"));
+    store->deleteExpiredItem(itm, time(NULL) + 121, ExpireBy::Compactor);
+
+    get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
+                                                       HONOR_STATES |
+                                                       TRACK_REFERENCE |
+                                                       DELETE_TEMP |
+                                                       HIDE_LOCKED_CAS |
+                                                       TRACK_STATISTICS |
+                                                       GET_DELETED_VALUE);
+
+    gv = store->get(makeStoredDocKey("key"), vbid, cookie, options);
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+
+    get_itm.reset(gv.getValue());
+    auto get_data = const_cast<char*>(get_itm->getData());
+    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, get_itm->getDataType())
+              << "Unexpected Datatype";
+
+    cb::byte_buffer value_buf{reinterpret_cast<uint8_t*>(get_data),
+                              get_itm->getNBytes()};
+    cb::xattr::Blob new_blob(value_buf);
+
+    const std::string& rev_str{"{\"rev\":10}"};
+    const std::string& meta_str = to_string(new_blob.get(to_const_byte_buffer("_meta")));
+
+    EXPECT_EQ(rev_str, meta_str) << "Unexpected system xattrs";
 }
 
 // Test cases which run in both Full and Value eviction

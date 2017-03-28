@@ -109,7 +109,7 @@ typedef struct {
 typedef uint16_t DBFileId;
 
 typedef std::shared_ptr<Callback<uint16_t&, const DocKey&, bool&> > BloomFilterCBPtr;
-typedef std::shared_ptr<Callback<uint16_t&, const DocKey&, uint64_t&, time_t&> > ExpiredItemsCBPtr;
+typedef std::shared_ptr<Callback<Item&, time_t&> > ExpiredItemsCBPtr;
 
 class KVStoreConfig;
 typedef struct {

@@ -7867,7 +7867,6 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test MB-16421", test_mb16421,
                  test_setup, teardown, "item_eviction_policy=full_eviction",
                  prepare_full_eviction, cleanup),
-
         TestCase("test eviction with xattr", test_eviction_with_xattr,
                  test_setup, teardown, "item_eviction_policy=full_eviction",
                  prepare, cleanup),
