@@ -645,7 +645,7 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
         (old_it->iflag & ITEM_ZOMBIE) == 0) {
         /* add only adds a nonexistent item, but promote to head of LRU */
         do_item_update(engine, old_it);
-    } else if (!old_it && operation == OPERATION_REPLACE) {
+    } else if ((!old_it || (old_it->iflag & ITEM_ZOMBIE)) && operation == OPERATION_REPLACE) {
         /* replace only replaces an existing value; don't store */
     } else if (operation == OPERATION_CAS) {
         /* validate cas operation */
@@ -670,6 +670,9 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
 
             if (locked) {
                 stored = ENGINE_LOCKED;
+            } else if (old_it->iflag & ITEM_ZOMBIE && !(it->iflag &ITEM_ZOMBIE)) {
+                // If you try to do replace on a deleted document
+                stored = ENGINE_KEY_ENOENT;
             } else {
                 stored = ENGINE_KEY_EEXISTS;
             }

@@ -112,6 +112,26 @@ TEST_P(GetSetTest, TestReplace) {
         EXPECT_EQ(eExistsCount + 1,
                   getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS));
     }
+
+    // Trying to replace a deleted document should also fail
+    conn.remove(name, 0, 0);
+    document.info.cas = 0;
+    try {
+        conn.mutate(document, 0, Greenstack::MutationType::Replace);
+        FAIL() << "It's not possible to replace a nonexisting document (deleted)";
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isNotFound()) << error.what();
+    }
+
+    // And CAS replace
+    document.info.cas = 1;
+    try {
+        conn.mutate(document, 0, Greenstack::MutationType::Replace);
+        FAIL() << "It's not possible to replace a nonexisting document (deleted)";
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isNotFound()) << error.what();
+    }
+
 }
 
 TEST_P(GetSetTest, TestReplaceWithXattr) {

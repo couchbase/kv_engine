@@ -212,14 +212,14 @@ static void test_replace_impl(const char* key, uint8_t cmd) {
                                       key, strlen(key), &value, sizeof(value),
                                       0, 0);
     safe_send(send.bytes, len, false);
-    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+    ASSERT_TRUE(safe_recv_packet(receive.bytes, sizeof(receive.bytes)));
     mcbp_validate_response_header(&receive.response, cmd,
                                   PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
     len = mcbp_storage_command(send.bytes, sizeof(send.bytes),
                                PROTOCOL_BINARY_CMD_ADD,
                                key, strlen(key), &value, sizeof(value), 0, 0);
     safe_send(send.bytes, len, false);
-    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+    ASSERT_TRUE(safe_recv_packet(receive.bytes, sizeof(receive.bytes)));
     mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_ADD,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
@@ -228,7 +228,7 @@ static void test_replace_impl(const char* key, uint8_t cmd) {
     for (ii = 0; ii < 10; ++ii) {
         safe_send(send.bytes, len, false);
         if (cmd == PROTOCOL_BINARY_CMD_REPLACE) {
-            safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+            ASSERT_TRUE(safe_recv_packet(receive.bytes, sizeof(receive.bytes)));
             mcbp_validate_response_header(&receive.response,
                                           PROTOCOL_BINARY_CMD_REPLACE,
                                           PROTOCOL_BINARY_RESPONSE_SUCCESS);
