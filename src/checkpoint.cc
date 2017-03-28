@@ -1339,9 +1339,11 @@ void CheckpointManager::clear(VBucket& vb, uint64_t seqno) {
     clear_UNLOCKED(vb.getState(), seqno);
 
     // Reset the disk write queue size stat for the vbucket
-    size_t currentDqSize = vb.dirtyQueueSize.load();
-    vb.dirtyQueueSize.fetch_sub(currentDqSize);
-    stats.diskQueueSize.fetch_sub(currentDqSize);
+    if (checkpointConfig.isPersistenceEnabled()) {
+        size_t currentDqSize = vb.dirtyQueueSize.load();
+        vb.dirtyQueueSize.fetch_sub(currentDqSize);
+        stats.diskQueueSize.fetch_sub(currentDqSize);
+    }
 }
 
 void CheckpointManager::clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno) {
@@ -1594,6 +1596,11 @@ snapshot_info_t CheckpointManager::getSnapshotInfo() {
 void CheckpointManager::updateDiskQueueStats(VBucket& vbucket,
                                              size_t curr_remains,
                                              size_t new_remains) {
+    if (!checkpointConfig.isPersistenceEnabled()) {
+        /* we do not have a disk and hence no disk stats to update */
+        return;
+    }
+
     if (curr_remains > new_remains) {
         size_t diff = curr_remains - new_remains;
         stats.diskQueueSize.fetch_sub(diff);
