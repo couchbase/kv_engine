@@ -361,12 +361,16 @@ private:
     std::set<std::string> acceptable;
 };
 
+class Requirement;
+
 /**
  * The configuration class represents and provides access to the
  * entire configuration of the server.
  */
 class Configuration {
 public:
+    struct value_t;
+
     Configuration();
     ~Configuration();
 
@@ -426,6 +430,20 @@ public:
      */
     void addAlias(const std::string& key, const std::string& alias);
 
+    /**
+     * Adds a prerequisite to a configuration option. This must be satisfied
+     * in order to set/get the config value or for it to appear in stats.
+     *
+     * @param key the key to set the requirement for
+     * @param requirement the requirement
+     */
+    Requirement* setRequirements(const std::string& key,
+                                 Requirement* requirement);
+
+    bool requirementsMet(const value_t& value) const;
+
+    void requirementsMetOrThrow(const std::string& key) const;
+
 protected:
     /**
      * Set the configuration parameter for a given key to
@@ -448,7 +466,6 @@ protected:
 
 private:
     void initialize();
-    struct value_t;
 
     // Access to the configuration variables is protected by the mutex
     mutable std::mutex mutex;

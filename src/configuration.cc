@@ -18,12 +18,7 @@
 #include "config.h"
 #include "configuration.h"
 
-#include <boost/variant.hpp>
-#include <platform/cb_malloc.h>
-
-#include <algorithm>
-#include <sstream>
-#include <vector>
+#include "configuration_impl.h"
 
 #ifdef AUTOCONF_BUILD
 #include "generated_configuration.cc"
@@ -57,11 +52,12 @@ Configuration::Configuration() {
 struct Configuration::value_t {
     std::vector<std::unique_ptr<ValueChangedListener>> changeListener;
     std::unique_ptr<ValueChangedValidator> validator;
+    std::unique_ptr<Requirement> requirement;
 
     // At the moment, the order of these template parameters must
     // match the order of the types in config_datatype. Looking
     // for a cleaner method.
-    boost::variant<size_t, ssize_t, float, bool, std::string> value;
+    value_variant_t value;
 
     std::vector<ValueChangedListener*> copyListeners() {
         std::vector<ValueChangedListener*> copy;
@@ -170,9 +166,51 @@ ValueChangedValidator *Configuration::setValueValidator(const std::string &key,
     return ret;
 }
 
+Requirement* Configuration::setRequirements(const std::string& key,
+                                            Requirement* requirement) {
+    Requirement* ret = nullptr;
+    LockHolder lh(mutex);
+    if (attributes.find(key) != attributes.end()) {
+        ret = attributes[key]->requirement.release();
+        attributes[key]->requirement.reset(requirement);
+    }
+
+    return ret;
+}
+
+bool Configuration::requirementsMet(const value_t& value) const {
+    if (value.requirement) {
+        for (auto requirement : value.requirement->requirements) {
+            const auto iter = attributes.find(requirement.first);
+            if (iter == attributes.end()) {
+                // Parameter does not exist, returning true assuming the config
+                // is not yet complete. We cannot verify yet.
+                return true;
+            }
+            if (iter->second->value != requirement.second) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+void Configuration::requirementsMetOrThrow(const std::string& key) const {
+    LockHolder lh(mutex);
+    auto itr = attributes.find(key);
+    if (itr != attributes.end()) {
+        if (!requirementsMet(*(itr->second))) {
+            throw requirements_unsatisfied("Cannot set" + key +
+                                           " : requirements not met");
+        }
+    }
+}
+
 void Configuration::addStats(ADD_STAT add_stat, const void *c) const {
     LockHolder lh(mutex);
     for (const auto& attribute :  attributes) {
+        if (!requirementsMet(*attribute.second)) {
+            continue;
+        }
         std::stringstream value;
         value << std::boolalpha << attribute.second->value;
         std::stringstream key;

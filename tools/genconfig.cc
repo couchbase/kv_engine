@@ -217,6 +217,7 @@ static void initialize() {
         << endl
         << "#include \"config.h\"" << endl
         << "#include \"configuration.h\"" << endl
+        << "#include \"configuration_impl.h\"" << endl
         << "#include <platform/sysinfo.h>" << endl;
     validators["range"] = getRangeValidatorCode;
     validators["enum"] = getEnumValidatorCode;
@@ -320,6 +321,78 @@ static string getValidator(const std::string &key, cJSON *o) {
     return (iter->second)(key, o);
 }
 
+/**
+ * Generates code from the requirements field.
+ *
+ * Generates code to be used in generated_configuration.cc constructing the
+ * Requirement object and adding the appropriate requirements.
+ * @param key key to generate requirements for
+ * @param o json object representing the config parameter
+ * @param params json object of all parameters, required to determine the
+ * intended type of the required parameter.
+ * @return string of the code constructing a Requirement object.
+ */
+static string getRequirements(const std::string& key, cJSON* o, cJSON* params) {
+    if (o == NULL) {
+        return "";
+    }
+
+    cJSON* requirements = cJSON_GetObjectItem(o, "requires");
+
+    if (requirements == NULL) {
+        return "";
+    }
+
+    ssize_t num = cJSON_GetArraySize(requirements);
+    if (num <= 0) {
+        return "";
+    }
+
+    std::ostringstream ss;
+
+    ss << "(new Requirement)\n";
+
+    for (int ii = 0; ii < num; ++ii) {
+        cJSON* req = cJSON_GetArrayItem(requirements, ii);
+        char* req_key = req->string;
+
+        cJSON* req_param = cJSON_GetObjectItem(params, req_key);
+
+        if (req_param == NULL) {
+            cerr << "Required parameter \"" << req_key << "\" for parameter \""
+                 << key << "\" does not exist" << endl;
+            exit(1);
+        }
+
+        string type = getDatatype(req_key, req_param);
+        string value;
+
+        switch (req->type) {
+        case cJSON_String:
+            value = std::string("\"") + req->valuestring + "\"";
+            break;
+        case cJSON_Number:
+            if (type == "float") {
+                value = std::to_string(req->valuedouble);
+            } else {
+                value = std::to_string(req->valueint);
+            }
+            break;
+        case cJSON_True:
+            value = "true";
+            break;
+        case cJSON_False:
+            value = "false";
+            break;
+        }
+
+        ss << "        ->add(\"" << req_key << "\", (" << type << ")" << value
+           << ")";
+    }
+
+    return ss.str();
+}
+
 static string getGetterPrefix(const string &str) {
     if (str.compare("bool") == 0) {
         return "is";
@@ -348,7 +421,7 @@ static string getCppName(const string &str) {
     return ss.str();
 }
 
-static void generate(cJSON *o) {
+static void generate(cJSON* o, cJSON* params) {
     cb_assert(o != NULL);
 
     string config_name = o->string;
@@ -365,6 +438,7 @@ static void generate(cJSON *o) {
     }
 
     string validator = getValidator(config_name, o);
+    string requirements = getRequirements(config_name, o, params);
 
     // Generate prototypes
     prototypes << "    " << type
@@ -385,6 +459,10 @@ static void generate(cJSON *o) {
     if (!validator.empty()) {
         initialization << "    setValueValidator(\"" << config_name
                        << "\", " << validator << ");" << endl;
+    }
+    if (!requirements.empty()) {
+        initialization << "    setRequirements(\"" << config_name << "\", "
+                       << requirements << ");" << endl;
     }
     if (hasAliases(o)) {
         for (std::string alias : getAliases(o)) {
@@ -450,7 +528,7 @@ int main(int argc, char **argv) {
 
     int num = cJSON_GetArraySize(params);
     for (int ii = 0; ii < num; ++ii) {
-        generate(cJSON_GetArrayItem(params, ii));
+        generate(cJSON_GetArrayItem(params, ii), params);
     }
     prototypes << "#endif  // SRC_GENERATED_CONFIGURATION_H_" << endl;
 
