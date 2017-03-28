@@ -94,7 +94,13 @@ protected:
     /* Fill the bucket with the given number of docs. Returns the rate at which
      * items were added.
      */
-    size_t populateVbucket(size_t ndocs) {
+    size_t populateVbucket() {
+        // How many items to create in the VBucket. Use a large number for
+        // normal runs when measuring performance, but a very small number
+        // (enough for functional testing) when running under Valgrind
+        // where there's no sense in measuring performance.
+        const size_t ndocs = RUNNING_ON_VALGRIND ? 10 : 500000;
+
         /* Set the hashTable to a sensible size */
         vbucket->ht.resize(ndocs);
 
@@ -118,17 +124,12 @@ protected:
 };
 
 TEST_P(DefragmenterBenchmarkTest, Populate) {
-    // How many items to create in the VBucket. Use a large number for
-    // normal runs when measuring performance, but a very small number
-    // (enough for functional testing) when running under Valgrind
-    // where there's no sense in measuring performance.
-    const size_t item_count = RUNNING_ON_VALGRIND ? 10
-                                                  : 500000;
-    size_t populateRate = populateVbucket(item_count);
+    size_t populateRate = populateVbucket();
     RecordProperty("items_per_sec", populateRate);
 }
 
 TEST_P(DefragmenterBenchmarkTest, Visit) {
+    populateVbucket();
     const size_t one_minute = 60 * 1000;
     size_t visit_rate = benchmarkDefragment(*vbucket, 1,
                                             std::numeric_limits<uint8_t>::max(),
@@ -137,6 +138,7 @@ TEST_P(DefragmenterBenchmarkTest, Visit) {
 }
 
 TEST_P(DefragmenterBenchmarkTest, DefragAlways) {
+    populateVbucket();
     const size_t one_minute = 60 * 1000;
     size_t defrag_always_rate = benchmarkDefragment(*vbucket, 1, 0,
                                                     one_minute);
@@ -144,6 +146,7 @@ TEST_P(DefragmenterBenchmarkTest, DefragAlways) {
 }
 
 TEST_P(DefragmenterBenchmarkTest, DefragAge10) {
+    populateVbucket();
     const size_t one_minute = 60 * 1000;
     size_t defrag_age10_rate = benchmarkDefragment(*vbucket, 1, 10,
                                                    one_minute);
@@ -151,6 +154,7 @@ TEST_P(DefragmenterBenchmarkTest, DefragAge10) {
 }
 
 TEST_P(DefragmenterBenchmarkTest, DefragAge10_20ms) {
+    populateVbucket();
     size_t defrag_age10_20ms_rate = benchmarkDefragment(*vbucket, 1, 10, 20);
     RecordProperty("items_per_sec", defrag_age10_20ms_rate);
 }
