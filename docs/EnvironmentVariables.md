@@ -156,3 +156,11 @@ If set the logger will use 1GB file sizes
 ## `CB_MAXIMIZE_LOGGER_BUFFER_SIZE`
 
 If set the logger will use 8MB internal buffers
+
+## `TESTAPP_PACKET_DUMP`
+
+By setting this variable testapp dumps data sent/received in the old-style
+tests in the following format:
+
+    PLAIN> 0x80, 0xfd, 0x00, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x00, ...
+    PLAIN< 0x81, 0xfd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, ...

@@ -984,6 +984,9 @@ ssize_t phase_recv(void *buf, size_t len) {
 char ssl_error_string[256];
 int ssl_error_string_len = 256;
 
+static const bool dump_socket_traffic =
+        getenv("TESTAPP_PACKET_DUMP") != nullptr;
+
 static char* phase_get_errno() {
     char * rv = 0;
     if (current_phase == phase_ssl) {
@@ -1022,6 +1025,22 @@ void safe_send(const void* buf, size_t len, bool hickup)
 #ifndef WIN32
                 usleep(100);
 #endif
+            }
+
+            if (dump_socket_traffic) {
+                if (current_phase == phase_ssl) {
+                    std::cerr << "SSL";
+                } else {
+                    std::cerr << "PLAIN";
+                }
+                std::cerr << "> ";
+                for (ssize_t ii = 0; ii < nw; ++ii) {
+                    std::cerr << "0x" << std::hex << std::setfill('0')
+                              << std::setw(2)
+                              << uint32_t(*(uint8_t*)(ptr + offset + ii))
+                              << ", ";
+                }
+                std::cerr << std::dec << std::endl;
             }
             offset += nw;
         }
@@ -1089,6 +1108,19 @@ bool safe_recv_packetT(T& info) {
         return false;
     }
 
+    if (dump_socket_traffic) {
+        if (current_phase == phase_ssl) {
+            std::cerr << "SSL";
+        } else {
+            std::cerr << "PLAIN";
+        }
+        std::cerr << "< ";
+        for (size_t ii = 0; ii < sizeof(*header); ++ii) {
+            std::cerr << "0x" << std::hex << std::setfill('0') << std::setw(2)
+                      << uint32_t(header->bytes[ii]) << ", ";
+        }
+    }
+
     header->response.keylen = ntohs(header->response.keylen);
     header->response.status = ntohs(header->response.status);
     auto bodylen = header->response.bodylen = ntohl(header->response.bodylen);
@@ -1097,7 +1129,17 @@ bool safe_recv_packetT(T& info) {
     header = nullptr;
 
     info.resize(sizeof(*header) + bodylen);
-    return safe_recv(info.data() + sizeof(*header), bodylen);
+    auto ret = safe_recv(info.data() + sizeof(*header), bodylen);
+
+    if (dump_socket_traffic) {
+        uint8_t* ptr = (uint8_t*)(info.data() + sizeof(*header));
+        for (size_t ii = 0; ii < bodylen; ++ii) {
+            std::cerr << "0x" << std::hex << std::setfill('0') << std::setw(2)
+                      << uint32_t(ptr[ii]) << ", ";
+        }
+        std::cerr << std::endl;
+    }
+    return ret;
 }
 
 struct StaticBufInfo {
