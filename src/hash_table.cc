@@ -289,7 +289,7 @@ MutationStatus HashTable::unlocked_updateStoredValue(
     }
 
     if (v.isDeleted() && !itm.isDeleted()) {
-        numDeletedItems.fetch_sub(1, std::memory_order_relaxed);
+        --numDeletedItems;
     }
 
     // If the item we are replacing is resident then we need to make sure we
@@ -383,7 +383,7 @@ void HashTable::unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
         }
         v.del(*this);
     }
-    numDeletedItems.fetch_add(1, std::memory_order_relaxed);
+    ++numDeletedItems;
 }
 
 StoredValue* HashTable::unlocked_find(const DocKey& key,
@@ -446,7 +446,7 @@ StoredValue::UniquePtr HashTable::unlocked_release(
         decrNumTotalItems();
         --datatypeCounts[released->getDatatype()];
         if (released->isDeleted()) {
-            numDeletedItems.fetch_sub(1, std::memory_order_relaxed);
+            --numDeletedItems;
         }
     }
     return released;

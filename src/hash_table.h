@@ -228,40 +228,16 @@ public:
         numTotalItems = totalItems;
     }
 
-    void decrNumItems(void) {
-        size_t count;
-        do {
-            count = numItems.load();
-            if (count == 0) {
-                LOG(EXTENSION_LOG_DEBUG,
-                    "Cannot decrement numItems, value at 0 already");
-                break;
-            }
-        } while (!numItems.compare_exchange_strong(count, count - 1));
+    void decrNumItems() {
+        --numItems;
     }
 
-    void decrNumTotalItems(void) {
-        size_t count;
-        do {
-            count = numTotalItems.load();
-            if (count == 0) {
-                LOG(EXTENSION_LOG_DEBUG,
-                    "Cannot decrement numTotalItems, value at 0 already");
-                break;
-            }
-        } while (!numTotalItems.compare_exchange_strong(count, count - 1));
+    void decrNumTotalItems() {
+        --numTotalItems;
     }
 
-    void decrNumNonResidentItems(void) {
-        size_t count;
-        do {
-            count = numNonResidentItems.load();
-            if (count == 0) {
-                LOG(EXTENSION_LOG_DEBUG,
-                    "Cannot decrement numNonResidentItems, value at 0 already");
-                break;
-            }
-        } while (!numNonResidentItems.compare_exchange_strong(count, count - 1));
+    void decrNumNonResidentItems() {
+        --numNonResidentItems;
     }
 
     /**
@@ -609,8 +585,8 @@ public:
     std::atomic<size_t>       numTotalItems;
     std::array<cb::NonNegativeCounter<size_t>, mcbp::datatype::highest + 1>
             datatypeCounts;
-    std::atomic<size_t>       numNonResidentItems;
-    std::atomic<size_t> numDeletedItems;
+    cb::NonNegativeCounter<size_t> numNonResidentItems;
+    cb::NonNegativeCounter<size_t> numDeletedItems;
     std::atomic<size_t>       numEjects;
     //! Memory consumed by items in this hashtable.
     std::atomic<size_t>       memSize;
@@ -635,7 +611,7 @@ private:
     EPStats&             stats;
     std::unique_ptr<AbstractStoredValueFactory> valFact;
     std::atomic<size_t>       visitors;
-    std::atomic<size_t>       numItems;
+    cb::NonNegativeCounter<size_t> numItems;
     std::atomic<size_t>       numResizes;
     std::atomic<size_t>       numTempItems;
     bool                 activeState;
