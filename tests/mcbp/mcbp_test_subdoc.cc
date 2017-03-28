@@ -204,7 +204,8 @@ TEST_F(SubdocMultiLookupTest, InvalidLocationOpcodes) {
     for (uint8_t ii = 0; ii < std::numeric_limits<uint8_t>::max(); ii++) {
         auto cmd = protocol_binary_command(ii);
         // Skip over lookup opcodes
-        if ((cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET) ||
+        if ((cmd == PROTOCOL_BINARY_CMD_GET) ||
+            (cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET) ||
             (cmd == PROTOCOL_BINARY_CMD_SUBDOC_EXISTS) ||
             (cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT)) {
             continue;
@@ -688,6 +689,7 @@ TEST_F(SubdocMultiMutationTest, InvalidLocationOpcodes) {
         auto cmd = protocol_binary_command(ii);
         // Skip over mutation opcodes.
         switch (cmd) {
+        case PROTOCOL_BINARY_CMD_SET:
         case PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD:
         case PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT:
         case PROTOCOL_BINARY_CMD_SUBDOC_DELETE:

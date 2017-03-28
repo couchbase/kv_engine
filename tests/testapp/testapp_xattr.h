@@ -189,4 +189,58 @@ protected:
                            SUBDOC_FLAG_MKDOC);
         return resp.getStatus();
     }
+
+    /**
+     * Takes a subdoc multimutation command, sends it and checks that the
+     * values set correctly
+     * @param cmd The command to send
+     * @return Returns the response from the multi-mutation
+     */
+    BinprotSubdocMultiMutationResponse testBodyAndXattrCmd(
+            BinprotSubdocMultiMutationCommand& cmd) {
+        auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+        conn.sendCommand(cmd);
+
+        BinprotSubdocMultiMutationResponse multiResp;
+        conn.recvResponse(multiResp);
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+
+        // Check the body was set correctly
+        auto doc = getConnection().get(name, 0);
+        std::vector<uint8_t> expected(value.begin(), value.end());
+        EXPECT_EQ(expected, doc.value);
+
+        // Check the xattr was set correctly
+        auto resp = subdoc_get(xattr, SUBDOC_FLAG_XATTR_PATH);
+        EXPECT_EQ(xattrVal, resp.getValue());
+
+        return multiResp;
+    }
+
+    void setBodyAndXattr(const std::string& startValue,
+                         const std::string& xattrValue) {
+        Document document;
+        document.info.cas = Greenstack::CAS::Wildcard;
+        document.info.compression = Greenstack::Compression::None;
+        document.info.datatype = Greenstack::Datatype::Json;
+        document.info.flags = 0xcaffee;
+        document.info.id = name;
+        std::copy(startValue.begin(),
+                  startValue.end(),
+                  std::back_inserter(document.value));
+        getConnection().mutate(document, 0, Greenstack::MutationType::Set);
+        auto doc = getConnection().get(name, 0);
+
+        EXPECT_EQ(doc.value, document.value);
+
+        // Now add the xattr
+        xattr_upsert(xattr, xattrValue);
+
+        auto resp = subdoc_get(xattr, SUBDOC_FLAG_XATTR_PATH);
+        EXPECT_EQ(xattrValue, resp.getValue());
+    }
+
+    const std::string value = "{\"Field\":56}";
+    const std::string xattr = "_sync.eg";
+    const std::string xattrVal = "99";
 };

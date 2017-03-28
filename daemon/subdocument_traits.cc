@@ -19,6 +19,12 @@
 
 SubdocCmdTraits get_subdoc_cmd_traits(protocol_binary_command cmd) {
     switch (cmd) {
+    case PROTOCOL_BINARY_CMD_GET:
+        return get_traits<PROTOCOL_BINARY_CMD_GET>();
+
+    case PROTOCOL_BINARY_CMD_SET:
+        return get_traits<PROTOCOL_BINARY_CMD_SET>();
+
     case PROTOCOL_BINARY_CMD_SUBDOC_GET:
         return get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>();
 
@@ -56,7 +62,9 @@ SubdocCmdTraits get_subdoc_cmd_traits(protocol_binary_command cmd) {
         return get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT>();
 
     default:
-        return {Subdoc::Command::INVALID,
+        return {CommandScope::SubJSON,
+                Subdoc::Command::INVALID,
+                PROTOCOL_BINARY_CMD_INVALID,
                 SUBDOC_FLAG_NONE,
                 false,
                 false,

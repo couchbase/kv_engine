@@ -22,6 +22,111 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
     ::testing::Values(TransportProtocols::McbpPlain),
     ::testing::PrintToStringParamName());
 
+TEST_P(XattrTest, GetXattrAndBody) {
+    // Test to check that we can get both an xattr and the main body in
+    // subdoc multi-lookup
+    setBodyAndXattr(value, xattrVal);
+
+    // Sanity checks and setup done lets try the multi-lookup
+
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey(name);
+    cmd.addGet(xattr, SUBDOC_FLAG_XATTR_PATH);
+    cmd.addLookup("", PROTOCOL_BINARY_CMD_GET, SUBDOC_FLAG_NONE);
+
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiLookupResponse multiResp;
+    conn.recvResponse(multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+    EXPECT_EQ(multiResp.getResults()[0].value, xattrVal);
+    EXPECT_EQ(multiResp.getResults()[1].value, value);
+}
+
+TEST_P(XattrTest, SetXattrAndBodyNewDoc) {
+    // Ensure we are working on a new doc
+    getConnection().remove(name, 0);
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+    cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                    SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDOC,
+                    xattr,
+                    xattrVal);
+    cmd.addMutation(PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE, "", value);
+
+    testBodyAndXattrCmd(cmd);
+}
+
+TEST_P(XattrTest, SetXattrAndBodyExistingDoc) {
+    // Ensure that a doc is already present
+    setBodyAndXattr("{\"TestField\":56788}", "4543");
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+    cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                    SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+                    xattr,
+                    xattrVal);
+    cmd.addMutation(PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE, "", value);
+
+    testBodyAndXattrCmd(cmd);
+}
+
+TEST_P(XattrTest, SetXattrAndBodyInvalidFlags) {
+    std::array<protocol_binary_subdoc_flag, 4> badFlags = {
+            {SUBDOC_FLAG_MKDIR_P,
+             SUBDOC_FLAG_XATTR_PATH,
+             SUBDOC_FLAG_ACCESS_DELETED,
+             SUBDOC_FLAG_EXPAND_MACROS}};
+
+    for (const auto& flag : badFlags) {
+        BinprotSubdocMultiMutationCommand cmd;
+        cmd.setKey(name);
+
+        // Should not be able to set all XATTRs
+        cmd.addMutation(PROTOCOL_BINARY_CMD_SET, flag, "", value);
+
+        auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+        conn.sendCommand(cmd);
+
+        BinprotSubdocMultiMutationResponse multiResp;
+        conn.recvResponse(multiResp);
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, multiResp.getStatus());
+    }
+}
+
+TEST_P(XattrTest, SetBodyInMultiLookup) {
+    // Check that we can't put a CMD_SET in a multi lookup
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey(name);
+
+    // Should not be able to put a set in a multi lookup
+    cmd.addLookup("", PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE);
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiLookupResponse multiResp;
+    conn.recvResponse(multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
+              multiResp.getStatus());
+}
+
+TEST_P(XattrTest, GetBodyInMultiMutation) {
+    // Check that we can't put a CMD_GET in a multi mutation
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+
+    // Should not be able to put a get in a multi multi-mutation
+    cmd.addMutation(PROTOCOL_BINARY_CMD_GET, SUBDOC_FLAG_NONE, "", value);
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiMutationResponse multiResp;
+    conn.recvResponse(multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
+              multiResp.getStatus());
+}
+
 TEST_P(XattrTest, TestSeqnoMacroExpansion) {
     // Test that we don't replace it when we don't send EXPAND_MACROS
     auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,

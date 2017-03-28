@@ -271,7 +271,8 @@ static protocol_binary_response_status is_valid_multipath_spec(const Cookie& coo
 
     SubdocCmdTraits op_traits = get_subdoc_cmd_traits(opcode);
 
-    if (op_traits.command == Subdoc::Command::INVALID) {
+    if (op_traits.subdocCommand == Subdoc::Command::INVALID &&
+        op_traits.mcbpCommand == PROTOCOL_BINARY_CMD_INVALID) {
         return PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO;
     }
     // Allow mutator opcodes iff the multipath command is MUTATION
@@ -286,6 +287,11 @@ static protocol_binary_response_status is_valid_multipath_spec(const Cookie& coo
 
     // Check path length.
     if (pathlen > SUBDOC_PATH_MAX_LENGTH) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    // Check that a path isn't set for wholedoc operations
+    if (op_traits.scope == CommandScope::WholeDoc && pathlen > 0) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 

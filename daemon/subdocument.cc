@@ -142,8 +142,8 @@ static void create_single_path_context(SubdocCmdContext& context,
     }
 
     if (flags & SUBDOC_FLAG_MKDOC) {
-        context.jroot_type =
-            Subdoc::Util::get_root_type(traits.command, path.buf, path.len);
+        context.jroot_type = Subdoc::Util::get_root_type(
+                traits.subdocCommand, path.buf, path.len);
     }
 
     if (settings.getVerbose() > 1) {
@@ -196,8 +196,8 @@ static void create_multi_path_context(SubdocCmdContext& context,
         auto traits = get_subdoc_cmd_traits(binprot_cmd);
         if ((flags & SUBDOC_FLAG_MKDOC) && context.jroot_type == 0) {
             // Determine the root type
-            context.jroot_type =
-                Subdoc::Util::get_root_type(traits.command, path.buf, path.len);
+            context.jroot_type = Subdoc::Util::get_root_type(
+                    traits.subdocCommand, path.buf, path.len);
         }
 
         if (flags & SUBDOC_FLAG_EXPAND_MACROS) {
@@ -626,7 +626,8 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
 }
 
 /**
- * Perform the operation specified by {spec} to one path in the document.
+ * Perform the subjson operation specified by {spec} to one path in the
+ * document.
  */
 static protocol_binary_response_status
 subdoc_operate_one_path(SubdocCmdContext& context, SubdocCmdContext::OperationSpec& spec,
@@ -636,7 +637,7 @@ subdoc_operate_one_path(SubdocCmdContext& context, SubdocCmdContext::OperationSp
     Subdoc::Operation* op = context.connection.getThread()->subdoc_op;
     op->clear();
     op->set_result_buf(&spec.result);
-    op->set_code(spec.traits.command);
+    op->set_code(spec.traits.subdocCommand);
     op->set_doc(in_doc.buf, in_doc.len);
 
     if (spec.flags & SUBDOC_FLAG_EXPAND_MACROS) {
@@ -699,6 +700,25 @@ subdoc_operate_one_path(SubdocCmdContext& context, SubdocCmdContext::OperationSp
 }
 
 /**
+ * Perform the wholedoc (mcbp) operation defined by spec
+ */
+static protocol_binary_response_status subdoc_operate_wholedoc(
+        SubdocCmdContext& context,
+        SubdocCmdContext::OperationSpec& spec,
+        cb::const_char_buffer& doc) {
+    switch (spec.traits.mcbpCommand) {
+    case PROTOCOL_BINARY_CMD_GET:
+        spec.result.set_matchloc({doc.buf, doc.len});
+        return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    case PROTOCOL_BINARY_CMD_SET:
+        spec.result.push_newdoc({spec.value.buf, spec.value.len});
+        return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    default:
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+}
+
+/**
  * Run through all of the subdoc operations for the current phase on
  * a single JSON document.
  *
@@ -723,16 +743,33 @@ static bool operate_single_json(SubdocCmdContext& context,
 
     // 2. Perform each of the operations on document.
     for (auto op = operations.begin(); op != operations.end(); op++) {
-        op->status = subdoc_operate_one_path(context, *op, doc);
+        switch (op->traits.scope) {
+        case CommandScope::SubJSON:
+            op->status = subdoc_operate_one_path(context, *op, doc);
+            break;
+        case CommandScope::WholeDoc:
+            op->status = subdoc_operate_wholedoc(context, *op, doc);
+        }
 
         if (op->status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             if (context.traits.is_mutator) {
                 modified = true;
+
                 // Determine how much space we now need.
                 size_t new_doc_len = 0;
                 for (auto& loc : op->result.newdoc()) {
                     new_doc_len += loc.length;
                 }
+
+                // TODO-PERF: We need to create a contiguous input
+                // region for the next subjson call, from the set of
+                // iovecs in the result. We can't simply write into
+                // the dynamic_buffer, as that may be the underlying
+                // storage for iovecs from the result. Ideally we'd
+                // either permit subjson to take an iovec as input, or
+                // permit subjson to take all the multipaths at once.
+                // For now we make a contiguous region in a temporary
+                // std::vector, and point in_doc at that.
 
                 // Allocate an extra byte to make sure we can zero term it
                 // (in case we want to use cJSON_Parse() ;-)
