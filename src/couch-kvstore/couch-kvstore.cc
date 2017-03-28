@@ -750,14 +750,21 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
 }
 
 static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
-    compaction_ctx* ctx = (compaction_ctx*) ctx_p;
-    DbInfo infoDb;
+    compaction_ctx* ctx = static_cast<compaction_ctx*>(ctx_p);
     const uint16_t vbid = ctx->db_file_id;
 
-    couchstore_db_info(d, &infoDb);
-    //Compaction finished
-    if (info == NULL) {
+    if (info == nullptr) {
+        // Compaction finished
         return couchstore_set_purge_seq(d, ctx->max_purged_seq[vbid]);
+    }
+
+    DbInfo infoDb;
+    auto err = couchstore_db_info(d, &infoDb);
+    if (err != COUCHSTORE_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING,
+            "time_purge_hook: couchstore_db_info() failed: %s",
+            couchstore_strerror(err));
+        return err;
     }
 
     uint64_t max_purge_seq = 0;
