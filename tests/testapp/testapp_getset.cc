@@ -271,11 +271,14 @@ TEST_P(GetSetTest, TestAppendWithXattr) {
 
     const auto stored = conn.get(name, 0);
 
-    // Check that we correctly increment the status counter stat
-    // We expect the success count to be the following because we have 6
-    // gets/sets above. Of these 2 are xattr commands and these result in new
-    // HELLOs and SASLs hence we expect 2 HELLOs and 2 SASLs
-    EXPECT_EQ(sucCount + statResps() + 6 + helloResps() * 2 + 2 * saslResps(),
+    // Check that we correctly increment the status counter stat.
+    // * We expect 4 * helloResps because the 3x createXattr/getXattr/getXattr
+    //   connected and ran hello *and* the final getResponseCount will include
+    //   the hellos for that call.
+    // * We expect 6 successes for each command we ran
+    // * Plus 1 more success to account for the stat call in the first
+    //   getResponseCount
+    EXPECT_EQ(sucCount + (helloResps() * 4) + 6 + 1,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     // And the rest of the doc should look the same
@@ -392,7 +395,15 @@ TEST_P(GetSetTest, TestPrependWithXattr) {
     EXPECT_EQ(mutation_cas, getXattr("meta.cas"));
 
     const auto stored = conn.get(name, 0);
-    EXPECT_EQ(sucCount + statResps() + 6 + 2 * helloResps() + 2 * saslResps(),
+
+    // Check that we correctly increment the status counter stat.
+    // * We expect 4 * helloResps because the 3x createXattr/getXattr/getXattr
+    //   connected and ran hello *and* the final getResponseCount will include
+    //   the hellos for that call.
+    // * We expect 6 successes for each command we ran
+    // * Plus 1 more success to account for the stat call in the first
+    //   getResponseCount
+    EXPECT_EQ(sucCount + (helloResps() * 4) + 6 + 1,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     // And the rest of the doc should look the same

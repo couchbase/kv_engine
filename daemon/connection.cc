@@ -73,7 +73,6 @@ Connection::Connection(SOCKET sfd, event_base* b)
       priority(Priority::Medium),
       clustermap_revno(-2),
       trace_enabled(false),
-      xattr_support(false),
       xerror_support(false),
       collections_support(false) {
     MEMCACHED_CONN_CREATE(this);
@@ -266,11 +265,8 @@ cJSON* Connection::toJSON() const {
         cJSON_AddNumberToObject(obj, "refcount", refcount);
 
         cJSON* features = cJSON_CreateObject();
-        json_add_bool_to_object(features, "datatype",
-                                isSupportsDatatype());
         json_add_bool_to_object(features, "mutation_extras",
                                 isSupportsMutationExtras());
-        json_add_bool_to_object(features, "xattr", isXattrSupport());
         json_add_bool_to_object(features, "xerror", isXerrorSupport());
 
         cJSON_AddItemToObject(obj, "features", features);

@@ -39,9 +39,8 @@ void process_hello_packet_executor(McbpConnection* c, void* packet) {
      * Disable all features the hello packet may enable, so that
      * the client can toggle features on/off during a connection
      */
-    c->setSupportsDatatype(false);
+    c->disableAllDatatypes();
     c->setSupportsMutationExtras(false);
-    c->setXattrSupport(false);
     c->setXerrorSupport(false);
     c->setCollectionsSupported(false);
 
@@ -62,16 +61,10 @@ void process_hello_packet_executor(McbpConnection* c, void* packet) {
         const auto feature = mcbp::Feature(in);
 
         switch (feature) {
+        case mcbp::Feature::Invalid:
         case mcbp::Feature::TLS:
             /* Not implemented */
             break;
-        case mcbp::Feature::DATATYPE:
-            if (settings.isDatatypeSupport() && !c->isSupportsDatatype()) {
-                c->setSupportsDatatype(true);
-                added = true;
-            }
-            break;
-
         case mcbp::Feature::TCPNODELAY:
         case mcbp::Feature::TCPDELAY:
             if (!tcpdelay_handled) {
@@ -88,8 +81,23 @@ void process_hello_packet_executor(McbpConnection* c, void* packet) {
             }
             break;
         case mcbp::Feature::XATTR:
-            if ((settings.isXattrEnabled() || c->isInternal()) && !c->isXattrSupport()) {
-                c->setXattrSupport(true);
+            if ((Datatype::isSupported(mcbp::Feature::XATTR) || c->isInternal()) &&
+                !c->isXattrEnabled()) {
+                c->enableDatatype(mcbp::Feature::XATTR);
+                added = true;
+            }
+            break;
+        case mcbp::Feature::JSON:
+            if (Datatype::isSupported(mcbp::Feature::JSON) &&
+                !c->isJsonEnabled()) {
+                c->enableDatatype(mcbp::Feature::JSON);
+                added = true;
+            }
+            break;
+        case mcbp::Feature::SNAPPY:
+            if (Datatype::isSupported(mcbp::Feature::SNAPPY) &&
+                !c->isSnappyEnabled()) {
+                c->enableDatatype(mcbp::Feature::SNAPPY);
                 added = true;
             }
             break;

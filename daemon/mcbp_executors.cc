@@ -377,7 +377,7 @@ static void process_bin_tap_packet(tap_event_t event, McbpConnection* c) {
 
         if (ret == ENGINE_SUCCESS) {
             uint8_t datatype = c->binary_header.request.datatype;
-            if (event == TAP_MUTATION && !c->isSupportsDatatype()) {
+            if (event == TAP_MUTATION && !c->isJsonEnabled()) {
                 auto* validator = c->getThread()->validator;
                 try {
                     if (validator->validate(reinterpret_cast<uint8_t*>(data),
@@ -1797,7 +1797,8 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors(void) {
 static void process_bin_dcp_response(McbpConnection* c) {
     ENGINE_ERROR_CODE ret = ENGINE_DISCONNECT;
 
-    c->setSupportsDatatype(true);
+    c->enableDatatype(mcbp::Feature::SNAPPY);
+    c->enableDatatype(mcbp::Feature::JSON);
 
     if (c->getBucketEngine()->dcp.response_handler != NULL) {
         auto* header = reinterpret_cast<protocol_binary_response_header*>
@@ -1860,24 +1861,14 @@ bool conn_setup_tap_stream(McbpConnection* c) {
  * considered invalid for two reasons:
  *
  *    1) it is using an unknown value
- *    2) The connected client has not enabled the support for datatype
+ *    2) The connected client has not enabled the datatype
  *
  * @param c - the connected client
  * @return true if the packet is considered invalid in this context,
  *         false otherwise
  */
 static bool invalid_datatype(McbpConnection* c) {
-    if (mcbp::datatype::is_raw(c->binary_header.request.datatype) ||
-        c->isSupportsDatatype() || c->isXattrSupport()) {
-        // Additional bits may have been set
-        if (!mcbp::datatype::is_valid(c->binary_header.request.datatype)) {
-            return true;
-        }
-
-        return false;
-    }
-
-    return true;
+    return !c->isDatatypeEnabled(c->binary_header.request.datatype);
 }
 
 static protocol_binary_response_status validate_bin_header(McbpConnection* c) {

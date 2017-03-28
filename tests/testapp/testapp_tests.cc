@@ -1532,15 +1532,16 @@ TEST_P(McdTestappTest, Hello) {
         char bytes[1024];
     } buffer;
     const char *useragent = "hello world";
-    uint16_t features[5];
+    uint16_t features[6];
     uint16_t *ptr;
     size_t len;
 
-    features[0] = htons(uint16_t(mcbp::Feature::DATATYPE));
-    features[1] = htons(uint16_t(mcbp::Feature::TCPNODELAY));
-    features[2] = htons(uint16_t(mcbp::Feature::MUTATION_SEQNO));
-    features[3] = htons(uint16_t(mcbp::Feature::XATTR));
-    features[4] = htons(uint16_t(mcbp::Feature::SELECT_BUCKET));
+    features[0] = htons(uint16_t(mcbp::Feature::SNAPPY));
+    features[1] = htons(uint16_t(mcbp::Feature::JSON));
+    features[2] = htons(uint16_t(mcbp::Feature::TCPNODELAY));
+    features[3] = htons(uint16_t(mcbp::Feature::MUTATION_SEQNO));
+    features[4] = htons(uint16_t(mcbp::Feature::XATTR));
+    features[5] = htons(uint16_t(mcbp::Feature::SELECT_BUCKET));
 
     memset(buffer.bytes, 0, sizeof(buffer.bytes));
 
@@ -1555,9 +1556,11 @@ TEST_P(McdTestappTest, Hello) {
                                   PROTOCOL_BINARY_CMD_HELLO,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    EXPECT_EQ(10u, buffer.response.message.header.response.bodylen);
+    EXPECT_EQ(12u, buffer.response.message.header.response.bodylen);
     ptr = (uint16_t*)(buffer.bytes + sizeof(buffer.response));
-    EXPECT_EQ(uint16_t(mcbp::Feature::DATATYPE), ntohs(*ptr));
+    EXPECT_EQ(uint16_t(mcbp::Feature::SNAPPY), ntohs(*ptr));
+    ptr++;
+    EXPECT_EQ(uint16_t(mcbp::Feature::JSON), ntohs(*ptr));
     ptr++;
     EXPECT_EQ(uint16_t(mcbp::Feature::TCPNODELAY), ntohs(*ptr));
     ptr++;
@@ -1645,7 +1648,8 @@ static void set_feature(const protocol_binary_hello_features_t feature,
 }
 
 void set_datatype_feature(bool enable) {
-    set_feature(mcbp::Feature::DATATYPE, enable);
+    set_feature(mcbp::Feature::JSON, enable);
+    set_feature(mcbp::Feature::SNAPPY, enable);
 }
 
 void set_mutation_seqno_feature(bool enable) {
@@ -1664,7 +1668,7 @@ void store_object_w_datatype(const char *key, const void *data, size_t datalen,
     char extra[8] = { 0 };
     uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
     if (deflate) {
-        datatype |= PROTOCOL_BINARY_DATATYPE_COMPRESSED;
+        datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
 
     if (json) {
@@ -1708,7 +1712,7 @@ static void get_object_w_datatype(const char *key,
     uint32_t len;
 
     if (deflate) {
-        datatype |= PROTOCOL_BINARY_DATATYPE_COMPRESSED;
+        datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
 
     if (json) {

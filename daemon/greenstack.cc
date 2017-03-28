@@ -331,7 +331,7 @@ static void handleMutation(GreenstackConnection* c, Greenstack::Message* message
             }
 
             if (docInfo->getCompression() == Greenstack::Compression::Snappy) {
-                datatype |= PROTOCOL_BINARY_DATATYPE_COMPRESSED;
+                datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
             }
 
             ret = c->getBucketEngine()->allocate(c->getBucketEngineAsV0(),
@@ -523,7 +523,7 @@ static void handleGet(GreenstackConnection* c, Greenstack::Message* message) {
                 static_cast<uint8_t*>(info.value[0].iov_base),
                 static_cast<size_t>(info.value[0].iov_len));
             docinfo->setId(id);
-            if (info.datatype & PROTOCOL_BINARY_DATATYPE_COMPRESSED) {
+            if (info.datatype & PROTOCOL_BINARY_DATATYPE_SNAPPY) {
                 docinfo->setCompression(Greenstack::Compression::Snappy);
             }
 

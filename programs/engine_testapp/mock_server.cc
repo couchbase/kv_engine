@@ -61,8 +61,6 @@ mock_connstruct::mock_connstruct()
       nblocks(0),
       handle_ewouldblock(true),
       handle_mutation_extras(true),
-      handle_datatype_support(true),
-      handle_xattr_support(false),
       handle_collections_support(false),
       references(1) {
     cb_mutex_initialize(&mutex);
@@ -95,22 +93,18 @@ static void *mock_get_engine_specific(const void *cookie) {
     return c ? c->engine_data : NULL;
 }
 
-static bool mock_is_datatype_supported(const void *cookie) {
+static bool mock_is_datatype_supported(const void* cookie,
+                                       protocol_binary_datatype_t datatype) {
     struct mock_connstruct *c = (struct mock_connstruct *)cookie;
     cb_assert(c == NULL || c->magic == CONN_MAGIC);
-    return c ? c->handle_datatype_support : false;
+    std::bitset<8> in(datatype);
+    return c ? (c->enabled_datatypes & in) == in : false;
 }
 
 static bool mock_is_mutation_extras_supported(const void *cookie) {
     struct mock_connstruct *c = (struct mock_connstruct *)cookie;
     cb_assert(c == NULL || c->magic == CONN_MAGIC);
     return c ? c->handle_mutation_extras : false;
-}
-
-static bool mock_is_xattr_supported(const void *cookie) {
-    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
-    cb_assert(c == NULL || c->magic == CONN_MAGIC);
-    return c ? c->handle_xattr_support : false;
 }
 
 static bool mock_is_collections_supported(const void *cookie) {
@@ -424,7 +418,6 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       server_cookie_api.get_engine_specific = mock_get_engine_specific;
       server_cookie_api.is_datatype_supported = mock_is_datatype_supported;
       server_cookie_api.is_mutation_extras_supported = mock_is_mutation_extras_supported;
-      server_cookie_api.is_xattr_supported = mock_is_xattr_supported;
       server_cookie_api.is_collections_supported = mock_is_collections_supported;
       server_cookie_api.get_opcode_if_ewouldblock_set = mock_get_opcode_if_ewouldblock_set;
       server_cookie_api.validate_session_cas = mock_validate_session_cas;
@@ -513,14 +506,10 @@ void mock_set_mutation_extras_handling(const void *cookie, bool enable) {
     c->handle_mutation_extras = enable;
 }
 
-void mock_set_xattr_support(const void *cookie, bool enable) {
+void mock_set_datatype_support(const void* cookie,
+                               protocol_binary_datatype_t datatypes) {
     mock_connstruct *c = cookie_to_mock_object(cookie);
-    c->handle_xattr_support = enable;
-}
-
-void mock_set_datatype_support(const void *cookie, bool enable) {
-    mock_connstruct *c = cookie_to_mock_object(cookie);
-    c->handle_datatype_support = enable;
+    c->enabled_datatypes = std::bitset<8>(datatypes);
 }
 
 void mock_set_collections_support(const void *cookie, bool enable) {

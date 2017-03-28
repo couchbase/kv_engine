@@ -178,8 +178,12 @@ public:
                const std::string& userAgentVersion,
                const std::string& comment) override;
 
-    void setDatatypeSupport(bool enable) {
-        setFeature(mcbp::Feature::DATATYPE, enable);
+    void setDatatypeJson(bool enable) {
+        setFeature(mcbp::Feature::JSON, enable);
+    }
+
+    void setDatatypeCompressed(bool enable) {
+        setFeature(mcbp::Feature::SNAPPY, enable);
     }
 
     void setMutationSeqnoSupport(bool enable) {

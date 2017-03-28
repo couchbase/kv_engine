@@ -245,13 +245,6 @@ public:
     /**
      * @todo this should be pushed down to MCBP, doesn't apply to everyone else
      */
-    virtual bool isSupportsDatatype() const {
-        return true;
-    }
-
-    /**
-     * @todo this should be pushed down to MCBP, doesn't apply to everyone else
-     */
     virtual bool isSupportsMutationExtras() const {
         return true;
     }
@@ -338,14 +331,6 @@ public:
      * data...)
      */
     void restartAuthentication();
-
-    bool isXattrSupport() const {
-        return xattr_support;
-    }
-
-    void setXattrSupport(bool xattr_support) {
-        Connection::xattr_support = xattr_support;
-    }
 
     bool isXerrorSupport() const {
         return xerror_support;
@@ -485,12 +470,6 @@ protected:
      * subgroups at some point.
      */
     bool trace_enabled;
-
-    /**
-     * Is XATTR supported for this connection or not (or will that be
-     * stripped off before sending on the wire)
-     */
-     bool xattr_support;
 
     /**
      * Is XERROR supported for this connection or not (or should we just

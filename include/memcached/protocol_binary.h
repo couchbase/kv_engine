@@ -536,7 +536,7 @@ extern "C"
 #ifdef __cplusplus
     #define PROTOCOL_BINARY_RAW_BYTES uint8_t(0)
     #define PROTOCOL_BINARY_DATATYPE_JSON uint8_t(1)
-    #define PROTOCOL_BINARY_DATATYPE_COMPRESSED uint8_t(2)
+    #define PROTOCOL_BINARY_DATATYPE_SNAPPY uint8_t(2)
     #define PROTOCOL_BINARY_DATATYPE_XATTR uint8_t(4)
 #else
     // The old style versions will go away as we move over to C++ everywhere
@@ -1342,19 +1342,28 @@ extern "C"
 
     /**
      * Definition of hello's features.
+     * Note regarding JSON:0x1. Previously this was named DATATYPE and
+     * implied that when supported all bits of the protocol datatype byte would
+     * be valid. DATATYPE was never enabled and has been renamed as
+     * JSON. Clients are now required negotiate individual datatypes
+     * with the server using the feature DataType_* feature codes. Note XATTR
+     * is linked with general xattr support and the ability to set the xattr
+     * datatype bit using set_with_meta.
      */
 #ifdef __cplusplus
 namespace mcbp {
 enum class Feature : uint16_t {
-    DATATYPE = 0x01,
+    Invalid = 0x01, // Previously DATATYPE, now retired
     TLS = 0x2,
     TCPNODELAY = 0x03,
     MUTATION_SEQNO = 0x04,
     TCPDELAY = 0x05,
-    XATTR = 0x06,
+    XATTR = 0x06, // enables xattr support and set_with_meta.datatype == xattr
     XERROR = 0x07,
     SELECT_BUCKET = 0x08,
-    COLLECTIONS = 0x09
+    COLLECTIONS = 0x09,
+    SNAPPY = 0x0a,
+    JSON = 0x0b
 };
 }
 using protocol_binary_hello_features_t = mcbp::Feature;
@@ -2185,8 +2194,8 @@ using protocol_binary_hello_features_t = mcbp::Feature;
 namespace mcbp {
 inline std::string to_string(const Feature& feature) {
     switch (feature) {
-    case Feature::DATATYPE:
-        return "Datatype";
+    case Feature::JSON:
+        return "JSON";
     case Feature::TLS:
         return "TLS";
     case Feature::TCPDELAY:
@@ -2203,6 +2212,10 @@ inline std::string to_string(const Feature& feature) {
         return "Select Bucket";
     case Feature::COLLECTIONS:
         return "COLLECTIONS";
+    case Feature::SNAPPY:
+        return "SNAPPY";
+    case Feature::Invalid:
+        return "Invalid";
     }
     throw std::invalid_argument("mcbp::to_string: unknown feature: " +
                                 std::to_string(uint16_t(feature)));
@@ -2221,9 +2234,9 @@ inline bool is_json(const protocol_binary_datatype_t datatype) {
            PROTOCOL_BINARY_DATATYPE_JSON;
 }
 
-inline bool is_compressed(const protocol_binary_datatype_t datatype) {
-    return (datatype & PROTOCOL_BINARY_DATATYPE_COMPRESSED) ==
-           PROTOCOL_BINARY_DATATYPE_COMPRESSED;
+inline bool is_snappy(const protocol_binary_datatype_t datatype) {
+    return (datatype & PROTOCOL_BINARY_DATATYPE_SNAPPY) ==
+           PROTOCOL_BINARY_DATATYPE_SNAPPY;
 }
 
 inline bool is_xattr(const protocol_binary_datatype_t datatype) {
@@ -2231,10 +2244,13 @@ inline bool is_xattr(const protocol_binary_datatype_t datatype) {
            PROTOCOL_BINARY_DATATYPE_XATTR;
 }
 
+inline protocol_binary_datatype_t get_all() {
+    return PROTOCOL_BINARY_DATATYPE_XATTR |
+           PROTOCOL_BINARY_DATATYPE_SNAPPY | PROTOCOL_BINARY_DATATYPE_JSON;
+}
+
 inline bool is_valid(const protocol_binary_datatype_t datatype) {
-    static uint8_t highest = PROTOCOL_BINARY_DATATYPE_XATTR |
-                             PROTOCOL_BINARY_DATATYPE_COMPRESSED |
-                             PROTOCOL_BINARY_DATATYPE_JSON;
+    static uint8_t highest = get_all();
     return datatype <= highest;
 }
 
@@ -2244,8 +2260,8 @@ inline std::string to_string(const protocol_binary_datatype_t datatype) {
             return std::string{"raw"};
         } else {
             std::stringstream ss;
-            if (is_compressed(datatype)) {
-                ss << "compressed,";
+            if (is_snappy(datatype)) {
+                ss << "snappy,";
             }
             if (is_json(datatype)) {
                 ss << "json,";

@@ -245,10 +245,16 @@ By default the connection idle time is set to 5 minutes.
 *connection_idle_time* may be updated by instructing memcached to reread the
 configuration file.
 
-=== datatype_support
+=== datatype_json
 
-The *datatype_support* attribute is a boolean value to enable the support
-for using the datatype extension. By default this support is *disabled*.
+The *datatype_json* attribute is a boolean value to enable the support
+for using the datatype JSON extension. By default this support is *disabled*.
+
+=== datatype_snappy
+
+The *datatype_snappy* attribute is a boolean value to enable the support
+for using the datatype snappy extension. By default this support is
+*disabled*.
 
 === max_packet_size
 
@@ -391,7 +397,8 @@ A Sample memcached.json:
         "reqs_per_event_med_priority" : 20,
         "reqs_per_event_low_priority" : 10,
         "verbosity" : 2,
-        "datatype_support" : true
+        "datatype_json" : true,
+        "datatype_snappy" : true,
         "max_packet_size" : 25,
         "bio_drain_buffer_sz" : 8192,
         "sasl_mechanisms" : "SCRAM-SHA512 SCRAM-SHA256 SCRAM-SHA1",

@@ -39,7 +39,8 @@ Settings::Settings()
     : num_threads(0),
       require_sasl(false),
       bio_drain_buffer_sz(0),
-      datatype(false),
+      datatype_json(false),
+      datatype_snappy(false),
       reqs_per_event_high_priority(0),
       reqs_per_event_med_priority(0),
       reqs_per_event_low_priority(0),
@@ -314,21 +315,40 @@ static void handle_bio_drain_buffer_sz(Settings& s, cJSON* obj) {
 }
 
 /**
- * Handle the "datatype_support" tag in the settings
+ * Handle the "datatype_snappy" tag in the settings
  *
  *  The value must be a boolean value
  *
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_datatype_support(Settings& s, cJSON* obj) {
+static void handle_datatype_json(Settings& s, cJSON* obj) {
     if (obj->type == cJSON_True) {
-        s.setDatatypeSupport(true);
+        s.setDatatypeJsonEnabled(true);
     } else if (obj->type == cJSON_False) {
-        s.setDatatypeSupport(false);
+        s.setDatatypeJsonEnabled(false);
     } else {
         throw std::invalid_argument(
-            "\"datatype_support\" must be a boolean value");
+                "\"datatype_json\" must be a boolean value");
+    }
+}
+
+/**
+ * Handle the "datatype_snappy" tag in the settings
+ *
+ *  The value must be a boolean value
+ *
+ * @param s the settings object to update
+ * @param obj the object in the configuration
+ */
+static void handle_datatype_snappy(Settings& s, cJSON* obj) {
+    if (obj->type == cJSON_True) {
+        s.setDatatypeSnappyEnabled(true);
+    } else if (obj->type == cJSON_False) {
+        s.setDatatypeSnappyEnabled(false);
+    } else {
+        throw std::invalid_argument(
+                "\"datatype_snappy\" must be a boolean value");
     }
 }
 
@@ -647,7 +667,8 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
             {"verbosity", handle_verbosity},
             {"connection_idle_time", handle_connection_idle_time},
             {"bio_drain_buffer_sz", handle_bio_drain_buffer_sz},
-            {"datatype_support", handle_datatype_support},
+            {"datatype_json", handle_datatype_json},
+            {"datatype_snappy", handle_datatype_snappy},
             {"root", handle_root},
             {"ssl_cipher_list", handle_ssl_cipher_list},
             {"ssl_minimum_protocol", handle_ssl_minimum_protocol},
@@ -890,10 +911,16 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                 "bio_drain_buffer_sz can't be changed dynamically");
         }
     }
-    if (other.has.datatype) {
-        if (other.datatype != datatype) {
+    if (other.has.datatype_json) {
+        if (other.datatype_json != datatype_json) {
             throw std::invalid_argument(
-                "datatype can't be changed dynamically");
+                    "datatype_json can't be changed dynamically");
+        }
+    }
+    if (other.has.datatype_snappy) {
+        if (other.datatype_snappy != datatype_snappy) {
+            throw std::invalid_argument(
+                    "datatype_snappy can't be changed dynamically");
         }
     }
     if (other.has.root) {

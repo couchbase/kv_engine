@@ -40,9 +40,9 @@ ENGINE_ERROR_CODE GetCommandContext::getItem() {
         payload.len = info.value[0].iov_len;
 
         bool need_inflate = false;
-        if (mcbp::datatype::is_compressed(info.datatype)) {
+        if (mcbp::datatype::is_snappy(info.datatype)) {
             need_inflate = mcbp::datatype::is_xattr(info.datatype) ||
-                           !connection.isSupportsDatatype();
+                           !connection.isSnappyEnabled();
         }
 
         if (need_inflate) {
@@ -79,15 +79,12 @@ ENGINE_ERROR_CODE GetCommandContext::inflateItem() {
 ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
     protocol_binary_datatype_t datatype = info.datatype;
 
-    if (mcbp::datatype::is_xattr(info.datatype)) {
+    if (mcbp::datatype::is_xattr(datatype)) {
         payload = cb::xattr::get_body(payload);
-        datatype &= ~(PROTOCOL_BINARY_DATATYPE_XATTR);
-        datatype &= ~(PROTOCOL_BINARY_DATATYPE_COMPRESSED);
+        datatype &= ~PROTOCOL_BINARY_DATATYPE_XATTR;
     }
 
-    if (!connection.isSupportsDatatype()) {
-        datatype = PROTOCOL_BINARY_RAW_BYTES;
-    }
+    datatype = connection.getEnabledDatatypes(datatype);
 
     auto* rsp = reinterpret_cast<protocol_binary_response_get*>(connection.write.buf);
 

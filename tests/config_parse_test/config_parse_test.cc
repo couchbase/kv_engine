@@ -633,25 +633,49 @@ TEST_F(SettingsTest, BioDrainBufferSize) {
     }
 }
 
-TEST_F(SettingsTest, DatatypeSupport) {
-    nonBooleanValuesShouldFail("datatype_support");
+TEST_F(SettingsTest, DatatypeJson) {
+    nonBooleanValuesShouldFail("datatype_json");
 
     unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddTrueToObject(obj.get(), "datatype_support");
+    cJSON_AddTrueToObject(obj.get(), "datatype_json");
     try {
         Settings settings(obj);
-        EXPECT_TRUE(settings.isDatatypeSupport());
-        EXPECT_TRUE(settings.has.datatype);
+        EXPECT_TRUE(settings.isDatatypeJsonEnabled());
+        EXPECT_TRUE(settings.has.datatype_json);
     } catch (std::exception& exception) {
         FAIL() << exception.what();
     }
 
     obj.reset(cJSON_CreateObject());
-    cJSON_AddFalseToObject(obj.get(), "datatype_support");
+    cJSON_AddFalseToObject(obj.get(), "datatype_json");
     try {
         Settings settings(obj);
-        EXPECT_FALSE(settings.isDatatypeSupport());
-        EXPECT_TRUE(settings.has.datatype);
+        EXPECT_FALSE(settings.isDatatypeJsonEnabled());
+        EXPECT_TRUE(settings.has.datatype_json);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+}
+
+TEST_F(SettingsTest, DatatypeCompression) {
+    nonBooleanValuesShouldFail("datatype_snappy");
+
+    unique_cJSON_ptr obj(cJSON_CreateObject());
+    cJSON_AddTrueToObject(obj.get(), "datatype_snappy");
+    try {
+        Settings settings(obj);
+        EXPECT_TRUE(settings.isDatatypeSnappyEnabled());
+        EXPECT_TRUE(settings.has.datatype_snappy);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+
+    obj.reset(cJSON_CreateObject());
+    cJSON_AddFalseToObject(obj.get(), "datatype_snappy");
+    try {
+        Settings settings(obj);
+        EXPECT_FALSE(settings.isDatatypeSnappyEnabled());
+        EXPECT_TRUE(settings.has.datatype_snappy);
     } catch (std::exception& exception) {
         FAIL() << exception.what();
     }
@@ -1377,16 +1401,32 @@ TEST(SettingsUpdateTest, BioDrainBufferSzIsNotDynamic) {
                  std::invalid_argument);
 }
 
-TEST(SettingsUpdateTest, DatatypeSupportIsNotDynamic) {
+TEST(SettingsUpdateTest, DatatypeJsonIsNotDynamic) {
     Settings updated;
     Settings settings;
     // setting it to the same value should work
-    settings.setDatatypeSupport(true);
-    updated.setDatatypeSupport(settings.isDatatypeSupport());
+    settings.setDatatypeJsonEnabled(true);
+    updated.setDatatypeJsonEnabled(settings.isDatatypeJsonEnabled());
     EXPECT_NO_THROW(settings.updateSettings(updated, false));
 
     // changing it should not work
-    updated.setDatatypeSupport(!settings.isDatatypeSupport());
+    updated.setDatatypeJsonEnabled(!settings.isDatatypeJsonEnabled());
+    EXPECT_THROW(settings.updateSettings(updated, false),
+                 std::invalid_argument);
+}
+
+TEST(SettingsUpdateTest, DatatypeCompressionIsNotDynamic) {
+    Settings updated;
+    Settings settings;
+    // setting it to the same value should work
+    settings.setDatatypeSnappyEnabled(true);
+    updated.setDatatypeSnappyEnabled(
+            settings.isDatatypeSnappyEnabled());
+    EXPECT_NO_THROW(settings.updateSettings(updated, false));
+
+    // changing it should not work
+    updated.setDatatypeSnappyEnabled(
+            !settings.isDatatypeSnappyEnabled());
     EXPECT_THROW(settings.updateSettings(updated, false),
                  std::invalid_argument);
 }

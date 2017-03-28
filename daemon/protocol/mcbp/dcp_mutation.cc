@@ -63,7 +63,7 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
 
     } else {
         // we want either values or xattrs
-        if (mcbp::datatype::is_compressed(info.datatype)) {
+        if (mcbp::datatype::is_snappy(info.datatype)) {
             if (!cb::compression::inflate(
                 cb::compression::Algorithm::Snappy,
                 buffer.buf, buffer.len, inflated)) {

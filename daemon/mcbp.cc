@@ -256,8 +256,8 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     cb::compression::Buffer buffer;
     cb::const_char_buffer payload(static_cast<const char*>(body), bodylen);
 
-    if (!c->isSupportsDatatype()) {
-        if (mcbp::datatype::is_compressed(datatype)) {
+    if (!c->isSnappyEnabled()) {
+        if (mcbp::datatype::is_snappy(datatype)) {
             if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
                                           payload.buf, payload.len, buffer)) {
                 std::string mykey(reinterpret_cast<const char*>(key), keylen);
@@ -296,11 +296,7 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     header.response.opcode = c->binary_header.request.opcode;
     header.response.keylen = (uint16_t)htons(keylen);
     header.response.extlen = extlen;
-    if (!c->isSupportsDatatype()) {
-        header.response.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    } else {
-        header.response.datatype = datatype;
-    }
+    header.response.datatype = c->getEnabledDatatypes(datatype);
     header.response.status = (uint16_t)htons(status);
     header.response.bodylen = htonl(needed - sizeof(protocol_binary_response_header));
     header.response.opaque = c->getOpaque();

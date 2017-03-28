@@ -140,9 +140,9 @@ public:
 
     static int helloResps() {
         // We do a HELLO for each feature that we enable
-        // Datatype, MutationSeqNo, Xattr, Xerror. Therefore we expect a
-        // success for each of the responses.
-        return 4;
+        // DatatypeJSON, Compression, MutationSeqNo, Xattr, Xerror. Therefore
+        // we expect a success for each of the responses.
+        return 5;
     }
 
     static int saslResps() {

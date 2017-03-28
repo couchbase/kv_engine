@@ -499,7 +499,7 @@ get_document_for_searching(McbpConnection& c, const item* item,
     datatype = info.datatype;
     document_state = info.document_state;
 
-    if (mcbp::datatype::is_compressed(info.datatype)) {
+    if (mcbp::datatype::is_snappy(info.datatype)) {
         // Need to expand before attempting to extract from it.
         auto* ctx = static_cast<SubdocCmdContext*>(c.getCommandContext());
         try {
@@ -526,7 +526,7 @@ get_document_for_searching(McbpConnection& c, const item* item,
         // Update document to point to the uncompressed version in the buffer.
         document.buf = ctx->inflated_doc_buffer.data.get();
         document.len = ctx->inflated_doc_buffer.len;
-        datatype &= ~PROTOCOL_BINARY_DATATYPE_COMPRESSED;
+        datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
 
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;

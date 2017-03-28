@@ -100,10 +100,12 @@ typedef struct {
      * Check if datatype is supported by the connection.
      *
      * @param cookie The cookie provided by the frontend
+     * @param datatype The datatype to test
      *
-     * @return true if supported or else false.
+     * @return true if connection supports the datatype or else false.
      */
-    bool (*is_datatype_supported)(const void* cookie);
+    bool (*is_datatype_supported)(const void* cookie,
+                                  protocol_binary_datatype_t datatype);
 
     /**
      * Check if mutation extras is supported by the connection.
@@ -113,15 +115,6 @@ typedef struct {
      * @return true if supported or else false.
      */
     bool (*is_mutation_extras_supported)(const void* cookie);
-
-    /**
-     * Check if xattrs is supported by the connection.
-     *
-     * @param cookie The cookie provided by the frontend
-     *
-     * @return true if supported or else false.
-     */
-    bool (*is_xattr_supported)(const void* cookie);
 
     /**
      * Check if collections are supported by the connection.

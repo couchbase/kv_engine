@@ -26,7 +26,9 @@ void dcp_open_executor(McbpConnection* c, void* packet) {
     ENGINE_ERROR_CODE ret = c->getAiostat();
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
-    c->setSupportsDatatype(true);
+    c->enableDatatype(mcbp::Feature::SNAPPY);
+    c->enableDatatype(mcbp::Feature::JSON);
+
     uint32_t flags = ntohl(req->message.body.flags);
 
     if (ret == ENGINE_SUCCESS) {

@@ -236,7 +236,7 @@ BinprotMutationCommand& BinprotMutationCommand::setDocumentInfo(
     case Greenstack::Compression::None:
         break;
     case Greenstack::Compression::Snappy:
-        datatype |= PROTOCOL_BINARY_DATATYPE_COMPRESSED;
+        datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
         break;
     default:
         throw std::invalid_argument("BinprotMutationCommand::setDocumentInfo: Unrecognized compression type");

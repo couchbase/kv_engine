@@ -29,7 +29,7 @@ static inline bool may_accept_xattr(const Cookie& cookie) {
     auto* req = static_cast<protocol_binary_request_header*>(McbpConnection::getPacket(cookie));
     if (mcbp::datatype::is_xattr(req->request.datatype)) {
         auto* conn = static_cast<McbpConnection*>(cookie.connection);
-        return conn->isXattrSupport();
+        return conn->isXattrEnabled();
     }
 
     return true;

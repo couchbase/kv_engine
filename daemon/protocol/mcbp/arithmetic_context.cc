@@ -36,7 +36,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
             return ENGINE_KEY_EEXISTS;
         }
 
-        if (mcbp::datatype::is_compressed(oldItemInfo.datatype)) {
+        if (mcbp::datatype::is_snappy(oldItemInfo.datatype)) {
             try {
                 if (!cb::compression::inflate(
                     cb::compression::Algorithm::Snappy,

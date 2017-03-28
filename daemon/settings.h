@@ -564,23 +564,44 @@ public:
     }
 
     /**
-     * Is datatype supported or not
+     * Is PROTOCOL_BINARY_DATATYPE_JSON supported or not
      *
-     * @return true if clients may use datatype support
+     * @return true if clients may use JSON support
      */
-    bool isDatatypeSupport() const {
-        return datatype;
+    bool isDatatypeJsonEnabled() const {
+        return datatype_json;
     }
 
     /**
-     * Set if datatype support should be enabled or not
+     * Is PROTOCOL_BINARY_DATATYPE_SNAPPY supported or not
      *
-     * @param datatype true if clients should be able to use datatype support
+     * @return true if clients may use snappy support
      */
-    void setDatatypeSupport(bool datatype) {
-        Settings::datatype = datatype;
-        has.datatype = true;
-        notify_changed("datatype_support");
+    bool isDatatypeSnappyEnabled() const {
+        return datatype_snappy;
+    }
+
+    /**
+     * Set if PROTOCOL_BINARY_DATATYPE_JSON support should be enabled or not
+     *
+     * @param enabled true if clients should be able to use json support
+     */
+    void setDatatypeJsonEnabled(bool enabled) {
+        datatype_json = enabled;
+        has.datatype_json = true;
+        notify_changed("datatype_json");
+    }
+
+    /**
+     * Set if PROTOCOL_BINARY_DATATYPE_SNAPPY support should be enabled or
+     * not
+     *
+     * @param enabled true if clients should be able to use snappy support
+     */
+    void setDatatypeSnappyEnabled(bool enabled) {
+        datatype_snappy = enabled;
+        has.datatype_snappy = true;
+        notify_changed("datatype_snappy");
     }
 
     /**
@@ -1011,9 +1032,10 @@ protected:
     unsigned int bio_drain_buffer_sz;
 
     /**
-     * is datatype support enabled?
+     * is datatype json/snappy enabled?
      */
-    bool datatype;
+    bool datatype_json;
+    bool datatype_snappy;
 
     /**
      * Maximum number of io events to process based on the priority of the
@@ -1129,7 +1151,8 @@ public:
         bool verbose;
         bool connection_idle_time;
         bool bio_drain_buffer_sz;
-        bool datatype;
+        bool datatype_json;
+        bool datatype_snappy;
         bool root;
         bool breakpad;
         bool max_packet_size;

@@ -76,7 +76,7 @@ public:
           state(State::GetItem) {
 
         auto datatype = req->message.header.request.datatype;
-        if (mcbp::datatype::is_compressed(datatype)) {
+        if (mcbp::datatype::is_snappy(datatype)) {
             state = State::InflateInputData;
         }
     }

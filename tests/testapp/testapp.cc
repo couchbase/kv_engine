@@ -379,7 +379,8 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
 
     cJSON_AddItemToObject(root, "interfaces", array);
 
-    cJSON_AddTrueToObject(root, "datatype_support");
+    cJSON_AddTrueToObject(root, "datatype_json");
+    cJSON_AddTrueToObject(root, "datatype_snappy");
     cJSON_AddStringToObject(root, "audit_file",
                             mcd_env->getAuditFilename().c_str());
     cJSON_AddStringToObject(root, "error_maps_dir", get_errmaps_dir().c_str());
@@ -1237,7 +1238,8 @@ MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
     connection.reconnect();
     if (connection.getProtocol() == Protocol::Memcached) {
         auto& c = dynamic_cast<MemcachedBinprotConnection&>(connection);
-        c.setDatatypeSupport(true);
+        c.setDatatypeCompressed(true);
+        c.setDatatypeJson(true);
         c.setMutationSeqnoSupport(true);
         c.setXerrorSupport(true);
         c.setXattrSupport(true);

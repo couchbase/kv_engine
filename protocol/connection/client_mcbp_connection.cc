@@ -347,7 +347,7 @@ Document MemcachedBinprotConnection::get(const std::string& id,
         ret.info.datatype = Greenstack::Datatype::Raw;
     }
 
-    if (response.getDatatype() & PROTOCOL_BINARY_DATATYPE_COMPRESSED) {
+    if (response.getDatatype() & PROTOCOL_BINARY_DATATYPE_SNAPPY) {
         ret.info.compression = Greenstack::Compression::Snappy;
     } else {
         ret.info.compression = Greenstack::Compression::None;
@@ -651,7 +651,7 @@ Document MemcachedBinprotConnection::get_and_lock(const std::string& id,
         ret.info.datatype = Greenstack::Datatype::Raw;
     }
 
-    if (response.getDatatype() & PROTOCOL_BINARY_DATATYPE_COMPRESSED) {
+    if (response.getDatatype() & PROTOCOL_BINARY_DATATYPE_SNAPPY) {
         ret.info.compression = Greenstack::Compression::Snappy;
     } else {
         ret.info.compression = Greenstack::Compression::None;

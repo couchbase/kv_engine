@@ -212,7 +212,8 @@ protected:
     }
 
     MemcachedBinprotConnection& prepare(MemcachedBinprotConnection& c) {
-        c.setDatatypeSupport(true);
+        c.setDatatypeCompressed(true);
+        c.setDatatypeJson(true);
         c.setMutationSeqnoSupport(true);
         c.setXerrorSupport(true);
         c.setXattrSupport(true);
@@ -408,7 +409,8 @@ TEST_P(RbacRoleTest, DontAutoselectBucket) {
     conn.authenticate("larry", "larrypassword", "PLAIN");
 
     auto& c = dynamic_cast<MemcachedBinprotConnection&>(conn);
-    c.setDatatypeSupport(true);
+    c.setDatatypeCompressed(true);
+    c.setDatatypeJson(true);
     c.setMutationSeqnoSupport(true);
     c.setXerrorSupport(true);
     c.setXattrSupport(true);

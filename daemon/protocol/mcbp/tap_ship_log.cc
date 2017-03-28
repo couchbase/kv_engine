@@ -120,16 +120,10 @@ void ship_mcbp_tap_log(McbpConnection* c) {
             msg.mutation.message.header.request.cas = htonll(info.cas);
             msg.mutation.message.header.request.keylen = htons(info.nkey);
             msg.mutation.message.header.request.extlen = 16;
-            if (c->isSupportsDatatype()) {
-                msg.mutation.message.header.request.datatype = info.datatype;
-
-                // XATTRs should always be stripped
-                msg.mutation.message.header.request.datatype &=
-                    ~PROTOCOL_BINARY_DATATYPE_XATTR;
-            } else {
-                inflate = mcbp::datatype::is_compressed(info.datatype);
-                msg.mutation.message.header.request.datatype = 0;
-            }
+            msg.mutation.message.header.request.datatype =
+                    c->getEnabledDatatypes(info.datatype);
+            inflate = (!c->isSnappyEnabled() &&
+                       mcbp::datatype::is_snappy(info.datatype));
 
             bodylen = 16 + info.nkey + nengine;
             if ((tap_flags & TAP_FLAG_NO_VALUE) == 0) {

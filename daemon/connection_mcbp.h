@@ -20,6 +20,7 @@
 
 #include "config.h"
 
+#include "datatype.h"
 #include "dynamic_buffer.h"
 #include "log_macros.h"
 #include "net_buf.h"
@@ -593,12 +594,62 @@ public:
         McbpConnection::noreply = noreply;
     }
 
-    virtual bool isSupportsDatatype() const override {
-        return supports_datatype;
+
+    /**
+     * Enable the datatype which corresponds to the feature
+     *
+     * @param feature mcbp::Feature::JSON|XATTR|SNAPPY
+     * @throws if feature does not correspond to a datatype
+     */
+    void enableDatatype(mcbp::Feature feature) {
+        datatype.enable(feature);
     }
 
-    void setSupportsDatatype(bool supports_datatype) {
-        McbpConnection::supports_datatype = supports_datatype;
+    /**
+     * Disable all the datatypes
+     */
+    void disableAllDatatypes() {
+        datatype.disableAll();
+    }
+
+    /**
+     * Given the input datatype, return only those which are enabled for the
+     * connection.
+     *
+     * @param dtype the set to intersect against the enabled set
+     * @returns the intersection of the enabled bits and dtype
+     */
+    protocol_binary_datatype_t getEnabledDatatypes(
+            protocol_binary_datatype_t dtype) const {
+        return datatype.getIntersection(dtype);
+    }
+
+    /**
+     * @return true if the all of the dtype datatypes are all enabled
+     */
+    bool isDatatypeEnabled(protocol_binary_datatype_t dtype) const {
+        return datatype.isEnabled(dtype);
+    }
+
+    /**
+     * @return true if JSON datatype is enabled
+     */
+    bool isJsonEnabled() const {
+        return datatype.isJsonEnabled();
+    }
+
+    /**
+     * @return true if compression datatype is enabled
+     */
+    bool isSnappyEnabled() const {
+        return datatype.isSnappyEnabled();
+    }
+
+    /**
+     * @return true if the XATTR datatype is enabled
+     */
+    bool isXattrEnabled() const {
+        return datatype.isXattrEnabled();
     }
 
     virtual bool isSupportsMutationExtras() const override {
@@ -1023,6 +1074,8 @@ protected:
     size_t totalSend;
 
     Cookie cookie;
+
+    Datatype datatype;
 };
 
 /*

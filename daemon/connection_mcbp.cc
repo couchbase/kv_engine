@@ -1176,6 +1176,10 @@ cJSON* McbpConnection::toJSON() const {
         cJSON_AddItemToObject(obj, "ssl", ssl.toJSON());
         cJSON_AddNumberToObject(obj, "total_recv", totalRecv);
         cJSON_AddNumberToObject(obj, "total_send", totalSend);
+        cJSON_AddStringToObject(
+                obj,
+                "datatype",
+                mcbp::datatype::to_string(datatype.getRaw()).c_str());
     }
 
     return obj;

@@ -97,11 +97,11 @@ ENGINE_ERROR_CODE MutationCommandContext::step() {
 }
 
 ENGINE_ERROR_CODE MutationCommandContext::validateInput() {
-    if (!connection.isSupportsDatatype()) {
-        if (datatype != PROTOCOL_BINARY_RAW_BYTES) {
-            return ENGINE_EINVAL;
-        }
+    if (!connection.isDatatypeEnabled(datatype)) {
+        return ENGINE_EINVAL;
+    }
 
+    if (!connection.isJsonEnabled()) {
         auto* validator = connection.getThread()->validator;
         try {
             auto* ptr = reinterpret_cast<const uint8_t*>(value.buf);

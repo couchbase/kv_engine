@@ -95,7 +95,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
             return ENGINE_LOCKED;
         }
 
-        if (mcbp::datatype::is_compressed(oldItemInfo.datatype)) {
+        if (mcbp::datatype::is_snappy(oldItemInfo.datatype)) {
             try {
                 if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
                                               (const char*)oldItemInfo.value[0].iov_base,
