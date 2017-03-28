@@ -79,6 +79,13 @@ bool EphemeralVBucket::pageOut(const HashTable::HashBucketLock& lh,
     if (getState() != vbucket_state_active) {
         return false;
     }
+    if (v->isDeleted() && !v->getValue()) {
+        // If the item has already been deleted (and doesn't have a value
+        // associated with it) then there's no further deletion possible,
+        // until the deletion marker (tombstone) is later purged at the
+        // metadata purge internal.
+        return false;
+    }
     VBQueueItemCtx queueCtx(GenerateBySeqno::Yes,
                             GenerateCas::Yes,
                             TrackCasDrift::No,

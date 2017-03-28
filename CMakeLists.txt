@@ -240,6 +240,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
                tests/module_tests/dcp_test.cc
                tests/module_tests/ep_unit_tests_main.cc
                tests/module_tests/ephemeral_bucket_test.cc
+               tests/module_tests/ephemeral_vb_test.cc
                tests/module_tests/evp_engine_test.cc
                tests/module_tests/evp_store_rollback_test.cc
                tests/module_tests/evp_store_test.cc
