@@ -3625,7 +3625,7 @@ static enum test_result test_curr_items_add_set(ENGINE_HANDLE *h, ENGINE_HANDLE_
             store(h, h1, NULL, OPERATION_SET,"k3", "v3", &i),
             "Failed to fail to store an item.");
     h1->release(h, NULL, i);
-    if (is_full_eviction(h, h1)) {
+    if (isPersistentBucket(h, h1) && is_full_eviction(h, h1)) {
         // MB-21957: FE mode - curr_items is only valid once we flush documents
         wait_for_flusher_to_settle(h, h1);
     }
@@ -6352,13 +6352,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
         },
         {"config",
             {
-                "ep_access_scanner_enabled",
-                "ep_alog_block_size",
-                "ep_alog_max_stored_items",
-                "ep_alog_path",
-                "ep_alog_resident_ratio_threshold",
-                "ep_alog_sleep_time",
-                "ep_alog_task_time",
                 "ep_backend",
                 "ep_backfill_mem_threshold",
                 "ep_bfilter_enabled",
@@ -6406,7 +6399,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_defragmenter_enabled",
                 "ep_defragmenter_interval",
                 "ep_enable_chk_merge",
-                "ep_ephemeral_full_policy",
                 "ep_ephemeral_metadata_purge_age",
                 "ep_exp_pager_enabled",
                 "ep_exp_pager_initial_run_time",
@@ -6420,7 +6412,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_ht_locks",
                 "ep_ht_size",
                 "ep_initfile",
-                "ep_item_eviction_policy",
                 "ep_item_num_based_new_chk",
                 "ep_keep_closed_chks",
                 "ep_max_checkpoints",
@@ -6449,17 +6440,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_replication_throttle_queue_cap",
                 "ep_replication_throttle_threshold",
                 "ep_tap",
-                "ep_tap_ack_grace_period",
-                "ep_tap_ack_initial_sequence_number",
-                "ep_tap_ack_interval",
-                "ep_tap_ack_window_size",
-                "ep_tap_backfill_resident",
-                "ep_tap_backlog_limit",
-                "ep_tap_backoff_period",
-                "ep_tap_bg_max_pending",
-                "ep_tap_keepalive",
-                "ep_tap_noop_interval",
-                "ep_tap_requeue_sleep_time",
                 "ep_time_synchronization",
                 "ep_uuid",
                 "ep_vb0",
@@ -6515,7 +6495,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "curr_items",
                 "curr_items_tot",
                 "curr_temp_items",
-                "ep_access_scanner_enabled",
                 "ep_access_scanner_last_runtime",
                 "ep_access_scanner_num_items",
                 "ep_access_scanner_task_time",
@@ -6523,12 +6502,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_active_behind_exceptions",
                 "ep_active_hlc_drift",
                 "ep_active_hlc_drift_count",
-                "ep_alog_block_size",
-                "ep_alog_max_stored_items",
-                "ep_alog_path",
-                "ep_alog_resident_ratio_threshold",
-                "ep_alog_sleep_time",
-                "ep_alog_task_time",
                 "ep_backend",
                 "ep_backfill_mem_threshold",
                 "ep_bfilter_enabled",
@@ -6596,7 +6569,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_diskqueue_memory",
                 "ep_diskqueue_pending",
                 "ep_enable_chk_merge",
-                "ep_ephemeral_full_policy",
                 "ep_ephemeral_metadata_purge_age",
                 "ep_exp_pager_enabled",
                 "ep_exp_pager_initial_run_time",
@@ -6620,7 +6592,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_io_compaction_write_bytes",
                 "ep_io_total_read_bytes",
                 "ep_io_total_write_bytes",
-                "ep_item_eviction_policy",
                 "ep_item_num",
                 "ep_item_num_based_new_chk",
                 "ep_items_rm_from_checkpoints",
@@ -6696,19 +6667,8 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_storedval_overhead",
                 "ep_storedval_size",
                 "ep_tap",
-                "ep_tap_ack_grace_period",
-                "ep_tap_ack_initial_sequence_number",
-                "ep_tap_ack_interval",
-                "ep_tap_ack_window_size",
-                "ep_tap_backfill_resident",
-                "ep_tap_backlog_limit",
-                "ep_tap_backoff_period",
                 "ep_tap_bg_fetch_requeued",
                 "ep_tap_bg_fetched",
-                "ep_tap_bg_max_pending",
-                "ep_tap_keepalive",
-                "ep_tap_noop_interval",
-                "ep_tap_requeue_sleep_time",
                 "ep_time_synchronization",
                 "ep_tmp_oom_errors",
                 "ep_total_cache_size",
@@ -6839,6 +6799,30 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                           "ep_uncommitted_items",
                           "ep_chk_persistence_timeout"});
 
+        eng_stats.insert(eng_stats.end(),
+                         {"ep_commit_num",
+                          "ep_commit_time",
+                          "ep_commit_time_total",
+                          "ep_item_begin_failed",
+                          "ep_item_commit_failed",
+                          "ep_item_flush_expired",
+                          "ep_item_flush_failed",
+                          "ep_total_persisted",
+                          "ep_uncommitted_items",
+                          "ep_chk_persistence_timeout"});
+
+        // Config variables only valid for persistent
+        eng_stats.insert(eng_stats.end(),
+                         {"ep_access_scanner_enabled",
+                          "ep_alog_block_size",
+                          "ep_alog_max_stored_items",
+                          "ep_alog_path",
+                          "ep_alog_resident_ratio_threshold",
+                          "ep_alog_sleep_time",
+                          "ep_alog_task_time",
+                          "ep_item_eviction_policy",
+                          "ep_tap_requeue_sleep_time"});
+
         // 'diskinfo and 'diskinfo detail' keys should be present now.
         statsKeys["diskinfo"] = {"ep_db_data_size", "ep_db_file_size"};
         statsKeys["diskinfo detail"] = {"vb_0:data_size", "vb_0:file_size"};
@@ -6857,12 +6841,38 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
         auto& vb_details = statsKeys.at("vbucket-details 0");
         vb_details.push_back("vb_0:db_data_size");
         vb_details.push_back("vb_0:db_file_size");
+
+        auto& config_stats = statsKeys.at("config");
+
+        // Config variables only valid for persistent
+        config_stats.insert(config_stats.end(),
+                            {"ep_access_scanner_enabled",
+                             "ep_alog_block_size",
+                             "ep_alog_max_stored_items",
+                             "ep_alog_path",
+                             "ep_alog_resident_ratio_threshold",
+                             "ep_alog_sleep_time",
+                             "ep_alog_task_time",
+                             "ep_item_eviction_policy",
+                             "ep_tap_ack_grace_period",
+                             "ep_tap_ack_initial_sequence_number",
+                             "ep_tap_ack_interval",
+                             "ep_tap_ack_window_size",
+                             "ep_tap_backfill_resident",
+                             "ep_tap_backlog_limit",
+                             "ep_tap_backoff_period",
+                             "ep_tap_bg_max_pending",
+                             "ep_tap_keepalive",
+                             "ep_tap_noop_interval",
+                             "ep_tap_requeue_sleep_time"});
     }
 
     if (isEphemeralBucket(h, h1)) {
         auto& eng_stats = statsKeys.at("");
         eng_stats.insert(eng_stats.end(),
-                         {"vb_active_auto_delete_count",
+                         {"ep_ephemeral_full_policy",
+
+                          "vb_active_auto_delete_count",
                           "vb_active_seqlist_count",
                           "vb_active_seqlist_deleted_count",
                           "vb_active_seqlist_read_range_count",
@@ -6899,6 +6909,9 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                            "vb_0:seqlist_stale_count",
                            "vb_0:seqlist_stale_metadata_bytes",
                            "vb_0:seqlist_stale_value_bytes"});
+
+        auto& config_stats = statsKeys.at("config");
+        config_stats.insert(config_stats.end(), {"ep_ephemeral_full_policy"});
     }
 
     if (isTapEnabled(h, h1)) {

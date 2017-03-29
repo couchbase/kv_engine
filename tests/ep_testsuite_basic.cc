@@ -261,7 +261,10 @@ static enum test_result test_whitespace_db(ENGINE_HANDLE *h,
            "Failed to get stats.");
 
     std::string dbname;
-    std::string policy = vals.find("ep_item_eviction_policy")->second;
+    std::string policy;
+    policy = isPersistentBucket(h, h1)
+                     ? vals.find("ep_item_eviction_policy")->second
+                     : "ephemeral";
     dbname.assign(policy + std::string(WHITESPACE_DB));
 
     std::string oldparam("dbname=" + vals["ep_dbname"]);
@@ -706,7 +709,14 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(ENGINE_SUCCESS,
             h1->get_stats(h, NULL, NULL, 0, add_stats),
             "Failed to get stats.");
-    std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
+
+    std::string eviction_policy;
+    auto itr = vals.find("ep_item_eviction_policy");
+    if (itr != vals.end()) {
+        eviction_policy = itr->second;
+    } else {
+        eviction_policy = "value_only";
+    }
 
     if (eviction_policy == "full_eviction") {
         checkeq(ENGINE_TMPFAIL,

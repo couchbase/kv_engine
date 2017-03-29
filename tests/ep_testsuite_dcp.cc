@@ -1003,7 +1003,7 @@ static void dcp_waiting_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 static enum test_result test_dcp_vbtakeover_no_stream(ENGINE_HANDLE *h,
                                                       ENGINE_HANDLE_V1 *h1) {
     write_items(h, h1, 10);
-    if (is_full_eviction(h, h1)) {
+    if (isPersistentBucket(h, h1) && is_full_eviction(h, h1)) {
         // MB-21646: FE mode - curr_items (which is part of "estimate") is
         // updated as part of flush, and thus if the writes are flushed in
         // blocks < 10 we may see an estimate < 10
@@ -4793,7 +4793,7 @@ static enum test_result test_dcp_erroneous_mutations(ENGINE_HANDLE *h,
 
     // Full Evictions: must wait for all items to have been flushed before
     // asserting item counts
-    if (is_full_eviction(h, h1)) {
+    if (isPersistentBucket(h, h1) && is_full_eviction(h, h1)) {
         wait_for_flusher_to_settle(h, h1);
     }
 
