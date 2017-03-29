@@ -240,7 +240,6 @@ public:
                                  uint64_t& cas,
                                  uint16_t vbucket,
                                  const void* cookie,
-                                 Item* itm,
                                  ItemMetaData* itemMeta,
                                  mutation_descr_t* mutInfo);
 

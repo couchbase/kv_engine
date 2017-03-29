@@ -1704,7 +1704,6 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
                                        uint64_t& cas,
                                        uint16_t vbucket,
                                        const void* cookie,
-                                       Item* itm,
                                        ItemMetaData* itemMeta,
                                        mutation_descr_t* mutInfo) {
     VBucketPtr vb = getVBucket(vbucket);
@@ -1729,7 +1728,6 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
                           cookie,
                           engine,
                           bgFetchDelay,
-                          itm,
                           itemMeta,
                           mutInfo);
 }

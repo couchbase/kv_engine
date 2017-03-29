@@ -160,7 +160,6 @@ void KVBucketTest::delete_item(uint16_t vbid, const StoredDocKey& key) {
                                 cas,
                                 vbid,
                                 cookie,
-                                /*Item*/ nullptr,
                                 /*itemMeta*/ nullptr,
                                 /*mutation_descr_t*/ nullptr));
 }
@@ -442,7 +441,6 @@ TEST_P(KVBucketParamTest, SetCASDeleted) {
                                 cas,
                                 vbid,
                                 cookie,
-                      /*Item*/ nullptr,
                       /*itemMeta*/ nullptr,
                       /*mutation_descr_t*/ nullptr));
 
@@ -582,7 +580,6 @@ TEST_P(KVBucketParamTest, mb22824) {
                                 cas,
                                 vbid,
                                 cookie,
-                                /*Item*/ nullptr,
                                 &itemMeta2,
                                 /*mutation_descr_t*/ nullptr));
 

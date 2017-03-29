@@ -805,9 +805,6 @@ public:
      * @param cookie the cookie representing the client to store the item
      * @param engine Reference to ep engine
      * @param bgFetchDelay
-     * @param itm item pointer that contains a value that needs to be
-     *            stored along with a delete. A NULL pointer indicates
-     *            that no value needs to be stored with the delete.
      * @param[out] itemMeta pointer to item meta data that needs to be returned
      *                      as a result the delete. A NULL pointer indicates
      *                      that no meta data needs to be returned.
@@ -822,7 +819,6 @@ public:
                                  const void* cookie,
                                  EventuallyPersistentEngine& engine,
                                  int bgFetchDelay,
-                                 Item* itm,
                                  ItemMetaData* itemMeta,
                                  mutation_descr_t* mutInfo);
 

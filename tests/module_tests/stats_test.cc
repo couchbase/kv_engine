@@ -198,7 +198,6 @@ TEST_P(DatatypeStatTest, datatypeDeletion) {
                       0,
                       cookie,
                       nullptr,
-                      nullptr,
                       nullptr);
     vals = get_stat(nullptr);
     EXPECT_EQ(0, std::stoi(vals["ep_active_datatype_json,xattr"]));

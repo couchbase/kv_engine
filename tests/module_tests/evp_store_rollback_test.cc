@@ -83,7 +83,6 @@ protected:
                                     cas,
                                     vbid,
                                     /*cookie*/ nullptr,
-                                    /*Item*/ nullptr,
                                     /*itemMeta*/ nullptr,
                                     /*mutation_descr_t*/ nullptr));
         if (flush_before_rollback) {

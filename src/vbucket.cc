@@ -1035,69 +1035,37 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
                                       const void* cookie,
                                       EventuallyPersistentEngine& engine,
                                       const int bgFetchDelay,
-                                      Item* itm,
                                       ItemMetaData* itemMeta,
                                       mutation_descr_t* mutInfo) {
     auto hbl = ht.getLockedBucket(key);
     StoredValue* v = ht.unlocked_find(
             key, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
 
-    if (!itm) {
-        if (!v || v->isDeleted() || v->isTempItem()) {
-            if (eviction == VALUE_ONLY) {
-                return ENGINE_KEY_ENOENT;
-            } else { // Full eviction.
-                if (!v) { // Item might be evicted from cache.
-                    if (maybeKeyExistsInFilter(key)) {
-                        return addTempItemAndBGFetch(
-                                hbl, key, cookie, engine, bgFetchDelay, true);
-                    } else {
-                        // As bloomfilter predicted that item surely doesn't
-                        // exist on disk, return ENOENT for deleteItem().
-                        return ENGINE_KEY_ENOENT;
-                    }
-                } else if (v->isTempInitialItem()) {
-                    hbl.getHTLock().unlock();
-                    bgFetch(key, cookie, engine, bgFetchDelay, true);
-                    return ENGINE_EWOULDBLOCK;
-                } else { // Non-existent or deleted key.
-                    if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
-                        // Delete a temp non-existent item to ensure that
-                        // if a delete were issued over an item that doesn't
-                        // exist, then we don't preserve a temp item.
-                        deleteStoredValue(hbl, *v);
-                    }
+    if (!v || v->isDeleted() || v->isTempItem()) {
+        if (eviction == VALUE_ONLY) {
+            return ENGINE_KEY_ENOENT;
+        } else { // Full eviction.
+            if (!v) { // Item might be evicted from cache.
+                if (maybeKeyExistsInFilter(key)) {
+                    return addTempItemAndBGFetch(
+                            hbl, key, cookie, engine, bgFetchDelay, true);
+                } else {
+                    // As bloomfilter predicted that item surely doesn't
+                    // exist on disk, return ENOENT for deleteItem().
                     return ENGINE_KEY_ENOENT;
                 }
-            }
-        }
-    } else {
-        /* if an item containing a deleted value is present, set the value
-         * as part of the stored value so that a value is set as part of the
-         * delete.
-         */
-        if (v) {
-            if (cas != 0 && cas != v->getCas()) {
-                return ENGINE_KEY_EEXISTS;
-            }
-            itm->setRevSeqno(v->getRevSeqno());
-            v->setValue(*itm, ht);
-        } else {
-            /* retrieve the item, if it is present in disk, for CAS comparison */
-            if (maybeKeyExistsInFilter(key)) {
-                return addTempItemAndBGFetch(
-                                hbl, key, cookie, engine, bgFetchDelay, true);
-            } else {
-                AddStatus rv = addTempStoredValue(hbl, key);
-                if (rv == AddStatus::NoMem) {
-                    return ENGINE_ENOMEM;
+            } else if (v->isTempInitialItem()) {
+                hbl.getHTLock().unlock();
+                bgFetch(key, cookie, engine, bgFetchDelay, true);
+                return ENGINE_EWOULDBLOCK;
+            } else { // Non-existent or deleted key.
+                if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
+                    // Delete a temp non-existent item to ensure that
+                    // if a delete were issued over an item that doesn't
+                    // exist, then we don't preserve a temp item.
+                    deleteStoredValue(hbl, *v);
                 }
-                v = ht.unlocked_find(key,
-                                     hbl.getBucketNum(),
-                                     WantsDeleted::Yes,
-                                     TrackReference::No);
-                v->setValue(*itm, ht);
-                /* Due to the above setValue() v is no longer a temp stored value*/
+                return ENGINE_KEY_ENOENT;
             }
         }
     }
@@ -1982,10 +1950,19 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
             /* allow operation*/
             v->unlock();
         } else if (cas && cas != v->getCas()) {
-            if (v->isTempDeletedItem() || v->isTempNonExistentItem() ||
-                v->isDeleted()) {
+            if (v->isTempNonExistentItem()) {
+                // This is a temporary item which marks a key as non-existent;
+                // therefore specifying a non-matching CAS should be exposed
+                // as item not existing.
                 return {MutationStatus::NotFound, VBNotifyCtx()};
             }
+            if ((v->isTempDeletedItem() || v->isDeleted()) && !itm.isDeleted()) {
+                // Existing item is deleted, and we are not replacing it with
+                // a (different) deleted value - return not existing.
+                return {MutationStatus::NotFound, VBNotifyCtx()};
+            }
+            // None of the above special cases; the existing item cannot be
+            // modified with the specified CAS.
             return {MutationStatus::InvalidCas, VBNotifyCtx()};
         }
         if (!hasMetaData) {

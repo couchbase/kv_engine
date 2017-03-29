@@ -228,7 +228,7 @@ static ENGINE_ERROR_CODE EvpItemDelete(ENGINE_HANDLE* handle,
         return ENGINE_EINVAL;
     }
     return acquireEngine(handle)->itemDelete(
-            cookie, key, *cas, vbucket, nullptr, nullptr, mut_info);
+            cookie, key, *cas, vbucket, nullptr, mut_info);
 }
 
 static void EvpItemRelease(ENGINE_HANDLE* handle,
@@ -309,47 +309,14 @@ static ENGINE_ERROR_CODE EvpStore(ENGINE_HANDLE* handle,
                                   uint64_t* cas,
                                   ENGINE_STORE_OPERATION operation,
                                   DocumentState document_state) {
-    ENGINE_ERROR_CODE err_code = ENGINE_SUCCESS;
     auto engine = acquireEngine(handle);
-    switch (document_state) {
-    case DocumentState::Alive: {
-        err_code = engine->store(cookie, itm, cas, operation);
-        break;
-    }
-    case DocumentState::Deleted: {
+
+    if (document_state == DocumentState::Deleted) {
         Item* item = static_cast<Item*>(itm);
-        ItemMetaData itm_meta;
-        mutation_descr_t mut_info;
-
-        if (!cas) {
-            LOG(EXTENSION_LOG_WARNING,
-                "EvpStore(): cas ptr passed is null for vb: %" PRIu16,
-                item->getVBucketId());
-            return ENGINE_EINVAL;
-        }
-
-        /* Set the item as deleted */
         item->setDeleted();
-        *cas = item->getCas();
-        err_code = engine->itemDelete(cookie,
-                                      item->getKey(),
-                                      *cas,
-                                      item->getVBucketId(),
-                                      item,
-                                      &itm_meta,
-                                      &mut_info);
-        if (err_code == ENGINE_SUCCESS) {
-            item->setBySeqno(mut_info.seqno);
-            item->setCas(itm_meta.cas);
-            item->setFlags(itm_meta.flags);
-            item->setExpTime(itm_meta.exptime);
-        }
-        break;
     }
-    default:
-        return ENGINE_ENOTSUP;
-    }
-    return err_code;
+
+    return engine->store(cookie, itm, cas, operation);
 }
 
 static ENGINE_ERROR_CODE EvpFlush(ENGINE_HANDLE* handle,
@@ -5783,7 +5750,7 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
         ItemMetaData itm_meta;
         DocKey key(keyPtr, keylen, docNamespace);
         ret = kvBucket->deleteItem(
-                key, cas, vbucket, cookie, nullptr, &itm_meta, nullptr);
+                key, cas, vbucket, cookie, &itm_meta, nullptr);
         if (ret == ENGINE_SUCCESS) {
             ++stats.numOpsDelRetMeta;
         }
