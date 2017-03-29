@@ -67,7 +67,6 @@ mock_connstruct::mock_connstruct()
       references(1) {
     cb_mutex_initialize(&mutex);
     cb_cond_initialize(&cond);
-    description = "[ you - me ]";
 }
 
 /* Forward declarations */
@@ -194,7 +193,7 @@ static std::pair<uint32_t, std::string> mock_get_log_info(const void* cookie) {
         return std::make_pair(uint32_t(-1), std::string{"unknown"});
     }
     const auto* c = static_cast<const struct mock_connstruct*>(cookie);
-    return std::make_pair(uint32_t(c->sfd), c->description);
+    return std::make_pair(uint32_t(c->sfd), std::string{"[ you - me ]"});
 }
 
 static PreLinkFunction pre_link_function;
