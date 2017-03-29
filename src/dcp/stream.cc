@@ -1174,14 +1174,6 @@ void ActiveStream::handleSlowStream()
                               isBackfillTaskRunning.load() ? "True" : "False");
     switch (state_.load()) {
         case STREAM_BACKFILLING:
-            if (isBackfillTaskRunning.load()) {
-                /* Drop the existing cursor and set pending backfill */
-                dropCheckpointCursor_UNLOCKED();
-                pendingBackfill = true;
-            } else {
-                scheduleBackfill_UNLOCKED(true);
-            }
-            break;
         case STREAM_IN_MEMORY:
             /* Drop the existing cursor and set pending backfill */
             dropCheckpointCursor_UNLOCKED();
