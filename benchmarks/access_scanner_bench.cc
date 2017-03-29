@@ -86,9 +86,12 @@ protected:
     void SetUp(const benchmark::State& state) override {
         // If the access scanner is running then it will always scan
         varConfig = "alog_resident_ratio_threshold=100;";
-        varConfig += "alog_max_stored_items=2048";
+        varConfig += "alog_max_stored_items=" +
+                     std::to_string(alog_max_stored_items);
         EngineFixture::SetUp(state);
     }
+
+    const size_t alog_max_stored_items = 2048;
 };
 
 ProcessClock::time_point runNextTask(SingleThreadedExecutorPool* pool,
@@ -146,7 +149,7 @@ BENCHMARK_DEFINE_F(AccessLogBenchEngine, MemoryOverhead)
         }
     }
     state.counters["MaxBytesAllocatedPerItem"] =
-            (memoryTracker->getMaxAlloc() - baseMemory) / state.range(1);
+            (memoryTracker->getMaxAlloc() - baseMemory) / alog_max_stored_items;
 }
 
 static void AccessScannerArguments(benchmark::internal::Benchmark* b) {
