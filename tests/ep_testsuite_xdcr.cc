@@ -1304,9 +1304,8 @@ static enum test_result test_set_with_meta_xattr(ENGINE_HANDLE* h,
         force = FORCE_ACCEPT_WITH_META_OPS;
     }
 
-    testHarness.set_xattr_support(cookie, true);
-    // We are explicitly going to test the !datatype paths, so turn it off.
-    testHarness.set_datatype_support(cookie, false);
+    // Only enable XATTR
+    testHarness.set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_XATTR);
 
     // Set with the same meta data but now with the xattr/json value
     set_with_meta(h, h1, key, strlen(key), data.data(), data.size(), 0, &itm_meta,
@@ -1383,7 +1382,8 @@ static enum test_result test_delete_with_meta_xattr(ENGINE_HANDLE* h,
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
             "Expected the delete with meta to fail");
 
-    testHarness.set_xattr_support(cookie, true);
+    // Only enable XATTR
+    testHarness.set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_XATTR);
 
     //delete with the same meta data
     del_with_meta(h, h1, key, strlen(key), 0, &itm_meta, last_meta.cas, force,

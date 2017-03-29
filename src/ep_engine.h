@@ -358,9 +358,11 @@ public:
         return engine_data;
     }
 
-    bool isDatatypeSupported(const void *cookie) {
+    bool isDatatypeSupported(const void* cookie,
+                             protocol_binary_datatype_t datatype) {
         EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-        bool isSupported = serverApi->cookie->is_datatype_supported(cookie);
+        bool isSupported =
+                serverApi->cookie->is_datatype_supported(cookie, datatype);
         ObjectRegistry::onSwitchThread(epe);
         return isSupported;
     }
@@ -373,10 +375,7 @@ public:
     }
 
     bool isXattrSupported(const void* cookie) {
-        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-        bool isSupported = serverApi->cookie->is_xattr_supported(cookie);
-        ObjectRegistry::onSwitchThread(epe);
-        return isSupported;
+        return isDatatypeSupported(cookie, PROTOCOL_BINARY_DATATYPE_XATTR);
     }
 
     uint8_t getOpcodeIfEwouldblockSet(const void *cookie) {
@@ -816,7 +815,7 @@ protected:
      * @param datatype the current document datatype
      * @param body a buffer containing the document body
      * @returns a datatype which will now include JSON if the document is JSON
-     *          and the connection does not support datatype.
+     *          and the connection does not support datatype JSON.
      */
     protocol_binary_datatype_t checkForDatatypeJson(
             const void* cookie,

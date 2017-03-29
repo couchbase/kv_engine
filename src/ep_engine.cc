@@ -2740,7 +2740,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             TapEngineSpecific::readSpecificData(tap_event, engine_specific,
                                                 nengine, &revSeqno, &nru);
 
-            if (!isDatatypeSupported(cookie)) {
+            if (!isDatatypeSupported(cookie, PROTOCOL_BINARY_DATATYPE_JSON)) {
                 datatype = PROTOCOL_BINARY_RAW_BYTES;
                 const unsigned char *dat = (const unsigned char*)data;
                 const int datlen = ndata;
@@ -5053,7 +5053,7 @@ protocol_binary_datatype_t EventuallyPersistentEngine::checkForDatatypeJson(
         const void* cookie,
         protocol_binary_datatype_t datatype,
         cb::const_char_buffer body) {
-    if (!isDatatypeSupported(cookie)) {
+    if (!isDatatypeSupported(cookie, PROTOCOL_BINARY_DATATYPE_JSON)) {
         // JSON check the body if xattr's are enabled
         if (mcbp::datatype::is_xattr(datatype)) {
             body = cb::xattr::get_body(body);

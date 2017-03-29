@@ -200,7 +200,7 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
 
     // datatype: XCJ
     os << (mcbp::datatype::is_xattr(sv.getDatatype()) ? 'X' : '.');
-    os << (mcbp::datatype::is_compressed(sv.getDatatype()) ? 'C' : '.');
+    os << (mcbp::datatype::is_snappy(sv.getDatatype()) ? 'C' : '.');
     os << (mcbp::datatype::is_json(sv.getDatatype()) ? 'J' : '.');
     os << ' ';
 

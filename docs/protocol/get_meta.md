@@ -129,7 +129,7 @@ The extras section in the response packet may contain 1 extra byte indicating th
 The datatype byte indicates the document's type using a combination of the following flags.
 * `PROTOCOL_BINARY_RAW_BYTES` = 0
 * `PROTOCOL_BINARY_DATATYPE_JSON` = 1
-* `PROTOCOL_BINARY_DATATYPE_COMPRESSED` = 2
+* `PROTOCOL_BINARY_DATATYPE_SNAPPY` = 2
 * `PROTOCOL_BINARY_DATATYPE_XATTR` = 4
 
 Thus a compressed JSON document would have the datatype of 0x03.

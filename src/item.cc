@@ -119,7 +119,7 @@ std::ostream& operator<<(std::ostream& os, const Blob& b) {
 
 bool Item::compressValue(float minCompressionRatio) {
     auto datatype = getDataType();
-    if (!mcbp::datatype::is_compressed(datatype)) {
+    if (!mcbp::datatype::is_snappy(datatype)) {
         // Attempt compression only if datatype indicates
         // that the value is not compressed already.
         cb::compression::Buffer deflated;
@@ -133,7 +133,7 @@ bool Item::compressValue(float minCompressionRatio) {
             setData(deflated.data.get(), deflated.len,
                     (uint8_t *)(getExtMeta()), getExtMetaLen());
 
-            datatype |= PROTOCOL_BINARY_DATATYPE_COMPRESSED;
+            datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
             setDataType(datatype);
         } else {
             return false;
@@ -144,7 +144,7 @@ bool Item::compressValue(float minCompressionRatio) {
 
 bool Item::decompressValue() {
     uint8_t datatype = getDataType();
-    if (mcbp::datatype::is_compressed(datatype)) {
+    if (mcbp::datatype::is_snappy(datatype)) {
         // Attempt decompression only if datatype indicates
         // that the value is compressed.
         cb::compression::Buffer inflated;
@@ -152,7 +152,7 @@ bool Item::decompressValue() {
                                      getData(), getNBytes(), inflated)) {
             setData(inflated.data.get(), inflated.len,
                     (uint8_t *)(getExtMeta()), getExtMetaLen());
-            datatype &= ~PROTOCOL_BINARY_DATATYPE_COMPRESSED;
+            datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
             setDataType(datatype);
         } else {
             return false;

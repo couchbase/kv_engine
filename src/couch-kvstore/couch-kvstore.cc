@@ -199,7 +199,7 @@ couchstore_content_meta_flags CouchRequest::getContentMeta(const Item& it) {
         rval = COUCH_DOC_NON_JSON_MODE;
     }
 
-    if (mcbp::datatype::is_compressed(it.getDataType())) {
+    if (mcbp::datatype::is_snappy(it.getDataType())) {
         // We are currently using couchstore in a mode where it will try to
         // compress documents iff COUCH_DOC_IS_COMPRESSED is specified.
         // This would cause a conflict if we tried to store a document which
@@ -1738,7 +1738,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
                     // receiver of the object may notice (Note:
                     // this is currently _ONLY_ happening via DCP
                      auto datatype = metadata->getDataType();
-                     metadata->setDataType(datatype | PROTOCOL_BINARY_DATATYPE_COMPRESSED);
+                     metadata->setDataType(datatype | PROTOCOL_BINARY_DATATYPE_SNAPPY);
                 } else if (metadata->getVersionInitialisedFrom() == MetaData::Version::V0) {
                     // This is a super old version of a couchstore file.
                     // Try to determine if the document is JSON or raw bytes

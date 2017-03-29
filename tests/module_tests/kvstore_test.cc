@@ -84,7 +84,7 @@ public:
         EXPECT_EQ(expectedErrorCode, result.getStatus());
         if (result.getStatus() == ENGINE_SUCCESS) {
             if (expectCompressed) {
-                EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_COMPRESSED,
+                EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_SNAPPY,
                           result.getValue()->getDataType());
                 result.getValue()->decompressValue();
             }
