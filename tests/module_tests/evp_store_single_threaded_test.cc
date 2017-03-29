@@ -124,6 +124,57 @@ void SingleThreadedKVBucketTest::cancelAndPurgeTasks() {
 }
 
 /*
+ * The following test checks to see if we call handleSlowStream when in a
+ * backfilling state, but the backfillTask is not running, we
+ * drop the existing cursor and set pendingBackfill to true.
+ */
+TEST_F(SingleThreadedEPBucketTest, MB22421_backfilling_but_task_finished) {
+    // Make vbucket active.
+     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+     auto vb = store->getVBuckets().getBucket(vbid);
+     auto& ckpt_mgr = vb->checkpointManager;
+
+     // Create a Mock Dcp producer
+     dcp_producer_t producer = new MockDcpProducer(*engine,
+                                                   cookie,
+                                                   "test_producer",
+                                                   /*notifyOnly*/false);
+     // Create a Mock Active Stream
+     stream_t stream = new MockActiveStream(
+             static_cast<EventuallyPersistentEngine*>(engine.get()),
+             producer,
+             producer->getName(),
+             /*flags*/0,
+             /*opaque*/0, vbid,
+             /*st_seqno*/0,
+             /*en_seqno*/~0,
+             /*vb_uuid*/0xabcd,
+             /*snap_start_seqno*/0,
+             /*snap_end_seqno*/~0);
+
+     MockActiveStream* mock_stream =
+             static_cast<MockActiveStream*>(stream.get());
+
+     mock_stream->transitionStateToBackfilling();
+     ASSERT_TRUE(mock_stream->isInMemory())
+         << "stream state should have transitioned to InMemory";
+     // Have a persistence cursor and DCP cursor
+     ASSERT_EQ(2, ckpt_mgr.getNumOfCursors());
+     // Set backfilling task to true so can transition to Backfilling State
+     mock_stream->public_setBackfillTaskRunning(true);
+     mock_stream->transitionStateToBackfilling();
+     ASSERT_TRUE(mock_stream->isBackfilling())
+            << "stream state should not have transitioned to Backfilling";
+     // Set backfilling task to false for test
+     mock_stream->public_setBackfillTaskRunning(false);
+     mock_stream->handleSlowStream();
+     // The call to handleSlowStream should result in setting pendingBackfill
+     // flag to true and the DCP cursor being dropped
+     EXPECT_TRUE(mock_stream->public_getPendingBackfill());
+     EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+}
+
+/*
  * The following test checks to see if a cursor is re-registered after it is
  * dropped in handleSlowStream. In particular the test is for when
  * scheduleBackfill_UNLOCKED is called however the backfill task does not need
