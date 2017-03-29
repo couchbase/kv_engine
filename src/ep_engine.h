@@ -808,6 +808,20 @@ protected:
      */
     std::unique_ptr<KVBucket> makeBucket(Configuration& config);
 
+    /**
+     * helper method so that some commands can set the datatype of the document.
+     *
+     * @param cookie connection cookie
+     * @param datatype the current document datatype
+     * @param body a buffer containing the document body
+     * @returns a datatype which will now include JSON if the document is JSON
+     *          and the connection does not support datatype.
+     */
+    protocol_binary_datatype_t checkForDatatypeJson(
+            const void* cookie,
+            protocol_binary_datatype_t datatype,
+            cb::const_char_buffer body);
+
     SERVER_HANDLE_V1 *serverApi;
     std::unique_ptr<KVBucket> kvBucket;
     WorkLoadPolicy *workload;

@@ -845,7 +845,7 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     const char* key = "set_with_meta_key";
     size_t keylen = strlen(key);
     const char* val = "somevalue";
-    const char* newVal = "someothervalue";
+    const char* newVal = R"({"json":"yes"})";
     size_t newValLen = strlen(newVal);
     uint64_t vb_uuid;
     uint32_t high_seqno;
@@ -896,6 +896,8 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
 
     const void *cookie = testHarness.create_cookie();
+    // We are explicitly going to test the !datatype paths, so turn it off.
+    testHarness.set_datatype_support(cookie, false);
 
     // do set with meta with the correct cas value. should pass.
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set,
@@ -903,6 +905,12 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
     check(last_seqno == high_seqno + 1, "Expected valid sequence number");
+
+    // Check that set_with_meta has marked the JSON input as JSON
+    item_info info;
+    check(get_item_info(h, h1, &info, key, 0/*vb0*/), "get_item_info failed");
+    checkeq(int(PROTOCOL_BINARY_DATATYPE_JSON), int(info.datatype),
+        "Expected datatype to now include JSON");
 
     // check the stat
     checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Expect some ops");
@@ -1248,13 +1256,34 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
 static enum test_result test_set_with_meta_xattr(ENGINE_HANDLE* h,
                                                  ENGINE_HANDLE_V1* h1) {
     const char* key = "set_with_meta_xattr_key";
-    const char* value = "somevalue";
+
+    // Create a XATTR document with a JSON body
+    cb::xattr::Blob blob;
+
+    //Add a few XAttrs
+    blob.set(to_const_byte_buffer("user"),
+             to_const_byte_buffer("{\"author\":\"bubba\"}"));
+    blob.set(to_const_byte_buffer("_sync"),
+             to_const_byte_buffer("{\"cas\":\"0xdeadbeefcafefeed\"}"));
+    blob.set(to_const_byte_buffer("meta"),
+             to_const_byte_buffer("{\"content-type\":\"text\"}"));
+
+    auto xattr_value = blob.finalize();
+
+    // Now, append JSON user-data to the xattrs and store the data
+    std::string value_data(R"({"json":"yes"})");
+    std::vector<char> data;
+    std::copy(xattr_value.buf, xattr_value.buf + xattr_value.len,
+              std::back_inserter(data));
+    std::copy(value_data.c_str(), value_data.c_str() + value_data.length(),
+              std::back_inserter(data));
+
     const void* cookie = testHarness.create_cookie();
 
-    //store a value
+    // store a value (so we can get its metadata)
     item* i = nullptr;
     checkeq(ENGINE_SUCCESS,
-            store(h, h1, nullptr, OPERATION_SET, key, value, &i),
+            store(h, h1, nullptr, OPERATION_SET, key, value_data.c_str(), &i),
             "Failed set.");
 
     h1->release(h, nullptr, i);
@@ -1276,13 +1305,22 @@ static enum test_result test_set_with_meta_xattr(ENGINE_HANDLE* h,
     }
 
     testHarness.set_xattr_support(cookie, true);
+    // We are explicitly going to test the !datatype paths, so turn it off.
+    testHarness.set_datatype_support(cookie, false);
 
-    //set with the same meta data but now with xattr
-    set_with_meta(h, h1, key, strlen(key), value, strlen(value), 0, &itm_meta,
+    // Set with the same meta data but now with the xattr/json value
+    set_with_meta(h, h1, key, strlen(key), data.data(), data.size(), 0, &itm_meta,
                   last_meta.cas, force, PROTOCOL_BINARY_DATATYPE_XATTR, cookie);
 
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected the set_with_meta to be successful");
+
+    // set_with_meta will mark JSON input as JSON
+    item_info info;
+    check(get_item_info(h, h1, &info, key, 0/*vb0*/), "get_item_info failed");
+    checkeq(int(PROTOCOL_BINARY_DATATYPE_JSON|PROTOCOL_BINARY_DATATYPE_XATTR),
+        int(info.datatype),
+        "Expected datatype to be JSON and XATTR");
 
     if (isPersistentBucket(h, h1)) {
         wait_for_flusher_to_settle(h, h1);
@@ -1291,7 +1329,7 @@ static enum test_result test_set_with_meta_xattr(ENGINE_HANDLE* h,
 
         //set with the same meta data but now as RAW BYTES.
         //This should result in a bg fetch
-        set_with_meta(h, h1, key, strlen(key), value, strlen(value), 0, &itm_meta,
+        set_with_meta(h, h1, key, strlen(key), data.data(), data.size(), 0, &itm_meta,
                       last_meta.cas, force, PROTOCOL_BINARY_RAW_BYTES, cookie);
 
         checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),

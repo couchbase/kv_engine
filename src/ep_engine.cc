@@ -56,6 +56,7 @@
 #include <platform/make_unique.h>
 #include <platform/platform.h>
 #include <platform/processclock.h>
+#include <xattr/utils.h>
 
 #include <cstdio>
 #include <cstring>
@@ -5029,6 +5030,24 @@ protocol_binary_response_status EventuallyPersistentEngine::decodeWithMetaOption
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
+protocol_binary_datatype_t EventuallyPersistentEngine::checkForDatatypeJson(
+        const void* cookie,
+        protocol_binary_datatype_t datatype,
+        cb::const_char_buffer body) {
+    if (!isDatatypeSupported(cookie)) {
+        // JSON check the body if xattr's are enabled
+        if (mcbp::datatype::is_xattr(datatype)) {
+            body = cb::xattr::get_body(body);
+        }
+
+        if (checkUTF8JSON(reinterpret_cast<const uint8_t*>(body.data()),
+                          body.size())) {
+            datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
+        }
+    }
+    return datatype;
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
                                 protocol_binary_request_set_with_meta *request,
                                 ADD_RESPONSE response,
@@ -5117,13 +5136,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
 
     uint8_t* dta = key + keyOffset + keylen;
 
-    if (!isDatatypeSupported(cookie)) {
-        const int len = vallen;
-        const unsigned char *data = (const unsigned char*) dta;
-        if (checkUTF8JSON(data, len)) {
-            datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        }
-    }
+    datatype = checkForDatatypeJson(
+            cookie, datatype, {reinterpret_cast<const char*>(dta), vallen});
 
     uint8_t ext_meta[1];
     uint8_t ext_len = EXT_META_LEN;
@@ -5616,14 +5630,8 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
     ENGINE_ERROR_CODE ret = ENGINE_EINVAL;
     if (mutate_type == SET_RET_META || mutate_type == ADD_RET_META) {
         uint8_t *dta = keyPtr + keylen;
-
-        if (!isDatatypeSupported(cookie)) {
-            const int len = vallen;
-            const unsigned char *data = (const unsigned char*) dta;
-            if (checkUTF8JSON(data, len)) {
-                datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-            }
-        }
+        datatype = checkForDatatypeJson(
+                cookie, datatype, {reinterpret_cast<const char*>(dta), vallen});
 
         uint8_t ext_meta[1];
         uint8_t ext_len = EXT_META_LEN;
