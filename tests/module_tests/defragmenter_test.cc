@@ -110,7 +110,7 @@ protected:
         for (size_t i = 0; i < ndocs; i++) {
             std::string key = "key" + std::to_string(i);
             Item item(makeStoredDocKey(key), 0, 0, value, sizeof(value));
-            public_processAdd(item);
+            public_processSet(item, 0);
         }
         hrtime_t end = gethrtime();
 
@@ -162,9 +162,13 @@ TEST_P(DefragmenterBenchmarkTest, DefragAge10_20ms) {
 INSTANTIATE_TEST_CASE_P(
         FullAndValueEviction,
         DefragmenterBenchmarkTest,
-        ::testing::Values(VALUE_ONLY),
+        ::testing::Values(VALUE_ONLY, FULL_EVICTION),
         [](const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
-            return "VALUE_ONLY";
+            if (info.param == VALUE_ONLY) {
+                return "VALUE_ONLY";
+            } else {
+                return "FULL_EVICTION";
+            }
         });
 
 /* Return how many bytes the memory allocator has mapped in RAM - essentially
@@ -259,10 +263,18 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
         snprintf(key, sizeof(key), "%d", i);
         // Use DocKey to minimize heap pollution
         Item item(DocKey(key, DocNamespace::DefaultCollection),
-                  0, 0, data.data(), data.size());;
-        public_processAdd(item);
+                  0,
+                  0,
+                  data.data(),
+                  data.size());
+        auto rv = public_processSet(item, 0);
+        EXPECT_EQ(rv, MutationStatus::WasClean);
     }
 
+    // Since public_processSet causes queueDirty to be run for each item above
+    // we need to clear checkpointManager from having any references to the
+    // items we want to delete
+    vbucket->checkpointManager.clear(vbucket->getState());
     // Record memory usage after creation.
     size_t mem_used_1 = mem_used.load();
     size_t mapped_1 = get_mapped_bytes();
@@ -322,7 +334,7 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
     // many documents were removed.
     // Allow some extra, to handle any increase in data structure sizes used
     // to actually manage the objects.
-    const double fuzz_factor = 1.3;
+    const double fuzz_factor = 1.05;
     const size_t all_docs_size = mem_used_1 - mem_used_0;
     const size_t remaining_size = (all_docs_size / num_docs) * num_remaining;
     const size_t expected_mem = (mem_used_0 + remaining_size) * fuzz_factor;
@@ -337,7 +349,7 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
     }
     if (retries == RETRY_LIMIT) {
         FAIL() << "Exceeded retry count waiting for mem_used be below "
-               << expected_mem;
+               << expected_mem << " current mem_used: " << mem_used.load();
     }
 
     size_t mapped_2 = get_mapped_bytes();
@@ -377,7 +389,11 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
 INSTANTIATE_TEST_CASE_P(
         FullAndValueEviction,
         DefragmenterTest,
-        ::testing::Values(VALUE_ONLY),
+        ::testing::Values(VALUE_ONLY, FULL_EVICTION),
         [](const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
-            return "VALUE_ONLY";
+            if (info.param == VALUE_ONLY) {
+                return "VALUE_ONLY";
+            } else {
+                return "FULL_EVICTION";
+            }
         });
