@@ -354,7 +354,7 @@ CBSASL_PUBLIC_API
 Domain to_domain(const std::string& domain);
 
 CBSASL_PUBLIC_API
-std::string to_string(Domain& domain);
+std::string to_string(Domain domain);
 
 /**
  * Get the domain where the user in the connection object is defined

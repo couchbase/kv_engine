@@ -44,7 +44,7 @@ cb::sasl::Domain cb::sasl::to_domain(const std::string& domain) {
 }
 
 CBSASL_PUBLIC_API
-std::string cb::sasl::to_string(cb::sasl::Domain& domain) {
+std::string cb::sasl::to_string(cb::sasl::Domain domain) {
     switch (domain) {
     case cb::sasl::Domain::Builtin:
         return "builtin";
