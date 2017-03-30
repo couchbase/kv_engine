@@ -27,17 +27,6 @@
 
 #include <platform/cb_malloc.h>
 
-
-static std::vector<StoredDocKey> generateKeys(int num, int start = 0) {
-    std::vector<StoredDocKey> rv;
-
-    for (int i = start; i < num; i++) {
-        rv.push_back(makeStoredDocKey(std::to_string(i)));
-    }
-
-    return rv;
-}
-
 void VBucketTest::SetUp() {
     const auto eviction_policy = GetParam();
     vbucket.reset(new EPVBucket(0,
@@ -59,6 +48,16 @@ void VBucketTest::TearDown() {
     vbucket.reset();
 }
 
+std::vector<StoredDocKey> VBucketTest::generateKeys(int num, int start) {
+    std::vector<StoredDocKey> rv;
+
+    for (int i = start; i < num; i++) {
+        rv.push_back(makeStoredDocKey(std::to_string(i)));
+    }
+
+    return rv;
+}
+
 void VBucketTest::addOne(const StoredDocKey& k, AddStatus expect, int expiry) {
     Item i(k, 0, expiry, k.data(), k.size());
     EXPECT_EQ(expect, public_processAdd(i)) << "Failed to add key "
@@ -68,6 +67,36 @@ void VBucketTest::addOne(const StoredDocKey& k, AddStatus expect, int expiry) {
 void VBucketTest::addMany(std::vector<StoredDocKey>& keys, AddStatus expect) {
     for (const auto& k : keys) {
         addOne(k, expect);
+    }
+}
+
+void VBucketTest::setOne(const StoredDocKey& k,
+                         MutationStatus expect,
+                         int expiry) {
+    Item i(k, 0, expiry, k.data(), k.size());
+    EXPECT_EQ(expect, public_processSet(i, i.getCas())) << "Failed to set key "
+                                                        << k.c_str();
+}
+
+void VBucketTest::setMany(std::vector<StoredDocKey>& keys,
+                          MutationStatus expect) {
+    for (const auto& k : keys) {
+        setOne(k, expect);
+    }
+}
+
+void VBucketTest::softDeleteOne(const StoredDocKey& k, MutationStatus expect) {
+    StoredValue* v(vbucket->ht.find(k, TrackReference::No, WantsDeleted::No));
+    EXPECT_NE(nullptr, v);
+
+    EXPECT_EQ(expect, public_processSoftDelete(v->getKey(), v, 0))
+            << "Failed to soft delete key " << k.c_str();
+}
+
+void VBucketTest::softDeleteMany(std::vector<StoredDocKey>& keys,
+                                 MutationStatus expect) {
+    for (const auto& k : keys) {
+        softDeleteOne(k, expect);
     }
 }
 
@@ -95,8 +124,19 @@ std::pair<HashTable::HashBucketLock, StoredValue*> VBucketTest::lockAndFind(
 
 MutationStatus VBucketTest::public_processSet(Item& itm, const uint64_t cas) {
     auto hbl_sv = lockAndFind(itm.getKey());
+    VBQueueItemCtx queueItmCtx(GenerateBySeqno::Yes,
+                               GenerateCas::No,
+                               TrackCasDrift::No,
+                               /*isBackfillItem*/ false,
+                               /*preLinkDocumentContext_*/ nullptr);
     return vbucket
-            ->processSet(hbl_sv.first, hbl_sv.second, itm, cas, true, false)
+            ->processSet(hbl_sv.first,
+                         hbl_sv.second,
+                         itm,
+                         cas,
+                         true,
+                         false,
+                         &queueItmCtx)
             .first;
 }
 

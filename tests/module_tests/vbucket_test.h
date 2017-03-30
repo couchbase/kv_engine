@@ -49,9 +49,19 @@ protected:
 
     void TearDown();
 
+    std::vector<StoredDocKey> generateKeys(int num, int start = 0);
+
     void addOne(const StoredDocKey& k, AddStatus expect, int expiry = 0);
 
     void addMany(std::vector<StoredDocKey>& keys, AddStatus expect);
+
+    void setOne(const StoredDocKey& k, MutationStatus expect, int expiry = 0);
+
+    void setMany(std::vector<StoredDocKey>& keys, MutationStatus expect);
+
+    void softDeleteOne(const StoredDocKey& k, MutationStatus expect);
+
+    void softDeleteMany(std::vector<StoredDocKey>& keys, MutationStatus expect);
 
     void verifyValue(StoredDocKey& key,
                      const char* value,

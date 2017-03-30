@@ -21,32 +21,39 @@
 
 #include "config.h"
 
-#include "ephemeral_vb.h"
+#include "../mock/mock_ephemeral_vb.h"
 #include "failover-table.h"
 #include "test_helpers.h"
-#include "seqlist.h"
 #include "vbucket_test.h"
 
 class EphemeralVBucketTest : public VBucketTest {
 protected:
     void SetUp() {
-        vbucket.reset(new EphemeralVBucket(0,
-                                        vbucket_state_active,
-                                        global_stats,
-                                        checkpoint_config,
-                                        /*kvshard*/ nullptr,
-                                        /*lastSeqno*/ 1000,
-                                        /*lastSnapStart*/ 0,
-                                        /*lastSnapEnd*/ 0,
-                                        /*table*/ nullptr,
-                                        /*newSeqnoCb*/ nullptr,
-                                        config,
-                                        VALUE_ONLY));
+        /* to test ephemeral vbucket specific stuff */
+        mockEpheVB = new MockEphemeralVBucket(0,
+                                              vbucket_state_active,
+                                              global_stats,
+                                              checkpoint_config,
+                                              /*kvshard*/ nullptr,
+                                              /*lastSeqno*/ 0,
+                                              /*lastSnapStart*/ 0,
+                                              /*lastSnapEnd*/ 0,
+                                              /*table*/ nullptr,
+                                              /*newSeqnoCb*/ nullptr,
+                                              config,
+                                              VALUE_ONLY);
+        /* vbucket manages the life time of mockEpheVB and is a base test class
+           ptr of owning type */
+        vbucket.reset(mockEpheVB);
     }
 
     void TearDown() {
         vbucket.reset();
     }
+
+    /* We want a ptr to MockEphemeralVBucket as we test ephemeral vbucket
+       specific stuff in this class */
+    MockEphemeralVBucket* mockEpheVB;
 
     EPStats global_stats;
     CheckpointConfig checkpoint_config;
@@ -73,4 +80,112 @@ TEST_F(EphemeralVBucketTest, DoublePageOut) {
     EXPECT_FALSE(vbucket->pageOut(lock_sv.first, storedVal));
     EXPECT_EQ(0, vbucket->getNumItems());
     EXPECT_TRUE(storedVal->isDeleted());
+}
+
+TEST_F(EphemeralVBucketTest, SetItems) {
+    const int numItems = 3;
+
+    auto keys = generateKeys(numItems);
+    setMany(keys, MutationStatus::WasClean);
+
+    EXPECT_EQ(numItems, vbucket->getNumItems());
+    EXPECT_EQ(numItems, vbucket->getHighSeqno());
+}
+
+TEST_F(EphemeralVBucketTest, UpdateItems) {
+    /* Add 3 items and then update all of them */
+    const int numItems = 3;
+
+    auto keys = generateKeys(numItems);
+    setMany(keys, MutationStatus::WasClean);
+
+    /* Update the items */
+    setMany(keys, MutationStatus::WasDirty);
+
+    EXPECT_EQ(numItems * 2, vbucket->getHighSeqno());
+    EXPECT_EQ(numItems, vbucket->getNumItems());
+}
+
+TEST_F(EphemeralVBucketTest, SoftDelete) {
+    /* Add 3 items and then delete all of them */
+    const int numItems = 3;
+
+    auto keys = generateKeys(numItems);
+    setMany(keys, MutationStatus::WasClean);
+
+    /* soft delete all */
+    softDeleteMany(keys, MutationStatus::WasDirty);
+
+    EXPECT_EQ(numItems * 2, vbucket->getHighSeqno());
+    EXPECT_EQ(0, vbucket->getNumItems());
+}
+
+TEST_F(EphemeralVBucketTest, Backfill) {
+    /* Add 3 items and get them by backfill */
+    const int numItems = 3;
+
+    auto keys = generateKeys(numItems);
+    setMany(keys, MutationStatus::WasClean);
+
+    auto res = mockEpheVB->inMemoryBackfill(1, numItems);
+    EXPECT_EQ(ENGINE_SUCCESS, res.first);
+    EXPECT_EQ(numItems, res.second.size());
+}
+
+TEST_F(EphemeralVBucketTest, UpdateDuringBackfill) {
+    /* Add 5 items and then update all of them */
+    const int numItems = 5;
+
+    auto keys = generateKeys(numItems);
+    setMany(keys, MutationStatus::WasClean);
+
+    /* Set up a mock backfill by setting the range of the backfill */
+    mockEpheVB->registerFakeReadRange(2, numItems - 1);
+
+    /* Update the first, middle and last item in the range read and 2 items
+       that are outside (before and after) range read */
+    setOne(keys[0], MutationStatus::WasDirty);
+    for (int i = 1; i < numItems - 1; ++i) {
+        setOne(keys[i], MutationStatus::WasClean);
+    }
+    setOne(keys[numItems - 1], MutationStatus::WasDirty);
+
+    /* Hash table must have only recent (updated) items */
+    EXPECT_EQ(numItems, vbucket->getNumItems());
+
+    /* High Seqno must be 2 * numItems */
+    EXPECT_EQ(numItems * 2, vbucket->getHighSeqno());
+
+    /* LinkedList must have 3 stale items */
+    EXPECT_EQ(3, mockEpheVB->public_getNumStaleItems());
+
+    EXPECT_EQ(numItems * 2 - /* since 2 items are deduped*/ 2,
+              mockEpheVB->public_getNumListItems());
+}
+
+TEST_F(EphemeralVBucketTest, SoftDeleteDuringBackfill) {
+    /* Add 5 items and then soft delete all of them */
+    const int numItems = 5;
+
+    auto keys = generateKeys(numItems);
+    setMany(keys, MutationStatus::WasClean);
+
+    /* Set up a mock backfill by setting the range of the backfill */
+    mockEpheVB->registerFakeReadRange(2, numItems - 1);
+
+    /* Update the first, middle and last item in the range read and 2 items
+       that are outside (before and after) range read */
+    softDeleteMany(keys, MutationStatus::WasDirty);
+
+    /* Hash table must have only recent (updated) items */
+    EXPECT_EQ(0, vbucket->getNumItems());
+
+    /* High Seqno must be 2 * numItems */
+    EXPECT_EQ(numItems * 2, vbucket->getHighSeqno());
+
+    /* LinkedList must have 3 stale items */
+    EXPECT_EQ(3, mockEpheVB->public_getNumStaleItems());
+
+    EXPECT_EQ(numItems * 2 - /* since 2 items are deduped*/ 2,
+              mockEpheVB->public_getNumListItems());
 }

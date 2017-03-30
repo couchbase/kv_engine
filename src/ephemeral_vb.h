@@ -130,6 +130,10 @@ public:
     void queueBackfillItem(queued_item& qi,
                            const GenerateBySeqno generateBySeqno) override;
 
+protected:
+    /* Data structure for in-memory sequential storage */
+    std::unique_ptr<SequenceList> seqList;
+
 private:
     std::tuple<StoredValue*, MutationStatus, VBNotifyCtx> updateStoredValue(
             const HashTable::HashBucketLock& hbl,
@@ -184,9 +188,6 @@ private:
      * ii) queueLock in 'CheckpointManager'.
      */
     mutable std::mutex sequenceLock;
-
-    /* Data structure for in-memory sequential storage */
-    std::unique_ptr<SequenceList> seqList;
 
     /**
      * Count of how many items have been deleted via the 'auto_delete' policy
