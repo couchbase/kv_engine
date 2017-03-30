@@ -1329,16 +1329,110 @@ static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 /* Testing functionality to store a value for a deleted item
- * and also retrieve the value of a deleted item
+ * and also retrieve the value of a deleted item.
+ * Need to check:
+ *
+ * - Each possible state transition between Alive, Deleted-with-value and
+ *   Deleted-no-value.
  */
-static enum test_result test_delete_with_value(ENGINE_HANDLE *h,
-                                               ENGINE_HANDLE_V1 *h1) {
-    item *i = nullptr;
-    checkeq(ENGINE_SUCCESS,
-            store(h, h1, nullptr, OPERATION_SET, "key1", "somevalue", &i),
-            "Failed set");
+static enum test_result test_delete_with_value(ENGINE_HANDLE* h,
+                                               ENGINE_HANDLE_V1* h1) {
+    const uint64_t cas_0 = 0;
+    const uint16_t vbid = 0;
+    const void* cookie = testHarness.create_cookie();
 
-    h1->release(h, nullptr, i);
+    // Store an initial (not-deleted) value.
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, cookie, OPERATION_SET, "key", "somevalue", nullptr),
+            "Failed set");
+    wait_for_flusher_to_settle(h, h1);
+
+    checkeq(uint64_t(1),
+            get_stat<uint64_t>(h, h1, "vb_0:num_items", "vbucket-details 0"),
+            "Unexpected initial item count");
+
+    /* Alive -> Deleted-with-value */
+    checkeq(ENGINE_SUCCESS,
+            delete_with_value(h, h1, cookie, cas_0, "key", "deleted"),
+            "Failed Alive -> Delete-with-value");
+
+    auto res = get_value(h, h1, cookie, "key", vbid, DocStateFilter::Alive);
+    checkeq(ENGINE_KEY_ENOENT,
+            res.first,
+            "Unexpectedly accessed Deleted-with-value via DocState::Alive");
+
+    res = get_value(h, h1, cookie, "key", vbid, DocStateFilter::AliveOrDeleted);
+    checkeq(ENGINE_SUCCESS,
+            res.first,
+            "Failed to fetch Alive -> Delete-with-value");
+    checkeq(std::string("deleted"), res.second, "Unexpected value (deleted)");
+
+    /* Deleted-with-value -> Deleted-with-value (different value). */
+    checkeq(ENGINE_SUCCESS,
+            delete_with_value(h, h1, cookie, cas_0, "key", "deleted 2"),
+            "Failed Deleted-with-value -> Deleted-with-value");
+
+    res = get_value(h, h1, cookie, "key", vbid, DocStateFilter::AliveOrDeleted);
+    checkeq(ENGINE_SUCCESS, res.first, "Failed to fetch key (deleted 2)");
+    checkeq(std::string("deleted 2"),
+            res.second,
+            "Unexpected value (deleted 2)");
+
+    /* Delete-with-value -> Alive */
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, cookie, OPERATION_SET, "key", "alive 2", nullptr),
+            "Failed Delete-with-value -> Alive");
+    wait_for_flusher_to_settle(h, h1);
+
+    res = get_value(h, h1, cookie, "key", vbid, DocStateFilter::Alive);
+    checkeq(ENGINE_SUCCESS,
+            res.first,
+            "Failed to fetch Delete-with-value -> Alive via DocState::Alive");
+    checkeq(std::string("alive 2"), res.second, "Unexpected value (alive 2)");
+
+    // Also check via DocState::Deleted
+    res = get_value(h, h1, cookie, "key", vbid, DocStateFilter::AliveOrDeleted);
+    checkeq(ENGINE_SUCCESS,
+            res.first,
+            "Failed to fetch Delete-with-value -> Alive via DocState::Deleted");
+    checkeq(std::string("alive 2"),
+            res.second,
+            "Unexpected value (alive 2) via DocState::Deleted");
+
+    /* Alive -> Deleted-no-value */
+    checkeq(ENGINE_SUCCESS,
+            del(h, h1, "key", cas_0, vbid, cookie),
+            "Failed Alive -> Deleted-no-value");
+    wait_for_flusher_to_settle(h, h1);
+
+    res = get_value(h, h1, cookie, "key", vbid, DocStateFilter::Alive);
+    checkeq(ENGINE_KEY_ENOENT,
+            res.first,
+            "Unexpectedly accessed Deleted-no-value via DocState::Alive");
+
+    /* Deleted-no-value -> Delete-with-value */
+    checkeq(ENGINE_SUCCESS,
+            delete_with_value(h, h1, cookie, cas_0, "key", "deleted 3"),
+            "Failed delete with value (deleted 2)");
+
+    res = get_value(h, h1, cookie, "key", vbid, DocStateFilter::AliveOrDeleted);
+    checkeq(ENGINE_SUCCESS, res.first, "Failed to fetch key (deleted 3)");
+    checkeq(std::string("deleted 3"),
+            res.second,
+            "Unexpected value (deleted 3)");
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+/* Similar to test_delete_with_value, except also checks that CAS values
+ */
+static enum test_result test_delete_with_value_cas(ENGINE_HANDLE *h,
+                                                   ENGINE_HANDLE_V1 *h1) {
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, nullptr, OPERATION_SET, "key1", "somevalue", nullptr),
+            "Failed set");
 
     check(get_meta(h, h1, "key1"), "Get meta failed");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -1348,11 +1442,9 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE *h,
 
     /* Store a deleted item first with CAS 0 */
     checkeq(ENGINE_SUCCESS,
-            store(h, h1, nullptr, OPERATION_SET, "key1", "deletevalue", &i,
+            store(h, h1, nullptr, OPERATION_SET, "key1", "deletevalue", nullptr,
                   0, 0, 3600, 0x00, DocumentState::Deleted),
             "Failed delete with value");
-
-    h1->release(h, nullptr, i);
 
     check(get_meta(h, h1, "key1"), "Get meta failed");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -1361,6 +1453,7 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE *h,
     checkeq(last_meta.revSeqno, curr_revseqno + 1,
             "rev seqno should have incremented");
 
+    item *i = nullptr;
     checkeq(ENGINE_SUCCESS,
             store(h, h1, nullptr, OPERATION_SET, "key2", "somevalue", &i),
             "Failed set");
@@ -1380,10 +1473,8 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE *h,
     /* Store a deleted item with the existing CAS value */
     checkeq(ENGINE_SUCCESS,
             store(h, h1, nullptr, OPERATION_SET, "key2", "deletevaluewithcas",
-                  &i, info.cas, 0, 3600, 0x00, DocumentState::Deleted),
+                  nullptr, info.cas, 0, 3600, 0x00, DocumentState::Deleted),
             "Failed delete value with cas");
-
-    h1->release(h, nullptr, i);
 
     wait_for_flusher_to_settle(h, h1);
 
@@ -1404,6 +1495,10 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
 
     check(h1->get_item_info(h, nullptr, i, &info), "Getting item info failed");
+    checkeq(int(DocumentState::Deleted),
+            int(info.document_state),
+            "Incorrect DocState for deleted item");
+    checkne(uint64_t(0), info.cas, "Expected non-zero CAS for deleted item");
 
     h1->release(h, nullptr, i);
 
@@ -1418,10 +1513,8 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE *h,
 
     checkeq(ENGINE_SUCCESS,
             store(h, h1, nullptr, OPERATION_SET, "key2",
-                  "newdeletevaluewithcas", &i, info.cas, 0, 3600, 0x00,
+                  "newdeletevaluewithcas", nullptr, info.cas, 0, 3600, 0x00,
                   DocumentState::Deleted), "Failed delete value with cas");
-
-    h1->release(h, nullptr, i);
 
     wait_for_flusher_to_settle(h, h1);
 
@@ -1439,6 +1532,9 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE *h,
 
     check(h1->get_item_info(h, nullptr, i, &info),
           "Getting item info failed");
+    checkeq(int(DocumentState::Deleted),
+            int(info.document_state),
+            "Incorrect DocState for deleted item");
 
     checkeq(static_cast<uint8_t>(DocumentState::Deleted),
             static_cast<uint8_t>(info.document_state),
@@ -2214,6 +2310,8 @@ BaseTestCase testsuite_testcases[] = {
                  NULL, prepare, cleanup),
         TestCase("delete with value", test_delete_with_value, test_setup, teardown,
                  NULL, prepare, cleanup),
+        TestCase("delete with value CAS", test_delete_with_value_cas,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("set/delete", test_set_delete, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("set/delete (invalid cas)", test_set_delete_invalid_cas,

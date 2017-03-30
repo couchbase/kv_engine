@@ -176,6 +176,16 @@ ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                       uint64_t* cas, uint16_t vbucket, const void* cookie,
                       mutation_descr_t* mut_info);
 
+/** Simplified version of store for handling the common case of performing
+ * a delete with a value.
+ */
+ENGINE_ERROR_CODE delete_with_value(ENGINE_HANDLE* h,
+                                    ENGINE_HANDLE_V1* h1,
+                                    const void* cookie,
+                                    uint64_t cas,
+                                    const char* key,
+                                    const char* value);
+
 void disable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void enable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
@@ -261,6 +271,18 @@ ENGINE_ERROR_CODE unl(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
                       uint16_t vb, uint64_t cas = 0);
 ENGINE_ERROR_CODE verify_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                              const char* key, uint16_t vbucket = 0);
+
+/**
+ * Attempts to fetch the given key. On success returns ENGINE_SUCCESS and the
+ * value, on failure returns the reason and an empty string.
+ */
+std::pair<ENGINE_ERROR_CODE, std::string> get_value(ENGINE_HANDLE* h,
+                                                    ENGINE_HANDLE_V1* h1,
+                                                    const void* cookie,
+                                                    const char* key,
+                                                    uint16_t vbucket,
+                                                    DocStateFilter state);
+
 bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                             uint16_t vb);
 bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,

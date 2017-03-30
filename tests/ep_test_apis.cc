@@ -402,6 +402,35 @@ ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                       cas, vbucket, mut_info);
 }
 
+/** Simplified version of store for handling the common case of performing
+ * a delete with a value.
+ */
+ENGINE_ERROR_CODE delete_with_value(ENGINE_HANDLE* h,
+                                    ENGINE_HANDLE_V1* h1,
+                                    const void* cookie,
+                                    uint64_t cas,
+                                    const char* key,
+                                    const char* value) {
+    item* itm = nullptr;
+    auto result = store(h,
+                        h1,
+                        cookie,
+                        OPERATION_SET,
+                        key,
+                        value,
+                        &itm,
+                        cas,
+                        /*vb*/ 0,
+                        /*exp*/ 0,
+                        /*datatype*/ 0,
+                        DocumentState::Deleted);
+    h1->release(h, cookie, itm);
+
+    wait_for_flusher_to_settle(h, h1);
+
+    return result;
+}
+
 void del_with_meta(ENGINE_HANDLE* h,
                    ENGINE_HANDLE_V1* h1,
                    const char* key,
@@ -1045,6 +1074,27 @@ ENGINE_ERROR_CODE verify_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         h1->release(h, NULL, i);
     }
     return rv;
+}
+
+std::pair<ENGINE_ERROR_CODE, std::string> get_value(ENGINE_HANDLE* h,
+                                                    ENGINE_HANDLE_V1* h1,
+                                                    const void* cookie,
+                                                    const char* key,
+                                                    uint16_t vbucket,
+                                                    DocStateFilter state) {
+    item* itm = NULL;
+    ENGINE_ERROR_CODE rv = get(h, h1, cookie, &itm, key, vbucket, state);
+    if (rv != ENGINE_SUCCESS) {
+        return {rv, ""};
+    }
+    item_info info;
+    if (!h1->get_item_info(h, cookie, itm, &info)) {
+        return {ENGINE_FAILED, ""};
+    }
+    h1->release(h, cookie, itm);
+    auto value = std::string(reinterpret_cast<char*>(info.value[0].iov_base),
+                             info.value[0].iov_len);
+    return make_pair(rv, value);
 }
 
 bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
