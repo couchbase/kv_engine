@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 class Connection;
@@ -91,3 +92,7 @@ void audit_privilege_debug(const Connection* c,
  * Initialize the audit subsystem
  */
 void initialize_audit();
+
+bool mc_audit_event(uint32_t audit_eventid,
+                    const void* payload,
+                    size_t length);

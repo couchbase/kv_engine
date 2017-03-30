@@ -1438,10 +1438,7 @@ static void audit_put_executor(McbpConnection* c, void* packet) {
     const size_t payload_length = ntohl(req->message.header.request.bodylen) -
                                   req->message.header.request.extlen;
 
-    if (put_audit_event(get_audit_handle(),
-                        ntohl(req->message.body.id),
-                        payload,
-                        payload_length) == AUDIT_SUCCESS) {
+    if (mc_audit_event(ntohl(req->message.body.id), payload, payload_length)) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
     } else {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);

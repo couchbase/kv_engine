@@ -240,3 +240,19 @@ void process_auditd_stats(Audit* handle,
               num_of_dropped_events.str().c_str(),
               (uint32_t)num_of_dropped_events.str().length(), cookie);
 }
+
+namespace cb {
+namespace audit {
+
+MEMCACHED_PUBLIC_API
+void add_event_state_listener(Audit* handle, EventStateListener listener) {
+    handle->add_event_state_listener(listener);
+}
+
+MEMCACHED_PUBLIC_API
+void notify_all_event_states(Audit* handle) {
+    handle->notify_all_event_states();
+}
+
+} // namespace audit
+} // namespace cb

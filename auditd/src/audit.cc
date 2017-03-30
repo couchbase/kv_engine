@@ -391,6 +391,11 @@ bool Audit::configure(void) {
             iterator->second->setEnabled(false);
         }
     }
+
+    if (is_enabled_before_reconfig != config.is_auditd_enabled()) {
+        notify_event_state_changed(0, config.is_auditd_enabled());
+    }
+
     // create event to say done reconfiguration
     if (is_enabled_before_reconfig || config.is_auditd_enabled()) {
         auto evt = events.find(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON);
@@ -542,4 +547,23 @@ bool Audit::clean_up(void) {
         clear_events_queues();
     }
     return true;
+}
+
+void Audit::notify_all_event_states() {
+    notify_event_state_changed(0, config.is_auditd_enabled());
+    for (const auto& event : events) {
+        notify_event_state_changed(event.first, event.second->isEnabled());
+    }
+}
+
+void Audit::add_event_state_listener(cb::audit::EventStateListener listener) {
+    std::lock_guard<std::mutex> guard(event_state_listener.mutex);
+    event_state_listener.clients.push_back(listener);
+}
+
+void Audit::notify_event_state_changed(uint32_t id, bool enabled) const {
+    std::lock_guard<std::mutex> guard(event_state_listener.mutex);
+    for (const auto& func : event_state_listener.clients) {
+        func(id, enabled);
+    }
 }

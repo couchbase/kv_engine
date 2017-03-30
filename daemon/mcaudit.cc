@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2015 Couchbase, Inc
+ *     Copyright 2017 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,9 @@
 #include <memcached/audit_interface.h>
 #include <cJSON.h>
 #include <memcached/isotime.h>
+#include <relaxed_atomic.h>
+
+static Couchbase::RelaxedAtomic<bool> audit_enabled;
 
 /**
  * Create the typical memcached audit object. It constists of a
@@ -72,6 +75,9 @@ static void do_audit(const Connection* c,
 }
 
 void audit_auth_failure(const Connection *c, const char *reason) {
+    if (!audit_enabled) {
+        return;
+    }
     auto root = create_memcached_audit_object(c);
     cJSON_AddStringToObject(root.get(), "reason", reason);
 
@@ -80,6 +86,9 @@ void audit_auth_failure(const Connection *c, const char *reason) {
 }
 
 void audit_auth_success(const Connection *c) {
+    if (!audit_enabled) {
+        return;
+    }
     auto root = create_memcached_audit_object(c);
     do_audit(c, MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED, root,
              "Failed to send AUTH SUCCESS audit event");
@@ -87,6 +96,9 @@ void audit_auth_success(const Connection *c) {
 
 
 void audit_bucket_flush(const Connection *c, const char *bucket) {
+    if (!audit_enabled) {
+        return;
+    }
     auto root = create_memcached_audit_object(c);
     cJSON_AddStringToObject(root.get(), "bucket", bucket);
 
@@ -96,6 +108,9 @@ void audit_bucket_flush(const Connection *c, const char *bucket) {
 
 
 void audit_dcp_open(const Connection *c) {
+    if (!audit_enabled) {
+        return;
+    }
     if (c->isInternal()) {
         LOG_INFO(c, "Open DCP stream with admin credentials");
     } else {
@@ -109,6 +124,9 @@ void audit_dcp_open(const Connection *c) {
 }
 
 void audit_set_privilege_debug_mode(const Connection* c, bool enable) {
+    if (!audit_enabled) {
+        return;
+    }
     auto root = create_memcached_audit_object(c);
     cJSON_AddBoolToObject(root.get(), "enable", enable);
     do_audit(c, MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED, root,
@@ -121,6 +139,9 @@ void audit_privilege_debug(const Connection* c,
                            const std::string& bucket,
                            const std::string& privilege,
                            const std::string& context) {
+    if (!audit_enabled) {
+        return;
+    }
     auto root = create_memcached_audit_object(c);
     cJSON_AddStringToObject(root.get(), "command", command.c_str());
     cJSON_AddStringToObject(root.get(), "bucket", bucket.c_str());
@@ -132,6 +153,9 @@ void audit_privilege_debug(const Connection* c,
 }
 
 void audit_command_access_failed(const McbpConnection *c) {
+    if (!audit_enabled) {
+        return;
+    }
     auto root = create_memcached_audit_object(c);
     char buffer[256];
     memset(buffer, 0, sizeof(buffer));
@@ -146,6 +170,9 @@ void audit_command_access_failed(const McbpConnection *c) {
 }
 
 void audit_invalid_packet(const McbpConnection *c) {
+    if (!audit_enabled) {
+        return;
+    }
     auto root = create_memcached_audit_object(c);
     char buffer[256];
     memset(buffer, 0, sizeof(buffer));
@@ -157,6 +184,27 @@ void audit_invalid_packet(const McbpConnection *c) {
                            sizeof(protocol_binary_request_header));
     cJSON_AddStringToObject(root.get(), "packet", buffer);
     do_audit(c, MEMCACHED_AUDIT_INVALID_PACKET, root, buffer);
+}
+
+bool mc_audit_event(uint32_t audit_eventid,
+                    const void* payload,
+                    size_t length) {
+    if (!audit_enabled) {
+        return true;
+    }
+
+    return put_audit_event(get_audit_handle(), audit_eventid,
+                           payload, length) == AUDIT_SUCCESS;
+}
+
+static void event_state_listener(uint32_t id, bool enabled) {
+    // We only care about the global on / off switch
+    if (id == 0) {
+        LOG_NOTICE(nullptr, "Audit changed from: %s to: %s",
+                   audit_enabled ? "enabled" : "disabled",
+                   enabled ? "enabled" : "disabled");
+        audit_enabled.store(enabled);
+    }
 }
 
 void initialize_audit() {
@@ -171,4 +219,6 @@ void initialize_audit() {
         FATAL_ERROR(EXIT_FAILURE, "FATAL: Failed to start audit daemon");
     }
     set_audit_handle(handle);
+    cb::audit::add_event_state_listener(handle, event_state_listener);
+    cb::audit::notify_all_event_states(handle);
 }

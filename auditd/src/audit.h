@@ -101,6 +101,22 @@ public:
                           const std::string& string = "");
     static std::string load_file(const char *file);
 
+    /**
+     * Add a listener to notify state changes for individual events.
+     *
+     * @param listener the callback function
+     */
+    void add_event_state_listener(cb::audit::EventStateListener listener);
+
+    void notify_all_event_states();
+
+protected:
+    void notify_event_state_changed(uint32_t id, bool enabled) const;
+    struct {
+        mutable std::mutex mutex;
+        std::vector<cb::audit::EventStateListener> clients;
+    } event_state_listener;
+
 private:
     size_t max_audit_queue;
 };
