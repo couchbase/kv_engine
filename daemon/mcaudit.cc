@@ -29,6 +29,43 @@
 
 static Couchbase::RelaxedAtomic<bool> audit_enabled;
 
+static const int First = MEMCACHED_AUDIT_OPENED_DCP_CONNECTION;
+static const int Last = MEMCACHED_AUDIT_PRIVILEGE_DEBUG;
+
+static std::array<Couchbase::RelaxedAtomic<bool>, Last - First + 1> events;
+
+static bool isEnabled(uint32_t id) {
+    if (!audit_enabled) {
+        // Global switch is off.. All events are disabled
+        return false;
+    }
+
+    if (id >= First && id <= Last) {
+        // This is one of ours
+        return events[id - First];
+    }
+
+    // we don't have information about this id... let the underlying event
+    // framework deal with it
+    return true;
+}
+
+void setEnabled(uint32_t id, bool enable) {
+    if (id == 0) {
+        LOG_NOTICE(nullptr, "Audit changed from: %s to: %s",
+                   audit_enabled ? "enabled" : "disabled",
+                   enable ? "enabled" : "disabled");
+        audit_enabled.store(enable);
+    }
+
+    if (id >= First && id <= Last) {
+        LOG_INFO(nullptr, "Audit descriptor %u changed from: %s to: %s",
+                 id, events[id - First] ? "enabled" : "disabled",
+                 enable ? "enabled" : "disabled");
+        events[id - First] = enable;
+    }
+}
+
 /**
  * Create the typical memcached audit object. It constists of a
  * timestamp, the socket endpoints and the creds. Then each audit event
@@ -75,7 +112,7 @@ static void do_audit(const Connection* c,
 }
 
 void audit_auth_failure(const Connection *c, const char *reason) {
-    if (!audit_enabled) {
+    if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_FAILED)) {
         return;
     }
     auto root = create_memcached_audit_object(c);
@@ -86,7 +123,7 @@ void audit_auth_failure(const Connection *c, const char *reason) {
 }
 
 void audit_auth_success(const Connection *c) {
-    if (!audit_enabled) {
+    if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED)) {
         return;
     }
     auto root = create_memcached_audit_object(c);
@@ -96,7 +133,7 @@ void audit_auth_success(const Connection *c) {
 
 
 void audit_bucket_flush(const Connection *c, const char *bucket) {
-    if (!audit_enabled) {
+    if (!isEnabled(MEMCACHED_AUDIT_BUCKET_FLUSH)) {
         return;
     }
     auto root = create_memcached_audit_object(c);
@@ -108,7 +145,7 @@ void audit_bucket_flush(const Connection *c, const char *bucket) {
 
 
 void audit_dcp_open(const Connection *c) {
-    if (!audit_enabled) {
+    if (!isEnabled(MEMCACHED_AUDIT_OPENED_DCP_CONNECTION)) {
         return;
     }
     if (c->isInternal()) {
@@ -124,7 +161,7 @@ void audit_dcp_open(const Connection *c) {
 }
 
 void audit_set_privilege_debug_mode(const Connection* c, bool enable) {
-    if (!audit_enabled) {
+    if (!isEnabled(MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED)) {
         return;
     }
     auto root = create_memcached_audit_object(c);
@@ -139,7 +176,7 @@ void audit_privilege_debug(const Connection* c,
                            const std::string& bucket,
                            const std::string& privilege,
                            const std::string& context) {
-    if (!audit_enabled) {
+    if (!isEnabled(MEMCACHED_AUDIT_PRIVILEGE_DEBUG)) {
         return;
     }
     auto root = create_memcached_audit_object(c);
@@ -153,7 +190,7 @@ void audit_privilege_debug(const Connection* c,
 }
 
 void audit_command_access_failed(const McbpConnection *c) {
-    if (!audit_enabled) {
+    if (!isEnabled(MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE)) {
         return;
     }
     auto root = create_memcached_audit_object(c);
@@ -170,7 +207,7 @@ void audit_command_access_failed(const McbpConnection *c) {
 }
 
 void audit_invalid_packet(const McbpConnection *c) {
-    if (!audit_enabled) {
+    if (!isEnabled(MEMCACHED_AUDIT_INVALID_PACKET)) {
         return;
     }
     auto root = create_memcached_audit_object(c);
@@ -198,13 +235,7 @@ bool mc_audit_event(uint32_t audit_eventid,
 }
 
 static void event_state_listener(uint32_t id, bool enabled) {
-    // We only care about the global on / off switch
-    if (id == 0) {
-        LOG_NOTICE(nullptr, "Audit changed from: %s to: %s",
-                   audit_enabled ? "enabled" : "disabled",
-                   enabled ? "enabled" : "disabled");
-        audit_enabled.store(enabled);
-    }
+    setEnabled(id, enabled);
 }
 
 void initialize_audit() {
