@@ -30,7 +30,7 @@
 static Couchbase::RelaxedAtomic<bool> audit_enabled;
 
 static const int First = MEMCACHED_AUDIT_OPENED_DCP_CONNECTION;
-static const int Last = MEMCACHED_AUDIT_PRIVILEGE_DEBUG;
+static const int Last = MEMCACHED_AUDIT_DOCUMENT_DELETE;
 
 static std::array<Couchbase::RelaxedAtomic<bool>, Last - First + 1> events;
 
@@ -233,6 +233,66 @@ bool mc_audit_event(uint32_t audit_eventid,
     return put_audit_event(get_audit_handle(), audit_eventid,
                            payload, length) == AUDIT_SUCCESS;
 }
+
+namespace cb {
+namespace audit {
+namespace document {
+
+void add(const McbpConnection& c, Operation operation) {
+    uint32_t id = 0;
+    switch (operation) {
+    case Operation::Read:
+        id = MEMCACHED_AUDIT_DOCUMENT_READ;
+        break;
+    case Operation::Lock:
+        id = MEMCACHED_AUDIT_DOCUMENT_LOCKED;
+        break;
+    case Operation::Modify:
+        id = MEMCACHED_AUDIT_DOCUMENT_MODIFY;
+        break;
+    case Operation::Delete:
+        id = MEMCACHED_AUDIT_DOCUMENT_DELETE;
+        break;
+    }
+
+    if (id == 0) {
+        throw std::invalid_argument(
+            "cb::audit::document::add: Invalid operation");
+    }
+
+    if (!isEnabled(id)) {
+        return;
+    }
+
+    auto root = create_memcached_audit_object(&c);
+    cJSON_AddStringToObject(root.get(), "bucket", c.getBucket().name);
+    cJSON_AddStringToObject(root.get(), "key", c.getPrintableKey().c_str());
+
+    switch (operation) {
+    case Operation::Read:
+        do_audit(&c, MEMCACHED_AUDIT_DOCUMENT_READ, root,
+                 "Failed to send document read audit event to audit daemon");
+        break;
+    case Operation::Lock:
+        do_audit(&c, MEMCACHED_AUDIT_DOCUMENT_LOCKED, root,
+                 "Failed to send document locked audit event to audit daemon");
+        break;
+    case Operation::Modify:
+        do_audit(&c, MEMCACHED_AUDIT_DOCUMENT_MODIFY, root,
+                 "Failed to send document modify audit event to audit daemon");
+        break;
+    case Operation::Delete:
+        do_audit(&c, MEMCACHED_AUDIT_DOCUMENT_DELETE, root,
+                 "Failed to send document delete audit event to audit daemon");
+        break;
+    }
+}
+
+} // namespace documnent
+} // namespace audit
+} // namespace cb
+
+
 
 static void event_state_listener(uint32_t id, bool enabled) {
     setEnabled(id, enabled);

@@ -88,6 +88,22 @@ void audit_privilege_debug(const Connection* c,
                            const std::string& privilege,
                            const std::string& context);
 
+namespace cb {
+namespace audit {
+namespace document {
+
+enum class Operation {
+    Read,
+    Lock,
+    Modify,
+    Delete
+};
+void add(const McbpConnection& c, Operation operation);
+
+}
+}
+}
+
 /**
  * Initialize the audit subsystem
  */

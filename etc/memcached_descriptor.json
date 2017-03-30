@@ -154,6 +154,86 @@
       },
       "optional_fields": {
       }
+    },
+    {
+      "id": 20488,
+      "name": "document read",
+      "description": "The named document was read",
+      "sync": false,
+      "enabled": false,
+      "mandatory_fields": {
+        "bucket": "",
+        "key": "",
+        "timestamp": "",
+        "real_userid": {
+          "source": "",
+          "user": ""
+        },
+        "peername": "",
+        "sockname": ""
+      },
+      "optional_fields": {
+      }
+    },
+    {
+      "id": 20489,
+      "name": "document locked",
+      "description": "The named document was locked",
+      "sync": false,
+      "enabled": false,
+      "mandatory_fields": {
+        "bucket": "",
+        "key": "",
+        "timestamp": "",
+        "real_userid": {
+          "source": "",
+          "user": ""
+        },
+        "peername": "",
+        "sockname": ""
+      },
+      "optional_fields": {
+      }
+    },
+    {
+      "id": 20490,
+      "name": "document modify",
+      "description": "The named document was modified",
+      "sync": false,
+      "enabled": false,
+      "mandatory_fields": {
+        "bucket": "",
+        "key": "",
+        "timestamp": "",
+        "real_userid": {
+          "source": "",
+          "user": ""
+        },
+        "peername": "",
+        "sockname": ""
+      },
+      "optional_fields": {
+      }
+    },
+    {
+      "id": 20491,
+      "name": "document delete",
+      "description": "The named document was deleted",
+      "sync": false,
+      "enabled": false,
+      "mandatory_fields": {
+        "bucket": "",
+        "key": "",
+        "timestamp": "",
+        "real_userid": {
+          "source": "",
+          "user": ""
+        },
+        "peername": "",
+        "sockname": ""
+      },
+      "optional_fields": {
+      }
     }
   ]
 }

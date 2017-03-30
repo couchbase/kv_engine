@@ -16,6 +16,7 @@
  */
 #include "engine_wrapper.h"
 #include <utilities/protocol2text.h>
+#include <daemon/mcaudit.h>
 
 ENGINE_ERROR_CODE bucket_unknown_command(McbpConnection* c,
                                          protocol_binary_request_header* request,
@@ -98,8 +99,11 @@ ENGINE_ERROR_CODE bucket_store(McbpConnection* c,
                                            cas,
                                            operation,
                                            document_state);
-
-    if (ret == ENGINE_DISCONNECT) {
+    if (ret == ENGINE_SUCCESS) {
+        using namespace cb::audit::document;
+        add(*c, document_state ==
+               DocumentState::Alive ? Operation::Modify : Operation::Delete);
+    } else if (ret == ENGINE_DISCONNECT) {
         LOG_INFO(c,
                  "%u: %s bucket_store return ENGINE_DISCONNECT",
                  c->getId(),
@@ -120,7 +124,9 @@ ENGINE_ERROR_CODE bucket_remove(McbpConnection* c,
                                             cas,
                                             vbucket,
                                             mut_info);
-    if (ret == ENGINE_DISCONNECT) {
+    if (ret == ENGINE_SUCCESS) {
+        cb::audit::document::add(*c, cb::audit::document::Operation::Delete);
+    } else if (ret == ENGINE_DISCONNECT) {
         LOG_INFO(c,
                  "%u: %s bucket_remove return ENGINE_DISCONNECT",
                  c->getId(),
@@ -178,7 +184,9 @@ ENGINE_ERROR_CODE bucket_get_locked(McbpConnection& c,
                                                vbucket,
                                                lock_timeout);
 
-    if (ret == ENGINE_DISCONNECT) {
+    if (ret == ENGINE_SUCCESS) {
+        cb::audit::document::add(c, cb::audit::document::Operation::Lock);
+    } else if (ret == ENGINE_DISCONNECT) {
         LOG_INFO(&c,
                  "%u: %s bucket_get_locked return ENGINE_DISCONNECT",
                  c.getId(),

@@ -20,6 +20,7 @@
 #include <daemon/debug_helpers.h>
 #include <daemon/mcbp.h>
 #include <xattr/utils.h>
+#include <daemon/mcaudit.h>
 
 GetCommandContext::~GetCommandContext() {
     if (it != nullptr) {
@@ -112,6 +113,7 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
 
     connection.addIov(payload.buf, payload.len);
     connection.setState(conn_mwrite);
+    cb::audit::document::add(connection, cb::audit::document::Operation::Read);
 
     STATS_HIT(&connection, get);
     update_topkeys(key, &connection);
