@@ -188,12 +188,10 @@ static protocol_binary_response_status mock_engine_error2mcbp(const void* void_c
     return engine_error_2_mcbp_protocol_error(code);
 }
 
-static std::pair<uint32_t, std::string> mock_get_log_info(const void* cookie) {
-    if (cookie == nullptr) {
-        return std::make_pair(uint32_t(-1), std::string{"unknown"});
-    }
-    const auto* c = static_cast<const struct mock_connstruct*>(cookie);
-    return std::make_pair(uint32_t(c->sfd), std::string{"[ you - me ]"});
+static std::pair<uint32_t, std::string> mock_get_log_info(const void*) {
+    // The DCP test suite don't use a real cookie, and until we've
+    // fixed that we can't try to use the provided cookie
+    return std::make_pair(uint32_t(0xdead), std::string{"[you - me]"});
 }
 
 static PreLinkFunction pre_link_function;
