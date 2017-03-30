@@ -463,23 +463,12 @@ bool Audit::add_to_filleventqueue(const uint32_t event_id,
 
 
 bool Audit::add_reconfigure_event(const char* configfile, const void *cookie) {
-    bool res;
     ConfigureEvent* new_event = new ConfigureEvent(configfile, cookie);
     cb_mutex_enter(&producer_consumer_lock);
-    if (filleventqueue->size() < max_audit_queue) {
-        filleventqueue->push(new_event);
-        cb_cond_broadcast(&events_arrived);
-        res = true;
-    } else {
-        Audit::logger->log(EXTENSION_LOG_WARNING, NULL,
-                           "Audit: Dropping configure event: %s",
-                           new_event->payload.c_str());
-        dropped_events++;
-        delete new_event;
-        res = false;
-    }
+    filleventqueue->push(new_event);
+    cb_cond_broadcast(&events_arrived);
     cb_mutex_exit(&producer_consumer_lock);
-    return res;
+    return true;
 }
 
 
