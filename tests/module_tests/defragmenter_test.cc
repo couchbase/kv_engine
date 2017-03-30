@@ -17,10 +17,10 @@
 
 #include "defragmenter_visitor.h"
 
-#include "../mock/mock_vbucket.h"
 #include "daemon/alloc_hooks.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/module_tests/test_helpers.h"
+#include "vbucket_test.h"
 
 #include <gtest/gtest.h>
 #include <iomanip>
@@ -28,42 +28,6 @@
 #include <platform/cb_malloc.h>
 #include <valgrind/valgrind.h>
 
-
-/**
- * Dummy callback to replace the flusher callback.
- */
-class DummyCB: public Callback<uint16_t> {
-public:
-    DummyCB() {}
-
-    void callback(uint16_t &dummy) {
-        (void) dummy;
-    }
-};
-
-/* Fill the bucket with the given number of docs. Returns the rate at which
- * items were added.
- */
-static size_t populateVbucket(MockEPVBucket& vbucket, size_t ndocs) {
-    /* Set the hashTable to a sensible size */
-    vbucket.ht.resize(ndocs);
-
-    /* Store items */
-    char value[256];
-    hrtime_t start = gethrtime();
-    for (size_t i = 0; i < ndocs; i++) {
-        std::string key = "key" + std::to_string(i);
-        Item item(makeStoredDocKey(key), 0, 0, value, sizeof(value));
-        vbucket.public_processAdd(item);
-    }
-    hrtime_t end = gethrtime();
-
-    // Let hashTable set itself to correct size, post-fill
-    vbucket.ht.resize();
-
-    double duration_s = (end - start) / double(1000 * 1000 * 1000);
-    return size_t(ndocs / duration_s);
-}
 
 /* Measure the rate at which the defragmenter can defragment documents, using
  * the given age threshold.
@@ -95,8 +59,8 @@ static size_t benchmarkDefragment(VBucket& vbucket, size_t passes,
     return size_t(visited / duration_s);
 }
 
-class DefragmenterTest : public ::testing::Test {
-protected:
+class DefragmenterTest : public VBucketTest {
+public:
     static void SetUpTestCase() {
 
         // Setup the MemoryTracker.
@@ -107,14 +71,17 @@ protected:
         MemoryTracker::destroyInstance();
     }
 
+protected:
     void SetUp() override {
         // Setup object registry. As we do not create a full ep-engine, we
         // use the "initial_tracking" for all memory tracking".
         ObjectRegistry::setStats(&mem_used);
+        VBucketTest::SetUp();
     }
 
     void TearDown() override {
         ObjectRegistry::setStats(nullptr);
+        VBucketTest::TearDown();
     }
 
     // Track of memory used (from ObjectRegistry).
@@ -124,55 +91,44 @@ protected:
 
 class DefragmenterBenchmarkTest : public DefragmenterTest {
 protected:
-    static void SetUpTestCase() {
-        DefragmenterTest::SetUpTestCase();
+    /* Fill the bucket with the given number of docs. Returns the rate at which
+     * items were added.
+     */
+    size_t populateVbucket(size_t ndocs) {
+        /* Set the hashTable to a sensible size */
+        vbucket->ht.resize(ndocs);
 
-        /* Create the vbucket */
-        std::shared_ptr<Callback<uint16_t> > cb(new DummyCB());
-        vbucket.reset(new MockEPVBucket(0,
-                                        vbucket_state_active,
-                                        stats,
-                                        chkConfig,
-                                        nullptr,
-                                        0,
-                                        0,
-                                        0,
-                                        nullptr,
-                                        cb,
-                                        /*newSeqnoCb*/ nullptr,
-                                        config,
-                                        item_eviction_policy_t::VALUE_ONLY));
+        /* Store items */
+        char value[256];
+        hrtime_t start = gethrtime();
+        for (size_t i = 0; i < ndocs; i++) {
+            std::string key = "key" + std::to_string(i);
+            Item item(makeStoredDocKey(key), 0, 0, value, sizeof(value));
+            public_processAdd(item);
+        }
+        hrtime_t end = gethrtime();
+
+        // Let hashTable set itself to correct size, post-fill
+        vbucket->ht.resize();
+
+        double duration_s = (end - start) / double(1000 * 1000 * 1000);
+        return size_t(ndocs / duration_s);
     }
 
-    static void TearDownTestCase() {
-        vbucket.reset();
-
-        DefragmenterTest::TearDownTestCase();
-    }
-
-    static EPStats stats;
-    static CheckpointConfig chkConfig;
-    static Configuration config;
-    static std::unique_ptr<MockEPVBucket> vbucket;
 };
 
-EPStats DefragmenterBenchmarkTest::stats;
-CheckpointConfig DefragmenterBenchmarkTest::chkConfig;
-Configuration DefragmenterBenchmarkTest::config;
-std::unique_ptr<MockEPVBucket> DefragmenterBenchmarkTest::vbucket;
-
-TEST_F(DefragmenterBenchmarkTest, Populate) {
+TEST_P(DefragmenterBenchmarkTest, Populate) {
     // How many items to create in the VBucket. Use a large number for
     // normal runs when measuring performance, but a very small number
     // (enough for functional testing) when running under Valgrind
     // where there's no sense in measuring performance.
     const size_t item_count = RUNNING_ON_VALGRIND ? 10
                                                   : 500000;
-    size_t populateRate = populateVbucket(*vbucket, item_count);
+    size_t populateRate = populateVbucket(item_count);
     RecordProperty("items_per_sec", populateRate);
 }
 
-TEST_F(DefragmenterBenchmarkTest, Visit) {
+TEST_P(DefragmenterBenchmarkTest, Visit) {
     const size_t one_minute = 60 * 1000;
     size_t visit_rate = benchmarkDefragment(*vbucket, 1,
                                             std::numeric_limits<uint8_t>::max(),
@@ -180,25 +136,32 @@ TEST_F(DefragmenterBenchmarkTest, Visit) {
     RecordProperty("items_per_sec", visit_rate);
 }
 
-TEST_F(DefragmenterBenchmarkTest, DefragAlways) {
+TEST_P(DefragmenterBenchmarkTest, DefragAlways) {
     const size_t one_minute = 60 * 1000;
     size_t defrag_always_rate = benchmarkDefragment(*vbucket, 1, 0,
                                                     one_minute);
     RecordProperty("items_per_sec", defrag_always_rate);
 }
 
-TEST_F(DefragmenterBenchmarkTest, DefragAge10) {
+TEST_P(DefragmenterBenchmarkTest, DefragAge10) {
     const size_t one_minute = 60 * 1000;
     size_t defrag_age10_rate = benchmarkDefragment(*vbucket, 1, 10,
                                                    one_minute);
     RecordProperty("items_per_sec", defrag_age10_rate);
 }
 
-TEST_F(DefragmenterBenchmarkTest, DefragAge10_20ms) {
+TEST_P(DefragmenterBenchmarkTest, DefragAge10_20ms) {
     size_t defrag_age10_20ms_rate = benchmarkDefragment(*vbucket, 1, 10, 20);
     RecordProperty("items_per_sec", defrag_age10_20ms_rate);
 }
 
+INSTANTIATE_TEST_CASE_P(
+        FullAndValueEviction,
+        DefragmenterBenchmarkTest,
+        ::testing::Values(VALUE_ONLY),
+        [](const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
+            return "VALUE_ONLY";
+        });
 
 /* Return how many bytes the memory allocator has mapped in RAM - essentially
  * application-allocated bytes plus memory in allocators own data structures
@@ -248,9 +211,9 @@ static bool wait_for_mapped_below(size_t mapped_threshold,
  * memory allocator.
  */
 #if defined(HAVE_JEMALLOC)
-TEST_F(DefragmenterTest, MappedMemory) {
+TEST_P(DefragmenterTest, MappedMemory) {
 #else
-TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
+TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
 #endif
 
     /*
@@ -279,25 +242,6 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
     size_t mem_used_0 = mem_used.load();
     size_t mapped_0 = get_mapped_bytes();
 
-    /* Create the vbucket */
-    std::shared_ptr<Callback<uint16_t> > cb(new DummyCB());
-    EPStats stats;
-    CheckpointConfig chkConfig;
-    Configuration config;
-    MockEPVBucket vbucket(0,
-                          vbucket_state_active,
-                          stats,
-                          chkConfig,
-                          nullptr,
-                          0,
-                          0,
-                          0,
-                          nullptr,
-                          cb,
-                          /*newSeqnoCb*/ nullptr,
-                          config,
-                          item_eviction_policy_t::VALUE_ONLY);
-
     // 1. Create a number of small documents. Doesn't really matter that
     //    they are small, main thing is we create enough to span multiple
     //    pages (so we can later leave 'holes' when they are deleted).
@@ -312,7 +256,7 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
         // Use DocKey to minimize heap pollution
         Item item(DocKey(key, DocNamespace::DefaultCollection),
                   0, 0, data.data(), data.size());;
-        vbucket.public_processAdd(item);
+        public_processAdd(item);
     }
 
     // Record memory usage after creation.
@@ -337,7 +281,7 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
             /// Use stack and DocKey to minimuze heap pollution
             char key[16];
             snprintf(key, sizeof(key), "%d", i);
-            auto* item = vbucket.ht.find(
+            auto* item = vbucket->ht.find(
                     DocKey(key, DocNamespace::DefaultCollection),
                     TrackReference::Yes,
                     WantsDeleted::No);
@@ -358,7 +302,7 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
                 // Use DocKey to minimize heap pollution
                 char key[16];
                 snprintf(key, sizeof(key), "%d", doc_id);
-                ASSERT_TRUE(vbucket.deleteKey(
+                ASSERT_TRUE(vbucket->deleteKey(
                         DocKey(key, DocNamespace::DefaultCollection)));
                 kv->second.pop_back();
                 num_remaining--;
@@ -408,7 +352,7 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
     AllocHooks::enable_thread_cache(false);
 
     DefragmentVisitor visitor(0);
-    visitor.visit(vbucket.getId(), vbucket.ht);
+    visitor.visit(vbucket->getId(), vbucket->ht);
 
     AllocHooks::enable_thread_cache(true);
     AllocHooks::release_free_memory();
@@ -425,3 +369,11 @@ TEST_F(DefragmenterTest, DISABLED_MappedMemory) {
         << "visited " << visitor.getVisitedCount() << " items "
         << "and moved " << visitor.getDefragCount() << " items!";
 }
+
+INSTANTIATE_TEST_CASE_P(
+        FullAndValueEviction,
+        DefragmenterTest,
+        ::testing::Values(VALUE_ONLY),
+        [](const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
+            return "VALUE_ONLY";
+        });

@@ -132,6 +132,9 @@ public:
      */
     class HashBucketLock {
     public:
+        HashBucketLock()
+            : bucketNum(-1) {}
+
         HashBucketLock(int bucketNum, std::mutex& mutex)
             : bucketNum(bucketNum), htLock(mutex) {
         }

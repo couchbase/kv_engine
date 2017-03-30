@@ -1558,5 +1558,7 @@ private:
 
     static std::atomic<size_t> chkFlushTimeout;
 
+    friend class VBucketTest;
+
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };

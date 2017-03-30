@@ -173,4 +173,6 @@ private:
 
     /* Pointer to the shard to which this VBucket belongs to */
     KVShard* shard;
+
+    friend class EPVBucketTest;
 };

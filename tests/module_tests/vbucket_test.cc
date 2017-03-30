@@ -17,26 +17,16 @@
 
 #include "config.h"
 
-#include "../mock/mock_vbucket.h"
+#include "vbucket_test.h"
 #include "bgfetcher.h"
+#include "ep_vb.h"
+#include "failover-table.h"
 #include "item.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/module_tests/test_helpers.h"
-#include "vbucket.h"
 
-#include <gtest/gtest.h>
 #include <platform/cb_malloc.h>
 
-
-/**
- * Dummy callback to replace the flusher callback.
- */
-class DummyCB: public Callback<uint16_t> {
-public:
-    DummyCB() {}
-
-    void callback(uint16_t &dummy) { }
-};
 
 static std::vector<StoredDocKey> generateKeys(int num, int start = 0) {
     std::vector<StoredDocKey> rv;
@@ -48,29 +38,44 @@ static std::vector<StoredDocKey> generateKeys(int num, int start = 0) {
     return rv;
 }
 
-static void addOne(MockEPVBucket& vb,
-                   const StoredDocKey& k,
-                   AddStatus expect,
-                   int expiry = 0) {
-    Item i(k, 0, expiry, k.data(), k.size());
-    EXPECT_EQ(expect, vb.public_processAdd(i)) << "Failed to add key "
-                                               << k.c_str();
+void VBucketTest::SetUp() {
+    const auto eviction_policy = GetParam();
+    vbucket.reset(new EPVBucket(0,
+                                vbucket_state_active,
+                                global_stats,
+                                checkpoint_config,
+                                /*kvshard*/ nullptr,
+                                /*lastSeqno*/ 1000,
+                                /*lastSnapStart*/ 0,
+                                /*lastSnapEnd*/ 0,
+                                /*table*/ nullptr,
+                                std::make_shared<DummyCB>(),
+                                /*newSeqnoCb*/ nullptr,
+                                config,
+                                eviction_policy));
 }
 
-static void addMany(MockEPVBucket& vb,
-                    std::vector<StoredDocKey>& keys,
-                    AddStatus expect) {
+void VBucketTest::TearDown() {
+    vbucket.reset();
+}
+
+void VBucketTest::addOne(const StoredDocKey& k, AddStatus expect, int expiry) {
+    Item i(k, 0, expiry, k.data(), k.size());
+    EXPECT_EQ(expect, public_processAdd(i)) << "Failed to add key "
+                                                     << k.c_str();
+}
+
+void VBucketTest::addMany(std::vector<StoredDocKey>& keys, AddStatus expect) {
     for (const auto& k : keys) {
-        addOne(vb, k, expect);
+        addOne(k, expect);
     }
 }
 
-static void verifyValue(MockEPVBucket& vb,
-                        StoredDocKey& key,
-                        const char* value,
-                        TrackReference trackReference,
-                        WantsDeleted wantDeleted) {
-    StoredValue* v = vb.ht.find(key, trackReference, wantDeleted);
+void VBucketTest::verifyValue(StoredDocKey& key,
+                              const char* value,
+                              TrackReference trackReference,
+                              WantsDeleted wantDeleted) {
+    StoredValue* v = vbucket->ht.find(key, trackReference, wantDeleted);
     EXPECT_NE(nullptr, v);
     value_t val = v->getValue();
     if (!value) {
@@ -80,36 +85,76 @@ static void verifyValue(MockEPVBucket& vb,
     }
 }
 
-class VBucketTest
-        : public ::testing::Test,
-          public ::testing::WithParamInterface<item_eviction_policy_t> {
-protected:
-    void SetUp() {
-        const auto eviction_policy = GetParam();
-        vbucket.reset(new MockEPVBucket(0,
-                                        vbucket_state_active,
-                                        global_stats,
-                                        checkpoint_config,
-                                        /*kvshard*/ nullptr,
-                                        /*lastSeqno*/ 1000,
-                                        /*lastSnapStart*/ 0,
-                                        /*lastSnapEnd*/ 0,
-                                        /*table*/ nullptr,
-                                        std::make_shared<DummyCB>(),
-                                        /*newSeqnoCb*/ nullptr,
-                                        config,
-                                        eviction_policy));
-    }
+std::pair<HashTable::HashBucketLock, StoredValue*> VBucketTest::lockAndFind(
+        const StoredDocKey& key) {
+    auto hbl = vbucket->ht.getLockedBucket(key);
+    auto* storedVal = vbucket->ht.unlocked_find(
+            key, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
+    return std::make_pair(std::move(hbl), storedVal);
+}
 
-    void TearDown() {
-        vbucket.reset();
-    }
+MutationStatus VBucketTest::public_processSet(Item& itm, const uint64_t cas) {
+    auto hbl_sv = lockAndFind(itm.getKey());
+    return vbucket
+            ->processSet(hbl_sv.first, hbl_sv.second, itm, cas, true, false)
+            .first;
+}
 
-    std::unique_ptr<MockEPVBucket> vbucket;
-    EPStats global_stats;
-    CheckpointConfig checkpoint_config;
-    Configuration config;
-};
+AddStatus VBucketTest::public_processAdd(Item& itm) {
+    auto hbl_sv = lockAndFind(itm.getKey());
+    return vbucket
+            ->processAdd(hbl_sv.first,
+                         hbl_sv.second,
+                         itm,
+                         /*maybeKeyExists*/ true,
+                         /*isReplication*/ false)
+            .first;
+}
+
+MutationStatus VBucketTest::public_processSoftDelete(const DocKey& key,
+                                                     StoredValue* v,
+                                                     uint64_t cas) {
+    auto hbl = vbucket->ht.getLockedBucket(key);
+    if (!v) {
+        v = vbucket->ht.unlocked_find(
+                key, hbl.getBucketNum(), WantsDeleted::No, TrackReference::No);
+        if (!v) {
+            return MutationStatus::NotFound;
+        }
+    }
+    ItemMetaData metadata;
+    metadata.revSeqno = v->getRevSeqno() + 1;
+    MutationStatus status;
+    std::tie(status, std::ignore, std::ignore) = vbucket->processSoftDelete(
+            hbl,
+            *v,
+            cas,
+            metadata,
+            VBQueueItemCtx(GenerateBySeqno::Yes,
+                           GenerateCas::Yes,
+                           TrackCasDrift::No,
+                           /*isBackfillItem*/ false,
+                           /*preLinkDocCtx*/ nullptr),
+            /*use_meta*/ false,
+            /*bySeqno*/ v->getBySeqno());
+    return status;
+}
+
+bool VBucketTest::public_deleteStoredValue(const DocKey& key) {
+    auto hbl_sv = lockAndFind(key);
+    if (!hbl_sv.second) {
+        return false;
+    }
+    return vbucket->deleteStoredValue(hbl_sv.first, *hbl_sv.second);
+}
+
+size_t EPVBucketTest::public_queueBGFetchItem(
+        const DocKey& key,
+        std::unique_ptr<VBucketBGFetchItem> fetchItem,
+        BgFetcher* bgFetcher) {
+    return dynamic_cast<EPVBucket&>(*vbucket).queueBGFetchItem(
+            key, std::move(fetchItem), bgFetcher);
+}
 
 class BlobTest : public Blob {
 public:
@@ -129,14 +174,14 @@ TEST(BlobTest, basicAllocationSize){
 
 // Measure performance of VBucket::getBGFetchItems - queue and then get
 // 10,000 items from the vbucket.
-TEST_P(VBucketTest, GetBGFetchItemsPerformance) {
+TEST_P(EPVBucketTest, GetBGFetchItemsPerformance) {
     BgFetcher fetcher(/*store*/ nullptr, /*shard*/ nullptr, this->global_stats);
 
     for (unsigned int ii = 0; ii < 100000; ii++) {
         auto fetchItem = std::make_unique<VBucketBGFetchItem>(
                 /*cookie*/ nullptr,
                 /*isMeta*/ false);
-        this->vbucket->public_queueBGFetchItem(
+        this->public_queueBGFetchItem(
                 makeStoredDocKey(std::to_string(ii)),
                 std::move(fetchItem),
                 &fetcher);
@@ -162,7 +207,7 @@ TEST_P(VBucketTest, Add) {
     const int nkeys = 1000;
 
     auto keys = generateKeys(nkeys);
-    addMany(*this->vbucket, keys, AddStatus::Success);
+    addMany(keys, AddStatus::Success);
 
     StoredDocKey missingKey = makeStoredDocKey("aMissingKey");
     EXPECT_FALSE(this->vbucket->ht.find(
@@ -173,7 +218,7 @@ TEST_P(VBucketTest, Add) {
                 key, TrackReference::Yes, WantsDeleted::No));
     }
 
-    addMany(*this->vbucket, keys, AddStatus::Exists);
+    addMany(keys, AddStatus::Exists);
     for (const auto& key : keys) {
         EXPECT_TRUE(this->vbucket->ht.find(
                 key, TrackReference::Yes, WantsDeleted::No));
@@ -181,14 +226,14 @@ TEST_P(VBucketTest, Add) {
 
     // Verify we can read after a soft deletion.
     EXPECT_EQ(MutationStatus::WasDirty,
-              this->vbucket->public_processSoftDelete(keys[0], nullptr, 0));
+              this->public_processSoftDelete(keys[0], nullptr, 0));
     EXPECT_EQ(MutationStatus::NotFound,
-              this->vbucket->public_processSoftDelete(keys[0], nullptr, 0));
+              this->public_processSoftDelete(keys[0], nullptr, 0));
     EXPECT_FALSE(this->vbucket->ht.find(
             keys[0], TrackReference::Yes, WantsDeleted::No));
 
     Item i(keys[0], 0, 0, "newtest", 7);
-    EXPECT_EQ(AddStatus::UnDel, this->vbucket->public_processAdd(i));
+    EXPECT_EQ(AddStatus::UnDel, this->public_processAdd(i));
     EXPECT_EQ(nkeys, this->vbucket->ht.getNumItems());
 }
 
@@ -199,8 +244,8 @@ TEST_P(VBucketTest, AddExpiry) {
     }
     StoredDocKey k = makeStoredDocKey("aKey");
 
-    addOne(*this->vbucket, k, AddStatus::Success, ep_real_time() + 5);
-    addOne(*this->vbucket, k, AddStatus::Exists, ep_real_time() + 5);
+    addOne(k, AddStatus::Success, ep_real_time() + 5);
+    addOne(k, AddStatus::Exists, ep_real_time() + 5);
 
     StoredValue* v =
             this->vbucket->ht.find(k, TrackReference::Yes, WantsDeleted::No);
@@ -211,7 +256,7 @@ TEST_P(VBucketTest, AddExpiry) {
     TimeTraveller biffTannen(6);
     EXPECT_TRUE(v->isExpired(ep_real_time()));
 
-    addOne(*this->vbucket, k, AddStatus::UnDel, ep_real_time() + 5);
+    addOne(k, AddStatus::UnDel, ep_real_time() + 5);
     EXPECT_TRUE(v);
     EXPECT_FALSE(v->isExpired(ep_real_time()));
     EXPECT_TRUE(v->isExpired(ep_real_time() + 6));
@@ -231,7 +276,7 @@ TEST_P(VBucketTest, unlockedSoftDeleteWithValue) {
     StoredDocKey key = makeStoredDocKey("key");
     Item stored_item(key, 0, 0, "value", strlen("value"));
     ASSERT_EQ(MutationStatus::WasClean,
-              this->vbucket->public_processSet(stored_item, stored_item.getCas()));
+              this->public_processSet(stored_item, stored_item.getCas()));
 
     StoredValue* v(
             this->vbucket->ht.find(key, TrackReference::No, WantsDeleted::No));
@@ -246,12 +291,8 @@ TEST_P(VBucketTest, unlockedSoftDeleteWithValue) {
 
     ItemMetaData itm_meta;
     EXPECT_EQ(MutationStatus::WasDirty,
-              this->vbucket->public_processSoftDelete(v->getKey(), v, 0));
-    verifyValue(*this->vbucket,
-                key,
-                "deletedvalue",
-                TrackReference::Yes,
-                WantsDeleted::Yes);
+              this->public_processSoftDelete(v->getKey(), v, 0));
+    verifyValue(key, "deletedvalue", TrackReference::Yes, WantsDeleted::Yes);
 }
 
 /**
@@ -268,7 +309,7 @@ TEST_P(VBucketTest, updateDeletedItem) {
     StoredDocKey key = makeStoredDocKey("key");
     Item stored_item(key, 0, 0, "value", strlen("value"));
     ASSERT_EQ(MutationStatus::WasClean,
-              this->vbucket->public_processSet(stored_item, stored_item.getCas()));
+              this->public_processSet(stored_item, stored_item.getCas()));
 
     StoredValue* v(
             this->vbucket->ht.find(key, TrackReference::No, WantsDeleted::No));
@@ -276,12 +317,8 @@ TEST_P(VBucketTest, updateDeletedItem) {
 
     ItemMetaData itm_meta;
     EXPECT_EQ(MutationStatus::WasDirty,
-              this->vbucket->public_processSoftDelete(v->getKey(), v, 0));
-    verifyValue(*this->vbucket,
-                key,
-                nullptr,
-                TrackReference::Yes,
-                WantsDeleted::Yes);
+              this->public_processSoftDelete(v->getKey(), v, 0));
+    verifyValue(key, nullptr, TrackReference::Yes, WantsDeleted::Yes);
 
     Item deleted_item(key, 0, 0, "deletedvalue", strlen("deletedvalue"));
     deleted_item.setDeleted();
@@ -290,8 +327,8 @@ TEST_P(VBucketTest, updateDeletedItem) {
     v->setValue(deleted_item, this->vbucket->ht);
 
     EXPECT_EQ(MutationStatus::WasDirty,
-              this->vbucket->public_processSoftDelete(v->getKey(), v, 0));
-    verifyValue(*this->vbucket,
+              this->public_processSoftDelete(v->getKey(), v, 0));
+    verifyValue(
                 key,
                 "deletedvalue",
                 TrackReference::Yes,
@@ -305,12 +342,9 @@ TEST_P(VBucketTest, updateDeletedItem) {
     v->setValue(update_deleted_item, this->vbucket->ht);
 
     EXPECT_EQ(MutationStatus::WasDirty,
-              this->vbucket->public_processSoftDelete(v->getKey(), v, 0));
-    verifyValue(*this->vbucket,
-                key,
-                "updatedeletedvalue",
-                TrackReference::Yes,
-                WantsDeleted::Yes);
+              this->public_processSoftDelete(v->getKey(), v, 0));
+    verifyValue(
+            key, "updatedeletedvalue", TrackReference::Yes, WantsDeleted::Yes);
 }
 
 TEST_P(VBucketTest, SizeStatsSoftDel) {
@@ -327,11 +361,11 @@ TEST_P(VBucketTest, SizeStatsSoftDel) {
     Item i(k, 0, 0, someval, itemSize);
 
     EXPECT_EQ(MutationStatus::WasClean,
-              this->vbucket->public_processSet(i, i.getCas()));
+              this->public_processSet(i, i.getCas()));
 
     EXPECT_EQ(MutationStatus::WasDirty,
-              this->vbucket->public_processSoftDelete(k, nullptr, 0));
-    this->vbucket->public_deleteStoredValue(k);
+              this->public_processSoftDelete(k, nullptr, 0));
+    this->public_deleteStoredValue(k);
 
     EXPECT_EQ(0, this->vbucket->ht.memSize.load());
     EXPECT_EQ(0, this->vbucket->ht.cacheSize.load());
@@ -354,10 +388,10 @@ TEST_P(VBucketTest, SizeStatsSoftDelFlush) {
     Item i(k, 0, 0, someval, itemSize);
 
     EXPECT_EQ(MutationStatus::WasClean,
-              this->vbucket->public_processSet(i, i.getCas()));
+              this->public_processSet(i, i.getCas()));
 
     EXPECT_EQ(MutationStatus::WasDirty,
-              this->vbucket->public_processSoftDelete(k, nullptr, 0));
+              this->public_processSoftDelete(k, nullptr, 0));
     this->vbucket->ht.clear();
 
     EXPECT_EQ(0, this->vbucket->ht.memSize.load());
@@ -380,7 +414,7 @@ TEST_P(VBucketEvictionTest, EjectionResidentCount) {
               /*data*/nullptr, /*ndata*/0);
 
     EXPECT_EQ(MutationStatus::WasClean,
-              this->vbucket->public_processSet(item, item.getCas()));
+              this->public_processSet(item, item.getCas()));
 
     EXPECT_EQ(1, this->vbucket->getNumItems());
     EXPECT_EQ(0, this->vbucket->getNumNonResidentItems());
@@ -409,14 +443,14 @@ TEST_P(VBucketEvictionTest, MB21448_UnlockedSetWithCASDeleted) {
     StoredDocKey key = makeStoredDocKey("key");
     Item item(key, 0, 0, "deleted", strlen("deleted"));
     ASSERT_EQ(MutationStatus::WasClean,
-              this->vbucket->public_processSet(item, item.getCas()));
+              this->public_processSet(item, item.getCas()));
     ASSERT_EQ(MutationStatus::WasDirty,
-              this->vbucket->public_processSoftDelete(key, nullptr, 0));
+              this->public_processSoftDelete(key, nullptr, 0));
 
     // Attempt to perform a set on a deleted key with a CAS.
     Item replacement(key, 0, 0, "value", strlen("value"));
     EXPECT_EQ(MutationStatus::NotFound,
-              this->vbucket->public_processSet(replacement,
+              this->public_processSet(replacement,
                                                /*cas*/ 10))
             << "When trying to replace-with-CAS a deleted item";
 }
@@ -437,6 +471,18 @@ INSTANTIATE_TEST_CASE_P(
 INSTANTIATE_TEST_CASE_P(
         FullAndValueEviction,
         VBucketEvictionTest,
+        ::testing::Values(VALUE_ONLY, FULL_EVICTION),
+        [](const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
+            if (info.param == VALUE_ONLY) {
+                return "VALUE_ONLY";
+            } else {
+                return "FULL_EVICTION";
+            }
+        });
+
+INSTANTIATE_TEST_CASE_P(
+        FullAndValueEviction,
+        EPVBucketTest,
         ::testing::Values(VALUE_ONLY, FULL_EVICTION),
         [](const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
             if (info.param == VALUE_ONLY) {
