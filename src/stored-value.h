@@ -259,19 +259,6 @@ public:
     }
 
     /**
-     * Reset the value of this item.
-     */
-    void resetValue() {
-        if (isDeleted()) {
-            throw std::logic_error("StoredValue::resetValue: Not possible to "
-                    "reset the value of a deleted item");
-        }
-        markNotResident();
-        // item no longer resident once reset the value
-        deleted = true;
-    }
-
-    /**
      * Eject an item value from memory.
      * @param ht the hashtable that contains this StoredValue instance
      */

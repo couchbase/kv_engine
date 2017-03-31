@@ -85,6 +85,32 @@ TEST_F(EphemeralVBucketTest, DoublePageOut) {
     EXPECT_TRUE(storedVal->isDeleted());
 }
 
+
+// Verify that we can pageOut deleted items which have a value associated with
+// them - and afterwards the value is null.
+TEST_F(EphemeralVBucketTest, PageOutAfterDeleteWithValue) {
+    // Add an item which is marked as deleted, but has a body (e.g. system
+    // XATTR).
+    auto key = makeStoredDocKey("key");
+    std::string value = "deleted value";
+    Item item(key, 0, /*expiry*/0, value.data(), value.size());
+    item.setDeleted();
+    ASSERT_EQ(AddStatus::Success, public_processAdd(item));
+    ASSERT_EQ(0, vbucket->getNumItems());
+
+    // Check preconditions
+    auto lock_sv = lockAndFind(key);
+    auto* storedVal = lock_sv.second;
+    ASSERT_TRUE(storedVal->isDeleted());
+    ASSERT_EQ(value, storedVal->getValue()->to_s());
+
+    // Page it out.
+    EXPECT_TRUE(vbucket->pageOut(lock_sv.first, storedVal));
+    EXPECT_EQ(0, vbucket->getNumItems());
+    EXPECT_TRUE(storedVal->isDeleted());
+    EXPECT_FALSE(storedVal->getValue());
+}
+
 TEST_F(EphemeralVBucketTest, SetItems) {
     const int numItems = 3;
 

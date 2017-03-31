@@ -330,6 +330,9 @@ StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
         ++numTotalItems;
         ++datatypeCounts[v->getDatatype()];
     }
+    if (v->isDeleted()) {
+        ++numDeletedItems;
+    }
     values[hbl.getBucketNum()] = std::move(v);
 
     return values[hbl.getBucketNum()].get();
@@ -370,6 +373,7 @@ HashTable::unlocked_replaceByCopy(const HashBucketLock& hbl,
 void HashTable::unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
                                     StoredValue& v,
                                     bool onlyMarkDeleted) {
+    const bool alreadyDeleted = v.isDeleted();
     if (!v.isResident() && !v.isDeleted() && !v.isTempItem()) {
         decrNumNonResidentItems();
     }
@@ -386,7 +390,9 @@ void HashTable::unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
         }
         v.del(*this);
     }
-    ++numDeletedItems;
+    if (!alreadyDeleted) {
+        ++numDeletedItems;
+    }
 }
 
 StoredValue* HashTable::unlocked_find(const DocKey& key,

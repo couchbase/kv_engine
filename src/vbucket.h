@@ -554,6 +554,13 @@ public:
 
     virtual KVShard* getShard() = 0;
 
+    /**
+     * Returns the number of alive (non-deleted) Items the VBucket.
+     *
+     * Includes items which are not currently resident in memory (i.e. under
+     * Full eviction and have been fully evicted from memory).
+     * Does *not* include deleted items.
+     */
     virtual size_t getNumItems() const = 0;
 
     size_t getNumNonResidentItems() const;

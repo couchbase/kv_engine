@@ -259,12 +259,16 @@ bool StoredValue::operator==(const StoredValue& other) const {
 }
 
 void StoredValue::deleteImpl(HashTable& ht) {
-    if (isDeleted()) {
+    if (isDeleted() && !getValue()) {
+        // SV is already marked as deleted and has no value - no further
+        // deletion possible.
         return;
     }
 
     reduceCacheSize(ht, valuelen());
-    resetValue();
+    markNotResident();
+    // item no longer resident once value is reset
+    deleted = true;
     markDirty();
 }
 
