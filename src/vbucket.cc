@@ -608,7 +608,6 @@ VBNotifyCtx VBucket::queueDirty(
                                              generateBySeqno,
                                              generateCas,
                                              preLinkDocumentContext);
-        notifyCtx.bySeqno = qi->getBySeqno();
         notifyCtx.notifyReplication = true;
         if (GenerateCas::Yes == generateCas) {
             v.setCas(qi->getCas());
@@ -616,6 +615,7 @@ VBNotifyCtx VBucket::queueDirty(
     }
 
     v.setBySeqno(qi->getBySeqno());
+    notifyCtx.bySeqno = qi->getBySeqno();
 
     return notifyCtx;
 }
