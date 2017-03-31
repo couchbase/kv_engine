@@ -1389,7 +1389,9 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
 
     checkeq(ENGINE_SUCCESS,
-            get(h, h1, nullptr, &i, "key2", 0 , DocumentState::Deleted),
+            get(h, h1, nullptr, &i, "key2", 0 ,
+                DocumentState(uint8_t(DocumentState::Deleted) |
+                              uint8_t(DocumentState::Alive))),
                 "Failed to get value");
 
     check(h1->get_item_info(h, nullptr, i, &info),

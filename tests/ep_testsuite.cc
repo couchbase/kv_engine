@@ -841,7 +841,9 @@ static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h,
             last_datatype.load(), "Datatype is not XATTR");
 
     checkeq(ENGINE_SUCCESS,
-            get(h, h1, cookie, &itm, key, 0, DocumentState::Deleted),
+            get(h, h1, cookie, &itm, key, 0,
+                DocumentState(uint8_t(DocumentState::Deleted) |
+                                  uint8_t(DocumentState::Alive))),
                 "Unable to get a deleted item");
 
     checkeq(true,
@@ -7260,6 +7262,65 @@ static enum test_result test_vbucket_compact_no_purge(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+/**
+ * Test that the DocumentState passed in get is properly handled
+ */
+static enum test_result test_mb23640(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const auto any_state = DocumentState(uint8_t(DocumentState::Alive) |
+                                         uint8_t(DocumentState::Deleted));
+    const std::string key{"mb-23640"};
+    const std::string value{"my value"};
+    item* itm = nullptr;
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, nullptr, OPERATION_SET, key.c_str(),
+                         value.data(), value.size(), 0, &itm, 0, 0, 0,
+                         PROTOCOL_BINARY_RAW_BYTES, DocumentState::Alive),
+            "Unable to store item");
+    h1->release(h, nullptr, itm);
+
+    // I should be able to get the key if I ask for anything which
+    // includes Alive
+    checkeq(ENGINE_SUCCESS,
+            get(h, h1, nullptr, &itm, key, 0, DocumentState::Alive),
+            "Failed to get the document when specifying Alive");
+    h1->release(h, nullptr, itm);
+
+    checkeq(ENGINE_SUCCESS,
+            get(h, h1, nullptr, &itm, key, 0, any_state),
+            "Failed to get the document when specifying dead or alive");
+    h1->release(h, nullptr, itm);
+
+    // ep-engine don't support fetching deleted only
+    checkeq(ENGINE_ENOTSUP,
+            get(h, h1, nullptr, &itm, key, 0, DocumentState::Deleted),
+            "AFAIK ep-engine don't support fetching only deleted items");
+
+    // Delete the document
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, nullptr, OPERATION_SET, key.c_str(),
+                         value.data(), value.size(), 0, &itm, 0, 0, 0,
+                         PROTOCOL_BINARY_RAW_BYTES, DocumentState::Deleted),
+            "Unable to delete item");
+    h1->release(h, nullptr, itm);
+
+    // I should be able to get the key if I ask for anything which
+    // includes Deleted
+    checkeq(ENGINE_ENOTSUP,
+            get(h, h1, nullptr, &itm, key, 0, DocumentState::Deleted),
+            "AFAIK ep-engine don't support fetching only deleted items");
+
+    checkeq(ENGINE_SUCCESS,
+            get(h, h1, nullptr, &itm, key, 0, any_state),
+            "Failed to get the deleted document when specifying dead or alive");
+    h1->release(h, nullptr, itm);
+
+    // It should _not_ be found if I ask for a deleted document
+    checkeq(ENGINE_KEY_ENOENT,
+            get(h, h1, nullptr, &itm, key, 0, DocumentState::Alive),
+            "Expected the document to be gone");
+    return SUCCESS;
+}
+
 // Test manifest //////////////////////////////////////////////////////////////
 
 const char *default_dbname = "./ep_testsuite";
@@ -7730,5 +7791,9 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test_mb20744_check_incr_reject_ops",
                  test_mb20744_check_incr_reject_ops,
                  test_setup, teardown, NULL, prepare_ep_bucket, cleanup),
+
+        TestCase("test_MB-23640_get_document_of_any_state", test_mb23640,
+                 test_setup, teardown, nullptr, prepare, cleanup),
+
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };
