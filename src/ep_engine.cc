@@ -4868,7 +4868,7 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
         seqno = ntohll(seqno);
         void *es = getEngineSpecific(cookie);
         if (!es) {
-            uint16_t persisted_seqno = vb->getPersistenceSeqno();
+            auto persisted_seqno = vb->getPersistenceSeqno();
             if (seqno > persisted_seqno) {
                 vb->addHighPriorityVBEntry(
                         seqno, cookie, HighPriorityVBNotify::Seqno);
