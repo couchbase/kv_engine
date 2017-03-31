@@ -353,7 +353,9 @@ public:
     }
 
     void setName(const std::string &n) {
-        name.assign(n);
+        // MB-23454: Explicitly copying the string to avoid buggy string COW
+        // leading to a data race being identified by ThreadSanitizer
+        name = std::string(n.begin(), n.end());
     }
 
     bool setReserved(bool r) {
