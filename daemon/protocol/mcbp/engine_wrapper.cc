@@ -133,13 +133,13 @@ ENGINE_ERROR_CODE bucket_get(McbpConnection* c,
                              item** item_,
                              const DocKey& key,
                              uint16_t vbucket,
-                             DocumentState document_state) {
+                             DocStateFilter documentStateFilter) {
     auto ret = c->getBucketEngine()->get(c->getBucketEngineAsV0(),
                                          c->getCookie(),
                                          item_,
                                          key,
                                          vbucket,
-                                         document_state);
+                                         documentStateFilter);
     if (ret == ENGINE_DISCONNECT) {
         LOG_INFO(c,
                  "%u: %s bucket_get return ENGINE_DISCONNECT",

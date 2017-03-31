@@ -185,8 +185,8 @@ static enum test_result replace_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     }
     h1->release(h, NULL, it);
 
-    cb_assert(h1->get(h, NULL, &it, key, 0,
-                      DocumentState::Alive) == ENGINE_SUCCESS);
+    cb_assert(h1->get(h, NULL, &it, key, 0, DocStateFilter::Alive) ==
+              ENGINE_SUCCESS);
     cb_assert(h1->get_item_info(h, NULL, it, &item_info) == true);
     cb_assert(item_info.value[0].iov_len == sizeof(int));
     cb_assert(*(int*)(item_info.value[0].iov_base) == 9);
@@ -225,8 +225,12 @@ static enum test_result get_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                            PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
     cb_assert(h1->store(h, NULL, test_item, &cas,
                         OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
-    cb_assert(h1->get(h,NULL,&test_item_get, key, 0,
-                      DocumentState::Alive) == ENGINE_SUCCESS);
+    cb_assert(h1->get(h,
+                      NULL,
+                      &test_item_get,
+                      key,
+                      0,
+                      DocStateFilter::Alive) == ENGINE_SUCCESS);
     h1->release(h,NULL,test_item);
     h1->release(h,NULL,test_item_get);
     return SUCCESS;
@@ -245,28 +249,44 @@ static enum test_result get_deleted_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
                            PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
     cb_assert(h1->store(h, nullptr, test_item, &cas,
                         OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
-    cb_assert(h1->get(h, nullptr, &test_item_get, key, 0,
-                      DocumentState::Alive) == ENGINE_SUCCESS);
+    cb_assert(h1->get(h,
+                      nullptr,
+                      &test_item_get,
+                      key,
+                      0,
+                      DocStateFilter::Alive) == ENGINE_SUCCESS);
     h1->release(h, nullptr, test_item);
     h1->release(h, nullptr, test_item_get);
 
     // Asking for a dead document should not find it!
     test_item_get = nullptr;
-    cb_assert(h1->get(h, nullptr, &test_item_get, key, 0,
-                      DocumentState::Deleted) == ENGINE_KEY_ENOENT);
+    cb_assert(h1->get(h,
+                      nullptr,
+                      &test_item_get,
+                      key,
+                      0,
+                      DocStateFilter::Deleted) == ENGINE_KEY_ENOENT);
     cb_assert(test_item_get == nullptr);
 
     // remove it
     mutation_descr_t mut_info;
     cb_assert(h1->remove(h, nullptr, key, &cas, 0, &mut_info) == ENGINE_SUCCESS);
     item* check_item;
-    cb_assert(h1->get(h, nullptr, &check_item, key,
-                      0, DocumentState::Alive) == ENGINE_KEY_ENOENT);
+    cb_assert(h1->get(h,
+                      nullptr,
+                      &check_item,
+                      key,
+                      0,
+                      DocStateFilter::Alive) == ENGINE_KEY_ENOENT);
     cb_assert(check_item == nullptr);
 
     // But we should be able to fetch it if we ask for deleted
-    cb_assert(h1->get(h, nullptr, &check_item, key,
-                      0, DocumentState::Deleted) == ENGINE_SUCCESS);
+    cb_assert(h1->get(h,
+                      nullptr,
+                      &check_item,
+                      key,
+                      0,
+                      DocStateFilter::Deleted) == ENGINE_SUCCESS);
     cb_assert(check_item != nullptr);
     h1->release(h, nullptr, check_item);
 
@@ -284,8 +304,12 @@ static enum test_result expiry_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     cb_assert(h1->store(h, NULL, test_item, &cas,
                         OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
     test_harness.time_travel(11);
-    cb_assert(h1->get(h, NULL, &test_item_get, key, 0,
-                      DocumentState::Alive) == ENGINE_KEY_ENOENT);
+    cb_assert(h1->get(h,
+                      NULL,
+                      &test_item_get,
+                      key,
+                      0,
+                      DocStateFilter::Alive) == ENGINE_KEY_ENOENT);
     h1->release(h,NULL,test_item);
     return SUCCESS;
 }
@@ -324,8 +348,9 @@ static enum test_result remove_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                         OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
     cb_assert(h1->remove(h, NULL, key, &cas, 0, &mut_info) == ENGINE_SUCCESS);
     check_item = test_item;
-    cb_assert(h1->get(h, NULL, &check_item, key,
-                      0, DocumentState::Alive) ==  ENGINE_KEY_ENOENT);
+    cb_assert(
+            h1->get(h, NULL, &check_item, key, 0, DocStateFilter::Alive) ==
+            ENGINE_KEY_ENOENT);
     cb_assert(check_item == NULL);
     h1->release(h, NULL, test_item);
     return SUCCESS;
@@ -348,8 +373,9 @@ static enum test_result flush_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                         OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
     cb_assert(h1->flush(h, NULL) == ENGINE_SUCCESS);
     check_item = test_item;
-    cb_assert(h1->get(h, NULL, &check_item, key,
-                      0, DocumentState::Alive) ==  ENGINE_KEY_ENOENT);
+    cb_assert(
+            h1->get(h, NULL, &check_item, key, 0, DocStateFilter::Alive) ==
+            ENGINE_KEY_ENOENT);
     cb_assert(check_item == NULL);
     h1->release(h, NULL, test_item);
     return SUCCESS;
@@ -436,8 +462,12 @@ static enum test_result lru_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     for (ii = 0; ii < 250; ++ii) {
         uint8_t key[1024];
 
-        cb_assert(h1->get(h, NULL, &test_item,
-                          hot_key, 0, DocumentState::Alive) == ENGINE_SUCCESS);
+        cb_assert(h1->get(h,
+                          NULL,
+                          &test_item,
+                          hot_key,
+                          0,
+                          DocStateFilter::Alive) == ENGINE_SUCCESS);
         h1->release(h, NULL, test_item);
         DocKey allocate_key(key,
                             snprintf(reinterpret_cast<char*>(key), sizeof(key),
@@ -465,11 +495,19 @@ static enum test_result lru_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                                 "lru_test_key_%08d", jj),
                        test_harness.doc_namespace);
         if (jj == 0 || jj == 1) {
-            cb_assert(h1->get(h, NULL, &test_item, get_key,
-                              0, DocumentState::Alive) == ENGINE_KEY_ENOENT);
+            cb_assert(h1->get(h,
+                              NULL,
+                              &test_item,
+                              get_key,
+                              0,
+                              DocStateFilter::Alive) == ENGINE_KEY_ENOENT);
         } else {
-            cb_assert(h1->get(h, NULL, &test_item, get_key,
-                              0, DocumentState::Alive) == ENGINE_SUCCESS);
+            cb_assert(h1->get(h,
+                              NULL,
+                              &test_item,
+                              get_key,
+                              0,
+                              DocStateFilter::Alive) == ENGINE_SUCCESS);
             cb_assert(test_item != NULL);
             h1->release(h, NULL, test_item);
         }
@@ -585,8 +623,8 @@ static enum test_result touch_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     test_harness.time_travel(11);
 
     /* The item should have expired now... */
-    cb_assert(h1->get(h, NULL, &item, key,
-                      0, DocumentState::Alive) == ENGINE_KEY_ENOENT);
+    cb_assert(h1->get(h, NULL, &item, key, 0, DocStateFilter::Alive) ==
+              ENGINE_KEY_ENOENT);
 
     /* Verify that it doesn't accept bogus packets. extlen is mandatory */
     r.touch.message.header.request.extlen = 0;
@@ -659,8 +697,8 @@ static enum test_result gat_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     test_harness.time_travel(11);
 
     /* The item should have expired now... */
-    cb_assert(h1->get(h, NULL, &item, key,
-                      0, DocumentState::Alive) == ENGINE_KEY_ENOENT);
+    cb_assert(h1->get(h, NULL, &item, key, 0, DocStateFilter::Alive) ==
+              ENGINE_KEY_ENOENT);
 
     /* Verify that it doesn't accept bogus packets. extlen is mandatory */
     r.gat.message.header.request.extlen = 0;
@@ -730,8 +768,8 @@ static enum test_result gatq_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     test_harness.time_travel(11);
 
     /* The item should have expired now... */
-    cb_assert(h1->get(h, NULL, &item, key,
-                      0, DocumentState::Alive) == ENGINE_KEY_ENOENT);
+    cb_assert(h1->get(h, NULL, &item, key, 0, DocStateFilter::Alive) ==
+              ENGINE_KEY_ENOENT);
 
     /* Verify that it doesn't accept bogus packets. extlen is mandatory */
     r.gat.message.header.request.extlen = 0;
@@ -768,8 +806,9 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                         OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
     h1->release(h, NULL, test_item);
 
-    cb_assert(h1->get(h, NULL, &test_item, key,
-                      0, DocumentState::Alive) == ENGINE_SUCCESS);
+    cb_assert(
+            h1->get(h, NULL, &test_item, key, 0, DocStateFilter::Alive) ==
+            ENGINE_SUCCESS);
 
     cb_assert(h1->get_item_info(h, NULL, test_item, &ii) == true);
     cb_assert(ii.datatype == 1);

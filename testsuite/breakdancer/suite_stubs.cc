@@ -81,7 +81,8 @@ void set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
     item_info info;
     item *i = NULL;
-    ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, 0, DocumentState::Alive);
+    ENGINE_ERROR_CODE rv =
+            h1->get(h, NULL, &i, key, 0, DocStateFilter::Alive);
     cb_assert(rv == ENGINE_SUCCESS);
 
     h1->get_item_info(h, NULL, i, &info);
@@ -106,7 +107,8 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
 
 void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i;
-    ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, 0, DocumentState::Alive);
+    ENGINE_ERROR_CODE rv =
+            h1->get(h, NULL, &i, key, 0, DocStateFilter::Alive);
     cb_assert(rv == ENGINE_KEY_ENOENT);
 }
 

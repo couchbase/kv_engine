@@ -61,7 +61,7 @@ static ENGINE_ERROR_CODE default_get(ENGINE_HANDLE* handle,
                                      item** item,
                                      const DocKey& key,
                                      uint16_t vbucket,
-                                     DocumentState);
+                                     DocStateFilter);
 
 static cb::EngineErrorItemPair default_get_if(ENGINE_HANDLE*,
                                               const void*,
@@ -365,8 +365,11 @@ static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     do {
-        it = item_get(engine, cookie, key.data(), key.size(),
-                      DocumentState::Alive);
+        it = item_get(engine,
+                      cookie,
+                      key.data(),
+                      key.size(),
+                      DocStateFilter::Alive);
         if (it == nullptr) {
             return ENGINE_KEY_ENOENT;
         }
@@ -428,16 +431,17 @@ static ENGINE_ERROR_CODE default_get(ENGINE_HANDLE* handle,
                                      item** item,
                                      const DocKey& key,
                                      uint16_t vbucket,
-                                     DocumentState document_state) {
-   struct default_engine *engine = get_handle(handle);
-   VBUCKET_GUARD(engine, vbucket);
+                                     DocStateFilter documentStateFilter) {
+    struct default_engine* engine = get_handle(handle);
+    VBUCKET_GUARD(engine, vbucket);
 
-   *item = item_get(engine, cookie, key.data(), key.size(), document_state);
-   if (*item != NULL) {
-      return ENGINE_SUCCESS;
-   } else {
-      return ENGINE_KEY_ENOENT;
-   }
+    *item = item_get(
+            engine, cookie, key.data(), key.size(), documentStateFilter);
+    if (*item != NULL) {
+        return ENGINE_SUCCESS;
+    } else {
+        return ENGINE_KEY_ENOENT;
+    }
 }
 
 static cb::EngineErrorItemPair default_get_if(
@@ -454,9 +458,12 @@ static cb::EngineErrorItemPair default_get_if(
                                                   cb::ItemDeleter{handle}});
     }
 
-    cb::unique_item_ptr ret(
-            item_get(engine, cookie, key.data(), key.size(), DocumentState::Alive),
-            cb::ItemDeleter{handle});
+    cb::unique_item_ptr ret(item_get(engine,
+                                     cookie,
+                                     key.data(),
+                                     key.size(),
+                                     DocStateFilter::Alive),
+                            cb::ItemDeleter{handle});
     if (!ret) {
         return std::make_pair(cb::engine_errc::no_such_key,
                               cb::unique_item_ptr{nullptr,

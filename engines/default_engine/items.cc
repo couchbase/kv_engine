@@ -23,9 +23,9 @@ static hash_item *do_item_alloc(struct default_engine *engine,
                                 const int nbytes,
                                 const void *cookie,
                                 uint8_t datatype);
-static hash_item *do_item_get(struct default_engine *engine,
+static hash_item* do_item_get(struct default_engine* engine,
                               const hash_key* key,
-                              const DocumentState document_state);
+                              const DocStateFilter document_state);
 static int do_item_link(struct default_engine *engine,
                         const void* cookie,
                         hash_item *it);
@@ -48,10 +48,6 @@ static bool hash_key_create(hash_key* hkey,
 
 static void hash_key_destroy(hash_key* hkey);
 static void hash_key_copy_to_item(hash_item* dst, const hash_key* src);
-
-static const DocumentState document_any_state = DocumentState(
-    uint8_t(DocumentState::Alive) |
-    uint8_t(DocumentState::Deleted));
 
 /*
  * We only reposition items in the LRU queue if they haven't been repositioned
@@ -372,7 +368,8 @@ ENGINE_ERROR_CODE do_safe_item_unlink(struct default_engine* engine,
                                       hash_item* it) {
 
     const hash_key* key = item_get_key(it);
-    auto* stored = do_item_get(engine, key, document_any_state);
+    auto* stored =
+            do_item_get(engine, key, DocStateFilter::AliveOrDeleted);
     if (stored == nullptr) {
         return ENGINE_KEY_ENOENT;
     }
@@ -544,9 +541,9 @@ static void do_item_stats_sizes(struct default_engine *engine,
 }
 
 /** wrapper around assoc_find which does the lazy expiration logic */
-hash_item *do_item_get(struct default_engine *engine,
-                       const hash_key *key,
-                       const DocumentState document_state) {
+hash_item* do_item_get(struct default_engine* engine,
+                       const hash_key* key,
+                       const DocStateFilter documentStateFilter) {
     rel_time_t current_time = engine->server.core->get_current_time();
     hash_item *it = assoc_find(engine,
                                crc32c(hash_key_get_key(key),
@@ -602,12 +599,12 @@ hash_item *do_item_get(struct default_engine *engine,
 
     if (it != NULL) {
         if (it->iflag & ITEM_ZOMBIE) {
-            if ((uint8_t(document_state) & uint8_t(DocumentState::Deleted)) == 0) {
+            if (documentStateFilter == DocStateFilter::Alive) {
                 // The requested document is deleted, and you asked for alive
                 return nullptr;
             }
         } else {
-            if ((uint8_t(document_state) & uint8_t(DocumentState::Alive)) == 0) {
+            if (documentStateFilter == DocStateFilter::Deleted) {
                 // The requested document is Alive, and you asked for Dead
                 return nullptr;
             }
@@ -633,7 +630,8 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
                                        const void *cookie,
                                        hash_item** stored_item) {
     const hash_key* key = item_get_key(it);
-    hash_item *old_it = do_item_get(engine, key, document_any_state);
+    hash_item* old_it =
+            do_item_get(engine, key, DocStateFilter::AliveOrDeleted);
     ENGINE_ERROR_CODE stored = ENGINE_NOT_STORED;
 
     bool locked = false;
@@ -728,11 +726,11 @@ hash_item *item_alloc(struct default_engine *engine,
  * Returns an item if it hasn't been marked as expired,
  * lazy-expiring as needed.
  */
-hash_item *item_get(struct default_engine *engine,
-                    const void *cookie,
-                    const void *key,
+hash_item* item_get(struct default_engine* engine,
+                    const void* cookie,
+                    const void* key,
                     const size_t nkey,
-                    DocumentState document_state) {
+                    DocStateFilter document_state) {
     hash_item *it;
     hash_key hkey;
     if (!hash_key_create(&hkey, key, nkey, engine, cookie)) {
@@ -800,9 +798,9 @@ static hash_item *do_touch_item(struct default_engine *engine,
                                 const hash_key *hkey,
                                 uint32_t exptime)
 {
-   hash_item *item = do_item_get(engine, hkey, DocumentState::Alive);
-   if (item != NULL) {
-       item->exptime = exptime;
+    hash_item* item = do_item_get(engine, hkey, DocStateFilter::Alive);
+    if (item != NULL) {
+        item->exptime = exptime;
    }
    return item;
 }
@@ -830,8 +828,7 @@ ENGINE_ERROR_CODE do_item_get_locked(struct default_engine* engine,
                                      hash_item** it,
                                      const hash_key* hkey,
                                      rel_time_t locktime) {
-
-    hash_item* item = do_item_get(engine, hkey, DocumentState::Alive);
+    hash_item* item = do_item_get(engine, hkey, DocStateFilter::Alive);
     if (item == nullptr) {
         return ENGINE_KEY_ENOENT;
     }
@@ -946,7 +943,7 @@ static ENGINE_ERROR_CODE do_item_unlock(struct default_engine* engine,
                                         const void* cookie,
                                         const hash_key* hkey,
                                         uint64_t cas) {
-    hash_item* item = do_item_get(engine, hkey, DocumentState::Alive);
+    hash_item* item = do_item_get(engine, hkey, DocStateFilter::Alive);
     if (item == nullptr) {
         return ENGINE_KEY_ENOENT;
     }

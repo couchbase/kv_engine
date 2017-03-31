@@ -545,11 +545,9 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
         if (ret == ENGINE_SUCCESS) {
             DocKey get_key(reinterpret_cast<const uint8_t*>(key),
                            keylen, c.getDocNamespace());
-            DocumentState state = DocumentState::Alive;
+            DocStateFilter state = DocStateFilter::Alive;
             if (ctx.do_allow_deleted_docs) {
-                state = static_cast<DocumentState>(
-                    uint8_t(DocumentState::Alive) |
-                    uint8_t(DocumentState::Deleted));
+                state = DocStateFilter::AliveOrDeleted;
             }
             ret = bucket_get(&c, &initial_item, get_key, vbucket, state);
             ret = ctx.connection.remapErrorCode(ret);

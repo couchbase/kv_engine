@@ -58,6 +58,19 @@ enum class DocumentState : uint8_t {
     Alive = 0xF0,
 };
 
+/**
+ * The DocumentStateFilter is an enum which allows you to specify the state(s)
+ * a document may have.
+ */
+enum class DocStateFilter : uint8_t {
+    /// Only alive documents match this filter
+    Alive = uint8_t(DocumentState::Alive),
+    /// Only deleted documents match this filter
+    Deleted = uint8_t(DocumentState::Deleted),
+    /// The document may be alive or deleted.
+    AliveOrDeleted = uint8_t(uint8_t(Alive) | uint8_t(Deleted))
+};
+
 typedef struct {
     uint64_t cas;
     uint64_t vbucket_uuid;

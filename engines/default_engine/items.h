@@ -186,12 +186,11 @@ hash_item *item_alloc(struct default_engine *engine,
  * @param state Only return documents in this state
  * @return pointer to the item if it exists or NULL otherwise
  */
-hash_item *item_get(struct default_engine *engine,
-                    const void *cookie,
-                    const void *key,
+hash_item* item_get(struct default_engine* engine,
+                    const void* cookie,
+                    const void* key,
                     const size_t nkey,
-                    const DocumentState state);
-
+                    const DocStateFilter state);
 
 /**
  * Get an item from the cache and acquire the lock.

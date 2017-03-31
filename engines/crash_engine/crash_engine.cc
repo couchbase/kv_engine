@@ -164,8 +164,7 @@ static ENGINE_ERROR_CODE get(ENGINE_HANDLE* handle,
                              item** item,
                              const DocKey& key,
                              uint16_t vbucket,
-                             DocumentState)
-{
+                             DocStateFilter) {
     return ENGINE_FAILED;
 }
 

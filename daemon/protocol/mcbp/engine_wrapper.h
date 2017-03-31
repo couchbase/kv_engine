@@ -62,11 +62,12 @@ ENGINE_ERROR_CODE bucket_remove(McbpConnection* c,
                                 uint16_t vbucket,
                                 mutation_descr_t* mut_info);
 
-ENGINE_ERROR_CODE bucket_get(McbpConnection* c,
-                             item** item_,
-                             const DocKey& key,
-                             uint16_t vbucket,
-                             DocumentState document_state = DocumentState::Alive);
+ENGINE_ERROR_CODE bucket_get(
+        McbpConnection* c,
+        item** item_,
+        const DocKey& key,
+        uint16_t vbucket,
+        DocStateFilter documentStateFilter = DocStateFilter::Alive);
 
 cb::EngineErrorItemPair bucket_get_if(McbpConnection* c,
                                       const DocKey& key,

@@ -127,8 +127,12 @@ private:
                                    " been allocated from this engine");
     }
 
-    static ENGINE_ERROR_CODE get(ENGINE_HANDLE*, const void*, item**,
-                                 const DocKey&, uint16_t, DocumentState) {
+    static ENGINE_ERROR_CODE get(ENGINE_HANDLE*,
+                                 const void*,
+                                 item**,
+                                 const DocKey&,
+                                 uint16_t,
+                                 DocStateFilter) {
         return ENGINE_NO_BUCKET;
     }
 

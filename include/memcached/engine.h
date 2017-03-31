@@ -351,10 +351,10 @@ typedef struct engine_interface_v1 {
      * @param item output variable that will receive the located item
      * @param key the key to look up
      * @param vbucket the virtual bucket id
-     * @param allowed_states The document to return must be in any of
-     *                       of these states. (If `Alive` is set, return
-     *                       KEY_ENOENT if the document in the engine
-     *                       is in another state)
+     * @param documentStateFilter The document to return must be in any of
+     *                            of these states. (If `Alive` is set, return
+     *                            KEY_ENOENT if the document in the engine
+     *                            is in another state)
      *
      * @return ENGINE_SUCCESS if all goes well
      */
@@ -363,7 +363,7 @@ typedef struct engine_interface_v1 {
                               item** item,
                               const DocKey& key,
                               uint16_t vbucket,
-                              DocumentState allowed_states);
+                              DocStateFilter documentStateFilter);
 
     /**
      * Optionally retrieve an item. Only non-deleted items may be fetched

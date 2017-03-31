@@ -368,16 +368,23 @@ public:
         }
     }
 
-    static ENGINE_ERROR_CODE get(ENGINE_HANDLE* handle, const void* cookie,
-                                 item** item, const DocKey& key, uint16_t vbucket,
-                                 DocumentState document_state) {
+    static ENGINE_ERROR_CODE get(ENGINE_HANDLE* handle,
+                                 const void* cookie,
+                                 item** item,
+                                 const DocKey& key,
+                                 uint16_t vbucket,
+                                 DocStateFilter documentStateFilter) {
         EWB_Engine* ewb = to_engine(handle);
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         if (ewb->should_inject_error(Cmd::GET, cookie, err)) {
             return err;
         } else {
-            return ewb->real_engine->get(ewb->real_handle, cookie, item, key,
-                                         vbucket, document_state);
+            return ewb->real_engine->get(ewb->real_handle,
+                                         cookie,
+                                         item,
+                                         key,
+                                         vbucket,
+                                         documentStateFilter);
         }
     }
 
@@ -1778,10 +1785,13 @@ ENGINE_ERROR_CODE EWB_Engine::setItemCas(const void *cookie,
     }
 
     item* item = nullptr;
-    ENGINE_ERROR_CODE rv = real_engine->get(real_handle, cookie, &item,
-                                            DocKey{key,
-                                                    DocNamespace::DefaultCollection},
-                                            0, DocumentState::Alive);
+    ENGINE_ERROR_CODE rv =
+            real_engine->get(real_handle,
+                             cookie,
+                             &item,
+                             DocKey{key, DocNamespace::DefaultCollection},
+                             0,
+                             DocStateFilter::Alive);
     if (rv != ENGINE_SUCCESS) {
         return rv;
     }
