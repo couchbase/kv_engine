@@ -1390,8 +1390,7 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE *h,
 
     checkeq(ENGINE_SUCCESS,
             get(h, h1, nullptr, &i, "key2", 0 ,
-                DocumentState(uint8_t(DocumentState::Deleted) |
-                              uint8_t(DocumentState::Alive))),
+                DocStateFilter::AliveOrDeleted),
                 "Failed to get value");
 
     check(h1->get_item_info(h, nullptr, i, &info),
@@ -1409,7 +1408,7 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE *h,
     h1->release(h, nullptr, i);
 
     checkeq(ENGINE_KEY_ENOENT,
-            get(h, h1, nullptr, &i, "key", 0, DocumentState::Alive),
+            get(h, h1, nullptr, &i, "key", 0, DocStateFilter::Alive),
                 "Getting value should have failed");
 
     return SUCCESS;

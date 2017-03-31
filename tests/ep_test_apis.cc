@@ -1562,7 +1562,7 @@ ENGINE_ERROR_CODE allocate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 ENGINE_ERROR_CODE get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       const void* cookie, item** item, const std::string& key,
-                      uint16_t vb, DocumentState docState) {
+                      uint16_t vb, DocStateFilter documentStateFilter) {
     return h1->get(h, cookie, item, DocKey(key, testHarness.doc_namespace),
-                   vb, docState);
+                   vb, documentStateFilter);
 }

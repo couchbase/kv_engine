@@ -242,17 +242,7 @@ static ENGINE_ERROR_CODE EvpGet(ENGINE_HANDLE* handle,
                                 item** itm,
                                 const DocKey& key,
                                 uint16_t vbucket,
-                                DocumentState document_state) {
-
-    if (document_state == DocumentState::Deleted) {
-        // MB-23640 was caused by this bug as the frontend asked for
-        // Alive and Deleted documents. The internals don't have a
-        // way of requesting just deleted documents, and luckily for
-        // us no part of our code is using this yet. Return an error
-        // if anyone start using it
-        return ENGINE_ENOTSUP;
-    }
-
+                                DocStateFilter documentStateFilter) {
     get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
                                                        HONOR_STATES |
                                                        TRACK_REFERENCE |
@@ -260,8 +250,19 @@ static ENGINE_ERROR_CODE EvpGet(ENGINE_HANDLE* handle,
                                                        HIDE_LOCKED_CAS |
                                                        TRACK_STATISTICS);
 
-    if (uint8_t(document_state) & uint8_t(DocumentState::Deleted)) {
+    switch (documentStateFilter) {
+    case DocStateFilter::Alive:
+        break;
+    case DocStateFilter::Deleted:
+        // MB-23640 was caused by this bug as the frontend asked for
+        // Alive and Deleted documents. The internals don't have a
+        // way of requesting just deleted documents, and luckily for
+        // us no part of our code is using this yet. Return an error
+        // if anyone start using it
+        return ENGINE_ENOTSUP;
+    case DocStateFilter::AliveOrDeleted:
         options = static_cast<get_options_t>(options | GET_DELETED_VALUE);
+        break;
     }
 
     return acquireEngine(handle)->get(cookie, itm, key, vbucket, options);

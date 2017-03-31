@@ -233,7 +233,9 @@ ENGINE_ERROR_CODE allocate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 ENGINE_ERROR_CODE get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       const void* cookie, item** item, const std::string& key,
-                      uint16_t vb, DocumentState docState = DocumentState::Alive);
+                      uint16_t vb,
+                      DocStateFilter documentStateFilter =
+                           DocStateFilter::Alive);
 
 /* Stores the specified document; returning the new CAS value via
  * {out_cas}.
