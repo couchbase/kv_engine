@@ -1825,7 +1825,9 @@ void VBucket::postProcessRollback(const RollbackResult& rollbackResult,
 void VBucket::dump() const {
     std::cerr << "VBucket[" << this << "] with state: " << toString(getState())
               << " numItems:" << getNumItems()
-              << " numNonResident:" << getNumNonResidentItems() << std::endl;
+              << " numNonResident:" << getNumNonResidentItems()
+              << " ht: " << std::endl << "  " << ht << std::endl
+              << "]" << std::endl;
 }
 
 void VBucket::_addStats(bool details, ADD_STAT add_stat, const void* c) {

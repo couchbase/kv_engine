@@ -600,6 +600,7 @@ private:
     using table_type = std::vector<StoredValue::UniquePtr>;
 
     friend class StoredValue;
+    friend std::ostream& operator<<(std::ostream& os, const HashTable& ht);
 
     inline bool isActive() const { return activeState; }
     inline void setActiveState(bool newv) { activeState = newv; }
@@ -671,6 +672,8 @@ private:
 
     DISALLOW_COPY_AND_ASSIGN(HashTable);
 };
+
+std::ostream& operator<<(std::ostream& os, const HashTable& ht);
 
 /**
  * Base class for visiting a hash table.

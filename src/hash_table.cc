@@ -742,3 +742,19 @@ void HashTable::unlocked_restoreMeta(const std::unique_lock<std::mutex>& htLock,
         ++datatypeCounts[v.getDatatype()];
     }
 }
+
+std::ostream& operator<<(std::ostream& os, const HashTable& ht) {
+    os << "HashTable[" << &ht << "] with"
+       << " numInMemory:" << ht.getNumInMemoryItems()
+       << " numDeleted:" << ht.getNumDeletedItems()
+       << " values: " << std::endl;
+    for (const auto& chain : ht.values) {
+        if (chain) {
+            for (StoredValue* sv = chain.get(); sv != nullptr;
+                 sv = sv->next.get()) {
+                os << "    " << *sv << std::endl;
+            }
+        }
+    }
+    return os;
+}

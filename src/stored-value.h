@@ -729,6 +729,7 @@ protected:
 
     friend class HashTable;
     friend class StoredValueFactory;
+    friend std::ostream& operator<<(std::ostream& os, const HashTable& ht);
 
     value_t            value;          // 8 bytes
     // Used to implement HashTable chaining (for elements hashing to the same

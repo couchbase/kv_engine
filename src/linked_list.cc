@@ -351,7 +351,7 @@ std::ostream& operator <<(std::ostream& os, const BasicLinkedList& ll) {
     for (const auto& val : ll.seqList) {
         os << "    " << val << std::endl;
     }
-    os << "]" << std::endl;
+    os << "]";
     return os;
 }
 

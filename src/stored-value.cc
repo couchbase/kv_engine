@@ -255,11 +255,21 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
     os << (sv.isNewCacheItem() ? 'N' : '.');
     os << ' ';
 
-    // seqno, revid
+    // Temporary states
+    os << "temp:"
+       << (sv.isTempInitialItem() ? 'I' : ' ')
+       << (sv.isTempDeletedItem() ? 'D' : ' ')
+       << (sv.isTempNonExistentItem() ? 'N' : ' ')
+       << ' ';
+
+    // seqno, revid, expiry
     os << "seq:" << sv.getBySeqno() << " rev:" << sv.getRevSeqno();
-    os << " key:\"" << sv.getKey();
-    os << "\" val:[";
+    os << " key:\"" << sv.getKey() << "\"";
+    os << " exp:" << sv.getExptime();
+
+    os << " vallen:" << sv.valuelen();
     if (sv.getValue().get()) {
+        os << " val:\"";
         const char* data = sv.getValue()->getData();
         // print up to first 40 bytes of value.
         const size_t limit = std::min(size_t(40), sv.getValue()->vlength());
@@ -269,10 +279,8 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
         if (limit < sv.getValue()->vlength()) {
             os << " <cut>";
         }
-    } else {
-        os << "<null>";
+        os << "\"";
     }
-    os << "]";
     return os;
 }
 

@@ -146,10 +146,11 @@ void EphemeralVBucket::addStats(bool details,
 
 void EphemeralVBucket::dump() const {
     std::cerr << "EphemeralVBucket[" << this
-              << "] with state: " << toString(getState())
+              << "] with state:" << toString(getState())
               << " numItems:" << getNumItems()
               << std::endl;
     seqList->dump();
+    std::cerr << ht << std::endl;
 }
 
 ENGINE_ERROR_CODE EphemeralVBucket::completeBGFetchForSingleItem(
