@@ -291,6 +291,9 @@ MutationStatus HashTable::unlocked_updateStoredValue(
     if (v.isDeleted() && !itm.isDeleted()) {
         --numDeletedItems;
     }
+    if (!v.isDeleted() && itm.isDeleted()) {
+        ++numDeletedItems;
+    }
 
     // If the item we are replacing is resident then we need to make sure we
     // appropriately alter the datatype stats.

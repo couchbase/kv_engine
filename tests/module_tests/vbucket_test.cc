@@ -363,6 +363,8 @@ TEST_P(VBucketTest, updateDeletedItem) {
     EXPECT_EQ(MutationStatus::WasDirty,
               this->public_processSoftDelete(v->getKey(), v, 0));
     verifyValue(key, nullptr, TrackReference::Yes, WantsDeleted::Yes);
+    EXPECT_EQ(1, this->vbucket->getNumItems());
+    EXPECT_EQ(1, this->vbucket->getNumInMemoryDeletes());
 
     Item deleted_item(key, 0, 0, "deletedvalue", strlen("deletedvalue"));
     deleted_item.setDeleted();
@@ -377,7 +379,8 @@ TEST_P(VBucketTest, updateDeletedItem) {
                 "deletedvalue",
                 TrackReference::Yes,
                 WantsDeleted::Yes);
-
+    EXPECT_EQ(1, this->vbucket->getNumItems());
+    EXPECT_EQ(1, this->vbucket->getNumInMemoryDeletes());
     EXPECT_EQ(prev_revseqno + 1, v->getRevSeqno());
 
     Item update_deleted_item(
@@ -391,6 +394,8 @@ TEST_P(VBucketTest, updateDeletedItem) {
               this->public_processSet(update_deleted_item, 0));
     verifyValue(
             key, "updatedeletedvalue", TrackReference::Yes, WantsDeleted::Yes);
+    EXPECT_EQ(1, this->vbucket->getNumItems());
+    EXPECT_EQ(1, this->vbucket->getNumInMemoryDeletes());
     EXPECT_EQ(prev_revseqno + 1, v->getRevSeqno());
 }
 

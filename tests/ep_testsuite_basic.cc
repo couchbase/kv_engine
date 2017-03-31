@@ -1366,6 +1366,10 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE* h,
             delete_with_value(h, h1, cookie, cas_0, "key", "deleted"),
             "Failed Alive -> Delete-with-value");
 
+    checkeq(uint64_t(0),
+            get_stat<uint64_t>(h, h1, "vb_0:num_items", "vbucket-details 0"),
+            "Unexpected num_items after Alive -> Delete-with-value");
+
     auto res = get_value(h, h1, cookie, "key", vbid, DocStateFilter::Alive);
     checkeq(ENGINE_KEY_ENOENT,
             res.first,
@@ -1382,6 +1386,11 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE* h,
             delete_with_value(h, h1, cookie, cas_0, "key", "deleted 2"),
             "Failed Deleted-with-value -> Deleted-with-value");
 
+    checkeq(uint64_t(0),
+            get_stat<uint64_t>(h, h1, "vb_0:num_items", "vbucket-details 0"),
+            "Unexpected num_items after Delete-with-value -> "
+            "Delete-with-value");
+
     res = get_value(h, h1, cookie, "key", vbid, DocStateFilter::AliveOrDeleted);
     checkeq(ENGINE_SUCCESS, res.first, "Failed to fetch key (deleted 2)");
     checkeq(std::string("deleted 2"),
@@ -1393,6 +1402,10 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE* h,
             store(h, h1, cookie, OPERATION_SET, "key", "alive 2", nullptr),
             "Failed Delete-with-value -> Alive");
     wait_for_flusher_to_settle(h, h1);
+
+    checkeq(uint64_t(1),
+            get_stat<uint64_t>(h, h1, "vb_0:num_items", "vbucket-details 0"),
+            "Unexpected num_items after Delete-with-value -> Alive");
 
     res = get_value(h, h1, cookie, "key", vbid, DocStateFilter::Alive);
     checkeq(ENGINE_SUCCESS,
@@ -1414,6 +1427,10 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE* h,
             del(h, h1, "key", cas_0, vbid, cookie),
             "Failed Alive -> Deleted-no-value");
     wait_for_flusher_to_settle(h, h1);
+
+    checkeq(uint64_t(0),
+            get_stat<uint64_t>(h, h1, "vb_0:num_items", "vbucket-details 0"),
+            "Unexpected num_items after Alive -> Delete-no-value");
 
     res = get_value(h, h1, cookie, "key", vbid, DocStateFilter::Alive);
     checkeq(ENGINE_KEY_ENOENT,
