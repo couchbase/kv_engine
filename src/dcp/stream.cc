@@ -1728,7 +1728,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dc
                         EXTENSION_LOG_WARNING,
                         "(vb %d) Unknown event:%d, opaque:%" PRIu32,
                         vb_,
-                        dcpResponse->getEvent(),
+                        int(dcpResponse->getEvent()),
                         opaque_);
                 return ENGINE_DISCONNECT;
         }
