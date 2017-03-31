@@ -482,7 +482,10 @@ void DcpConnMap::consumerBatchSizeConfigChanged(size_t newValue) {
 connection_t DcpConnMap::findByName(const std::string& name) {
     LockHolder lh(connsLock);
     for (const auto cookieToConn : map_) {
-        if (cookieToConn.second->getName() == name) {
+        // If the connection is NOT about to be disconnected
+        // and the names match
+        if (!cookieToConn.second->doDisconnect() &&
+            cookieToConn.second->getName() == name) {
             return cookieToConn.second.get();
         }
     }

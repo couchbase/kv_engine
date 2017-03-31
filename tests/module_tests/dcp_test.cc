@@ -505,6 +505,68 @@ TEST_F(ConnectionTest, test_deadConnections) {
         << "Dead connections still remain";
 }
 
+TEST_F(ConnectionTest, test_mb23637_findByNameWithConnectionDoDisconnect) {
+    MockDcpConnMap connMap(*engine);
+    connMap.initialize(DCP_CONN_NOTIFIER);
+    const void *cookie = create_mock_cookie();
+    // Create a new Dcp producer
+    dcp_producer_t producer = connMap.newProducer(cookie, "test_producer",
+                                    /*notifyOnly*/false);
+    // should be able to find the connection
+    ASSERT_NE(connection_t(nullptr),
+              connMap.findByName("eq_dcpq:test_producer"));
+    // Disconnect the producer connection
+    connMap.disconnect(cookie);
+    ASSERT_EQ(1, connMap.getNumberOfDeadConnections())
+        << "Unexpected number of dead connections";
+    // should not be able to find because the connection has been marked as
+    // wanting to disconnect
+    EXPECT_EQ(connection_t(nullptr),
+              connMap.findByName("eq_dcpq:test_producer"));
+    connMap.manageConnections();
+    // Should be zero deadConnections
+    EXPECT_EQ(0, connMap.getNumberOfDeadConnections())
+        << "Dead connections still remain";
+}
+
+TEST_F(ConnectionTest, test_mb23637_findByNameWithDuplicateConnections) {
+    MockDcpConnMap connMap(*engine);
+    connMap.initialize(DCP_CONN_NOTIFIER);
+    const void* cookie1 = create_mock_cookie();
+    const void* cookie2 = create_mock_cookie();
+    // Create a new Dcp producer
+    dcp_producer_t producer = connMap.newProducer(cookie1, "test_producer",
+                                    /*notifyOnly*/false);
+    ASSERT_NE(0, producer) << "producer is null";
+    // should be able to find the connection
+    ASSERT_NE(connection_t(nullptr),
+              connMap.findByName("eq_dcpq:test_producer"));
+
+    // Create a duplicate Dcp producer
+    dcp_producer_t duplicateproducer = connMap.newProducer(
+            cookie2, "test_producer", /*notifyOnly*/false);
+    ASSERT_TRUE(producer->doDisconnect()) << "producer doDisconnect == false";
+    ASSERT_NE(0, duplicateproducer) << "duplicateproducer is null";
+
+    // should find the duplicateproducer as the first producer has been marked
+    // as wanting to disconnect
+    EXPECT_EQ(duplicateproducer,
+              connMap.findByName("eq_dcpq:test_producer"));
+
+    // Disconnect the producer connection
+    connMap.disconnect(cookie1);
+    // Disconnect the duplicateproducer connection
+    connMap.disconnect(cookie2);
+    EXPECT_EQ(2, connMap.getNumberOfDeadConnections())
+        << "Unexpected number of dead connections";
+
+    connMap.manageConnections();
+    // Should be zero deadConnections
+    EXPECT_EQ(0, connMap.getNumberOfDeadConnections())
+        << "Dead connections still remain";
+}
+
+
 TEST_F(ConnectionTest, test_mb17042_duplicate_name_producer_connections) {
     MockDcpConnMap connMap(*engine);
     connMap.initialize(DCP_CONN_NOTIFIER);
