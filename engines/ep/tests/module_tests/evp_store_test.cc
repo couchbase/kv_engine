@@ -321,6 +321,49 @@ TEST_P(EPStoreEvictionTest, SetWithMeta_ReplaceNonResident) {
     }
 }
 
+// Deleted-with-Value Tests ///////////////////////////////////////////////////
+
+TEST_P(EPStoreEvictionTest, DeletedValue) {
+    // Create a deleted item which has a value, then evict it.
+    auto key = makeStoredDocKey("key");
+    auto item = make_item(vbid, key, "deleted value");
+    item.setDeleted();
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+
+    // The act of flushing will remove the item from the HashTable.
+    flush_vbucket_to_disk(vbid);
+    EXPECT_EQ(0, store->getVBucket(vbid)->getNumItems());
+
+    // Setup a lambda for how we want to call get (saves repeating the
+    // same arguments for each instance below).
+    auto do_get = [this, &key]() {
+        auto options = get_options_t(GET_DELETED_VALUE | QUEUE_BG_FETCH);
+        return store->get(key, vbid, cookie, options);
+    };
+
+    // Try to get the Deleted-with-value key. This should return EWOULDBLOCK
+    // (as the Deleted value is not resident).
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, do_get().getStatus())
+            << "Expected to need to go to disk to get Deleted-with-value key";
+
+    // Try a second time - this should detect the already-created temp
+    // item, and re-schedule the bgfetch.
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, do_get().getStatus())
+            << "Expected to need to go to disk to get Deleted-with-value key "
+               "(try 2)";
+
+    // Manually run the BGFetcher task; to fetch the two outstanding
+    // requests (for the same key).
+    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
+    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+
+    auto result = do_get();
+    EXPECT_EQ(ENGINE_SUCCESS, result.getStatus())
+            << "Expected to get Deleted-with-value for evicted key after "
+               "notify_IO_complete";
+    EXPECT_EQ("deleted value", result.item->getValue()->to_s());
+}
+
 // Test to ensure all pendingBGfetches are deleted when the
 // VBucketMemoryDeletionTask is run
 TEST_P(EPStoreEvictionTest, MB_21976) {
