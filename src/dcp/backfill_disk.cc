@@ -40,11 +40,11 @@ CacheCallback::CacheCallback(EventuallyPersistentEngine& e, active_stream_t& s)
     if (stream_.get() == nullptr) {
         throw std::invalid_argument("CacheCallback(): stream is NULL");
     }
-    if (stream_.get()->getType() != STREAM_ACTIVE) {
+    if (!stream_.get()->isTypeActive()) {
         throw std::invalid_argument(
                 "CacheCallback(): stream->getType() "
                 "(which is " +
-                std::to_string(stream_.get()->getType()) + ") is not ACTIVE");
+                to_string(stream_.get()->getType()) + ") is not Active");
     }
 }
 
@@ -91,11 +91,11 @@ DiskCallback::DiskCallback(active_stream_t& s) : stream_(s) {
     if (stream_.get() == nullptr) {
         throw std::invalid_argument("DiskCallback(): stream is NULL");
     }
-    if (stream_.get()->getType() != STREAM_ACTIVE) {
+    if (!stream_.get()->isTypeActive()) {
         throw std::invalid_argument(
                 "DiskCallback(): stream->getType() "
                 "(which is " +
-                std::to_string(stream_.get()->getType()) + ") is not ACTIVE");
+                to_string(stream_.get()->getType()) + ") is not Active");
     }
 }
 

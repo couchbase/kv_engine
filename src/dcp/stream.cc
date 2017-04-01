@@ -47,17 +47,37 @@ const char* to_string(Stream::Snapshot type) {
             "Snapshot type:" + std::to_string(int(type)));
 }
 
+const std::string to_string(Stream::Type type) {
+    switch (type) {
+    case Stream::Type::Active:
+        return "Active";
+    case Stream::Type::Notifier:
+        return "Notifier";
+    case Stream::Type::Passive:
+        return "Passive";
+    }
+    throw std::logic_error("to_string(Stream::Type): called with invalid "
+            "type:" + std::to_string(int(type)));
+}
+
 const uint64_t Stream::dcpMaxSeqno = std::numeric_limits<uint64_t>::max();
 
 Stream::Stream(const std::string &name, uint32_t flags, uint32_t opaque,
                uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
                uint64_t vb_uuid, uint64_t snap_start_seqno,
-               uint64_t snap_end_seqno)
-    : name_(name), flags_(flags), opaque_(opaque), vb_(vb),
-      start_seqno_(start_seqno), end_seqno_(end_seqno), vb_uuid_(vb_uuid),
+               uint64_t snap_end_seqno, Type type)
+    : name_(name),
+      flags_(flags),
+      opaque_(opaque),
+      vb_(vb),
+      start_seqno_(start_seqno),
+      end_seqno_(end_seqno),
+      vb_uuid_(vb_uuid),
       snap_start_seqno_(snap_start_seqno),
       snap_end_seqno_(snap_end_seqno),
-      state_(StreamState::Pending), itemsReady(false),
+      state_(StreamState::Pending),
+      type_(type),
+      itemsReady(false),
       readyQ_non_meta_items(0),
       readyQueueMemory(0) {
 }
@@ -87,6 +107,10 @@ const std::string Stream::to_string(Stream::StreamState st) {
     }
     throw std::invalid_argument(
         "Stream::to_string(StreamState): " + std::to_string(int(st)));
+}
+
+bool Stream::isTypeActive() const {
+    return type_ == Type::Active;
 }
 
 bool Stream::isActive() const {
@@ -216,7 +240,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
              en_seqno,
              vb_uuid,
              snap_start_seqno,
-             snap_end_seqno),
+             snap_end_seqno,
+             Type::Active),
       isBackfillTaskRunning(false),
       pendingBackfill(false),
       lastReadSeqno(st_seqno),
@@ -256,8 +281,6 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
     backfillItems.memory = 0;
     backfillItems.disk = 0;
     backfillItems.sent = 0;
-
-    type_ = STREAM_ACTIVE;
 
     bufferedBackfill.bytes = 0;
     bufferedBackfill.items = 0;
@@ -1422,7 +1445,7 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e, dcp_producer_t p,
                                uint64_t snap_start_seqno,
                                uint64_t snap_end_seqno)
     : Stream(name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid,
-             snap_start_seqno, snap_end_seqno),
+             snap_start_seqno, snap_end_seqno, Type::Notifier),
       producer(p) {
     LockHolder lh(streamMutex);
     RCPtr<VBucket> vbucket = e->getVBucket(vb_);
@@ -1431,8 +1454,6 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e, dcp_producer_t p,
         transitionState(StreamState::Dead);
         itemsReady.store(true);
     }
-
-    type_ = STREAM_NOTIFIER;
 
     producer->getLogger().log(EXTENSION_LOG_NOTICE,
         "(vb %d) stream created with start seqno %" PRIu64 " and end seqno %"
@@ -1529,11 +1550,10 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, dcp_consumer_t c,
                              uint64_t snap_start_seqno, uint64_t snap_end_seqno,
                              uint64_t vb_high_seqno)
     : Stream(name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid,
-             snap_start_seqno, snap_end_seqno),
+             snap_start_seqno, snap_end_seqno, Type::Passive),
       engine(e), consumer(c), last_seqno(vb_high_seqno), cur_snapshot_start(0),
       cur_snapshot_end(0), cur_snapshot_type(Snapshot::None), cur_snapshot_ack(false) {
     LockHolder lh(streamMutex);
-    type_ = STREAM_PASSIVE;
     streamRequest_UNLOCKED(vb_uuid);
     itemsReady.store(true);
 }

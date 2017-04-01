@@ -51,12 +51,6 @@ enum end_stream_status_t {
     END_STREAM_SLOW
 };
 
-enum stream_type_t {
-    STREAM_ACTIVE,
-    STREAM_NOTIFIER,
-    STREAM_PASSIVE
-};
-
 enum process_items_error_t {
     all_processed,
     more_to_process,
@@ -71,16 +65,28 @@ enum backfill_source_t {
 class Stream : public RCValue {
 public:
 
+    enum class Type {
+        Active,
+        Notifier,
+        Passive
+    };
+
     enum class Snapshot {
            None,
            Disk,
            Memory
-       };
+    };
 
-    Stream(const std::string &name, uint32_t flags, uint32_t opaque,
-           uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
-           uint64_t vb_uuid, uint64_t snap_start_seqno,
-           uint64_t snap_end_seqno);
+    Stream(const std::string &name,
+           uint32_t flags,
+           uint32_t opaque,
+           uint16_t vb,
+           uint64_t start_seqno,
+           uint64_t end_seqno,
+           uint64_t vb_uuid,
+           uint64_t snap_start_seqno,
+           uint64_t snap_end_seqno,
+           Type type);
 
     virtual ~Stream();
 
@@ -100,8 +106,6 @@ public:
 
     uint64_t getSnapEndSeqno() { return snap_end_seqno_; }
 
-    stream_type_t getType() { return type_; }
-
     virtual void addStats(ADD_STAT add_stat, const void *c);
 
     virtual DcpResponse* next() = 0;
@@ -117,6 +121,11 @@ public:
     virtual void setActive() {
         // Stream defaults to do nothing
     }
+
+    Type getType() { return type_; }
+
+    /// @returns true if the stream type is Active
+    bool isTypeActive() const;
 
     /// @returns true if state_ is not Dead
     bool isActive() const;
@@ -178,7 +187,7 @@ protected:
     uint64_t snap_start_seqno_;
     uint64_t snap_end_seqno_;
     std::atomic<StreamState> state_;
-    stream_type_t type_;
+    Type type_;
 
     std::atomic<bool> itemsReady;
     std::mutex streamMutex;
@@ -200,7 +209,7 @@ private:
 };
 
 const char* to_string(Stream::Snapshot type);
-
+const std::string to_string(Stream::Type type);
 
 class ActiveStreamCheckpointProcessorTask;
 

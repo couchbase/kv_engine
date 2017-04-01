@@ -706,7 +706,7 @@ bool DcpProducer::handleResponse(protocol_binary_response_header* resp) {
         auto itr = streams.find_if(
             [opaque](const StreamsMap::value_type& s) {
                 const auto& stream = s.second;
-                if (stream && stream->getType() == STREAM_ACTIVE) {
+                if (stream && stream->isTypeActive()) {
                     ActiveStream* as = static_cast<ActiveStream*>(stream.get());
                     return (as && opaque == stream->getOpaque());
                 } else {
@@ -844,9 +844,20 @@ void DcpProducer::addTakeoverStats(ADD_STAT add_stat, const void* c,
                                    const VBucket& vb) {
 
     auto stream = findStream(vb.getId());
-    if (stream && stream->getType() == STREAM_ACTIVE) {
-        ActiveStream* as = static_cast<ActiveStream*>(stream.get());
-        as->addTakeoverStats(add_stat, c, vb);
+    if (stream) {
+        if (stream->isTypeActive()) {
+            ActiveStream* as = static_cast<ActiveStream*>(stream.get());
+            as->addTakeoverStats(add_stat, c, vb);
+        } else {
+            LOG(EXTENSION_LOG_WARNING, "%s (vb:%" PRIu16 ") "
+                "DcpProducer::addTakeoverStats Stream type is %s and not the "
+                "expected Active",
+                logHeader(), vb.getId(), to_string(stream->getType()).c_str());
+        }
+    } else {
+        LOG(EXTENSION_LOG_NOTICE, "%s (vb:%" PRIu16 ") "
+            "DcpProducer::addTakeoverStats Unable to find stream",
+            logHeader(), vb.getId());
     }
 }
 
@@ -1094,7 +1105,7 @@ size_t DcpProducer::getItemsRemaining() {
     size_t remainingSize = 0;
     streams.for_each(
         [&remainingSize](const StreamsMap::value_type& iter) {
-            if (iter.second->getType() == STREAM_ACTIVE) {
+            if (iter.second->isTypeActive()) {
                 ActiveStream *as = static_cast<ActiveStream *>(iter.second.get());
                 remainingSize += as->getItemsRemaining();
             }
