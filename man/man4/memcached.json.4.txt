@@ -303,6 +303,32 @@ By default this value is set to PLAIN (the default value may be cleared
 by setting the environment variable `COUCHBASE_I_DONT_TRUST_SSL` to a
 non-null value.
 
+=== client_cert_auth
+
+The client_cert_auth object is used to enable client certificate
+authentication and control how the username is extracted from the client
+certificate. It contains the following attributes.
+
+*state*. Possible values for this paramters can be disabled,
+enabled or mandatory. When enabled, if the server will request a
+certificate from the client but if the certificate cannot be verified
+it will stil allow the connection. In mandatory mode, the client connection
+is dropped if the client certificate cannot be verified.
+
+The path attribute specifies the field which will be used to extract the
+username from the certificate and map that to user defined in Couchbase.
+Currently only subject.cn, san.uri, san.email and san.dnsname are allowed.
+This attribute is optional, however if defined, then the provided client
+certificates must contain the fields which is used for the mapping,
+*and the user must* be defined in Couchbase for the connection to be
+established.
+
+The prefix attribute specifices the prefix value to be ignored while
+extracting the username from the certificate.
+
+The delimiter attribute can be a string of characters and the parsing
+of the username ends when one of the characters in the string is found.
+
 === dedupe_nmvb_maps
 
 The *dedupe_nmvb_maps* attribute is a boolean value to enable deduplication

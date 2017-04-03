@@ -30,4 +30,31 @@ SASL authentication to change its user identity (Some time in the future
 we might implement feature similar to su/sudo as part of the system wide
 [RBAC](rbac.md)).
 
-@todo expand this section with the mapping rules
+Couchbase may use information from the following fields:
+
+ * Common Name (CN) in the subject
+ * X509v3 Subject Alternative Name
+
+The mapping is configured through [memcached.json](../man/man4/memcached.json.4.txt)
+and allows for specifying:
+
+ * path - Specifies which field in the certificate to use.
+          (Currently only subject.cn, san.uri, san.email and san.dnsname are
+           allowed)
+ * prefix - The prefix to search for in the value for the field. The prefix
+            is stripped from the value.
+ * delimiter - This is a list of optionally characters to use stop the parsing
+               of the value.
+
+If multiple fields map the path (e.g. multiple san.uri fields exists), the
+first value which match the prefix will be used.
+
+Given the following fields specified in the SAN:
+
+    URI:urn:li:testurl_1
+    URI:email:testapp@example.com
+    URI:couchbase://myuser@mycluster/mybucket
+    DNS:MyServerName
+
+If the path is set to `san.uri`, prefix set to `couchbase://` and delimiter
+set to `@` the resulting username would be `myuser`

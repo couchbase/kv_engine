@@ -256,12 +256,69 @@ void McbpConnection::shrinkBuffers() {
     dynamicBuffer.clear();
 }
 
+bool McbpConnection::tryAuthFromSslCert(const std::string& userName) {
+    // Mapping is not configured, so username is empty
+    if (userName.empty()) {
+        return true;
+    }
+    username.assign(userName);
+    domain = cb::sasl::Domain::Builtin;
+
+    try {
+        auto context =
+                cb::rbac::createInitialContext(getUsername(), getDomain());
+        setAuthenticated(true);
+        setInternal(context.second);
+        LOG_INFO(this, "%u: Client %s authenticated as '%s' via X509 certificate",
+                 getId(), getPeername().c_str(), getUsername());
+        saslAuthDisabled = true;
+    } catch (const cb::rbac::NoSuchUserException& e) {
+        setAuthenticated(false);
+        LOG_WARNING(this,
+                    "%u: User [%s] is not defined as a user in Couchbase",
+                    getId(),
+                    e.what());
+        return false;
+    }
+    return true;
+}
 
 int McbpConnection::sslPreConnection() {
     int r = ssl.accept();
     if (r == 1) {
         ssl.drainBioSendPipe(socketDescriptor);
         ssl.setConnected();
+        auto certResult = ssl.getCertUserName();
+        bool disconnect = false;
+        switch (certResult.first) {
+        case ClientCertUser::Status::Error:
+            disconnect = true;
+            break;
+        case ClientCertUser::Status::NotPresent:
+            if (settings.getClientCertAuth() ==
+                ClientCertAuth::Mode::Mandatory) {
+                disconnect = true;
+            } else {
+                associate_bucket(this, "default");
+            }
+            break;
+        case ClientCertUser::Status::Success:
+            if (!tryAuthFromSslCert(certResult.second)) {
+                disconnect = true;
+                // Don't print an error message... already logged
+                certResult.second.resize(0);
+            }
+        }
+        if (disconnect) {
+            set_econnreset();
+            if (!certResult.second.empty()) {
+                LOG_WARNING(this,
+                            "%u: SslPreConnection: disconnection client due to"
+                                " error [%s]", getId(),
+                            certResult.second.c_str());
+            }
+            return -1;
+        }
     } else {
         if (ssl.getError(r) == SSL_ERROR_WANT_READ) {
             ssl.drainBioSendPipe(socketDescriptor);
@@ -704,6 +761,24 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
     SSL_set_bio(client, application, application);
 
     return true;
+}
+
+SslCertResult SslContext::getCertUserName() {
+    ClientCertUser::Status status = ClientCertUser::Status::Success;
+    std::string result;
+
+    auto certUser = settings.getCertUserCopy();
+    if (certUser) {
+        cb::openssl::unique_x509_ptr cert(SSL_get_peer_certificate(client));
+        if (cert) {
+            return certUser->getUser(cert.get());
+        } else {
+            result = "certificate not presented by client";
+            status = ClientCertUser::Status::NotPresent;
+        }
+    }
+
+    return std::make_pair(status, result);
 }
 
 void SslContext::disable() {

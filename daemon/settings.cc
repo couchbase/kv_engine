@@ -17,13 +17,15 @@
 
 #include "config.h"
 
+#include <platform/dirutils.h>
+#include <platform/strerror.h>
+
 #include <algorithm>
 #include <cstring>
 #include <fstream>
 #include <system_error>
 
-#include <platform/dirutils.h>
-#include <platform/strerror.h>
+#include "log_macros.h"
 #include "settings.h"
 #include "ssl_utils.h"
 
@@ -563,11 +565,12 @@ static void handle_xattr_enabled(Settings& s, cJSON* obj) {
  * @param obj the object in the configuration
  */
 static void handle_client_cert_auth(Settings& s, cJSON* obj) {
-    if (obj->type == cJSON_String) {
-        s.setClientCertAuth(obj->valuestring);
+    if (obj->type == cJSON_Object || obj->type == cJSON_String) {
+        ClientCertAuth clientAuth(obj);
+        s.setClientCertAuth(clientAuth);
     } else {
         throw std::invalid_argument(
-                "\"client_cert_auth\" must be a string value");
+                "\"client_cert_auth\" must be a object or string");
     }
 }
 
@@ -1448,4 +1451,46 @@ BreakpadSettings::BreakpadSettings(const cJSON* json) {
         }
         content = BreakpadContent::Default;
     }
+}
+
+std::string ClientCertAuth::cJSON_GetObjectString(cJSON* obj,
+                                                  const char* key,
+                                                  bool must = false) {
+    auto* value = cJSON_GetObjectItem(obj, key);
+    if (!value) {
+        if (must) {
+            std::ostringstream stringStream;
+            stringStream
+                    << "\"ClientCertAuth:client_cert_auth\" must contain \""
+                    << key << "\"";
+            throw std::invalid_argument(stringStream.str());
+        } else {
+            return "";
+        }
+    }
+    if (value->type != cJSON_String) {
+        std::ostringstream stringStream;
+        stringStream << "\"ClientCertAuth:client_cert_auth\":" << key
+                     << " must be string";
+        throw std::invalid_argument(stringStream.str());
+    }
+    return value->valuestring;
+}
+
+ClientCertAuth::ClientCertAuth(cJSON* obj) {
+    if (obj->type == cJSON_String) {
+        store(obj->valuestring);
+        certUser = createCertUser("", "", "");
+        return;
+    }
+    auto stateVal = cJSON_GetObjectString(obj, "state", true);
+    auto pathVal = cJSON_GetObjectString(obj, "path");
+    auto prefixVal = cJSON_GetObjectString(obj, "prefix");
+    auto delimiterVal = cJSON_GetObjectString(obj, "delimiter");
+    auto createUser = createCertUser(pathVal, prefixVal, delimiterVal);
+    store(stateVal);
+    ClientCertAuth::prefix = prefixVal;
+    ClientCertAuth::type = pathVal;
+    ClientCertAuth::delimiter = delimiterVal;
+    certUser.reset(createUser.release());
 }

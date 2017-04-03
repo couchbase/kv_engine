@@ -731,42 +731,31 @@ TEST_F(SettingsTest, SslCipherList) {
 }
 
 TEST_F(SettingsTest, ClientCertAuth) {
-    // Ensure that we detect non-string values for client_cert_auth
-    nonStringValuesShouldFail("client_cert_auth");
+    // nonObjectValuesShouldFail("client_cert_auth");
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddStringToObject(obj.get(), "client_cert_auth", "enable");
-    try {
-        Settings settings(obj);
-        EXPECT_EQ(ClientCertAuth::Mode::Enabled,
-            settings.getClientCertAuth());
-        EXPECT_TRUE(settings.has.client_cert_auth);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
+    std::vector<std::vector<std::string>> testcases = {
+            {"enable", "san.uri", "test", ":", "pass"},
+            {"", "", "", "", "fail"},
+            {"junk", "", "", "", "fail"},
+            {"junk", "", "", "", "fail"},
+            {"disable", "", "", "", "pass"},
+            {"mandatory", "", "", "", "pass"},
+            {"mandatory", "junk", "", "", "fail"},
+            {"mandatory", "san.email", "", "", "pass"},
+            {"mandatory", "san.dnsname", "", "", "pass"}};
+
+    for (const auto& p : testcases) {
+        unique_cJSON_ptr obj(cJSON_CreateObject());
+        cJSON_AddStringToObject(obj.get(), "state", p[0].c_str());
+        cJSON_AddStringToObject(obj.get(), "path", p[1].c_str());
+        cJSON_AddStringToObject(obj.get(), "prefix", p[2].c_str());
+        cJSON_AddStringToObject(obj.get(), "delimiter", p[3].c_str());
+        if (p[4] == "pass") {
+            EXPECT_NO_THROW(ClientCertAuth csr(obj.get()));
+        } else {
+            EXPECT_THROW(ClientCertAuth csr(obj.get()), std::invalid_argument);
+        }
     }
-
-    cJSON_AddStringToObject(obj.get(), "client_cert_auth", "disable");
-    try {
-        Settings settings(obj);
-        EXPECT_EQ(ClientCertAuth::Mode::Disabled,
-            settings.getClientCertAuth());
-        EXPECT_TRUE(settings.has.client_cert_auth);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-
-    cJSON_AddStringToObject(obj.get(), "client_cert_auth", "mandatory");
-    try {
-        Settings settings(obj);
-        EXPECT_EQ(ClientCertAuth::Mode::Mandatory,
-            settings.getClientCertAuth());
-        EXPECT_TRUE(settings.has.client_cert_auth);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-
-    cJSON_AddStringToObject(obj.get(), "client_cert_auth", "junk");
-    ASSERT_THROW({ Settings settings(obj); }, std::invalid_argument);
 }
 
 TEST_F(SettingsTest, SslMinimumProtocol) {

@@ -25,6 +25,7 @@
 #include "log_macros.h"
 #include "net_buf.h"
 #include "settings.h"
+#include "sslcert.h"
 #include "statemachine_mcbp.h"
 
 #include <cJSON.h>
@@ -162,6 +163,7 @@ public:
         return SSL_peek(client, buf, num);
     }
 
+    std::pair<ClientCertUser::Status, std::string> getCertUserName();
     /**
      * Get a JSON description of this object.. caller must call cJSON_Delete()
      */
@@ -846,6 +848,13 @@ public:
         return block != 0;
     }
 
+    /**
+     * Try to find RBAC user from the client ssl cert
+     *
+     * @return true if username has been linked to RBAC or ssl cert was not
+     * presented by the client.
+     */
+    bool tryAuthFromSslCert(const std::string& userName);
 
     virtual bool shouldDelete() override;
 

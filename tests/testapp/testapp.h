@@ -314,3 +314,11 @@ uint64_t extract_single_stat(const stats_response_t& stats,
                                       const char* name);
 
 unique_cJSON_ptr loadJsonFile(const std::string &file);
+
+/*
+ * Set the current phase to ssl
+ */
+void set_phase_ssl();
+SOCKET create_connect_ssl_socket(in_port_t port, SSL_CTX *ctx = nullptr);
+ssize_t socket_recv(SOCKET s, char *buf, size_t len);
+void reset_bio_mem();

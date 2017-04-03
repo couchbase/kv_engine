@@ -19,15 +19,16 @@
 
 #include "config.h"
 
-#include <atomic>
+#include "sslcert.h"
 #include <cJSON_utils.h>
+#include <memcached/engine.h>
+#include <platform/dynamic.h>
+#include <relaxed_atomic.h>
+#include <atomic>
 #include <cstdarg>
 #include <deque>
 #include <map>
-#include <memcached/engine.h>
 #include <mutex>
-#include <platform/dynamic.h>
-#include <relaxed_atomic.h>
 #include <string>
 #include <vector>
 
@@ -180,10 +181,12 @@ enum class EventPriority {
  */
 class ClientCertAuth {
 public:
-    enum class Mode { Disabled, Enabled, Mandatory };
     ClientCertAuth() {
-        val.store(Mode::Disabled);
+        store(Mode::Disabled);
     };
+    ClientCertAuth(cJSON* obj);
+
+    enum class Mode { Disabled, Enabled, Mandatory };
     Mode load() const {
         return val.load();
     }
@@ -194,7 +197,10 @@ public:
         store(c.load());
     }
     const std::string to_string() const {
-        return valMap.find(val)->second;
+        std::ostringstream stringStream;
+        stringStream << "[ " << valMap.find(val)->second << "," << type
+            << "," << prefix << "," << delimiter << " ]";
+        return stringStream.str();
     }
     void store(std::string v) {
         for (auto itr : valMap) {
@@ -208,12 +214,41 @@ public:
                 string value:" +
                 v);
     }
-    bool operator!=(const ClientCertAuth& other) {
-        return val != other.load();
+    std::unique_ptr<ClientCertUser> getCertUserCopy() const {
+        std::lock_guard<std::mutex> guard(mutex);
+        if (certUser) {
+            return certUser->clone();
+        }
+        return nullptr;
     }
+    bool operator!=(const ClientCertAuth& other) {
+        std::lock_guard<std::mutex> guard(mutex);
+        bool equal = val == other.load() && prefix == other.prefix &&
+                     delimiter == other.delimiter && type == other.type;
+        return !equal;
+    }
+    void operator=(const ClientCertAuth& other) {
+        std::lock_guard<std::mutex> guard(mutex);
+        store(other.load());
+        certUser.reset();
+        prefix = other.prefix;
+        type = other.type;
+        delimiter = other.delimiter;
+        certUser = other.getCertUserCopy();
+    }
+    std::unique_ptr<ClientCertUser> createCertUser(
+            const std::string& field,
+            const std::string& prefix,
+            const std::string& delimiter);
+    std::string cJSON_GetObjectString(cJSON* obj, const char* key, bool must);
 
 private:
     std::atomic<Mode> val;
+    std::string prefix;
+    std::string type;
+    std::string delimiter;
+    mutable std::mutex mutex;
+    std::unique_ptr<ClientCertUser> certUser;
     typedef std::map<Mode, std::string> Vmap;
     Vmap valMap = Vmap{{Mode::Disabled, "disable"},
                        {Mode::Enabled, "enable"},
@@ -754,28 +789,17 @@ public:
      * @param client_cert_auth the new value of client auth
      */
     void setClientCertAuth(const ClientCertAuth& client_cert_auth) {
-        Settings::client_cert_auth.store(client_cert_auth);
+        Settings::client_cert_auth = client_cert_auth;
         has.client_cert_auth = true;
         notify_changed("client_cert_auth");
     }
 
     /**
-     * Set the ssl client auth
+     * Get the name settings for user from ssl cert
      *
-     * @param client_cert_auth the new value of client auth
      */
-    void setClientCertAuth(const std::string& client_cert_auth) {
-        /*
-         * ssl_flag = mandatory . Client must present a valid certificate. If
-         * the certificate cannot be verified or if none is presented then the
-         * connection will be terminated.
-         * ssl_flag = enable. If the certificate cannot be verified or if none
-         * is presented then we will fall back to the existing bucket
-         * authentication methods
-         */
-        Settings::client_cert_auth.store(client_cert_auth);
-        has.client_cert_auth = true;
-        notify_changed("client_cert_auth");
+    std::unique_ptr<ClientCertUser> getCertUserCopy() {
+        return client_cert_auth.getCertUserCopy();
     }
 
     /**

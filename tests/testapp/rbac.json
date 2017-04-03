@@ -30,6 +30,17 @@
     "privileges":[],
     "type": "builtin"
   },
+  "Trond": {
+    "buckets": {
+      "default": [
+        "Read",
+        "Write",
+        "XattrRead"
+      ]
+    },
+    "privileges":[],
+    "type": "builtin"
+  },
   "jones": {
     "buckets": {
       "rbac_test": [

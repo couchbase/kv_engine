@@ -99,6 +99,19 @@ bool sock_is_ssl() {
     return current_phase == phase_ssl;
 }
 
+void set_phase_ssl() {
+    current_phase = phase_ssl;
+}
+
+void reset_bio_mem() {
+    ssl_bio_r = nullptr;
+    ssl_bio_w = nullptr;
+    if (bio) {
+        BIO_free_all(bio);
+        bio = nullptr;
+    }
+}
+
 time_t get_server_start_time() {
     return server_start_time;
 }
@@ -696,11 +709,13 @@ SOCKET create_connect_plain_socket(in_port_t port)
     return sock;
 }
 
-SOCKET create_connect_ssl_socket(in_port_t port, bool null_ctx = true) {
+SOCKET create_connect_ssl_socket(in_port_t port, SSL_CTX *ctx) {
     char port_str[32];
     snprintf(port_str, 32, "%d", port);
 
-    if (null_ctx) {
+    if (ctx) {
+        ssl_ctx = ctx;
+    } else {
         EXPECT_EQ(nullptr, ssl_ctx);
     }
     EXPECT_EQ(nullptr, bio);
@@ -948,7 +963,7 @@ static ssize_t phase_send(const void *buf, size_t len) {
     return rv;
 }
 
-static ssize_t socket_recv(SOCKET s, char *buf, size_t len)
+ssize_t socket_recv(SOCKET s, char *buf, size_t len)
 {
 #ifdef WIN32
     return recv(s, buf, (int)len, 0);
