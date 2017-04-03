@@ -3341,6 +3341,13 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
     stats.dirtyAgeHighWat.store(std::max(stats.dirtyAge.load(),
                                          stats.dirtyAgeHighWat.load()));
 
+    // Wait until the VB is deleted before writing
+    if (vbMap.isBucketDeletion(qi->getVBucketId())) {
+        vb->rejectQueue.push(qi);
+        ++vb->opsReject;
+        return NULL;
+    }
+
     KVStore *rwUnderlying = getRWUnderlying(qi->getVBucketId());
     if (!deleted) {
         // TODO: Need to separate disk_insert from disk_update because
