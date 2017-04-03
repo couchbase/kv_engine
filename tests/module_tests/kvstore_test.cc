@@ -183,17 +183,36 @@ static void add_stat_callback(const char *key, const uint16_t klen,
                                std::string(val, vlen)));
 }
 
-class CouchAndForestTest : public ::testing::TestWithParam<std::string> {
+/**
+ * Test fixture for KVStore tests. Inherited by both ForestDB and
+ * Couchstore test fixtures.
+ **/
+class KVStoreTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
+        data_dir = std::string(info->test_case_name()) + "_" + info->name() +
+            ".db";
+    }
+
+    void TearDown() override {
+        cb::io::rmrf(data_dir);
+    }
+
+    std::string data_dir;
 };
 
-class CouchKVStoreTest : public ::testing::TestWithParam<std::string> {
+/// Test fixture for tests which run on both Couchstore and ForestDB.
+class CouchAndForestTest : public KVStoreTest,
+                           public ::testing::WithParamInterface<std::string> {
+};
+
+/// Test fixture for tests which run only on Couchstore.
+class CouchKVStoreTest : public KVStoreTest {
 };
 
 /* Test basic set / get of a document */
 TEST_P(CouchAndForestTest, BasicTest) {
-    std::string data_dir("/tmp/kvstore-test");
-    cb::io::rmrf(data_dir.c_str());
-
     KVStoreConfig config(
             1024, 4, data_dir, GetParam(), 0, false /*persistnamespace*/);
     auto kvstore = setup_kv_store(config);
@@ -210,10 +229,7 @@ TEST_P(CouchAndForestTest, BasicTest) {
     kvstore->get(key, 0, gc);
 }
 
-TEST(CouchKVStoreTest, CompressedTest) {
-    std::string data_dir("/tmp/kvstore-test");
-    cb::io::rmrf(data_dir.c_str());
-
+TEST_F(CouchKVStoreTest, CompressedTest) {
     KVStoreConfig config(
             1024, 4, data_dir, "couchdb", 0, false /*persistnamespace*/);
     auto kvstore = setup_kv_store(config);
@@ -245,10 +261,7 @@ TEST(CouchKVStoreTest, CompressedTest) {
 }
 
 // Verify the stats returned from operations are accurate.
-TEST(CouchKVStoreTest, StatsTest) {
-    std::string data_dir("/tmp/kvstore-test");
-    cb::io::rmrf(data_dir.c_str());
-
+TEST_F(CouchKVStoreTest, StatsTest) {
     KVStoreConfig config(
             1024, 4, data_dir, "couchdb", 0, false /*persistnamespace*/);
     auto kvstore = setup_kv_store(config);
@@ -280,10 +293,7 @@ TEST(CouchKVStoreTest, StatsTest) {
 }
 
 // Verify the compaction stats returned from operations are accurate.
-TEST(CouchKVStoreTest, CompactStatsTest) {
-    std::string data_dir("/tmp/kvstore-test");
-    cb::io::rmrf(data_dir.c_str());
-
+TEST_F(CouchKVStoreTest, CompactStatsTest) {
     KVStoreConfig config(
             1, 4, data_dir, "couchdb", 0, false /*persistnamespace*/);
     auto kvstore = setup_kv_store(config);
@@ -331,10 +341,7 @@ TEST(CouchKVStoreTest, CompactStatsTest) {
 
 // Regression test for MB-17517 - ensure that if a couchstore file has a max
 // CAS of -1, it is detected and reset to zero when file is loaded.
-TEST(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
-    std::string data_dir("/tmp/kvstore-test");
-    cb::io::rmrf(data_dir.c_str());
-
+TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
     KVStoreConfig config(
             1024, 4, data_dir, "couchdb", 0, false /*persistnamespace*/);
     KVStore* kvstore = KVStoreFactory::create(config);
@@ -364,10 +371,7 @@ TEST(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
 // Regression test for MB-19430 - ensure that an attempt to get the
 // item count from a file which doesn't exist yet propagates the
 // error so the caller can detect (and retry as necessary).
-TEST(CouchKVStoreTest, MB_18580_ENOENT) {
-    std::string data_dir("/tmp/kvstore-test");
-    cb::io::rmrf(data_dir.c_str());
-
+TEST_F(CouchKVStoreTest, MB_18580_ENOENT) {
     KVStoreConfig config(
             1024, 4, data_dir, "couchdb", 0, false /*persistnamespace*/);
     // Create a read-only kvstore (which disables item count caching), then
@@ -475,7 +479,7 @@ MATCHER_P(VCE, value, "is string of %(value)") {
 class CouchKVStoreErrorInjectionTest : public ::testing::Test {
 public:
     CouchKVStoreErrorInjectionTest()
-        : data_dir("/tmp/kvstore-test"),
+        : data_dir("CouchKVStoreErrorInjectionTest.db"),
           ops(create_default_file_ops()),
           config(KVStoreConfig(1024,
                                4,
@@ -1145,7 +1149,7 @@ public:
 class CouchstoreTest : public ::testing::Test {
 public:
     CouchstoreTest()
-        : data_dir("/tmp/kvstore-test"),
+        : data_dir("CouchstoreTest.db"),
           vbid(0),
           config(KVStoreConfig(1024,
                                4,
