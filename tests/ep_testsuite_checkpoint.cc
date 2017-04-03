@@ -154,7 +154,7 @@ static enum test_result test_collapse_checkpoints(ENGINE_HANDLE *h, ENGINE_HANDL
         h1->release(h, NULL, itm);
     }
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica), "Failed to set vbucket state.");
-    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
+    wait_for_stat_to_be_lte(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
     start_persistence(h, h1);
     wait_for_flusher_to_settle(h, h1);
     return SUCCESS;
@@ -189,6 +189,16 @@ extern "C" {
 
 static enum test_result test_checkpoint_persistence(ENGINE_HANDLE *h,
                                                     ENGINE_HANDLE_V1 *h1) {
+    if (!isPersistentBucket(h, h1)) {
+        checkeq(ENGINE_SUCCESS,
+                checkpointPersistence(h, h1, 0, 0),
+                "Failed to request checkpoint persistence");
+        checkeq(last_status.load(),
+                PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED,
+                "Expected checkpoint persistence not be supported");
+        return SUCCESS;
+    }
+
     const int  n_threads = 2;
     cb_thread_t threads[n_threads];
     struct handle_pair hp = {h, h1};
@@ -294,8 +304,7 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  "chk_max_items=500;max_checkpoints=5;chk_remover_stime=1;"
                  "enable_chk_merge=true",
-                 prepare_ep_bucket, // Relies on stopping persistence to setup
-                 // test state.
+                 prepare,
                  cleanup),
         TestCase("checkpoint: wait for persistence",
                  test_checkpoint_persistence,
@@ -303,15 +312,17 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  "chk_max_items=500;max_checkpoints=5;item_num_based_new_chk="
                  "true",
-                 prepare_ep_bucket, // Relies on being able to wait for
-                 // persistence.
+                 prepare,
                  cleanup),
         TestCase("test wait for persist vb del",
                  test_wait_for_persist_vb_del,
                  test_setup,
                  teardown,
                  NULL,
-                 prepare_ep_bucket,
+                 prepare_ep_bucket, /* checks if we delete vb is successful
+                                       in presence of a pending chkPersistence
+                                       req; in ephemeral buckets we don't
+                                       handle chkPersistence requests */
                  cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)};

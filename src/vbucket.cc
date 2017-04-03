@@ -2252,9 +2252,9 @@ void VBucket::updateRevSeqNoOfNewStoredValue(StoredValue& v) {
     v.setRevSeqno(seqno);
 }
 
-void VBucket::_addHighPriorityVBEntry(uint64_t seqnoOrChkId,
-                                      const void* cookie,
-                                      HighPriorityVBNotify reqType) {
+void VBucket::addHighPriorityVBEntry(uint64_t seqnoOrChkId,
+                                     const void* cookie,
+                                     HighPriorityVBNotify reqType) {
     std::unique_lock<std::mutex> lh(hpVBReqsMutex);
     hpVBReqs.push_back(HighPriorityVBEntry(cookie, seqnoOrChkId, reqType));
     numHpVBReqs.store(hpVBReqs.size());

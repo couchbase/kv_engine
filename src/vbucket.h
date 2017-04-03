@@ -447,10 +447,11 @@ public:
     }
 
     /**
-     * Add high priority request on the vbucket. This is an async request made
-     * by modules like ns-server during rebalance. The request is for a response
-     * from the vbucket when it 'sees' beyond a certain sequence number or when
-     * a certain checkpoint is persisted.
+     * Checks and decides whether to add high priority request on the vbucket.
+     * This is an async request made by modules like ns-server during
+     * rebalance. The request is for a response from the vbucket when it
+     * 'sees' beyond a certain sequence number or when a certain checkpoint
+     * is persisted.
      * Depending on the vbucket type, the meaning 'seeing' a sequence number
      * changes. That is, it could mean persisted in case of EPVBucket and
      * added to the sequenced data structure in case of EphemeralVBucket.
@@ -458,10 +459,15 @@ public:
      * @param seqnoOrChkId seqno to be seen or checkpoint id to be persisted
      * @param cookie cookie of conn to be notified
      * @param reqType indicating request for seqno or chk persistence
+     *
+     * @return RequestScheduled if a high priority request is added and
+     *                          notification will be done asynchronously
+     *         NotSupported if the request is not supported for the reqType
      */
-    virtual void addHighPriorityVBEntry(uint64_t seqnoOrChkId,
-                                        const void* cookie,
-                                        HighPriorityVBNotify reqType) = 0;
+    virtual HighPriorityVBReqStatus checkAddHighPriorityVBEntry(
+            uint64_t seqnoOrChkId,
+            const void* cookie,
+            HighPriorityVBNotify reqType) = 0;
 
     /**
      * Notify the high priority requests on the vbucket.
@@ -1292,9 +1298,9 @@ protected:
      * @param cookie cookie of conn to be notified
      * @param reqType request type indicating seqno or chk persistence
      */
-    void _addHighPriorityVBEntry(uint64_t seqnoOrChkId,
-                                 const void* cookie,
-                                 HighPriorityVBNotify reqType);
+    void addHighPriorityVBEntry(uint64_t seqnoOrChkId,
+                                const void* cookie,
+                                HighPriorityVBNotify reqType);
 
     /**
      * Get high priority notifications for a seqno or checkpoint persisted

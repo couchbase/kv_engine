@@ -135,6 +135,9 @@ public:
     uint64_t snapEndSeqno;
 };
 
+/**
+ * Indicates the type of the HighPriorityVB request causing the notify
+ */
 enum class HighPriorityVBNotify { Seqno, ChkPersistence };
 
 /**
@@ -142,3 +145,8 @@ enum class HighPriorityVBNotify { Seqno, ChkPersistence };
  * class HighPriorityVBNotify
  */
 std::string to_string(HighPriorityVBNotify hpNotifyType);
+
+/**
+ * Result of a HighPriorityVB request
+ */
+enum class HighPriorityVBReqStatus { NotSupported, RequestScheduled };

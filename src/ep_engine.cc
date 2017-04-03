@@ -4819,14 +4819,22 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                 chk_id = ntohll(chk_id);
                 void *es = getEngineSpecific(cookie);
                 if (!es) {
-                    vb->addHighPriorityVBEntry(
+                    auto res = vb->checkAddHighPriorityVBEntry(
                             chk_id,
                             cookie,
                             HighPriorityVBNotify::ChkPersistence);
-                    storeEngineSpecific(cookie, this);
-                    // Wake up the flusher if it is idle.
-                    getKVBucket()->wakeUpFlusher();
-                    return ENGINE_EWOULDBLOCK;
+
+                    switch (res) {
+                    case HighPriorityVBReqStatus::RequestScheduled:
+                        storeEngineSpecific(cookie, this);
+                        // Wake up the flusher if it is idle.
+                        getKVBucket()->wakeUpFlusher();
+                        return ENGINE_EWOULDBLOCK;
+
+                    case HighPriorityVBReqStatus::NotSupported:
+                        status = PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+                        break;
+                    }
                 } else {
                     storeEngineSpecific(cookie, NULL);
                     LOG(EXTENSION_LOG_INFO,
@@ -4878,10 +4886,18 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
         if (!es) {
             auto persisted_seqno = vb->getPersistenceSeqno();
             if (seqno > persisted_seqno) {
-                vb->addHighPriorityVBEntry(
+                auto res = vb->checkAddHighPriorityVBEntry(
                         seqno, cookie, HighPriorityVBNotify::Seqno);
-                storeEngineSpecific(cookie, this);
-                return ENGINE_EWOULDBLOCK;
+
+                switch (res) {
+                case HighPriorityVBReqStatus::RequestScheduled:
+                    storeEngineSpecific(cookie, this);
+                    return ENGINE_EWOULDBLOCK;
+
+                case HighPriorityVBReqStatus::NotSupported:
+                    status = PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+                    break;
+                }
             }
         } else {
             storeEngineSpecific(cookie, NULL);

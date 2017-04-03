@@ -181,10 +181,16 @@ bool EphemeralVBucket::hasPendingBGFetchItems() {
             std::to_string(getId()));
 }
 
-void EphemeralVBucket::addHighPriorityVBEntry(uint64_t seqnoOrChkId,
-                                              const void* cookie,
-                                              HighPriorityVBNotify reqType) {
-    _addHighPriorityVBEntry(seqnoOrChkId, cookie, reqType);
+HighPriorityVBReqStatus EphemeralVBucket::checkAddHighPriorityVBEntry(
+        uint64_t seqnoOrChkId,
+        const void* cookie,
+        HighPriorityVBNotify reqType) {
+    if (reqType == HighPriorityVBNotify::ChkPersistence) {
+        return HighPriorityVBReqStatus::NotSupported;
+    }
+
+    addHighPriorityVBEntry(seqnoOrChkId, cookie, reqType);
+    return HighPriorityVBReqStatus::RequestScheduled;
 }
 
 void EphemeralVBucket::notifyHighPriorityRequests(

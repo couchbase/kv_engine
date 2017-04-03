@@ -191,13 +191,15 @@ bool EPVBucket::hasPendingBGFetchItems() {
     return !pendingBGFetches.empty();
 }
 
-void EPVBucket::addHighPriorityVBEntry(uint64_t seqnoOrChkId,
-                                       const void* cookie,
-                                       HighPriorityVBNotify reqType) {
+HighPriorityVBReqStatus EPVBucket::checkAddHighPriorityVBEntry(
+        uint64_t seqnoOrChkId,
+        const void* cookie,
+        HighPriorityVBNotify reqType) {
     if (shard) {
         ++shard->highPriorityCount;
     }
-    _addHighPriorityVBEntry(seqnoOrChkId, cookie, reqType);
+    addHighPriorityVBEntry(seqnoOrChkId, cookie, reqType);
+    return HighPriorityVBReqStatus::RequestScheduled;
 }
 
 void EPVBucket::notifyHighPriorityRequests(EventuallyPersistentEngine& engine,
