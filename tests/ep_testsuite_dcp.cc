@@ -4432,6 +4432,102 @@ static enum test_result test_dcp_persistence_seqno(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+/* This test checks whether writing of backfill items on a replica vbucket
+   would result in notification for a pending "CMD_SEQNO_PERSISTENCE" request */
+static enum test_result test_dcp_persistence_seqno_backfillItems(
+        ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+    /* we want backfill items on a replica vbucket */
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    /* set up a DCP consumer connection */
+    const void* consumerCookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    const char* name = "unittest";
+    uint16_t nname = strlen(name);
+
+    /* Open an DCP consumer connection */
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h,
+                         consumerCookie,
+                         opaque,
+                         /*start_seqno*/ 0,
+                         /*flags*/ 0,
+                         (void*)name,
+                         nname),
+            "Failed dcp consumer open connection.");
+
+    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
+    checkeq(0, type.compare("consumer"), "Consumer not found");
+
+    opaque = add_stream_for_consumer(h,
+                                     h1,
+                                     consumerCookie,
+                                     opaque,
+                                     0,
+                                     0,
+                                     PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    /* Now make a seqnoPersistence call that will cause a high priority
+       vbucket entry to be queued */
+    const int num_items = 2;
+
+    /* the test chooses to handle the EWOULDBLOCK here */
+    const void* cookie = testHarness.create_cookie();
+    testHarness.set_ewouldblock_handling(cookie, false);
+
+    /* seqno 'num_items + 1' is not yet seen by the vbucket */
+    checkeq(ENGINE_EWOULDBLOCK,
+            seqnoPersistence(h, h1, cookie, /*vbid*/ 0, /*seqno*/ num_items),
+            "Expected temp failure for seqno persistence request");
+
+    /* acquire the mutex to wait on the condition variable */
+    testHarness.lock_cookie(cookie);
+
+    /* write backfill items on the replica vbucket to reach seqno 'num_items'.
+       the notification (arising from the write) will not win the race to
+       notify the condition variable since the mutex is still held.
+       Note: we need another writer thread because in ephemeral buckets, the
+       writer thread itself notifies the waiting condition variable,
+       hence it cannot be this thread (as we are in the mutex associated
+       with the condition variable) */
+    std::thread backfillWriter(dcp_stream_to_replica,
+                               h,
+                               h1,
+                               consumerCookie,
+                               opaque,
+                               /*vbucket*/ 0,
+                               /*MARKER_FLAG_DISK*/ 0x02,
+                               /*start*/ 1,
+                               /*end*/ num_items,
+                               /*snap_start_seqno*/ 1,
+                               /*snap_end_seqno*/ num_items,
+                               /*cas*/ 1,
+                               /*datatype*/ 1,
+                               /*exprtime*/ 0,
+                               /*lockTime*/ 0,
+                               /*revSeqno*/ 0);
+
+    /* now wait on the condition variable; the condition variable is signaled
+       by the notification from the seqnoPersistence request that had received
+       EWOULDBLOCK.
+       This would HANG if the backfill writes do not cause a notify for the
+       "seqnoPersistence" request above */
+    testHarness.waitfor_cookie(cookie);
+
+    /* unlock the mutex */
+    testHarness.unlock_cookie(cookie);
+
+    /* delete the cookies created */
+    testHarness.destroy_cookie(consumerCookie);
+    testHarness.destroy_cookie(cookie);
+
+    /* wait for the writer thread to complete */
+    backfillWriter.join();
+
+    return SUCCESS;
+}
+
 static enum test_result test_dcp_last_items_purged(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
     item_info info;
@@ -5916,7 +6012,14 @@ BaseTestCase testsuite_testcases[] = {
                  teardown, NULL, prepare, cleanup),
         TestCase("dcp persistence seqno", test_dcp_persistence_seqno, test_setup,
                  teardown, NULL,
-                 prepare,  // Needs persistence.
+                 prepare,
+                 cleanup),
+        TestCase("dcp persistence seqno for backfill items",
+                 test_dcp_persistence_seqno_backfillItems,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
                  cleanup),
         TestCase("dcp last items purged", test_dcp_last_items_purged, test_setup,
                  teardown, NULL,
