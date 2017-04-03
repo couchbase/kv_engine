@@ -189,7 +189,19 @@ HighPriorityVBReqStatus EphemeralVBucket::checkAddHighPriorityVBEntry(
         return HighPriorityVBReqStatus::NotSupported;
     }
 
-    addHighPriorityVBEntry(seqnoOrChkId, cookie, reqType);
+    {
+        /* Serialize the request with sequence lock */
+        std::lock_guard<std::mutex> lh(sequenceLock);
+
+        if (seqnoOrChkId <= getPersistenceSeqno()) {
+            /* Need not notify asynchronously as the vb already has the
+               requested seqno */
+            return HighPriorityVBReqStatus::RequestNotScheduled;
+        }
+
+        addHighPriorityVBEntry(seqnoOrChkId, cookie, reqType);
+    }
+
     return HighPriorityVBReqStatus::RequestScheduled;
 }
 

@@ -463,6 +463,9 @@ public:
      * @return RequestScheduled if a high priority request is added and
      *                          notification will be done asynchronously
      *         NotSupported if the request is not supported for the reqType
+     *         RequestNotScheduled if a high priority request is NOT added (as
+     *                             it is not required). This implies there won't
+     *                             be a subsequent notification
      */
     virtual HighPriorityVBReqStatus checkAddHighPriorityVBEntry(
             uint64_t seqnoOrChkId,

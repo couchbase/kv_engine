@@ -149,4 +149,8 @@ std::string to_string(HighPriorityVBNotify hpNotifyType);
 /**
  * Result of a HighPriorityVB request
  */
-enum class HighPriorityVBReqStatus { NotSupported, RequestScheduled };
+enum class HighPriorityVBReqStatus {
+    NotSupported,
+    RequestScheduled,
+    RequestNotScheduled
+};

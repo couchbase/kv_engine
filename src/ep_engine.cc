@@ -4834,6 +4834,11 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                     case HighPriorityVBReqStatus::NotSupported:
                         status = PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
                         break;
+
+                    case HighPriorityVBReqStatus::RequestNotScheduled:
+                        /* 'HighPriorityVBEntry' was not added, hence just
+                           return success */
+                        break;
                     }
                 } else {
                     storeEngineSpecific(cookie, NULL);
@@ -4896,6 +4901,11 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
 
                 case HighPriorityVBReqStatus::NotSupported:
                     status = PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+                    break;
+
+                case HighPriorityVBReqStatus::RequestNotScheduled:
+                    /* 'HighPriorityVBEntry' was not added, hence just return
+                       success */
                     break;
                 }
             }
