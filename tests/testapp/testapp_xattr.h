@@ -25,8 +25,11 @@ public:
 
         // Create the document to operate on
         auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
-                           name, "couchbase.version", "\"spock\"",
-                           SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_MKDOC);
+                           name,
+                           "couchbase.version",
+                           "\"spock\"",
+                           SUBDOC_FLAG_MKDIR_P,
+                           SUBDOC_FLAG_MKDOC);
         ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
     }
 
@@ -145,14 +148,13 @@ protected:
 
     }
 
-
-
-
-    BinprotSubdocResponse subdoc(protocol_binary_command opcode,
-                                 const std::string& key,
-                                 const std::string& path,
-                                 const std::string& value,
-                                 protocol_binary_subdoc_flag flag = SUBDOC_FLAG_NONE) {
+    BinprotSubdocResponse subdoc(
+            protocol_binary_command opcode,
+            const std::string& key,
+            const std::string& path,
+            const std::string& value,
+            protocol_binary_subdoc_flag flag = SUBDOC_FLAG_NONE,
+            protocol_binary_subdoc_flag docFlag = SUBDOC_FLAG_NONE) {
         auto& conn = getMCBPConnection();
 
         BinprotSubdocCommand cmd;
@@ -161,6 +163,7 @@ protected:
         cmd.setPath(path);
         cmd.setValue(value);
         cmd.addPathFlags(flag);
+        cmd.addDocFlags(docFlag);
 
         conn.sendCommand(cmd);
 
@@ -171,10 +174,12 @@ protected:
 
     }
 
-
-    BinprotSubdocResponse subdoc_get(const std::string& path,
-                                     protocol_binary_subdoc_flag flag = SUBDOC_FLAG_NONE) {
-        return subdoc(PROTOCOL_BINARY_CMD_SUBDOC_GET, name, path, {}, flag);
+    BinprotSubdocResponse subdoc_get(
+            const std::string& path,
+            protocol_binary_subdoc_flag flag = SUBDOC_FLAG_NONE,
+            protocol_binary_subdoc_flag docFlag = SUBDOC_FLAG_NONE) {
+        return subdoc(
+                PROTOCOL_BINARY_CMD_SUBDOC_GET, name, path, {}, flag, docFlag);
     }
 
     MemcachedBinprotConnection& getMCBPConnection() {
@@ -183,9 +188,11 @@ protected:
 
     protocol_binary_response_status xattr_upsert(const std::string& path,
                                                  const std::string& value) {
-        auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT, name, path,
+        auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                           name,
+                           path,
                            value,
-                           SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P |
+                           SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
                            SUBDOC_FLAG_MKDOC);
         return resp.getStatus();
     }

@@ -218,14 +218,18 @@ TEST_P(XattrTest, OperateOnDeletedItem) {
     getConnection().remove(name, 0);
 
     // let's add an attribute to the deleted document
-    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, name,
-                       "_sync.deleted", "true",
-                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_ACCESS_DELETED |
-                       SUBDOC_FLAG_MKDIR_P);
+    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                       name,
+                       "_sync.deleted",
+                       "true",
+                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+                       SUBDOC_FLAG_ACCESS_DELETED);
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED,
               resp.getStatus());
 
-    resp = subdoc_get("_sync.deleted", SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_ACCESS_DELETED);
+    resp = subdoc_get("_sync.deleted",
+                      SUBDOC_FLAG_XATTR_PATH,
+                      SUBDOC_FLAG_ACCESS_DELETED);
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED,
               resp.getStatus());
     EXPECT_EQ("true", resp.getValue());

@@ -424,7 +424,16 @@ public:
         return *this;
     }
     BinprotSubdocCommand& addPathFlags(protocol_binary_subdoc_flag flags_) {
-        flags = flags | flags_;
+        static protocol_binary_subdoc_flag validFlags =
+                SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P |
+                SUBDOC_FLAG_EXPAND_MACROS;
+        if ((flags_ & ~validFlags) == 0) {
+            flags = flags | flags_;
+        } else {
+            throw std::invalid_argument("addPathFlags: flags_ (which is " +
+                                        std::to_string(flags_) +
+                                        ") is not a path flag");
+        }
         return *this;
     }
     BinprotSubdocCommand& addDocFlags(protocol_binary_subdoc_flag flags_) {
