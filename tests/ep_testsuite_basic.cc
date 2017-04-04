@@ -1511,6 +1511,15 @@ static enum test_result test_delete_with_value_cas(ENGINE_HANDLE *h,
 
     curr_revseqno = last_meta.revSeqno;
 
+    // Attempt to Delete-with-value using incorrect CAS (should fail)
+    const uint64_t incorrect_CAS = info.cas + 1;
+    checkeq(ENGINE_KEY_EEXISTS,
+            store(h, h1, nullptr, OPERATION_SET, "key2",
+                  "newdeletevaluewithcas", nullptr, incorrect_CAS, 0, 3600,
+                  0x00, DocumentState::Deleted),
+            "Expected KEY_EEXISTS with incorrect CAS");
+
+    // Attempt with correct CAS.
     checkeq(ENGINE_SUCCESS,
             store(h, h1, nullptr, OPERATION_SET, "key2",
                   "newdeletevaluewithcas", nullptr, info.cas, 0, 3600, 0x00,

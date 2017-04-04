@@ -1080,19 +1080,28 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
          * delete.
          */
         if (v) {
+            if (cas != 0 && cas != v->getCas()) {
+                return ENGINE_KEY_EEXISTS;
+            }
             itm->setRevSeqno(v->getRevSeqno());
             v->setValue(*itm, ht);
         } else {
-            AddStatus rv = addTempStoredValue(hbl, key);
-            if (rv == AddStatus::NoMem) {
-                return ENGINE_ENOMEM;
+            /* retrieve the item, if it is present in disk, for CAS comparison */
+            if (maybeKeyExistsInFilter(key)) {
+                return addTempItemAndBGFetch(
+                                hbl, key, cookie, engine, bgFetchDelay, true);
+            } else {
+                AddStatus rv = addTempStoredValue(hbl, key);
+                if (rv == AddStatus::NoMem) {
+                    return ENGINE_ENOMEM;
+                }
+                v = ht.unlocked_find(key,
+                                     hbl.getBucketNum(),
+                                     WantsDeleted::Yes,
+                                     TrackReference::No);
+                v->setValue(*itm, ht);
+                /* Due to the above setValue() v is no longer a temp stored value*/
             }
-            v = ht.unlocked_find(key,
-                                 hbl.getBucketNum(),
-                                 WantsDeleted::Yes,
-                                 TrackReference::No);
-            v->setValue(*itm, ht);
-            /* Due to the above setValue() v is no longer a temp stored value*/
         }
     }
 
