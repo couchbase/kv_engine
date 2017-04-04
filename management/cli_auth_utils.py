@@ -30,11 +30,11 @@ def cmd_decorator(f):
             try:
                 mc.sasl_auth_plain(username, password)
             except mc_bin_client.MemcachedError:
-                print ("Authentication error for user:{} bucket:{}"
+                print ("Authentication error for user:{0} bucket:{1}"
                        .format(username, bucket))
                 sys.exit(1)
 
-        mc.hello("{} {}".format(os.path.split(sys.argv[0])[1],
+        mc.hello("{0} {1}".format(os.path.split(sys.argv[0])[1],
                                 os.getenv("EP_ENGINE_VERSION",
                                           "unknown version")))
         try:

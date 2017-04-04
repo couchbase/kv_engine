@@ -539,8 +539,12 @@ class MemcachedClient(object):
 
         errmap = json.loads(errmap)
 
-        errmap['errors'] = {int(k, 16):v
-                            for k,v in errmap['errors'].iteritems()}
+        d = {}
+
+        for k,v in errmap['errors'].iteritems():
+            d[int(k, 16)] = v
+
+        errmap['errors'] = d
         return errmap
 
     def enable_xerror(self):

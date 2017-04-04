@@ -9,9 +9,8 @@ import itertools
 import mc_bin_client
 import re
 
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
 from operator import itemgetter
-from functools import total_ordering
 
 try:
     import simplejson as json
@@ -74,11 +73,12 @@ def table_formatter(columns, data, sort_by=None):
     template = ""
     for index, column in enumerate(columns[:-1]):
         align = ">" if column.ralign else "<"
-        template += "{{:{}{}}}  ".format(align,column_widths[index])
+        template += "{{{0}:{1}{2}}}  ".format(index, align,
+                                              column_widths[index])
     # Last line is not padded unless right aligned
     # so only long lines will wrap, not all of them
-    template += ("{{:>{}}}  ".format(column_widths[-1])
-                if columns[-1].ralign else "{}")
+    template += ("{{{0}:>{1}}}  ".format(len(columns) - 1, column_widths[-1])
+                if columns[-1].ralign else ("{" + str(len(columns) - 1) + "}"))
 
     sort_key = None
 
@@ -97,7 +97,6 @@ def table_formatter(columns, data, sort_by=None):
     for row in sorted(data, key=sort_key):
         print template.format(*row)
 
-@total_ordering
 class TaskStat(object):
     """Represents a stat which must be sorted by a different value than is
     displayed, i.e. pretty-printed timestamps
@@ -111,6 +110,12 @@ class TaskStat(object):
 
     def __lt__(self, other):
         return self.value < (other.value if hasattr(other, "value") else other)
+
+    # total_ordering decorator unavailable in Python 2.6, otherwise only
+    # __eq__ and one comparision would be necessary
+
+    def __gt__(self, other):
+        return self.value > (other.value if hasattr(other, "value") else other)
 
     def __str__(self):
         return self.display_value
@@ -191,7 +196,7 @@ def tasks_stats_formatter(stats, sort_by=None, *args):
 
             print headers
 
-            table_columns = OrderedDict([
+            table_columns = [
                     (key, Column(*options)) for key, options in (
                     # Stat            Display Name  Right Align
                     ('tid',              ('TID',         True )),
@@ -204,16 +209,19 @@ def tasks_stats_formatter(stats, sort_by=None, *args):
                     ('type',             ('Type',        False)),
                     ('name',             ('Name',        False)),
                     ('description',      ('Description', False)),
-                )])
+                )]
+
+            table_column_keys = [x[0] for x in table_columns]
+            table_column_values = [x[1] for x in table_columns]
 
             table_data = []
 
             for row in tasks:
                 table_data.append(tuple(row[key]
-                                        for key in table_columns.keys()))
+                                        for key in table_column_keys))
 
 
-            table_formatter(table_columns.values(), table_data, sort_by)
+            table_formatter(table_column_values, table_data, sort_by)
 
 
 def ps_time_label(microseconds):
@@ -227,7 +235,7 @@ def ps_time_label(microseconds):
     minutes = seconds//60
     seconds %= 60
 
-    return "{}{}:{:0>2}.{:0>2}".format(sign, minutes, seconds, centiseconds)
+    return "{0}{1}:{2:0>2}.{3:0>2}".format(sign, minutes, seconds, centiseconds)
 
 def time_label(s):
     # -(2**64) -> '-inf'
