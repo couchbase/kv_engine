@@ -97,6 +97,18 @@ CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
 CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
                 ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbvbucketctl)
 
+SET(Python_ADDITIONAL_VERSIONS 2.6)
+FIND_PACKAGE(PythonInterp)
+
+# to avoid cluttering source dir with name + "c" files
+SET(ENV{PYTHONDONTWRITEBYTECODE} 1)
+
+# runs cbstats & cbepctl - will fail on basic syntax errors
+ADD_TEST(cbstats_test ${PYTHON_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/management/cbstats --help)
+ADD_TEST(cbepctl_test ${PYTHON_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/management/cbepctl --help)
+
 IF (WIN32)
    INCLUDE_DIRECTORIES(AFTER ${CMAKE_SOURCE_DIR}/platform/include/win32)
 ENDIF (WIN32)
