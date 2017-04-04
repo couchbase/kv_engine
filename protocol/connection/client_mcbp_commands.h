@@ -401,7 +401,13 @@ public:
     BinprotSubdocCommand(protocol_binary_command cmd_,
                          const std::string& key_,
                          const std::string& path_)
-        : BinprotSubdocCommand(cmd_, key_, path_, "", SUBDOC_FLAG_NONE, 0) {
+        : BinprotSubdocCommand(cmd_,
+                               key_,
+                               path_,
+                               "",
+                               SUBDOC_FLAG_NONE,
+                               SUBDOC_FLAG_NONE,
+                               0) {
     }
 
     BinprotSubdocCommand(protocol_binary_command cmd,
@@ -409,6 +415,7 @@ public:
                          const std::string& path,
                          const std::string& value,
                          protocol_binary_subdoc_flag flags = SUBDOC_FLAG_NONE,
+                         protocol_binary_subdoc_flag docFlags = SUBDOC_FLAG_NONE,
                          uint64_t cas = 0);
 
     BinprotSubdocCommand& setPath(const std::string& path_);

@@ -439,7 +439,11 @@ void test_subdoc_fetch_array_simple(bool compressed, protocol_binary_command cmd
     reconnect_to_server();
 
     // g). Check that incorrect flags (i.e. non-zero) is invalid.
-    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "array", "[0]", "", SUBDOC_FLAG_MKDIR_P),
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd,
+                                       "array",
+                                       "[0]",
+                                       "",
+                                       SUBDOC_FLAG_MKDIR_P),
                   PROTOCOL_BINARY_RESPONSE_EINVAL);
     reconnect_to_server();
 
@@ -816,19 +820,30 @@ void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
         PROTOCOL_BINARY_RESPONSE_SUCCESS, "", resp);
     uint64_t cas = resp.getCas();
     EXPECT_NE(0, cas);
-    EXPECT_SUBDOC_CMD_RESP(BinprotSubdocCommand(cmd, "dict", "new_int", "3", SUBDOC_FLAG_NONE, cas),
+    EXPECT_SUBDOC_CMD_RESP(BinprotSubdocCommand(cmd, "dict", "new_int", "3", SUBDOC_FLAG_NONE, SUBDOC_FLAG_NONE, cas),
         PROTOCOL_BINARY_RESPONSE_SUCCESS, "", resp);
 
     uint64_t new_cas = resp.getCas();
     EXPECT_NE(cas, new_cas);
 
     // k). CAS - cmd with old cas should fail.
-    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "dict", "new_int2", "4", SUBDOC_FLAG_NONE, cas),
-                      PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd,
+                                       "dict",
+                                       "new_int2",
+                                       "4",
+                                       SUBDOC_FLAG_NONE,
+                                       SUBDOC_FLAG_NONE,
+                                       cas),
+                  PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
 
     // l). CAS - manually corrupted (off by one) cas should fail.
-    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "dict","new_int2", "4",
-                            SUBDOC_FLAG_NONE, new_cas + 1),
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd,
+                                       "dict",
+                                       "new_int2",
+                                       "4",
+                                       SUBDOC_FLAG_NONE,
+                                       SUBDOC_FLAG_NONE,
+                                       new_cas + 1),
                   PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
 
     delete_object("dict");
@@ -912,7 +927,13 @@ void McdTestappTest::test_subdoc_dict_add_cas(bool compress,
     ewouldblock_engine_configure(ENGINE_KEY_EEXISTS, EWBEngineMode::Sequence,
                                  0xfffffffc /* <3 MSBytes all-ones>, 0b11,111,100 */);
 
-    EXPECT_SD_ERR(BinprotSubdocCommand(cmd, "dict","new_int4", "4", SUBDOC_FLAG_NONE, new_cas),
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd,
+                                       "dict",
+                                       "new_int4",
+                                       "4",
+                                       SUBDOC_FLAG_NONE,
+                                       SUBDOC_FLAG_NONE,
+                                       new_cas),
                   PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
 
     // Cleanup.
@@ -1012,8 +1033,13 @@ void test_subdoc_delete_simple(bool compress) {
         uint64_t cas = resp.getCas();
 
         // Deleting with the wrong CAS should fail:
-        EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "dict",
-                                path, "", SUBDOC_FLAG_NONE, cas + 1),
+        EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
+                                           "dict",
+                                           path,
+                                           "",
+                                           SUBDOC_FLAG_NONE,
+                                           SUBDOC_FLAG_NONE,
+                                           cas + 1),
                       PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
 
         EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, "dict",path));
@@ -1208,15 +1234,27 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_Simple)
     validate_object("a", "[0,1,2]");
 
     // b). Check that using the correct CAS succeeds.
-    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
-                                "a", "", "3", SUBDOC_FLAG_NONE, resp.getCas()));
+    EXPECT_SD_OK(
+            BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+                                 "a",
+                                 "",
+                                 "3",
+                                 SUBDOC_FLAG_NONE,
+                                 SUBDOC_FLAG_NONE,
+                                 resp.getCas()));
     EXPECT_SD_GET("a", "[3]", "3"),
     validate_object("a", "[0,1,2,3]");
 
     // c). But using the wrong one fails.
-    EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
-                            "a", "", "4", SUBDOC_FLAG_NONE, resp.getCas()),
-                  PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
+    EXPECT_SD_ERR(
+            BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+                                 "a",
+                                 "",
+                                 "4",
+                                 SUBDOC_FLAG_NONE,
+                                 SUBDOC_FLAG_NONE,
+                                 resp.getCas()),
+            PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
     validate_object("a", "[0,1,2,3]");
     delete_object("a");
 
@@ -1289,15 +1327,28 @@ TEST_P(McdTestappTest, SubdocArrayPushFirst_Simple)
     validate_object("a", "[2,1,0]");
 
     // b). Check that using the correct CAS succeeds.
-    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
-                           "a", "", "3", SUBDOC_FLAG_NONE, resp.getCas()));
+    EXPECT_SD_OK(
+            BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+                                 "a",
+                                 "",
+                                 "3",
+                                 SUBDOC_FLAG_NONE,
+                                 SUBDOC_FLAG_NONE,
+                                 resp.getCas()));
     EXPECT_SD_GET("a", "[0]", "3");
     validate_object("a", "[3,2,1,0]");
 
     // c). But using the wrong one fails.
-    EXPECT_SUBDOC_CMD(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
-                                "a", "", "4", SUBDOC_FLAG_NONE, resp.getCas()),
-                      PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "");
+    EXPECT_SUBDOC_CMD(
+            BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+                                 "a",
+                                 "",
+                                 "4",
+                                 SUBDOC_FLAG_NONE,
+                                 SUBDOC_FLAG_NONE,
+                                 resp.getCas()),
+            PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+            "");
     validate_object("a", "[3,2,1,0]");
     delete_object("a");
 
@@ -1722,13 +1773,25 @@ TEST_P(McdTestappTest, SubdocCASAutoRetry)
 TEST_P(McdTestappTest, SubdocMkdoc_Array)
 {
     // Create new document (array)
-    ASSERT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
-                           "a", "", "0", SUBDOC_FLAG_MKDOC));
+    ASSERT_SD_OK(
+            BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+                                 "a",
+                                 "",
+                                 "0",
+                                 SUBDOC_FLAG_NONE,
+                                 SUBDOC_FLAG_MKDOC,
+                                 0));
     EXPECT_SD_GET("a", "[0]", "0");
 
     // Flag doesn't do anything if doc already exists
-    ASSERT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
-                           "a", "", "1", SUBDOC_FLAG_MKDOC));
+    ASSERT_SD_OK(
+            BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+                                 "a",
+                                 "",
+                                 "1",
+                                 SUBDOC_FLAG_NONE,
+                                 SUBDOC_FLAG_MKDOC,
+                                 0));
     EXPECT_SD_GET("a", "[1]", "1");
 
     delete_object("a");
@@ -1737,17 +1800,32 @@ TEST_P(McdTestappTest, SubdocMkdoc_Array)
 TEST_P(McdTestappTest, SubdocMkdoc_Dict) {
     // Create new document (dictionary)
     ASSERT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
-                           "a", "foo", "1", SUBDOC_FLAG_MKDOC));
+                                      "a",
+                                      "foo",
+                                      "1",
+                                      SUBDOC_FLAG_NONE,
+                                      SUBDOC_FLAG_MKDOC,
+                                      0));
     EXPECT_SD_GET("a", "foo", "1");
 
     // Flag doesn't do anything if doc already exists
     ASSERT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
-                           "a", "bar", "2", SUBDOC_FLAG_MKDOC));
+                                      "a",
+                                      "bar",
+                                      "2",
+                                      SUBDOC_FLAG_NONE,
+                                      SUBDOC_FLAG_MKDOC,
+                                      0));
     EXPECT_SD_GET("a", "bar", "2");
 
     // Flag still has MKDIR_P semantics if needed
     ASSERT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
-                           "a", "nested.path", "3", SUBDOC_FLAG_MKDOC));
+                                      "a",
+                                      "nested.path",
+                                      "3",
+                                      SUBDOC_FLAG_NONE,
+                                      SUBDOC_FLAG_MKDOC,
+                                      0));
     EXPECT_SD_GET("a", "nested.path", "3");
 
     delete_object("a");
@@ -1756,10 +1834,22 @@ TEST_P(McdTestappTest, SubdocMkdoc_Dict) {
 TEST_P(McdTestappTest, SubdocMkdoc_Counter) {
     // Counter should also work (with a path) + MKDIR_P
     ASSERT_SD_VALEQ(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
-                              "a", "counter.path", "42", SUBDOC_FLAG_MKDOC), "42");
+                                         "a",
+                                         "counter.path",
+                                         "42",
+                                         SUBDOC_FLAG_NONE,
+                                         SUBDOC_FLAG_MKDOC,
+                                         0),
+                    "42");
     // Repeat should be OK
     ASSERT_SD_VALEQ(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
-                              "a", "counter.path", "42", SUBDOC_FLAG_MKDOC), "84");
+                                         "a",
+                                         "counter.path",
+                                         "42",
+                                         SUBDOC_FLAG_NONE,
+                                         SUBDOC_FLAG_MKDOC,
+                                         0),
+                    "84");
     delete_object("a");
 }
 

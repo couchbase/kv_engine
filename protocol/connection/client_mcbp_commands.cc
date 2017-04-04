@@ -65,14 +65,15 @@ BinprotSubdocCommand::BinprotSubdocCommand(protocol_binary_command cmd_,
                                            const std::string& key_,
                                            const std::string& path_,
                                            const std::string& value_,
-                                           protocol_binary_subdoc_flag flags_,
+                                           protocol_binary_subdoc_flag pathFlags_,
+                                           protocol_binary_subdoc_flag docFlags_,
                                            uint64_t cas_)
     : BinprotCommandT() {
     setOp(cmd_);
     setKey(key_);
     setPath(path_);
     setValue(value_);
-    setFlags(flags_);
+    setFlags(pathFlags_ | docFlags_);
     setCas(cas_);
 }
 
