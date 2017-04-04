@@ -798,6 +798,40 @@ protected:
     ENGINE_ERROR_CODE sendNotSupportedResponse(ADD_RESPONSE response,
                                                const void* cookie);
 
+    /**
+     * Sends error response, using the specified error and response callback
+     * to the specified connection via it's cookie.
+     *
+     * @param response callback func to send the response
+     * @param status error status to send
+     * @param cas a cas value to send
+     * @param cookie conn cookie
+     *
+     * @return status of sending response
+     */
+    ENGINE_ERROR_CODE sendErrorResponse(ADD_RESPONSE response,
+                                        protocol_binary_response_status status,
+                                        uint64_t cas,
+                                        const void* cookie);
+
+    /**
+     * Sends a response that includes the mutation extras, the VB uuid and
+     * seqno of the mutation.
+     *
+     * @param response callback func to send the response
+     * @param vbucket vbucket that was mutated
+     * @param bySeqno the seqno to send
+     * @param status a mcbp status code
+     * @param cas cas assigned to the mutation
+     * @param cookie conn cookie
+     * @returns NMVB if VB can't be located, or the ADD_RESPONSE return code.
+     */
+    ENGINE_ERROR_CODE sendMutationExtras(ADD_RESPONSE response,
+                                         uint16_t vbucket,
+                                         uint64_t bySeqno,
+                                         protocol_binary_response_status status,
+                                         uint64_t cas,
+                                         const void* cookie);
 
     /**
      * Factory method for constructing the correct bucket type given the
@@ -821,6 +855,66 @@ protected:
             const void* cookie,
             protocol_binary_datatype_t datatype,
             cb::const_char_buffer body);
+
+    /**
+     * Process the set_with_meta with the given buffers/values.
+     *
+     * @param vbucket VB to mutate
+     * @param key DocKey initialised with key data
+     * @param value buffer for the mutation's value
+     * @param itemMeta mutation's cas/revseq/flags/expiration
+     * @param isDeleted the Item is deleted (with value)
+     * @param datatype datatype of the mutation
+     * @param cas [in,out] CAS for the command (updated with new CAS)
+     * @param seqno [out] optional - returns the seqno allocated to the mutation
+     * @param cookie connection's cookie
+     * @param force Should the set skip conflict resolution?
+     * @param allowExisting true if the set can overwrite existing key
+     * @param genBySeqno generate a new seqno? (yes/no)
+     * @param genCas generate a new CAS? (yes/no)
+     * @param emd buffer referencing ExtendedMetaData
+     * @returns state of the operation as an ENGINE_ERROR_CODE
+     */
+    ENGINE_ERROR_CODE setWithMeta(uint16_t vbucket,
+                                  DocKey key,
+                                  cb::const_byte_buffer value,
+                                  ItemMetaData itemMeta,
+                                  bool isDeleted,
+                                  protocol_binary_datatype_t datatype,
+                                  uint64_t& cas,
+                                  uint64_t* seqno,
+                                  const void* cookie,
+                                  bool force,
+                                  bool allowExisting,
+                                  GenerateBySeqno genBySeqno,
+                                  GenerateCas genCas,
+                                  cb::const_byte_buffer emd);
+
+    /**
+     * Process the del_with_meta with the given buffers/values.
+     *
+     * @param vbucket VB to mutate
+     * @param key DocKey initialised with key data
+     * @param itemMeta mutation's cas/revseq/flags/expiration
+     * @param cas [in,out] CAS for the command (updated with new CAS)
+     * @param seqno [out] optional - returns the seqno allocated to the mutation
+     * @param cookie connection's cookie
+     * @param force Should the set skip conflict resolution?
+     * @param genBySeqno generate a new seqno? (yes/no)
+     * @param genCas generate a new CAS? (yes/no)
+     * @param emd buffer referencing ExtendedMetaData
+     * @returns state of the operation as an ENGINE_ERROR_CODE
+     */
+    ENGINE_ERROR_CODE deleteWithMeta(uint16_t vbucket,
+                                     DocKey key,
+                                     ItemMetaData itemMeta,
+                                     uint64_t& cas,
+                                     uint64_t* seqno,
+                                     const void* cookie,
+                                     bool force,
+                                     GenerateBySeqno genBySeqno,
+                                     GenerateCas genCas,
+                                     cb::const_byte_buffer emd);
 
     SERVER_HANDLE_V1 *serverApi;
     std::unique_ptr<KVBucket> kvBucket;
