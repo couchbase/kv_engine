@@ -1990,7 +1990,18 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
         }
         if (!hasMetaData) {
             itm.setRevSeqno(v->getRevSeqno() + 1);
+            /* MB-23530: We must ensure that a replace operation (i.e.
+             * set with a CAS) /fails/ if the old document is deleted; it
+             * logically "doesn't exist". However, if the new value is deleted
+             * this op is a /delete/ with a CAS and we must permit a
+             * deleted -> deleted transition for Deleted Bodies.
+             */
+            if (cas && (v->isDeleted() || v->isTempDeletedItem()) &&
+                !itm.isDeleted()) {
+                return {MutationStatus::NotFound, VBNotifyCtx()};
+            }
         }
+
         MutationStatus status;
         VBNotifyCtx notifyCtx;
         std::tie(v, status, notifyCtx) =

@@ -329,13 +329,6 @@ TEST_P(KVBucketParamTest, SetCASDeleted) {
     item2.setCas(cas);
 
     // Store item
-    if (engine->getConfiguration().getBucketType() == "ephemeral" ||
-        engine->getConfiguration().getItemEvictionPolicy() == "full_eviction") {
-        // This currently fails due to MB-23712
-        // TODO: Reenable this check once fixed
-        return;
-    }
-
     if (engine->getConfiguration().getItemEvictionPolicy() ==
                "full_eviction") {
         EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(item2, cookie));
