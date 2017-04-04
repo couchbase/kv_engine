@@ -38,6 +38,34 @@ static void verifyLastMetaData(ItemMetaData imd) {
     checkeq(imd.flags, last_meta.flags, "Flags didn't match");
 }
 
+/**
+ * Create an XATTR document using the supplied string as the body
+ * @returns vector containing the body bytes
+ */
+static std::vector<char> createXattrValue(const std::string& body) {
+    cb::xattr::Blob blob;
+
+    //Add a few XAttrs
+    blob.set(to_const_byte_buffer("user"),
+             to_const_byte_buffer("{\"author\":\"bubba\"}"));
+    blob.set(to_const_byte_buffer("_sync"),
+             to_const_byte_buffer("{\"cas\":\"0xdeadbeefcafefeed\"}"));
+    blob.set(to_const_byte_buffer("meta"),
+             to_const_byte_buffer("{\"content-type\":\"text\"}"));
+
+    auto xattr_value = blob.finalize();
+
+    // append body to the xattrs and store in data
+    std::vector<char> data;
+    std::copy(xattr_value.buf, xattr_value.buf + xattr_value.len,
+              std::back_inserter(data));
+    std::copy(body.c_str(), body.c_str() + body.size(),
+              std::back_inserter(data));
+
+    return data;
+}
+
+
 // Testcases //////////////////////////////////////////////////////////////////
 
 static enum test_result test_get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
@@ -335,25 +363,7 @@ static enum test_result test_get_meta_with_delete(ENGINE_HANDLE *h, ENGINE_HANDL
 static enum test_result test_get_meta_with_xattr(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1)
 {
     const char* key = "get_meta_key";
-    cb::xattr::Blob blob;
-
-    //Add a few XAttrs
-    blob.set(to_const_byte_buffer("user"),
-             to_const_byte_buffer("{\"author\":\"bubba\"}"));
-    blob.set(to_const_byte_buffer("_sync"),
-             to_const_byte_buffer("{\"cas\":\"0xdeadbeefcafefeed\"}"));
-    blob.set(to_const_byte_buffer("meta"),
-             to_const_byte_buffer("{\"content-type\":\"text\"}"));
-
-    auto xattr_value = blob.finalize();
-
-    //Now, append user data to the xattrs and store the data
-    std::string value_data("test_expiry_value");
-    std::vector<char> data;
-    std::copy(xattr_value.buf, xattr_value.buf + xattr_value.len,
-              std::back_inserter(data));
-    std::copy(value_data.c_str(), value_data.c_str() + value_data.length(),
-              std::back_inserter(data));
+    std::vector<char> data = createXattrValue({"test_expiry_value"});
 
     const void* cookie = testHarness.create_cookie();
 
@@ -1257,26 +1267,9 @@ static enum test_result test_set_with_meta_xattr(ENGINE_HANDLE* h,
                                                  ENGINE_HANDLE_V1* h1) {
     const char* key = "set_with_meta_xattr_key";
 
-    // Create a XATTR document with a JSON body
-    cb::xattr::Blob blob;
-
-    //Add a few XAttrs
-    blob.set(to_const_byte_buffer("user"),
-             to_const_byte_buffer("{\"author\":\"bubba\"}"));
-    blob.set(to_const_byte_buffer("_sync"),
-             to_const_byte_buffer("{\"cas\":\"0xdeadbeefcafefeed\"}"));
-    blob.set(to_const_byte_buffer("meta"),
-             to_const_byte_buffer("{\"content-type\":\"text\"}"));
-
-    auto xattr_value = blob.finalize();
-
-    // Now, append JSON user-data to the xattrs and store the data
-    std::string value_data(R"({"json":"yes"})");
-    std::vector<char> data;
-    std::copy(xattr_value.buf, xattr_value.buf + xattr_value.len,
-              std::back_inserter(data));
-    std::copy(value_data.c_str(), value_data.c_str() + value_data.length(),
-              std::back_inserter(data));
+    // Create XATTR doc with JSON body
+    std::string value_data = R"({"json":"yes"})";
+    std::vector<char> data = createXattrValue(value_data);
 
     const void* cookie = testHarness.create_cookie();
 
@@ -1342,32 +1335,40 @@ static enum test_result test_set_with_meta_xattr(ENGINE_HANDLE* h,
 
 static enum test_result test_delete_with_meta_xattr(ENGINE_HANDLE* h,
                                                     ENGINE_HANDLE_V1* h1) {
+    const char* key1 = "delete_with_meta_xattr_key1";
 
-    const char* key = "delete_with_meta_xattr_key";
-    const char* value = "somevalue";
     const void* cookie = testHarness.create_cookie();
 
-    //store a value
-    item* i = nullptr;
-    checkeq(ENGINE_SUCCESS,
-            store(h, h1, nullptr, OPERATION_SET, key, value, &i),
-            "Failed set.");
+    // Create XATTR doc with a JSON body
+    // In practice a del_with_meta should come along with only XATTR, but
+    // the command should work with a complete xattr/body blob
+    std::string body = R"({"key1":"value","key2":"value"})";
+    std::vector<char> data = createXattrValue(body);
 
-    h1->release(h, nullptr, i);
+    checkeq(ENGINE_SUCCESS,
+            store(h,
+                  h1,
+                  nullptr,
+                  OPERATION_SET,
+                  key1,
+                  body.data(),
+                  nullptr),
+            "Failed to store key1.");
 
     if (isPersistentBucket(h, h1)) {
         wait_for_flusher_to_settle(h, h1);
     }
 
-    check(get_meta(h, h1, key), "Expected to get meta");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    // Get the metadata so we can build a del_with_meta
+    check(get_meta(h, h1, key1), "Failed get_meta(key1)");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(),
+            "last_status is not success for get_meta(key1)");
 
-    //init the meta data
-    ItemMetaData itm_meta;
-    itm_meta.revSeqno = last_meta.revSeqno;
-    itm_meta.cas = last_meta.cas;
-    itm_meta.exptime = last_meta.exptime;
-    itm_meta.flags = last_meta.flags;
+    // Init the meta data for a successful delete
+    ItemMetaData itm_meta = last_meta;
+    itm_meta.revSeqno = last_meta.revSeqno + 1; // +1 for seqno conflicts
+    itm_meta.cas = last_meta.cas + 1; // +1 for CAS conflicts
 
     int force = 0;
     if (strstr(testHarness.get_current_testcase()->cfg,
@@ -1375,35 +1376,70 @@ static enum test_result test_delete_with_meta_xattr(ENGINE_HANDLE* h,
         force = FORCE_ACCEPT_WITH_META_OPS;
     }
 
-    //delete with the same meta data
-    del_with_meta(h, h1, key, strlen(key), 0, &itm_meta,
-                  last_meta.cas, force, cookie, {});
-
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
-            "Expected the delete with meta to fail");
-
-    // Only enable XATTR
+    // Now enable XATTR
     testHarness.set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_XATTR);
 
-    //delete with the same meta data
-    del_with_meta(h, h1, key, strlen(key), 0, &itm_meta, last_meta.cas, force,
-                  cookie, {});
+    // Now delete with a value (marked with XATTR)
+    del_with_meta(h,
+                  h1,
+                  key1,
+                  strlen(key1),
+                  0, // vb
+                  &itm_meta,
+                  0, // cas
+                  force,
+                  cookie,
+                  {}, // nmeta
+                  PROTOCOL_BINARY_DATATYPE_XATTR,
+                  data);
 
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
-            "Expected the delete with meta to fail");
+    /* @todo this should fail, but doesn't. We've just deleted the item, but
+    it remains in the hash-table (marked deleted), the subsequent set finds the
+    item and is happy to process this SET_CAS operation (returns success).
+    A delete with no body would of dropped it from the hash-table and the
+    SET_CAS would return enoent, delete_with_meta /should/ I think have the same
+    effect.
+    checkeq(ENGINE_KEY_ENOENT,
+            store(h,
+                  h1,
+                  nullptr,
+                  OPERATION_SET,
+                  key1,
+                  body.data(),
+                  nullptr,
+                  last_cas.load()),
+            "Failed to store key1.");
+    */
 
-    if (isPersistentBucket(h, h1)) {
-        //evict the key
-        evict_key(h, h1, key);
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(),
+            "Expected delete_with_meta(key1) to succeed");
 
-        //delete with the same meta data again. This should result in a
-        //bg fetch
-        del_with_meta(h, h1, key, strlen(key), 0, &itm_meta,
-                      last_meta.cas, force, cookie, {});
+    // Verify the new value is as expected
+    item_info info;
+    item* itm = nullptr;
+    checkeq(ENGINE_SUCCESS,
+            get(h, h1, nullptr, &itm, key1, 0, DocStateFilter::AliveOrDeleted),
+            "Failed to get(key1)");
 
-        checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
-                "Expected delete with meta to fail with EEXISTS");
-    }
+    check(h1->get_item_info(h, nullptr, itm, &info),
+          "Failed get_item_info of key1");
+    checkeq(data.size(), info.value[0].iov_len, "Value length mismatch");
+    checkeq(0, memcmp(info.value[0].iov_base, data.data(), data.size()),
+           "New body mismatch");
+    checkeq(int(DocumentState::Deleted), int(info.document_state),
+          "document_state is not DocumentState::Deleted");
+
+    // The new value is XATTR with a JSON body (the del_w_meta should of
+    // noticed)
+    checkeq(int(PROTOCOL_BINARY_DATATYPE_XATTR | PROTOCOL_BINARY_DATATYPE_JSON),
+            int(info.datatype),
+            "datatype isn't JSON and XATTR");
+
+    h1->release(h, nullptr, itm);
+
+    // @todo implement test for the deletion of a value that has xattr using
+    // a delete that has none (i.e. non-xattr/!spock client)
 
     testHarness.destroy_cookie(cookie);
 

@@ -402,11 +402,18 @@ ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                       cas, vbucket, mut_info);
 }
 
-void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
-                   const size_t keylen, const uint32_t vb,
-                   ItemMetaData *itemMeta, uint64_t cas_for_delete,
-                   uint32_t options, const void *cookie,
-                   const std::vector<char>& nmeta) {
+void del_with_meta(ENGINE_HANDLE* h,
+                   ENGINE_HANDLE_V1* h1,
+                   const char* key,
+                   const size_t keylen,
+                   const uint32_t vb,
+                   ItemMetaData* itemMeta,
+                   uint64_t cas_for_delete,
+                   uint32_t options,
+                   const void* cookie,
+                   const std::vector<char>& nmeta,
+                   protocol_binary_datatype_t datatype,
+                   const std::vector<char>& value) {
     int blen = 24;
     std::unique_ptr<char[]> ext(new char[30]);
     std::unique_ptr<ExtendedMetaData> emd;
@@ -426,9 +433,18 @@ void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
     }
 
     protocol_binary_request_header *pkt;
-    pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_WITH_META, vb, cas_for_delete,
-                       ext.get(), blen, key, keylen, NULL, 0,
-                       PROTOCOL_BINARY_RAW_BYTES, nmeta.data(), nmeta.size());
+    pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_WITH_META,
+                       vb,
+                       cas_for_delete,
+                       ext.get(),
+                       blen,
+                       key,
+                       keylen,
+                       value.data(),
+                       value.size(),
+                       datatype,
+                       nmeta.data(),
+                       nmeta.size());
 
     check(h1->unknown_command(h, cookie, pkt, add_response_set_del_meta, testHarness.doc_namespace) == ENGINE_SUCCESS,
           "Expected to be able to delete with meta");

@@ -937,8 +937,10 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
                 return ENGINE_EWOULDBLOCK;
             }
 
-            if (!(conflictResolver->resolve(
-                        *v, itm.getMetaData(), itm.getDataType(), false))) {
+            if (!(conflictResolver->resolve(*v,
+                                            itm.getMetaData(),
+                                            itm.getDataType(),
+                                            itm.isDeleted()))) {
                 ++stats.numOpsSetMetaResolutionFailed;
                 return ENGINE_KEY_EEXISTS;
             }

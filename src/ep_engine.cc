@@ -5367,11 +5367,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     uint8_t opcode = request->message.header.request.opcode;
     uint16_t vbucket = ntohs(request->message.header.request.vbucket);
     uint64_t cas = ntohll(request->message.header.request.cas);
-
+    uint32_t bodylen = ntohl(request->message.header.request.bodylen);
     uint32_t flags = request->message.body.flags;
     uint32_t expiration = ntohl(request->message.body.expiration);
     uint64_t seqno = ntohll(request->message.body.seqno);
     uint64_t metacas = ntohll(request->message.body.cas);
+    uint8_t datatype = request->message.header.request.datatype;
+    size_t vallen = bodylen - nkey - extlen;
 
     bool skipConflictResolution = false;
     GenerateCas generateCas = GenerateCas::No;
@@ -5403,16 +5405,35 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     uint64_t bySeqno = 0;
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     try {
-        ret = deleteWithMeta(vbucket,
-                             key,
-                             {metacas, seqno, flags, time_t(expiration)},
-                             cas,
-                             &bySeqno,
-                             cookie,
-                             skipConflictResolution,
-                             GenerateBySeqno::Yes,
-                             generateCas,
-                             emd);
+        if (vallen) {
+            // A delete with a value
+            const uint8_t* value = keyPtr + nkey;
+            ret = setWithMeta(vbucket,
+                              key,
+                              {value, vallen},
+                              {metacas, seqno, flags, time_t(expiration)},
+                              true /*isDeleted*/,
+                              datatype,
+                              cas,
+                              &bySeqno,
+                              cookie,
+                              skipConflictResolution,
+                              true /*allowExisting*/,
+                              GenerateBySeqno::Yes,
+                              generateCas,
+                              emd);
+        } else {
+            ret = deleteWithMeta(vbucket,
+                                 key,
+                                 {metacas, seqno, flags, time_t(expiration)},
+                                 cas,
+                                 &bySeqno,
+                                 cookie,
+                                 skipConflictResolution,
+                                 GenerateBySeqno::Yes,
+                                 generateCas,
+                                 emd);
+        }
     } catch (const std::bad_alloc&) {
         return sendErrorResponse(response,
                                  PROTOCOL_BINARY_RESPONSE_ENOMEM,

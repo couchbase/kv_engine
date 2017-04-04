@@ -416,11 +416,18 @@ void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const void* cookie = nullptr,
                    const std::vector<char>& nmeta = {});
 
-void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
-                   const size_t keylen, const uint32_t vb,
-                   ItemMetaData* itemMeta, uint64_t cas_for_delete = 0,
-                   uint32_t options = 0, const void *cookie = nullptr,
-                   const std::vector<char>& nmeta = {});
+void del_with_meta(ENGINE_HANDLE* h,
+                   ENGINE_HANDLE_V1* h1,
+                   const char* key,
+                   const size_t keylen,
+                   const uint32_t vb,
+                   ItemMetaData* itemMeta,
+                   uint64_t cas_for_delete = 0,
+                   uint32_t options = 0,
+                   const void* cookie = nullptr,
+                   const std::vector<char>& nmeta = {},
+                   protocol_binary_datatype_t datatype = 0,
+                   const std::vector<char>& value = {} /*optional value*/);
 
 void return_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                  const size_t keylen, const char *val, const size_t vallen,

@@ -628,7 +628,7 @@ protected:
           exptime(itm.getExptime()),
           flags(itm.getFlags()),
           datatype(itm.getDataType()),
-          deleted(false),
+          deleted(itm.isDeleted()),
           newCacheItem(true),
           isOrdered(isOrdered),
           stale(false),
