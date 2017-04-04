@@ -1884,8 +1884,10 @@ private:
 ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     resetStats();
     if (config != NULL) {
+        LOG(EXTENSION_LOG_NOTICE, "EPEngine::initialize: parsing config:\"%s\"",
+            config);
         if (!configuration.parseConfiguration(config, serverApi)) {
-            LOG(EXTENSION_LOG_NOTICE, "Failed to parse the configuration config "
+            LOG(EXTENSION_LOG_WARNING, "Failed to parse the configuration config "
                 "during bucket initialization.  config=%s", config);
             return ENGINE_FAILED;
         }
