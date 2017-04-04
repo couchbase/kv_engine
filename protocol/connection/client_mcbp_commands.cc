@@ -440,7 +440,7 @@ void BinprotSubdocMultiMutationCommand::encode(std::vector<uint8_t>& buf) const 
     // Time to add the data:
     for (const auto& spec : specs) {
         buf.push_back(uint8_t(spec.opcode));
-        buf.push_back(uint8_t(spec.flags));
+        buf.push_back(uint8_t(spec.flags | docFlags));
         uint16_t pathlen = ntohs(spec.path.size());
         const char* p = reinterpret_cast<const char*>(&pathlen);
         buf.insert(buf.end(), p, p + 2);
@@ -527,7 +527,7 @@ void BinprotSubdocMultiLookupCommand::encode(std::vector<uint8_t>& buf) const {
     // Add the lookup specs themselves:
     for (const auto& spec : specs) {
         buf.push_back(uint8_t(spec.opcode));
-        buf.push_back(uint8_t(spec.flags));
+        buf.push_back(uint8_t(spec.flags | docFlags));
 
         uint16_t pathlen = ntohs(spec.path.size());
         const char* p = reinterpret_cast<const char*>(&pathlen);

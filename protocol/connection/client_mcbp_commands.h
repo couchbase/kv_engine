@@ -491,6 +491,12 @@ class BinprotSubdocMultiMutationCommand :
     public BinprotCommandT<BinprotSubdocMultiMutationCommand,
         PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION> {
 public:
+    BinprotSubdocMultiMutationCommand()
+        : BinprotCommandT<BinprotSubdocMultiMutationCommand,
+                          PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION>(),
+          docFlags(SUBDOC_FLAG_NONE) {
+    }
+
     struct MutationSpecifier {
         protocol_binary_command opcode;
         protocol_binary_subdoc_flag flags;
@@ -499,6 +505,20 @@ public:
     };
 
     void encode(std::vector<uint8_t>& buf) const override;
+
+    BinprotSubdocMultiMutationCommand& addDocFlag(
+            protocol_binary_subdoc_flag docFlag) {
+        static const protocol_binary_subdoc_flag validFlags =
+                SUBDOC_FLAG_MKDOC | SUBDOC_FLAG_ACCESS_DELETED;
+        if ((docFlag & ~validFlags) == 0) {
+            docFlags = docFlags | docFlag;
+        } else {
+            throw std::invalid_argument("addDocFlag: docFlag (Which is " +
+                                        std::to_string(docFlag) +
+                                        ") is not a doc flag");
+        }
+        return *this;
+    }
 
     BinprotSubdocMultiMutationCommand& addMutation(
             const MutationSpecifier& spec) {
@@ -539,9 +559,14 @@ public:
         specs.clear();
     }
 
+    void clearDocFlags() {
+        docFlags = SUBDOC_FLAG_NONE;
+    }
+
 protected:
     std::vector<MutationSpecifier> specs;
     ExpiryValue expiry;
+    protocol_binary_subdoc_flag docFlags;
 };
 
 class BinprotSubdocMultiMutationResponse : public BinprotResponse {
@@ -571,6 +596,12 @@ class BinprotSubdocMultiLookupCommand
         : public BinprotCommandT<BinprotSubdocMultiLookupCommand,
                                  PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP> {
 public:
+    BinprotSubdocMultiLookupCommand()
+        : BinprotCommandT<BinprotSubdocMultiLookupCommand,
+                          PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>(),
+          docFlags(SUBDOC_FLAG_NONE) {
+    }
+
     struct LookupSpecifier {
         protocol_binary_command opcode;
         protocol_binary_subdoc_flag flags;
@@ -606,6 +637,19 @@ public:
             protocol_binary_subdoc_flag flags = SUBDOC_FLAG_NONE) {
         return addLookup(path, PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, flags);
     }
+    BinprotSubdocMultiLookupCommand& addDocFlag(
+            protocol_binary_subdoc_flag docFlag) {
+        static const protocol_binary_subdoc_flag validFlags =
+                SUBDOC_FLAG_MKDOC | SUBDOC_FLAG_ACCESS_DELETED;
+        if ((docFlag & ~validFlags) == 0) {
+            docFlags = docFlags | docFlag;
+        } else {
+            throw std::invalid_argument("addDocFlag: docFlag (Which is " +
+                                        std::to_string(docFlag) +
+                                        ") is not a doc flag");
+        }
+        return *this;
+    }
 
     void clearLookups() {
         specs.clear();
@@ -627,6 +671,10 @@ public:
         return specs.size();
     }
 
+    void clearDocFlags() {
+        docFlags = SUBDOC_FLAG_NONE;
+    }
+
     /**
      * This is used for testing only!
      */
@@ -638,6 +686,7 @@ public:
 protected:
     std::vector<LookupSpecifier> specs;
     ExpiryValue expiry;
+    protocol_binary_subdoc_flag docFlags;
 };
 
 class BinprotSubdocMultiLookupResponse : public BinprotResponse {

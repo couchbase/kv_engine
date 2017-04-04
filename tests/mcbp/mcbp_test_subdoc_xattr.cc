@@ -307,13 +307,13 @@ TEST_F(SubdocXattrMultiLookupTest, XattrFlagsMakeSense) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 
     // Let's try an invalid access deleted flag (needs xattr path)
-    request[0].flags = SUBDOC_FLAG_ACCESS_DELETED;
+    request[0].flags = SUBDOC_FLAG_NONE;
+    request.addDocFlag(SUBDOC_FLAG_ACCESS_DELETED);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO,
               validate());
 
     // We should be able to access deleted docs if both flags are set
-    request[0].flags =
-            SUBDOC_FLAG_ACCESS_DELETED | SUBDOC_FLAG_XATTR_PATH;
+    request[0].flags = SUBDOC_FLAG_XATTR_PATH;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 }
 
@@ -412,9 +412,8 @@ TEST_F(SubdocXattrMultiMutationTest, XattrFlagsMakeSense) {
     request[0].flags = SUBDOC_FLAG_EXPAND_MACROS | SUBDOC_FLAG_XATTR_PATH;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 
-    request[0].flags = SUBDOC_FLAG_EXPAND_MACROS |
-                             SUBDOC_FLAG_XATTR_PATH |
-                             SUBDOC_FLAG_ACCESS_DELETED;
+    request.addDocFlag(SUBDOC_FLAG_ACCESS_DELETED);
+    request[0].flags = SUBDOC_FLAG_EXPAND_MACROS | SUBDOC_FLAG_XATTR_PATH;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 
     request[0].value = "${UnknownMacro}";
@@ -422,13 +421,13 @@ TEST_F(SubdocXattrMultiMutationTest, XattrFlagsMakeSense) {
     request[0].value = "\"${Mutation.CAS}\"";
 
     // Let's try an invalid access deleted flag (needs xattr path)
-    request[0].flags = SUBDOC_FLAG_ACCESS_DELETED;
+    request[0].flags = SUBDOC_FLAG_NONE;
+    request.addDocFlag(SUBDOC_FLAG_ACCESS_DELETED);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO,
               validate());
 
     // We should be able to access deleted docs if both flags are set
-    request[0].flags =
-            SUBDOC_FLAG_ACCESS_DELETED | SUBDOC_FLAG_XATTR_PATH;
+    request[0].flags = SUBDOC_FLAG_XATTR_PATH;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 }
 
