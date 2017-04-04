@@ -274,7 +274,7 @@ TEST_P(ArithmeticTest, TestDocWithXattr) {
         cmd.setKey(name);
         cmd.setPath("meta.author");
         cmd.setValue("\"Trond Norbye\"");
-        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH|SUBDOC_FLAG_MKDIR_P);
+        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
         mcbp.sendCommand(cmd);
 
         BinprotResponse resp;
@@ -292,7 +292,7 @@ TEST_P(ArithmeticTest, TestDocWithXattr) {
         cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
         cmd.setKey(name);
         cmd.setPath("meta.author");
-        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH);
+        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
         mcbp.sendCommand(cmd);
 
         BinprotSubdocResponse resp;

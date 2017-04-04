@@ -73,7 +73,8 @@ BinprotSubdocCommand::BinprotSubdocCommand(protocol_binary_command cmd_,
     setKey(key_);
     setPath(path_);
     setValue(value_);
-    setFlags(pathFlags_ | docFlags_);
+    addPathFlags(pathFlags_);
+    addDocFlags(docFlags_);
     setCas(cas_);
 }
 

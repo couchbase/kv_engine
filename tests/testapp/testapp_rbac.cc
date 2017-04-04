@@ -188,7 +188,7 @@ protected:
         cmd.setKey(name);
         cmd.setPath(key);
         cmd.setValue(value);
-        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
 
         conn.sendCommand(cmd);
 
@@ -203,7 +203,7 @@ protected:
         cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
         cmd.setKey(name);
         cmd.setPath(key);
-        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH);
+        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
         conn.sendCommand(cmd);
 
         BinprotResponse resp;

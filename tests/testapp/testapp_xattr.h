@@ -160,7 +160,7 @@ protected:
         cmd.setKey(key);
         cmd.setPath(path);
         cmd.setValue(value);
-        cmd.setFlags(flag);
+        cmd.addPathFlags(flag);
 
         conn.sendCommand(cmd);
 

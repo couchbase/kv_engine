@@ -423,8 +423,20 @@ public:
         value = value_;
         return *this;
     }
-    BinprotSubdocCommand& setFlags(protocol_binary_subdoc_flag flags_) {
-        flags = flags_;
+    BinprotSubdocCommand& addPathFlags(protocol_binary_subdoc_flag flags_) {
+        flags = flags | flags_;
+        return *this;
+    }
+    BinprotSubdocCommand& addDocFlags(protocol_binary_subdoc_flag flags_) {
+        static const protocol_binary_subdoc_flag validFlags =
+                SUBDOC_FLAG_MKDOC | SUBDOC_FLAG_ACCESS_DELETED;
+        if ((flags_ & ~validFlags) == 0) {
+            flags = flags | flags_;
+        } else {
+            throw std::invalid_argument("addDocFlags: flags_ (which is " +
+                                        std::to_string(flags_) +
+                                        ") is not a doc flag");
+        }
         return *this;
     }
     BinprotSubdocCommand& setExpiry(uint32_t value_) {

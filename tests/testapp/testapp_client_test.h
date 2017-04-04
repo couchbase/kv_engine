@@ -73,9 +73,9 @@ public:
         cmd.setPath(path);
         cmd.setValue(value);
         if (macro) {
-            cmd.setFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS | SUBDOC_FLAG_MKDIR_P);
+            cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS | SUBDOC_FLAG_MKDIR_P);
         } else {
-            cmd.setFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+            cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
         }
 
         connection.sendCommand(cmd);
@@ -100,10 +100,10 @@ public:
         cmd.setKey(name);
         cmd.setPath(path);
         if (deleted) {
-            cmd.setFlags(
-                SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_ACCESS_DELETED);
+            cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
+            cmd.addDocFlags(SUBDOC_FLAG_ACCESS_DELETED);
         } else {
-            cmd.setFlags(SUBDOC_FLAG_XATTR_PATH);
+            cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
         }
         connection.sendCommand(cmd);
 

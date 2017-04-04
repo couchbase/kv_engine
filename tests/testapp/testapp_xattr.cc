@@ -586,8 +586,8 @@ TEST_P(XattrTest, VerifyNotEnabled) {
     cmd.setKey(name);
     cmd.setPath("_sync.deleted");
     cmd.setValue("true");
-    cmd.setFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_ACCESS_DELETED |
-                 SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_MKDOC);
+    cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    cmd.addDocFlags(SUBDOC_FLAG_ACCESS_DELETED | SUBDOC_FLAG_MKDOC);
     conn.sendCommand(cmd);
 
     BinprotSubdocResponse resp;

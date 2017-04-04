@@ -67,7 +67,7 @@ void RemoveTest::verify_MB_22553(const std::string& config) {
         cmd.setKey(name);
         cmd.setPath("_rbac.attribute");
         cmd.setValue("\"read-only\"");
-        cmd.setFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
 
         connection.sendCommand(cmd);
 
@@ -94,7 +94,7 @@ void RemoveTest::verify_MB_22553(const std::string& config) {
         cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
         cmd.setKey(name);
         cmd.setPath("verbosity");
-        cmd.setFlags(SUBDOC_FLAG_NONE);
+        cmd.addPathFlags(SUBDOC_FLAG_NONE);
 
         connection.sendCommand(cmd);
 
