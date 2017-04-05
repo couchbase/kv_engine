@@ -1340,6 +1340,12 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE *h,
 
     h1->release(h, nullptr, i);
 
+    check(get_meta(h, h1, "key1"), "Get meta failed");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(), "Get meta failed");
+
+    uint64_t curr_revseqno = last_meta.revSeqno;
+
     /* Store a deleted item first with CAS 0 */
     checkeq(ENGINE_SUCCESS,
             store(h, h1, nullptr, OPERATION_SET, "key1", "deletevalue", &i,
@@ -1347,6 +1353,13 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE *h,
             "Failed delete with value");
 
     h1->release(h, nullptr, i);
+
+    check(get_meta(h, h1, "key1"), "Get meta failed");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(), "Get meta failed");
+
+    checkeq(last_meta.revSeqno, curr_revseqno + 1,
+            "rev seqno should have incremented");
 
     checkeq(ENGINE_SUCCESS,
             store(h, h1, nullptr, OPERATION_SET, "key2", "somevalue", &i),
@@ -1358,6 +1371,12 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE *h,
 
     h1->release(h, nullptr, i);
 
+    check(get_meta(h, h1, "key2"), "Get meta failed");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(), "Get meta failed");
+
+    curr_revseqno = last_meta.revSeqno;
+
     /* Store a deleted item with the existing CAS value */
     checkeq(ENGINE_SUCCESS,
             store(h, h1, nullptr, OPERATION_SET, "key2", "deletevaluewithcas",
@@ -1367,6 +1386,15 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE *h,
     h1->release(h, nullptr, i);
 
     wait_for_flusher_to_settle(h, h1);
+
+    check(get_meta(h, h1, "key2"), "Get meta failed");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(), "Get meta failed");
+
+    checkeq(last_meta.revSeqno, curr_revseqno + 1,
+            "rev seqno should have incremented");
+
+    curr_revseqno = last_meta.revSeqno;
 
     checkeq(ENGINE_SUCCESS,
             store(h, h1, nullptr, OPERATION_SET, "key2",
@@ -1378,6 +1406,15 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE *h,
     check(h1->get_item_info(h, nullptr, i, &info), "Getting item info failed");
 
     h1->release(h, nullptr, i);
+
+    check(get_meta(h, h1, "key2"), "Get meta failed");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(), "Get meta failed");
+
+    checkeq(last_meta.revSeqno, curr_revseqno + 1,
+            "rev seqno should have incremented");
+
+    curr_revseqno = last_meta.revSeqno;
 
     checkeq(ENGINE_SUCCESS,
             store(h, h1, nullptr, OPERATION_SET, "key2",
@@ -1392,6 +1429,13 @@ static enum test_result test_delete_with_value(ENGINE_HANDLE *h,
             get(h, h1, nullptr, &i, "key2", 0 ,
                 DocStateFilter::AliveOrDeleted),
                 "Failed to get value");
+
+    check(get_meta(h, h1, "key2"), "Get meta failed");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(), "Get meta failed");
+
+    checkeq(last_meta.revSeqno, curr_revseqno + 1,
+            "rev seqno should have incremented");
 
     check(h1->get_item_info(h, nullptr, i, &info),
           "Getting item info failed");

@@ -326,13 +326,16 @@ TEST_P(VBucketTest, unlockedSoftDeleteWithValue) {
     Item deleted_item(key, 0, 0, "deletedvalue", strlen("deletedvalue"));
     deleted_item.setDeleted();
 
+    auto prev_revseqno = v->getRevSeqno();
+    deleted_item.setRevSeqno(prev_revseqno);
+
     // Set a new deleted value
     v->setValue(deleted_item, this->vbucket->ht);
 
-    ItemMetaData itm_meta;
     EXPECT_EQ(MutationStatus::WasDirty,
               this->public_processSoftDelete(v->getKey(), v, 0));
     verifyValue(key, "deletedvalue", TrackReference::Yes, WantsDeleted::Yes);
+    EXPECT_EQ(prev_revseqno + 1, v->getRevSeqno());
 }
 
 /**
@@ -363,6 +366,9 @@ TEST_P(VBucketTest, updateDeletedItem) {
     Item deleted_item(key, 0, 0, "deletedvalue", strlen("deletedvalue"));
     deleted_item.setDeleted();
 
+    auto prev_revseqno = v->getRevSeqno();
+    deleted_item.setRevSeqno(prev_revseqno);
+
     // Set a new deleted value
     v->setValue(deleted_item, this->vbucket->ht);
 
@@ -374,9 +380,14 @@ TEST_P(VBucketTest, updateDeletedItem) {
                 TrackReference::Yes,
                 WantsDeleted::Yes);
 
+    EXPECT_EQ(prev_revseqno + 1, v->getRevSeqno());
+
     Item update_deleted_item(
             key, 0, 0, "updatedeletedvalue", strlen("updatedeletedvalue"));
     update_deleted_item.setDeleted();
+
+    prev_revseqno = v->getRevSeqno();
+    update_deleted_item.setRevSeqno(prev_revseqno);
 
     // Set a new deleted value
     v->setValue(update_deleted_item, this->vbucket->ht);
@@ -385,6 +396,7 @@ TEST_P(VBucketTest, updateDeletedItem) {
               this->public_processSoftDelete(v->getKey(), v, 0));
     verifyValue(
             key, "updatedeletedvalue", TrackReference::Yes, WantsDeleted::Yes);
+    EXPECT_EQ(prev_revseqno + 1, v->getRevSeqno());
 }
 
 TEST_P(VBucketTest, SizeStatsSoftDel) {

@@ -1080,6 +1080,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(const DocKey& key,
          * delete.
          */
         if (v) {
+            itm->setRevSeqno(v->getRevSeqno());
             v->setValue(*itm, ht);
         } else {
             AddStatus rv = addTempStoredValue(hbl, key);
