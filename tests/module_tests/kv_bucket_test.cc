@@ -298,6 +298,57 @@ TEST_P(KVBucketParamTest, SetCASNonExistent) {
     EXPECT_EQ(ENGINE_KEY_ENOENT, store->set(item, cookie));
 }
 
+// Test CAS set against a deleted item
+TEST_P(KVBucketParamTest, SetCASDeleted) {
+    auto key = makeStoredDocKey("key");
+    auto item = make_item(vbid, key, "value");
+
+    // Store item
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
+
+    // Delete item
+    uint64_t cas = 0;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->deleteItem(key,
+                                cas,
+                                vbid,
+                                cookie,
+                      /*Item*/ nullptr,
+                      /*itemMeta*/ nullptr,
+                      /*mutation_descr_t*/ nullptr));
+
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        // Trigger a flush to disk.
+        flush_vbucket_to_disk(vbid);
+    }
+
+    // check we have the cas
+    ASSERT_NE(0, cas);
+
+    auto item2 = make_item(vbid, key, "value2");
+    item2.setCas(cas);
+
+    // Store item
+    if (engine->getConfiguration().getBucketType() == "ephemeral" ||
+        engine->getConfiguration().getItemEvictionPolicy() == "full_eviction") {
+        // This currently fails due to MB-23712
+        // TODO: Reenable this check once fixed
+        return;
+    }
+
+    if (engine->getConfiguration().getItemEvictionPolicy() ==
+               "full_eviction") {
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(item2, cookie));
+
+        // Manually run the bgfetch task.
+        MockGlobalTask mockTask(engine->getTaskable(),
+                                TaskId::MultiBGFetcherTask);
+        store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    }
+
+    EXPECT_EQ(ENGINE_KEY_ENOENT, store->set(item2, cookie));
+}
+
 // Add tests //////////////////////////////////////////////////////////////////
 
 // Test successful add
