@@ -65,4 +65,8 @@ public:
     std::unique_ptr<KVBucket> public_makeBucket(Configuration& config) {
         return makeBucket(config);
     }
+
+    bool public_enableTraffic(bool enable) {
+        return enableTraffic(enable);
+    }
 };

@@ -61,6 +61,8 @@ SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
     tapConfig = new TapConfig(*this);
 
     enableTraffic(true);
+
+    maxItemSize = configuration.getMaxItemSize();
 }
 
 void SynchronousEPEngine::setKVBucket(std::unique_ptr<KVBucket> store) {

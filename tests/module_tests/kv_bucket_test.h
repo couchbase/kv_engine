@@ -105,6 +105,46 @@ public:
 
     void initializeExpiryPager();
 
+    /**
+     * Create a *_with_meta packet with the key/body
+     * Allows *_with_meta to be invoked via EventuallyPersistentEngine which
+     * begins with a packet
+     */
+    static std::vector<char> buildWithMetaPacket(
+            protocol_binary_command opcode,
+            protocol_binary_datatype_t datatype,
+            uint16_t vbucket,
+            uint32_t opaque,
+            uint64_t cas,
+            ItemMetaData metaData,
+            const std::string& key,
+            const std::string& body,
+            const std::vector<char>& emd = {},
+            int options = 0);
+
+    static bool addResponse(const void* k,
+                            uint16_t keylen,
+                            const void* ext,
+                            uint8_t extlen,
+                            const void* body,
+                            uint32_t bodylen,
+                            uint8_t datatype,
+                            uint16_t status,
+                            uint64_t pcas,
+                            const void* cookie);
+
+    /**
+     * Create an XATTR document using the supplied string as the body
+     * @returns string containing the new value
+     */
+    static std::string createXattrValue(const std::string& body);
+
+    static protocol_binary_response_status getAddResponseStatus(
+            protocol_binary_response_status newval =
+                    PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    static protocol_binary_response_status addResponseStatus;
+
     static const char test_dbname[];
 
     std::string config_string;

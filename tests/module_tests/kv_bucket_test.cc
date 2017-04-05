@@ -40,6 +40,10 @@
 #include <chrono>
 #include <thread>
 
+#include <string_utilities.h>
+#include <xattr/blob.h>
+#include <xattr/utils.h>
+
 void KVBucketTest::SetUp() {
     // Paranoia - kill any existing files in case they are left over
     // from a previous run.
@@ -183,6 +187,131 @@ void KVBucketTest::createAndScheduleItemPager() {
 void KVBucketTest::initializeExpiryPager() {
     store->initializeExpiryPager(engine->getConfiguration());
 }
+
+/**
+ * Create a del_with_meta packet with the key/body (body can be empty)
+ */
+std::vector<char> KVBucketTest::buildWithMetaPacket(
+        protocol_binary_command opcode,
+        protocol_binary_datatype_t datatype,
+        uint16_t vbucket,
+        uint32_t opaque,
+        uint64_t cas,
+        ItemMetaData metaData,
+        const std::string& key,
+        const std::string& body,
+        const std::vector<char>& emd,
+        int options) {
+    EXPECT_EQ(sizeof(protocol_binary_request_set_with_meta),
+              sizeof(protocol_binary_request_delete_with_meta));
+
+    size_t size = sizeof(protocol_binary_request_set_with_meta);
+    // body at least the meta
+    size_t extlen = (sizeof(uint32_t) * 2) + (sizeof(uint64_t) * 2);
+    size_t bodylen = extlen;
+    if (options) {
+        size += sizeof(uint32_t);
+        bodylen += sizeof(uint32_t);
+        extlen += sizeof(uint32_t);
+    }
+    if (!emd.empty()) {
+        EXPECT_TRUE(emd.size() < std::numeric_limits<uint16_t>::max());
+        size += sizeof(uint16_t) + emd.size();
+        bodylen += sizeof(uint16_t) + emd.size();
+        extlen += sizeof(uint16_t);
+    }
+    size += body.size();
+    bodylen += body.size();
+    size += key.size();
+    bodylen += key.size();
+
+    protocol_binary_request_set_with_meta header;
+    header.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    header.message.header.request.opcode = opcode;
+    header.message.header.request.keylen = htons(key.size());
+    header.message.header.request.extlen = uint8_t(extlen);
+    header.message.header.request.datatype = datatype;
+    header.message.header.request.vbucket = htons(vbucket);
+    header.message.header.request.bodylen = htonl(bodylen);
+    header.message.header.request.opaque = opaque;
+    header.message.header.request.cas = htonll(cas);
+    header.message.body.flags = metaData.flags;
+    header.message.body.expiration = htonl(metaData.exptime);
+    header.message.body.seqno = htonll(metaData.revSeqno);
+    header.message.body.cas = htonll(metaData.cas);
+
+    std::vector<char> packet;
+    packet.reserve(size);
+    packet.insert(packet.end(),
+                  reinterpret_cast<char*>(&header),
+                  reinterpret_cast<char*>(&header) +
+                          sizeof(protocol_binary_request_set_with_meta));
+
+    if (options) {
+        options = htonl(options);
+        std::copy_n(reinterpret_cast<char*>(&options),
+                    sizeof(uint32_t),
+                    std::back_inserter(packet));
+    }
+
+    if (!emd.empty()) {
+        uint16_t emdSize = htons(emd.size());
+        std::copy_n(reinterpret_cast<char*>(&emdSize),
+                    sizeof(uint16_t),
+                    std::back_inserter(packet));
+    }
+
+    std::copy_n(key.c_str(), key.size(), std::back_inserter(packet));
+    std::copy_n(body.c_str(), body.size(), std::back_inserter(packet));
+    packet.insert(packet.end(), emd.begin(), emd.end());
+    return packet;
+}
+
+std::string KVBucketTest::createXattrValue(const std::string& body) {
+    cb::xattr::Blob blob;
+
+    // Add a few XAttrs
+    blob.set(to_const_byte_buffer("user"),
+             to_const_byte_buffer("{\"author\":\"bubba\"}"));
+    blob.set(to_const_byte_buffer("_sync"),
+             to_const_byte_buffer("{\"cas\":\"0xdeadbeefcafefeed\"}"));
+    blob.set(to_const_byte_buffer("meta"),
+             to_const_byte_buffer("{\"content-type\":\"text\"}"));
+
+    auto xattrValue = blob.finalize();
+
+    // append body to the xattrs and store in data
+    std::string data;
+    std::copy_n(xattrValue.buf, xattrValue.len, std::back_inserter(data));
+    std::copy_n(body.c_str(), body.size(), std::back_inserter(data));
+
+    return data;
+}
+
+bool KVBucketTest::addResponse(const void* k,
+                               uint16_t keylen,
+                               const void* ext,
+                               uint8_t extlen,
+                               const void* body,
+                               uint32_t bodylen,
+                               uint8_t datatype,
+                               uint16_t status,
+                               uint64_t pcas,
+                               const void* cookie) {
+    addResponseStatus = protocol_binary_response_status(status);
+    return true;
+}
+
+protocol_binary_response_status KVBucketTest::getAddResponseStatus(
+        protocol_binary_response_status newval) {
+    protocol_binary_response_status rv = addResponseStatus;
+    addResponseStatus = newval;
+    return rv;
+}
+
+protocol_binary_response_status KVBucketTest::addResponseStatus =
+        PROTOCOL_BINARY_RESPONSE_SUCCESS;
+
 
 // getKeyStats tests //////////////////////////////////////////////////////////
 
