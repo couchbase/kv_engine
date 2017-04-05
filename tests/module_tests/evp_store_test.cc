@@ -244,7 +244,7 @@ class EPStoreEvictionTest : public EPBucketTest,
 // getKeyStats tests //////////////////////////////////////////////////////////
 
 // Check that keystats on resident items works correctly.
-TEST_P(EPStoreEvictionTest, GetKeyStatsResident) {
+TEST_P(KVBucketParamTest, GetKeyStatsResident) {
     key_stats kstats;
 
     // Should start with key not existing.
@@ -326,7 +326,7 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsEjected) {
 
 // Create then delete an item, checking we get keyStats reporting the item as
 // deleted.
-TEST_P(EPStoreEvictionTest, GetKeyStatsDeleted) {
+TEST_P(KVBucketParamTest, GetKeyStatsDeleted) {
     auto& kvbucket = *engine->getKVBucket();
     key_stats kstats;
 
@@ -354,7 +354,7 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsDeleted) {
 }
 
 // Check incorrect vbucket returns not-my-vbucket.
-TEST_P(EPStoreEvictionTest, GetKeyStatsNMVB) {
+TEST_P(KVBucketParamTest, GetKeyStatsNMVB) {
     auto& kvbucket = *engine->getKVBucket();
     key_stats kstats;
 
@@ -369,7 +369,7 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsNMVB) {
 // Replace tests //////////////////////////////////////////////////////////////
 
 // Test replace against a non-existent key.
-TEST_P(EPStoreEvictionTest, ReplaceENOENT) {
+TEST_P(KVBucketParamTest, ReplaceENOENT) {
     // Should start with key not existing (and hence cannot replace).
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
     EXPECT_EQ(ENGINE_KEY_ENOENT, store->replace(item, cookie));
@@ -417,7 +417,7 @@ TEST_P(EPStoreEvictionTest, ReplaceEExists) {
 }
 
 // Create then delete an item, checking replace reports ENOENT.
-TEST_P(EPStoreEvictionTest, ReplaceDeleted) {
+TEST_P(KVBucketParamTest, ReplaceDeleted) {
     store_item(vbid, makeStoredDocKey("key"), "value");
     delete_item(vbid, makeStoredDocKey("key"));
 
@@ -427,13 +427,13 @@ TEST_P(EPStoreEvictionTest, ReplaceDeleted) {
 }
 
 // Check incorrect vbucket returns not-my-vbucket.
-TEST_P(EPStoreEvictionTest, ReplaceNMVB) {
+TEST_P(KVBucketParamTest, ReplaceNMVB) {
     auto item = make_item(vbid + 1, makeStoredDocKey("key"), "value2");
     EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, store->replace(item, cookie));
 }
 
 // Check pending vbucket returns EWOULDBLOCK.
-TEST_P(EPStoreEvictionTest, ReplacePendingVB) {
+TEST_P(KVBucketParamTest, ReplacePendingVB) {
     store->setVBucketState(vbid, vbucket_state_pending, false);
     auto item = make_item(vbid, makeStoredDocKey("key"), "value2");
     EXPECT_EQ(ENGINE_EWOULDBLOCK, store->replace(item, cookie));
@@ -479,7 +479,7 @@ TEST_P(EPStoreEvictionTest, SetEExists) {
 }
 
 // Test CAS set against a non-existent key
-TEST_P(EPStoreEvictionTest, SetCASNonExistent) {
+TEST_P(KVBucketParamTest, SetCASNonExistent) {
     // Create an item with a non-zero CAS.
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
     item.setCas();
@@ -493,7 +493,7 @@ TEST_P(EPStoreEvictionTest, SetCASNonExistent) {
 // Add tests //////////////////////////////////////////////////////////////////
 
 // Test successful add
-TEST_P(EPStoreEvictionTest, Add) {
+TEST_P(KVBucketParamTest, Add) {
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
     EXPECT_EQ(ENGINE_SUCCESS, store->add(item, nullptr));
 }
@@ -541,7 +541,7 @@ TEST_P(EPStoreEvictionTest, AddEExists) {
 }
 
 // Check incorrect vbucket returns not-my-vbucket.
-TEST_P(EPStoreEvictionTest, AddNMVB) {
+TEST_P(KVBucketParamTest, AddNMVB) {
     auto item = make_item(vbid + 1, makeStoredDocKey("key"), "value2");
     EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, store->add(item, cookie));
 }
@@ -549,7 +549,7 @@ TEST_P(EPStoreEvictionTest, AddNMVB) {
 // SetWithMeta tests //////////////////////////////////////////////////////////
 
 // Test basic setWithMeta
-TEST_P(EPStoreEvictionTest, SetWithMeta) {
+TEST_P(KVBucketParamTest, SetWithMeta) {
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
     item.setCas();
     uint64_t seqno;
@@ -559,7 +559,7 @@ TEST_P(EPStoreEvictionTest, SetWithMeta) {
 }
 
 // Test setWithMeta with a conflict with an existing item.
-TEST_P(EPStoreEvictionTest, SetWithMeta_Conflicted) {
+TEST_P(KVBucketParamTest, SetWithMeta_Conflicted) {
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
     EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
 
@@ -571,7 +571,7 @@ TEST_P(EPStoreEvictionTest, SetWithMeta_Conflicted) {
 }
 
 // Test setWithMeta replacing existing item
-TEST_P(EPStoreEvictionTest, SetWithMeta_Replace) {
+TEST_P(KVBucketParamTest, SetWithMeta_Replace) {
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
     EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
 
@@ -635,7 +635,7 @@ TEST_P(EPStoreEvictionTest, SetWithMeta_ReplaceNonResident) {
 }
 
 // Test forced setWithMeta
-TEST_P(EPStoreEvictionTest, SetWithMeta_Forced) {
+TEST_P(KVBucketParamTest, SetWithMeta_Forced) {
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
     item.setCas();
     uint64_t seqno;
@@ -718,7 +718,7 @@ TEST_P(EPStoreEvictionTest, TouchCmdDuringBgFetch) {
 // MB and test was raised because a few commits back this was broken but no
 // existing test covered the case. I.e. run this test  against 0810540 and it
 // fails, but now fixed
-TEST_P(EPStoreEvictionTest, mb22824) {
+TEST_P(KVBucketParamTest, mb22824) {
     auto key = makeStoredDocKey("key");
 
     // Store key and force expiry
@@ -753,6 +753,16 @@ INSTANTIATE_TEST_CASE_P(FullAndValueEviction,
                         ::testing::Values("value_only", "full_eviction"),
                         [] (const ::testing::TestParamInfo<std::string>& info) {
                             return info.param;
+                        });
+
+// Test cases which run for EP (Full and Value eviction) and Ephemeral
+INSTANTIATE_TEST_CASE_P(EPAndEphemeral,
+                        KVBucketParamTest,
+                        ::testing::Values("item_eviction_policy=value_only",
+                                          "item_eviction_policy=full_eviction",
+                                          "bucket_type=ephemeral"),
+                        [] (const ::testing::TestParamInfo<std::string>& info) {
+                            return info.param.substr(info.param.find('=')+1);
                         });
 
 

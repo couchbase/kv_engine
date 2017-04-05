@@ -127,3 +127,21 @@ class EPBucketTest : public KVBucketTest {
     // KVBucketTest already defaults to creating EPBucket. Introducing this
     // subclass to just make the name more descriptive.
 };
+
+/**
+ * Test fixture for KVBucket unit tests.
+ *
+ * These tests are parameterized over an extra config string to allow them to
+ * be run against ephemeral and value and full eviction persistent buckets.
+ */
+class KVBucketParamTest : public KVBucketTest,
+                          public ::testing::WithParamInterface<std::string> {
+    void SetUp() override {
+        config_string += GetParam();
+        KVBucketTest::SetUp();
+
+        // Have all the objects, activate vBucket zero so we can store data.
+        store->setVBucketState(vbid, vbucket_state_active, false);
+
+    }
+};
