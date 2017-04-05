@@ -221,6 +221,16 @@ private:
 };
 
 /**
+ * Dynamic cast for RCPtr. Modelled on method of the same name for
+ * std::shared_ptr.
+ */
+template <class T, class U>
+RCPtr<T> dynamic_pointer_cast(const RCPtr<U>& r) {
+    T* p = dynamic_cast<T*>(r.get());
+    return p ? RCPtr<T>(p) : RCPtr<T>();
+}
+
+/**
  * Single-threaded reference counted pointer.
  * "Single-threaded" means that the reference counted pointer should be accessed
  * by only one thread at any time or accesses to the reference counted pointer
