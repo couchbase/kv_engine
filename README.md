@@ -18,6 +18,7 @@ eventually persistent engine -
 * [Document attributes](docs/Document.md)
 * [Environment variables](docs/EnvironmentVariables.md)
 * [Role Based Access Control (RBAC)](docs/rbac.md)
+* [SSL Client Certificate](docs/ssl_client_cert.md)
 
 # Protocols
 
