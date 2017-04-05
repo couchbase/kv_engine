@@ -138,6 +138,10 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
         try {
             items.push_back(UniqueItemPtr(osv.toItem(false, vbid)));
         } catch (const std::bad_alloc&) {
+            /* [EPHE TODO]: Do we handle backfill in a better way ?
+                            Perhaps do backfilling partially (that is
+                            backfill ==> stream; backfill ==> stream ..so on )?
+             */
             LOG(EXTENSION_LOG_WARNING,
                 "BasicLinkedList::rangeRead(): "
                 "(vb %d) ENOMEM while trying to copy "

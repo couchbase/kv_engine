@@ -93,17 +93,17 @@ private:
 
     //! The scan buffer is for the current stream being backfilled
     struct {
-        uint32_t bytesRead;
-        uint32_t itemsRead;
-        uint32_t maxBytes;
-        uint32_t maxItems;
+        size_t bytesRead;
+        size_t itemsRead;
+        size_t maxBytes;
+        size_t maxItems;
     } scanBuffer;
 
     //! The buffer is the total bytes used by all backfills for this connection
     struct {
-        uint32_t bytesRead;
-        uint32_t maxBytes;
-        uint32_t nextReadSize;
+        size_t bytesRead;
+        size_t maxBytes;
+        size_t nextReadSize;
         bool full;
     } buffer;
 };
