@@ -1144,6 +1144,11 @@ static void quitq_executor(McbpConnection* c, void*) {
 }
 
 static void sasl_list_mech_executor(McbpConnection* c, void*) {
+    if (c->isSaslAuthDisabled()) {
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+        return;
+    }
+
     if (c->isSslEnabled() && settings.has.ssl_sasl_mechanisms) {
         const auto& mechs = settings.getSslSaslMechanisms();
         mcbp_write_response(c, mechs.data(), 0, 0, mechs.size());
@@ -1175,6 +1180,11 @@ static void sasl_list_mech_executor(McbpConnection* c, void*) {
 }
 
 static void sasl_auth_executor(McbpConnection* c, void* packet) {
+    if (c->isSaslAuthDisabled()) {
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+        return;
+    }
+
     auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(packet);
     int nkey = c->binary_header.request.keylen;
     int vlen = c->binary_header.request.bodylen - nkey;

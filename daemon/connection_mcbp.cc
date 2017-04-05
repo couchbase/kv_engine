@@ -1069,6 +1069,7 @@ static cJSON* event_mask_to_json(const short mask) {
 cJSON* McbpConnection::toJSON() const {
     cJSON* obj = Connection::toJSON();
     if (obj != nullptr) {
+        json_add_bool_to_object(obj, "sasl_disabled", saslAuthDisabled);
         json_add_bool_to_object(obj, "tap", isTAP());
         json_add_bool_to_object(obj, "dcp", isDCP());
         json_add_bool_to_object(obj, "dcp_xattr_aware", isDcpXattrAware());
