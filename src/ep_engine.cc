@@ -4833,11 +4833,22 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
 
                     case HighPriorityVBReqStatus::NotSupported:
                         status = PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+                        LOG(EXTENSION_LOG_WARNING,
+                          "EventuallyPersistentEngine::handleCheckpointCmds(): "
+                          "High priority async chk request "
+                          "for vb:%" PRIu16 " is NOT supported" ,
+                          vbucket);
                         break;
 
                     case HighPriorityVBReqStatus::RequestNotScheduled:
                         /* 'HighPriorityVBEntry' was not added, hence just
                            return success */
+                        LOG(EXTENSION_LOG_NOTICE,
+                          "EventuallyPersistentEngine::handleCheckpointCmds(): "
+                          "Did NOT add high priority async chk request "
+                          "for vb:%" PRIu16,
+                          vbucket);
+
                         break;
                     }
                 } else {
@@ -4901,11 +4912,24 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
 
                 case HighPriorityVBReqStatus::NotSupported:
                     status = PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+                    LOG(EXTENSION_LOG_WARNING,
+                        "EventuallyPersistentEngine::handleSeqnoCmds(): "
+                        "High priority async seqno request "
+                        "for vb:%" PRIu16 " is NOT supported",
+                        vbucket);
                     break;
 
                 case HighPriorityVBReqStatus::RequestNotScheduled:
                     /* 'HighPriorityVBEntry' was not added, hence just return
                        success */
+                    LOG(EXTENSION_LOG_NOTICE,
+                        "EventuallyPersistentEngine::handleSeqnoCmds(): "
+                        "Did NOT add high priority async seqno request "
+                        "for vb:%" PRIu16 ", Persisted seqno %" PRIu64
+                        " > requested seqno %" PRIu64,
+                        vbucket,
+                        vb->getPersistenceSeqno(),
+                        seqno);
                     break;
                 }
             }

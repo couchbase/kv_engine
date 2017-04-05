@@ -57,6 +57,7 @@ public:
           datatypeCounts{{0}},
           queueAge(0),
           rollbackItemCount(0),
+          numHpVBReqs(0),
           totalAbsHLCDrift(),
           totalHLCDriftExceptionCounters() {
     }
@@ -165,6 +166,10 @@ public:
         return rollbackItemCount;
     }
 
+    size_t getNumHpVBReqs() {
+        return numHpVBReqs;
+    }
+
     HLC::DriftStats getTotalAbsHLCDrift() {
         return totalAbsHLCDrift;
     }
@@ -203,6 +208,7 @@ private:
     std::array<size_t, mcbp::datatype::highest + 1> datatypeCounts;
     uint64_t queueAge;
     uint64_t rollbackItemCount;
+    size_t numHpVBReqs;
     HLC::DriftStats totalAbsHLCDrift;
     HLC::DriftExceptions totalHLCDriftExceptionCounters;
 };

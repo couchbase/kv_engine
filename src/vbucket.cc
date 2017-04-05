@@ -1872,6 +1872,7 @@ void VBucket::_addStats(bool details, ADD_STAT add_stat, const void* c) {
         addStat("bloom_filter_size", getFilterSize(), add_stat, c);
         addStat("bloom_filter_key_count", getNumOfKeysInFilter(), add_stat, c);
         addStat("rollback_item_count", getRollbackItemCount(), add_stat, c);
+        addStat("hp_vb_req_size", getHighPriorityChkSize(), add_stat, c);
         hlc.addStats(statPrefix, add_stat, c);
     }
 }
@@ -2258,6 +2259,16 @@ void VBucket::addHighPriorityVBEntry(uint64_t seqnoOrChkId,
     std::unique_lock<std::mutex> lh(hpVBReqsMutex);
     hpVBReqs.push_back(HighPriorityVBEntry(cookie, seqnoOrChkId, reqType));
     numHpVBReqs.store(hpVBReqs.size());
+
+    LOG(EXTENSION_LOG_NOTICE,
+        "Added high priority async request %s "
+        "for vb:%" PRIu16 ", Check for:%" PRIu64 ", "
+        "Persisted upto:%" PRIu64 ", cookie:%p",
+        to_string(reqType).c_str(),
+        getId(),
+        seqnoOrChkId,
+        getPersistenceSeqno(),
+        cookie);
 }
 
 std::map<const void*, ENGINE_ERROR_CODE> VBucket::getHighPriorityNotifies(

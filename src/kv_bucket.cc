@@ -1198,6 +1198,7 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     DO_STAT("vb_active_backfill_queue_size", active.getBackfillQueueSize());
     DO_STAT("vb_active_num", active.getVBucketNumber());
     DO_STAT("vb_active_curr_items", active.getNumItems());
+    DO_STAT("vb_active_hp_vb_req_size", active.getNumHpVBReqs());
     DO_STAT("vb_active_num_non_resident", active.getNonResident());
     DO_STAT("vb_active_perc_mem_resident", active.getMemResidentPer());
     DO_STAT("vb_active_eject", active.getEjects());
@@ -1222,6 +1223,7 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     DO_STAT("vb_replica_backfill_queue_size", replica.getBackfillQueueSize());
     DO_STAT("vb_replica_num", replica.getVBucketNumber());
     DO_STAT("vb_replica_curr_items", replica.getNumItems());
+    DO_STAT("vb_replica_hp_vb_req_size", replica.getNumHpVBReqs());
     DO_STAT("vb_replica_num_non_resident", replica.getNonResident());
     DO_STAT("vb_replica_perc_mem_resident", replica.getMemResidentPer());
     DO_STAT("vb_replica_eject", replica.getEjects());
@@ -1246,6 +1248,7 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     DO_STAT("vb_pending_backfill_queue_size", pending.getBackfillQueueSize());
     DO_STAT("vb_pending_num", pending.getVBucketNumber());
     DO_STAT("vb_pending_curr_items", pending.getNumItems());
+    DO_STAT("vb_pending_hp_vb_req_size", pending.getNumHpVBReqs());
     DO_STAT("vb_pending_num_non_resident", pending.getNonResident());
     DO_STAT("vb_pending_perc_mem_resident", pending.getMemResidentPer());
     DO_STAT("vb_pending_eject", pending.getEjects());

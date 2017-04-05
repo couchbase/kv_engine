@@ -4397,6 +4397,9 @@ static enum test_result test_dcp_persistence_seqno(ENGINE_HANDLE *h,
             seqnoPersistence(
                     h, h1, cookie, /*vbid*/ 0, /*seqno*/ num_items + 1),
             "Expected temp failure for seqno persistence request");
+    checkeq(1,
+            get_int_stat(h, h1, "vb_0:hp_vb_req_size", "vbucket-details 0"),
+            "High priority request count incorrect");
 
     /* acquire the mutex to wait on the condition variable */
     testHarness.lock_cookie(cookie);
@@ -4480,6 +4483,9 @@ static enum test_result test_dcp_persistence_seqno_backfillItems(
     checkeq(ENGINE_EWOULDBLOCK,
             seqnoPersistence(h, h1, cookie, /*vbid*/ 0, /*seqno*/ num_items),
             "Expected temp failure for seqno persistence request");
+    checkeq(1,
+            get_int_stat(h, h1, "vb_0:hp_vb_req_size", "vbucket-details 0"),
+            "High priority request count incorrect");
 
     /* acquire the mutex to wait on the condition variable */
     testHarness.lock_cookie(cookie);

@@ -48,6 +48,7 @@ void VBucketCountVisitor::visitBucket(RCPtr<VBucket>& vb) {
         backfillQueueSize += vb->getBackfillSize();
         pendingWrites += vb->dirtyQueuePendingWrites;
         rollbackItemCount += vb->getRollbackItemCount();
+        numHpVBReqs += vb->getHighPriorityChkSize();
 
         /*
          * The bucket stat reports the total drift of the vbuckets.
