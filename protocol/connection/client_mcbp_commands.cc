@@ -66,7 +66,7 @@ BinprotSubdocCommand::BinprotSubdocCommand(protocol_binary_command cmd_,
                                            const std::string& path_,
                                            const std::string& value_,
                                            protocol_binary_subdoc_flag pathFlags_,
-                                           protocol_binary_subdoc_flag docFlags_,
+                                           mcbp::subdoc::doc_flag docFlags_,
                                            uint64_t cas_)
     : BinprotCommandT() {
     setOp(cmd_);
@@ -97,11 +97,13 @@ void BinprotSubdocCommand::encode(std::vector<uint8_t>& buf) const {
     // Expiry (optional) is encoded in extras. Only include if non-zero or
     // if explicit encoding of zero was requested.
     const bool include_expiry = (expiry.getValue() != 0 || expiry.isSet());
+    const bool include_doc_flags = !isNone(doc_flags);
 
     // Populate the header.
     const size_t extlen = sizeof(uint16_t) + // Path length
                           1 + // flags
-                          (include_expiry ? sizeof(uint32_t) : 0);
+                          (include_expiry ? sizeof(uint32_t) : 0) +
+                          (include_doc_flags ? sizeof(uint8_t) : 0);
 
     fillHeader(request.message.header, path.size() + value.size(), extlen);
 
@@ -119,6 +121,12 @@ void BinprotSubdocCommand::encode(std::vector<uint8_t>& buf) const {
         uint32_t encoded_expiry = htonl(expiry.getValue());
         char* expbuf = reinterpret_cast<char*>(&encoded_expiry);
         buf.insert(buf.end(), expbuf, expbuf + sizeof encoded_expiry);
+    }
+
+    if (include_doc_flags) {
+        const uint8_t* doc_flag_ptr =
+                reinterpret_cast<const uint8_t*>(&doc_flags);
+        buf.insert(buf.end(), doc_flag_ptr, doc_flag_ptr + sizeof(uint8_t));
     }
 
     // Add Body: key; path; value if applicable.
@@ -427,12 +435,18 @@ void BinprotSubdocMultiMutationCommand::encode(std::vector<uint8_t>& buf) const 
         total += 1 + 1 + 2 + 4 + spec.path.size() + spec.value.size();
     }
 
-    const uint8_t extlen = expiry.isSet() ? 4 : 0;
+    const uint8_t extlen =
+            (expiry.isSet() ? 4 : 0) + (!isNone(docFlags) ? 1 : 0);
     writeHeader(buf, total, extlen);
     if (expiry.isSet()) {
         uint32_t expbuf = htonl(expiry.getValue());
         const char* p = reinterpret_cast<const char*>(&expbuf);
         buf.insert(buf.end(), p, p + 4);
+    }
+    if (!isNone(docFlags)) {
+        const uint8_t* doc_flag_ptr =
+                reinterpret_cast<const uint8_t*>(&docFlags);
+        buf.insert(buf.end(), doc_flag_ptr, doc_flag_ptr + sizeof(uint8_t));
     }
 
     buf.insert(buf.end(), key.begin(), key.end());
@@ -440,7 +454,7 @@ void BinprotSubdocMultiMutationCommand::encode(std::vector<uint8_t>& buf) const 
     // Time to add the data:
     for (const auto& spec : specs) {
         buf.push_back(uint8_t(spec.opcode));
-        buf.push_back(uint8_t(spec.flags | docFlags));
+        buf.push_back(uint8_t(spec.flags));
         uint16_t pathlen = ntohs(spec.path.size());
         const char* p = reinterpret_cast<const char*>(&pathlen);
         buf.insert(buf.end(), p, p + 2);
@@ -511,7 +525,8 @@ void BinprotSubdocMultiLookupCommand::encode(std::vector<uint8_t>& buf) const {
         total += 1 + 1 + 2 + spec.path.size();
     }
 
-    const uint8_t extlen = expiry.isSet() ? 4 : 0;
+    const uint8_t extlen =
+            (expiry.isSet() ? 4 : 0) + (!isNone(docFlags) ? 1 : 0);
     writeHeader(buf, total, extlen);
 
     // Note: Expiry isn't supported for multi lookups, but we specifically
@@ -521,13 +536,18 @@ void BinprotSubdocMultiLookupCommand::encode(std::vector<uint8_t>& buf) const {
         const char* p = reinterpret_cast<const char*>(&expbuf);
         buf.insert(buf.end(), p, p + 4);
     }
+    if (!isNone(docFlags)) {
+        const uint8_t* doc_flag_ptr =
+                reinterpret_cast<const uint8_t*>(&docFlags);
+        buf.insert(buf.end(), doc_flag_ptr, doc_flag_ptr + sizeof(uint8_t));
+    }
 
     buf.insert(buf.end(), key.begin(), key.end());
 
     // Add the lookup specs themselves:
     for (const auto& spec : specs) {
         buf.push_back(uint8_t(spec.opcode));
-        buf.push_back(uint8_t(spec.flags | docFlags));
+        buf.push_back(uint8_t(spec.flags));
 
         uint16_t pathlen = ntohs(spec.path.size());
         const char* p = reinterpret_cast<const char*>(&pathlen);

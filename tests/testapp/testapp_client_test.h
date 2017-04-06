@@ -101,7 +101,7 @@ public:
         cmd.setPath(path);
         if (deleted) {
             cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
-            cmd.addDocFlags(SUBDOC_FLAG_ACCESS_DELETED);
+            cmd.addDocFlags(mcbp::subdoc::doc_flag::AccessDeleted);
         } else {
             cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
         }

@@ -31,11 +31,14 @@
 #include "xattr/key_validator.h"
 #include "xattr/utils.h"
 
+#include <memcached/protocol_binary.h>
 #include <platform/histogram.h>
 #include <xattr/blob.h>
 
 static const std::array<SubdocCmdContext::Phase, 2> phases{{SubdocCmdContext::Phase::XATTR,
                                                             SubdocCmdContext::Phase::Body}};
+
+using namespace mcbp::subdoc;
 
 /******************************************************************************
  * Subdocument executors
@@ -90,12 +93,13 @@ static void create_single_path_context(SubdocCmdContext& context,
                                        McbpConnection& c,
                                        const SubdocCmdTraits traits,
                                        const void* packet,
-                                       cb::const_char_buffer value) {
+                                       cb::const_char_buffer value,
+                                       doc_flag doc_flags) {
     const protocol_binary_request_subdocument *req =
         reinterpret_cast<const protocol_binary_request_subdocument*>(packet);
 
-    const protocol_binary_subdoc_flag flags =
-        static_cast<protocol_binary_subdoc_flag>(req->message.extras.subdoc_flags);
+    auto flags = static_cast<protocol_binary_subdoc_flag>(
+            req->message.extras.subdoc_flags);
     const protocol_binary_command mcbp_cmd =
         protocol_binary_command(req->message.header.request.opcode);
     const uint16_t pathlen = ntohs(req->message.extras.pathlen);
@@ -125,8 +129,13 @@ static void create_single_path_context(SubdocCmdContext& context,
         context.do_macro_expansion = true;
     }
 
-    if (flags & SUBDOC_FLAG_ACCESS_DELETED) {
+    if (hasAccessDeleted(doc_flags)) {
         context.do_allow_deleted_docs = true;
+    }
+
+    // If Mkdoc is specified, this implies MKDIR_P, ensure that it's set here
+    if (hasMkdoc(doc_flags)) {
+        flags = flags | SUBDOC_FLAG_MKDIR_P;
     }
 
     // Decode as single path; add a single operation to the context.
@@ -141,7 +150,7 @@ static void create_single_path_context(SubdocCmdContext& context,
         ops.emplace_back(SubdocCmdContext::OperationSpec{traits, flags, path});
     }
 
-    if (flags & SUBDOC_FLAG_MKDOC) {
+    if (hasMkdoc(doc_flags)) {
         context.jroot_type = Subdoc::Util::get_root_type(
                 traits.subdocCommand, path.buf, path.len);
     }
@@ -160,11 +169,10 @@ static void create_multi_path_context(SubdocCmdContext& context,
                                       McbpConnection& c,
                                       const SubdocCmdTraits traits,
                                       const void* packet,
-                                      cb::const_char_buffer value) {
-
+                                      cb::const_char_buffer value,
+                                      doc_flag doc_flags) {
     // Decode each of lookup specs from the value into our command context.
     size_t offset = 0;
-
     while (offset < value.len) {
         protocol_binary_command binprot_cmd;
         protocol_binary_subdoc_flag flags;
@@ -194,7 +202,7 @@ static void create_multi_path_context(SubdocCmdContext& context,
         }
 
         auto traits = get_subdoc_cmd_traits(binprot_cmd);
-        if ((flags & SUBDOC_FLAG_MKDOC) && context.jroot_type == 0) {
+        if (hasMkdoc(doc_flags) && context.jroot_type == 0) {
             // Determine the root type
             context.jroot_type = Subdoc::Util::get_root_type(
                     traits.subdocCommand, path.buf, path.len);
@@ -204,7 +212,7 @@ static void create_multi_path_context(SubdocCmdContext& context,
             context.do_macro_expansion = true;
         }
 
-        if (flags & SUBDOC_FLAG_ACCESS_DELETED) {
+        if (hasAccessDeleted(doc_flags)) {
             context.do_allow_deleted_docs = true;
         }
 
@@ -224,6 +232,11 @@ static void create_multi_path_context(SubdocCmdContext& context,
                                               SubdocCmdContext::Phase::Body;
 
         auto& ops = context.getOperations(phase);
+
+        // Mkdoc implies MKDIR_P, ensure that MKDIR_P is set
+        if (hasMkdoc(doc_flags)) {
+            flags = flags | SUBDOC_FLAG_MKDIR_P;
+        }
         ops.emplace_back(SubdocCmdContext::OperationSpec{traits, flags, path,
                                                          spec_value});
         offset += headerlen + path.len + spec_value.len;
@@ -246,21 +259,23 @@ static void create_multi_path_context(SubdocCmdContext& context,
     }
 }
 
-
 static SubdocCmdContext* subdoc_create_context(McbpConnection& c,
                                                const SubdocCmdTraits traits,
                                                const void* packet,
-                                               cb::const_char_buffer value) {
+                                               cb::const_char_buffer value,
+                                               doc_flag doc_flags) {
     try {
         std::unique_ptr<SubdocCmdContext> context;
         context.reset(new SubdocCmdContext(c, traits));
         switch (traits.path) {
         case SubdocPath::SINGLE:
-            create_single_path_context(*context.get(), c, traits, packet, value);
+            create_single_path_context(
+                    *context.get(), c, traits, packet, value, doc_flags);
             break;
 
         case SubdocPath::MULTI:
-            create_multi_path_context(*context.get(), c, traits, packet, value);
+            create_multi_path_context(
+                    *context.get(), c, traits, packet, value, doc_flags);
             break;
         }
 
@@ -332,6 +347,7 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
     const uint32_t vallen = bodylen - keylen - extlen;
 
     const uint32_t expiration = subdoc_decode_expiration(header, traits);
+    const doc_flag doc_flags = subdoc_decode_doc_flags(header, traits.path);
 
     // We potentially need to make multiple attempts at this as the engine may
     // return EWOULDBLOCK if not initially resident, hence initialise ret to
@@ -361,7 +377,8 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
         auto* context = dynamic_cast<SubdocCmdContext*>(c.getCommandContext());
         if (context == nullptr) {
             cb::const_char_buffer value_buf{value, vallen};
-            context = subdoc_create_context(c, traits, packet, value_buf);
+            context = subdoc_create_context(
+                    c, traits, packet, value_buf, doc_flags);
             if (context == nullptr) {
                 mcbp_write_packet(&c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
                 return;

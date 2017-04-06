@@ -41,7 +41,7 @@ SubdocCmdContext::OperationSpec::OperationSpec(SubdocCmdTraits traits_,
       path(path_),
       value(value_),
       status(PROTOCOL_BINARY_RESPONSE_EINTERNAL) {
-    if ((flags & (SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_MKDOC))) {
+    if (flags & SUBDOC_FLAG_MKDIR_P) {
         traits.subdocCommand = Subdoc::Command(traits.subdocCommand |
                                                Subdoc::Command::FLAG_MKDIR_P);
     }

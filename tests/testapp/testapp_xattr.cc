@@ -50,10 +50,11 @@ TEST_P(XattrTest, SetXattrAndBodyNewDoc) {
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
-                    SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDOC,
+                    SUBDOC_FLAG_XATTR_PATH,
                     xattr,
                     xattrVal);
     cmd.addMutation(PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE, "", value);
+    cmd.addDocFlag(mcbp::subdoc::doc_flag::Mkdoc);
 
     testBodyAndXattrCmd(cmd);
 }
@@ -101,7 +102,7 @@ TEST_P(XattrTest, SetXattrAndBodyInvalidFlags) {
     // Should not be able to set all XATTRs
     cmd.addMutation(
             PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE, "", value);
-    cmd.addDocFlag(SUBDOC_FLAG_ACCESS_DELETED);
+    cmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
 
     auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
     conn.sendCommand(cmd);
@@ -239,13 +240,13 @@ TEST_P(XattrTest, OperateOnDeletedItem) {
                        "_sync.deleted",
                        "true",
                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
-                       SUBDOC_FLAG_ACCESS_DELETED);
+                       mcbp::subdoc::doc_flag::AccessDeleted);
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED,
               resp.getStatus());
 
     resp = subdoc_get("_sync.deleted",
                       SUBDOC_FLAG_XATTR_PATH,
-                      SUBDOC_FLAG_ACCESS_DELETED);
+                      mcbp::subdoc::doc_flag::AccessDeleted);
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED,
               resp.getStatus());
     EXPECT_EQ("true", resp.getValue());
@@ -607,7 +608,8 @@ TEST_P(XattrTest, VerifyNotEnabled) {
     cmd.setPath("_sync.deleted");
     cmd.setValue("true");
     cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-    cmd.addDocFlags(SUBDOC_FLAG_ACCESS_DELETED | SUBDOC_FLAG_MKDOC);
+    cmd.addDocFlags(mcbp::subdoc::doc_flag::AccessDeleted |
+                    mcbp::subdoc::doc_flag::Mkdoc);
     conn.sendCommand(cmd);
 
     BinprotSubdocResponse resp;

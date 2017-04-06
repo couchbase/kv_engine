@@ -82,9 +82,8 @@ TEST_F(SubdocSingleTest, DictAdd_InvalidValue) {
 }
 
 TEST_F(SubdocSingleTest, DictAdd_InvalidExtras) {
-    // Extras can only be '3' for lookups, may also be '7' for mutations
-    // (specifying expiration).
-    request.message.header.request.extlen = 4;
+    // Extlen can be 3, 4, 7 or 8
+    request.message.header.request.extlen = 5;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
               validate(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD));
 
@@ -240,7 +239,7 @@ TEST_F(SubdocMultiLookupTest, InvalidLocationFlags) {
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
         request.at(0).flags = SUBDOC_FLAG_NONE;
 
-        request.addDocFlag(SUBDOC_FLAG_MKDOC);
+        request.addDocFlag(mcbp::subdoc::doc_flag::Mkdoc);
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
         request.clearDocFlags();
     }
@@ -277,7 +276,7 @@ protected:
      * not test when both are used together
      */
     void testFlags(protocol_binary_subdoc_flag pathFlag,
-                   protocol_binary_subdoc_flag docFlag,
+                   mcbp::subdoc::doc_flag docFlag,
                    protocol_binary_response_status expected,
                    uint8_t spec) {
         request.at(spec).flags = pathFlag;
@@ -294,7 +293,7 @@ protected:
      * not test when both are used together
      */
     void testFlagCombo(protocol_binary_subdoc_flag pathFlag,
-                       protocol_binary_subdoc_flag docFlag,
+                       mcbp::subdoc::doc_flag docFlag,
                        protocol_binary_response_status expected,
                        uint8_t spec) {
         request.at(spec).flags = pathFlag;
@@ -346,7 +345,7 @@ TEST_F(SubdocMultiMutationTest, InvalidExtras) {
     request.encode(payload);
     auto* header =
             reinterpret_cast<protocol_binary_request_header*>(payload.data());
-    header->request.extlen = 1;
+    header->request.extlen = 2;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));
 }
 
@@ -402,14 +401,15 @@ TEST_F(SubdocMultiMutationTest, NumPaths) {
 }
 
 TEST_F(SubdocMultiMutationTest, ValidDictAdd) {
-    // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P/SUBDOC_FLAG_MKDOC
+    // Only allowed empty flags or
+    // SUBDOC_FLAG_MKDIR_P/mcbp::subdoc::doc_flag::Mkdoc
     request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                              protocol_binary_subdoc_flag(0),
                              "path",
                              "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
     testFlagCombo(SUBDOC_FLAG_MKDIR_P,
-                  SUBDOC_FLAG_MKDOC,
+                  mcbp::subdoc::doc_flag::Mkdoc,
                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
                   1);
 }
@@ -444,7 +444,7 @@ TEST_F(SubdocMultiMutationTest, ValidDictUpsert) {
                              "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
     testFlagCombo(SUBDOC_FLAG_MKDIR_P,
-                  SUBDOC_FLAG_MKDOC,
+                  mcbp::subdoc::doc_flag::Mkdoc,
                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
                   1);
 }
@@ -489,7 +489,7 @@ TEST_F(SubdocMultiMutationTest, InvalidDelete) {
 
     // Shouldn't have flags.
     testFlags(SUBDOC_FLAG_MKDIR_P,
-              SUBDOC_FLAG_MKDOC,
+              mcbp::subdoc::doc_flag::Mkdoc,
               PROTOCOL_BINARY_RESPONSE_EINVAL,
               1);
 
@@ -530,7 +530,7 @@ TEST_F(SubdocMultiMutationTest, InvalidReplace) {
                      "path",
                      "new_value"};
     testFlags(SUBDOC_FLAG_MKDIR_P,
-              SUBDOC_FLAG_MKDOC,
+              mcbp::subdoc::doc_flag::Mkdoc,
               PROTOCOL_BINARY_RESPONSE_EINVAL,
               1);
 }
@@ -544,13 +544,13 @@ TEST_F(SubdocMultiMutationTest, ValidArrayPushLast) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
 
     testFlagCombo(SUBDOC_FLAG_MKDIR_P,
-                  SUBDOC_FLAG_MKDOC,
+                  mcbp::subdoc::doc_flag::Mkdoc,
                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
                   1);
     // Allowed empty path.
     request.at(1).path.clear();
     testFlagCombo(SUBDOC_FLAG_MKDIR_P,
-                  SUBDOC_FLAG_MKDOC,
+                  mcbp::subdoc::doc_flag::Mkdoc,
                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
                   1);
 }
@@ -580,13 +580,13 @@ TEST_F(SubdocMultiMutationTest, ValidArrayPushFirst) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
 
     testFlagCombo(SUBDOC_FLAG_MKDIR_P,
-                  SUBDOC_FLAG_MKDOC,
+                  mcbp::subdoc::doc_flag::Mkdoc,
                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
                   1);
     // Allowed empty path.
     request.at(1).path.clear();
     testFlagCombo(SUBDOC_FLAG_MKDIR_P,
-                  SUBDOC_FLAG_MKDOC,
+                  mcbp::subdoc::doc_flag::Mkdoc,
                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
                   1);
 }
@@ -627,7 +627,7 @@ TEST_F(SubdocMultiMutationTest, InvalidArrayInsert) {
                      "path",
                      "value"};
     testFlags(SUBDOC_FLAG_MKDIR_P,
-              SUBDOC_FLAG_MKDOC,
+              mcbp::subdoc::doc_flag::Mkdoc,
               PROTOCOL_BINARY_RESPONSE_EINVAL,
               1);
 
@@ -655,7 +655,7 @@ TEST_F(SubdocMultiMutationTest, ValidArrayAddUnique) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
 
     testFlags(SUBDOC_FLAG_MKDIR_P,
-              SUBDOC_FLAG_MKDOC,
+              mcbp::subdoc::doc_flag::Mkdoc,
               PROTOCOL_BINARY_RESPONSE_SUCCESS,
               1);
 
@@ -692,7 +692,7 @@ TEST_F(SubdocMultiMutationTest, ValidArrayCounter) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
 
     testFlags(SUBDOC_FLAG_MKDIR_P,
-              SUBDOC_FLAG_MKDOC,
+              mcbp::subdoc::doc_flag::Mkdoc,
               PROTOCOL_BINARY_RESPONSE_SUCCESS,
               1);
 

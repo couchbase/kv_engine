@@ -19,8 +19,9 @@
  * Validator functions for sub-document API commands.
  */
 
-#include "connection_mcbp.h"
 #include "subdocument_validators.h"
+#include <include/memcached/protocol_binary.h>
+#include "connection_mcbp.h"
 #include "subdocument_traits.h"
 
 #include "xattr/key_validator.h"
@@ -54,15 +55,16 @@ static bool validate_macro(const cb::const_byte_buffer& value) {
  * @return PROTOCOL_BINARY_RESPONSE_SUCCESS if everything is correct
  */
 static inline protocol_binary_response_status validate_xattr_section(
-                                          const Cookie& cookie,
-                                          protocol_binary_subdoc_flag flags,
-                                          cb::const_byte_buffer path,
-                                          cb::const_byte_buffer value,
-                                          cb::const_byte_buffer& xattr_key) {
+        const Cookie& cookie,
+        protocol_binary_subdoc_flag flags,
+        mcbp::subdoc::doc_flag doc_flags,
+        cb::const_byte_buffer path,
+        cb::const_byte_buffer value,
+        cb::const_byte_buffer& xattr_key) {
     if ((flags & SUBDOC_FLAG_XATTR_PATH) == 0) {
         // XATTR flag isn't set... just bail out
         if ((flags & SUBDOC_FLAG_EXPAND_MACROS) ||
-                 (flags & SUBDOC_FLAG_ACCESS_DELETED)) {
+            (hasAccessDeleted(doc_flags))) {
             return PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO;
         } else {
             return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -109,6 +111,8 @@ static protocol_binary_response_status subdoc_validator(const Cookie& cookie,
             static_cast<protocol_binary_subdoc_flag>(req->message.extras.subdoc_flags);
     const uint16_t pathlen = ntohs(req->message.extras.pathlen);
     const uint32_t valuelen = bodylen - keylen - extlen - pathlen;
+    const mcbp::subdoc::doc_flag doc_flags =
+            subdoc_decode_doc_flags(header, traits.path);
 
     if ((header->request.magic != PROTOCOL_BINARY_REQ) ||
         (keylen == 0) ||
@@ -135,6 +139,9 @@ static protocol_binary_response_status subdoc_validator(const Cookie& cookie,
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
+    if ((doc_flags & ~traits.valid_doc_flags) != mcbp::subdoc::doc_flag::None) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
     cb::const_byte_buffer path{req->message.header.bytes +
                                sizeof(req->message.header.bytes) +
                                keylen + extlen,
@@ -145,8 +152,8 @@ static protocol_binary_response_status subdoc_validator(const Cookie& cookie,
                                 valuelen};
     cb::const_byte_buffer xattr_key;
 
-    const auto status = validate_xattr_section(cookie, subdoc_flags, path,
-                                               macro, xattr_key);
+    const auto status = validate_xattr_section(
+            cookie, subdoc_flags, doc_flags, path, macro, xattr_key);
     if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         return status;
     }
@@ -155,16 +162,20 @@ static protocol_binary_response_status subdoc_validator(const Cookie& cookie,
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    // Check that extlen is valid. For mutations can be one of two values
-    // (depending on if an expiry is encoded in the request); for lookups must
-    // be a fixed value.
+    // Check that extlen is valid. For mutations can be one of 4 values
+    // (depending on if an expiry or doc_flags are encoded in the request);
+    // for lookups must be one of two values depending on whether doc flags
+    // are encoded in the request.
     if (traits.is_mutator) {
         if ((extlen != SUBDOC_BASIC_EXTRAS_LEN) &&
-            (extlen != SUBDOC_EXPIRY_EXTRAS_LEN)) {
+            (extlen != SUBDOC_EXPIRY_EXTRAS_LEN) &&
+            (extlen != SUBDOC_DOC_FLAG_EXTRAS_LEN) &&
+            (extlen != SUBDOC_ALL_EXTRAS_LEN)) {
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
     } else {
-        if (extlen != SUBDOC_BASIC_EXTRAS_LEN) {
+        if (extlen != SUBDOC_BASIC_EXTRAS_LEN &&
+            extlen != SUBDOC_DOC_FLAG_EXTRAS_LEN) {
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
     }
@@ -232,16 +243,18 @@ protocol_binary_response_status subdoc_get_count_validator(const Cookie& cookie)
  *                  field is `0` we've not seen an extended attribute key yet
  *                  and the encoded key may be anything. If it's already set
  *                  the key `must` be the same.
+ * @param doc_flags The doc flags of the multipath command
  * @return PROTOCOL_BINARY_RESPONSE_SUCCESS if everything is correct, or an
  *         error to return to the client otherwise
  */
-static protocol_binary_response_status is_valid_multipath_spec(const Cookie& cookie,
-                                                               const char* ptr,
-                                                               const SubdocMultiCmdTraits traits,
-                                                               size_t& spec_len,
-                                                               bool& xattr,
-                                                               cb::const_byte_buffer& xattr_key) {
-
+static protocol_binary_response_status is_valid_multipath_spec(
+        const Cookie& cookie,
+        const char* ptr,
+        const SubdocMultiCmdTraits traits,
+        size_t& spec_len,
+        bool& xattr,
+        cb::const_byte_buffer& xattr_key,
+        mcbp::subdoc::doc_flag doc_flags) {
     // Decode the operation spec from the body. Slightly different struct
     // depending on LOOKUP/MUTATION.
     protocol_binary_command opcode;
@@ -286,6 +299,11 @@ static protocol_binary_response_status is_valid_multipath_spec(const Cookie& coo
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
+    if ((doc_flags & ~op_traits.valid_doc_flags) !=
+        mcbp::subdoc::doc_flag::None) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
     // Check path length.
     if (pathlen > SUBDOC_PATH_MAX_LENGTH) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
@@ -303,8 +321,8 @@ static protocol_binary_response_status is_valid_multipath_spec(const Cookie& coo
                                 headerlen + pathlen,
                                 valuelen};
 
-    const auto status = validate_xattr_section(cookie, flags, path,
-                                               macro, xattr_key);
+    const auto status = validate_xattr_section(
+            cookie, flags, doc_flags, path, macro, xattr_key);
     if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         return status;
     }
@@ -350,18 +368,24 @@ static protocol_binary_response_status subdoc_multi_validator(const Cookie& cook
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    // 1a. extlen must be zero for lookups, can be 0 or 4 for mutations
-    // (to specify expiry).
+    // 1a. extlen can be either 0 or 1 for lookups, can be 0, 1, 4 or 5 for
+    // mutations. Mutations can have expiry (4) and both mutations and lookups
+    // can have doc_flags (1)
     if (traits.is_mutator) {
         if ((req->request.extlen != 0) &&
-            (req->request.extlen != sizeof(uint32_t))) {
+            (req->request.extlen != sizeof(uint32_t)) &&
+            (req->request.extlen != 1) && (req->request.extlen != 5)) {
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
     } else {
-        if (req->request.extlen != 0) {
+        if ((req->request.extlen != 0) && (req->request.extlen != 1)) {
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
     }
+
+    // Can only decode only after we've checked the extlen is valid
+    const mcbp::subdoc::doc_flag doc_flags =
+            subdoc_decode_doc_flags(req, SubdocPath::MULTI);
 
     // 2. Check that the lookup operation specs are valid.
     //    As an "optimization" you can't mix and match the xattr and the
@@ -387,8 +411,11 @@ static protocol_binary_response_status subdoc_multi_validator(const Cookie& cook
         bool is_xattr;
         const auto status = is_valid_multipath_spec(cookie,
                                                     body_ptr + body_validated,
-                                                    traits, spec_len,
-                                                    is_xattr, xattr_key);
+                                                    traits,
+                                                    spec_len,
+                                                    is_xattr,
+                                                    xattr_key,
+                                                    doc_flags);
         if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             return status;
         }
@@ -418,4 +445,33 @@ protocol_binary_response_status subdoc_multi_lookup_validator(const Cookie& cook
 
 protocol_binary_response_status subdoc_multi_mutation_validator(const Cookie& cookie) {
     return subdoc_multi_validator(cookie, get_multi_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION>());
+}
+
+using namespace mcbp::subdoc;
+
+doc_flag subdoc_decode_doc_flags(const protocol_binary_request_header* header,
+                                 SubdocPath path) {
+    const char* extras_ptr =
+            reinterpret_cast<const char*>(header) + sizeof(*header);
+    switch (path) {
+    case SubdocPath::MULTI:
+        switch (header->request.extlen) {
+        case SUBDOC_MULTI_DOC_FLAG_EXTRAS_LEN:
+            return *reinterpret_cast<const doc_flag*>(extras_ptr);
+        case SUBDOC_MULTI_ALL_EXTRAS_LEN:
+            return *reinterpret_cast<const doc_flag*>(
+                    extras_ptr + SUBDOC_MULTI_EXPIRY_EXTRAS_LEN);
+        }
+            return doc_flag::None;
+    case SubdocPath::SINGLE:
+        switch (header->request.extlen) {
+        case SUBDOC_DOC_FLAG_EXTRAS_LEN:
+            return *reinterpret_cast<const doc_flag*>(extras_ptr +
+                                                      SUBDOC_BASIC_EXTRAS_LEN);
+        case SUBDOC_ALL_EXTRAS_LEN:
+            return *reinterpret_cast<const doc_flag*>(extras_ptr +
+                                                      SUBDOC_EXPIRY_EXTRAS_LEN);
+        }
+    }
+    return doc_flag::None;
 }

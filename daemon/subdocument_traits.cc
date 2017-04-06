@@ -66,6 +66,7 @@ SubdocCmdTraits get_subdoc_cmd_traits(protocol_binary_command cmd) {
                 Subdoc::Command::INVALID,
                 PROTOCOL_BINARY_CMD_INVALID,
                 SUBDOC_FLAG_NONE,
+                mcbp::subdoc::doc_flag::None,
                 false,
                 false,
                 false,

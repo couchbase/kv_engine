@@ -406,7 +406,7 @@ public:
                                path_,
                                "",
                                SUBDOC_FLAG_NONE,
-                               SUBDOC_FLAG_NONE,
+                               mcbp::subdoc::doc_flag::None,
                                0) {
     }
 
@@ -415,7 +415,8 @@ public:
                          const std::string& path,
                          const std::string& value,
                          protocol_binary_subdoc_flag flags = SUBDOC_FLAG_NONE,
-                         protocol_binary_subdoc_flag docFlags = SUBDOC_FLAG_NONE,
+                         mcbp::subdoc::doc_flag docFlags =
+                                 mcbp::subdoc::doc_flag::None,
                          uint64_t cas = 0);
 
     BinprotSubdocCommand& setPath(const std::string& path_);
@@ -436,14 +437,15 @@ public:
         }
         return *this;
     }
-    BinprotSubdocCommand& addDocFlags(protocol_binary_subdoc_flag flags_) {
-        static const protocol_binary_subdoc_flag validFlags =
-                SUBDOC_FLAG_MKDOC | SUBDOC_FLAG_ACCESS_DELETED;
-        if ((flags_ & ~validFlags) == 0) {
-            flags = flags | flags_;
+    BinprotSubdocCommand& addDocFlags(mcbp::subdoc::doc_flag flags_) {
+        static const mcbp::subdoc::doc_flag validFlags =
+                mcbp::subdoc::doc_flag::Mkdoc |
+                mcbp::subdoc::doc_flag::AccessDeleted;
+        if ((flags_ & ~validFlags) == mcbp::subdoc::doc_flag::None) {
+            doc_flags = doc_flags | flags_;
         } else {
             throw std::invalid_argument("addDocFlags: flags_ (which is " +
-                                        std::to_string(flags_) +
+                                        to_string(flags_) +
                                         ") is not a doc flag");
         }
         return *this;
@@ -469,6 +471,7 @@ private:
     std::string value;
     BinprotCommand::ExpiryValue expiry;
     protocol_binary_subdoc_flag flags = SUBDOC_FLAG_NONE;
+    mcbp::subdoc::doc_flag doc_flags = mcbp::subdoc::doc_flag::None;
 };
 
 class BinprotSubdocResponse : public BinprotResponse {
@@ -494,7 +497,7 @@ public:
     BinprotSubdocMultiMutationCommand()
         : BinprotCommandT<BinprotSubdocMultiMutationCommand,
                           PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION>(),
-          docFlags(SUBDOC_FLAG_NONE) {
+          docFlags(mcbp::subdoc::doc_flag::None) {
     }
 
     struct MutationSpecifier {
@@ -507,14 +510,15 @@ public:
     void encode(std::vector<uint8_t>& buf) const override;
 
     BinprotSubdocMultiMutationCommand& addDocFlag(
-            protocol_binary_subdoc_flag docFlag) {
-        static const protocol_binary_subdoc_flag validFlags =
-                SUBDOC_FLAG_MKDOC | SUBDOC_FLAG_ACCESS_DELETED;
-        if ((docFlag & ~validFlags) == 0) {
+            mcbp::subdoc::doc_flag docFlag) {
+        static const mcbp::subdoc::doc_flag validFlags =
+                mcbp::subdoc::doc_flag::Mkdoc |
+                mcbp::subdoc::doc_flag::AccessDeleted;
+        if ((docFlag & ~validFlags) == mcbp::subdoc::doc_flag::None) {
             docFlags = docFlags | docFlag;
         } else {
             throw std::invalid_argument("addDocFlag: docFlag (Which is " +
-                                        std::to_string(docFlag) +
+                                        to_string(docFlag) +
                                         ") is not a doc flag");
         }
         return *this;
@@ -560,13 +564,13 @@ public:
     }
 
     void clearDocFlags() {
-        docFlags = SUBDOC_FLAG_NONE;
+        docFlags = mcbp::subdoc::doc_flag::None;
     }
 
 protected:
     std::vector<MutationSpecifier> specs;
     ExpiryValue expiry;
-    protocol_binary_subdoc_flag docFlags;
+    mcbp::subdoc::doc_flag docFlags;
 };
 
 class BinprotSubdocMultiMutationResponse : public BinprotResponse {
@@ -599,7 +603,7 @@ public:
     BinprotSubdocMultiLookupCommand()
         : BinprotCommandT<BinprotSubdocMultiLookupCommand,
                           PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>(),
-          docFlags(SUBDOC_FLAG_NONE) {
+          docFlags(mcbp::subdoc::doc_flag::None) {
     }
 
     struct LookupSpecifier {
@@ -638,14 +642,15 @@ public:
         return addLookup(path, PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, flags);
     }
     BinprotSubdocMultiLookupCommand& addDocFlag(
-            protocol_binary_subdoc_flag docFlag) {
-        static const protocol_binary_subdoc_flag validFlags =
-                SUBDOC_FLAG_MKDOC | SUBDOC_FLAG_ACCESS_DELETED;
-        if ((docFlag & ~validFlags) == 0) {
+            mcbp::subdoc::doc_flag docFlag) {
+        static const mcbp::subdoc::doc_flag validFlags =
+                mcbp::subdoc::doc_flag::Mkdoc |
+                mcbp::subdoc::doc_flag::AccessDeleted;
+        if ((docFlag & ~validFlags) == mcbp::subdoc::doc_flag::None) {
             docFlags = docFlags | docFlag;
         } else {
             throw std::invalid_argument("addDocFlag: docFlag (Which is " +
-                                        std::to_string(docFlag) +
+                                        to_string(docFlag) +
                                         ") is not a doc flag");
         }
         return *this;
@@ -672,7 +677,7 @@ public:
     }
 
     void clearDocFlags() {
-        docFlags = SUBDOC_FLAG_NONE;
+        docFlags = mcbp::subdoc::doc_flag::None;
     }
 
     /**
@@ -686,7 +691,7 @@ public:
 protected:
     std::vector<LookupSpecifier> specs;
     ExpiryValue expiry;
-    protocol_binary_subdoc_flag docFlags;
+    mcbp::subdoc::doc_flag docFlags;
 };
 
 class BinprotSubdocMultiLookupResponse : public BinprotResponse {

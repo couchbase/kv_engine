@@ -75,7 +75,7 @@ public:
           path("_sync.cas"),
           value("\"${Mutation.CAS}\""),
           flags(SUBDOC_FLAG_XATTR_PATH),
-          docFlags(SUBDOC_FLAG_NONE) {
+          docFlags(mcbp::subdoc::doc_flag::None) {
     }
 
     virtual void SetUp() override {
@@ -90,22 +90,27 @@ protected:
     int validate() {
         auto opcode = (protocol_binary_command)GetParam();
         protocol_binary_request_subdocument* req;
+        const size_t extlen = !isNone(docFlags) ? 1 : 0;
         std::vector<uint8_t> blob(sizeof(req->bytes) + doc.length() +
-                                  path.length() + value.length());
+                                  path.length() + value.length() + extlen);
         req = reinterpret_cast<protocol_binary_request_subdocument*>(
                 blob.data());
 
         req->message.header.request.magic = PROTOCOL_BINARY_REQ;
-        req->message.header.request.extlen = 3;
+        req->message.header.request.extlen = 3 + extlen;
         req->message.header.request.keylen = ntohs(doc.length());
-        req->message.header.request.bodylen =
-                ntohl(3 + doc.length() + path.length() + value.length());
+        req->message.header.request.bodylen = ntohl(
+                3 + doc.length() + path.length() + value.length() + extlen);
         req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
 
-        req->message.extras.subdoc_flags = (flags | docFlags);
+        req->message.extras.subdoc_flags = (flags);
         req->message.extras.pathlen = ntohs(path.length());
 
         auto* ptr = blob.data() + sizeof(req->bytes);
+        if (extlen) {
+            memcpy(ptr, &docFlags, sizeof(docFlags));
+            ptr += sizeof(docFlags);
+        }
         memcpy(ptr, doc.data(), doc.length());
         memcpy(ptr + doc.length(), path.data(), path.length());
         memcpy(ptr + doc.length() + path.length(),
@@ -169,7 +174,7 @@ protected:
     std::string path;
     std::string value;
     uint8_t flags;
-    protocol_binary_subdoc_flag docFlags;
+    mcbp::subdoc::doc_flag docFlags;
 };
 
 INSTANTIATE_TEST_CASE_P(SubdocOpcodes,
@@ -212,7 +217,7 @@ TEST_P(SubdocXattrSingleTest, ValidateFlags) {
 
     // Access Deleted should fail without XATTR_PATH
     flags = SUBDOC_FLAG_NONE;
-    docFlags = SUBDOC_FLAG_ACCESS_DELETED;
+    docFlags = mcbp::subdoc::doc_flag::AccessDeleted;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO,
               validate());
 
@@ -311,7 +316,7 @@ TEST_F(SubdocXattrMultiLookupTest, XattrFlagsMakeSense) {
 
     // Let's try an invalid access deleted flag (needs xattr path)
     request[0].flags = SUBDOC_FLAG_NONE;
-    request.addDocFlag(SUBDOC_FLAG_ACCESS_DELETED);
+    request.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO,
               validate());
 
@@ -415,7 +420,7 @@ TEST_F(SubdocXattrMultiMutationTest, XattrFlagsMakeSense) {
     request[0].flags = SUBDOC_FLAG_EXPAND_MACROS | SUBDOC_FLAG_XATTR_PATH;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 
-    request.addDocFlag(SUBDOC_FLAG_ACCESS_DELETED);
+    request.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
     request[0].flags = SUBDOC_FLAG_EXPAND_MACROS | SUBDOC_FLAG_XATTR_PATH;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 
@@ -425,7 +430,7 @@ TEST_F(SubdocXattrMultiMutationTest, XattrFlagsMakeSense) {
 
     // Let's try an invalid access deleted flag (needs xattr path)
     request[0].flags = SUBDOC_FLAG_NONE;
-    request.addDocFlag(SUBDOC_FLAG_ACCESS_DELETED);
+    request.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO,
               validate());
 

@@ -566,7 +566,7 @@ extern "C"
     } protocol_binary_flexmeta;
 
     /**
-     * Definitions of sub-document flags (this is a bitmap)
+     * Definitions of sub-document path flags (this is a bitmap)
      */
     typedef enum {
         /** No flags set */
@@ -576,22 +576,18 @@ extern "C"
         SUBDOC_FLAG_MKDIR_P = 0x01,
 
         /**
-         * (Mutation) Create the document if it does not exist. Implies
-         * SUBDOC_FLAG_MKDIR_P.
+         * 0x02 is unused
          */
-        SUBDOC_FLAG_MKDOC = 0x02,
 
         /**
          * If set, the path refers to an Extended Attribute (XATTR).
          * If clear, the path refers to a path inside the document body.
          */
-         SUBDOC_FLAG_XATTR_PATH = 0x04,
+        SUBDOC_FLAG_XATTR_PATH = 0x04,
 
         /**
-         * Allow access to XATTRs for deleted documents (instead of
-         * returning KEY_ENOENT).
+         * 0x08 is unused
          */
-        SUBDOC_FLAG_ACCESS_DELETED = 0x8,
 
         /**
          * Expand macro values inside extended attributes. The request is
@@ -601,6 +597,37 @@ extern "C"
         SUBDOC_FLAG_EXPAND_MACROS = 0x10,
 
     } protocol_binary_subdoc_flag;
+
+#ifdef __cplusplus
+    namespace mcbp {
+    namespace subdoc {
+    /**
+     * Definitions of sub-document doc flags (this is a bitmap)
+     */
+
+    enum class doc_flag : uint8_t {
+        None = 0x0,
+
+        /**
+         * (Mutation) Create the document if it does not exist. Implies
+         * SUBDOC_FLAG_MKDIR_P.
+         */
+        Mkdoc = 0x1,
+
+        /**
+         * Reserving 0x02 for a Replace flag
+         */
+
+        /**
+         * Allow access to XATTRs for deleted documents (instead of
+         * returning KEY_ENOENT).
+         */
+        AccessDeleted = 0x04,
+
+    };
+    }
+    }
+#endif // __cplusplus
 
     /**
      * Definition of the header structure for a request packet.
@@ -2199,8 +2226,50 @@ using protocol_binary_hello_features_t = mcbp::Feature;
                                            static_cast<uint8_t>(b));
     }
 }
-
 namespace mcbp {
+namespace subdoc {
+inline mcbp::subdoc::doc_flag operator|(mcbp::subdoc::doc_flag a,
+                                        mcbp::subdoc::doc_flag b) {
+    return mcbp::subdoc::doc_flag(static_cast<uint8_t>(a) |
+                                  static_cast<uint8_t>(b));
+}
+
+inline mcbp::subdoc::doc_flag operator&(mcbp::subdoc::doc_flag a,
+                                        mcbp::subdoc::doc_flag b) {
+    return mcbp::subdoc::doc_flag(static_cast<uint8_t>(a) &
+                                  static_cast<uint8_t>(b));
+}
+
+inline mcbp::subdoc::doc_flag operator~(mcbp::subdoc::doc_flag a) {
+    return mcbp::subdoc::doc_flag(~static_cast<uint8_t>(a));
+}
+
+inline std::string to_string(mcbp::subdoc::doc_flag a) {
+    switch (a) {
+    case mcbp::subdoc::doc_flag::None:
+        return "None";
+    case mcbp::subdoc::doc_flag::Mkdoc:
+        return "Mkdoc";
+    case mcbp::subdoc::doc_flag::AccessDeleted:
+        return "AccessDeleted";
+    }
+    return std::to_string(static_cast<uint8_t>(a));
+}
+
+inline bool hasAccessDeleted(mcbp::subdoc::doc_flag a) {
+    return (a & mcbp::subdoc::doc_flag::AccessDeleted) !=
+           mcbp::subdoc::doc_flag::None;
+}
+
+inline bool hasMkdoc(mcbp::subdoc::doc_flag a) {
+    return (a & mcbp::subdoc::doc_flag::Mkdoc) != mcbp::subdoc::doc_flag::None;
+}
+
+inline bool isNone(mcbp::subdoc::doc_flag a) {
+    return a == mcbp::subdoc::doc_flag::None;
+}
+}
+
 inline std::string to_string(const Feature& feature) {
     switch (feature) {
     case Feature::JSON:

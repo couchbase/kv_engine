@@ -820,8 +820,17 @@ void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
         PROTOCOL_BINARY_RESPONSE_SUCCESS, "", resp);
     uint64_t cas = resp.getCas();
     EXPECT_NE(0, cas);
-    EXPECT_SUBDOC_CMD_RESP(BinprotSubdocCommand(cmd, "dict", "new_int", "3", SUBDOC_FLAG_NONE, SUBDOC_FLAG_NONE, cas),
-        PROTOCOL_BINARY_RESPONSE_SUCCESS, "", resp);
+    EXPECT_SUBDOC_CMD_RESP(
+            BinprotSubdocCommand(cmd,
+                                 "dict",
+                                 "new_int",
+                                 "3",
+                                 SUBDOC_FLAG_NONE,
+                                 mcbp::subdoc::doc_flag::None,
+                                 cas),
+            PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            "",
+            resp);
 
     uint64_t new_cas = resp.getCas();
     EXPECT_NE(cas, new_cas);
@@ -832,7 +841,7 @@ void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
                                        "new_int2",
                                        "4",
                                        SUBDOC_FLAG_NONE,
-                                       SUBDOC_FLAG_NONE,
+                                       mcbp::subdoc::doc_flag::None,
                                        cas),
                   PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
 
@@ -842,7 +851,7 @@ void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
                                        "new_int2",
                                        "4",
                                        SUBDOC_FLAG_NONE,
-                                       SUBDOC_FLAG_NONE,
+                                       mcbp::subdoc::doc_flag::None,
                                        new_cas + 1),
                   PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
 
@@ -932,7 +941,7 @@ void McdTestappTest::test_subdoc_dict_add_cas(bool compress,
                                        "new_int4",
                                        "4",
                                        SUBDOC_FLAG_NONE,
-                                       SUBDOC_FLAG_NONE,
+                                       mcbp::subdoc::doc_flag::None,
                                        new_cas),
                   PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
 
@@ -1033,14 +1042,15 @@ void test_subdoc_delete_simple(bool compress) {
         uint64_t cas = resp.getCas();
 
         // Deleting with the wrong CAS should fail:
-        EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
-                                           "dict",
-                                           path,
-                                           "",
-                                           SUBDOC_FLAG_NONE,
-                                           SUBDOC_FLAG_NONE,
-                                           cas + 1),
-                      PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
+        EXPECT_SD_ERR(
+                BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
+                                     "dict",
+                                     path,
+                                     "",
+                                     SUBDOC_FLAG_NONE,
+                                     mcbp::subdoc::doc_flag::None,
+                                     cas + 1),
+                PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
 
         EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, "dict",path));
 
@@ -1240,7 +1250,7 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_Simple)
                                  "",
                                  "3",
                                  SUBDOC_FLAG_NONE,
-                                 SUBDOC_FLAG_NONE,
+                                 mcbp::subdoc::doc_flag::None,
                                  resp.getCas()));
     EXPECT_SD_GET("a", "[3]", "3"),
     validate_object("a", "[0,1,2,3]");
@@ -1252,7 +1262,7 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_Simple)
                                  "",
                                  "4",
                                  SUBDOC_FLAG_NONE,
-                                 SUBDOC_FLAG_NONE,
+                                 mcbp::subdoc::doc_flag::None,
                                  resp.getCas()),
             PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
     validate_object("a", "[0,1,2,3]");
@@ -1333,7 +1343,7 @@ TEST_P(McdTestappTest, SubdocArrayPushFirst_Simple)
                                  "",
                                  "3",
                                  SUBDOC_FLAG_NONE,
-                                 SUBDOC_FLAG_NONE,
+                                 mcbp::subdoc::doc_flag::None,
                                  resp.getCas()));
     EXPECT_SD_GET("a", "[0]", "3");
     validate_object("a", "[3,2,1,0]");
@@ -1345,7 +1355,7 @@ TEST_P(McdTestappTest, SubdocArrayPushFirst_Simple)
                                  "",
                                  "4",
                                  SUBDOC_FLAG_NONE,
-                                 SUBDOC_FLAG_NONE,
+                                 mcbp::subdoc::doc_flag::None,
                                  resp.getCas()),
             PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
             "");
@@ -1779,7 +1789,7 @@ TEST_P(McdTestappTest, SubdocMkdoc_Array)
                                  "",
                                  "0",
                                  SUBDOC_FLAG_NONE,
-                                 SUBDOC_FLAG_MKDOC,
+                                 mcbp::subdoc::doc_flag::Mkdoc,
                                  0));
     EXPECT_SD_GET("a", "[0]", "0");
 
@@ -1790,7 +1800,7 @@ TEST_P(McdTestappTest, SubdocMkdoc_Array)
                                  "",
                                  "1",
                                  SUBDOC_FLAG_NONE,
-                                 SUBDOC_FLAG_MKDOC,
+                                 mcbp::subdoc::doc_flag::Mkdoc,
                                  0));
     EXPECT_SD_GET("a", "[1]", "1");
 
@@ -1804,7 +1814,7 @@ TEST_P(McdTestappTest, SubdocMkdoc_Dict) {
                                       "foo",
                                       "1",
                                       SUBDOC_FLAG_NONE,
-                                      SUBDOC_FLAG_MKDOC,
+                                      mcbp::subdoc::doc_flag::Mkdoc,
                                       0));
     EXPECT_SD_GET("a", "foo", "1");
 
@@ -1814,7 +1824,7 @@ TEST_P(McdTestappTest, SubdocMkdoc_Dict) {
                                       "bar",
                                       "2",
                                       SUBDOC_FLAG_NONE,
-                                      SUBDOC_FLAG_MKDOC,
+                                      mcbp::subdoc::doc_flag::Mkdoc,
                                       0));
     EXPECT_SD_GET("a", "bar", "2");
 
@@ -1824,7 +1834,7 @@ TEST_P(McdTestappTest, SubdocMkdoc_Dict) {
                                       "nested.path",
                                       "3",
                                       SUBDOC_FLAG_NONE,
-                                      SUBDOC_FLAG_MKDOC,
+                                      mcbp::subdoc::doc_flag::Mkdoc,
                                       0));
     EXPECT_SD_GET("a", "nested.path", "3");
 
@@ -1838,7 +1848,7 @@ TEST_P(McdTestappTest, SubdocMkdoc_Counter) {
                                          "counter.path",
                                          "42",
                                          SUBDOC_FLAG_NONE,
-                                         SUBDOC_FLAG_MKDOC,
+                                         mcbp::subdoc::doc_flag::Mkdoc,
                                          0),
                     "42");
     // Repeat should be OK
@@ -1847,7 +1857,7 @@ TEST_P(McdTestappTest, SubdocMkdoc_Counter) {
                                          "counter.path",
                                          "42",
                                          SUBDOC_FLAG_NONE,
-                                         SUBDOC_FLAG_MKDOC,
+                                         mcbp::subdoc::doc_flag::Mkdoc,
                                          0),
                     "84");
     delete_object("a");
