@@ -1,7 +1,6 @@
 import optparse
 import socket
 import sys
-import os
 
 import mc_bin_client
 
@@ -11,7 +10,9 @@ class CliTool(object):
         self.cmds = {}
         self.flags = {}
         self.extraUsage = extraUsage.strip()
-        self.parser = optparse.OptionParser()
+        self.parser = optparse.OptionParser(
+            usage="%prog host[:dataport] command [options]\n\n"
+                  "dataport [default:11210]")
 
     def addCommand(self, name, f, help=None):
         if not help:
@@ -33,18 +34,27 @@ class CliTool(object):
                                help=description)
 
     def execute(self):
+        self.parser.usage +=  "\n" + self.format_command_list()
 
-        try:
-            opts, args = self.parser.parse_args()
-        except SystemExit:
-            self.usage(True)
+        opts, args = self.parser.parse_args()
 
-        try:
-            hp, self.cmd = args[:2]
-            host, port = hp.split(':')
-            port = int(port)
-        except ValueError:
-            self.usage()
+        if len(args) < 2:
+            print >> sys.stderr, self.parser.error("Too few arguments")
+            sys.exit(2)
+
+
+        hp, self.cmd = args[:2]
+        if ':' in hp:
+            host, port = hp.split(':', 1)
+            try:
+                port = int(port)
+            except ValueError:
+                print >> sys.stderr, self.parser.error(
+                                                 "invalid host[:dataport]")
+                sys.exit(2)
+        else:
+            host = hp
+            port = 11210
 
         try:
             mc = mc_bin_client.MemcachedClient(host, port)
@@ -55,7 +65,7 @@ class CliTool(object):
         f = self.cmds.get(self.cmd)
 
         if not f:
-            self.usage()
+             print self.parser.error("Unknown command")
 
         try:
             if callable(f[0]):
@@ -71,16 +81,17 @@ class CliTool(object):
             else:
                 raise
 
-    def usage(self, skipOptions=False):
-        program=os.path.basename(sys.argv[0])
-        print "Usage: %s host:dataport command [options]" % program
-        print "       Note that the default dataport is 11210"
-        print "\nOptions:"
-        for o in self.flags.keys():
-            print >>sys.stderr," %s\t%s"%(o, self.flags[o])
+    def format_command_list(self):
+        output = ""
+
         cmds = sorted(c[1] for c in self.cmds.values())
-        print >>sys.stderr, "\nUsage: %s host:dataport %s" % (program, cmds[0])
-        for c in cmds[1:]:
-            print >>sys.stderr, "  or   %s host:dataport %s" % (program, c)
-        print >>sys.stderr, self.extraUsage
-        sys.exit(1)
+        output += "\nCommands:\n"
+
+        for c in cmds:
+            output += "    %s\n" % c
+
+        output = output[:-1]
+
+        output += self.extraUsage
+
+        return output
