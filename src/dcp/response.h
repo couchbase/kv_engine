@@ -413,11 +413,13 @@ public:
     SystemEventConsumerMessage(uint32_t opaque,
                                SystemEvent ev,
                                uint64_t seqno,
+                               uint16_t vbucket,
                                cb::const_byte_buffer _key,
                                cb::const_byte_buffer _eventData)
         : SystemEventMessage(opaque),
           event(ev),
           bySeqno(seqno),
+          vbid(vbucket),
           key(reinterpret_cast<const char*>(_key.data()), _key.size()),
           eventData(_eventData.begin(), _eventData.end()) {
         if (seqno > std::numeric_limits<int64_t>::max()) {

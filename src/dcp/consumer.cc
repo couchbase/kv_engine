@@ -1190,6 +1190,7 @@ ENGINE_ERROR_CODE DcpConsumer::systemEvent(uint32_t opaque,
                             opaque,
                             SystemEvent(event),
                             bySeqno,
+                            vbucket,
                             key,
                             eventData));
         } catch (const std::bad_alloc&) {
