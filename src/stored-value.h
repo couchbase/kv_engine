@@ -204,7 +204,7 @@ public:
     /**
      * Get the expiration time of this item.
      *
-     * @return the expiration time for feature items, 0 for small items
+     * @return the expiration time.
      */
     time_t getExptime() const {
         return exptime;
@@ -218,7 +218,7 @@ public:
     /**
      * Get the client-defined flags of this item.
      *
-     * @return the flags for feature items, 0 for small items
+     * @return the flags.
      */
     uint32_t getFlags() const {
         return flags;
@@ -322,7 +322,7 @@ public:
     /**
      * Get this item's CAS identifier.
      *
-     * @return the cas ID for feature items, 0 for small items
+     * @return the cas ID
      */
     uint64_t getCas() const {
         return cas;
@@ -330,8 +330,6 @@ public:
 
     /**
      * Set a new CAS ID.
-     *
-     * This is a NOOP for small item types.
      */
     void setCas(uint64_t c) {
         cas = c;
@@ -339,8 +337,6 @@ public:
 
     /**
      * Lock this item until the given time.
-     *
-     * This is a NOOP for small item types.
      */
     void lock(rel_time_t expiry) {
         lock_expiry = expiry;
@@ -580,6 +576,7 @@ public:
      * vptr per object.
      */
     OrderedStoredValue* toOrderedStoredValue();
+    const OrderedStoredValue* toOrderedStoredValue() const;
 
     /**
      * Check if the contents of the StoredValue is same as that of the other

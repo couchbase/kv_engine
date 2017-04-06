@@ -183,6 +183,13 @@ OrderedStoredValue* StoredValue::toOrderedStoredValue() {
     throw std::bad_cast();
 }
 
+const OrderedStoredValue* StoredValue::toOrderedStoredValue() const {
+    if (isOrdered) {
+        return static_cast<const OrderedStoredValue*>(this);
+    }
+    throw std::bad_cast();
+}
+
 bool StoredValue::operator==(const StoredValue& other) const {
     return (cas == other.cas && revSeqno == other.revSeqno &&
             bySeqno == other.bySeqno && lock_expiry == other.lock_expiry &&
