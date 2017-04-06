@@ -210,6 +210,10 @@ void TaskQueue::_schedule(ExTask &task) {
     {
         LockHolder lh(mutex);
 
+        // If we are rescheduling a previously cancelled task, we should reset
+        // the task state to the initial value of running.
+        task->setState(TASK_RUNNING, TASK_DEAD);
+
         futureQueue.push(task);
 
         LOG(EXTENSION_LOG_DEBUG,

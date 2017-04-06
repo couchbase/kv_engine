@@ -25,6 +25,7 @@
 #include <executorthread.h>
 #include <gtest/gtest.h>
 #include <taskable.h>
+#include <thread>
 #include "thread_gate.h"
 
 class MockTaskable : public Taskable {
@@ -87,6 +88,14 @@ public:
     bool threadExists(std::string name) {
         auto names = getThreadNames();
         return std::find(names.begin(), names.end(), name) != names.end();
+    }
+
+    /** Waits indefinitely for the taskLocator to become empty, indicating all
+     * tasks have been cancelled and cleaned up.
+     */
+    void waitForEmptyTaskLocator() {
+        std::unique_lock<std::mutex> lh(tMutex);
+        tMutex.wait(lh, [this] { return taskLocator.empty(); });
     }
 
     ~TestExecutorPool() = default;

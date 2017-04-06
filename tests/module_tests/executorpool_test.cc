@@ -230,3 +230,32 @@ TEST_F(ExecutorPoolDynamicWorkerTest, new_worker_naming_test) {
     EXPECT_TRUE(pool->threadExists("writer_worker_0"));
     EXPECT_TRUE(pool->threadExists("writer_worker_1"));
 }
+
+/* Make sure that a task that has run once and been cancelled can be
+ * rescheduled and will run again properly.
+ */
+TEST_F(ExecutorPoolDynamicWorkerTest, reschedule_dead_task) {
+    size_t runCount{0};
+
+    ExTask task = new LambdaTask(taskable, TaskId::ItemPager, 0, true, [&] {
+        ++runCount;
+        return false;
+    });
+
+    ASSERT_EQ(TASK_RUNNING, task->getState())
+            << "Initial task state should be RUNNING";
+
+    pool->schedule(task);
+    pool->waitForEmptyTaskLocator();
+
+    EXPECT_EQ(TASK_DEAD, task->getState())
+            << "Task has completed and been cleaned up, state should be DEAD";
+
+    pool->schedule(task);
+    pool->waitForEmptyTaskLocator();
+
+    EXPECT_EQ(TASK_DEAD, task->getState())
+            << "Task has completed and been cleaned up, state should be DEAD";
+
+    EXPECT_EQ(2, runCount);
+}

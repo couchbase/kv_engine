@@ -40,6 +40,11 @@ public:
         cond.wait(lock);
     }
 
+    template <class Predicate>
+    void wait(std::unique_lock<std::mutex>& lock, Predicate pred) {
+        cond.wait(lock, pred);
+    }
+
     void wait_for(std::unique_lock<std::mutex>& lock,
                   const double secs) {
         cond.wait_for(lock, std::chrono::milliseconds(int64_t(secs * 1000.0)));
