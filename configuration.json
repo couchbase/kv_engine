@@ -270,6 +270,11 @@
                 ]
             }
         },
+        "ephemeral_metadata_purge_age": {
+            "default": "60",
+            "descr": "Age in seconds after which Ephemeral metadata is purged entirely from memory. Purging disabled if set to -1.",
+            "type": "ssize_t"
+        },
         "exp_pager_enabled": {
             "default": "true",
             "descr": "True if expiry pager task is enabled",

@@ -56,6 +56,22 @@ public:
         }
     }
 
+    void ssizeValueChanged(const std::string& key, ssize_t value) override {
+        if (key == "ephemeral_metadata_purge_age") {
+            if (value == -1) {
+                bucket.disableTombstonePurgerTask();
+            }
+            // Any non-negative value will be picked up by the Task the
+            // next time it runs.
+        } else {
+            LOG(EXTENSION_LOG_WARNING,
+                "EphemeralValueChangedListener: Failed to change value for "
+                "unknown key '%s'",
+                key.c_str());
+        }
+
+    }
+
 private:
     EphemeralBucket& bucket;
 };
@@ -135,6 +151,14 @@ RollbackResult EphemeralBucket::doRollback(uint16_t vbid,
                           /* highSeqno */ 0,
                           /* snapStartSeqno */ 0,
                           /* snapEndSeqno */ 0);
+}
+
+void EphemeralBucket::enableTombstonePurgerTask() {
+    // TODO
+}
+
+void EphemeralBucket::disableTombstonePurgerTask() {
+    // TODO
 }
 
 void EphemeralBucket::reconfigureForEphemeral(Configuration& config) {

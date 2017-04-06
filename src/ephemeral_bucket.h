@@ -96,6 +96,17 @@ public:
     void notifyNewSeqno(const uint16_t vbid,
                         const VBNotifyCtx& notifyCtx) override;
 
+    /**
+     * Enables the Ephemeral Tombstone purger task (if not already enabled).
+     * This runs periodically, and based on memory pressure.
+     */
+    void enableTombstonePurgerTask();
+
+    /**
+     * Disables the Ephemeral Tombstone purger task (if enabled).
+     */
+    void disableTombstonePurgerTask();
+
     // Static methods /////////////////////////////////////////////////////////
 
     /** Apply necessary modifications to the Configuration for an Ephemeral
