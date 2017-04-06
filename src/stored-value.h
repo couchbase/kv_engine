@@ -531,6 +531,14 @@ public:
     std::unique_ptr<Item> toItem(bool lck, uint16_t vbucket) const;
 
     /**
+     * Generate a new Item with only key and metadata out of this object.
+     * The item generated will not contain value
+     *
+     * @param vbucket the vbucket containing this item.
+     */
+    std::unique_ptr<Item> toItemWithNoValue(uint16_t vbucket) const;
+
+    /**
      * Set the memory threshold on the current bucket quota for accepting a new mutation
      */
     static void setMutationMemoryThreshold(double memThreshold);

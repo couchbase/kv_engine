@@ -132,14 +132,16 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
                          const void* cookie,
                          const std::string& name,
                          bool isNotifier,
-                         bool startTask)
+                         bool startTask,
+                         MutationType mutType)
     : Producer(e, cookie, name),
       rejectResp(NULL),
       notifyOnly(isNotifier),
       lastSendTime(ep_current_time()),
       log(*this),
       itemsSent(0),
-      totalBytesSent(0) {
+      totalBytesSent(0),
+      mutationType(mutType) {
     setSupportAck(true);
     setReserved(true);
     setPaused(true);
@@ -371,7 +373,8 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         s = new ActiveStream(&engine_, this, getName(), flags,
                              opaque, vbucket, start_seqno,
                              end_seqno, vbucket_uuid,
-                             snap_start_seqno, snap_end_seqno);
+                             snap_start_seqno, snap_end_seqno,
+                             (mutationType == MutationType::KeyOnly));
     }
 
     {

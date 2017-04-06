@@ -56,7 +56,7 @@ TEST_F(EPBucketTest, test_mb20751_deadlock_on_disconnect_delete) {
     // Create a new Dcp producer, reserving its cookie.
     get_mock_server_api()->cookie->reserve(cookie);
     dcp_producer_t producer = engine->getDcpConnMap().newProducer(
-        cookie, "mb_20716r", /*notifyOnly*/false);
+        cookie, "mb_20716r", /*notifyOnly*/false, /*isKeyOnly*/false);
 
     // Check preconditions.
     EXPECT_TRUE(producer->isPaused());

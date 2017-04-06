@@ -29,6 +29,17 @@ class DcpResponse;
 
 class DcpProducer : public Producer {
 public:
+
+/*
+ * MutationType is used to state whether the active streams associated with the
+ * the DCPProducer need to send both the key and value (AllValue) or whether
+ * they can send just the key (KeyOnly).
+ */
+enum class MutationType {
+    KeyOnly,
+    KeyAndValue
+};
+
     /**
      * Construct a DCP Producer
      *
@@ -39,13 +50,16 @@ public:
      *        sent.
      * @param startTask If true an internal checkpoint task is created and
      *        started. Test code may wish to defer or manually handle the task
-     *         creation.
+     *        creation.
+     * @param mutType The MutationType to use for the items sent from the
+     *        DcpProducer.
      */
     DcpProducer(EventuallyPersistentEngine& e,
                 const void* cookie,
                 const std::string& n,
                 bool notifyOnly,
-                bool startTask);
+                bool startTask,
+                MutationType mutType);
 
     ~DcpProducer();
 
@@ -314,6 +328,10 @@ protected:
 
     ExTask checkpointCreatorTask;
     static const std::chrono::seconds defaultDcpNoopTxInterval;
+
+    // mutationType i.e. KeyOnly or AllValue, used to determine how all
+    // active streams belonging to the DcpProducer should send their data.
+    MutationType mutationType;
 
 };
 

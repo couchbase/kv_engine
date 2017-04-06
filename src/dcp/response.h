@@ -324,17 +324,17 @@ private:
 
 class MutationResponse : public DcpResponse {
 public:
-    MutationResponse(queued_item item, uint32_t opaque,
+    MutationResponse(queued_item item, uint32_t opaque, bool isKeyOnly,
                      ExtendedMetaData *e = NULL)
         : DcpResponse(item->isDeleted() ? Event::Deletion : Event::Mutation, opaque),
-          item_(item), emd(e) {}
+          item_(item), keyOnly(isKeyOnly), emd(e) {}
 
     queued_item& getItem() {
         return item_;
     }
 
     Item* getItemCopy() {
-        return new Item(*item_);
+        return new Item(*item_, keyOnly);
     }
 
     uint16_t getVBucket() {
@@ -355,7 +355,12 @@ public:
     uint32_t getMessageSize() {
         const uint32_t base = item_->isDeleted() ? deletionBaseMsgBytes :
                         mutationBaseMsgBytes;
-        uint32_t body = item_->getKey().size() + item_->getNBytes();
+
+        uint32_t body = item_->getKey().size();
+        if (!keyOnly) {
+            // Add the size of the value
+            body += item_->getNBytes();
+        }
 
         if (emd) {
             body += emd->getExtMeta().second;
@@ -380,6 +385,10 @@ public:
 
 private:
     queued_item item_;
+
+    // Whether the response should contain the key and value or just the key
+    bool keyOnly;
+
     std::unique_ptr<ExtendedMetaData> emd;
 };
 

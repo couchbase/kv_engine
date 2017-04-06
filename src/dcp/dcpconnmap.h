@@ -41,9 +41,15 @@ public:
     /**
      * Find or build a dcp connection for the given cookie and with
      * the given name.
+     * @param cookie The cookie representing the client
+     * @param name The name of the connection
+     * @param notifyOnly If true the producer to be created only notifies,
+     *        i.e. no data is sent.
+     * @param isKeyOnly States if items sent from active streams should contain
+     *        only the key.
      */
     DcpProducer *newProducer(const void* cookie, const std::string &name,
-                             bool notifyOnly);
+                             bool notifyOnly, bool isKeyOnly);
 
 
     /**

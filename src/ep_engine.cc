@@ -6079,10 +6079,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(const void* cookie,
     }
 
     ConnHandler *handler = NULL;
+    const bool keyOnly = flags & DCP_OPEN_NO_VALUE;
     if (flags & DCP_OPEN_PRODUCER) {
-        handler = dcpConnMap_->newProducer(cookie, connName, false);
+        handler = dcpConnMap_->newProducer(cookie, connName, false, keyOnly);
     } else if (flags & DCP_OPEN_NOTIFIER) {
-        handler = dcpConnMap_->newProducer(cookie, connName, true);
+        handler = dcpConnMap_->newProducer(cookie, connName, true, keyOnly);
     } else {
         handler = dcpConnMap_->newConsumer(cookie, connName);
     }

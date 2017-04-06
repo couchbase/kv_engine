@@ -122,7 +122,8 @@ ENGINE_ERROR_CODE DcpConnMap::addPassiveStream(ConnHandler& conn,
 
 DcpProducer *DcpConnMap::newProducer(const void* cookie,
                                      const std::string &name,
-                                     bool notifyOnly)
+                                     bool notifyOnly,
+                                     bool isKeyOnly)
 {
     LockHolder lh(connsLock);
 
@@ -153,7 +154,9 @@ DcpProducer *DcpConnMap::newProducer(const void* cookie,
     }
 
     DcpProducer* dcp = new DcpProducer(
-            engine, cookie, conn_name, notifyOnly, true /*startTask*/);
+            engine, cookie, conn_name, notifyOnly, true /*startTask*/,
+            isKeyOnly ? DcpProducer::MutationType::KeyOnly :
+                    DcpProducer::MutationType::KeyAndValue);
     LOG(EXTENSION_LOG_INFO, "%s Connection created", dcp->logHeader());
     map_[cookie] = dcp;
 

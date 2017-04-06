@@ -35,7 +35,8 @@ public:
                      uint64_t en_seqno,
                      uint64_t vb_uuid,
                      uint64_t snap_start_seqno,
-                     uint64_t snap_end_seqno)
+                     uint64_t snap_end_seqno,
+                     bool isKeyOnly = false)
         : ActiveStream(e,
                        p,
                        name,
@@ -46,7 +47,8 @@ public:
                        en_seqno,
                        vb_uuid,
                        snap_start_seqno,
-                       snap_end_seqno) {
+                       snap_end_seqno,
+                       isKeyOnly) {
     }
 
     // Expose underlying protected ActiveStream methods as public
@@ -97,6 +99,11 @@ public:
 
     int getNumBackfillItemsRemaining() const {
         return backfillRemaining;
+    }
+
+    std::unique_ptr<DcpResponse> public_makeResponseFromItem(
+            queued_item& item) {
+        return makeResponseFromItem(item);
     }
 };
 

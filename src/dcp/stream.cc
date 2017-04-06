@@ -231,7 +231,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            uint64_t en_seqno,
                            uint64_t vb_uuid,
                            uint64_t snap_start_seqno,
-                           uint64_t snap_end_seqno)
+                           uint64_t snap_end_seqno,
+                           bool isKeyOnly)
     : Stream(n,
              flags,
              opaque,
@@ -256,7 +257,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       engine(e),
       producer(p),
       lastSentSnapEndSeqno(0),
-      chkptItemsExtractionInProgress(false) {
+      chkptItemsExtractionInProgress(false),
+      keyOnly(isKeyOnly) {
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
         type = "takeover ";
@@ -887,7 +889,7 @@ void ActiveStream::getOutstandingItems(VBucketPtr &vb,
 std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
         queued_item& item) {
     if (item->getOperation() != queue_op::system_event) {
-        return std::make_unique<MutationResponse>(item, opaque_);
+        return std::make_unique<MutationResponse>(item, opaque_, isKeyOnly());
     } else {
         return SystemEventProducerMessage::make(opaque_, item);
     }

@@ -30,8 +30,11 @@ public:
                     const void* cookie,
                     const std::string& name,
                     bool isNotifier,
-                    bool startTask = true)
-        : DcpProducer(theEngine, cookie, name, isNotifier, startTask) {
+                    bool startTask = true,
+                    DcpProducer::MutationType mutationType =
+                            DcpProducer::MutationType::KeyAndValue)
+        : DcpProducer(theEngine, cookie, name,
+                      isNotifier, startTask, mutationType) {
     }
 
     ENGINE_ERROR_CODE maybeDisconnect() {
@@ -84,5 +87,12 @@ public:
     ActiveStreamCheckpointProcessorTask& getCheckpointSnapshotTask() const {
         return *static_cast<ActiveStreamCheckpointProcessorTask*>(
                 checkpointCreatorTask.get());
+    }
+
+    /**
+     * Finds the stream for a given vbucket
+     */
+    SingleThreadedRCPtr<Stream> findStream(uint16_t vbid) {
+        return DcpProducer::findStream(vbid);
     }
 };

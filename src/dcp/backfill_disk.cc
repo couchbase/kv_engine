@@ -64,16 +64,19 @@ void CacheCallback::callback(CacheLookup& lookup) {
     if (v && v->isResident() && v->getBySeqno() == lookup.getBySeqno()) {
         std::unique_ptr<Item> it;
         try {
-            it = v->toItem(false, lookup.getVBucketId());
+            it = stream_->isKeyOnly() ?
+                    v->toItemWithNoValue(lookup.getVBucketId()) :
+                    v->toItem(false, lookup.getVBucketId());
         } catch (const std::bad_alloc&) {
             setStatus(ENGINE_ENOMEM);
             stream_->getLogger().log(
                     EXTENSION_LOG_WARNING,
                     "Alloc error when trying to create an "
                     "item copy from hash table. Item seqno:%" PRIi64
-                    ", vb:%" PRIu16,
+                    ", vb:%" PRIu16 " isKeyOnly:%s",
                     v->getBySeqno(),
-                    lookup.getVBucketId());
+                    lookup.getVBucketId(),
+                    stream_->isKeyOnly() ? "True" : "False");
             return;
         }
         hbl.getHTLock().unlock();
@@ -170,8 +173,12 @@ backfill_status_t DCPBackfillDisk::create() {
 
     KVStore* kvstore = engine.getKVBucket()->getROUnderlying(vbid);
     ValueFilter valFilter = ValueFilter::VALUES_DECOMPRESSED;
-    if (stream->isCompressionEnabled()) {
-        valFilter = ValueFilter::VALUES_COMPRESSED;
+    if (stream->isKeyOnly()) {
+        valFilter = ValueFilter::KEYS_ONLY;
+    } else {
+        if (stream->isCompressionEnabled()) {
+            valFilter = ValueFilter::VALUES_COMPRESSED;
+        }
     }
 
     std::shared_ptr<Callback<GetValue> > cb(new DiskCallback(stream));

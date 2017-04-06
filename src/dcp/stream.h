@@ -219,7 +219,7 @@ public:
                  const std::string &name, uint32_t flags, uint32_t opaque,
                  uint16_t vb, uint64_t st_seqno, uint64_t en_seqno,
                  uint64_t vb_uuid, uint64_t snap_start_seqno,
-                 uint64_t snap_end_seqno);
+                 uint64_t snap_end_seqno, bool isKeyOnly);
 
     ~ActiveStream();
 
@@ -275,6 +275,11 @@ public:
        checkpoint mgr. Currently we handle the slow stream by switching from
        in-memory to backfilling */
     void handleSlowStream();
+
+    /// @Returns true if keyOnly is true and false if KeyOnly is false
+    bool isKeyOnly() const {
+        return keyOnly;
+    }
 
 protected:
     // Returns the outstanding items for the stream's checkpoint cursor.
@@ -403,6 +408,10 @@ private:
        extracted for given checkpoint cursor, and is unset after all retrieved
        items are added to the readyQ */
     std::atomic<bool> chkptItemsExtractionInProgress;
+
+    // Whether the responses sent using this stream should contain the key and
+    // value or just the key
+    bool keyOnly;
 
 };
 

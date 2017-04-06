@@ -636,7 +636,8 @@ public:
                                        cookieP,
                                        "test_producer",
                                        /*notifyOnly*/ false,
-                                       /*startTask*/ false);
+                                       /*startTask*/ false,
+                                       DcpProducer::MutationType::KeyAndValue);
 
         // Create the task object, but don't schedule
         producer->createCheckpointProcessorTask();

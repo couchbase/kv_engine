@@ -107,12 +107,14 @@ protected:
     }
 
     // Setup a DCP producer and attach a stream and cursor to it.
-    void setup_dcp_stream() {
-        producer = new DcpProducer(*engine,
+    void setup_dcp_stream(DcpProducer::MutationType mutationType =
+            DcpProducer::MutationType::KeyAndValue) {
+        producer = new MockDcpProducer(*engine,
                                    /*cookie*/ nullptr,
                                    "test_producer",
                                    /*notifyOnly*/ false,
-                                   /*startTask*/ true);
+                                   /*startTask*/ true,
+                                   mutationType);
         stream = new MockActiveStream(engine, producer,
                                       producer->getName(), /*flags*/0,
                                       /*opaque*/0, vbid,
@@ -120,7 +122,9 @@ protected:
                                       /*en_seqno*/~0,
                                       /*vb_uuid*/0xabcd,
                                       /*snap_start_seqno*/0,
-                                      /*snap_end_seqno*/~0);
+                                      /*snap_end_seqno*/~0,
+                                      mutationType == DcpProducer::MutationType::KeyOnly ?
+                                              true : false);
 
         EXPECT_FALSE(vb0->checkpointManager.registerCursor(
                                                            producer->getName(),
@@ -129,10 +133,125 @@ protected:
             << "Found an existing TAP cursor when attempting to register ours";
     }
 
+    /*
+     * Fake callback emulating dcp_add_failover_log
+     */
+    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(vbucket_failover_t* entry,
+                                                   size_t nentries,
+                                                   const void *cookie) {
+        return ENGINE_SUCCESS;
+    }
+
     dcp_producer_t producer;
     stream_t stream;
     VBucketPtr vb0;
 };
+
+/*
+ * Test that when have a producer with MutationType set to KeyOnly an active
+ * stream created via a streamRequest returns true for isKeyOnly.
+ */
+TEST_P(StreamTest, test_streamSetMutationTypeKeyOnly) {
+    setup_dcp_stream(DcpProducer::MutationType::KeyOnly);
+    uint64_t rollbackSeqno;
+    auto err = producer->streamRequest(/*flags*/0,
+                                       /*opaque*/0,
+                                       /*vbucket*/0,
+                                       /*start_seqno*/0,
+                                       /*end_seqno*/0,
+                                       /*vb_uuid*/0,
+                                       /*snap_start*/0,
+                                       /*snap_end*/0,
+                                       &rollbackSeqno,
+                                       StreamTest::fakeDcpAddFailoverLog);
+    ASSERT_EQ(ENGINE_SUCCESS, err)
+        << "stream request did not return ENGINE_SUCCESS";
+
+    stream = dynamic_cast<MockDcpProducer*>(producer.get())->findStream(0);
+    EXPECT_TRUE(dynamic_cast<ActiveStream*>(stream.get())->isKeyOnly());
+    producer.get()->closeAllStreams();
+}
+
+/*
+ * Test that when have a producer with MutationType set to KeyAndValue an active
+ * stream created via a streamRequest returns false for isKeyOnly.
+ */
+TEST_P(StreamTest, test_streamSettMutationTypeAllValue) {
+    setup_dcp_stream(DcpProducer::MutationType::KeyAndValue);
+    uint64_t rollbackSeqno;
+    auto err = producer->streamRequest(/*flags*/0,
+                                       /*opaque*/0,
+                                       /*vbucket*/0,
+                                       /*start_seqno*/0,
+                                       /*end_seqno*/0,
+                                       /*vb_uuid*/0,
+                                       /*snap_start*/0,
+                                       /*snap_end*/0,
+                                       &rollbackSeqno,
+                                       StreamTest::fakeDcpAddFailoverLog);
+    ASSERT_EQ(ENGINE_SUCCESS, err)
+        << "stream request did not return ENGINE_SUCCESS";
+
+    stream = dynamic_cast<MockDcpProducer*>(producer.get())->findStream(0);
+    EXPECT_FALSE(dynamic_cast<ActiveStream*>(stream.get())->isKeyOnly());
+    producer.get()->closeAllStreams();
+}
+
+/*
+ * Test for a dcpResponse retrieved from a stream where isKeyOnly is true, that
+ * the message size does not include the size of the body.
+ */
+TEST_P(StreamTest, test_keyOnlyMessageSize) {
+    std::string value("value");
+    uint8_t ext_meta[EXT_META_LEN] = {PROTOCOL_BINARY_DATATYPE_JSON};
+    SingleThreadedRCPtr<Item> item = std::make_unique<Item>(
+            makeStoredDocKey("key"),
+            0,
+            0,
+            value.c_str(),
+            value.size(),
+            ext_meta,
+            sizeof(ext_meta));
+
+    auto keyOnlyMessageSize = MutationResponse::mutationBaseMsgBytes +
+            item.get()->getKey().size();
+    queued_item qi(item);
+
+  setup_dcp_stream(DcpProducer::MutationType::KeyOnly);
+  std::unique_ptr<DcpResponse> dcpResponse =
+          dynamic_cast<MockActiveStream*>(
+                  stream.get())->public_makeResponseFromItem(qi);
+
+  EXPECT_EQ(keyOnlyMessageSize, dcpResponse->getMessageSize());
+}
+
+/*
+ * Test for a dcpResponse retrieved from a stream where isKeyOnly is false, that
+ * the message size includes the size of the body.
+ */
+TEST_P(StreamTest, test_keyAndValueMessageSize) {
+    std::string value("value");
+    uint8_t ext_meta[EXT_META_LEN] = {PROTOCOL_BINARY_DATATYPE_JSON};
+    SingleThreadedRCPtr<Item> item = std::make_unique<Item>(
+            makeStoredDocKey("key"),
+            0,
+            0,
+            value.c_str(),
+            value.size(),
+            ext_meta,
+            sizeof(ext_meta));
+
+    auto keyAndValueMessageSize = MutationResponse::mutationBaseMsgBytes +
+            item.get()->getKey().size() + item->getNBytes();
+    queued_item qi(item);
+
+  setup_dcp_stream(DcpProducer::MutationType::KeyAndValue);
+  std::unique_ptr<DcpResponse> dcpResponse =
+          dynamic_cast<MockActiveStream*>(
+                  stream.get())->public_makeResponseFromItem(qi);
+
+  EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
+}
 
 /* Regression test for MB-17766 - ensure that when an ActiveStream is preparing
  * queued items to be sent out via a DCP consumer, that nextCheckpointItem()
@@ -493,7 +612,7 @@ TEST_F(ConnectionTest, test_deadConnections) {
     const void *cookie = create_mock_cookie();
     // Create a new Dcp producer
     dcp_producer_t producer = connMap.newProducer(cookie, "test_producer",
-                                    /*notifyOnly*/false);
+                                    /*notifyOnly*/false, /*isKeyOnly*/false);
 
     // Disconnect the producer connection
     connMap.disconnect(cookie);
@@ -511,7 +630,7 @@ TEST_F(ConnectionTest, test_mb23637_findByNameWithConnectionDoDisconnect) {
     const void *cookie = create_mock_cookie();
     // Create a new Dcp producer
     dcp_producer_t producer = connMap.newProducer(cookie, "test_producer",
-                                    /*notifyOnly*/false);
+                                    /*notifyOnly*/false, /*isKeyOnly*/false);
     // should be able to find the connection
     ASSERT_NE(connection_t(nullptr),
               connMap.findByName("eq_dcpq:test_producer"));
@@ -536,7 +655,7 @@ TEST_F(ConnectionTest, test_mb23637_findByNameWithDuplicateConnections) {
     const void* cookie2 = create_mock_cookie();
     // Create a new Dcp producer
     dcp_producer_t producer = connMap.newProducer(cookie1, "test_producer",
-                                    /*notifyOnly*/false);
+                                    /*notifyOnly*/false, /*isKeyOnly*/false);
     ASSERT_NE(0, producer) << "producer is null";
     // should be able to find the connection
     ASSERT_NE(connection_t(nullptr),
@@ -544,7 +663,7 @@ TEST_F(ConnectionTest, test_mb23637_findByNameWithDuplicateConnections) {
 
     // Create a duplicate Dcp producer
     dcp_producer_t duplicateproducer = connMap.newProducer(
-            cookie2, "test_producer", /*notifyOnly*/false);
+            cookie2, "test_producer", /*notifyOnly*/false, /*isKeyOnly*/false);
     ASSERT_TRUE(producer->doDisconnect()) << "producer doDisconnect == false";
     ASSERT_NE(0, duplicateproducer) << "duplicateproducer is null";
 
@@ -574,12 +693,14 @@ TEST_F(ConnectionTest, test_mb17042_duplicate_name_producer_connections) {
     const void* cookie2 = create_mock_cookie();
     // Create a new Dcp producer
     dcp_producer_t producer = connMap.newProducer(cookie1, "test_producer",
-                                                  /*notifyOnly*/false);
+                                                  /*notifyOnly*/false,
+                                                  /*isKeyOnly*/false);
     EXPECT_NE(0, producer) << "producer is null";
 
     // Create a duplicate Dcp producer
     dcp_producer_t duplicateproducer = connMap.newProducer(cookie2, "test_producer",
-                                                           /*notifyOnly*/false);
+                                                           /*notifyOnly*/false,
+                                                           /*isKeyOnly*/false);
     EXPECT_TRUE(producer->doDisconnect()) << "producer doDisconnect == false";
     EXPECT_NE(0, duplicateproducer) << "duplicateproducer is null";
 
@@ -625,11 +746,13 @@ TEST_F(ConnectionTest, test_mb17042_duplicate_cookie_producer_connections) {
     const void* cookie = create_mock_cookie();
     // Create a new Dcp producer
     dcp_producer_t producer = connMap.newProducer(cookie, "test_producer1",
-                                                   /*notifyOnly*/false);
+                                                   /*notifyOnly*/false,
+                                                   /*isKeyOnly*/false);
 
     // Create a duplicate Dcp producer
     dcp_producer_t duplicateproducer = connMap.newProducer(cookie, "test_producer2",
-                                                            /*notifyOnly*/false);
+                                                            /*notifyOnly*/false,
+                                                            /*isKeyOnly*/false);
     EXPECT_TRUE(producer->doDisconnect()) << "producer doDisconnect == false";
     EXPECT_EQ(0, duplicateproducer) << "duplicateproducer is not null";
 
@@ -791,7 +914,7 @@ TEST_F(ConnectionTest, test_mb20645_stats_after_closeAllStreams) {
     const void *cookie = create_mock_cookie();
     // Create a new Dcp producer
     dcp_producer_t producer = connMap.newProducer(cookie, "test_producer",
-                                    /*notifyOnly*/false);
+                                    /*notifyOnly*/false, /*isKeyOnly*/false);
 
     // Disconnect the producer connection
     connMap.disconnect(cookie);
@@ -815,7 +938,8 @@ TEST_F(ConnectionTest, test_mb20716_connmap_notify_on_delete) {
     const void *cookie = create_mock_cookie();
     // Create a new Dcp producer.
     dcp_producer_t producer = connMap.newProducer(cookie, "mb_20716r",
-                                                  /*notifyOnly*/false);
+                                                  /*notifyOnly*/false,
+                                                  /*isKeyOnly*/false);
 
     // Check preconditions.
     EXPECT_TRUE(producer->isPaused());
@@ -1000,7 +1124,8 @@ public:
         // Use 'this' instead of a mock cookie
         producer = connMap->newProducer(static_cast<void*>(this),
                                         "test_producer",
-                                        /*notifyOnly*/false);
+                                        /*notifyOnly*/false,
+                                        /*isKeyOnly*/false);
     }
 
     void notify() {

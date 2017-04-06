@@ -171,6 +171,23 @@ std::unique_ptr<Item> StoredValue::toItem(bool lck, uint16_t vbucket) const {
     return itm;
 }
 
+std::unique_ptr<Item> StoredValue::toItemWithNoValue(uint16_t vbucket) const {
+    auto itm =
+            std::make_unique<Item>(getKey(),
+                                   getFlags(),
+                                   getExptime(),
+                                   /* valuePtr */ nullptr,
+                                   /* valuelen */ 0,
+                                   /* ext_meta*/ nullptr,
+                                   /* ext_len */ 0,
+                                   getCas(),
+                                   getBySeqno(),
+                                   vbucket,
+                                   getRevSeqno());
+
+    return itm;
+}
+
 void StoredValue::reallocate() {
     // Allocate a new Blob for this stored value; copy the existing Blob to
     // the new one and free the old.
