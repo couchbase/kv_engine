@@ -26,6 +26,7 @@ class SequenceList;
 class EphemeralVBucket : public VBucket {
 public:
     class CountVisitor;
+    class HTTombstonePurger;
 
     EphemeralVBucket(id_type i,
                      vbucket_state_t newState,
@@ -131,6 +132,13 @@ public:
     void queueBackfillItem(queued_item& qi,
                            const GenerateBySeqno generateBySeqno) override;
 
+    /** Purge the Tombstones in this VBucket which are older than the specified
+     *  duration.
+     * @param purgeAge Items older than this should be purged.
+     * @return Number of items purged.
+     */
+    size_t purgeTombstones(rel_time_t purgeAge);
+
 protected:
     /* Data structure for in-memory sequential storage */
     std::unique_ptr<SequenceList> seqList;
@@ -194,4 +202,15 @@ private:
      * Count of how many items have been deleted via the 'auto_delete' policy
      */
     EPStats::Counter autoDeleteCount;
+
+    /**
+     * Count of how many deleted items have been purged from the HashTable
+     * (marked as stale and transferred from HT to sequence list).
+     */
+    EPStats::Counter htDeletedPurgeCount;
+
+    /** Count of how many items have been purged from the sequence list
+     *  (removed from seqList and deleted).
+     */
+    EPStats::Counter seqListPurgeCount;
 };

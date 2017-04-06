@@ -32,6 +32,10 @@ public:
     MockBasicLinkedList(EPStats& st) : BasicLinkedList(0, st) {
     }
 
+    OrderedLL& getSeqList() {
+        return seqList;
+    }
+
     std::vector<seqno_t> getAllSeqnoForVerification() const {
         std::vector<seqno_t> allSeqnos;
         std::lock_guard<std::mutex> lckGd(writeLock);
@@ -40,6 +44,11 @@ public:
             allSeqnos.push_back(val.getBySeqno());
         }
         return allSeqnos;
+    }
+
+    /// Expose the rangeReadLock for testing.
+    std::mutex& getRangeReadLock() {
+        return rangeReadLock;
     }
 
     /// Expose the writeLock for testins.
@@ -51,5 +60,10 @@ public:
     void registerFakeReadRange(seqno_t start, seqno_t end) {
         std::lock_guard<SpinLock> lh(rangeLock);
         readRange = SeqRange(start, end);
+    }
+
+    void resetReadRange() {
+        std::lock_guard<SpinLock> lh(rangeLock);
+        readRange.reset();
     }
 };

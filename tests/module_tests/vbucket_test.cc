@@ -100,6 +100,10 @@ void VBucketTest::softDeleteMany(std::vector<StoredDocKey>& keys,
     }
 }
 
+StoredValue* VBucketTest::findValue(StoredDocKey& key) {
+    return vbucket->ht.find(key, TrackReference::Yes, WantsDeleted::Yes);
+}
+
 void VBucketTest::verifyValue(StoredDocKey& key,
                               const char* value,
                               TrackReference trackReference,

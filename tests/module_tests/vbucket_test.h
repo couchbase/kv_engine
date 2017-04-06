@@ -63,6 +63,8 @@ protected:
 
     void softDeleteMany(std::vector<StoredDocKey>& keys, MutationStatus expect);
 
+    StoredValue* findValue(StoredDocKey& key);
+
     void verifyValue(StoredDocKey& key,
                      const char* value,
                      TrackReference trackReference,

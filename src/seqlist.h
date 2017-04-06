@@ -139,9 +139,19 @@ public:
      *       type)
      *
      * @param ownedSv StoredValue whose ownership is passed to the sequential
-     *                data strucuture.
+     *                data structure.
      */
     virtual void markItemStale(StoredValue::UniquePtr ownedSv) = 0;
+
+    /**
+     * Remove from sequence list and delete all OSVs which are purgable.
+     * OSVs which can be purged are items which are outside the ReadRange and
+     * are Stale.
+     *
+     * @return The number of items purged from the sequence list (and hence
+     *         deleted).
+     */
+    virtual size_t purgeTombstones() = 0;
 
     /**
      * Returns the number of stale items in the list.
@@ -183,6 +193,11 @@ public:
      * Returns the highest de-duplicated sequence number in the list.
      */
     virtual uint64_t getHighestDedupedSeqno() const = 0;
+
+    /**
+     * Returns the highest purged Deleted sequence number in the list.
+     */
+    virtual seqno_t getHighestPurgedDeletedSeqno() const = 0;
 
     /**
      * Returns the current range read begin sequence number.

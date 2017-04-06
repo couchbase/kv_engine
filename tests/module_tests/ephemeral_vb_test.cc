@@ -24,7 +24,10 @@
 #include "../mock/mock_ephemeral_vb.h"
 #include "failover-table.h"
 #include "test_helpers.h"
+#include "thread_gate.h"
 #include "vbucket_test.h"
+
+#include <thread>
 
 class EphemeralVBucketTest : public VBucketTest {
 protected:
@@ -188,4 +191,211 @@ TEST_F(EphemeralVBucketTest, SoftDeleteDuringBackfill) {
 
     EXPECT_EQ(numItems * 2 - /* since 2 items are deduped*/ 2,
               mockEpheVB->public_getNumListItems());
+}
+
+// EphemeralVB Tombstone Purging //////////////////////////////////////////////
+
+class EphTombstoneTest : public EphemeralVBucketTest {
+protected:
+    void SetUp() override {
+        EphemeralVBucketTest::SetUp();
+
+        // Store three items to work with.
+        keys = generateKeys(3);
+        setMany(keys, MutationStatus::WasClean);
+        ASSERT_EQ(3, vbucket->getNumItems());
+    }
+    std::vector<StoredDocKey> keys;
+};
+
+// Check an empty seqList is handled correctly.
+TEST_F(EphTombstoneTest, ZeroElementPurge) {
+    // Create a new empty VB (using parent class SetUp).
+    EphemeralVBucketTest::SetUp();
+    ASSERT_EQ(0, mockEpheVB->public_getNumListItems());
+
+    EXPECT_EQ(0, mockEpheVB->purgeTombstones(0));
+}
+
+// Check a seqList with one element is handled correctly.
+TEST_F(EphTombstoneTest, OneElementPurge) {
+    // Create a new empty VB (using parent class SetUp).
+    EphemeralVBucketTest::SetUp();
+    setOne(makeStoredDocKey("one"), MutationStatus::WasClean);
+    ASSERT_EQ(1, mockEpheVB->public_getNumListItems());
+
+    EXPECT_EQ(0, mockEpheVB->purgeTombstones(0));
+}
+
+// Check that nothing is purged if no items are stale.
+TEST_F(EphTombstoneTest, NoPurgeIfNoneStale) {
+    // Run purger - nothing should be removed.
+    EXPECT_EQ(0, mockEpheVB->purgeTombstones(0));
+    EXPECT_EQ(keys.size(), vbucket->getNumItems());
+}
+
+// Check that deletes are not purged if they are not old enough.
+TEST_F(EphTombstoneTest, NoPurgeIfNoneOldEnough) {
+    // Delete the first item "now"
+    softDeleteOne(keys.at(0), MutationStatus::WasDirty);
+    ASSERT_EQ(2, vbucket->getNumItems());
+    ASSERT_EQ(1, vbucket->getNumInMemoryDeletes());
+
+    // Advance time by 5 seconds and run the EphTombstonePurger specifying a
+    // purge_age of 10s - nothing
+    // should be purged.
+    TimeTraveller theTerminator(5);
+    EXPECT_EQ(0, mockEpheVB->purgeTombstones(10));
+
+    EXPECT_EQ(2, vbucket->getNumItems());
+    EXPECT_EQ(1, vbucket->getNumInMemoryDeletes());
+}
+
+// Check that items should be purged when they are old enough.
+TEST_F(EphTombstoneTest, OnePurgeIfDeletedItemOld) {
+    // Delete the first item "now"
+    softDeleteOne(keys.at(0), MutationStatus::WasDirty);
+    ASSERT_EQ(2, vbucket->getNumItems());
+    ASSERT_EQ(1, vbucket->getNumInMemoryDeletes());
+
+    // Delete the second item at time 30.
+    TimeTraveller looper(30);
+    softDeleteOne(keys.at(1), MutationStatus::WasDirty);
+    ASSERT_EQ(1, vbucket->getNumItems());
+    ASSERT_EQ(2, vbucket->getNumInMemoryDeletes());
+
+    // and the third at time 60.
+    TimeTraveller looper2(30);
+    softDeleteOne(keys.at(2), MutationStatus::WasDirty);
+    ASSERT_EQ(0, vbucket->getNumItems());
+    ASSERT_EQ(3, vbucket->getNumInMemoryDeletes());
+
+    // Run the EphTombstonePurger specifying a purge_age of 60s - only key0
+    // should be purged.
+    mockEpheVB->purgeTombstones(60);
+
+    EXPECT_EQ(0, vbucket->getNumItems());
+    EXPECT_EQ(2, vbucket->getNumInMemoryDeletes());
+    EXPECT_EQ(4, vbucket->getPurgeSeqno())
+            << "Should have purged up to 4th update (1st delete, after 3 sets)";
+    EXPECT_EQ(nullptr, findValue(keys.at(0)));
+    EXPECT_NE(nullptr, findValue(keys.at(1)));
+    EXPECT_NE(nullptr, findValue(keys.at(2)));
+}
+
+// Check that deleted items can be purged immediately.
+TEST_F(EphTombstoneTest, ImmediateDeletedPurge) {
+    // Advance to non-zero time.
+    TimeTraveller jamesCole(10);
+
+    // Delete the first item at 10s
+    softDeleteOne(keys.at(0), MutationStatus::WasDirty);
+    ASSERT_EQ(2, vbucket->getNumItems());
+    ASSERT_EQ(1, vbucket->getNumInMemoryDeletes());
+
+    // Run the EphTombstonePurger specifying a purge_age of 0s - key0 should
+    // be immediately purged.
+    mockEpheVB->purgeTombstones(0);
+    EXPECT_EQ(2, vbucket->getNumItems());
+    EXPECT_EQ(0, vbucket->getNumInMemoryDeletes());
+    EXPECT_EQ(4, vbucket->getPurgeSeqno())
+            << "Should have purged up to 4th update (1st delete, after 3 sets)";
+    EXPECT_EQ(nullptr, findValue(keys.at(0)));
+    EXPECT_NE(nullptr, findValue(keys.at(1)));
+    EXPECT_NE(nullptr, findValue(keys.at(2)));
+}
+
+// Check that alive, stale items have no constraint on age.
+TEST_F(EphTombstoneTest, ImmediatePurgeOfAliveStale) {
+    // Perform a mutation on the second element, with a (fake) Range Read in
+    // place; causing the initial OSV to be marked as stale and a new OSV to
+    // be added for that key.
+    auto& seqList = mockEpheVB->getLL()->getSeqList();
+    {
+        std::lock_guard<std::mutex> rrGuard(
+                mockEpheVB->getLL()->getRangeReadLock());
+        mockEpheVB->registerFakeReadRange(1, 2);
+        setOne(keys.at(1), MutationStatus::WasClean);
+
+        // Sanity check - our state is as expected:
+        ASSERT_EQ(3, vbucket->getNumItems());
+        ASSERT_EQ(4, seqList.size());
+        auto staleIt = std::next(seqList.begin());
+        auto newIt = seqList.rbegin();
+        ASSERT_EQ(staleIt->getKey(), newIt->getKey());
+        {
+            std::lock_guard<std::mutex> writeGuard(
+                    mockEpheVB->getLL()->getWriteLock());
+            ASSERT_TRUE(staleIt->isStale(writeGuard));
+            ASSERT_FALSE(newIt->isStale(writeGuard));
+        }
+
+        // Attempt a purge - should not remove anything as read range is in
+        // place.
+        EXPECT_EQ(0, mockEpheVB->purgeTombstones(0));
+        EXPECT_EQ(3, vbucket->getNumItems());
+        EXPECT_EQ(4, seqList.size());
+        EXPECT_EQ(0, vbucket->getPurgeSeqno());
+
+        // Clear the ReadRange (so we can actually purge items) and retry the
+        // purge which should now succeed.
+        mockEpheVB->getLL()->resetReadRange();
+    } // END rrGuard.
+
+    EXPECT_EQ(1, mockEpheVB->purgeTombstones(0));
+    EXPECT_EQ(3, vbucket->getNumItems());
+    EXPECT_EQ(3, seqList.size());
+}
+
+// Test that deleted items purged out of order are handled correctly (and
+// highestDeletedPurged is updated).
+TEST_F(EphTombstoneTest, PurgeOutOfOrder) {
+    // Delete the 3rd item.
+    softDeleteOne(keys.at(2), MutationStatus::WasDirty);
+
+    // Run the tombstone purger.
+    mockEpheVB->getLL()->resetReadRange();
+    ASSERT_EQ(1, mockEpheVB->purgeTombstones(0));
+    ASSERT_EQ(2, vbucket->getNumItems());
+    EXPECT_EQ(4, vbucket->getPurgeSeqno());
+
+    // Delete the 1st item
+    softDeleteOne(keys.at(0), MutationStatus::WasDirty);
+
+    // Run the tombstone purger. This should succeed, but with
+    // highestDeletedPurged unchanged.
+    ASSERT_EQ(1, mockEpheVB->purgeTombstones(0));
+    ASSERT_EQ(1, vbucket->getNumItems());
+    EXPECT_EQ(5, vbucket->getPurgeSeqno());
+}
+
+// Thread-safety test (intended to run via Valgrind / ASan / TSan) -
+// perform sets and deletes on 2 additional threads while the purger
+// runs constantly in the main thread.
+TEST_F(EphTombstoneTest, ConcurrentPurge) {
+    ThreadGate started(2);
+    std::atomic<size_t> completed(0);
+
+    auto writer = [this](
+            ThreadGate& started, std::atomic<size_t>& completed, size_t id) {
+        started.threadUp();
+        for (size_t ii = 0; ii < 5000; ++ii) {
+            auto key = makeStoredDocKey(std::to_string(id) + ":key_" +
+                                        std::to_string(ii));
+            Item item(key, /*flags*/ 0, /*expiry*/ 0, key.data(), key.size());
+            public_processSet(item, item.getCas());
+            softDeleteOne(key, MutationStatus::WasDirty);
+        }
+        ++completed;
+    };
+    std::thread fe1{writer, std::ref(started), std::ref(completed), 1};
+    std::thread fe2{writer, std::ref(started), std::ref(completed), 2};
+
+    size_t purged = 0;
+    do {
+        purged += mockEpheVB->purgeTombstones(0);
+    } while (completed != 2);
+
+    fe1.join();
+    fe2.join();
 }

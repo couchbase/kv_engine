@@ -73,6 +73,10 @@ public:
         return mockLL->getNumItems();
     }
 
+    MockBasicLinkedList* getLL() {
+        return mockLL;
+    }
+
 private:
     /* non owning ptr to the linkedlist in the ephemeral vbucket obj */
     MockBasicLinkedList* mockLL;

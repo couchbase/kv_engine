@@ -28,8 +28,9 @@
 #include "seqlist.h"
 #include "stored-value.h"
 
-#include <relaxed_atomic.h>
 #include <boost/intrusive/list.hpp>
+#include <platform/non_negative_counter.h>
+#include <relaxed_atomic.h>
 
 /* This option will configure "list" to use the member hook */
 using MemberHookOption =
@@ -149,6 +150,8 @@ public:
 
     void markItemStale(StoredValue::UniquePtr ownedSv) override;
 
+    size_t purgeTombstones() override;
+
     uint64_t getNumStaleItems() const override;
 
     size_t getStaleValueBytes() const override;
@@ -163,6 +166,8 @@ public:
 
     uint64_t getHighestDedupedSeqno() const override;
 
+    seqno_t getHighestPurgedDeletedSeqno() const override;
+
     uint64_t getRangeReadBegin() const override;
 
     uint64_t getRangeReadEnd() const override;
@@ -174,7 +179,7 @@ protected:
     OrderedLL seqList;
 
     /**
-     * Lock that serializes writes (append, update, cleanStaleItems) on
+     * Lock that serializes writes (append, update, purgeTombstones) on
      * 'seqList'
      */
     mutable std::mutex writeLock;
@@ -193,6 +198,21 @@ protected:
      */
     mutable SpinLock rangeLock;
 
+    /**
+     * Lock that serializes range reads on the 'seqList' - i.e. serializes
+     * the addition / removal of range reads from the set in-flight.
+     * We need to serialize range reads because, range reads set a list level
+     * range in which items are read. If we have multiple range reads then we
+     * must handle the races in the updation of the range to have most inclusive
+     * range.
+     * For now we use this lock to allow only one range read at a time.
+     *
+     * It is also additionally used in purgeTombstones() to prevent the
+     * creation of any new rangeReads while purge is in-progress - see
+     * detailed comments there.
+     */
+    std::mutex rangeReadLock;
+
     /* Overall memory consumed by (stale) OrderedStoredValues owned by the
        list */
     Couchbase::RelaxedAtomic<size_t> staleSize;
@@ -202,15 +222,7 @@ protected:
     Couchbase::RelaxedAtomic<size_t> staleMetaDataSize;
 
 private:
-    /**
-     * Lock that serializes range reads on the 'seqList'.
-     * We need to serialize range reads because, range reads set a list level
-     * range in which items are read. If we have multiple range reads then we
-     * must handle the races in the updation of the range to have most inclusive
-     * range.
-     * For now we use this lock to allow only one range read at a time.
-     */
-    std::mutex rangeReadLock;
+    OrderedLL::iterator purgeListElem(OrderedLL::iterator it);
 
     /**
      * We need to keep track of the highest seqno separately because there is a
@@ -233,11 +245,19 @@ private:
     Monotonic<seqno_t> highestDedupedSeqno;
 
     /**
+     * The sequence number of the highest purged element.
+     *
+     * This should be non-decrementing, apart from a rollback where it will be
+     * reset.
+     */
+    Monotonic<seqno_t> highestPurgedDeletedSeqno;
+
+    /**
      * Indicates the number of elements in the list that are stale (old,
      * duplicate values). Stale items are owned by the list and hence must
      * periodically clean them up.
      */
-    uint64_t numStaleItems;
+    cb::NonNegativeCounter<uint64_t> numStaleItems;
 
     /**
      * Indicates the number of logically deleted items in the list.
@@ -245,7 +265,7 @@ private:
      * replication, we need to keep deleted items for while and periodically
      * purge them
      */
-    uint64_t numDeletedItems;
+    cb::NonNegativeCounter<uint64_t> numDeletedItems;
 
     /* Used only to log debug messages */
     const uint16_t vbid;

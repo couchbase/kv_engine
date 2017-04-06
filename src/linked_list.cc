@@ -25,6 +25,7 @@ BasicLinkedList::BasicLinkedList(uint16_t vbucketId, EPStats& st)
       staleMetaDataSize(0),
       highSeqno(0),
       highestDedupedSeqno(0),
+      highestPurgedDeletedSeqno(0),
       numStaleItems(0),
       numDeletedItems(0),
       vbid(vbucketId),
@@ -190,8 +191,108 @@ void BasicLinkedList::markItemStale(StoredValue::UniquePtr ownedSv) {
     }
 }
 
+size_t BasicLinkedList::purgeTombstones() {
+    // Purge items marked as stale from the seqList.
+    //
+    // Strategy - we try to ensure that this function does not block
+    // frontend-writes (adding new OrderedStoredValues (OSVs) to the seqList).
+    // To achieve this (safely),
+    // we (try to) acquire the rangeReadLock and setup a 'read' range for the
+    // whole of the seqList. This prevents any other readers from iterating
+    // the list (and accessing stale items) while we purge on it; but permits
+    // front-end operations to continue as they:
+    //   a) Only read/modify non-stale items (we only change stale items) and
+    //   b) Do not change the list membership of anything within the read-range.
+    // However, we do need to be careful about what members of OSVs we access
+    // here - the only OSVs we can safely access are ones marked stale as they
+    // are no longer in the HashTable (and hence subject to HashTable locks).
+    // To check if an item is stale we need to acquire the writeLock
+    // (OSV::stale is guarded by it) for each list item. While this isn't
+    // ideal (that's the same lock needed by front-end operations), we can
+    // release the lock between each element so front-end operations can
+    // have the opportunity to acquire it.
+    //
+    // Attempt to acquire the readRangeLock, to block anyone else concurrently
+    // reading from the list while we remove elements from it.
+    std::unique_lock<std::mutex> rrGuard(rangeReadLock, std::try_to_lock);
+    if (!rrGuard) {
+        // If we cannot acquire the lock then another thread is
+        // running a range read. Given these are typically long-running,
+        // return without blocking.
+        return 0;
+    }
+
+    // Determine the start and end iterators.
+    OrderedLL::iterator startIt;
+    OrderedLL::iterator endIt;
+    {
+        std::lock_guard<std::mutex> writeGuard(writeLock);
+        if (seqList.empty()) {
+            // Nothing in sequence list - nothing to purge.
+            return 0;
+        }
+        // Determine the {start} and {end} iterator (inclusive). Note
+        // that (at most) one item is added to the seqList before its
+        // sequence number is set (as the seqno comes from Ckpt
+        // manager); if that is the case (such an item is guaranteed
+        // to not be stale), then move end to the previous item
+        // (i.e. we don't consider this "in-flight" item), as long as
+        // there is at least two elements.
+        startIt = seqList.begin();
+        endIt = std::prev(seqList.end());
+        // Need rangeLock for highSeqno & readRange
+        std::lock_guard<SpinLock> rangeGuard(rangeLock);
+        if ((startIt != endIt) && (!endIt->isStale(writeGuard))) {
+            endIt = std::prev(endIt);
+        }
+        readRange = SeqRange(startIt->getBySeqno(), endIt->getBySeqno());
+    }
+
+    // Iterate across all but the last item in the seqList, looking
+    // for stale items.
+    // Note the for() loop terminates one element before endIt - we
+    // actually want an inclusive iteration but as we are comparing
+    // essentially random addresses (and we don't want to 'touch' the
+    // element after endIt), we loop to one before endIt, then handle
+    // endIt explicilty at the end.
+    // Note(2): Iterator is manually incremented outside the for() loop as it
+    // is invalidated when we erase items.
+    size_t purgedCount = 0;
+    bool stale;
+    for (auto it = startIt; it != endIt;) {
+        {
+            std::lock_guard<std::mutex> writeGuard(writeLock);
+            stale = it->isStale(writeGuard);
+        }
+        // Only stale items are purged.
+        if (!stale) {
+            ++it;
+            continue;
+        }
+
+        // Checks pass, remove from list and delete.
+        it = purgeListElem(it);
+        ++purgedCount;
+    }
+    // Handle the last element.
+    {
+        std::lock_guard<std::mutex> writeGuard(writeLock);
+        stale = endIt->isStale(writeGuard);
+    }
+    if (stale) {
+        purgeListElem(endIt);
+        ++purgedCount;
+    }
+
+    // Complete; reset the readRange.
+    {
+        std::lock_guard<SpinLock> lh(rangeLock);
+        readRange.reset();
+    }
+    return purgedCount;
+}
+
 uint64_t BasicLinkedList::getNumStaleItems() const {
-    std::lock_guard<std::mutex> lckGd(writeLock);
     return numStaleItems;
 }
 
@@ -223,6 +324,10 @@ uint64_t BasicLinkedList::getHighestDedupedSeqno() const {
     return highestDedupedSeqno;
 }
 
+seqno_t BasicLinkedList::getHighestPurgedDeletedSeqno() const {
+    return highestPurgedDeletedSeqno;
+}
+
 uint64_t BasicLinkedList::getRangeReadBegin() const {
     std::lock_guard<SpinLock> lh(rangeLock);
     return readRange.getBegin();
@@ -238,13 +343,39 @@ void BasicLinkedList::dump() const {
 }
 
 std::ostream& operator <<(std::ostream& os, const BasicLinkedList& ll) {
-    os << "BasicLinkedList[" << &ll << "] with numItems:"
-       << ll.getNumItems() << " deletedItems:" << ll.getNumDeletedItems()
-       << " staleItems:" << ll.getNumStaleItems() << " elements:["
-       << std::endl;
+    os << "BasicLinkedList[" << &ll << "] with numItems:" << ll.seqList.size()
+       << " deletedItems:" << ll.numDeletedItems
+       << " staleItems:" << ll.getNumStaleItems()
+       << " highPurgeSeqno:" << ll.getHighestPurgedDeletedSeqno()
+       << " elements:[" << std::endl;
     for (const auto& val : ll.seqList) {
         os << "    " << val << std::endl;
     }
     os << "]" << std::endl;
     return os;
+}
+
+OrderedLL::iterator BasicLinkedList::purgeListElem(OrderedLL::iterator it) {
+    StoredValue::UniquePtr purged(&*it);
+    {
+        std::lock_guard<std::mutex> lckGd(writeLock);
+        it = seqList.erase(it);
+    }
+
+    /* Update the stats tracking the memory owned by the list */
+    staleSize.fetch_sub(purged->size());
+    staleMetaDataSize.fetch_sub(purged->metaDataSize());
+    st.currentSize.fetch_sub(purged->metaDataSize());
+
+    // Similary for the item counts:
+    --numStaleItems;
+    if (purged->isDeleted()) {
+        --numDeletedItems;
+    }
+
+    if (purged->isDeleted()) {
+        highestPurgedDeletedSeqno = std::max(seqno_t(highestPurgedDeletedSeqno),
+                                             purged->getBySeqno());
+    }
+    return it;
 }

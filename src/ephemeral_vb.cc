@@ -16,7 +16,9 @@
  */
 
 #include "ephemeral_vb.h"
+
 #include "dcp/backfill_memory.h"
+#include "ephemeral_tombstone_purger.h"
 #include "failover-table.h"
 #include "linked_list.h"
 #include "stored_value_factories.h"
@@ -54,8 +56,7 @@ EphemeralVBucket::EphemeralVBucket(id_type i,
               purgeSeqno,
               maxCas,
               collectionsManifest),
-      seqList(std::make_unique<BasicLinkedList>(i, st)),
-      autoDeleteCount(0) {
+      seqList(std::make_unique<BasicLinkedList>(i, st)) {
 }
 
 size_t EphemeralVBucket::getNumItems() const {
@@ -265,6 +266,24 @@ void EphemeralVBucket::queueBackfillItem(
     }
     ++stats.totalEnqueued;
     stats.memOverhead->fetch_add(sizeof(queued_item));
+}
+
+size_t EphemeralVBucket::purgeTombstones(rel_time_t purgeAge) {
+    // First mark all deleted items in the HashTable which can be purged as
+    // Stale - this removes them from the HashTable, transferring ownership to
+    // SequenceList.
+    HTTombstonePurger purger(*this, purgeAge);
+    ht.visit(purger);
+
+    // Secondly iterate over the sequence list and delete any stale items
+    auto seqListPurged = seqList->purgeTombstones();
+
+    // Update stats and return.
+    htDeletedPurgeCount += purger.getNumPurged();
+    seqListPurgeCount += seqListPurged;
+    setPurgeSeqno(seqList->getHighestPurgedDeletedSeqno());
+
+    return seqListPurged;
 }
 
 std::tuple<StoredValue*, MutationStatus, VBNotifyCtx>
