@@ -637,3 +637,35 @@ TEST_F(HashTableTest, CopyDeletedItem) {
     /* Validate the HT count */
     EXPECT_EQ(numItems, ht.getNumItems());
 }
+
+// Check that an OSV which was deleted and then made alive again has the
+// lock expiry correctly reset (lock_expiry is stored in the same place as
+// deleted time).
+TEST_F(HashTableTest, LockAfterDelete) {
+    /* Setup OSVFactory with 2 hash buckets and 1 lock. */
+    HashTable ht(global_stats, makeFactory(true), 2, 1);
+
+    // Delete a key, giving it a non-zero delete time.
+    auto key = makeStoredDocKey("key");
+    StoredValue* sv;
+    store(ht, key);
+    {
+        auto hbl = ht.getLockedBucket(key);
+        sv = ht.unlocked_find(
+                key, hbl.getBucketNum(), WantsDeleted::No, TrackReference::No);
+        TimeTraveller toTheFuture(1985);
+        ht.unlocked_softDelete(
+                hbl.getHTLock(), *sv, /* onlyMarkDeleted */ false);
+    }
+    ASSERT_EQ(1, ht.getNumItems());
+    ASSERT_EQ(1, ht.getNumDeletedItems());
+
+    // Sanity check - deleted time should be set.
+    auto* osv = sv->toOrderedStoredValue();
+    ASSERT_GE(osv->getDeletedTime(), 1985);
+
+    // Now re-create the same key (as alive).
+    Item i(key, 0, 0, key.data(), key.size());
+    EXPECT_EQ(MutationStatus::WasDirty, ht.set(i));
+    EXPECT_FALSE(sv->isLocked(1985));
+}

@@ -261,6 +261,7 @@ public:
         bySeqno = itm.getBySeqno();
 
         cas = itm.getCas();
+        lock_expiry_or_delete_time = 0;
         exptime = itm.getExptime();
         revSeqno = itm.getRevSeqno();
 
@@ -339,14 +340,23 @@ public:
      * Lock this item until the given time.
      */
     void lock(rel_time_t expiry) {
-        lock_expiry = expiry;
+        if (isDeleted()) {
+            // Cannot lock Deleted items.
+            throw std::logic_error(
+                    "StoredValue::lock: Called on Deleted item");
+        }
+        lock_expiry_or_delete_time = expiry;
     }
 
     /**
      * Unlock this item.
      */
     void unlock() {
-        lock_expiry = 0;
+        if (isDeleted()) {
+            // Deleted items are not locked - just skip.
+            return;
+        }
+        lock_expiry_or_delete_time = 0;
     }
 
     /**
@@ -451,9 +461,14 @@ public:
      * @param curtime lock expiration marker (usually the current time)
      * @return true if the item is locked
      */
-    bool isLocked(rel_time_t curtime) {
-        if (lock_expiry == 0 || (curtime > lock_expiry)) {
-            lock_expiry = 0;
+    bool isLocked(rel_time_t curtime) const {
+        if (isDeleted()) {
+            // Deleted items cannot be locked.
+            return false;
+        }
+
+        if (lock_expiry_or_delete_time == 0 ||
+            (curtime > lock_expiry_or_delete_time)) {
             return false;
         }
         return true;
@@ -480,16 +495,7 @@ public:
     /**
      * Logically delete this object.
      */
-    void del(HashTable &ht) {
-        if (isDeleted()) {
-            return;
-        }
-
-        reduceCacheSize(ht, valuelen());
-        resetValue();
-        markDirty();
-    }
-
+    void del(HashTable &ht);
 
     uint64_t getRevSeqno() const {
         return revSeqno;
@@ -621,7 +627,7 @@ protected:
           cas(itm.getCas()),
           revSeqno(itm.getRevSeqno()),
           bySeqno(itm.getBySeqno()),
-          lock_expiry(0),
+          lock_expiry_or_delete_time(0),
           exptime(itm.getExptime()),
           flags(itm.getFlags()),
           datatype(itm.getDataType()),
@@ -677,7 +683,7 @@ protected:
           cas(other.cas),
           revSeqno(other.revSeqno),
           bySeqno(other.bySeqno),
-          lock_expiry(other.lock_expiry),
+          lock_expiry_or_delete_time(other.lock_expiry_or_delete_time),
           exptime(other.exptime),
           flags(other.flags),
           datatype(other.datatype),
@@ -706,6 +712,13 @@ protected:
      */
     inline SerialisedDocKey* key();
 
+    /**
+     * Logically mark this SV as deleted.
+     * Implementation for StoredValue instances (dispatched to by del() based
+     * on isOrdered==false).
+     */
+    void deleteImpl(HashTable& ht);
+
     friend class HashTable;
     friend class StoredValueFactory;
 
@@ -716,7 +729,8 @@ protected:
     uint64_t           cas;            //!< CAS identifier.
     uint64_t           revSeqno;       //!< Revision id sequence number
     int64_t            bySeqno;        //!< By sequence id number
-    rel_time_t         lock_expiry;    //!< getl lock expiration
+    /// For alive items: GETL lock expiration. For deleted items: delete time.
+    rel_time_t         lock_expiry_or_delete_time;
     uint32_t           exptime;        //!< Expiration time of this item.
     uint32_t           flags;          // 4 bytes
     protocol_binary_datatype_t datatype; // 1 byte
@@ -778,10 +792,27 @@ public:
                SerialisedDocKey::getObjectSize(item.getKey());
     }
 
+    /**
+     * Return the time the item was deleted. Only valid for deleted items.
+     */
+    rel_time_t getDeletedTime() const;
+
 protected:
     SerialisedDocKey* key() {
         return reinterpret_cast<SerialisedDocKey*>(this + 1);
     }
+
+    /**
+     * Logically mark this OSV as deleted. Implementation for
+     * OrderedStoredValue instances (dispatched to by del() based on
+     * isOrdered==true).
+     */
+    void deleteImpl(HashTable& ht);
+
+    /**
+     * Set the time the item was deleted to the specified time.
+     */
+    inline void setDeletedTime(rel_time_t time);
 
 private:
     // Constructor. Private, as needs to be carefully created via

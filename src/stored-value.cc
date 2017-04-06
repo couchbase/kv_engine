@@ -95,12 +95,22 @@ void StoredValue::restoreMeta(const Item& itm) {
     }
 }
 
+void StoredValue::del(HashTable& ht) {
+    if (isOrdered) {
+        return static_cast<OrderedStoredValue*>(this)->deleteImpl(ht);
+    } else {
+        return this->deleteImpl(ht);
+    }
+}
+
 void StoredValue::setMutationMemoryThreshold(double memThreshold) {
     if (memThreshold > 0.0 && memThreshold <= 1.0) {
         mutation_mem_threshold = memThreshold;
     }
 }
 
+// TODO: Move these two methods to HashTable (it doesn't do anything with
+// StoredValue objects).
 void StoredValue::increaseCacheSize(HashTable &ht, size_t by) {
     ht.cacheSize.fetch_add(by);
     ht.memSize.fetch_add(by);
@@ -192,12 +202,23 @@ const OrderedStoredValue* StoredValue::toOrderedStoredValue() const {
 
 bool StoredValue::operator==(const StoredValue& other) const {
     return (cas == other.cas && revSeqno == other.revSeqno &&
-            bySeqno == other.bySeqno && lock_expiry == other.lock_expiry &&
+            bySeqno == other.bySeqno &&
+            lock_expiry_or_delete_time == other.lock_expiry_or_delete_time &&
             exptime == other.exptime && flags == other.flags &&
             _isDirty == other._isDirty && deleted == other.deleted &&
             newCacheItem == other.newCacheItem &&
             isOrdered == other.isOrdered && stale == other.stale &&
             nru == other.nru && getKey() == other.getKey());
+}
+
+void StoredValue::deleteImpl(HashTable& ht) {
+    if (isDeleted()) {
+        return;
+    }
+
+    reduceCacheSize(ht, valuelen());
+    resetValue();
+    markDirty();
 }
 
 std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
@@ -240,4 +261,32 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
 
 bool OrderedStoredValue::operator==(const OrderedStoredValue& other) const {
     return StoredValue::operator==(other);
+}
+
+/**
+ * Return the time the item was deleted. Only valid for deleted items.
+ */
+rel_time_t OrderedStoredValue::getDeletedTime() const {
+    if (isDeleted()) {
+        return lock_expiry_or_delete_time;
+    } else {
+        throw std::logic_error(
+                "OrderedStoredValue::getDeletedItem: Called on Alive item");
+    }
+}
+
+void OrderedStoredValue::deleteImpl(HashTable& ht) {
+    StoredValue::deleteImpl(ht);
+
+    // Need to record the time when an item is deleted for subsequent purging
+    // (ephemeral_metadata_purge_age).
+    setDeletedTime(ep_current_time());
+}
+
+void OrderedStoredValue::setDeletedTime(rel_time_t time) {
+    if (!isDeleted()) {
+        throw std::logic_error(
+                "OrderedStoredValue::setDeletedTime: Called on Alive item");
+    }
+    lock_expiry_or_delete_time = time;
 }
