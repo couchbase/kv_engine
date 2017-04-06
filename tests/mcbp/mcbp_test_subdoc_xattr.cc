@@ -74,7 +74,8 @@ public:
         : doc("Document"),
           path("_sync.cas"),
           value("\"${Mutation.CAS}\""),
-          flags(SUBDOC_FLAG_XATTR_PATH) {
+          flags(SUBDOC_FLAG_XATTR_PATH),
+          docFlags(SUBDOC_FLAG_NONE) {
     }
 
     virtual void SetUp() override {
@@ -101,7 +102,7 @@ protected:
                 ntohl(3 + doc.length() + path.length() + value.length());
         req->message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
 
-        req->message.extras.subdoc_flags = flags;
+        req->message.extras.subdoc_flags = (flags | docFlags);
         req->message.extras.pathlen = ntohs(path.length());
 
         auto* ptr = blob.data() + sizeof(req->bytes);
@@ -168,6 +169,7 @@ protected:
     std::string path;
     std::string value;
     uint8_t flags;
+    protocol_binary_subdoc_flag docFlags;
 };
 
 INSTANTIATE_TEST_CASE_P(SubdocOpcodes,
@@ -209,7 +211,8 @@ TEST_P(SubdocXattrSingleTest, ValidateFlags) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 
     // Access Deleted should fail without XATTR_PATH
-    flags = SUBDOC_FLAG_ACCESS_DELETED;
+    flags = SUBDOC_FLAG_NONE;
+    docFlags = SUBDOC_FLAG_ACCESS_DELETED;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO,
               validate());
 

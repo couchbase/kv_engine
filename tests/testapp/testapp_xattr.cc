@@ -73,10 +73,10 @@ TEST_P(XattrTest, SetXattrAndBodyExistingDoc) {
 }
 
 TEST_P(XattrTest, SetXattrAndBodyInvalidFlags) {
-    std::array<protocol_binary_subdoc_flag, 4> badFlags = {
+    // First test invalid path flags
+    std::array<protocol_binary_subdoc_flag, 3> badFlags = {
             {SUBDOC_FLAG_MKDIR_P,
              SUBDOC_FLAG_XATTR_PATH,
-             SUBDOC_FLAG_ACCESS_DELETED,
              SUBDOC_FLAG_EXPAND_MACROS}};
 
     for (const auto& flag : badFlags) {
@@ -93,6 +93,22 @@ TEST_P(XattrTest, SetXattrAndBodyInvalidFlags) {
         conn.recvResponse(multiResp);
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, multiResp.getStatus());
     }
+
+    // Now test the invalid doc flags
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+
+    // Should not be able to set all XATTRs
+    cmd.addMutation(
+            PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE, "", value);
+    cmd.addDocFlag(SUBDOC_FLAG_ACCESS_DELETED);
+
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiMutationResponse multiResp;
+    conn.recvResponse(multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, multiResp.getStatus());
 }
 
 TEST_P(XattrTest, SetBodyInMultiLookup) {
