@@ -369,6 +369,7 @@ protocol_binary_response_status EventuallyPersistentEngine::setTapParam(
         if (strcmp(keyz, "tap_keepalive") == 0) {
             int v = std::stoi(valz);
             validate(v, 0, MAX_TAP_KEEP_ALIVE);
+            getConfiguration().requirementsMetOrThrow("tap_keepalive");
             setTapKeepAlive(static_cast<uint32_t>(v));
         } else if (strcmp(keyz, "replication_throttle_threshold") == 0) {
             getConfiguration().setReplicationThrottleThreshold(
@@ -517,10 +518,13 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
         } else if (strcmp(keyz, "exp_pager_initial_run_time") == 0) {
             getConfiguration().setExpPagerInitialRunTime(std::stoll(valz));
         } else if (strcmp(keyz, "access_scanner_enabled") == 0) {
+            getConfiguration().requirementsMetOrThrow("access_scanner_enabled");
             getConfiguration().setAccessScannerEnabled(cb_stob(valz));
         } else if (strcmp(keyz, "alog_sleep_time") == 0) {
+            getConfiguration().requirementsMetOrThrow("alog_sleep_time");
             getConfiguration().setAlogSleepTime(std::stoull(valz));
         } else if (strcmp(keyz, "alog_task_time") == 0) {
+            getConfiguration().requirementsMetOrThrow("alog_task_time");
             getConfiguration().setAlogTaskTime(std::stoull(valz));
         } else if (strcmp(keyz, "pager_active_vb_pcnt") == 0) {
             getConfiguration().setPagerActiveVbPcnt(std::stoull(valz));
@@ -577,6 +581,7 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
         } else if (strcmp(keyz, "vb_state_persist_run") == 0) {
             runVbStatePersistTask(std::stoi(valz));
         } else if (strcmp(keyz, "ephemeral_full_policy") == 0) {
+            getConfiguration().requirementsMetOrThrow("ephemeral_full_policy");
             getConfiguration().setEphemeralFullPolicy(valz);
         } else {
             msg = "Unknown config param";

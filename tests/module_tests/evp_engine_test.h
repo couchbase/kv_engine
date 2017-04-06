@@ -56,3 +56,14 @@ protected:
     EventuallyPersistentEngine* engine;
     std::string bucketType;
 };
+
+/* Tests parameterised over ephemeral and persistent buckets
+ *
+ */
+class SetParamTest : public EventuallyPersistentEngineTest,
+                     public ::testing::WithParamInterface<std::string> {
+    void SetUp() override {
+        bucketType = GetParam();
+        EventuallyPersistentEngineTest::SetUp();
+    }
+};

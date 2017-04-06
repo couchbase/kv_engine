@@ -25,6 +25,7 @@
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/module_tests/test_helpers.h"
 
+#include <configuration_impl.h>
 #include <platform/dirutils.h>
 
 void EventuallyPersistentEngineTest::SetUp() {
@@ -86,3 +87,64 @@ void EventuallyPersistentEngineTest::store_item(uint16_t vbid,
 }
 
 const char EventuallyPersistentEngineTest::test_dbname[] = "ep_engine_ep_unit_tests_db";
+
+
+TEST_P(SetParamTest, requirements_bucket_type) {
+    std::string bucketType = engine->getConfiguration().getBucketType();
+
+    struct value_t {
+        std::string param;
+        std::string value;
+        std::string bucketType;
+    };
+
+    std::vector<value_t> values{
+            // Parameter, Example value, applicable bucket
+            {"access_scanner_enabled", "true", "persistent"},
+            {"alog_sleep_time", "1441", "persistent"},
+            {"alog_task_time", "3", "persistent"},
+            {"ephemeral_full_policy", "auto_delete", "ephemeral"},
+    };
+
+    std::string msg;
+
+    for (auto v : values) {
+        auto ret = engine->setFlushParam(v.param.c_str(), v.value.c_str(), msg);
+        if (bucketType == v.bucketType) {
+            EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, ret)
+                    << "Parameter " << v.param
+                    << "could not be set on bucket type \"" << bucketType
+                    << "\"";
+        } else {
+            EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, ret)
+                    << "Setting parameter " << v.param
+                    << "should be invalid for bucket type \"" << bucketType
+                    << "\"";
+        }
+    }
+}
+
+TEST_F(EventuallyPersistentEngineTest, requirements_tap) {
+    Configuration& config = engine->getConfiguration();
+    config.setTap(true);
+
+    std::string msg;
+
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              engine->setTapParam("tap_keepalive", "0", msg))
+            << "tap is enabled but \"tap_keepalive\" could not be set";
+
+    config.setTap(false);
+
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
+              engine->setTapParam("tap_keepalive", "0", msg))
+            << "Setting \"tap_keepalive\" should be invalid if tap is disabled";
+}
+
+// Test cases which run for persistent and ephemeral buckets
+INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
+                        SetParamTest,
+                        ::testing::Values("persistent", "ephemeral"),
+                        [](const ::testing::TestParamInfo<std::string>& info) {
+                            return info.param;
+                        });
