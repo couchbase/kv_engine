@@ -17,6 +17,8 @@
 
 #include "configuration.h"
 
+#include "configuration_impl.h"
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 

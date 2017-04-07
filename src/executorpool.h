@@ -73,6 +73,7 @@
 #include "taskable.h"
 
 #include <map>
+#include <set>
 
 // Forward decl
 class TaskQueue;

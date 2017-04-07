@@ -20,6 +20,8 @@
 
 #include "configuration_impl.h"
 
+#include "locks.h"
+
 #ifdef AUTOCONF_BUILD
 #include "generated_configuration.cc"
 #endif

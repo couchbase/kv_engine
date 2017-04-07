@@ -218,7 +218,8 @@ static void initialize() {
         << "#include \"config.h\"" << endl
         << "#include \"configuration.h\"" << endl
         << "#include \"configuration_impl.h\"" << endl
-        << "#include <platform/sysinfo.h>" << endl;
+        << "#include <platform/sysinfo.h>" << endl
+        << "#include <limits>" << endl;
     validators["range"] = getRangeValidatorCode;
     validators["enum"] = getEnumValidatorCode;
     datatypes["bool"] = "bool";

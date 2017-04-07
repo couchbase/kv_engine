@@ -22,12 +22,10 @@
 #include <memcached/engine.h>
 
 #include <iostream>
-#include <limits>
 #include <map>
-#include <set>
+#include <mutex>
 #include <string>
 
-#include "locks.h"
 #include "utility.h"
 
 /**
@@ -212,153 +210,6 @@ public:
     }
 
     virtual ~ValueChangedValidator() { }
-};
-
-/**
- * A configuration input validator that ensures a numeric (size_t)
- * value falls between a specified upper and lower limit.
- */
-class SizeRangeValidator : public ValueChangedValidator {
-public:
-    SizeRangeValidator() : lower(0), upper(0) {}
-
-    SizeRangeValidator *min(size_t v) {
-        lower = v;
-        return this;
-    }
-
-    SizeRangeValidator *max(size_t v) {
-        upper = v;
-        return this;
-    }
-
-    virtual void validateSize(const std::string& key, size_t value) {
-        if (value < lower || value > upper) {
-            std::string error = "Validation Error, " + key +
-                                " takes values between " +
-                                std::to_string(lower) + " and " +
-                                std::to_string(upper) + " (Got: " +
-                                std::to_string(value) + ")";
-            throw std::range_error(error);
-        }
-    }
-
-    virtual void validateSSize(const std::string& key, ssize_t value) {
-        ssize_t s_lower = static_cast<ssize_t> (lower);
-        ssize_t s_upper = static_cast<ssize_t> (upper);
-
-        if (value < s_lower || value > s_upper) {
-            std::string error = "Validation Error, " + key +
-                                " takes values between " +
-                                std::to_string(s_lower) + " and " +
-                                std::to_string(s_upper) + " (Got: " +
-                                std::to_string(value) + ")";
-            throw std::range_error(error);
-        }
-    }
-private:
-    size_t lower;
-    size_t upper;
-};
-
-/**
- * A configuration input validator that ensures a signed numeric (ssize_t)
- * value falls between a specified upper and lower limit.
- */
-class SSizeRangeValidator : public ValueChangedValidator {
-public:
-    SSizeRangeValidator() : lower(0), upper(0) {}
-
-    SSizeRangeValidator* min(size_t v) {
-        lower = v;
-        return this;
-    }
-
-    SSizeRangeValidator* max(size_t v) {
-        upper = v;
-        return this;
-    }
-
-    virtual void validateSSize(const std::string& key, ssize_t value) {
-        if (value < lower || value > upper) {
-            std::string error = "Validation Error, " + key +
-                                " takes values between " +
-                                std::to_string(lower) + " and " +
-                                std::to_string(upper) + " (Got: " +
-                                std::to_string(value) + ")";
-            throw std::range_error(error);
-        }
-    }
-private:
-    ssize_t lower;
-    ssize_t upper;
-};
-
-/**
- * A configuration input validator that ensures that a numeric (float)
- * value falls between a specified upper and lower limit.
- */
-class FloatRangeValidator : public ValueChangedValidator {
-public:
-    FloatRangeValidator() : lower(0), upper(0) {}
-
-    FloatRangeValidator *min(float v) {
-        lower = v;
-        return this;
-    }
-
-    FloatRangeValidator *max(float v) {
-        upper = v;
-        return this;
-    }
-
-    virtual void validateFloat(const std::string& key, float value) {
-        if (value < lower || value > upper) {
-            std::string error = "Validation Error, " + key +
-                                " takes values between " +
-                                std::to_string(lower) + " and " +
-                                std::to_string(upper) + " (Got: " +
-                                std::to_string(value) + ")";
-            throw std::range_error(error);
-        }
-    }
-private:
-    float lower;
-    float upper;
-};
-
-/**
- * A configuration input validator that ensures that a value is one
- * from a predefined set of acceptable values.
- */
-class EnumValidator : public ValueChangedValidator {
-public:
-    EnumValidator() {}
-
-    EnumValidator *add(const char *s) {
-        acceptable.insert(std::string(s));
-        return this;
-    }
-
-    virtual void validateString(const std::string& key, const char* value) {
-        if (acceptable.find(std::string(value)) == acceptable.end()) {
-            std::string error = "Validation Error, " + key +
-                                " takes one of [";
-            for (const auto& it : acceptable) {
-                error += it + ", ";
-            }
-            if (acceptable.size() > 0) {
-                error.pop_back();
-                error.pop_back();
-            }
-
-            error += "] (Got: " + std::string(value) + ")";
-            throw std::range_error(error);
-        }
-    }
-
-private:
-    std::set<std::string> acceptable;
 };
 
 class Requirement;
