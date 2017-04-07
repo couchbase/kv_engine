@@ -19,6 +19,7 @@
 
 #include "ep_engine.h"
 #include "ep_types.h"
+#include "ephemeral_tombstone_purger.h"
 #include "ephemeral_vb.h"
 #include "ephemeral_vb_count_visitor.h"
 #include "failover-table.h"
@@ -69,7 +70,18 @@ public:
                 "unknown key '%s'",
                 key.c_str());
         }
+    }
 
+    void sizeValueChanged(const std::string& key, size_t value) override {
+        if (key == "ephemeral_metadata_purge_interval") {
+            // Cancel and re-schedule the task to pick up the new interval.
+            bucket.enableTombstonePurgerTask();
+        } else {
+            LOG(EXTENSION_LOG_WARNING,
+                "EphemeralValueChangedListener: Failed to change value for "
+                "unknown key '%s'",
+                key.c_str());
+        }
     }
 
 private:
@@ -98,6 +110,18 @@ bool EphemeralBucket::initialize() {
     }
     engine.getConfiguration().addValueChangedListener(
             "ephemeral_full_policy", new EphemeralValueChangedListener(*this));
+
+    // Tombstone purger - scheduled periodically as long as we have a
+    // non-zero interval. Can be dynamically adjusted, so add config listeners.
+    tombstonePurgerTask = new EphTombstonePurgerTask(&engine, stats);
+    auto interval = config.getEphemeralMetadataPurgeInterval();
+    if (interval > 0) {
+        enableTombstonePurgerTask();
+    }
+    config.addValueChangedListener("ephemeral_metadata_purge_age",
+                                   new EphemeralValueChangedListener(*this));
+    config.addValueChangedListener("ephemeral_metadata_purge_interval",
+                                   new EphemeralValueChangedListener(*this));
 
     return true;
 }
@@ -154,11 +178,12 @@ RollbackResult EphemeralBucket::doRollback(uint16_t vbid,
 }
 
 void EphemeralBucket::enableTombstonePurgerTask() {
-    // TODO
+    ExecutorPool::get()->cancel(tombstonePurgerTask->getId());
+    ExecutorPool::get()->schedule(tombstonePurgerTask);
 }
 
 void EphemeralBucket::disableTombstonePurgerTask() {
-    // TODO
+    ExecutorPool::get()->cancel(tombstonePurgerTask->getId());
 }
 
 void EphemeralBucket::reconfigureForEphemeral(Configuration& config) {

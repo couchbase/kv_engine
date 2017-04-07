@@ -27,6 +27,7 @@ class EphemeralVBucket : public VBucket {
 public:
     class CountVisitor;
     class HTTombstonePurger;
+    class VBTombstonePurger;
 
     EphemeralVBucket(id_type i,
                      vbucket_state_t newState,

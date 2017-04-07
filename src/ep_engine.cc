@@ -583,6 +583,10 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
         } else if (strcmp(keyz, "ephemeral_full_policy") == 0) {
             getConfiguration().requirementsMetOrThrow("ephemeral_full_policy");
             getConfiguration().setEphemeralFullPolicy(valz);
+        } else if (strcmp(keyz, "ephemeral_metadata_purge_interval") == 0) {
+            getConfiguration().requirementsMetOrThrow("ephemeral_metadata_purge_interval");
+            getConfiguration().setEphemeralMetadataPurgeInterval(
+                    std::stoull(valz));
         } else {
             msg = "Unknown config param";
             rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;

@@ -49,3 +49,65 @@ void EphemeralVBucket::HTTombstonePurger::visit(
     vbucket.seqList->markItemStale(std::move(ownedSV));
     ++numPurgedItems;
 }
+
+EphemeralVBucket::VBTombstonePurger::VBTombstonePurger(rel_time_t purgeAge)
+    : purgeAge(purgeAge), numPurgedItems(0) {
+}
+
+void EphemeralVBucket::VBTombstonePurger::visitBucket(RCPtr<VBucket>& vb) {
+    auto vbucket = dynamic_cast<EphemeralVBucket*>(vb.get());
+    if (!vbucket) {
+        throw std::invalid_argument(
+                "VBTombstonePurger::visitBucket: Called with a non-Ephemeral "
+                "bucket");
+    }
+    numPurgedItems += vbucket->purgeTombstones(purgeAge);
+}
+
+EphTombstonePurgerTask::EphTombstonePurgerTask(EventuallyPersistentEngine* e,
+                                               EPStats& stats_)
+    : GlobalTask(e, TaskId::EphTombstonePurgerTask, 0, false) {
+}
+
+bool EphTombstonePurgerTask::run() {
+    if (engine->getEpStats().isShutdown) {
+        return false;
+    }
+
+    LOG(EXTENSION_LOG_NOTICE,
+        "%s starting with purge age:%" PRIu64,
+        to_string(getDescription()).c_str(),
+        uint64_t(getDeletedPurgeAge()));
+
+    // Create a VB purger, and run across all VBuckets.
+    auto start = ProcessClock::now();
+    EphemeralVBucket::VBTombstonePurger purger(getDeletedPurgeAge());
+    engine->getKVBucket()->visit(purger);
+    auto end = ProcessClock::now();
+
+    auto duration_ms =
+            std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
+    LOG(EXTENSION_LOG_NOTICE,
+        "%s completed. Purged %" PRIu64 " items. Took %" PRIu64
+        "ms. Sleeping for %" PRIu64 " seconds.",
+        to_string(getDescription()).c_str(),
+        uint64_t(purger.getNumPurgedItems()),
+        uint64_t(duration_ms.count()),
+        uint64_t(getSleepTime()));
+
+    snooze(getSleepTime());
+    return true;
+}
+
+cb::const_char_buffer EphTombstonePurgerTask::getDescription() {
+    return "Ephemeral Tombstone Purger";
+}
+
+size_t EphTombstonePurgerTask::getSleepTime() const {
+    return engine->getConfiguration().getEphemeralMetadataPurgeInterval();
+}
+
+size_t EphTombstonePurgerTask::getDeletedPurgeAge() const {
+    return engine->getConfiguration().getEphemeralMetadataPurgeAge();
+}

@@ -125,4 +125,9 @@ protected:
                                       VBucketCountVisitor& dead,
                                       const void* cookie,
                                       ADD_STAT add_stat) override;
+
+    // Protected member variables /////////////////////////////////////////////
+
+    /// Task responsible for purging in-memory tombstones.
+    ExTask tombstonePurgerTask;
 };

@@ -58,3 +58,46 @@ protected:
     /// Count of how many items have been purged.
     size_t numPurgedItems;
 };
+
+/**
+ * VBucket Tombstone Purger visitor
+ *
+ * Visitor which is responsible for removing deleted items from each VBucket.
+ * Mostly delegates to HTTombstonePurger for the 'real' work.
+ */
+class EphemeralVBucket::VBTombstonePurger : public VBucketVisitor {
+public:
+    VBTombstonePurger(rel_time_t purgeAge);
+
+    void visitBucket(RCPtr<VBucket>& vb) override;
+
+    size_t getNumPurgedItems() const {
+        return numPurgedItems;
+    }
+
+protected:
+    /// Items older than this age are purged.
+    const rel_time_t purgeAge;
+
+    /// Count of how many items have been purged for all visited vBuckets.
+    size_t numPurgedItems;
+};
+
+/**
+ * Task responsible for purging tombstones from an Ephemeral Bucket.
+ */
+class EphTombstonePurgerTask : public GlobalTask {
+public:
+    EphTombstonePurgerTask(EventuallyPersistentEngine* e, EPStats& stats_);
+
+    bool run() override;
+
+    cb::const_char_buffer getDescription() override;
+
+private:
+    /// Duration (in seconds) task should sleep for between runs.
+    size_t getSleepTime() const;
+
+    /// Age (in seconds) which deleted items will be purged after.
+    size_t getDeletedPurgeAge() const;
+};
