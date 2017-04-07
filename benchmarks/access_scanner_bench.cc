@@ -173,4 +173,6 @@ int main(int argc, char** argv) {
     initialize_time_functions(get_mock_server_api()->core);
     ::benchmark::Initialize(&argc, argv);
     ::benchmark::RunSpecifiedBenchmarks();
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }

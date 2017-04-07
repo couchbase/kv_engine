@@ -330,7 +330,9 @@ ADD_EXECUTABLE(ep_engine_benchmarks
                ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
                ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.cc
                ${Memcached_SOURCE_DIR}/utilities/string_utilities.cc
-               benchmarks/benchmark_memory_tracker.cc)
+               benchmarks/benchmark_memory_tracker.cc
+               benchmarks/defragmenter_bench.cc
+               tests/module_tests/vbucket_test.cc)
 
 TARGET_LINK_LIBRARIES(ep_engine_benchmarks benchmark platform xattr couchstore
         cJSON dirutils engine_utilities gtest gmock JSON_checker mcd_util
