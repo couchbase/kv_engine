@@ -14,20 +14,23 @@ def cmd_decorator(f):
     def g(*args, **kwargs):
         mc = args[0]
         spec = inspect.getargspec(f)
-        n = len(spec.args)
+        max = len(spec.args)
+        defaults = len(spec.defaults) if spec.defaults else 0
+        min = max - defaults
+
+        if len(args) < min:
+            print >> sys.stderr, ("Error: too few arguments - command "
+                                  "expected a minimum of %s but was passed "
+                                  "%s: %s"
+                                  % (min - 1, len(args) - 1, list(args[1:])))
+            sys.exit(2)
 
         if spec.varargs is None:
-            if len(args) > n:
+            if len(args) > max:
                 print >> sys.stderr, ("Error: too many arguments - command "
                                       "expected a maximum of %s but was passed "
                                       "%s: %s"
-                                      % (n - 1, len(args) - 1, list(args[1:])))
-                sys.exit(2)
-            elif len(args) < n:
-                print >> sys.stderr, ("Error: too few arguments - command "
-                                      "expected a minimum of %s but was passed "
-                                      "%s: %s"
-                                      % (n - 1, len(args) - 1, list(args[1:])))
+                                      % (max - 1, len(args) - 1, list(args[1:])))
                 sys.exit(2)
 
         bucket = kwargs.get('bucketName', None) or 'default'
