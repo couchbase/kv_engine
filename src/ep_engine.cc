@@ -2049,6 +2049,10 @@ void EventuallyPersistentEngine::destroy(bool force) {
     stats.forceShutdown = force;
     stats.isShutdown = true;
 
+    // Perform a snapshot of the stats before shutting down so we can persist
+    // the type of shutdown (stats.forceShutdown), and consequently on the
+    // next warmup can determine is there was a clean shutdown - see
+    // Warmup::cleanShutdown
     if (kvBucket) {
         kvBucket->snapshotStats();
     }
