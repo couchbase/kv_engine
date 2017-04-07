@@ -425,3 +425,32 @@ TEST_F(EphTombstoneTest, ConcurrentPurge) {
     fe1.join();
     fe2.join();
 }
+
+// Test that on a double-delete (delete with a different value) the deleted time
+// is updated correctly.
+TEST_F(EphTombstoneTest, DoubleDeleteTimeCorrect) {
+    // Delete the first item at +0s
+    auto key = keys.at(0);
+    softDeleteOne(key, MutationStatus::WasDirty);
+    auto* delOSV = findValue(key)->toOrderedStoredValue();
+    auto initialDelTime = delOSV->getDeletedTime();
+    ASSERT_EQ(2, delOSV->getRevSeqno()) << "Should be initial set + 1";
+
+    // Advance to non-zero time.
+    const int timeJump = 10;
+    TimeTraveller nonZero(timeJump);
+    ASSERT_GE(ep_current_time(), initialDelTime + timeJump)
+            << "Failed to advance at least " + std::to_string(timeJump) +
+                       " seconds from when initial delete "
+                       "occcured";
+
+    // Delete the same key again (delete-with-Value), checking the deleted
+    // time has changed.
+    Item item(key, 0, 0, "deleted", strlen("deleted"));
+    item.setDeleted();
+    ASSERT_EQ(MutationStatus::WasDirty, public_processSet(item, item.getCas()));
+    ASSERT_EQ(3, delOSV->getRevSeqno()) << "Should be initial set + 2";
+
+    auto secondDelTime = delOSV->getDeletedTime();
+    EXPECT_GE(secondDelTime, initialDelTime + timeJump);
+}

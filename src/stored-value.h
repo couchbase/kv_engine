@@ -686,6 +686,11 @@ protected:
      */
     void deleteImpl(HashTable& ht);
 
+    /* Update the value for this SV from the given item.
+     * Implementation for StoredValue instances (dispatched to by setValue()).
+     */
+    void setValueImpl(const Item& itm, HashTable& ht);
+
     friend class HashTable;
     friend class StoredValueFactory;
     friend std::ostream& operator<<(std::ostream& os, const HashTable& ht);
@@ -793,6 +798,12 @@ protected:
      * isOrdered==true).
      */
     void deleteImpl(HashTable& ht);
+
+    /* Update the value for this OSV from the given item.
+     * Implementation for OrderedStoredValue instances (dispatched to by
+     *  setValue()).
+     */
+    void setValueImpl(const Item& itm, HashTable& ht);
 
     /**
      * Set the time the item was deleted to the specified time.
