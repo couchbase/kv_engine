@@ -212,7 +212,22 @@ void TaskQueue::_schedule(ExTask &task) {
 
         // If we are rescheduling a previously cancelled task, we should reset
         // the task state to the initial value of running.
-        task->setState(TASK_RUNNING, TASK_DEAD);
+        bool changed_state = task->setState(TASK_RUNNING, TASK_DEAD);
+
+        /* This test is to confirm that we are not changing existing
+         * behaviour by resetting dead tasks to running when rescheduling an
+         * existing task. Will be removed (MB-23797).
+         */
+        if (changed_state) {
+            if (task->getTypeId() != TaskId::ItemPager) {
+                throw std::logic_error(
+                        "Unexpected task was scheduled while DEAD "
+                        "queue:{" + name + "} "
+                        "taskId:{" + std::to_string(task->getId()) + "} "
+                        "taskName:{" +
+                        GlobalTask::getTaskName(task->getTypeId()) + "}");
+            }
+        }
 
         futureQueue.push(task);
 
