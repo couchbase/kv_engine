@@ -25,7 +25,7 @@
 
 DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine* e,
                                    EPStats& stats_)
-  : GlobalTask(e, TaskId::DefragmenterTask, false),
+  : GlobalTask(e, TaskId::DefragmenterTask, 0, false),
     stats(stats_),
     epstore_position(engine->getKVBucket()->startPosition()),
     visitor(NULL) {
