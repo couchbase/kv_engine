@@ -130,7 +130,11 @@ void EphemeralBucket::completeStatsVKey(const void* cookie,
 
 RollbackResult EphemeralBucket::doRollback(uint16_t vbid,
                                            uint64_t rollbackSeqno) {
-    return {}; // TBD in next commit
+    /* For now we always rollback to zero */
+    return RollbackResult(/* not a success as we would rather reset vb */ false,
+                          /* highSeqno */ 0,
+                          /* snapStartSeqno */ 0,
+                          /* snapEndSeqno */ 0);
 }
 
 void EphemeralBucket::reconfigureForEphemeral(Configuration& config) {

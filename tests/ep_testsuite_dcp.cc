@@ -3578,7 +3578,8 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
 
     stop_persistence(h, h1);
 
-    write_items(h, h1, 100, 0, "key_");
+    const int numInitialItems = 100;
+    write_items(h, h1, numInitialItems, 0, "key_");
 
     start_persistence(h, h1);
     wait_for_flusher_to_settle(h, h1);
@@ -3588,10 +3589,15 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     stop_persistence(h, h1);
 
     /* Write items from 90 to 109 */
-    write_items(h, h1, 20, 90, "key_");
+    const int numUpdateAndWrites = 20, updateStartSeqno = 90;
+    write_items(h, h1, numUpdateAndWrites, updateStartSeqno, "key_");
     start_persistence(h, h1);
     wait_for_flusher_to_settle(h, h1);
-    checkeq(110, get_int_stat(h, h1, "curr_items"),
+
+    const int expItems = std::max((numUpdateAndWrites + updateStartSeqno),
+                                  numInitialItems);
+    checkeq(expItems,
+            get_int_stat(h, h1, "curr_items"),
             "Item count should've been 110");
 
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
@@ -3622,7 +3628,7 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
 
     uint32_t headerlen = sizeof(protocol_binary_response_header);
     uint32_t bodylen = sizeof(uint64_t);
-    uint64_t rollbackSeqno = htonll(100);
+    uint64_t rollbackSeqno = 100;
     protocol_binary_response_header *pkt1 =
         (protocol_binary_response_header*)cb_malloc(headerlen + bodylen);
     memset(pkt1->bytes, '\0', headerlen + bodylen);
@@ -3631,7 +3637,8 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     pkt1->response.status = htons(PROTOCOL_BINARY_RESPONSE_ROLLBACK);
     pkt1->response.bodylen = htonl(bodylen);
     pkt1->response.opaque = dcp_last_opaque;
-    memcpy(pkt1->bytes + headerlen, &rollbackSeqno, bodylen);
+    uint64_t rollbackPt = htonll(rollbackSeqno);
+    memcpy(pkt1->bytes + headerlen, &rollbackPt, bodylen);
 
     checkeq(ENGINE_SUCCESS,
             h1->dcp.response_handler(h, cookie, pkt1),
@@ -3664,14 +3671,32 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
 
     //?Verify that 10 items plus 10 updates have been removed from consumer
     wait_for_flusher_to_settle(h, h1);
-    checkeq(100, get_int_stat(h, h1, "vb_replica_curr_items"),
-            "Item count should've been 100");
-    checkeq(1, get_int_stat(h, h1, "ep_rollback_count"),
+    checkeq(1,
+            get_int_stat(h, h1, "ep_rollback_count"),
             "Rollback count expected to be 1");
-    checkeq(20, get_int_stat(h, h1, "vb_replica_rollback_item_count"),
-            "Replica rollback count does not match");
-    checkeq(20, get_int_stat(h, h1, "rollback_item_count"),
-            "Aggr rollback count does not match");
+
+    if (isPersistentBucket(h, h1)) {
+        checkeq(rollbackSeqno,
+                get_ull_stat(h, h1, "vb_replica_curr_items"),
+                "Item count should've been 100");
+        checkeq(numUpdateAndWrites,
+                get_int_stat(h, h1, "vb_replica_rollback_item_count"),
+                "Replica rollback count does not match");
+        checkeq(numUpdateAndWrites,
+                get_int_stat(h, h1, "rollback_item_count"),
+                "Aggr rollback count does not match");
+    } else {
+        /* We always rollback to 0 in 'Ephemeral Buckets' */
+        checkeq(0,
+                get_int_stat(h, h1, "vb_replica_curr_items"),
+                "Item count should've been 0");
+        checkeq(numInitialItems + numUpdateAndWrites,
+                get_int_stat(h, h1, "vb_replica_rollback_item_count"),
+                "Replica rollback count does not match");
+        checkeq(numInitialItems + numUpdateAndWrites,
+                get_int_stat(h, h1, "rollback_item_count"),
+                "Aggr rollback count does not match");
+    }
 
     testHarness.destroy_cookie(cookie);
 
@@ -5973,17 +5998,19 @@ BaseTestCase testsuite_testcases[] = {
                 test_setup, teardown,
                  "dcp_flow_control_policy=none;dcp_enable_noop=false", prepare,
                 cleanup),
-        TestCase("test full rollback on consumer", test_fullrollback_for_consumer,
-                test_setup, teardown,
-                "dcp_enable_noop=false", prepare,
-                cleanup),
+        TestCase("test full rollback on consumer",
+                 test_fullrollback_for_consumer,
+                 test_setup,
+                 teardown,
+                 "dcp_enable_noop=false",
+                 prepare,
+                 cleanup),
         TestCase("test partial rollback on consumer",
-                test_partialrollback_for_consumer, test_setup, teardown,
-                "dcp_enable_noop=false",
-                 /* [EPHE TODO]: to be revisited once rollback is written for
-                    ephemeral */
-                prepare_skip_broken_under_ephemeral,
-                cleanup),
+                 test_partialrollback_for_consumer,
+                 test_setup, teardown,
+                 "dcp_enable_noop=false",
+                 prepare,
+                 cleanup),
         TestCase("test change dcp buffer log size", test_dcp_buffer_log_size,
                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test dcp producer flow control",

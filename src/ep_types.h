@@ -124,11 +124,6 @@ public:
           snapEndSeqno(snapEndSeqno) {
     }
 
-    /* default constructor */
-    RollbackResult()
-        : success(false), highSeqno(0), snapStartSeqno(0), snapEndSeqno(0) {
-    }
-
     bool success;
     uint64_t highSeqno;
     uint64_t snapStartSeqno;

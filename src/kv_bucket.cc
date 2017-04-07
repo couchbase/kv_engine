@@ -2719,7 +2719,12 @@ ENGINE_ERROR_CODE KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
         if (rollbackSeqno != 0) {
             RollbackResult result = doRollback(vbid, rollbackSeqno);
 
-            if (result.success) {
+            if (result.success /* not suceess hence reset vbucket to
+                                  avoid data loss */
+                &&
+                (result.highSeqno > 0) /* if 0, reset vbucket for a clean start
+                                          instead of deleting everything in it
+                                        */) {
                 rollbackUnpersistedItems(*vb, result.highSeqno);
                 vb->postProcessRollback(result, prevHighSeqno);
                 return ENGINE_SUCCESS;
