@@ -170,9 +170,10 @@ void EphemeralVBucket::dump() const {
     std::cerr << "EphemeralVBucket[" << this
               << "] with state:" << toString(getState())
               << " numItems:" << getNumItems()
-              << std::endl;
+              << std::endl
+              << "  ";
     seqList->dump();
-    std::cerr << ht << std::endl;
+    std::cerr << "  " << ht << std::endl;
 }
 
 ENGINE_ERROR_CODE EphemeralVBucket::completeBGFetchForSingleItem(

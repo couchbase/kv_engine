@@ -349,11 +349,16 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
     os << (mcbp::datatype::is_json(sv.getDatatype()) ? 'J' : '.');
     os << ' ';
 
-    // dirty (Written), deleted, new
+    // dirty (Written), deleted, new, locked
     os << (sv.isDirty() ? 'W' : '.');
     os << (sv.isDeleted() ? 'D' : '.');
     os << (sv.isNewCacheItem() ? 'N' : '.');
     os << (sv.isResident() ? 'R' : '.');
+    os << (sv.isLocked(ep_current_time()) ? 'L' : '.');
+    if (sv.isOrdered) {
+        const auto* osv = sv.toOrderedStoredValue();
+        os << (osv->stale ? 'S' : '.');
+    }
     os << ' ';
 
     // Temporary states
@@ -363,10 +368,14 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
        << (sv.isTempNonExistentItem() ? 'N' : ' ')
        << ' ';
 
-    // seqno, revid, expiry
+    // seqno, revid, expiry / purge time
     os << "seq:" << sv.getBySeqno() << " rev:" << sv.getRevSeqno();
     os << " key:\"" << sv.getKey() << "\"";
-    os << " exp:" << sv.getExptime();
+    if (sv.isOrdered && sv.isDeleted()) {
+        os << " del_time:" << sv.lock_expiry_or_delete_time;
+    } else {
+        os << " exp:" << sv.getExptime();
+    }
 
     os << " vallen:" << sv.valuelen();
     if (sv.getValue().get()) {
