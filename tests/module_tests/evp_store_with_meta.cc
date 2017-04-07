@@ -16,7 +16,13 @@
  *   limitations under the License.
  */
 
+#include "bgfetcher.h"
 #include "evp_store_single_threaded_test.h"
+#include "tests/mock/mock_global_task.h"
+
+#include <string_utilities.h>
+#include <xattr/blob.h>
+#include <xattr/utils.h>
 
 class WithMetaTest : public SingleThreadedEPBucketTest {
 public:
@@ -975,6 +981,114 @@ TEST_P(AllWithMetaTest, markJSON) {
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR,
               result.getValue()->getDataType());
     delete result.getValue();
+}
+
+// Test uses an XATTR body that has 1 system key (see createXattrValue)
+TEST_F(WithMetaTest, xattrPruneUserKeysOnDelete1) {
+    auto value = createXattrValue(R"({"json":"yesplease"})");
+    ItemMetaData itemMeta{1, 1, 0, expiry};
+    std::string mykey = "mykey";
+    DocKey key{mykey, DocNamespace::DefaultCollection};
+    auto swm = buildWithMetaPacket(PROTOCOL_BINARY_CMD_SET_WITH_META,
+                                   PROTOCOL_BINARY_DATATYPE_XATTR,
+                                   vbid /*vbucket*/,
+                                   0 /*opaque*/,
+                                   0 /*cas*/,
+                                   itemMeta,
+                                   mykey,
+                                   value);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              callEngine(PROTOCOL_BINARY_CMD_SET_WITH_META, swm));
+    EXPECT_EQ(1, store->flushVBucket(vbid));
+
+    itemMeta.revSeqno++; // make delete succeed
+    auto dwm = buildWithMeta(
+            PROTOCOL_BINARY_CMD_DEL_WITH_META, itemMeta, mykey, {});
+    EXPECT_EQ(ENGINE_SUCCESS,
+              callEngine(PROTOCOL_BINARY_CMD_DEL_WITH_META, dwm));
+
+    EXPECT_EQ(1, store->flushVBucket(vbid));
+
+    auto options = get_options_t(QUEUE_BG_FETCH | GET_DELETED_VALUE);
+    auto result = store->get(key, vbid, nullptr, options);
+    ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
+
+    // Now reconstruct a XATTR Blob and validate the user keys are gone
+    // These code relies on knowing what createXattrValue generates.
+    auto sz = cb::xattr::get_body_offset(
+            {result.getValue()->getData(), result.getValue()->getNBytes()});
+
+    auto p = reinterpret_cast<const uint8_t*>(result.getValue()->getData());
+    cb::xattr::Blob blob({const_cast<uint8_t*>(p), sz});
+
+    EXPECT_EQ(0, blob.get("user").size());
+    EXPECT_EQ(0, blob.get("meta").size());
+    ASSERT_NE(0, blob.get("_sync").size());
+    EXPECT_STREQ("{\"cas\":\"0xdeadbeefcafefeed\"}",
+                 reinterpret_cast<char*>(blob.get("_sync").data()));
+
+    auto itm = result.getValue();
+    // The meta-data should match the delete_with_meta
+    EXPECT_EQ(itemMeta.cas, itm->getCas());
+    EXPECT_EQ(itemMeta.flags, itm->getFlags());
+    EXPECT_EQ(itemMeta.revSeqno, itm->getRevSeqno());
+    EXPECT_EQ(itemMeta.exptime, itm->getExptime());
+
+    delete result.getValue();
+}
+
+// Test uses an XATTR body that has no system keys
+TEST_F(WithMetaTest, xattrPruneUserKeysOnDelete2) {
+    cb::xattr::Blob blob;
+
+    // No _ prefixed keys
+    blob.set(to_const_byte_buffer("user"),
+             to_const_byte_buffer("{\"author\":\"bubba\"}"));
+    blob.set(to_const_byte_buffer("meta"),
+             to_const_byte_buffer("{\"content-type\":\"text\"}"));
+
+    auto xattrValue = blob.finalize();
+
+    // append body to the xattrs and store in data
+    std::string body = "document_body";
+    std::string data;
+    std::copy_n(xattrValue.buf, xattrValue.len, std::back_inserter(data));
+    std::copy_n(body.c_str(), body.size(), std::back_inserter(data));
+
+    ItemMetaData itemMeta{1, 1, 0, expiry};
+    std::string mykey = "mykey";
+    DocKey key{mykey, DocNamespace::DefaultCollection};
+    auto swm = buildWithMetaPacket(PROTOCOL_BINARY_CMD_SET_WITH_META,
+                                   PROTOCOL_BINARY_DATATYPE_XATTR,
+                                   vbid /*vbucket*/,
+                                   0 /*opaque*/,
+                                   0 /*cas*/,
+                                   itemMeta,
+                                   mykey,
+                                   data);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              callEngine(PROTOCOL_BINARY_CMD_SET_WITH_META, swm));
+    EXPECT_EQ(1, store->flushVBucket(vbid));
+
+    itemMeta.revSeqno++; // make delete succeed
+    auto dwm = buildWithMeta(
+            PROTOCOL_BINARY_CMD_DEL_WITH_META, itemMeta, mykey, {});
+    EXPECT_EQ(ENGINE_SUCCESS,
+              callEngine(PROTOCOL_BINARY_CMD_DEL_WITH_META, dwm));
+
+    EXPECT_EQ(1, store->flushVBucket(vbid));
+
+    auto options = get_options_t(QUEUE_BG_FETCH | GET_DELETED_VALUE);
+    auto result = store->get(key, vbid, nullptr, options);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, result.getStatus());
+
+    // Run the BGFetcher task
+    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
+    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+
+    // K/V is gone
+    result = store->get(key, vbid, nullptr, options);
+    EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus());
 }
 
 auto opcodeValues = ::testing::Values(PROTOCOL_BINARY_CMD_SET_WITH_META,

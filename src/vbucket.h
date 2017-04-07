@@ -1520,6 +1520,20 @@ private:
 
     void adjustCheckpointFlushTimeout(size_t wall_time);
 
+    /**
+     * Given a StoredValue with XATTRs - prune the user keys so only system keys
+     * remain.
+     *
+     * @param v StoredValue with XATTR value
+     * @param itemMeta New ItemMetaData to use in item creation
+     * @return unique_ptr<Item> which matches the StoredValue's meta-data and
+     *         has the XATTR value with only the system-keys. If the pruning
+     *         removed all keys (because no system-keys exist) an empty
+     *         unique_ptr is returned.
+     */
+    std::unique_ptr<Item> pruneXattrDocument(StoredValue& v,
+                                             const ItemMetaData& itemMeta);
+
     id_type                         id;
     std::atomic<vbucket_state_t>    state;
     cb::RWLock                      stateLock;

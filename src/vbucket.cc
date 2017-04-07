@@ -39,6 +39,9 @@
 
 #include "vbucket.h"
 
+#include <xattr/blob.h>
+#include <xattr/utils.h>
+
 /* Macros */
 const size_t MIN_CHK_FLUSH_TIMEOUT = 10; // 10 sec.
 const size_t MAX_CHK_FLUSH_TIMEOUT = 30; // 30 sec.
@@ -1246,13 +1249,22 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
                                    TrackCasDrift::Yes,
                                    backfill,
                                    nullptr /* No pre link step needed */);
-        std::tie(delrv, v, notifyCtx) = processSoftDelete(hbl,
-                                                          *v,
-                                                          cas,
-                                                          itemMeta,
-                                                          queueItmCtx,
-                                                          /*use_meta*/ true,
-                                                          bySeqno);
+
+        // system xattrs must remain
+        std::unique_ptr<Item> itm;
+        if (mcbp::datatype::is_xattr(v->getDatatype()) &&
+            (itm = pruneXattrDocument(*v, itemMeta))) {
+            std::tie(v, delrv, notifyCtx) =
+                    updateStoredValue(hbl, *v, *itm, &queueItmCtx);
+        } else {
+            std::tie(delrv, v, notifyCtx) = processSoftDelete(hbl,
+                                                              *v,
+                                                              cas,
+                                                              itemMeta,
+                                                              queueItmCtx,
+                                                              /*use_meta*/ true,
+                                                              bySeqno);
+        }
     }
     cas = v ? v->getCas() : 0;
 
@@ -2353,4 +2365,45 @@ void VBucket::adjustCheckpointFlushTimeout(size_t wall_time) {
 
 size_t VBucket::getCheckpointFlushTimeout() {
     return chkFlushTimeout;
+}
+
+std::unique_ptr<Item> VBucket::pruneXattrDocument(
+        StoredValue& v, const ItemMetaData& itemMeta) {
+    // Need to take a copy of the value, prune it, and add it back
+
+    // Create work-space document
+    std::vector<uint8_t> workspace(v.getValue()->vlength());
+    std::copy_n(v.getValue()->getData(),
+                v.getValue()->vlength(),
+                workspace.begin());
+
+    // Now attach to the XATTRs in the document
+    auto sz = cb::xattr::get_body_offset(
+            {reinterpret_cast<char*>(workspace.data()), workspace.size()});
+
+    cb::xattr::Blob xattr({workspace.data(), sz});
+    xattr.prune_user_keys();
+
+    auto prunedXattrs = xattr.finalize();
+
+    if (prunedXattrs.size()) {
+        // Something remains - Create a Blob and copy-in just the XATTRs
+        auto newValue =
+                Blob::New(reinterpret_cast<const char*>(prunedXattrs.data()),
+                          prunedXattrs.size(),
+                          const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(
+                                  v.getValue()->getExtMeta())),
+                          v.getValue()->getExtLen());
+
+        return std::make_unique<Item>(v.getKey(),
+                                      itemMeta.flags,
+                                      itemMeta.exptime,
+                                      newValue,
+                                      itemMeta.cas,
+                                      v.getBySeqno(),
+                                      getId(),
+                                      itemMeta.revSeqno);
+    } else {
+        return {};
+    }
 }
