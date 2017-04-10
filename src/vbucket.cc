@@ -927,13 +927,10 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
                                       TrackReference::No);
 
     bool maybeKeyExists = true;
-
-    bool xattrSupported = engine.isXattrSupported(cookie);
     if (!force) {
         if (v) {
             if (v->isTempInitialItem()) {
-                bgFetch(itm.getKey(), cookie, engine, bgFetchDelay,
-                        !xattrSupported);
+                bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
                 return ENGINE_EWOULDBLOCK;
             }
 
@@ -951,7 +948,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
                                              cookie,
                                              engine,
                                              bgFetchDelay,
-                                             !xattrSupported,
+                                             true,
                                              isReplication);
             } else {
                 maybeKeyExists = false;
@@ -1203,12 +1200,10 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
     auto hbl = ht.getLockedBucket(key);
     StoredValue* v = ht.unlocked_find(
             key, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
-    bool isXattrSupported = engine.isXattrSupported(cookie);
-
     if (!force) { // Need conflict resolution.
         if (v) {
             if (v->isTempInitialItem()) {
-                bgFetch(key, cookie, engine, bgFetchDelay, !isXattrSupported);
+                bgFetch(key, cookie, engine, bgFetchDelay, true);
                 return ENGINE_EWOULDBLOCK;
             }
 
@@ -1228,7 +1223,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
                                              cookie,
                                              engine,
                                              bgFetchDelay,
-                                             !isXattrSupported,
+                                             true,
                                              isReplication);
             } else {
                 // Even though bloomfilter predicted that item doesn't exist
