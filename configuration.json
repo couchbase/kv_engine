@@ -297,7 +297,10 @@
         "ephemeral_metadata_purge_age": {
             "default": "60",
             "descr": "Age in seconds after which Ephemeral metadata is purged entirely from memory. Purging disabled if set to -1.",
-            "type": "ssize_t"
+            "type": "ssize_t",
+            "requires": {
+                "bucket_type": "ephemeral"
+            }
         },
         "ephemeral_metadata_purge_interval": {
             "default": "60",

@@ -583,6 +583,10 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
         } else if (strcmp(keyz, "ephemeral_full_policy") == 0) {
             getConfiguration().requirementsMetOrThrow("ephemeral_full_policy");
             getConfiguration().setEphemeralFullPolicy(valz);
+        } else if (strcmp(keyz, "ephemeral_metadata_purge_age") == 0) {
+            getConfiguration().requirementsMetOrThrow(
+                    "ephemeral_metadata_purge_age");
+            getConfiguration().setEphemeralMetadataPurgeAge(std::stoull(valz));
         } else if (strcmp(keyz, "ephemeral_metadata_purge_interval") == 0) {
             getConfiguration().requirementsMetOrThrow("ephemeral_metadata_purge_interval");
             getConfiguration().setEphemeralMetadataPurgeInterval(

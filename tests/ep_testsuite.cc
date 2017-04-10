@@ -6399,7 +6399,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_defragmenter_enabled",
                 "ep_defragmenter_interval",
                 "ep_enable_chk_merge",
-                "ep_ephemeral_metadata_purge_age",
                 "ep_exp_pager_enabled",
                 "ep_exp_pager_initial_run_time",
                 "ep_exp_pager_stime",
@@ -6577,7 +6576,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_diskqueue_memory",
                 "ep_diskqueue_pending",
                 "ep_enable_chk_merge",
-                "ep_ephemeral_metadata_purge_age",
                 "ep_exp_pager_enabled",
                 "ep_exp_pager_initial_run_time",
                 "ep_exp_pager_stime",
@@ -6887,6 +6885,7 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
         auto& eng_stats = statsKeys.at("");
         eng_stats.insert(eng_stats.end(),
                          {"ep_ephemeral_full_policy",
+                          "ep_ephemeral_metadata_purge_age",
                           "ep_ephemeral_metadata_purge_interval",
 
                           "vb_active_auto_delete_count",
@@ -6929,9 +6928,9 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
 
         auto& config_stats = statsKeys.at("config");
         config_stats.insert(config_stats.end(),
-                            std::initializer_list<std::string>{
-                                    "ep_ephemeral_full_policy",
-                                    "ep_ephemeral_metadata_purge_interval"});
+                            {"ep_ephemeral_full_policy",
+                             "ep_ephemeral_metadata_purge_age",
+                             "ep_ephemeral_metadata_purge_interval"});
     }
 
     if (isTapEnabled(h, h1)) {
