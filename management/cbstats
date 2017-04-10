@@ -668,6 +668,20 @@ def stats_tasks(mc, *args):
     tasks_stats_formatter(stats_perform(mc, 'tasks'), *args)
 
 @cmd
+def stats_responses(mc, all=''):
+    resps = json.loads(stats_perform(mc, 'responses')['responses'])
+    c = mc.get_error_map()['errors']
+    d = {}
+    for k, v in resps.iteritems():
+        try:
+            if v > 0 or all:
+                d[c[int(k, 16)]['name']] = v
+        except KeyError:
+            pass # Ignore it, no matching status code
+
+    stats_formatter(d)
+
+@cmd
 def reset(mc):
     stats_perform(mc, 'reset')
 
@@ -694,6 +708,7 @@ def main():
     c.addCommand('prev-vbucket', stats_prev_vbucket, 'prev-vbucket')
     c.addCommand('raw', stats_raw, 'raw argument')
     c.addCommand('reset', reset, 'reset')
+    c.addCommand('responses', stats_responses, 'responses [all]')
     c.addCommand('slabs', stats_slabs, 'slabs (memcached bucket only)')
     c.addCommand('tap', stats_tap, 'tap')
     c.addCommand('tapagg', stats_tapagg, 'tapagg')
