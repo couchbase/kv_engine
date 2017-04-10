@@ -51,7 +51,7 @@ public:
 
 private:
     /**
-     * Ref counted ptr to EphemeralVBucket
+     * weak pointer to EphemeralVBucket
      */
-    EphemeralVBucketPtr evb;
+    std::weak_ptr<EphemeralVBucket> weakVb;
 };

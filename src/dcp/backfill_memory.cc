@@ -27,10 +27,22 @@ DCPBackfillMemory::DCPBackfillMemory(EphemeralVBucketPtr evb,
                                      const active_stream_t& s,
                                      uint64_t startSeqno,
                                      uint64_t endSeqno)
-    : DCPBackfill(s, startSeqno, endSeqno), evb(evb) {
+    : DCPBackfill(s, startSeqno, endSeqno), weakVb(evb) {
 }
 
 backfill_status_t DCPBackfillMemory::run() {
+    auto evb = weakVb.lock();
+    if (!evb) {
+        LOG(EXTENSION_LOG_WARNING,
+            "DCPBackfillMemory::run(): "
+            "(vb:%d) running backfill ended prematurely as weakVb can't be "
+            "locked; start seqno:%" PRIi64 ", end seqno:%" PRIi64,
+            getVBucketId(),
+            startSeqno,
+            endSeqno);
+        return backfill_finished;
+    }
+
     /* Get vb state lock */
     ReaderLockHolder rlh(evb->getStateLock());
     if (evb->getState() == vbucket_state_dead) {
