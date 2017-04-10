@@ -65,7 +65,7 @@ BgFetcher *KVShard::getBgFetcher() {
     return bgFetcher.get();
 }
 
-RCPtr<VBucket> KVShard::getBucket(uint16_t id) const {
+VBucketPtr KVShard::getBucket(uint16_t id) const {
     if (id < vbuckets.size()) {
         return vbuckets[id];
     } else {
@@ -73,7 +73,7 @@ RCPtr<VBucket> KVShard::getBucket(uint16_t id) const {
     }
 }
 
-void KVShard::setBucket(const RCPtr<VBucket> &vb) {
+void KVShard::setBucket(const VBucketPtr &vb) {
     vbuckets[vb->getId()].reset(vb);
 }
 
@@ -86,7 +86,7 @@ std::vector<VBucket::id_type> KVShard::getVBucketsSortedByState() {
     for (int state = vbucket_state_active;
          state <= vbucket_state_dead;
          ++state) {
-        for (RCPtr<VBucket> b : vbuckets) {
+        for (VBucketPtr b : vbuckets) {
             if (b && b->getState() == state) {
                 rv.push_back(b->getId());
             }
@@ -97,7 +97,7 @@ std::vector<VBucket::id_type> KVShard::getVBucketsSortedByState() {
 
 std::vector<VBucket::id_type> KVShard::getVBuckets() {
     std::vector<VBucket::id_type> rv;
-    for (RCPtr<VBucket> b : vbuckets) {
+    for (VBucketPtr b : vbuckets) {
         if (b) {
             rv.push_back(b->getId());
         }

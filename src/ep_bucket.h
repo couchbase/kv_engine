@@ -69,7 +69,7 @@ public:
     /**
      * Creates a VBucket object.
      */
-    RCPtr<VBucket> makeVBucket(VBucket::id_type id,
+    VBucketPtr makeVBucket(VBucket::id_type id,
                                vbucket_state_t state,
                                KVShard* shard,
                                std::unique_ptr<FailoverTable> table,

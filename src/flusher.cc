@@ -251,7 +251,7 @@ void Flusher::flushVB(void) {
 
     if (!doHighPriority && shard->highPriorityCount.load() > 0) {
         for (auto vbid : shard->getVBuckets()) {
-            RCPtr<VBucket> vb = store->getVBucket(vbid);
+            VBucketPtr vb = store->getVBucket(vbid);
             if (vb && vb->getHighPriorityChkSize() > 0) {
                 hpVbs.push(vbid);
             }

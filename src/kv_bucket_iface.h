@@ -55,7 +55,7 @@ public:
      *
      * @param vb the vbucket we are beginning to visit
      */
-    virtual void visitBucket(RCPtr<VBucket> &vb) = 0;
+    virtual void visitBucket(VBucketPtr &vb) = 0;
 
     const VBucketFilter &getVBucketFilter() {
         return vBucketFilter;
@@ -449,7 +449,7 @@ public:
             std::vector<bgfetched_item_t>& fetchedItems,
             ProcessClock::time_point start) = 0;
 
-    virtual RCPtr<VBucket> getVBucket(uint16_t vbid) = 0;
+    virtual VBucketPtr getVBucket(uint16_t vbid) = 0;
 
     /**
      * Returns the last persisted checkpoint Id for the specified vBucket.
@@ -694,7 +694,7 @@ public:
 
     virtual void setBfiltersResidencyThreshold(float to) = 0;
 
-    virtual bool isMetaDataResident(RCPtr<VBucket> &vb,
+    virtual bool isMetaDataResident(VBucketPtr &vb,
                                     const DocKey& key) = 0;
 
     virtual void logQTime(TaskId taskType,
@@ -800,7 +800,7 @@ public:
     /**
      * Create a VBucket object appropriate for this Bucket class.
      */
-    virtual RCPtr<VBucket> makeVBucket(
+    virtual VBucketPtr makeVBucket(
             VBucket::id_type id,
             vbucket_state_t state,
             KVShard* shard,
@@ -850,13 +850,13 @@ protected:
      */
     virtual void compactInternal(compaction_ctx *ctx) = 0;
 
-    virtual void scheduleVBDeletion(RCPtr<VBucket> &vb,
+    virtual void scheduleVBDeletion(VBucketPtr &vb,
                             const void* cookie,
                             double delay = 0) = 0;
 
     virtual void flushOneDeleteAll(void) = 0;
     virtual PersistenceCallback* flushOneDelOrSet(const queued_item &qi,
-                                                  RCPtr<VBucket> &vb) = 0;
+                                                  VBucketPtr &vb) = 0;
 
     virtual GetValue getInternal(const DocKey& key, uint16_t vbucket,
                                  const void *cookie,

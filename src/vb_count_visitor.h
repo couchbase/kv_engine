@@ -61,7 +61,7 @@ public:
           totalHLCDriftExceptionCounters() {
     }
 
-    void visitBucket(RCPtr<VBucket>& vb) override;
+    void visitBucket(VBucketPtr& vb) override;
 
     vbucket_state_t getVBucketState() {
         return desired_state;

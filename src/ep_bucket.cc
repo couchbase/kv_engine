@@ -190,7 +190,7 @@ ENGINE_ERROR_CODE EPBucket::getPerVBucketDiskStats(const void* cookie,
         DiskStatVisitor(const void* c, ADD_STAT a) : cookie(c), add_stat(a) {
         }
 
-        void visitBucket(RCPtr<VBucket>& vb) override {
+        void visitBucket(VBucketPtr& vb) override {
             char buf[32];
             uint16_t vbid = vb->getId();
             DBFileInfo dbInfo =
@@ -218,7 +218,7 @@ ENGINE_ERROR_CODE EPBucket::getPerVBucketDiskStats(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-RCPtr<VBucket> EPBucket::makeVBucket(VBucket::id_type id,
+VBucketPtr EPBucket::makeVBucket(VBucket::id_type id,
                                      vbucket_state_t state,
                                      KVShard* shard,
                                      std::unique_ptr<FailoverTable> table,
@@ -231,7 +231,7 @@ RCPtr<VBucket> EPBucket::makeVBucket(VBucket::id_type id,
                                      uint64_t maxCas,
                                      const std::string& collectionsManifest) {
     auto flusherCb = std::make_shared<NotifyFlusherCB>(shard);
-    return RCPtr<VBucket>(new EPVBucket(id,
+    return VBucketPtr(new EPVBucket(id,
                                         state,
                                         stats,
                                         engine.getCheckpointConfig(),
@@ -253,7 +253,7 @@ RCPtr<VBucket> EPBucket::makeVBucket(VBucket::id_type id,
 ENGINE_ERROR_CODE EPBucket::statsVKey(const DocKey& key,
                                       uint16_t vbucket,
                                       const void* cookie) {
-    RCPtr<VBucket> vb = getVBucket(vbucket);
+    VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }
@@ -271,7 +271,7 @@ void EPBucket::completeStatsVKey(const void* cookie,
     gcb.waitForValue();
 
     if (eviction_policy == FULL_EVICTION) {
-        RCPtr<VBucket> vb = getVBucket(vbid);
+        VBucketPtr vb = getVBucket(vbid);
         if (vb) {
             vb->completeStatsVKey(key, gcb);
         }
@@ -303,7 +303,7 @@ public:
                     "EPDiskRollbackCB::callback: dbHandle is NULL");
         }
         UniqueItemPtr itm(val.getValue());
-        RCPtr<VBucket> vb = engine.getVBucket(itm->getVBucketId());
+        VBucketPtr vb = engine.getVBucket(itm->getVBucketId());
         RememberingCallback<GetValue> gcb;
         engine.getKVBucket()
                 ->getROUnderlying(itm->getVBucketId())

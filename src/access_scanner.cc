@@ -91,7 +91,7 @@ public:
         accessed.clear();
     }
 
-    void visitBucket(RCPtr<VBucket> &vb) override {
+    void visitBucket(VBucketPtr &vb) override {
         currentBucket = vb;
         update();
 
@@ -208,7 +208,7 @@ private:
     // The number of items to scan before we pause
     const uint64_t items_to_scan;
 
-    RCPtr<VBucket> currentBucket;
+    VBucketPtr currentBucket;
 };
 
 AccessScanner::AccessScanner(KVBucket& _store,

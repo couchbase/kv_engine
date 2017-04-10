@@ -95,7 +95,7 @@ private:
  */
 class VBucketCountAggregator : public VBucketVisitor  {
 public:
-    void visitBucket(RCPtr<VBucket> &vb) override;
+    void visitBucket(VBucketPtr &vb) override;
 
     void addVisitor(VBucketCountVisitor* visitor);
 private:
@@ -474,7 +474,7 @@ public:
                                     protocol_binary_request_header *request,
                                     ADD_RESPONSE response);
 
-    RCPtr<VBucket> getVBucket(uint16_t vbucket) {
+    VBucketPtr getVBucket(uint16_t vbucket) {
         return kvBucket->getVBucket(vbucket);
     }
 
@@ -728,7 +728,7 @@ protected:
     ENGINE_ERROR_CODE doSeqnoStats(const void *cookie, ADD_STAT add_stat,
                                    const char* stat_key, int nkey);
     void addSeqnoVbStats(const void *cookie, ADD_STAT add_stat,
-                                  const RCPtr<VBucket> &vb);
+                                  const VBucketPtr &vb);
 
     void addLookupResult(const void *cookie, Item *result) {
         LockHolder lh(lookupMutex);

@@ -472,7 +472,7 @@ public:
     const void* cookie;
     SingleThreadedRCPtr<MockDcpConsumer> consumer;
     std::unique_ptr<dcp_message_producers> producers;
-    RCPtr<VBucket> vb;
+    VBucketPtr vb;
 };
 
 RollbackDcpTest::StreamRequestData RollbackDcpTest::streamRequestData = {};

@@ -282,7 +282,7 @@ backfill_status_t BackfillManager::backfill() {
             break;
         case backfill_snooze: {
             uint16_t vbid = backfill->getVBucketId();
-            RCPtr<VBucket> vb = engine.getVBucket(vbid);
+            VBucketPtr vb = engine.getVBucket(vbid);
             if (vb) {
                 snoozingBackfills.push_back(
                         std::make_pair(ep_current_time(), std::move(backfill)));

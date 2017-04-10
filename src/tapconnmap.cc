@@ -591,7 +591,7 @@ void TapConnMap::removeTapCursors_UNLOCKED(TapProducer *tp) {
         const VBucketMap &vbuckets = engine.getKVBucket()->getVBuckets();
         // Remove all the cursors belonging to the TAP connection to be purged.
         for (VBucketMap::id_type vbid = 0; vbid < vbuckets.getSize(); ++vbid) {
-            RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+            VBucketPtr vb = vbuckets.getBucket(vbid);
             if (!vb) {
                 continue;
             }

@@ -159,7 +159,7 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
         return ENGINE_DISCONNECT;
     }
 
-    RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
+    VBucketPtr vb = engine_.getVBucket(vbucket);
     if (!vb) {
         logger.log(EXTENSION_LOG_WARNING,
             "(vb %d) Add stream failed because this vbucket doesn't exist",
@@ -763,7 +763,7 @@ bool DcpConsumer::doRollback(uint32_t opaque, uint16_t vbid,
                 "code from EpStore::rollback: " + std::to_string(err));
     }
 
-    RCPtr<VBucket> vb = engine_.getVBucket(vbid);
+    VBucketPtr vb = engine_.getVBucket(vbid);
     auto stream = findStream(vbid);
     if (stream) {
         stream->reconnectStream(vb, opaque, vb->getHighSeqno());
@@ -959,7 +959,7 @@ void DcpConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body
         auto stream = findStream(vbucket);
         if (stream && stream->getOpaque() == opaque && stream->isPending()) {
             if (status == ENGINE_SUCCESS) {
-                RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
+                VBucketPtr vb = engine_.getVBucket(vbucket);
                 vb->failovers->replaceFailoverLog(body, bodylen);
                 KVBucketIface* kvBucket = engine_.getKVBucket();
                 kvBucket->scheduleVBStatePersist(vbucket);

@@ -56,10 +56,10 @@ public:
 
     VBucketMap(Configuration& config, KVBucket& store);
 
-    ENGINE_ERROR_CODE addBucket(const RCPtr<VBucket> &b);
+    ENGINE_ERROR_CODE addBucket(const VBucketPtr &b);
     void removeBucket(id_type id);
     void addBuckets(const std::vector<VBucket*> &newBuckets);
-    RCPtr<VBucket> getBucket(id_type id) const;
+    VBucketPtr getBucket(id_type id) const;
 
     // Returns the size of the map, i.e. the total number of VBuckets it can
     // contain.

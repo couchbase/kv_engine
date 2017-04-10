@@ -27,7 +27,7 @@
 class VBucketMemoryDeletionTask : public GlobalTask {
 public:
     VBucketMemoryDeletionTask(EventuallyPersistentEngine& eng,
-                              RCPtr<VBucket>& vb,
+                              VBucketPtr& vb,
                               double delay);
 
     cb::const_char_buffer getDescription();
@@ -36,6 +36,6 @@ public:
 
 private:
     EventuallyPersistentEngine& e;
-    RCPtr<VBucket> vbucket;
+    VBucketPtr vbucket;
     std::string description;
 };

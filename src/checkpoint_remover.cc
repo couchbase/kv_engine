@@ -42,7 +42,7 @@ public:
         : store(s), stats(st), removed(0), taskStart(gethrtime()),
           wasHighMemoryUsage(s->isMemoryUsageTooHigh()), stateFinalizer(sfin) {}
 
-    void visitBucket(RCPtr<VBucket> &vb) override {
+    void visitBucket(VBucketPtr &vb) override {
         bool newCheckpointCreated = false;
         removed = vb->checkpointManager.removeClosedUnrefCheckpoints(
                 *vb, newCheckpointCreated);
@@ -108,7 +108,7 @@ void ClosedUnrefCheckpointRemoverTask::cursorDroppingIfNeeded(void) {
         for (const auto& it: vbuckets) {
             if (memoryCleared < amountOfMemoryToClear) {
                 uint16_t vbid = it.first;
-                RCPtr<VBucket> vb = kvBucket->getVBucket(vbid);
+                VBucketPtr vb = kvBucket->getVBucket(vbid);
                 if (vb) {
                     // Get a list of cursors that can be dropped from the
                     // vbucket's checkpoint manager, so as to unreference

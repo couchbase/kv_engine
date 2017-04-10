@@ -77,8 +77,8 @@ public:
     Flusher *getFlusher();
     BgFetcher *getBgFetcher();
 
-    RCPtr<VBucket> getBucket(VBucket::id_type id) const;
-    void setBucket(const RCPtr<VBucket> &b);
+    VBucketPtr getBucket(VBucket::id_type id) const;
+    void setBucket(const VBucketPtr &b);
     void resetBucket(VBucket::id_type id);
 
     KVShard::id_type getId() const {
@@ -90,7 +90,7 @@ public:
 
 private:
     KVStoreConfig kvConfig;
-    std::vector<RCPtr<VBucket>> vbuckets;
+    std::vector<VBucketPtr> vbuckets;
 
     std::unique_ptr<KVStore> rwStore;
     std::unique_ptr<KVStore> roStore;

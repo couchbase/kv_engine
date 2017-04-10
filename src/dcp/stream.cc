@@ -263,7 +263,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
         end_seqno_ = dcpMaxSeqno;
     }
 
-    RCPtr<VBucket> vbucket = engine->getVBucket(vb);
+    VBucketPtr vbucket = engine->getVBucket(vb);
     if (vbucket) {
         ReaderLockHolder rlh(vbucket->getStateLock());
         if (vbucket->getState() == vbucket_state_replica) {
@@ -358,7 +358,7 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
         startSeqno = std::min(snap_start_seqno_, startSeqno);
         firstMarkerSent = true;
 
-        RCPtr<VBucket> vb = engine->getVBucket(vb_);
+        VBucketPtr vb = engine->getVBucket(vb_);
         if (!vb) {
             producer->getLogger().log(EXTENSION_LOG_WARNING,"(vb %" PRIu16 ") "
                                       "ActiveStream::markDiskSnapshot, vbucket "
@@ -504,7 +504,7 @@ void ActiveStream::setVBucketStateAckRecieved() {
 
             engine->getKVBucket()->setVBucketState(vb_, vbucket_state_dead,
                                                    false, false);
-            RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
+            VBucketPtr vbucket = engine->getVBucket(vb_);
             producer->getLogger().log(EXTENSION_LOG_NOTICE,
                 "(vb %" PRIu16 ") Vbucket marked as dead, last sent seqno: %"
                 PRIu64 ", high seqno: %" PRIu64,
@@ -593,7 +593,7 @@ DcpResponse* ActiveStream::inMemoryPhase() {
 
 DcpResponse* ActiveStream::takeoverSendPhase() {
 
-    RCPtr<VBucket> vb = engine->getVBucket(vb_);
+    VBucketPtr vb = engine->getVBucket(vb_);
     if (vb && takeoverStart != 0 &&
         !vb->isTakeoverBackedUp() &&
         (ep_current_time() - takeoverStart) > takeoverSendMaxTime) {
@@ -786,7 +786,7 @@ DcpResponse* ActiveStream::nextQueuedItem() {
 }
 
 bool ActiveStream::nextCheckpointItem() {
-    RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
+    VBucketPtr vbucket = engine->getVBucket(vb_);
     if (vbucket && vbucket->checkpointManager.getNumItemsForCursor(name_) > 0) {
         // schedule this stream to build the next checkpoint
         producer->scheduleCheckpointProcessorTask(this);
@@ -855,7 +855,7 @@ void ActiveStreamCheckpointProcessorTask::clearQueues() {
 }
 
 void ActiveStream::nextCheckpointItemTask() {
-    RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
+    VBucketPtr vbucket = engine->getVBucket(vb_);
     if (vbucket) {
         std::vector<queued_item> items;
         getOutstandingItems(vbucket, items);
@@ -869,7 +869,7 @@ void ActiveStream::nextCheckpointItemTask() {
     }
 }
 
-void ActiveStream::getOutstandingItems(RCPtr<VBucket> &vb,
+void ActiveStream::getOutstandingItems(VBucketPtr &vb,
                                        std::vector<queued_item> &items) {
     // Commencing item processing - set guard flag.
     chkptItemsExtractionInProgress.store(true);
@@ -1063,7 +1063,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
         return;
     }
 
-    RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
+    VBucketPtr vbucket = engine->getVBucket(vb_);
     if (!vbucket) {
         producer->getLogger().log(EXTENSION_LOG_WARNING,
                                   "(vb %" PRIu16 ") Failed to schedule "
@@ -1367,7 +1367,7 @@ void ActiveStream::transitionState(StreamState newState) {
             break;
         case StreamState::Dead:
             {
-                RCPtr<VBucket> vb = engine->getVBucket(vb_);
+                VBucketPtr vb = engine->getVBucket(vb_);
                 if (vb) {
                     vb->checkpointManager.removeCursor(name_);
                 }
@@ -1384,7 +1384,7 @@ void ActiveStream::transitionState(StreamState newState) {
 }
 
 size_t ActiveStream::getItemsRemaining() {
-    RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
+    VBucketPtr vbucket = engine->getVBucket(vb_);
 
     if (!vbucket || !isActive()) {
         return 0;
@@ -1412,7 +1412,7 @@ const Logger& ActiveStream::getLogger() const
 
 bool ActiveStream::isCurrentSnapshotCompleted() const
 {
-    RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
+    VBucketPtr vbucket = engine->getVBucket(vb_);
     // An atomic read of vbucket state without acquiring the
     // reader lock for state should suffice here.
     if (vbucket && vbucket->getState() == vbucket_state_replica) {
@@ -1426,7 +1426,7 @@ bool ActiveStream::isCurrentSnapshotCompleted() const
 
 void ActiveStream::dropCheckpointCursor_UNLOCKED()
 {
-    RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
+    VBucketPtr vbucket = engine->getVBucket(vb_);
     if (!vbucket) {
         endStream(END_STREAM_STATE);
         bool inverse = false;
@@ -1448,7 +1448,7 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e, dcp_producer_t p,
              snap_start_seqno, snap_end_seqno, Type::Notifier),
       producer(p) {
     LockHolder lh(streamMutex);
-    RCPtr<VBucket> vbucket = e->getVBucket(vb_);
+    VBucketPtr vbucket = e->getVBucket(vb_);
     if (vbucket && static_cast<uint64_t>(vbucket->getHighSeqno()) > st_seqno) {
         pushToReadyQ(new StreamEndResponse(opaque_, END_STREAM_OK, vb_));
         transitionState(StreamState::Dead);
@@ -1653,7 +1653,7 @@ void PassiveStream::acceptStream(uint16_t status, uint32_t add_opaque) {
     }
 }
 
-void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
+void PassiveStream::reconnectStream(VBucketPtr &vb,
                                     uint32_t new_opaque,
                                     uint64_t start_seqno) {
     vb_uuid_ = vb->failovers->getLatestEntry().vb_uuid;
@@ -1863,7 +1863,7 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
 }
 
 ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
-    RCPtr<VBucket> vb = engine->getVBucket(vb_);
+    VBucketPtr vb = engine->getVBucket(vb_);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }
@@ -1922,7 +1922,7 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
 }
 
 ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
-    RCPtr<VBucket> vb = engine->getVBucket(vb_);
+    VBucketPtr vb = engine->getVBucket(vb_);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }
@@ -1981,7 +1981,7 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
 
 ENGINE_ERROR_CODE PassiveStream::processSystemEvent(
         const SystemEventMessage& event) {
-    RCPtr<VBucket> vb = engine->getVBucket(vb_);
+    VBucketPtr vb = engine->getVBucket(vb_);
 
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
@@ -2065,7 +2065,7 @@ ENGINE_ERROR_CODE PassiveStream::processSeparatorChanged(
 }
 
 void PassiveStream::processMarker(SnapshotMarker* marker) {
-    RCPtr<VBucket> vb = engine->getVBucket(vb_);
+    VBucketPtr vb = engine->getVBucket(vb_);
 
     cur_snapshot_start.store(marker->getStartSeqno());
     cur_snapshot_end.store(marker->getEndSeqno());
@@ -2116,7 +2116,7 @@ void PassiveStream::processSetVBucketState(SetVBucketState* state) {
     }
 }
 
-void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno) {
+void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
     if (byseqno == cur_snapshot_end.load()) {
         if (cur_snapshot_type.load() == Snapshot::Disk &&
                 vb->isBackfillPhase()) {

@@ -50,7 +50,7 @@ private:
 };
 
 void ItemResidentCallback::callback(CacheLookup &lookup) {
-    RCPtr<VBucket> vb = engine->getKVBucket()->getVBucket(
+    VBucketPtr vb = engine->getKVBucket()->getVBucket(
                                                         lookup.getVBucketId());
     if (!vb) {
         setStatus(ENGINE_SUCCESS);
@@ -208,7 +208,7 @@ BackFillVisitor::BackFillVisitor(EventuallyPersistentEngine* e,
       valid(true) {
 }
 
-void BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
+void BackFillVisitor::visitBucket(VBucketPtr &vb) {
     if (vBucketFilter(vb->getId())) {
         double num_items = static_cast<double>(vb->getNumItems());
 

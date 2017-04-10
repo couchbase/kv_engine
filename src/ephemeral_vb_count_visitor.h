@@ -29,7 +29,7 @@ public:
         : VBucketCountVisitor(state) {
     }
 
-    void visitBucket(RCPtr<VBucket> &vb) override;
+    void visitBucket(VBucketPtr &vb) override;
 
     size_t autoDeleteCount = 0;
     uint64_t seqlistCount = 0;

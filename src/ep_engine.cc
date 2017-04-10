@@ -809,7 +809,7 @@ static ENGINE_ERROR_CODE getVBucket(EventuallyPersistentEngine* e,
     }
 
     uint16_t vbucket = ntohs(req->message.header.request.vbucket);
-    RCPtr<VBucket> vb = e->getVBucket(vbucket);
+    VBucketPtr vb = e->getVBucket(vbucket);
     if (!vb) {
         return e->sendNotMyVBucketResponse(response, cookie, 0);
     } else {
@@ -1764,7 +1764,7 @@ static bool EvpGetItemInfo(ENGINE_HANDLE* handle, const void*,
                            const item* itm, item_info* itm_info) {
     const Item* it = reinterpret_cast<const Item*>(itm);
     auto engine = acquireEngine(handle);
-    RCPtr<VBucket> vb = engine->getKVBucket()->getVBucket(it->getVBucketId());
+    VBucketPtr vb = engine->getKVBucket()->getVBucket(it->getVBucketId());
     uint64_t vb_uuid = vb ? vb->failovers->getLatestUUID() : 0;
     *itm_info = it->toItemInfo(vb_uuid);
     return true;
@@ -2189,7 +2189,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(const void* cookie,
         auto* item = gv.getValue();
         cb::unique_item_ptr ret{item, cb::ItemDeleter{handle}};
 
-        const RCPtr<VBucket> vb = getKVBucket()->getVBucket(vbucket);
+        const VBucketPtr vb = getKVBucket()->getVBucket(vbucket);
         const uint64_t vb_uuid = vb ? vb->failovers->getLatestUUID() : 0;
 
         // Currently
@@ -2421,7 +2421,7 @@ inline uint16_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie,
             *es = connection->specificData;
         } else if (ret == TAP_CHECKPOINT_START) {
             // Send the current value of the max deleted seqno
-            RCPtr<VBucket> vb = getVBucket(*vbucket);
+            VBucketPtr vb = getVBucket(*vbucket);
             if (!vb) {
                 retry = true;
                 return TAP_NOOP;
@@ -2700,7 +2700,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                 if (tap_event == TAP_CHECKPOINT_START &&
                     nengine == TapEngineSpecific::sizeRevSeqno) {
                     // Set the current value for the max deleted seqno
-                    RCPtr<VBucket> vb = getVBucket(vbucket);
+                    VBucketPtr vb = getVBucket(vbucket);
                     if (!vb) {
                         return ENGINE_TMPFAIL;
                     }
@@ -3001,7 +3001,7 @@ void EventuallyPersistentEngine::queueBackfill(const VBucketFilter
                          1);
 }
 
-void VBucketCountAggregator::visitBucket(RCPtr<VBucket> &vb) {
+void VBucketCountAggregator::visitBucket(VBucketPtr &vb) {
     std::map<vbucket_state_t, VBucketCountVisitor*>::iterator it;
     it = visitorMap.find(vb->getState());
     if ( it != visitorMap.end() ) {
@@ -3399,13 +3399,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
             isPrevState(isPrevStateRequested),
             isDetailsRequested(detailsRequested) {}
 
-        void visitBucket(RCPtr<VBucket> &vb) override {
+        void visitBucket(VBucketPtr &vb) override {
             addVBStats(cookie, add_stat, vb, eps, isPrevState,
                        isDetailsRequested);
         }
 
         static void addVBStats(const void *cookie, ADD_STAT add_stat,
-                               RCPtr<VBucket> &vb,
+                               VBucketPtr &vb,
                                KVBucketIface* store,
                                bool isPrevStateRequested,
                                bool detailsRequested) {
@@ -3443,7 +3443,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
         if (!parseUint16(vbid.c_str(), &vbucket_id)) {
             return ENGINE_EINVAL;
         }
-        RCPtr<VBucket> vb = getVBucket(vbucket_id);
+        VBucketPtr vb = getVBucket(vbucket_id);
         if (!vb) {
             return ENGINE_NOT_MY_VBUCKET;
         }
@@ -3467,7 +3467,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
         StatVBucketVisitor(const void *c, ADD_STAT a) : cookie(c),
                                                         add_stat(a) {}
 
-        void visitBucket(RCPtr<VBucket> &vb) override {
+        void visitBucket(VBucketPtr &vb) override {
             uint16_t vbid = vb->getId();
             char buf[32];
             try {
@@ -3531,13 +3531,13 @@ public:
                           ADD_STAT a) : kvBucket(kvs), cookie(c),
                                         add_stat(a) {}
 
-    void visitBucket(RCPtr<VBucket> &vb) override {
+    void visitBucket(VBucketPtr &vb) override {
         addCheckpointStat(cookie, add_stat, kvBucket, vb);
     }
 
     static void addCheckpointStat(const void *cookie, ADD_STAT add_stat,
                                   KVBucketIface* eps,
-                                  RCPtr<VBucket> &vb) {
+                                  VBucketPtr &vb) {
         if (!vb) {
             return;
         }
@@ -3618,7 +3618,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(
         if (!parseUint16(vbid.c_str(), &vbucket_id)) {
             return ENGINE_EINVAL;
         }
-        RCPtr<VBucket> vb = getVBucket(vbucket_id);
+        VBucketPtr vb = getVBucket(vbucket_id);
 
         StatCheckpointVisitor::addCheckpointStat(cookie, add_stat,
                                                  kvBucket.get(), vb);
@@ -3986,7 +3986,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVbIdFailoverLogStats(
                                                             const void *cookie,
                                                             ADD_STAT add_stat,
                                                             uint16_t vbid) {
-    RCPtr<VBucket> vb = getVBucket(vbid);
+    VBucketPtr vb = getVBucket(vbid);
     if(!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }
@@ -4004,7 +4004,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doAllFailoverLogStats(
         StatVBucketVisitor(const void *c, ADD_STAT a) :
             cookie(c), add_stat(a) {}
 
-        void visitBucket(RCPtr<VBucket> &vb) override {
+        void visitBucket(VBucketPtr &vb) override {
             vb->failovers->addStats(cookie, vb->getId(), add_stat);
         }
 
@@ -4187,7 +4187,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void
 
 void EventuallyPersistentEngine::addSeqnoVbStats(const void *cookie,
                                                  ADD_STAT add_stat,
-                                                 const RCPtr<VBucket> &vb) {
+                                                 const VBucketPtr &vb) {
     // MB-19359: An atomic read of vbucket state without acquiring the
     // reader lock for state should suffice here.
     uint64_t relHighSeqno = vb->getHighSeqno();
@@ -4242,7 +4242,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
         }
 
         int vbucket = atoi(value.c_str());
-        RCPtr<VBucket> vb = getVBucket(vbucket);
+        VBucketPtr vb = getVBucket(vbucket);
         if (!vb || vb->getState() == vbucket_state_dead) {
             return ENGINE_NOT_MY_VBUCKET;
         }
@@ -4254,7 +4254,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
 
     auto vbuckets = kvBucket->getVBuckets().getBuckets();
     for (auto vbid : vbuckets) {
-        RCPtr<VBucket> vb = getVBucket(vbid);
+        VBucketPtr vb = getVBucket(vbid);
         if (vb) {
             addSeqnoVbStats(cookie, add_stat, vb);
         }
@@ -4568,7 +4568,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
     LOG(EXTENSION_LOG_DEBUG, "Observing vbucket: %d with uuid: %" PRIu64,
                              vb_id, vb_uuid);
 
-    RCPtr<VBucket> vb = kvBucket->getVBucket(vb_id);
+    VBucketPtr vb = kvBucket->getVBucket(vb_id);
 
     if (!vb) {
         return sendNotMyVBucketResponse(response, cookie, 0);
@@ -4734,7 +4734,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(
         /// its checkpoint cursors.
         const VBucketMap &vbuckets = getKVBucket()->getVBuckets();
         for (VBucketMap::id_type vbid = 0; vbid < vbuckets.getSize(); ++vbid) {
-            RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+            VBucketPtr vb = vbuckets.getBucket(vbid);
             if (!vb) {
                 continue;
             }
@@ -4754,7 +4754,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
 {
     std::stringstream msg;
     uint16_t vbucket = ntohs(req->request.vbucket);
-    RCPtr<VBucket> vb = getVBucket(vbucket);
+    VBucketPtr vb = getVBucket(vbucket);
 
     if (!vb) {
         return sendNotMyVBucketResponse(response, cookie, 0);
@@ -4885,7 +4885,7 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
 {
     std::stringstream msg;
     uint16_t vbucket = ntohs(req->request.vbucket);
-    RCPtr<VBucket> vb = getVBucket(vbucket);
+    VBucketPtr vb = getVBucket(vbucket);
 
     if (!vb) {
         return sendNotMyVBucketResponse(response, cookie, 0);
@@ -5624,7 +5624,7 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
                                                  ADD_STAT add_stat,
                                                  std::string &key,
                                                  uint16_t vbid) {
-    RCPtr<VBucket> vb = getVBucket(vbid);
+    VBucketPtr vb = getVBucket(vbid);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }
@@ -5684,7 +5684,7 @@ EventuallyPersistentEngine::doTapVbTakeoverStats(const void *cookie,
                                                  ADD_STAT add_stat,
                                                  std::string &key,
                                                  uint16_t vbid) {
-    RCPtr<VBucket> vb = getVBucket(vbid);
+    VBucketPtr vb = getVBucket(vbid);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }
@@ -6021,7 +6021,7 @@ EventuallyPersistentEngine::getAllKeys(const void* cookie,
     }
 
     uint16_t vbucket = ntohs(request->message.header.request.vbucket);
-    RCPtr<VBucket> vb = getVBucket(vbucket);
+    VBucketPtr vb = getVBucket(vbucket);
 
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
@@ -6211,7 +6211,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     }
 
     for (auto id : vbuckets) {
-        RCPtr<VBucket> vb = getVBucket(id);
+        VBucketPtr vb = getVBucket(id);
         if (vb) {
             auto state = vb->getState();
             bool getSeqnoForThisVb = false;
@@ -6310,7 +6310,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sendMutationExtras(
         protocol_binary_response_status status,
         uint64_t cas,
         const void* cookie) {
-    RCPtr<VBucket> vb = kvBucket->getVBucket(vbucket);
+    VBucketPtr vb = kvBucket->getVBucket(vbucket);
     if (!vb) {
         return sendErrorResponse(
                 response, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, cas, cookie);

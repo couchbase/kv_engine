@@ -102,7 +102,7 @@ bool EphemeralBucket::initialize() {
     return true;
 }
 
-RCPtr<VBucket> EphemeralBucket::makeVBucket(
+VBucketPtr EphemeralBucket::makeVBucket(
         VBucket::id_type id,
         vbucket_state_t state,
         KVShard* shard,
@@ -186,7 +186,7 @@ size_t EphemeralBucket::getNumPersistedDeletes(uint16_t vbid) {
     /* the name is getNumPersistedDeletes, in ephemeral buckets the equivalent
        meaning is the number of deletes seen by the vbucket.
        This is needed by ns-server during vb-takeover */
-    RCPtr<VBucket> vb = getVBucket(vbid);
+    VBucketPtr vb = getVBucket(vbid);
     return vb->getNumInMemoryDeletes();
 }
 
@@ -201,7 +201,7 @@ void EphemeralBucket::notifyNewSeqno(const uint16_t vbid,
 
     /* In ephemeral buckets we must notify high priority requests as well.
        We do not wait for persistence to notify high priority requests */
-    RCPtr<VBucket> vb = getVBucket(vbid);
+    VBucketPtr vb = getVBucket(vbid);
     vb->notifyHighPriorityRequests(
             engine, notifyCtx.bySeqno, HighPriorityVBNotify::Seqno);
 }

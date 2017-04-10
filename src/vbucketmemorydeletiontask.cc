@@ -22,7 +22,7 @@
 #include <sstream>
 
 VBucketMemoryDeletionTask::VBucketMemoryDeletionTask(
-        EventuallyPersistentEngine& eng, RCPtr<VBucket>& vb, double delay)
+        EventuallyPersistentEngine& eng, VBucketPtr& vb, double delay)
     : GlobalTask(&eng, TaskId::VBucketMemoryDeletionTask, delay, true),
       e(eng),
       vbucket(vb) {

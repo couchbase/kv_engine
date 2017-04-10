@@ -103,7 +103,7 @@ public:
         }
     }
 
-    void visitBucket(RCPtr<VBucket> &vb) override {
+    void visitBucket(VBucketPtr &vb) override {
         update();
 
         bool newCheckpointCreated = false;
@@ -253,7 +253,7 @@ private:
     bool wasHighMemoryUsage;
     hrtime_t taskStart;
     std::atomic<item_pager_phase>* pager_phase;
-    RCPtr<VBucket> currentBucket;
+    VBucketPtr currentBucket;
 };
 
 ItemPager::ItemPager(EventuallyPersistentEngine *e, EPStats &st) :

@@ -38,8 +38,8 @@ VBucketMap::VBucketMap(Configuration& config, KVBucket& store)
                                     new VBucketConfigChangeListener(*this));
 }
 
-RCPtr<VBucket> VBucketMap::getBucket(id_type id) const {
-    static RCPtr<VBucket> emptyVBucket;
+VBucketPtr VBucketMap::getBucket(id_type id) const {
+    static VBucketPtr emptyVBucket;
     if (id < size) {
         return getShardByVbId(id)->getBucket(id);
     } else {
@@ -47,7 +47,7 @@ RCPtr<VBucket> VBucketMap::getBucket(id_type id) const {
     }
 }
 
-ENGINE_ERROR_CODE VBucketMap::addBucket(const RCPtr<VBucket> &b) {
+ENGINE_ERROR_CODE VBucketMap::addBucket(const VBucketPtr &b) {
     if (b->getId() < size) {
         getShardByVbId(b->getId())->setBucket(b);
         LOG(EXTENSION_LOG_INFO, "Mapped new vbucket %d in state %s",
@@ -71,7 +71,7 @@ void VBucketMap::removeBucket(id_type id) {
 std::vector<VBucketMap::id_type> VBucketMap::getBuckets(void) const {
     std::vector<id_type> rv;
     for (id_type i = 0; i < size; ++i) {
-        RCPtr<VBucket> b(getBucket(i));
+        VBucketPtr b(getBucket(i));
         if (b) {
             rv.push_back(b->getId());
         }
@@ -84,7 +84,7 @@ std::vector<VBucketMap::id_type> VBucketMap::getBucketsSortedByState(void) const
     for (int state = vbucket_state_active;
          state <= vbucket_state_dead; ++state) {
         for (size_t i = 0; i < size; ++i) {
-            RCPtr<VBucket> b = getBucket(i);
+            VBucketPtr b = getBucket(i);
             if (b && b->getState() == state) {
                 rv.push_back(b->getId());
             }
@@ -97,7 +97,7 @@ std::vector<std::pair<VBucketMap::id_type, size_t> >
 VBucketMap::getActiveVBucketsSortedByChkMgrMem(void) const {
     std::vector<std::pair<id_type, size_t> > rv;
     for (id_type i = 0; i < size; ++i) {
-        RCPtr<VBucket> b = getBucket(i);
+        VBucketPtr b = getBucket(i);
         if (b && b->getState() == vbucket_state_active) {
             rv.push_back(std::make_pair(b->getId(), b->getChkMgrMemUsage()));
         }
@@ -118,7 +118,7 @@ VBucketMap::getActiveVBucketsSortedByChkMgrMem(void) const {
 void VBucketMap::addBuckets(const std::vector<VBucket*> &newBuckets) {
     std::vector<VBucket*>::const_iterator it;
     for (it = newBuckets.begin(); it != newBuckets.end(); ++it) {
-        RCPtr<VBucket> v(*it);
+        VBucketPtr v(*it);
         addBucket(v);
     }
 }

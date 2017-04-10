@@ -60,7 +60,7 @@ private:
 };
 
 static void assertVBucket(const VBucketMap& vbm, int id) {
-    RCPtr<VBucket> v = vbm.getBucket(id);
+    VBucketPtr v = vbm.getBucket(id);
     cb_assert(v);
     cb_assert(v->getId() == id);
 }
@@ -87,7 +87,7 @@ public:
         for (size_t j = 0; j < vbucketsEach; j++) {
             int newId = ++i;
 
-            RCPtr<VBucket> v(new VBucket(newId, vbucket_state_active,
+            VBucketPtr v(new VBucket(newId, vbucket_state_active,
                                          global_stats, checkpoint_config, NULL));
             vbm->addBucket(v);
             cb_assert(vbm->getBucket(newId) == v);
@@ -201,7 +201,7 @@ static void testGetVBucketsByState(void) {
 
     int st = vbucket_state_dead;
     for (int id = 0; id < 4; id++, st--) {
-        RCPtr<VBucket> v(new VBucket(id, (vbucket_state_t)st, global_stats,
+        VBucketPtr v(new VBucket(id, (vbucket_state_t)st, global_stats,
                                      checkpoint_config, NULL));
         vbm.addBucket(v);
         cb_assert(vbm.getBucket(id) == v);

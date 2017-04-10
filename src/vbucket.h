@@ -1571,3 +1571,5 @@ private:
 
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };
+
+using VBucketPtr = RCPtr<VBucket>;

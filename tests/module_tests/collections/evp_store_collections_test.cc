@@ -49,7 +49,7 @@ TEST_F(CollectionsTest, namespace_separation) {
     store_item(vbid,
                {"$collections::create:meat1", DocNamespace::DefaultCollection},
                "value");
-    RCPtr<VBucket> vb = store->getVBucket(vbid);
+    VBucketPtr vb = store->getVBucket(vbid);
     // Add the meat collection
     vb->updateFromManifest(
             {R"({"revision":1,)"
@@ -97,7 +97,7 @@ TEST_F(CollectionsTest, collections_basic) {
                0,
                {cb::engine_errc::unknown_collection});
 
-    RCPtr<VBucket> vb = store->getVBucket(vbid);
+    VBucketPtr vb = store->getVBucket(vbid);
 
     // Add the meat collection
     vb->updateFromManifest(
@@ -208,7 +208,7 @@ void CollectionsFlushTest::storeItems(const std::string& collection,
 
 std::string CollectionsFlushTest::createCollectionAndFlush(
         const std::string& json, const std::string& collection, int items) {
-    RCPtr<VBucket> vb = store->getVBucket(vbid);
+    VBucketPtr vb = store->getVBucket(vbid);
     vb->updateFromManifest(json);
     storeItems(collection, DocNamespace::Collections, items);
     flush_vbucket_to_disk(vbid, 1 + items); // create event + items
@@ -217,7 +217,7 @@ std::string CollectionsFlushTest::createCollectionAndFlush(
 
 std::string CollectionsFlushTest::deleteCollectionAndFlush(
         const std::string& json, const std::string& collection, int items) {
-    RCPtr<VBucket> vb = store->getVBucket(vbid);
+    VBucketPtr vb = store->getVBucket(vbid);
     storeItems(collection, DocNamespace::Collections, items);
     vb->updateFromManifest(json);
     flush_vbucket_to_disk(vbid, items); // only flush items
@@ -226,7 +226,7 @@ std::string CollectionsFlushTest::deleteCollectionAndFlush(
 
 std::string CollectionsFlushTest::completeDeletionAndFlush(
         const std::string& collection, int revision, int items) {
-    RCPtr<VBucket> vb = store->getVBucket(vbid);
+    VBucketPtr vb = store->getVBucket(vbid);
     vb->completeDeletion(collection, revision);
     storeItems("defaultcollection", DocNamespace::DefaultCollection, items);
     flush_vbucket_to_disk(vbid, 1 + items); // delete event + items
@@ -416,7 +416,7 @@ private:
 // or after a delete.
 //
 TEST_F(CollectionsTest, checkpoint_consistency) {
-    RCPtr<VBucket> vb = store->getVBucket(vbid);
+    VBucketPtr vb = store->getVBucket(vbid);
     CollectionsThreadTest threadTest(*this, *vb, 256, 256);
     threadTest.run();
 
@@ -493,7 +493,7 @@ public:
 // persisted collection state and should have the collection accessible.
 //
 TEST_F(CollectionsWarmupTest, warmup) {
-    RCPtr<VBucket> vb = store->getVBucket(vbid);
+    VBucketPtr vb = store->getVBucket(vbid);
 
     // Add the meat collection
     vb->updateFromManifest(
@@ -573,7 +573,7 @@ TEST_F(CollectionsTest, test_dcp_consumer) {
                                        /*end_seqno*/ 100,
                                        /*flags*/ 0));
 
-    RCPtr<VBucket> vb = store->getVBucket(vbid);
+    VBucketPtr vb = store->getVBucket(vbid);
 
     EXPECT_FALSE(vb->lockCollections().doesKeyContainValidCollection(
             {"meat::bacon", DocNamespace::Collections}));
@@ -723,7 +723,7 @@ SingleThreadedRCPtr<MockDcpConsumer> CollectionsDcpTest::consumer;
  * The test replicates VBn to VBn+1
  */
 TEST_F(CollectionsDcpTest, test_dcp) {
-    RCPtr<VBucket> vb = store->getVBucket(vbid);
+    VBucketPtr vb = store->getVBucket(vbid);
 
     // Add a collection, then remove it. This generated events into the CP which
     // we'll manually replicate with calls to step
@@ -748,7 +748,7 @@ TEST_F(CollectionsDcpTest, test_dcp) {
     // Next step which will process a snapshot marker
     EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
 
-    RCPtr<VBucket> replica = store->getVBucket(replicaVB);
+    VBucketPtr replica = store->getVBucket(replicaVB);
 
     // 1. Replica does not know about meat
     EXPECT_FALSE(vb->lockCollections().doesKeyContainValidCollection(
@@ -773,7 +773,7 @@ TEST_F(CollectionsDcpTest, test_dcp) {
 }
 
 TEST_F(CollectionsDcpTest, test_dcp_separator) {
-    RCPtr<VBucket> vb = store->getVBucket(vbid);
+    VBucketPtr vb = store->getVBucket(vbid);
 
     // Change the separator
     vb->updateFromManifest(
@@ -796,7 +796,7 @@ TEST_F(CollectionsDcpTest, test_dcp_separator) {
     // Next step which should process a snapshot marker
     EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
 
-    RCPtr<VBucket> replica = store->getVBucket(replicaVB);
+    VBucketPtr replica = store->getVBucket(replicaVB);
 
     // Now step the producer to transfer the separator
     EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));

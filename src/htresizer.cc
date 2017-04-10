@@ -35,7 +35,7 @@ class ResizingVisitor : public VBucketVisitor {
 public:
     ResizingVisitor() { }
 
-    void visitBucket(RCPtr<VBucket> &vb) override {
+    void visitBucket(VBucketPtr &vb) override {
         vb->ht.resize();
     }
 };

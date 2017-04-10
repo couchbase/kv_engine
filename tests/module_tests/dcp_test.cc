@@ -131,7 +131,7 @@ protected:
 
     dcp_producer_t producer;
     stream_t stream;
-    RCPtr<VBucket> vb0;
+    VBucketPtr vb0;
 };
 
 /* Regression test for MB-17766 - ensure that when an ActiveStream is preparing

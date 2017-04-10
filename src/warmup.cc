@@ -488,7 +488,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
 
     bool stopLoading = false;
     if (i != NULL && !epstore.getWarmup()->isComplete()) {
-        RCPtr<VBucket> vb = vbuckets.getBucket(i->getVBucketId());
+        VBucketPtr vb = vbuckets.getBucket(i->getVBucketId());
         if (!vb) {
             setStatus(ENGINE_NOT_MY_VBUCKET);
             return;
@@ -603,7 +603,7 @@ void LoadStorageKVPairCallback::purge() {
         EmergencyPurgeVisitor(KVBucket& store) :
             epstore(store) {}
 
-        void visitBucket(RCPtr<VBucket> &vb) override {
+        void visitBucket(VBucketPtr &vb) override {
             if (vBucketFilter(vb->getId())) {
                 currentBucket = vb;
                 vb->ht.visit(*this);
@@ -618,13 +618,13 @@ void LoadStorageKVPairCallback::purge() {
 
     private:
         KVBucket& epstore;
-        RCPtr<VBucket> currentBucket;
+        VBucketPtr currentBucket;
     };
 
     auto vbucketIds(vbuckets.getBuckets());
     EmergencyPurgeVisitor epv(epstore);
     for (auto vbid : vbucketIds) {
-        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+        VBucketPtr vb = vbuckets.getBucket(vbid);
         if (vb) {
             epv.visitBucket(vb);
         }
@@ -635,7 +635,7 @@ void LoadStorageKVPairCallback::purge() {
 void LoadValueCallback::callback(CacheLookup &lookup)
 {
     if (warmupState == WarmupState::LoadingData) {
-        RCPtr<VBucket> vb = vbuckets.getBucket(lookup.getVBucketId());
+        VBucketPtr vb = vbuckets.getBucket(lookup.getVBucketId());
         if (!vb) {
             return;
         }
@@ -767,7 +767,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
         uint16_t vbid = itr.first;
         vbucket_state vbs = itr.second;
 
-        RCPtr<VBucket> vb = store.getVBucket(vbid);
+        VBucketPtr vb = store.getVBucket(vbid);
         if (!vb) {
             std::unique_ptr<FailoverTable> table;
             if (vbs.failovers.empty()) {
@@ -843,7 +843,7 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId)
     for (const auto vbid : shardVbIds[shardId]) {
         size_t vbItemCount = store.getROUnderlyingByShard(shardId)->
                                                         getItemCount(vbid);
-        RCPtr<VBucket> vb = store.getVBucket(vbid);
+        VBucketPtr vb = store.getVBucket(vbid);
         if (vb) {
             vb->ht.numTotalItems = vbItemCount;
         }

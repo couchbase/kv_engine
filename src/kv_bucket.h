@@ -316,7 +316,7 @@ public:
                               std::vector<bgfetched_item_t>& fetchedItems,
                               ProcessClock::time_point start);
 
-    RCPtr<VBucket> getVBucket(uint16_t vbid) {
+    VBucketPtr getVBucket(uint16_t vbid) {
         return vbMap.getBucket(vbid);
     }
 
@@ -587,7 +587,7 @@ public:
         bfilterResidencyThreshold = to;
     }
 
-    bool isMetaDataResident(RCPtr<VBucket> &vb, const DocKey& key);
+    bool isMetaDataResident(VBucketPtr &vb, const DocKey& key);
 
     void logQTime(TaskId taskType, const ProcessClock::duration enqTime) {
         const auto ns_count = std::chrono::duration_cast
@@ -739,7 +739,7 @@ public:
     /**
      * Create a VBucket object appropriate for this Bucket class.
      */
-    virtual RCPtr<VBucket> makeVBucket(
+    virtual VBucketPtr makeVBucket(
             VBucket::id_type id,
             vbucket_state_t state,
             KVShard* shard,
@@ -772,13 +772,13 @@ protected:
      */
     void compactInternal(compaction_ctx *ctx);
 
-    void scheduleVBDeletion(RCPtr<VBucket> &vb,
+    void scheduleVBDeletion(VBucketPtr &vb,
                             const void* cookie,
                             double delay = 0);
 
     void flushOneDeleteAll(void);
     PersistenceCallback* flushOneDelOrSet(const queued_item &qi,
-                                          RCPtr<VBucket> &vb);
+                                          VBucketPtr &vb);
 
     GetValue getInternal(const DocKey& key, uint16_t vbucket, const void *cookie,
                          vbucket_state_t allowedState,

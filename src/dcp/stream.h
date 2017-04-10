@@ -278,7 +278,7 @@ public:
 
 protected:
     // Returns the outstanding items for the stream's checkpoint cursor.
-    void getOutstandingItems(RCPtr<VBucket> &vb, std::vector<queued_item> &items);
+    void getOutstandingItems(VBucketPtr &vb, std::vector<queued_item> &items);
 
     // Given a set of queued items, create mutation responses for each item,
     // and pass onto the producer associated with this stream.
@@ -520,7 +520,7 @@ public:
 
     void acceptStream(uint16_t status, uint32_t add_opaque);
 
-    void reconnectStream(RCPtr<VBucket> &vb, uint32_t new_opaque,
+    void reconnectStream(VBucketPtr &vb, uint32_t new_opaque,
                          uint64_t start_seqno);
 
     ENGINE_ERROR_CODE messageReceived(std::unique_ptr<DcpResponse> response);
@@ -571,7 +571,7 @@ protected:
     ENGINE_ERROR_CODE processSeparatorChanged(VBucket& vb,
                                               const CollectionsEvent& event);
 
-    void handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno);
+    void handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno);
 
     void processMarker(SnapshotMarker* marker);
 

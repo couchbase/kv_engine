@@ -348,7 +348,7 @@ TEST_P(EPStoreEvictionTest, MB_21976) {
     unlock_mock_cookie(cookie);
 
     // Manually run the VBucketMemoryDeletionTask task
-    RCPtr<VBucket> vb = store->getVBucket(vbid);
+    VBucketPtr vb = store->getVBucket(vbid);
     VBucketMemoryDeletionTask deletionTask(*engine, vb, /*delay*/0.0);
     deletionTask.run();
 

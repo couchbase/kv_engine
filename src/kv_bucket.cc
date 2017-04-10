@@ -188,7 +188,7 @@ public:
     }
 
     void callback(uint16_t& vbucketId, const DocKey& key, bool& isDeleted) {
-        RCPtr<VBucket> vb = store.getVBucket(vbucketId);
+        VBucketPtr vb = store.getVBucket(vbucketId);
         if (vb) {
             /* Check if a temporary filter has been initialized. If not,
              * initialize it. If initialization fails, throw an exception
@@ -241,7 +241,7 @@ private:
 
 bool BloomFilterCallback::initTempFilter(uint16_t vbucketId) {
     Configuration& config = store.getEPEngine().getConfiguration();
-    RCPtr<VBucket> vb = store.getVBucket(vbucketId);
+    VBucketPtr vb = store.getVBucket(vbucketId);
     if (!vb) {
         return false;
     }
@@ -319,7 +319,7 @@ class ExpiredItemsCallback : public Callback<uint16_t&, const DocKey&, uint64_t&
 
 class PendingOpsNotification : public GlobalTask {
 public:
-    PendingOpsNotification(EventuallyPersistentEngine& e, RCPtr<VBucket>& vb)
+    PendingOpsNotification(EventuallyPersistentEngine& e, VBucketPtr& vb)
         : GlobalTask(&e, TaskId::PendingOpsNotification, 0, false),
           engine(e),
           vbucket(vb),
@@ -340,7 +340,7 @@ public:
 
 private:
     EventuallyPersistentEngine &engine;
-    RCPtr<VBucket> vbucket;
+    VBucketPtr vbucket;
     const std::string description;
 };
 
@@ -550,7 +550,7 @@ void KVBucket::wakeUpFlusher() {
 protocol_binary_response_status KVBucket::evictKey(const DocKey& key,
                                                    VBucket::id_type vbucket,
                                                    const char** msg) {
-    RCPtr<VBucket> vb = getVBucket(vbucket);
+    VBucketPtr vb = getVBucket(vbucket);
     if (!vb || (vb->getState() != vbucket_state_active)) {
         return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
     }
@@ -563,7 +563,7 @@ void KVBucket::deleteExpiredItem(uint16_t vbid,
                                  time_t startTime,
                                  uint64_t revSeqno,
                                  ExpireBy source) {
-    RCPtr<VBucket> vb = getVBucket(vbid);
+    VBucketPtr vb = getVBucket(vbid);
     if (vb) {
         // Obtain reader access to the VB state change lock so that
         // the VB can't switch state whilst we're processing
@@ -583,7 +583,7 @@ void KVBucket::deleteExpiredItems(
     }
 }
 
-bool KVBucket::isMetaDataResident(RCPtr<VBucket> &vb, const DocKey& key) {
+bool KVBucket::isMetaDataResident(VBucketPtr &vb, const DocKey& key) {
 
     if (!vb) {
         throw std::invalid_argument("EPStore::isMetaDataResident: vb is NULL");
@@ -602,7 +602,7 @@ bool KVBucket::isMetaDataResident(RCPtr<VBucket> &vb, const DocKey& key) {
 
 ENGINE_ERROR_CODE KVBucket::set(Item &itm, const void *cookie) {
 
-    RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
+    VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
@@ -639,7 +639,7 @@ ENGINE_ERROR_CODE KVBucket::set(Item &itm, const void *cookie) {
 
 ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
 {
-    RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
+    VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
@@ -671,7 +671,7 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
 }
 
 ENGINE_ERROR_CODE KVBucket::replace(Item &itm, const void *cookie) {
-    RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
+    VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
@@ -696,7 +696,7 @@ ENGINE_ERROR_CODE KVBucket::replace(Item &itm, const void *cookie) {
 ENGINE_ERROR_CODE KVBucket::addBackfillItem(Item& itm,
                                             GenerateBySeqno genBySeqno,
                                             ExtendedMetaData* emd) {
-    RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
+    VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
@@ -733,7 +733,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(uint16_t vbid,
                                                      bool transfer,
                                                      bool notify_dcp,
                                                      LockHolder& vbset) {
-    RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+    VBucketPtr vb = vbMap.getBucket(vbid);
     if (vb && to == vb->getState()) {
         return ENGINE_SUCCESS;
     }
@@ -786,7 +786,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(uint16_t vbid,
                 std::make_unique<FailoverTable>(engine.getMaxFailoverEntries());
         KVShard* shard = vbMap.getShardByVbId(vbid);
 
-        RCPtr<VBucket> newvb =
+        VBucketPtr newvb =
                 makeVBucket(vbid,
                             to,
                             shard,
@@ -824,7 +824,7 @@ void KVBucket::scheduleVBStatePersist() {
 }
 
 void KVBucket::scheduleVBStatePersist(VBucket::id_type vbid) {
-    RCPtr<VBucket> vb = getVBucket(vbid);
+    VBucketPtr vb = getVBucket(vbid);
 
     if (!vb) {
         LOG(EXTENSION_LOG_WARNING,
@@ -841,7 +841,7 @@ bool KVBucket::completeVBucketDeletion(uint16_t vbid, const void* cookie) {
     bool bucketDeleting;
     {
         LockHolder lh(vbsetMutex);
-        RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+        VBucketPtr vb = vbMap.getBucket(vbid);
         bucketDeleting = !vb ||
                 vb->getState() == vbucket_state_dead ||
                 vb->isBucketDeletion();
@@ -873,7 +873,7 @@ bool KVBucket::completeVBucketDeletion(uint16_t vbid, const void* cookie) {
     return true;
 }
 
-void KVBucket::scheduleVBDeletion(RCPtr<VBucket> &vb, const void* cookie,
+void KVBucket::scheduleVBDeletion(VBucketPtr &vb, const void* cookie,
                                   double delay) {
     ExTask delTask = make_STRCPtr<VBucketMemoryDeletionTask>(engine, vb, delay);
     ExecutorPool::get()->schedule(delTask);
@@ -887,7 +887,7 @@ void KVBucket::scheduleVBDeletion(RCPtr<VBucket> &vb, const void* cookie,
 ENGINE_ERROR_CODE KVBucket::deleteVBucket(uint16_t vbid, const void* c) {
     // Lock to prevent a race condition between a failed update and add
     // (and delete).
-    RCPtr<VBucket> vb;
+    VBucketPtr vb;
     {
         LockHolder lh(vbsetMutex);
         vb = vbMap.getBucket(vbid);
@@ -909,7 +909,7 @@ ENGINE_ERROR_CODE KVBucket::deleteVBucket(uint16_t vbid, const void* c) {
 ENGINE_ERROR_CODE KVBucket::checkForDBExistence(DBFileId db_file_id) {
     std::string backend = engine.getConfiguration().getBackend();
     if (backend.compare("couchdb") == 0) {
-        RCPtr<VBucket> vb = vbMap.getBucket(db_file_id);
+        VBucketPtr vb = vbMap.getBucket(db_file_id);
         if (!vb) {
             return ENGINE_NOT_MY_VBUCKET;
         }
@@ -935,7 +935,7 @@ ENGINE_ERROR_CODE KVBucket::scheduleCompaction(uint16_t vbid, compaction_ctx c,
     }
 
     /* Obtain the vbucket so we can get the previous purge seqno */
-    RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+    VBucketPtr vb = vbMap.getBucket(vbid);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }
@@ -991,7 +991,7 @@ void KVBucket::compactInternal(compaction_ctx *ctx) {
      */
     for (auto& it : ctx->max_purged_seq) {
         const uint16_t vbid = it.first;
-        RCPtr<VBucket> vb = getVBucket(vbid);
+        VBucketPtr vb = getVBucket(vbid);
         if (!vb) {
             continue;
         }
@@ -1018,7 +1018,7 @@ bool KVBucket::doCompact(compaction_ctx *ctx, const void *cookie) {
      * the writer and compactor threads
      */
     if (concWriteCompact == false) {
-        RCPtr<VBucket> vb = getVBucket(vbid);
+        VBucketPtr vb = getVBucket(vbid);
         if (!vb) {
             err = ENGINE_NOT_MY_VBUCKET;
             engine.storeEngineSpecific(cookie, NULL);
@@ -1078,7 +1078,7 @@ bool KVBucket::resetVBucket(uint16_t vbid) {
 bool KVBucket::resetVBucket_UNLOCKED(uint16_t vbid, LockHolder& vbset) {
     bool rv(false);
 
-    RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+    VBucketPtr vb = vbMap.getBucket(vbid);
     if (vb) {
         vbucket_state_t vbstate = vb->getState();
 
@@ -1092,7 +1092,7 @@ bool KVBucket::resetVBucket_UNLOCKED(uint16_t vbid, LockHolder& vbset) {
                                  false/*transfer*/, true/*notifyDcp*/, vbset);
 
         // Copy the all cursors from the old vbucket into the new vbucket
-        RCPtr<VBucket> newvb = vbMap.getBucket(vbid);
+        VBucketPtr newvb = vbMap.getBucket(vbid);
         newvb->checkpointManager.resetCursors(cursors);
 
         rv = true;
@@ -1355,7 +1355,7 @@ void KVBucket::completeBGFetch(const DocKey& key,
       // Lock to prevent a race condition between a fetch for restore and delete
         LockHolder lh(vbsetMutex);
 
-        RCPtr<VBucket> vb = getVBucket(vbucket);
+        VBucketPtr vb = getVBucket(vbucket);
         if (vb) {
             VBucketBGFetchItem item{gcb.val, cookie, init, isMeta};
             ENGINE_ERROR_CODE status =
@@ -1377,7 +1377,7 @@ void KVBucket::completeBGFetch(const DocKey& key,
 void KVBucket::completeBGFetchMulti(uint16_t vbId,
                                     std::vector<bgfetched_item_t>& fetchedItems,
                                     ProcessClock::time_point startTime) {
-    RCPtr<VBucket> vb = getVBucket(vbId);
+    VBucketPtr vb = getVBucket(vbId);
     if (vb) {
         for (const auto& item : fetchedItems) {
             auto& key = item.first;
@@ -1409,7 +1409,7 @@ GetValue KVBucket::getInternal(const DocKey& key, uint16_t vbucket,
 
     vbucket_state_t disallowedState = (allowedState == vbucket_state_active) ?
         vbucket_state_replica : vbucket_state_active;
-    RCPtr<VBucket> vb = getVBucket(vbucket);
+    VBucketPtr vb = getVBucket(vbucket);
 
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -1453,7 +1453,7 @@ GetValue KVBucket::getRandomKey() {
     std::unique_ptr<Item> itm;
 
     while (itm == NULL) {
-        RCPtr<VBucket> vb = getVBucket(curr++);
+        VBucketPtr vb = getVBucket(curr++);
         while (!vb || vb->getState() != vbucket_state_active) {
             if (curr == start) {
                 return GetValue(NULL, ENGINE_KEY_ENOENT);
@@ -1491,7 +1491,7 @@ ENGINE_ERROR_CODE KVBucket::getMetaData(const DocKey& key,
                                         uint32_t& deleted,
                                         uint8_t& datatype)
 {
-    RCPtr<VBucket> vb = getVBucket(vbucket);
+    VBucketPtr vb = getVBucket(vbucket);
 
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -1521,7 +1521,7 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item &itm,
                                         ExtendedMetaData *emd,
                                         bool isReplication)
 {
-    RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
+    VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
@@ -1565,7 +1565,7 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item &itm,
 GetValue KVBucket::getAndUpdateTtl(const DocKey& key, uint16_t vbucket,
                                    const void *cookie, time_t exptime)
 {
-    RCPtr<VBucket> vb = getVBucket(vbucket);
+    VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
         ++stats.numNotMyVBuckets;
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
@@ -1590,7 +1590,7 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key, uint16_t vbucket,
 GetValue KVBucket::getLocked(const DocKey& key, uint16_t vbucket,
                              rel_time_t currentTime, uint32_t lockTimeout,
                              const void *cookie) {
-    RCPtr<VBucket> vb = getVBucket(vbucket);
+    VBucketPtr vb = getVBucket(vbucket);
     if (!vb || vb->getState() != vbucket_state_active) {
         ++stats.numNotMyVBuckets;
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
@@ -1606,7 +1606,7 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
                                       rel_time_t currentTime)
 {
 
-    RCPtr<VBucket> vb = getVBucket(vbucket);
+    VBucketPtr vb = getVBucket(vbucket);
     if (!vb || vb->getState() != vbucket_state_active) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
@@ -1651,7 +1651,7 @@ ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
                                         const void* cookie,
                                         struct key_stats& kstats,
                                         WantsDeleted wantsDeleted) {
-    RCPtr<VBucket> vb = getVBucket(vbucket);
+    VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }
@@ -1662,7 +1662,7 @@ ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
 
 std::string KVBucket::validateKey(const DocKey& key, uint16_t vbucket,
                                   Item &diskItem) {
-    RCPtr<VBucket> vb = getVBucket(vbucket);
+    VBucketPtr vb = getVBucket(vbucket);
     auto hbl = vb->ht.getLockedBucket(key);
     StoredValue* v = vb->fetchValidValue(
             hbl, key, WantsDeleted::Yes, TrackReference::No, QueueExpired::Yes);
@@ -1695,7 +1695,7 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
                                        Item* itm,
                                        ItemMetaData* itemMeta,
                                        mutation_descr_t* mutInfo) {
-    RCPtr<VBucket> vb = getVBucket(vbucket);
+    VBucketPtr vb = getVBucket(vbucket);
     if (!vb || vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
@@ -1735,7 +1735,7 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
                                            uint64_t bySeqno,
                                            ExtendedMetaData* emd,
                                            bool isReplication) {
-    RCPtr<VBucket> vb = getVBucket(vbucket);
+    VBucketPtr vb = getVBucket(vbucket);
 
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -1782,7 +1782,7 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
 void KVBucket::reset() {
     auto buckets = vbMap.getBuckets();
     for (auto vbid : buckets) {
-        RCPtr<VBucket> vb = getVBucket(vbid);
+        VBucketPtr vb = getVBucket(vbid);
         if (vb) {
             LockHolder lh(vb_mutexes[vb->getId()]);
             vb->ht.clear();
@@ -1804,7 +1804,7 @@ class PersistenceCallback : public Callback<mutation_result>,
                             public Callback<int> {
 public:
 
-    PersistenceCallback(const queued_item &qi, RCPtr<VBucket> &vb,
+    PersistenceCallback(const queued_item &qi, VBucketPtr &vb,
                         EPStats& s, uint64_t c)
         : queuedItem(qi), vbucket(vb), stats(s), cas(c) {
         if (!vb) {
@@ -1904,7 +1904,7 @@ public:
         }
     }
 
-    RCPtr<VBucket>& getVBucket() {
+    VBucketPtr& getVBucket() {
         return vbucket;
     }
 
@@ -1926,7 +1926,7 @@ private:
     }
 
     const queued_item queuedItem;
-    RCPtr<VBucket> vbucket;
+    VBucketPtr vbucket;
     EPStats& stats;
     uint64_t cas;
     DISALLOW_COPY_AND_ASSIGN(PersistenceCallback);
@@ -1959,7 +1959,7 @@ void KVBucket::setDeleteAllComplete() {
 
 void KVBucket::flushOneDeleteAll() {
     for (VBucketMap::id_type i = 0; i < vbMap.getSize(); ++i) {
-        RCPtr<VBucket> vb = getVBucket(i);
+        VBucketPtr vb = getVBucket(i);
         // Reset the vBucket if it's non-null and not already in the middle of
         // being created / destroyed.
         if (vb && !(vb->isBucketCreation() || vb->isBucketDeletion())) {
@@ -1986,7 +1986,7 @@ int KVBucket::flushVBucket(uint16_t vbid) {
     int items_flushed = 0;
     const hrtime_t flush_start = gethrtime();
 
-    RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+    VBucketPtr vb = vbMap.getBucket(vbid);
     if (vb) {
         std::unique_lock<std::mutex> lh(vb_mutexes[vbid], std::try_to_lock);
         if (!lh.owns_lock()) { // Try another bucket if this one is locked
@@ -2200,7 +2200,7 @@ void KVBucket::commit(KVStore& kvstore, const Item* collectionsManifest) {
         std::unordered_set<uint16_t> vbSet;
         for (auto pcbIter : pcbs) {
             PersistenceCallback *pcb = pcbIter;
-            RCPtr<VBucket>& vb = pcb->getVBucket();
+            VBucketPtr& vb = pcb->getVBucket();
             uint16_t vbid = vb->getId();
             auto found = vbSet.find(vbid);
             if (found == vbSet.end()) {
@@ -2224,7 +2224,7 @@ void KVBucket::commit(KVStore& kvstore, const Item* collectionsManifest) {
 }
 
 PersistenceCallback* KVBucket::flushOneDelOrSet(const queued_item &qi,
-                                                RCPtr<VBucket> &vb) {
+                                                VBucketPtr &vb) {
 
     if (!vb) {
         --stats.diskQueueSize;
@@ -2514,7 +2514,7 @@ void KVBucket::resetAccessScannerStartTime() {
 
 void KVBucket::setAllBloomFilters(bool to) {
     for (VBucketMap::id_type vbid = 0; vbid < vbMap.getSize(); vbid++) {
-        RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+        VBucketPtr vb = vbMap.getBucket(vbid);
         if (vb) {
             if (to) {
                 vb->setFilterStatus(BFILTER_ENABLED);
@@ -2528,7 +2528,7 @@ void KVBucket::setAllBloomFilters(bool to) {
 void KVBucket::visit(VBucketVisitor &visitor)
 {
     for (VBucketMap::id_type vbid = 0; vbid < vbMap.getSize(); ++vbid) {
-        RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+        VBucketPtr vb = vbMap.getBucket(vbid);
         if (vb) {
             visitor.visitBucket(vb);
         }
@@ -2542,7 +2542,7 @@ KVBucket::Position KVBucket::pauseResumeVisit(
 {
     uint16_t vbid = start_pos.vbucket_id;
     for (; vbid < vbMap.getSize(); ++vbid) {
-        RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+        VBucketPtr vb = vbMap.getBucket(vbid);
         if (vb) {
             bool paused = !visitor.visit(vbid, vb->ht);
             if (paused) {
@@ -2590,7 +2590,7 @@ bool VBCBAdaptor::run(void) {
         TRACE_EVENT("ep-engine/task", "VBCBAdaptor", vbList.front());
         currentvb.store(vbList.front());
         updateDescription();
-        RCPtr<VBucket> vb = store->getVBucket(currentvb);
+        VBucketPtr vb = store->getVBucket(currentvb);
         if (vb) {
             if (visitor->pauseVisitor()) {
                 snooze(sleepTime);
@@ -2695,7 +2695,7 @@ ENGINE_ERROR_CODE KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
         return ENGINE_TMPFAIL; // Reschedule a vbucket rollback task.
     }
 
-    RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+    VBucketPtr vb = vbMap.getBucket(vbid);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }
@@ -2720,7 +2720,7 @@ ENGINE_ERROR_CODE KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
         }
 
         if (resetVBucket_UNLOCKED(vbid, vbset)) {
-            RCPtr<VBucket> newVb = vbMap.getBucket(vbid);
+            VBucketPtr newVb = vbMap.getBucket(vbid);
             newVb->incrRollbackItemCount(prevHighSeqno);
             return ENGINE_SUCCESS;
         }
@@ -2759,7 +2759,7 @@ size_t KVBucket::getReplicaResidentRatio() const {
 }
 
 ENGINE_ERROR_CODE KVBucket::forceMaxCas(uint16_t vbucket, uint64_t cas) {
-    RCPtr<VBucket> vb = vbMap.getBucket(vbucket);
+    VBucketPtr vb = vbMap.getBucket(vbucket);
     if (vb) {
         vb->forceMaxCas(cas);
         return ENGINE_SUCCESS;

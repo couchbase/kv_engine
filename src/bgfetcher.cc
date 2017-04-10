@@ -116,7 +116,7 @@ bool BgFetcher::run(GlobalTask *task) {
     }
 
     for (const uint16_t vbId : bg_vbs) {
-        RCPtr<VBucket> vb = shard->getBucket(vbId);
+        VBucketPtr vb = shard->getBucket(vbId);
         if (vb) {
             // Requeue the bg fetch task if vbucket DB file is not created yet.
             if (vb->isBucketCreation()) {
@@ -154,7 +154,7 @@ bool BgFetcher::run(GlobalTask *task) {
 
 bool BgFetcher::pendingJob() const {
     for (const auto vbid : shard->getVBuckets()) {
-        RCPtr<VBucket> vb = shard->getBucket(vbid);
+        VBucketPtr vb = shard->getBucket(vbid);
         if (vb && vb->hasPendingBGFetchItems()) {
             return true;
         }

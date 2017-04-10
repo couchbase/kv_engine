@@ -80,7 +80,7 @@ public:
 
     virtual ~BackFillVisitor() {}
 
-    void visitBucket(RCPtr<VBucket> &vb) override;
+    void visitBucket(VBucketPtr &vb) override;
 
     void complete(void) override;
 

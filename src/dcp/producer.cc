@@ -226,7 +226,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         return ENGINE_DISCONNECT;
     }
 
-    RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
+    VBucketPtr vb = engine_.getVBucket(vbucket);
     if (!vb) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
             "this vbucket doesn't exist", logHeader(), vbucket);
@@ -408,7 +408,7 @@ ENGINE_ERROR_CODE DcpProducer::getFailoverLog(uint32_t opaque, uint16_t vbucket,
         return ENGINE_DISCONNECT;
     }
 
-    RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
+    VBucketPtr vb = engine_.getVBucket(vbucket);
     if (!vb) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Get Failover Log failed "
             "because this vbucket doesn't exist", logHeader(), vbucket);

@@ -49,7 +49,7 @@ CacheCallback::CacheCallback(EventuallyPersistentEngine& e, active_stream_t& s)
 }
 
 void CacheCallback::callback(CacheLookup& lookup) {
-    RCPtr<VBucket> vb =
+    VBucketPtr vb =
             engine_.getKVBucket()->getVBucket(lookup.getVBucketId());
     if (!vb) {
         setStatus(ENGINE_SUCCESS);

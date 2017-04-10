@@ -50,7 +50,7 @@ public:
     }
 
     // Expose underlying protected ActiveStream methods as public
-    void public_getOutstandingItems(RCPtr<VBucket>& vb,
+    void public_getOutstandingItems(VBucketPtr& vb,
                                     std::vector<queued_item>& items) {
         getOutstandingItems(vb, items);
     }

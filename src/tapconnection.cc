@@ -443,7 +443,7 @@ void TapProducer::setVBucketFilter(const std::vector<uint16_t> &vbuckets,
         // Remove TAP cursors from the vbuckets that don't belong to the new vbucket filter.
         for (std::set<uint16_t>::const_iterator it = vset.begin(); it != vset.end(); ++it) {
             if (vbucketFilter(*it)) {
-                RCPtr<VBucket> vb = vbMap.getBucket(*it);
+                VBucketPtr vb = vbMap.getBucket(*it);
                 if (vb) {
                     vb->checkpointManager.removeCursor(getName());
                 }
@@ -1256,7 +1256,7 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
         std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.begin();
         for (; it != checkpointState_.end(); ++it) {
             uint16_t vbid = it->first;
-            RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+            VBucketPtr vb = vbuckets.getBucket(vbid);
             if (!vb || (vb->getState() == vbucket_state_dead && !doTakeOver)) {
                 logger.log(EXTENSION_LOG_WARNING,
                            "Skip vbucket %d checkpoint queue as it's in invalid state.",
@@ -1361,7 +1361,7 @@ size_t TapProducer::getRemainingOnCheckpoints_UNLOCKED() {
     std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.begin();
     for (; it != checkpointState_.end(); ++it) {
         uint16_t vbid = it->first;
-        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+        VBucketPtr vb = vbuckets.getBucket(vbid);
         if (!vb || (vb->getState() == vbucket_state_dead && !doTakeOver)) {
             continue;
         }
@@ -1376,7 +1376,7 @@ bool TapProducer::hasNextFromCheckpoints_UNLOCKED() {
     std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.begin();
     for (; it != checkpointState_.end(); ++it) {
         uint16_t vbid = it->first;
-        RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+        VBucketPtr vb = vbuckets.getBucket(vbid);
         if (!vb || (vb->getState() == vbucket_state_dead && !doTakeOver)) {
             continue;
         }
@@ -1399,7 +1399,7 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
     // Skip all the vbuckets that are (1) receiving backfill from their master nodes
     // or (2) already scheduled for backfill.
     for (; vbit != vblist.end(); ++vbit) {
-        RCPtr<VBucket> vb = vbuckets.getBucket(*vbit);
+        VBucketPtr vb = vbuckets.getBucket(*vbit);
         if (!vb || vb->isBackfillPhase() ||
             backfillVBuckets.find(*vbit) != backfillVBuckets.end()) {
             continue;
@@ -1412,7 +1412,7 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
 
     std::vector<uint16_t>::iterator it = new_vblist.begin();
     for (; it != new_vblist.end(); ++it) {
-        RCPtr<VBucket> vb = vbuckets.getBucket(*it);
+        VBucketPtr vb = vbuckets.getBucket(*it);
         if (!vb) {
             logger.log(EXTENSION_LOG_WARNING,
                        "VBucket %d not exist for backfill. Skip it.", *it);
@@ -1443,7 +1443,7 @@ VBucketEvent TapProducer::checkDumpOrTakeOverCompletion() {
     if (mayCompleteDumpOrTakeover_UNLOCKED()) {
         ev = nextVBucketLowPriority_UNLOCKED();
         if (ev.event != TAP_PAUSE) {
-            RCPtr<VBucket> vb = engine_.getVBucket(ev.vbucket);
+            VBucketPtr vb = engine_.getVBucket(ev.vbucket);
             vbucket_state_t myState(vb ? vb->getState() : vbucket_state_dead);
             if (ev.event != TAP_VBUCKET_SET) {
                 throw std::logic_error("TapProducer::checkDumpOrTakeOverCompletion: "
@@ -1697,7 +1697,7 @@ void TapProducer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpo
     const VBucketMap &vbuckets = engine_.getKVBucket()->getVBuckets();
     for (VBucketMap::id_type vbid = 0; vbid < vbuckets.getSize(); ++vbid) {
         if (vbucketFilter(vbid)) {
-            RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
+            VBucketPtr vb = vbuckets.getBucket(vbid);
             if (!vb) {
                 checkpointState_.erase(vbid);
                 logger.log(EXTENSION_LOG_WARNING,
@@ -2013,7 +2013,7 @@ void Consumer::addStats(ADD_STAT add_stat, const void *c) {
 
 void Consumer::setBackfillPhase(bool isBackfill, uint16_t vbucket) {
     const VBucketMap &vbuckets = engine_.getKVBucket()->getVBuckets();
-    RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
+    VBucketPtr vb = vbuckets.getBucket(vbucket);
     if (!(vb && supportCheckpointSync_)) {
         return;
     }
@@ -2037,7 +2037,7 @@ void Consumer::setBackfillPhase(bool isBackfill, uint16_t vbucket) {
 
 bool Consumer::isBackfillPhase(uint16_t vbucket) {
     const VBucketMap &vbuckets = engine_.getKVBucket()->getVBuckets();
-    RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
+    VBucketPtr vb = vbuckets.getBucket(vbucket);
     if (vb && vb->isBackfillPhase()) {
         return true;
     }
@@ -2137,7 +2137,7 @@ void Consumer::processedEvent(uint16_t event, ENGINE_ERROR_CODE ret)
 
 void Consumer::checkVBOpenCheckpoint(uint16_t vbucket) {
     const VBucketMap &vbuckets = engine_.getKVBucket()->getVBuckets();
-    RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
+    VBucketPtr vb = vbuckets.getBucket(vbucket);
     if (!vb || vb->getState() == vbucket_state_active) {
         return;
     }
@@ -2154,7 +2154,7 @@ TapConsumer::TapConsumer(EventuallyPersistentEngine &engine, const void *cookie,
 bool TapConsumer::processCheckpointCommand(uint8_t event, uint16_t vbucket,
                                            uint64_t checkpointId) {
     const VBucketMap &vbuckets = engine_.getKVBucket()->getVBuckets();
-    RCPtr<VBucket> vb = vbuckets.getBucket(vbucket);
+    VBucketPtr vb = vbuckets.getBucket(vbucket);
     if (!vb) {
         return false;
     }
