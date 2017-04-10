@@ -919,6 +919,11 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             "Failed set.");
     h1->release(h, NULL, it);
 
+    // When run under full eviction, the total item stats are set from the
+    // flusher. So we need to wait for it to finish before checking the
+    // total number of items.
+    wait_for_flusher_to_settle(h, h1);
+
     std::stringstream ss;
     ss << "curr_items stat should be still 1 after ";
     ss << "overwriting the key that was expired, but not purged yet";
