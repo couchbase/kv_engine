@@ -72,7 +72,7 @@ UserEntry::UserEntry(const cJSON& root) {
 
     it = cJSON_GetObjectItem(json, "type");
     if (it == nullptr) {
-        domain = cb::sasl::Domain::Builtin;
+        domain = cb::sasl::Domain::Local;
     } else if (it->type == cJSON_String) {
         domain = cb::sasl::to_domain(it->valuestring);
     } else {

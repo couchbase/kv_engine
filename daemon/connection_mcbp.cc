@@ -262,7 +262,7 @@ bool McbpConnection::tryAuthFromSslCert(const std::string& userName) {
         return true;
     }
     username.assign(userName);
-    domain = cb::sasl::Domain::Builtin;
+    domain = cb::sasl::Domain::Local;
 
     try {
         auto context =

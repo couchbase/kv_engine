@@ -134,7 +134,7 @@ cbsasl_error_t PlainServerBackend::start(cbsasl_conn_t* conn,
     if (!find_user(username, user)) {
         auto ret = check(conn, username, userpw);
         if (ret == CBSASL_OK) {
-            conn->server->domain = cb::sasl::Domain::Saslauthd;
+            conn->server->domain = cb::sasl::Domain::External;
         }
         return ret;
     }

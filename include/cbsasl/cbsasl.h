@@ -342,12 +342,12 @@ enum class Domain : uint8_t {
      * The user is defined locally on the node and authenticated
      * through `cbsasl` (or by using SSL certificates)
      */
-    Builtin,
+    Local,
     /**
      * The user is defined somewhere else but authenticated through
      * `saslauthd`
      */
-    Saslauthd
+    External
 };
 
 CBSASL_PUBLIC_API

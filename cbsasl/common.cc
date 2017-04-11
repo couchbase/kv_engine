@@ -34,10 +34,10 @@ bool cbsasl_use_saslauthd() {
 
 CBSASL_PUBLIC_API
 cb::sasl::Domain cb::sasl::to_domain(const std::string& domain) {
-    if (domain == "builtin") {
-        return cb::sasl::Domain::Builtin;
-    } else if (domain == "saslauthd") {
-        return cb::sasl::Domain::Saslauthd;
+    if (domain == "builtin" || domain == "local") {
+        return cb::sasl::Domain::Local;
+    } else if (domain == "saslauthd" || domain == "external") {
+        return cb::sasl::Domain::External;
     }
     throw std::invalid_argument("cb::sasl::to_domain: invalid domain " +
                                 domain);
@@ -46,10 +46,10 @@ cb::sasl::Domain cb::sasl::to_domain(const std::string& domain) {
 CBSASL_PUBLIC_API
 std::string cb::sasl::to_string(cb::sasl::Domain domain) {
     switch (domain) {
-    case cb::sasl::Domain::Builtin:
-        return "builtin";
-    case cb::sasl::Domain::Saslauthd:
-        return "saslauthd";
+    case cb::sasl::Domain::Local:
+        return "local";
+    case cb::sasl::Domain::External:
+        return "external";
     }
     throw std::invalid_argument("cb::sasl::to_string: invalid domain " +
                                 std::to_string(int(domain)));

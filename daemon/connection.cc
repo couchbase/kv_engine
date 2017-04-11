@@ -60,7 +60,7 @@ Connection::Connection(SOCKET sfd, event_base* b)
       internal(false),
       authenticated(false),
       username("unknown"),
-      domain(cb::sasl::Domain::Builtin),
+      domain(cb::sasl::Domain::Local),
       nodelay(false),
       refcount(0),
       engine_storage(nullptr),
@@ -459,7 +459,7 @@ void Connection::updateDescription() {
         }
         description += getUsername();
 
-        if (domain == cb::sasl::Domain::Saslauthd) {
+        if (domain == cb::sasl::Domain::External) {
             description += " (LDAP)";
         }
         description += ")";

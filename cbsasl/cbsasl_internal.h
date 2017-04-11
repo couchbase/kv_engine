@@ -147,7 +147,7 @@ public:
     /**
      * The domain where the user is defined
      */
-    cb::sasl::Domain domain{cb::sasl::Domain::Builtin};
+    cb::sasl::Domain domain{cb::sasl::Domain::Local};
 
     /**
      * The username being bound to this SASL authentication
