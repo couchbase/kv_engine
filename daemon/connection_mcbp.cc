@@ -271,7 +271,9 @@ bool McbpConnection::tryAuthFromSslCert(const std::string& userName) {
         setInternal(context.second);
         LOG_INFO(this, "%u: Client %s authenticated as '%s' via X509 certificate",
                  getId(), getPeername().c_str(), getUsername());
-        saslAuthDisabled = true;
+        // Connections authenticated by using X.509 certificates should not
+        // be able to use SASL to change it's identity.
+        saslAuthEnabled = false;
     } catch (const cb::rbac::NoSuchUserException& e) {
         setAuthenticated(false);
         LOG_WARNING(this,
@@ -1144,7 +1146,7 @@ static cJSON* event_mask_to_json(const short mask) {
 cJSON* McbpConnection::toJSON() const {
     cJSON* obj = Connection::toJSON();
     if (obj != nullptr) {
-        json_add_bool_to_object(obj, "sasl_disabled", saslAuthDisabled);
+        json_add_bool_to_object(obj, "sasl_enabled", saslAuthEnabled);
         json_add_bool_to_object(obj, "tap", isTAP());
         json_add_bool_to_object(obj, "dcp", isDCP());
         json_add_bool_to_object(obj, "dcp_xattr_aware", isDcpXattrAware());

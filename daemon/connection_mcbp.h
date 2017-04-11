@@ -889,12 +889,12 @@ public:
     protocol_binary_response_status validateCommand(protocol_binary_command command);
 
     /**
-     * Is SASL disabled for this connection? (connection authenticated with
-     * SSL certificates will disable the possibility re-authenticate over
+     * Is SASL disabled for this connection or not? (connection authenticated
+     * with SSL certificates will disable the possibility re-authenticate over
      * SASL)
      */
-    bool isSaslAuthDisabled() const {
-        return saslAuthDisabled;
+    bool isSaslAuthEnabled() const {
+        return saslAuthEnabled;
     }
 
 protected:
@@ -1099,7 +1099,7 @@ protected:
      * It is possible to disable the SASL authentication for some
      * connections after they've been established.
      */
-    bool saslAuthDisabled = false;
+    bool saslAuthEnabled = true;
 };
 
 /*

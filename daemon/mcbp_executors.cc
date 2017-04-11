@@ -1144,7 +1144,7 @@ static void quitq_executor(McbpConnection* c, void*) {
 }
 
 static void sasl_list_mech_executor(McbpConnection* c, void*) {
-    if (c->isSaslAuthDisabled()) {
+    if (!c->isSaslAuthEnabled()) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
         return;
     }
@@ -1180,7 +1180,7 @@ static void sasl_list_mech_executor(McbpConnection* c, void*) {
 }
 
 static void sasl_auth_executor(McbpConnection* c, void* packet) {
-    if (c->isSaslAuthDisabled()) {
+    if (!c->isSaslAuthEnabled()) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
         return;
     }
