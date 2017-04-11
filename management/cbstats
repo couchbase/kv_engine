@@ -58,7 +58,7 @@ def stats_formatter(stats, prefix=" ", cmp=None):
                 print "%s%s%s" % (prefix, s.ljust(longest), val)
 
 
-def table_formatter(columns, data, sort_by=None):
+def table_formatter(columns, data, sort_key=None, reverse=False):
     """Formats data in a top-style table.
 
     Takes a list of Columns (holding a display name and alignment), and a list
@@ -80,21 +80,8 @@ def table_formatter(columns, data, sort_by=None):
     template += ("{{{0}:>{1}}}  ".format(len(columns) - 1, column_widths[-1])
                 if columns[-1].ralign else ("{" + str(len(columns) - 1) + "}"))
 
-    sort_key = None
-
-    if sort_by is not None:
-        if type(sort_by) is int or (type(sort_by) is str and sort_by.isdigit()):
-            sort_key = itemgetter(int(sort_by))
-
-        elif type(sort_by) is str:
-            sort_by = sort_by.lower()
-            for index, column in enumerate(columns):
-                if sort_by == column.display_name.lower():
-                    sort_key = itemgetter(index)
-                    break
-
     print template.format(*columns), "\n"
-    for row in sorted(data, key=sort_key):
+    for row in sorted(data, key=sort_key, reverse=reverse):
         print template.format(*row)
 
 class TaskStat(object):
@@ -121,8 +108,9 @@ class TaskStat(object):
         return self.display_value
 
 class Column(object):
-    def __init__(self, display_name, ralign):
+    def __init__(self, display_name, invert_sort, ralign):
         self.display_name = display_name
+        self.invert_sort = invert_sort
         self.ralign = ralign
 
     def __str__(self):
@@ -138,7 +126,7 @@ def ps_time_stat(t):
     t = t / 1000
     return TaskStat(ps_time_label(t), t)
 
-def tasks_stats_formatter(stats, sort_by=None, *args):
+def tasks_stats_formatter(stats, sort_by=None, reverse=False, *args):
     """Formats the data from ep_tasks in a top-like display"""
     if stats:
         if output_json:
@@ -164,7 +152,7 @@ def tasks_stats_formatter(stats, sort_by=None, *args):
                 task["waketime_ns"] = (ps_time_stat(
                                         (task["waketime_ns"] - cur_time))
                                     if task["waketime_ns"] < BIG_VALUE
-                                    else TaskStat("*", task["waketime_ns"]))
+                                    else TaskStat("inf", task["waketime_ns"]))
 
                 task["total_runtime_ns"] = ps_time_stat(
                                                    task["total_runtime_ns"])
@@ -198,17 +186,17 @@ def tasks_stats_formatter(stats, sort_by=None, *args):
 
             table_columns = [
                     (key, Column(*options)) for key, options in (
-                    # Stat            Display Name  Right Align
-                    ('tid',              ('TID',         True )),
-                    ('priority',         ('Pri',         True )),
-                    ('state',            ('St',          False)),
-                    ('bucket',           ('Bucket',      False)),
-                    ('waketime_ns',      ('SleepFor',    True )),
-                    ('runtime',          ('Runtime',     True )),
-                    ('total_runtime_ns', ('TotalRun',    True )),
-                    ('type',             ('Type',        False)),
-                    ('name',             ('Name',        False)),
-                    ('description',      ('Description', False)),
+                    # Stat            Display Name, Invert Sort, Right Align
+                    ('tid',              ('TID',      False, True )),
+                    ('priority',         ('Pri',      False, True )),
+                    ('state',            ('St',       False, False)),
+                    ('bucket',           ('Bucket',   False, False)),
+                    ('waketime_ns',      ('SleepFor', True,  True )),
+                    ('runtime',          ('Runtime',  True,  True )),
+                    ('total_runtime_ns', ('TotalRun', True,  True )),
+                    ('type',             ('Type',     False, False)),
+                    ('name',             ('Name',     False, False)),
+                    ('description',      ('Descr.',   False, False)),
                 )]
 
             table_column_keys = [x[0] for x in table_columns]
@@ -220,8 +208,24 @@ def tasks_stats_formatter(stats, sort_by=None, *args):
                 table_data.append(tuple(row[key]
                                         for key in table_column_keys))
 
+            sort_key = None
+            if sort_by is not None:
+                if isinstance(sort_by, int):
+                    sort_key = itemgetter(sort_by)
 
-            table_formatter(table_column_values, table_data, sort_by)
+                elif isinstance(sort_by, basestring):
+                    if sort_by.isdigit():
+                        sort_key = itemgetter(int(sort_by))
+                    else:
+                        sort_by = sort_by.lower()
+                        for index, column in enumerate(table_column_values):
+                            if sort_by == column.display_name.lower():
+                                sort_key = itemgetter(index)
+                                reverse ^= column.invert_sort
+                                break
+
+            table_formatter(table_column_values, table_data,
+                            sort_key, reverse=reverse)
 
 
 def ps_time_label(microseconds):
