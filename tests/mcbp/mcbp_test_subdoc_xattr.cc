@@ -224,6 +224,11 @@ TEST_P(SubdocXattrSingleTest, ValidateFlags) {
     flags |= SUBDOC_FLAG_XATTR_PATH;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 
+    // Check that Add & Mkdoc can't be used together
+    docFlags = mcbp::subdoc::doc_flag::Mkdoc | mcbp::subdoc::doc_flag::Add;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    docFlags = mcbp::subdoc::doc_flag::AccessDeleted;
+
     flags |= SUBDOC_FLAG_EXPAND_MACROS;
     if (allowMacroExpansion()) {
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());

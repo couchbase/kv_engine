@@ -242,6 +242,13 @@ TEST_F(SubdocMultiLookupTest, InvalidLocationFlags) {
         request.addDocFlag(mcbp::subdoc::doc_flag::Mkdoc);
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
         request.clearDocFlags();
+
+        request.addDocFlag(mcbp::subdoc::doc_flag::Add);
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+
+        request.addDocFlag(mcbp::subdoc::doc_flag::Mkdoc);
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+        request.clearDocFlags();
     }
 }
 
@@ -746,6 +753,17 @@ TEST_F(SubdocMultiMutationTest, InvalidLocationOpcodes) {
                   validate(request))
                 << "Failed for cmd:" << memcached_opcode_2_text(ii);
     }
+}
+
+TEST_F(SubdocMultiMutationTest, InvalidCas) {
+    // Check that a non 0 CAS is rejected
+    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                         protocol_binary_subdoc_flag(0),
+                         "path",
+                         "value"});
+    request.setCas(12234);
+    request.addDocFlag(mcbp::subdoc::doc_flag::Add);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
 }
 
 } // namespace BinaryProtocolValidator

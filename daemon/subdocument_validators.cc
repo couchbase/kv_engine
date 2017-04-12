@@ -27,6 +27,12 @@
 #include "xattr/key_validator.h"
 #include "xattr/utils.h"
 
+static inline bool validMutationSemantics(mcbp::subdoc::doc_flag a) {
+    // Can't have both the Add flag and Mkdoc flag set as this doesn't mean
+    // anything at the moment.
+    return !(hasAdd(a) && hasMkdoc(a));
+}
+
 static bool validate_macro(const cb::const_byte_buffer& value) {
     return ((value.len == cb::xattr::macros::CAS.len) &&
             std::memcmp(value.buf,
@@ -142,6 +148,16 @@ static protocol_binary_response_status subdoc_validator(const Cookie& cookie,
     if ((doc_flags & ~traits.valid_doc_flags) != mcbp::subdoc::doc_flag::None) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
+
+    // If the Add flag is set, check the cas is 0
+    if (hasAdd(doc_flags) && req->message.header.request.cas != 0) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    if (!validMutationSemantics(doc_flags)) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
     cb::const_byte_buffer path{req->message.header.bytes +
                                sizeof(req->message.header.bytes) +
                                keylen + extlen,
@@ -386,6 +402,16 @@ static protocol_binary_response_status subdoc_multi_validator(const Cookie& cook
     // Can only decode only after we've checked the extlen is valid
     const mcbp::subdoc::doc_flag doc_flags =
             subdoc_decode_doc_flags(req, SubdocPath::MULTI);
+
+    // If an add command, check that the CAS is 0:
+    if (hasAdd(doc_flags) && req->request.cas != 0) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    // Check we aren't using Add and Mkdoc together
+    if (!validMutationSemantics(doc_flags)) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
 
     // 2. Check that the lookup operation specs are valid.
     //    As an "optimization" you can't mix and match the xattr and the

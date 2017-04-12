@@ -144,6 +144,80 @@ TEST_P(XattrTest, GetBodyInMultiMutation) {
               multiResp.getStatus());
 }
 
+TEST_P(XattrTest, AddBodyAndXattr) {
+    // Check that we can use the Add doc flag to create a new document
+
+    // Get rid of any existing doc
+    getConnection().remove(name, 0);
+
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+    cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    xattr,
+                    xattrVal);
+    cmd.addMutation(PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE, "", value);
+    cmd.addDocFlag(mcbp::subdoc::doc_flag::Add);
+
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiMutationResponse multiResp;
+    conn.recvResponse(multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+}
+
+TEST_P(XattrTest, AddBodyAndXattrAlreadyExistDoc) {
+    // Check that usage of the Add flag will return EEXISTS if a key already
+    // exists
+
+    // Make sure a doc exists
+    setBodyAndXattr("{\"TestField\":56788}", "4543");
+
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+    cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    xattr,
+                    xattrVal);
+    cmd.addMutation(PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE, "", value);
+    cmd.addDocFlag(mcbp::subdoc::doc_flag::Add);
+
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiMutationResponse multiResp;
+    conn.recvResponse(multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, multiResp.getStatus());
+}
+
+TEST_P(XattrTest, AddBodyAndXattrInvalidDocFlags) {
+    // Check that usage of the Add flag will return EINVAL if the mkdoc doc
+    // flag is also passed. The preexisting document exists to check that
+    // we fail with the right error. i.e. we shouldn't even be fetching
+    // the document from the engine if these two flags are set.
+
+    // Make sure a doc exists
+    setBodyAndXattr("{\"TestField\":56788}", "4543");
+
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+    cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    xattr,
+                    xattrVal);
+    cmd.addMutation(PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE, "", value);
+    cmd.addDocFlag(mcbp::subdoc::doc_flag::Add);
+    cmd.addDocFlag(mcbp::subdoc::doc_flag::Mkdoc);
+
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiMutationResponse multiResp;
+    conn.recvResponse(multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, multiResp.getStatus());
+}
+
 TEST_P(XattrTest, TestSeqnoMacroExpansion) {
     // Test that we don't replace it when we don't send EXPAND_MACROS
     auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,

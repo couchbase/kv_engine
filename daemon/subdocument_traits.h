@@ -102,7 +102,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SET>() {
             Subdoc::Command::INVALID,
             PROTOCOL_BINARY_CMD_SET,
             SUBDOC_FLAG_NONE,
-            mcbp::subdoc::doc_flag::Mkdoc,
+            mcbp::subdoc::doc_flag::Mkdoc | mcbp::subdoc::doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ true,
             /*response_has_value*/ false,
@@ -140,13 +140,13 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>() {
 
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>() {
+    using namespace mcbp::subdoc;
     return {CommandScope::SubJSON,
             Subdoc::Command::DICT_ADD,
             PROTOCOL_BINARY_CMD_INVALID,
             SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_XATTR_PATH |
                     SUBDOC_FLAG_EXPAND_MACROS,
-            mcbp::subdoc::doc_flag::Mkdoc |
-                    mcbp::subdoc::doc_flag::AccessDeleted,
+            doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ false,
             /*response_has_value*/ false,
@@ -156,13 +156,13 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>() {
 
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>() {
+    using namespace mcbp::subdoc;
     return {CommandScope::SubJSON,
             Subdoc::Command::DICT_UPSERT,
             PROTOCOL_BINARY_CMD_INVALID,
             SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_XATTR_PATH |
                     SUBDOC_FLAG_EXPAND_MACROS,
-            mcbp::subdoc::doc_flag::Mkdoc |
-                    mcbp::subdoc::doc_flag::AccessDeleted,
+            doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ false,
             /*response_has_value*/ false,
@@ -191,7 +191,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>() {
             PROTOCOL_BINARY_CMD_INVALID,
             SUBDOC_FLAG_NONE | SUBDOC_FLAG_XATTR_PATH |
                     SUBDOC_FLAG_EXPAND_MACROS,
-            mcbp::subdoc::doc_flag::AccessDeleted,
+            mcbp::subdoc::doc_flag::AccessDeleted | mcbp::subdoc::doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ false,
             /*response_has_value*/ false,
@@ -201,12 +201,12 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>() {
 
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>() {
+    using namespace mcbp::subdoc;
     return SubdocCmdTraits{CommandScope::SubJSON,
             Subdoc::Command::ARRAY_APPEND,
             PROTOCOL_BINARY_CMD_INVALID,
             SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS,
-            mcbp::subdoc::doc_flag::Mkdoc |
-                                   mcbp::subdoc::doc_flag::AccessDeleted,
+            doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ true,
             /*response_has_value*/ false,
@@ -216,12 +216,12 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>() 
 
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>() {
-     return SubdocCmdTraits{CommandScope::SubJSON,
+    using namespace mcbp::subdoc;
+    return SubdocCmdTraits{CommandScope::SubJSON,
             Subdoc::Command::ARRAY_PREPEND,
             PROTOCOL_BINARY_CMD_INVALID,
             SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS,
-            mcbp::subdoc::doc_flag::Mkdoc |
-                                    mcbp::subdoc::doc_flag::AccessDeleted,
+            doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ true,
             /*response_has_value*/ false,
@@ -236,7 +236,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>() {
             PROTOCOL_BINARY_CMD_INVALID,
             SUBDOC_FLAG_NONE | SUBDOC_FLAG_XATTR_PATH |
                     SUBDOC_FLAG_EXPAND_MACROS,
-            mcbp::subdoc::doc_flag::AccessDeleted,
+            mcbp::subdoc::doc_flag::AccessDeleted | mcbp::subdoc::doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ false,
             /*response_has_value*/ false,
@@ -246,12 +246,12 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>() {
 
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>() {
+    using namespace mcbp::subdoc;
     return {CommandScope::SubJSON,
             Subdoc::Command::ARRAY_ADD_UNIQUE,
             PROTOCOL_BINARY_CMD_INVALID,
             SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_XATTR_PATH,
-            mcbp::subdoc::doc_flag::Mkdoc |
-                    mcbp::subdoc::doc_flag::AccessDeleted,
+            doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ true,
             /*response_has_value*/ false,
@@ -261,12 +261,12 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>()
 
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>() {
+    using namespace mcbp::subdoc;
     return {CommandScope::SubJSON,
             Subdoc::Command::COUNTER,
             PROTOCOL_BINARY_CMD_INVALID,
             SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_XATTR_PATH,
-            mcbp::subdoc::doc_flag::Mkdoc |
-                    mcbp::subdoc::doc_flag::AccessDeleted,
+            doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ false,
             /*response_has_value*/ true,
@@ -308,7 +308,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION>() {
             Subdoc::Command::INVALID,
             PROTOCOL_BINARY_CMD_INVALID,
             SUBDOC_FLAG_NONE,
-            mcbp::subdoc::doc_flag::Mkdoc,
+            mcbp::subdoc::doc_flag::Mkdoc | mcbp::subdoc::doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ true,
             /*response_has_value*/ true,

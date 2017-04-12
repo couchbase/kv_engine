@@ -558,3 +558,53 @@ TEST_P(McdTestappTest, SubdocMultiMutation_Flags)
 
     delete_object("array");
 }
+
+// Test that you can create a document with the Add doc flag
+TEST_P(McdTestappTest, SubdocMultiMutation_AddDocFlag) {
+    SubdocMultiMutationCmd mutation;
+    mutation.addDocFlag(mcbp::subdoc::doc_flag::Add);
+    mutation.key = "AddDocTest";
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                              SUBDOC_FLAG_NONE,
+                              "test",
+                              "56"});
+    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+    validate_object("AddDocTest", "{\"test\":56}");
+
+    delete_object("AddDocTest");
+}
+
+// Test that a command with an Add doc flag fails if the key exists
+TEST_P(McdTestappTest, SubdocMultiMutation_AddDocFlagEEXists) {
+    store_object("AddDocExistsTest", "[1,2,3,4]");
+
+    SubdocMultiMutationCmd mutation;
+    mutation.addDocFlag(mcbp::subdoc::doc_flag::Add);
+    mutation.key = "AddDocExistsTest";
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                              SUBDOC_FLAG_NONE,
+                              "test",
+                              "56"});
+    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, {});
+
+    delete_object("AddDocExistsTest");
+
+    // Now the doc is deleted, we should be able to Add successfully
+    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+    validate_object("AddDocExistsTest", "{\"test\":56}");
+
+    delete_object("AddDocExistsTest");
+}
+
+// An Addd doesn't make sense with a cas, check that it's rejected
+TEST_P(McdTestappTest, SubdocMultiMutation_AddDocFlagInavlidCas) {
+    SubdocMultiMutationCmd mutation;
+    mutation.addDocFlag(mcbp::subdoc::doc_flag::Add);
+    mutation.key = "AddDocCas";
+    mutation.cas = 123456;
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                              SUBDOC_FLAG_NONE,
+                              "test",
+                              "56"});
+    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_EINVAL, {});
+}

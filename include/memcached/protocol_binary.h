@@ -602,7 +602,7 @@ extern "C"
     namespace mcbp {
     namespace subdoc {
     /**
-     * Definitions of sub-document doc flags (this is a bitmap)
+     * Definitions of sub-document doc flags (this is a bitmap).
      */
 
     enum class doc_flag : uint8_t {
@@ -610,13 +610,16 @@ extern "C"
 
         /**
          * (Mutation) Create the document if it does not exist. Implies
-         * SUBDOC_FLAG_MKDIR_P.
+         * SUBDOC_FLAG_MKDIR_P and Set (upsert) mutation semantics. Not valid
+         * with Add.
          */
         Mkdoc = 0x1,
 
         /**
-         * Reserving 0x02 for a Replace flag
+         * (Mutation) Add the document only if it does not exist. Implies
+         * SUBDOC_FLAG_MKDIR_P. Not valid with Mkdoc.
          */
+        Add = 0x02,
 
         /**
          * Allow access to XATTRs for deleted documents (instead of
@@ -2252,6 +2255,8 @@ inline std::string to_string(mcbp::subdoc::doc_flag a) {
         return "Mkdoc";
     case mcbp::subdoc::doc_flag::AccessDeleted:
         return "AccessDeleted";
+    case mcbp::subdoc::doc_flag::Add:
+        return "Add";
     }
     return std::to_string(static_cast<uint8_t>(a));
 }
@@ -2265,8 +2270,15 @@ inline bool hasMkdoc(mcbp::subdoc::doc_flag a) {
     return (a & mcbp::subdoc::doc_flag::Mkdoc) != mcbp::subdoc::doc_flag::None;
 }
 
+inline bool hasAdd(mcbp::subdoc::doc_flag a) {
+    return (a & mcbp::subdoc::doc_flag::Add) != mcbp::subdoc::doc_flag::None;
+}
+
 inline bool isNone(mcbp::subdoc::doc_flag a) {
     return a == mcbp::subdoc::doc_flag::None;
+}
+inline bool impliesMkdir_p(mcbp::subdoc::doc_flag a) {
+    return hasAdd(a) || hasMkdoc(a);
 }
 }
 

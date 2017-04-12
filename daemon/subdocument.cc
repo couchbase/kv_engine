@@ -133,10 +133,13 @@ static void create_single_path_context(SubdocCmdContext& context,
         context.do_allow_deleted_docs = true;
     }
 
-    // If Mkdoc is specified, this implies MKDIR_P, ensure that it's set here
-    if (hasMkdoc(doc_flags)) {
+    // If Mkdoc or Add is specified, this implies MKDIR_P, ensure that it's set
+    // here
+    if (impliesMkdir_p(doc_flags)) {
         flags = flags | SUBDOC_FLAG_MKDIR_P;
     }
+
+    context.setMutationSemantics(doc_flags);
 
     // Decode as single path; add a single operation to the context.
     if (traits.request_has_value) {
@@ -150,7 +153,7 @@ static void create_single_path_context(SubdocCmdContext& context,
         ops.emplace_back(SubdocCmdContext::OperationSpec{traits, flags, path});
     }
 
-    if (hasMkdoc(doc_flags)) {
+    if (impliesMkdir_p(doc_flags)) {
         context.jroot_type = Subdoc::Util::get_root_type(
                 traits.subdocCommand, path.buf, path.len);
     }
@@ -172,6 +175,7 @@ static void create_multi_path_context(SubdocCmdContext& context,
                                       cb::const_char_buffer value,
                                       doc_flag doc_flags) {
     // Decode each of lookup specs from the value into our command context.
+    context.setMutationSemantics(doc_flags);
     size_t offset = 0;
     while (offset < value.len) {
         protocol_binary_command binprot_cmd;
@@ -202,7 +206,8 @@ static void create_multi_path_context(SubdocCmdContext& context,
         }
 
         auto traits = get_subdoc_cmd_traits(binprot_cmd);
-        if (hasMkdoc(doc_flags) && context.jroot_type == 0) {
+        if (impliesMkdir_p(doc_flags) &&
+            context.jroot_type == 0) {
             // Determine the root type
             context.jroot_type = Subdoc::Util::get_root_type(
                     traits.subdocCommand, path.buf, path.len);
@@ -233,8 +238,8 @@ static void create_multi_path_context(SubdocCmdContext& context,
 
         auto& ops = context.getOperations(phase);
 
-        // Mkdoc implies MKDIR_P, ensure that MKDIR_P is set
-        if (hasMkdoc(doc_flags)) {
+        // Mkdoc and Add imply MKDIR_P, ensure that MKDIR_P is set
+        if (impliesMkdir_p(doc_flags)) {
             flags = flags | SUBDOC_FLAG_MKDIR_P;
         }
         ops.emplace_back(SubdocCmdContext::OperationSpec{traits, flags, path,
@@ -572,6 +577,13 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
 
         switch (ret) {
         case ENGINE_SUCCESS:
+            if (ctx.traits.is_mutator &&
+                ctx.mutationSemantics == MutationSemantics::Add) {
+                mcbp_write_packet(
+                        &c,
+                        engine_error_2_mcbp_protocol_error(ENGINE_KEY_EEXISTS));
+                return false;
+            }
             // We have the item; assign to c.item (so we'll start from step 2
             // next time).
             c.setItem(initial_item);
@@ -579,6 +591,12 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
             break;
 
         case ENGINE_KEY_ENOENT:
+            if (ctx.traits.is_mutator &&
+                ctx.mutationSemantics == MutationSemantics::Replace) {
+                mcbp_write_packet(&c, engine_error_2_mcbp_protocol_error(ret));
+                return false;
+            }
+
             // The item does not exist. Check the current command context to
             // determine if we should at all write a new document (i.e. pretend
             // it exists) and defer insert until later.. OR if we should simply

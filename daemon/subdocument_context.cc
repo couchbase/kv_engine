@@ -185,3 +185,13 @@ void SubdocCmdContext::generate_macro_padding(cb::const_char_buffer payload,
         }
     }
 }
+
+void SubdocCmdContext::setMutationSemantics(mcbp::subdoc::doc_flag docFlags) {
+    if (docFlags == mcbp::subdoc::doc_flag::Add) {
+        mutationSemantics = MutationSemantics::Add;
+    } else if (docFlags == mcbp::subdoc::doc_flag::Mkdoc) {
+        mutationSemantics = MutationSemantics::Set;
+    } else {
+        mutationSemantics = MutationSemantics::Replace;
+    }
+}

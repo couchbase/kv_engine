@@ -30,6 +30,8 @@
 
 #include <unordered_map>
 
+enum class MutationSemantics : uint8_t { Add, Replace, Set };
+
 /** Subdoc command context. An instance of this exists for the lifetime of
  *  each subdocument command, and it used to hold information which needs to
  *  persist across calls to subdoc_executor; for example when one or more
@@ -69,6 +71,7 @@ public:
         response_val_len(0),
         do_macro_expansion(false),
         do_allow_deleted_docs(false),
+        mutationSemantics(MutationSemantics::Replace),
         currentPhase(Phase::XATTR){}
 
     virtual ~SubdocCmdContext() {
@@ -292,6 +295,10 @@ public:
     void set_xattr_key(const cb::const_byte_buffer& key) {
         xattr_key = key;
     }
+
+    MutationSemantics mutationSemantics;
+
+    void setMutationSemantics(mcbp::subdoc::doc_flag docFlags);
 
 private:
     // The array containing all of the operations requested by the user.

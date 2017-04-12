@@ -967,6 +967,25 @@ TEST_P(McdTestappTest, SubdocDictUpsert_CasCompressed) {
                              PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
 }
 
+TEST_P(McdTestappTest, SubdocAddFlag_BucketStoreCas) {
+    // Check that if an item is set by another client after the fetch but
+    // before the store then we return EEXISTS.
+
+    // Setup ewouldblock_engine - first two calls succeed, 3rd (engine->store)
+    // fails. Any further calls should return EEXISTS.
+    ewouldblock_engine_configure(
+            ENGINE_KEY_EEXISTS,
+            EWBEngineMode::Sequence,
+            0xfffffffc /* <3 MSBytes all-ones>, 0b11,111,100 */);
+    EXPECT_SD_ERR(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                                       "AddCasTest",
+                                       "element",
+                                       "4",
+                                       SUBDOC_FLAG_NONE,
+                                       mcbp::subdoc::doc_flag::Add,
+                                       0),
+                  PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
+}
 
 void test_subdoc_dict_add_upsert_deep(protocol_binary_command cmd) {
 

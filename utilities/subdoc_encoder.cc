@@ -121,7 +121,7 @@ std::vector<char> SubdocMultiCmd::encode_common() const {
 void SubdocMultiCmd::addDocFlag(mcbp::subdoc::doc_flag flags_) {
     static const mcbp::subdoc::doc_flag validFlags =
             mcbp::subdoc::doc_flag::Mkdoc |
-            mcbp::subdoc::doc_flag::AccessDeleted;
+            mcbp::subdoc::doc_flag::AccessDeleted | mcbp::subdoc::doc_flag::Add;
     if ((flags_ & ~validFlags) == mcbp::subdoc::doc_flag::None) {
         doc_flags = doc_flags | flags_;
     } else {
