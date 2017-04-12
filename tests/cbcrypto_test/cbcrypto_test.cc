@@ -21,7 +21,6 @@
  */
 
 #include <gtest/gtest.h>
-#include <openssl/evp.h>
 #include <platform/base64.h>
 #include <platform/platform.h>
 #include <stdexcept>
@@ -473,13 +472,17 @@ TEST(Digest, SHA512) {
     }
 }
 
+// The lengths used for the key and IV using AES_256_CBC
+static const int AES_256_CBC_KEY_LENGTH = 32;
+static const int AES_256_CBC_IV_LENGTH = 16;
+
 TEST(Crypt, AES_256_cbc) {
     std::vector<uint8_t> data;
     const std::string input("All work and no play makes Jack a dull boy");
     std::copy(input.begin(), input.end(), std::back_inserter(data));
 
-    std::vector<uint8_t> key(EVP_CIPHER_key_length(EVP_aes_256_cbc()));
-    std::vector<uint8_t> ivec(EVP_CIPHER_iv_length(EVP_aes_256_cbc()));
+    std::vector<uint8_t> key(AES_256_CBC_KEY_LENGTH);
+    std::vector<uint8_t> ivec(AES_256_CBC_IV_LENGTH);
 
     auto encrypted = crypto::encrypt(crypto::Cipher::AES_256_cbc, key, ivec,
                                      data);
@@ -500,10 +503,10 @@ TEST(Crypt, AES_256_cbc_with_meta) {
     unique_cJSON_ptr root(cJSON_CreateObject());
     cJSON_AddStringToObject(root.get(), "cipher", "AES_256_cbc");
     std::string blob;
-    blob.resize(EVP_CIPHER_key_length(EVP_aes_256_cbc()));
+    blob.resize(AES_256_CBC_KEY_LENGTH);
     cJSON_AddStringToObject(root.get(), "key",
                             Couchbase::Base64::encode(blob).c_str());
-    blob.resize(EVP_CIPHER_iv_length(EVP_aes_256_cbc()));
+    blob.resize(AES_256_CBC_IV_LENGTH);
     cJSON_AddStringToObject(root.get(), "iv",
                             Couchbase::Base64::encode(blob).c_str());
 
@@ -529,8 +532,8 @@ TEST(Crypt, AES_256_cbc_with_meta) {
 }
 
 TEST(Crypt, AES_256_cbc_invalid_key_length) {
-    std::vector<uint8_t> key(EVP_CIPHER_key_length(EVP_aes_256_cbc()) - 1);
-    std::vector<uint8_t> ivec(EVP_CIPHER_iv_length(EVP_aes_256_cbc()));
+    std::vector<uint8_t> key(AES_256_CBC_KEY_LENGTH - 1);
+    std::vector<uint8_t> ivec(AES_256_CBC_IV_LENGTH);
     std::vector<uint8_t> data(0);
 
     EXPECT_THROW(crypto::encrypt(crypto::Cipher::AES_256_cbc,
@@ -539,8 +542,8 @@ TEST(Crypt, AES_256_cbc_invalid_key_length) {
 }
 
 TEST(Crypt, AES_256_cbc_invalid_iv_length) {
-    std::vector<uint8_t> key(EVP_CIPHER_key_length(EVP_aes_256_cbc()));
-    std::vector<uint8_t> ivec(EVP_CIPHER_iv_length(EVP_aes_256_cbc()) - 1);
+    std::vector<uint8_t> key(AES_256_CBC_KEY_LENGTH);
+    std::vector<uint8_t> ivec(AES_256_CBC_IV_LENGTH - 1);
     std::vector<uint8_t> data(0);
 
     EXPECT_THROW(crypto::encrypt(crypto::Cipher::AES_256_cbc,

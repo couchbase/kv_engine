@@ -19,7 +19,6 @@
 
 #include <iomanip>
 #include <memory>
-#include <openssl/evp.h>
 #include <phosphor/phosphor.h>
 #include <platform/base64.h>
 #include <sstream>
@@ -27,19 +26,10 @@
 
 #ifdef __APPLE__
 
+#include <CommonCrypto/CommonCryptor.h>
 #include <CommonCrypto/CommonDigest.h>
 #include <CommonCrypto/CommonHMAC.h>
 #include <CommonCrypto/CommonKeyDerivation.h>
-
-#else
-
-#include <openssl/hmac.h>
-#include <openssl/sha.h>
-#include <openssl/md5.h>
-
-#endif
-
-#ifdef __APPLE__
 
 static std::vector<uint8_t> HMAC_MD5(const std::vector<uint8_t>& key,
                                      const std::vector<uint8_t>& data) {
@@ -149,7 +139,116 @@ static std::vector<uint8_t> digest_sha512(const std::vector<uint8_t>& data) {
     return ret;
 }
 
+namespace cb {
+namespace crypto {
+
+/**
+ * Validate that the input parameters for the encryption cipher specified
+ * is supported and contains the right buffers.
+ *
+ * Currently only AES_256_cbc is supported
+ */
+static void validateEncryptionCipher(const Cipher& cipher,
+                                     const std::vector<uint8_t>& key,
+                                     const std::vector<uint8_t>& iv) {
+    switch (cipher) {
+    case Cipher::AES_256_cbc:
+        if (key.size() != kCCKeySizeAES256) {
+            throw std::invalid_argument(
+                    "cb::crypto::validateEncryptionCipher: Cipher requires a "
+                    "key "
+                    "length of " +
+                    std::to_string(kCCKeySizeAES256) +
+                    " provided key with length " + std::to_string(key.size()));
+        }
+
+        if (iv.size() != 16) {
+            throw std::invalid_argument(
+                    "cb::crypto::validateEncryptionCipher: Cipher requires a "
+                    "iv "
+                    "length of 16 provided iv with length " +
+                    std::to_string(iv.size()));
+        }
+        return;
+    }
+
+    throw std::invalid_argument("cb::crypto::validateEncryptionCipher: Unknown Cipher " +
+                                std::to_string(int(cipher)));
+}
+
+std::vector<uint8_t> encrypt(const Cipher& cipher,
+                             const std::vector<uint8_t>& key,
+                             const std::vector<uint8_t>& iv,
+                             const uint8_t* data,
+                             size_t length) {
+    TRACE_EVENT2("cbcrypto", "encrypt", "cipher", int(cipher), "size", length);
+    size_t outputsize = 0;
+    std::vector<uint8_t> ret(length + kCCBlockSizeAES128);
+
+    validateEncryptionCipher(cipher, key, iv);
+
+    auto status = CCCrypt(kCCEncrypt,
+                          kCCAlgorithmAES128,
+                          kCCOptionPKCS7Padding,
+                          key.data(),
+                          kCCKeySizeAES256,
+                          iv.data(),
+                          data,
+                          length,
+                          ret.data(),
+                          ret.size(),
+                          &outputsize);
+
+    if (status != kCCSuccess) {
+        throw std::runtime_error("cb::crypto::encrypt: CCCrypt failed: " +
+                                 std::to_string(status));
+    }
+
+    ret.resize(outputsize);
+    return ret;
+}
+
+std::vector<uint8_t> decrypt(const Cipher& cipher,
+                             const std::vector<uint8_t>& key,
+                             const std::vector<uint8_t>& iv,
+                             const uint8_t* data,
+                             size_t length) {
+    TRACE_EVENT2("cbcrypto", "decrypt", "cipher", int(cipher), "size", length);
+    size_t outputsize = 0;
+    std::vector<uint8_t> ret(length);
+
+    validateEncryptionCipher(cipher, key, iv);
+
+    auto status = CCCrypt(kCCDecrypt,
+                          kCCAlgorithmAES128,
+                          kCCOptionPKCS7Padding,
+                          key.data(),
+                          kCCKeySizeAES256,
+                          iv.data(),
+                          data,
+                          length,
+                          ret.data(),
+                          ret.size(),
+                          &outputsize);
+
+    if (status != kCCSuccess) {
+        throw std::runtime_error("cb::crypto::decrypt: CCCrypt failed: " +
+                                 std::to_string(status));
+    }
+
+    ret.resize(outputsize);
+    return ret;
+}
+
+} // namespace crypto
+} // namespace cb
+
 #else
+
+#include <openssl/evp.h>
+#include <openssl/hmac.h>
+#include <openssl/md5.h>
+#include <openssl/sha.h>
 
 // OpenSSL
 
@@ -300,6 +399,132 @@ static std::vector<uint8_t> digest_sha512(const std::vector<uint8_t>& data) {
     return ret;
 }
 
+struct EVP_CIPHER_CTX_Deleter {
+    void operator()(EVP_CIPHER_CTX* ctx) {
+        if (ctx != nullptr) {
+            EVP_CIPHER_CTX_free(ctx);
+        }
+    }
+};
+
+using unique_EVP_CIPHER_CTX_ptr =
+        std::unique_ptr<EVP_CIPHER_CTX, EVP_CIPHER_CTX_Deleter>;
+
+namespace cb {
+namespace crypto {
+
+/**
+ * Get the OpenSSL Cipher to use for the encryption, and validate
+ * the input key and iv sizes
+ */
+static const EVP_CIPHER* getCipher(const Cipher& cipher,
+                                   const std::vector<uint8_t>& key,
+                                   const std::vector<uint8_t>& iv) {
+    const EVP_CIPHER* cip = nullptr;
+
+    switch (cipher) {
+    case cb::crypto::Cipher::AES_256_cbc:
+        cip = EVP_aes_256_cbc();
+        break;
+    }
+
+    if (cip == nullptr) {
+        throw std::invalid_argument("cb::crypto::getCipher: Unknown Cipher " +
+                                    std::to_string(int(cipher)));
+    }
+
+    if (int(key.size()) != EVP_CIPHER_key_length(cip)) {
+        throw std::invalid_argument(
+                "cb::crypto::getCipher: Cipher requires a key "
+                "length of " +
+                std::to_string(EVP_CIPHER_key_length(cip)) +
+                " provided key with length " + std::to_string(key.size()));
+    }
+
+    if (int(iv.size()) != EVP_CIPHER_iv_length(cip)) {
+        throw std::invalid_argument(
+                "cb::crypto::getCipher: Cipher requires a iv "
+                "length of " +
+                std::to_string(EVP_CIPHER_iv_length(cip)) +
+                " provided iv with length " + std::to_string(iv.size()));
+    }
+
+    return cip;
+}
+
+std::vector<uint8_t> encrypt(const Cipher& cipher,
+                             const std::vector<uint8_t>& key,
+                             const std::vector<uint8_t>& iv,
+                             const uint8_t* data,
+                             size_t length) {
+    TRACE_EVENT2("cbcrypto", "encrypt", "cipher", int(cipher), "size", length);
+    unique_EVP_CIPHER_CTX_ptr ctx(EVP_CIPHER_CTX_new());
+
+    auto* cip = getCipher(cipher, key, iv);
+    if (EVP_EncryptInit_ex(ctx.get(), cip, nullptr, key.data(), iv.data()) !=
+        1) {
+        throw std::runtime_error(
+                "cb::crypto::encrypt: EVP_EncryptInit_ex failed");
+    }
+
+    std::vector<uint8_t> ret(length + EVP_CIPHER_block_size(cip));
+    int len1 = int(ret.size());
+
+    if (EVP_EncryptUpdate(ctx.get(), ret.data(), &len1, data, int(length)) !=
+        1) {
+        throw std::runtime_error(
+                "cb::crypto::encrypt: EVP_EncryptUpdate failed");
+    }
+
+    int len2 = int(ret.size()) - len1;
+    if (EVP_EncryptFinal_ex(ctx.get(), ret.data() + len1, &len2) != 1) {
+        throw std::runtime_error(
+                "cb::crypto::encrypt: EVP_EncryptFinal_ex failed");
+    }
+
+    // Resize the destination to the sum of the two length fields
+    ret.resize(size_t(len1) + size_t(len2));
+    return ret;
+}
+
+std::vector<uint8_t> decrypt(const Cipher& cipher,
+                             const std::vector<uint8_t>& key,
+                             const std::vector<uint8_t>& iv,
+                             const uint8_t* data,
+                             size_t length) {
+    TRACE_EVENT2("cbcrypto", "decrypt", "cipher", int(cipher), "size", length);
+    unique_EVP_CIPHER_CTX_ptr ctx(EVP_CIPHER_CTX_new());
+    auto* cip = getCipher(cipher, key, iv);
+
+    if (EVP_DecryptInit_ex(ctx.get(), cip, nullptr, key.data(), iv.data()) !=
+        1) {
+        throw std::runtime_error(
+                "cb::crypto::decrypt: EVP_DecryptInit_ex failed");
+    }
+
+    std::vector<uint8_t> ret(length);
+    int len1 = int(ret.size());
+
+    if (EVP_DecryptUpdate(ctx.get(), ret.data(), &len1, data, int(length)) !=
+        1) {
+        throw std::runtime_error(
+                "cb::crypto::decrypt: EVP_DecryptUpdate failed");
+    }
+
+    int len2 = int(length) - len1;
+    if (EVP_DecryptFinal_ex(ctx.get(), ret.data() + len1, &len2) != 1) {
+        throw std::runtime_error(
+                "cb::crypto::decrypt: EVP_DecryptFinal_ex failed");
+    }
+
+    // Resize the destination to the sum of the two length fields
+    ret.resize(size_t(len1) + size_t(len2));
+    return ret;
+}
+
+} // namespace crypto
+} // namespace cb
+
 #endif
 
 std::vector<uint8_t> cb::crypto::HMAC(const Algorithm algorithm,
@@ -395,41 +620,7 @@ std::vector<uint8_t> cb::crypto::digest(const Algorithm algorithm,
 
 namespace cb {
     namespace crypto {
-        static const EVP_CIPHER* getCipher(const Cipher& cipher,
-                                           const std::vector<uint8_t>& key,
-                                           const std::vector<uint8_t>& iv) {
-            const EVP_CIPHER* cip = nullptr;
 
-            switch (cipher) {
-            case cb::crypto::Cipher::AES_256_cbc:
-                cip = EVP_aes_256_cbc();
-                break;
-            }
-
-            if (cip == nullptr) {
-                throw std::invalid_argument(
-                    "cb::crypto::getCipher: Unknown Cipher " +
-                    std::to_string(int(cipher)));
-            }
-
-            if (int(key.size()) != EVP_CIPHER_key_length(cip)) {
-                throw std::invalid_argument(
-                    "cb::crypto::getCipher: Cipher requires a key "
-                        "length of " +
-                    std::to_string(EVP_CIPHER_key_length(cip)) +
-                    " provided key with length " + std::to_string(key.size()));
-            }
-
-            if (int(iv.size()) != EVP_CIPHER_iv_length(cip)) {
-                throw std::invalid_argument(
-                    "cb::crypto::getCipher: Cipher requires a iv "
-                        "length of " +
-                    std::to_string(EVP_CIPHER_iv_length(cip)) +
-                    " provided iv with length " + std::to_string(iv.size()));
-            }
-
-            return cip;
-        }
 
         /**
          * decode the META information for the encryption bits.
@@ -476,54 +667,6 @@ namespace cb {
     }
 }
 
-// helper class for use with std::unique_ptr in managing cJSON* objects.
-struct EVP_CIPHER_CTX_Deleter {
-    void operator()(EVP_CIPHER_CTX* ctx) {
-        if (ctx != nullptr) {
-            EVP_CIPHER_CTX_free(ctx);
-        }
-    }
-};
-
-using unique_EVP_CIPHER_CTX_ptr = std::unique_ptr<EVP_CIPHER_CTX,
-    EVP_CIPHER_CTX_Deleter>;
-
-
-std::vector<uint8_t> cb::crypto::encrypt(const Cipher& cipher,
-                                         const std::vector<uint8_t>& key,
-                                         const std::vector<uint8_t>& iv,
-                                         const uint8_t* data,
-                                         size_t length) {
-    TRACE_EVENT2("cbcrypto", "encrypt", "cipher", int(cipher), "size", length);
-    unique_EVP_CIPHER_CTX_ptr ctx(EVP_CIPHER_CTX_new());
-
-    auto* cip = getCipher(cipher, key, iv);
-    if (EVP_EncryptInit_ex(ctx.get(), cip, nullptr, key.data(),
-                           iv.data()) != 1) {
-        throw std::runtime_error(
-            "cb::crypto::encrypt: EVP_EncryptInit_ex failed");
-    }
-
-    std::vector<uint8_t> ret(length + EVP_CIPHER_block_size(cip));
-    int len1 = int(ret.size());
-
-    if (EVP_EncryptUpdate(ctx.get(), ret.data(), &len1, data,
-                          int(length)) != 1) {
-        throw std::runtime_error(
-            "cb::crypto::encrypt: EVP_EncryptUpdate failed");
-    }
-
-    int len2 = int(ret.size()) - len1;
-    if (EVP_EncryptFinal_ex(ctx.get(), ret.data() + len1, &len2) != 1) {
-        throw std::runtime_error(
-            "cb::crypto::encrypt: EVP_EncryptFinal_ex failed");
-    }
-
-    // Resize the destination to the sum of the two length fields
-    ret.resize(size_t(len1) + size_t(len2));
-    return ret;
-}
-
 std::vector<uint8_t> cb::crypto::encrypt(const Cipher& cipher,
                                          const std::vector<uint8_t>& key,
                                          const std::vector<uint8_t>& iv,
@@ -540,41 +683,6 @@ std::vector<uint8_t> cb::crypto::encrypt(const cJSON* json,
 
     decodeJsonMeta(const_cast<cJSON*>(json), cipher, key, iv);
     return encrypt(cipher, key, iv, data, length);
-}
-
-std::vector<uint8_t> cb::crypto::decrypt(const Cipher& cipher,
-                                         const std::vector<uint8_t>& key,
-                                         const std::vector<uint8_t>& iv,
-                                         const uint8_t* data,
-                                         size_t length) {
-    TRACE_EVENT2("cbcrypto", "decrypt", "cipher", int(cipher), "size", length);
-    unique_EVP_CIPHER_CTX_ptr ctx(EVP_CIPHER_CTX_new());
-    auto* cip = getCipher(cipher, key, iv);
-
-    if (EVP_DecryptInit_ex(ctx.get(), cip, nullptr, key.data(),
-                           iv.data()) != 1) {
-        throw std::runtime_error(
-            "cb::crypto::decrypt: EVP_DecryptInit_ex failed");
-    }
-
-    std::vector<uint8_t> ret(length);
-    int len1 = int(ret.size());
-
-    if (EVP_DecryptUpdate(ctx.get(), ret.data(), &len1, data,
-                          int(length)) != 1) {
-        throw std::runtime_error(
-            "cb::crypto::decrypt: EVP_DecryptUpdate failed");
-    }
-
-    int len2 = int(length) - len1;
-    if (EVP_DecryptFinal_ex(ctx.get(), ret.data() + len1, &len2) != 1) {
-        throw std::runtime_error(
-            "cb::crypto::decrypt: EVP_DecryptFinal_ex failed");
-    }
-
-    // Resize the destination to the sum of the two length fields
-    ret.resize(size_t(len1) + size_t(len2));
-    return ret;
 }
 
 std::vector<uint8_t> cb::crypto::decrypt(const Cipher& cipher,

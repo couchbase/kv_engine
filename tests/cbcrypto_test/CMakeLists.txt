@@ -6,8 +6,7 @@ TARGET_LINK_LIBRARIES(cbcrypto_test
                       cbcrypto
                       platform
                       cJSON
-                      gtest gtest_main
-                      ${OPENSSL_LIBRARIES})
+                      gtest gtest_main)
 
 ADD_TEST(NAME cbcrypto-test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
