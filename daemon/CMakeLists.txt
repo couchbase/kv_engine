@@ -214,7 +214,7 @@ TARGET_LINK_LIBRARIES(memcached_daemon
                       xattr
                       ${SNAPPY_LIBRARIES}
                       ${MALLOC_LIBRARIES}
-                      ${LIBEVENT_CORE_LIB}
+                      ${LIBEVENT_LIBRARIES}
                       ${OPENSSL_LIBRARIES}
                       ${COUCHBASE_NETWORK_LIBS}
                       ${BREAKPAD_LIBRARIES}
