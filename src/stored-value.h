@@ -642,7 +642,6 @@ protected:
           deleted(itm.isDeleted()),
           newCacheItem(true),
           isOrdered(isOrdered),
-          stale(false),
           nru(itm.getNRUValue()) {
         // Placement-new the key which lives in memory directly after this
         // object.
@@ -699,7 +698,6 @@ protected:
           deleted(other.deleted),
           newCacheItem(other.newCacheItem),
           isOrdered(other.isOrdered),
-          stale(other.stale),
           nru(other.nru) {
         // Placement-new the key which lives in memory directly after this
         // object.
@@ -746,7 +744,6 @@ protected:
     bool               deleted   :  1;
     bool               newCacheItem : 1;
     const bool isOrdered : 1; //!< Is this an instance of OrderedStoredValue?
-    bool stale : 1; //!< indicates if a newer instance of the item is added
     uint8_t            nru       :  2; //!< True if referenced since last sweep
 
     static void increaseMetaDataSize(HashTable &ht, EPStats &st, size_t by);
@@ -768,21 +765,25 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv);
 class OrderedStoredValue : public StoredValue {
 public:
     // Intrusive linked-list for sequence number ordering.
+    // Guarded by the SequenceList's writeLock.
     boost::intrusive::list_member_hook<> seqno_hook;
 
     /**
      * True if a newer version of the same key exists in the HashTable.
      * Note: Only true for OrderedStoredValues which are no longer in the
      *       HashTable (and only live in SequenceList)
+     * @param writeGuard The locked SeqList writeLock which guards the stale
+     * param.
      */
-    bool isStale() const {
+    bool isStale(std::lock_guard<std::mutex>& writeGuard) const {
         return stale;
     }
 
     /**
      * Marks that newer instance of this item is added in the HashTable
+     * @param writeLock The SeqList writeLock which guards the stale param.
      */
-    void markStale() {
+    void markStale(std::lock_guard<std::mutex>& writeGuard) {
         stale = true;
     }
 
@@ -829,7 +830,8 @@ private:
                        UniquePtr n,
                        EPStats& stats,
                        HashTable& ht)
-        : StoredValue(itm, std::move(n), stats, ht, /*isOrdered*/ true) {
+        : StoredValue(itm, std::move(n), stats, ht, /*isOrdered*/ true),
+          stale(false) {
     }
 
     // Copy Constructor. Private, as needs to be carefully created via
@@ -842,7 +844,7 @@ private:
                        UniquePtr n,
                        EPStats& stats,
                        HashTable& ht)
-        : StoredValue(other, std::move(n), stats, ht) {
+        : StoredValue(other, std::move(n), stats, ht), stale(false) {
     }
 
     /* Do not allow assignment */
@@ -854,6 +856,10 @@ private:
     // Grant friendship to base class so it can perform flag dispatch to our
     // overridden protected methods.
     friend class StoredValue;
+
+    // indicates if a newer instance of the item is added. Guarded by the
+    // SequenceList's writeLock.
+    bool stale : 1;
 };
 
 SerialisedDocKey* StoredValue::key() {

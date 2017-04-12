@@ -42,6 +42,11 @@ public:
         return allSeqnos;
     }
 
+    /// Expose the writeLock for testins.
+    std::mutex& getWriteLock() {
+        return writeLock;
+    }
+
     /* Register fake read range for testing */
     void registerFakeReadRange(seqno_t start, seqno_t end) {
         std::lock_guard<SpinLock> lh(rangeLock);

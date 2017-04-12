@@ -373,7 +373,10 @@ TEST_F(BasicLinkedListTest, MarkStale) {
     basicLL->markItemStale(std::move(ownedSv));
 
     /* Check if the StoredValue is marked stale */
-    EXPECT_TRUE(nonOwnedSvPtr->isStale());
+    {
+        std::lock_guard<std::mutex> writeGuard(basicLL->getWriteLock());
+        EXPECT_TRUE(nonOwnedSvPtr->isStale(writeGuard));
+    }
 
     /* Check if the stale count incremented to 1 */
     EXPECT_EQ(1, basicLL->getNumStaleItems());

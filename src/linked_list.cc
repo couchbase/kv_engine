@@ -34,8 +34,11 @@ BasicLinkedList::BasicLinkedList(uint16_t vbucketId, EPStats& st)
 BasicLinkedList::~BasicLinkedList() {
     /* Delete stale items here, other items are deleted by the hash
        table */
+    std::lock_guard<std::mutex> writeGuard(writeLock);
     seqList.remove_and_dispose_if(
-            [](const OrderedStoredValue& v) { return v.isStale(); },
+            [&writeGuard](const OrderedStoredValue& v) {
+                return v.isStale(writeGuard);
+            },
             [this](OrderedStoredValue* v) {
                 this->st.currentSize.fetch_sub(v->metaDataSize());
                 delete v;
@@ -180,11 +183,11 @@ void BasicLinkedList::markItemStale(StoredValue::UniquePtr ownedSv) {
     staleMetaDataSize.fetch_add(v->metaDataSize());
     st.currentSize.fetch_add(v->metaDataSize());
 
-    /* Safer to serialize with the deletion of stale values */
-    std::lock_guard<std::mutex> lckGd(writeLock);
-
     ++numStaleItems;
-    v->toOrderedStoredValue()->markStale();
+    {
+        std::lock_guard<std::mutex> writeGuard(writeLock);
+        v->toOrderedStoredValue()->markStale(writeGuard);
+    }
 }
 
 uint64_t BasicLinkedList::getNumStaleItems() const {

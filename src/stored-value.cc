@@ -224,8 +224,8 @@ bool StoredValue::operator==(const StoredValue& other) const {
             exptime == other.exptime && flags == other.flags &&
             _isDirty == other._isDirty && deleted == other.deleted &&
             newCacheItem == other.newCacheItem &&
-            isOrdered == other.isOrdered && stale == other.stale &&
-            nru == other.nru && getKey() == other.getKey());
+            isOrdered == other.isOrdered && nru == other.nru &&
+            getKey() == other.getKey());
 }
 
 void StoredValue::deleteImpl(HashTable& ht) {

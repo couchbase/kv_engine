@@ -139,10 +139,17 @@ TEST(StoredValueTest, expectedSize) {
 }
 
 TEST(OrderedStoredValueTest, expectedSize) {
-    EXPECT_EQ(72, sizeof(OrderedStoredValue))
+    // TODO-PERF: Ideally should be 72 - this is 63 bits larger than
+    // actually used due to moving {stale} from StoredValue's packed
+    // bitfields to OrderedStoredValue to prevent a race on a bitfield
+    // (TSan reports race between {stale} and {dirty} for example if they
+    // reside in the same byte).
+    // Better solution would be to pack this into the boost_list hook,
+    // or introduce per-OSV microlock to guard the whole object.
+    EXPECT_EQ(80, sizeof(OrderedStoredValue))
             << "Unexpected change in OrderedStoredValue fixed size";
     auto item = make_item(0, makeStoredDocKey("k"), "v");
-    EXPECT_EQ(75, OrderedStoredValue::getRequiredStorage(item))
+    EXPECT_EQ(83, OrderedStoredValue::getRequiredStorage(item))
             << "Unexpected change in OrderedStoredValue storage size for item: "
             << item;
 }
