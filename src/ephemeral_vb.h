@@ -18,10 +18,8 @@
 #pragma once
 
 #include "config.h"
+#include "seqlist.h"
 #include "vbucket.h"
-
-/* Forward declarations */
-class SequenceList;
 
 class EphemeralVBucket : public VBucket {
 public:
@@ -215,3 +213,5 @@ private:
      */
     EPStats::Counter seqListPurgeCount;
 };
+
+using EphemeralVBucketPtr = std::shared_ptr<EphemeralVBucket>;

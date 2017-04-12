@@ -47,15 +47,18 @@ VBucketPtr VBucketMap::getBucket(id_type id) const {
     }
 }
 
-ENGINE_ERROR_CODE VBucketMap::addBucket(const VBucketPtr &b) {
-    if (b->getId() < size) {
-        getShardByVbId(b->getId())->setBucket(b);
-        LOG(EXTENSION_LOG_INFO, "Mapped new vbucket %d in state %s",
-            b->getId(), VBucket::toString(b->getState()));
+ENGINE_ERROR_CODE VBucketMap::addBucket(VBucketPtr vb) {
+    if (vb->getId() < size) {
+        getShardByVbId(vb->getId())->setBucket(vb);
+        LOG(EXTENSION_LOG_INFO,
+            "Mapped new vbucket %d in state %s",
+            vb->getId(),
+            VBucket::toString(vb->getState()));
         return ENGINE_SUCCESS;
     }
     LOG(EXTENSION_LOG_WARNING,
-        "Cannot create vb %" PRIu16", max vbuckets is %" PRIu16, b->getId(),
+        "Cannot create vb %" PRIu16 ", max vbuckets is %" PRIu16,
+        vb->getId(),
         size);
     return ENGINE_ERANGE;
 }
@@ -113,14 +116,6 @@ VBucketMap::getActiveVBucketsSortedByChkMgrMem(void) const {
     std::sort(rv.begin(), rv.end(), SortCtx::compareSecond);
 
     return rv;
-}
-
-void VBucketMap::addBuckets(const std::vector<VBucket*> &newBuckets) {
-    std::vector<VBucket*>::const_iterator it;
-    for (it = newBuckets.begin(); it != newBuckets.end(); ++it) {
-        VBucketPtr v(*it);
-        addBucket(v);
-    }
 }
 
 KVShard* VBucketMap::getShardByVbId(id_type id) const {

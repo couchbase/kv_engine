@@ -78,7 +78,7 @@ public:
     BgFetcher *getBgFetcher();
 
     VBucketPtr getBucket(VBucket::id_type id) const;
-    void setBucket(const VBucketPtr &b);
+    void setBucket(VBucketPtr vb);
     void resetBucket(VBucket::id_type id);
 
     KVShard::id_type getId() const {
@@ -90,7 +90,91 @@ public:
 
 private:
     KVStoreConfig kvConfig;
-    std::vector<VBucketPtr> vbuckets;
+
+    /**
+     * VBMapElement comprises the VBucket smart pointer and a mutex.
+     * Access to the smart pointer must be performed through the ::Access object
+     * which will perform RAII locking of the mutex.
+     */
+    class VBMapElement {
+    public:
+        /**
+         * Access for const/non-const VBMapElement (using enable_if to hide
+         * const methods for non-const users and vice-versa)
+         *
+         * This class did have an -> operator for directly reading the VBucket*
+         * but MSVC could not cope with it, so now you must use:
+         *    access.get()-><Vbucket-method>
+         */
+        template <class T>
+        class Access {
+        public:
+            Access(std::mutex& m, T e) : lock(m), element(e) {
+            }
+
+            /**
+             * @return a const VBBucketPtr& (which may have no real pointer)
+             */
+            template <typename U = T>
+            typename std::enable_if<
+                    std::is_const<
+                            typename std::remove_reference<U>::type>::value,
+                    const VBucketPtr&>::type
+            get() const {
+                return element.vbPtr;
+            }
+
+            /**
+             * @return the VBBucketPtr (which may have no real pointer)
+             */
+            template <typename U = T>
+            typename std::enable_if<
+                    !std::is_const<
+                            typename std::remove_reference<U>::type>::value,
+                    VBucketPtr>::type
+            get() const {
+                return element.vbPtr;
+            }
+
+            /**
+             * @param set a new VBBucketPtr for the VB
+             */
+            template <typename U = T>
+            typename std::enable_if<!std::is_const<
+                    typename std::remove_reference<U>::type>::value>::type
+            set(VBucketPtr vb) {
+                element.vbPtr = vb;
+            }
+
+            /**
+             * @param reset VBBucketPtr for the VB
+             */
+            template <typename U = T>
+            typename std::enable_if<!std::is_const<
+                    typename std::remove_reference<U>::type>::value>::type
+            reset() {
+                element.vbPtr.reset();
+            }
+
+        private:
+            std::unique_lock<std::mutex> lock;
+            T& element;
+        };
+
+        Access<VBMapElement&> lock() {
+            return {mutex, *this};
+        }
+
+        Access<const VBMapElement&> lock() const {
+            return {mutex, *this};
+        }
+
+    private:
+        mutable std::mutex mutex;
+        VBucketPtr vbPtr;
+    };
+
+    std::vector<VBMapElement> vbuckets;
 
     std::unique_ptr<KVStore> rwStore;
     std::unique_ptr<KVStore> roStore;

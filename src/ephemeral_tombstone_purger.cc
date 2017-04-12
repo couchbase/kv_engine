@@ -54,7 +54,7 @@ EphemeralVBucket::VBTombstonePurger::VBTombstonePurger(rel_time_t purgeAge)
     : purgeAge(purgeAge), numPurgedItems(0) {
 }
 
-void EphemeralVBucket::VBTombstonePurger::visitBucket(RCPtr<VBucket>& vb) {
+void EphemeralVBucket::VBTombstonePurger::visitBucket(VBucketPtr& vb) {
     auto vbucket = dynamic_cast<EphemeralVBucket*>(vb.get());
     if (!vbucket) {
         throw std::invalid_argument(

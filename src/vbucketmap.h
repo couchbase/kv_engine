@@ -56,9 +56,14 @@ public:
 
     VBucketMap(Configuration& config, KVBucket& store);
 
-    ENGINE_ERROR_CODE addBucket(const VBucketPtr &b);
+    /**
+     * Add the VBucket to the map - extending the lifetime of the object until
+     * it is removed from the map via removeBucket.
+     * @param vb shared pointer to the VBucket we are storing.
+     */
+    ENGINE_ERROR_CODE addBucket(VBucketPtr vb);
+
     void removeBucket(id_type id);
-    void addBuckets(const std::vector<VBucket*> &newBuckets);
     VBucketPtr getBucket(id_type id) const;
 
     // Returns the size of the map, i.e. the total number of VBuckets it can

@@ -190,7 +190,7 @@ class KVShard;
 /**
  * An individual vbucket.
  */
-class VBucket : public RCValue {
+class VBucket : public std::enable_shared_from_this<VBucket> {
 public:
 
     // Identifier for a vBucket
@@ -1568,4 +1568,4 @@ private:
     DISALLOW_COPY_AND_ASSIGN(VBucket);
 };
 
-using VBucketPtr = RCPtr<VBucket>;
+using VBucketPtr = std::shared_ptr<VBucket>;

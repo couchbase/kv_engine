@@ -233,8 +233,10 @@ std::unique_ptr<DCPBackfill> EphemeralVBucket::createDCPBackfill(
         uint64_t startSeqno,
         uint64_t endSeqno) {
     /* create a memory backfill object */
+    EphemeralVBucketPtr evb =
+            std::static_pointer_cast<EphemeralVBucket>(shared_from_this());
     return std::make_unique<DCPBackfillMemory>(
-            this, stream, startSeqno, endSeqno);
+            evb, stream, startSeqno, endSeqno);
 }
 
 std::pair<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>>

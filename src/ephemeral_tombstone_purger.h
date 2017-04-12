@@ -69,7 +69,7 @@ class EphemeralVBucket::VBTombstonePurger : public VBucketVisitor {
 public:
     VBTombstonePurger(rel_time_t purgeAge);
 
-    void visitBucket(RCPtr<VBucket>& vb) override;
+    void visitBucket(VBucketPtr& vb) override;
 
     size_t getNumPurgedItems() const {
         return numPurgedItems;

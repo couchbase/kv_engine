@@ -21,8 +21,7 @@
 
 #include "callbacks.h"
 #include "dcp/backfill.h"
-
-class EphemeralVBucket;
+#include "ephemeral_vb.h"
 
 /**
  * Concrete class that does backfill from in-memory ordered data strucuture and
@@ -34,7 +33,7 @@ class EphemeralVBucket;
  */
 class DCPBackfillMemory : public DCPBackfill {
 public:
-    DCPBackfillMemory(SingleThreadedRCPtr<EphemeralVBucket> evb,
+    DCPBackfillMemory(EphemeralVBucketPtr evb,
                       const active_stream_t& s,
                       uint64_t startSeqno,
                       uint64_t endSeqno);
@@ -54,5 +53,5 @@ private:
     /**
      * Ref counted ptr to EphemeralVBucket
      */
-    SingleThreadedRCPtr<EphemeralVBucket> evb;
+    EphemeralVBucketPtr evb;
 };

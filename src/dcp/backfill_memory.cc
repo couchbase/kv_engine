@@ -23,7 +23,7 @@
 #include "ephemeral_vb.h"
 #include "seqlist.h"
 
-DCPBackfillMemory::DCPBackfillMemory(SingleThreadedRCPtr<EphemeralVBucket> evb,
+DCPBackfillMemory::DCPBackfillMemory(EphemeralVBucketPtr evb,
                                      const active_stream_t& s,
                                      uint64_t startSeqno,
                                      uint64_t endSeqno)
