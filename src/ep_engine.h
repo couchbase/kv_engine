@@ -483,6 +483,30 @@ public:
         return kvBucket->setVBucketState(vbid, to, transfer);
     }
 
+    protocol_binary_response_status setParam(
+            protocol_binary_request_set_param* req, std::string& msg);
+
+    protocol_binary_response_status setFlushParam(const char* keyz,
+                                                  const char* valz,
+                                                  std::string& msg);
+
+    protocol_binary_response_status setTapParam(const char* keyz,
+                                                const char* valz,
+                                                std::string& msg);
+
+    protocol_binary_response_status setCheckpointParam(const char* keyz,
+                                                       const char* valz,
+                                                       std::string& msg);
+
+    protocol_binary_response_status setDcpParam(const char* keyz,
+                                                const char* valz,
+                                                std::string& msg);
+
+    protocol_binary_response_status setVbucketParam(uint16_t vbucket,
+                                                    const char* keyz,
+                                                    const char* valz,
+                                                    std::string& msg);
+
     ~EventuallyPersistentEngine();
 
     engine_info *getInfo() {

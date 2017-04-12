@@ -361,27 +361,22 @@ static void EvpResetStats(ENGINE_HANDLE* handle, const void*) {
     acquireEngine(handle)->resetStats();
 }
 
-static protocol_binary_response_status setTapParam(
-    EventuallyPersistentEngine* e,
-    const char* keyz,
-    const char* valz,
-    std::string& msg) {
+protocol_binary_response_status EventuallyPersistentEngine::setTapParam(
+        const char* keyz, const char* valz, std::string& msg) {
     protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
     try {
         if (strcmp(keyz, "tap_keepalive") == 0) {
             int v = std::stoi(valz);
             validate(v, 0, MAX_TAP_KEEP_ALIVE);
-            e->setTapKeepAlive(static_cast<uint32_t>(v));
+            setTapKeepAlive(static_cast<uint32_t>(v));
         } else if (strcmp(keyz, "replication_throttle_threshold") == 0) {
-            e->getConfiguration().setReplicationThrottleThreshold(
-                std::stoull(valz));
+            getConfiguration().setReplicationThrottleThreshold(
+                    std::stoull(valz));
         } else if (strcmp(keyz, "replication_throttle_queue_cap") == 0) {
-            e->getConfiguration().setReplicationThrottleQueueCap(
-                std::stoll(valz));
+            getConfiguration().setReplicationThrottleQueueCap(std::stoll(valz));
         } else if (strcmp(keyz, "replication_throttle_cap_pcnt") == 0) {
-            e->getConfiguration().setReplicationThrottleCapPcnt(
-                std::stoull(valz));
+            getConfiguration().setReplicationThrottleCapPcnt(std::stoull(valz));
         } else {
             msg = "Unknown config param";
             rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -408,11 +403,8 @@ static protocol_binary_response_status setTapParam(
     return rv;
 }
 
-static protocol_binary_response_status setCheckpointParam(
-    EventuallyPersistentEngine* e,
-    const char* keyz,
-    const char* valz,
-    std::string& msg) {
+protocol_binary_response_status EventuallyPersistentEngine::setCheckpointParam(
+        const char* keyz, const char* valz, std::string& msg) {
     protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
     try {
@@ -420,23 +412,23 @@ static protocol_binary_response_status setCheckpointParam(
             size_t v = std::stoull(valz);
             validate(v, size_t(MIN_CHECKPOINT_ITEMS),
                      size_t(MAX_CHECKPOINT_ITEMS));
-            e->getConfiguration().setChkMaxItems(v);
+            getConfiguration().setChkMaxItems(v);
         } else if (strcmp(keyz, "chk_period") == 0) {
             size_t v = std::stoull(valz);
             validate(v, size_t(MIN_CHECKPOINT_PERIOD),
                      size_t(MAX_CHECKPOINT_PERIOD));
-            e->getConfiguration().setChkPeriod(v);
+            getConfiguration().setChkPeriod(v);
         } else if (strcmp(keyz, "max_checkpoints") == 0) {
             size_t v = std::stoull(valz);
             validate(v, size_t(DEFAULT_MAX_CHECKPOINTS),
                      size_t(MAX_CHECKPOINTS_UPPER_BOUND));
-            e->getConfiguration().setMaxCheckpoints(v);
+            getConfiguration().setMaxCheckpoints(v);
         } else if (strcmp(keyz, "item_num_based_new_chk") == 0) {
-            e->getConfiguration().setItemNumBasedNewChk(cb_stob(valz));
+            getConfiguration().setItemNumBasedNewChk(cb_stob(valz));
         } else if (strcmp(keyz, "keep_closed_chks") == 0) {
-            e->getConfiguration().setKeepClosedChks(cb_stob(valz));
+            getConfiguration().setKeepClosedChks(cb_stob(valz));
         } else if (strcmp(keyz, "enable_chk_merge") == 0) {
-            e->getConfiguration().setEnableChkMerge(cb_stob(valz));
+            getConfiguration().setEnableChkMerge(cb_stob(valz));
         } else {
             msg = "Unknown config param";
             rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -469,43 +461,37 @@ static protocol_binary_response_status setCheckpointParam(
     return rv;
 }
 
-static protocol_binary_response_status setFlushParam(
-    EventuallyPersistentEngine* e,
-    const char* keyz,
-    const char* valz,
-    std::string& msg) {
+protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
+        const char* keyz, const char* valz, std::string& msg) {
     protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
     // Handle the actual mutation.
     try {
         if (strcmp(keyz, "bg_fetch_delay") == 0) {
-            e->getConfiguration().setBgFetchDelay(std::stoull(valz));
+            getConfiguration().setBgFetchDelay(std::stoull(valz));
         } else if (strcmp(keyz, "flushall_enabled") == 0) {
-            e->getConfiguration().setFlushallEnabled(cb_stob(valz));
+            getConfiguration().setFlushallEnabled(cb_stob(valz));
         } else if (strcmp(keyz, "max_size") == 0) {
             size_t vsize = std::stoull(valz);
 
-            e->getConfiguration().setMaxSize(vsize);
-            EPStats& st = e->getEpStats();
-            e->getConfiguration().setMemLowWat(percentOf(vsize,
-                                                         st.mem_low_wat_percent));
-            e->getConfiguration().setMemHighWat(percentOf(vsize,
-                                                          st.mem_high_wat_percent));
+            getConfiguration().setMaxSize(vsize);
+            EPStats& st = getEpStats();
+            getConfiguration().setMemLowWat(
+                    percentOf(vsize, st.mem_low_wat_percent));
+            getConfiguration().setMemHighWat(
+                    percentOf(vsize, st.mem_high_wat_percent));
         } else if (strcmp(keyz, "mem_low_wat") == 0) {
-            e->getConfiguration().setMemLowWat(std::stoull(valz));
+            getConfiguration().setMemLowWat(std::stoull(valz));
         } else if (strcmp(keyz, "mem_high_wat") == 0) {
-            e->getConfiguration().setMemHighWat(std::stoull(valz));
+            getConfiguration().setMemHighWat(std::stoull(valz));
         } else if (strcmp(keyz, "backfill_mem_threshold") == 0) {
-            e->getConfiguration().setBackfillMemThreshold(
-                std::stoull(valz));
+            getConfiguration().setBackfillMemThreshold(std::stoull(valz));
         } else if (strcmp(keyz, "compaction_exp_mem_threshold") == 0) {
-            e->getConfiguration().setCompactionExpMemThreshold(
-                std::stoull(valz));
+            getConfiguration().setCompactionExpMemThreshold(std::stoull(valz));
         } else if (strcmp(keyz, "mutation_mem_threshold") == 0) {
-            e->getConfiguration().setMutationMemThreshold(
-                std::stoull(valz));
+            getConfiguration().setMutationMemThreshold(std::stoull(valz));
         } else if (strcmp(keyz, "timing_log") == 0) {
-            EPStats& stats = e->getEpStats();
+            EPStats& stats = getEpStats();
             std::ostream* old = stats.timingLog;
             stats.timingLog = NULL;
             delete old;
@@ -525,81 +511,73 @@ static protocol_binary_response_status setFlushParam(
                 }
             }
         } else if (strcmp(keyz, "exp_pager_enabled") == 0) {
-            e->getConfiguration().setExpPagerEnabled(cb_stob(valz));
+            getConfiguration().setExpPagerEnabled(cb_stob(valz));
         } else if (strcmp(keyz, "exp_pager_stime") == 0) {
-            e->getConfiguration().setExpPagerStime(std::stoull(valz));
+            getConfiguration().setExpPagerStime(std::stoull(valz));
         } else if (strcmp(keyz, "exp_pager_initial_run_time") == 0) {
-            e->getConfiguration().setExpPagerInitialRunTime(
-                std::stoll(valz));
+            getConfiguration().setExpPagerInitialRunTime(std::stoll(valz));
         } else if (strcmp(keyz, "access_scanner_enabled") == 0) {
-            e->getConfiguration().setAccessScannerEnabled(cb_stob(valz));
+            getConfiguration().setAccessScannerEnabled(cb_stob(valz));
         } else if (strcmp(keyz, "alog_sleep_time") == 0) {
-            e->getConfiguration().setAlogSleepTime(std::stoull(valz));
+            getConfiguration().setAlogSleepTime(std::stoull(valz));
         } else if (strcmp(keyz, "alog_task_time") == 0) {
-            e->getConfiguration().setAlogTaskTime(std::stoull(valz));
+            getConfiguration().setAlogTaskTime(std::stoull(valz));
         } else if (strcmp(keyz, "pager_active_vb_pcnt") == 0) {
-            e->getConfiguration().setPagerActiveVbPcnt(std::stoull(valz));
+            getConfiguration().setPagerActiveVbPcnt(std::stoull(valz));
         } else if (strcmp(keyz, "warmup_min_memory_threshold") == 0) {
-            e->getConfiguration().setWarmupMinMemoryThreshold(
-                std::stoull(valz));
+            getConfiguration().setWarmupMinMemoryThreshold(std::stoull(valz));
         } else if (strcmp(keyz, "warmup_min_items_threshold") == 0) {
-            e->getConfiguration().setWarmupMinItemsThreshold(
-                std::stoull(valz));
+            getConfiguration().setWarmupMinItemsThreshold(std::stoull(valz));
         } else if (strcmp(keyz, "max_num_readers") == 0 ||
                    strcmp(keyz, "num_reader_threads") == 0) {
             size_t value = std::stoull(valz);
-            e->getConfiguration().setNumReaderThreads(value);
+            getConfiguration().setNumReaderThreads(value);
             ExecutorPool::get()->setNumReaders(value);
         } else if (strcmp(keyz, "max_num_writers") == 0 ||
                    strcmp(keyz, "num_writer_threads") == 0) {
             size_t value = std::stoull(valz);
-            e->getConfiguration().setNumWriterThreads(value);
+            getConfiguration().setNumWriterThreads(value);
             ExecutorPool::get()->setNumWriters(value);
         } else if (strcmp(keyz, "max_num_auxio") == 0 ||
                    strcmp(keyz, "num_auxio_threads") == 0) {
             size_t value = std::stoull(valz);
-            e->getConfiguration().setNumAuxioThreads(value);
+            getConfiguration().setNumAuxioThreads(value);
             ExecutorPool::get()->setNumAuxIO(value);
         } else if (strcmp(keyz, "max_num_nonio") == 0 ||
                    strcmp(keyz, "num_nonio_threads") == 0) {
             size_t value = std::stoull(valz);
-            e->getConfiguration().setNumNonioThreads(value);
+            getConfiguration().setNumNonioThreads(value);
             ExecutorPool::get()->setNumNonIO(value);
         } else if (strcmp(keyz, "bfilter_enabled") == 0) {
-            e->getConfiguration().setBfilterEnabled(cb_stob(valz));
+            getConfiguration().setBfilterEnabled(cb_stob(valz));
         } else if (strcmp(keyz, "bfilter_residency_threshold") == 0) {
-            e->getConfiguration().setBfilterResidencyThreshold(
-                std::stof(valz));
+            getConfiguration().setBfilterResidencyThreshold(std::stof(valz));
         } else if (strcmp(keyz, "defragmenter_enabled") == 0) {
-            e->getConfiguration().setDefragmenterEnabled(cb_stob(valz));
+            getConfiguration().setDefragmenterEnabled(cb_stob(valz));
         } else if (strcmp(keyz, "defragmenter_interval") == 0) {
             size_t v = std::stoull(valz);
             // Adding separate validation as external limit is minimum 1
             // to prevent setting defragmenter to constantly run
             validate(v, size_t(1), std::numeric_limits<size_t>::max());
-            e->getConfiguration().setDefragmenterInterval(v);
+            getConfiguration().setDefragmenterInterval(v);
         } else if (strcmp(keyz, "defragmenter_age_threshold") == 0) {
-            e->getConfiguration().setDefragmenterAgeThreshold(
-                std::stoull(valz));
+            getConfiguration().setDefragmenterAgeThreshold(std::stoull(valz));
         } else if (strcmp(keyz, "defragmenter_chunk_duration") == 0) {
-            e->getConfiguration().setDefragmenterChunkDuration(
-                std::stoull(valz));
+            getConfiguration().setDefragmenterChunkDuration(std::stoull(valz));
         } else if (strcmp(keyz, "defragmenter_run") == 0) {
-            e->runDefragmenterTask();
+            runDefragmenterTask();
         } else if (strcmp(keyz, "compaction_write_queue_cap") == 0) {
-            e->getConfiguration().setCompactionWriteQueueCap(
-                std::stoull(valz));
+            getConfiguration().setCompactionWriteQueueCap(std::stoull(valz));
         } else if (strcmp(keyz, "dcp_min_compression_ratio") == 0) {
-            e->getConfiguration().setDcpMinCompressionRatio(
-                std::stof(valz));
+            getConfiguration().setDcpMinCompressionRatio(std::stof(valz));
         } else if (strcmp(keyz, "access_scanner_run") == 0) {
-            if (!(e->runAccessScannerTask())) {
+            if (!(runAccessScannerTask())) {
                 rv = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
             }
         } else if (strcmp(keyz, "vb_state_persist_run") == 0) {
-            e->runVbStatePersistTask(std::stoi(valz));
+            runVbStatePersistTask(std::stoi(valz));
         } else if (strcmp(keyz, "ephemeral_full_policy") == 0) {
-            e->getConfiguration().setEphemeralFullPolicy(valz);
+            getConfiguration().setEphemeralFullPolicy(valz);
         } else {
             msg = "Unknown config param";
             rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -631,11 +609,8 @@ static protocol_binary_response_status setFlushParam(
     return rv;
 }
 
-static protocol_binary_response_status setDcpParam(
-    EventuallyPersistentEngine* e,
-    const char* keyz,
-    const char* valz,
-    std::string& msg) {
+protocol_binary_response_status EventuallyPersistentEngine::setDcpParam(
+        const char* keyz, const char* valz, std::string& msg) {
     protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
     try {
 
@@ -644,16 +619,16 @@ static protocol_binary_response_status setDcpParam(
             size_t v = atoi(valz);
             checkNumeric(valz);
             validate(v, size_t(1), std::numeric_limits<size_t>::max());
-            e->getConfiguration().setDcpConsumerProcessBufferedMessagesYieldLimit(
-                v);
+            getConfiguration().setDcpConsumerProcessBufferedMessagesYieldLimit(
+                    v);
         } else if (
             strcmp(keyz, "dcp_consumer_process_buffered_messages_batch_size") ==
             0) {
             size_t v = atoi(valz);
             checkNumeric(valz);
             validate(v, size_t(1), std::numeric_limits<size_t>::max());
-            e->getConfiguration().setDcpConsumerProcessBufferedMessagesBatchSize(
-                v);
+            getConfiguration().setDcpConsumerProcessBufferedMessagesBatchSize(
+                    v);
         } else {
             msg = "Unknown config param";
             rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -666,28 +641,27 @@ static protocol_binary_response_status setDcpParam(
     return rv;
 }
 
-static protocol_binary_response_status setVbucketParam(
-    EventuallyPersistentEngine* e,
-    uint16_t vbucket,
-    const char* keyz,
-    const char* valz,
-    std::string& msg) {
+protocol_binary_response_status EventuallyPersistentEngine::setVbucketParam(
+        uint16_t vbucket,
+        const char* keyz,
+        const char* valz,
+        std::string& msg) {
     protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
     try {
         if (strcmp(keyz, "hlc_drift_ahead_threshold_us") == 0) {
             uint64_t v = std::strtoull(valz, nullptr, 10);
             checkNumeric(valz);
-            e->getConfiguration().setHlcDriftAheadThresholdUs(v);
+            getConfiguration().setHlcDriftAheadThresholdUs(v);
         } else if (strcmp(keyz, "hlc_drift_behind_threshold_us") == 0) {
             uint64_t v = std::strtoull(valz, nullptr, 10);
             checkNumeric(valz);
-            e->getConfiguration().setHlcDriftBehindThresholdUs(v);
+            getConfiguration().setHlcDriftBehindThresholdUs(v);
         } else if (strcmp(keyz, "max_cas") == 0) {
             uint64_t v = std::strtoull(valz, nullptr, 10);
             checkNumeric(valz);
             LOG(EXTENSION_LOG_WARNING, "setVbucketParam: max_cas:%" PRIu64 " "
                 "vb:%" PRIu16 "\n", v, vbucket);
-            if (e->getKVBucket()->forceMaxCas(vbucket, v) != ENGINE_SUCCESS) {
+            if (getKVBucket()->forceMaxCas(vbucket, v) != ENGINE_SUCCESS) {
                 rv = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
                 msg = "Not my vbucket";
             }
@@ -730,12 +704,8 @@ static protocol_binary_response_status evictKey(
     return rv;
 }
 
-static protocol_binary_response_status setParam(
-    EventuallyPersistentEngine* e,
-    protocol_binary_request_set_param
-    * req,
-    std::string& msg) {
-
+protocol_binary_response_status EventuallyPersistentEngine::setParam(
+        protocol_binary_request_set_param* req, std::string& msg) {
     size_t keylen = ntohs(req->message.header.request.keylen);
     uint8_t extlen = req->message.header.request.extlen;
     size_t vallen = ntohl(req->message.header.request.bodylen);
@@ -776,19 +746,19 @@ static protocol_binary_response_status setParam(
 
     switch (paramtype) {
     case protocol_binary_engine_param_flush:
-        rv = setFlushParam(e, keyz, valz, msg);
+        rv = setFlushParam(keyz, valz, msg);
         break;
     case protocol_binary_engine_param_tap:
-        rv = setTapParam(e, keyz, valz, msg);
+        rv = setTapParam(keyz, valz, msg);
         break;
     case protocol_binary_engine_param_checkpoint:
-        rv = setCheckpointParam(e, keyz, valz, msg);
+        rv = setCheckpointParam(keyz, valz, msg);
         break;
     case protocol_binary_engine_param_dcp:
-        rv = setDcpParam(e, keyz, valz, msg);
+        rv = setDcpParam(keyz, valz, msg);
         break;
     case protocol_binary_engine_param_vbucket:
-        rv = setVbucketParam(e, vbucket, keyz, valz, msg);
+        rv = setVbucketParam(vbucket, keyz, valz, msg);
         break;
     default:
         rv = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
@@ -1157,9 +1127,9 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         res = h->startFlusher(&msg, &msg_size);
         break;
     case PROTOCOL_BINARY_CMD_SET_PARAM:
-        res = setParam(h,
-                       reinterpret_cast<protocol_binary_request_set_param*>(request),
-                       dynamic_msg);
+        res = h->setParam(
+                reinterpret_cast<protocol_binary_request_set_param*>(request),
+                dynamic_msg);
         msg = dynamic_msg.c_str();
         msg_size = dynamic_msg.length();
         h->decrementSessionCtr();
