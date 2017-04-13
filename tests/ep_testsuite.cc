@@ -1455,9 +1455,7 @@ static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
 
     check_key_value(h, h1, "trees", "cleanse", strlen("cleanse"));
 
-    touch(h, h1, key, 0, 11);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
-            "touch Carss");
+    checkeq(ENGINE_SUCCESS, touch(h, h1, key, 0, 11), "touch Carss");
 
     testHarness.time_travel(12);
     wait_for_flusher_to_settle(h, h1);

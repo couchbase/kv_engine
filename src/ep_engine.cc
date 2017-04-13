@@ -277,6 +277,15 @@ static cb::EngineErrorItemPair EvpGetIf(ENGINE_HANDLE* handle,
     return acquireEngine(handle)->get_if(cookie, key, vbucket, filter);
 }
 
+static cb::EngineErrorItemPair EvpGetAndTouch(ENGINE_HANDLE* handle,
+                                              const void* cookie,
+                                              const DocKey& key,
+                                              uint16_t vbucket,
+                                              uint32_t expiry_time) {
+    return acquireEngine(handle)->get_and_touch(cookie, key, vbucket,
+                                                expiry_time);
+}
+
 static ENGINE_ERROR_CODE EvpGetLocked(ENGINE_HANDLE* handle,
                                       const void* cookie,
                                       item** itm,
@@ -1775,6 +1784,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::release = EvpItemRelease;
     ENGINE_HANDLE_V1::get = EvpGet;
     ENGINE_HANDLE_V1::get_if = EvpGetIf;
+    ENGINE_HANDLE_V1::get_and_touch = EvpGetAndTouch;
     ENGINE_HANDLE_V1::get_locked = EvpGetLocked;
     ENGINE_HANDLE_V1::unlock = EvpUnlock;
     ENGINE_HANDLE_V1::get_stats = EvpGetStats;
@@ -2094,6 +2104,50 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie){
         LOG(EXTENSION_LOG_NOTICE, "Completed bucket deleteAll operation");
         return ENGINE_SUCCESS;
     }
+}
+
+cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(const void* cookie,
+                                                           const DocKey& key,
+                                                           uint16_t vbucket,
+                                                           uint32_t exptime) {
+    auto* handle = reinterpret_cast<ENGINE_HANDLE*>(this);
+
+    time_t expiry_time = exptime;
+    if (exptime != 0) {
+        auto* core = serverApi->core;
+        expiry_time = core->abstime(core->realtime(exptime));
+    }
+    GetValue gv(kvBucket->getAndUpdateTtl(key, vbucket, cookie, expiry_time));
+
+    auto rv = gv.getStatus();
+    if (rv == ENGINE_SUCCESS) {
+        ++stats.numOpsGet;
+        ++stats.numOpsStore;
+        return std::make_pair(cb::engine_errc::success,
+                              cb::unique_item_ptr{gv.getValue(),
+                                                  cb::ItemDeleter{handle}});
+    }
+
+    if (isDegradedMode()) {
+        // Remap all some of the error codes
+        switch (rv) {
+        case ENGINE_KEY_EEXISTS:
+        case ENGINE_KEY_ENOENT:
+        case ENGINE_NOT_MY_VBUCKET:
+            rv = ENGINE_TMPFAIL;
+            break;
+        default:
+            break;
+        }
+    }
+
+    if (rv == ENGINE_KEY_EEXISTS) {
+        rv = ENGINE_LOCKED;
+    }
+
+    return std::make_pair(cb::engine_errc(rv),
+                          cb::unique_item_ptr{nullptr,
+                                              cb::ItemDeleter{handle}});
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(const void* cookie,

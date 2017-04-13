@@ -193,8 +193,8 @@ void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                bool expectError = false);
 size_t estimateVBucketMove(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                            uint16_t vbid = 0, const char* tap_name = "");
-void gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
-         uint16_t vb, uint32_t exp, bool quiet = false);
+cb::EngineErrorItemPair gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                            const char* key, uint16_t vb, uint32_t exp);
 bool get_item_info(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item_info *info,
                    const char* key, uint16_t vb = 0);
 bool get_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item *i,
@@ -264,8 +264,8 @@ ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                uint16_t vb, uint32_t exp = 3600,
                                uint8_t datatype = 0x00,
                                DocumentState docState = DocumentState::Alive);
-void touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
-           uint16_t vb, uint32_t exp);
+ENGINE_ERROR_CODE touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                        const char* key, uint16_t vb, uint32_t exp);
 ENGINE_ERROR_CODE unl(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
                       const void* cookie, const char* key,
                       uint16_t vb, uint64_t cas = 0);

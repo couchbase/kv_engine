@@ -972,30 +972,11 @@ static enum test_result test_replace(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    // key is a mandatory field!
-    touch(h, h1, NULL, 0, (time(NULL) + 10));
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL,
-            last_status.load(), "Testing invalid arguments");
-
-    // extlen is a mandatory field!
-    protocol_binary_request_header *request;
-    request = createPacket(PROTOCOL_BINARY_CMD_TOUCH, 0, 0, NULL, 0, "akey", 4);
-    checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace),
-            "Failed to call touch");
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
-            "Testing invalid arguments");
-    cb_free(request);
-
     // Try to touch an unknown item...
-    touch(h, h1, "mykey", 0, (time(NULL) + 10));
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
-            "Testing unknown key");
+    checkeq(ENGINE_KEY_ENOENT, touch(h, h1, "mykey", 0, 0), "Testing unknown key");
 
     // illegal vbucket
-    touch(h, h1, "mykey", 5, (time(NULL) + 10));
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
-            "Testing illegal vbucket");
+    checkeq(ENGINE_NOT_MY_VBUCKET, touch(h, h1, "mykey", 5, 0), "Testing illegal vbucket");
 
     // Store the item!
     item *itm = NULL;
@@ -1014,8 +995,8 @@ static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     time_t curr_exptime = last_meta.exptime;
     uint64_t curr_revseqno = last_meta.revSeqno;
 
-    touch(h, h1, "mykey", 0, (time(NULL) + 10));
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(ENGINE_SUCCESS,
+            touch(h, h1, "mykey", 0, uint32_t(time(NULL) + 10)),
             "touch mykey");
     check(last_cas != curr_cas, "touch should have returned an updated CAS");
 
@@ -1052,9 +1033,7 @@ static enum test_result test_touch_mb7342(ENGINE_HANDLE *h,
             "Failed set.");
     h1->release(h, NULL, itm);
 
-    touch(h, h1, key, 0, 0);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-            last_status.load(), "touch key");
+    checkeq(ENGINE_SUCCESS, touch(h, h1, key, 0, 0), "touch key");
 
     check_key_value(h, h1, key, "v", 1);
 
@@ -1079,39 +1058,23 @@ static enum test_result test_touch_mb10277(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
     evict_key(h, h1, key, 0, "Ejected.");
 
-    touch(h, h1, key, 0, 3600); // A new expiration time remains in the same.
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-            last_status.load(),
+    checkeq(ENGINE_SUCCESS,
+            touch(h, h1, key, 0, 3600), // A new expiration time remains in the same.
             "touch key");
 
     return SUCCESS;
 }
 
 static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    // key is a mandatory field!
-    gat(h, h1, NULL, 0, 10);
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
-            "Testing invalid arguments");
-
-    // extlen is a mandatory field!
-    protocol_binary_request_header *request;
-    request = createPacket(PROTOCOL_BINARY_CMD_GAT, 0, 0, NULL, 0, "akey", 4);
-    checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace),
-            "Failed to call gat");
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
-            "Testing invalid arguments");
-    cb_free(request);
-
     // Try to gat an unknown item...
-    gat(h, h1, "mykey", 0, 10);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
+    auto ret = gat(h, h1, "mykey", 0, 10);
+    checkeq(ENGINE_KEY_ENOENT, ENGINE_ERROR_CODE(ret.first),
             "Testing unknown key");
 
     // illegal vbucket
-    gat(h, h1, "mykey", 5, 10);
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
-            last_status.load(), "Testing illegal vbucket");
+    ret = gat(h, h1, "mykey", 5, 10);
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            ENGINE_ERROR_CODE(ret.first), "Testing illegal vbucket");
 
     // Store the item!
     item *itm = NULL;
@@ -1124,13 +1087,21 @@ static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check_key_value(h, h1, "mykey", "{\"some\":\"value\"}",
             strlen("{\"some\":\"value\"}"));
 
-    gat(h, h1, "mykey", 0, 10);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-            last_status.load(), "gat mykey");
+    ret = gat(h, h1, "mykey", 0, 10);
+    checkeq(ENGINE_SUCCESS,
+            ENGINE_ERROR_CODE(ret.first), "gat mykey");
+
+    item_info info;
+    check(h1->get_item_info(h, nullptr, ret.second.get(), &info),
+          "Getting item info failed");
+
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
-            last_datatype.load(), "Expected datatype to be JSON");
-    check(last_body.compare(0, sizeof("{\"some\":\"value\"}"),
-                            "{\"some\":\"value\"}") == 0,
+            info.datatype, "Expected datatype to be JSON");
+
+    std::string body{static_cast<char*>(info.value[0].iov_base),
+    info.value[0].iov_len};
+    check(body.compare(0, sizeof("{\"some\":\"value\"}"),
+                       "{\"some\":\"value\"}") == 0,
           "Invalid data returned");
 
     // time-travel 9 secs..
@@ -1149,72 +1120,6 @@ static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static enum test_result test_gatq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    // key is a mandatory field!
-    gat(h, h1, NULL, 0, 10, true);
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL,
-            last_status.load(), "Testing invalid arguments");
-
-    // extlen is a mandatory field!
-    protocol_binary_request_header *request;
-    request = createPacket(PROTOCOL_BINARY_CMD_GATQ, 0, 0, NULL, 0, "akey", 4);
-    checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace),
-            "Failed to call gatq");
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL,
-            last_status.load(), "Testing invalid arguments");
-    cb_free(request);
-
-    // Try to gatq an unknown item...
-    last_status = static_cast<protocol_binary_response_status>(0xffff);
-    gat(h, h1, "mykey", 0, 10, true);
-
-    // We should not have sent any response!
-    checkeq((protocol_binary_response_status)0xffff,
-            last_status.load(), "Testing unknown key");
-
-    // illegal vbucket
-    gat(h, h1, "mykey", 5, 10, true);
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
-            last_status.load(),
-            "Testing illegal vbucket");
-
-    // Store the item!
-    item *itm = NULL;
-    checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET, "mykey", "{\"some\":\"value\"}",
-                  &itm, 0, 0, 3600, PROTOCOL_BINARY_DATATYPE_JSON),
-            "Failed set.");
-    h1->release(h, NULL, itm);
-
-    check_key_value(h, h1, "mykey", "{\"some\":\"value\"}",
-                    strlen("{\"some\":\"value\"}"));
-
-    gat(h, h1, "mykey", 0, 10, true);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "gat mykey");
-    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
-            last_datatype.load(), "Expected datatype to be JSON");
-    check(last_body.compare(0, sizeof("{\"some\":\"value\"}"),
-                            "{\"some\":\"value\"}") == 0,
-          "Invalid data returned");
-
-    // time-travel 9 secs..
-    testHarness.time_travel(9);
-
-    // The item should still exist
-    check_key_value(h, h1, "mykey", "{\"some\":\"value\"}",
-                    strlen("{\"some\":\"value\"}"));
-
-    // time-travel 2 secs..
-    testHarness.time_travel(2);
-
-    // The item should have expired now...
-    checkeq(ENGINE_KEY_ENOENT,
-            get(h, h1, NULL, &itm, "mykey", 0),
-            "Item should be gone");
-    return SUCCESS;
-}
-
 static enum test_result test_gat_locked(ENGINE_HANDLE *h,
                                         ENGINE_HANDLE_V1 *h1) {
     item *itm = NULL;
@@ -1230,19 +1135,17 @@ static enum test_result test_gat_locked(ENGINE_HANDLE *h,
           "Expected getl to succeed on key");
     h1->release(h, nullptr, locked);
 
-    gat(h, h1, "key", 0, 10);
-    checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(), "Expected tmp fail");
-    check(last_body == "Lock Error", "Wrong error message");
+    auto ret = gat(h, h1, "key", 0, 10);
+    checkeq(ENGINE_LOCKED, ENGINE_ERROR_CODE(ret.first), "Expected LOCKED");
 
     testHarness.time_travel(16);
-    gat(h, h1, "key", 0, 10);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    ret = gat(h, h1, "key", 0, 10);
+    checkeq(ENGINE_SUCCESS, ENGINE_ERROR_CODE(ret.first), "Expected success");
 
     testHarness.time_travel(11);
     checkeq(ENGINE_KEY_ENOENT,
             get(h, h1, NULL, &itm, "key", 0),
             "Expected value to be expired");
-
     return SUCCESS;
 }
 
@@ -1260,13 +1163,11 @@ static enum test_result test_touch_locked(ENGINE_HANDLE *h,
             "Expected getl to succeed on key");
     h1->release(h, nullptr, locked);
 
-    touch(h, h1, "key", 0, 10);
-    checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(), "Expected tmp fail");
-    check(last_body == "Lock Error", "Wrong error message");
+    checkeq(ENGINE_LOCKED, touch(h, h1, "key", 0, 10),
+            "Expected tmp fail");
 
     testHarness.time_travel(16);
-    touch(h, h1, "key", 0, 10);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(ENGINE_SUCCESS, touch(h, h1, "key", 0, 10), "Expected success");
 
     testHarness.time_travel(11);
     checkeq(ENGINE_KEY_ENOENT,
@@ -1292,9 +1193,7 @@ static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // set new exptime to 111
     int expTime = time(NULL) + 111;
 
-    touch(h, h1, "coolkey", 0, expTime);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-            last_status.load(),
+    checkeq(ENGINE_SUCCESS, touch(h, h1, "coolkey", 0, expTime),
             "touch coolkey");
 
     //reload engine
@@ -1319,9 +1218,8 @@ static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     evict_key(h, h1, "coolkey", 0, "Ejected.");
 
     expTime = time(NULL) + 222;
-    touch(h, h1, "coolkey", 0, expTime);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-            last_status.load(), "touch coolkey");
+    checkeq(ENGINE_SUCCESS ,touch(h, h1, "coolkey", 0, expTime),
+            "touch coolkey");
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
@@ -2334,8 +2232,6 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test touch (MB-10277)", test_touch_mb10277, test_setup,
                  teardown, NULL, prepare_ep_bucket, cleanup),
         TestCase("test gat", test_gat, test_setup, teardown,
-                 NULL, prepare, cleanup),
-        TestCase("test gatq", test_gatq, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("test locked gat", test_gat_locked,
                  test_setup, teardown, NULL, prepare, cleanup),

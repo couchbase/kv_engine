@@ -556,18 +556,11 @@ ENGINE_ERROR_CODE seqnoPersistence(ENGINE_HANDLE* h,
     return rv;
 }
 
-void gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
-         uint16_t vb, uint32_t exp, bool quiet) {
-    char ext[4];
-    uint8_t opcode = quiet ? PROTOCOL_BINARY_CMD_GATQ : PROTOCOL_BINARY_CMD_GAT;
-    uint32_t keylen = key ? strlen(key) : 0;
-    protocol_binary_request_header *request;
-    encodeExt(ext, exp);
-    request = createPacket(opcode, vb, 0, ext, 4, key, keylen);
+cb::EngineErrorItemPair gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                            const char* key, uint16_t vb, uint32_t exp) {
 
-    check(h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
-          "Failed to call gat");
-    cb_free(request);
+    return h1->get_and_touch(h, nullptr, DocKey(key, testHarness.doc_namespace),
+                             vb, exp);
 }
 
 bool get_item_info(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item_info *info,
@@ -1001,17 +994,22 @@ ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return rv;
 }
 
-void touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
+ENGINE_ERROR_CODE touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
            uint16_t vb, uint32_t exp) {
-    char ext[4];
-    uint32_t keylen = key ? strlen(key) : 0;
-    protocol_binary_request_header *request;
-    encodeExt(ext, exp);
-    request = createPacket(PROTOCOL_BINARY_CMD_TOUCH, vb, 0, ext, 4, key, keylen);
 
-    check(h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
-          "Failed to call touch");
-    cb_free(request);
+    auto result = h1->get_and_touch(h, nullptr,
+                                    DocKey(key, testHarness.doc_namespace), vb,
+                                    exp);
+
+    // Update the global cas value (used by some tests)
+    if (result.first == cb::engine_errc::success) {
+        item_info info{};
+        check(h1->get_item_info(h, nullptr, result.second.get(), &info),
+              "Failed to get item info");
+        last_cas.store(info.cas);
+    }
+
+    return ENGINE_ERROR_CODE(result.first);
 }
 
 ENGINE_ERROR_CODE unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,

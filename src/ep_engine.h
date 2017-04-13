@@ -196,6 +196,11 @@ public:
                                    std::function<bool(
                                        const item_info&)> filter);
 
+    cb::EngineErrorItemPair get_and_touch(const void* cookie,
+                                          const DocKey& key,
+                                          uint16_t vbucket,
+                                          uint32_t expiry_time);
+
     ENGINE_ERROR_CODE get_locked(const void* cookie,
                                  item** itm,
                                  const DocKey& key,
