@@ -28,6 +28,36 @@ const int64_t StoredValue::state_non_existent_key = -4;
 const int64_t StoredValue::state_temp_init = -5;
 const int64_t StoredValue::state_collection_open = -6;
 
+void StoredValue::setValue(const Item& itm, HashTable& ht) {
+    size_t currSize = size();
+    reduceCacheSize(ht, currSize);
+    value = itm.getValue();
+    deleted = itm.isDeleted();
+    flags = itm.getFlags();
+    datatype = itm.getDataType();
+    bySeqno = itm.getBySeqno();
+
+    cas = itm.getCas();
+    lock_expiry_or_delete_time = 0;
+    exptime = itm.getExptime();
+    revSeqno = itm.getRevSeqno();
+
+    nru = itm.getNRUValue();
+
+    if (isTempInitialItem()) {
+        markClean();
+    } else {
+        markDirty();
+    }
+
+    if (isTempItem()) {
+        markNotResident();
+    }
+
+    size_t newSize = size();
+    increaseCacheSize(ht, newSize);
+}
+
 bool StoredValue::ejectValue(HashTable &ht, item_eviction_policy_t policy) {
     if (eligibleForEviction(policy)) {
         reduceCacheSize(ht, value->length());

@@ -251,35 +251,7 @@ public:
      * @param itm the item with a new value
      * @param ht the hashtable that contains this StoredValue instance
      */
-    void setValue(const Item& itm, HashTable& ht) {
-        size_t currSize = size();
-        reduceCacheSize(ht, currSize);
-        value = itm.getValue();
-        deleted = itm.isDeleted();
-        flags = itm.getFlags();
-        datatype = itm.getDataType();
-        bySeqno = itm.getBySeqno();
-
-        cas = itm.getCas();
-        lock_expiry_or_delete_time = 0;
-        exptime = itm.getExptime();
-        revSeqno = itm.getRevSeqno();
-
-        nru = itm.getNRUValue();
-
-        if (isTempInitialItem()) {
-            markClean();
-        } else {
-            markDirty();
-        }
-
-        if (isTempItem()) {
-            markNotResident();
-        }
-
-        size_t newSize = size();
-        increaseCacheSize(ht, newSize);
-    }
+    void setValue(const Item& itm, HashTable& ht);
 
     void markDeleted() {
         deleted = true;
