@@ -105,10 +105,30 @@ std::vector<char> SubdocMultiCmd::encode_common() const {
                   back_inserter(request));
     }
 
+    bool include_doc_flags = !isNone(doc_flags);
+    if (include_doc_flags) {
+        std::copy(reinterpret_cast<const uint8_t*>(&doc_flags),
+                  reinterpret_cast<const uint8_t*>(&doc_flags) + 1,
+                  back_inserter(request));
+    }
+
     // Add the key.
     std::copy(key.begin(), key.end(), back_inserter(request));
 
     return request;
+}
+
+void SubdocMultiCmd::addDocFlag(mcbp::subdoc::doc_flag flags_) {
+    static const mcbp::subdoc::doc_flag validFlags =
+            mcbp::subdoc::doc_flag::Mkdoc |
+            mcbp::subdoc::doc_flag::AccessDeleted;
+    if ((flags_ & ~validFlags) == mcbp::subdoc::doc_flag::None) {
+        doc_flags = doc_flags | flags_;
+    } else {
+        throw std::invalid_argument("addDocFlags: flags_ (which is " +
+                                    to_string(flags_) +
+                                    ") is not a doc flag");
+    }
 }
 
 void SubdocMultiCmd::populate_header(protocol_binary_request_header& header,
@@ -116,7 +136,10 @@ void SubdocMultiCmd::populate_header(protocol_binary_request_header& header,
     header.request.magic = PROTOCOL_BINARY_REQ;
     header.request.opcode = command;
     header.request.keylen = htons(key.size());
-    header.request.extlen = (expiry != 0 || encode_zero_expiry_on_wire) ? sizeof(uint32_t) : 0;
+    header.request.extlen =
+            ((expiry != 0 || encode_zero_expiry_on_wire) ? sizeof(uint32_t)
+                                                         : 0) +
+            (!isNone(doc_flags) ? sizeof(doc_flags) : 0);
     header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     /* TODO: vbucket */
     header.request.bodylen = htonl(bodylen);

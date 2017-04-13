@@ -34,7 +34,8 @@ struct SubdocMultiCmd {
         : cas(0),
           expiry(0),
           encode_zero_expiry_on_wire(false),
-          command(command_) {}
+          command(command_),
+          doc_flags(mcbp::subdoc::doc_flag::None) {}
 
     std::string key;
     uint64_t cas;
@@ -47,6 +48,8 @@ struct SubdocMultiCmd {
 
     protocol_binary_command command;
 
+    void addDocFlag(mcbp::subdoc::doc_flag doc_flag);
+
     virtual std::vector<char> encode() const = 0;
 
 protected:
@@ -57,6 +60,7 @@ protected:
     // Fill in the header for this command.
     void populate_header(protocol_binary_request_header& header,
                          size_t bodylen) const;
+    mcbp::subdoc::doc_flag doc_flags;
 };
 
 /* Sub-document API MULTI_LOOKUP command */
