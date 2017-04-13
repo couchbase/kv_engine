@@ -794,35 +794,6 @@ ENGINE_ERROR_CODE store_item(struct default_engine *engine,
     return ret;
 }
 
-static hash_item *do_touch_item(struct default_engine *engine,
-                                const hash_key *hkey,
-                                uint32_t exptime)
-{
-    hash_item* item = do_item_get(engine, hkey, DocStateFilter::Alive);
-    if (item != NULL) {
-        item->exptime = exptime;
-   }
-   return item;
-}
-
-hash_item *touch_item(struct default_engine *engine,
-                      const void* cookie,
-                      const void* key,
-                      uint16_t nkey,
-                      uint32_t exptime)
-{
-    hash_item *ret;
-    hash_key hkey;
-    if (!hash_key_create(&hkey, key, nkey, engine, cookie)) {
-        return NULL;
-    }
-    cb_mutex_enter(&engine->items.lock);
-    ret = do_touch_item(engine, &hkey, exptime);
-    cb_mutex_exit(&engine->items.lock);
-    hash_key_destroy(&hkey);
-    return ret;
-}
-
 ENGINE_ERROR_CODE do_item_get_locked(struct default_engine* engine,
                                      const void* cookie,
                                      hash_item** it,
@@ -992,6 +963,83 @@ ENGINE_ERROR_CODE item_unlock(struct default_engine* engine,
 
     cb_mutex_enter(&engine->items.lock);
     ENGINE_ERROR_CODE ret = do_item_unlock(engine, cookie, &hkey, cas);
+    cb_mutex_exit(&engine->items.lock);
+    hash_key_destroy(&hkey);
+
+    return ret;
+}
+
+ENGINE_ERROR_CODE do_item_get_and_touch(struct default_engine* engine,
+                                        const void* cookie,
+                                        hash_item** it,
+                                        const hash_key* hkey,
+                                        rel_time_t exptime) {
+    hash_item* item = do_item_get(engine, hkey, DocStateFilter::Alive);
+    if (item == nullptr) {
+        return ENGINE_KEY_ENOENT;
+    }
+
+    if (item->locktime != 0 &&
+        item->locktime > engine->server.core->get_current_time()) {
+        do_item_release(engine, item);
+        return ENGINE_LOCKED;
+    }
+
+    /*
+     * If I'm the only one accessing the object (refcount == 1) I can update
+     * the in-memory object. Otherwise I need to swap it out with a new one
+     */
+    if (item->exptime == exptime) {
+        // micro optimization:
+        // The new expiry time is set to the same value as it used to have
+        // so we don't need to do anything (this doesn't matter much for
+        // the memcached buckets, but for ep-engine it means that they
+        // don't have to update the disk copy with the new expiry time or
+        // send it out over DCP)
+        *it = item;
+    } else if (item->refcount == 1) {
+        // we're the only one with access, let's just do an in-place
+        // update of the metadata.
+        item->exptime = exptime;
+        item->cas = get_cas_id();
+        *it = item;
+    } else {
+        // Multiple entities holds a reference to the object. We
+        // need to do a copy/replace.
+        auto* clone = do_item_alloc(engine, hkey, item->flags, exptime,
+                                    item->nbytes, cookie, item->datatype);
+        if (clone == nullptr) {
+            do_item_release(engine, item);
+            return ENGINE_TMPFAIL;
+        }
+
+        std::memcpy(item_get_data(clone), item_get_data(item), item->nbytes);
+        clone->locktime = 0;
+        do_item_replace(engine, cookie, item, clone);
+
+        // Release references
+        do_item_release(engine, item);
+        *it = clone;
+    }
+
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE item_get_and_touch(struct default_engine* engine,
+                                     const void* cookie,
+                                     hash_item** it,
+                                     const void* key,
+                                     const size_t nkey,
+                                     rel_time_t exptime) {
+    hash_key hkey;
+
+    if (!hash_key_create(&hkey, key, nkey, engine, cookie)) {
+        return ENGINE_TMPFAIL;
+    }
+
+    cb_mutex_enter(&engine->items.lock);
+    ENGINE_ERROR_CODE ret = do_item_get_and_touch(engine, cookie, it, &hkey,
+                                                  exptime);
     cb_mutex_exit(&engine->items.lock);
     hash_key_destroy(&hkey);
 

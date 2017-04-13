@@ -285,6 +285,11 @@ public:
         return getStatus() == PROTOCOL_BINARY_RESPONSE_SUCCESS;
     }
 
+    /** Get the opcode for the response */
+    protocol_binary_command getOp() const {
+        return protocol_binary_command(getHeader().response.opcode);
+    }
+
     /** Get the status code for the response */
     protocol_binary_response_status getStatus() const {
         return protocol_binary_response_status(getHeader().response.status);
@@ -823,12 +828,38 @@ protected:
     uint32_t lock_timeout;
 };
 
+class BinprotGetAndTouchCommand
+    : public BinprotCommandT<BinprotGetAndTouchCommand, PROTOCOL_BINARY_CMD_GAT> {
+public:
+    BinprotGetAndTouchCommand() : BinprotCommandT(), expirytime(0) {}
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+    bool isQuiet() const {
+        return getOp() == PROTOCOL_BINARY_CMD_GATQ;
+    }
+
+    BinprotGetAndTouchCommand& setQuiet(bool quiet = true) {
+        setOp(quiet ? PROTOCOL_BINARY_CMD_GATQ : PROTOCOL_BINARY_CMD_GAT);
+        return *this;
+    }
+
+    BinprotGetAndTouchCommand& setExpirytime(uint32_t timeout) {
+        expirytime = timeout;
+        return *this;
+    }
+
+protected:
+    uint32_t expirytime;
+};
+
 class BinprotGetResponse : public BinprotResponse {
 public:
     uint32_t getDocumentFlags() const;
 };
 
 using BinprotGetAndLockResponse = BinprotGetResponse;
+using BinprotGetAndTouchResponse = BinprotGetResponse;
 
 class BinprotUnlockCommand
     : public BinprotCommandT<BinprotGetCommand, PROTOCOL_BINARY_CMD_UNLOCK_KEY> {
@@ -837,6 +868,24 @@ public:
 };
 
 using BinprotUnlockResponse = BinprotResponse;
+
+class BinprotTouchCommand
+    : public BinprotCommandT<BinprotGetAndTouchCommand, PROTOCOL_BINARY_CMD_TOUCH> {
+public:
+    BinprotTouchCommand() : BinprotCommandT(), expirytime(0) {}
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+    BinprotTouchCommand& setExpirytime(uint32_t timeout) {
+        expirytime = timeout;
+        return *this;
+    }
+
+protected:
+    uint32_t expirytime;
+};
+
+using BinprotTouchResponse = BinprotResponse;
 
 class BinprotGetCmdTimerCommand
     : public BinprotCommandT<BinprotGetCmdTimerCommand, PROTOCOL_BINARY_CMD_GET_CMD_TIMER> {

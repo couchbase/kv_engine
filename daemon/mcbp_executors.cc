@@ -37,6 +37,7 @@
 #include "mcbp_privileges.h"
 #include "protocol/mcbp/appendprepend_context.h"
 #include "protocol/mcbp/arithmetic_context.h"
+#include "protocol/mcbp/gat_context.h"
 #include "protocol/mcbp/get_context.h"
 #include "protocol/mcbp/get_locked_context.h"
 #include "protocol/mcbp/dcp_deletion.h"
@@ -172,6 +173,15 @@ static void unlock_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(packet);
     c->obtainContext<UnlockCommandContext>(*c, req).drive();
 }
+
+static void gat_executor(McbpConnection* c, void* packet) {
+    if (c->getCmd() == PROTOCOL_BINARY_CMD_GATQ) {
+        c->setNoReply(true);
+    }
+    auto* req = reinterpret_cast<protocol_binary_request_gat*>(packet);
+    c->obtainContext<GatCommandContext>(*c, *req).drive();
+}
+
 
 static ENGINE_ERROR_CODE default_unknown_command(
     EXTENSION_BINARY_PROTOCOL_DESCRIPTOR*,
@@ -1754,6 +1764,9 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors(void) {
     executors[PROTOCOL_BINARY_CMD_GETQ] = get_executor;
     executors[PROTOCOL_BINARY_CMD_GETK] = get_executor;
     executors[PROTOCOL_BINARY_CMD_GETKQ] = get_executor;
+    executors[PROTOCOL_BINARY_CMD_GAT] = gat_executor;
+    executors[PROTOCOL_BINARY_CMD_GATQ] = gat_executor;
+    executors[PROTOCOL_BINARY_CMD_TOUCH] = gat_executor;
     executors[PROTOCOL_BINARY_CMD_DELETE] = delete_executor;
     executors[PROTOCOL_BINARY_CMD_DELETEQ] = delete_executor;
     executors[PROTOCOL_BINARY_CMD_STAT] = stat_executor;

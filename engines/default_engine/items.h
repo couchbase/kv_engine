@@ -211,6 +211,25 @@ ENGINE_ERROR_CODE item_get_locked(struct default_engine* engine,
                                   rel_time_t locktime);
 
 /**
+ * Get and touch an item
+ *
+ * @param engine handle to the storage engine
+ * @param cookie connection cookie
+ * @param where to return the item (if found)
+ * @param key the key for the item to get
+ * @param nkey the number of bytes in the key
+ * @param exptime The new expiry time
+ * @return ENGINE_SUCCESS for success
+ */
+ENGINE_ERROR_CODE item_get_and_touch(struct default_engine* engine,
+                                     const void* cookie,
+                                     hash_item** it,
+                                     const void* key,
+                                     const size_t nkey,
+                                     rel_time_t exptime);
+
+
+/**
  * Unlock an item in the cache
  *
  * @param engine handle to the storage engine
@@ -287,21 +306,6 @@ void item_unlink(struct default_engine *engine, hash_item *it);
  */
 ENGINE_ERROR_CODE safe_item_unlink(struct default_engine *engine,
                                    hash_item *it);
-
-/**
- * Set the expiration time for an object
- * @param engine handle to the storage engine
- * @param cookie of the connection
- * @param key the key to set
- * @param nkey the number of characters in key..
- * @param exptime the expiration time
- * @return The (updated) item if it exists
- */
-hash_item *touch_item(struct default_engine *engine,
-                      const void* cookie,
-                      const void *key,
-                      uint16_t nkey,
-                      uint32_t exptime);
 
 /**
  * Store an item in the cache

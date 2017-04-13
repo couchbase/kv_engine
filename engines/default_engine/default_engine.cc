@@ -497,9 +497,22 @@ static cb::EngineErrorItemPair default_get_and_touch(ENGINE_HANDLE* handle,
                                                      const DocKey& key,
                                                      uint16_t vbucket,
                                                      uint32_t expiry_time) {
-    return std::make_pair(
-            cb::engine_errc::not_supported,
-            cb::unique_item_ptr{nullptr, cb::ItemDeleter{handle}});
+
+    struct default_engine* engine = get_handle(handle);
+
+    if (!handled_vbucket(engine, vbucket)) {
+        return std::make_pair(cb::engine_errc::not_my_vbucket,
+                              cb::unique_item_ptr{nullptr,
+                                                  cb::ItemDeleter{handle}});
+    }
+
+    hash_item* it = nullptr;
+    auto ret = item_get_and_touch(engine, cookie, &it, key.data(), key.size(),
+                                  engine->server.core->realtime(expiry_time));
+
+    return std::make_pair(cb::engine_errc(ret),
+                          cb::unique_item_ptr{reinterpret_cast<item*>(it),
+                                              cb::ItemDeleter{handle}});
 }
 
 static ENGINE_ERROR_CODE default_get_locked(ENGINE_HANDLE* handle,
@@ -800,52 +813,6 @@ static bool scrub_cmd(struct default_engine *e,
                     res, 0, cookie);
 }
 
-static bool touch(struct default_engine *e, const void *cookie,
-                  protocol_binary_request_header *request,
-                  ADD_RESPONSE response) {
-
-    protocol_binary_request_touch *t;
-    void *key;
-    uint32_t exptime;
-    uint16_t nkey;
-    hash_item *item;
-
-
-    if (request->request.extlen != 4 || request->request.keylen == 0) {
-        return response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
-    }
-
-    t = reinterpret_cast<protocol_binary_request_touch*>(request);
-    key = t->bytes + sizeof(t->bytes);
-    exptime = ntohl(t->message.body.expiration);
-    nkey = ntohs(request->request.keylen);
-    item = touch_item(e, cookie, key, nkey, e->server.core->realtime(exptime));
-
-    if (item == NULL) {
-        if (request->request.opcode == PROTOCOL_BINARY_CMD_GATQ) {
-            return true;
-        } else {
-            return response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0, cookie);
-        }
-    } else {
-        bool ret;
-        if (request->request.opcode == PROTOCOL_BINARY_CMD_TOUCH) {
-            ret = response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                           PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
-        } else {
-            ret = response(NULL, 0, &item->flags, sizeof(item->flags),
-                           item_get_data(item), item->nbytes,
-                           PROTOCOL_BINARY_RAW_BYTES,
-                           PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                           item->cas, cookie);
-        }
-        item_release(e, item);
-        return ret;
-    }
-}
-
 static ENGINE_ERROR_CODE default_unknown_command(ENGINE_HANDLE* handle,
                                                  const void* cookie,
                                                  protocol_binary_request_header *request,
@@ -871,11 +838,6 @@ static ENGINE_ERROR_CODE default_unknown_command(ENGINE_HANDLE* handle,
         sent = get_vbucket(e, cookie,
                 reinterpret_cast<protocol_binary_request_get_vbucket*>(request),
                 response);
-        break;
-    case PROTOCOL_BINARY_CMD_TOUCH:
-    case PROTOCOL_BINARY_CMD_GAT:
-    case PROTOCOL_BINARY_CMD_GATQ:
-        sent = touch(e, cookie, request, response);
         break;
     default:
         sent = response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,

@@ -46,6 +46,7 @@ list(APPEND TESTAPP_SOURCES
      testapp_subdoc_perf.cc
      testapp_tests.cc
      testapp_timeout.cc
+     testapp_touch.cc
      testapp_xattr.cc
      testapp_xattr.h
      utilities.cc
@@ -198,6 +199,12 @@ ADD_TEST(NAME memcached-connection-timeout-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=ConnectionTimeoutTest.*)
 SET_TESTS_PROPERTIES(memcached-connection-timeout-tests PROPERTIES TIMEOUT 120)
+
+# Run the touch related tests
+ADD_TEST(NAME memcached-touch-tests
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND memcached_testapp --gtest_filter=TransportProtocols/TouchTest.*)
+SET_TESTS_PROPERTIES(memcached-touch-tests PROPERTIES TIMEOUT 120)
 
 # Run the XATTR tests
 ADD_TEST(NAME memcached-xattr-tests

@@ -201,6 +201,24 @@ void BinprotGetAndLockCommand::encode(std::vector<uint8_t>& buf) const {
     buf.insert(buf.end(), key.begin(), key.end());
 }
 
+void BinprotGetAndTouchCommand::encode(std::vector<uint8_t>& buf) const {
+    writeHeader(buf, 0, sizeof(expirytime));
+    protocol_binary_request_gat *req;
+    buf.resize(sizeof(req->bytes));
+    req = reinterpret_cast<protocol_binary_request_gat*>(buf.data());
+    req->message.body.expiration = htonl(expirytime);
+    buf.insert(buf.end(), key.begin(), key.end());
+}
+
+void BinprotTouchCommand::encode(std::vector<uint8_t>& buf) const {
+    writeHeader(buf, 0, sizeof(expirytime));
+    protocol_binary_request_touch *req;
+    buf.resize(sizeof(req->bytes));
+    req = reinterpret_cast<protocol_binary_request_touch*>(buf.data());
+    req->message.body.expiration = htonl(expirytime);
+    buf.insert(buf.end(), key.begin(), key.end());
+}
+
 void BinprotUnlockCommand::encode(std::vector<uint8_t>& buf) const {
     writeHeader(buf, 0, 0);
     buf.insert(buf.end(), key.begin(), key.end());
