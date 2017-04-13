@@ -44,6 +44,7 @@ public:
         ENGINE_HANDLE_V1::release = item_release;
         ENGINE_HANDLE_V1::get = get;
         ENGINE_HANDLE_V1::get_if = get_if;
+        ENGINE_HANDLE_V1::get_and_touch = get_and_touch;
         ENGINE_HANDLE_V1::get_locked = get_locked;
         ENGINE_HANDLE_V1::unlock = unlock;
         ENGINE_HANDLE_V1::get_stats = get_stats;
@@ -145,6 +146,16 @@ private:
         return std::make_pair(cb::engine_errc::no_bucket,
                               cb::unique_item_ptr{nullptr,
                                                   cb::ItemDeleter{handle}});
+    }
+
+    static cb::EngineErrorItemPair get_and_touch(ENGINE_HANDLE* handle,
+                                                 const void*,
+                                                 const DocKey&,
+                                                 uint16_t,
+                                                 uint32_t) {
+        return std::make_pair(
+                cb::engine_errc::no_bucket,
+                cb::unique_item_ptr{nullptr, cb::ItemDeleter{handle}});
     }
 
     static ENGINE_ERROR_CODE get_locked(ENGINE_HANDLE*, const void*, item**,

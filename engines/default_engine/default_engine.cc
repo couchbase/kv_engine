@@ -70,6 +70,12 @@ static cb::EngineErrorItemPair default_get_if(ENGINE_HANDLE*,
                                               std::function<bool(
                                                   const item_info&)>);
 
+static cb::EngineErrorItemPair default_get_and_touch(ENGINE_HANDLE* handle,
+                                                     const void* cookie,
+                                                     const DocKey& key,
+                                                     uint16_t vbucket,
+                                                     uint32_t expiry_time);
+
 static ENGINE_ERROR_CODE default_get_locked(ENGINE_HANDLE* handle,
                                             const void* cookie,
                                             item** item,
@@ -170,6 +176,7 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     engine->engine.get = default_get;
     engine->engine.get_if = default_get_if;
     engine->engine.get_locked = default_get_locked;
+    engine->engine.get_and_touch = default_get_and_touch;
     engine->engine.unlock = default_unlock;
     engine->engine.get_stats = default_get_stats;
     engine->engine.reset_stats = default_reset_stats;
@@ -483,6 +490,16 @@ static cb::EngineErrorItemPair default_get_if(
     return std::make_pair(cb::engine_errc::success,
                           cb::unique_item_ptr{ret.release(),
                                               cb::ItemDeleter{handle}});
+}
+
+static cb::EngineErrorItemPair default_get_and_touch(ENGINE_HANDLE* handle,
+                                                     const void* cookie,
+                                                     const DocKey& key,
+                                                     uint16_t vbucket,
+                                                     uint32_t expiry_time) {
+    return std::make_pair(
+            cb::engine_errc::not_supported,
+            cb::unique_item_ptr{nullptr, cb::ItemDeleter{handle}});
 }
 
 static ENGINE_ERROR_CODE default_get_locked(ENGINE_HANDLE* handle,

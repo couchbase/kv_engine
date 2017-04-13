@@ -684,6 +684,23 @@ static protocol_binary_response_status get_validator(const Cookie& cookie)
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
+static protocol_binary_response_status gat_validator(const Cookie& cookie) {
+    auto req = static_cast<protocol_binary_request_no_extras*>(
+            McbpConnection::getPacket(cookie));
+    uint32_t klen = ntohs(req->message.header.request.keylen);
+    uint32_t blen = ntohl(req->message.header.request.bodylen);
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.extlen != 4 || klen == 0 ||
+        (klen + 4) != blen ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES ||
+        req->message.header.request.cas != 0) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
 static protocol_binary_response_status delete_validator(const Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
@@ -1183,6 +1200,9 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_GETQ, get_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_GETK, get_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_GETKQ, get_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_GAT, gat_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_GATQ, gat_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_TOUCH, gat_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_DELETE, delete_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_DELETEQ, delete_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_STAT, stat_validator);

@@ -172,6 +172,22 @@ cb::EngineErrorItemPair bucket_get_if(McbpConnection* c,
     return ret;
 }
 
+cb::EngineErrorItemPair bucket_get_and_touch(McbpConnection* c,
+                                             const DocKey& key,
+                                             uint16_t vbucket,
+                                             uint32_t expiration) {
+    auto ret = c->getBucketEngine()->get_and_touch(
+        c->getBucketEngineAsV0(), c->getCookie(), key, vbucket, expiration);
+
+    if (ret.first == cb::engine_errc::disconnect) {
+        LOG_INFO(c,
+                 "%u: %s bucket_get_and_touch return ENGINE_DISCONNECT",
+                 c->getId(),
+                 c->getDescription().c_str());
+    }
+    return ret;
+}
+
 ENGINE_ERROR_CODE bucket_get_locked(McbpConnection& c,
                                     item** item_,
                                     const DocKey& key,

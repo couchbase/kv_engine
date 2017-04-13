@@ -406,6 +406,23 @@ public:
         }
     }
 
+    static cb::EngineErrorItemPair get_and_touch(ENGINE_HANDLE* handle,
+                                                 const void* cookie,
+                                                 const DocKey& key,
+                                                 uint16_t vbucket,
+                                                 uint32_t exptime) {
+        EWB_Engine* ewb = to_engine(handle);
+        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        if (ewb->should_inject_error(Cmd::GET, cookie, err)) {
+            return std::make_pair(
+                    cb::engine_errc::would_block,
+                    cb::unique_item_ptr{nullptr, cb::ItemDeleter{handle}});
+        } else {
+            return ewb->real_engine->get_and_touch(
+                    ewb->real_handle, cookie, key, vbucket, exptime);
+        }
+    }
+
     static ENGINE_ERROR_CODE get_locked(ENGINE_HANDLE* handle,
                                         const void* cookie,
                                         item** item,
@@ -1184,6 +1201,7 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     ENGINE_HANDLE_V1::get = get;
     ENGINE_HANDLE_V1::get_if = get_if;
     ENGINE_HANDLE_V1::get_locked = get_locked;
+    ENGINE_HANDLE_V1::get_and_touch = get_and_touch;
     ENGINE_HANDLE_V1::unlock = unlock;
     ENGINE_HANDLE_V1::store = store;
     ENGINE_HANDLE_V1::flush = flush;

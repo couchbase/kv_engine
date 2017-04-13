@@ -75,6 +75,11 @@ cb::EngineErrorItemPair bucket_get_if(McbpConnection* c,
                                       std::function<bool(
                                           const item_info&)> filter);
 
+cb::EngineErrorItemPair bucket_get_and_touch(McbpConnection* c,
+                                             const DocKey& key,
+                                             uint16_t vbucket,
+                                             uint32_t expiration);
+
 ENGINE_ERROR_CODE bucket_get_locked(McbpConnection& c,
                                     item** item_,
                                     const DocKey& key,

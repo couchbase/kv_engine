@@ -178,6 +178,13 @@ static cb::EngineErrorItemPair get_if(ENGINE_HANDLE* handle,
                                               cb::ItemDeleter{handle}});
 }
 
+static cb::EngineErrorItemPair get_and_touch(
+        ENGINE_HANDLE* handle, const void*, const DocKey&, uint16_t, uint32_t) {
+    return std::make_pair(
+            cb::engine_errc::failed,
+            cb::unique_item_ptr{nullptr, cb::ItemDeleter{handle}});
+}
+
 static ENGINE_ERROR_CODE get_locked(ENGINE_HANDLE* handle,
                                     const void* cookie,
                                     item** item,
@@ -267,6 +274,7 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     engine->engine.release = item_release;
     engine->engine.get = get;
     engine->engine.get_if = get_if;
+    engine->engine.get_and_touch = get_and_touch;
     engine->engine.get_locked = get_locked;
     engine->engine.unlock = unlock;
     engine->engine.get_stats = get_stats;

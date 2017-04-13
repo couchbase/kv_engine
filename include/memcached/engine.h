@@ -407,6 +407,22 @@ typedef struct engine_interface_v1 {
                                      uint32_t lock_timeout);
 
     /**
+     * Get and update the expiry time for the document
+     *
+     * @param handle the engine handle
+     * @param cookie The cookie provided by the frontend
+     * @param key the key to look up
+     * @param vbucket the virtual bucket id
+     * @param expirytime the new expiry time for the object
+     * @return A pair of the error code and (optionally) the item
+     */
+    cb::EngineErrorItemPair (*get_and_touch)(ENGINE_HANDLE* handle,
+                                             const void* cookie,
+                                             const DocKey& key,
+                                             uint16_t vbucket,
+                                             uint32_t expirytime);
+
+    /**
      * Unlock an item.
      *
      * @param handle the engine handle
