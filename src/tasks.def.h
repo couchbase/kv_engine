@@ -60,6 +60,7 @@ TASK(StatSnap, WRITER_TASK_IDX, 9)
 
 // Non-IO tasks
 TASK(PendingOpsNotification, NONIO_TASK_IDX, 0)
+TASK(NotifyHighPriorityReqTask, NONIO_TASK_IDX, 0)
 TASK(Processor, NONIO_TASK_IDX, 0)
 TASK(FlushAllTask, NONIO_TASK_IDX, 3)
 TASK(ConnNotifierCallback, NONIO_TASK_IDX, 5)

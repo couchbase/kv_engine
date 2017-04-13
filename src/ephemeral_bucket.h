@@ -32,6 +32,8 @@ class EphemeralBucket : public KVBucket {
 public:
     EphemeralBucket(EventuallyPersistentEngine& theEngine);
 
+    ~EphemeralBucket();
+
     bool initialize() override;
 
     /// Eviction not supported for Ephemeral buckets - without some backing
@@ -130,4 +132,36 @@ protected:
 
     /// Task responsible for purging in-memory tombstones.
     ExTask tombstonePurgerTask;
+
+private:
+    /**
+     * Task responsible for notifying high priority requests (usually during
+     * rebalance)
+     */
+    class NotifyHighPriorityReqTask : public GlobalTask {
+    public:
+        NotifyHighPriorityReqTask(EventuallyPersistentEngine& e);
+
+        bool run() override;
+
+        cb::const_char_buffer getDescription() override;
+
+        /**
+         * Adds the connections to be notified by the task and then wakes up
+         * the task.
+         *
+         * @param notifies Map of connections to be notified
+         */
+        void wakeup(std::map<const void*, ENGINE_ERROR_CODE> notifies);
+
+    private:
+        /* All the notifications to be called by the task */
+        std::map<const void*, ENGINE_ERROR_CODE> toNotify;
+
+        /* Serialize access to write/read of toNotify */
+        std::mutex toNotifyLock;
+    };
+
+    // Private member variables ///////////////////////////////////////////////
+    SingleThreadedRCPtr<NotifyHighPriorityReqTask> notifyHpReqTask;
 };

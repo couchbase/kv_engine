@@ -488,6 +488,21 @@ public:
 
     virtual void notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) = 0;
 
+    /**
+     * Get high priority notifications for a seqno or checkpoint persisted
+     *
+     * @param engine Ref to ep-engine
+     * @param id seqno or checkpoint id for which notifies are to be found
+     * @param notifyType indicating notify for seqno or chk persistence
+     *
+     * @return map of notifications with conn cookie as the key and notify
+     *         status as the value
+     */
+    std::map<const void*, ENGINE_ERROR_CODE> getHighPriorityNotifications(
+            EventuallyPersistentEngine& engine,
+            uint64_t idNum,
+            HighPriorityVBNotify notifyType);
+
     size_t getHighPriorityChkSize() {
         return numHpVBReqs.load();
     }
@@ -1304,21 +1319,6 @@ protected:
     void addHighPriorityVBEntry(uint64_t seqnoOrChkId,
                                 const void* cookie,
                                 HighPriorityVBNotify reqType);
-
-    /**
-     * Get high priority notifications for a seqno or checkpoint persisted
-     *
-     * @param engine Ref to ep-engine
-     * @param id seqno or checkpoint id for which notifies are to be found
-     * @param notifyType indicating notify for seqno or chk persistence
-     *
-     * @return map of notifies with conn cookie as the key and notify status as
-     *         the value
-     */
-    std::map<const void*, ENGINE_ERROR_CODE> getHighPriorityNotifies(
-            EventuallyPersistentEngine& engine,
-            uint64_t idNum,
-            HighPriorityVBNotify notifyType);
 
     /**
      * Get all high priority notifications as temporary failures because they

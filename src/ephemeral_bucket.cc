@@ -89,12 +89,17 @@ private:
 };
 
 EphemeralBucket::EphemeralBucket(EventuallyPersistentEngine& theEngine)
-    : KVBucket(theEngine) {
+    : KVBucket(theEngine),
+      notifyHpReqTask(make_STRCPtr<NotifyHighPriorityReqTask>(theEngine)) {
     /* We always have VALUE_ONLY eviction policy because a key not
        present in HashTable implies key not present at all.
        Note: This should not be confused with the eviction algorithm
              that we are going to use like NRU, FIFO etc. */
     eviction_policy = VALUE_ONLY;
+}
+
+EphemeralBucket::~EphemeralBucket() {
+    ExecutorPool::get()->cancel(notifyHpReqTask->getId());
 }
 
 bool EphemeralBucket::initialize() {
@@ -122,6 +127,9 @@ bool EphemeralBucket::initialize() {
                                    new EphemeralValueChangedListener(*this));
     config.addValueChangedListener("ephemeral_metadata_purge_interval",
                                    new EphemeralValueChangedListener(*this));
+
+    // High priority vbucket request notification task
+    ExecutorPool::get()->schedule(notifyHpReqTask);
 
     return true;
 }
@@ -227,8 +235,13 @@ void EphemeralBucket::notifyNewSeqno(const uint16_t vbid,
     /* In ephemeral buckets we must notify high priority requests as well.
        We do not wait for persistence to notify high priority requests */
     VBucketPtr vb = getVBucket(vbid);
-    vb->notifyHighPriorityRequests(
+
+    auto toNotify = vb->getHighPriorityNotifications(
             engine, notifyCtx.bySeqno, HighPriorityVBNotify::Seqno);
+
+    if (toNotify.size() && notifyHpReqTask) {
+        notifyHpReqTask->wakeup(std::move(toNotify));
+    }
 }
 
 // Protected methods //////////////////////////////////////////////////////////
@@ -297,4 +310,69 @@ void EphemeralBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     DO_STAT("vb_pending_seqlist_stale_metadata_bytes",
             ephPending.seqlistStaleMetadataBytes);
 #undef DO_STAT
+}
+
+EphemeralBucket::NotifyHighPriorityReqTask::NotifyHighPriorityReqTask(
+        EventuallyPersistentEngine& e)
+    : GlobalTask(&e,
+                 TaskId::NotifyHighPriorityReqTask,
+                 std::numeric_limits<int>::max(),
+                 false) {
+}
+
+bool EphemeralBucket::NotifyHighPriorityReqTask::run() {
+    std::map<const void*, ENGINE_ERROR_CODE> notifyQ;
+    {
+        /* It is necessary that the toNotifyLock is not held while
+           actually notifying. */
+        std::lock_guard<std::mutex> lg(toNotifyLock);
+        notifyQ = std::move(toNotify);
+    }
+
+    for (auto& notify : notifyQ) {
+        LOG(EXTENSION_LOG_NOTICE,
+            "%s for cookie :%p and status %d",
+            to_string(getDescription()).c_str(),
+            notify.first,
+            notify.second);
+        engine->notifyIOComplete(notify.first, notify.second);
+    }
+
+    /* Lets assume that the task will be explicitly woken */
+    snooze(std::numeric_limits<int>::max());
+
+    /* But, also check if another thread already tried to wake up the task */
+    bool scheduleSoon = false;
+    {
+        std::lock_guard<std::mutex> lg(toNotifyLock);
+        if (toNotify.size()) {
+            scheduleSoon = true;
+        }
+    }
+
+    if (scheduleSoon) {
+        /* Good to call snooze without holding toNotifyLock */
+        snooze(0);
+    }
+
+    /* Run the task again after snoozing */
+    return true;
+}
+
+cb::const_char_buffer
+EphemeralBucket::NotifyHighPriorityReqTask::getDescription() {
+    return "Ephemeral: Notify HighPriority Request";
+}
+
+void EphemeralBucket::NotifyHighPriorityReqTask::wakeup(
+        std::map<const void*, ENGINE_ERROR_CODE> notifies) {
+    {
+        /* Add the connections to be notified */
+        std::lock_guard<std::mutex> lg(toNotifyLock);
+        toNotify.insert(make_move_iterator(begin(notifies)),
+                        make_move_iterator(end(notifies)));
+    }
+
+    /* wake up the task */
+    ExecutorPool::get()->wake(getId());
 }

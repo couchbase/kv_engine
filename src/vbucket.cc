@@ -2289,7 +2289,7 @@ void VBucket::addHighPriorityVBEntry(uint64_t seqnoOrChkId,
         cookie);
 }
 
-std::map<const void*, ENGINE_ERROR_CODE> VBucket::getHighPriorityNotifies(
+std::map<const void*, ENGINE_ERROR_CODE> VBucket::getHighPriorityNotifications(
         EventuallyPersistentEngine& engine,
         uint64_t idNum,
         HighPriorityVBNotify notifyType) {

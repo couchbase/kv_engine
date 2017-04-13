@@ -210,11 +210,10 @@ void EphemeralVBucket::notifyHighPriorityRequests(
         EventuallyPersistentEngine& engine,
         uint64_t idNum,
         HighPriorityVBNotify notifyType) {
-    auto toNotify = getHighPriorityNotifies(engine, idNum, notifyType);
-
-    for (auto& notify : toNotify) {
-        engine.notifyIOComplete(notify.first, notify.second);
-    }
+    throw std::logic_error(
+            "EphemeralVBucket::notifyHighPriorityRequests() is not valid. "
+            "Called on vb " +
+            std::to_string(getId()));
 }
 
 void EphemeralVBucket::notifyAllPendingConnsFailed(

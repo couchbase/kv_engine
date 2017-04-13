@@ -205,7 +205,7 @@ HighPriorityVBReqStatus EPVBucket::checkAddHighPriorityVBEntry(
 void EPVBucket::notifyHighPriorityRequests(EventuallyPersistentEngine& engine,
                                            uint64_t idNum,
                                            HighPriorityVBNotify notifyType) {
-    auto toNotify = getHighPriorityNotifies(engine, idNum, notifyType);
+    auto toNotify = getHighPriorityNotifications(engine, idNum, notifyType);
 
     if (shard) {
         shard->highPriorityCount.fetch_sub(toNotify.size());
