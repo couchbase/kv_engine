@@ -642,7 +642,8 @@ protected:
           deleted(itm.isDeleted()),
           newCacheItem(true),
           isOrdered(isOrdered),
-          nru(itm.getNRUValue()) {
+          nru(itm.getNRUValue()),
+          stale(false) {
         // Placement-new the key which lives in memory directly after this
         // object.
         new (key()) SerialisedDocKey(itm.getKey());
@@ -698,7 +699,8 @@ protected:
           deleted(other.deleted),
           newCacheItem(other.newCacheItem),
           isOrdered(other.isOrdered),
-          nru(other.nru) {
+          nru(other.nru),
+          stale(false) {
         // Placement-new the key which lives in memory directly after this
         // object.
         StoredDocKey sKey(other.getKey());
@@ -745,6 +747,20 @@ protected:
     bool               newCacheItem : 1;
     const bool isOrdered : 1; //!< Is this an instance of OrderedStoredValue?
     uint8_t            nru       :  2; //!< True if referenced since last sweep
+    bool unused : 2; // Unused bits in first byte of bitfields.
+
+    // Indicates if a newer instance of the item is added. Logically part of
+    // OSV, but is physically located in SV as there are spare bytes here.
+    // Guarded by the SequenceList's writeLock.
+    // NOTE: As this is guarded by a different lock to the rest of the SV,
+    // it *must* be in a different byte than any other data not guarded by
+    // writeLock (Hence why this isn't in the same byte as _isDirty, deleted,
+    // newCacheItem etc). To achieve this std::atomic is used to ensure accesses
+    // are not "optimized" and merged with the previous byte. The thread-safety
+    // of std::atomic is not actually used/needed; we just need the no-merge
+    // guarantee.
+    // Note (2): Only 1 bit of this is currently used; rest is "spare".
+    std::atomic<bool> stale;
 
     static void increaseMetaDataSize(HashTable &ht, EPStats &st, size_t by);
     static void reduceMetaDataSize(HashTable &ht, EPStats &st, size_t by);
@@ -830,8 +846,7 @@ private:
                        UniquePtr n,
                        EPStats& stats,
                        HashTable& ht)
-        : StoredValue(itm, std::move(n), stats, ht, /*isOrdered*/ true),
-          stale(false) {
+        : StoredValue(itm, std::move(n), stats, ht, /*isOrdered*/ true) {
     }
 
     // Copy Constructor. Private, as needs to be carefully created via
@@ -844,7 +859,7 @@ private:
                        UniquePtr n,
                        EPStats& stats,
                        HashTable& ht)
-        : StoredValue(other, std::move(n), stats, ht), stale(false) {
+        : StoredValue(other, std::move(n), stats, ht) {
     }
 
     /* Do not allow assignment */
@@ -856,10 +871,6 @@ private:
     // Grant friendship to base class so it can perform flag dispatch to our
     // overridden protected methods.
     friend class StoredValue;
-
-    // indicates if a newer instance of the item is added. Guarded by the
-    // SequenceList's writeLock.
-    bool stale : 1;
 };
 
 SerialisedDocKey* StoredValue::key() {
