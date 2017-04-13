@@ -31,7 +31,7 @@ def cmd(f):
     f = cli_auth_utils.cmd_decorator(f)
     def g(*args, **kwargs):
         global output_json
-        output_json = kwargs.get('json', None)
+        output_json = kwargs.pop('json', None)
         f(*args, **kwargs)
     return g
 

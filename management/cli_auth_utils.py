@@ -33,9 +33,9 @@ def cmd_decorator(f):
                                       % (max - 1, len(args) - 1, list(args[1:])))
                 sys.exit(2)
 
-        bucket = kwargs.get('bucketName', None) or 'default'
-        username = kwargs.get('username', None) or bucket
-        password = kwargs.get('password', None) or ''
+        bucket = kwargs.pop('bucketName', None) or 'default'
+        username = kwargs.pop('username', None) or bucket
+        password = kwargs.pop('password', None) or ''
 
         if username:
             try:
@@ -49,19 +49,19 @@ def cmd_decorator(f):
                                 os.getenv("EP_ENGINE_VERSION",
                                           "unknown version")))
         try:
-            if kwargs.get('allBuckets', None):
+            if kwargs.pop('allBuckets', None):
                 buckets = mc.list_buckets()
                 for bucket in buckets:
                     print '*' * 78
                     print bucket
                     print
                     mc.bucket_select(bucket)
-                    f(*args)
+                    f(*args, **kwargs)
             elif bucket is not None:
                 mc.bucket_select(bucket)
-                f(*args)
+                f(*args, **kwargs)
             else:
-                f(*args)
+                f(*args, **kwargs)
         except mc_bin_client.ErrorEaccess:
             print ("No access to bucket:{} - permission denied "
                    "or bucket does not exist.".format(bucket))
