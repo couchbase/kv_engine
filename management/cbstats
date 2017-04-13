@@ -288,8 +288,6 @@ def size_label(s):
     suffix = sizes[int(e)]
     return "%d%s" % (s/(1024 ** math.floor(e)), suffix)
 
-@cmd
-
 def histograms(mc, raw_stats):
     # Try to figure out the terminal width.  If we can't, 79 is good
     def termWidth():
