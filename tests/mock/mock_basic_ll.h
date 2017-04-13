@@ -51,7 +51,7 @@ public:
         return rangeReadLock;
     }
 
-    /// Expose the writeLock for testins.
+    /// Expose the writeLock for testing.
     std::mutex& getWriteLock() {
         return writeLock;
     }
