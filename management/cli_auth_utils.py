@@ -33,11 +33,15 @@ def cmd_decorator(f):
                                       % (max - 1, len(args) - 1, list(args[1:])))
                 sys.exit(2)
 
-        bucket = kwargs.pop('bucketName', None) or 'default'
+        bucket = kwargs.pop('bucketName', None)
         username = kwargs.pop('username', None) or bucket
-        password = kwargs.pop('password', None) or ''
+        password = kwargs.pop('password', None)
 
-        if username:
+
+        if username is not None or password is not None:
+            bucket = bucket or 'default'
+            username = username or bucket
+            password = password or ''
             try:
                 mc.sasl_auth_plain(username, password)
             except mc_bin_client.MemcachedError:
