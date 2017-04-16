@@ -26,12 +26,6 @@ void cbsasl_dispose(cbsasl_conn_t** conn) {
     }
 }
 
-static const bool use_saslauthd{getenv("CBAUTH_SOCKPATH") != nullptr};
-
-bool cbsasl_use_saslauthd() {
-    return use_saslauthd;
-}
-
 CBSASL_PUBLIC_API
 cb::sasl::Domain cb::sasl::to_domain(const std::string& domain) {
     if (domain == "builtin" || domain == "local") {
