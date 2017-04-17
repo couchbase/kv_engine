@@ -371,7 +371,9 @@ void BinprotHelloResponse::assign(std::vector<uint8_t>&& buf) {
 
     auto const* end =
             reinterpret_cast<const uint16_t*>(getPayload() + getBodylen());
-    auto const* cur = reinterpret_cast<const uint16_t*>(getPayload());
+    auto const* cur = reinterpret_cast<const uint16_t*>(getPayload() +
+                                                        getExtlen() +
+                                                        getKey().size());
 
     for (; cur != end; ++cur) {
         features.push_back(mcbp::Feature(htons(*cur)));
