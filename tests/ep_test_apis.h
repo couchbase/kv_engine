@@ -494,11 +494,17 @@ uint64_t get_CAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
  * @param value Value for each item
  * @param expiry Expiration time for each item.
  * @param vb vbucket to use, default to 0
+ * @param docState document state to write
  */
-void write_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                 int num_items, int start_seqno = 0,
-                 const char *key_prefix = "key", const char *value = "data",
-                 uint32_t expiry = 0, uint16_t vb = 0);
+void write_items(ENGINE_HANDLE* h,
+                 ENGINE_HANDLE_V1* h1,
+                 int num_items,
+                 int start_seqno = 0,
+                 const char* key_prefix = "key",
+                 const char* value = "data",
+                 uint32_t expiry = 0,
+                 uint16_t vb = 0,
+                 DocumentState docState = DocumentState::Alive);
 
 /* Helper function to write unique items starting from keyXX until memory usage
    hits "mem_thresh_perc" (XX is start_seqno) */

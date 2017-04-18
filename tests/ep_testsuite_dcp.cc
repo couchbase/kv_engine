@@ -78,8 +78,8 @@ public:
           live_frontend_client(false),
           skip_verification(false),
           exp_err(ENGINE_SUCCESS),
-          exp_rollback(0)
-    {
+          exp_rollback(0),
+          expected_values(0) {
         seqno = {0, static_cast<uint64_t>(~0)};
         snapshot = {0, static_cast<uint64_t>(~0)};
     }
@@ -125,6 +125,8 @@ public:
     ENGINE_ERROR_CODE exp_err;
     /* Expected rollback seqno */
     uint64_t exp_rollback;
+    /* Expected number of values (from mutations or deleted_values) */
+    size_t expected_values;
 };
 
 class TestDcpConsumer {
@@ -189,7 +191,9 @@ private:
               last_by_seqno(0),
               extra_takeover_ops(0),
               exp_disk_snapshot(false),
-              exp_conflict_res(0) { }
+              exp_conflict_res(0),
+              num_values(0) {
+        }
 
         size_t num_mutations;
         size_t num_deletions;
@@ -202,6 +206,7 @@ private:
         size_t extra_takeover_ops;
         bool exp_disk_snapshot;
         uint8_t exp_conflict_res;
+        size_t num_values;
     };
 
     /* Connection name */
@@ -291,6 +296,10 @@ void TestDcpConsumer::run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                                    dcp_last_opaque);
                     }
 
+                    if (!dcp_last_value.empty()) {
+                        stats.num_values++;
+                    }
+
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_DELETION:
                     cb_assert(vbid != static_cast<uint16_t>(-1));
@@ -306,6 +315,10 @@ void TestDcpConsumer::run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                                    PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                    dcp_last_opaque);
+                    }
+
+                    if (!dcp_last_value.empty()) {
+                        stats.num_values++;
                     }
 
                     break;
@@ -457,6 +470,11 @@ void TestDcpConsumer::run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                 checkeq(static_cast<uint64_t>(0),
                         get_ull_stat(h, h1, stats_ready_queue_memory.str().c_str(), "dcp"),
                         "readyQ size did not go to zero");
+            }
+            if (ctx.expected_values) {
+                checkeq(ctx.expected_values,
+                        stats.num_values,
+                        "Expected values didn't match");
             }
         }
     }
@@ -1814,6 +1832,42 @@ static enum test_result test_dcp_producer_stream_req_full(ENGINE_HANDLE *h,
     /* Memory backfill sends items from checkpoint snapshots as much as possible
        Relies on backfill only when checkpoint snapshot is cleaned up */
     ctx.exp_markers = 2;
+
+    TestDcpConsumer tdc("unittest", cookie);
+    tdc.addStreamCtx(ctx);
+    tdc.run(h, h1);
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+/*
+ * Test that deleted items (with values) backfill correctly
+ */
+static enum test_result test_dcp_producer_deleted_item_backfill(
+        ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+    const int deletions = 10;
+    write_items(h,
+                h1,
+                deletions,
+                0,
+                "del",
+                "value",
+                0 /*exp*/,
+                0 /*vb*/,
+                DocumentState::Deleted);
+    wait_for_flusher_to_settle(h, h1);
+
+    const void* cookie = testHarness.create_cookie();
+
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, deletions};
+    ctx.exp_deletions = deletions;
+    ctx.expected_values = deletions;
+    ctx.flags |= DCP_ADD_STREAM_FLAG_DISKONLY;
+    ctx.exp_markers = 1;
 
     TestDcpConsumer tdc("unittest", cookie);
     tdc.addStreamCtx(ctx);
@@ -6106,5 +6160,9 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test_set_dcp_param",
                  test_set_dcp_param, test_setup, teardown, NULL,
                  prepare, cleanup),
+        TestCase("test MB-23863 backfill deleted value",
+                 test_dcp_producer_deleted_item_backfill, test_setup, teardown,
+                 NULL, prepare_ep_bucket, cleanup),
+
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };

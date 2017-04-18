@@ -214,7 +214,10 @@ static ENGINE_ERROR_CODE mock_deletion(const void* cookie,
     dcp_last_byseqno = by_seqno;
     dcp_last_revseqno = rev_seqno;
     dcp_last_meta.assign(static_cast<const char*>(meta), nmeta);
-    dcp_last_packet_size = 42 + dcp_last_key.length() + nmeta;
+    dcp_last_packet_size =
+            42 + dcp_last_key.length() + item->getNBytes() + nmeta;
+    dcp_last_value.assign(static_cast<const char*>(item->getData()),
+                          item->getNBytes());
 
     if (engine_handle_v1 && engine_handle) {
         engine_handle_v1->release(engine_handle, nullptr, item);

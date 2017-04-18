@@ -1708,7 +1708,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
 
     auto metadata = MetaDataFactory::createMetaData(docinfo->rev_meta);
 
-    if (sctx->valFilter != ValueFilter::KEYS_ONLY && !docinfo->deleted) {
+    if (sctx->valFilter != ValueFilter::KEYS_ONLY) {
         couchstore_open_options openOptions = 0;
 
         /**
@@ -1748,7 +1748,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
                 // No data, it cannot have a datatype!
                 metadata->setDataType(PROTOCOL_BINARY_RAW_BYTES);
             }
-        } else {
+        } else if (errCode != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
             sctx->logger->log(EXTENSION_LOG_WARNING,
                               "CouchKVStore::recordDbDump: "
                               "couchstore_open_doc_with_docinfo error:%s [%s], "
