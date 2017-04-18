@@ -4378,8 +4378,13 @@ static enum test_result test_observe_temp_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     check(last_deleted_flag, "Expected deleted flag to be set");
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
 
-    // Make sure there is one temp_item
-    checkeq(1, get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
+    if (isPersistentBucket(h, h1)) {
+        // Persistent: make sure there is one temp_item (as Persistent buckets
+        // don't keep deleted items in HashTable, unlike Ephemeral).
+        checkeq(1,
+                get_int_stat(h, h1, "curr_temp_items"),
+                "Expected single temp_items");
+    }
 
     // Do an observe
     std::map<std::string, uint16_t> obskeys;
@@ -4395,15 +4400,27 @@ static enum test_result test_observe_temp_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     uint64_t cas;
 
     memcpy(&vb, last_body.data(), sizeof(uint16_t));
-    check(ntohs(vb) == 0, "Wrong vbucket in result");
     memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
-    check(ntohs(keylen) == 3, "Wrong keylen in result");
     memcpy(&key, last_body.data() + 4, ntohs(keylen));
-    check(strncmp(key, "key", 3) == 0, "Wrong key in result");
     memcpy(&persisted, last_body.data() + 7, sizeof(uint8_t));
-    check(persisted == OBS_STATE_NOT_FOUND, "Expected NOT_FOUND in result");
     memcpy(&cas, last_body.data() + 8, sizeof(uint64_t));
-    check(ntohll(cas) == 0, "Wrong cas in result");
+
+    check(ntohs(vb) == 0, "Wrong vbucket in result");
+    check(ntohs(keylen) == 3, "Wrong keylen in result");
+    check(strncmp(key, "key", 3) == 0, "Wrong key in result");
+    if (isPersistentBucket(h, h1)) {
+        checkeq(OBS_STATE_NOT_FOUND,
+                int(persisted),
+                "Expected NOT_FOUND in result");
+        checkeq(uint64_t(0), ntohll(cas), "Wrong cas in result");
+    } else {
+        // For ephemeral buckets, deleted items are kept in HT hence we check
+        // for LOGICAL_DEL and a valid CAS.
+        checkeq(OBS_STATE_LOGICAL_DEL,
+                int(persisted),
+                "Expected LOGICAL_DEL in result");
+        checkne(uint64_t(0), ntohll(cas), "Wrong cas in result");
+    }
 
     return SUCCESS;
 }
@@ -4428,7 +4445,9 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
                       it, cas3) == ENGINE_SUCCESS,
           "Set should work");
 
-    wait_for_stat_to_be(h, h1, "ep_total_persisted", 3);
+    if (isPersistentBucket(h, h1)) {
+        wait_for_stat_to_be(h, h1, "ep_total_persisted", 3);
+    }
 
     // Do observe
     std::map<std::string, uint16_t> obskeys;
@@ -4445,6 +4464,10 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     uint8_t persisted;
     uint64_t cas;
 
+    const int expected_persisted = isPersistentBucket(h, h1)
+                                           ? OBS_STATE_PERSISTED
+                                           : OBS_STATE_NOT_PERSISTED;
+
     memcpy(&vb, last_body.data(), sizeof(uint16_t));
     check(ntohs(vb) == 0, "Wrong vbucket in result");
     memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
@@ -4452,7 +4475,7 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     memcpy(&key, last_body.data() + 4, ntohs(keylen));
     check(strncmp(key, "key1", 4) == 0, "Wrong key in result");
     memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
-    check(persisted == OBS_STATE_PERSISTED, "Expected persisted in result");
+    checkeq(expected_persisted, int(persisted), "Expected persisted in result");
     memcpy(&cas, last_body.data() + 9, sizeof(uint64_t));
     check(ntohll(cas) == cas1, "Wrong cas in result");
 
@@ -4463,7 +4486,7 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     memcpy(&key, last_body.data() + 21, ntohs(keylen));
     check(strncmp(key, "key2", 4) == 0, "Wrong key in result");
     memcpy(&persisted, last_body.data() + 25, sizeof(uint8_t));
-    check(persisted == OBS_STATE_PERSISTED, "Expected persisted in result");
+    checkeq(expected_persisted, int(persisted), "Expected persisted in result");
     memcpy(&cas, last_body.data() + 26, sizeof(uint64_t));
     check(ntohll(cas) == cas2, "Wrong cas in result");
 
@@ -4474,7 +4497,7 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     memcpy(&key, last_body.data() + 38, ntohs(keylen));
     check(strncmp(key, "key3", 4) == 0, "Wrong key in result");
     memcpy(&persisted, last_body.data() + 42, sizeof(uint8_t));
-    check(persisted == OBS_STATE_PERSISTED, "Expected persisted in result");
+    checkeq(expected_persisted, int(persisted), "Expected persisted in result");
     memcpy(&cas, last_body.data() + 43, sizeof(uint64_t));
     check(ntohll(cas) == cas3, "Wrong cas in result");
 
@@ -4501,13 +4524,19 @@ static enum test_result test_multiple_observes(ENGINE_HANDLE *h, ENGINE_HANDLE_V
                       it, cas2) == ENGINE_SUCCESS,
           "Set should work");
 
-    wait_for_stat_to_be(h, h1, "ep_total_persisted", 2);
+    if (isPersistentBucket(h, h1)) {
+        wait_for_stat_to_be(h, h1, "ep_total_persisted", 2);
+    }
 
     // Do observe
     std::map<std::string, uint16_t> obskeys;
     obskeys["key1"] = 0;
     observe(h, h1, obskeys);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+
+    const int expected_persisted = isPersistentBucket(h, h1)
+                                           ? OBS_STATE_PERSISTED
+                                           : OBS_STATE_NOT_PERSISTED;
 
     memcpy(&vb, last_body.data(), sizeof(uint16_t));
     check(ntohs(vb) == 0, "Wrong vbucket in result");
@@ -4516,7 +4545,7 @@ static enum test_result test_multiple_observes(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     memcpy(&key, last_body.data() + 4, ntohs(keylen));
     check(strncmp(key, "key1", 4) == 0, "Wrong key in result");
     memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
-    check(persisted == OBS_STATE_PERSISTED, "Expected persisted in result");
+    checkeq(expected_persisted, int(persisted), "Expected persisted in result");
     memcpy(&cas, last_body.data() + 9, sizeof(uint64_t));
     check(ntohll(cas) == cas1, "Wrong cas in result");
     check(last_body.size() == 17, "Incorrect body length");
@@ -4534,7 +4563,7 @@ static enum test_result test_multiple_observes(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     memcpy(&key, last_body.data() + 4, ntohs(keylen));
     check(strncmp(key, "key2", 4) == 0, "Wrong key in result");
     memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
-    check(persisted == OBS_STATE_PERSISTED, "Expected persisted in result");
+    checkeq(expected_persisted, int(persisted), "Expected persisted in result");
     memcpy(&cas, last_body.data() + 9, sizeof(uint64_t));
     check(ntohll(cas) == cas2, "Wrong cas in result");
     check(last_body.size() == 17, "Incorrect body length");
@@ -4554,8 +4583,10 @@ static enum test_result test_observe_with_not_found(ENGINE_HANDLE *h, ENGINE_HAN
                       it, cas1) == ENGINE_SUCCESS,
           "Set should work");
 
-    wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
-    stop_persistence(h, h1);
+    if (isPersistentBucket(h, h1)) {
+        wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
+        stop_persistence(h, h1);
+    }
 
     check(storeCasOut(h, h1, NULL, 1, "key3", value, PROTOCOL_BINARY_RAW_BYTES,
                       it, cas3) == ENGINE_SUCCESS,
@@ -4578,6 +4609,10 @@ static enum test_result test_observe_with_not_found(ENGINE_HANDLE *h, ENGINE_HAN
     uint8_t persisted;
     uint64_t cas;
 
+    const int expected_persisted = isPersistentBucket(h, h1)
+                                           ? OBS_STATE_PERSISTED
+                                           : OBS_STATE_NOT_PERSISTED;
+
     memcpy(&vb, last_body.data(), sizeof(uint16_t));
     check(ntohs(vb) == 0, "Wrong vbucket in result");
     memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
@@ -4585,7 +4620,7 @@ static enum test_result test_observe_with_not_found(ENGINE_HANDLE *h, ENGINE_HAN
     memcpy(&key, last_body.data() + 4, ntohs(keylen));
     check(strncmp(key, "key1", 4) == 0, "Wrong key in result");
     memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
-    check(persisted == OBS_STATE_PERSISTED, "Expected persisted in result");
+    checkeq(expected_persisted, int(persisted), "Expected persisted in result");
     memcpy(&cas, last_body.data() + 9, sizeof(uint64_t));
     check(ntohll(cas) == cas1, "Wrong cas in result");
 
@@ -4594,7 +4629,7 @@ static enum test_result test_observe_with_not_found(ENGINE_HANDLE *h, ENGINE_HAN
     memcpy(&key, last_body.data() + 21, ntohs(keylen));
     check(strncmp(key, "key2", 4) == 0, "Wrong key in result");
     memcpy(&persisted, last_body.data() + 25, sizeof(uint8_t));
-    check(persisted == OBS_STATE_NOT_FOUND, "Expected key_not_found key status");
+    checkeq(OBS_STATE_NOT_FOUND, int(persisted), "Expected key_not_found key status");
 
     memcpy(&vb, last_body.data() + 34, sizeof(uint16_t));
     check(ntohs(vb) == 1, "Wrong vbucket in result");
@@ -4603,7 +4638,7 @@ static enum test_result test_observe_with_not_found(ENGINE_HANDLE *h, ENGINE_HAN
     memcpy(&key, last_body.data() + 38, ntohs(keylen));
     check(strncmp(key, "key3", 4) == 0, "Wrong key in result");
     memcpy(&persisted, last_body.data() + 42, sizeof(uint8_t));
-    check(persisted == OBS_STATE_LOGICAL_DEL, "Expected persisted in result");
+    checkeq(OBS_STATE_LOGICAL_DEL, int(persisted), "Expected persisted in result");
     memcpy(&cas, last_body.data() + 43, sizeof(uint64_t));
     check(ntohll(cas) != cas3, "Expected cas to be different");
 
@@ -7409,17 +7444,17 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test observe no data", test_observe_no_data, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("test observe single key", test_observe_single_key, test_setup, teardown,
-                 NULL, prepare_ep_bucket, cleanup),
+                 NULL, prepare, cleanup),
         TestCase("test observe on temp item", test_observe_temp_item, test_setup, teardown,
-                 NULL, prepare_ep_bucket, cleanup),
+                 NULL, prepare, cleanup),
         TestCase("test observe multi key", test_observe_multi_key, test_setup, teardown,
-                 NULL, prepare_ep_bucket, cleanup),
+                 NULL, prepare, cleanup),
         TestCase("test multiple observes", test_multiple_observes, test_setup, teardown,
-                 NULL, prepare_ep_bucket, cleanup),
+                 NULL, prepare, cleanup),
         TestCase("test observe with not found", test_observe_with_not_found, test_setup,
-                 teardown, NULL, prepare_ep_bucket, cleanup),
+                 teardown, NULL, prepare, cleanup),
         TestCase("test observe not my vbucket", test_observe_errors, test_setup,
-                 teardown, NULL, prepare_ep_bucket, cleanup),
+                 teardown, NULL, prepare, cleanup),
         TestCase("test observe seqno basic tests", test_observe_seqno_basic_tests,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test observe seqno failover", test_observe_seqno_failover,
