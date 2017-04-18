@@ -46,6 +46,25 @@ protected:
         VBucketTest::TearDown();
     }
 
+    /**
+     * Sets num_docs documents each with a doc size of docSize. This method
+     * avoids polluting the heap to assist in measuring memory usage.
+     *
+     * @param docSize The size in bytes of each items blob
+     * @param num_docs The number of docs to set
+     */
+    void setDocs(size_t docSize, size_t num_docs);
+
+    /**
+     * Remove all but one document in each page. This is to create a situation
+     * where the defragmenter runs for every document.
+     *
+     * @param num_docs The number of docs that have been set
+     * @param[out] num_remaining The resulting number documents that are left after
+     *                     the fragmentation
+     */
+    void fragment(size_t num_docs, size_t &num_remaining);
+
     // Track of memory used (from ObjectRegistry).
     std::atomic<size_t> mem_used{0};
 };

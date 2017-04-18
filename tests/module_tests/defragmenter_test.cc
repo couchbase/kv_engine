@@ -62,6 +62,67 @@ static bool wait_for_mapped_below(size_t mapped_threshold,
     return true;
 }
 
+void DefragmenterTest::setDocs(size_t docSize, size_t num_docs) {
+    std::string data(docSize, 'x');
+    for (unsigned int i = 0; i < num_docs; i++ ) {
+        // Deliberately using C-style int-to-string conversion (instead of
+        // stringstream) to minimize heap pollution.
+        char key[16];
+        snprintf(key, sizeof(key), "%d", i);
+        // Use DocKey to minimize heap pollution
+        Item item(DocKey(key, DocNamespace::DefaultCollection),
+                  0,
+                  0,
+                  data.data(),
+                  data.size());
+        auto rv = public_processSet(item, 0);
+        EXPECT_EQ(rv, MutationStatus::WasClean);
+    }
+}
+
+void DefragmenterTest::fragment(size_t num_docs, size_t &num_remaining) {
+    num_remaining = num_docs;
+    const size_t LOG_PAGE_SIZE = 12; // 4K page
+    {
+        typedef std::unordered_map<uintptr_t, std::vector<int> > page_to_keys_t;
+        page_to_keys_t page_to_keys;
+
+        // Build a map of pages to keys
+        for (unsigned int i = 0; i < num_docs; i++ ) {
+            /// Use stack and DocKey to minimuze heap pollution
+            char key[16];
+            snprintf(key, sizeof(key), "%d", i);
+            auto* item = vbucket->ht.find(
+                    DocKey(key, DocNamespace::DefaultCollection),
+                    TrackReference::Yes,
+                    WantsDeleted::No);
+            ASSERT_NE(nullptr, item);
+
+            const uintptr_t page =
+                    uintptr_t(item->getValue()->getData()) >> LOG_PAGE_SIZE;
+            page_to_keys[page].emplace_back(i);
+        }
+
+        // Now remove all but one document from each page.
+        for (page_to_keys_t::iterator kv = page_to_keys.begin();
+             kv != page_to_keys.end();
+             kv++) {
+            // Free all but one document on this page.
+            while (kv->second.size() > 1) {
+                auto doc_id = kv->second.back();
+                // Use DocKey to minimize heap pollution
+                char key[16];
+                snprintf(key, sizeof(key), "%d", doc_id);
+                ASSERT_TRUE(vbucket->deleteKey(
+                        DocKey(key, DocNamespace::DefaultCollection)));
+                kv->second.pop_back();
+                num_remaining--;
+            }
+        }
+    }
+}
+
+
 // Create a number of documents, spanning at least two or more pages, then
 // delete most (but not all) of them - crucially ensure that one document from
 // each page is still present. This will result in the rest of that page
@@ -108,21 +169,7 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
     //    pages (so we can later leave 'holes' when they are deleted).
     const size_t size = 128;
     const size_t num_docs = 50000;
-    std::string data(size, 'x');
-    for (unsigned int i = 0; i < num_docs; i++ ) {
-        // Deliberately using C-style int-to-string conversion (instead of
-        // stringstream) to minimize heap pollution.
-        char key[16];
-        snprintf(key, sizeof(key), "%d", i);
-        // Use DocKey to minimize heap pollution
-        Item item(DocKey(key, DocNamespace::DefaultCollection),
-                  0,
-                  0,
-                  data.data(),
-                  data.size());
-        auto rv = public_processSet(item, 0);
-        EXPECT_EQ(rv, MutationStatus::WasClean);
-    }
+    setDocs(size, num_docs);
 
     // Since public_processSet causes queueDirty to be run for each item above
     // we need to clear checkpointManager from having any references to the
@@ -140,44 +187,7 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
     // 2. Determine how many documents are in each page, and then remove all but
     //    one from each page.
     size_t num_remaining = num_docs;
-    const size_t LOG_PAGE_SIZE = 12; // 4K page
-    {
-        typedef std::unordered_map<uintptr_t, std::vector<int> > page_to_keys_t;
-        page_to_keys_t page_to_keys;
-
-        // Build a map of pages to keys
-        for (unsigned int i = 0; i < num_docs; i++ ) {
-            /// Use stack and DocKey to minimuze heap pollution
-            char key[16];
-            snprintf(key, sizeof(key), "%d", i);
-            auto* item = vbucket->ht.find(
-                    DocKey(key, DocNamespace::DefaultCollection),
-                    TrackReference::Yes,
-                    WantsDeleted::No);
-            ASSERT_NE(nullptr, item);
-
-            const uintptr_t page =
-                uintptr_t(item->getValue()->getData()) >> LOG_PAGE_SIZE;
-            page_to_keys[page].emplace_back(i);
-        }
-
-        // Now remove all but one document from each page.
-        for (page_to_keys_t::iterator kv = page_to_keys.begin();
-             kv != page_to_keys.end();
-             kv++) {
-            // Free all but one document on this page.
-            while (kv->second.size() > 1) {
-                auto doc_id = kv->second.back();
-                // Use DocKey to minimize heap pollution
-                char key[16];
-                snprintf(key, sizeof(key), "%d", doc_id);
-                ASSERT_TRUE(vbucket->deleteKey(
-                        DocKey(key, DocNamespace::DefaultCollection)));
-                kv->second.pop_back();
-                num_remaining--;
-            }
-        }
-    }
+    fragment(num_docs, num_remaining);
 
     // Release free memory back to OS to minimize our footprint after
     // removing the documents above.
