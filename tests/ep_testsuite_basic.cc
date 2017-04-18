@@ -1017,6 +1017,7 @@ static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     touch(h, h1, "mykey", 0, (time(NULL) + 10));
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "touch mykey");
+    check(last_cas != curr_cas, "touch should have returned an updated CAS");
 
     check(get_meta(h, h1, "mykey"), "Get meta failed");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),

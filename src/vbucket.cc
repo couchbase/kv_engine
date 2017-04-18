@@ -1434,6 +1434,7 @@ GetValue VBucket::getAndUpdateTtl(const DocKey& key,
 
         if (exptime_mutated) {
             VBNotifyCtx notifyCtx = queueDirty(*v);
+            rv.getValue()->setCas(v->getCas());
             // we unlock ht lock here because we want to avoid potential lock
             // inversions arising from notifyNewSeqno() call
             hbl.getHTLock().unlock();
