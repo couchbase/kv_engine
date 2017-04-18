@@ -73,8 +73,8 @@ protected:
 
         if (admin) {
             ASSERT_NO_THROW(conn.authenticate("@admin", "password", "PLAIN"));
+            conn.selectBucket("default");
         }
-
         unique_cJSON_ptr json;
         json = conn.stats("");
         EXPECT_NE(nullptr, json.get());

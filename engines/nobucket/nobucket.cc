@@ -159,7 +159,7 @@ private:
 
     static ENGINE_ERROR_CODE get_stats(ENGINE_HANDLE*, const void*,
                                        const char*, int, ADD_STAT) {
-        return ENGINE_SUCCESS;
+        return ENGINE_NO_BUCKET;
     }
 
     static ENGINE_ERROR_CODE store(ENGINE_HANDLE*, const void*, item*,
