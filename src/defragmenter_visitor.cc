@@ -94,8 +94,13 @@ bool DefragmentVisitor::visit(StoredValue& v) {
     // supports, so it can be successfully reallocated to a run with other
     // objects of the same size.
     if (value_len > 0 && value_len <= max_size_class) {
-        // If sufficiently old reallocate, otherwise increment it's age.
-        if (v.getValue()->getAge() >= age_threshold) {
+        // If sufficiently old and if it looks like nothing else holds a
+        // reference to the blob reallocate, otherwise increment it's age.
+        // It may be possible to add a reference to the blob without holding
+        // any locks, therefore the check is somewhat of an estimate which
+        // should be good enough.
+        if (v.getValue()->getAge() >= age_threshold &&
+            v.getValue().refCount() < 2) {
             v.reallocate();
             defrag_count++;
         } else {

@@ -20,7 +20,6 @@
 #include "daemon/alloc_hooks.h"
 #include "defragmenter_visitor.h"
 
-#include <gtest/gtest.h>
 #include <valgrind/valgrind.h>
 
 
@@ -247,6 +246,85 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
         << "estimate (" <<  expected_mapped << ") after the defragmentater "
         << "visited " << visitor.getVisitedCount() << " items "
         << "and moved " << visitor.getDefragCount() << " items!";
+}
+
+// Check that the defragmenter doesn't increase the memory used. The specific
+// case we are testing here is what happens when a reference to the blobs is
+// also held by the Checkpoint Manager. See MB-23263.
+/* The Defragmenter (and hence it's unit tests) depend on using jemalloc as the
+ * memory allocator.
+ */
+#if defined(HAVE_JEMALLOC)
+TEST_P(DefragmenterTest, RefCountMemUsage) {
+#else
+TEST_P(DefragmenterTest, DISABLED_RefCountMemUsage) {
+#endif
+
+    /*
+     * Similarly to the MappedMemory test, this test appears to cause issues
+     * with Valgrind. So it is disabled under Valgrind for now. I've included
+     * the same explanation below for completeness.
+     *
+      MB-22016:
+      Disable this test for valgrind as it currently triggers some problems
+      within jemalloc that will get detected much further down the set of
+      unit-tests.
+
+      The problem appears to be the toggling of thread cache, I suspect that
+      jemalloc is writing some data when the thread cache is off (during the
+      defrag) and then accessing that data differently with thread cache on.
+
+      The will link to an issue on jemalloc to see if there is anything to be
+      changed.
+    */
+    if (RUNNING_ON_VALGRIND) {
+        printf("DefragmenterTest.RefCountMemUsage is currently disabled for"
+               " valgrind\n");
+        return;
+    }
+
+    // Sanity check - need memory tracker to be able to check our memory usage.
+    ASSERT_TRUE(MemoryTracker::trackingMemoryAllocations())
+            << "Memory tracker not enabled - cannot continue";
+
+    // 1. Create a small number of documents to record the checkpoint manager
+    // overhead with
+    const size_t size = 3500;
+    const size_t num_docs = 50000;
+    setDocs(size, num_docs);
+
+    // 2. Determine how many documents are in each page, and then remove all but
+    //    one from each page.
+    size_t num_remaining = num_docs;
+    fragment(num_docs, num_remaining);
+
+    // Release free memory back to OS to minimize our footprint after
+    // removing the documents above.
+    AllocHooks::release_free_memory();
+
+    size_t mem_used_before_defrag = mem_used.load();
+
+    // The refcounts of all blobs should at least 2 at this point as the
+    // CheckpointManager will also be holding references to them.
+
+    // 3. Enable defragmenter and trigger defragmentation but let the
+    // defragmenter drop out of scope afterwards to avoid interfering
+    // with the memory measurements.
+    {
+        AllocHooks::enable_thread_cache(false);
+
+        DefragmentVisitor visitor(0);
+        visitor.visit(vbucket->getId(), vbucket->ht);
+
+        AllocHooks::enable_thread_cache(true);
+        AllocHooks::release_free_memory();
+        ASSERT_EQ(visitor.getVisitedCount(), num_remaining);
+        ASSERT_EQ(visitor.getDefragCount(), 0);
+    }
+
+    size_t mem_used_after_defrag = mem_used.load();
+
+    EXPECT_LE(mem_used_after_defrag, mem_used_before_defrag);
 }
 
 INSTANTIATE_TEST_CASE_P(

@@ -273,6 +273,10 @@ public:
         swap(other.gimme());
     }
 
+    int refCount() const {
+        return static_cast<RCValue*>(value)->_rc_refcount.load();
+    }
+
     // safe for the lifetime of this instance
     T *get() const {
         return value;
