@@ -47,6 +47,25 @@ Saslauthd::Saslauthd(const std::string& socketfile)
         msg.append(socketfile);
         throw std::system_error(errno, std::system_category(), msg.c_str());
     }
+
+    // We don't want the server to wait "forever" in case of errors
+    struct timeval timeout;
+    timeout.tv_sec = 30;
+    timeout.tv_usec = 0;
+
+    if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO,
+                   reinterpret_cast<void*>(&timeout),
+                   sizeof(timeout)) < 0) {
+        std::string msg{"Saslauthd::Saslauthd(): setsockopt SO_RCVTIMEO"};
+        throw std::system_error(errno, std::system_category(), msg.c_str());
+    }
+
+    if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO,
+                   reinterpret_cast<void*>(&timeout),
+                   sizeof(timeout)) < 0) {
+        std::string msg{"Saslauthd::Saslauthd(): setsockopt SO_SNDTIMEO"};
+        throw std::system_error(errno, std::system_category(), msg.c_str());
+    }
 }
 
 Saslauthd::~Saslauthd() {
