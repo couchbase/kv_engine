@@ -281,11 +281,6 @@ public:
                                             uint16_t vbucket,
                                             uint64_t checkpointId);
 
-    ENGINE_ERROR_CODE touch(const void* cookie,
-                            protocol_binary_request_header *request,
-                            ADD_RESPONSE response,
-                            DocNamespace docNamespace);
-
     ENGINE_ERROR_CODE getMeta(const void* cookie,
                               protocol_binary_request_get_meta *request,
                               ADD_RESPONSE response,

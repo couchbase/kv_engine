@@ -1103,12 +1103,6 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         h->decrementSessionCtr();
         return rv;
     }
-    case PROTOCOL_BINARY_CMD_TOUCH:
-    case PROTOCOL_BINARY_CMD_GAT:
-    case PROTOCOL_BINARY_CMD_GATQ: {
-        rv = h->touch(cookie, request, response, docNamespace);
-        return rv;
-    }
     case PROTOCOL_BINARY_CMD_STOP_PERSISTENCE:
         res = h->stopFlusher(&msg, &msg_size);
         break;
@@ -4634,91 +4628,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
                         PROTOCOL_BINARY_RAW_BYTES,
                         PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
                         cookie);
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
-                                       protocol_binary_request_header *request,
-                                       ADD_RESPONSE response,
-                                       DocNamespace docNamespace)
-{
-    if (request->request.extlen != 4 || request->request.keylen == 0) {
-        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
-    }
-
-    protocol_binary_request_touch *t =
-                     reinterpret_cast<protocol_binary_request_touch*>(request);
-    const uint8_t* key = t->bytes + sizeof(t->bytes);
-    uint32_t exptime = ntohl(t->message.body.expiration);
-    uint16_t nkey = ntohs(request->request.keylen);
-    uint16_t vbucket = ntohs(request->request.vbucket);
-
-    // try to get the object
-    DocKey k(key, nkey, docNamespace);
-
-    if (exptime != 0) {
-        exptime = serverApi->core->abstime(serverApi->core->realtime(exptime));
-    }
-    GetValue gv(kvBucket->getAndUpdateTtl(k, vbucket, cookie, (time_t)exptime));
-    ENGINE_ERROR_CODE rv = gv.getStatus();
-    if (rv == ENGINE_SUCCESS) {
-        Item *it = gv.getValue();
-        if (request->request.opcode == PROTOCOL_BINARY_CMD_TOUCH) {
-            rv = sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                              PROTOCOL_BINARY_RAW_BYTES,
-                              PROTOCOL_BINARY_RESPONSE_SUCCESS, it->getCas(),
-                              cookie);
-        } else { // GET and TOUCH
-            uint32_t flags = it->getFlags();
-            rv = sendResponse(response, NULL, 0, &flags, sizeof(flags),
-                              it->getData(), it->getNBytes(),
-                              it->getDataType(),
-                              PROTOCOL_BINARY_RESPONSE_SUCCESS, it->getCas(),
-                              cookie);
-            ++stats.numOpsGet;
-        }
-        ++stats.numOpsStore;
-        delete it;
-    } else if (rv == ENGINE_KEY_EEXISTS) {
-        if (isDegradedMode()) {
-            std::string msg("Temporary Failure");
-            rv = sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
-                              msg.length(), PROTOCOL_BINARY_RAW_BYTES,
-                              PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0, cookie);
-        } else {
-            std::string msg("Lock Error");
-            rv = sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
-                              msg.length(), PROTOCOL_BINARY_RAW_BYTES,
-                              PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0, cookie);
-        }
-    } else if (rv == ENGINE_KEY_ENOENT) {
-        if (isDegradedMode()) {
-            std::string msg("Temporary Failure");
-            rv = sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
-                              msg.length(), PROTOCOL_BINARY_RAW_BYTES,
-                              PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0, cookie);
-        } else if (request->request.opcode == PROTOCOL_BINARY_CMD_GATQ) {
-            // GATQ should not return response upon cache miss
-            rv = ENGINE_SUCCESS;
-        } else {
-            std::string msg("Not Found");
-            rv = sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
-                              msg.length(), PROTOCOL_BINARY_RAW_BYTES,
-                              PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0, cookie);
-        }
-    } else if (rv == ENGINE_NOT_MY_VBUCKET) {
-        if (isDegradedMode()) {
-            std::string msg("Temporary Failure");
-            rv = sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
-                              msg.length(), PROTOCOL_BINARY_RAW_BYTES,
-                              PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0, cookie);
-        } else {
-            rv = sendNotMyVBucketResponse(response, cookie, 0);
-        }
-    }
-
-    return rv;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(
