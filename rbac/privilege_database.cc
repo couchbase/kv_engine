@@ -70,7 +70,7 @@ UserEntry::UserEntry(const cJSON& root) {
         }
     }
 
-    it = cJSON_GetObjectItem(json, "type");
+    it = cJSON_GetObjectItem(json, "domain");
     if (it == nullptr) {
         domain = cb::sasl::Domain::Local;
     } else if (it->type == cJSON_String) {
@@ -78,7 +78,7 @@ UserEntry::UserEntry(const cJSON& root) {
     } else {
         throw std::invalid_argument(
                 "UserEntry::UserEntry::"
-                " \"type\" should be a string");
+                " \"domain\" should be a string");
     }
 }
 

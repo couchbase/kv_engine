@@ -28,9 +28,9 @@ void cbsasl_dispose(cbsasl_conn_t** conn) {
 
 CBSASL_PUBLIC_API
 cb::sasl::Domain cb::sasl::to_domain(const std::string& domain) {
-    if (domain == "builtin" || domain == "local") {
+    if (domain == "local") {
         return cb::sasl::Domain::Local;
-    } else if (domain == "saslauthd" || domain == "external") {
+    } else if (domain == "external") {
         return cb::sasl::Domain::External;
     }
     throw std::invalid_argument("cb::sasl::to_domain: invalid domain " +

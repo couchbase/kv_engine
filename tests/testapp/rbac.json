@@ -18,7 +18,7 @@
       ]
     },
     "privileges": [],
-    "type": "local"
+    "domain": "local"
   },
   "smith": {
     "buckets": {
@@ -28,7 +28,7 @@
       ]
     },
     "privileges":[],
-    "type": "local"
+    "domain": "local"
   },
   "Trond": {
     "buckets": {
@@ -39,7 +39,7 @@
       ]
     },
     "privileges":[],
-    "type": "local"
+    "domain": "local"
   },
   "jones": {
     "buckets": {
@@ -49,7 +49,7 @@
         ]
     },
     "privileges":[],
-    "type": "local"
+    "domain": "local"
   },
   "larry": {
     "buckets": {
@@ -61,7 +61,7 @@
       ]
     },
     "privileges":[],
-    "type": "local"
+    "domain": "local"
   },
   "@admin": {
     "buckets": {
@@ -384,7 +384,7 @@
     "privileges": [
       "all"
     ],
-    "type": "local"
+    "domain": "local"
   },
   "bucket-1": {
     "buckets": {
@@ -395,7 +395,7 @@
     "privileges": [
       "all"
     ],
-    "type": "local"
+    "domain": "local"
   },
   "bucket-2": {
     "buckets": {
@@ -406,21 +406,21 @@
     "privileges": [
       "all"
     ],
-    "type": "local"
+    "domain": "local"
   },
   "superman": {
-    "type": "saslauthd"
+    "domain": "external"
   },
   "legacy;legacy": {
     "buckets": {
       "default": ["all"]
     },
-    "type": "local"
+    "domain": "local"
   },
   "legacy": {
     "buckets": {
       "default": ["all"]
     },
-    "type": "local"
+    "domain": "local"
   }
 }
