@@ -17,7 +17,9 @@
 
 #include "config.h"
 #include "subdocument_context.h"
+#include "debug_helpers.h"
 #include "mc_time.h"
+#include "protocol/mcbp/engine_wrapper.h"
 #include "subdocument.h"
 
 #include <xattr/blob.h>
@@ -262,4 +264,75 @@ cb::const_char_buffer SubdocCmdContext::get_document_vattr() {
     }
 
     return cb::const_char_buffer(document_vattr.data(), document_vattr.size());
+}
+
+protocol_binary_response_status SubdocCmdContext::get_document_for_searching(
+        uint64_t client_cas) {
+    item_info& info = getInputItemInfo();
+    auto& c = connection;
+
+    if (!bucket_get_item_info(&connection, c.getItem(), &info)) {
+        LOG_WARNING(&c, "%u: Failed to get item info", c.getId());
+        return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
+    }
+
+    if (info.cas == -1ull) {
+        // Check that item is not locked:
+        if (client_cas == 0 || client_cas == -1ull) {
+            if (c.remapErrorCode(ENGINE_LOCKED_TMPFAIL) ==
+                ENGINE_LOCKED_TMPFAIL) {
+                return PROTOCOL_BINARY_RESPONSE_LOCKED;
+            } else {
+                return PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+            }
+        }
+        // If the user *did* supply the CAS, we will validate it later on
+        // when the mutation is actually applied. In any event, we don't
+        // run the following branch on locked documents.
+    } else if ((client_cas != 0) && client_cas != info.cas) {
+        // Check CAS matches (if specified by the user).
+        return PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
+    }
+
+    in_flags = info.flags;
+    in_cas = client_cas ? client_cas : info.cas;
+    in_doc.buf = static_cast<char*>(info.value[0].iov_base);
+    in_doc.len = info.value[0].iov_len;
+    in_datatype = info.datatype;
+    in_document_state = info.document_state;
+
+    if (mcbp::datatype::is_snappy(info.datatype)) {
+        // Need to expand before attempting to extract from it.
+        try {
+            using namespace cb::compression;
+            if (!inflate(Algorithm::Snappy,
+                         in_doc.buf,
+                         in_doc.len,
+                         inflated_doc_buffer)) {
+                char clean_key[KEY_MAX_LENGTH + 32];
+                if (buf_to_printable_buffer(clean_key,
+                                            sizeof(clean_key),
+                                            static_cast<const char*>(info.key),
+                                            info.nkey) != -1) {
+                    LOG_WARNING(&c,
+                                "<%u ERROR: Failed to determine inflated body"
+                                " size. Key: '%s' may have an "
+                                "incorrect datatype of COMPRESSED_JSON.",
+                                c.getId(),
+                                clean_key);
+                }
+
+                return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
+            }
+        } catch (const std::bad_alloc&) {
+            return PROTOCOL_BINARY_RESPONSE_ENOMEM;
+        }
+
+        // Update document to point to the uncompressed version in the buffer.
+        in_doc.buf = inflated_doc_buffer.data.get();
+        in_doc.len = inflated_doc_buffer.len;
+        in_datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
+    }
+
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }

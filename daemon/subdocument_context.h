@@ -315,6 +315,21 @@ public:
         return input_item_info;
     }
 
+    /**
+     * Initialize all of the internal input variables with a
+     * flat, uncompressed JSON document ready for performing a subjson
+     * operation on it.
+     *
+     * @param client_cas The CAS provided by the client (which should be
+     *                   used for updates to the document
+     *
+     * @return PROTOCOL_BINARY_RESPONSE_SUCCESS for success, otherwise an
+     *         error code which should be returned to the client immediately
+     *         (and stop executing of the command)
+     */
+    protocol_binary_response_status get_document_for_searching(
+            uint64_t client_cas);
+
 private:
     // The item info representing the input document
     item_info input_item_info;

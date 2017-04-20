@@ -462,83 +462,6 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
     mcbp_write_packet(&c, engine_error_2_mcbp_protocol_error(ENGINE_TMPFAIL));
 }
 
-/* Gets a flat, uncompressed JSON document ready for performing a subjson
- * operation on it.
- * @param      c        Connection
- * @param      in_cas   Input CAS to use
- *
- * Returns true if a buffer could be prepared, updating {document} with the
- * address and size of the document and {cas} with the cas.
- * Otherwise returns an error code indicating why the document could not be
- * obtained.
- */
-static protocol_binary_response_status
-get_document_for_searching(SubdocCmdContext& ctx, uint64_t in_cas) {
-    item_info& info = ctx.getInputItemInfo();
-    auto& c = ctx.connection;
-
-    if (!bucket_get_item_info(&ctx.connection, c.getItem(), &info)) {
-        LOG_WARNING(&c, "%u: Failed to get item info", c.getId());
-        return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
-    }
-
-    if (info.cas == -1ull) {
-        // Check that item is not locked:
-        if (in_cas == 0 || in_cas == -1ull) {
-            if (c.remapErrorCode(ENGINE_LOCKED_TMPFAIL) == ENGINE_LOCKED_TMPFAIL) {
-                return PROTOCOL_BINARY_RESPONSE_LOCKED;
-            } else {
-                return PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
-            }
-
-        }
-        // If the user *did* supply the CAS, we will validate it later on
-        // when the mutation is actually applied. In any event, we don't
-        // run the following branch on locked documents.
-    } else if ((in_cas != 0) && in_cas != info.cas) {
-        // Check CAS matches (if specified by the user).
-        return PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
-    }
-
-    ctx.in_flags = info.flags;
-    ctx.in_cas = in_cas ? in_cas : info.cas;
-    ctx.in_doc.buf = static_cast<char*>(info.value[0].iov_base);
-    ctx.in_doc.len = info.value[0].iov_len;
-    ctx.in_datatype = info.datatype;
-    ctx.in_document_state = info.document_state;
-
-    if (mcbp::datatype::is_snappy(info.datatype)) {
-        // Need to expand before attempting to extract from it.
-        try {
-            using namespace cb::compression;
-            if (!inflate(Algorithm::Snappy, ctx.in_doc.buf, ctx.in_doc.len,
-                         ctx.inflated_doc_buffer)) {
-                char clean_key[KEY_MAX_LENGTH + 32];
-                if (buf_to_printable_buffer(clean_key, sizeof(clean_key),
-                                            static_cast<const char*>(info.key),
-                                            info.nkey) != -1) {
-                    LOG_WARNING(&c,
-                                "<%u ERROR: Failed to determine inflated body"
-                                    " size. Key: '%s' may have an "
-                                    "incorrect datatype of COMPRESSED_JSON.",
-                                c.getId(), clean_key);
-                }
-
-                return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
-            }
-        } catch (const std::bad_alloc&) {
-            return PROTOCOL_BINARY_RESPONSE_ENOMEM;
-        }
-
-        // Update document to point to the uncompressed version in the buffer.
-        ctx.in_doc.buf = ctx.inflated_doc_buffer.data.get();
-        ctx.in_doc.len = ctx.inflated_doc_buffer.len;
-        ctx.in_datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
-    }
-
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
-}
-
 // Fetch the item to operate on from the engine.
 // Returns true if the command was successful (and execution should continue),
 // else false.
@@ -618,7 +541,7 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
     if (ctx.in_doc.buf == nullptr) {
         // Retrieve the item_info the engine, and if necessary
         // uncompress it so subjson can parse it.
-        auto status = get_document_for_searching(ctx, cas);
+        auto status = ctx.get_document_for_searching(cas);
 
         if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             // Failed. Note c.item and c.commandContext will both be freed for
