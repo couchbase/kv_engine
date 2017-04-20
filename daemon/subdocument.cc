@@ -469,13 +469,7 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
 /* Gets a flat, uncompressed JSON document ready for performing a subjson
  * operation on it.
  * @param      c        Connection
- * @param      item     The item referring to the document to retreive.
- * @param[out] document Upon success, the returned document.
  * @param      in_cas   Input CAS to use
- * @param[out] cas      Upon success, the returned document's CAS.
- * @param[out] flags    Upon success, the returned document's flags.
- * @param[out] datatype    Upon success, the returned document's datatype.
- * @param[out[ document_state Upon success, the returned document's state
  *
  * Returns true if a buffer could be prepared, updating {document} with the
  * address and size of the document and {cas} with the cas.
@@ -483,15 +477,11 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
  * obtained.
  */
 static protocol_binary_response_status
-get_document_for_searching(McbpConnection& c, const item* item,
-                           cb::const_char_buffer& document, uint64_t in_cas,
-                           uint64_t& cas, uint32_t& flags,
-                           protocol_binary_datatype_t& datatype,
-                           DocumentState& document_state) {
+get_document_for_searching(SubdocCmdContext& ctx, uint64_t in_cas) {
+    item_info& info = ctx.getInputItemInfo();
+    auto& c = ctx.connection;
 
-    item_info info;
-
-    if (!bucket_get_item_info(&c, item, &info)) {
+    if (!bucket_get_item_info(&ctx.connection, c.getItem(), &info)) {
         LOG_WARNING(&c, "%u: Failed to get item info", c.getId());
         return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
@@ -514,20 +504,19 @@ get_document_for_searching(McbpConnection& c, const item* item,
         return PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
     }
 
-    cas = in_cas ? in_cas : info.cas;
-    flags = info.flags;
-    document.buf = static_cast<char*>(info.value[0].iov_base);
-    document.len = info.value[0].iov_len;
-    datatype = info.datatype;
-    document_state = info.document_state;
+    ctx.in_flags = info.flags;
+    ctx.in_cas = in_cas ? in_cas : info.cas;
+    ctx.in_doc.buf = static_cast<char*>(info.value[0].iov_base);
+    ctx.in_doc.len = info.value[0].iov_len;
+    ctx.in_datatype = info.datatype;
+    ctx.in_document_state = info.document_state;
 
     if (mcbp::datatype::is_snappy(info.datatype)) {
         // Need to expand before attempting to extract from it.
-        auto* ctx = static_cast<SubdocCmdContext*>(c.getCommandContext());
         try {
             using namespace cb::compression;
-            if (!inflate(Algorithm::Snappy, document.buf, document.len,
-                         ctx->inflated_doc_buffer)) {
+            if (!inflate(Algorithm::Snappy, ctx.in_doc.buf, ctx.in_doc.len,
+                         ctx.inflated_doc_buffer)) {
                 char clean_key[KEY_MAX_LENGTH + 32];
                 if (buf_to_printable_buffer(clean_key, sizeof(clean_key),
                                             static_cast<const char*>(info.key),
@@ -546,9 +535,9 @@ get_document_for_searching(McbpConnection& c, const item* item,
         }
 
         // Update document to point to the uncompressed version in the buffer.
-        document.buf = ctx->inflated_doc_buffer.data.get();
-        document.len = ctx->inflated_doc_buffer.len;
-        datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
+        ctx.in_doc.buf = ctx.inflated_doc_buffer.data.get();
+        ctx.in_doc.len = ctx.inflated_doc_buffer.len;
+        ctx.in_datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
 
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -633,14 +622,7 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
     if (ctx.in_doc.buf == nullptr) {
         // Retrieve the item_info the engine, and if necessary
         // uncompress it so subjson can parse it.
-        uint64_t doc_cas;
-        uint32_t doc_flags;
-        cb::const_char_buffer doc;
-        protocol_binary_response_status status;
-        status = get_document_for_searching(c, c.getItem(), doc, cas,
-                                            doc_cas, doc_flags,
-                                            ctx.in_datatype,
-                                            ctx.in_document_state);
+        auto status = get_document_for_searching(ctx, cas);
 
         if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             // Failed. Note c.item and c.commandContext will both be freed for
@@ -648,11 +630,6 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
             mcbp_write_packet(&c, status);
             return false;
         }
-
-        // Record the input document in the context.
-        ctx.in_doc = doc;
-        ctx.in_cas = doc_cas;
-        ctx.in_flags = doc_flags;
     }
 
     return true;

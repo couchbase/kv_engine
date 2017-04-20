@@ -72,7 +72,9 @@ public:
         do_macro_expansion(false),
         do_allow_deleted_docs(false),
         mutationSemantics(MutationSemantics::Replace),
-        currentPhase(Phase::XATTR){}
+        currentPhase(Phase::XATTR) {
+        std::memset(&input_item_info, 0, sizeof(input_item_info));
+    }
 
     virtual ~SubdocCmdContext() {
         if (out_doc != NULL) {
@@ -300,7 +302,14 @@ public:
 
     void setMutationSemantics(mcbp::subdoc::doc_flag docFlags);
 
+    item_info& getInputItemInfo() {
+        return input_item_info;
+    }
+
 private:
+    // The item info representing the input document
+    item_info input_item_info;
+
     // The array containing all of the operations requested by the user.
     // Each element in the array contains the operations which should be
     // run in each phase. Use `getOperations()` to get the correct entry
