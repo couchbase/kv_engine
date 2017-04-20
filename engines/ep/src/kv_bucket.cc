@@ -1369,7 +1369,7 @@ void KVBucket::completeBGFetch(const DocKey& key,
 
         VBucketPtr vb = getVBucket(vbucket);
         if (vb) {
-            VBucketBGFetchItem item{gcb.val, cookie, init, isMeta};
+            VBucketBGFetchItem item{&gcb.val, cookie, init, isMeta};
             ENGINE_ERROR_CODE status =
                     vb->completeBGFetchForSingleItem(key, item, startTime);
             engine.notifyIOComplete(item.cookie, status);

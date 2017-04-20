@@ -80,8 +80,8 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
         const DocKey& key,
         const VBucketBGFetchItem& fetched_item,
         const ProcessClock::time_point startTime) {
-    ENGINE_ERROR_CODE status = fetched_item.value.getStatus();
-    Item* fetchedValue = fetched_item.value.getValue();
+    ENGINE_ERROR_CODE status = fetched_item.value->getStatus();
+    Item* fetchedValue = fetched_item.value->getValue();
     { // locking scope
         ReaderLockHolder rlh(getStateLock());
         auto hbl = ht.getLockedBucket(key);
@@ -434,6 +434,7 @@ size_t EPVBucket::queueBGFetchItem(const DocKey& key,
         bgfetch_itm_ctx.isMetaOnly = false;
     }
 
+    fetch->value = &bgfetch_itm_ctx.value;
     bgfetch_itm_ctx.bgfetched_list.push_back(std::move(fetch));
 
     bgFetcher->addPendingVB(getId());

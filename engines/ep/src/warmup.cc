@@ -304,6 +304,7 @@ static bool batchWarmupCallback(uint16_t vbId,
             bg_itm_ctx.isMetaOnly = false;
             bg_itm_ctx.bgfetched_list.emplace_back(
                     std::make_unique<VBucketBGFetchItem>(nullptr, false));
+            bg_itm_ctx.bgfetched_list.back()->value = &bg_itm_ctx.value;
         }
 
         c->epstore->getROUnderlying(vbId)->getMulti(vbId, items2fetch);
@@ -319,7 +320,7 @@ static bool batchWarmupCallback(uint16_t vbId,
             std::unique_ptr<VBucketBGFetchItem> fetchedItem(
                     std::move(bg_itm_ctx.bgfetched_list.back()));
             if (applyItem) {
-                GetValue &val = fetchedItem->value;
+                GetValue& val = *fetchedItem->value;
                 if (val.getStatus() == ENGINE_SUCCESS) {
                     // NB: callback will delete the GetValue's Item
                     c->cb.callback(val);
@@ -339,8 +340,8 @@ static bool batchWarmupCallback(uint16_t vbId,
                 }
             } else {
                 // Providing that the status is SUCCESS, delete the Item
-                if (fetchedItem->value.getStatus() == ENGINE_SUCCESS) {
-                    delete fetchedItem->value.getValue();
+                if (fetchedItem->value->getStatus() == ENGINE_SUCCESS) {
+                    delete fetchedItem->value->getValue();
                 }
                 c->skipped++;
             }

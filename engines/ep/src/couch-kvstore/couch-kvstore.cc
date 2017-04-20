@@ -549,9 +549,7 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
                    couchstore_strerror(errCode), vb, numItems);
         st.numGetFailure += numItems;
         for (auto& item : itms) {
-            for (auto& fetch : item.second.bgfetched_list) {
-                fetch->value.setStatus(ENGINE_NOT_MY_VBUCKET);
-            }
+            item.second.value.setStatus(ENGINE_NOT_MY_VBUCKET);
         }
         return;
     }
@@ -583,9 +581,7 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
                    couchstore_strerror(errCode),
                    couchkvstore_strerrno(db, errCode).c_str(), vb);
         for (auto& item : itms) {
-            for (const auto& fetch : item.second.bgfetched_list) {
-                fetch->value.setStatus(couchErr2EngineErr(errCode));
-            }
+            item.second.value.setStatus(couchErr2EngineErr(errCode));
         }
     }
     closeDatabaseHandle(db);
@@ -2302,6 +2298,8 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
         st.numGetFailure++;
     }
 
+    bg_itm_ctx.value = std::move(returnVal);
+
     returnVal.setStatus(cbCtx->cks.couchErr2EngineErr(errCode));
 
     bool return_val_ownership_transferred = false;
@@ -2309,7 +2307,7 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
         return_val_ownership_transferred = true;
         // populate return value for remaining fetch items with the
         // same seqid
-        fetch->value = returnVal;
+        fetch->value = &bg_itm_ctx.value;
         st.readTimeHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
                         ProcessClock::now() - fetch->initTime)

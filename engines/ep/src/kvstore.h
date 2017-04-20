@@ -44,7 +44,7 @@ public:
     VBucketBGFetchItem(const void* c, bool meta_only)
         : cookie(c), initTime(ProcessClock::now()), metaDataOnly(meta_only) {
     }
-    VBucketBGFetchItem(const GetValue& value_,
+    VBucketBGFetchItem(GetValue* value_,
                        const void* c,
                        const ProcessClock::time_point& init_time,
                        bool meta_only)
@@ -56,12 +56,7 @@ public:
 
     ~VBucketBGFetchItem() {}
 
-    void delValue() {
-        delete value.getValue();
-        value.setValue(NULL);
-    }
-
-    GetValue value;
+    GetValue* value;
     const void * cookie;
     ProcessClock::time_point initTime;
     bool metaDataOnly;
@@ -92,6 +87,7 @@ struct vb_bgfetch_item_ctx_t {
     }
     std::list<std::unique_ptr<VBucketBGFetchItem>> bgfetched_list;
     bool isMetaOnly;
+    GetValue value;
 };
 
 typedef std::unordered_map<StoredDocKey, vb_bgfetch_item_ctx_t> vb_bgfetch_queue_t;
