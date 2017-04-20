@@ -259,3 +259,29 @@ TEST_F(ExecutorPoolDynamicWorkerTest, reschedule_dead_task) {
 
     EXPECT_EQ(2, runCount);
 }
+
+/* Testing to ensure that repeatedly scheduling a task does not result in
+ * multiple entries in the taskQueue - this could cause a deadlock in
+ * _unregisterTaskable when the taskLocator is empty but duplicate tasks remain
+ * in the queue.
+ */
+TEST_F(SingleThreadedExecutorPoolTest, ignore_duplicate_schedule) {
+    ExTask task = new LambdaTask(
+            taskable, TaskId::ItemPager, 10, true, [&] { return false; });
+
+    size_t taskId = task->getId();
+
+    ASSERT_EQ(taskId, pool->schedule(task));
+    ASSERT_EQ(taskId, pool->schedule(task));
+
+    std::map<size_t, TaskQpair> taskLocator =
+            dynamic_cast<SingleThreadedExecutorPool*>(ExecutorPool::get())
+                    ->getTaskLocator();
+
+    TaskQueue* queue = taskLocator.find(taskId)->second.second;
+
+    EXPECT_EQ(1, queue->getFutureQueueSize())
+            << "Task should only appear once in the taskQueue";
+
+    pool->cancel(taskId, true);
+}

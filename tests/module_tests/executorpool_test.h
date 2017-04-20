@@ -23,6 +23,7 @@
 
 #include <executorpool.h>
 #include <executorthread.h>
+#include <fakes/fake_executorpool.h>
 #include <gtest/gtest.h>
 #include <taskable.h>
 #include <thread>
@@ -102,6 +103,23 @@ public:
 };
 
 class ExecutorPoolTest : public ::testing::Test {};
+
+class SingleThreadedExecutorPoolTest : public ::testing::Test {
+public:
+    void SetUp() override {
+        SingleThreadedExecutorPool::replaceExecutorPoolWithFake();
+        pool = ExecutorPool::get();
+        pool->registerTaskable(taskable);
+    }
+
+    void TearDown() override {
+        pool->unregisterTaskable(taskable, false);
+        pool->shutdown();
+    }
+
+    ExecutorPool* pool;
+    MockTaskable taskable;
+};
 
 class ExecutorPoolDynamicWorkerTest : public ExecutorPoolTest {
 protected:

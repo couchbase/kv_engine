@@ -432,14 +432,21 @@ TaskQueue* ExecutorPool::_getTaskQueue(const Taskable& t,
 
 size_t ExecutorPool::_schedule(ExTask task) {
     LockHolder lh(tMutex);
+    const size_t taskId = task->getId();
+
     TaskQueue* q = _getTaskQueue(task->getTaskable(),
                                  GlobalTask::getTaskType(task->getTypeId()));
     TaskQpair tqp(task, q);
-    taskLocator[task->getId()] = tqp;
 
-    q->schedule(task);
+    auto result = taskLocator.insert(std::make_pair(taskId, tqp));
 
-    return task->getId();
+    if (result.second) {
+        // tqp was inserted; it was not already present. Prevents multiple
+        // copies of a task being present in the task queues.
+        q->schedule(task);
+    }
+
+    return taskId;
 }
 
 size_t ExecutorPool::schedule(ExTask task) {

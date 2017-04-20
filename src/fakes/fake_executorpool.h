@@ -111,6 +111,11 @@ public:
     size_t getNumReadyTasks(task_type_t qType) {
         return numReadyTasks[qType];
     }
+
+    std::map<size_t, TaskQpair> getTaskLocator() {
+        return taskLocator;
+    };
+
 private:
     void cancelAll_UNLOCKED() {
         for (auto& it : taskLocator) {
