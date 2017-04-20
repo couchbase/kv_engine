@@ -955,6 +955,12 @@ extern "C"
      *   Extras:
      *     Sub-document flags            1 @24: <protocol_binary_subdoc_flag>
      *     Sub-document pathlen          2 @25: <variable>
+     *     Expiry                        4 @27: (Optional) Mutations only. The
+     *                                          ttl
+     *     Sub-document doc flags        1 @27: (Optional) @31 if expiry is
+     *                                          set. Note these are the
+     *                                          subdocument doc flags not the
+     *                                          flag section in the document.
      *   Body:
      *     Key                      keylen @27: <variable>
      *     Path                    pathlen @27+keylen: <variable>
@@ -968,7 +974,11 @@ extern "C"
                 uint16_t pathlen;      // Length in bytes of the sub-doc path.
                 uint8_t  subdoc_flags; // See protocol_binary_subdoc_flag
                 /* uint32_t expiry     (optional for mutations only - present
-                                        if extlen == 7) */
+                                        if extlen == 7 or extlen == 8) */
+                /* uint8_t doc_flags   (optional - present if extlen == 4 or
+                                        extlen == 8)  Note these are the
+                                        subdocument doc flags not the flag
+                                        \section in the document. */
             } extras;
         } message;
         uint8_t bytes[sizeof(protocol_binary_request_header) + 3];
@@ -1005,7 +1015,9 @@ extern "C"
      *
      *  SUBDOC_MULTI_LOOKUP:
      *    Header:                24 @0:  <protocol_binary_request_header>
-     *    Extras:                 0 @24:
+     *    Extras:            0 or 1 @24: (optional) doc_flags. Note these are
+     *                                   the subdocument doc flags not the flag
+     *                                   section in the document.
      *    Body:         <variable>  @24:
      *        Key            keylen @24: <variable>
      *        1..MULTI_MAX_PATHS [Lookup Operation Spec]
@@ -1032,6 +1044,9 @@ extern "C"
      * SUBDOC_MULTI_MUTATION
      *    Header:                24 @0:  <protocol_binary_request_header>
      *    Extras:            0 OR 4 @24: (optional) expiration
+     *                       0 OR 1 @24: (optional) doc_flags. Note these are
+     *                                   the subdocument doc flags not the
+     *                                   flag section in the document.
      *    Body:           variable  @24 + extlen:
      *        Key            keylen @24: <variable>
      *        1..MULTI_MAX_PATHS [Mutation Operation Spec]
