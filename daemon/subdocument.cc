@@ -118,10 +118,8 @@ static void create_single_path_context(SubdocCmdContext& context,
     if (xattr) {
         size_t xattr_keylen;
         is_valid_xattr_key({(const uint8_t*)path.buf, path.len}, xattr_keylen);
-        context.set_xattr_key({(const uint8_t*)path.buf, xattr_keylen});
-        if (xattr_keylen < path.len && path.buf[xattr_keylen] == '.') {
-            // Swallow the '.'
-            ++xattr_keylen;
+        if (path.buf[0] != '$') {
+            context.set_xattr_key({(const uint8_t*)path.buf, xattr_keylen});
         }
     }
 
@@ -225,10 +223,8 @@ static void create_multi_path_context(SubdocCmdContext& context,
         if (xattr) {
             size_t xattr_keylen;
             is_valid_xattr_key({(const uint8_t*)path.buf, path.len}, xattr_keylen);
-            context.set_xattr_key({(const uint8_t*)path.buf, xattr_keylen});
-            if (xattr_keylen < path.len && path.buf[xattr_keylen] == '.') {
-                // Swallow the '.'
-                ++xattr_keylen;
+            if (path.buf[0] != '$') {
+                context.set_xattr_key({(const uint8_t*)path.buf, xattr_keylen});
             }
         }
 
@@ -655,6 +651,15 @@ subdoc_operate_one_path(SubdocCmdContext& context, SubdocCmdContext::OperationSp
         op->set_value(padded_macro.buf, padded_macro.len);
     } else {
         op->set_value(spec.value.buf, spec.value.len);
+    }
+
+    if (context.getCurrentPhase() == SubdocCmdContext::Phase::XATTR &&
+        spec.path.buf[0] == '$') {
+        // This is a call to the "$document" (the validator stopped all of
+        // the other ones), so replace the document with
+        // the document virtual one..
+        auto doc = context.get_document_vattr();
+        op->set_doc(doc.data(), doc.size());
     }
 
     // ... and execute it.

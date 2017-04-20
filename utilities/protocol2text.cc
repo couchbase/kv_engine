@@ -279,7 +279,11 @@ static const std::map<protocol_binary_response_status, std::string> statusmap {
     {PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_KEY_COMBO,
         "Subdoc: Invalid combination of xattr keys"},
     {PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_MACRO,
-        "Subdoc: Unknown xattr macro"}
+        "Subdoc: Unknown xattr macro"},
+    {PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_VATTR,
+        "Subdoc: Unknown xattr virtual attribute"},
+    {PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_CANT_MODIFY_VATTR,
+        "Subdoc: Can't modify virtual attributes"}
 };
 
 const char *memcached_status_2_text(protocol_binary_response_status status) {

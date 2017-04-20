@@ -36,6 +36,8 @@
  *   <li>X-Keys starting with a leading underscore ('_', 0x5F) are considered
  *       system XATTRs and can only be accessed if the client holds the
  *       SYSTEM_XATTR read / write privilege.</li>
+ *   <li>X-keys starting with a leading dollar sign ('$', 0x25) are considered
+ *       virtual xattrs</li>
  * </ul>
  *
  * @param path The path to check

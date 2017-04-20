@@ -103,6 +103,18 @@ TEST(XattrKeyValidator, SystemXattr) {
 }
 
 /**
+ * X-Keys starting with a leading dollar sign ('$', 0x24) are considered
+ * virtual xattrs
+ */
+TEST(XattrKeyValidator, VirtualXattr) {
+    std::string key = "$document";
+    EXPECT_TRUE(is_valid_xattr_key({key.data(), key.size()}));
+
+    key = "$";
+    EXPECT_FALSE(is_valid_xattr_key({key.data(), key.size()}));
+}
+
+/**
  * There is no restrictions on the characters that may be inside the xattr
  * key. It'll take way too long time to test all of the possible values, so
  * lets just validate with all 7 bit ASCII characters.
@@ -134,7 +146,7 @@ TEST(XattrKeyValidator, RestrictedXattrPrefix) {
 
     for (int ii = 0; ii < 0x80; ++ii) { // values over 0x80 == multibyte UTF8
         key[0] = char(ii);
-        if ((std::ispunct(key[0], loc) && key[0] != '_') ||
+        if ((std::ispunct(key[0], loc) && (key[0] != '_' && key[0] != '$')) ||
             std::iscntrl(key[0], loc)) {
             EXPECT_FALSE(is_valid_xattr_key({key.data(), key.size()}));
         } else {

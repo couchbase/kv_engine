@@ -705,3 +705,121 @@ TEST_P(XattrTest, MB_22691) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus())
                 << memcached_status_2_text(resp.getStatus());
 }
+
+/**
+ * Verify that a vattr entry exists, and is of the specified type
+ *
+ * @param root The root in the JSON object
+ * @param name The name of the tag to search for
+ * @param type The expected type for this object
+ */
+static void verify_vattr_entry(cJSON* root, const char* name, int type) {
+    auto* obj = cJSON_GetObjectItem(root, name);
+    ASSERT_NE(nullptr, obj);
+    EXPECT_EQ(type, obj->type);
+}
+
+TEST_P(XattrTest, MB_23882_VirtualXattrs) {
+    // Test to check that we can get both an xattr and the main body in
+    // subdoc multi-lookup
+    setBodyAndXattr(value, xattrVal);
+
+    // Sanity checks and setup done lets try the multi-lookup
+
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey(name);
+    cmd.addGet("$document", SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet("$document.CAS", SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet("$document.foobar", SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet("_sync.eg", SUBDOC_FLAG_XATTR_PATH);
+
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiLookupResponse multiResp;
+    conn.recvResponse(multiResp);
+
+    auto& results = multiResp.getResults();
+
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE,
+              multiResp.getStatus());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, results[0].status);
+
+    // Ensure that we found all we expected and they're of the correct type:
+    unique_cJSON_ptr meta(cJSON_Parse(results[0].value.c_str()));
+    verify_vattr_entry(meta.get(), "CAS", cJSON_String);
+    verify_vattr_entry(meta.get(), "vbucket_uuid", cJSON_String);
+    verify_vattr_entry(meta.get(), "seqno", cJSON_String);
+    verify_vattr_entry(meta.get(), "exptime", cJSON_Number);
+    verify_vattr_entry(meta.get(), "value_bytes", cJSON_Number);
+    verify_vattr_entry(meta.get(), "datatype", cJSON_Array);
+    verify_vattr_entry(meta.get(), "deleted", cJSON_False);
+
+    // Verify that we got a partial from the second one
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, results[1].status);
+    const std::string cas{std::string{"\""} +
+                          cJSON_GetObjectItem(meta.get(), "CAS")->valuestring +
+                          "\""};
+    meta.reset(cJSON_Parse(multiResp.getResults()[1].value.c_str()));
+    EXPECT_EQ(cas, to_string(meta));
+
+    // The third one didn't exist
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, results[2].status);
+
+    // Expect that we could find _sync.eg
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, results[3].status);
+    EXPECT_EQ(xattrVal, results[3].value);
+}
+
+TEST_P(XattrTest, MB_23882_VirtualXattrs_GetXattrAndBody) {
+    // Test to check that we can get both an xattr and the main body in
+    // subdoc multi-lookup
+    setBodyAndXattr(value, xattrVal);
+
+    // Sanity checks and setup done lets try the multi-lookup
+
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey(name);
+    cmd.addGet("$document.deleted", SUBDOC_FLAG_XATTR_PATH);
+    cmd.addLookup("", PROTOCOL_BINARY_CMD_GET, SUBDOC_FLAG_NONE);
+
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiLookupResponse multiResp;
+    conn.recvResponse(multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+    EXPECT_EQ("false", multiResp.getResults()[0].value);
+    EXPECT_EQ(value, multiResp.getResults()[1].value);
+}
+
+TEST_P(XattrTest, MB_23882_VirtualXattrs_IsReadOnly) {
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+    cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                    SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+                    "$document.CAS", "foo");
+    cmd.addMutation(PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE, "", value);
+
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiMutationResponse multiResp;
+    conn.recvResponse(multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_CANT_MODIFY_VATTR,
+              multiResp.getStatus());
+}
+
+TEST_P(XattrTest, MB_23882_VirtualXattrs_UnknownVattr) {
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey(name);
+    cmd.addGet("$documents", SUBDOC_FLAG_XATTR_PATH); // should be $document
+
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiMutationResponse multiResp;
+    conn.recvResponse(multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_VATTR,
+              multiResp.getStatus());
+}

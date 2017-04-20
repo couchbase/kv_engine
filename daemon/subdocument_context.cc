@@ -16,8 +16,9 @@
  */
 
 #include "config.h"
-#include "subdocument.h"
 #include "subdocument_context.h"
+#include "mc_time.h"
+#include "subdocument.h"
 
 #include <xattr/blob.h>
 
@@ -149,6 +150,13 @@ cb::const_char_buffer SubdocCmdContext::get_padded_macro(
             ->second;
 }
 
+static inline std::string to_hex_string(uint64_t value) {
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+    ss << "0x" << std::setw(16) << value;
+    return ss.str();
+}
+
 void SubdocCmdContext::generate_macro_padding(cb::const_char_buffer payload,
                                               cb::const_char_buffer macro) {
     if (!do_macro_expansion) {
@@ -164,10 +172,7 @@ void SubdocCmdContext::generate_macro_padding(cb::const_char_buffer payload,
     while (!unique) {
         unique = true;
         uint64_t ii = dis(gen);
-        std::stringstream ss;
-        ss << std::hex << std::setfill('0');
-        ss << "\"0x" << std::setw(16) << ii << "\"";
-        const std::string candidate = ss.str();
+        const std::string candidate = "\"" + to_hex_string(ii) + "\"";
 
         for (auto& op : getOperations(Phase::XATTR)) {
             if (cb::strnstr(op.value.buf, candidate.c_str(), op.value.len)) {
@@ -194,4 +199,67 @@ void SubdocCmdContext::setMutationSemantics(mcbp::subdoc::doc_flag docFlags) {
     } else {
         mutationSemantics = MutationSemantics::Replace;
     }
+}
+
+cb::const_char_buffer SubdocCmdContext::get_document_vattr() {
+    if (document_vattr.empty()) {
+        // @todo we can optimize this by building the json in a more efficient
+        //       way, but for now just do it by using cJSON...
+        unique_cJSON_ptr doc(cJSON_CreateObject());
+
+        cJSON_AddStringToObject(
+                doc.get(), "CAS", to_hex_string(input_item_info.cas).c_str());
+
+        cJSON_AddStringToObject(
+                doc.get(),
+                "vbucket_uuid",
+                to_hex_string(input_item_info.vbucket_uuid).c_str());
+
+        cJSON_AddStringToObject(doc.get(),
+                                "seqno",
+                                to_hex_string(input_item_info.seqno).c_str());
+
+        cJSON_AddNumberToObject(
+                doc.get(),
+                "exptime",
+                mc_time_convert_to_abs_time(input_item_info.exptime));
+
+        if (mcbp::datatype::is_xattr(input_item_info.datatype)) {
+            // strip off xattr
+            auto bodyoffset = cb::xattr::get_body_offset(
+                    {static_cast<const char*>(
+                             input_item_info.value[0].iov_base),
+                     input_item_info.value[0].iov_len});
+            cJSON_AddNumberToObject(doc.get(),
+                                    "value_bytes",
+                                    input_item_info.nbytes - bodyoffset);
+        } else {
+            cJSON_AddNumberToObject(
+                    doc.get(), "value_bytes", input_item_info.nbytes);
+        }
+
+        unique_cJSON_ptr array(cJSON_CreateArray());
+        auto datatypes = mcbp::datatype::to_string(input_item_info.datatype);
+        std::string::size_type start = 0;
+        std::string::size_type end;
+
+        while ((end = datatypes.find(",", start)) != std::string::npos) {
+            const auto d = datatypes.substr(start, end);
+            cJSON_AddItemToArray(array.get(), cJSON_CreateString(d.c_str()));
+            start = end + 1;
+        }
+
+        cJSON_AddItemToObject(doc.get(), "datatype", array.release());
+
+        cJSON_AddBoolToObject(
+                doc.get(),
+                "deleted",
+                input_item_info.document_state == DocumentState::Deleted);
+
+        unique_cJSON_ptr root(cJSON_CreateObject());
+        cJSON_AddItemToObject(root.get(), "$document", doc.release());
+        document_vattr = to_string(root, false);
+    }
+
+    return cb::const_char_buffer(document_vattr.data(), document_vattr.size());
 }

@@ -85,5 +85,9 @@ namespace macros {
 static cb::const_char_buffer CAS = {"\"${Mutation.CAS}\"", 17};
 static cb::const_char_buffer SEQNO = {"\"${Mutation.seqno}\"", 19};
 }
+
+namespace vattrs {
+static cb::const_char_buffer DOCUMENT = {"$document", 9};
+}
 }
 }

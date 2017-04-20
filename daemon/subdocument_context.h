@@ -302,6 +302,15 @@ public:
 
     void setMutationSemantics(mcbp::subdoc::doc_flag docFlags);
 
+    /**
+     * Get the document containing all of the virtual attributes for
+     * the document. The storage is created the first time the method is called,
+     * and reused for the rest of the lifetime of the context.
+     */
+    cb::const_char_buffer get_document_vattr();
+
+    // This is the item info for the item we've fetched from the
+    // database
     item_info& getInputItemInfo() {
         return input_item_info;
     }
@@ -332,4 +341,6 @@ private:
 
     using MacroPair = std::pair<cb::const_char_buffer, std::string>;
     std::vector<MacroPair> paddedMacros;
+
+    std::string document_vattr;
 }; // class SubdocCmdContext

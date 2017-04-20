@@ -44,6 +44,13 @@ static bool validate_macro(const cb::const_byte_buffer& value) {
                         cb::xattr::macros::SEQNO.len) == 0);
 }
 
+static bool is_valid_virtual_xattr(cb::const_byte_buffer value) {
+    return ((value.len == cb::xattr::vattrs::DOCUMENT.size()) &&
+            std::memcmp(value.data(),
+                        cb::xattr::vattrs::DOCUMENT.data(),
+                        cb::xattr::vattrs::DOCUMENT.size()) == 0);
+}
+
 /**
  * Validate the xattr related settings that may be passed to the command.
  *
@@ -52,6 +59,7 @@ static bool validate_macro(const cb::const_byte_buffer& value) {
  * all keys refers the same xattr bulk).
  *
  * @param cookie The cookie representing the command context
+ * @param mutator true if this is any of the mutator commands
  * @param flags The flag section provided
  * @param path The full path (including the key)
  * @param value The value passed (if it is a macro this must be a legal macro)
@@ -62,6 +70,7 @@ static bool validate_macro(const cb::const_byte_buffer& value) {
  */
 static inline protocol_binary_response_status validate_xattr_section(
         const Cookie& cookie,
+        bool mutator,
         protocol_binary_subdoc_flag flags,
         mcbp::subdoc::doc_flag doc_flags,
         cb::const_byte_buffer path,
@@ -88,12 +97,25 @@ static inline protocol_binary_response_status validate_xattr_section(
         return PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL;
     }
 
-    if (xattr_key.len == 0) {
-        xattr_key.buf = path.buf;
-        xattr_key.len = key_length;
-    } else if (xattr_key.len != key_length ||
-               std::memcmp(xattr_key.buf, path.buf, key_length) != 0) {
-        return PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_KEY_COMBO;
+    if (path.data()[0] == '$') {
+        // One may use the virtual xattrs in combination with all of the
+        // other attributes
+        if (!is_valid_virtual_xattr({path.data(), key_length})) {
+            return PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_VATTR;
+        }
+
+        // One can't modify a virtual attribute
+        if (mutator) {
+            return PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_CANT_MODIFY_VATTR;
+        }
+    } else {
+        if (xattr_key.len == 0) {
+            xattr_key.buf = path.buf;
+            xattr_key.len = key_length;
+        } else if (xattr_key.len != key_length ||
+                   std::memcmp(xattr_key.buf, path.buf, key_length) != 0) {
+            return PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_KEY_COMBO;
+        }
     }
 
     if (flags & SUBDOC_FLAG_EXPAND_MACROS) {
@@ -168,8 +190,13 @@ static protocol_binary_response_status subdoc_validator(const Cookie& cookie,
                                 valuelen};
     cb::const_byte_buffer xattr_key;
 
-    const auto status = validate_xattr_section(
-            cookie, subdoc_flags, doc_flags, path, macro, xattr_key);
+    const auto status = validate_xattr_section(cookie,
+                                               traits.is_mutator,
+                                               subdoc_flags,
+                                               doc_flags,
+                                               path,
+                                               macro,
+                                               xattr_key);
     if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         return status;
     }
@@ -337,8 +364,13 @@ static protocol_binary_response_status is_valid_multipath_spec(
                                 headerlen + pathlen,
                                 valuelen};
 
-    const auto status = validate_xattr_section(
-            cookie, flags, doc_flags, path, macro, xattr_key);
+    const auto status = validate_xattr_section(cookie,
+                                               traits.is_mutator,
+                                               flags,
+                                               doc_flags,
+                                               path,
+                                               macro,
+                                               xattr_key);
     if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         return status;
     }

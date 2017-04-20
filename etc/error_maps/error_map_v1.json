@@ -323,6 +323,22 @@
                 "subdoc",
                 "invalid-input"
             ]
+        },
+        "d1": {
+            "name": "SUBDOC_XATTR_UNKNOWN_VATTR",
+            "desc": "Subdoc: The server don't know about the specified virtual attribute",
+            "attrs": [
+                "subdoc",
+                "invalid-input"
+            ]
+        },
+        "d2": {
+            "name": "SUBDOC_XATTR_CANT_MODIFY_VATTR",
+            "desc": "Subdoc: Can't modify virtual attributes",
+            "attrs": [
+                "subdoc",
+                "invalid-input"
+            ]
         }
     }
 }

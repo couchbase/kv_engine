@@ -232,6 +232,16 @@ extern "C"
         PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_MACRO = 0xd0,
 
         /**
+         * The server has no knowledge of the requested virtual xattr
+         */
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_VATTR = 0xd1,
+
+        /**
+         * Virtual xattrs can't be modified
+         */
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_CANT_MODIFY_VATTR = 0xd2,
+
+        /**
          * The maximum number of responses
          */
         PROTOCOL_BINARY_RESPONSE_SIZE

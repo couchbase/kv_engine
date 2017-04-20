@@ -98,8 +98,7 @@ bool is_valid_xattr_key(cb::const_byte_buffer path, size_t& key_length) {
                 if (offset == 0) {
                     if (std::ispunct(static_cast<char>(path.buf[0]), loc) ||
                         std::iscntrl(static_cast<char>(path.buf[0]), loc)) {
-
-                        if (path.buf[0] == '_') {
+                        if (path.buf[0] == '_' || path.buf[0] == '$') {
                             system = true;
                         } else {
                             return false;
