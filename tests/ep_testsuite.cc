@@ -83,12 +83,18 @@ public:
     int               extra;
 };
 
+enum class BucketType { EP, Ephemeral };
 
-static void check_observe_seqno(bool failover, uint8_t format_type, uint16_t vb_id,
-                                uint64_t vb_uuid, uint64_t last_persisted_seqno,
-                                uint64_t current_seqno, uint64_t failover_vbuuid = 0,
+static void check_observe_seqno(bool failover,
+                                BucketType bucket_type,
+                                uint8_t format_type,
+                                uint16_t vb_id,
+                                uint64_t vb_uuid,
+                                uint64_t last_persisted_seqno,
+                                uint64_t current_seqno,
+                                uint64_t failover_vbuuid = 0,
                                 uint64_t failover_seqno = 0) {
-    uint8_t  recv_format_type;
+    uint8_t recv_format_type;
     uint16_t recv_vb_id;
     uint64_t recv_vb_uuid;
     uint64_t recv_last_persisted_seqno;
@@ -103,8 +109,23 @@ static void check_observe_seqno(bool failover, uint8_t format_type, uint16_t vb_
     memcpy(&recv_vb_uuid, last_body.data() + 3, sizeof(uint64_t));
     checkeq(vb_uuid, ntohll(recv_vb_uuid), "Wrong vbucket uuid in result");
     memcpy(&recv_last_persisted_seqno, last_body.data() + 11, sizeof(uint64_t));
-    checkeq(last_persisted_seqno, ntohll(recv_last_persisted_seqno),
-            "Wrong persisted seqno in result");
+
+    switch (bucket_type) {
+    case BucketType::EP:
+        // Should get the "real" persisted seqno:
+        checkeq(last_persisted_seqno,
+                ntohll(recv_last_persisted_seqno),
+                "Wrong persisted seqno in result (EP)");
+        break;
+    case BucketType::Ephemeral:
+        // For ephemeral, this should always be zero, as there is no
+        // persistence.
+        checkeq(uint64_t(0),
+                ntohll(recv_last_persisted_seqno),
+                "Wrong persisted seqno in result (Ephemeral)");
+        break;
+    }
+
     memcpy(&recv_current_seqno, last_body.data() + 19, sizeof(uint64_t));
     checkeq(current_seqno, ntohll(recv_current_seqno), "Wrong current seqno in result");
 
@@ -4184,9 +4205,14 @@ static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
     uint64_t high_seqno = get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno");
     observe_seqno(h, h1, 1, vb_uuid);
 
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(),
+            "Expected success");
 
-    check_observe_seqno(false, 0, 1, vb_uuid, high_seqno, high_seqno);
+    const auto bucket_type =
+            isPersistentBucket(h, h1) ? BucketType::EP : BucketType::Ephemeral;
+    check_observe_seqno(
+            false, bucket_type, 0, 1, vb_uuid, high_seqno, high_seqno);
 
     //Add some mutations and verify the output
     int num_items = 10;
@@ -4216,7 +4242,8 @@ static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
 
     observe_seqno(h, h1, 1, vb_uuid);
 
-    check_observe_seqno(false, 0, 1, vb_uuid, total_persisted, high_seqno);
+    check_observe_seqno(
+            false, bucket_type, 0, 1, vb_uuid, total_persisted, high_seqno);
     //Stop persistence. Add more mutations and check observe result
     stop_persistence(h, h1);
 
@@ -4238,7 +4265,8 @@ static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
         /* if bucket is not persistent then total_persisted == high_seqno */
         total_persisted = high_seqno;
     }
-    check_observe_seqno(false, 0, 1, vb_uuid, total_persisted, high_seqno);
+    check_observe_seqno(
+            false, bucket_type, 0, 1, vb_uuid, total_persisted, high_seqno);
     start_persistence(h, h1);
     wait_for_flusher_to_settle(h, h1);
 
@@ -4250,7 +4278,8 @@ static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
 
     observe_seqno(h, h1, 1, vb_uuid);
 
-    check_observe_seqno(false, 0, 1, vb_uuid, total_persisted, high_seqno);
+    check_observe_seqno(
+            false, bucket_type, 0, 1, vb_uuid, total_persisted, high_seqno);
     return SUCCESS;
 }
 
@@ -4287,8 +4316,17 @@ static enum test_result test_observe_seqno_failover(ENGINE_HANDLE *h,
 
     observe_seqno(h, h1, 0, vb_uuid);
 
-    check_observe_seqno(true, 1, 0, new_vb_uuid, high_seqno, high_seqno,
-                        vb_uuid, high_seqno);
+    const auto bucket_type =
+            isPersistentBucket(h, h1) ? BucketType::EP : BucketType::Ephemeral;
+    check_observe_seqno(true,
+                        bucket_type,
+                        1,
+                        0,
+                        new_vb_uuid,
+                        high_seqno,
+                        high_seqno,
+                        vb_uuid,
+                        high_seqno);
 
     return SUCCESS;
 }

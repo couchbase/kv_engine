@@ -100,6 +100,11 @@ public:
         return persistenceSeqno.load();
     }
 
+    uint64_t getPublicPersistenceSeqno() const override {
+        // For EPVBuckets this is the same as the PersistenceSeqno.
+        return getPersistenceSeqno();
+    }
+
     void queueBackfillItem(queued_item& qi,
                            const GenerateBySeqno generateBySeqno) override;
 

@@ -4157,7 +4157,8 @@ void EventuallyPersistentEngine::addSeqnoVbStats(const void *cookie,
         add_casted_stat(buffer, vb->getHighSeqno(), add_stat, cookie);
         checked_snprintf(buffer, sizeof(buffer), "vb_%d:last_persisted_seqno",
                          vb->getId());
-        add_casted_stat(buffer, vb->getPersistenceSeqno(), add_stat, cookie);
+        add_casted_stat(
+                buffer, vb->getPublicPersistenceSeqno(), add_stat, cookie);
         checked_snprintf(buffer, sizeof(buffer), "vb_%d:uuid", vb->getId());
         add_casted_stat(buffer, entry.vb_uuid, add_stat, cookie);
         checked_snprintf(buffer, sizeof(buffer), "vb_%d:purge_seqno",
@@ -4544,7 +4545,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
        }
 
        format_type = 1;
-       last_persisted_seqno = htonll(vb->getPersistenceSeqno());
+       last_persisted_seqno = htonll(vb->getPublicPersistenceSeqno());
        current_seqno = htonll(vb->getHighSeqno());
        latest_uuid = htonll(entry.vb_uuid);
        vb_id = htons(vb_id);
@@ -4560,7 +4561,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
        result.write((char*) &failover_highseqno, sizeof(uint64_t));
     } else {
         format_type = 0;
-        last_persisted_seqno = htonll(vb->getPersistenceSeqno());
+        last_persisted_seqno = htonll(vb->getPublicPersistenceSeqno());
         current_seqno = htonll(vb->getHighSeqno());
         vb_id   =  htons(vb_id);
         vb_uuid =  htonll(vb_uuid);
@@ -4882,7 +4883,7 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
                         "for vb:%" PRIu16 ", Persisted seqno %" PRIu64
                         " > requested seqno %" PRIu64,
                         vbucket,
-                        vb->getPersistenceSeqno(),
+                        persisted_seqno,
                         seqno);
                     break;
                 }

@@ -311,6 +311,26 @@ public:
     // Returns the last persisted sequence number for the VBucket
     virtual uint64_t getPersistenceSeqno() const = 0;
 
+    /**
+     * Returns the sequence number to expose publically as the highest
+     * persisted seqno. Note this is may differ from getPersistenceSeqno,
+     * depending on the Bucket type.
+     *
+     * Historical note: This is the same as PersistenceSeqno for EP buckets,
+     * and hence before Spock wasn't a separate function; however for Ephemeral
+     * buckets we need to distinguish between what sequence number we report
+     * to external clients for Observe/persistTo, and what sequence number we
+     * report to internal DCP / ns_server for takeover:
+     *  a) Clients need 0 for the Ephemeral "persisted to" seqno (as
+     *     there isn't any Persistence and we can't claim something is on-disk
+     *     when it is not).
+     *  b) ns_server / replication needs a non-zero, "logically-persisted" seqno
+     *     from the replica to know that a vBucket is ready for takeover.
+     * As such, getPublicPersistenceSeqno() is used for (a), and
+     * getPersistenceSeqno() is used for (b).
+     */
+    virtual uint64_t getPublicPersistenceSeqno() const = 0;
+
     void setPersistenceSeqno(uint64_t seqno) {
         persistenceSeqno.store(seqno);
     }

@@ -120,12 +120,15 @@ public:
     void dump() const override;
 
     uint64_t getPersistenceSeqno() const override {
-        /* We do not have persistence in an ephemeral vb. hence we return
-           the last seen seqno (highSeqno) as the persisted seqno.
-           This is needed because higher layers like ns_server have long
-           considered persisted seqno as last seen seqno for certain operations
-           like vb takeover */
+        /* Technically we do not have persistence in an ephemeral vb, however
+         * logically the "persistence" seqno is used internally as the
+         * value to use for replication / takeover. Hence we return
+           the last seen seqno (highSeqno) as the persisted seqno. */
         return static_cast<uint64_t>(getHighSeqno());
+    }
+
+    uint64_t getPublicPersistenceSeqno() const override {
+        return 0;
     }
 
     void queueBackfillItem(queued_item& qi,
