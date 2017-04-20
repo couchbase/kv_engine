@@ -141,6 +141,14 @@ public:
      */
     size_t purgeTombstones(rel_time_t purgeAge);
 
+    void setupDeferredDeletion(const void* cookie) override;
+
+    /**
+     * Schedule a VBucketMemoryDeletionTask to delete this object.
+     * @param engine owning engine (required for task construction)
+     */
+    void scheduleDeferredDeletion(EventuallyPersistentEngine& engine) override;
+
 protected:
     /* Data structure for in-memory sequential storage */
     std::unique_ptr<SequenceList> seqList;

@@ -282,6 +282,7 @@ CouchKVStore::CouchKVStore(KVStoreConfig &config, FileOpsInterface& ops,
                            bool read_only)
     : KVStore(config, read_only),
       dbname(config.getDBName()),
+      dbFileRevMap(configuration.getMaxVBuckets()),
       intransaction(false),
       scanCounter(0),
       logger(config.getLogger()),
@@ -298,7 +299,6 @@ CouchKVStore::CouchKVStore(KVStoreConfig &config, FileOpsInterface& ops,
 
     // pre-allocate lookup maps (vectors) given we have a relatively
     // small, fixed number of vBuckets.
-    dbFileRevMap.assign(numDbFiles, Couchbase::RelaxedAtomic<uint64_t>(1));
     cachedDocCount.assign(numDbFiles, Couchbase::RelaxedAtomic<size_t>(0));
     cachedDeleteCount.assign(numDbFiles, Couchbase::RelaxedAtomic<size_t>(-1));
     cachedFileSize.assign(numDbFiles, Couchbase::RelaxedAtomic<uint64_t>(0));
@@ -311,12 +311,16 @@ CouchKVStore::CouchKVStore(KVStoreConfig &config, FileOpsInterface& ops,
 CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom)
     : KVStore(copyFrom),
       dbname(copyFrom.dbname),
-      dbFileRevMap(copyFrom.dbFileRevMap),
+      dbFileRevMap(copyFrom.dbFileRevMap.size()),
       numDbFiles(copyFrom.numDbFiles),
       intransaction(false),
       logger(copyFrom.logger),
       base_ops(copyFrom.base_ops)
 {
+    // std::atomic needs to be manually copied (not copy constructor)
+    for (size_t ii = 0; ii < dbFileRevMap.size(); ii++) {
+        dbFileRevMap[ii].store(copyFrom.dbFileRevMap[ii].load());
+    }
     createDataDir(dbname);
     statCollectingFileOps = getCouchstoreStatsOps(st.fsStats, base_ops);
     statCollectingFileOpsCompaction = getCouchstoreStatsOps(
@@ -385,11 +389,15 @@ void CouchKVStore::reset(uint16_t vbucketId) {
         cachedFileSize[vbucketId] = 0;
         cachedSpaceUsed[vbucketId] = 0;
 
-        //Unlink the couchstore file upon reset
+        // Unlink the current revision and then increment it to ensure any
+        // pending delete doesn't delete us. Note that the expectation is that
+        // some higher level per VB lock is required to prevent data-races here.
+        // KVBucket::vb_mutexes is used in this case.
         unlinkCouchFile(vbucketId, dbFileRevMap[vbucketId]);
+        incrementRevision(vbucketId);
+
         setVBucketState(vbucketId, *state, VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT,
                         true);
-        updateDbFileMap(vbucketId, 1);
     } else {
         throw std::invalid_argument("CouchKVStore::reset: No entry in cached "
                         "states for vbucket " + std::to_string(vbucketId));
@@ -581,29 +589,13 @@ void CouchKVStore::del(const Item &itm,
     pendingReqsQ.push_back(req);
 }
 
-bool CouchKVStore::delVBucket(uint16_t vbucket) {
+void CouchKVStore::delVBucket(uint16_t vbucket, uint64_t fileRev) {
     if (isReadOnly()) {
         throw std::logic_error("CouchKVStore::delVBucket: Not valid on a "
                         "read-only object.");
     }
 
-    unlinkCouchFile(vbucket, dbFileRevMap[vbucket]);
-
-    if (cachedVBStates[vbucket]) {
-        delete cachedVBStates[vbucket];
-    }
-
-    cachedDocCount[vbucket] = 0;
-    cachedDeleteCount[vbucket] = 0;
-    cachedFileSize[vbucket] = 0;
-    cachedSpaceUsed[vbucket] = 0;
-
-    std::string failovers("[{\"id\":0, \"seq\":0}]");
-    cachedVBStates[vbucket] = new vbucket_state(vbucket_state_dead, 0, 0, 0, 0,
-                                                0, 0, 0, failovers);
-    updateDbFileMap(vbucket, 1);
-
-    return true;
+    unlinkCouchFile(vbucket, fileRev);
 }
 
 std::vector<vbucket_state *> CouchKVStore::listPersistedVbuckets() {
@@ -2762,6 +2754,20 @@ std::string CouchKVStore::getCollectionsManifest(uint16_t vbid) {
     }
 
     return readCollectionsManifest(*db.getDb());
+}
+
+void CouchKVStore::incrementRevision(uint16_t vbid) {
+    dbFileRevMap[vbid]++;
+}
+
+uint64_t CouchKVStore::prepareToDelete(uint16_t vbid) {
+    // Clear the stats so it looks empty (real deletion of the disk data occurs
+    // later)
+    cachedDocCount[vbid] = 0;
+    cachedDeleteCount[vbid] = 0;
+    cachedFileSize[vbid] = 0;
+    cachedSpaceUsed[vbid] = 0;
+    return dbFileRevMap[vbid];
 }
 
 /* end of couch-kvstore.cc */

@@ -22,6 +22,7 @@
 #include "failover-table.h"
 #include "linked_list.h"
 #include "stored_value_factories.h"
+#include "vbucketdeletiontask.h"
 
 EphemeralVBucket::EphemeralVBucket(id_type i,
                                    vbucket_state_t newState,
@@ -502,4 +503,15 @@ GetValue EphemeralVBucket::getInternalNonResident(
         const StoredValue& v) {
     /* We reach here only if the v is deleted and does not have any value */
     return GetValue();
+}
+
+void EphemeralVBucket::setupDeferredDeletion(const void* cookie) {
+    setDeferredDeletionCookie(cookie);
+    setDeferredDeletion(true);
+}
+
+void EphemeralVBucket::scheduleDeferredDeletion(
+        EventuallyPersistentEngine& engine) {
+    ExTask task = new VBucketMemoryDeletionTask(engine, this);
+    ExecutorPool::get()->schedule(task);
 }

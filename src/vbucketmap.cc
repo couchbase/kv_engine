@@ -63,11 +63,10 @@ ENGINE_ERROR_CODE VBucketMap::addBucket(VBucketPtr vb) {
     return ENGINE_ERANGE;
 }
 
-void VBucketMap::removeBucket(id_type id) {
+void VBucketMap::dropVBucketAndSetupDeferredDeletion(id_type id,
+                                                     const void* cookie) {
     if (id < size) {
-        // Theoretically, this could be off slightly.  In
-        // practice, this happens only on dead vbuckets.
-        getShardByVbId(id)->resetBucket(id);
+        getShardByVbId(id)->dropVBucketAndSetupDeferredDeletion(id, cookie);
     }
 }
 

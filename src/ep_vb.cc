@@ -23,6 +23,7 @@
 #include "failover-table.h"
 #include "kvshard.h"
 #include "stored_value_factories.h"
+#include "vbucketdeletiontask.h"
 
 EPVBucket::EPVBucket(id_type i,
                      vbucket_state_t newState,
@@ -588,4 +589,16 @@ GetValue EPVBucket::getInternalNonResident(const DocKey& key,
 
     return GetValue(
             NULL, ENGINE_EWOULDBLOCK, v.getBySeqno(), true, v.getNRUValue());
+}
+
+void EPVBucket::setupDeferredDeletion(const void* cookie) {
+    setDeferredDeletionCookie(cookie);
+    deferredDeletionFileRevision.store(
+            getShard()->getRWUnderlying()->prepareToDelete(getId()));
+    setDeferredDeletion(true);
+}
+
+void EPVBucket::scheduleDeferredDeletion(EventuallyPersistentEngine& engine) {
+    ExTask task = new VBucketMemoryAndDiskDeletionTask(engine, *shard, this);
+    ExecutorPool::get()->schedule(task);
 }

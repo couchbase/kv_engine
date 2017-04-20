@@ -186,6 +186,7 @@ private:
 class EventuallyPersistentEngine;
 class FailoverTable;
 class KVShard;
+class VBucketMemoryDeletionTask;
 
 /**
  * An individual vbucket.
@@ -298,15 +299,47 @@ public:
         return bucketCreation.compare_exchange_strong(inverse, rv);
     }
 
-    // States whether the VBucket is in the process of being deleted
-    bool isBucketDeletion() const {
-        return bucketDeletion.load();
+    /**
+     * @return true if the vbucket deletion is to be deferred to a background
+     *         task.
+     */
+    bool isDeletionDeferred() const {
+        return deferredDeletion.load();
     }
 
-    bool setBucketDeletion(bool delBucket) {
-        bool inverse = !delBucket;
-        return bucketDeletion.compare_exchange_strong(inverse, delBucket);
+    /**
+     * @param value true if the vbucket's deletion should be deferred to a
+     *        background task. This is for VBucket objects created by
+     *        makeVBucket and owned by a VBucketPtr. If the VBucket was manually
+     *        created this will have no effect on deletion.
+     */
+    void setDeferredDeletion(bool value) {
+        deferredDeletion.store(true);
     }
+
+    /**
+     * @param A cookie to notify when the deferred deletion completes.
+     */
+    void setDeferredDeletionCookie(const void* cookie) {
+        deferredDeletionCookie = cookie;
+    }
+
+    /**
+     * @return the cookie which could of been set when setupDeferredDeletion was
+     *         called.
+     */
+    const void* getDeferredDeletionCookie() const {
+        return deferredDeletionCookie;
+    }
+
+    /**
+     * Setup deferred deletion, this is where deletion of the vbucket is
+     * deferred and completed by an AUXIO/NONIO task. AUXIO for EPVBucket
+     * as it will hit disk for the data file unlink, NONIO is used for
+     * EphemeralVBucket as only memory resources need freeing.
+     * @param cookie A cookie to notify when the deletion task completes.
+     */
+    virtual void setupDeferredDeletion(const void* cookie) = 0;
 
     // Returns the last persisted sequence number for the VBucket
     virtual uint64_t getPersistenceSeqno() const = 0;
@@ -1168,6 +1201,27 @@ public:
 
     std::atomic<size_t>  numExpiredItems;
 
+    /**
+     * A custom delete function for deleting VBucket objects. Any thread could
+     * be the last thread to release a VBucketPtr and deleting a VB will
+     * eventually hit the I/O sub-system when we unlink the file, to be sure no
+     * front-end thread does this work, we schedule the deletion to a background
+     * task. This task scheduling is triggered by the shared_ptr/VBucketPtr
+     * using this object as the deleter.
+     */
+    struct DeferredDeleter {
+        DeferredDeleter(EventuallyPersistentEngine& engine) : engine(engine) {
+        }
+
+        /**
+         * Called when the VBucketPtr has no more owners and runs delete on
+         * the object.
+         */
+        void operator()(VBucket* vb) const;
+
+        EventuallyPersistentEngine& engine;
+    };
+
 protected:
     /**
      * This function checks cas, expiry and other partition (vbucket) related
@@ -1388,6 +1442,15 @@ protected:
     /* size of list hpVBReqs (to avoid MB-9434) */
     Couchbase::RelaxedAtomic<size_t> numHpVBReqs;
 
+    /**
+     * VBucket sub-classes must implement a function that will schedule
+     * an appropriate task that will delete the VBucket and its resources.
+     *
+     * @param engine owning engine (required for task construction)
+     */
+    virtual void scheduleDeferredDeletion(
+            EventuallyPersistentEngine& engine) = 0;
+
 private:
     void fireAllOps(EventuallyPersistentEngine& engine, ENGINE_ERROR_CODE code);
 
@@ -1594,10 +1657,13 @@ private:
     std::string statPrefix;
     // The persistence checkpoint ID for this vbucket.
     std::atomic<uint64_t> persistenceCheckpointId;
-    // Flag to indicate the bucket is being created
+    // Flag to indicate the vbucket is being created
     std::atomic<bool> bucketCreation;
-    // Flag to indicate the bucket is being deleted
-    std::atomic<bool> bucketDeletion;
+    // Flag to indicate the vbucket deletion is deferred
+    std::atomic<bool> deferredDeletion;
+    /// A cookie that can be set when the vbucket is deletion is deferred, the
+    /// cookie will be notified when the deferred deletion completes
+    const void* deferredDeletionCookie;
 
     // Ptr to the item conflict resolution module
     std::unique_ptr<ConflictResolution> conflictResolver;

@@ -670,6 +670,8 @@ private:
         return nullptr;
     }
 
+    void clear_UNLOCKED(bool deactivate);
+
     DISALLOW_COPY_AND_ASSIGN(HashTable);
 };
 

@@ -52,7 +52,7 @@
 #include "replicationthrottle.h"
 #include "statwriter.h"
 #include "tapconnmap.h"
-#include "vbucketmemorydeletiontask.h"
+#include "vbucketdeletiontask.h"
 #include "vb_count_visitor.h"
 
 class StatsValueChangeListener : public ValueChangedListener {
@@ -724,15 +724,16 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState(uint16_t vbid,
                                             bool transfer,
                                             bool notify_dcp) {
     // Lock to prevent a race condition between a failed update and add.
-    LockHolder lh(vbsetMutex);
+    std::unique_lock<std::mutex> lh(vbsetMutex);
     return setVBucketState_UNLOCKED(vbid, to, transfer, notify_dcp, lh);
 }
 
-ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(uint16_t vbid,
-                                                     vbucket_state_t to,
-                                                     bool transfer,
-                                                     bool notify_dcp,
-                                                     LockHolder& vbset) {
+ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
+        uint16_t vbid,
+        vbucket_state_t to,
+        bool transfer,
+        bool notify_dcp,
+        std::unique_lock<std::mutex>& vbset) {
     VBucketPtr vb = vbMap.getBucket(vbid);
     if (vb && to == vb->getState()) {
         return ENGINE_SUCCESS;
@@ -804,6 +805,10 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(uint16_t vbid,
         // The first checkpoint for active vbucket should start with id 2.
         uint64_t start_chk_id = (to == vbucket_state_active) ? 2 : 0;
         newvb->checkpointManager.setOpenCheckpointId(start_chk_id);
+
+        // Before adding the VB to the map increment the revision
+        getRWUnderlying(vbid)->incrementRevision(vbid);
+
         if (vbMap.addBucket(newvb) == ENGINE_ERANGE) {
             return ENGINE_ERANGE;
         }
@@ -836,70 +841,29 @@ void KVBucket::scheduleVBStatePersist(VBucket::id_type vbid) {
     vb->checkpointManager.queueSetVBState(*vb);
 }
 
-bool KVBucket::completeVBucketDeletion(uint16_t vbid, const void* cookie) {
-    hrtime_t start_time(gethrtime());
-    bool bucketDeleting;
-    {
-        LockHolder lh(vbsetMutex);
-        VBucketPtr vb = vbMap.getBucket(vbid);
-        bucketDeleting = !vb ||
-                vb->getState() == vbucket_state_dead ||
-                vb->isBucketDeletion();
-
-        if (bucketDeleting) {
-            LockHolder vlh(vb_mutexes[vbid]);
-            if (!getRWUnderlying(vbid)->delVBucket(vbid)) {
-                return false;
-            }
-            if (vb) {
-                vb->setBucketDeletion(false);
-                vb->setBucketCreation(false);
-                vb->setPersistenceSeqno(0);
-            }
-            ++stats.vbucketDeletions;
-        }
-    }
-
-    hrtime_t spent(gethrtime() - start_time);
-    hrtime_t wall_time = spent / 1000;
-    BlockTimer::log(spent, "disk_vb_del", stats.timingLog);
-    stats.diskVBDelHisto.add(wall_time);
-    atomic_setIfBigger(stats.vbucketDelMaxWalltime, wall_time);
-    stats.vbucketDelTotWalltime.fetch_add(wall_time);
-    if (cookie) {
-        engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
-    }
-
-    return true;
-}
-
-void KVBucket::scheduleVBDeletion(VBucketPtr &vb, const void* cookie,
-                                  double delay) {
-    ExTask delTask = make_STRCPtr<VBucketMemoryDeletionTask>(engine, vb, delay);
-    ExecutorPool::get()->schedule(delTask);
-
-    if (vb->setBucketDeletion(true)) {
-        ExTask task = make_STRCPtr<VBDeleteTask>(&engine, vb->getId(), cookie);
-        ExecutorPool::get()->schedule(task);
-    }
-}
-
 ENGINE_ERROR_CODE KVBucket::deleteVBucket(uint16_t vbid, const void* c) {
     // Lock to prevent a race condition between a failed update and add
     // (and delete).
-    VBucketPtr vb;
+    VBucketPtr vb = vbMap.getBucket(vbid);
+    if (!vb) {
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
     {
-        LockHolder lh(vbsetMutex);
-        vb = vbMap.getBucket(vbid);
-        if (!vb) {
-            return ENGINE_NOT_MY_VBUCKET;
-        }
+        std::unique_lock<std::mutex> vbSetLh(vbsetMutex);
+        // Obtain the vb_mutex for the VB to ensure we interlock with other
+        // threads that are manipulating the VB (particularly ones which may
+        // try and change the disk revision e.g. deleteAll and compaction).
+        std::unique_lock<std::mutex> vbMutLh(vb_mutexes[vbid]);
 
         vb->setState(vbucket_state_dead);
         engine.getDcpConnMap().vbucketStateChanged(vbid, vbucket_state_dead);
-        vbMap.removeBucket(vbid);
+
+        // Drop the VB to begin the delete, the last holder of the VB will
+        // unknowingly trigger the destructor which schedules a deletion task.
+        vbMap.dropVBucketAndSetupDeferredDeletion(vbid, c);
     }
-    scheduleVBDeletion(vb, c);
+
     if (c) {
         return ENGINE_EWOULDBLOCK;
     }
@@ -1071,23 +1035,28 @@ void KVBucket::updateCompactionTasks(DBFileId db_file_id) {
 }
 
 bool KVBucket::resetVBucket(uint16_t vbid) {
-    LockHolder lh(vbsetMutex);
-    return resetVBucket_UNLOCKED(vbid, lh);
+    std::unique_lock<std::mutex> lh(vbsetMutex);
+    // Obtain the vb_mutex for the VB to ensure we interlock with other
+    // threads that are manipulating the VB (particularly ones which may
+    // try and change the disk revision).
+    std::unique_lock<std::mutex> vbMutLh(vb_mutexes[vbid]);
+    return resetVBucket_UNLOCKED(vbid, lh, vbMutLh);
 }
 
-bool KVBucket::resetVBucket_UNLOCKED(uint16_t vbid, LockHolder& vbset) {
+bool KVBucket::resetVBucket_UNLOCKED(uint16_t vbid,
+                                     std::unique_lock<std::mutex>& vbset,
+                                     std::unique_lock<std::mutex>& vbMutex) {
     bool rv(false);
 
     VBucketPtr vb = vbMap.getBucket(vbid);
     if (vb) {
         vbucket_state_t vbstate = vb->getState();
 
-        vbMap.removeBucket(vbid);
+        vbMap.dropVBucketAndSetupDeferredDeletion(vbid, nullptr /*no cookie*/);
 
         checkpointCursorInfoList cursors =
                                         vb->checkpointManager.getAllCursors();
         // Delete and recreate the vbucket database file
-        scheduleVBDeletion(vb, NULL, 0);
         setVBucketState_UNLOCKED(vbid, vbstate,
                                  false/*transfer*/, true/*notifyDcp*/, vbset);
 
@@ -1920,7 +1889,7 @@ public:
 private:
 
     void redirty() {
-        if (vbucket->isBucketDeletion()) {
+        if (vbucket->isDeletionDeferred()) {
             // updating the member stats for the vbucket is not really necessary
             // as the vbucket is about to be deleted
             vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
@@ -1971,7 +1940,7 @@ void KVBucket::flushOneDeleteAll() {
         VBucketPtr vb = getVBucket(i);
         // Reset the vBucket if it's non-null and not already in the middle of
         // being created / destroyed.
-        if (vb && !(vb->isBucketCreation() || vb->isBucketDeletion())) {
+        if (vb && !(vb->isBucketCreation() || vb->isDeletionDeferred())) {
             LockHolder lh(vb_mutexes[vb->getId()]);
             getRWUnderlying(vb->getId())->reset(i);
         }
@@ -2696,11 +2665,11 @@ KVStore *KVBucket::getOneRWUnderlying(void) {
 }
 
 ENGINE_ERROR_CODE KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
-    LockHolder vbset(vbsetMutex);
+    std::unique_lock<std::mutex> vbset(vbsetMutex);
 
-    std::unique_lock<std::mutex> lh(vb_mutexes[vbid], std::try_to_lock);
+    std::unique_lock<std::mutex> vbMutexLh(vb_mutexes[vbid], std::try_to_lock);
 
-    if (!lh.owns_lock()) {
+    if (!vbMutexLh.owns_lock()) {
         return ENGINE_TMPFAIL; // Reschedule a vbucket rollback task.
     }
 
@@ -2728,7 +2697,7 @@ ENGINE_ERROR_CODE KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
             }
         }
 
-        if (resetVBucket_UNLOCKED(vbid, vbset)) {
+        if (resetVBucket_UNLOCKED(vbid, vbset, vbMutexLh)) {
             VBucketPtr newVb = vbMap.getBucket(vbid);
             newVb->incrRollbackItemCount(prevHighSeqno);
             return ENGINE_SUCCESS;

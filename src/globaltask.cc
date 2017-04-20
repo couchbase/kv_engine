@@ -24,8 +24,9 @@
 static_assert(TaskPriority::MultiBGFetcherTask < TaskPriority::BGFetchCallback,
               "MultiBGFetcherTask not less than BGFetchCallback");
 
-static_assert(TaskPriority::BGFetchCallback == TaskPriority::VBDeleteTask,
-              "BGFetchCallback not equal VBDeleteTask");
+static_assert(TaskPriority::BGFetchCallback ==
+                      TaskPriority::VBucketMemoryAndDiskDeletionTask,
+              "BGFetchCallback not equal VBucketMemoryAndDiskDeletionTask");
 
 static_assert(TaskPriority::VKeyStatBGFetchTask < TaskPriority::FlusherTask,
               "VKeyStatBGFetchTask not less than FlusherTask");

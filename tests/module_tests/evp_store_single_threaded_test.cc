@@ -484,23 +484,17 @@ TEST_F(SingleThreadedEPBucketTest, MB19695_doTapVbTakeoverStats) {
     // [[1] Set our state to replica.
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
-    auto& lpWriterQ = *task_executor->getLpTaskQ()[WRITER_TASK_IDX];
-    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
-
     // [[2]] Perform a vbucket reset. This will perform some work synchronously,
-    // but also created 2 tasks and notifies the flusher:
-    //   1. vbucket memory deletion (NONIO)
-    //   2. vbucket disk deletion (WRITER)
-    //   3. FlusherTask notified (WRITER)
+    // but also creates the task that will delete the VB.
+    //   * vbucket memory and disk deletion (AUXIO)
     // MB-19695: If we try to get the number of persisted deletes between
-    // steps (2) and (3) running then an exception is thrown (and client
+    // steps [[2]] and [[3]] running then an exception is thrown (and client
     // disconnected).
     EXPECT_TRUE(store->resetVBucket(vbid));
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    runNextTask(lpAuxioQ, "Removing (dead) vb:0 from memory and disk");
 
-    runNextTask(lpNonioQ, "Removing (dead) vb:0 from memory");
-    runNextTask(lpWriterQ, "Deleting VBucket:0");
-
-    // [[2]] Ok, let's see if we can get TAP takeover stats. This will
+    // [[3]] Ok, let's see if we can get TAP takeover stats. This will
     // fail with MB-19695.
     // Dummy callback to pass into the stats function below.
     auto dummy_cb = [](const char *key, const uint16_t klen,

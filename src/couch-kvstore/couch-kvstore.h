@@ -184,7 +184,7 @@ public:
     void initialize();
 
     /**
-     * Reset database to a clean state.
+     * Reset vbucket to a clean state.
      */
     void reset(uint16_t vbucketId) override;
 
@@ -281,7 +281,13 @@ public:
      */
     void del(const Item &itm, Callback<int> &cb) override;
 
-    bool delVBucket(uint16_t vbucket) override;
+    /**
+     * Delete a given vbucket database instance from underlying storage
+     *
+     * @param vbucket vbucket id
+     * @param fileRev the revision of the file to delete
+     */
+    void delVBucket(uint16_t vbucket, uint64_t fileRev) override;
 
     /**
      * Retrieve the list of persisted vbucket states
@@ -433,13 +439,28 @@ public:
 
     std::string getCollectionsManifest(uint16_t vbid) override;
 
+    /**
+     * Increment the revision number of the vbucket.
+     * @param vbid ID of the vbucket to change.
+     */
+    void incrementRevision(uint16_t vbid) override;
+
+    /**
+     * Prepare for delete of the vbucket file, this just removes the in-memory
+     * stats for the vbucket and returns the current file revision (which is
+     * the revision that must later be unlinked).
+     *
+     * @param vbid ID of the vbucket being deleted
+     * @return the revision ID to delete (via ::delVBucket)
+     */
+    uint64_t prepareToDelete(uint16_t vbid) override;
+
 protected:
     /*
      * Returns the DbInfo for the given vbucket database.
      */
     DbInfo getDbInfo(uint16_t vbid);
 
-protected:
     bool setVBucketState(uint16_t vbucketId, const vbucket_state &vbstate,
                          VBStatePersist options, bool reset=false);
 
@@ -535,10 +556,10 @@ protected:
 
     const std::string dbname;
 
-    // Map of the fileRev for each vBucket. Using RelaxedAtomic so
-    // stats gathering (doDcpVbTakeoverStats) can get a snapshot
-    // without having to lock.
-    std::vector<Couchbase::RelaxedAtomic<uint64_t>> dbFileRevMap;
+    /**
+     * Per-vbucket file revision atomic to ensure writer threads see increments
+     */
+    std::vector<std::atomic<uint64_t>> dbFileRevMap;
 
     uint16_t numDbFiles;
     std::vector<CouchRequest *> pendingReqsQ;

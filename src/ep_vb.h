@@ -108,6 +108,28 @@ public:
     void queueBackfillItem(queued_item& qi,
                            const GenerateBySeqno generateBySeqno) override;
 
+    /**
+     * Setup deferred deletion, this is where deletion of the vbucket is
+     * deferred and completed by an AUXIO task as it will hit disk for the data
+     * file unlink.
+     *
+     * @param cookie A cookie to notify when the deletion task completes.
+     */
+    void setupDeferredDeletion(const void* cookie) override;
+
+    /**
+     * @return the file revision to be unlinked by the deferred deletion task
+     */
+    uint64_t getDeferredDeletionFileRevision() const {
+        return deferredDeletionFileRevision;
+    }
+
+    /**
+     * Schedule a VBucketMemoryAndDiskDeletionTask to delete this object.
+     * @param engine owning engine (required for task construction)
+     */
+    void scheduleDeferredDeletion(EventuallyPersistentEngine& engine) override;
+
 protected:
     /**
      * queue a background fetch of the specified item.
@@ -179,6 +201,12 @@ private:
 
     /* Pointer to the shard to which this VBucket belongs to */
     KVShard* shard;
+
+    /**
+     * When deferred deletion is enabled for this object we store the database
+     * file revision we will unlink from disk.
+     */
+    std::atomic<uint64_t> deferredDeletionFileRevision;
 
     friend class EPVBucketTest;
 };

@@ -34,7 +34,7 @@
 #include "tasks.h"
 #include "tests/mock/mock_global_task.h"
 #include "tests/module_tests/test_helpers.h"
-#include "vbucketmemorydeletiontask.h"
+#include "vbucketdeletiontask.h"
 
 #include <platform/dirutils.h>
 #include <chrono>

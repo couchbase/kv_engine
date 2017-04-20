@@ -21,6 +21,7 @@
 
 #include "kvstore.h"
 #include "utility.h"
+#include "vbucket.h"
 
 #include <atomic>
 
@@ -79,7 +80,20 @@ public:
 
     VBucketPtr getBucket(VBucket::id_type id) const;
     void setBucket(VBucketPtr vb);
-    void resetBucket(VBucket::id_type id);
+
+    /**
+     * Drop the vbucket from the map and setup deferred deletion of the VBucket.
+     * Once the VBucketPtr has no more references the vbucket is deleted, but
+     * deletion occurs via a task that is scheduled by the VBucketPtr deleter,
+     * ensuring no front-end thread deletes the memory/disk associated with the
+     * VBucket.
+     *
+     * @param id The VB to drop
+     * @param cookie Optional connection cookie, this cookie will be notified
+     *        when the deletion task is completed.
+     */
+    void dropVBucketAndSetupDeferredDeletion(VBucket::id_type id,
+                                             const void* cookie);
 
     KVShard::id_type getId() const {
         return kvConfig.getShardId();

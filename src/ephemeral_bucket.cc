@@ -146,22 +146,27 @@ VBucketPtr EphemeralBucket::makeVBucket(
         uint64_t purgeSeqno,
         uint64_t maxCas,
         const std::string& collectionsManifest) {
-    return std::make_shared<EphemeralVBucket>(id,
-                                              state,
-                                              stats,
-                                              engine.getCheckpointConfig(),
-                                              shard,
-                                              lastSeqno,
-                                              lastSnapStart,
-                                              lastSnapEnd,
-                                              std::move(table),
-                                              std::move(newSeqnoCb),
-                                              engine.getConfiguration(),
-                                              eviction_policy,
-                                              initState,
-                                              purgeSeqno,
-                                              maxCas,
-                                              collectionsManifest);
+    // Not using make_shared or allocate_shared
+    // 1. make_shared doesn't accept a Deleter
+    // 2. allocate_shared has inconsistencies between platforms in calling
+    //    alloc.destroy (libc++ doesn't call it)
+    return VBucketPtr(new EphemeralVBucket(id,
+                                           state,
+                                           stats,
+                                           engine.getCheckpointConfig(),
+                                           shard,
+                                           lastSeqno,
+                                           lastSnapStart,
+                                           lastSnapEnd,
+                                           std::move(table),
+                                           std::move(newSeqnoCb),
+                                           engine.getConfiguration(),
+                                           eviction_policy,
+                                           initState,
+                                           purgeSeqno,
+                                           maxCas,
+                                           collectionsManifest),
+                      VBucket::DeferredDeleter(engine));
 }
 
 void EphemeralBucket::completeStatsVKey(const void* cookie,

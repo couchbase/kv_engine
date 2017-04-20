@@ -214,7 +214,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/vb_count_visitor.cc
             src/vbucket.cc
             src/vbucketmap.cc
-            src/vbucketmemorydeletiontask.cc
+            src/vbucketdeletiontask.cc
             src/warmup.cc
             ${OBJECTREGISTRY_SOURCE}
             ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c

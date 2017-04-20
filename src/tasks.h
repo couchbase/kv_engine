@@ -56,32 +56,6 @@ private:
 };
 
 /**
- * A task for deleting VBucket files from disk and cleaning up any outstanding
- * writes for that VBucket file.
- * sid (shard ID) passed on to GlobalTask indicates that task needs to be
- *     serialized with other tasks that require serialization on its shard
- */
-class VBDeleteTask : public GlobalTask {
-public:
-    VBDeleteTask(EventuallyPersistentEngine *e, uint16_t vbid, const void* c,
-                 bool completeBeforeShutdown = true)
-        : GlobalTask(e, TaskId::VBDeleteTask, 0, completeBeforeShutdown),
-          vbucketId(vbid), cookie(c),
-          description("Deleting VBucket:" + std::to_string(vbucketId)) {}
-
-    bool run();
-
-    cb::const_char_buffer getDescription() {
-        return description;
-    }
-
-private:
-    uint16_t vbucketId;
-    const void* cookie;
-    const std::string description;
-};
-
-/**
  * A task for compacting a vbucket db file
  */
 class CompactTask : public GlobalTask {

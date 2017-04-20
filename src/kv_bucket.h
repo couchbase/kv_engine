@@ -337,15 +337,6 @@ public:
                                       bool transfer, bool notify_dcp = true);
 
     /**
-     * Physically deletes a VBucket from disk. This function should only
-     * be called on a VBucket that has already been logically deleted.
-     *
-     * @param vbid vbucket id
-     * @param cookie The connection that requested the deletion
-     */
-    bool completeVBucketDeletion(uint16_t vbid, const void* cookie);
-
-    /**
      * Deletes a vbucket
      *
      * @param vbid The vbucket to delete.
@@ -769,10 +760,6 @@ protected:
      */
     void compactInternal(compaction_ctx *ctx);
 
-    void scheduleVBDeletion(VBucketPtr &vb,
-                            const void* cookie,
-                            double delay = 0);
-
     void flushOneDeleteAll(void);
     PersistenceCallback* flushOneDelOrSet(const queued_item &qi,
                                           VBucketPtr &vb);
@@ -781,11 +768,16 @@ protected:
                          vbucket_state_t allowedState,
                          get_options_t options = TRACK_REFERENCE);
 
-    bool resetVBucket_UNLOCKED(uint16_t vbid, LockHolder& vbset);
+    bool resetVBucket_UNLOCKED(uint16_t vbid,
+                               std::unique_lock<std::mutex>& vbset,
+                               std::unique_lock<std::mutex>& vbMutex);
 
-    ENGINE_ERROR_CODE setVBucketState_UNLOCKED(uint16_t vbid, vbucket_state_t state,
-                                               bool transfer, bool notify_dcp,
-                                               LockHolder& vbset);
+    ENGINE_ERROR_CODE setVBucketState_UNLOCKED(
+            uint16_t vbid,
+            vbucket_state_t state,
+            bool transfer,
+            bool notify_dcp,
+            std::unique_lock<std::mutex>& vbset);
 
     /* Notify flusher of a new seqno being added in the vbucket */
     virtual void notifyFlusher(const uint16_t vbid);

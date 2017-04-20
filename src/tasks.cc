@@ -36,11 +36,6 @@ bool FlusherTask::run() {
     return flusher->step(this);
 }
 
-bool VBDeleteTask::run() {
-    TRACE_EVENT("ep-engine/task", "VBDeleteTask", vbucketId, cookie);
-    return !engine->getKVBucket()->completeVBucketDeletion(vbucketId, cookie);
-}
-
 bool CompactTask::run() {
     TRACE_EVENT("ep-engine/task", "CompactTask", compactCtx.db_file_id);
     return engine->getKVBucket()->doCompact(&compactCtx, cookie);

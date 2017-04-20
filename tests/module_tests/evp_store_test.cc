@@ -34,7 +34,7 @@
 #include "tapconnmap.h"
 #include "tests/mock/mock_global_task.h"
 #include "tests/module_tests/test_helpers.h"
-#include "vbucketmemorydeletiontask.h"
+#include "vbucketdeletiontask.h"
 
 #include <thread>
 
@@ -339,7 +339,7 @@ TEST_P(EPStoreEvictionTest, MB_21976) {
                                                        HIDE_LOCKED_CAS |
                                                        TRACK_STATISTICS);
     GetValue gv = store->get(makeStoredDocKey("key"), vbid, cookie, options);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,gv.getStatus());
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
 
     // Mark the status of the cookie so that we can see if notify is called
     lock_mock_cookie(cookie);
@@ -347,14 +347,19 @@ TEST_P(EPStoreEvictionTest, MB_21976) {
     c->status = ENGINE_E2BIG;
     unlock_mock_cookie(cookie);
 
-    // Manually run the VBucketMemoryDeletionTask task
-    VBucketPtr vb = store->getVBucket(vbid);
-    VBucketMemoryDeletionTask deletionTask(*engine, vb, /*delay*/0.0);
-    deletionTask.run();
+    const void* deleteCookie = create_mock_cookie();
+
+    // lock the cookie, waitfor will release and enter the internal cond-var
+    lock_mock_cookie(deleteCookie);
+    store->deleteVBucket(vbid, deleteCookie);
+    waitfor_mock_cookie(deleteCookie);
+    unlock_mock_cookie(deleteCookie);
 
     // Check the status of the cookie to see if the cookie status has changed
     // to ENGINE_NOT_MY_VBUCKET, which means the notify was sent
     EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, c->status);
+
+    destroy_mock_cookie(deleteCookie);
 }
 
 TEST_P(EPStoreEvictionTest, TouchCmdDuringBgFetch) {

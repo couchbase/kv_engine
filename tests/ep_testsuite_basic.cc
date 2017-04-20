@@ -1667,18 +1667,17 @@ static enum test_result test_bug2509(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_bug7023(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     std::vector<std::string> keys;
     // Make a vbucket mess.
-    for (int j = 0; j < 10000; ++j) {
-        std::stringstream ss;
-        ss << "key" << j;
-        std::string key(ss.str());
-        keys.push_back(key);
+    const int nitems = 10000;
+    const int iterations = 5;
+    for (int j = 0; j < nitems; ++j) {
+        keys.push_back("key" + std::to_string(j));
     }
 
     std::vector<std::string>::iterator it;
-    for (int j = 0; j < 5; ++j) {
+    for (int j = 0; j < iterations; ++j) {
         check(set_vbucket_state(h, h1, 0, vbucket_state_dead),
               "Failed set set vbucket 0 dead.");
-        vbucketDelete(h, h1, 0, "async=0");
+        vbucketDelete(h, h1, 0);
         checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
                 last_status.load(),
                 "Expected vbucket deletion to work.");
@@ -1702,7 +1701,9 @@ static enum test_result test_bug7023(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                                   testHarness.get_current_testcase()->cfg,
                                   true, false);
         wait_for_warmup_complete(h, h1);
-        return get_int_stat(h, h1, "ep_warmup_value_count", "warmup") == 10000 ? SUCCESS : FAIL;
+        checkeq(nitems,
+                get_int_stat(h, h1, "ep_warmup_value_count", "warmup"),
+                "Incorrect items following warmup");
     }
     return SUCCESS;
 }

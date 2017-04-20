@@ -466,15 +466,6 @@ public:
                                               bool notify_dcp = true) = 0;
 
     /**
-     * Physically deletes a VBucket from disk. This function should only
-     * be called on a VBucket that has already been logically deleted.
-     *
-     * @param vbid vbucket id
-     * @param cookie The connection that requested the deletion
-     */
-    virtual bool completeVBucketDeletion(uint16_t vbid, const void* cookie) = 0;
-
-    /**
      * Deletes a vbucket
      *
      * @param vbid The vbucket to delete.
@@ -844,10 +835,6 @@ protected:
      * @param ctx Context for compaction hooks
      */
     virtual void compactInternal(compaction_ctx *ctx) = 0;
-
-    virtual void scheduleVBDeletion(VBucketPtr &vb,
-                            const void* cookie,
-                            double delay = 0) = 0;
 
     virtual void flushOneDeleteAll(void) = 0;
     virtual PersistenceCallback* flushOneDelOrSet(const queued_item &qi,

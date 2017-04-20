@@ -231,23 +231,28 @@ VBucketPtr EPBucket::makeVBucket(VBucket::id_type id,
                                      uint64_t maxCas,
                                      const std::string& collectionsManifest) {
     auto flusherCb = std::make_shared<NotifyFlusherCB>(shard);
-    return std::make_shared<EPVBucket>(id,
-                                       state,
-                                       stats,
-                                       engine.getCheckpointConfig(),
-                                       shard,
-                                       lastSeqno,
-                                       lastSnapStart,
-                                       lastSnapEnd,
-                                       std::move(table),
-                                       flusherCb,
-                                       std::move(newSeqnoCb),
-                                       engine.getConfiguration(),
-                                       eviction_policy,
-                                       initState,
-                                       purgeSeqno,
-                                       maxCas,
-                                       collectionsManifest);
+    // Not using make_shared or allocate_shared
+    // 1. make_shared doesn't accept a Deleter
+    // 2. allocate_shared has inconsistencies between platforms in calling
+    //    alloc.destroy (libc++ doesn't call it)
+    return VBucketPtr(new EPVBucket(id,
+                                    state,
+                                    stats,
+                                    engine.getCheckpointConfig(),
+                                    shard,
+                                    lastSeqno,
+                                    lastSnapStart,
+                                    lastSnapEnd,
+                                    std::move(table),
+                                    flusherCb,
+                                    std::move(newSeqnoCb),
+                                    engine.getConfiguration(),
+                                    eviction_policy,
+                                    initState,
+                                    purgeSeqno,
+                                    maxCas,
+                                    collectionsManifest),
+                      VBucket::DeferredDeleter(engine));
 }
 
 ENGINE_ERROR_CODE EPBucket::statsVKey(const DocKey& key,

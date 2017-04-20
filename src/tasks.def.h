@@ -50,9 +50,9 @@ TASK(AccessScanner, AUXIO_TASK_IDX, 3)
 TASK(AccessScannerVisitor, AUXIO_TASK_IDX, 3)
 TASK(ActiveStreamCheckpointProcessorTask, AUXIO_TASK_IDX, 5)
 TASK(BackfillManagerTask, AUXIO_TASK_IDX, 8)
+TASK(VBucketMemoryAndDiskDeletionTask, AUXIO_TASK_IDX, 1)
 
 // Read/Write IO tasks
-TASK(VBDeleteTask, WRITER_TASK_IDX, 1)
 TASK(RollbackTask, WRITER_TASK_IDX, 1)
 TASK(CompactVBucketTask, WRITER_TASK_IDX, 2)
 TASK(FlusherTask, WRITER_TASK_IDX, 5)

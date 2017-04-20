@@ -66,7 +66,9 @@ HashTable::HashTable(EPStats& st,
 }
 
 HashTable::~HashTable() {
-    clear(true);
+    // Use unlocked clear for the destructor, avoids lock inversions on VBucket
+    // delete
+    clear_UNLOCKED(true);
     // Wait for any outstanding visitors to finish.
     while (visitors > 0) {
 #ifdef _MSC_VER
@@ -87,6 +89,10 @@ void HashTable::clear(bool deactivate) {
         }
     }
     MultiLockHolder mlh(mutexes, n_locks);
+    clear_UNLOCKED(deactivate);
+}
+
+void HashTable::clear_UNLOCKED(bool deactivate) {
     if (deactivate) {
         setActiveState(false);
     }

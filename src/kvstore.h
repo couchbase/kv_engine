@@ -721,9 +721,9 @@ public:
     }
 
     /**
-     * Reset the store to a clean state.
+     * Reset the vbucket to a clean state.
      */
-    virtual void reset(uint16_t shardId) = 0;
+    virtual void reset(uint16_t vbid) = 0;
 
     /**
      * Begin a transaction (if not already in one).
@@ -791,9 +791,9 @@ public:
      * Delete a given vbucket database instance from underlying storage
      *
      * @param vbucket vbucket id
-     * return true, if vbucket deletion was successful. Else, false.
+     * @param fileRev the revision of the file to delete
      */
-    virtual bool delVBucket(uint16_t vbucket) = 0;
+    virtual void delVBucket(uint16_t vbucket, uint64_t fileRev) = 0;
 
     /**
      * Get a list of all persisted vbuckets (with their states).
@@ -969,6 +969,20 @@ public:
      */
     virtual std::string getCollectionsManifest(uint16_t vbid) = 0;
 
+    /**
+     * Increment the revision number of the vbucket.
+     * @param vbid ID of the vbucket to change.
+     */
+    virtual void incrementRevision(uint16_t vbid) = 0;
+
+    /**
+     * Prepare for delete of the vbucket file
+     *
+     * @param vbid ID of the vbucket being deleted
+     * @return the revision ID to delete (via ::delVBucket)
+     */
+    virtual uint64_t prepareToDelete(uint16_t vbid) = 0;
+
 protected:
 
     /* all stats */
@@ -981,8 +995,6 @@ protected:
     std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDocCount;
     Couchbase::RelaxedAtomic<uint16_t> cachedValidVBCount;
     std::list<PersistenceCallback *> pcbs;
-
-protected:
 
     void createDataDir(const std::string& dbname);
     template <typename T>

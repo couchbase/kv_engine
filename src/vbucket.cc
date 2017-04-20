@@ -31,6 +31,7 @@
 #include "failover-table.h"
 #include "flusher.h"
 #include "pre_link_document_context.h"
+#include "vbucketdeletiontask.h"
 
 #define STATWRITER_NAMESPACE vbucket
 #include "statwriter.h"
@@ -188,7 +189,8 @@ VBucket::VBucket(id_type i,
       statPrefix("vb_" + std::to_string(i)),
       persistenceCheckpointId(0),
       bucketCreation(false),
-      bucketDeletion(false),
+      deferredDeletion(false),
+      deferredDeletionCookie(nullptr),
       newSeqnoCb(std::move(newSeqnoCb)),
       manifest(collectionsManifest) {
     if (config.getConflictResolutionType().compare("lww") == 0) {
@@ -2402,4 +2404,14 @@ std::unique_ptr<Item> VBucket::pruneXattrDocument(
     } else {
         return {};
     }
+}
+
+void VBucket::DeferredDeleter::operator()(VBucket* vb) const {
+    // If the vbucket is marked as deleting then we must schedule task to
+    // perform the resource destruction (memory/disk).
+    if (vb->isDeletionDeferred()) {
+        vb->scheduleDeferredDeletion(engine);
+        return;
+    }
+    delete vb;
 }

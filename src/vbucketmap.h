@@ -58,12 +58,23 @@ public:
 
     /**
      * Add the VBucket to the map - extending the lifetime of the object until
-     * it is removed from the map via removeBucket.
+     * it is removed from the map via dropAndDeleteVBucket.
      * @param vb shared pointer to the VBucket we are storing.
      */
     ENGINE_ERROR_CODE addBucket(VBucketPtr vb);
 
-    void removeBucket(id_type id);
+    /**
+     * Drop the vbucket from the map and setup deferred deletion of the VBucket.
+     * Once the VBucketPtr has no more references the vbucket is deleted, but
+     * deletion occurs via a task that is scheduled by the VBucketPtr deleter,
+     * ensuring no front-end thread deletes the memory/disk associated with the
+     * VBucket.
+     *
+     * @param id The VB to drop
+     * @param cookie Optional connection cookie, this cookie will be notified
+     *        when the deletion task is completed.
+     */
+    void dropVBucketAndSetupDeferredDeletion(id_type id, const void* cookie);
     VBucketPtr getBucket(id_type id) const;
 
     // Returns the size of the map, i.e. the total number of VBuckets it can
