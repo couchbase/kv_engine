@@ -39,16 +39,22 @@ void dcp_open_executor(McbpConnection* c, void* packet) {
         }
 
         ret = mcbp::checkPrivilege(*c, privilege);
+
+        const uint16_t nkey = ntohs(req->message.header.request.keylen);
+        const uint32_t valuelen = ntohl(req->message.header.request.bodylen) -
+                                  nkey - req->message.header.request.extlen;
+
+        const char* name =
+                reinterpret_cast<const char*>(req->bytes + sizeof(req->bytes));
         if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->dcp.open(c->getBucketEngineAsV0(),
-                                                 c->getCookie(),
-                                                 req->message.header.request.opaque,
-                                                 ntohl(req->message.body.seqno),
-                                                 flags,
-                                                 (void*)(req->bytes +
-                                                         sizeof(req->bytes)),
-                                                 ntohs(
-                                                     req->message.header.request.keylen));
+            ret = c->getBucketEngine()->dcp.open(
+                    c->getBucketEngineAsV0(),
+                    c->getCookie(),
+                    req->message.header.request.opaque,
+                    ntohl(req->message.body.seqno),
+                    flags,
+                    {name, nkey},
+                    {req->bytes + sizeof(req->bytes) + nkey, valuelen});
         }
     }
 
@@ -57,18 +63,21 @@ void dcp_open_executor(McbpConnection* c, void* packet) {
     case ENGINE_SUCCESS: {
         const bool dcpXattrAware = (flags & DCP_OPEN_INCLUDE_XATTRS) != 0;
         const bool dcpNoValue = (flags & DCP_OPEN_NO_VALUE) != 0;
+        const bool dcpCollections = (flags & DCP_OPEN_COLLECTIONS) != 0;
         c->setDcpXattrAware(dcpXattrAware);
         c->setDcpNoValue(dcpNoValue);
+        c->setDcpCollectionAware(dcpCollections);
 
         // @todo Keeping this as NOTICE while waiting for ns_server
         //       support for xattr over DCP (to make it easier to debug
         ///      see MB-22468
         LOG_NOTICE(c,
-                   "%u: DCP connection opened successfully. flags:{%s%s%s} %s",
+                   "%u: DCP connection opened successfully. flags:{%s%s%s%s} %s",
                    c->getId(),
                    dcpNotifier ? "NOTIFIER " : "",
                    dcpXattrAware ? "INCLUDE_XATTRS " : "",
                    dcpNoValue ? "NO_VALUE " : "",
+                   dcpCollections ? "COLLECTIONS" : "",
                    c->getDescription().c_str());
 
         audit_dcp_open(c);

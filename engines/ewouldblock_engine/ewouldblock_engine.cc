@@ -763,10 +763,13 @@ private:
     static ENGINE_ERROR_CODE dcp_step(ENGINE_HANDLE* handle, const void* cookie,
                                       struct dcp_message_producers *producers);
 
-    static ENGINE_ERROR_CODE dcp_open(ENGINE_HANDLE* handle, const void* cookie,
-                                      uint32_t opaque, uint32_t seqno,
-                                      uint32_t flags, void *name,
-                                      uint16_t nname);
+    static ENGINE_ERROR_CODE dcp_open(ENGINE_HANDLE* handle,
+                                      const void* cookie,
+                                      uint32_t opaque,
+                                      uint32_t seqno,
+                                      uint32_t flags,
+                                      cb::const_char_buffer name,
+                                      cb::const_byte_buffer json);
 
     static ENGINE_ERROR_CODE dcp_add_stream(ENGINE_HANDLE* handle,
                                             const void* cookie,
@@ -1316,11 +1319,14 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_step(ENGINE_HANDLE* handle,
 }
 
 ENGINE_ERROR_CODE EWB_Engine::dcp_open(ENGINE_HANDLE* handle,
-                                       const void* cookie, uint32_t opaque,
-                                       uint32_t seqno, uint32_t flags,
-                                       void *name, uint16_t nname) {
+                                       const void* cookie,
+                                       uint32_t opaque,
+                                       uint32_t seqno,
+                                       uint32_t flags,
+                                       cb::const_char_buffer name,
+                                       cb::const_byte_buffer json) {
     EWB_Engine* ewb = to_engine(handle);
-    std::string nm{static_cast<char*>(name), nname};
+    std::string nm = cb::to_string(name);
     if (nm.find("ewb_internal") == 0) {
         // Yeah, this is a request for the internal "magic" DCP stream
         // The user could specify the iteration count by adding a colon
@@ -1337,8 +1343,13 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_open(ENGINE_HANDLE* handle,
     if (ewb->real_engine->dcp.open == nullptr) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine->dcp.open(ewb->real_handle, cookie, opaque,
-                                          seqno, flags, name, nname);
+        return ewb->real_engine->dcp.open(ewb->real_handle,
+                                          cookie,
+                                          opaque,
+                                          seqno,
+                                          flags,
+                                          name,
+                                          json);
     }
 }
 

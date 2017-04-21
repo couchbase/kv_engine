@@ -231,8 +231,13 @@ private:
         return ENGINE_NO_BUCKET;
     }
 
-    static ENGINE_ERROR_CODE dcp_open(ENGINE_HANDLE*, const void*, uint32_t,
-                                      uint32_t, uint32_t, void*, uint16_t) {
+    static ENGINE_ERROR_CODE dcp_open(ENGINE_HANDLE*,
+                                      const void*,
+                                      uint32_t,
+                                      uint32_t,
+                                      uint32_t,
+                                      cb::const_char_buffer,
+                                      cb::const_byte_buffer) {
         return ENGINE_NO_BUCKET;
     }
 

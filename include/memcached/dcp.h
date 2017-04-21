@@ -310,14 +310,13 @@ struct dcp_interface {
     ENGINE_ERROR_CODE (* step)(ENGINE_HANDLE* handle, const void* cookie,
                                struct dcp_message_producers* producers);
 
-
-    ENGINE_ERROR_CODE (* open)(ENGINE_HANDLE* handle,
+    ENGINE_ERROR_CODE (*open) (ENGINE_HANDLE* handle,
                                const void* cookie,
                                uint32_t opaque,
                                uint32_t seqno,
                                uint32_t flags,
-                               void* name,
-                               uint16_t nname);
+                               cb::const_char_buffer name,
+                               cb::const_byte_buffer jsonExtras);
 
     ENGINE_ERROR_CODE (* add_stream)(ENGINE_HANDLE* handle,
                                      const void* cookie,

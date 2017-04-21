@@ -1472,6 +1472,15 @@ TEST_F(DcpOpenValidatorTest, InvalidDatatype) {
     request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
+TEST_F(DcpOpenValidatorTest, ValueButNoCollections) {
+    request.message.header.request.bodylen = htonl(10 + 20);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+TEST_F(DcpOpenValidatorTest, CorrectMessageValueCollections) {
+    request.message.header.request.bodylen = htonl(10 + 20);
+    request.message.body.flags = ntohl(DCP_OPEN_COLLECTIONS);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
+}
 
 class DcpAddStreamValidatorTest : public ValidatorTest {
     virtual void SetUp() override {

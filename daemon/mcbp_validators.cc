@@ -62,6 +62,16 @@ static protocol_binary_response_status dcp_open_validator(const Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
+    // If there's a value, then OPEN_COLLECTIONS must be specified
+    const uint32_t valuelen = ntohl(req->message.header.request.bodylen) -
+                              req->message.header.request.extlen -
+                              ntohs(req->message.header.request.keylen);
+
+    const auto flags = ntohl(req->message.body.flags);
+    if (!(flags & DCP_OPEN_COLLECTIONS) && valuelen) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
     if (cookie.connection == nullptr ||
@@ -71,11 +81,9 @@ static protocol_binary_response_status dcp_open_validator(const Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
-    const auto flags = ntohl(req->message.body.flags);
-    const auto mask = DCP_OPEN_PRODUCER |
-                      DCP_OPEN_NOTIFIER |
-                      DCP_OPEN_INCLUDE_XATTRS |
-                      DCP_OPEN_NO_VALUE;
+    const auto mask = DCP_OPEN_PRODUCER | DCP_OPEN_NOTIFIER |
+                      DCP_OPEN_INCLUDE_XATTRS | DCP_OPEN_NO_VALUE |
+                      DCP_OPEN_COLLECTIONS;
 
     if (flags & ~mask) {
         LOG_NOTICE(cookie.connection,

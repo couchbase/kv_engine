@@ -484,11 +484,16 @@ static ENGINE_ERROR_CODE mock_dcp_open(ENGINE_HANDLE* handle,
                                        uint32_t opaque,
                                        uint32_t seqno,
                                        uint32_t flags,
-                                       void *name,
-                                       uint16_t nname) {
+                                       cb::const_char_buffer name,
+                                       cb::const_byte_buffer jsonExtras) {
     struct mock_engine *me = get_handle(handle);
-    return me->the_engine->dcp.open((ENGINE_HANDLE*)me->the_engine, cookie,
-                                    opaque, seqno, flags, name, nname);
+    return me->the_engine->dcp.open((ENGINE_HANDLE*)me->the_engine,
+                                    cookie,
+                                    opaque,
+                                    seqno,
+                                    flags,
+                                    name,
+                                    jsonExtras);
 }
 
 static ENGINE_ERROR_CODE mock_dcp_add_stream(ENGINE_HANDLE* handle,

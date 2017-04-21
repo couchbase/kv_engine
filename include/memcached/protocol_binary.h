@@ -1549,6 +1549,13 @@ typedef union {
  * if you add INCLUDE_XATTR those will be present)
  */
 #define DCP_OPEN_NO_VALUE 8
+
+/**
+ * Indicate that the server should send collection data
+ * and this request can also optionally include a collection
+ * filter in the body (no filter = all data)
+ */
+#define DCP_OPEN_COLLECTIONS 16
             uint32_t flags;
         } body;
     } message;
