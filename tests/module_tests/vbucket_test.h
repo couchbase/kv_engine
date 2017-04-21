@@ -51,11 +51,11 @@ protected:
 
     std::vector<StoredDocKey> generateKeys(int num, int start = 0);
 
-    void addOne(const StoredDocKey& k, AddStatus expect, int expiry = 0);
+    AddStatus addOne(const StoredDocKey& k, int expiry = 0);
 
     void addMany(std::vector<StoredDocKey>& keys, AddStatus expect);
 
-    void setOne(const StoredDocKey& k, MutationStatus expect, int expiry = 0);
+    MutationStatus setOne(const StoredDocKey& k, int expiry = 0);
 
     void setMany(std::vector<StoredDocKey>& keys, MutationStatus expect);
 

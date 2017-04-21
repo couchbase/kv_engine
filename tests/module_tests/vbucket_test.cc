@@ -58,30 +58,26 @@ std::vector<StoredDocKey> VBucketTest::generateKeys(int num, int start) {
     return rv;
 }
 
-void VBucketTest::addOne(const StoredDocKey& k, AddStatus expect, int expiry) {
+AddStatus VBucketTest::addOne(const StoredDocKey& k, int expiry) {
     Item i(k, 0, expiry, k.data(), k.size());
-    EXPECT_EQ(expect, public_processAdd(i)) << "Failed to add key "
-                                                     << k.c_str();
+    return public_processAdd(i);
 }
 
 void VBucketTest::addMany(std::vector<StoredDocKey>& keys, AddStatus expect) {
     for (const auto& k : keys) {
-        addOne(k, expect);
+        EXPECT_EQ(expect, addOne(k));
     }
 }
 
-void VBucketTest::setOne(const StoredDocKey& k,
-                         MutationStatus expect,
-                         int expiry) {
+MutationStatus VBucketTest::setOne(const StoredDocKey& k, int expiry) {
     Item i(k, 0, expiry, k.data(), k.size());
-    EXPECT_EQ(expect, public_processSet(i, i.getCas())) << "Failed to set key "
-                                                        << k.c_str();
+    return public_processSet(i, i.getCas());
 }
 
 void VBucketTest::setMany(std::vector<StoredDocKey>& keys,
                           MutationStatus expect) {
     for (const auto& k : keys) {
-        setOne(k, expect);
+        EXPECT_EQ(expect, setOne(k));
     }
 }
 
@@ -288,8 +284,8 @@ TEST_P(VBucketTest, AddExpiry) {
     }
     StoredDocKey k = makeStoredDocKey("aKey");
 
-    addOne(k, AddStatus::Success, ep_real_time() + 5);
-    addOne(k, AddStatus::Exists, ep_real_time() + 5);
+    ASSERT_EQ(AddStatus::Success, addOne(k, ep_real_time() + 5));
+    EXPECT_EQ(AddStatus::Exists, addOne(k, ep_real_time() + 5));
 
     StoredValue* v =
             this->vbucket->ht.find(k, TrackReference::Yes, WantsDeleted::No);
@@ -300,7 +296,7 @@ TEST_P(VBucketTest, AddExpiry) {
     TimeTraveller biffTannen(6);
     EXPECT_TRUE(v->isExpired(ep_real_time()));
 
-    addOne(k, AddStatus::UnDel, ep_real_time() + 5);
+    EXPECT_EQ(AddStatus::UnDel, addOne(k, ep_real_time() + 5));
     EXPECT_TRUE(v);
     EXPECT_FALSE(v->isExpired(ep_real_time()));
     EXPECT_TRUE(v->isExpired(ep_real_time() + 6));

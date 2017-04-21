@@ -67,7 +67,7 @@ protected:
 // time.
 TEST_F(EphemeralVBucketTest, DoublePageOut) {
     auto key = makeStoredDocKey("key");
-    addOne(key, AddStatus::Success);
+    ASSERT_EQ(AddStatus::Success, addOne(key));
     ASSERT_EQ(1, vbucket->getNumItems());
 
     auto lock_sv = lockAndFind(key);
@@ -173,11 +173,11 @@ TEST_F(EphemeralVBucketTest, UpdateDuringBackfill) {
 
     /* Update the first, middle and last item in the range read and 2 items
        that are outside (before and after) range read */
-    setOne(keys[0], MutationStatus::WasDirty);
+    ASSERT_EQ(MutationStatus::WasDirty, setOne(keys[0]));
     for (int i = 1; i < numItems - 1; ++i) {
-        setOne(keys[i], MutationStatus::WasClean);
+        ASSERT_EQ(MutationStatus::WasClean, setOne(keys[i]));
     }
-    setOne(keys[numItems - 1], MutationStatus::WasDirty);
+    ASSERT_EQ(MutationStatus::WasDirty, setOne(keys[numItems - 1]));
 
     /* Hash table must have only recent (updated) items */
     EXPECT_EQ(numItems, vbucket->getNumItems());
@@ -247,7 +247,7 @@ TEST_F(EphTombstoneTest, ZeroElementPurge) {
 TEST_F(EphTombstoneTest, OneElementPurge) {
     // Create a new empty VB (using parent class SetUp).
     EphemeralVBucketTest::SetUp();
-    setOne(makeStoredDocKey("one"), MutationStatus::WasClean);
+    ASSERT_EQ(MutationStatus::WasClean, setOne(makeStoredDocKey("one")));
     ASSERT_EQ(1, mockEpheVB->public_getNumListItems());
 
     EXPECT_EQ(0, mockEpheVB->purgeTombstones(0));
@@ -341,7 +341,7 @@ TEST_F(EphTombstoneTest, ImmediatePurgeOfAliveStale) {
         std::lock_guard<std::mutex> rrGuard(
                 mockEpheVB->getLL()->getRangeReadLock());
         mockEpheVB->registerFakeReadRange(1, 2);
-        setOne(keys.at(1), MutationStatus::WasClean);
+        ASSERT_EQ(MutationStatus::WasClean, setOne(keys.at(1)));
 
         // Sanity check - our state is as expected:
         ASSERT_EQ(3, vbucket->getNumItems());
