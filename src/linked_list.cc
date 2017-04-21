@@ -353,10 +353,12 @@ std::ostream& operator <<(std::ostream& os, const BasicLinkedList& ll) {
        << " staleItems:" << ll.getNumStaleItems()
        << " highPurgeSeqno:" << ll.getHighestPurgedDeletedSeqno()
        << " elements:[" << std::endl;
+    size_t count = 0;
     for (const auto& val : ll.seqList) {
         os << "    " << val << std::endl;
+        ++count;
     }
-    os << "]";
+    os << "] (count:" << count << ")";
     return os;
 }
 
