@@ -340,6 +340,34 @@ TEST_P(VBucketTest, unlockedSoftDeleteWithValue) {
 }
 
 /**
+ * Test to check that if an item has expired, an incoming mutation
+ * on that item, if in deleted state results in an invalid cas and
+ * if not in deleted state, results in not found
+ */
+TEST_P(VBucketTest, updateExpiredItem) {
+    // Setup - create a key
+    StoredDocKey key = makeStoredDocKey("key");
+    Item stored_item(key, 0, ep_real_time() - 1, "value", strlen("value"));
+    ASSERT_EQ(MutationStatus::WasClean,
+              this->public_processSet(stored_item, stored_item.getCas()));
+
+    StoredValue* v = this->vbucket->ht.find(key, TrackReference::No, WantsDeleted::No);
+    EXPECT_TRUE(v);
+    EXPECT_TRUE(v->isExpired(ep_real_time()));
+
+    auto cas = v->getCas();
+    // Create an item and set its state to deleted.
+    Item deleted_item(key, 0, 0, "deletedvalue", strlen("deletedvalue"));
+
+    EXPECT_EQ(MutationStatus::NotFound,
+              this->public_processSet(deleted_item, cas + 1));
+
+    deleted_item.setDeleted();
+    EXPECT_EQ(MutationStatus::InvalidCas,
+              this->public_processSet(deleted_item, cas + 1));
+}
+
+/**
  * Test to check if an unlocked_softDelete performed on a
  * deleted item without a value and with a value
  */
