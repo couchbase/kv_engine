@@ -249,6 +249,32 @@ static protocol_binary_response_status dcp_snapshot_marker_validator(const Cooki
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
+static protocol_binary_response_status dcp_system_event_validator(
+        const Cookie& cookie) {
+    // keylen + bodylen > ??
+    auto req = static_cast<protocol_binary_request_dcp_system_event*>(
+            McbpConnection::getPacket(cookie));
+    auto bodylen = ntohl(req->message.header.request.bodylen);
+    auto keylen = ntohs(req->message.header.request.keylen);
+    auto extlen = req->message.header.request.extlen;
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        extlen != protocol_binary_request_dcp_system_event::getExtrasLength() ||
+        (extlen + keylen) > bodylen) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    // We could do these tests before checking the packet, but
+    // it feels cleaner to validate the packet first.
+    if (cookie.connection == nullptr ||
+        cookie.connection->getBucketEngine() == nullptr ||
+        cookie.connection->getBucketEngine()->dcp.system_event == nullptr) {
+        // The attached bucket does not support DCP
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    }
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
 static bool is_valid_xattr_blob(const protocol_binary_request_header& header) {
     const uint32_t extlen{header.request.extlen};
     const uint32_t keylen{ntohs(header.request.keylen)};
@@ -1197,6 +1223,7 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_DCP_CONTROL, dcp_control_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_DCP_STREAM_END, dcp_stream_end_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_DCP_STREAM_REQ, dcp_stream_req_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_system_event_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_ISASL_REFRESH, configuration_refresh_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH, configuration_refresh_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_VERBOSITY, verbosity_validator);

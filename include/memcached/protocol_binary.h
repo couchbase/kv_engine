@@ -36,6 +36,8 @@
 #ifndef PROTOCOL_BINARY_H
 #define PROTOCOL_BINARY_H
 
+#include "config.h"
+
 #include <stdint.h>
 #include <memcached/vbucket.h>
 
@@ -360,7 +362,8 @@ extern "C"
         PROTOCOL_BINARY_CMD_DCP_NOOP = 0x5c,
         PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT = 0x5d,
         PROTOCOL_BINARY_CMD_DCP_CONTROL = 0x5e,
-        PROTOCOL_BINARY_CMD_DCP_RESERVED4 = 0x5f,
+        PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT = 0x5f,
+
         /* End DCP */
 
         PROTOCOL_BINARY_CMD_STOP_PERSISTENCE = 0x80,
@@ -1723,6 +1726,45 @@ using protocol_binary_hello_features_t = mcbp::Feature;
     typedef protocol_binary_request_no_extras protocol_binary_request_dcp_control;
     typedef protocol_binary_response_no_extras protocol_binary_response_dcp_control;
 
+    /**
+     * Format for a DCP_SYSTEM_EVENT packet. Encodes a sequence number for the
+     * event and the event's identifier.
+     */
+    union protocol_binary_request_dcp_system_event {
+        protocol_binary_request_dcp_system_event(uint32_t opaque,
+                                                 uint16_t vbucket,
+                                                 uint16_t keyLen,
+                                                 size_t valueLen,
+                                                 uint32_t event,
+                                                 uint64_t bySeqno) {
+            auto& req = message.header.request;
+            req.magic = (uint8_t)PROTOCOL_BINARY_REQ;
+            req.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT;
+            req.opaque = opaque;
+            req.vbucket = htons(vbucket);
+            req.keylen = htons(keyLen);
+            req.extlen = getExtrasLength();
+            req.bodylen = htonl(req.extlen + valueLen + keyLen);
+            req.datatype = PROTOCOL_BINARY_RAW_BYTES;
+            message.body.event = event;
+            message.body.by_seqno = bySeqno;
+        }
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                uint64_t by_seqno;
+                uint32_t event;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 12];
+
+        /**
+         * @returns the extlen value that a system_event packet should encode.
+         */
+        static inline uint8_t getExtrasLength() {
+            return sizeof(uint64_t) + sizeof(uint32_t);
+        }
+    };
 
     /**
      * IOCTL_GET command message to get/set control parameters.

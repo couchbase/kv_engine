@@ -134,6 +134,8 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_DCP_NOOP, empty);
     setup(PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT, empty);
     setup(PROTOCOL_BINARY_CMD_DCP_CONTROL, empty);
+    setup(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT,
+          require<Privilege::DcpConsumer>);
     /* End DCP */
 
     setup(PROTOCOL_BINARY_CMD_STOP_PERSISTENCE,

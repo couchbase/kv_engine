@@ -109,7 +109,7 @@ const std::error_category& engine_error_category() NOEXCEPT;
 
 class ENGINE_UTILITIES_PUBLIC_API engine_error : public std::system_error {
 public:
-   engine_error(engine_errc ev, const std::string& what_arg)
+    engine_error(engine_errc ev, const std::string& what_arg)
         : system_error(int(ev), engine_error_category(), what_arg) {}
 
     engine_error(engine_errc ev, const char* what_arg)

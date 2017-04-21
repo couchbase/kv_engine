@@ -43,6 +43,7 @@
 #include "protocol/mcbp/dcp_deletion.h"
 #include "protocol/mcbp/dcp_expiration.h"
 #include "protocol/mcbp/dcp_mutation.h"
+#include "protocol/mcbp/dcp_system_event_executor.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "protocol/mcbp/executors.h"
 #include "protocol/mcbp/mutation_context.h"
@@ -862,7 +863,8 @@ void ship_mcbp_dcp_log(McbpConnection* c) {
         dcp_message_set_vbucket_state,
         dcp_message_noop,
         dcp_message_buffer_acknowledgement,
-        dcp_message_control
+        dcp_message_control,
+        dcp_message_system_event
     };
     ENGINE_ERROR_CODE ret;
 
@@ -1737,6 +1739,7 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors(void) {
     executors[PROTOCOL_BINARY_CMD_DCP_CONTROL] = dcp_control_executor;
     executors[PROTOCOL_BINARY_CMD_DCP_STREAM_END] = dcp_stream_end_executor;
     executors[PROTOCOL_BINARY_CMD_DCP_STREAM_REQ] = dcp_stream_req_executor;
+    executors[PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT] = dcp_system_event_executor;
     executors[PROTOCOL_BINARY_CMD_ISASL_REFRESH] = isasl_refresh_executor;
     executors[PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH] = ssl_certs_refresh_executor;
     executors[PROTOCOL_BINARY_CMD_VERBOSITY] = verbosity_executor;
@@ -1869,7 +1872,8 @@ void initialize_mbcp_lookup_map(void) {
     response_handlers[PROTOCOL_BINARY_CMD_DCP_NOOP] = process_bin_dcp_response;
     response_handlers[PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT] = process_bin_dcp_response;
     response_handlers[PROTOCOL_BINARY_CMD_DCP_CONTROL] = process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_RESERVED4] = process_bin_dcp_response;
+    response_handlers[PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT] =
+            process_bin_dcp_response;
 }
 
 bool conn_setup_tap_stream(McbpConnection* c) {
