@@ -90,6 +90,13 @@ public:
             return manifest.doesKeyContainValidCollection(key);
         }
 
+        /**
+         * @returns the current separator
+         */
+        std::string getSeparator() const {
+            return manifest.getSeparator();
+        }
+
     private:
         std::unique_lock<cb::ReaderLock> readLock;
         const Manifest& manifest;
@@ -384,6 +391,13 @@ private:
      *   not be in the process of deletion.
      */
     bool doesKeyContainValidCollection(const ::DocKey& key) const;
+
+    /**
+     * @returns the current separator
+     */
+    std::string getSeparator() const {
+        return separator;
+    }
 
 protected:
     /**

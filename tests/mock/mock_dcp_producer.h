@@ -95,4 +95,13 @@ public:
     SingleThreadedRCPtr<Stream> findStream(uint16_t vbid) {
         return DcpProducer::findStream(vbid);
     }
+
+    std::string getCurrentSeparatorForStream(uint16_t vbid) {
+        auto stream = findStream(vbid);
+        if (stream) {
+            auto as = static_cast<ActiveStream*>(stream.get());
+            return as->getCurrentSeparator();
+        }
+        return {};
+    }
 };

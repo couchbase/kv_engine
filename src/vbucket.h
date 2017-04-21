@@ -660,6 +660,15 @@ public:
                 *this, separator, revision, bySeqno);
     }
 
+    /**
+     * Get the collection manifest
+     *
+     * @return const reference to the manifest
+     */
+    const Collections::VB::Manifest& getManifest() const {
+        return manifest;
+    }
+
     static const vbucket_state_t ACTIVE;
     static const vbucket_state_t REPLICA;
     static const vbucket_state_t PENDING;

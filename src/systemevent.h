@@ -40,7 +40,7 @@ enum class SystemEvent : uint32_t {
 
     /**
      * The BeginDeleteCollection system event is generated when a VBucket
-     * receives a manifest that removes a collection. The events's purpose is to
+     * receives a manifest that removes a collection. The event's purpose is to
      * carry data to the flusher so we can persist a new collections JSON
      * manifest that indicates the collection is now in the process of being
      * removed. This is indicated by changing the end-seqno of a collection's
@@ -72,7 +72,8 @@ enum class SystemEvent : uint32_t {
     /**
      * The CollectionsSeparatorChanged system event is generated when a VBucket
      * changes the separator used for identifying collections in keys. This
-     * must result in a vbucket manifest update but no item is stored.
+     * must result in a vbucket manifest update and a SystemEvent document is
+     * stored. All separator changes write to the same SystemEvent document.
      */
     CollectionsSeparatorChanged
 };

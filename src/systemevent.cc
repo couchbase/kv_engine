@@ -59,9 +59,10 @@ std::unique_ptr<Item> SystemEventFactory::make(SystemEvent se,
     case SystemEvent::CollectionsSeparatorChanged: {
         // CollectionSeparatorChanged SystemEvent results in:
         // An update to the persisted collection manifest (updating the
-        // "separator" field).
-        // No document is persisted.
-        key = Collections::SeparatorChangedKey + keyExtra;
+        // "separator" field) and a document is persisted.
+        // Note: the key of this document is fixed so only 1 document exists
+        // regardless of the changes made.
+        key = Collections::SeparatorChangedKey;
         break;
     }
     }
@@ -87,17 +88,14 @@ ProcessStatus SystemEventFlush::process(const queued_item& item) {
     switch (SystemEvent(item->getFlags())) {
     case SystemEvent::CreateCollection:
     case SystemEvent::DeleteCollectionHard:
-    case SystemEvent::DeleteCollectionSoft: {
-        // CreateCollection updates the manifest and writes a SystemEvent
-        // DeleteCollection* both update the manifest and write a SystemEvent
-        saveCollectionsManifestItem(item);
-        return ProcessStatus::Continue;
-    }
-    case SystemEvent::BeginDeleteCollection:
+    case SystemEvent::DeleteCollectionSoft:
     case SystemEvent::CollectionsSeparatorChanged: {
-        // These two will update the manifest but should not write an Item
-        saveCollectionsManifestItem(item);
-        return ProcessStatus::Skip;
+        saveCollectionsManifestItem(item); // Updates manifest
+        return ProcessStatus::Continue; // And flushes an item
+    }
+    case SystemEvent::BeginDeleteCollection: {
+        saveCollectionsManifestItem(item); // Updates manifest
+        return ProcessStatus::Skip; // But skips flushing the item
     }
     }
 
@@ -107,18 +105,20 @@ ProcessStatus SystemEventFlush::process(const queued_item& item) {
 
 bool SystemEventFlush::isUpsert(const Item& item) {
     if (item.getOperation() == queue_op::system_event) {
-        // CreateCollection and DeleteCollection* are the only valid events.
+        // CreateCollection, CollectionsSeparatorChanged and DeleteCollection*
+        // are the only valid events.(returning true/false)
         // The ::process function should of skipped BeginDeleteCollection and
-        // CollectionsSeparatorChanged
+        // thus is an error if calling this method with such an event.
         switch (SystemEvent(item.getFlags())) {
-        case SystemEvent::CreateCollection: {
+        case SystemEvent::CreateCollection:
+        case SystemEvent::CollectionsSeparatorChanged: {
             return true;
         }
-        case SystemEvent::BeginDeleteCollection:
-        case SystemEvent::CollectionsSeparatorChanged: {
-            throw std::logic_error("SystemEventFlush::isUpsert event " +
-                                   to_string(SystemEvent(item.getFlags())) +
-                                   " should neither delete or upsert ");
+        case SystemEvent::BeginDeleteCollection: {
+            throw std::invalid_argument(
+                    "SystemEventFlush::isUpsert event " +
+                    to_string(SystemEvent(item.getFlags())) +
+                    " should neither delete or upsert ");
         }
         case SystemEvent::DeleteCollectionHard:
         case SystemEvent::DeleteCollectionSoft: {

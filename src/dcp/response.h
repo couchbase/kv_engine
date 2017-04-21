@@ -393,6 +393,29 @@ private:
 };
 
 /**
+ * Extend MutationResponse for the DcpProducer only so that it can store
+ * the collection length which we replicate to all collection-aware consumers.
+ */
+class MutationProducerResponse : public MutationResponse {
+public:
+    MutationProducerResponse(queued_item item,
+                             uint32_t opaque,
+                             bool isKeyOnly,
+                             uint8_t _collectionLen,
+                             ExtendedMetaData* e = NULL)
+        : MutationResponse(item, opaque, isKeyOnly, e),
+          collectionLen(_collectionLen) {
+    }
+
+    uint8_t getCollectionLen() const {
+        return collectionLen;
+    }
+
+private:
+    uint8_t collectionLen;
+};
+
+/**
  * SystemEventMessage defines the interface required by consumer and producer
  * message classes.
  */

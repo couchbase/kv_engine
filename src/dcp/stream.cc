@@ -299,6 +299,9 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
         itemsReady.store(true);
         // lock is released on leaving the scope
     }
+
+    // Finally obtain a copy of the current separator
+    currentSeparator = vbucket->getManifest().lock().getSeparator();
 }
 
 ActiveStream::~ActiveStream() {
@@ -780,6 +783,9 @@ DcpResponse* ActiveStream::nextQueuedItem() {
                     itemsFromMemoryPhase++;
                 }
             }
+
+            // See if the currentSeparator needs changing
+            maybeChangeSeparator(response);
             popFromReadyQ();
             return response;
         }
@@ -889,7 +895,9 @@ void ActiveStream::getOutstandingItems(VBucketPtr &vb,
 std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
         queued_item& item) {
     if (item->getOperation() != queue_op::system_event) {
-        return std::make_unique<MutationResponse>(item, opaque_, isKeyOnly());
+        auto cKey = Collections::DocKey::make(item->getKey(), currentSeparator);
+        return std::make_unique<MutationProducerResponse>(
+                item, opaque_, isKeyOnly(), cKey.getCollectionLen());
     } else {
         return SystemEventProducerMessage::make(opaque_, item);
     }
@@ -1440,6 +1448,16 @@ void ActiveStream::dropCheckpointCursor_UNLOCKED()
     }
     /* Drop the existing cursor */
     vbucket->checkpointManager.removeCursor(name_);
+}
+
+void ActiveStream::maybeChangeSeparator(DcpResponse* response) {
+    if (response->getEvent() == DcpResponse::Event::SystemEvent) {
+        auto se = static_cast<SystemEventProducerMessage*>(response);
+        if (se->getSystemEvent() == SystemEvent::CollectionsSeparatorChanged) {
+            currentSeparator =
+                    std::string(se->getKey().data(), se->getKey().size());
+        }
+    }
 }
 
 NotifierStream::NotifierStream(EventuallyPersistentEngine* e, dcp_producer_t p,

@@ -350,12 +350,11 @@ std::unique_ptr<Item> Collections::VB::Manifest::createSystemEvent(
 std::unique_ptr<Item> Collections::VB::Manifest::createSeparatorChangedEvent(
         uint32_t revision, OptionalSeqno seqno) const {
     // Create an item (to be queued and written to disk) that represents
-    // the change of the separator. We serialise the state of this object
-    // into the Item's value.
-
+    // the change of the separator. The item always has the same key.
+    // We serialise the state of this object  into the Item's value.
     auto item =
             SystemEventFactory::make(SystemEvent::CollectionsSeparatorChanged,
-                                     separator + std::to_string(revision),
+                                     {/*empty string*/},
                                      getSerialisedDataSize(),
                                      seqno);
 

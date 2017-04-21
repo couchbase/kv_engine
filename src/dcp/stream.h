@@ -278,9 +278,14 @@ public:
        in-memory to backfilling */
     void handleSlowStream();
 
-    /// @Returns true if keyOnly is true and false if KeyOnly is false
+    /// @returns true if keyOnly is true and false if KeyOnly is false
     bool isKeyOnly() const {
         return keyOnly;
+    }
+
+    /// @returns a copy of the current collections separator.
+    std::string getCurrentSeparator() const {
+        return currentSeparator;
     }
 
 protected:
@@ -305,6 +310,14 @@ protected:
      * testing purposes.
      */
     void transitionState(StreamState newState);
+
+    /**
+     * Check to see if the response is a CollectionsSeparatorChanged event
+     * which would update the separator.
+     *
+     * @param response A DcpResponse that is about to be sent to a client
+     */
+    void maybeChangeSeparator(DcpResponse* response);
 
     /* Indicates that a backfill has been scheduled and has not yet completed.
      * Is protected (as opposed to private) for testing purposes.
@@ -415,6 +428,15 @@ private:
     // value or just the key
     bool keyOnly;
 
+    /**
+     * A copy of the collections separator so we can generate MutationResponse
+     * instances that embed the collection/document-name data so we can
+     * replicate that collection information (as a length).
+     *
+     * As checkpoints/backfills are processed, we will monitor for
+     * CollectionsSeparatorChanged events and update the copy accordingly.
+     */
+    std::string currentSeparator;
 };
 
 

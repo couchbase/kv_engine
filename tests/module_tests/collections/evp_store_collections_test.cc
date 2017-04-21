@@ -495,12 +495,13 @@ public:
 TEST_F(CollectionsWarmupTest, warmup) {
     VBucketPtr vb = store->getVBucket(vbid);
 
-    // Add the meat collection
+    // Add the meat collection *and* change the separator
     vb->updateFromManifest(
         {R"({"revision":1,"separator":"-+-","collections":["$default","meat"]})"});
 
-    // Trigger a flush to disk. Flushes the meat create event and 1 item
-    flush_vbucket_to_disk(vbid, 1);
+    // Trigger a flush to disk. Flushes the meat create event and a separator
+    // changed event.
+    flush_vbucket_to_disk(vbid, 2);
 
     // Now we can write to beef
     store_item(vbid, {"meat-+-beef", DocNamespace::Collections}, "value");
@@ -789,9 +790,13 @@ TEST_F(CollectionsDcpTest, test_dcp_separator) {
     // Step which will notify the snapshot task
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
 
+    // The producer should start with the old separator
+    EXPECT_EQ("::", producer->getCurrentSeparatorForStream(vbid));
+
     EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
 
     // Now call run on the snapshot task to move checkpoint into DCP stream
+    // this will trigger the stream to update the separator
     producer->getCheckpointSnapshotTask().run();
 
     // Next step which should process a snapshot marker
@@ -799,8 +804,17 @@ TEST_F(CollectionsDcpTest, test_dcp_separator) {
 
     VBucketPtr replica = store->getVBucket(replicaVB);
 
+    // The replica should have the :: separator
+    EXPECT_EQ("::", replica->lockCollections().getSeparator());
+
     // Now step the producer to transfer the separator
     EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+
+    // The producer should now have the new separator
+    EXPECT_EQ("@@", producer->getCurrentSeparatorForStream(vbid));
+
+    // The replica should now have the new separator
+    EXPECT_EQ("@@", replica->lockCollections().getSeparator());
 
     // Now step the producer to transfer the collection
     EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
@@ -808,6 +822,66 @@ TEST_F(CollectionsDcpTest, test_dcp_separator) {
     // Collection should now be live on the replica
     EXPECT_TRUE(replica->lockCollections().doesKeyContainValidCollection(
             {"meat@@bacon", DocNamespace::Collections}));
+
+    // And done
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+}
+
+TEST_F(CollectionsDcpTest, test_dcp_separator_many) {
+    auto vb = store->getVBucket(vbid);
+
+    // Change the separator
+    vb->updateFromManifest(
+            {R"({"revision":1,"separator":"@@","collections":["$default"]})"});
+    // Change the separator
+    vb->updateFromManifest(
+            {R"({"revision":2,"separator":":","collections":["$default"]})"});
+    // Change the separator
+    vb->updateFromManifest(
+            {R"({"revision":3,"separator":",","collections":["$default"]})"});
+    // Add a collection
+    vb->updateFromManifest(
+            {R"({"revision":4,"separator":",","collections":["$default","meat"]})"});
+
+    // All the changes will be collapsed into one update and we will expect
+    // to see , as the separator once DCP steps through the checkpoint
+    producer->notifySeqnoAvailable(vb->getId(), vb->getHighSeqno());
+
+    // Step which will notify the snapshot task
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+
+    // The producer should start with the initial separator
+    EXPECT_EQ("::", producer->getCurrentSeparatorForStream(vbid));
+
+    EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
+
+    // Now call run on the snapshot task to move checkpoint into DCP stream
+    // this will trigger the stream to update the separator
+    producer->getCheckpointSnapshotTask().run();
+
+    // Next step which should process a snapshot marker
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+
+    auto replica = store->getVBucket(replicaVB);
+
+    // The replica should have the :: separator
+    EXPECT_EQ("::", replica->lockCollections().getSeparator());
+
+    // Now step the producer to transfer the separator
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+
+    // The producer should now have the new separator
+    EXPECT_EQ(",", producer->getCurrentSeparatorForStream(vbid));
+
+    // The replica should now have the new separator
+    EXPECT_EQ(",", replica->lockCollections().getSeparator());
+
+    // Now step the producer to transfer the collection
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+
+    // Collection should now be live on the replica with the final separator
+    EXPECT_TRUE(replica->lockCollections().doesKeyContainValidCollection(
+            {"meat,bacon", DocNamespace::Collections}));
 
     // And done
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));

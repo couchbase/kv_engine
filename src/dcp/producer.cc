@@ -449,7 +449,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
     }
 
     Item* itmCpy = nullptr;
-    auto* mutationResponse = dynamic_cast<MutationResponse*>(resp);
+    auto* mutationResponse = dynamic_cast<MutationProducerResponse*>(resp);
     if (mutationResponse != nullptr) {
         try {
             itmCpy = mutationResponse->getItemCopy();
