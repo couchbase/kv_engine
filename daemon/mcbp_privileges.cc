@@ -300,6 +300,9 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_RBAC_REFRESH,
           require<Privilege::SecurityManagement>);
 
+    /// @todo change priv to CollectionManagement
+    setup(PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST,
+          require<Privilege::BucketManagement>);
 
     if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {
         // The opcode used to set the clock by our extension

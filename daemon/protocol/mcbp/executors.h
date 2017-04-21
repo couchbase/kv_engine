@@ -46,3 +46,5 @@ void dcp_snapshot_marker_executor(McbpConnection* c, void* packet);
 void dcp_stream_end_executor(McbpConnection* c, void* packet);
 void dcp_stream_req_executor(McbpConnection* c, void* packet);
 
+// Collections
+void collections_set_manifest_executor(McbpConnection* c, void* packet);

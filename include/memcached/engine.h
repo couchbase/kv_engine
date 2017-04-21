@@ -12,6 +12,7 @@
 
 #include "memcached/allocator_hooks.h"
 #include "memcached/callback.h"
+#include "memcached/collections.h"
 #include "memcached/config_parser.h"
 #include "memcached/dcp.h"
 #include "memcached/dockey.h"
@@ -641,6 +642,9 @@ typedef struct engine_interface_v1 {
      * @param level the current log level
      */
     void (* set_log_level)(ENGINE_HANDLE* handle, EXTENSION_LOG_LEVEL level);
+
+    collections_interface collections;
+
 } ENGINE_HANDLE_V1;
 
 namespace cb {

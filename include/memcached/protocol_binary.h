@@ -459,6 +459,12 @@ extern "C"
          * Command to get all keys
          */
         PROTOCOL_BINARY_CMD_GET_KEYS = 0xb8,
+
+        /**
+         * Command to set collections manifest
+         */
+        PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST = 0xb9,
+
         /**
          * Commands for GO-XDCR
          */
@@ -2241,6 +2247,21 @@ using protocol_binary_hello_features_t = mcbp::Feature;
 
     typedef protocol_binary_response_no_extras protocol_binary_response_get_errmap;
 
+
+    /**
+     * Message format for PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST
+     *
+     * The body contains a JSON collections manifest.
+     * No key and no extras
+     */
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header)];
+    } protocol_binary_collections_set_manifest;
+
+    typedef protocol_binary_response_no_extras protocol_binary_response_collections_set_manifest;
 
 
     /**
