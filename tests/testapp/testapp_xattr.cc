@@ -40,8 +40,8 @@ TEST_P(XattrTest, GetXattrAndBody) {
     BinprotSubdocMultiLookupResponse multiResp;
     conn.recvResponse(multiResp);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
-    EXPECT_EQ(multiResp.getResults()[0].value, xattrVal);
-    EXPECT_EQ(multiResp.getResults()[1].value, value);
+    EXPECT_EQ(xattrVal, multiResp.getResults()[0].value);
+    EXPECT_EQ(value, multiResp.getResults()[1].value);
 }
 
 TEST_P(XattrTest, SetXattrAndBodyNewDoc) {
