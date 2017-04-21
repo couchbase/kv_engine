@@ -1498,7 +1498,6 @@ GetValue KVBucket::getRandomKey() {
 ENGINE_ERROR_CODE KVBucket::getMetaData(const DocKey& key,
                                         uint16_t vbucket,
                                         const void* cookie,
-                                        bool fetchDatatype,
                                         ItemMetaData& metadata,
                                         uint32_t& deleted,
                                         uint8_t& datatype)
@@ -1518,7 +1517,7 @@ ENGINE_ERROR_CODE KVBucket::getMetaData(const DocKey& key,
     }
 
     return vb->getMetaData(
-            key, cookie, engine, bgFetchDelay, fetchDatatype, metadata,
+            key, cookie, engine, bgFetchDelay, metadata,
             deleted, datatype);
 }
 

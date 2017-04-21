@@ -1070,7 +1070,7 @@ TEST_F(SingleThreadedEPBucketTest, pre_expiry_xattrs) {
     ItemMetaData metadata;
     uint32_t deleted;
     uint8_t datatype;
-    kvbucket.getMetaData(makeStoredDocKey("key"), vbid, cookie, false, metadata,
+    kvbucket.getMetaData(makeStoredDocKey("key"), vbid, cookie, metadata,
                          deleted, datatype);
     auto prev_revseqno = metadata.revSeqno;
     EXPECT_EQ(1, prev_revseqno) << "Unexpected revision sequence number";
@@ -1099,7 +1099,7 @@ TEST_F(SingleThreadedEPBucketTest, pre_expiry_xattrs) {
 
     EXPECT_EQ(cas_str, sync_str) << "Unexpected system xattrs";
 
-    kvbucket.getMetaData(makeStoredDocKey("key"), vbid, cookie, false ,metadata,
+    kvbucket.getMetaData(makeStoredDocKey("key"), vbid, cookie, metadata,
                          deleted, datatype);
     EXPECT_EQ(prev_revseqno + 1, metadata.revSeqno) <<
              "Unexpected revision sequence number";

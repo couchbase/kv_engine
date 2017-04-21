@@ -414,6 +414,53 @@ static enum test_result test_get_meta_with_xattr(ENGINE_HANDLE* h, ENGINE_HANDLE
     return SUCCESS;
 }
 
+/**
+ * Test that we can still get datatype of the deleted item after compaction
+ */
+static enum test_result test_get_meta_mb23905(ENGINE_HANDLE* h,
+                                            ENGINE_HANDLE_V1* h1)
+{
+    const char* key = "get_meta_key";
+    std::vector<char> data = createXattrValue({"test_expiry_value"});
+
+    const void* cookie = testHarness.create_cookie();
+
+    item *itm = nullptr;
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, cookie, OPERATION_SET, key,
+                         reinterpret_cast<char*>(data.data()),
+                         data.size(), 9258, &itm, 0, 0, 0,
+                         PROTOCOL_BINARY_DATATYPE_XATTR),
+            "Failed to store xattr document");
+    h1->release(h, nullptr, itm);
+
+    if (isPersistentBucket(h, h1)) {
+        wait_for_flusher_to_settle(h, h1);
+    }
+
+    if (isPersistentBucket(h, h1)) {
+        checkeq(ENGINE_SUCCESS, del(h, h1, key, 0, 0), "Delete failed");
+
+        // Run compaction to start using the bloomfilter
+        useconds_t sleepTime = 128;
+        compact_db(h, h1, 0, 0, 1, 1, 0);
+        while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
+            decayingSleep(&sleepTime);
+        }
+
+        checkeq(true,
+                get_meta(h, h1, key, true, GetMetaVersion::V2, cookie),
+                "Get meta command failed");
+
+        checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_XATTR),
+                last_datatype.load(), "Datatype is not XATTR");
+    }
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
 static enum test_result test_add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     const char *key = "mykey";
@@ -2580,6 +2627,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_cas_options_and_nmeta, test_setup, teardown,
                  "conflict_resolution_type=seqno",
                  prepare, cleanup),
-
+        TestCase("getMetaData mb23905", test_get_meta_mb23905,
+                 test_setup, teardown, nullptr, prepare_ep_bucket, cleanup),
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };

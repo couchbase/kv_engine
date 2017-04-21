@@ -1009,7 +1009,6 @@ public:
      * @param cookie the connection cookie
      * @param engine Reference to ep engine
      * @param bgFetchDelay Delay in secs before we run the bgFetch task
-     * @param fetchDatatype whether to fetch datatype or not
      * @param[out] metadata meta information returned to the caller
      * @param[out] deleted specifies the caller whether or not the key is
      *                     deleted
@@ -1021,7 +1020,6 @@ public:
                                   const void* cookie,
                                   EventuallyPersistentEngine& engine,
                                   int bgFetchDelay,
-                                  bool fetchDatatype,
                                   ItemMetaData& metadata,
                                   uint32_t& deleted,
                                   uint8_t& datatype);

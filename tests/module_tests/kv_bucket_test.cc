@@ -571,7 +571,7 @@ TEST_P(KVBucketParamTest, mb22824) {
     uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
     EXPECT_EQ(ENGINE_SUCCESS,
               store->getMetaData(
-                      key, vbid, cookie, false, itemMeta1, deleted, datatype));
+                      key, vbid, cookie, itemMeta1, deleted, datatype));
 
     uint64_t cas = 0;
     ItemMetaData itemMeta2;

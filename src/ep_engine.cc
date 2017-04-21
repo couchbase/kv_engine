@@ -4909,14 +4909,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
     uint32_t deleted = 0;
     uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
     auto rv = kvBucket->getMetaData(
-            key, vbucket, cookie, fetchDatatype, metadata, deleted, datatype);
+            key, vbucket, cookie, metadata, deleted, datatype);
 
     if (rv == ENGINE_SUCCESS) {
         // GET META returns a packed structure
         // 0-3   uint32_t deleted
         // 4-7   uint32_t flags
         // 8-11  uint32_t expiry
-        // 12-19 uint32_t deleted
+        // 12-19 uint64_t seqno
         // 20    uint8_t  datatype (optional, based upon meta-version requested)
 
         uint8_t meta[(3 * sizeof(uint32_t)) + sizeof(uint64_t) +
