@@ -111,6 +111,36 @@ TEST_F(EphemeralVBucketTest, PageOutAfterDeleteWithValue) {
     EXPECT_FALSE(storedVal->getValue());
 }
 
+// NRU: check the seqlist has correct statistics for a create, pageout,
+// and (re)create of the same key.
+TEST_F(EphemeralVBucketTest, CreatePageoutCreate) {
+    auto key = makeStoredDocKey("key");
+
+    // Add a key, then page out.
+    ASSERT_EQ(AddStatus::Success, addOne(key));
+    {
+        auto lock_sv = lockAndFind(key);
+        EXPECT_TRUE(vbucket->pageOut(lock_sv.first, lock_sv.second));
+    }
+    // Sanity check - should have just the one deleted item.
+    ASSERT_EQ(0, vbucket->getNumItems());
+    ASSERT_EQ(1, mockEpheVB->getLL()->getNumDeletedItems());
+
+    // Test: Set the key again.
+    ASSERT_EQ(MutationStatus::WasDirty, setOne(key));
+
+    EXPECT_EQ(1, vbucket->getNumItems());
+    EXPECT_EQ(0, mockEpheVB->getLL()->getNumDeletedItems());
+
+    // Finally for good measure, delete again and check the numbers are correct.
+    {
+        auto lock_sv = lockAndFind(key);
+        EXPECT_TRUE(vbucket->pageOut(lock_sv.first, lock_sv.second));
+    }
+    EXPECT_EQ(0, vbucket->getNumItems());
+    EXPECT_EQ(1, mockEpheVB->getLL()->getNumDeletedItems());
+}
+
 TEST_F(EphemeralVBucketTest, SetItems) {
     const int numItems = 3;
 

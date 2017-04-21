@@ -125,8 +125,6 @@ public:
      * Updates the highSeqno in the list. Since seqno is generated and managed
      * outside the list, the module managing it must update this after the seqno
      * is generated for the item already put in the list.
-     * If the last OrderedStoredValue added to the list is soft deleted then
-     * it also updates the deleted items count in the list
      *
      * @param v Ref to orderedStoredValue
      */
@@ -152,6 +150,15 @@ public:
      *         deleted).
      */
     virtual size_t purgeTombstones() = 0;
+
+    /**
+     * Updates the number of deleted items in the sequence list whenever
+     * an item is modified.
+     *
+     * @param oldDeleted Was the old item deleted?
+     * @param newDeleted Was the new item replacing it deleted?
+     */
+    virtual void updateNumDeletedItems(bool oldDeleted, bool newDeleted) = 0;
 
     /**
      * Returns the number of stale items in the list.

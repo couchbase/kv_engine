@@ -152,6 +152,8 @@ public:
 
     size_t purgeTombstones() override;
 
+    void updateNumDeletedItems(bool oldDeleted, bool newDeleted) override;
+
     uint64_t getNumStaleItems() const override;
 
     size_t getStaleValueBytes() const override;

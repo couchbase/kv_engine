@@ -169,9 +169,6 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
 void BasicLinkedList::updateHighSeqno(const OrderedStoredValue& v) {
     std::lock_guard<SpinLock> lh(rangeLock);
     highSeqno = v.getBySeqno();
-    if (v.isDeleted()) {
-        ++numDeletedItems;
-    }
 }
 
 void BasicLinkedList::markItemStale(StoredValue::UniquePtr ownedSv) {
@@ -290,6 +287,14 @@ size_t BasicLinkedList::purgeTombstones() {
         readRange.reset();
     }
     return purgedCount;
+}
+
+void BasicLinkedList::updateNumDeletedItems(bool oldDeleted, bool newDeleted) {
+    if (oldDeleted && !newDeleted) {
+        --numDeletedItems;
+    } else if (!oldDeleted && newDeleted) {
+        ++numDeletedItems;
+    }
 }
 
 uint64_t BasicLinkedList::getNumStaleItems() const {

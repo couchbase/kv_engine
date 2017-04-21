@@ -346,6 +346,7 @@ TEST_F(BasicLinkedListTest, DeletedItem) {
 
     /* Delete the item */
     softDeleteItem(numItems, keyPrefix + std::to_string(numItems));
+    basicLL->updateNumDeletedItems(false, true);
 
     /* Check if the delete is added correctly */
     std::vector<seqno_t> expectedSeqno = {numItems + 1};
