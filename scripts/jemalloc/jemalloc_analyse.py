@@ -65,7 +65,12 @@ def calc_bin_stats(stats, arena_ID):
     # Extract the raw stats, recording in a list of size classes.
     classes = list()
     while not line.startswith('large:'):
-        fields = [int(x) for x in line.split()]
+        if line.strip() == "---":
+            line = stats.readline()
+            continue
+
+        fields = [int(x) if x.isdigit() else float(x)
+                  for x in line.split()]
         c = dict(zip(headers, fields))
 
         # Derive some stats from each class, additional ones (see below) need
@@ -84,11 +89,14 @@ def calc_bin_stats(stats, arena_ID):
         line = stats.readline()
 
     if line.startswith('large:'):
-        # Different format for large allocations.
+        # Different format for large/huge allocations.
         headers = line.split()[1:]
         line = stats.readline()
-        while not line.startswith('--- End jemalloc statistics ---'):
-            if line.startswith('['):
+        while (line.strip() and
+               not line.startswith('--- End jemalloc statistics ---')):
+            if (line.startswith('[') or
+                line.startswith('huge:') or
+                line.strip() == "---"):
                 line = stats.readline()
                 continue
             fields = [int(x) for x in line.split()]
@@ -96,10 +104,10 @@ def calc_bin_stats(stats, arena_ID):
 
             c['bin'] = '-'
             c['regs'] = 1  # Only one region per large allocation
-            c['pgs'] = c['pages']
+            c['pgs'] = c['pages'] if 'pages' in c else c['size']//4096
             c['utilization'] = 1
-            c['allocated'] = c['size'] * c['curruns']
-
+            c['allocated'] = (c['allocated'] if 'allocated' in c else
+                              c['size'] * c['curruns'])
             c['alloc_items'] = c['curruns']
             c['frag_memory'] = 0
             c['small'] = False
@@ -141,7 +149,8 @@ def calc_bin_stats(stats, arena_ID):
         if c['curruns'] == 0:
             continue
 
-        print(FMT.format(c['bin'], c['size'], c['regs'], c['pgs'],
+        print(FMT.format(c['bin'] if 'bin' in c else c['ind'],
+                         c['size'], c['regs'], c['pgs'],
                          c['alloc_items'], c['allocated'], c['curruns'],
                          utilization,
                          pct_of_small,
