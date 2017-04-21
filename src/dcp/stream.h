@@ -48,7 +48,9 @@ enum end_stream_status_t {
     END_STREAM_DISCONNECTED,
     //! The stream was closed early because it was too slow (currently unused,
     //! but not deleted because it is part of the externally-visible API)
-    END_STREAM_SLOW
+    END_STREAM_SLOW,
+    //! The stream closed early due to backfill failure
+    END_STREAM_BACKFILL_FAIL
 };
 
 enum process_items_error_t {

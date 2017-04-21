@@ -449,6 +449,43 @@ TEST_P(StreamTest, BackfillOnly) {
                items are read correctly */
 }
 
+/* Test a backfill fail scenario */
+TEST_P(StreamTest, BackfillFail) {
+    if (bucketType == "persistent") {
+        /* This test simulates a backfill failure for an ephemeral bucket
+           only.
+           [TODO]: Write a test case for disk backfill failures as well */
+        setup_dcp_stream(); /* [TODO, Legacy]: Check why TearDown() crashes
+                                               without this */
+        return;
+    }
+
+    /* Add 3 items */
+    int numItems = 3;
+    for (int i = 0; i < numItems; ++i) {
+        std::string key("key" + std::to_string(i));
+        store_item(vbid, key, "value");
+    }
+
+    /* Set up a DCP stream for the backfill */
+    setup_dcp_stream();
+    MockActiveStream* mock_stream =
+            dynamic_cast<MockActiveStream*>(stream.get());
+
+    /* We want the backfill task to run in a background thread */
+    ExecutorPool::get()->setNumAuxIO(1);
+
+    /* Schedule a backfill task with an incorrect param:
+       here backfill_start > vb_highSeqno */
+    producer->scheduleBackfillManager(*vb0,
+                                      mock_stream,
+                                      /*backfillStart*/numItems + 5,
+                                      /*backfillEnd*/numItems + 10);
+
+    /* Expect stream to be closed */
+    mock_stream->waitForStreamClose();
+}
+
 class ConnectionTest : public DCPTest {
 protected:
     ENGINE_ERROR_CODE set_vb_state(uint16_t vbid, vbucket_state_t state) {

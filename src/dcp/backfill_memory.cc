@@ -33,6 +33,8 @@ DCPBackfillMemory::DCPBackfillMemory(EphemeralVBucketPtr evb,
 backfill_status_t DCPBackfillMemory::run() {
     auto evb = weakVb.lock();
     if (!evb) {
+        /* We don't have to close the stream here. Task doing vbucket state
+           change should handle stream closure */
         LOG(EXTENSION_LOG_WARNING,
             "DCPBackfillMemory::run(): "
             "(vb:%d) running backfill ended prematurely as weakVb can't be "
@@ -46,6 +48,8 @@ backfill_status_t DCPBackfillMemory::run() {
     /* Get vb state lock */
     ReaderLockHolder rlh(evb->getStateLock());
     if (evb->getState() == vbucket_state_dead) {
+        /* We don't have to close the stream here. Task doing vbucket state
+           change should handle stream closure */
         LOG(EXTENSION_LOG_WARNING,
             "DCPBackfillMemory::run(): "
             "(vb:%d) running backfill ended prematurely with vb in dead state; "
@@ -63,15 +67,18 @@ backfill_status_t DCPBackfillMemory::run() {
 
     /* Handle any failures */
     if (status != ENGINE_SUCCESS) {
-        /* [EPHE TODO]: Should we close stream ?? */
         LOG(EXTENSION_LOG_WARNING,
             "DCPBackfillMemory::run(): "
             "(vb:%d) running backfill failed with error %d ; "
-            "start seqno:%" PRIi64 ", end seqno:%" PRIi64,
+            "start seqno:%" PRIi64 ", end seqno:%" PRIi64
+            ". "
+            "Hence closing the stream",
             getVBucketId(),
             status,
             startSeqno,
             endSeqno);
+        /* Close the stream, DCP clients can retry */
+        stream->setDead(END_STREAM_BACKFILL_FAIL);
         return backfill_finished;
     }
 

@@ -105,6 +105,12 @@ public:
             queued_item& item) {
         return makeResponseFromItem(item);
     }
+
+    void waitForStreamClose() {
+        while (getState() != StreamState::Dead) {
+            usleep(10);
+        }
+    }
 };
 
 /* Mock of the PassiveStream class. Wraps the real PassiveStream, but exposes
