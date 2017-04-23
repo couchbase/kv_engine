@@ -16,11 +16,8 @@
  */
 #pragma once
 
+#include <cbsasl/visibility.h>
 #include <string>
-
-#ifndef CBSASL_CBSASL_H
-#error "Include <cbsasl/cbsasl.h>"
-#endif
 
 namespace cb {
 namespace sasl {
@@ -46,6 +43,6 @@ std::string get_socketpath();
  */
 CBSASL_PUBLIC_API
 bool is_configured();
-}
-}
-}
+} // namespace saslauthd
+} // namespace sasl
+} // namespace cb

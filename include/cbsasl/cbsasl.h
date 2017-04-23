@@ -14,225 +14,216 @@
  *   limitations under the License.
  */
 
-#ifndef CBSASL_CBSASL_H
-#define CBSASL_CBSASL_H 1
+#pragma once
 
-#include <cbsasl/visibility.h>
 #include <cbsasl/saslauthd_config.h>
+#include <cbsasl/visibility.h>
+#include <memory>
+#include <string>
 
+typedef enum cbsasl_error {
+    CBSASL_OK = 0,
+    CBSASL_CONTINUE = 1,
+    CBSASL_FAIL = 2,
+    CBSASL_NOMEM = 3,
+    CBSASL_BADPARAM = 4,
+    CBSASL_NOMECH = 5,
+    CBSASL_NOUSER = 6,
+    CBSASL_PWERR = 7,
+    CBSASL_NO_RBAC_PROFILE = 8
+} cbsasl_error_t;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+typedef struct {
+    unsigned long len;
+    unsigned char data[1];
+} cbsasl_secret_t;
 
-    typedef enum cbsasl_error {
-        CBSASL_OK = 0,
-        CBSASL_CONTINUE = 1,
-        CBSASL_FAIL = 2,
-        CBSASL_NOMEM = 3,
-        CBSASL_BADPARAM = 4,
-        CBSASL_NOMECH = 5,
-        CBSASL_NOUSER = 6,
-        CBSASL_PWERR = 7,
-        CBSASL_NO_RBAC_PROFILE = 8
-    } cbsasl_error_t;
+typedef struct {
+    unsigned long id;
+    int (*proc)(void);
+    void* context;
+} cbsasl_callback_t;
 
-    typedef struct {
-        unsigned long len;
-        unsigned char data[1];
-    } cbsasl_secret_t;
+typedef struct cbsasl_conn_st cbsasl_conn_t;
 
-    typedef struct {
-        unsigned long id;
-        int (*proc)(void);
-        void *context;
-    } cbsasl_callback_t;
+/**
+ * Lists all of the mechanisms this sasl server supports
+ *
+ * Currently all parameters except result and len is ignored, but provided
+ * to maintain compatibility with other SASL implementations.
+ *
+ * @param conn the connection object that wants to call list mechs. May
+ *             be null
+ * @param user the user who wants to connect (may restrict the available
+ *             mechs). May be null
+ * @param prefix the prefix to insert to the resulting string (may be null)
+ * @param sep the separator between each mechanism
+ * @param suffix the suffix to append to the resulting string (may be null)
+ * @param result pointer to where the result is to be stored (allocated
+ *               and feed by the library)
+ * @param len the length of the resulting string (may be null)
+ * @param count the number of mechanisms in the resulting string (may be
+ *              null)
+ *
+ * @return Whether or not an error occured while getting the mechanism list
+ */
+CBSASL_PUBLIC_API
+cbsasl_error_t cbsasl_listmech(cbsasl_conn_t* conn,
+                               const char* user,
+                               const char* prefix,
+                               const char* sep,
+                               const char* suffix,
+                               const char** result,
+                               unsigned* len,
+                               int* count);
 
-    typedef struct cbsasl_conn_st cbsasl_conn_t;
+/**
+ * Convert a sasl error code to a textual representation
+ *
+ * @param conn the connection object who genertated the error code
+ * @param error the error value to look up
+ * @return pointer to a textual string describing the error. This pointer
+ *         is valid as long as the conn object is valid (caller should not
+ *         free this pointer)
+ */
+CBSASL_PUBLIC_API
+const char* cbsasl_strerror(cbsasl_conn_t* conn, cbsasl_error_t error);
 
-    /**
-     * Lists all of the mechanisms this sasl server supports
-     *
-     * Currently all parameters except result and len is ignored, but provided
-     * to maintain compatibility with other SASL implementations.
-     *
-     * @param conn the connection object that wants to call list mechs. May
-     *             be null
-     * @param user the user who wants to connect (may restrict the available
-     *             mechs). May be null
-     * @param prefix the prefix to insert to the resulting string (may be null)
-     * @param sep the separator between each mechanism
-     * @param suffix the suffix to append to the resulting string (may be null)
-     * @param result pointer to where the result is to be stored (allocated
-     *               and feed by the library)
-     * @param len the length of the resulting string (may be null)
-     * @param count the number of mechanisms in the resulting string (may be
-     *              null)
-     *
-     * @return Whether or not an error occured while getting the mechanism list
-     */
-    CBSASL_PUBLIC_API
-    cbsasl_error_t cbsasl_listmech(cbsasl_conn_t* conn,
-                                   const char* user,
-                                   const char* prefix,
-                                   const char* sep,
-                                   const char* suffix,
-                                   const char** result,
-                                   unsigned* len,
-                                   int* count);
+/**
+ * Initializes the sasl server
+ *
+ * This function initializes the server by loading passwords from the cbsasl
+ * password file. This function should only be called once.
+ *
+ * @param cb the callbacks to use for the server (may be nullptr)
+ * @param appname the name of the application (may be nullptr)
+ * @return Whether or not the sasl server initialization was successful
+ */
+CBSASL_PUBLIC_API
+cbsasl_error_t cbsasl_server_init(const cbsasl_callback_t* cb,
+                                  const char* appname);
 
-    /**
-     * Convert a sasl error code to a textual representation
-     *
-     * @param conn the connection object who genertated the error code
-     * @param error the error value to look up
-     * @return pointer to a textual string describing the error. This pointer
-     *         is valid as long as the conn object is valid (caller should not
-     *         free this pointer)
-     */
-    CBSASL_PUBLIC_API
-    const char* cbsasl_strerror(cbsasl_conn_t* conn,
-                                cbsasl_error_t error);
+/**
+ * close and release allocated resources
+ *
+ * @return SASL_OK upon success
+ */
+CBSASL_PUBLIC_API
+cbsasl_error_t cbsasl_server_term(void);
 
-    /**
-     * Initializes the sasl server
-     *
-     * This function initializes the server by loading passwords from the cbsasl
-     * password file. This function should only be called once.
-     *
-     * @param cb the callbacks to use for the server (may be nullptr)
-     * @param appname the name of the application (may be nullptr)
-     * @return Whether or not the sasl server initialization was successful
-     */
-    CBSASL_PUBLIC_API
-    cbsasl_error_t cbsasl_server_init(const cbsasl_callback_t *cb,
-                                      const char *appname);
+/**
+ * create context for a single SASL connection
+ *  @param service registered name of the service using SASL (e.g. "imap")
+ *  @param serverFQDN  Fully qualified domain name of server.  NULL means use
+ *                    gethostname() or equivalent.
+ *                    Useful for multi-homed servers.
+ *  @param user_realm permits multiple user realms on server, NULL = default
+ *  @param iplocalport server IPv4/IPv6 domain literal string with port
+ *                     (if NULL, then mechanisms requiring IPaddr are disabled)
+ *  @param ipremoteport client IPv4/IPv6 domain literal string with port
+ *                    (if NULL, then mechanisms requiring IPaddr are disabled)
+ *  @param callbacks  callbacks (e.g., authorization, lang, new getopt context)
+ *  @param flags usage flags (see above)
+ *  @param conn where to store the allocated context
+ *
+ * @returns SASL_OK upon success
+ */
+CBSASL_PUBLIC_API
+cbsasl_error_t cbsasl_server_new(
+        const char* service, // may be null
+        const char* serverFQDN, // may be null
+        const char* user_realm, // may be null
+        const char* iplocalport, // may be null
+        const char* ipremoteport, // may be null
+        const cbsasl_callback_t* callbacks, // may be null
+        unsigned int flags,
+        cbsasl_conn_t** conn);
 
-    /**
-     * close and release allocated resources
-     *
-     * @return SASL_OK upon success
-     */
-    CBSASL_PUBLIC_API
-    cbsasl_error_t cbsasl_server_term(void);
+/**
+ * Creates a sasl connection and begins authentication
+ *
+ * When a client receives a request for sasl authentication this function is
+ * called in order to initialize the sasl connection based on the mechanism
+ * specified.
+ *
+ * @param conn The connection context for this session
+ * @param mechanism The mechanism that will be used for authentication
+ *
+ * @return Whether or not the mecahnism initialization was successful
+ */
+CBSASL_PUBLIC_API
+cbsasl_error_t cbsasl_server_start(cbsasl_conn_t* conn,
+                                   const char* mech,
+                                   const char* clientin,
+                                   unsigned int clientinlen,
+                                   const char** serverout,
+                                   unsigned int* serveroutlen);
 
+/**
+ * Does username/password authentication
+ *
+ * After the sasl connection is initialized the step function is called to
+ * check credentials.
+ *
+ * @return Whether or not the sasl step was successful
+ */
+CBSASL_PUBLIC_API
+cbsasl_error_t cbsasl_server_step(cbsasl_conn_t* conn,
+                                  const char* input,
+                                  unsigned inputlen,
+                                  const char** output,
+                                  unsigned* outputlen);
 
-    /**
-     * create context for a single SASL connection
-     *  @param service registered name of the service using SASL (e.g. "imap")
-     *  @param serverFQDN  Fully qualified domain name of server.  NULL means use
-     *                    gethostname() or equivalent.
-     *                    Useful for multi-homed servers.
-     *  @param user_realm permits multiple user realms on server, NULL = default
-     *  @param iplocalport server IPv4/IPv6 domain literal string with port
-     *                     (if NULL, then mechanisms requiring IPaddr are disabled)
-     *  @param ipremoteport client IPv4/IPv6 domain literal string with port
-     *                    (if NULL, then mechanisms requiring IPaddr are disabled)
-     *  @param callbacks  callbacks (e.g., authorization, lang, new getopt context)
-     *  @param flags usage flags (see above)
-     *  @param conn where to store the allocated context
-     *
-     * @returns SASL_OK upon success
-     */
-    CBSASL_PUBLIC_API
-    cbsasl_error_t cbsasl_server_new(const char *service, // may be null
-                                     const char *serverFQDN,  // may be null
-                                     const char *user_realm,  // may be null
-                                     const char *iplocalport,  // may be null
-                                     const char *ipremoteport,  // may be null
-                                     const cbsasl_callback_t *callbacks,  // may be null
-                                     unsigned int flags,
-                                     cbsasl_conn_t **conn);
+/**
+ * Frees up funushed sasl connections
+ *
+ * @param conn The sasl connection to free
+ */
+CBSASL_PUBLIC_API
+void cbsasl_dispose(cbsasl_conn_t** pconn);
 
+/**
+ * Refresh the internal data (this may result in loading password
+ * databases etc)
+ *
+ * @return Whether or not the operation was successful
+ */
+CBSASL_PUBLIC_API
+cbsasl_error_t cbsasl_server_refresh(void);
 
-    /**
-     * Creates a sasl connection and begins authentication
-     *
-     * When a client receives a request for sasl authentication this function is
-     * called in order to initialize the sasl connection based on the mechanism
-     * specified.
-     *
-     * @param conn The connection context for this session
-     * @param mechanism The mechanism that will be used for authentication
-     *
-     * @return Whether or not the mecahnism initialization was successful
-     */
-    CBSASL_PUBLIC_API
-    cbsasl_error_t cbsasl_server_start(cbsasl_conn_t *conn,
-                                       const char *mech,
-                                       const char *clientin,
-                                       unsigned int clientinlen,
-                                       const char **serverout,
-                                       unsigned int *serveroutlen);
+typedef enum { CBSASL_USERNAME = 0 } cbsasl_prop_t;
 
-    /**
-     * Does username/password authentication
-     *
-     * After the sasl connection is initialized the step function is called to
-     * check credentials.
-     *
-     * @return Whether or not the sasl step was successful
-     */
-    CBSASL_PUBLIC_API
-    cbsasl_error_t cbsasl_server_step(cbsasl_conn_t *conn,
-                                      const char *input,
-                                      unsigned inputlen,
-                                      const char **output,
-                                      unsigned *outputlen);
+CBSASL_PUBLIC_API
+cbsasl_error_t cbsasl_getprop(cbsasl_conn_t* conn,
+                              cbsasl_prop_t propnum,
+                              const void** pvalue);
 
-    /**
-     * Frees up funushed sasl connections
-     *
-     * @param conn The sasl connection to free
-     */
-    CBSASL_PUBLIC_API
-    void cbsasl_dispose(cbsasl_conn_t **pconn);
+/* Client API */
 
-    /**
-     * Refresh the internal data (this may result in loading password
-     * databases etc)
-     *
-     * @return Whether or not the operation was successful
-     */
-    CBSASL_PUBLIC_API
-    cbsasl_error_t cbsasl_server_refresh(void);
+CBSASL_PUBLIC_API
+cbsasl_error_t cbsasl_client_new(const char* service,
+                                 const char* serverFQDN,
+                                 const char* iplocalport,
+                                 const char* ipremoteport,
+                                 const cbsasl_callback_t* prompt_supp,
+                                 unsigned int flags,
+                                 cbsasl_conn_t** pconn);
 
-    typedef enum {
-        CBSASL_USERNAME = 0
-    } cbsasl_prop_t;
+CBSASL_PUBLIC_API
+cbsasl_error_t cbsasl_client_start(cbsasl_conn_t* conn,
+                                   const char* mechlist,
+                                   void** prompt_need,
+                                   const char** clientout,
+                                   unsigned int* clientoutlen,
+                                   const char** mech);
 
-    CBSASL_PUBLIC_API
-    cbsasl_error_t cbsasl_getprop(cbsasl_conn_t *conn,
-                                  cbsasl_prop_t propnum,
-                                  const void **pvalue);
-
-    /* Client API */
-
-    CBSASL_PUBLIC_API
-    cbsasl_error_t cbsasl_client_new(const char *service,
-                                     const char *serverFQDN,
-                                     const char *iplocalport,
-                                     const char *ipremoteport,
-                                     const cbsasl_callback_t *prompt_supp,
-                                     unsigned int flags,
-                                     cbsasl_conn_t **pconn);
-
-    CBSASL_PUBLIC_API
-    cbsasl_error_t cbsasl_client_start(cbsasl_conn_t *conn,
-                                       const char *mechlist,
-                                       void **prompt_need,
-                                       const char **clientout,
-                                       unsigned int *clientoutlen,
-                                       const char **mech);
-
-    CBSASL_PUBLIC_API
-    cbsasl_error_t cbsasl_client_step(cbsasl_conn_t *conn,
-                                      const char *serverin,
-                                      unsigned int serverinlen,
-                                      void **not_used,
-                                      const char **clientout,
-                                      unsigned int *clientoutlen);
-
+CBSASL_PUBLIC_API
+cbsasl_error_t cbsasl_client_step(cbsasl_conn_t* conn,
+                                  const char* serverin,
+                                  unsigned int serverinlen,
+                                  void** not_used,
+                                  const char** clientout,
+                                  unsigned int* clientoutlen);
 
 /* Callback API supported by cbsasl */
 #define CBSASL_CB_LIST_END 0
@@ -240,28 +231,27 @@ extern "C" {
 /**
  * Get the username
  */
-typedef int (* cbsasl_get_username_fn)(void* context,
-                                       int id,
-                                       const char** result,
-                                       unsigned int* len);
+typedef int (*cbsasl_get_username_fn)(void* context,
+                                      int id,
+                                      const char** result,
+                                      unsigned int* len);
 #define CBSASL_CB_USER 1
 /**
  * Get the name to use for authentication
  */
-typedef int (* cbsasl_get_authname_fn)(void* context,
-                                       int id,
-                                       const char** result,
-                                       unsigned int* len);
+typedef int (*cbsasl_get_authname_fn)(void* context,
+                                      int id,
+                                      const char** result,
+                                      unsigned int* len);
 #define CBSASL_CB_AUTHNAME 2
 /**
  * Get the password
  */
-typedef int (* cbsasl_get_password_fn)(cbsasl_conn_t* conn,
-                                       void* context,
-                                       int id,
-                                       cbsasl_secret_t** psecret);
+typedef int (*cbsasl_get_password_fn)(cbsasl_conn_t* conn,
+                                      void* context,
+                                      int id,
+                                      cbsasl_secret_t** psecret);
 #define CBSASL_CB_PASS 3
-
 
 /**
  * Logging
@@ -284,16 +274,16 @@ typedef int (* cbsasl_get_password_fn)(cbsasl_conn_t* conn,
 /** not used */
 #define CBSASL_LOG_PASS 7
 
-typedef int (* cbsasl_log_fn)(void* context, int level, const char *message);
+typedef int (*cbsasl_log_fn)(void* context, int level, const char* message);
 #define CBSASL_CB_LOG 5
 
 /**
  * Get client nonce (used for testing)
  */
-typedef int (* cbsasl_get_cnonce_fn)(void* context,
-                                     int id,
-                                     const char** result,
-                                     unsigned int* len);
+typedef int (*cbsasl_get_cnonce_fn)(void* context,
+                                    int id,
+                                    const char** result,
+                                    unsigned int* len);
 #define CBSASL_CB_CNONCE 6
 
 /**
@@ -307,21 +297,15 @@ typedef int (* cbsasl_get_cnonce_fn)(void* context,
  * @param len where to store the number of bytes in the result
  * @return CBSASL_OK for success, or another cbsasl error code
  */
-typedef int (* cbsasl_getopt_fn)(void* context,
-                                 const char* plugin_name,
-                                 const char* option,
-                                 const char** result, unsigned* len);
+typedef int (*cbsasl_getopt_fn)(void* context,
+                                const char* plugin_name,
+                                const char* option,
+                                const char** result,
+                                unsigned* len);
 #define CBSASL_CB_GETOPT 7
 
-
-#ifdef __cplusplus
-}
-
-#include <memory>
-#include <string>
-
 struct CbSaslDeleter {
-    void operator()(cbsasl_conn_t *conn) {
+    void operator()(cbsasl_conn_t* conn) {
         if (conn != nullptr) {
             cbsasl_dispose(&conn);
         }
@@ -360,12 +344,7 @@ std::string to_string(Domain domain);
  * Get the domain where the user in the connection object is defined
  */
 CBSASL_PUBLIC_API
-Domain get_domain(cbsasl_conn_t *conn);
+Domain get_domain(cbsasl_conn_t* conn);
 
-
-}
-}
-
-#endif
-
-#endif  /* CBSASL_CBSASL_H */
+} // namespace sasl
+} // namespace cb
