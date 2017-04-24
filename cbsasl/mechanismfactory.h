@@ -88,7 +88,7 @@ public:
      * @return a backend that implements the mechanism
      */
     static UniqueMechanismBackend createServerBackend(
-        const Mechanism& mechanism);
+        cbsasl_conn_t& conn);
 
 
     /**
@@ -99,5 +99,5 @@ public:
      * @return a backend that implements the mechanism
      */
     static UniqueMechanismBackend createClientBackend(
-        const Mechanism& mechanism);
+        cbsasl_conn_t& conn);
 };

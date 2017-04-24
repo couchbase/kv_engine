@@ -23,7 +23,7 @@
 
 #ifdef WIN32
 #include <stdexcept>
-static cbsasl_error_t check(cbsasl_conn_t* conn,
+static cbsasl_error_t check(cbsasl_conn_t& conn,
                             const std::string& username,
                             const std::string &passwd) {
     return CBSASL_NOUSER;
@@ -31,7 +31,7 @@ static cbsasl_error_t check(cbsasl_conn_t* conn,
 #else
 #include <unistd.h>
 #include "saslauthd.h"
-static cbsasl_error_t check(cbsasl_conn_t* conn,
+static cbsasl_error_t check(cbsasl_conn_t& conn,
                             const std::string& username,
                             const std::string &passwd) {
     const auto socketfile = cb::sasl::saslauthd::get_socketpath();
@@ -43,7 +43,7 @@ static cbsasl_error_t check(cbsasl_conn_t* conn,
             Saslauthd saslauthd(socketfile);
             return saslauthd.check(username, passwd);
         } catch (const std::exception& e) {
-            cbsasl_log(conn,
+            cbsasl_log(&conn,
                        cbsasl_loglevel_t::Error,
                        "Failed to validate [" + username +
                                "] through saslauthd: " + e.what());
@@ -61,7 +61,7 @@ static cbsasl_error_t check(cbsasl_conn_t* conn,
  * If it exists and we have a matching password we're good to go,
  * otherwise we'll have to try the "normal" user.
  */
-static bool try_legacy_user(cbsasl_conn_t* conn,
+static bool try_legacy_user(cbsasl_conn_t& conn,
                             const std::string& username,
                             const std::string& password) {
     const std::string lecacy_username{username + ";legacy"};
@@ -70,20 +70,21 @@ static bool try_legacy_user(cbsasl_conn_t* conn,
         return false;
     }
 
-    if (cb::sasl::plain::check_password(conn, user, password) == CBSASL_OK) {
-        conn->server->username.assign(lecacy_username);
+    if (cb::sasl::plain::check_password(&conn, user, password) == CBSASL_OK) {
+        conn.server->username.assign(lecacy_username);
         return true;
     }
 
     return false;
 }
 
-cbsasl_error_t PlainServerBackend::start(cbsasl_conn_t* conn,
-                                         const char* input,
+cbsasl_error_t PlainServerBackend::start(const char* input,
                                          unsigned inputlen,
                                          const char** output,
                                          unsigned* outputlen) {
     if (inputlen == 0 || input == nullptr) {
+        cbsasl_log(&conn, cbsasl_loglevel_t::Error,
+                   "PlainServerBackend::start(): Invalid arguments");
         return CBSASL_BADPARAM;
     }
 
@@ -102,6 +103,8 @@ cbsasl_error_t PlainServerBackend::start(cbsasl_conn_t* conn,
     inputpos++;
 
     if (inputpos >= inputlen) {
+        cbsasl_log(&conn, cbsasl_loglevel_t::Error,
+                   "PlainServerBackend::start(): Invalid encoded packet");
         return CBSASL_BADPARAM;
     }
 
@@ -114,6 +117,8 @@ cbsasl_error_t PlainServerBackend::start(cbsasl_conn_t* conn,
     inputpos++;
 
     if (inputpos > inputlen) {
+        cbsasl_log(&conn, cbsasl_loglevel_t::Error,
+                   "PlainServerBackend::start(): Invalid encoded packet");
         return CBSASL_BADPARAM;
     } else if (inputpos != inputlen) {
         password = input + inputpos;
@@ -123,7 +128,7 @@ cbsasl_error_t PlainServerBackend::start(cbsasl_conn_t* conn,
         }
     }
 
-    conn->server->username.assign(username);
+    conn.server->username.assign(username);
     const std::string userpw(password, pwlen);
 
     if (try_legacy_user(conn, username, userpw)) {
@@ -134,19 +139,19 @@ cbsasl_error_t PlainServerBackend::start(cbsasl_conn_t* conn,
     if (!find_user(username, user)) {
         auto ret = check(conn, username, userpw);
         if (ret == CBSASL_OK) {
-            conn->server->domain = cb::sasl::Domain::External;
+            conn.server->domain = cb::sasl::Domain::External;
         }
         return ret;
     }
 
-    return cb::sasl::plain::check_password(conn, user, userpw);
+    return cb::sasl::plain::check_password(&conn, user, userpw);
 }
 
-cbsasl_error_t PlainClientBackend::start(cbsasl_conn_t* conn, const char* input,
+cbsasl_error_t PlainClientBackend::start(const char* input,
                                          unsigned inputlen, const char** output,
                                          unsigned* outputlen) {
 
-    auto* client = conn->client.get();
+    auto* client = conn.client.get();
 
     const char* usernm = nullptr;
     unsigned int usernmlen;
@@ -157,7 +162,7 @@ cbsasl_error_t PlainClientBackend::start(cbsasl_conn_t* conn, const char* input,
     }
 
     cbsasl_secret_t* pass;
-    if (cbsasl_get_password(client->get_password, conn,
+    if (cbsasl_get_password(client->get_password, &conn,
                             client->get_password_ctx, &pass) != CBSASL_OK) {
         return CBSASL_FAIL;
     }

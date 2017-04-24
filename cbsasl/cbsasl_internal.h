@@ -37,8 +37,8 @@ enum class Mechanism {
  */
 class MechanismBackend {
 public:
-    MechanismBackend(const std::string& nm)
-        : name(nm) {
+    MechanismBackend(const std::string& nm, cbsasl_conn_t& connection)
+        : name(nm), conn(connection) {
 
     }
 
@@ -57,8 +57,7 @@ public:
      * @param outputlen the number of bytes to send back to the client
      * @return the appropriate error code
      */
-    virtual cbsasl_error_t start(cbsasl_conn_t* conn,
-                                 const char* input,
+    virtual cbsasl_error_t start(const char* input,
                                  unsigned inputlen,
                                  const char** output,
                                  unsigned* outputlen) {
@@ -76,8 +75,7 @@ public:
      * @param outputlen the number of bytes to send back to the client
      * @return the appropriate error code
      */
-    virtual cbsasl_error_t step(cbsasl_conn_t* conn,
-                                const char* input,
+    virtual cbsasl_error_t step(const char* input,
                                 unsigned inputlen,
                                 const char** output,
                                 unsigned* outputlen) {
@@ -96,6 +94,11 @@ protected:
      * The name of the mechanism in use
      */
     std::string name;
+
+    /**
+     * The connection this backend is bound to
+     */
+    cbsasl_conn_t& conn;
 };
 
 typedef std::unique_ptr<MechanismBackend> UniqueMechanismBackend;

@@ -131,7 +131,7 @@ cbsasl_error_t cbsasl_client_start(cbsasl_conn_t* conn,
                MechanismFactory::toString(conn->mechanism) + " from [" +
                std::string(mechlist) + "]");
 
-    client->mech = MechanismFactory::createClientBackend(conn->mechanism);
+    client->mech = MechanismFactory::createClientBackend(*conn);
     if (client->mech.get() == nullptr) {
         cbsasl_log(conn, cbsasl_loglevel_t::Debug,
                    "Failed to select a mechanism from [" +
@@ -143,7 +143,7 @@ cbsasl_error_t cbsasl_client_start(cbsasl_conn_t* conn,
         *mech = client->mech->getName().c_str();
     }
 
-    return client->mech->start(conn, nullptr, 0, clientout, clientoutlen);
+    return client->mech->start(nullptr, 0, clientout, clientoutlen);
 }
 
 CBSASL_PUBLIC_API
@@ -159,8 +159,7 @@ cbsasl_error_t cbsasl_client_step(cbsasl_conn_t* conn,
         return CBSASL_BADPARAM;
     }
 
-    return client->mech->step(conn, serverin, serverinlen, clientout,
-                              clientoutlen);
+    return client->mech->step(serverin, serverinlen, clientout, clientoutlen);
 }
 
 cbsasl_error_t cbsasl_get_username(cbsasl_get_username_fn function, void* context,

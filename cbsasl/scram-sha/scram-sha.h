@@ -40,9 +40,10 @@
 class ScramShaBackend : public MechanismBackend {
 protected:
     ScramShaBackend(const std::string& mech_name,
+                    cbsasl_conn_t& conn,
                     const Mechanism& mech,
                     const cb::crypto::Algorithm algo)
-        : MechanismBackend(mech_name),
+        : MechanismBackend(mech_name, conn),
           mechanism(mech),
           algorithm(algo)
     {
@@ -120,14 +121,15 @@ protected:
 class ScramShaServerBackend : public ScramShaBackend {
 public:
     ScramShaServerBackend(const std::string& mech_name,
+                          cbsasl_conn_t& conn,
                           const Mechanism& mech,
                           const cb::crypto::Algorithm algo);
 
-    virtual cbsasl_error_t start(cbsasl_conn_t* conn, const char* input,
+    virtual cbsasl_error_t start(const char* input,
                                  unsigned inputlen, const char** output,
                                  unsigned* outputlen) override;
 
-    virtual cbsasl_error_t step(cbsasl_conn_t* conn, const char* input,
+    virtual cbsasl_error_t step(const char* input,
                                 unsigned inputlen, const char** output,
                                 unsigned* outputlen) override;
 
@@ -144,8 +146,9 @@ public:
  */
 class ScramSha1ServerBackend : public ScramShaServerBackend {
 public:
-    ScramSha1ServerBackend()
+    ScramSha1ServerBackend(cbsasl_conn_t& conn)
         : ScramShaServerBackend(MECH_NAME_SCRAM_SHA1,
+                                conn,
                                 Mechanism::SCRAM_SHA1,
                                 cb::crypto::Algorithm::SHA1) { }
 };
@@ -155,8 +158,9 @@ public:
  */
 class ScramSha256ServerBackend : public ScramShaServerBackend {
 public:
-    ScramSha256ServerBackend()
+    ScramSha256ServerBackend(cbsasl_conn_t& conn)
         : ScramShaServerBackend(MECH_NAME_SCRAM_SHA256,
+                                conn,
                                 Mechanism::SCRAM_SHA256,
                                 cb::crypto::Algorithm::SHA256) { }
 };
@@ -166,8 +170,9 @@ public:
  */
 class ScramSha512ServerBackend : public ScramShaServerBackend {
 public:
-    ScramSha512ServerBackend()
+    ScramSha512ServerBackend(cbsasl_conn_t& conn)
         : ScramShaServerBackend(MECH_NAME_SCRAM_SHA512,
+                                conn,
                                 Mechanism::SCRAM_SHA512,
                                 cb::crypto::Algorithm::SHA512) { }
 };
@@ -179,14 +184,15 @@ public:
 class ScramShaClientBackend : public ScramShaBackend {
 public:
     ScramShaClientBackend(const std::string& mech_name,
+                          cbsasl_conn_t& conn,
                           const Mechanism& mech,
                           const cb::crypto::Algorithm algo);
 
-    virtual cbsasl_error_t start(cbsasl_conn_t* conn, const char* input,
+    virtual cbsasl_error_t start(const char* input,
                                  unsigned inputlen, const char** output,
                                  unsigned* outputlen) override;
 
-    virtual cbsasl_error_t step(cbsasl_conn_t* conn, const char* input,
+    virtual cbsasl_error_t step(const char* input,
                                 unsigned inputlen, const char** output,
                                 unsigned* outputlen) override;
 
@@ -210,24 +216,27 @@ protected:
 
 class ScramSha1ClientBackend : public ScramShaClientBackend {
 public:
-    ScramSha1ClientBackend()
+    ScramSha1ClientBackend(cbsasl_conn_t& conn)
         : ScramShaClientBackend(MECH_NAME_SCRAM_SHA1,
+                                conn,
                                 Mechanism::SCRAM_SHA1,
                                 cb::crypto::Algorithm::SHA1) { }
 };
 
 class ScramSha256ClientBackend : public ScramShaClientBackend {
 public:
-    ScramSha256ClientBackend()
+    ScramSha256ClientBackend(cbsasl_conn_t& conn)
         : ScramShaClientBackend(MECH_NAME_SCRAM_SHA256,
+                                conn,
                                 Mechanism::SCRAM_SHA256,
                                 cb::crypto::Algorithm::SHA256) { }
 };
 
 class ScramSha512ClientBackend : public ScramShaClientBackend {
 public:
-    ScramSha512ClientBackend()
+    ScramSha512ClientBackend(cbsasl_conn_t& conn)
         : ScramShaClientBackend(MECH_NAME_SCRAM_SHA512,
+                                conn,
                                 Mechanism::SCRAM_SHA512,
                                 cb::crypto::Algorithm::SHA512) { }
 };

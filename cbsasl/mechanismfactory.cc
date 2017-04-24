@@ -51,8 +51,8 @@ public:
         name(nm), enabled(en), mechanism(mech) {
     }
 
-    virtual UniqueMechanismBackend createServerBackend() = 0;
-    virtual UniqueMechanismBackend createClientBackend() = 0;
+    virtual UniqueMechanismBackend createServerBackend(cbsasl_conn_t& conn) = 0;
+    virtual UniqueMechanismBackend createClientBackend(cbsasl_conn_t& conn) = 0;
 
     const std::string& getName() const {
         return name;
@@ -98,12 +98,12 @@ public:
         setEnabled(isMechanismSupported());
     }
 
-    virtual UniqueMechanismBackend createServerBackend() override {
-        return UniqueMechanismBackend(new ScramSha512ServerBackend);
+    virtual UniqueMechanismBackend createServerBackend(cbsasl_conn_t& conn) override {
+        return UniqueMechanismBackend(new ScramSha512ServerBackend(conn));
     }
 
-    virtual UniqueMechanismBackend createClientBackend() override {
-        return UniqueMechanismBackend(new ScramSha512ClientBackend);
+    virtual UniqueMechanismBackend createClientBackend(cbsasl_conn_t& conn) override {
+        return UniqueMechanismBackend(new ScramSha512ClientBackend(conn));
     }
 
     virtual bool isMechanismSupported() override {
@@ -118,12 +118,12 @@ public:
         setEnabled(isMechanismSupported());
     }
 
-    virtual UniqueMechanismBackend createServerBackend() override {
-        return UniqueMechanismBackend(new ScramSha256ServerBackend);
+    virtual UniqueMechanismBackend createServerBackend(cbsasl_conn_t& conn) override {
+        return UniqueMechanismBackend(new ScramSha256ServerBackend(conn));
     }
 
-    virtual UniqueMechanismBackend createClientBackend() override {
-        return UniqueMechanismBackend(new ScramSha256ClientBackend);
+    virtual UniqueMechanismBackend createClientBackend(cbsasl_conn_t& conn) override {
+        return UniqueMechanismBackend(new ScramSha256ClientBackend(conn));
     }
 
     virtual bool isMechanismSupported() override {
@@ -138,12 +138,12 @@ public:
         setEnabled(isMechanismSupported());
     }
 
-    virtual UniqueMechanismBackend createServerBackend() override {
-        return UniqueMechanismBackend(new ScramSha1ServerBackend);
+    virtual UniqueMechanismBackend createServerBackend(cbsasl_conn_t& conn) override {
+        return UniqueMechanismBackend(new ScramSha1ServerBackend(conn));
     }
 
-    virtual UniqueMechanismBackend createClientBackend() override {
-        return UniqueMechanismBackend(new ScramSha1ClientBackend);
+    virtual UniqueMechanismBackend createClientBackend(cbsasl_conn_t& conn) override {
+        return UniqueMechanismBackend(new ScramSha1ClientBackend(conn));
     }
 
     virtual bool isMechanismSupported() override {
@@ -156,12 +156,12 @@ public:
     PlainMechInfo()
         : MechInfo(MECH_NAME_PLAIN, true, Mechanism::PLAIN) { }
 
-    virtual UniqueMechanismBackend createServerBackend() override {
-        return UniqueMechanismBackend(new PlainServerBackend);
+    virtual UniqueMechanismBackend createServerBackend(cbsasl_conn_t& conn) override {
+        return UniqueMechanismBackend(new PlainServerBackend(conn));
     }
 
-    virtual UniqueMechanismBackend createClientBackend() override {
-        return UniqueMechanismBackend(new PlainClientBackend);
+    virtual UniqueMechanismBackend createClientBackend(cbsasl_conn_t& conn) override {
+        return UniqueMechanismBackend(new PlainClientBackend(conn));
     }
 
     virtual bool isMechanismSupported() override {
@@ -221,13 +221,12 @@ void cbsasl_set_available_mechanisms(cbsasl_getopt_fn getopt_fn,
     }
 }
 
-UniqueMechanismBackend MechanismFactory::createServerBackend(
-    const Mechanism& mechanism) {
+UniqueMechanismBackend MechanismFactory::createServerBackend(cbsasl_conn_t& conn) {
 
     for (const auto& m : availableMechs) {
-        if (m->getMechanism() == mechanism) {
+        if (m->getMechanism() == conn.mechanism) {
             if (m->isEnabled()) {
-                return m->createServerBackend();
+                return m->createServerBackend(conn);
             } else {
                 cbsasl_log(nullptr, cbsasl_loglevel_t::Debug,
                            "Requested disabled mechanism " + m->getName());
@@ -241,11 +240,11 @@ UniqueMechanismBackend MechanismFactory::createServerBackend(
 }
 
 UniqueMechanismBackend MechanismFactory::createClientBackend(
-    const Mechanism& mechanism) {
+    cbsasl_conn_t& conn) {
     for (const auto& m : availableMechs) {
-        if (m->getMechanism() == mechanism) {
+        if (m->getMechanism() == conn.mechanism) {
             if (m->isEnabled()) {
-                return m->createClientBackend();
+                return m->createClientBackend(conn);
             } else {
                 cbsasl_log(nullptr, cbsasl_loglevel_t::Debug,
                            "Requested disabled mechanism " + m->getName());

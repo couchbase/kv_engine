@@ -24,12 +24,12 @@
 
 class PlainServerBackend : public MechanismBackend {
 public:
-    PlainServerBackend()
-        : MechanismBackend(MECH_NAME_PLAIN) {
+    PlainServerBackend(cbsasl_conn_t& conn)
+        : MechanismBackend(MECH_NAME_PLAIN, conn) {
 
     }
 
-    virtual cbsasl_error_t start(cbsasl_conn_t* conn, const char* input,
+    virtual cbsasl_error_t start(const char* input,
                                  unsigned inputlen,
                                  const char** output,
                                  unsigned* outputlen) override;
@@ -37,12 +37,12 @@ public:
 
 class PlainClientBackend : public MechanismBackend {
 public:
-    PlainClientBackend()
-        : MechanismBackend(MECH_NAME_PLAIN) {
+    PlainClientBackend(cbsasl_conn_t& conn)
+        : MechanismBackend(MECH_NAME_PLAIN, conn) {
 
     }
 
-    virtual cbsasl_error_t start(cbsasl_conn_t* conn, const char* input,
+    virtual cbsasl_error_t start(const char* input,
                                  unsigned inputlen,
                                  const char** output,
                                  unsigned* outputlen) override;

@@ -183,7 +183,7 @@ cbsasl_error_t cbsasl_server_start(cbsasl_conn_t* conn,
                                                MechanismFactory::toString(
                                                    conn->mechanism) + "]");
 
-    server->mech = MechanismFactory::createServerBackend(conn->mechanism);
+    server->mech = MechanismFactory::createServerBackend(*conn);
     if (server->mech.get() == nullptr) {
         cbsasl_log(conn, cbsasl_loglevel_t::Error,
                    "Failed to create instance of [" +
@@ -191,8 +191,7 @@ cbsasl_error_t cbsasl_server_start(cbsasl_conn_t* conn,
         return CBSASL_NOMEM;
     }
 
-    return server->mech->start(conn, clientin, clientinlen,
-                               serverout, serveroutlen);
+    return server->mech->start(clientin, clientinlen, serverout, serveroutlen);
 }
 
 CBSASL_PUBLIC_API
@@ -204,7 +203,7 @@ cbsasl_error_t cbsasl_server_step(cbsasl_conn_t* conn,
     if (conn == nullptr || !conn->server || !conn->server->mech) {
         return CBSASL_BADPARAM;
     }
-    return conn->server->mech->step(conn, input, inputlen, output, outputlen);
+    return conn->server->mech->step(input, inputlen, output, outputlen);
 }
 
 CBSASL_PUBLIC_API
