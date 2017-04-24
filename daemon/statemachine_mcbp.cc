@@ -126,6 +126,7 @@ static void reset_cmd_handler(McbpConnection *c) {
         c->setItem(nullptr);
     }
 
+    c->getCookieObject().reset();
     c->resetCommandContext();
 
     if (c->read.bytes == 0) {

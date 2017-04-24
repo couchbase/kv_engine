@@ -67,6 +67,7 @@ ADD_LIBRARY(memcached_daemon STATIC
             connection_mcbp.h
             connections.cc
             connections.h
+            cookie.cc
             cookie.h
             datatype.cc
             datatype.h

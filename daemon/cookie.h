@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include <platform/uuid.h>
 #include <stdexcept>
 
 class Command;
@@ -54,6 +55,65 @@ public:
     }
 
     /**
+     * Reset the Cookie object to allow it to be reused in the same
+     * context as the last time.
+     */
+    void reset() {
+        event_id.clear();
+        error_context.clear();
+        json_message.clear();
+    }
+
+    /**
+     * Get the unique event identifier created for this command. It should
+     * be included in all log messages related to a given request, and
+     * returned in the response sent back to the client.
+     *
+     * @return A "random" UUID
+     */
+    const std::string& getEventId() const {
+        if (event_id.empty()) {
+            event_id = to_string(cb::uuid::random());
+        }
+
+        return event_id;
+    }
+
+    void setEventId(std::string& uuid) {
+        event_id = std::move(uuid);
+    }
+
+    /**
+     * Does this cookie contain a UUID to be inserted into the error
+     * message to be sent back to the client.
+     */
+    bool hasEventId() const {
+        return !event_id.empty();
+    }
+
+    /**
+     * Add a more descriptive error context to response sent back for
+     * this command.
+     */
+    void setErrorContext(std::string message) {
+        error_context = std::move(message);
+    }
+
+    /**
+     * Get the context to send back for this command.
+     */
+    const std::string& getErrorContext() const {
+        return error_context;
+    }
+
+    /**
+     * Return the error "object" to return to the client.
+     *
+     * @return An empty string if no extended error information is being set
+     */
+    const std::string& getErrorJson();
+
+    /**
      * The magic byte is used for development only and will be removed when
      * we've successfully verified that we don't have any calls through the
      * engine API where we are passing invalid cookies (connection objects).
@@ -65,4 +125,13 @@ public:
     uint64_t magic;
     Connection* const connection;
     Command* const command;
+
+protected:
+    mutable std::string event_id;
+    std::string error_context;
+    /**
+     * A member variable to keep the data around until it's been safely
+     * transferred to the client.
+     */
+    std::string json_message;
 };

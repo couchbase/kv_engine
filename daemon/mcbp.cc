@@ -116,8 +116,12 @@ void mcbp_write_response(McbpConnection* c,
                          int dlen) {
     if (!c->isNoReply() || c->getCmd() == PROTOCOL_BINARY_CMD_GET ||
         c->getCmd() == PROTOCOL_BINARY_CMD_GETK) {
-        mcbp_add_header(c, 0, extlen, keylen, dlen,
-                            PROTOCOL_BINARY_RAW_BYTES);
+        mcbp_add_header(c,
+                        PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                        extlen,
+                        keylen,
+                        dlen,
+                        PROTOCOL_BINARY_RAW_BYTES);
         c->addIov(d, dlen);
         c->setState(conn_mwrite);
         c->setWriteAndGo(conn_new_cmd);
@@ -168,32 +172,25 @@ void mcbp_write_packet(McbpConnection* c, protocol_binary_response_status err) {
         } else {
             c->setState(conn_closing);
         }
-    } else {
-        ssize_t len = 0;
-        const char* errtext = nullptr;
-
-        // Determine the error-code policy for the current opcode & error code.
-        // "Legacy" memcached opcodes had the behaviour of sending a textual
-        // description of the error in the response body for most errors.
-        // We don't want to do that for any new commands.
-        if (c->includeErrorStringInResponseBody(err)) {
-            errtext = memcached_status_2_text(err);
-            if (errtext != nullptr) {
-                len = (ssize_t)strlen(errtext);
-            }
-        }
-
-        if (errtext && settings.getVerbose() > 1) {
-            LOG_DEBUG(c, ">%u Writing an error: %s", c->getId(), errtext);
-        }
-
-        mcbp_add_header(c, err, 0, 0, len, PROTOCOL_BINARY_RAW_BYTES);
-        if (errtext) {
-            c->addIov(errtext, len);
-        }
-        c->setState(conn_mwrite);
-        c->setWriteAndGo(conn_new_cmd);
+        return;
     }
+
+    // MB-23909: Server does not include event id's in the error message.
+    auto& cookie = c->getCookieObject();
+    const auto& payload = cookie.getErrorJson();
+
+    mcbp_add_header(c,
+                    err,
+                    0,
+                    0,
+                    uint32_t(payload.size()),
+                    payload.empty() ? PROTOCOL_BINARY_RAW_BYTES
+                                    : PROTOCOL_BINARY_DATATYPE_JSON);
+    if (!payload.empty()) {
+        c->addIov(payload.data(), payload.size());
+    }
+    c->setState(conn_mwrite);
+    c->setWriteAndGo(conn_new_cmd);
 }
 
 void mcbp_add_header(McbpConnection* c,
@@ -245,7 +242,8 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
                            protocol_binary_datatype_t datatype, uint16_t status,
                            uint64_t cas, const void* void_cookie)
 {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    auto* ccookie = reinterpret_cast<const Cookie*>(void_cookie);
+    auto* cookie = const_cast<Cookie*>(ccookie);
     cookie->validate();
     if (cookie->connection == nullptr) {
         throw std::runtime_error(
@@ -280,6 +278,23 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
         datatype &= ~(PROTOCOL_BINARY_DATATYPE_XATTR);
     }
 
+    datatype = c->getEnabledDatatypes(datatype);
+    auto& error_json = cookie->getErrorJson();
+
+    switch (status) {
+    case PROTOCOL_BINARY_RESPONSE_SUCCESS:
+    case PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED:
+    case PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET:
+        break;
+    default:
+        //
+        payload = {error_json.data(), error_json.size()};
+        keylen = 0;
+        extlen = 0;
+        datatype = payload.empty() ? PROTOCOL_BINARY_RAW_BYTES
+                                   : PROTOCOL_BINARY_DATATYPE_JSON;
+    }
+
     const size_t needed = payload.len + keylen + extlen +
                           sizeof(protocol_binary_response_header);
 
@@ -296,7 +311,7 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     header.response.opcode = c->binary_header.request.opcode;
     header.response.keylen = (uint16_t)htons(keylen);
     header.response.extlen = extlen;
-    header.response.datatype = c->getEnabledDatatypes(datatype);
+    header.response.datatype = datatype;
     header.response.status = (uint16_t)htons(status);
     header.response.bodylen = htonl(needed - sizeof(protocol_binary_response_header));
     header.response.opaque = c->getOpaque();
