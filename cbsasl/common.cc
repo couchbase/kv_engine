@@ -48,3 +48,11 @@ std::string cb::sasl::to_string(cb::sasl::Domain domain) {
     throw std::invalid_argument("cb::sasl::to_string: invalid domain " +
                                 std::to_string(int(domain)));
 }
+
+CBSASL_PUBLIC_API
+std::string& cb::sasl::get_uuid(cbsasl_conn_t* conn) {
+    if (conn == nullptr) {
+        throw std::invalid_argument("cb::sasl::get_uuid: conn can't be null");
+    }
+    return conn->uuid;
+}

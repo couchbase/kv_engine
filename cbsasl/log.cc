@@ -54,6 +54,14 @@ std::atomic<cbsasl_log_fn> global_log(dummy_log);
 std::atomic<void*> global_context(nullptr);
 std::atomic<cbsasl_loglevel_t> global_level(cbsasl_loglevel_t::Error);
 
+static const char* add_uuid_to_message(cbsasl_conn_t& conn,
+                                       std::string& full,
+                                       const std::string& input) {
+    auto& uuid = conn.get_uuid();
+    full.reserve(input.size() + uuid.size() + 10);
+    full = "UUID:[" + uuid + "] " + input;
+    return full.c_str();
+}
 
 void cbsasl_log(cbsasl_conn_t* connection,
                 cbsasl_loglevel_t level,
@@ -62,13 +70,25 @@ void cbsasl_log(cbsasl_conn_t* connection,
     // illegal values.. they are a 1:1 mapping to the #defines
     int lvl = static_cast<int>(level);
     const char* msg = message.c_str();
+    std::string full_msg;
 
     if (connection == nullptr || connection->log_fn == nullptr) {
         if (level <= global_level.load()) {
+            if (connection != nullptr &&
+                lvl < static_cast<int>(cbsasl_loglevel_t::Fail)) {
+                // We need to generate a UUID
+                msg = add_uuid_to_message(*connection, full_msg, message);
+            }
             global_log.load()(global_context.load(), lvl, msg);
         }
     } else {
         if (level <= connection->log_level) {
+            if (connection != nullptr &&
+                lvl < static_cast<int>(cbsasl_loglevel_t::Fail)) {
+                // We need to generate a UUID
+                msg = add_uuid_to_message(*connection, full_msg, message);
+            }
+
             connection->log_fn(connection->log_ctx, lvl, msg);
         }
     }

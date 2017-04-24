@@ -33,14 +33,17 @@ static const int SALT_SIZE = 16;
 static const int HASH_SIZE = 20;
 static const std::string::size_type PASSWORD_SIZE = 36;
 
-cbsasl_error_t check_password(const cb::sasl::User& user,
+cbsasl_error_t check_password(cbsasl_conn_t* conn,
+                              const cb::sasl::User& user,
                               const std::string& password) {
     const auto storedPassword = user.getPassword(Mechanism::PLAIN).getPassword();
     const auto size = storedPassword.size();
     if (size != PASSWORD_SIZE) {
-        throw std::logic_error(
-            "cb::cbsasl::check_password: Invalid password entry for " +
-            user.getUsername());
+        cbsasl_log(conn,
+                   cbsasl_loglevel_t::Error,
+                   "cb::cbsasl::check_password: Invalid password entry for [" +
+                           user.getUsername() + "]");
+        return CBSASL_FAIL;
     }
 
     // cb::crypto::HMAC operates on a std::vector, so copy our

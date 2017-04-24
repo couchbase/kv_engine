@@ -51,35 +51,44 @@ std::unique_ptr<cb::sasl::PasswordDatabase> PwconvTest::db;
 TEST_F(PwconvTest, VerifySpaceInTheMiddle) {
     auto trond = db->find("trond");
     EXPECT_FALSE(trond.isDummy());
-    EXPECT_EQ(CBSASL_OK, cb::sasl::plain::check_password(trond, "trond password"));
-    EXPECT_EQ(CBSASL_PWERR, cb::sasl::plain::check_password(trond, "password"));
+    EXPECT_EQ(
+            CBSASL_OK,
+            cb::sasl::plain::check_password(nullptr, trond, "trond password"));
+    EXPECT_EQ(CBSASL_PWERR,
+              cb::sasl::plain::check_password(nullptr, trond, "password"));
 }
 
 
 TEST_F(PwconvTest, VerifySpaceAtTheEnd) {
     auto mike = db->find("mike");
     EXPECT_FALSE(mike.isDummy());
-    EXPECT_EQ(CBSASL_OK, cb::sasl::plain::check_password(mike, "mikepassword "));
-    EXPECT_EQ(CBSASL_PWERR, cb::sasl::plain::check_password(mike, "password"));
+    EXPECT_EQ(CBSASL_OK,
+              cb::sasl::plain::check_password(nullptr, mike, "mikepassword "));
+    EXPECT_EQ(CBSASL_PWERR,
+              cb::sasl::plain::check_password(nullptr, mike, "password"));
 }
 
 TEST_F(PwconvTest, VerifySpaceAtTheFront) {
     auto john = db->find("john");
     EXPECT_FALSE(john.isDummy());
-    EXPECT_EQ(CBSASL_OK, cb::sasl::plain::check_password(john, " johnpassword"));
-    EXPECT_EQ(CBSASL_PWERR, cb::sasl::plain::check_password(john, "password"));
+    EXPECT_EQ(CBSASL_OK,
+              cb::sasl::plain::check_password(nullptr, john, " johnpassword"));
+    EXPECT_EQ(CBSASL_PWERR,
+              cb::sasl::plain::check_password(nullptr, john, "password"));
 }
 
 TEST_F(PwconvTest, VerifyNoPassword) {
     auto james = db->find("james");
     EXPECT_FALSE(james.isDummy());
-    EXPECT_EQ(CBSASL_OK, cb::sasl::plain::check_password(james, ""));
-    EXPECT_EQ(CBSASL_PWERR, cb::sasl::plain::check_password(james, "password"));
+    EXPECT_EQ(CBSASL_OK, cb::sasl::plain::check_password(nullptr, james, ""));
+    EXPECT_EQ(CBSASL_PWERR,
+              cb::sasl::plain::check_password(nullptr, james, "password"));
 
     auto joe = db->find("joe");
     EXPECT_FALSE(joe.isDummy());
-    EXPECT_EQ(CBSASL_OK, cb::sasl::plain::check_password(joe, ""));
-    EXPECT_EQ(CBSASL_PWERR, cb::sasl::plain::check_password(joe, "password"));
+    EXPECT_EQ(CBSASL_OK, cb::sasl::plain::check_password(nullptr, joe, ""));
+    EXPECT_EQ(CBSASL_PWERR,
+              cb::sasl::plain::check_password(nullptr, joe, "password"));
 }
 
 TEST_F(PwconvTest, VerifyComment) {

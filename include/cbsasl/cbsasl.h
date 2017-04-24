@@ -346,5 +346,16 @@ std::string to_string(Domain domain);
 CBSASL_PUBLIC_API
 Domain get_domain(cbsasl_conn_t* conn);
 
+/**
+ * Get the uuid used by this connection structure in the logs.
+ *
+ * If not used, an empty string is returned.
+ *
+ * The string object returned is part of the conn structure and invalidated
+ * when the conn structure is deleted.
+ */
+CBSASL_PUBLIC_API
+std::string& get_uuid(cbsasl_conn_t* conn);
+
 } // namespace sasl
 } // namespace cb

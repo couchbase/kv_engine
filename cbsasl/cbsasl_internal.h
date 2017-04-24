@@ -17,6 +17,9 @@
 #pragma once
 
 #include <cbsasl/cbsasl.h>
+
+#include <platform/uuid.h>
+
 #include <cstdlib>
 #include <memory>
 #include <string>
@@ -229,6 +232,22 @@ struct cbsasl_conn_st {
      * created with cbsasl_strerror
      */
     std::string errormsg;
+
+    std::string& get_uuid() {
+        if (uuid.empty()) {
+            uuid = to_string(cb::uuid::random());
+        }
+
+        return uuid;
+    }
+
+    /**
+     * The UUID gets created on the first call to get_uuid() and is the
+     * uuid to be used in all of the log messages. It is the one to
+     * be returned back to the clients, so that they may map errors
+     * for a given operation back to a given command.
+     */
+    std::string uuid;
 
     /**
      * The "client api" part use this member (and may ensure that it isn't

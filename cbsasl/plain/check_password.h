@@ -27,14 +27,15 @@ namespace plain {
  * Check if the supplied password match what's stored in the
  * provided user object
  *
+ * @param conn the connection object trying to perform authentication
  * @param user the user object to check
  * @param password the password to compare
  * @return CBSASL_OK if the provided password match the supplied
  *                   password.
  */
-cbsasl_error_t check_password(const cb::sasl::User& user,
+cbsasl_error_t check_password(cbsasl_conn_t* conn,
+                              const cb::sasl::User& user,
                               const std::string& password);
-
 }
 }
 }

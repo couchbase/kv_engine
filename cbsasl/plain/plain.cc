@@ -70,7 +70,7 @@ static bool try_legacy_user(cbsasl_conn_t* conn,
         return false;
     }
 
-    if (cb::sasl::plain::check_password(user, password) == CBSASL_OK) {
+    if (cb::sasl::plain::check_password(conn, user, password) == CBSASL_OK) {
         conn->server->username.assign(lecacy_username);
         return true;
     }
@@ -139,7 +139,7 @@ cbsasl_error_t PlainServerBackend::start(cbsasl_conn_t* conn,
         return ret;
     }
 
-    return cb::sasl::plain::check_password(user, userpw);
+    return cb::sasl::plain::check_password(conn, user, userpw);
 }
 
 cbsasl_error_t PlainClientBackend::start(cbsasl_conn_t* conn, const char* input,
