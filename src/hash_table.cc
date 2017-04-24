@@ -21,11 +21,10 @@
 
 #include <cstring>
 
-#ifndef DEFAULT_HT_SIZE
-#define DEFAULT_HT_SIZE 1531
-#endif
-
-size_t HashTable::defaultNumBuckets = DEFAULT_HT_SIZE;
+// Given we default to 1024 vBuckets, set default HT buckets to lowest
+// prime in our table - this still gives space for 3072 HT slots but
+// minimizes fixed overheads.
+size_t HashTable::defaultNumBuckets = 3;
 size_t HashTable::defaultNumLocks = 193;
 
 static ssize_t prime_size_table[] = {

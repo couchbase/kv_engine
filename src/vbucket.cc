@@ -1834,6 +1834,7 @@ void VBucket::_addStats(bool details, ADD_STAT add_stat, const void* c) {
         addStat("ht_memory", ht.memorySize(), add_stat, c);
         addStat("ht_item_memory", ht.getItemMemory(), add_stat, c);
         addStat("ht_cache_size", ht.cacheSize.load(), add_stat, c);
+        addStat("ht_size", ht.getSize(), add_stat, c);
         addStat("num_ejects", ht.getNumEjects(), add_stat, c);
         addStat("ops_create", opsCreate.load(), add_stat, c);
         addStat("ops_update", opsUpdate.load(), add_stat, c);
