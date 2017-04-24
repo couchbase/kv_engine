@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cbsasl/logging.h>
 #include <cbsasl/saslauthd_config.h>
 #include <cbsasl/visibility.h>
 #include <memory>
@@ -252,30 +253,6 @@ typedef int (*cbsasl_get_password_fn)(cbsasl_conn_t* conn,
                                       int id,
                                       cbsasl_secret_t** psecret);
 #define CBSASL_CB_PASS 3
-
-/**
- * Logging
- */
-
-/** Do not log anything */
-#define CBSASL_LOG_NONE 0
-/** Log errors */
-#define CBSASL_LOG_ERR 1
-/** Log auth failures */
-#define CBSASL_LOG_FAIL 2
-/** Log warnings */
-#define CBSASL_LOG_WARN 3
-/** Log notices */
-#define CBSASL_LOG_NOTE 4
-/** Log debug information */
-#define CBSASL_LOG_DEBUG 5
-/** Not used */
-#define CBSASL_LOG_TRACE 6
-/** not used */
-#define CBSASL_LOG_PASS 7
-
-typedef int (*cbsasl_log_fn)(void* context, int level, const char* message);
-#define CBSASL_CB_LOG 5
 
 /**
  * Get client nonce (used for testing)

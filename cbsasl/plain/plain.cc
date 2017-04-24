@@ -43,10 +43,10 @@ static cbsasl_error_t check(cbsasl_conn_t& conn,
             Saslauthd saslauthd(socketfile);
             return saslauthd.check(username, passwd);
         } catch (const std::exception& e) {
-            cbsasl_log(&conn,
-                       cbsasl_loglevel_t::Error,
-                       "Failed to validate [" + username +
-                               "] through saslauthd: " + e.what());
+            logging::log(conn,
+                         logging::Level::Error,
+                         "Failed to validate [" + username +
+                                 "] through saslauthd: " + e.what());
             return CBSASL_FAIL;
         }
     }
@@ -83,8 +83,9 @@ cbsasl_error_t PlainServerBackend::start(const char* input,
                                          const char** output,
                                          unsigned* outputlen) {
     if (inputlen == 0 || input == nullptr) {
-        cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                   "PlainServerBackend::start(): Invalid arguments");
+        logging::log(conn,
+                     logging::Level::Error,
+                     "PlainServerBackend::start(): Invalid arguments");
         return CBSASL_BADPARAM;
     }
 
@@ -103,8 +104,9 @@ cbsasl_error_t PlainServerBackend::start(const char* input,
     inputpos++;
 
     if (inputpos >= inputlen) {
-        cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                   "PlainServerBackend::start(): Invalid encoded packet");
+        logging::log(conn,
+                     logging::Level::Error,
+                     "PlainServerBackend::start(): Invalid encoded packet");
         return CBSASL_BADPARAM;
     }
 
@@ -117,8 +119,9 @@ cbsasl_error_t PlainServerBackend::start(const char* input,
     inputpos++;
 
     if (inputpos > inputlen) {
-        cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                   "PlainServerBackend::start(): Invalid encoded packet");
+        logging::log(conn,
+                     logging::Level::Error,
+                     "PlainServerBackend::start(): Invalid encoded packet");
         return CBSASL_BADPARAM;
     } else if (inputpos != inputlen) {
         password = input + inputpos;

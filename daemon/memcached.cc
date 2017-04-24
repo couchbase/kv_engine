@@ -2625,24 +2625,25 @@ static void load_extensions(void) {
  * Try to remap the log levels to our own levels and put in the log
  * depending on the severity.
  */
-static int sasl_log_callback(void*, int level, const char *message) {
+static void sasl_log_callback(cb::sasl::logging::Level level,
+                              const std::string& message) {
     switch (level) {
-    case CBSASL_LOG_ERR:
-        LOG_WARNING(nullptr, "%s", message);
+    case cb::sasl::logging::Level::Error:
+    case cb::sasl::logging::Level::Warning:
+        LOG_WARNING(nullptr, "%s", message.c_str());
         break;
-    case CBSASL_LOG_NOTE:
-        LOG_NOTICE(nullptr, "%s", message);
+    case cb::sasl::logging::Level::Notice:
+        LOG_NOTICE(nullptr, "%s", message.c_str());
         break;
-    case CBSASL_LOG_FAIL:
-    case CBSASL_LOG_DEBUG:
-        LOG_DEBUG(nullptr, "%s", message);
+    case cb::sasl::logging::Level::Fail:
+    case cb::sasl::logging::Level::Debug:
+    case cb::sasl::logging::Level::Trace:
+        LOG_DEBUG(nullptr, "%s", message.c_str());
         break;
-    default:
-        /* Ignore */
-        ;
+    case cb::sasl::logging::Level::Password:
+        LOG_DETAIL(nullptr, "%s", message.c_str());
+        break;
     }
-
-    return CBSASL_OK;
 }
 
 static int sasl_getopt_callback(void*, const char*,
@@ -2676,13 +2677,12 @@ static int sasl_getopt_callback(void*, const char*,
 }
 
 static void initialize_sasl() {
-    cbsasl_callback_t sasl_callbacks[3];
+    cb::sasl::logging::set_log_callback(sasl_log_callback);
+
+    cbsasl_callback_t sasl_callbacks[2];
     int ii = 0;
 
-    sasl_callbacks[ii].id = CBSASL_CB_LOG;
-    sasl_callbacks[ii].proc = (int (*)(void))&sasl_log_callback;
-    sasl_callbacks[ii].context = nullptr;
-    sasl_callbacks[++ii].id = CBSASL_CB_GETOPT;
+    sasl_callbacks[ii].id = CBSASL_CB_GETOPT;
     sasl_callbacks[ii].proc = (int (*)(void))&sasl_getopt_callback;
     sasl_callbacks[ii].context = nullptr;
     sasl_callbacks[++ii].id = CBSASL_CB_LIST_END;

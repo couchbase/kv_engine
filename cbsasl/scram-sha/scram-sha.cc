@@ -57,23 +57,25 @@ static bool decodeAttributeList(cbsasl_conn_t& conn, const std::string& list,
                                 AttributeMap& attributes) {
     unsigned long pos = 0;
 
-    cbsasl_log(&conn, cbsasl_loglevel_t::Debug,
-               "Decoding attribute list [" + list + "]");
-
+    logging::log(conn,
+                 logging::Level::Debug,
+                 "Decoding attribute list [" + list + "]");
 
     while (pos < list.length()) {
         auto equal = list.find('=', pos);
         if (equal == std::string::npos) {
             // syntax error!!
-            cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                       "Decode attribute list [" + list + "] failed: no '='");
+            logging::log(conn,
+                         logging::Level::Error,
+                         "Decode attribute list [" + list + "] failed: no '='");
             return false;
         }
 
         if ((equal - pos) != 1) {
-            cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                       "Decode attribute list [" + list + "] failed: " +
-                       "key is multichar");
+            logging::log(conn,
+                         logging::Level::Error,
+                         "Decode attribute list [" + list +
+                                 "] failed: " + "key is multichar");
             return false;
         }
 
@@ -82,9 +84,10 @@ static bool decodeAttributeList(cbsasl_conn_t& conn, const std::string& list,
 
         // Make sure we haven't seen this key before..
         if (attributes.find(key) != attributes.end()) {
-            cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                       "Decode attribute list [" + list + "] failed: " +
-                       "key [" + key + "] is multichar");
+            logging::log(conn,
+                         logging::Level::Error,
+                         "Decode attribute list [" + list + "] failed: " +
+                                 "key [" + key + "] is multichar");
             return false;
         }
 
@@ -295,8 +298,8 @@ ScramShaServerBackend::ScramShaServerBackend(const std::string& mech_name,
 
     std::array<char, 8> nonce;
     if (!randomGenerator.getBytes(nonce.data(), nonce.size())) {
-        cbsasl_log(nullptr, cbsasl_loglevel_t::Error, "Failed to generate"
-            " server nonce");
+        logging::log(
+                conn, logging::Level::Error, "Failed to generate server nonce");
         throw std::bad_alloc();
     }
 
@@ -308,15 +311,17 @@ cbsasl_error_t ScramShaServerBackend::start(const char* input,
                                             const char** output,
                                             unsigned* outputlen) {
     if (inputlen == 0 || output == nullptr || outputlen == nullptr) {
-        cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                   "Invalid arguments provided to "
-                       "ScramShaServerBackend::start");
+        logging::log(conn,
+                     logging::Level::Error,
+                     "Invalid arguments provided to "
+                     "ScramShaServerBackend::start");
         return CBSASL_BADPARAM;
     }
 
-    cbsasl_log(&conn, cbsasl_loglevel_t::Trace,
-               "ScramShaServerBackend::start (" +
-               MechanismFactory::toString(mechanism) + ")");
+    logging::log(conn,
+                 logging::Level::Trace,
+                 "ScramShaServerBackend::start (" +
+                         MechanismFactory::toString(mechanism) + ")");
 
     if (conn.get_cnonce_fn != nullptr) {
         // Allow the user to override the nonce
@@ -325,8 +330,9 @@ cbsasl_error_t ScramShaServerBackend::start(const char* input,
 
         if (conn.get_cnonce_fn(conn.get_cnonce_ctx, CBSASL_CB_CNONCE,
                                 &nonce, &len) != 0) {
-            cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                       "CBSASL_CB_CNONCE callback returned failure");
+            logging::log(conn,
+                         logging::Level::Error,
+                         "CBSASL_CB_CNONCE callback returned failure");
             return CBSASL_FAIL;
         }
         serverNonce.assign(nonce, len);
@@ -335,15 +341,18 @@ cbsasl_error_t ScramShaServerBackend::start(const char* input,
         // and no ,
         for (const auto& c : serverNonce) {
             if (c == ',' || !isprint(c)) {
-                cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                           "Invalid character specified in nonce");
+                logging::log(conn,
+                             logging::Level::Error,
+                             "Invalid character specified in nonce");
                 return CBSASL_BADPARAM;
             }
         }
 
-        cbsasl_log(&conn, cbsasl_loglevel_t::Trace, "Using provided "
-                                                       "nonce [" + serverNonce +
-                                                   "]");
+        logging::log(conn,
+                     logging::Level::Trace,
+                     "Using provided "
+                     "nonce [" +
+                             serverNonce + "]");
     }
 
     // the "client-first-message" message should contain a gs2-header
@@ -355,16 +364,18 @@ cbsasl_error_t ScramShaServerBackend::start(const char* input,
     if (client_first_message.find("n,") != 0) {
         // We don't support the p= to do channel bindings (that should
         // be advertised with SCRAM-SHA[n]-PLUS)
-        cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                   "SCRAM: client should not try to ask for channel binding");
+        logging::log(conn,
+                     logging::Level::Error,
+                     "SCRAM: client should not try to ask for channel binding");
         return CBSASL_BADPARAM;
     }
 
     // next up is an optional authzid which we completely ignore...
     auto idx = client_first_message.find(',', 2);
     if (idx == std::string::npos) {
-        cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                   "SCRAM: Format error on client-first-message");
+        logging::log(conn,
+                     logging::Level::Error,
+                     "SCRAM: Format error on client-first-message");
         return CBSASL_BADPARAM;
     }
 
@@ -372,8 +383,9 @@ cbsasl_error_t ScramShaServerBackend::start(const char* input,
 
     AttributeMap attributes;
     if (!decodeAttributeList(conn, client_first_message_bare, attributes)) {
-        cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                   "SCRAM: Failed to decode client-first-message-bare");
+        logging::log(conn,
+                     logging::Level::Error,
+                     "SCRAM: Failed to decode client-first-message-bare");
         return CBSASL_BADPARAM;
     }
 
@@ -384,38 +396,42 @@ cbsasl_error_t ScramShaServerBackend::start(const char* input,
             // @todo note that they will then use n=@xdcr etc)
         case 'n' :
             username = attribute.second;
-            cbsasl_log(&conn, cbsasl_loglevel_t::Trace,
-                       "Using username [" + username + "]");
+            logging::log(conn,
+                         logging::Level::Trace,
+                         "Using username [" + username + "]");
             break;
         case 'r' :
             clientNonce = attribute.second;
-            cbsasl_log(&conn, cbsasl_loglevel_t::Trace,
-                       "Using client nonce [" + clientNonce + "]");
+            logging::log(conn,
+                         logging::Level::Trace,
+                         "Using client nonce [" + clientNonce + "]");
             break;
         default:
-            cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                       "Unsupported key supplied");
+            logging::log(
+                    conn, logging::Level::Error, "Unsupported key supplied");
             return CBSASL_BADPARAM;
         }
     }
 
     if (username.empty() || clientNonce.empty()) {
         // mandatory fields!!!
-        cbsasl_log(&conn, cbsasl_loglevel_t::Error, "Unsupported key supplied");
+        logging::log(conn, logging::Level::Error, "Unsupported key supplied");
         return CBSASL_BADPARAM;
     }
 
     try {
         username = decodeUsername(username);
     } catch (std::runtime_error&) {
-        cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                   "Invalid character in username detected");
+        logging::log(conn,
+                     logging::Level::Error,
+                     "Invalid character in username detected");
         return CBSASL_BADPARAM;
     }
 
     if (!find_user(username, user)) {
-        cbsasl_log(&conn, cbsasl_loglevel_t::Debug,
-                   "User [" + username + "] doesn't exist.. using dummy");
+        logging::log(conn,
+                     logging::Level::Debug,
+                     "User [" + username + "] doesn't exist.. using dummy");
         user = cb::sasl::UserFactory::createDummy(username, mechanism);
     }
 
@@ -435,7 +451,7 @@ cbsasl_error_t ScramShaServerBackend::start(const char* input,
     *output = server_first_message.data();
     *outputlen = unsigned(server_first_message.size());
 
-    cbsasl_log(&conn, cbsasl_loglevel_t::Trace, server_first_message);
+    logging::log(conn, logging::Level::Trace, server_first_message);
 
     return CBSASL_CONTINUE;
 }
@@ -446,22 +462,25 @@ cbsasl_error_t ScramShaServerBackend::step(const char* input,
                                            unsigned* outputlen) {
 
     if (inputlen == 0) {
-        cbsasl_log(&conn, cbsasl_loglevel_t::Error, "Invalid input");
+        logging::log(conn, logging::Level::Error, "Invalid input");
         return CBSASL_BADPARAM;
     }
 
     std::string client_final_message(input, inputlen);
     AttributeMap attributes;
     if (!decodeAttributeList(conn, client_final_message, attributes)) {
-        cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                   "SCRAM: Failed to decode client_final_message");
+        logging::log(conn,
+                     logging::Level::Error,
+                     "SCRAM: Failed to decode client_final_message");
         return CBSASL_BADPARAM;
     }
 
     auto iter = attributes.find('p');
     if (iter == attributes.end()) {
-        cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                   "SCRAM: client_final_message does not contain client proof");
+        logging::log(
+                conn,
+                logging::Level::Error,
+                "SCRAM: client_final_message does not contain client proof");
         return CBSASL_BADPARAM;
     }
 
@@ -493,17 +512,19 @@ cbsasl_error_t ScramShaServerBackend::step(const char* input,
 
     if (fail != 0) {
         if (user.isDummy()) {
-            cbsasl_log(&conn, cbsasl_loglevel_t::Fail,
-                       "No such user [" + username + "]");
+            logging::log(conn,
+                         logging::Level::Fail,
+                         "No such user [" + username + "]");
             return CBSASL_NOUSER;
         } else {
-            cbsasl_log(&conn, cbsasl_loglevel_t::Fail,
-                       "Authentication fail for [" + username + "]");
+            logging::log(conn,
+                         logging::Level::Fail,
+                         "Authentication fail for [" + username + "]");
             return CBSASL_PWERR;
         }
     }
 
-    cbsasl_log(&conn, cbsasl_loglevel_t::Trace, server_final_message);
+    logging::log(conn, logging::Level::Trace, server_final_message);
     return CBSASL_OK;
 }
 
@@ -525,8 +546,8 @@ ScramShaClientBackend::ScramShaClientBackend(const std::string& mech_name,
 
     std::array<char, 8> nonce;
     if (!randomGenerator.getBytes(nonce.data(), nonce.size())) {
-        cbsasl_log(nullptr, cbsasl_loglevel_t::Error, "Failed to generate"
-            " server nonce");
+        logging::log(
+                conn, logging::Level::Error, "Failed to generate server nonce");
         throw std::bad_alloc();
     }
 
@@ -539,14 +560,15 @@ cbsasl_error_t ScramShaClientBackend::start(const char* input,
                                             unsigned* outputlen) {
 
     if (inputlen != 0 || output == nullptr || outputlen == nullptr) {
-        cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                   "Invalid parameters provided");
+        logging::log(
+                conn, logging::Level::Error, "Invalid parameters provided");
         return CBSASL_BADPARAM;
     }
 
-    cbsasl_log(&conn, cbsasl_loglevel_t::Trace,
-               "ScramShaClientBackend::start (" +
-               MechanismFactory::toString(mechanism) + ")");
+    logging::log(conn,
+                 logging::Level::Trace,
+                 "ScramShaClientBackend::start (" +
+                         MechanismFactory::toString(mechanism) + ")");
 
     if (conn.get_cnonce_fn != nullptr) {
         // Allow the user to override the nonce
@@ -555,8 +577,9 @@ cbsasl_error_t ScramShaClientBackend::start(const char* input,
 
         if (conn.get_cnonce_fn(conn.get_cnonce_ctx, CBSASL_CB_CNONCE,
                                 &nonce, &len) != 0) {
-            cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                       "CBSASL_CB_CNONCE callback returned failure");
+            logging::log(conn,
+                         logging::Level::Error,
+                         "CBSASL_CB_CNONCE callback returned failure");
             return CBSASL_FAIL;
         }
         clientNonce.assign(nonce, len);
@@ -565,15 +588,18 @@ cbsasl_error_t ScramShaClientBackend::start(const char* input,
         // and no ,
         for (const auto& c : clientNonce) {
             if (c == ',' || !isprint(c)) {
-                cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                           "Invalid character specified in nonce");
+                logging::log(conn,
+                             logging::Level::Error,
+                             "Invalid character specified in nonce");
                 return CBSASL_BADPARAM;
             }
         }
 
-        cbsasl_log(&conn, cbsasl_loglevel_t::Trace, "Using provided "
-                                                       "nonce [" + clientNonce +
-                                                   "]");
+        logging::log(conn,
+                     logging::Level::Trace,
+                     "Using provided "
+                     "nonce [" +
+                             clientNonce + "]");
     }
 
     const char* usernm = nullptr;
@@ -582,7 +608,7 @@ cbsasl_error_t ScramShaClientBackend::start(const char* input,
 
     if (cbsasl_get_username(client->get_username, client->get_username_ctx,
                             &usernm, &usernmlen) != CBSASL_OK) {
-        cbsasl_log(&conn, cbsasl_loglevel_t::Error, "Failed to get username");
+        logging::log(conn, logging::Level::Error, "Failed to get username");
         return CBSASL_FAIL;
     }
 
@@ -599,7 +625,7 @@ cbsasl_error_t ScramShaClientBackend::start(const char* input,
     *output = client_first_message.data();
     *outputlen = unsigned(client_first_message.length());
 
-    cbsasl_log(&conn, cbsasl_loglevel_t::Trace, client_first_message);
+    logging::log(conn, logging::Level::Trace, client_first_message);
     return CBSASL_OK;
 }
 
@@ -608,8 +634,8 @@ cbsasl_error_t ScramShaClientBackend::step(const char* input,
                                            const char** output,
                                            unsigned* outputlen) {
     if (inputlen == 0 || output == nullptr || outputlen == nullptr) {
-        cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                   "Invalid parameters provided");
+        logging::log(
+                conn, logging::Level::Error, "Invalid parameters provided");
         return CBSASL_FAIL;
     }
 
@@ -618,8 +644,9 @@ cbsasl_error_t ScramShaClientBackend::step(const char* input,
 
         AttributeMap attributes;
         if (!decodeAttributeList(conn, server_first_message, attributes)) {
-            cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                       "SCRAM: Failed to decode server-first-message");
+            logging::log(conn,
+                         logging::Level::Error,
+                         "SCRAM: Failed to decode server-first-message");
             return CBSASL_BADPARAM;
         }
 
@@ -646,8 +673,9 @@ cbsasl_error_t ScramShaClientBackend::step(const char* input,
         if (attributes.find('r') == attributes.end() ||
             attributes.find('s') == attributes.end() ||
             attributes.find('i') == attributes.end()) {
-            cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                       "Missing r/s/i in server message");
+            logging::log(conn,
+                         logging::Level::Error,
+                         "Missing r/s/i in server message");
             return CBSASL_BADPARAM;
         }
 
@@ -657,15 +685,15 @@ cbsasl_error_t ScramShaClientBackend::step(const char* input,
                                 &conn,
                                 conn.client->get_password_ctx,
                                 &pass) != CBSASL_OK) {
-            cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                       "Failed to get password");
+            logging::log(conn, logging::Level::Error, "Failed to get password");
             return CBSASL_FAIL;
         }
 
         if (!generateSaltedPassword(reinterpret_cast<const char*>(pass->data),
                                     static_cast<int>(pass->len))) {
-            cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                       "Failed to generate salted passwod");
+            logging::log(conn,
+                         logging::Level::Error,
+                         "Failed to generate salted passwod");
             return CBSASL_FAIL;
         }
 
@@ -683,34 +711,38 @@ cbsasl_error_t ScramShaClientBackend::step(const char* input,
 
         *output = client_final_message.data();
         *outputlen = client_final_message.length();
-        cbsasl_log(&conn, cbsasl_loglevel_t::Trace, client_final_message);
+        logging::log(conn, logging::Level::Trace, client_final_message);
         return CBSASL_CONTINUE;
     } else {
         server_final_message.assign(input, inputlen);
 
         AttributeMap attributes;
         if (!decodeAttributeList(conn, server_final_message, attributes)) {
-            cbsasl_log(&conn, cbsasl_loglevel_t::Error,
-                       "SCRAM: Failed to decode server-final-message");
+            logging::log(conn,
+                         logging::Level::Error,
+                         "SCRAM: Failed to decode server-final-message");
             return CBSASL_BADPARAM;
         }
 
         if (attributes.find('e') != attributes.end()) {
-            cbsasl_log(&conn, cbsasl_loglevel_t::Fail,
-                       "Failed to authenticate: " + attributes['e']);
+            logging::log(conn,
+                         logging::Level::Fail,
+                         "Failed to authenticate: " + attributes['e']);
             return CBSASL_FAIL;
         }
 
         if (attributes.find('v') == attributes.end()) {
-            cbsasl_log(&conn, cbsasl_loglevel_t::Trace,
-                       "Syntax error server final message is missing 'v'");
+            logging::log(conn,
+                         logging::Level::Trace,
+                         "Syntax error server final message is missing 'v'");
             return CBSASL_BADPARAM;
         }
 
         auto encoded = Couchbase::Base64::encode(getServerSignature());
         if (encoded != attributes['v']) {
-            cbsasl_log(&conn, cbsasl_loglevel_t::Trace,
-                       "Incorrect ServerKey received");
+            logging::log(conn,
+                         logging::Level::Trace,
+                         "Incorrect ServerKey received");
             return CBSASL_FAIL;
         }
 

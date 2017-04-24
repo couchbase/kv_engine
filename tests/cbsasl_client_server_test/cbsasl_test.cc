@@ -74,16 +74,6 @@ static int sasl_get_cnonce(void* context, int id, const char** result,
     return CBSASL_OK;
 }
 
-static int client_log(void*, int, const char *message) {
-    std::cerr << "C: " << message << std::endl;
-    return CBSASL_OK;
-}
-
-static int server_log(void*, int, const char *message) {
-    std::cerr << "S: " << message << std::endl;
-    return CBSASL_OK;
-}
-
 class SaslClientServerTest : public ::testing::Test {
 protected:
     static void SetUpTestCase() {
@@ -108,7 +98,7 @@ protected:
     // for debugging purposes
     void test_auth(const char* mech, bool addNonce = false) {
         struct my_sasl_ctx client_context;
-        std::array<cbsasl_callback_t, 6> sasl_callbacks;
+        std::array<cbsasl_callback_t, 5> sasl_callbacks;
         int ii = 0;
         sasl_callbacks[ii].id = CBSASL_CB_USER;
         sasl_callbacks[ii].proc = (int (*)(void))&sasl_get_username;
@@ -124,9 +114,6 @@ protected:
             sasl_callbacks[ii].proc = (int (*)(void))&sasl_get_cnonce;
             sasl_callbacks[ii++].context = &client_context;
         }
-        sasl_callbacks[ii].id = CBSASL_CB_LOG;
-        sasl_callbacks[ii].proc = (int (*)(void))&client_log;
-        sasl_callbacks[ii++].context = &client_context;
         sasl_callbacks[ii].id = CBSASL_CB_LIST_END;
         sasl_callbacks[ii].proc = nullptr;
         sasl_callbacks[ii].context = nullptr;
@@ -153,7 +140,7 @@ protected:
 
         struct my_sasl_ctx server_context;
         server_context.nonce = "3rfcNHYJY1ZVvWVs7j";
-        std::array<cbsasl_callback_t, 3> server_sasl_callback;
+        std::array<cbsasl_callback_t, 2> server_sasl_callback;
 
         ii = 0;
         if (addNonce) {
@@ -162,9 +149,6 @@ protected:
             server_sasl_callback[ii].context = &server_context;
             ++ii;
         }
-        server_sasl_callback[ii].id = CBSASL_CB_LOG;
-        server_sasl_callback[ii].proc = (int (*)(void))&server_log;
-        server_sasl_callback[ii++].context = nullptr;
         server_sasl_callback[ii].id = CBSASL_CB_LIST_END;
         server_sasl_callback[ii].proc = nullptr;
         server_sasl_callback[ii].context = nullptr;

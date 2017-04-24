@@ -54,7 +54,6 @@ cbsasl_error_t cbsasl_client_new(const char*,
             cbsasl_get_authname_fn get_authname_fn;
             cbsasl_get_username_fn get_username_fn;
             cbsasl_get_password_fn get_password_fn;
-            cbsasl_log_fn log_fn;
             cbsasl_get_cnonce_fn get_cnonce_fn;
             cbsasl_getopt_fn getopt_fn;
             int (* proc)(void);
@@ -70,10 +69,6 @@ cbsasl_error_t cbsasl_client_new(const char*,
         case CBSASL_CB_PASS:
             conn->client->get_password = hack.get_password_fn;
             conn->client->get_password_ctx = callbacks[ii].context;
-            break;
-        case CBSASL_CB_LOG:
-            conn->log_fn = hack.log_fn;
-            conn->log_ctx = callbacks[ii].context;
             break;
         case CBSASL_CB_CNONCE:
             conn->get_cnonce_fn = hack.get_cnonce_fn;
@@ -96,10 +91,6 @@ cbsasl_error_t cbsasl_client_new(const char*,
         return CBSASL_NOUSER;
     }
 
-    if (conn->getopt_fn != nullptr) {
-        cbsasl_set_log_level(conn, conn->getopt_fn, conn->getopt_ctx);
-    }
-
     *pconn = conn;
 
     return CBSASL_OK;
@@ -120,22 +111,25 @@ cbsasl_error_t cbsasl_client_start(cbsasl_conn_t* conn,
 
     conn->mechanism = MechanismFactory::selectMechanism(mechlist);
     if (conn->mechanism == Mechanism::UNKNOWN) {
-        cbsasl_log(conn, cbsasl_loglevel_t::Debug,
-                   "Failed to select a mechanism from from [" +
-                   std::string(mechlist) + "]");
-       return CBSASL_NOMECH;
+        logging::log(*conn,
+                     logging::Level::Debug,
+                     "Failed to select a mechanism from from [" +
+                             std::string(mechlist) + "]");
+        return CBSASL_NOMECH;
     }
 
-    cbsasl_log(conn, cbsasl_loglevel_t::Debug,
-               "Selected mechanism " +
-               MechanismFactory::toString(conn->mechanism) + " from [" +
-               std::string(mechlist) + "]");
+    logging::log(*conn,
+                 logging::Level::Debug,
+                 "Selected mechanism " +
+                         MechanismFactory::toString(conn->mechanism) +
+                         " from [" + std::string(mechlist) + "]");
 
     client->mech = MechanismFactory::createClientBackend(*conn);
     if (client->mech.get() == nullptr) {
-        cbsasl_log(conn, cbsasl_loglevel_t::Debug,
-                   "Failed to select a mechanism from [" +
-                   std::string(mechlist) + "]");
+        logging::log(*conn,
+                     logging::Level::Debug,
+                     "Failed to select a mechanism from [" +
+                             std::string(mechlist) + "]");
         return CBSASL_NOMEM;
     }
 

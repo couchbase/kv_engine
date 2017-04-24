@@ -66,20 +66,20 @@ cbsasl_error_t parse_user_db(const std::string content, bool file) {
         std::string logmessage(
             "Loading [" + content + "] took " +
             Couchbase::hrtime2text(gethrtime() - start));
-            cbsasl_log(nullptr, cbsasl_loglevel_t::Debug, logmessage);
+        logging::log(logging::Level::Debug, logmessage);
         pwmgr.swap(db);
     } catch (std::exception& e) {
         std::string message("Failed loading [");
         message.append(content);
         message.append("]: ");
         message.append(e.what());
-        cbsasl_log(nullptr, cbsasl_loglevel_t::Error, message);
+        logging::log(logging::Level::Error, message);
         return CBSASL_FAIL;
     } catch (...) {
         std::string message("Failed loading [");
         message.append(content);
         message.append("]: Unknown error");
-        cbsasl_log(nullptr, cbsasl_loglevel_t::Error, message);
+        logging::log(logging::Level::Error, message);
     }
 
     return CBSASL_OK;
@@ -95,8 +95,7 @@ static cbsasl_error_t load_isasl_user_db(void) {
     const char* filename = getenv("ISASL_PWFILE");
 
     if (!filename) {
-        cbsasl_log(nullptr, cbsasl_loglevel_t::Debug,
-                   "No password file specified");
+        logging::log(logging::Level::Debug, "No password file specified");
         return CBSASL_OK;
     }
 
@@ -109,7 +108,9 @@ static cbsasl_error_t load_isasl_user_db(void) {
         cbsasl_pwconv(input, output);
         content = output.str();
     } catch (std::runtime_error &e) {
-        cbsasl_log(nullptr, cbsasl_loglevel_t::Error, e.what());
+        logging::log(logging::Level::Error,
+                     std::string{"load_isasl_user_db() received exception: "} +
+                             e.what());
         return CBSASL_FAIL;
     }
 

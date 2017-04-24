@@ -211,12 +211,10 @@ void cbsasl_set_available_mechanisms(cbsasl_getopt_fn getopt_fn,
             }
         }
         if (found) {
-            cbsasl_log(nullptr, cbsasl_loglevel_t::Error,
-                       "Unknown mech [" + token + "] specified. Ignored");
+            logging::log(logging::Level::Error,
+                         "Unknown mech [" + token + "] specified. Ignored");
         } else {
-            cbsasl_log(nullptr, cbsasl_loglevel_t::Debug,
-                       "Enable mech [" + token + "]");
-
+            logging::log(logging::Level::Debug, "Enable mech [" + token + "]");
         }
     }
 }
@@ -228,8 +226,8 @@ UniqueMechanismBackend MechanismFactory::createServerBackend(cbsasl_conn_t& conn
             if (m->isEnabled()) {
                 return m->createServerBackend(conn);
             } else {
-                cbsasl_log(nullptr, cbsasl_loglevel_t::Debug,
-                           "Requested disabled mechanism " + m->getName());
+                logging::log(logging::Level::Debug,
+                             "Requested disabled mechanism " + m->getName());
                 return UniqueMechanismBackend();
             }
         }
@@ -246,8 +244,8 @@ UniqueMechanismBackend MechanismFactory::createClientBackend(
             if (m->isEnabled()) {
                 return m->createClientBackend(conn);
             } else {
-                cbsasl_log(nullptr, cbsasl_loglevel_t::Debug,
-                           "Requested disabled mechanism " + m->getName());
+                logging::log(logging::Level::Debug,
+                             "Requested disabled mechanism " + m->getName());
                 return UniqueMechanismBackend();
             }
         }

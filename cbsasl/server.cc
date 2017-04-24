@@ -55,7 +55,6 @@ cbsasl_error_t cbsasl_server_init(const cbsasl_callback_t* callbacks,
         int ii = 0;
         while (callbacks[ii].id != CBSASL_CB_LIST_END) {
             union {
-                cbsasl_log_fn log_fn;
                 cbsasl_getopt_fn getopt;
 
                 int (* proc)(void);
@@ -63,9 +62,6 @@ cbsasl_error_t cbsasl_server_init(const cbsasl_callback_t* callbacks,
             hack.proc = callbacks[ii].proc;
 
             switch (callbacks[ii].id) {
-            case CBSASL_CB_LOG:
-                cbsasl_set_default_logger(hack.log_fn, callbacks[ii].context);
-                break;
             case CBSASL_CB_GETOPT:
                 getopt_fn = hack.getopt;
                 getopt_ctx = callbacks[ii].context;
@@ -78,7 +74,6 @@ cbsasl_error_t cbsasl_server_init(const cbsasl_callback_t* callbacks,
         }
 
         if (getopt_fn != nullptr) {
-            cbsasl_set_log_level(nullptr, getopt_fn, getopt_ctx);
             cbsasl_set_hmac_iteration_count(getopt_fn, getopt_ctx);
             cbsasl_set_available_mechanisms(getopt_fn, getopt_ctx);
         }
@@ -119,7 +114,6 @@ cbsasl_error_t cbsasl_server_new(const char*,
         int ii = 0;
         while (callbacks[ii].id != CBSASL_CB_LIST_END) {
             union {
-                cbsasl_log_fn log_fn;
                 cbsasl_get_cnonce_fn get_cnonce_fn;
                 cbsasl_getopt_fn getopt_fn;
 
@@ -128,10 +122,6 @@ cbsasl_error_t cbsasl_server_new(const char*,
             hack.proc = callbacks[ii].proc;
 
             switch (callbacks[ii].id) {
-            case CBSASL_CB_LOG:
-                ret->log_fn = hack.log_fn;
-                ret->log_ctx = callbacks[ii].context;
-                break;
             case CBSASL_CB_CNONCE:
                 ret->get_cnonce_fn = hack.get_cnonce_fn;
                 ret->get_cnonce_ctx = callbacks[ii].context;
@@ -146,10 +136,6 @@ cbsasl_error_t cbsasl_server_new(const char*,
                 ;
             }
             ++ii;
-        }
-
-        if (ret->getopt_fn != nullptr) {
-            cbsasl_set_log_level(ret, ret->getopt_fn, ret->getopt_ctx);
         }
     }
 
@@ -174,20 +160,23 @@ cbsasl_error_t cbsasl_server_start(cbsasl_conn_t* conn,
 
     conn->mechanism = MechanismFactory::toMechanism(mech);
     if (conn->mechanism == Mechanism::UNKNOWN) {
-        cbsasl_log(conn, cbsasl_loglevel_t::Error,
-                   "Failed to look up mechanism [" + std::string(mech) + "]");
+        logging::log(*conn,
+                     logging::Level::Error,
+                     "Failed to look up mechanism [" + std::string(mech) + "]");
         return CBSASL_NOMECH;
     }
 
-    cbsasl_log(conn, cbsasl_loglevel_t::Debug, "Client requests the use of [" +
-                                               MechanismFactory::toString(
-                                                   conn->mechanism) + "]");
+    logging::log(*conn,
+                 logging::Level::Debug,
+                 "Client requests the use of [" +
+                         MechanismFactory::toString(conn->mechanism) + "]");
 
     server->mech = MechanismFactory::createServerBackend(*conn);
     if (server->mech.get() == nullptr) {
-        cbsasl_log(conn, cbsasl_loglevel_t::Error,
-                   "Failed to create instance of [" +
-                   MechanismFactory::toString(conn->mechanism) + "]");
+        logging::log(*conn,
+                     logging::Level::Error,
+                     "Failed to create instance of [" +
+                             MechanismFactory::toString(conn->mechanism) + "]");
         return CBSASL_NOMEM;
     }
 

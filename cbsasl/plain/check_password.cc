@@ -39,10 +39,14 @@ cbsasl_error_t check_password(cbsasl_conn_t* conn,
     const auto storedPassword = user.getPassword(Mechanism::PLAIN).getPassword();
     const auto size = storedPassword.size();
     if (size != PASSWORD_SIZE) {
-        cbsasl_log(conn,
-                   cbsasl_loglevel_t::Error,
-                   "cb::cbsasl::check_password: Invalid password entry for [" +
-                           user.getUsername() + "]");
+        std::string message{
+                "cb::cbsasl::check_password: Invalid password entry for [" +
+                user.getUsername() + "]"};
+        if (conn) {
+            logging::log(*conn, logging::Level::Error, message);
+        } else {
+            logging::log(logging::Level::Error, message);
+        }
         return CBSASL_FAIL;
     }
 

@@ -24,6 +24,8 @@
 #include <memory>
 #include <string>
 
+using namespace cb::sasl;
+
 enum class Mechanism {
     PLAIN,
     SCRAM_SHA1,
@@ -103,18 +105,6 @@ protected:
 
 typedef std::unique_ptr<MechanismBackend> UniqueMechanismBackend;
 
-enum class cbsasl_loglevel_t : uint8_t {
-    None = CBSASL_LOG_NONE, // Do not log anything.
-    Error = CBSASL_LOG_ERR, // Log unusual errors. This is the default log level.
-    Fail = CBSASL_LOG_FAIL, // Log all authentication failures.
-    Warning = CBSASL_LOG_WARN, // Log non-fatal warnings.
-    Notice = CBSASL_LOG_NOTE, // Log non-fatal warnings (more verbose than Warning).
-    Debug = CBSASL_LOG_DEBUG, // Log non-fatal warnings (more verbose than Notice).
-    Trace = CBSASL_LOG_TRACE, // Log traces of internal protocols.
-    Password = CBSASL_LOG_PASS // Log traces of internal protocols, including passwords.
-};
-
-
 /**
  * The client API use this part of the API
  */
@@ -179,9 +169,6 @@ public:
 struct cbsasl_conn_st {
     cbsasl_conn_st()
         : mechanism(Mechanism::PLAIN),
-          log_fn(nullptr),
-          log_ctx(nullptr),
-          log_level(cbsasl_loglevel_t::Error),
           get_cnonce_fn(nullptr),
           get_cnonce_ctx(nullptr),
           getopt_fn(nullptr),
@@ -193,22 +180,6 @@ struct cbsasl_conn_st {
      * The mecanism currently selected
      */
     Mechanism mechanism;
-
-    /**
-     * The connection associated log function
-     */
-    cbsasl_log_fn log_fn;
-
-    /**
-     * the connection associated log context
-     */
-    void* log_ctx;
-
-    /**
-     * The connection associated log level
-     */
-    cbsasl_loglevel_t log_level;
-
 
     /**
      * callback to get the client nonce
@@ -290,46 +261,6 @@ cbsasl_error_t cbsasl_get_password(cbsasl_get_password_fn function,
                                    cbsasl_secret_t** psecret);
 
 /**
- * Perform logging from witin the CBSASL library. The log data will
- * end up in the clients logging callback if configured.
- *
- * @param connection the connection performing the request (or nullptr
- *                   if we don't have an associated connection)
- * @param level the log level for the data
- * @param message the message to log
- */
-void cbsasl_log(cbsasl_conn_t* connection,
-                cbsasl_loglevel_t level,
-                const std::string& message);
-
-/**
- * Set the default logger functions being used if the connection don't
- * provide its own logger.
- *
- * @param log_fn the log function to call
- * @oaram context the context to pass to the log function
- */
-void cbsasl_set_default_logger(cbsasl_log_fn log_fn, void* context);
-
-/**
- * Set the log level
- *
- * @param connection the connection to update (if set to nullptr the
- *                   default loglevel)
- * @param getopt_fn the callback function specified by the user
- * @param context the specified for the callback
- */
-void cbsasl_set_log_level(cbsasl_conn_t* connection,
-                          cbsasl_getopt_fn getopt_fn, void* context);
-
-/**
- * get the current logging level
- *
- * @param connection the connection object going to log (may be null)
- */
-cbsasl_loglevel_t cbsasl_get_loglevel(const cbsasl_conn_t* connection);
-
-/**
  * Get the HMAC interation count to use.
  *
  * @param getopt_fn the user provided callback function
@@ -344,3 +275,30 @@ void cbsasl_set_hmac_iteration_count(cbsasl_getopt_fn getopt_fn, void* context);
  * @param context the user provided context
  */
 void cbsasl_set_available_mechanisms(cbsasl_getopt_fn getopt_fn, void* context);
+
+namespace cb {
+namespace sasl {
+namespace logging {
+/**
+ * Perform logging from witin the CBSASL library. The log data will
+ * end up in the clients logging callback if configured.
+ *
+ * @param connection the connection performing the request (or nullptr
+ *                   if we don't have an associated connection)
+ * @param level the log level for the data
+ * @param message the message to log
+ */
+void log(cbsasl_conn_t& connection, Level level, const std::string& message);
+
+/**
+ * Perform logging within the CBSASL library for components which isn't bound
+ * to a given client.
+ *
+ * @param level
+ * @param message
+ */
+void log(Level level, const std::string& message);
+
+} // namespace logging
+} // namespace sasl
+} // namespace cb

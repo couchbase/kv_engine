@@ -184,8 +184,8 @@ void cbsasl_set_hmac_iteration_count(cbsasl_getopt_fn getopt_fn,
             try {
                 IterationCount.store(std::stoi(val));
             } catch (...) {
-                cbsasl_log(nullptr, cbsasl_loglevel_t::Error,
-                           "Failed to update HMAC iteration count");
+                logging::log(logging::Level::Error,
+                             "Failed to update HMAC iteration count");
             }
         }
     }

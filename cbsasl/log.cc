@@ -18,148 +18,46 @@
 
 #include <atomic>
 #include <iostream>
+#include <relaxed_atomic.h>
 
-#ifdef DEBUG
-std::string to_string(const cbsasl_loglevel_t& level) {
-    switch (level) {
-    case cbsasl_loglevel_t::None :
-        return "None";
-    case cbsasl_loglevel_t::Error:
-        return "Error";
-    case cbsasl_loglevel_t::Fail:
-        return "Fail";
-    case cbsasl_loglevel_t::Warning:
-        return "Warning";
-    case cbsasl_loglevel_t::Notice:
-        return "Notice";
-    case cbsasl_loglevel_t::Debug:
-        return "Debug";
-    case cbsasl_loglevel_t::Trace:
-        return "Trace";
-    case cbsasl_loglevel_t::Password:
-        return "Password";
+namespace cb {
+namespace sasl {
+namespace logging {
+
+Couchbase::RelaxedAtomic<LogCallback> callback;
+
+using LogCallback = void (*)(Level level, const std::string& message);
+
+void set_log_callback(LogCallback logCallback) {
+    callback.store(logCallback);
+}
+
+void log(cbsasl_conn_t& connection, Level level, const std::string& message) {
+    auto logger = callback.load();
+    if (logger == nullptr) {
+        return;
     }
-}
-#endif
 
-static int dummy_log(void* context, int level, const char* message) {
-#ifdef DEBUG
-    std::cout << to_string((cbsasl_loglevel_t)level) << ": " << message
-              << std::endl;
-#endif
-    return CBSASL_OK;
-}
-
-std::atomic<cbsasl_log_fn> global_log(dummy_log);
-std::atomic<void*> global_context(nullptr);
-std::atomic<cbsasl_loglevel_t> global_level(cbsasl_loglevel_t::Error);
-
-static const char* add_uuid_to_message(cbsasl_conn_t& conn,
-                                       std::string& full,
-                                       const std::string& input) {
-    auto& uuid = conn.get_uuid();
-    full.reserve(input.size() + uuid.size() + 10);
-    full = "UUID:[" + uuid + "] " + input;
-    return full.c_str();
-}
-
-void cbsasl_log(cbsasl_conn_t* connection,
-                cbsasl_loglevel_t level,
-                const std::string& message) {
-    // Internally we use an enum class to make sure that we don't use
-    // illegal values.. they are a 1:1 mapping to the #defines
-    int lvl = static_cast<int>(level);
-    const char* msg = message.c_str();
-    std::string full_msg;
-
-    if (connection == nullptr || connection->log_fn == nullptr) {
-        if (level <= global_level.load()) {
-            if (connection != nullptr &&
-                lvl < static_cast<int>(cbsasl_loglevel_t::Fail)) {
-                // We need to generate a UUID
-                msg = add_uuid_to_message(*connection, full_msg, message);
-            }
-            global_log.load()(global_context.load(), lvl, msg);
-        }
+    if (level == Level::Error) {
+        // We need to generate UUID
+        auto& uuid = connection.get_uuid();
+        std::string full;
+        full.reserve(message.size() + uuid.size() + 10);
+        full = "UUID:[" + uuid + "] " + message;
+        callback.load()(level, full);
     } else {
-        if (level <= connection->log_level) {
-            if (connection != nullptr &&
-                lvl < static_cast<int>(cbsasl_loglevel_t::Fail)) {
-                // We need to generate a UUID
-                msg = add_uuid_to_message(*connection, full_msg, message);
-            }
-
-            connection->log_fn(connection->log_ctx, lvl, msg);
-        }
+        callback.load()(level, message);
     }
 }
 
-void cbsasl_set_default_logger(cbsasl_log_fn log_fn, void *context) {
-    global_log.store(log_fn);
-    global_context.store(context);
-}
-
-void cbsasl_set_log_level(cbsasl_conn_t* connection,
-                          cbsasl_getopt_fn getopt_fn,
-                          void* context) {
-    const char* result = nullptr;
-    unsigned int result_len;
-    bool failure = true;
-    cbsasl_loglevel_t level;
-
-    if (getopt_fn(context, nullptr, "log level", &result,
-                  &result_len) == CBSASL_OK) {
-        if (result != nullptr) {
-            std::string val(result, result_len);
-            try {
-                failure = false;
-                switch (std::stoul(val)) {
-                case CBSASL_LOG_NONE:
-                    level = cbsasl_loglevel_t::None;
-                    break;
-                case CBSASL_LOG_ERR:
-                    level = cbsasl_loglevel_t::Error;
-                    break;
-                case CBSASL_LOG_FAIL:
-                    level = cbsasl_loglevel_t::Fail;
-                    break;
-                case CBSASL_LOG_WARN:
-                    level = cbsasl_loglevel_t::Warning;
-                    break;
-                case CBSASL_LOG_NOTE:
-                    level = cbsasl_loglevel_t::Notice;
-                    break;
-                case CBSASL_LOG_DEBUG:
-                    level = cbsasl_loglevel_t::Debug;
-                    break;
-                case CBSASL_LOG_TRACE:
-                    level = cbsasl_loglevel_t::Trace;
-                    break;
-                case CBSASL_LOG_PASS:
-                    level = cbsasl_loglevel_t::Password;
-                    break;
-                default:
-                    failure = true;
-                }
-            } catch (...) {
-                failure = true;
-            }
-        }
+void log(Level level, const std::string& message) {
+    auto logger = callback.load();
+    if (logger == nullptr) {
+        return;
     }
 
-    if (!failure) {
-        if (connection == nullptr) {
-            global_level.store(level);
-        } else {
-            connection->log_level = level;
-        }
-    }
+    callback.load()(level, message);
 }
-
-cbsasl_loglevel_t cbsasl_get_loglevel(const cbsasl_conn_t* connection) {
-    if (connection == nullptr || connection->log_fn == nullptr) {
-        return global_level.load();
-    } else {
-        return connection->log_level;
-    }
-}
+} // namespace logging
+} // namespace sasl
+} // namespace cb
