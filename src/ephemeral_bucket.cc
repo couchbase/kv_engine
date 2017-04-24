@@ -197,6 +197,9 @@ void EphemeralBucket::reconfigureForEphemeral(Configuration& config) {
     // Disable access scanner - we never create it anyway, but set to
     // disabled as to not mislead the user via stats.
     config.setAccessScannerEnabled(false);
+    // Disable Bloom filter - it is currently no use for us (both
+    // alive+deleted keys are kept in HashTable).
+    config.setBfilterEnabled(false);
     // Disable warmup - it is not applicable to Ephemeral buckets.
     config.setWarmup(false);
     // Disable TAP - not supported for Ephemeral.
