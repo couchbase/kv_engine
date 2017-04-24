@@ -75,6 +75,8 @@ bool DummyAllocHooks::get_allocator_property(const char* name, size_t* value) {
     return false;
 }
 
-bool DummyAllocHooks::set_allocator_property(const char* name, size_t value) {
-    return false;
+int DummyAllocHooks::set_allocator_property(const char* name,
+                                            void* newp,
+                                            size_t newlen) {
+    return 1;
 }

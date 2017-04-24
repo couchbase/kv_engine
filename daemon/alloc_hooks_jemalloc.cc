@@ -35,9 +35,12 @@
 
 /* jemalloc checks for this symbol, and it's contents for the config to use. */
 const char* je_malloc_conf =
-    /* Use just one arena, instead of the default based on number of CPUs.
-       Helps to minimize heap fragmentation. */
-    "narenas:1";
+        /* Use just one arena, instead of the default based on number of CPUs.
+           Helps to minimize heap fragmentation. */
+        "narenas:1"
+        /* Start with profiling enabled but inactive; this allows us to
+           turn it on/off at runtime. */
+        ",prof:true,prof_active:false";
 
 static int jemalloc_get_stats_prop(const char* property, size_t* value) {
     size_t size = sizeof(*value);
@@ -237,7 +240,8 @@ bool JemallocHooks::get_allocator_property(const char* name, size_t* value) {
     return jemalloc_get_stats_prop(name, value);
 }
 
-bool JemallocHooks::set_allocator_property(const char* name, size_t value) {
-    /* Not yet implemented */
-    return 0;
+int JemallocHooks::set_allocator_property(const char* name,
+                                          void* newp,
+                                          size_t newlen) {
+    return je_mallctl(name, nullptr, 0, newp, newlen);
 }

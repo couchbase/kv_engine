@@ -54,6 +54,43 @@ static ENGINE_ERROR_CODE setReleaseFreeMemory(Connection* c,
     return ENGINE_SUCCESS;
 }
 
+static ENGINE_ERROR_CODE setJemallocProfActive(Connection* c,
+                                               const StrToStrMap&,
+                                               const std::string& value) {
+    bool enable;
+    if (value == "true") {
+        enable = true;
+    } else if (value == "false") {
+        enable = false;
+    } else {
+        return ENGINE_EINVAL;
+    }
+
+    int res = AllocHooks::set_allocator_property(
+            "prof.active", &enable, sizeof(enable));
+    LOG_NOTICE(c,
+               "%u: %s IOCTL_SET: setJemallocProfActive:%s called, result:%s",
+               c->getId(),
+               c->getDescription().c_str(),
+               value.c_str(),
+               (res == 0) ? "success" : "failure");
+
+    return (res == 0) ? ENGINE_SUCCESS : ENGINE_EINVAL;
+}
+
+static ENGINE_ERROR_CODE setJemallocProfDump(Connection* c,
+                                             const StrToStrMap&,
+                                             const std::string&) {
+    int res = AllocHooks::set_allocator_property("prof.dump", nullptr, 0);
+    LOG_NOTICE(c,
+               "%u: %s IOCTL_SET: setJemallocProfDump called, result:%s",
+               c->getId(),
+               c->getDescription().c_str(),
+               (res == 0) ? "success" : "failure");
+
+    return (res == 0) ? ENGINE_SUCCESS : ENGINE_EINVAL;
+}
+
 /**
  * Callback for setting the trace status of a specific connection
  */
@@ -92,13 +129,14 @@ ENGINE_ERROR_CODE ioctl_get_property(Connection* c,
     return ENGINE_EINVAL;
 }
 
-
-static const std::unordered_map<std::string, SetCallbackFunc> ioctl_set_map {
-    {"release_free_memory", setReleaseFreeMemory},
-    {"trace.connection", setTraceConnection},
-    {"trace.config", ioctlSetTracingConfig},
-    {"trace.start", ioctlSetTracingStart},
-    {"trace.stop", ioctlSetTracingStop},
+static const std::unordered_map<std::string, SetCallbackFunc> ioctl_set_map{
+        {"jemalloc.prof.active", setJemallocProfActive},
+        {"jemalloc.prof.dump", setJemallocProfDump},
+        {"release_free_memory", setReleaseFreeMemory},
+        {"trace.connection", setTraceConnection},
+        {"trace.config", ioctlSetTracingConfig},
+        {"trace.start", ioctlSetTracingStart},
+        {"trace.stop", ioctlSetTracingStop},
 };
 
 ENGINE_ERROR_CODE ioctl_set_property(Connection* c,
