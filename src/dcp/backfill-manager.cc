@@ -162,7 +162,7 @@ void BackfillManager::schedule(VBucket& vb,
     ExecutorPool::get()->schedule(managerTask);
 }
 
-bool BackfillManager::bytesRead(uint32_t bytes) {
+bool BackfillManager::bytesRead(size_t bytes) {
     LockHolder lh(lock);
     if (scanBuffer.itemsRead >= scanBuffer.maxItems) {
         return false;
@@ -192,7 +192,7 @@ bool BackfillManager::bytesRead(uint32_t bytes) {
     return true;
 }
 
-void BackfillManager::bytesSent(uint32_t bytes) {
+void BackfillManager::bytesSent(size_t bytes) {
     LockHolder lh(lock);
     if (bytes > buffer.bytesRead) {
         throw std::invalid_argument("BackfillManager::bytesSent: bytes "

@@ -783,11 +783,11 @@ void DcpProducer::notifyBackfillManager() {
     backfillMgr->wakeUpTask();
 }
 
-bool DcpProducer::recordBackfillManagerBytesRead(uint32_t bytes) {
+bool DcpProducer::recordBackfillManagerBytesRead(size_t bytes) {
     return backfillMgr->bytesRead(bytes);
 }
 
-void DcpProducer::recordBackfillManagerBytesSent(uint32_t bytes) {
+void DcpProducer::recordBackfillManagerBytesSent(size_t bytes) {
     backfillMgr->bytesSent(bytes);
 }
 

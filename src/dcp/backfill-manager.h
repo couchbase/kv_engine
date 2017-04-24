@@ -68,9 +68,9 @@ public:
                   uint64_t start,
                   uint64_t end);
 
-    bool bytesRead(uint32_t bytes);
+    bool bytesRead(size_t bytes);
 
-    void bytesSent(uint32_t bytes);
+    void bytesSent(size_t bytes);
 
     // Called by the managerTask to acutally perform backfilling & manage
     // backfills between the different queues.

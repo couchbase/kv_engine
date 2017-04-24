@@ -396,8 +396,8 @@ private:
     dcp_producer_t producer;
 
     struct {
-        std::atomic<uint32_t> bytes;
-        std::atomic<uint32_t> items;
+        std::atomic<size_t> bytes;
+        std::atomic<size_t> items;
     } bufferedBackfill;
 
     std::atomic<rel_time_t> takeoverStart;
