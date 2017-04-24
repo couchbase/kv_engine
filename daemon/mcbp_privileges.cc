@@ -100,6 +100,8 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_DEL_VBUCKET, require<Privilege::BucketManagement>);
     /* End VBucket commands */
 
+    /* MB-22394 - temporary disable TAP prior to its removal */
+#if 0
     /* TAP commands */
     setup(PROTOCOL_BINARY_CMD_TAP_CONNECT, require<Privilege::Tap>);
     setup(PROTOCOL_BINARY_CMD_TAP_MUTATION, require<Privilege::Tap>);
@@ -110,6 +112,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START, require<Privilege::Tap>);
     setup(PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END, require<Privilege::Tap>);
     /* End TAP */
+#endif
 
     /* Vbucket command to get the VBUCKET sequence numbers for all
      * vbuckets on the node */

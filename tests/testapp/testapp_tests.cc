@@ -3046,7 +3046,7 @@ TEST_P(McdTestappTest, test_MB_16197) {
  * Test that a bad TAP packet is rejected and doesn't crash the server.
  * It should be rejected with EINVAL.
  */
-TEST_P(McdTestappTest, test_MB_16198) {
+TEST_P(McdTestappTest, DISABLED_test_MB_16198) {
     union {
         protocol_binary_request_tap_no_extras request;
         protocol_binary_response_no_extras response;
