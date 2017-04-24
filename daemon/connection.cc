@@ -294,7 +294,8 @@ void Connection::restartAuthentication() {
     username = "";
 }
 
-cb::rbac::PrivilegeAccess Connection::checkPrivilege(cb::rbac::Privilege privilege) {
+cb::rbac::PrivilegeAccess Connection::checkPrivilege(
+        cb::rbac::Privilege privilege, Cookie& cookie) {
     cb::rbac::PrivilegeAccess ret;
 
     ret = privilegeContext.check(privilege);
@@ -327,12 +328,19 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(cb::rbac::Privilege privile
                        privilegeContext.to_string().c_str());
         } catch (const cb::rbac::Exception& error) {
             LOG_WARNING(this,
-                        "%u: RBAC: Connection::checkPrivilege(%s) %s: An exception occurred. command: [%s] bucket: [%s] message: %s",
-                        getId(), to_string(privilege).c_str(),
+                        "%u: RBAC: Connection::checkPrivilege(%s) %s: An "
+                        "exception occurred. command: [%s] bucket: [%s] UUID:"
+                        "[%s] message: %s",
+                        getId(),
+                        to_string(privilege).c_str(),
                         getDescription().c_str(),
                         command.c_str(),
                         all_buckets[bucketIndex].name,
+                        cookie.getEventId().c_str(),
                         error.what());
+            // Add a textual error as well
+            cookie.setErrorContext("An exception occurred. command: [" +
+                                   command + "]");
             return cb::rbac::PrivilegeAccess::Fail;
         }
 
@@ -367,12 +375,19 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(cb::rbac::Privilege privile
             return cb::rbac::PrivilegeAccess::Ok;
         } else {
             LOG_NOTICE(nullptr,
-                       "%u RBAC %s missing privilege %s for %s with context: %s",
+                       "%u RBAC %s missing privilege %s for %s in bucket:[%s] with context: "
+                       "%s UUID:[%s]",
                        getId(),
                        getDescription().c_str(),
                        privilege_string.c_str(),
                        command.c_str(),
-                       context.c_str());
+                       all_buckets[bucketIndex].name,
+                       context.c_str(),
+                       cookie.getEventId().c_str());
+            // Add a textual error as well
+            cookie.setErrorContext("Authorization failure: can't execute " +
+                                   command + " operation without the " +
+                                   privilege_string + " privilege");
         }
     }
 

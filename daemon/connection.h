@@ -18,6 +18,7 @@
 
 #include "config.h"
 
+#include "cookie.h"
 #include "settings.h"
 
 #include <cJSON.h>
@@ -274,7 +275,8 @@ public:
      *         Fail - the connection is missing the privilege
      *         Stale - the authentication context is stale
      */
-    cb::rbac::PrivilegeAccess checkPrivilege(cb::rbac::Privilege privilege);
+    cb::rbac::PrivilegeAccess checkPrivilege(cb::rbac::Privilege privilege,
+                                             Cookie& cookie);
 
     int getBucketIndex() const {
         return bucketIndex.load(std::memory_order_relaxed);

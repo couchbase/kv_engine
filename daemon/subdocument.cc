@@ -782,7 +782,8 @@ static ENGINE_ERROR_CODE validate_xattr_privilege(SubdocCmdContext& context) {
         }
     }
 
-    auto access = context.connection.checkPrivilege(privilege);
+    auto access = context.connection.checkPrivilege(
+            privilege, context.connection.getCookieObject());
     switch (access) {
     case cb::rbac::PrivilegeAccess::Ok:
         return ENGINE_SUCCESS;

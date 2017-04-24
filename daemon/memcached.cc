@@ -760,7 +760,8 @@ static cb::rbac::PrivilegeAccess check_privilege(const void* void_cookie,
         throw std::logic_error("check_privilege: connection can't be null");
     }
 
-    return cookie->connection->checkPrivilege(privilege);
+    return cookie->connection->checkPrivilege(privilege,
+                                              const_cast<Cookie&>(*cookie));
 }
 
 static protocol_binary_response_status engine_error2mcbp(const void* void_cookie,

@@ -36,7 +36,8 @@ McbpConnection* cookie2mcbp(const void* void_cookie,
 namespace mcbp {
 static inline ENGINE_ERROR_CODE checkPrivilege(McbpConnection& connection,
                                                cb::rbac::Privilege privilege) {
-    switch (connection.checkPrivilege(privilege)) {
+    switch (connection.checkPrivilege(privilege,
+                                      connection.getCookieObject())) {
     case cb::rbac::PrivilegeAccess::Ok:
         return ENGINE_SUCCESS;
     case cb::rbac::PrivilegeAccess::Fail:

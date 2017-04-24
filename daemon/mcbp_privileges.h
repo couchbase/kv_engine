@@ -48,7 +48,7 @@ public:
      *         Stale - the authentication context is out of date
      */
     cb::rbac::PrivilegeAccess invoke(protocol_binary_command command,
-                                     const Cookie& cookie) {
+                                     Cookie& cookie) {
         auto& chain = commandChains[command];
         if (chain.empty()) {
             return cb::rbac::PrivilegeAccess::Fail;
@@ -62,15 +62,16 @@ protected:
      * Silently ignores any attempt to push the same function onto the chain.
      */
     void setup(protocol_binary_command command,
-               cb::rbac::PrivilegeAccess(* f)(const Cookie&)) {
+               cb::rbac::PrivilegeAccess (*f)(Cookie&)) {
         commandChains[command].push_unique(
-            makeFunction<cb::rbac::PrivilegeAccess,
-                cb::rbac::PrivilegeAccess::Ok,
-                const Cookie&>(f));
+                makeFunction<cb::rbac::PrivilegeAccess,
+                             cb::rbac::PrivilegeAccess::Ok,
+                             Cookie&>(f));
     }
 
-
     std::array<FunctionChain<cb::rbac::PrivilegeAccess,
-        cb::rbac::PrivilegeAccess::Ok,
-        const Cookie&>, 0x100> commandChains;
+                             cb::rbac::PrivilegeAccess::Ok,
+                             Cookie&>,
+               0x100>
+            commandChains;
 };

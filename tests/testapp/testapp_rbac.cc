@@ -123,6 +123,41 @@ TEST_P(RbacTest, Scrub) {
     EXPECT_TRUE(response.isSuccess());
 }
 
+TEST_P(RbacTest, MB23909_ErrorIncudingErrorInfo) {
+    auto& conn = reinterpret_cast<MemcachedBinprotConnection&>(getConnection());
+    conn.reconnect();
+    conn.setXerrorSupport(true);
+    BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_RBAC_REFRESH, {}, {});
+    conn.sendCommand(cmd);
+
+    BinprotResponse resp;
+    conn.recvResponse(resp);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
+    unique_cJSON_ptr json(cJSON_Parse(resp.getDataString().c_str()));
+    ASSERT_TRUE(json);
+
+    auto* error = cJSON_GetObjectItem(json.get(), "error");
+    ASSERT_NE(nullptr, error);
+
+    // The Auth error should
+    auto* context = cJSON_GetObjectItem(error, "context");
+    auto* ref = cJSON_GetObjectItem(error, "ref");
+    ASSERT_NE(nullptr, context);
+    ASSERT_NE(nullptr, ref);
+
+    // @todo I could parse the UUID to see that it is actually an UUID,
+    //       but for now I just trust it to be a UUID and not something
+    //       else (just add a check for the length of an UUID)
+    std::string value(ref->valuestring);
+    EXPECT_EQ(36, value.size());
+
+    const std::string expected{"Authorization failure: can't execute "
+                               "RBAC_REFRESH operation without the "
+                               "SecurityManagement privilege"};
+    value.assign(context->valuestring);
+    EXPECT_EQ(expected, value);
+}
+
 class RbacRoleTest : public TestappClientTest {
 public:
     void SetUp() override {

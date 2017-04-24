@@ -21,15 +21,15 @@
 
 using namespace cb::rbac;
 
-template<Privilege T>
-static PrivilegeAccess require(const Cookie& cookie) {
+template <Privilege T>
+static PrivilegeAccess require(Cookie& cookie) {
     if (cookie.connection == nullptr) {
         throw std::logic_error("haveRead: cookie.connection can't be null");
     }
-    return cookie.connection->checkPrivilege(T);
+    return cookie.connection->checkPrivilege(T, cookie);
 }
 
-static PrivilegeAccess empty(const Cookie& cookie) {
+static PrivilegeAccess empty(Cookie& cookie) {
     return PrivilegeAccess::Ok;
 }
 
