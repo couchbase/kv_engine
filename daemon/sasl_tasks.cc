@@ -113,8 +113,14 @@ SaslAuthTask::SaslAuthTask(Cookie& cookie_,
 }
 
 void SaslAuthTask::notifyExecutionComplete() {
-    connection.resetUsernameCache();
+    connection.setAuthenticated(false);
     std::pair<cb::rbac::PrivilegeContext, bool> context;
+
+    // If CBSASL generated a UUID, we should continue to use that UUID
+    auto& uuid = cb::sasl::get_uuid(connection.getSaslConn());
+    if (!uuid.empty()) {
+        cookie.setEventId(uuid);
+    }
 
     if (error == CBSASL_OK) {
         // Authentication successful, but it still has to be defined in
@@ -124,10 +130,54 @@ void SaslAuthTask::notifyExecutionComplete() {
                                                      connection.getDomain());
         } catch (const cb::rbac::NoSuchUserException& e) {
             error = CBSASL_NO_RBAC_PROFILE;
-            LOG_WARNING(&connection,
-                        "%u: User [%s] is not defined as a user in Couchbase",
-                        connection.getId(), connection.getUsername());
         }
+    }
+
+    // Perform the appropriate logging for each error code
+    switch (error) {
+    case CBSASL_OK:
+        LOG_INFO(&connection, "%u: Client %s authenticated as %s",
+                 connection.getId(), connection.getPeername().c_str(),
+                 connection.getUsername());
+        break;
+    case CBSASL_CONTINUE:
+        LOG_DEBUG(&connection, "%u: SASL CONTINUE",
+                 connection.getId());
+        break;
+    case CBSASL_FAIL:
+        // Should already have been logged
+        break;
+    case CBSASL_NOMEM:
+        // Should already have been logged
+        break;
+    case CBSASL_BADPARAM:
+        // May have been logged by cbsasl
+        break;
+    case CBSASL_NOMECH:
+        // Should already have been logged
+        break;
+    case CBSASL_NOUSER:
+        LOG_WARNING(&connection,
+                    "%u: User [%s] not found. UUID:[%s]",
+                    connection.getId(),
+                    connection.getUsername(),
+                    cookie.getEventId().c_str());
+        break;
+    case CBSASL_PWERR:
+        LOG_WARNING(&connection,
+                    "%u: Invalid password specified for [%s] UUID:[%s]",
+                    connection.getId(),
+                    connection.getUsername(),
+                    cookie.getEventId().c_str());
+        break;
+    case CBSASL_NO_RBAC_PROFILE:
+        LOG_WARNING(&connection,
+                    "%u: User [%s] is not defined as a user in Couchbase. "
+                        "UUID:[%s]",
+                    connection.getId(),
+                    connection.getUsername(),
+                    cookie.getEventId().c_str());
+        break;
     }
 
     if (error == CBSASL_OK) {
@@ -152,8 +202,6 @@ void SaslAuthTask::notifyExecutionComplete() {
             // connection to the "no bucket"
             associate_bucket(&connection, "");
         }
-    } else {
-        connection.setAuthenticated(false);
     }
 
     if (cookie.command == nullptr) {

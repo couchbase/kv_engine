@@ -156,6 +156,8 @@ cbsasl_error_t cbsasl_server_start(cbsasl_conn_t* conn,
         return CBSASL_BADPARAM;
     }
 
+    // Clear the UUID state from previous time
+    conn->uuid.clear();
     auto* server = conn->server.get();
 
     conn->mechanism = MechanismFactory::toMechanism(mech);
@@ -173,11 +175,10 @@ cbsasl_error_t cbsasl_server_start(cbsasl_conn_t* conn,
 
     server->mech = MechanismFactory::createServerBackend(*conn);
     if (server->mech.get() == nullptr) {
-        logging::log(*conn,
-                     logging::Level::Error,
-                     "Failed to create instance of [" +
-                             MechanismFactory::toString(conn->mechanism) + "]");
-        return CBSASL_NOMEM;
+        // Error message is already logged, and this is because
+        // the requested mechanism is disabled (otherwise an
+        // exception is thrown
+        return CBSASL_FAIL;
     }
 
     return server->mech->start(clientin, clientinlen, serverout, serveroutlen);
@@ -192,6 +193,9 @@ cbsasl_error_t cbsasl_server_step(cbsasl_conn_t* conn,
     if (conn == nullptr || !conn->server || !conn->server->mech) {
         return CBSASL_BADPARAM;
     }
+
+    // Clear the UUID state from previous time
+    conn->uuid.clear();
     return conn->server->mech->step(input, inputlen, output, outputlen);
 }
 

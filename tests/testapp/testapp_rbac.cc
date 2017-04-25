@@ -49,7 +49,7 @@ TEST_P(RbacTest, DontAllowUnknownUsers) {
         conn.authenticate("sharon", "sharonpw", "PLAIN");
         FAIL() << "Users without an RBAC profile should not be allowed access";
     } catch (const ConnectionError& error) {
-        EXPECT_TRUE(error.isAccessDenied()) << error.what();
+        EXPECT_TRUE(error.isAuthError()) << error.what();
     }
 }
 

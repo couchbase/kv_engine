@@ -2525,12 +2525,6 @@ std::string get_sasl_mechs(void) {
     return ret;
 }
 
-
-TEST_P(McdTestappTest, SASL_ListMech) {
-    std::string mech(get_sasl_mechs());
-    EXPECT_NE(0u, mech.size());
-}
-
 struct my_sasl_ctx {
     const char *username;
     cbsasl_secret_t *secret;
@@ -2673,17 +2667,6 @@ void TestappTest::reconfigure() {
                                   PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
     reconnect_to_server();
-}
-
-
-TEST_P(McdTestappTest, SASL_Success) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              sasl_auth("@admin", "password"));
-}
-
-TEST_P(McdTestappTest, SASL_Fail) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_AUTH_ERROR,
-              sasl_auth("@admin", "asdf"));
 }
 
 TEST_P(McdTestappTest, ExceedMaxPacketSize)

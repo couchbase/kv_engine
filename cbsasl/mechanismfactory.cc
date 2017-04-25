@@ -226,7 +226,7 @@ UniqueMechanismBackend MechanismFactory::createServerBackend(cbsasl_conn_t& conn
             if (m->isEnabled()) {
                 return m->createServerBackend(conn);
             } else {
-                logging::log(logging::Level::Debug,
+                logging::log(conn, logging::Level::Error,
                              "Requested disabled mechanism " + m->getName());
                 return UniqueMechanismBackend();
             }
@@ -244,7 +244,7 @@ UniqueMechanismBackend MechanismFactory::createClientBackend(
             if (m->isEnabled()) {
                 return m->createClientBackend(conn);
             } else {
-                logging::log(logging::Level::Debug,
+                logging::log(conn, logging::Level::Error,
                              "Requested disabled mechanism " + m->getName());
                 return UniqueMechanismBackend();
             }

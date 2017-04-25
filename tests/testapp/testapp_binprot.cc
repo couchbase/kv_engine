@@ -245,8 +245,12 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
     TESTAPP_EXPECT_EQ(result, PROTOCOL_BINARY_RES, header->response.magic);
     TESTAPP_EXPECT_EQ(result, static_cast<protocol_binary_command>(cmd),
                       header->response.opcode);
-    TESTAPP_EXPECT_EQ(result, PROTOCOL_BINARY_RAW_BYTES,
-                      header->response.datatype);
+    if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        TESTAPP_EXPECT_EQ(result, PROTOCOL_BINARY_RAW_BYTES,
+                          header->response.datatype);
+    } else {
+        // We might have JSON for datatype.. Disable this check for now..
+    }
     TESTAPP_EXPECT_EQ(result,
                       static_cast<protocol_binary_response_status>(status),
                       header->response.status);

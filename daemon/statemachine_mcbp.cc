@@ -680,14 +680,15 @@ bool conn_sasl_auth(McbpConnection* c) {
 
     switch (task->getError()) {
     case CBSASL_OK:
-        mcbp_write_response(c, task->getResponse(), 0, 0,
-                            task->getResponse_length());
+        mcbp_write_response(
+                c, task->getResponse(), 0, 0, task->getResponse_length());
         get_thread_stats(c)->auth_cmds++;
         break;
     case CBSASL_CONTINUE:
-        LOG_INFO(c, "%u: SASL continue", c->getId());
-
-        mcbp_add_header(c, PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE, 0, 0,
+        mcbp_add_header(c,
+                        PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE,
+                        0,
+                        0,
                         task->getResponse_length(),
                         PROTOCOL_BINARY_RAW_BYTES);
         c->addIov(task->getResponse(), task->getResponse_length());
@@ -695,16 +696,7 @@ bool conn_sasl_auth(McbpConnection* c) {
         c->setWriteAndGo(conn_new_cmd);
         break;
     case CBSASL_BADPARAM:
-        LOG_WARNING(c, "%u: Bad sasl params", c->getId());
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
-        {
-            auto* ts = get_thread_stats(c);
-            ts->auth_cmds++;
-            ts->auth_errors++;
-        }
-        break;
-    case CBSASL_NO_RBAC_PROFILE:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
         {
             auto* ts = get_thread_stats(c);
             ts->auth_cmds++;
@@ -713,22 +705,26 @@ bool conn_sasl_auth(McbpConnection* c) {
         break;
     default:
         if (!is_server_initialized()) {
-            LOG_WARNING(c, "%u: SASL AUTH failure during initialization",
-                        c->getId());
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED);
+            auto ret = PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED;
+            if (!c->isXerrorSupport()) {
+                ret = PROTOCOL_BINARY_RESPONSE_AUTH_ERROR;
+            }
+            LOG_WARNING(c,
+                        "%u: SASL AUTH failure during initialization. "
+                        "UUID: [%s]",
+                        c->getId(),
+                        c->getCookieObject().getEventId().c_str());
+            mcbp_write_packet(c, ret);
             c->setWriteAndGo(conn_closing);
             return true;
         }
 
         if (task->getError() == CBSASL_NOUSER ||
             task->getError() == CBSASL_PWERR) {
-            audit_auth_failure(c, task->getError() == CBSASL_NOUSER ?
-                                  "Unknown user" : "Incorrect password");
-            LOG_WARNING(c, "%u: Invalid username/password combination",
-                        c->getId());
-        } else {
-            LOG_WARNING(c, "%u: Unknown sasl response: %s", c->getId(),
-                        cbsasl_strerror(c->getSaslConn(), task->getError()));
+            audit_auth_failure(c,
+                               task->getError() == CBSASL_NOUSER
+                                       ? "Unknown user"
+                                       : "Incorrect password");
         }
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
 
