@@ -98,7 +98,9 @@ protected:
     }
 
     void TearDown() override {
-        producer->clearCheckpointProcessorTaskQueues();
+        if (producer) {
+            producer->clearCheckpointProcessorTaskQueues();
+        }
         // Destroy various engine objects
         vb0.reset();
         stream.reset();
@@ -451,10 +453,7 @@ TEST_P(StreamTest, BackfillOnly) {
 TEST_P(StreamTest, BackfillFail) {
     if (bucketType == "persistent") {
         /* This test simulates a backfill failure for an ephemeral bucket
-           only.
-           [TODO]: Write a test case for disk backfill failures as well */
-        setup_dcp_stream(); /* [TODO, Legacy]: Check why TearDown() crashes
-                                               without this */
+           only. */
         return;
     }
 
