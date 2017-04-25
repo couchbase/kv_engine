@@ -31,11 +31,33 @@ StartSaslAuthTask::StartSaslAuthTask(Cookie& cookie_,
 
 bool StartSaslAuthTask::execute() {
     connection.restartAuthentication();
-    error = cbsasl_server_start(connection.getSaslConn(),
-                                mechanism.c_str(),
-                                challenge.data(),
-                                static_cast<unsigned int>(challenge.length()),
-                                &response, &response_length);
+    try {
+        error = cbsasl_server_start(connection.getSaslConn(),
+                                    mechanism.c_str(),
+                                    challenge.data(),
+                                    static_cast<unsigned int>(challenge.length()),
+                                    &response, &response_length);
+    } catch (const std::bad_alloc&) {
+        LOG_WARNING(nullptr,
+                    "%u: StartSaslAuthTask::execute(): std::bad_alloc",
+                    connection.getId());
+        error = CBSASL_NOMEM;
+    } catch (const std::exception& exception) {
+        // If we generated an error as part of SASL, we should
+        // return that back to the client
+        auto& uuid = cb::sasl::get_uuid(connection.getSaslConn());
+        if (!uuid.empty()) {
+            cookie.setEventId(uuid);
+        }
+        LOG_WARNING(nullptr,
+                    "%u: StartSaslAuthTask::execute(): UUID:[%s] An exception occurred: %s",
+                    connection.getId(),
+                    cookie.getEventId().c_str(),
+                    exception.what());
+        cookie.setErrorContext("An exception occurred");
+        error = CBSASL_FAIL;
+    }
+
     return true;
 }
 
@@ -48,9 +70,30 @@ StepSaslAuthTask::StepSaslAuthTask(Cookie& cookie_,
 }
 
 bool StepSaslAuthTask::execute() {
-    error = cbsasl_server_step(connection.getSaslConn(), challenge.data(),
-                               static_cast<unsigned int>(challenge.length()),
-                               &response, &response_length);
+    try {
+        error = cbsasl_server_step(connection.getSaslConn(), challenge.data(),
+                                   static_cast<unsigned int>(challenge.length()),
+                                   &response, &response_length);
+    } catch (const std::bad_alloc&) {
+        LOG_WARNING(nullptr,
+                    "%u: StepSaslAuthTask::execute(): std::bad_alloc",
+                    connection.getId());
+        error = CBSASL_NOMEM;
+    } catch (const std::exception& exception) {
+        // If we generated an error as part of SASL, we should
+        // return that back to the client
+        auto& uuid = cb::sasl::get_uuid(connection.getSaslConn());
+        if (!uuid.empty()) {
+            cookie.setEventId(uuid);
+        }
+        LOG_WARNING(nullptr,
+                    "%u: StepSaslAuthTask::execute(): UUID:[%s] An exception occurred: %s",
+                    connection.getId(),
+                    cookie.getEventId().c_str(),
+                    exception.what());
+        cookie.setErrorContext("An exception occurred");
+        error = CBSASL_FAIL;
+    }
     return true;
 }
 
