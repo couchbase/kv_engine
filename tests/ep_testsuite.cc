@@ -71,6 +71,7 @@
 // away ;)
 typedef void (*UNLOCK_COOKIE_T)(const void *cookie);
 
+#define IMMEDIATE_MEM_STATS ";mem_merge_count_threshold=1"
 #define MULTI_DISPATCHER_CONFIG \
     "ht_size=129;ht_locks=3;chk_remover_stime=1;chk_period=60"
 
@@ -6500,6 +6501,8 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_max_vbuckets",
                 "ep_mem_high_wat",
                 "ep_mem_low_wat",
+                "ep_mem_merge_bytes_threshold",
+                "ep_mem_merge_count_threshold",
                 "ep_mutation_mem_threshold",
                 "ep_num_auxio_threads",
                 "ep_num_nonio_threads",
@@ -6693,6 +6696,8 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_mem_high_wat_percent",
                 "ep_mem_low_wat",
                 "ep_mem_low_wat_percent",
+                "ep_mem_merge_bytes_threshold",
+                "ep_mem_merge_count_threshold",
                 "ep_mem_tracker_enabled",
                 "ep_meta_data_disk",
                 "ep_meta_data_memory",
@@ -7546,7 +7551,7 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("bg meta stats", test_bg_meta_stats, test_setup, teardown,
                  NULL, prepare_ep_bucket, cleanup),
         TestCase("mem stats", test_mem_stats, test_setup, teardown,
-                 "chk_remover_stime=1;chk_period=60", prepare, cleanup),
+                 "chk_remover_stime=1;chk_period=60" IMMEDIATE_MEM_STATS, prepare, cleanup),
         TestCase("stats key", test_key_stats, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("stats vkey", test_vkey_stats, test_setup,
@@ -7647,11 +7652,11 @@ BaseTestCase testsuite_testcases[] = {
         // disk>RAM tests
         TestCase("disk>RAM golden path", test_disk_gt_ram_golden,
                  test_setup, teardown,
-                 "chk_remover_stime=1;chk_period=60", prepare_ep_bucket,
+                 "chk_remover_stime=1;chk_period=60" IMMEDIATE_MEM_STATS, prepare_ep_bucket,
                  cleanup),
         TestCase("disk>RAM paged-out rm", test_disk_gt_ram_paged_rm,
                  test_setup, teardown,
-                 "chk_remover_stime=1;chk_period=60", prepare_ep_bucket,
+                 "chk_remover_stime=1;chk_period=60" IMMEDIATE_MEM_STATS, prepare_ep_bucket,
                  cleanup),
         TestCase("disk>RAM update paged-out", test_disk_gt_ram_update_paged_out,
                  test_setup, teardown, NULL, prepare_ep_bucket, cleanup),
@@ -7663,10 +7668,10 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown, NULL, prepare_ep_bucket, cleanup, true),
         // disk>RAM tests with WAL
         TestCase("disk>RAM golden path (wal)", test_disk_gt_ram_golden,
-                 test_setup, teardown, MULTI_DISPATCHER_CONFIG,
+                 test_setup, teardown, MULTI_DISPATCHER_CONFIG IMMEDIATE_MEM_STATS,
                  prepare_ep_bucket, cleanup),
         TestCase("disk>RAM paged-out rm (wal)", test_disk_gt_ram_paged_rm,
-                 test_setup, teardown, MULTI_DISPATCHER_CONFIG,
+                 test_setup, teardown, MULTI_DISPATCHER_CONFIG IMMEDIATE_MEM_STATS,
                  prepare_ep_bucket, cleanup),
         TestCase("disk>RAM update paged-out (wal)",
                  test_disk_gt_ram_update_paged_out, test_setup,

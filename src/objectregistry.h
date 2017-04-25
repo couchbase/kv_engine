@@ -62,4 +62,15 @@ public:
     static bool memoryDeallocated(size_t mem);
 };
 
+/**
+ * To avoid mem accounting within a block
+ */
+class SystemAllocationGuard {
+public:
+    SystemAllocationGuard();
+    ~SystemAllocationGuard();
+private:
+    EventuallyPersistentEngine* engine = nullptr;
+};
+
 #endif  // SRC_OBJECTREGISTRY_H_

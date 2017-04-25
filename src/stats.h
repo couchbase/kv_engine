@@ -31,6 +31,8 @@
 #include <relaxed_atomic.h>
 #include <atomic>
 #include "memory_tracker.h"
+#include "objectregistry.h"
+#include "threadlocal.h"
 #include "utility.h"
 
 #ifndef DEFAULT_MAX_DATA_SIZE
@@ -173,6 +175,17 @@ public:
         diskCommitHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
         mlogCompactorHisto(GrowingWidthGenerator<hrtime_t>(0, ONE_SECOND, 1.4), 25),
         timingLog(NULL),
+        mem_merge_count_threshold(1),
+        mem_merge_bytes_threshold(0),
+        localMemCounter([](void* ptr) -> void {
+                if (ptr != nullptr) {
+                    // This HAS to be a non-bucket deallocation
+                    // or else the callbacks could try to update counters
+                    // that no longer exist
+                    SystemAllocationGuard system_alloc_guard;
+                    delete (TLMemCounter*)ptr;
+                }
+            }),
         maxDataSize(DEFAULT_MAX_DATA_SIZE) {}
 
     ~EPStats() {
@@ -191,10 +204,23 @@ public:
 
     size_t getTotalMemoryUsed() {
         if (memoryTrackerEnabled.load()) {
-            return totalMemory->load();
+            auto val = totalMemory->load();
+            return val >= 0 ? val : 0;
         }
         return currentSize.load() + memOverhead->load();
     }
+
+    // account for allocated mem
+    void memAllocated(size_t sz);
+
+    // account for deallocated mem
+    void memDeallocated(size_t sz);
+
+    // merge accumulated local memory to the bucket variable
+    // the boolean force, if set to true, will skip checking
+    // threshold constraints and merge the local counters
+    // immediately
+    void mergeMemCounter(bool force = false);
 
     //! Number of keys warmed up during key-only loading.
     Counter warmedUpKeys;
@@ -315,12 +341,13 @@ public:
     //! Total number of Item objects
     cb::CachelinePadded<Counter> numItem;
     //! The total amount of memory used by this bucket (From memory tracking)
-    cb::CachelinePadded<Counter> totalMemory;
+    // This is a signed variable as depdending on how/when the thread-local
+    // counters merge their info, this could be negative
+    cb::CachelinePadded<Couchbase::RelaxedAtomic<long long> > totalMemory;
     //! True if the memory usage tracker is enabled.
     std::atomic<bool> memoryTrackerEnabled;
     //! Whether or not to force engine shutdown.
     std::atomic<bool> forceShutdown;
-
     //! Number of times unrecoverable oom errors happened while processing operations.
     Counter oom_errors;
     //! Number of times temporary oom errors encountered while processing operations.
@@ -656,7 +683,21 @@ public:
     // Used by stats logging infrastructure.
     std::ostream *timingLog;
 
+    //! These 2 thresholds define when the thread local
+    //  mem counters are merged to the bucket counter
+    size_t mem_merge_count_threshold;
+    size_t mem_merge_bytes_threshold;
+
 private:
+    struct TLMemCounter {
+        // accumulated mem
+        long long used = 0;
+
+        // no.of times mem accounting has happened
+        size_t count = 0;
+    };
+
+    ThreadLocalPtr<TLMemCounter> localMemCounter;
 
     //! Max allowable memory size.
     std::atomic<size_t> maxDataSize;

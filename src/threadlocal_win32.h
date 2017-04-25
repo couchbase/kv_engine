@@ -37,7 +37,7 @@
 template<typename T>
 class ThreadLocalWin32 {
 public:
-    ThreadLocalWin32() {
+    ThreadLocalWin32(ThreadLocalDestructor dtor = nullptr) {
         tlsIndex = TlsAlloc();
         if (tlsIndex == TLS_OUT_OF_INDEXES) {
             DWORD err = GetLastError();
@@ -77,6 +77,8 @@ public:
     }
 
 private:
+    // No use in Win32. Only for compatibility
+    ThreadLocalDestructor dtor;
     DWORD tlsIndex;
 };
 

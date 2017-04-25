@@ -18,6 +18,9 @@
 #ifndef SRC_THREADLOCAL_H_
 #define SRC_THREADLOCAL_H_ 1
 
+// thread local variable dtor
+using ThreadLocalDestructor = void (*)(void*);
+
 #ifdef WIN32
 #include "threadlocal_win32.h"
 template<typename T>
@@ -34,7 +37,9 @@ using ThreadLocal = ThreadLocalPosix<T>;
 template <typename T>
 class ThreadLocalPtr : public ThreadLocal<T*> {
 public:
-    ThreadLocalPtr() : ThreadLocal<T*>() {}
+    ThreadLocalPtr(ThreadLocalDestructor dtor = nullptr)
+        : ThreadLocal<T*>(dtor) {
+    }
 
     ~ThreadLocalPtr() {}
 

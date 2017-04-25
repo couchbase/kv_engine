@@ -567,6 +567,10 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().requirementsMetOrThrow("ephemeral_metadata_purge_interval");
             getConfiguration().setEphemeralMetadataPurgeInterval(
                     std::stoull(valz));
+        } else if (strcmp(keyz, "mem_merge_count_threshold") == 0) {
+            getConfiguration().setMemMergeCountThreshold(std::stoul(valz));
+        } else if (strcmp(keyz, "mem_merge_bytes_threshold") == 0) {
+            getConfiguration().setMemMergeBytesThreshold(std::stoul(valz));
         } else {
             msg = "Unknown config param";
             rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -1871,6 +1875,10 @@ public:
             engine.setMaxItemSize(value);
         } else if (key.compare("max_item_privileged_bytes") == 0) {
             engine.setMaxItemPrivilegedBytes(value);
+        } else if (key.compare("mem_merge_count_threshold") == 0) {
+            engine.stats.mem_merge_count_threshold = value;
+        } else if (key.compare("mem_merge_bytes_threshold") == 0) {
+            engine.stats.mem_merge_bytes_threshold = value;
         }
     }
 
@@ -1921,6 +1929,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         configuration.setMemHighWat(percentOf(
                 configuration.getMaxSize(), stats.mem_high_wat_percent.load()));
     }
+
+    stats.mem_merge_count_threshold = configuration.getMemMergeCountThreshold();
+    configuration.addValueChangedListener(
+            "mem_merge_count_threshold",
+            new EpEngineValueChangeListener(*this));
+
+    stats.mem_merge_bytes_threshold = configuration.getMemMergeBytesThreshold();
+    configuration.addValueChangedListener(
+            "mem_merge_bytes_threshold",
+            new EpEngineValueChangeListener(*this));
 
     maxItemSize = configuration.getMaxItemSize();
     configuration.addValueChangedListener("max_item_size",
@@ -6308,4 +6326,56 @@ void EpEngineTaskable::logQTime(TaskId id,
 void EpEngineTaskable::logRunTime(TaskId id,
                                   const ProcessClock::duration runTime) {
     myEngine->getKVBucket()->logRunTime(id, runTime);
+}
+
+void EPStats::memAllocated(size_t sz) {
+    if (isShutdown) {
+        return;
+    }
+
+    if (localMemCounter.get() == nullptr) {
+        // this HAS to be a non-bucket allocation
+        // or else the callbacks would try to call this
+        // function again & it would become an infinite loop
+        SystemAllocationGuard system_alloc_guard;
+        localMemCounter.set(new TLMemCounter());
+    }
+
+    if (0 == sz) {
+        return;
+    }
+
+    localMemCounter.get()->used += sz;
+    mergeMemCounter();
+}
+
+void EPStats::memDeallocated(size_t sz) {
+    if (isShutdown) {
+        return;
+    }
+
+    if (localMemCounter.get() == nullptr) {
+        // this HAS to be a non-bucket allocation
+        // or else the callbacks would try to call this
+        // function again & it would become an infinite loop
+        SystemAllocationGuard system_alloc_guard;
+        localMemCounter.set(new TLMemCounter());
+    }
+
+    if (0 == sz) {
+        return;
+    }
+
+    localMemCounter.get()->used -= sz;
+    mergeMemCounter();
+}
+
+void EPStats::mergeMemCounter(bool force) {
+    auto& counter = *(localMemCounter.get());
+    counter.count++;
+    if (force || counter.count % mem_merge_count_threshold == 0 ||
+        std::abs(counter.used) > (long)mem_merge_bytes_threshold) {
+        totalMemory->fetch_add(counter.used);
+        counter.used = 0;
+    }
 }

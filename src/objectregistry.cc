@@ -169,12 +169,13 @@ EventuallyPersistentEngine *ObjectRegistry::getCurrentEngine() {
 
 EventuallyPersistentEngine *ObjectRegistry::onSwitchThread(
                                             EventuallyPersistentEngine *engine,
-                                            bool want_old_thread_local)
-{
+                                            bool want_old_thread_local) {
     EventuallyPersistentEngine *old_engine = NULL;
+
     if (want_old_thread_local) {
         old_engine = th->get();
     }
+
     th->set(engine);
     return old_engine;
 }
@@ -192,7 +193,7 @@ bool ObjectRegistry::memoryAllocated(size_t mem) {
         return false;
     }
     EPStats &stats = engine->getEpStats();
-    stats.totalMemory->fetch_add(mem);
+    stats.memAllocated(mem);
     return true;
 }
 
@@ -205,7 +206,17 @@ bool ObjectRegistry::memoryDeallocated(size_t mem) {
         return false;
     }
     EPStats &stats = engine->getEpStats();
-    stats.totalMemory->fetch_sub(mem);
+    stats.memDeallocated(mem);
     return true;
 }
+
+SystemAllocationGuard::SystemAllocationGuard() {
+    engine = th->get();
+    th->set(nullptr);
+}
+
+SystemAllocationGuard::~SystemAllocationGuard() {
+    th->set(engine);
+}
+
 #endif
