@@ -844,3 +844,23 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs_UnknownVattr) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_VATTR,
               multiResp.getStatus());
 }
+
+// Test that one can fetch both the body and an XATTR on a deleted document.
+TEST_P(XattrTest, MB24152_GetXattrAndBodyDeleted) {
+    setBodyAndXattr(value, xattrVal);
+
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey(name);
+    cmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
+    cmd.addGet(xattr, SUBDOC_FLAG_XATTR_PATH);
+    cmd.addLookup("", PROTOCOL_BINARY_CMD_GET);
+
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiLookupResponse multiResp;
+    conn.recvResponse(multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+    EXPECT_EQ(xattrVal, multiResp.getResults()[0].value);
+    EXPECT_EQ(value, multiResp.getResults()[1].value);
+}

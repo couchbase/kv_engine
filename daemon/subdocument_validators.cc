@@ -78,8 +78,7 @@ static inline protocol_binary_response_status validate_xattr_section(
         cb::const_byte_buffer& xattr_key) {
     if ((flags & SUBDOC_FLAG_XATTR_PATH) == 0) {
         // XATTR flag isn't set... just bail out
-        if ((flags & SUBDOC_FLAG_EXPAND_MACROS) ||
-            (hasAccessDeleted(doc_flags))) {
+        if ((flags & SUBDOC_FLAG_EXPAND_MACROS)) {
             return PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO;
         } else {
             return PROTOCOL_BINARY_RESPONSE_SUCCESS;

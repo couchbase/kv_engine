@@ -215,10 +215,10 @@ TEST_P(SubdocXattrSingleTest, PathTest) {
 TEST_P(SubdocXattrSingleTest, ValidateFlags) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 
-    // Access Deleted should fail without XATTR_PATH
+    // Access Deleted should pass without XATTR flag
     flags = SUBDOC_FLAG_NONE;
     docFlags = mcbp::subdoc::doc_flag::AccessDeleted;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO,
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
               validate());
 
     flags |= SUBDOC_FLAG_XATTR_PATH;
@@ -319,14 +319,21 @@ TEST_F(SubdocXattrMultiLookupTest, XattrFlagsMakeSense) {
     request[0].flags = SUBDOC_FLAG_EXPAND_MACROS | SUBDOC_FLAG_XATTR_PATH;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 
-    // Let's try an invalid access deleted flag (needs xattr path)
+    // Let's try a valid access deleted flag
     request[0].flags = SUBDOC_FLAG_NONE;
     request.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO,
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
               validate());
 
     // We should be able to access deleted docs if both flags are set
     request[0].flags = SUBDOC_FLAG_XATTR_PATH;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+}
+
+TEST_F(SubdocXattrMultiLookupTest, AllowWholeDocAndXattrLookup) {
+    request.addLookup({PROTOCOL_BINARY_CMD_SUBDOC_GET, SUBDOC_FLAG_XATTR_PATH, "_sync"});
+    request.addLookup({PROTOCOL_BINARY_CMD_GET, SUBDOC_FLAG_NONE, ""});
+    request.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 }
 
@@ -433,10 +440,10 @@ TEST_F(SubdocXattrMultiMutationTest, XattrFlagsMakeSense) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_MACRO, validate());
     request[0].value = "\"${Mutation.CAS}\"";
 
-    // Let's try an invalid access deleted flag (needs xattr path)
+    // Let's try a valid access deleted flag
     request[0].flags = SUBDOC_FLAG_NONE;
     request.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO,
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
               validate());
 
     // We should be able to access deleted docs if both flags are set
