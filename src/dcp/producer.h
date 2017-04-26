@@ -138,7 +138,7 @@ enum class MutationType {
     void notifyStreamReady(uint16_t vbucket);
 
     void notifyBackfillManager();
-    bool recordBackfillManagerBytesRead(size_t bytes);
+    bool recordBackfillManagerBytesRead(size_t bytes, bool force);
     void recordBackfillManagerBytesSent(size_t bytes);
     void scheduleBackfillManager(VBucket& vb,
                                  const active_stream_t& s,

@@ -91,7 +91,8 @@ backfill_status_t DCPBackfillMemory::run() {
 
     /* Move every item to the stream */
     for (auto& item : items) {
-        stream->backfillReceived(std::move(item), BACKFILL_FROM_MEMORY);
+        stream->backfillReceived(
+                std::move(item), BACKFILL_FROM_MEMORY, /*force*/ true);
     }
 
     /* Indicate completion to the stream */

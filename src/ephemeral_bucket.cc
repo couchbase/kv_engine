@@ -209,17 +209,6 @@ void EphemeralBucket::reconfigureForEphemeral(Configuration& config) {
     config.setWarmup(false);
     // Disable TAP - not supported for Ephemeral.
     config.setTap(false);
-
-    // In-memory backfilling is currently not memory managed. Therefore set the
-    // scan buffer (per backfill buffer for managing backfill memory usage)
-    // byte limit, item limit to max. Otherwise, this may result in incomplete
-    // DCP backfills which may inturn cause hang or data loss in DCP clients
-    // like rebalance, xdcr etc.
-    config.setDcpScanByteLimit(std::numeric_limits<size_t>::max());
-    config.setDcpScanItemLimit(std::numeric_limits<size_t>::max());
-
-    // for the same reason as above set overall DCP backfill limit to max
-    config.setDcpBackfillByteLimit(std::numeric_limits<size_t>::max());
 }
 
 size_t EphemeralBucket::getNumPersistedDeletes(uint16_t vbid) {

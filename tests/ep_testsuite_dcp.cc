@@ -633,9 +633,13 @@ ENGINE_ERROR_CODE TestDcpConsumer::openStreams(ENGINE_HANDLE *h, ENGINE_HANDLE_V
             std::string stats_num_conn_cursors("vb_" +
                                                std::to_string(ctx.vbucket) +
                                                ":num_conn_cursors");
-            checkeq(1, get_int_stat(h, h1, stats_num_conn_cursors.c_str(),
-                                    "checkpoint"),
-                    "DCP cursors not expected to be registered");
+            /* In case of persistent buckets there will be 1 persistent cursor,
+               in case of ephemeral buckets there will be no cursor */
+            check(get_int_stat(h,
+                               h1,
+                               stats_num_conn_cursors.c_str(),
+                               "checkpoint") <= 1,
+                  "DCP cursors not expected to be registered");
         }
 
         // Init stats used in test
@@ -1965,12 +1969,22 @@ static enum test_result test_dcp_producer_disk_backfill_limits(ENGINE_HANDLE *h,
     tdc.addStreamCtx(ctx);
     tdc.run(h, h1);
 
-    /* Backfill task runs are expected as below:
-       once for backfill_state_init + once for backfill_state_completing +
-       once for backfill_state_done + once post all backfills are run finished.
-       Here since we have dcp_scan_byte_limit = 100, we expect the backfill task
-       to run additional 'num_items' during backfill_state_scanning state. */
-    uint64_t exp_backfill_task_runs = 4 + num_items;
+    uint64_t exp_backfill_task_runs;
+    if (isPersistentBucket(h, h1)) {
+        /* Backfill task runs are expected as below:
+           once for backfill_state_init + once for backfill_state_completing +
+           once for backfill_state_done + once post all backfills are run
+           finished. Here since we have dcp_scan_byte_limit = 100, we expect the
+           backfill task to run additional 'num_items' during
+           backfill_state_scanning state. */
+        exp_backfill_task_runs = 4 + num_items;
+    } else {
+        /* In case of ephemeral bucket there are no backfill states and no
+           limitations on memory used by a single backfill. Hence we expect
+           one backfill run for reading all items + one post all backfilling
+           is complete */
+        exp_backfill_task_runs = 2;
+    }
     checkeq(exp_backfill_task_runs,
             get_histo_stat(h, h1, "BackfillManagerTask", "runtimes",
                            Histo_stat_info::TOTAL_COUNT),
@@ -5943,18 +5957,12 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test producer stream request (disk only)",
                  test_dcp_producer_stream_req_diskonly, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100",
-                 /* [EPHE TODO]: the test uses DCP_ADD_STREAM_FLAG_DISKONLY flg;
-                    new test case to be written once we decide the intended
-                    effect of DCP_ADD_STREAM_FLAG_DISKONLY in ephemeral */
-                 prepare_skip_broken_under_ephemeral,
+                 prepare,
                  cleanup),
         TestCase("test producer disk backfill limits",
                  test_dcp_producer_disk_backfill_limits, test_setup, teardown,
                  "dcp_scan_item_limit=100;dcp_scan_byte_limit=100",
-                 /* [EPHE TODO]: the test validates the disk backfill task runs;
-                    new test case to be written once we decide the intended
-                    effect of DCP_ADD_STREAM_FLAG_DISKONLY in ephemeral */
-                 prepare_skip_broken_under_ephemeral,
+                 prepare,
                  cleanup),
         TestCase("test producer stream request (memory only)",
                  test_dcp_producer_stream_req_mem, test_setup, teardown,

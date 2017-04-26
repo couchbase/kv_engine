@@ -68,7 +68,24 @@ public:
                   uint64_t start,
                   uint64_t end);
 
-    bool bytesRead(size_t bytes);
+    /**
+     * Checks if the read size can fit into the backfill buffer and scan
+     * buffer and reads only if the read can fit.
+     *
+     * @param bytes read size
+     *
+     * @return true upon read success
+     *         false if the buffer(s) is(are) full
+     */
+    bool bytesCheckAndRead(size_t bytes);
+
+    /**
+     * Reads the backfill item irrespective of whether backfill buffer or
+     * scan buffer is full.
+     *
+     * @param bytes read size
+     */
+    void bytesForceRead(size_t bytes);
 
     void bytesSent(size_t bytes);
 

@@ -419,7 +419,8 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
 }
 
 bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
-                                    backfill_source_t backfill_source) {
+                                    backfill_source_t backfill_source,
+                                    bool force) {
     if (!itm) {
         return false;
     }
@@ -430,7 +431,7 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
             queued_item qi(std::move(itm));
             std::unique_ptr<DcpResponse> resp(makeResponseFromItem(qi));
             if (!producer->recordBackfillManagerBytesRead(
-                        resp->getApproximateSize())) {
+                        resp->getApproximateSize(), force)) {
                 // Deleting resp may also delete itm (which is owned by resp)
                 resp.reset();
                 return false;

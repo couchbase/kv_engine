@@ -80,7 +80,8 @@ void CacheCallback::callback(CacheLookup& lookup) {
             return;
         }
         hbl.getHTLock().unlock();
-        if (!stream_->backfillReceived(std::move(it), BACKFILL_FROM_MEMORY)) {
+        if (!stream_->backfillReceived(
+                    std::move(it), BACKFILL_FROM_MEMORY, /*force*/ false)) {
             setStatus(ENGINE_ENOMEM); // Pause the backfill
         } else {
             setStatus(ENGINE_KEY_EEXISTS);
@@ -108,7 +109,8 @@ void DiskCallback::callback(GetValue& val) {
     }
 
     if (!stream_->backfillReceived(std::unique_ptr<Item>(val.getValue()),
-                                   BACKFILL_FROM_DISK)) {
+                                   BACKFILL_FROM_DISK,
+                                   /*force*/ false)) {
         setStatus(ENGINE_ENOMEM); // Pause the backfill
     } else {
         setStatus(ENGINE_SUCCESS);
