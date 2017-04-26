@@ -412,17 +412,14 @@ TEST_P(StreamTest, BackfillOnly) {
     auto& ckpt_mgr = vb0->checkpointManager;
     ckpt_mgr.createNewCheckpoint();
 
-    /* Flush all items to the disk for a persistent bucket */
-    if (bucketType == "persistent") {
-        // EXPECT_EQ(1, engine->getKVBucket()->flushVBucket(vbid));
-        setup_dcp_stream(); // [TODO]: Check why TearDown() crashes without this
-        return; // [TODO]: Debug why flushVBucket does not work
-    }
-
-    /* Remove the old checkpoint */
+    /* Wait for removal of the old checkpoint, this also would imply that the
+       items are persisted (in case of persistent buckets) */
     bool new_ckpt_created;
-    EXPECT_EQ(numItems,
-              ckpt_mgr.removeClosedUnrefCheckpoints(*vb0, new_ckpt_created));
+    std::chrono::microseconds uSleepTime(128);
+    while (static_cast<size_t>(numItems) !=
+           ckpt_mgr.removeClosedUnrefCheckpoints(*vb0, new_ckpt_created)) {
+        uSleepTime = decayingSleep(uSleepTime);
+    }
 
     /* Set up a DCP stream for the backfill */
     setup_dcp_stream();
@@ -434,8 +431,9 @@ TEST_P(StreamTest, BackfillOnly) {
     mock_stream->transitionStateToBackfilling();
 
     /* Wait for the backfill task to complete */
+    std::chrono::microseconds uSleepTime2(128);
     while (numItems != mock_stream->getLastReadSeqno()) {
-        usleep(10);
+        uSleepTime2 = decayingSleep(uSleepTime2);
     }
 
     /* Verify that all items are read in the backfill */

@@ -26,6 +26,8 @@
 #include "item.h"
 #include "programs/engine_testapp/mock_server.h"
 
+#include <chrono>
+
 /// Creates an item with the given vbucket id, key and value.
 Item make_item(
         uint16_t vbid,
@@ -68,3 +70,14 @@ private:
     // Amount of time travel.
     int by;
 };
+
+/**
+ * Function to do an exponentially increasing, but max bounded, sleep.
+ * To do exponentially increasing sleep, must be called first with the starting
+ * sleep time and subsequently with the sleep time returned in the previous call
+ *
+ * @param uSeconds Desired sleep time in micro seconds
+ *
+ * @return indicates the next sleep time (doubled from the current value)
+ */
+std::chrono::microseconds decayingSleep(std::chrono::microseconds uSeconds);

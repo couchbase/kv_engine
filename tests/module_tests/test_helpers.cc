@@ -17,6 +17,8 @@
 
 #include "test_helpers.h"
 
+#include <thread>
+
 Item make_item(uint16_t vbid,
                const StoredDocKey& key,
                const std::string& value,
@@ -27,4 +29,11 @@ Item make_item(uint16_t vbid,
               ext_meta, sizeof(ext_meta));
     item.setVBucketId(vbid);
     return item;
+}
+
+std::chrono::microseconds decayingSleep(std::chrono::microseconds uSeconds) {
+    /* Max sleep time is slightly over a second */
+    static const std::chrono::microseconds maxSleepTime(0x1 << 20);
+    std::this_thread::sleep_for(uSeconds);
+    return std::min(uSeconds * 2, maxSleepTime);
 }
