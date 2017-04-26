@@ -15,7 +15,7 @@ import sys
 def sizeof_fmt(num):
     for unit in ('bytes', 'KB', 'MB', 'GB', 'TB'):
         if num < 1024.0:
-            return '{:3.1f} {}'.format(num, unit)
+            return '{0:3.1f} {1}'.format(num, unit)
         num /= 1024.0
 
 
@@ -113,7 +113,7 @@ def calc_bin_stats(stats, arena_ID):
                                  if c['small']])
     total_frag_memory = sum([c['frag_memory'] for c in classes])
 
-    print("=== Stats for Arena '{}' ===".format(arena_ID))
+    print("=== Stats for Arena '{0}' ===".format(arena_ID))
     print("small allocation stats:")
     print(FMT.format('bin', 'size (B)', 'regions', 'pages', 'allocated',
                      'allocated', 'cur runs', '', '% of small',
@@ -125,11 +125,11 @@ def calc_bin_stats(stats, arena_ID):
     # Finally, calculate per-class stats which need the totals.
     for c in classes:
         if c['small']:
-            utilization = '{:.0f}%'.format(c['utilization'] * 100)
-            pct_of_small = '{:.0f}%'.format(
+            utilization = '{0:.0f}%'.format(c['utilization'] * 100)
+            pct_of_small = '{0:.0f}%'.format(
                 c['allocated'] * 100 / total_allocated_small)
             frag_memory = c['frag_memory']
-            pct_of_blame = '{:.0f}%'.format(
+            pct_of_blame = '{0:.0f}%'.format(
                 c['frag_memory'] * 100 / total_frag_memory)
         else:
             utilization = '-'
