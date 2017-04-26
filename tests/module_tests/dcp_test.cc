@@ -416,11 +416,13 @@ TEST_P(StreamTest, BackfillOnly) {
 
     /* Wait for removal of the old checkpoint, this also would imply that the
        items are persisted (in case of persistent buckets) */
-    bool new_ckpt_created;
-    std::chrono::microseconds uSleepTime(128);
-    while (static_cast<size_t>(numItems) !=
-           ckpt_mgr.removeClosedUnrefCheckpoints(*vb0, new_ckpt_created)) {
-        uSleepTime = decayingSleep(uSleepTime);
+    {
+        bool new_ckpt_created;
+        std::chrono::microseconds uSleepTime(128);
+        while (static_cast<size_t>(numItems) !=
+               ckpt_mgr.removeClosedUnrefCheckpoints(*vb0, new_ckpt_created)) {
+            uSleepTime = decayingSleep(uSleepTime);
+        }
     }
 
     /* Set up a DCP stream for the backfill */
@@ -433,9 +435,11 @@ TEST_P(StreamTest, BackfillOnly) {
     mock_stream->transitionStateToBackfilling();
 
     /* Wait for the backfill task to complete */
-    std::chrono::microseconds uSleepTime2(128);
-    while (numItems != mock_stream->getLastReadSeqno()) {
-        uSleepTime2 = decayingSleep(uSleepTime2);
+    {
+        std::chrono::microseconds uSleepTime(128);
+        while (numItems != mock_stream->getLastReadSeqno()) {
+            uSleepTime = decayingSleep(uSleepTime);
+        }
     }
 
     /* Verify that all items are read in the backfill */
@@ -481,6 +485,81 @@ TEST_P(StreamTest, BackfillFail) {
 
     /* Expect stream to be closed */
     mock_stream->waitForStreamClose();
+}
+
+/* Stream items from a DCP backfill with very small backfill buffer.
+   However small the backfill buffer is, backfill must not stop, it must
+   proceed to completion eventually */
+TEST_P(StreamTest, BackfillSmallBuffer) {
+    if (bucketType == "ephemeral") {
+        /* Ephemeral buckets is not memory managed for now. Will be memory
+           managed soon and then this test will be enabled */
+        return;
+    }
+
+    /* Add 2 items */
+    int numItems = 2;
+    for (int i = 0; i < numItems; ++i) {
+        std::string key("key" + std::to_string(i));
+        store_item(vbid, key, "value");
+    }
+
+    /* Create new checkpoint so that we can remove the current checkpoint
+       and force a backfill in the DCP stream */
+    auto& ckpt_mgr = vb0->checkpointManager;
+    ckpt_mgr.createNewCheckpoint();
+
+    /* Wait for removal of the old checkpoint, this also would imply that the
+       items are persisted (in case of persistent buckets) */
+    {
+        bool new_ckpt_created;
+        std::chrono::microseconds uSleepTime(128);
+        while (static_cast<size_t>(numItems) !=
+               ckpt_mgr.removeClosedUnrefCheckpoints(*vb0, new_ckpt_created)) {
+            uSleepTime = decayingSleep(uSleepTime);
+        }
+    }
+
+    /* Set up a DCP stream for the backfill */
+    setup_dcp_stream();
+    MockActiveStream* mock_stream =
+            dynamic_cast<MockActiveStream*>(stream.get());
+
+    /* set the DCP backfill buffer size to a value that is smaller than the
+       size of a mutation */
+    MockDcpProducer* mock_producer =
+            dynamic_cast<MockDcpProducer*>(producer.get());
+    mock_producer->setBackfillBufferSize(1);
+
+    /* We want the backfill task to run in a background thread */
+    ExecutorPool::get()->setNumAuxIO(1);
+    mock_stream->transitionStateToBackfilling();
+
+    /* Backfill can only read 1 as its buffer will become full after that */
+    {
+        std::chrono::microseconds uSleepTime(128);
+        while ((numItems - 1) != mock_stream->getLastReadSeqno()) {
+            uSleepTime = decayingSleep(uSleepTime);
+        }
+    }
+
+    /* Consume the backfill item(s) */
+    mock_stream->consumeBackfillItems(/*snapshot*/ 1 + /*mutation*/ 1);
+
+    /* We should see that buffer full status must be false as we have read
+       the item in the backfill buffer */
+    EXPECT_FALSE(mock_producer->getBackfillBufferFullStatus());
+
+    /* Finish up with the backilling of the remaining item */
+    {
+        std::chrono::microseconds uSleepTime(128);
+        while (numItems != mock_stream->getLastReadSeqno()) {
+            uSleepTime = decayingSleep(uSleepTime);
+        }
+    }
+
+    /* Read the other item */
+    mock_stream->consumeBackfillItems(1);
 }
 
 class ConnectionTest : public DCPTest {

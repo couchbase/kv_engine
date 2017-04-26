@@ -1995,6 +1995,35 @@ static enum test_result test_dcp_producer_disk_backfill_limits(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_dcp_producer_disk_backfill_buffer_limits(
+                                    ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const int num_items = 3;
+    write_items(h, h1, num_items);
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+
+    /* Wait for the checkpoint to be removed so that upon DCP connection
+       backfill is scheduled */
+    wait_for_stat_to_be(h, h1, "ep_items_rm_from_checkpoints", num_items);
+
+    const void *cookie = testHarness.create_cookie();
+
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, num_items};
+    ctx.exp_mutations = 3;
+    ctx.exp_markers = 1;
+
+    TestDcpConsumer tdc("unittest", cookie);
+    tdc.addStreamCtx(ctx);
+    tdc.run(h, h1);
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
 static enum test_result test_dcp_producer_stream_req_mem(ENGINE_HANDLE *h,
                                                          ENGINE_HANDLE_V1 *h1) {
     const int num_items = 300, batch_items = 100;
@@ -5962,6 +5991,16 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test producer disk backfill limits",
                  test_dcp_producer_disk_backfill_limits, test_setup, teardown,
                  "dcp_scan_item_limit=100;dcp_scan_byte_limit=100",
+                 prepare,
+                 cleanup),
+        TestCase("test producer disk backfill buffer limits",
+                 test_dcp_producer_disk_backfill_buffer_limits,
+                 test_setup,
+                 teardown,
+                 /* Set buffer size to a very low value (less than the size
+                    of a mutation) */
+                 "dcp_backfill_byte_limit=1;chk_remover_stime=1;"
+                 "chk_max_items=3",
                  prepare,
                  cleanup),
         TestCase("test producer stream request (memory only)",

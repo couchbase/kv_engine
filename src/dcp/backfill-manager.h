@@ -59,7 +59,7 @@ class BackfillManager : public std::enable_shared_from_this<BackfillManager> {
 public:
     BackfillManager(EventuallyPersistentEngine& e);
 
-    ~BackfillManager();
+    virtual ~BackfillManager();
 
     void addStats(connection_t conn, ADD_STAT add_stat, const void *c);
 
@@ -95,6 +95,15 @@ public:
 
     void wakeUpTask();
 
+protected:
+    //! The buffer is the total bytes used by all backfills for this connection
+    struct {
+        size_t bytesRead;
+        size_t maxBytes;
+        size_t nextReadSize;
+        bool full;
+    } buffer;
+
 private:
 
     void moveToActiveQueue();
@@ -115,14 +124,6 @@ private:
         size_t maxBytes;
         size_t maxItems;
     } scanBuffer;
-
-    //! The buffer is the total bytes used by all backfills for this connection
-    struct {
-        size_t bytesRead;
-        size_t maxBytes;
-        size_t nextReadSize;
-        bool full;
-    } buffer;
 };
 
 #endif  // SRC_DCP_BACKFILL_MANAGER_H_

@@ -349,11 +349,11 @@ protected:
      */
     std::atomic<size_t> backfillRemaining;
 
+    DcpResponse* backfillPhase(std::lock_guard<std::mutex>& lh);
+
 private:
 
     DcpResponse* next(std::lock_guard<std::mutex>& lh);
-
-    DcpResponse* backfillPhase(std::lock_guard<std::mutex>& lh);
 
     DcpResponse* inMemoryPhase();
 

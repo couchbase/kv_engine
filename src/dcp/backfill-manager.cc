@@ -220,9 +220,19 @@ void BackfillManager::bytesSent(size_t bytes) {
     buffer.bytesRead -= bytes;
 
     if (buffer.full) {
-        uint32_t bufferSize = buffer.bytesRead;
-        bool canFitNext = buffer.maxBytes - bufferSize >= buffer.nextReadSize;
-        bool enoughCleared = bufferSize < (buffer.maxBytes * 3 / 4);
+        /* We can have buffer.bytesRead > buffer.maxBytes */
+        size_t unfilledBufferSize = (buffer.maxBytes > buffer.bytesRead)
+                                            ? buffer.maxBytes - buffer.bytesRead
+                                            : buffer.maxBytes;
+
+        /* If buffer.bytesRead == 0 we want to fit the next read into the
+           backfill buffer irrespective of its size */
+        bool canFitNext = (buffer.bytesRead == 0) ||
+                          (unfilledBufferSize >= buffer.nextReadSize);
+
+        /* <= implicitly takes care of the case where
+           buffer.bytesRead == (buffer.maxBytes * 3 / 4) == 0 */
+        bool enoughCleared = buffer.bytesRead <= (buffer.maxBytes * 3 / 4);
         if (canFitNext && enoughCleared) {
             buffer.nextReadSize = 0;
             buffer.full = false;

@@ -111,6 +111,20 @@ public:
             usleep(10);
         }
     }
+
+    /**
+     * Consumes numItems from the stream readyQ
+     */
+    void consumeBackfillItems(int numItems) {
+        std::lock_guard<std::mutex> lh(streamMutex);
+        for (int items = 0; items < numItems;) {
+            auto resp = backfillPhase(lh);
+            if (resp) {
+                delete resp;
+                ++items;
+            }
+        }
+    }
 };
 
 /* Mock of the PassiveStream class. Wraps the real PassiveStream, but exposes

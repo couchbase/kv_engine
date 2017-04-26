@@ -19,6 +19,7 @@
 
 #include "dcp/producer.h"
 #include "dcp/stream.h"
+#include "mock_dcp_backfill_mgr.h"
 
 /*
  * Mock of the DcpProducer class.  Wraps the real DcpProducer, but exposes
@@ -35,6 +36,7 @@ public:
                             DcpProducer::MutationType::KeyAndValue)
         : DcpProducer(theEngine, cookie, name,
                       isNotifier, startTask, mutationType) {
+        backfillMgr.reset(new MockDcpBackfillManager(engine_));
     }
 
     ENGINE_ERROR_CODE maybeDisconnect() {
@@ -103,5 +105,18 @@ public:
             return as->getCurrentSeparator();
         }
         return {};
+    }
+
+    /**
+     * Sets the backfill buffer size (max limit) to a particular value
+     */
+    void setBackfillBufferSize(size_t newSize) {
+        dynamic_cast<MockDcpBackfillManager*>(backfillMgr.get())
+                ->setBackfillBufferSize(newSize);
+    }
+
+    bool getBackfillBufferFullStatus() {
+        return dynamic_cast<MockDcpBackfillManager*>(backfillMgr.get())
+                ->getBackfillBufferFullStatus();
     }
 };
