@@ -400,6 +400,50 @@ protected:
     }
 };
 
+class ListBucketsResponse : public Response {
+public:
+    ListBucketsResponse(const protocol_binary_response_header& res)
+        : Response(res) {
+
+    }
+
+protected:
+    virtual void dumpExtras(std::ostream& out) const override {
+        if (response.response.extlen != 0) {
+            throw std::logic_error(
+                "ListBucketsResponse::dumpExtras(): extlen must be 0");
+        }
+    }
+
+    virtual void dumpKey(std::ostream& out) const override {
+        if (response.response.keylen != 0) {
+            throw std::logic_error(
+                "ListBucketsResponse::dumpKey(): keylen must be 0");
+        }
+    }
+
+    virtual void dumpValue(std::ostream& out) const override {
+        const char* payload = reinterpret_cast<const char*>(response.bytes) +
+                                                sizeof(response.bytes);
+        std::string buckets(payload, ntohl(response.response.bodylen));
+        out << "    Body                :" << std::endl;
+
+        std::string::size_type start = 0;
+        std::string::size_type end;
+
+        while ((end = buckets.find(" ", start)) != std::string::npos) {
+            const auto b = buckets.substr(start, end - start);
+            out << "                        : " << b << std::endl;
+            start = end + 1;
+        }
+        if (start < buckets.size()) {
+            out << "                        : " << buckets.substr(start)
+                << std::endl;
+        }
+    }
+};
+
+
 static void dump_request(const protocol_binary_request_header* req,
                          std::ostream& out) {
     switch (req->request.opcode) {
@@ -416,6 +460,9 @@ static void dump_response(const protocol_binary_response_header* res,
     switch (res->response.opcode) {
     case PROTOCOL_BINARY_CMD_HELLO:
         out << HelloResponse(*res) << std::endl;
+        break;
+    case PROTOCOL_BINARY_CMD_LIST_BUCKETS:
+        out << ListBucketsResponse(*res) << std::endl;
         break;
     default:
         out << Response(*res) << std::endl;

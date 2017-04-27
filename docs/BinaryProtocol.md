@@ -279,7 +279,7 @@ information about a given command.
 | 0x83 | Get replica |
 | 0x85 | Create bucket |
 | 0x86 | Delete bucket |
-| 0x87 | List buckets |
+| 0x87 | [List buckets](#0x87-list-buckets) |
 | 0x89 | [Select bucket](#0x89-select-bucket) |
 | 0x8a | Assume role |
 | 0x91 | Observe seqno |
@@ -1609,6 +1609,113 @@ The following example shows that the server agreed to enable 0x0003 and
 ### 0x3e Get VBucket
 ### 0x3f Del VBucket
 **TODO: add me**
+
+### 0x87 List Buckets
+
+The `list buckets` command is used to list all of the buckets available
+for the connection in it's current state (performing authentication may
+invalidate the list).
+
+Request:
+
+* MUST NOT have extra
+* MUST NOT have key
+* MUST NOT have value
+
+Response:
+
+* MUST NOT have extras.
+* MUST NOT have key.
+* MAY have value.
+
+In the response packet all of the available buckets is listed and
+separated by a single space character.
+
+#### Example
+
+The following example shows a successful list bucket operation.
+
+Request:
+
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+       0| 0x80          | 0x87          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+       4| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+       8| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      12| 0xef          | 0xbe          | 0xad          | 0xde          |
+        +---------------+---------------+---------------+---------------+
+      16| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      20| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+        Total 24 bytes
+
+    Field        (offset) (value)
+    Magic        (0)    : 0x80
+    Opcode       (1)    : 0x87 (LIST_BUCKETS)
+    Key length   (2,3)  : 0x0000
+    Extra length (4)    : 0x00
+    Data type    (5)    : 0x00
+    Vbucket      (6,7)  : 0x0000
+    Total body   (8-11) : 0x00000000
+    Opaque       (12-15): 0xefbeadde
+    CAS          (16-23): 0x0000000000000000
+
+Response:
+
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+       0| 0x81          | 0x87          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+       4| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+       8| 0x00          | 0x00          | 0x00          | 0x1b          |
+        +---------------+---------------+---------------+---------------+
+      12| 0xef          | 0xbe          | 0xad          | 0xde          |
+        +---------------+---------------+---------------+---------------+
+      16| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      20| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      24| 0x65 ('e')    | 0x6e ('n')    | 0x67 ('g')    | 0x69 ('i')    |
+        +---------------+---------------+---------------+---------------+
+      28| 0x6e ('n')    | 0x65 ('e')    | 0x65 ('e')    | 0x72 ('r')    |
+        +---------------+---------------+---------------+---------------+
+      32| 0x69 ('i')    | 0x6e ('n')    | 0x67 ('g')    | 0x20 (' ')    |
+        +---------------+---------------+---------------+---------------+
+      36| 0x6d ('m')    | 0x61 ('a')    | 0x72 ('r')    | 0x6b ('k')    |
+        +---------------+---------------+---------------+---------------+
+      40| 0x65 ('e')    | 0x74 ('t')    | 0x69 ('i')    | 0x6e ('n')    |
+        +---------------+---------------+---------------+---------------+
+      44| 0x67 ('g')    | 0x20 (' ')    | 0x73 ('s')    | 0x61 ('a')    |
+        +---------------+---------------+---------------+---------------+
+      48| 0x6c ('l')    | 0x65 ('e')    | 0x73 ('s')    |
+        +---------------+---------------+---------------+
+        Total 51 bytes (24 bytes header and 27 value)
+
+    Field        (offset) (value)
+    Magic        (0)    : 0x81
+    Opcode       (1)    : 0x87 (LIST_BUCKETS)
+    Key length   (2,3)  : 0x0000
+    Extra length (4)    : 0x00
+    Data type    (5)    : 0x00
+    Status       (6,7)  : 0x0000 (Success)
+    Total body   (8-11) : 0x0000001b
+    Opaque       (12-15): 0xdeadbeef
+    CAS          (16-23): 0x0000000000000000
+    Body                :
+                        : engineering
+                        : marketing
+                        : sales
+
+
 
 ### 0x89 Select Bucket
 
