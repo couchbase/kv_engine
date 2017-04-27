@@ -134,13 +134,29 @@ void MemcachedBinprotConnection::recvFrame(Frame& frame) {
 void MemcachedBinprotConnection::sendCommand(const BinprotCommand& command) {
     auto bufs = command.encode();
 
-    if (!bufs.header.empty()) {
-        cb::const_byte_buffer tmp_bb(bufs.header);
-        sendBuffer(tmp_bb);
-    }
+    if (packet_dump) {
+        Frame frame;
 
-    for (auto& buf : bufs.bufs) {
-        sendBuffer(buf);
+        if (!bufs.header.empty()) {
+            std::copy(bufs.header.begin(), bufs.header.end(),
+                      std::back_inserter(frame.payload));
+        }
+
+        for (auto& buf : bufs.bufs) {
+            std::copy(buf.begin(), buf.end(),
+                      std::back_inserter(frame.payload));
+        }
+
+        sendFrame(frame);
+    } else {
+        if (!bufs.header.empty()) {
+            cb::const_byte_buffer tmp_bb(bufs.header);
+            sendBuffer(tmp_bb);
+        }
+
+        for (auto& buf : bufs.bufs) {
+            sendBuffer(buf);
+        }
     }
 }
 
