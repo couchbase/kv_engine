@@ -1199,9 +1199,20 @@ static protocol_binary_response_status collections_set_manifest_validator(
             McbpConnection::getPacket(cookie));
     auto& req = packet->message.header.request;
 
-    if (req.keylen != 0 || req.extlen != 0 || req.cas != 0 ||
-        req.datatype != 0 || req.vbucket != 0 || req.bodylen == 0) {
+    if (req.magic != PROTOCOL_BINARY_REQ || req.keylen != 0 ||
+        req.extlen != 0 || req.cas != 0 || req.datatype != 0 ||
+        req.vbucket != 0 || req.bodylen == 0) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    // We could do these tests before checking the packet, but
+    // it feels cleaner to validate the packet first.
+    if (cookie.connection == nullptr ||
+        cookie.connection->getBucketEngine() == nullptr ||
+        cookie.connection->getBucketEngine()->collections.set_manifest ==
+                nullptr) {
+        // The attached bucket does not support collections
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;

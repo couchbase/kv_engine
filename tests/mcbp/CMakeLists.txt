@@ -3,6 +3,7 @@ ADD_DEFINITIONS(-DBUILDING_VALIDATORS_TEST)
 add_executable(memcached_mcbp_test
                mcbp_gat_test.cc
                mcbp_test.cc
+               mcbp_test_collections.cc
                mcbp_test_meta.cc
                mcbp_test_subdoc.cc
                mcbp_test_subdoc_xattr.cc
