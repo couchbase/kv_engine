@@ -45,6 +45,11 @@ std::pair<ENGINE_ERROR_CODE, std::string> list_bucket(
         }
         cb_mutex_exit(&bucket.mutex);
 
+        if (bucketname.empty()) {
+            // ignore this one
+            continue;
+        }
+
         try {
             // Check if the user have access to the bucket
             cb::rbac::createContext(connection.getUsername(), bucketname);
