@@ -95,8 +95,12 @@ public:
      */
     virtual std::string getDescription(void) = 0;
 
-    virtual int maxExpectedDuration(void) {
-        return 3600;
+    /**
+     * The maximum expected duration of this task. Any tasks taking longer than
+     * this to run will be logged as "slow".
+     */
+    virtual std::chrono::microseconds maxExpectedDuration() {
+        return std::chrono::microseconds(3600);
     }
 
     /**
