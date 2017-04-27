@@ -134,8 +134,7 @@ void ExecutorThread::run() {
             addLogEntry(currentTask->getTaskable().getName() +
                         to_string(currentTask->getDescription()),
                        q->getQueueType(), runtime, startReltime,
-                       (runtime > std::chrono::seconds(
-                               currentTask->maxExpectedDuration())));
+                       (runtime > currentTask->maxExpectedDuration()));
 
             if (engine) {
                 ObjectRegistry::onSwitchThread(engine);
