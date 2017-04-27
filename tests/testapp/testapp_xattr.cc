@@ -752,8 +752,29 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs) {
     verify_vattr_entry(meta.get(), "seqno", cJSON_String);
     verify_vattr_entry(meta.get(), "exptime", cJSON_Number);
     verify_vattr_entry(meta.get(), "value_bytes", cJSON_Number);
-    verify_vattr_entry(meta.get(), "datatype", cJSON_Array);
     verify_vattr_entry(meta.get(), "deleted", cJSON_False);
+
+    // verify that the datatype is correctly encoded and contains
+    // the correct bits
+    auto* obj = cJSON_GetObjectItem(meta.get(), "datatype");
+    ASSERT_NE(nullptr, obj);
+    ASSERT_EQ(cJSON_Array, obj->type);
+    bool found_xattr = false;
+    bool found_json = false;
+
+    for (obj = obj->child; obj != nullptr; obj = obj->next) {
+        EXPECT_EQ(cJSON_String, obj->type);
+        const std::string tag{obj->valuestring};
+        if (tag == "xattr") {
+            found_xattr = true;
+        } else if (tag == "json") {
+            found_json = true;
+        } else {
+            EXPECT_EQ(nullptr, tag.c_str());
+        }
+    }
+    EXPECT_TRUE(found_json);
+    EXPECT_TRUE(found_xattr);
 
     // Verify that we got a partial from the second one
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, results[1].status);

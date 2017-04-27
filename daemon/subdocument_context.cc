@@ -27,6 +27,7 @@
 #include <iomanip>
 #include <random>
 #include <sstream>
+#include <utilities/string_utilities.h>
 
 SubdocCmdContext::OperationSpec::OperationSpec(SubdocCmdTraits traits_,
                                                protocol_binary_subdoc_flag flags_,
@@ -241,14 +242,10 @@ cb::const_char_buffer SubdocCmdContext::get_document_vattr() {
         }
 
         unique_cJSON_ptr array(cJSON_CreateArray());
-        auto datatypes = mcbp::datatype::to_string(input_item_info.datatype);
-        std::string::size_type start = 0;
-        std::string::size_type end;
-
-        while ((end = datatypes.find(",", start)) != std::string::npos) {
-            const auto d = datatypes.substr(start, end);
+        auto datatypes = split_string(
+            mcbp::datatype::to_string(input_item_info.datatype), ",");
+        for (const auto& d : datatypes) {
             cJSON_AddItemToArray(array.get(), cJSON_CreateString(d.c_str()));
-            start = end + 1;
         }
 
         cJSON_AddItemToObject(doc.get(), "datatype", array.release());
