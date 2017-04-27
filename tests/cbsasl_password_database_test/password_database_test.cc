@@ -403,3 +403,12 @@ TEST_F(EncryptedDatabaseTest, WriteReadFileEncrypted) {
     auto content = cbsasl_read_password_file(filename);
     EXPECT_EQ(input, content);
 }
+
+int main(int argc, char** argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+
+    // Reduce the iteration cycles in HMAC to be nicer to valgrind ;-)
+    cb::sasl::UserFactory::setDefaultHmacIterationCount(10);
+
+    return RUN_ALL_TESTS();
+}

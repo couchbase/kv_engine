@@ -11,7 +11,6 @@ ADD_EXECUTABLE(cbsasl_password_database_test
 TARGET_LINK_LIBRARIES(cbsasl_password_database_test
                       cbcrypto
                       gtest
-                      gtest_main
                       cJSON
                       dirutils
                       platform
