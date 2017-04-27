@@ -31,15 +31,15 @@
  * The Frame class represents a complete frame as it is being sent on the
  * wire in the Memcached Binary Protocol.
  */
-class Frame {
+class McbpFrame {
 public:
-    Frame(const uint8_t* bytes, size_t len)
+    McbpFrame(const uint8_t* bytes, size_t len)
         : root(bytes),
           length(len) {
         // empty
     }
 
-    virtual ~Frame() {
+    virtual ~McbpFrame() {
     }
 
     void dump(std::ostream& out) const {
@@ -150,15 +150,15 @@ private:
     size_t length;
 };
 
-std::ostream& operator<<(std::ostream& out, const Frame& frame) {
+std::ostream& operator<<(std::ostream& out, const McbpFrame& frame) {
     frame.dump(out);
     return out;
 }
 
-class Request : public Frame {
+class Request : public McbpFrame {
 public:
     Request(const protocol_binary_request_header& req)
-        : Frame(req.bytes, ntohl(req.request.bodylen) + sizeof(req.bytes)),
+        : McbpFrame(req.bytes, ntohl(req.request.bodylen) + sizeof(req.bytes)),
           request(req) {
         // nothing
     }
@@ -204,13 +204,13 @@ protected:
     }
 
     virtual void dumpExtras(std::ostream &out) const override {
-        Frame::dumpExtras(request.bytes + sizeof(request.bytes),
+        McbpFrame::dumpExtras(request.bytes + sizeof(request.bytes),
                           request.request.extlen,
                           out);
     }
 
     virtual void dumpKey(std::ostream &out) const override {
-        Frame::dumpKey(
+        McbpFrame::dumpKey(
             request.bytes + sizeof(request.bytes) + request.request.extlen,
             ntohs(request.request.keylen),
             out);
@@ -276,10 +276,10 @@ protected:
     }
 };
 
-class Response : public Frame {
+class Response : public McbpFrame {
 public:
     Response(const protocol_binary_response_header& res)
-        : Frame(res.bytes, ntohl(res.response.bodylen) + sizeof(res.bytes)),
+        : McbpFrame(res.bytes, ntohl(res.response.bodylen) + sizeof(res.bytes)),
           response(res) {
         // nothing
     }
@@ -325,13 +325,13 @@ protected:
     }
 
     virtual void dumpExtras(std::ostream &out) const override {
-        Frame::dumpExtras(response.bytes + sizeof(response.bytes),
+        McbpFrame::dumpExtras(response.bytes + sizeof(response.bytes),
                           response.response.extlen,
                           out);
     }
 
     virtual void dumpKey(std::ostream &out) const override {
-        Frame::dumpKey(
+        McbpFrame::dumpKey(
             response.bytes + sizeof(response.bytes) + response.response.extlen,
             ntohs(response.response.keylen),
             out);
