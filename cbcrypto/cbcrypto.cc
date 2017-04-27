@@ -24,7 +24,351 @@
 #include <sstream>
 #include <stdexcept>
 
-#ifdef __APPLE__
+#ifdef _MSC_VER
+
+#include <bcrypt.h>
+#include <windows.h>
+
+namespace cb {
+namespace crypto {
+
+struct HeapAllocDeleter {
+    void operator()(PBYTE bytes) {
+        HeapFree(GetProcessHeap(), 0, bytes);
+    }
+};
+
+using uniqueHeapPtr = std::unique_ptr<BYTE, HeapAllocDeleter>;
+
+static inline std::vector<uint8_t> hash(const std::vector<uint8_t>& key,
+                                        const std::vector<uint8_t>& data,
+                                        LPCWSTR algorithm,
+                                        int flags) {
+    BCRYPT_ALG_HANDLE hAlg;
+    NTSTATUS status =
+            BCryptOpenAlgorithmProvider(&hAlg, algorithm, nullptr, flags);
+    if (status < 0) {
+        throw std::runtime_error(
+                "digest: BCryptOpenAlgorithmProvider return: " +
+                std::to_string(status));
+    }
+
+    DWORD pcbResult = 0;
+    DWORD cbHashObject = 0;
+
+    // calculate the size of the buffer to hold the hash object
+    status = BCryptGetProperty(hAlg,
+                               BCRYPT_OBJECT_LENGTH,
+                               (PBYTE)&cbHashObject,
+                               sizeof(DWORD),
+                               &pcbResult,
+                               0);
+    if (status < 0) {
+        BCryptCloseAlgorithmProvider(hAlg, 0);
+        throw std::runtime_error("digest: BCryptGetProperty return: " +
+                                 std::to_string(status));
+    }
+
+    // calculate the length of the hash
+    DWORD cbHash = 0;
+    status = BCryptGetProperty(hAlg,
+                               BCRYPT_HASH_LENGTH,
+                               (PBYTE)&cbHash,
+                               sizeof(DWORD),
+                               &pcbResult,
+                               0);
+    if (status < 0) {
+        BCryptCloseAlgorithmProvider(hAlg, 0);
+        throw std::runtime_error("digest: BCryptGetProperty return: " +
+                                 std::to_string(status));
+    }
+
+    // allocate the hash object on the heap
+    uniqueHeapPtr pbHashObject(
+            (PBYTE)HeapAlloc(GetProcessHeap(), 0, cbHashObject));
+    if (!pbHashObject) {
+        BCryptCloseAlgorithmProvider(hAlg, 0);
+        throw std::bad_alloc();
+    }
+
+    std::vector<uint8_t> ret(cbHash);
+
+    // create the hash
+    BCRYPT_HASH_HANDLE hHash;
+    status = BCryptCreateHash(hAlg,
+                              &hHash,
+                              pbHashObject.get(),
+                              cbHashObject,
+                              (PUCHAR)key.data(),
+                              ULONG(key.size()),
+                              0);
+    if (status < 0) {
+        BCryptCloseAlgorithmProvider(hAlg, 0);
+        throw std::runtime_error("digest: BCryptCreateHash return: " +
+                                 std::to_string(status));
+    }
+
+    status = BCryptHashData(hHash, (PBYTE)data.data(), ULONG(data.size()), 0);
+    if (status < 0) {
+        BCryptCloseAlgorithmProvider(hAlg, 0);
+        BCryptDestroyHash(hHash);
+        throw std::runtime_error("digest: BCryptHashData return: " +
+                                 std::to_string(status));
+    }
+
+    status = BCryptFinishHash(hHash, ret.data(), cbHash, 0);
+
+    // Release resources
+    BCryptCloseAlgorithmProvider(hAlg, 0);
+    BCryptDestroyHash(hHash);
+
+    if (status < 0) {
+        throw std::runtime_error("digest: BCryptFinishHash return: " +
+                                 std::to_string(status));
+    }
+
+    return ret;
+}
+
+static std::vector<uint8_t> HMAC_MD5(const std::vector<uint8_t>& key,
+                                     const std::vector<uint8_t>& data) {
+    return hash(key, data, BCRYPT_MD5_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG);
+}
+
+static std::vector<uint8_t> HMAC_SHA1(const std::vector<uint8_t>& key,
+                                      const std::vector<uint8_t>& data) {
+    return hash(key, data, BCRYPT_SHA1_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG);
+}
+
+static std::vector<uint8_t> HMAC_SHA256(const std::vector<uint8_t>& key,
+                                        const std::vector<uint8_t>& data) {
+    return hash(
+            key, data, BCRYPT_SHA256_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG);
+}
+
+static std::vector<uint8_t> HMAC_SHA512(const std::vector<uint8_t>& key,
+                                        const std::vector<uint8_t>& data) {
+    return hash(
+            key, data, BCRYPT_SHA512_ALGORITHM, BCRYPT_ALG_HANDLE_HMAC_FLAG);
+}
+
+static inline std::vector<uint8_t> PBKDF2(const std::string& pass,
+                                          const std::vector<uint8_t>& salt,
+                                          unsigned int iterationCount,
+                                          LPCWSTR algorithm) {
+    // open an algorithm handle
+    BCRYPT_ALG_HANDLE hAlg;
+    NTSTATUS status;
+
+    status = BCryptOpenAlgorithmProvider(
+            &hAlg, algorithm, nullptr, BCRYPT_ALG_HANDLE_HMAC_FLAG);
+    if (status < 0) {
+        throw std::runtime_error(
+                "digest: BCryptOpenAlgorithmProvider return: " +
+                std::to_string(status));
+    }
+
+    DWORD pcbResult = 0;
+    DWORD cbHashObject = 0;
+
+    // calculate the length of the hash
+    DWORD cbHash = 0;
+    status = BCryptGetProperty(hAlg,
+                               BCRYPT_HASH_LENGTH,
+                               (PBYTE)&cbHash,
+                               sizeof(DWORD),
+                               &pcbResult,
+                               0);
+    if (status < 0) {
+        BCryptCloseAlgorithmProvider(hAlg, 0);
+        throw std::runtime_error("digest: BCryptGetProperty return: " +
+                                 std::to_string(status));
+    }
+
+    std::vector<uint8_t> ret(cbHash);
+
+    status = BCryptDeriveKeyPBKDF2(hAlg,
+                                   (PUCHAR)pass.data(),
+                                   ULONG(pass.size()),
+                                   (PUCHAR)salt.data(),
+                                   ULONG(salt.size()),
+                                   iterationCount,
+                                   (PUCHAR)ret.data(),
+                                   ULONG(ret.size()),
+                                   0);
+
+    // Release resources
+    BCryptCloseAlgorithmProvider(hAlg, 0);
+
+    if (status < 0) {
+        throw std::runtime_error("digest: BCryptDeriveKeyPBKDF2 return: " +
+                                 std::to_string(status));
+    }
+
+    return ret;
+}
+
+static std::vector<uint8_t> PBKDF2_HMAC_SHA1(const std::string& pass,
+                                             const std::vector<uint8_t>& salt,
+                                             unsigned int iterationCount) {
+    return PBKDF2(pass, salt, iterationCount, BCRYPT_SHA1_ALGORITHM);
+}
+
+static std::vector<uint8_t> PBKDF2_HMAC_SHA256(const std::string& pass,
+                                               const std::vector<uint8_t>& salt,
+                                               unsigned int iterationCount) {
+    return PBKDF2(pass, salt, iterationCount, BCRYPT_SHA256_ALGORITHM);
+}
+
+static std::vector<uint8_t> PBKDF2_HMAC_SHA512(const std::string& pass,
+                                               const std::vector<uint8_t>& salt,
+                                               unsigned int iterationCount) {
+    return PBKDF2(pass, salt, iterationCount, BCRYPT_SHA512_ALGORITHM);
+}
+
+static std::vector<uint8_t> digest_md5(const std::vector<uint8_t>& data) {
+    return hash({}, data, BCRYPT_MD5_ALGORITHM, 0);
+}
+
+static std::vector<uint8_t> digest_sha1(const std::vector<uint8_t>& data) {
+    return hash({}, data, BCRYPT_SHA1_ALGORITHM, 0);
+}
+
+static std::vector<uint8_t> digest_sha256(const std::vector<uint8_t>& data) {
+    return hash({}, data, BCRYPT_SHA256_ALGORITHM, 0);
+}
+
+static std::vector<uint8_t> digest_sha512(const std::vector<uint8_t>& data) {
+    return hash({}, data, BCRYPT_SHA512_ALGORITHM, 0);
+}
+
+std::vector<uint8_t> AES_256_cbc(bool encrypt,
+                                 const std::vector<uint8_t>& key,
+                                 const std::vector<uint8_t>& iv,
+                                 const uint8_t* data,
+                                 size_t length) {
+    BCRYPT_ALG_HANDLE hAlg;
+    NTSTATUS status = BCryptOpenAlgorithmProvider(
+            &hAlg, BCRYPT_AES_ALGORITHM, nullptr, 0);
+
+    if (status < 0) {
+        throw std::runtime_error(
+                "encrypt: BCryptOpenAlgorithmProvider() return: " +
+                std::to_string(status));
+    }
+
+    DWORD cbData = 0;
+    DWORD cbKeyObject = 0;
+
+    // Calculate the size of the buffer to hold the KeyObject.
+    status = BCryptGetProperty(hAlg,
+                               BCRYPT_OBJECT_LENGTH,
+                               (PBYTE)&cbKeyObject,
+                               sizeof(DWORD),
+                               &cbData,
+                               0);
+    if (status < 0) {
+        BCryptCloseAlgorithmProvider(hAlg, 0);
+        throw std::runtime_error("encrypt: BCryptGetProperty() return: " +
+                                 std::to_string(status));
+    }
+
+    // Allocate the key object on the heap.
+    uniqueHeapPtr pbKeyObject(
+            (PBYTE)HeapAlloc(GetProcessHeap(), 0, cbKeyObject));
+    if (!pbKeyObject) {
+        BCryptCloseAlgorithmProvider(hAlg, 0);
+        throw std::bad_alloc();
+    }
+
+    status = BCryptSetProperty(hAlg,
+                               BCRYPT_CHAINING_MODE,
+                               (PBYTE)BCRYPT_CHAIN_MODE_CBC,
+                               sizeof(BCRYPT_CHAIN_MODE_CBC),
+                               0);
+    if (status < 0) {
+        BCryptCloseAlgorithmProvider(hAlg, 0);
+        throw std::runtime_error("encrypt: BCryptSetProperty() return: " +
+                                 std::to_string(status));
+    }
+
+    // Generate the key from supplied input key bytes.
+    BCRYPT_KEY_HANDLE hKey;
+    status = BCryptGenerateSymmetricKey(hAlg,
+                                        &hKey,
+                                        pbKeyObject.get(),
+                                        cbKeyObject,
+                                        (PBYTE)key.data(),
+                                        ULONG(key.size()),
+                                        0);
+    if (status < 0) {
+        BCryptCloseAlgorithmProvider(hAlg, 0);
+        throw std::runtime_error(
+                "encrypt: BCryptGenerateSymmetricKey() return: " +
+                std::to_string(status));
+    }
+
+    // For some reason the API will modify the input vector.. just create a
+    // copy.. it's small anyway
+    std::vector<uint8_t> civ{iv};
+
+    std::vector<uint8_t> ret(length + iv.size());
+    if (encrypt) {
+        status = BCryptEncrypt(hKey,
+                               (PUCHAR)data,
+                               ULONG(length),
+                               NULL,
+                               (PBYTE)civ.data(),
+                               ULONG(civ.size()),
+                               ret.data(),
+                               ULONG(ret.size()),
+                               &cbData,
+                               BCRYPT_BLOCK_PADDING);
+    } else {
+        status = BCryptDecrypt(hKey,
+                               (PUCHAR)data,
+                               ULONG(length),
+                               nullptr,
+                               (PBYTE)civ.data(),
+                               ULONG(civ.size()),
+                               ret.data(),
+                               ULONG(ret.size()),
+                               &cbData,
+                               BCRYPT_BLOCK_PADDING);
+    }
+
+    BCryptCloseAlgorithmProvider(hAlg, 0);
+    BCryptDestroyKey(hKey);
+
+    if (status < 0) {
+        throw std::runtime_error("encrypt: BCryptEncrypt() return: " +
+                                 std::to_string(status));
+    }
+
+    ret.resize(cbData);
+
+    return ret;
+}
+
+std::vector<uint8_t> encrypt(const Cipher& cipher,
+                             const std::vector<uint8_t>& key,
+                             const std::vector<uint8_t>& iv,
+                             const uint8_t* data,
+                             size_t length) {
+    return AES_256_cbc(true, key, iv, data, length);
+}
+
+std::vector<uint8_t> decrypt(const Cipher& cipher,
+                             const std::vector<uint8_t>& key,
+                             const std::vector<uint8_t>& iv,
+                             const uint8_t* data,
+                             size_t length) {
+    return AES_256_cbc(false, key, iv, data, length);
+}
+} // namespace crypto
+} // namespace cb
+
+#elif defined(__APPLE__)
 
 #include <CommonCrypto/CommonCryptor.h>
 #include <CommonCrypto/CommonDigest.h>
@@ -584,7 +928,7 @@ static inline void verifyLegalAlgorithm(const cb::crypto::Algorithm al) {
 bool cb::crypto::isSupported(const Algorithm algorithm) {
     verifyLegalAlgorithm(algorithm);
 
-#if defined(__APPLE__) || defined(HAVE_PKCS5_PBKDF2_HMAC)
+#if defined(__APPLE__) || defined(_MSC_VER) || defined(HAVE_PKCS5_PBKDF2_HMAC)
     return true;
 #elif defined(HAVE_PKCS5_PBKDF2_HMAC_SHA1)
     switch (algorithm) {
@@ -671,6 +1015,26 @@ std::vector<uint8_t> cb::crypto::encrypt(const Cipher& cipher,
                                          const std::vector<uint8_t>& key,
                                          const std::vector<uint8_t>& iv,
                                          const std::vector<uint8_t>& data) {
+    // We only support a single encryption scheme right now.
+    // Verify the input parameters (no need of calling the internal library
+    // functions in order to fetch these details)
+    if (cipher != Cipher::AES_256_cbc) {
+        throw std::invalid_argument(
+                "cb::crypto::encrypt(): Unsupported cipher");
+    }
+
+    if (key.size() != 32) {
+        throw std::invalid_argument(
+                "cb::crypto::encrypt(): Invalid key size: " +
+                std::to_string(key.size()) + " (expected 32)");
+    }
+
+    if (iv.size() != 16) {
+        throw std::invalid_argument("cb::crypto::encrypt(): Invalid iv size: " +
+                                    std::to_string(iv.size()) +
+                                    " (expected 16)");
+    }
+
     return encrypt(cipher, key, iv, data.data(), data.size());
 }
 
@@ -689,6 +1053,26 @@ std::vector<uint8_t> cb::crypto::decrypt(const Cipher& cipher,
                                          const std::vector<uint8_t>& key,
                                          const std::vector<uint8_t>& iv,
                                          const std::vector<uint8_t>& data) {
+    // We only support a single decryption scheme right now.
+    // Verify the input parameters (no need of calling the internal library
+    // functions in order to fetch these details)
+    if (cipher != Cipher::AES_256_cbc) {
+        throw std::invalid_argument(
+                "cb::crypto::decrypt(): Unsupported cipher");
+    }
+
+    if (key.size() != 32) {
+        throw std::invalid_argument(
+                "cb::crypto::decrypt(): Invalid key size: " +
+                std::to_string(key.size()) + " (expected 32)");
+    }
+
+    if (iv.size() != 16) {
+        throw std::invalid_argument("cb::crypto::decrypt(): Invalid iv size: " +
+                                    std::to_string(iv.size()) +
+                                    " (expected 16)");
+    }
+
     return decrypt(cipher, key, iv, data.data(), data.size());
 }
 
