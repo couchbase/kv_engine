@@ -42,12 +42,30 @@ ENGINE_ERROR_CODE ioctlGetTracingConfig(Connection* c,
                                         std::string& value);
 
 /**
- * IOCTL Get callback to dump the last trace
- * @param[out] value The dumped trace
+ * IOCTL Get callback to create a new dump from the last trace
+ * @param[out] value The uuid of the newly created dump
  */
-ENGINE_ERROR_CODE ioctlGetTracingDump(Connection*,
-                                      const StrToStrMap&,
-                                      std::string& value);
+ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Connection*,
+                                           const StrToStrMap&,
+                                           std::string& value);
+
+/**
+ * IOCTL Get callback to generate and return chunks from the specified dump
+ * @param arguments 'id' argument should be given to specify uuid of dump to
+          continue
+ * @param[out] value The contents of the next chunk (or empty if dump is done)
+ */
+ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection*,
+                                           const StrToStrMap& arguments,
+                                           std::string& value);
+
+/**
+ * IOCTL Set callback to clear a tracing dump
+ * @param value The uuid of the dump to clear
+ */
+ENGINE_ERROR_CODE ioctlSetTracingClearDump(Connection*,
+                                           const StrToStrMap& arguments,
+                                           const std::string& value);
 
 /**
  * IOCTL Set callback to set the tracing config to use when it starts

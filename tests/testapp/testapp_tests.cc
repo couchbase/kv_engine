@@ -1004,7 +1004,18 @@ TEST_P(McdTestappTest, IOCTL_Tracing) {
     EXPECT_EQ("disabled", value);
 
     // get the data
-    auto dump = conn.ioctl_get("trace.dump");
+    auto uuid = conn.ioctl_get("trace.dump.begin");
+
+    const std::string chunk_key = "trace.dump.chunk?id=" + uuid;
+    std::string dump;
+    std::string chunk;
+
+    do {
+        chunk = conn.ioctl_get(chunk_key);
+        dump += chunk;
+    } while (chunk.size() > 0);
+
+    conn.ioctl_set("trace.dump.clear", uuid);
 
     // Difficult to tell what's been written to the buffer so just check
     // that it's valid JSON and that the traceEvents array is present

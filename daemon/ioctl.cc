@@ -104,10 +104,11 @@ static ENGINE_ERROR_CODE setTraceConnection(Connection* c,
     return apply_connection_trace_mask(id->second, value);
 }
 
-static const std::unordered_map<std::string, GetCallbackFunc> ioctl_get_map {
-    {"trace.config", ioctlGetTracingConfig},
-    {"trace.status", ioctlGetTracingStatus},
-    {"trace.dump", ioctlGetTracingDump},
+static const std::unordered_map<std::string, GetCallbackFunc> ioctl_get_map{
+        {"trace.config", ioctlGetTracingConfig},
+        {"trace.status", ioctlGetTracingStatus},
+        {"trace.dump.begin", ioctlGetTracingBeginDump},
+        {"trace.dump.chunk", ioctlGetTracingDumpChunk},
 };
 
 ENGINE_ERROR_CODE ioctl_get_property(Connection* c,
@@ -137,6 +138,7 @@ static const std::unordered_map<std::string, SetCallbackFunc> ioctl_set_map{
         {"trace.config", ioctlSetTracingConfig},
         {"trace.start", ioctlSetTracingStart},
         {"trace.stop", ioctlSetTracingStop},
+        {"trace.dump.clear", ioctlSetTracingClearDump},
 };
 
 ENGINE_ERROR_CODE ioctl_set_property(Connection* c,

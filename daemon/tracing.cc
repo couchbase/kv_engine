@@ -43,9 +43,25 @@ ENGINE_ERROR_CODE ioctlGetTracingConfig(Connection*,
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE ioctlGetTracingDump(Connection*,
-                                      const StrToStrMap&,
-                                      std::string& value) {
+struct DumpContext {
+    DumpContext(phosphor::TraceContext&& _context)
+        : context(std::move(_context)), json_export(context) {
+    }
+
+    // Moving is dangerous as json_export contains a reference to
+    // context.
+    DumpContext(DumpContext&& other) = delete;
+
+    phosphor::TraceContext context;
+    phosphor::tools::JSONExport json_export;
+};
+
+static std::map<cb::uuid::uuid_t, std::unique_ptr<DumpContext>> dumps;
+static std::mutex dumpsMutex;
+
+ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Connection*,
+                                           const StrToStrMap&,
+                                           std::string& value) {
     std::lock_guard<phosphor::TraceLog> lh(PHOSPHOR_INSTANCE);
     if (PHOSPHOR_INSTANCE.isEnabled()) {
         PHOSPHOR_INSTANCE.stop(lh);
@@ -55,10 +71,82 @@ ENGINE_ERROR_CODE ioctlGetTracingDump(Connection*,
     if (context.getBuffer() == nullptr) {
         return ENGINE_EINVAL;
     }
-    // TODO-PERF: This copies the phosphor::String into a std::string; which 
-    // for large dumps could be inefficient. Consider refactoring to remove
-    // the need to copy.
-    value = *phosphor::tools::JSONExport(context).read();
+
+    // Create the new dump associated with a random uuid
+    cb::uuid::uuid_t uuid = cb::uuid::random();
+    {
+        std::lock_guard<std::mutex> lh(dumpsMutex);
+        dumps.emplace(uuid, std::make_unique<DumpContext>(std::move(context)));
+    }
+
+    // Return the textual form of the uuid back to the user with success
+    value = to_string(uuid);
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection*,
+                                           const StrToStrMap& arguments,
+                                           std::string& value) {
+    auto id = arguments.find("id");
+    if (id == arguments.end()) {
+        // id argument must be specified
+        return ENGINE_EINVAL;
+    }
+
+    cb::uuid::uuid_t uuid;
+    try {
+        uuid = cb::uuid::from_string(id->second);
+    } catch (const std::invalid_argument&) {
+        // id argument must be a valid uuid
+        return ENGINE_EINVAL;
+    }
+
+    {
+        std::lock_guard<std::mutex> lh(dumpsMutex);
+        auto dump = dumps.find(uuid);
+        if (dump == dumps.end()) {
+            // uuid must exist in dumps map
+            return ENGINE_EINVAL;
+        }
+
+        // @todo make configurable
+        const size_t chunk_size = 1024 * 1024;
+
+        if (dump->second->json_export.done()) {
+            value = "";
+        } else {
+            // @todo generate on background thread
+            // and add ewouldblock functionality
+            value.resize(chunk_size);
+            size_t count = dump->second->json_export.read(&value[0],
+                                                          chunk_size);
+            value.resize(count);
+        }
+    }
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE ioctlSetTracingClearDump(Connection*,
+                                           const StrToStrMap& arguments,
+                                           const std::string& value) {
+    cb::uuid::uuid_t uuid;
+    try {
+        uuid = cb::uuid::from_string(value);
+    } catch (const std::invalid_argument&) {
+        // id argument must be a valid uuid
+        return ENGINE_EINVAL;
+    }
+
+    {
+        std::lock_guard<std::mutex> lh(dumpsMutex);
+        auto dump = dumps.find(uuid);
+        if (dump == dumps.end()) {
+            // uuid must exist in dumps map
+            return ENGINE_EINVAL;
+        }
+
+        dumps.erase(dump);
+    }
 
     return ENGINE_SUCCESS;
 }
