@@ -23,6 +23,7 @@
 #include "failover-table.h"
 #include "kvshard.h"
 #include "stored_value_factories.h"
+#include "tasks.h"
 #include "vbucketdeletiontask.h"
 
 EPVBucket::EPVBucket(id_type i,

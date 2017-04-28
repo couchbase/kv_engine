@@ -20,11 +20,12 @@
 
 #include "config.h"
 
-#include "tasks.h"
+#include "globaltask.h"
 
 typedef std::pair<int64_t, int64_t> row_range_t;
 
 // Forward declaration.
+class EPStats;
 class EventuallyPersistentEngine;
 
 /**

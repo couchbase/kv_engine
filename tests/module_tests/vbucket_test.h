@@ -19,12 +19,15 @@
 
 #include "callbacks.h"
 #include "checkpoint.h"
-#include "item_pager.h"
+#include "configuration.h"
 #include "hash_table.h"
+#include "item_pager.h"
 
 #include <gtest/gtest.h>
 
+class BgFetcher;
 class VBucket;
+class VBucketBGFetchItem;
 
 /**
  * Dummy callback to replace the flusher callback.

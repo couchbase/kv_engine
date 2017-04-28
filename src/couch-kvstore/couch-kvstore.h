@@ -35,7 +35,6 @@
 #include "logger.h"
 #include "item.h"
 #include "kvstore.h"
-#include "tasks.h"
 #include "atomicqueue.h"
 
 #define COUCHSTORE_NO_OPTIONS 0

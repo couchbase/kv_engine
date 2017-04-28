@@ -21,6 +21,7 @@
 
 #include "stats_test.h"
 #include "evp_store_single_threaded_test.h"
+#include "tasks.h"
 #include "test_helpers.h"
 
 #include <gmock/gmock.h>

@@ -20,9 +20,9 @@
 
 #include "config.h"
 
-#include <string>
+#include "globaltask.h"
 
-#include "tasks.h"
+#include <string>
 
 // Forward declaration.
 class EPStats;

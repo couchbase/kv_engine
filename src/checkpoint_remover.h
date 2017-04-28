@@ -20,12 +20,9 @@
 
 #include "config.h"
 
-#include "stats.h"
-#include "tasks.h"
+#include "globaltask.h"
 
-#include <set>
-#include <string>
-
+class EPStats;
 class EventuallyPersistentEngine;
 
 /**

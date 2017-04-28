@@ -31,7 +31,7 @@
 #include <platform/processclock.h>
 #include <queue>
 
-#include "tasks.h"
+#include "globaltask.h"
 
 template <class C = std::deque<ExTask>,
           class Compare = CompareByDueDate>

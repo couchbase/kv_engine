@@ -18,8 +18,8 @@
 
 #include "config.h"
 
+#include "globaltask.h"
 #include "objectregistry.h"
-#include "tasks.h"
 #include "task_type.h"
 #include "tasklogentry.h"
 

@@ -19,12 +19,15 @@
 
 #include "config.h"
 
-#include <queue>
+#include "futurequeue.h"
+#include "syncobject.h"
+#include "task_type.h"
+
 #include <platform/processclock.h>
 
-#include "futurequeue.h"
-#include "task_type.h"
-#include "tasks.h"
+#include <list>
+#include <queue>
+
 class ExecutorPool;
 class ExecutorThread;
 

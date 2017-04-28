@@ -19,7 +19,7 @@
 
 #include "config.h"
 
-#include "tasks.h"
+#include "globaltask.h"
 
 #include <string>
 

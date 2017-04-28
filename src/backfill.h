@@ -22,8 +22,8 @@
 
 #include <string>
 
+#include "globaltask.h"
 #include "kv_bucket_iface.h"
-#include "tasks.h"
 
 #define DEFAULT_BACKFILL_SNOOZE_TIME 1.0
 

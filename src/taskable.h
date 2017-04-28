@@ -23,8 +23,8 @@
 
 #include <platform/processclock.h>
 
+#include "globaltask.h"
 #include "workload.h"
-#include "tasks.h"
 
 /*
     A type for identifying all tasks belonging to a task owner.

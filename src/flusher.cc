@@ -18,6 +18,7 @@
 #include "flusher.h"
 
 #include "common.h"
+#include "tasks.h"
 
 #include <stdlib.h>
 

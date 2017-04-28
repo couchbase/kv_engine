@@ -25,6 +25,7 @@
 #include "executorthread.h"
 #include "kv_bucket.h"
 #include "kvshard.h"
+#include "tasks.h"
 
 const double BgFetcher::sleepInterval = MIN_SLEEP_TIME;
 

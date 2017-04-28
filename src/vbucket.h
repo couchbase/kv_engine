@@ -26,6 +26,7 @@
 #include "hash_table.h"
 #include "hlc.h"
 #include "item_pager.h"
+#include "kvstore.h"
 #include "monotonic.h"
 
 #include <platform/non_negative_counter.h>
