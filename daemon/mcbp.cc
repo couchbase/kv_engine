@@ -284,7 +284,9 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     switch (status) {
     case PROTOCOL_BINARY_RESPONSE_SUCCESS:
     case PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED:
+    case PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE:
     case PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET:
+    case PROTOCOL_BINARY_RESPONSE_ROLLBACK:
         break;
     default:
         //

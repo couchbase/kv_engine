@@ -200,3 +200,30 @@ TEST_P(DcpTest, TestDcpNotfierCantIncludeXattrs) {
     EXPECT_FALSE(rsp.isSuccess());
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, rsp.getStatus());
 }
+
+/**
+ * Make sure that the rollback sequence number in the response isn't being
+ * stripped / replaced with an error object
+ */
+TEST_P(DcpTest, MB24145_RollbackShouldContainSeqno) {
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+
+    conn.sendCommand(BinprotDcpOpenCommand{"ewb_internal:1", 0,
+                                           DCP_OPEN_PRODUCER});
+
+    BinprotResponse rsp;
+    conn.recvResponse(rsp);
+    ASSERT_TRUE(rsp.isSuccess());
+
+    BinprotDcpStreamRequestCommand streamReq;
+    streamReq.setDcpStartSeqno(1);
+    conn.sendCommand(streamReq);
+    conn.recvResponse(rsp);
+    ASSERT_FALSE(rsp.isSuccess());
+
+    auto data = rsp.getData();
+    ASSERT_EQ(sizeof(uint64_t), data.size());
+    auto* value = reinterpret_cast<const uint64_t*>(data.data());
+    EXPECT_EQ(0, *value);
+
+}

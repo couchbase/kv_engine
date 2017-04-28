@@ -1351,6 +1351,11 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_stream_req(ENGINE_HANDLE* handle,
     EWB_Engine* ewb = to_engine(handle);
     if (ewb->dcp_stream.find(cookie) != ewb->dcp_stream.end()) {
         // This is a client of our internal streams.. just let it pass
+        if (start_seqno == 1) {
+            *rollback_seqno = 0;
+            return ENGINE_ROLLBACK;
+        }
+
         return ENGINE_SUCCESS;
     }
 

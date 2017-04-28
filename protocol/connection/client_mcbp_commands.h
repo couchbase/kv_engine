@@ -1167,26 +1167,62 @@ public:
     BinprotDcpStreamRequestCommand()
         :
         BinprotGenericCommand(PROTOCOL_BINARY_CMD_DCP_STREAM_REQ, {}, {}),
-        flags(0),
-        reserved(0),
-        start_seqno(htonll(std::numeric_limits<uint64_t>::min())),
-        end_seqno(htonll(std::numeric_limits<uint64_t>::max())),
-        vbucket_uuid(0),
-        snap_start_seqno(htonll(std::numeric_limits<uint64_t>::min())),
-        snap_end_seqno(htonll(std::numeric_limits<uint64_t>::max())) {
+        dcp_flags(0),
+        dcp_reserved(0),
+        dcp_start_seqno(std::numeric_limits<uint64_t>::min()),
+        dcp_end_seqno(std::numeric_limits<uint64_t>::max()),
+        dcp_vbucket_uuid(0),
+        dcp_snap_start_seqno(std::numeric_limits<uint64_t>::min()),
+        dcp_snap_end_seqno(std::numeric_limits<uint64_t>::max()) {
 
+    }
+
+    BinprotDcpStreamRequestCommand& setDcpFlags(uint32_t value) {
+        BinprotDcpStreamRequestCommand::dcp_flags = value;
+        return *this;
+    }
+
+    BinprotDcpStreamRequestCommand& setDcpReserved(uint32_t value) {
+        BinprotDcpStreamRequestCommand::dcp_reserved = value;
+        return *this;
+    }
+
+    BinprotDcpStreamRequestCommand& setDcpStartSeqno(uint64_t value) {
+        BinprotDcpStreamRequestCommand::dcp_start_seqno = value;
+        return *this;
+    }
+
+    BinprotDcpStreamRequestCommand& setDcpEndSeqno(uint64_t value) {
+        BinprotDcpStreamRequestCommand::dcp_end_seqno = value;
+        return *this;
+    }
+
+    BinprotDcpStreamRequestCommand& setDcpVbucketUuid(uint64_t value) {
+        BinprotDcpStreamRequestCommand::dcp_vbucket_uuid = value;
+        return *this;
+    }
+
+    BinprotDcpStreamRequestCommand& setDcpSnapStartSeqno(uint64_t value) {
+        BinprotDcpStreamRequestCommand::dcp_snap_start_seqno = value;
+        return *this;
+    }
+
+    BinprotDcpStreamRequestCommand& setDcpSnapEndSeqno(uint64_t value) {
+        BinprotDcpStreamRequestCommand::dcp_snap_end_seqno = value;
+        return *this;
     }
 
     void encode(std::vector<uint8_t>& buf) const override;
 
 private:
-    uint32_t flags;
-    uint32_t reserved;
-    uint64_t start_seqno;
-    uint64_t end_seqno;
-    uint64_t vbucket_uuid;
-    uint64_t snap_start_seqno;
-    uint64_t snap_end_seqno;
+    // The byteorder is fixed when we append the members to the packet
+    uint32_t dcp_flags;
+    uint32_t dcp_reserved;
+    uint64_t dcp_start_seqno;
+    uint64_t dcp_end_seqno;
+    uint64_t dcp_vbucket_uuid;
+    uint64_t dcp_snap_start_seqno;
+    uint64_t dcp_snap_end_seqno;
 };
 
 

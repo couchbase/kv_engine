@@ -664,13 +664,13 @@ void BinprotDcpOpenCommand::encode(std::vector<uint8_t>& buf) const {
 
 void BinprotDcpStreamRequestCommand::encode(std::vector<uint8_t>& buf) const {
     writeHeader(buf, 0, 48);
-    append(buf, flags);
-    append(buf, reserved);
-    append(buf, start_seqno);
-    append(buf, end_seqno);
-    append(buf, vbucket_uuid);
-    append(buf, snap_start_seqno);
-    append(buf, snap_end_seqno);
+    append(buf, dcp_flags);
+    append(buf, dcp_reserved);
+    append(buf, dcp_start_seqno);
+    append(buf, dcp_end_seqno);
+    append(buf, dcp_vbucket_uuid);
+    append(buf, dcp_snap_start_seqno);
+    append(buf, dcp_snap_end_seqno);
 }
 
 void BinprotDcpMutationCommand::reset(const std::vector<uint8_t>& packet) {
