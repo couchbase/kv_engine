@@ -1276,3 +1276,82 @@ protected:
     const protocol_binary_engine_param_t type;
     const std::string value;
 };
+
+class BinprotSetWithMetaCommand
+    : public BinprotGenericCommand {
+public:
+    BinprotSetWithMetaCommand(const std::string& key, const std::string& value,
+                              uint32_t flags_, uint32_t exptime_, uint64_t cas_)
+        : BinprotGenericCommand(PROTOCOL_BINARY_CMD_SET_WITH_META),
+          flags(flags_),
+          exptime(exptime_),
+          cas(cas_) {
+        setKey(key);
+        setMeta(meta);
+    }
+
+    BinprotSetWithMetaCommand& setQuiet(bool quiet) {
+        if (quiet) {
+            setOp(PROTOCOL_BINARY_CMD_SETQ_WITH_META);
+        } else {
+            setOp(PROTOCOL_BINARY_CMD_SET_WITH_META);
+        }
+        return *this;
+    }
+
+    uint32_t getFlags() const {
+        return flags;
+    }
+
+    BinprotSetWithMetaCommand& setFlags(uint32_t flags) {
+        BinprotSetWithMetaCommand::flags = flags;
+        return *this;
+    }
+
+    uint32_t getExptime() const {
+        return exptime;
+    }
+
+    BinprotSetWithMetaCommand& setExptime(uint32_t exptime) {
+        BinprotSetWithMetaCommand::exptime = exptime;
+        return *this;
+    }
+
+    uint64_t getSeqno() const {
+        return seqno;
+    }
+
+    BinprotSetWithMetaCommand& setSeqno(uint64_t seqno) {
+        BinprotSetWithMetaCommand::seqno = seqno;
+        return *this;
+    }
+
+    uint64_t getMetaCas() const {
+        return cas;
+    }
+
+    BinprotSetWithMetaCommand& setMetaCas(uint64_t cas) {
+        BinprotSetWithMetaCommand::cas = cas;
+        return *this;
+
+    }
+
+    const std::vector<uint8_t>& getMeta() {
+        return meta;
+    }
+
+    BinprotSetWithMetaCommand& setMeta(const std::vector<uint8_t>& meta) {
+        std::copy(meta.begin(), meta.end(),
+                  std::back_inserter(BinprotSetWithMetaCommand::meta));
+        return *this;
+    }
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+protected:
+    uint32_t flags;
+    uint32_t exptime;
+    uint64_t seqno = 0;
+    uint64_t cas;
+    std::vector<uint8_t> meta;
+};

@@ -632,6 +632,18 @@ void BinprotVerbosityCommand::encode(std::vector<uint8_t>& buf) const {
 }
 
 /**
+ * Append a 16 bit integer to the buffer in network byte order
+ *
+ * @param buf the buffer to add the data to
+ * @param value The value (in host local byteorder) to add.
+ */
+static void append(std::vector<uint8_t>& buf, uint16_t value) {
+    uint16_t vallen = ntohs(value);
+    auto p = reinterpret_cast<const char*>(&vallen);
+    buf.insert(buf.end(), p, p + 2);
+}
+
+/**
  * Append a 32 bit integer to the buffer in network byte order
  *
  * @param buf the buffer to add the data to
@@ -715,4 +727,17 @@ void BinprotSetParamCommand::encode(std::vector<uint8_t>& buf) const {
     append(buf, uint32_t(type));
     buf.insert(buf.end(), key.begin(), key.end());
     buf.insert(buf.end(), value.begin(), value.end());
+}
+
+void BinprotSetWithMetaCommand::encode(std::vector<uint8_t>& buf) const {
+    writeHeader(buf, value.size() + meta.size(), 26);
+    append(buf, flags); // @todo make sure I set them in the same byte order as normal set
+    append(buf, exptime);
+    append(buf, seqno);
+    append(buf, cas);
+    append(buf, uint16_t(htons(meta.size())));
+
+    buf.insert(buf.end(), key.begin(), key.end());
+    buf.insert(buf.end(), value.begin(), value.end());
+    buf.insert(buf.end(), meta.begin(), meta.end());
 }
