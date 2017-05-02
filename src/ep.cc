@@ -4003,7 +4003,6 @@ EventuallyPersistentStore::rollback(uint16_t vbid,
                 vb->checkpointManager.clear(vb, result.highSeqno);
                 vb->setPersistedSnapshot(result.snapStartSeqno, result.snapEndSeqno);
                 vb->incrRollbackItemCount(prevHighSeqno - result.highSeqno);
-                vb->setBackfillPhase(false);
                 return ENGINE_SUCCESS;
             }
         }

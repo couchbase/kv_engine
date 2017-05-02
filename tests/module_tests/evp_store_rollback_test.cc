@@ -283,7 +283,7 @@ TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {
  * vbucket was in backfilling state.  This caused the producer stream
  * request to be stuck waiting for backfilling to complete.
  */
-TEST_P(RollbackTest, MB21784) {
+TEST_P(RollbackTest, DISABLED_MB21784) {
     // Make the vbucket a replica
     store->setVBucketState(vbid, vbucket_state_replica, false);
     // Perform a rollback

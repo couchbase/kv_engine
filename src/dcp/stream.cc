@@ -1810,16 +1810,8 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
             vb->checkpointManager.setBackfillPhase(cur_snapshot_start.load(),
                                                    cur_snapshot_end.load());
         } else {
-            if (marker->getFlags() & MARKER_FLAG_CHK || vb->isBackfillPhase()) {
-                    // Instead of checking isBackfillPhase() an earlier patch
-                    // http://review.couchbase.org/#/c/39960/ changed the check
-                    // to (vb->checkpointManager.getOpenCheckpointId() == 0).
-                    // This change has been reverted in favor of using the
-                    // isBackfillPhase() check as it is believed to be safer and
-                    // makes the logic easier to understand.  However if an
-                    // issues such as that seen in MB-11786 occurs then it maybe
-                    // worth investigating the impact of changing the check to
-                    // use (vb->checkpointManager.getOpenCheckpointId() == 0)
+            if (marker->getFlags() & MARKER_FLAG_CHK ||
+                    vb->checkpointManager.getOpenCheckpointId() == 0) {
                 vb->checkpointManager.createSnapshot(cur_snapshot_start.load(),
                                                      cur_snapshot_end.load());
             } else {
