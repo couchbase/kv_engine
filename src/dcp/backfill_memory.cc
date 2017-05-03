@@ -61,9 +61,11 @@ backfill_status_t DCPBackfillMemory::run() {
     }
 
     /* Get sequence of items (backfill) from memory */
-    std::vector<UniqueItemPtr> items;
     ENGINE_ERROR_CODE status;
-    std::tie(status, items) = evb->inMemoryBackfill(startSeqno, endSeqno);
+    std::vector<UniqueItemPtr> items;
+    seqno_t adjustedEndSeqno;
+    std::tie(status, items, adjustedEndSeqno) =
+            evb->inMemoryBackfill(startSeqno, endSeqno);
 
     /* Handle any failures */
     if (status != ENGINE_SUCCESS) {
@@ -86,8 +88,7 @@ backfill_status_t DCPBackfillMemory::run() {
     stream->incrBackfillRemaining(items.size());
 
     /* Mark disk snapshot */
-    stream->markDiskSnapshot(items.front()->getBySeqno(),
-                             items.back()->getBySeqno());
+    stream->markDiskSnapshot(startSeqno, adjustedEndSeqno);
 
     /* Move every item to the stream */
     for (auto& item : items) {

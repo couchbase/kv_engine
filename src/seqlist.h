@@ -114,12 +114,12 @@ public:
      * @param start requested start seqno
      * @param end requested end seqno
      *
-     * @return ENGINE_SUCCESS and items in the snapshot
+     * @return ENGINE_SUCCESS, items in the snapshot and adjusted endSeqNo
      *         ENGINE_ENOMEM on no memory to copy items
      *         ENGINE_ERANGE on incorrect start and end
      */
-    virtual std::pair<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>> rangeRead(
-            seqno_t start, seqno_t end) = 0;
+    virtual std::tuple<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>, seqno_t>
+    rangeRead(seqno_t start, seqno_t end) = 0;
 
     /**
      * Updates the highSeqno in the list. Since seqno is generated and managed

@@ -143,8 +143,8 @@ public:
             std::lock_guard<std::mutex>& seqLock,
             OrderedStoredValue& v) override;
 
-    std::pair<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>> rangeRead(
-            seqno_t start, seqno_t end) override;
+    std::tuple<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>, seqno_t>
+    rangeRead(seqno_t start, seqno_t end) override;
 
     void updateHighSeqno(std::lock_guard<std::mutex>& highSeqnoLock,
                          const OrderedStoredValue& v) override;

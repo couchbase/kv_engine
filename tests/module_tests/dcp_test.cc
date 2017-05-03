@@ -34,6 +34,7 @@
 #include "test_helpers.h"
 
 #include <gtest/gtest.h>
+#include <dcp/backfill_memory.h>
 
 /*
  * Mock of the DcpConnMap class.  Wraps the real DcpConnMap, but exposes
@@ -172,6 +173,27 @@ TEST_P(StreamTest, test_streamSetMutationTypeKeyOnly) {
     stream = dynamic_cast<MockDcpProducer*>(producer.get())->findStream(0);
     EXPECT_TRUE(dynamic_cast<ActiveStream*>(stream.get())->isKeyOnly());
     producer.get()->closeAllStreams();
+}
+
+/* MB-24159 - Test to confirm a dcp stream backfill from an ephemeral bucket
+ * over a range which includes /no/ items doesn't cause the producer to
+ * segfault.
+ * */
+
+TEST_P(StreamTest, backfillGetsNoItems) {
+    if (engine->getConfiguration().getBucketType() == "ephemeral") {
+        setup_dcp_stream(DcpProducer::MutationType::KeyOnly);
+        store_item(vbid, "key", "value1");
+        store_item(vbid, "key", "value2");
+
+        active_stream_t aStream = dynamic_cast<ActiveStream *>(stream.get());
+
+        auto evb = std::shared_ptr<EphemeralVBucket>(
+                std::dynamic_pointer_cast<EphemeralVBucket>(vb0));
+        auto dcpbfm = DCPBackfillMemory(evb, aStream, 1, 1);
+        dcpbfm.run();
+        producer.get()->closeAllStreams();
+    }
 }
 
 /*

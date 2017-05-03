@@ -187,8 +187,8 @@ TEST_F(EphemeralVBucketTest, Backfill) {
     setMany(keys, MutationStatus::WasClean);
 
     auto res = mockEpheVB->inMemoryBackfill(1, numItems);
-    EXPECT_EQ(ENGINE_SUCCESS, res.first);
-    EXPECT_EQ(numItems, res.second.size());
+    EXPECT_EQ(ENGINE_SUCCESS, std::get<0>(res));
+    EXPECT_EQ(numItems, std::get<1>(res).size());
 }
 
 TEST_F(EphemeralVBucketTest, UpdateDuringBackfill) {

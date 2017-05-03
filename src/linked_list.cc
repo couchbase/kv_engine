@@ -81,7 +81,7 @@ SequenceList::UpdateStatus BasicLinkedList::updateListElem(
     return UpdateStatus::Success;
 }
 
-std::pair<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>>
+std::tuple<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>, seqno_t>
 BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
     std::vector<UniqueItemPtr> empty;
     if ((start > end) || (start <= 0)) {
@@ -91,8 +91,11 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
             vbid,
             start,
             end);
-        return {ENGINE_ERANGE, std::move(empty)
-                /* MSVC not happy with std::vector<UniqueItemPtr>() */};
+        return std::make_tuple(
+                ENGINE_ERANGE,
+                std::move(empty)
+                /* MSVC not happy with std::vector<UniqueItemPtr>() */,
+                0);
     }
 
     /* Allows only 1 rangeRead for now */
@@ -109,7 +112,7 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
                 static_cast<seqno_t>(highSeqno));
             /* If the request is for an invalid range, return before iterating
                through the list */
-            return {ENGINE_ERANGE, std::move(empty)};
+            return std::make_tuple(ENGINE_ERANGE, std::move(empty), 0);
         }
 
         /* Mark the initial read range */
@@ -152,7 +155,7 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
                 "item with seqno %" PRIi64 "before streaming it",
                 vbid,
                 osv.getBySeqno());
-            return {ENGINE_ENOMEM, std::move(empty)};
+            return std::make_tuple(ENGINE_ENOMEM, std::move(empty), 0);
         }
     }
 
@@ -163,7 +166,7 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
     }
 
     /* Return all the range read items */
-    return {ENGINE_SUCCESS, std::move(items)};
+    return std::make_tuple(ENGINE_SUCCESS, std::move(items), end);
 }
 
 void BasicLinkedList::updateHighSeqno(
