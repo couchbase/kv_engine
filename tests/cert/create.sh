@@ -73,3 +73,5 @@ openssl x509 -req -in parse-test.csr -CA testapp.cert \
 
 rm -f rootCA.srl v3_ca.ext int.csr parse-test.csr
 
+# generate a PCKS12 file
+openssl pkcs12 -export -clcerts -inkey client.key -in client.pem -out client.p12 -passout pass:password -name "Trond Norbye"
