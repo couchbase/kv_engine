@@ -175,10 +175,11 @@ static Scram1MechInfo scram1MechInfo;
 static PlainMechInfo plainMechInfo;
 
 static std::array<MechInfo*, 4> availableMechs = {
-     &scram512MechInfo,
-     &scram256MechInfo,
-     &scram1MechInfo,
-     &plainMechInfo
+     { &scram512MechInfo,
+       &scram256MechInfo,
+       &scram1MechInfo,
+       &plainMechInfo
+     }
 };
 
 void cbsasl_set_available_mechanisms(cbsasl_getopt_fn getopt_fn,
