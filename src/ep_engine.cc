@@ -2179,8 +2179,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(const void* cookie,
                                                   TRACK_REFERENCE |
                                                   DELETE_TEMP |
                                                   HIDE_LOCKED_CAS |
-                                                  ALLOW_META_ONLY |
-                                                  GET_DELETED_VALUE);
+                                                  ALLOW_META_ONLY);
         if (ii == 1 || kvBucket->getItemEvictionPolicy() == FULL_EVICTION) {
             options = static_cast<get_options_t>(int(options) | QUEUE_BG_FETCH);
         }

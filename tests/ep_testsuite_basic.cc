@@ -2160,6 +2160,16 @@ static test_result get_if(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
                      [](const item_info&) { return true; });
     check(!doc.second, "non-existing document should not be found");
 
+    checkeq(ENGINE_SUCCESS, del(h, h1, key.c_str(), 0, 0),
+            "Failed remove with value");
+
+    doc = h1->get_if(h,
+                     nullptr,
+                     DocKey(key, testHarness.doc_namespace),
+                     0,
+                     [](const item_info&) { return true; });
+    check(!doc.second, "deleted document should not be found");
+
     return SUCCESS;
 }
 
