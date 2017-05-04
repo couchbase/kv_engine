@@ -164,6 +164,31 @@ public:
     }
 
     /**
+     * Try to establish a connection to the server.
+     *
+     * @thows std::exception if an error occurs
+     */
+    void connect();
+
+    bool isConnected() const {
+        return sock != INVALID_SOCKET;
+    }
+
+    /**
+     * Close the connection to the server
+     */
+    virtual void close();
+
+    /**
+     * Drop the current connection to the server and re-establish the
+     * connection.
+     */
+    void reconnect() {
+        close();
+        connect();
+    }
+
+    /**
      * Perform a SASL authentication to memcached
      *
      * @param username the username to use in authentication
@@ -347,8 +372,6 @@ public:
      */
     virtual std::string to_string() = 0;
 
-    void reconnect();
-
     /**
      * Try to configure the ewouldblock engine
      *
@@ -510,10 +533,6 @@ protected:
     MemcachedConnection(const std::string& host, in_port_t port,
                         sa_family_t family, bool ssl,
                         const Protocol& protocol);
-
-    virtual void close();
-
-    void connect();
 
     void read(Frame& frame, size_t bytes);
 

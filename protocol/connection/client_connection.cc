@@ -177,11 +177,6 @@ MemcachedConnection::~MemcachedConnection() {
     close();
 }
 
-void MemcachedConnection::reconnect() {
-    close();
-    connect();
-}
-
 void MemcachedConnection::close() {
     if (ssl) {
         if (bio != nullptr) {
