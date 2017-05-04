@@ -164,6 +164,7 @@ int main(int argc, char** argv) {
                                               in_port,
                                               family,
                                               secure);
+        connection.connect();
 
         // MEMCACHED_VERSION contains the git sha
         connection.hello("mcstat", MEMCACHED_VERSION,

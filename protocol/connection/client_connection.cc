@@ -136,6 +136,7 @@ void ConnectionMap::initialize(cJSON* ports) {
                                                         family,
                                                         useSsl);
         }
+        connection->connect();
         connections.push_back(connection);
     }
 }
@@ -169,8 +170,6 @@ MemcachedConnection::MemcachedConnection(const std::string& host, in_port_t port
             ssl_cert_dir.assign(env);
         }
     }
-
-    connect();
 }
 
 MemcachedConnection::~MemcachedConnection() {

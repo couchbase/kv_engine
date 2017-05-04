@@ -447,6 +447,8 @@ int main(int argc, char** argv) {
                                               family,
                                               secure);
 
+        connection.connect();
+
         // MEMCACHED_VERSION contains the git sha
         connection.hello("mctimings",
                          MEMCACHED_VERSION,
