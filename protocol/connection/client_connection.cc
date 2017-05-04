@@ -30,45 +30,7 @@
 #include <system_error>
 #include <string>
 #include <limits>
-
-/**
- * Store/retrieve the client ssl certificate and key
- */
-class SslClientCert {
-public:
-    void add(const std::string& path) {
-        cert = joinPath(path, certName);
-        key = joinPath(path, keyName);
-        enable = true;
-    }
-
-    void disable() {
-        enable = false;
-    }
-
-    bool isEnabled() {
-        return enable;
-    }
-
-    std::string cert;
-    std::string key;
-
-private:
-    // for joining the directory with certificate/key
-    static std::string joinPath(std::string str, std::string append_path) {
-        auto ret = str + "/" + append_path;
-#ifdef WIN32
-        std::replace(ret.begin(), ret.end(), '/', '\\');
-#endif
-        return ret;
-    }
-
-    bool enable{false};
-    const std::string certName = "client.pem";
-    const std::string keyName = "client.key";
-};
-
-static SslClientCert sslCert;
+#include <platform/dirutils.h>
 
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the ConnectionMap class
@@ -156,15 +118,6 @@ void ConnectionMap::initialize(cJSON* ports) {
         auto portval = static_cast<in_port_t>(port->valueint);
         bool useSsl = ssl->type == cJSON_True ? true : false;
 
-        if (useSsl) {
-            char* ssl_cert_dir = getenv("COUCHBASE_SSL_CLIENT_CERT_PATH");
-            if (ssl_cert_dir) {
-                sslCert.add(ssl_cert_dir);
-            } else {
-                sslCert.disable();
-            }
-        }
-
         MemcachedConnection* connection;
         if (strcmp(protocol->valuestring, "greenstack") == 0) {
 #ifdef ENABLE_GREENSTACK
@@ -209,6 +162,14 @@ MemcachedConnection::MemcachedConnection(const std::string& host, in_port_t port
       bio(nullptr),
       sock(INVALID_SOCKET),
       synchronous(false) {
+
+    if (ssl) {
+        char* env = getenv("COUCHBASE_SSL_CLIENT_CERT_PATH");
+        if (env != nullptr) {
+            ssl_cert_dir.assign(env);
+        }
+    }
+
     connect();
 }
 
@@ -319,11 +280,17 @@ void MemcachedConnection::connect() {
             BIO_free_all(bio);
             throw std::runtime_error("Failed to create openssl client contex");
         }
-        if (sslCert.isEnabled()) {
+        if (!ssl_cert_dir.empty()) {
+            auto cert = ssl_cert_dir + "/client.pem";
+            auto key = ssl_cert_dir + "/client.key";
+
+            cb::io::sanitizePath(cert);
+            cb::io::sanitizePath(key);
+
             if (!SSL_CTX_use_certificate_file(
-                        context, sslCert.cert.c_str(), SSL_FILETYPE_PEM) ||
+                        context, cert.c_str(), SSL_FILETYPE_PEM) ||
                 !SSL_CTX_use_PrivateKey_file(
-                        context, sslCert.key.c_str(), SSL_FILETYPE_PEM) ||
+                        context, key.c_str(), SSL_FILETYPE_PEM) ||
                 !SSL_CTX_check_private_key(context)) {
                 BIO_free_all(bio);
                 std::vector<char> ssl_err(1024);

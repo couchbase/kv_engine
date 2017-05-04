@@ -541,6 +541,7 @@ protected:
     in_port_t port;
     sa_family_t family;
     bool ssl;
+    std::string ssl_cert_dir;
     Protocol protocol;
     SSL_CTX* context;
     BIO* bio;
