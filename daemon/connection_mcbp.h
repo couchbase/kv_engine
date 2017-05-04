@@ -252,13 +252,6 @@ public:
     }
 
     void setDcpXattrAware(bool dcpXattrAware) {
-        // @todo Keeping this as NOTICE while waiting for ns_server
-        //       support for xattr over DCP (to make it easier to debug
-        ///      see MB-22468
-        LOG_NOTICE(this, "%u: DCP connection is %sXATTR aware %s",
-                   getId(),
-                   dcpXattrAware ? "" : "not ",
-                   getDescription().c_str());
         McbpConnection::dcpXattrAware = dcpXattrAware;
     }
 
@@ -267,14 +260,6 @@ public:
     }
 
     void setDcpNoValue(bool dcpNoValue) {
-        // @todo Keeping this as NOTICE while waiting for ns_server
-        //       support for xattr over DCP (to make it easier to debug
-        ///      see MB-22468
-        LOG_NOTICE(this, "%u: DCP contains keys and %svalues %s",
-                   getId(),
-                   dcpNoValue ? "not " : "",
-                   getDescription().c_str());
-
         McbpConnection::dcpNoValue = dcpNoValue;
     }
 

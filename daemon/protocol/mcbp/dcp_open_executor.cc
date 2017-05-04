@@ -30,10 +30,11 @@ void dcp_open_executor(McbpConnection* c, void* packet) {
     c->enableDatatype(mcbp::Feature::JSON);
 
     uint32_t flags = ntohl(req->message.body.flags);
+    const bool dcpNotifier = (flags & DCP_OPEN_NOTIFIER);
 
     if (ret == ENGINE_SUCCESS) {
         cb::rbac::Privilege privilege = cb::rbac::Privilege::DcpProducer;
-        if (flags & DCP_OPEN_NOTIFIER) {
+        if (dcpNotifier) {
             privilege = cb::rbac::Privilege::DcpConsumer;
         }
 
@@ -53,12 +54,27 @@ void dcp_open_executor(McbpConnection* c, void* packet) {
 
     ret = c->remapErrorCode(ret);
     switch (ret) {
-    case ENGINE_SUCCESS:
-        c->setDcpXattrAware((flags & DCP_OPEN_INCLUDE_XATTRS) != 0);
-        c->setDcpNoValue((flags & DCP_OPEN_NO_VALUE) != 0);
+    case ENGINE_SUCCESS: {
+        const bool dcpXattrAware = (flags & DCP_OPEN_INCLUDE_XATTRS) != 0;
+        const bool dcpNoValue = (flags & DCP_OPEN_NO_VALUE) != 0;
+        c->setDcpXattrAware(dcpXattrAware);
+        c->setDcpNoValue(dcpNoValue);
+
+        // @todo Keeping this as NOTICE while waiting for ns_server
+        //       support for xattr over DCP (to make it easier to debug
+        ///      see MB-22468
+        LOG_NOTICE(c,
+                   "%u: DCP connection opened successfully. flags:{%s%s%s} %s",
+                   c->getId(),
+                   dcpNotifier ? "NOTIFIER " : "",
+                   dcpXattrAware ? "INCLUDE_XATTRS " : "",
+                   dcpNoValue ? "NO_VALUE " : "",
+                   c->getDescription().c_str());
+
         audit_dcp_open(c);
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
         break;
+    }
 
     case ENGINE_DISCONNECT:
         c->setState(conn_closing);
