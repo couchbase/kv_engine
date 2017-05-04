@@ -84,7 +84,7 @@ int handle_pwconv(int argc, char** argv) {
 static void usage() {
     fprintf(stderr,
             "Usage: cbsasladm [-h host[:port]] [-p port] [-s] "
-                "[-u user] [-P password] cmd\n"
+                "[-u user] [-P password] [-C ssl_cert] [-K ssl_key] cmd\n"
                 "   The following command(s) exists:\n"
                 "\trefresh - tell memcached to reload its internal "
                 "cache\n"
@@ -107,13 +107,16 @@ int main(int argc, char **argv) {
     std::string user{};
     std::string password{};
     std::string bucket{};
+    std::string ssl_cert;
+    std::string ssl_key;
+
     sa_family_t family = AF_UNSPEC;
     bool secure = false;
 
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
-    while ((cmd = getopt(argc, argv, "46h:p:u:b:P:si:")) != EOF) {
+    while ((cmd = getopt(argc, argv, "46h:p:u:b:P:si:K:C:")) != EOF) {
         switch (cmd) {
         case '6' :
             family = AF_INET6;
@@ -149,6 +152,13 @@ int main(int argc, char **argv) {
                 return EXIT_FAILURE;
             }
             break;
+        case 'C':
+            ssl_cert.assign(optarg);
+            break;
+        case 'K':
+            ssl_key.assign(optarg);
+            break;
+
         default:
             usage();
         }
@@ -174,6 +184,9 @@ int main(int argc, char **argv) {
                                                   in_port,
                                                   family,
                                                   secure);
+            connection.setSslCertFile(ssl_cert);
+            connection.setSslKeyFile(ssl_key);
+
             connection.connect();
 
             // MEMCACHED_VERSION contains the git sha

@@ -21,16 +21,17 @@
 #include "cJSON_utils.h"
 
 #include <cbsasl/cbsasl.h>
-#include <iostream>
 #include <libgreenstack/Greenstack.h>
 #include <memcached/protocol_binary.h>
+#include <platform/dirutils.h>
 #include <platform/strerror.h>
+#include <cerrno>
+#include <iostream>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
-#include <system_error>
 #include <string>
-#include <limits>
-#include <platform/dirutils.h>
+#include <system_error>
 
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the ConnectionMap class
@@ -167,7 +168,8 @@ MemcachedConnection::MemcachedConnection(const std::string& host, in_port_t port
     if (ssl) {
         char* env = getenv("COUCHBASE_SSL_CLIENT_CERT_PATH");
         if (env != nullptr) {
-            ssl_cert_dir.assign(env);
+            setSslCertFile(std::string{env} + "/client.pem");
+            setSslKeyFile(std::string{env} + "/client.key");
         }
     }
 }
@@ -274,17 +276,11 @@ void MemcachedConnection::connect() {
             BIO_free_all(bio);
             throw std::runtime_error("Failed to create openssl client contex");
         }
-        if (!ssl_cert_dir.empty()) {
-            auto cert = ssl_cert_dir + "/client.pem";
-            auto key = ssl_cert_dir + "/client.key";
-
-            cb::io::sanitizePath(cert);
-            cb::io::sanitizePath(key);
-
+        if (!ssl_cert_file.empty() && ssl_key_file.empty()) {
             if (!SSL_CTX_use_certificate_file(
-                        context, cert.c_str(), SSL_FILETYPE_PEM) ||
+                        context, ssl_cert_file.c_str(), SSL_FILETYPE_PEM) ||
                 !SSL_CTX_use_PrivateKey_file(
-                        context, key.c_str(), SSL_FILETYPE_PEM) ||
+                        context, ssl_key_file.c_str(), SSL_FILETYPE_PEM) ||
                 !SSL_CTX_check_private_key(context)) {
                 BIO_free_all(bio);
                 std::vector<char> ssl_err(1024);
@@ -451,4 +447,32 @@ unique_cJSON_ptr MemcachedConnection::stats(const std::string& subcommand) {
         }
     }
     return ret;
+}
+
+void MemcachedConnection::setSslCertFile(const std::string& file)  {
+    if (file.empty()) {
+        ssl_cert_file.clear();
+        return;
+    }
+    auto path = file;
+    cb::io::sanitizePath(path);
+    if (!cb::io::isFile(path)) {
+        throw std::system_error(std::make_error_code(std::errc::no_such_file_or_directory),
+                                "Can't use [" + path + "]");
+    }
+    ssl_cert_file = path;
+}
+
+void MemcachedConnection::setSslKeyFile(const std::string& file) {
+    if (file.empty()) {
+        ssl_key_file.clear();
+        return;
+    }
+    auto path = file;
+    cb::io::sanitizePath(path);
+    if (!cb::io::isFile(path)) {
+        throw std::system_error(std::make_error_code(std::errc::no_such_file_or_directory),
+                                "Can't use [" + path + "]");
+    }
+    ssl_key_file = path;
 }

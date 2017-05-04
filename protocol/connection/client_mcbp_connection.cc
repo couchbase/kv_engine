@@ -81,7 +81,8 @@ std::unique_ptr<MemcachedConnection> MemcachedBinprotConnection::clone() {
                                                   this->port,
                                                   this->family,
                                                   this->ssl);
-    result->ssl_cert_dir.assign(this->ssl_cert_dir);
+    result->setSslCertFile(this->ssl_cert_file);
+    result->setSslKeyFile(this->ssl_key_file);
     result->connect();
     return std::unique_ptr<MemcachedConnection>{result};
 }

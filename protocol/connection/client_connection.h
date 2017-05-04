@@ -164,6 +164,20 @@ public:
     }
 
     /**
+     * Set the SSL Certificate file to use
+     *
+     * @throws std::system_error if the file doesn't exist
+     */
+    void setSslCertFile(const std::string& file);
+
+    /**
+     * Set the SSL private key file to use
+     *
+     * @throws std::system_error if the file doesn't exist
+     */
+    void setSslKeyFile(const std::string& file);
+
+    /**
      * Try to establish a connection to the server.
      *
      * @thows std::exception if an error occurs
@@ -560,7 +574,8 @@ protected:
     in_port_t port;
     sa_family_t family;
     bool ssl;
-    std::string ssl_cert_dir;
+    std::string ssl_cert_file;
+    std::string ssl_key_file;
     Protocol protocol;
     SSL_CTX* context;
     BIO* bio;

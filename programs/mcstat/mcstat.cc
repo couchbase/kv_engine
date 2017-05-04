@@ -96,6 +96,9 @@ static void usage() {
               << std::endl
               << "  -4           Use IPv4 (default)" << std::endl
               << "  -6           Use IPv6" << std::endl
+              << "  -C certfile  Use certfile as a client certificate"
+              << std::endl
+              << "  -K keyfile  Use keyfile as a client key" << std::endl
               << "  statkey ...  Statistic(s) to request" << std::endl;
 }
 
@@ -106,6 +109,8 @@ int main(int argc, char** argv) {
     std::string user{};
     std::string password{};
     std::string bucket{};
+    std::string ssl_cert;
+    std::string ssl_key;
     sa_family_t family = AF_UNSPEC;
     bool secure = false;
     bool json = false;
@@ -114,7 +119,7 @@ int main(int argc, char** argv) {
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
-    while ((cmd = getopt(argc, argv, "46h:p:u:b:P:sjJ")) != EOF) {
+    while ((cmd = getopt(argc, argv, "46h:p:u:b:P:sjJC:K:")) != EOF) {
         switch (cmd) {
         case '6' :
             family = AF_INET6;
@@ -146,6 +151,12 @@ int main(int argc, char** argv) {
         case 'j':
             json = true;
             break;
+        case 'C':
+            ssl_cert.assign(optarg);
+            break;
+        case 'K':
+            ssl_key.assign(optarg);
+            break;
         default:
             usage();
             return EXIT_FAILURE;
@@ -164,6 +175,9 @@ int main(int argc, char** argv) {
                                               in_port,
                                               family,
                                               secure);
+        connection.setSslCertFile(ssl_cert);
+        connection.setSslKeyFile(ssl_key);
+
         connection.connect();
 
         // MEMCACHED_VERSION contains the git sha
