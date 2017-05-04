@@ -17,16 +17,14 @@
 
 #include "config.h"
 
+#include "ep_engine.h"
 #include "htresizer.h"
-
 #include "kv_bucket_iface.h"
 
 #include <phosphor/phosphor.h>
 #include <platform/make_unique.h>
 
 #include <memory>
-
-static const double FREQUENCY(60.0);
 
 /**
  * Look at all the hash tables and make sure they're sized appropriately.
@@ -55,6 +53,6 @@ bool HashtableResizerTask::run(void) {
                  "Hashtable resizer",
                  TaskId::HashtableResizerVisitorTask);
 
-    snooze(FREQUENCY);
+    snooze(engine->getConfiguration().getHtResizeInterval());
     return true;
 }

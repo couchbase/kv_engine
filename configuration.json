@@ -364,6 +364,11 @@
             "default": "47",
             "type": "size_t"
         },
+        "ht_resize_interval": {
+            "default": "60",
+            "descr": "Interval in seconds to wait between HashtableResizerTask executions.",
+            "type": "size_t"
+        },
         "ht_size": {
             "default": "0",
             "type": "size_t"
