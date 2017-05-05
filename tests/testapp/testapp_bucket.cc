@@ -181,8 +181,15 @@ TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
             std::unique_lock<std::mutex> lock(cv_m);
             cv.wait_for(lock, std::chrono::seconds(5),
                         [&bucket_deleted](){return bucket_deleted == true;});
-            watchdog_fired = true;
-            second_conn->sendFrame(frame);
+            if (!bucket_deleted) {
+                watchdog_fired = true;
+                try {
+                    second_conn->sendFrame(frame);
+                } catch (std::runtime_error&) {
+                    // It is ok for sendFrame to fail - the connection might have
+                    // been closed by the server due to the bucket deletion.
+                }
+            }
         }
     };
 
@@ -378,13 +385,16 @@ TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
             std::unique_lock<std::mutex> lock(cv_m);
             cv.wait_for(lock, std::chrono::seconds(5),
                         [&bucket_deleted](){return bucket_deleted == true;});
-            watchdog_fired = true;
-            auto frame = second_conn->encodeCmdGet("wakeup_conn", 0);
-            try {
-                second_conn->sendFrame(frame);
-            } catch (std::runtime_error& ) {
-                // It is ok for sendFrame to fail - the connection might have
-                // been closed by the server due to the bucket deletion.
+
+            if (!bucket_deleted) {
+                watchdog_fired = true;
+                auto frame = second_conn->encodeCmdGet("wakeup_conn", 0);
+                try {
+                    second_conn->sendFrame(frame);
+                } catch (std::runtime_error&) {
+                    // It is ok for sendFrame to fail - the connection might have
+                    // been closed by the server due to the bucket deletion.
+                }
             }
         }
     };
