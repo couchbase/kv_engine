@@ -125,10 +125,25 @@ public:
      * Updates the highSeqno in the list. Since seqno is generated and managed
      * outside the list, the module managing it must update this after the seqno
      * is generated for the item already put in the list.
-     *
+     * @param highSeqnoLock The lock protecting the high seqnos the caller is
+     * expected to hold
      * @param v Ref to orderedStoredValue
      */
-    virtual void updateHighSeqno(const OrderedStoredValue& v) = 0;
+    virtual void updateHighSeqno(std::lock_guard<std::mutex>& highSeqnoLock,
+                                 const OrderedStoredValue& v) = 0;
+
+    /**
+     * Updates the highestDedupedSeqno in the list. Since seqno is generated and
+     * managed outside the list, the module managing it must update this after
+     * the seqno is generated for the item already put in the list.
+     * @param highSeqnoLock The lock protecting the high seqnos the caller is
+     * expected to hold
+     * @param v Ref to orderedStoredValue
+     *
+     */
+    virtual void updateHighestDedupedSeqno(
+            std::lock_guard<std::mutex>& highSeqnoLock,
+            const OrderedStoredValue& v) = 0;
 
     /**
      * Mark an OrderedStoredValue stale and assumes its ownership.
@@ -215,6 +230,12 @@ public:
      * Returns the current range read end sequence number.
      */
     virtual uint64_t getRangeReadEnd() const = 0;
+
+    /**
+     * Returns the lock which must be held to modify the highSeqno or the
+     * highestDedupedSeqno
+     */
+    virtual std::mutex& getHighSeqnosLock() const = 0;
 
     /**
      * Debug - prints a representation of the list to stderr.

@@ -485,3 +485,48 @@ TEST_F(EphTombstoneTest, DoubleDeleteTimeCorrect) {
     auto secondDelTime = delOSV->getDeletedTime();
     EXPECT_GE(secondDelTime, initialDelTime + timeJump);
 }
+
+TEST_F(EphemeralVBucketTest, UpdateUpdatesHighestDedupedSeqno) {
+    /* Add 3 items and then update all of them */
+    const int numItems = 3;
+
+    auto keys = generateKeys(numItems);
+    setMany(keys, MutationStatus::WasClean);
+
+    ASSERT_EQ(0, mockEpheVB->getLL()->getHighestDedupedSeqno());
+
+    /* Update the items */
+    setMany(keys, MutationStatus::WasDirty);
+
+    EXPECT_EQ(6, mockEpheVB->getLL()->getHighestDedupedSeqno());
+}
+
+TEST_F(EphemeralVBucketTest, AppendUpdatesHighestDedupedSeqno) {
+    /* Add 3 items and then update all of them */
+    const int numItems = 3;
+
+    auto keys = generateKeys(numItems);
+    setMany(keys, MutationStatus::WasClean);
+
+    ASSERT_EQ(0, mockEpheVB->getLL()->getHighestDedupedSeqno());
+
+    /* Set up a mock backfill by setting the range of the backfill */
+    mockEpheVB->registerFakeReadRange(1, numItems);
+
+    /* Update the items */
+    setMany(keys, MutationStatus::WasClean);
+
+    mockEpheVB->resetReadRange();
+
+    // TODO: expect 0 once the purger handles updating the HDDS
+    // Updating the HDDS at append time is only a temporary measure - this will
+    // be changed to having the tombstone purger update the HDDS shortly. Once
+    // that is done, we would expect HDDS == 0 at this point, and HDDS == 6 only
+    // after the purger runs.
+
+    EXPECT_EQ(6, mockEpheVB->getLL()->getHighestDedupedSeqno());
+
+    EXPECT_EQ(3, mockEpheVB->purgeTombstones(0));
+
+    EXPECT_EQ(6, mockEpheVB->getLL()->getHighestDedupedSeqno());
+}

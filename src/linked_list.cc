@@ -166,9 +166,15 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
     return {ENGINE_SUCCESS, std::move(items)};
 }
 
-void BasicLinkedList::updateHighSeqno(const OrderedStoredValue& v) {
-    std::lock_guard<SpinLock> lh(rangeLock);
+void BasicLinkedList::updateHighSeqno(
+        std::lock_guard<std::mutex>& highSeqnoLock,
+        const OrderedStoredValue& v) {
     highSeqno = v.getBySeqno();
+}
+void BasicLinkedList::updateHighestDedupedSeqno(
+        std::lock_guard<std::mutex>& highSeqnoLock,
+        const OrderedStoredValue& v) {
+    highestDedupedSeqno = v.getBySeqno();
 }
 
 void BasicLinkedList::markItemStale(StoredValue::UniquePtr ownedSv) {
@@ -320,12 +326,12 @@ uint64_t BasicLinkedList::getNumItems() const {
 }
 
 uint64_t BasicLinkedList::getHighSeqno() const {
-    std::lock_guard<SpinLock> lh(rangeLock);
+    std::lock_guard<std::mutex> lckGd(highSeqnosLock);
     return highSeqno;
 }
 
 uint64_t BasicLinkedList::getHighestDedupedSeqno() const {
-    std::lock_guard<std::mutex> lckGd(writeLock);
+    std::lock_guard<std::mutex> lckGd(highSeqnosLock);
     return highestDedupedSeqno;
 }
 
@@ -341,6 +347,9 @@ uint64_t BasicLinkedList::getRangeReadBegin() const {
 uint64_t BasicLinkedList::getRangeReadEnd() const {
     std::lock_guard<SpinLock> lh(rangeLock);
     return readRange.getEnd();
+}
+std::mutex& BasicLinkedList::getHighSeqnosLock() const {
+    return highSeqnosLock;
 }
 
 void BasicLinkedList::dump() const {

@@ -1770,7 +1770,14 @@ static enum test_result test_dcp_producer_stream_req_partial(ENGINE_HANDLE *h,
     ctx.snapshot = {105, 105};
     ctx.exp_mutations = 95; // 105 to 200
     ctx.exp_deletions = 100; // 201 to 300
-    ctx.exp_markers = 2;
+
+    if (isPersistentBucket(h, h1)) {
+        ctx.exp_markers = 2;
+    } else {
+        // the ephemeral stream request won't be broken into two snapshots of
+        // backfill from disk vs the checkpoint in memory
+        ctx.exp_markers = 1;
+    }
 
     TestDcpConsumer tdc("unittest", cookie);
     tdc.addStreamCtx(ctx);

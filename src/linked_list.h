@@ -146,7 +146,11 @@ public:
     std::pair<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>> rangeRead(
             seqno_t start, seqno_t end) override;
 
-    void updateHighSeqno(const OrderedStoredValue& v) override;
+    void updateHighSeqno(std::lock_guard<std::mutex>& highSeqnoLock,
+                         const OrderedStoredValue& v) override;
+
+    void updateHighestDedupedSeqno(std::lock_guard<std::mutex>& highSeqnoLock,
+                                   const OrderedStoredValue& v) override;
 
     void markItemStale(StoredValue::UniquePtr ownedSv) override;
 
@@ -174,6 +178,8 @@ public:
 
     uint64_t getRangeReadEnd() const override;
 
+    std::mutex& getHighSeqnosLock() const override;
+
     void dump() const override;
 
 protected:
@@ -199,6 +205,11 @@ protected:
      * periods.
      */
     mutable SpinLock rangeLock;
+
+    /**
+     * Lock protecting the highSeqno and highestDedupedSeqno.
+     */
+    mutable std::mutex highSeqnosLock;
 
     /**
      * Lock that serializes range reads on the 'seqList' - i.e. serializes

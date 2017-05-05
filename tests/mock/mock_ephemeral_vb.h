@@ -65,6 +65,10 @@ public:
         mockLL->registerFakeReadRange(start, end);
     }
 
+    void resetReadRange() {
+        mockLL->resetReadRange();
+    }
+
     int public_getNumStaleItems() {
         return mockLL->getNumStaleItems();
     }

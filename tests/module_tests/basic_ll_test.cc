@@ -87,7 +87,9 @@ protected:
             sv = ht.find(key, TrackReference::Yes, WantsDeleted::No)
                          ->toOrderedStoredValue();
             basicLL->appendToList(lg, *sv);
-            basicLL->updateHighSeqno(*sv);
+            std::lock_guard<std::mutex> highSeqnoLh(
+                    basicLL->getHighSeqnosLock());
+            basicLL->updateHighSeqno(highSeqnoLh, *sv);
             expectedSeqno.push_back(i);
         }
         return expectedSeqno;
@@ -109,7 +111,8 @@ protected:
         EXPECT_EQ(SequenceList::UpdateStatus::Success,
                   basicLL->updateListElem(lg, *osv));
         osv->setBySeqno(highSeqno + 1);
-        basicLL->updateHighSeqno(*osv);
+        std::lock_guard<std::mutex> highSeqnoLh(basicLL->getHighSeqnosLock());
+        basicLL->updateHighSeqno(highSeqnoLh, *osv);
     }
 
     /**

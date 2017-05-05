@@ -299,51 +299,63 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
     const bool oldValueDeleted = v.isDeleted();
     const bool recreatingDeletedItem = v.isDeleted() && !itm.isDeleted();
 
-    /* Update the OrderedStoredValue in hash table + Ordered data structure
-       (list) */
-    auto res = seqList->updateListElem(lh, *(v.toOrderedStoredValue()));
-
+    SequenceList::UpdateStatus res;
+    VBNotifyCtx notifyCtx;
     StoredValue* newSv = &v;
     StoredValue::UniquePtr ownedSv;
     MutationStatus status(MutationStatus::WasClean);
 
-    switch (res) {
-    case SequenceList::UpdateStatus::Success:
-        /* OrderedStoredValue moved to end of the list, just update its
-           value */
-        status = ht.unlocked_updateStoredValue(hbl.getHTLock(), v, itm);
-        break;
+    {
+        // Once we update the seqList, there is a short period where the
+        // highSeqno and highestDedupedSeqno are both incorrect. We have to hold
+        // this lock to prevent a new rangeRead starting, and covering an
+        // inconsistent range.
+        std::lock_guard<std::mutex> highSeqnoLh(seqList->getHighSeqnosLock());
 
-    case SequenceList::UpdateStatus::Append: {
-        /* OrderedStoredValue cannot be moved to end of the list,
-           due to a range read. Hence, release the storedvalue from the
-           hash table, indicate the list to mark the OrderedStoredValue
-           stale (old duplicate) and add a new StoredValue for the itm.
+        /* Update the OrderedStoredValue in hash table + Ordered data structure
+           (list) */
+        res = seqList->updateListElem(lh, *(v.toOrderedStoredValue()));
 
-           Note: It is important to remove item from hash table before
-                 marking stale because once marked stale list assumes the
-                 ownership of the item and may delete it anytime. */
-        /* Release current storedValue from hash table */
-        /* [EPHE TODO]: Write a HT func to release the StoredValue directly
-                        than taking key as a param and deleting
-                        (MB-23184) */
-        ownedSv = ht.unlocked_release(hbl, v.getKey());
+        switch (res) {
+        case SequenceList::UpdateStatus::Success:
+            /* OrderedStoredValue moved to end of the list, just update its
+               value */
+            status = ht.unlocked_updateStoredValue(hbl.getHTLock(), v, itm);
+            break;
 
-        /* Add a new storedvalue for the item */
-        newSv = ht.unlocked_addNewStoredValue(hbl, itm);
+        case SequenceList::UpdateStatus::Append: {
+            /* OrderedStoredValue cannot be moved to end of the list,
+               due to a range read. Hence, release the storedvalue from the
+               hash table, indicate the list to mark the OrderedStoredValue
+               stale (old duplicate) and add a new StoredValue for the itm.
 
-        seqList->appendToList(lh, *(newSv->toOrderedStoredValue()));
-    } break;
+               Note: It is important to remove item from hash table before
+                     marking stale because once marked stale list assumes the
+                     ownership of the item and may delete it anytime. */
+            /* Release current storedValue from hash table */
+            /* [EPHE TODO]: Write a HT func to release the StoredValue directly
+                            than taking key as a param and deleting
+                            (MB-23184) */
+            ownedSv = ht.unlocked_release(hbl, v.getKey());
+
+            /* Add a new storedvalue for the item */
+            newSv = ht.unlocked_addNewStoredValue(hbl, itm);
+
+            seqList->appendToList(lh, *(newSv->toOrderedStoredValue()));
+        } break;
+        }
+
+        if (queueItmCtx) {
+            /* Put on checkpoint mgr */
+            notifyCtx = queueDirty(*newSv, *queueItmCtx);
+        }
+
+        /* Update the high seqno in the sequential storage */
+        auto& osv = *(newSv->toOrderedStoredValue());
+        seqList->updateHighSeqno(highSeqnoLh, osv);
+        seqList->updateHighestDedupedSeqno(highSeqnoLh, osv);
     }
 
-    VBNotifyCtx notifyCtx;
-    if (queueItmCtx) {
-        /* Put on checkpoint mgr */
-        notifyCtx = queueDirty(*newSv, *queueItmCtx);
-    }
-
-    /* Update the high seqno in the sequential storage */
-    seqList->updateHighSeqno(*(newSv->toOrderedStoredValue()));
     if (recreatingDeletedItem) {
         ++opsCreate;
     } else {
@@ -391,7 +403,8 @@ std::pair<StoredValue*, VBNotifyCtx> EphemeralVBucket::addNewStoredValue(
     }
 
     /* Update the high seqno in the sequential storage */
-    seqList->updateHighSeqno(*(v->toOrderedStoredValue()));
+    std::lock_guard<std::mutex> highSeqnoLh(seqList->getHighSeqnosLock());
+    seqList->updateHighSeqno(highSeqnoLh, *(v->toOrderedStoredValue()));
     ++opsCreate;
 
     seqList->updateNumDeletedItems(false, itm.isDeleted());
@@ -412,45 +425,59 @@ std::tuple<StoredValue*, VBNotifyCtx> EphemeralVBucket::softDeleteStoredValue(
 
     const bool oldValueDeleted = v.isDeleted();
 
-    /* Update the OrderedStoredValue in hash table + Ordered data structure
-       (list) */
-    auto res = seqList->updateListElem(lh, *(v.toOrderedStoredValue()));
+    SequenceList::UpdateStatus res;
+    VBNotifyCtx notifyCtx;
+    {
+        // Once we update the seqList, there is a short period where the
+        // highSeqno and highestDedupedSeqno are both incorrect. We have to hold
+        // this lock to prevent a new rangeRead starting, and covering an
+        // inconsistent range.
+        std::lock_guard<std::mutex> highSeqnoLh(seqList->getHighSeqnosLock());
 
-    switch (res) {
-    case SequenceList::UpdateStatus::Success:
-        /* OrderedStoredValue is moved to end of the list, do nothing */
-        break;
+        /* Update the OrderedStoredValue in hash table + Ordered data structure
+           (list) */
+        res = seqList->updateListElem(lh, *(v.toOrderedStoredValue()));
 
-    case SequenceList::UpdateStatus::Append: {
-        /* OrderedStoredValue cannot be moved to end of the list,
-           due to a range read. Hence, replace the storedvalue in the
-           hash table with its copy and indicate the list to mark the
-           OrderedStoredValue stale (old duplicate).
+        switch (res) {
+        case SequenceList::UpdateStatus::Success:
+            /* OrderedStoredValue is moved to end of the list, do nothing */
+            break;
 
-           Note: It is important to remove item from hash table before
-                 marking stale because once marked stale list assumes the
-                 ownership of the item and may delete it anytime. */
+        case SequenceList::UpdateStatus::Append: {
+            /* OrderedStoredValue cannot be moved to end of the list,
+               due to a range read. Hence, replace the storedvalue in the
+               hash table with its copy and indicate the list to mark the
+               OrderedStoredValue stale (old duplicate).
 
-        /* Release current storedValue from hash table */
-        /* [EPHE TODO]: Write a HT func to replace the StoredValue directly
-                        than taking key as a param and deleting (MB-23184) */
-        std::tie(newSv, ownedSv) = ht.unlocked_replaceByCopy(hbl, v);
+               Note: It is important to remove item from hash table before
+                     marking stale because once marked stale list assumes the
+                     ownership of the item and may delete it anytime. */
 
-        seqList->appendToList(lh, *(newSv->toOrderedStoredValue()));
-    } break;
+            /* Release current storedValue from hash table */
+            /* [EPHE TODO]: Write a HT func to replace the StoredValue directly
+                            than taking key as a param and deleting (MB-23184)
+               */
+            std::tie(newSv, ownedSv) = ht.unlocked_replaceByCopy(hbl, v);
+
+            seqList->appendToList(lh, *(newSv->toOrderedStoredValue()));
+        } break;
+        }
+
+        /* Delete the storedvalue */
+        ht.unlocked_softDelete(hbl.getHTLock(), *newSv, onlyMarkDeleted);
+
+        if (queueItmCtx.genBySeqno == GenerateBySeqno::No) {
+            newSv->setBySeqno(bySeqno);
+        }
+
+        notifyCtx = queueDirty(*newSv, queueItmCtx);
+
+        /* Update the high seqno in the sequential storage */
+        auto& osv = *(newSv->toOrderedStoredValue());
+        seqList->updateHighSeqno(highSeqnoLh, osv);
+        seqList->updateHighestDedupedSeqno(highSeqnoLh, osv);
     }
 
-    /* Delete the storedvalue */
-    ht.unlocked_softDelete(hbl.getHTLock(), *newSv, onlyMarkDeleted);
-
-    if (queueItmCtx.genBySeqno == GenerateBySeqno::No) {
-        newSv->setBySeqno(bySeqno);
-    }
-
-    VBNotifyCtx notifyCtx = queueDirty(*newSv, queueItmCtx);
-
-    /* Update the high seqno in the sequential storage */
-    seqList->updateHighSeqno(*(newSv->toOrderedStoredValue()));
     ++opsDelete;
 
     seqList->updateNumDeletedItems(oldValueDeleted, true);
