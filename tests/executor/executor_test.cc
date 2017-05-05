@@ -130,6 +130,29 @@ TEST_F(ExecutorTest, RescheduleMissingLock) {
     EXPECT_TRUE(cmd->executionComplete);
 }
 
+TEST_F(ExecutorTest, FutureExecution) {
+    auto cmd = std::make_shared<BasicTestTask>(1);
+    std::shared_ptr<Task> task = cmd;
+
+    std::unique_lock<std::mutex> lock(task->getMutex());
+    executorpool->schedule(task, false);
+
+    task->makeRunnable(ProcessClock::now());
+    // can't hold lock for clock tick
+    lock.unlock();
+    executorpool->clockTick();
+    lock.lock();
+
+    // because we weren't holding the lock after the task was made
+    // runnable then the executor might have already run it.
+    if (!cmd->executionComplete) {
+        cmd->cond.wait(lock);
+    }
+
+    EXPECT_EQ(1, cmd->runcount);
+    EXPECT_TRUE(cmd->executionComplete);
+}
+
 static std::terminate_handler default_terminate_handler;
 
 static void my_terminate_handler() {

@@ -24,3 +24,10 @@ void Task::makeRunnable() {
     }
     executor->makeRunnable(this);
 }
+
+void Task::makeRunnable(ProcessClock::time_point time) {
+    if (executor == nullptr) {
+        throw std::logic_error("task need to be scheduled");
+    }
+    executor->makeRunnable(*this, time);
+}

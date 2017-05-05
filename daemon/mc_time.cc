@@ -210,6 +210,9 @@ static void mc_time_clock_tick(void) {
         previous_time_valid = true;
         previous_time = timeofday;
     }
+
+    // check on tasks to be made runnable in the future
+    executorPool->clockTick();
 }
 
 static void mc_gather_timing_samples(void) {

@@ -16,11 +16,13 @@
  */
 #pragma once
 
+#include <platform/platform.h>
+#include <platform/processclock.h>
+#include <platform/thread.h>
+
 #include <atomic>
 #include <condition_variable>
 #include <memory>
-#include <platform/platform.h>
-#include <platform/thread.h>
 #include <queue>
 #include <unordered_map>
 
@@ -64,6 +66,17 @@ public:
      */
     void makeRunnable(Task* task);
 
+    /**
+     * Schedule the task to be made runnable in the future
+     */
+    void makeRunnable(Task& task, ProcessClock::time_point time);
+
+    /**
+     * This method should be called periodically (usually by the ExecutorPool)
+     * to move tasks in the futureq that are ready into the runq.
+     */
+    void clockTick();
+
 protected:
     virtual void run() override;
 
@@ -98,6 +111,19 @@ protected:
      * @todo measure and refactor if needed
      */
     std::unordered_map<Task*, std::shared_ptr<Task> > waitq;
+
+    using FutureTask = std::pair<Task*, ProcessClock::time_point>;
+
+    /**
+     * If a task needs to be be runnable at a specific time in the future
+     * then it is placed in the "future queue" with its time (at the same
+     * time as being in the wait queue).
+     *
+     * This vector *could* justifiably be sorted by time to reduce how
+     * much of it needs processing each time. But vectors are fast so it
+     * shouldn't be noticeable for the small size this should be.
+     */
+    std::vector<FutureTask> futureq;
 
     /**
      * When the runqueue is empty the executor thread blocks on this condition

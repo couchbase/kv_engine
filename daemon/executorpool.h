@@ -46,6 +46,12 @@ public:
      */
     void schedule(std::shared_ptr<Task>& task, bool runnable = true);
 
+    /**
+     * This method should be called periodically (e.g. once a second)
+     * to make tasks that are scheduled to run the future runnable.
+     */
+    void clockTick();
+
 private:
     /**
      * The actual list of executors

@@ -39,3 +39,9 @@ void ExecutorPool::schedule(std::shared_ptr<Task>& task, bool runnable) {
 
     executors[++roundRobin % executors.size()]->schedule(task, runnable);
 }
+
+void ExecutorPool::clockTick() {
+    for (const auto& executor : executors) {
+        executor->clockTick();
+    }
+}

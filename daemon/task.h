@@ -20,8 +20,11 @@
 class Executor;
 
 #include <memcached/types.h>
+#include <platform/processclock.h>
+
 #include <mutex>
 #include <stdexcept>
+
 /**
  * The Task class represents a Task that needs to be performed by the
  * ExecutorPool. See task must be non-blocking and utilize other theads
@@ -74,6 +77,12 @@ public:
      * this method to avoid race condition.
      */
     void makeRunnable();
+
+    /**
+     * The same as `makeRunnable()` except it defers making it runnable
+     * until a point in the future.
+     */
+    void makeRunnable(ProcessClock::time_point time);
 
 private:
     /**

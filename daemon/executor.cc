@@ -18,6 +18,7 @@
 #include "executor.h"
 #include "task.h"
 
+#include <algorithm>
 #include <iostream>
 
 Executor::~Executor() {
@@ -81,6 +82,12 @@ void Executor::run() {
         }
     }
 
+    // move all items in future-queue out of the wait-queue
+    for (const auto& ftask : futureq) {
+        std::lock_guard<std::mutex> guard(ftask.first->getMutex());
+        makeRunnable(ftask.first);
+    }
+
     // wait for the wait-queue to drain...
     std::unique_lock<std::mutex> lock(mutex);
     while (!waitq.empty()) {
@@ -118,6 +125,44 @@ void Executor::makeRunnable(Task* task) {
     runq.push(iter->second);
     waitq.erase(iter);
     idlecond.notify_all();
+}
+
+void Executor::makeRunnable(Task& task, ProcessClock::time_point time) {
+    if (task.getMutex().try_lock()) {
+        task.getMutex().unlock();
+        throw std::logic_error(
+                "The mutex should be held when trying to reschedule a event");
+    }
+
+    std::lock_guard<std::mutex> guard(mutex);
+    futureq.emplace_back(&task, time);
+}
+
+void Executor::clockTick() {
+    std::vector<Task*> wakeableTasks;
+
+    {
+        std::lock_guard<std::mutex> guard(mutex);
+        auto now = ProcessClock::now();
+
+        futureq.erase(
+                std::remove_if(futureq.begin(),
+                               futureq.end(),
+                               [&now, &wakeableTasks](FutureTask& ftask) {
+                                   if (ftask.second <= now) {
+                                       wakeableTasks.push_back(ftask.first);
+                                       return true;
+                                   }
+                                   return false;
+                               }),
+                futureq.end());
+    }
+
+    // Need to do this without holding the executor lock to avoid lock inversion
+    for (auto* task : wakeableTasks) {
+        std::lock_guard<std::mutex> guard(task->getMutex());
+        makeRunnable(task);
+    }
 }
 
 std::unique_ptr<Executor> createWorker() {
