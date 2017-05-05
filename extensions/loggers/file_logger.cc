@@ -419,6 +419,13 @@ static FILE *open_logfile(const char *fnm) {
     if (ret != nullptr) {
         setbuf(ret, nullptr);
         next_file_id = try_id;
+
+        ISOTime::ISO8601String timestamp;
+        ISOTime::generatetimestamp(timestamp, time(NULL), 0);
+        fprintf(ret,
+                "%s NOTICE ---------- Opening logfile: %s\n",
+                timestamp.data(),
+                fname);
     }
 
     return ret;
@@ -426,6 +433,11 @@ static FILE *open_logfile(const char *fnm) {
 
 static void close_logfile(FILE *fp) {
     if (fp) {
+        ISOTime::ISO8601String timestamp;
+        ISOTime::generatetimestamp(timestamp, time(NULL), 0);
+        fprintf(fp,
+                "%s NOTICE ---------- Closing logfile\n",
+                timestamp.data());
         fclose(fp);
     }
 }
