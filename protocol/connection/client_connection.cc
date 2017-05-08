@@ -276,7 +276,7 @@ void MemcachedConnection::connect() {
             BIO_free_all(bio);
             throw std::runtime_error("Failed to create openssl client contex");
         }
-        if (!ssl_cert_file.empty() && ssl_key_file.empty()) {
+        if (!ssl_cert_file.empty() && !ssl_key_file.empty()) {
             if (!SSL_CTX_use_certificate_file(
                         context, ssl_cert_file.c_str(), SSL_FILETYPE_PEM) ||
                 !SSL_CTX_use_PrivateKey_file(
