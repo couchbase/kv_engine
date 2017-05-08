@@ -21,6 +21,7 @@ list(APPEND TESTAPP_SOURCES
      testapp_binprot.h
      testapp_bucket.cc
      testapp_bucket.h
+     testapp_cert_tests.cc
      testapp_client_test.cc
      testapp_client_test.h
      testapp_dcp.cc
@@ -38,7 +39,6 @@ list(APPEND TESTAPP_SOURCES
      testapp_sasl.h
      testapp_shutdown.cc
      testapp_ssl_utils.cc
-     testapp_ssl.cc
      testapp_stats.cc
      testapp_stats.h
      testapp_subdoc.cc
