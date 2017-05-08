@@ -175,6 +175,8 @@ ADD_LIBRARY(memcached_daemon STATIC
             settings.h
             sslcert.cc
             sslcert.h
+            ssl_context.h
+            ssl_context_openssl.cc
             ssl_utils.cc
             ssl_utils.h
             statemachine_mcbp.cc
