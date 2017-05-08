@@ -278,12 +278,9 @@ TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {
 #endif
 
 /*
- * The opencheckpointid of a bucket can be zero after a rollback.
- * From MB21784 if an opencheckpointid was zero it was assumed that the
- * vbucket was in backfilling state.  This caused the producer stream
- * request to be stuck waiting for backfilling to complete.
+ * The opencheckpointid of a bucket is one after a rollback.
  */
-TEST_P(RollbackTest, DISABLED_MB21784) {
+TEST_P(RollbackTest, MB21784) {
     // Make the vbucket a replica
     store->setVBucketState(vbid, vbucket_state_replica, false);
     // Perform a rollback
@@ -291,10 +288,10 @@ TEST_P(RollbackTest, DISABLED_MB21784) {
         << "rollback did not return ENGINE_SUCCESS";
 
     // Assert the checkpointmanager clear function (called during rollback)
-    // has set the opencheckpointid to zero
+    // has set the opencheckpointid to one
     auto vb = store->getVbMap().getBucket(vbid);
     auto& ckpt_mgr = vb->checkpointManager;
-    EXPECT_EQ(0, ckpt_mgr.getOpenCheckpointId()) << "opencheckpointId not zero";
+    EXPECT_EQ(1, ckpt_mgr.getOpenCheckpointId()) << "opencheckpointId not one";
 
     // Create a new Dcp producer, reserving its cookie.
     get_mock_server_api()->cookie->reserve(cookie);
