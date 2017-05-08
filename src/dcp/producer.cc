@@ -506,15 +506,18 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             if (mutationResponse->getExtMetaData()) {
                 meta = mutationResponse->getExtMetaData()->getExtMeta();
             }
-            ret = producers->mutation(getCookie(),
-                                      mutationResponse->getOpaque(),
-                                      itmCpy,
-                                      mutationResponse->getVBucket(),
-                                      *mutationResponse->getBySeqno(),
-                                      mutationResponse->getRevSeqno(),
-                                      0 /* lock time */,
-                                      meta.first, meta.second,
-                                      mutationResponse->getItem()->getNRUValue());
+            ret = producers->mutation(
+                    getCookie(),
+                    mutationResponse->getOpaque(),
+                    itmCpy,
+                    mutationResponse->getVBucket(),
+                    *mutationResponse->getBySeqno(),
+                    mutationResponse->getRevSeqno(),
+                    0 /* lock time */,
+                    meta.first,
+                    meta.second,
+                    mutationResponse->getItem()->getNRUValue(),
+                    0);
             break;
         }
         case DcpResponse::Event::Deletion:
@@ -533,7 +536,9 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                                       mutationResponse->getVBucket(),
                                       *mutationResponse->getBySeqno(),
                                       mutationResponse->getRevSeqno(),
-                                      meta.first, meta.second);
+                                      meta.first,
+                                      meta.second,
+                                      0);
             break;
         }
         case DcpResponse::Event::SnapshotMarker:

@@ -165,14 +165,15 @@ static ENGINE_ERROR_CODE mock_marker(const void *cookie,
 
 static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
                                        uint32_t opaque,
-                                       item *itm,
+                                       item* itm,
                                        uint16_t vbucket,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
                                        uint32_t lock_time,
-                                       const void *meta,
+                                       const void* meta,
                                        uint16_t nmeta,
-                                       uint8_t nru) {
+                                       uint8_t nru,
+                                       uint8_t collectionLen) {
     (void) cookie;
     clear_dcp_data();
     Item* item = reinterpret_cast<Item*>(itm);
@@ -197,12 +198,13 @@ static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
 
 static ENGINE_ERROR_CODE mock_deletion(const void* cookie,
                                        uint32_t opaque,
-                                       item *itm,
+                                       item* itm,
                                        uint16_t vbucket,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
-                                       const void *meta,
-                                       uint16_t nmeta) {
+                                       const void* meta,
+                                       uint16_t nmeta,
+                                       uint8_t collectionLen) {
     (void) cookie;
     clear_dcp_data();
     Item* item = reinterpret_cast<Item*>(itm);
@@ -233,7 +235,8 @@ static ENGINE_ERROR_CODE mock_expiration(const void*,
                                          uint64_t,
                                          uint64_t,
                                          const void*,
-                                         uint16_t) {
+                                         uint16_t,
+                                         uint8_t) {
     clear_dcp_data();
     if (engine_handle_v1 && engine_handle) {
         engine_handle_v1->release(engine_handle, nullptr, itm);
