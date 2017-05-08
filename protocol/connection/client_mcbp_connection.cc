@@ -305,7 +305,7 @@ std::string MemcachedBinprotConnection::to_string() {
     std::string ret("Memcached connection ");
     ret.append(std::to_string(port));
     if (family == AF_INET6) {
-        ret.append("[::!]:");
+        ret.append("[::1]:");
     } else {
         ret.append("127.0.0.1:");
     }
