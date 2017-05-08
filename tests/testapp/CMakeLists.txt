@@ -6,11 +6,16 @@ ENDIF (MEMCACHED_USE_GREENSTACK)
 
 INCLUDE_DIRECTORIES(AFTER ${Platform_SOURCE_DIR}/external)
 
+list(APPEND ssl_impl_sources
+     openssl_impl.cc)
+
 list(APPEND TESTAPP_SOURCES
      ${Memcached_SOURCE_DIR}/daemon/ssl_utils.cc
      ${Memcached_SOURCE_DIR}/daemon/ssl_utils.h
      ${Memcached_SOURCE_DIR}/utilities/subdoc_encoder.cc
      ${MEMCACHED_GREENSTACK_SRC}
+     ssl_impl.h
+     ${ssl_impl_sources}
      testapp.cc
      testapp.h
      testapp_arithmetic.cc
@@ -86,7 +91,7 @@ TARGET_LINK_LIBRARIES(memcached_testapp
                       gtest_main
                       ${SNAPPY_LIBRARIES}
                       ${LIBEVENT_LIBRARIES}
-                      ${COUCHBASE_NETWORK_LIBS} ${OPENSSL_LIBRARIES})
+                      ${COUCHBASE_NETWORK_LIBS})
 
 target_compile_options(memcached_testapp PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE})
 

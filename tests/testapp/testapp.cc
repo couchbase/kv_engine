@@ -29,10 +29,10 @@
 #include <fstream>
 #include <platform/dirutils.h>
 #include <platform/backtrace.h>
-#include "memcached/openssl.h"
 #include "utilities.h"
 #include "utilities/protocol2text.h"
 #include "daemon/topkeys.h"
+#include "ssl_impl.h"
 
 #ifdef WIN32
 #include <process.h>
@@ -59,11 +59,6 @@ SOCKET sock = INVALID_SOCKET;
 SOCKET sock_ssl;
 static std::atomic<bool> allow_closed_read;
 static time_t server_start_time = 0;
-static SSL_CTX *ssl_ctx = NULL;
-static SSL *ssl = NULL;
-static BIO *bio = NULL;
-static BIO *ssl_bio_r = NULL;
-static BIO *ssl_bio_w = NULL;
 
 // used in embedded mode to shutdown memcached
 extern void shutdown_server();
@@ -89,8 +84,6 @@ static char mcd_port_filename_env[80];
 
 static SOCKET connect_to_server_ssl(in_port_t ssl_port);
 
-static void destroy_ssl_socket();
-
 void set_allow_closed_read(bool enabled) {
     allow_closed_read = enabled;
 }
@@ -101,15 +94,6 @@ bool sock_is_ssl() {
 
 void set_phase_ssl() {
     current_phase = phase_ssl;
-}
-
-void reset_bio_mem() {
-    ssl_bio_r = nullptr;
-    ssl_bio_w = nullptr;
-    if (bio) {
-        BIO_free_all(bio);
-        bio = nullptr;
-    }
 }
 
 time_t get_server_start_time() {
@@ -263,6 +247,7 @@ void McdTestappTest::TearDown() {
         closesocket(sock);
     } else {
         closesocket(sock_ssl);
+        sock_ssl = INVALID_SOCKET;
         destroy_ssl_socket();
     }
 }
@@ -709,51 +694,6 @@ SOCKET create_connect_plain_socket(in_port_t port)
     return sock;
 }
 
-SOCKET create_connect_ssl_socket(in_port_t port, SSL_CTX *ctx) {
-    char port_str[32];
-    snprintf(port_str, 32, "%d", port);
-
-    if (ctx) {
-        ssl_ctx = ctx;
-    } else {
-        EXPECT_EQ(nullptr, ssl_ctx);
-    }
-    EXPECT_EQ(nullptr, bio);
-    EXPECT_EQ(0, create_ssl_connection(&ssl_ctx, &bio, "127.0.0.1", port_str,
-                                       NULL, NULL, 1));
-
-    /* SSL "trickery". To ensure we have full control over send/receive of data.
-       create_ssl_connection will have negotiated the SSL connection, now:
-       1. steal the underlying FD
-       2. Switch out the BIO_ssl_connect BIO for a plain memory BIO
-
-       Now send/receive is done under our control. byte by byte, large chunks etc...
-    */
-    int sfd = BIO_get_fd(bio, NULL);
-    BIO_get_ssl(bio, &ssl);
-
-    EXPECT_EQ(nullptr, ssl_bio_r);
-    ssl_bio_r = BIO_new(BIO_s_mem());
-
-    EXPECT_EQ(nullptr, ssl_bio_w);
-    ssl_bio_w = BIO_new(BIO_s_mem());
-
-    // Note: previous BIOs attached to 'bio' freed as a result of this call.
-    SSL_set_bio(ssl, ssl_bio_r, ssl_bio_w);
-
-    return sfd;
-}
-
-static void destroy_ssl_socket() {
-    BIO_free_all(bio);
-    bio = nullptr;
-    ssl_bio_r = nullptr;
-    ssl_bio_w = nullptr;
-
-    SSL_CTX_free(ssl_ctx);
-    ssl_ctx = nullptr;
-}
-
 SOCKET connect_to_server_plain(in_port_t port) {
     SOCKET sock = create_connect_plain_socket(port);
     if (sock == INVALID_SOCKET) {
@@ -930,7 +870,7 @@ void TestappTest::setControlToken(void) {
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
-static ssize_t socket_send(SOCKET s, const char *buf, size_t len)
+ssize_t socket_send(SOCKET s, const char *buf, size_t len)
 {
 #ifdef WIN32
     return send(s, buf, (int)len, 0);
@@ -940,27 +880,11 @@ static ssize_t socket_send(SOCKET s, const char *buf, size_t len)
 }
 
 static ssize_t phase_send(const void *buf, size_t len) {
-    ssize_t rv = 0, send_rv = 0;
     if (current_phase == phase_ssl) {
-        long send_len = 0;
-        char *send_buf = NULL;
-        /* push the data through SSL into the BIO */
-        rv = (ssize_t)SSL_write(ssl, (const char*)buf, (int)len);
-        send_len = BIO_get_mem_data(ssl_bio_w, &send_buf);
-
-        send_rv = socket_send(sock_ssl, send_buf, send_len);
-
-        if (send_rv > 0) {
-            EXPECT_EQ(send_len, send_rv);
-            (void)BIO_reset(ssl_bio_w);
-        } else {
-            /* flag failure to user */
-            rv = send_rv;
-        }
+        return phase_send_ssl(buf, len);
     } else {
-        rv = socket_send(sock, reinterpret_cast<const char*>(buf), len);
+        return socket_send(sock, reinterpret_cast<const char*>(buf), len);
     }
-    return rv;
 }
 
 ssize_t socket_recv(SOCKET s, char *buf, size_t len)
@@ -973,28 +897,11 @@ ssize_t socket_recv(SOCKET s, char *buf, size_t len)
 }
 
 ssize_t phase_recv(void *buf, size_t len) {
-
-    ssize_t rv = 0;
     if (current_phase == phase_ssl) {
-        /* can we read some data? */
-        while((rv = SSL_peek(ssl, buf, (int)len)) == -1)
-        {
-            /* nope, keep feeding SSL until we can */
-            rv = socket_recv(sock_ssl, reinterpret_cast<char*>(buf), len);
-
-            if(rv > 0) {
-                /* write into the BIO what came off the network */
-                BIO_write(ssl_bio_r, buf, rv);
-            } else if(rv == 0) {
-                return rv; /* peer closed */
-            }
-        }
-        /* now pull the data out and return */
-        rv = SSL_read(ssl, buf, (int)len);
+        return phase_recv_ssl(buf, len);
     } else {
-        rv = socket_recv(sock, reinterpret_cast<char*>(buf), len);
+        return socket_recv(sock, reinterpret_cast<char*>(buf), len);
     }
-    return rv;
 }
 
 char ssl_error_string[256];
