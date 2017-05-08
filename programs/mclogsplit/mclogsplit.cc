@@ -94,6 +94,10 @@ void process_stream(FILE* stream, const std::string& output, bool preserve) {
             ofs = stderr;
         }
     }
+
+    if (ofs != stderr) {
+        fclose(ofs);
+    }
 }
 
 void process_file(const std::string& filename,
