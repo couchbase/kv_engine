@@ -276,6 +276,96 @@ protected:
     }
 };
 
+class SetWithMetaRequest : public Request {
+public:
+    SetWithMetaRequest(const protocol_binary_request_header& req)
+        : Request(req),
+          packet(reinterpret_cast<const protocol_binary_request_set_with_meta&>(
+                  req)) {
+    }
+
+protected:
+    const protocol_binary_request_set_with_meta& packet;
+
+    std::string decodeOptions(const uint32_t* ptr) const {
+        uint32_t value = ntohl(*ptr);
+
+        std::string options;
+        if (value & SKIP_CONFLICT_RESOLUTION_FLAG) {
+            options.append("skip conflict resolution, ");
+        }
+
+        if (value & FORCE_ACCEPT_WITH_META_OPS) {
+            options.append("force accept, ");
+        }
+
+        if (value & REGENERATE_CAS) {
+            options.append("regenerate cas, ");
+        }
+
+        // Should I look for others?
+
+        // Remove trailing ", "
+        options.pop_back();
+        options.pop_back();
+
+        return options;
+    }
+
+    virtual void dumpExtras(std::ostream& out) const override {
+        if (request.request.extlen < 24) {
+            throw std::logic_error(
+                    "SetWithMetaRequest::dumpExtras(): extlen must be at lest "
+                    "24 bytes");
+        }
+
+        out << "    Extras" << std::endl;
+        out << std::setfill('0');
+        out << "        flags    (24-27): 0x" << std::setw(8)
+            << packet.message.body.flags << std::endl;
+        out << "        exptime  (28-31): 0x" << std::setw(8)
+            << ntohl(packet.message.body.expiration) << std::endl;
+        out << "        seqno    (32-39): 0x" << std::setw(16)
+            << ntohll(packet.message.body.seqno) << std::endl;
+        out << "        cas      (40-47): 0x" << std::setw(16)
+            << ntohll(packet.message.body.cas) << std::endl;
+
+        const uint16_t* nmeta_ptr;
+        const uint32_t* options_ptr;
+
+        switch (request.request.extlen) {
+        case 24: // no nmeta and no options
+            break;
+        case 26: // nmeta
+            nmeta_ptr = reinterpret_cast<const uint16_t*>(packet.bytes + 48);
+            out << "        nmeta     (48-49): 0x" << std::setw(4)
+                << uint16_t(ntohs(*nmeta_ptr)) << std::endl;
+            break;
+        case 28: // options (4-byte field)
+        case 30: // options and nmeta (options followed by nmeta)
+            options_ptr = reinterpret_cast<const uint32_t*>(packet.bytes + 48);
+            out << "        options  (48-51): 0x" << std::setw(8)
+                << uint32_t(ntohl(*options_ptr));
+            if (*options_ptr != 0) {
+                out << " (" << decodeOptions(options_ptr) << ")";
+            }
+            out << std::endl;
+            if (request.request.extlen == 28) {
+                break;
+            }
+            nmeta_ptr = reinterpret_cast<const uint16_t*>(packet.bytes + 52);
+            out << "        nmeta     (52-53): 0x" << std::setw(4)
+                << uint16_t(ntohs(*nmeta_ptr)) << std::endl;
+            break;
+        default:
+            throw std::logic_error(
+                    "SetWithMetaRequest::dumpExtras(): Invalid extlen");
+        }
+
+        out << std::setfill(' ');
+    }
+};
+
 class Response : public McbpFrame {
 public:
     Response(const protocol_binary_response_header& res)
@@ -449,6 +539,10 @@ static void dump_request(const protocol_binary_request_header* req,
     switch (req->request.opcode) {
     case PROTOCOL_BINARY_CMD_HELLO:
         out << HelloRequest(*req) << std::endl;
+        break;
+    case PROTOCOL_BINARY_CMD_SET_WITH_META:
+    case PROTOCOL_BINARY_CMD_SETQ_WITH_META:
+        out << SetWithMetaRequest(*req) << std::endl;
         break;
     default:
         out << Request(*req) << std::endl;
