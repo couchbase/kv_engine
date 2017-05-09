@@ -101,7 +101,7 @@ void HashTable::clear_UNLOCKED(bool deactivate) {
             auto v = std::move(values[i]);
             clearedMemSize += v->size();
             clearedValSize += v->valuelen();
-            values[i] = std::move(v->next);
+            values[i] = std::move(v->getNext());
         }
     }
 
@@ -201,11 +201,11 @@ void HashTable::resize(size_t newSize) {
         while (values[i]) {
             // unlink the front element from the hash chain at values[i].
             auto v = std::move(values[i]);
-            values[i] = std::move(v->next);
+            values[i] = std::move(v->getNext());
 
             // And re-link it into the correct place in newValues.
             int newBucket = getBucketForHash(v->getKey().hash());
-            v->next = std::move(newValues[newBucket]);
+            v->setNext(std::move(newValues[newBucket]));
             newValues[newBucket] = std::move(v);
         }
     }
@@ -400,7 +400,7 @@ StoredValue* HashTable::unlocked_find(const DocKey& key,
                                       int bucket_num,
                                       WantsDeleted wantsDeleted,
                                       TrackReference trackReference) {
-    for (StoredValue* v = values[bucket_num].get(); v; v = v->next.get()) {
+    for (StoredValue* v = values[bucket_num].get(); v; v = v->getNext().get()) {
         if (v->hasKey(key)) {
             if (trackReference == TrackReference::Yes && !v->isDeleted()) {
                 v->referenced();
@@ -497,7 +497,7 @@ void HashTable::visit(HashTableVisitor &visitor) {
                 }
             }
             while (v) {
-                StoredValue* tmp = v->next.get();
+                StoredValue* tmp = v->getNext().get();
                 visitor.visit(lh, v);
                 v = tmp;
             }
@@ -535,7 +535,7 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
             while (p) {
                 depth++;
                 mem += p->size();
-                p = p->next.get();
+                p = p->getNext().get();
             }
             visitor.visit(i, depth, mem);
             ++visited;
@@ -591,7 +591,7 @@ HashTable::pauseResumeVisit(PauseResumeHashTableVisitor& visitor,
 
             StoredValue* v = values[hash_bucket].get();
             while (!paused && v) {
-                StoredValue* tmp = v->next.get();
+                StoredValue* tmp = v->getNext().get();
                 paused = !visitor.visit(*v);
                 v = tmp;
             }
@@ -668,7 +668,7 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
 
 std::unique_ptr<Item> HashTable::getRandomKeyFromSlot(int slot) {
     auto lh = getLockedBucket(slot);
-    for (StoredValue* v = values[slot].get(); v; v = v->next.get()) {
+    for (StoredValue* v = values[slot].get(); v; v = v->getNext().get()) {
         if (!v->isTempItem() && !v->isDeleted() && v->isResident()) {
             return v->toItem(false, 0);
         }
@@ -734,7 +734,7 @@ std::ostream& operator<<(std::ostream& os, const HashTable& ht) {
     for (const auto& chain : ht.values) {
         if (chain) {
             for (StoredValue* sv = chain.get(); sv != nullptr;
-                 sv = sv->next.get()) {
+                 sv = sv->getNext().get()) {
                 os << "    " << *sv << std::endl;
             }
         }

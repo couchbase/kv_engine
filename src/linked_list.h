@@ -170,7 +170,8 @@ public:
                                    const OrderedStoredValue& v) override;
 
     void markItemStale(std::lock_guard<std::mutex>& listWriteLg,
-                       StoredValue::UniquePtr ownedSv) override;
+                       StoredValue::UniquePtr ownedSv,
+                       StoredValue* newSv) override;
 
     size_t purgeTombstones() override;
 

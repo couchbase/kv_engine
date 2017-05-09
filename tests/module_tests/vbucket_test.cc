@@ -51,7 +51,7 @@ void VBucketTest::TearDown() {
 std::vector<StoredDocKey> VBucketTest::generateKeys(int num, int start) {
     std::vector<StoredDocKey> rv;
 
-    for (int i = start; i < num; i++) {
+    for (int i = start; i < num + start; i++) {
         rv.push_back(makeStoredDocKey(std::to_string(i)));
     }
 

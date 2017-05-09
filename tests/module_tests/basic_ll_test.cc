@@ -141,7 +141,6 @@ protected:
         StoredDocKey sKey = makeStoredDocKey(key);
         auto hbl = ht.getLockedBucket(sKey);
         auto ownedSv = ht.unlocked_release(hbl, osv->getKey());
-        basicLL->markItemStale(listWriteLg, std::move(ownedSv));
 
         /* Add a new storedvalue for the append */
         Item itm(sKey,
@@ -153,7 +152,8 @@ protected:
                  /*ext_len*/ 0,
                  /*theCas*/ 0,
                  /*bySeqno*/ highSeqno + 1);
-        auto newSv = ht.unlocked_addNewStoredValue(hbl, itm);
+        auto* newSv = ht.unlocked_addNewStoredValue(hbl, itm);
+        basicLL->markItemStale(listWriteLg, std::move(ownedSv), newSv);
 
         basicLL->appendToList(
                 lg, listWriteLg, *(newSv->toOrderedStoredValue()));
@@ -413,10 +413,18 @@ TEST_F(BasicLinkedListTest, MarkStale) {
     size_t svSize = ownedSv->size();
     size_t svMetaDataSize = ownedSv->metaDataSize();
 
+    // obtain a replacement SV
+    addNewItemsToList(numItems + 1, keyPrefix, 1);
+    OrderedStoredValue* replacement =
+            ht.find(makeStoredDocKey(keyPrefix + std::to_string(numItems + 1)),
+                    TrackReference::No,
+                    WantsDeleted::Yes)
+                    ->toOrderedStoredValue();
+
     /* Mark the item stale */
     {
         std::lock_guard<std::mutex> writeGuard(basicLL->getListWriteLock());
-        basicLL->markItemStale(writeGuard, std::move(ownedSv));
+        basicLL->markItemStale(writeGuard, std::move(ownedSv), replacement);
     }
 
     /* Check if the StoredValue is marked stale */
@@ -428,8 +436,8 @@ TEST_F(BasicLinkedListTest, MarkStale) {
     /* Check if the stale count incremented to 1 */
     EXPECT_EQ(1, basicLL->getNumStaleItems());
 
-    /* Check if the total item count in the linked list is 1 */
-    EXPECT_EQ(1, basicLL->getNumItems());
+    /* Check if the total item count in the linked list is 2 */
+    EXPECT_EQ(2, basicLL->getNumItems());
 
     /* Check memory usage of the list as it owns the stale item */
     EXPECT_EQ(svSize, basicLL->getStaleValueBytes());

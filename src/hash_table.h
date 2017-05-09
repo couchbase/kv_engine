@@ -641,17 +641,17 @@ private:
         if (p(chain.get())) {
             // Head element:
             auto removed = std::move(chain);
-            chain = std::move(removed->next);
+            chain = std::move(removed->getNext());
             return removed;
         }
 
         // Not head element, start searching.
-        for (StoredValue::UniquePtr* curr = &chain; curr->get()->next;
-             curr = &curr->get()->next) {
-            if (p(curr->get()->next.get())) {
+        for (StoredValue::UniquePtr* curr = &chain; curr->get()->getNext();
+             curr = &curr->get()->getNext()) {
+            if (p(curr->get()->getNext().get())) {
                 // next element matches predicate - splice it out of the list.
-                auto removed = std::move(curr->get()->next);
-                curr->get()->next = std::move(removed->next);
+                auto removed = std::move(curr->get()->getNext());
+                curr->get()->setNext(std::move(removed->getNext()));
                 return removed;
             }
         }

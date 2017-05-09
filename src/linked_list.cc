@@ -140,6 +140,20 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
             continue;
         }
 
+        /* Check if this OSV has been made stale and has been superseded by a
+         * newer version. If it has, and the replacement is /also/ in the range
+         * we are reading, we should skip this item to avoid duplicates */
+        StoredValue* replacement;
+        {
+            std::lock_guard<std::mutex> writeGuard(getListWriteLock());
+            replacement = osv.getReplacementIfStale(writeGuard);
+        }
+
+        if (replacement &&
+            replacement->toOrderedStoredValue()->getBySeqno() <= end) {
+            continue;
+        }
+
         try {
             items.push_back(UniqueItemPtr(osv.toItem(false, vbid)));
         } catch (const std::bad_alloc&) {
@@ -177,7 +191,8 @@ void BasicLinkedList::updateHighestDedupedSeqno(
 }
 
 void BasicLinkedList::markItemStale(std::lock_guard<std::mutex>& listWriteLg,
-                                    StoredValue::UniquePtr ownedSv) {
+                                    StoredValue::UniquePtr ownedSv,
+                                    StoredValue* newSv) {
     /* Release the StoredValue as BasicLinkedList does not want it to be of
        owned type */
     StoredValue* v = ownedSv.release();
@@ -188,7 +203,7 @@ void BasicLinkedList::markItemStale(std::lock_guard<std::mutex>& listWriteLg,
     st.currentSize.fetch_add(v->metaDataSize());
 
     ++numStaleItems;
-    v->toOrderedStoredValue()->markStale(listWriteLg);
+    v->toOrderedStoredValue()->markStale(listWriteLg, newSv);
 }
 
 size_t BasicLinkedList::purgeTombstones() {

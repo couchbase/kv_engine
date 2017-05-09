@@ -263,7 +263,9 @@ public:
             const OrderedStoredValue& v) = 0;
 
     /**
-     * Mark an OrderedStoredValue stale and assumes its ownership.
+     * Mark an OrderedStoredValue stale and assumes its ownership. Stores ptr to
+     * the newer version in the OSV, or nullptr if there is no newer version
+     * (i.e., expired Tombstone)
      * Note: It is upto the sequential data structure implementation how it
      *       wants to own the OrderedStoredValue (as owned type vs non-owned
      *       type)
@@ -271,9 +273,11 @@ public:
      * @param listWriteLg Write lock of the sequenceList from getListWriteLock()
      * @param ownedSv StoredValue whose ownership is passed to the sequential
      *                data structure.
+     * @param replacement StoredValue which supersedes ownedSv, or nullptr.
      */
     virtual void markItemStale(std::lock_guard<std::mutex>& listWriteLg,
-                               StoredValue::UniquePtr ownedSv) = 0;
+                               StoredValue::UniquePtr ownedSv,
+                               StoredValue* replacement) = 0;
 
     /**
      * Remove from sequence list and delete all OSVs which are purgable.

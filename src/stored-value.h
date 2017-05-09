@@ -497,6 +497,24 @@ public:
      */
     std::unique_ptr<Item> toItemWithNoValue(uint16_t vbucket) const;
 
+    void setNext(UniquePtr&& nextSv) {
+        if (stale) {
+            throw std::logic_error(
+                    "StoredValue::setNext: StoredValue is stale,"
+                    "cannot set chain next value");
+        }
+        chain_next_or_replacement = std::move(nextSv);
+    }
+
+    UniquePtr& getNext() {
+        if (stale) {
+            throw std::logic_error(
+                    "StoredValue::getNext: StoredValue is stale,"
+                    "cannot get chain next value");
+        }
+        return chain_next_or_replacement;
+    }
+
     /**
      * Set the memory threshold on the current bucket quota for accepting a new mutation
      */
@@ -590,7 +608,7 @@ protected:
                 HashTable& ht,
                 bool isOrdered)
         : value(itm.getValue()),
-          next(std::move(n)),
+          chain_next_or_replacement(std::move(n)),
           cas(itm.getCas()),
           revSeqno(itm.getRevSeqno()),
           bySeqno(itm.getBySeqno()),
@@ -646,7 +664,7 @@ protected:
                 EPStats& stats,
                 HashTable& ht)
         : value(other.value),
-          next(std::move(n)),
+          chain_next_or_replacement(std::move(n)),
           cas(other.cas),
           revSeqno(other.revSeqno),
           bySeqno(other.bySeqno),
@@ -696,9 +714,16 @@ protected:
     friend std::ostream& operator<<(std::ostream& os, const HashTable& ht);
 
     value_t            value;          // 8 bytes
-    // Used to implement HashTable chaining (for elements hashing to the same
+
+    // Serves two purposes -
+    // 1. Used to implement HashTable chaining (for elements hashing to the same
     // bucket).
-    UniquePtr next; // 8 bytes
+    // 2. Once the stored value has been marked stale, this is used to point at
+    // the replacement stored value. In this case, *we do not have ownership*,
+    // so we release the ptr in the destructor. The replacement is needed to
+    // determine if it would also appear in a given rangeRead - we should return
+    // only the newer version if so.
+    UniquePtr chain_next_or_replacement; // 8 bytes
     uint64_t           cas;            //!< CAS identifier.
     uint64_t           revSeqno;       //!< Revision id sequence number
     int64_t            bySeqno;        //!< By sequence id number
@@ -749,6 +774,15 @@ public:
     // Guarded by the SequenceList's writeLock.
     boost::intrusive::list_member_hook<> seqno_hook;
 
+    ~OrderedStoredValue() {
+        if (stale) {
+            // This points to the replacement OSV which we do not actually own.
+            // We are reusing a unique_ptr so we explicitly release it in this
+            // case. We /do/ own the chain_next if we are not stale.
+            chain_next_or_replacement.release();
+        }
+    }
+
     /**
      * True if a newer version of the same key exists in the HashTable.
      * Note: Only true for OrderedStoredValues which are no longer in the
@@ -764,8 +798,24 @@ public:
      * Marks that newer instance of this item is added in the HashTable
      * @param writeLock The SeqList writeLock which guards the stale param.
      */
-    void markStale(std::lock_guard<std::mutex>& writeGuard) {
+    void markStale(std::lock_guard<std::mutex>& writeGuard,
+                   StoredValue* newSv) {
+        // next is a UniquePtr which is up to this point was used for chaining
+        // in the HashTable. Now this item is stale, we are reusing this to
+        // point to the updated version of this StoredValue. _BUT_ we do not
+        // own the new SV. At destruction, we must release this ptr if
+        // we are stale.
+        chain_next_or_replacement.reset(newSv);
         stale = true;
+    }
+
+    StoredValue* getReplacementIfStale(
+            std::lock_guard<std::mutex>& writeGuard) const {
+        if (!stale) {
+            return nullptr;
+        }
+
+        return chain_next_or_replacement.get();
     }
 
     /**

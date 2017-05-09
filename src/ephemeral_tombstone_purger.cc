@@ -49,7 +49,8 @@ void EphemeralVBucket::HTTombstonePurger::visit(
     {
         std::lock_guard<std::mutex> listWriteLg(
                 vbucket.seqList->getListWriteLock());
-        vbucket.seqList->markItemStale(listWriteLg, std::move(ownedSV));
+        // Mark the item stale, with no replacement item
+        vbucket.seqList->markItemStale(listWriteLg, std::move(ownedSV), nullptr);
     }
     ++numPurgedItems;
 }

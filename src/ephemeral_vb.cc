@@ -359,13 +359,12 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
 
         if (res == SequenceList::UpdateStatus::Append) {
             /* Mark the un-updated storedValue as stale. This must be done after
-             the new storedvalue for the item is visible for range read in the
-             list. This is because we do not want the seqlist to delete the
-             stale
-             item before its latest copy is added to the list.
-             (item becomes visible for range read only after updating the list
-             with the seqno of the item) */
-            seqList->markItemStale(listWriteLg, std::move(ownedSv));
+               the new storedvalue for the item is visible for range read in the
+               list. This is because we do not want the seqlist to delete the
+               stale item before its latest copy is added to the list.
+               (item becomes visible for range read only after updating the list
+                with the seqno of the item) */
+            seqList->markItemStale(listWriteLg, std::move(ownedSv), newSv);
         }
     }
 
@@ -491,13 +490,12 @@ std::tuple<StoredValue*, VBNotifyCtx> EphemeralVBucket::softDeleteStoredValue(
 
         if (res == SequenceList::UpdateStatus::Append) {
             /* Mark the un-updated storedValue as stale. This must be done after
-             the new storedvalue for the item is visible for range read in the
-             list. This is because we do not want the seqlist to delete the
-             stale
-             item before its latest copy is added to the list.
-             (item becomes visible for range read only after updating the list
-             with the seqno of the item) */
-            seqList->markItemStale(listWriteLg, std::move(ownedSv));
+               the new storedvalue for the item is visible for range read in the
+               list. This is because we do not want the seqlist to delete the
+               stale item before its latest copy is added to the list.
+               (item becomes visible for range read only after updating the list
+               with the seqno of the item) */
+            seqList->markItemStale(listWriteLg, std::move(ownedSv), newSv);
         }
     }
 
