@@ -1820,7 +1820,7 @@ void VBucket::postProcessRollback(const RollbackResult& rollbackResult,
     setPersistedSnapshot(rollbackResult.snapStartSeqno,
                          rollbackResult.snapEndSeqno);
     incrRollbackItemCount(prevHighSeqno - rollbackResult.highSeqno);
-    setBackfillPhase(false);
+    checkpointManager.setOpenCheckpointId(1);
 }
 
 void VBucket::dump() const {
