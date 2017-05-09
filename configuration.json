@@ -365,12 +365,12 @@
             "type": "size_t"
         },
         "ht_resize_interval": {
-            "default": "60",
+            "default": "1",
             "descr": "Interval in seconds to wait between HashtableResizerTask executions.",
             "type": "size_t"
         },
         "ht_size": {
-            "default": "3079",
+            "default": "47",
             "descr": "Initial number of slots in HashTable objects.",
             "type": "size_t"
         },
