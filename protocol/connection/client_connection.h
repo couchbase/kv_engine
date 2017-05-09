@@ -21,6 +21,7 @@
 #include <cJSON.h>
 #include <cJSON_utils.h>
 #include <cstdlib>
+#include <daemon/settings.h>
 #include <engines/ewouldblock_engine/ewouldblock_engine.h>
 #include <libgreenstack/Greenstack.h>
 #include <memcached/openssl.h>
@@ -32,11 +33,6 @@
 #include <string>
 #include <vector>
 #include <utilities/protocol2text.h>
-
-enum class Protocol : uint8_t {
-    Memcached,
-    Greenstack
-};
 
 /**
  * The Frame class is used to represent all of the data included in the

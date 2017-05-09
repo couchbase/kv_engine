@@ -48,7 +48,8 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
                                        uint32_t lock_time,
                                        const void* meta,
                                        uint16_t nmeta,
-                                       uint8_t nru);
+                                       uint8_t nru,
+                                       uint8_t collection_len);
 
 /**
  * Implementation of the method responsible for handle the incoming

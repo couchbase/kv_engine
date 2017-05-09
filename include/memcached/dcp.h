@@ -117,21 +117,23 @@ struct dcp_message_producers {
      * @param lock_time
      * @param meta
      * @param nmeta
-     * @paran nru the nru field used by ep-engine (may safely be ignored)
+     * @param nru the nru field used by ep-engine (may safely be ignored)
+     * @param collection_len how many bytes of the key are the collection
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE (* mutation)(const void* cookie,
-                                   uint32_t opaque,
-                                   item* itm,
-                                   uint16_t vbucket,
-                                   uint64_t by_seqno,
-                                   uint64_t rev_seqno,
-                                   uint32_t lock_time,
-                                   const void* meta,
-                                   uint16_t nmeta,
-                                   uint8_t nru);
-
+    ENGINE_ERROR_CODE (*mutation)
+    (const void* cookie,
+     uint32_t opaque,
+     item* itm,
+     uint16_t vbucket,
+     uint64_t by_seqno,
+     uint64_t rev_seqno,
+     uint32_t lock_time,
+     const void* meta,
+     uint16_t nmeta,
+     uint8_t nru,
+     uint8_t collection_len);
 
     /**
      * Send a deletion
@@ -144,17 +146,20 @@ struct dcp_message_producers {
      * @param vbucket the vbucket id the message belong to
      * @param by_seqno
      * @param rev_seqno
+     * @param collection_len how many bytes of the key are the collection
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE (* deletion)(const void* cookie,
-                                   uint32_t opaque,
-                                   item* itm,
-                                   uint16_t vbucket,
-                                   uint64_t by_seqno,
-                                   uint64_t rev_seqno,
-                                   const void* meta,
-                                   uint16_t nmeta);
+    ENGINE_ERROR_CODE (*deletion)
+    (const void* cookie,
+     uint32_t opaque,
+     item* itm,
+     uint16_t vbucket,
+     uint64_t by_seqno,
+     uint64_t rev_seqno,
+     const void* meta,
+     uint16_t nmeta,
+     uint8_t collection_len);
 
     /**
      * Send an expiration
@@ -167,17 +172,20 @@ struct dcp_message_producers {
      * @param vbucket the vbucket id the message belong to
      * @param by_seqno
      * @param rev_seqno
+     * @param collection_len how many bytes of the key are the collection
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE (* expiration)(const void* cookie,
-                                     uint32_t opaque,
-                                     item* itm,
-                                     uint16_t vbucket,
-                                     uint64_t by_seqno,
-                                     uint64_t rev_seqno,
-                                     const void* meta,
-                                     uint16_t nmeta);
+    ENGINE_ERROR_CODE (*expiration)
+    (const void* cookie,
+     uint32_t opaque,
+     item* itm,
+     uint16_t vbucket,
+     uint64_t by_seqno,
+     uint64_t rev_seqno,
+     const void* meta,
+     uint16_t nmeta,
+     uint8_t collection_len);
 
     /**
      * Send a flush for a single vbucket

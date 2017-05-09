@@ -706,7 +706,8 @@ void BinprotDcpMutationCommand::reset(const std::vector<uint8_t>& packet) {
     setCas(cmd->message.header.request.cas);
 
     const char* ptr = reinterpret_cast<const char*>(cmd->bytes);
-    ptr += sizeof(cmd->bytes);
+    // Non-collection aware DCP mutation, so pass false to getHeaderLength
+    ptr += protocol_binary_request_dcp_mutation::getHeaderLength(false);
 
     const auto keylen = cmd->message.header.request.keylen;
     const auto bodylen = cmd->message.header.request.bodylen;

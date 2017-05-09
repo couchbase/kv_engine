@@ -18,8 +18,8 @@
 #include "mcbp_test.h"
 #include "utilities/protocol2text.h"
 
-#include <daemon/connection_mcbp.h>
 #include <event2/event.h>
+#include <memcached/extension_loggers.h>
 #include <memcached/protocol_binary.h>
 
 std::ostream& operator<<(std::ostream& os, const protocol_binary_response_status status) {
@@ -34,6 +34,14 @@ std::ostream& operator<<(std::ostream& os, const protocol_binary_response_status
  * don't have any command validators for...
  */
 namespace BinaryProtocolValidator {
+ValidatorTest::ValidatorTest() : ev(event_base_new()), connection(-1, ev) {
+    settings.extensions.logger = get_stderr_logger();
+}
+
+ValidatorTest::~ValidatorTest() {
+    event_base_free(ev);
+}
+
 void ValidatorTest::SetUp() {
     settings.setXattrEnabled(true);
     McbpValidatorChains::initializeMcbpValidatorChains(validatorChains);
@@ -41,8 +49,6 @@ void ValidatorTest::SetUp() {
 
 protocol_binary_response_status ValidatorTest::validate(protocol_binary_command opcode, void* packet) {
     // Mockup a McbpConnection and Cookie for the validator chain
-    event_base* ev = event_base_new();
-    McbpConnection connection(-1, ev);
     connection.enableDatatype(mcbp::Feature::XATTR);
     auto* req = reinterpret_cast<protocol_binary_request_header*>(packet);
     connection.binary_header = *req;
@@ -57,7 +63,7 @@ protocol_binary_response_status ValidatorTest::validate(protocol_binary_command 
                             sizeof(connection.binary_header));
     Cookie cookie(&connection);
     auto rv = validatorChains.invoke(opcode, cookie);
-    event_base_free(ev);
+
     return rv;
 }
 
@@ -1728,15 +1734,34 @@ TEST_F(DcpSnapshotMarkerValidatorTest, InvalidDatatype) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
-class DcpMutationValidatorTest : public ValidatorTest {
+/**
+ * Test class for DcpMutation validation - the bool parameter toggles
+ * collections on/off (as that subtly changes the encoding of a mutation)
+ */
+class DcpMutationValidatorTest : public ValidatorTest,
+                                 public ::testing::WithParamInterface<bool> {
+public:
+    DcpMutationValidatorTest()
+        : request(GetParam(),
+                  0 /*opaque*/,
+                  0 /*vbucket*/,
+                  0 /*cas*/,
+                  1 /*keylen*/,
+                  0 /*valueLen*/,
+                  PROTOCOL_BINARY_RAW_BYTES,
+                  0 /*bySeqno*/,
+                  0 /*revSeqno*/,
+                  0 /*flags*/,
+                  0 /*expiration*/,
+                  0 /*lockTime*/,
+                  0 /*nmeta*/,
+                  0 /*nru*/,
+                  0 /*collectionLen*/) {
+    }
+
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.extlen = 31;
-        request.message.header.request.keylen = htons(1);
-        request.message.header.request.bodylen = htonl(32);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        connection.setDcpCollectionAware(GetParam());
     }
 
 protected:
@@ -1744,36 +1769,69 @@ protected:
         return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_MUTATION,
                                        static_cast<void*>(&request));
     }
+
     protocol_binary_request_dcp_mutation request;
 };
 
-TEST_F(DcpMutationValidatorTest, CorrectMessage) {
+INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
+                        DcpMutationValidatorTest,
+                        ::testing::Bool(),
+                        ::testing::PrintToStringParamName());
+
+TEST_P(DcpMutationValidatorTest, CorrectMessage) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
 }
-TEST_F(DcpMutationValidatorTest, InvalidMagic) {
+
+TEST_P(DcpMutationValidatorTest, InvalidMagic) {
     request.message.header.request.magic = 0;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
-TEST_F(DcpMutationValidatorTest, InvalidExtlen) {
+
+TEST_P(DcpMutationValidatorTest, InvalidExtlen) {
     request.message.header.request.extlen = 21;
     request.message.header.request.bodylen = htonl(22);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
-TEST_F(DcpMutationValidatorTest, InvalidKeylen) {
+
+TEST_P(DcpMutationValidatorTest, InvalidExtlenCollections) {
+    request.message.header.request.extlen =
+            protocol_binary_request_dcp_mutation::getExtrasLength(!GetParam());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_P(DcpMutationValidatorTest, InvalidKeylen) {
     request.message.header.request.keylen = 0;
     request.message.header.request.bodylen = htonl(31);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
-class DcpDeletionValidatorTest : public ValidatorTest {
+/**
+ * Test class for DcpDeletion validation - the bool parameter toggles
+ * collections on/off (as that subtly changes the encoding of a deletion)
+ */
+class DcpDeletionValidatorTest : public ValidatorTest,
+                                 public ::testing::WithParamInterface<bool> {
+public:
+    DcpDeletionValidatorTest()
+        : ValidatorTest(),
+          request(GetParam(),
+                  0 /*opaque*/,
+                  0 /*vbucket*/,
+                  0 /*cas*/,
+                  2 /*keylen*/,
+                  0 /*valueLen*/,
+                  PROTOCOL_BINARY_RAW_BYTES,
+                  0 /*bySeqno*/,
+                  0 /*revSeqno*/,
+                  0 /*nmeta*/,
+                  0 /*collectionLen*/) {
+        request.message.header.request.opcode =
+                (uint8_t)PROTOCOL_BINARY_CMD_DCP_DELETION;
+    }
+
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.extlen = 18;
-        request.message.header.request.keylen = htons(2);
-        request.message.header.request.bodylen = htonl(20);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        connection.setDcpCollectionAware(GetParam());
     }
 
 protected:
@@ -1784,40 +1842,70 @@ protected:
     protocol_binary_request_dcp_deletion request;
 };
 
-TEST_F(DcpDeletionValidatorTest, CorrectMessage) {
+INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
+                        DcpDeletionValidatorTest,
+                        ::testing::Bool(),
+                        ::testing::PrintToStringParamName());
+
+TEST_P(DcpDeletionValidatorTest, CorrectMessage) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
 }
 
-TEST_F(DcpDeletionValidatorTest, InvalidMagic) {
+TEST_P(DcpDeletionValidatorTest, InvalidMagic) {
     request.message.header.request.magic = 0;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
-TEST_F(DcpDeletionValidatorTest, InvalidExtlen) {
+TEST_P(DcpDeletionValidatorTest, InvalidExtlen) {
     request.message.header.request.extlen = 5;
     request.message.header.request.bodylen = htonl(7);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
-TEST_F(DcpDeletionValidatorTest, InvalidKeylen) {
+
+TEST_P(DcpDeletionValidatorTest, InvalidExtlenCollections) {
+    request.message.header.request.extlen =
+            protocol_binary_request_dcp_deletion::getExtrasLength(!GetParam());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_P(DcpDeletionValidatorTest, InvalidKeylen) {
     request.message.header.request.keylen = 0;
     request.message.header.request.bodylen = htonl(18);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
-// @todo can a deletion carry value?
-// TEST_F(DcpDeletionValidatorTest, InvalidBodylen) {
-//     request.message.header.request.bodylen = htonl(100);
-//     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-// }
 
-class DcpExpirationValidatorTest : public ValidatorTest {
+TEST_P(DcpDeletionValidatorTest, WithValue) {
+    request.message.header.request.bodylen = htonl(100);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
+}
+
+/**
+ * Test class for DcpExpiration validation - the bool parameter toggles
+ * collections on/off (as that subtly changes the encoding of an expiration)
+ */
+class DcpExpirationValidatorTest : public ValidatorTest,
+                                   public ::testing::WithParamInterface<bool> {
+public:
+    DcpExpirationValidatorTest()
+        : ValidatorTest(),
+          request(GetParam(),
+                  0 /*opaque*/,
+                  0 /*vbucket*/,
+                  0 /*cas*/,
+                  2 /*keylen*/,
+                  0 /*valueLen*/,
+                  PROTOCOL_BINARY_RAW_BYTES,
+                  0 /*bySeqno*/,
+                  0 /*revSeqno*/,
+                  0 /*nmeta*/,
+                  0 /*collectionLen*/) {
+        request.message.header.request.opcode =
+                (uint8_t)PROTOCOL_BINARY_CMD_DCP_EXPIRATION;
+    }
+
     virtual void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.extlen = 18;
-        request.message.header.request.keylen = htons(2);
-        request.message.header.request.bodylen = htonl(20);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        connection.setDcpCollectionAware(GetParam());
     }
 
 protected:
@@ -1828,26 +1916,31 @@ protected:
     protocol_binary_request_dcp_expiration request;
 };
 
-TEST_F(DcpExpirationValidatorTest, CorrectMessage) {
+INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
+                        DcpExpirationValidatorTest,
+                        ::testing::Bool(),
+                        ::testing::PrintToStringParamName());
+
+TEST_P(DcpExpirationValidatorTest, CorrectMessage) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
 }
 
-TEST_F(DcpExpirationValidatorTest, InvalidMagic) {
+TEST_P(DcpExpirationValidatorTest, InvalidMagic) {
     request.message.header.request.magic = 0;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
-TEST_F(DcpExpirationValidatorTest, InvalidExtlen) {
+TEST_P(DcpExpirationValidatorTest, InvalidExtlen) {
     request.message.header.request.extlen = 5;
     request.message.header.request.bodylen = htonl(7);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
-TEST_F(DcpExpirationValidatorTest, InvalidKeylen) {
+TEST_P(DcpExpirationValidatorTest, InvalidKeylen) {
     request.message.header.request.keylen = 0;
     request.message.header.request.bodylen = htonl(18);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
-TEST_F(DcpExpirationValidatorTest, InvalidBodylen) {
+TEST_P(DcpExpirationValidatorTest, InvalidBodylen) {
     request.message.header.request.bodylen = htonl(100);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }

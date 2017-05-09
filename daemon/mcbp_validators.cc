@@ -35,6 +35,11 @@ static inline bool may_accept_xattr(const Cookie& cookie) {
     return true;
 }
 
+static inline bool may_accept_collections(const Cookie& cookie) {
+    auto* conn = static_cast<McbpConnection*>(cookie.connection);
+    return conn->isDcpCollectionAware();
+}
+
 static inline std::string get_peer_description(const Cookie& cookie) {
     if (cookie.connection != nullptr) {
         return cookie.connection->getDescription();
@@ -297,9 +302,14 @@ static protocol_binary_response_status dcp_mutation_validator(const Cookie& cook
     const uint32_t bodylen{ntohl(req->message.header.request.bodylen)};
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        extlen != (2*sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(uint16_t)) + sizeof(uint8_t) ||
         keylen == 0 || bodylen == 0 || (keylen + extlen) > bodylen ||
         !mcbp::datatype::is_valid(datatype) || !may_accept_xattr(cookie)) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    // extlen varies for collection aware DCP vs legacy
+    if (extlen != protocol_binary_request_dcp_mutation::getExtrasLength(
+                          may_accept_collections(cookie))) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -324,9 +334,15 @@ static protocol_binary_response_status dcp_deletion_validator(const Cookie& cook
 {
     auto req = static_cast<protocol_binary_request_dcp_deletion*>(McbpConnection::getPacket(cookie));
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.extlen != (2*sizeof(uint64_t) + sizeof(uint16_t)) ||
         req->message.header.request.keylen == 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    const uint32_t extlen{req->message.header.request.extlen};
+    // extlen varies for collection aware DCP vs legacy
+    if (extlen != protocol_binary_request_dcp_deletion::getExtrasLength(
+                          may_accept_collections(cookie))) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -349,9 +365,15 @@ static protocol_binary_response_status dcp_expiration_validator(const Cookie& co
     uint32_t bodylen = ntohl(req->message.header.request.bodylen) - klen;
     bodylen -= req->message.header.request.extlen;
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.extlen != (2*sizeof(uint64_t) + sizeof(uint16_t)) ||
         req->message.header.request.keylen == 0 || bodylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    const uint32_t extlen{req->message.header.request.extlen};
+    // extlen varies for collection aware DCP vs legacy
+    if (extlen != protocol_binary_request_dcp_deletion::getExtrasLength(
+                          may_accept_collections(cookie))) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 

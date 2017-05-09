@@ -23,6 +23,7 @@
 
 #include "config.h"
 
+#include <daemon/connection_mcbp.h>
 #include <daemon/mcbp_validators.h>
 #include <gtest/gtest.h>
 
@@ -30,12 +31,17 @@ namespace BinaryProtocolValidator {
 
 class ValidatorTest : public ::testing::Test {
 public:
+    ValidatorTest();
+    ~ValidatorTest();
+
     virtual void SetUp() override;
 
 protected:
     protocol_binary_response_status validate(protocol_binary_command opcode, void* request);
 
     McbpValidatorChains validatorChains;
+    event_base* ev;
+    McbpConnection connection;
 };
 
 } // namespace BinaryProtocolValidator

@@ -27,4 +27,5 @@ ENGINE_ERROR_CODE dcp_message_deletion(const void* void_cookie,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
                                        const void* meta,
-                                       uint16_t nmeta);
+                                       uint16_t nmeta,
+                                       uint8_t collection_len);

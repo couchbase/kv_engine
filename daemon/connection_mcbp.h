@@ -110,6 +110,31 @@ public:
         McbpConnection::dcpXattrAware = dcpXattrAware;
     }
 
+    bool isDcpCollectionAware() const {
+        return dcpCollectionAware;
+    }
+
+    void setDcpCollectionAware(bool dcpCollectionAware) {
+        McbpConnection::dcpCollectionAware = dcpCollectionAware;
+    }
+
+    /**
+     * Get the DocNamespace for a DcpMessage (mutation/deletion/expiration)
+     * If the connection is dcp aware and the passed length is not zero, then
+     * the document belongs to a collection.
+     * @param collectionLength the length sent by the producer
+     * @return the DocNamespace (DefaultCollection or Collections)
+     */
+    DocNamespace getDocNamespaceForDcpMessage(uint8_t collectionLength) const {
+        DocNamespace ns = DocNamespace::DefaultCollection;
+        if (isDcpCollectionAware() && collectionLength != 0) {
+            // Collection aware DCP sends non-zero collectionLength for
+            // documents that belong to a collection.
+            ns = DocNamespace::Collections;
+        }
+        return ns;
+    }
+
     bool isDcpNoValue() const {
         return dcpNoValue;
     }
@@ -765,6 +790,9 @@ protected:
 
     /** Shuld values be stripped off? */
     bool dcpNoValue;
+
+    /** Is this DCP channel collection aware? */
+    bool dcpCollectionAware;
 
     int max_reqs_per_event; /** The maximum requests we can process in a worker
                                 thread timeslice */

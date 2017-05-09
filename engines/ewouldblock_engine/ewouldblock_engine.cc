@@ -1288,13 +1288,17 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_step(ENGINE_HANDLE* handle,
         if (count > 0) {
             // This is using the internal dcp implementation which always
             // send the same item back
-            auto ret = producers->mutation(cookie, 0xdeadbeef/*opqaue*/,
+            auto ret = producers->mutation(cookie,
+                                           0xdeadbeef /*opqaue*/,
                                            &ewb->dcp_mutation_item,
-                                           0/*vb*/, 0/*by_seqno*/,
-                                           0/*rev_seqno*/,
-                                           0/*lock_time*/, nullptr/*meta*/,
-                                           0/*nmeta*/,
-                                           0/*nru*/);
+                                           0 /*vb*/,
+                                           0 /*by_seqno*/,
+                                           0 /*rev_seqno*/,
+                                           0 /*lock_time*/,
+                                           nullptr /*meta*/,
+                                           0 /*nmeta*/,
+                                           0 /*nru*/,
+                                           0 /*collection_len*/);
             --count;
             if (ret == ENGINE_SUCCESS) {
                 return ENGINE_WANT_MORE;

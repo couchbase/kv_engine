@@ -35,7 +35,8 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
                                        uint32_t lock_time,
                                        const void* meta,
                                        uint16_t nmeta,
-                                       uint8_t nru) {
+                                       uint8_t nru,
+                                       uint8_t collection_len) {
     auto* c = cookie2mcbp(void_cookie, __func__);
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_MUTATION);
     // Use a unique_ptr to make sure we release the item in all error paths
@@ -107,12 +108,6 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
             }
         }
     }
-    protocol_binary_request_dcp_mutation packet;
-
-    if (c->write.bytes + sizeof(packet.bytes) + nmeta >= c->write.size) {
-        /* We don't have room in the buffer */
-        return ENGINE_E2BIG;
-    }
 
     if (!c->reserveItem(it)) {
         LOG_WARNING(c, "%u: Failed to grow item array", c->getId());
@@ -122,32 +117,34 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
     // we've reserved the item, and it'll be released when we're done sending
     // the item.
     item.release();
+    protocol_binary_request_dcp_mutation packet(c->isDcpCollectionAware(),
+                                                opaque,
+                                                vbucket,
+                                                info.cas,
+                                                info.nkey,
+                                                buffer.len,
+                                                info.datatype,
+                                                by_seqno,
+                                                rev_seqno,
+                                                info.flags,
+                                                info.exptime,
+                                                lock_time,
+                                                nmeta,
+                                                nru,
+                                                collection_len);
 
-    const uint8_t extlen = 31; // 2*uint64_t, 3*uint32_t, 1*uint16_t, 1*uint8_t
-    const uint32_t bodylen = uint32_t(buffer.len) + extlen + nmeta + info.nkey;
+    const size_t packetlen =
+            protocol_binary_request_dcp_mutation::getHeaderLength(
+                    c->isDcpCollectionAware());
+    if (c->write.bytes + packetlen + nmeta >= c->write.size) {
+        /* We don't have room in the buffer */
+        return ENGINE_E2BIG;
+    }
 
-    memset(packet.bytes, 0, sizeof(packet));
-    packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
-    packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_MUTATION;
-    packet.message.header.request.opaque = opaque;
-    packet.message.header.request.vbucket = htons(vbucket);
-    packet.message.header.request.cas = htonll(info.cas);
-    packet.message.header.request.keylen = htons(info.nkey);
-    packet.message.header.request.extlen = extlen;
-    packet.message.header.request.bodylen = ntohl(bodylen);
-    packet.message.header.request.datatype = info.datatype;
-    packet.message.body.by_seqno = htonll(by_seqno);
-    packet.message.body.rev_seqno = htonll(rev_seqno);
-    packet.message.body.lock_time = htonl(lock_time);
-    packet.message.body.flags = info.flags;
-    packet.message.body.expiration = htonl(info.exptime);
-    packet.message.body.nmeta = htons(nmeta);
-    packet.message.body.nru = nru;
-
-    memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
-    c->addIov(c->write.curr, sizeof(packet.bytes));
-    c->write.curr += sizeof(packet.bytes);
-    c->write.bytes += sizeof(packet.bytes);
+    memcpy(c->write.curr, packet.bytes, packetlen);
+    c->addIov(c->write.curr, packetlen);
+    c->write.curr += packetlen;
+    c->write.bytes += packetlen;
     c->addIov(info.key, info.nkey);
     c->addIov(buffer.buf, buffer.len);
 
@@ -163,9 +160,20 @@ static inline ENGINE_ERROR_CODE do_dcp_mutation(McbpConnection* conn,
                                                 void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_mutation*>(packet);
 
+    // Collection aware DCP will be sending the collection_len field
+    auto body_offset = protocol_binary_request_dcp_mutation::getHeaderLength(
+            conn->isDcpCollectionAware());
+
+    // Namespace defaults to DefaultCollection for legacy DCP
+    DocNamespace ns = DocNamespace::DefaultCollection;
+    if (conn->isDcpCollectionAware() && req->message.body.collection_len != 0) {
+        // Collection aware DCP sends non-zero collection_len for documents that
+        // are in collections.
+        ns = DocNamespace::Collections;
+    }
+
     const uint16_t nkey = ntohs(req->message.header.request.keylen);
-    const DocKey key{req->bytes + sizeof(req->bytes), nkey,
-                     DocNamespace::DefaultCollection};
+    const DocKey key{req->bytes + body_offset, nkey, ns};
 
     const auto opaque = req->message.header.request.opaque;
     const auto datatype = req->message.header.request.datatype;
@@ -180,8 +188,7 @@ static inline ENGINE_ERROR_CODE do_dcp_mutation(McbpConnection* conn,
     const uint32_t valuelen = ntohl(req->message.header.request.bodylen) -
                               nkey - req->message.header.request.extlen -
                               nmeta;
-    cb::const_byte_buffer value{req->bytes + sizeof(req->bytes) + nkey,
-                                valuelen};
+    cb::const_byte_buffer value{req->bytes + body_offset + nkey, valuelen};
     cb::const_byte_buffer meta{value.buf + valuelen, nmeta};
     uint32_t priv_bytes = 0;
     if (mcbp::datatype::is_xattr(datatype)) {
