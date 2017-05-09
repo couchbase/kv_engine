@@ -168,13 +168,13 @@ public:
      *
      * @param st the global stats reference
      * @param svFactory Factory to use for constructing stored values
-     * @param s the number of hash table buckets
-     * @param l the number of locks in the hash table
+     * @param initialSize the number of hash table buckets to initially create.
+     * @param locks the number of locks in the hash table
      */
     HashTable(EPStats& st,
               std::unique_ptr<AbstractStoredValueFactory> svFactory,
-              size_t s = 0,
-              size_t l = 0);
+              size_t initialSize,
+              size_t locks);
 
     ~HashTable();
 
@@ -493,16 +493,6 @@ public:
     static size_t getNumLocks(size_t s);
 
     /**
-     * Set the default number of buckets.
-     */
-    static void setDefaultNumBuckets(size_t);
-
-    /**
-     * Set the default number of locks.
-     */
-    static void setDefaultNumLocks(size_t);
-
-    /**
      * Get the max deleted revision seqno seen so far.
      */
     uint64_t getMaxDeletedRevSeqno() const {
@@ -605,6 +595,9 @@ private:
     inline bool isActive() const { return activeState; }
     inline void setActiveState(bool newv) { activeState = newv; }
 
+    // The initial (and minimum) size of the HashTable.
+    const size_t initialSize;
+
     std::atomic<size_t> size;
     size_t               n_locks;
     table_type values;
@@ -616,9 +609,6 @@ private:
     std::atomic<size_t>       numResizes;
     std::atomic<size_t>       numTempItems;
     bool                 activeState;
-
-    static size_t                 defaultNumBuckets;
-    static size_t                 defaultNumLocks;
 
     int getBucketForHash(int h) {
         return abs(h % static_cast<int>(size));

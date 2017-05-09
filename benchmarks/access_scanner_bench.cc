@@ -32,7 +32,7 @@ protected:
         memoryTracker = BenchmarkMemoryTracker::getInstance(
                 *get_mock_server_api()->alloc_hooks);
         memoryTracker->reset();
-        std::string config = "dbname=benchmarks-test;" + varConfig;
+        std::string config = "dbname=benchmarks-test;ht_locks=47;" + varConfig;
 
         engine.reset(new SynchronousEPEngine(config));
         ObjectRegistry::onSwitchThread(engine.get());

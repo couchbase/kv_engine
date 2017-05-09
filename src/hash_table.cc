@@ -21,13 +21,7 @@
 
 #include <cstring>
 
-// Given we default to 1024 vBuckets, set default HT buckets to lowest
-// prime in our table - this still gives space for 3072 HT slots but
-// minimizes fixed overheads.
-size_t HashTable::defaultNumBuckets = 3;
-size_t HashTable::defaultNumLocks = 47;
-
-static ssize_t prime_size_table[] = {
+static const ssize_t prime_size_table[] = {
     3, 7, 13, 23, 47, 97, 193, 383, 769, 1531, 3079, 6143, 12289, 24571, 49157,
     98299, 196613, 393209, 786433, 1572869, 3145721, 6291449, 12582917,
     25165813, 50331653, 100663291, 201326611, 402653189, 805306357,
@@ -42,7 +36,8 @@ std::ostream& operator<<(std::ostream& os, const HashTable::Position& pos) {
 
 HashTable::HashTable(EPStats& st,
                      std::unique_ptr<AbstractStoredValueFactory> svFactory,
-                     size_t s, size_t l)
+                     size_t initialSize,
+                     size_t locks)
     : maxDeletedRevSeqno(0),
       numTotalItems(0),
       numNonResidentItems(0),
@@ -52,14 +47,15 @@ HashTable::HashTable(EPStats& st,
       memSize(0),
       cacheSize(0),
       metaDataMemory(0),
+      initialSize(initialSize),
+      size(initialSize),
+      n_locks(locks),
       stats(st),
       valFact(std::move(svFactory)),
       visitors(0),
       numItems(0),
       numResizes(0),
       numTempItems(0) {
-    size = HashTable::getNumBuckets(s);
-    n_locks = HashTable::getNumLocks(l);
     values.resize(size);
     mutexes = new std::mutex[n_locks];
     activeState = true;
@@ -147,9 +143,9 @@ void HashTable::resize() {
     if (prime_size_table[i] == -1) {
         // We're at the end, take the biggest
         new_size = prime_size_table[i-1];
-    } else if (prime_size_table[i] < static_cast<ssize_t>(defaultNumBuckets)) {
-        // Was going to be smaller than the configured ht_size.
-        new_size = defaultNumBuckets;
+    } else if (prime_size_table[i] < static_cast<ssize_t>(initialSize)) {
+        // Was going to be smaller than the initial size.
+        new_size = initialSize;
     } else if (0 == i) {
         new_size = prime_size_table[i];
     }else if (isCurrently(size, prime_size_table[i-1], prime_size_table[i])) {
@@ -619,30 +615,6 @@ HashTable::pauseResumeVisit(PauseResumeHashTableVisitor& visitor,
 
 HashTable::Position HashTable::endPosition() const  {
     return HashTable::Position(size, n_locks, size);
-}
-
-static inline size_t getDefault(size_t x, size_t d) {
-    return x == 0 ? d : x;
-}
-
-size_t HashTable::getNumBuckets(size_t n) {
-    return getDefault(n, defaultNumBuckets);
-}
-
-size_t HashTable::getNumLocks(size_t n) {
-    return getDefault(n, defaultNumLocks);
-}
-
-void HashTable::setDefaultNumBuckets(size_t to) {
-    if (to != 0) {
-        defaultNumBuckets = to;
-    }
-}
-
-void HashTable::setDefaultNumLocks(size_t to) {
-    if (to != 0) {
-        defaultNumLocks = to;
-    }
 }
 
 bool HashTable::unlocked_ejectItem(StoredValue*& vptr,

@@ -150,7 +150,7 @@ VBucket::VBucket(id_type i,
                  uint64_t purgeSeqno,
                  uint64_t maxCas,
                  const std::string& collectionsManifest)
-    : ht(st, std::move(valFact)),
+    : ht(st, std::move(valFact), config.getHtSize(), config.getHtLocks()),
       checkpointManager(st,
                         i,
                         chkConfig,

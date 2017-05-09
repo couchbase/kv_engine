@@ -66,7 +66,8 @@ public:
 
 protected:
     void SetUp() override {
-        config_string += "max_size=" + std::to_string(200 * 1024) +
+        // Set specific ht_size given we need to control expected memory usage.
+        config_string += "ht_size=47;max_size=" + std::to_string(200 * 1024) +
                          ";mem_low_wat=" + std::to_string(120 * 1024) +
                          ";mem_high_wat=" + std::to_string(160 * 1024);
         STParameterizedBucketTest::SetUp();
@@ -80,6 +81,9 @@ protected:
 
         // Sanity check - to ensure memory usage doesn't increase without us
         // noticing.
+        ASSERT_EQ(47, store->getVBucket(vbid)->ht.getSize())
+                << "Expected to have a HashTable of size 47 (mem calculations "
+                   "based on this).";
         auto& stats = engine->getEpStats();
         ASSERT_LE(stats.getTotalMemoryUsed(), 20 * 1024)
             << "Expected to start with less than 20KB of memory used";

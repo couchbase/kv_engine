@@ -137,10 +137,11 @@ protected:
         }
         return std::make_unique<StoredValueFactory>(global_stats);
     }
+    const size_t defaultHtSize = Configuration().getHtSize();
 };
 
 TEST_F(HashTableTest, Size) {
-    HashTable h(global_stats, makeFactory(), /*size*/0, /*locks*/1);
+    HashTable h(global_stats, makeFactory(), defaultHtSize, /*locks*/ 1);
     ASSERT_EQ(0, count(h));
 
     store(h, makeStoredDocKey("testkey"));
@@ -149,7 +150,7 @@ TEST_F(HashTableTest, Size) {
 }
 
 TEST_F(HashTableTest, SizeTwo) {
-    HashTable h(global_stats, makeFactory(), /*size*/0, /*locks*/1);
+    HashTable h(global_stats, makeFactory(), defaultHtSize, /*locks*/ 1);
     ASSERT_EQ(0, count(h));
 
     auto keys = generateKeys(5);
