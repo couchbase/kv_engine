@@ -66,11 +66,6 @@ int main(int argc, char **argv) {
     }
     Logger::setLoggerAPI(get_mock_server_api()->log);
 
-    // Default number of hashtable locks is too large for TSan to
-    // track. Use the value in configuration.json (47 at time of
-    // writing).
-    HashTable::setDefaultNumLocks(Configuration().getHtLocks());
-
     // Need to initialize ep_real_time and friends.
     initialize_time_functions(get_mock_server_api()->core);
 

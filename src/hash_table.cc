@@ -25,7 +25,7 @@
 // prime in our table - this still gives space for 3072 HT slots but
 // minimizes fixed overheads.
 size_t HashTable::defaultNumBuckets = 3;
-size_t HashTable::defaultNumLocks = 193;
+size_t HashTable::defaultNumLocks = 47;
 
 static ssize_t prime_size_table[] = {
     3, 7, 13, 23, 47, 97, 193, 383, 769, 1531, 3079, 6143, 12289, 24571, 49157,
