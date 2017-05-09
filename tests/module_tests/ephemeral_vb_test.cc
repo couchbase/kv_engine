@@ -435,7 +435,7 @@ TEST_F(EphTombstoneTest, ConcurrentPurge) {
     auto writer = [this](
             ThreadGate& started, std::atomic<size_t>& completed, size_t id) {
         started.threadUp();
-        for (size_t ii = 0; ii < 5000; ++ii) {
+        for (size_t ii = 0; ii < 1000; ++ii) {
             auto key = makeStoredDocKey(std::to_string(id) + ":key_" +
                                         std::to_string(ii));
             Item item(key, /*flags*/ 0, /*expiry*/ 0, key.data(), key.size());
@@ -450,6 +450,7 @@ TEST_F(EphTombstoneTest, ConcurrentPurge) {
     size_t purged = 0;
     do {
         purged += mockEpheVB->purgeTombstones(0);
+        std::this_thread::yield();
     } while (completed != 2);
 
     fe1.join();
