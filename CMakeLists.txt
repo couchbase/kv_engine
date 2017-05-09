@@ -97,6 +97,10 @@ CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
 CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
                 ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbvbucketctl)
 
+# Customize some CTest properties
+CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/CTestCustom.cmake.in
+                ${CMAKE_CURRENT_BINARY_DIR}/CTestCustom.cmake)
+
 SET(Python_ADDITIONAL_VERSIONS 2.6)
 FIND_PACKAGE(PythonInterp)
 
