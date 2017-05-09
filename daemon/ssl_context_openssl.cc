@@ -102,7 +102,7 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
 }
 
 SslCertResult SslContext::getCertUserName() {
-    ClientCertUser::Status status = ClientCertUser::Status::Success;
+    ClientCertUser::Status status = ClientCertUser::Status::NotPresent;
     std::string result;
 
     auto certUser = settings.getCertUserCopy();

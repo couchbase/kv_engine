@@ -53,7 +53,7 @@ std::unique_ptr<ClientCertUser> ClientCertAuth::createCertUser(
 }
 
 SslCertResult ClientCertUser::getUser(X509* cert) {
-    return std::make_pair(ClientCertUser::Status::Success, std::string(""));
+    return std::make_pair(ClientCertUser::Status::NotPresent, std::string(""));
 }
 
 std::string ClientCertUser::matchPattern(std::string input) {

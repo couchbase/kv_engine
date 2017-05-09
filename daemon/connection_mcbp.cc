@@ -257,10 +257,6 @@ void McbpConnection::shrinkBuffers() {
 }
 
 bool McbpConnection::tryAuthFromSslCert(const std::string& userName) {
-    // Mapping is not configured, so username is empty
-    if (userName.empty()) {
-        return true;
-    }
     username.assign(userName);
     domain = cb::sasl::Domain::Local;
 
