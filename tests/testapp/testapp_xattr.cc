@@ -924,3 +924,34 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyNonJSON) {
               multiResp.getResults()[1].status);
     EXPECT_EQ(value, multiResp.getResults()[1].value);
 }
+
+// Test that a partial failure on a multi-lookup on a deleted document returns
+// SUBDOC_MULTI_PATH_FAILURE_DELETED
+TEST_P(XattrTest, MB23808_MultiPathFailureDeleted) {
+    // Store an initial body+XATTR; then delete it.
+    setBodyAndXattr(value, xattrVal);
+    getConnection().remove(name, 0);
+
+    // Lookup two XATTRs - one which exists and one which doesn't.
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey(name);
+    cmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
+    cmd.addGet(xattr, SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet("_sync.non_existant", SUBDOC_FLAG_XATTR_PATH);
+
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    conn.sendCommand(cmd);
+
+    // We expect to successfully access the first (existing) XATTR; but not
+    // the second.
+    BinprotSubdocMultiLookupResponse multiResp;
+    conn.recvResponse(multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE_DELETED,
+              multiResp.getStatus());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              multiResp.getResults()[0].status);
+    EXPECT_EQ(xattrVal, multiResp.getResults()[0].value);
+
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT,
+              multiResp.getResults()[1].status);
+}

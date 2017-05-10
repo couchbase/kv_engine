@@ -578,9 +578,11 @@ void BinprotSubdocMultiLookupCommand::encode(std::vector<uint8_t>& buf) const {
 
 void BinprotSubdocMultiLookupResponse::assign(std::vector<uint8_t>&& buf) {
     BinprotResponse::assign(std::move(buf));
+    // Check if this is a success - either full or partial.
     switch (getStatus()) {
     case PROTOCOL_BINARY_RESPONSE_SUCCESS:
     case PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE:
+    case PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE_DELETED:
         break;
     default:
         return;

@@ -239,6 +239,14 @@ typedef enum {
     PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_CANT_MODIFY_VATTR = 0xd2,
 
     /**
+     * [For multi-path commands only] Specified key was found as a
+     * Deleted document, but one or more path operations
+     * failed. Examine the individual lookup_result (MULTI_LOOKUP) /
+     * mutation_result (MULTI_MUTATION) structures for details.
+     */
+    PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE_DELETED = 0xd3,
+
+    /**
      * The maximum number of responses
      */
     PROTOCOL_BINARY_RESPONSE_SIZE

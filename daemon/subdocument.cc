@@ -1427,6 +1427,16 @@ static void subdoc_multi_lookup_response(SubdocCmdContext& context) {
         (context.in_document_state == DocumentState::Deleted)) {
         status_code = PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED;
     }
+
+    // Lookups to a deleted document which (partially) succeeded need
+    // to be mapped MULTI_PATH_FAILURE_DELETED, so the client knows the found
+    // document was in Deleted state.
+    if (status_code == PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE &&
+            (context.in_document_state == DocumentState::Deleted) &&
+            !context.traits.is_mutator) {
+        status_code = PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE_DELETED;
+    }
+
     mcbp_add_header(&connection, status_code, /*extlen*/0, /*keylen*/
                     0, context.response_val_len, PROTOCOL_BINARY_RAW_BYTES);
     rsp->message.header.response.cas = htonll(connection.getCAS());
