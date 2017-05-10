@@ -646,11 +646,17 @@ static protocol_binary_response_status subdoc_operate_wholedoc(
         cb::const_char_buffer& doc) {
     switch (spec.traits.mcbpCommand) {
     case PROTOCOL_BINARY_CMD_GET:
+        if (doc.size() == 0) {
+            // Size of zero indicates the document body ("path") doesn't exist.
+            return PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT;
+        }
         spec.result.set_matchloc({doc.buf, doc.len});
         return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+
     case PROTOCOL_BINARY_CMD_SET:
         spec.result.push_newdoc({spec.value.buf, spec.value.len});
         return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+
     default:
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
