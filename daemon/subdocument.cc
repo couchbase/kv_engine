@@ -936,15 +936,16 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
     return true;
 }
 
+/**
+ * Operate on the user body part of the document as specified by the command
+ * context.
+ * @return true if the command was successful (and execution should continue),
+ *         else false.
+ */
 static bool do_body_phase(SubdocCmdContext& context) {
     context.setCurrentPhase(SubdocCmdContext::Phase::Body);
 
     if (context.getOperations().empty()) {
-        return true;
-    }
-
-    // We might have an error from the xattr phase...
-    if (context.overall_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         return true;
     }
 
@@ -971,10 +972,6 @@ static bool do_body_phase(SubdocCmdContext& context) {
 
     if (!operate_single_json(context, document, temp_doc, modified)) {
         return false;
-    }
-
-    if (context.overall_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        return true;
     }
 
     // We didn't change anything in the document so just drop everything

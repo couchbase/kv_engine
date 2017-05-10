@@ -864,3 +864,34 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeleted) {
     EXPECT_EQ(xattrVal, multiResp.getResults()[0].value);
     EXPECT_EQ(value, multiResp.getResults()[1].value);
 }
+
+// Test that attempting to get an XATTR and a Body when the XATTR doesn't exist
+// (partially) succeeds - the body is returned.
+TEST_P(XattrTest, MB24152_GetXattrAndBodyWithoutXattr) {
+
+    // Create a document without an XATTR.
+    getConnection().store(name, 0, value, Greenstack::Datatype::Json);
+
+    // Attempt to request both the body and a non-existent XATTR.
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey(name);
+    cmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
+    cmd.addGet(xattr, SUBDOC_FLAG_XATTR_PATH);
+    cmd.addLookup("", PROTOCOL_BINARY_CMD_GET);
+
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiLookupResponse multiResp;
+    conn.recvResponse(multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE,
+              multiResp.getStatus());
+
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT,
+              multiResp.getResults()[0].status);
+    EXPECT_EQ("", multiResp.getResults()[0].value);
+
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              multiResp.getResults()[1].status);
+    EXPECT_EQ(value, multiResp.getResults()[1].value);
+}

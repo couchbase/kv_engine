@@ -321,11 +321,15 @@ public:
      * @return The mutation result.
      */
     template <typename T>
-    MutationInfo store(const std::string& id, uint16_t vbucket,
-                       const T& value) {
+    MutationInfo store(
+            const std::string& id,
+            uint16_t vbucket,
+            const T& value,
+            Greenstack::Datatype datatype = Greenstack::Datatype::Raw) {
         Document doc{};
         doc.value.assign(value.begin(), value.end());
         doc.info.id = id;
+        doc.info.datatype = datatype;
         return mutate(doc, vbucket, Greenstack::MutationType::Set);
     }
     MutationInfo store(const std::string& id, uint16_t vbucket,
