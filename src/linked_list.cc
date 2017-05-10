@@ -355,6 +355,11 @@ std::mutex& BasicLinkedList::getHighSeqnosLock() const {
     return highSeqnosLock;
 }
 
+SequenceList::RangeIterator BasicLinkedList::makeRangeIterator() {
+    return SequenceList::RangeIterator(
+            std::make_unique<RangeIteratorLL>(*this));
+}
+
 void BasicLinkedList::dump() const {
     std::cerr << *this << std::endl;
 }
@@ -397,4 +402,89 @@ OrderedLL::iterator BasicLinkedList::purgeListElem(OrderedLL::iterator it) {
                                              purged->getBySeqno());
     }
     return it;
+}
+
+BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll)
+    : list(ll), readLockHolder(list.rangeReadLock), itrRange(0, 0) {
+    std::lock_guard<SpinLock> lh(list.rangeLock);
+    if (list.highSeqno < 1) {
+        /* No need of holding a lock for the snapshot as there are no items;
+           Also iterator range is at default (0, 0) */
+        readLockHolder.unlock();
+        return;
+    }
+
+    /* Iterator to the beginning of linked list */
+    currIt = list.seqList.begin();
+
+    /* Mark the snapshot range on linked list. The range that can be read by the
+       iterator is inclusive of the start and the end. */
+    list.readRange = SeqRange(currIt->getBySeqno(), list.highSeqno);
+
+    /* Keep the range in the iterator obj. We store the range end seqno as one
+       higher than the end seqno that can be read by this iterator.
+       This is because, we must identify the end point of the iterator, and
+       we the read is inclusive of the end points of list.readRange.
+
+       Further, since use the class 'SeqRange' for 'itrRange' we cannot use
+       curr() == end() + 1 to identify the end point because 'SeqRange' does
+       not internally allow curr > end */
+    itrRange = SeqRange(currIt->getBySeqno(), list.highSeqno + 1);
+}
+
+BasicLinkedList::RangeIteratorLL::~RangeIteratorLL() {
+    std::lock_guard<SpinLock> lh(list.rangeLock);
+    list.readRange.reset();
+    /* As readLockHolder goes out of scope here, it will automatically release
+       the snapshot read lock on the linked list */
+}
+
+OrderedStoredValue& BasicLinkedList::RangeIteratorLL::operator*() const {
+    if (curr() >= end()) {
+        /* We can't read beyond the range end */
+        throw std::out_of_range(
+                "BasicLinkedList::RangeIteratorLL::operator*()"
+                ": Trying to read beyond range end seqno " +
+                std::to_string(end()));
+    }
+    return *currIt;
+}
+
+BasicLinkedList::RangeIteratorLL& BasicLinkedList::RangeIteratorLL::
+operator++() {
+    if (curr() >= end()) {
+        throw std::out_of_range(
+                "BasicLinkedList::RangeIteratorLL::operator++()"
+                ": Trying to move the iterator beyond range end"
+                " seqno " +
+                std::to_string(end()));
+    }
+
+    /* Check if the iterator is pointing to the last element. Increment beyond
+       the last element indicates the end of the iteration */
+    if (curr() == itrRange.getEnd() - 1) {
+        std::lock_guard<SpinLock> lh(list.rangeLock);
+        /* Release snapshot read lock on the linked list */
+        list.readRange.reset();
+        readLockHolder.unlock();
+
+        /* Update the begin to end() so the client can see that the iteration
+           has ended */
+        itrRange.setBegin(end());
+        return *this;
+    }
+
+    ++currIt;
+    {
+        /* As the iterator moves we reduce the snapshot range being read on the
+           linked list. This helps reduce the stale items in the list during
+           heavy update load from the front end */
+        std::lock_guard<SpinLock> lh(list.rangeLock);
+        list.readRange.setBegin(currIt->getBySeqno());
+    }
+
+    /* Also update the current range stored in the iterator obj */
+    itrRange.setBegin(currIt->getBySeqno());
+
+    return *this;
 }

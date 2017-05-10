@@ -120,6 +120,8 @@ protected:
      * To be called when there is range read.
      */
     void updateItemDuringRangeRead(seqno_t highSeqno, const std::string& key) {
+        const std::string val("data");
+
         /* Get a fake sequence lock */
         std::mutex fakeSeqLock;
         std::lock_guard<std::mutex> lg(fakeSeqLock);
@@ -131,6 +133,28 @@ protected:
 
         EXPECT_EQ(SequenceList::UpdateStatus::Append,
                   basicLL->updateListElem(lg, *osv));
+
+        /* Release the current sv from the HT */
+        StoredDocKey sKey = makeStoredDocKey(key);
+        auto hbl = ht.getLockedBucket(sKey);
+        auto ownedSv = ht.unlocked_release(hbl, osv->getKey());
+        basicLL->markItemStale(std::move(ownedSv));
+
+        /* Add a new storedvalue for the append */
+        Item itm(sKey,
+                 0,
+                 0,
+                 val.data(),
+                 val.length(),
+                 /*ext_meta*/ nullptr,
+                 /*ext_len*/ 0,
+                 /*theCas*/ 0,
+                 /*bySeqno*/ highSeqno + 1);
+        auto newSv = ht.unlocked_addNewStoredValue(hbl, itm);
+
+        basicLL->appendToList(lg, *(newSv->toOrderedStoredValue()));
+        std::lock_guard<std::mutex> highSeqnoLh(basicLL->getHighSeqnosLock());
+        basicLL->updateHighSeqno(highSeqnoLh, *(newSv->toOrderedStoredValue()));
     }
 
     /**
@@ -345,6 +369,10 @@ TEST_F(BasicLinkedListTest, UpdateDuringRangeRead) {
     /* Update an item in the list when a fake range read is happening */
     updateItemDuringRangeRead(numItems,
                               keyPrefix + std::to_string(numItems - 1));
+
+    /* Check if the new element is added correctly */
+    std::vector<seqno_t> expectedSeqno = {1, 2, 3, 4};
+    EXPECT_EQ(expectedSeqno, basicLL->getAllSeqnoForVerification());
 }
 
 TEST_F(BasicLinkedListTest, DeletedItem) {
@@ -400,4 +428,185 @@ TEST_F(BasicLinkedListTest, MarkStale) {
     /* Check memory usage of the list as it owns the stale item */
     EXPECT_EQ(svSize, basicLL->getStaleValueBytes());
     EXPECT_EQ(svMetaDataSize, basicLL->getStaleMetadataBytes());
+}
+
+TEST_F(BasicLinkedListTest, RangeIterator) {
+    const int numItems = 3;
+
+    /* Add 3 new items */
+    std::vector<seqno_t> expectedSeqno =
+            addNewItemsToList(1, std::string("key"), numItems);
+
+    auto itr = basicLL->makeRangeIterator();
+
+    std::vector<seqno_t> actualSeqno;
+
+    /* Read all the items with the iterator */
+    while (itr.curr() != itr.end()) {
+        actualSeqno.push_back((*itr).getBySeqno());
+        ++itr;
+    }
+    EXPECT_EQ(expectedSeqno, actualSeqno);
+}
+
+TEST_F(BasicLinkedListTest, RangeIteratorNoItems) {
+    auto itr = basicLL->makeRangeIterator();
+    /* Since there are no items in the list to iterate over, we expect itr start
+       to be end */
+    EXPECT_EQ(itr.curr(), itr.end());
+}
+
+TEST_F(BasicLinkedListTest, RangeIteratorSingleItem) {
+    /* Add an item */
+    std::vector<seqno_t> expectedSeqno =
+            addNewItemsToList(1, std::string("key"), 1);
+
+    auto itr = basicLL->makeRangeIterator();
+
+    std::vector<seqno_t> actualSeqno;
+    /* Read all the items with the iterator */
+    while (itr.curr() != itr.end()) {
+        actualSeqno.push_back((*itr).getBySeqno());
+        ++itr;
+    }
+    EXPECT_EQ(expectedSeqno, actualSeqno);
+}
+
+TEST_F(BasicLinkedListTest, RangeIteratorOverflow) {
+    const int numItems = 1;
+    bool caughtOutofRangeExcp = false;
+
+    /* Add an item */
+    addNewItemsToList(1, std::string("key"), numItems);
+
+    auto itr = basicLL->makeRangeIterator();
+
+    /* Iterator till end */
+    while (itr.curr() != itr.end()) {
+        ++itr;
+    }
+
+    /* Try iterating beyond the end and expect exception to be thrown */
+    try {
+        ++itr;
+    } catch (std::out_of_range& e) {
+        caughtOutofRangeExcp = true;
+    }
+    EXPECT_TRUE(caughtOutofRangeExcp);
+}
+
+TEST_F(BasicLinkedListTest, RangeIteratorDeletion) {
+    const int numItems = 3;
+
+    /* Add 3 new items */
+    std::vector<seqno_t> expectedSeqno =
+            addNewItemsToList(1, std::string("key"), numItems);
+
+    /* Check if second range reader can read items after the first one is
+       deleted */
+    for (int i = 0; i < 2; ++i) {
+        auto itr = basicLL->makeRangeIterator();
+        std::vector<seqno_t> actualSeqno;
+
+        /* Read all the items with the iterator */
+        while (itr.curr() != itr.end()) {
+            actualSeqno.push_back((*itr).getBySeqno());
+            ++itr;
+        }
+        EXPECT_EQ(expectedSeqno, actualSeqno);
+
+        /* itr is deleted as each time we loop */
+    }
+}
+
+TEST_F(BasicLinkedListTest, RangeIteratorAddNewItemDuringRead) {
+    const int numItems = 3;
+
+    /* Add 3 new items */
+    std::vector<seqno_t> expectedSeqno =
+            addNewItemsToList(1, std::string("key"), numItems);
+
+    {
+        auto itr = basicLL->makeRangeIterator();
+
+        std::vector<seqno_t> actualSeqno;
+
+        /* Read one item */
+        actualSeqno.push_back((*itr).getBySeqno());
+        ++itr;
+
+        /* Add a new item */
+        addNewItemsToList(numItems + 1 /* start */, std::string("key"), 1);
+
+        /* Read the other items */
+        while (itr.curr() != itr.end()) {
+            actualSeqno.push_back((*itr).getBySeqno());
+            ++itr;
+        }
+        EXPECT_EQ(expectedSeqno, actualSeqno);
+
+        /* itr is deleted */
+    }
+
+    /* Now create new iterator and if we can read all elements */
+    expectedSeqno.push_back(numItems + 1);
+
+    {
+        auto itr = basicLL->makeRangeIterator();
+        std::vector<seqno_t> actualSeqno;
+
+        /* Read the other items */
+        while (itr.curr() != itr.end()) {
+            actualSeqno.push_back((*itr).getBySeqno());
+            ++itr;
+        }
+        EXPECT_EQ(expectedSeqno, actualSeqno);
+    }
+}
+
+TEST_F(BasicLinkedListTest, RangeIteratorUpdateItemDuringRead) {
+    const int numItems = 3;
+    const std::string keyPrefix("key");
+
+    /* Add 3 new items */
+    std::vector<seqno_t> expectedSeqno =
+            addNewItemsToList(1, keyPrefix, numItems);
+
+    {
+        auto itr = basicLL->makeRangeIterator();
+
+        std::vector<seqno_t> actualSeqno;
+
+        /* Read one item */
+        actualSeqno.push_back((*itr).getBySeqno());
+        ++itr;
+
+        /* Update an item */
+        updateItemDuringRangeRead(numItems /*highSeqno*/,
+                                  keyPrefix + std::to_string(2));
+
+        /* Read the other items */
+        while (itr.curr() != itr.end()) {
+            actualSeqno.push_back((*itr).getBySeqno());
+            ++itr;
+        }
+        EXPECT_EQ(expectedSeqno, actualSeqno);
+
+        /* itr is deleted */
+    }
+
+    /* Now create new iterator and if we can read all elements */
+    expectedSeqno.push_back(numItems + 1);
+
+    {
+        auto itr = basicLL->makeRangeIterator();
+        std::vector<seqno_t> actualSeqno;
+
+        /* Read the other items */
+        while (itr.curr() != itr.end()) {
+            actualSeqno.push_back((*itr).getBySeqno());
+            ++itr;
+        }
+        EXPECT_EQ(expectedSeqno, actualSeqno);
+    }
 }

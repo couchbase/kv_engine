@@ -180,6 +180,8 @@ public:
 
     std::mutex& getHighSeqnosLock() const override;
 
+    SequenceList::RangeIterator makeRangeIterator() override;
+
     void dump() const override;
 
 protected:
@@ -288,6 +290,42 @@ private:
 
     friend std::ostream& operator<<(std::ostream& os,
                                     const BasicLinkedList& ll);
+
+    class RangeIteratorLL : public SequenceList::RangeIteratorImpl {
+    public:
+        RangeIteratorLL(BasicLinkedList& ll);
+
+        ~RangeIteratorLL();
+
+        OrderedStoredValue& operator*() const override;
+
+        RangeIteratorLL& operator++() override;
+
+        seqno_t curr() const override {
+            return itrRange.getBegin();
+        }
+
+        seqno_t end() const override {
+            return itrRange.getEnd();
+        }
+
+    private:
+        /* Ref to BasicLinkedList object which is iterated by this iterator.
+           By setting the member variables of the list obj appropriately we
+           ensure that iterator is not invalidated */
+        BasicLinkedList& list;
+
+        /* The current list element pointed by the iterator */
+        OrderedLL::iterator currIt;
+
+        /* Lock holder which allows having only one iterator at a time */
+        std::unique_lock<std::mutex> readLockHolder;
+
+        /* Current range of the iterator */
+        SeqRange itrRange;
+    };
+
+    friend class RangeIteratorLL;
 };
 
 /// Outputs a textual description of the BasicLinkedList

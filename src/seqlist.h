@@ -62,6 +62,50 @@ using seqno_t = int64_t;
  *              rangeRead and Clean Up
  */
 class SequenceList {
+protected:
+    /**
+     * Abstract base class for implementation of range iterators in derived
+     * classes of SequenceList.
+     *
+     * (a) The API is for unidirectional (forward only) iterator.
+     * (b) Iterator cannot be invalidated while in use.
+     * (c) Reading all the items from the iterator results in point-in-time
+     *     snapshot.
+     * (d) Only 1 iterator can be created for now.
+     * (e) Currently iterator can be created only from start till end
+     */
+    class RangeIteratorImpl {
+    public:
+        virtual ~RangeIteratorImpl() {
+        }
+
+        /**
+         * Returns the stored item at iterator's position
+         */
+        virtual OrderedStoredValue& operator*() const = 0;
+
+        /**
+         * Pre increment of the iterator position
+         *
+         * Note: We do not allow post increment for now as we support only
+         *       one iterator at a time. (hence, we don't create a temp copy
+         *       of the iterator obj)
+         */
+        virtual RangeIteratorImpl& operator++() = 0;
+
+        /**
+         * Curr iterator position, indicated by the seqno of the item at that
+         * position
+         */
+        virtual seqno_t curr() const = 0;
+
+        /**
+         * End position of iterator, indicated by the seqno > highest_seqno
+         * in the iterator range
+         */
+        virtual seqno_t end() const = 0;
+    };
+
 public:
     /**
      * Indicates whether the updateListElem is successful or the list is
@@ -69,6 +113,74 @@ public:
      * only appends at the moment.
      */
     enum class UpdateStatus { Success, Append };
+
+    /**
+     * RangeIterator for a SequenceList objects.
+     *
+     * The iterator is unidirectional (forward only) and cannot be invalidated
+     * while in use. That means reading the items in the iterator results in a
+     * valid point-in-time snapshot. But this adds a caveat that while an
+     * iterator instance is active, certain invariants are to be met to get the
+     * snapshot, and this happens at the expense of increased memory usage.
+     *
+     * Implementation follows the pimpl idiom. This class serves as a wrapper
+     * for the abstract base class that defines the APIs for range iteration on
+     * the derived concrete classes of the SequenceList. It calls the range
+     * iterators of the concrete classes polymorphically at runtime. However
+     * clients get this statically typed "RangeIterator" object when they
+     * request for an iterator for a SequenceList object.
+     *
+     * Usage:
+     * 1. Create an iterator instance using SequenceList::makeRangeIterator()
+     * 2. Iterate (read) through all the list elements.
+     * 3. Delete the iterator.
+     * Note: (a) Do not hold the iterator for long, as it will result in stale
+     *           items in list and hence increased memory usage.
+     *       (b) Make sure to delete the iterator after using it.
+     *       (c) For now, we allow on one RangeIterator. Try to create more
+     *           iterators will result in the create call(s) being blocked.
+     */
+    class RangeIterator {
+    public:
+        RangeIterator(std::unique_ptr<RangeIteratorImpl> rangeIterImpl);
+
+        /* Needed for MSVC.
+           MSVC does not do "return value optimization" if copy constructor is
+           defined before move constructor
+           (http://stackoverflow.com/questions/29459040)
+         */
+        RangeIterator(RangeIterator&& other)
+            : rangeIterImpl(std::move(other.rangeIterImpl)) {
+        }
+
+        RangeIterator(RangeIterator& other) = delete;
+
+        /**
+         * Returns the stored item at iterator's position
+         */
+        OrderedStoredValue& operator*() const;
+
+        /**
+         * Pre increment of the iterator position
+         */
+        RangeIterator& operator++();
+
+        /**
+         * Curr iterator position, indicated by the seqno of the item at that
+         * position
+         */
+        seqno_t curr();
+
+        /**
+         * Curr iterator position, indicated by the seqno of the item at that
+         * position
+         */
+        seqno_t end();
+
+    private:
+        /* Pointer to the abstract class of range iterator implementation */
+        std::unique_ptr<RangeIteratorImpl> rangeIterImpl;
+    };
 
     virtual ~SequenceList() {
     }
@@ -236,6 +348,11 @@ public:
      * highestDedupedSeqno
      */
     virtual std::mutex& getHighSeqnosLock() const = 0;
+
+    /**
+     * Returns a range iterator for the underlying SequenceList obj
+     */
+    virtual SequenceList::RangeIterator makeRangeIterator() = 0;
 
     /**
      * Debug - prints a representation of the list to stderr.

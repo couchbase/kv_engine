@@ -203,6 +203,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/pre_link_document_context.h
             src/replicationthrottle.cc
             src/linked_list.cc
+            src/seqlist.cc
             src/string_utils.cc
             src/storeddockey.cc
             src/stored-value.cc
