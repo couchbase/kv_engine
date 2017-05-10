@@ -658,10 +658,11 @@ static protocol_binary_response_status subdoc_operate_wholedoc(
 
 /**
  * Run through all of the subdoc operations for the current phase on
- * a single JSON document.
+ * a single 'document' (either the user document, or a XATTR).
  *
  * @param context The context object for this operation
  * @param doc the document to operate on
+ * @param doc_datatype The datatype of the document.
  * @param temp_buffer where to store the data for our temporary buffer
  *                    allocations if we need to change the doc.
  * @param modified set to true upon return if any modifications happened
@@ -672,8 +673,9 @@ static protocol_binary_response_status subdoc_operate_wholedoc(
  *
  * @throws std::bad_alloc if allocation fails
  */
-static bool operate_single_json(SubdocCmdContext& context,
+static bool operate_single_doc(SubdocCmdContext& context,
                                 cb::const_char_buffer& doc,
+                                protocol_binary_datatype_t doc_datatype,
                                 std::unique_ptr<char[]>& temp_buffer,
                                 bool& modified) {
     modified = false;
@@ -683,8 +685,15 @@ static bool operate_single_json(SubdocCmdContext& context,
     for (auto op = operations.begin(); op != operations.end(); op++) {
         switch (op->traits.scope) {
         case CommandScope::SubJSON:
-            op->status = subdoc_operate_one_path(context, *op, doc);
+            if (mcbp::datatype::is_json(doc_datatype)) {
+                // Got JSON, perform the operation.
+                op->status = subdoc_operate_one_path(context, *op, doc);
+            } else {
+                // No good; need to have JSON.
+                op->status = PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON;
+            }
             break;
+
         case CommandScope::WholeDoc:
             op->status = subdoc_operate_wholedoc(context, *op, doc);
         }
@@ -889,7 +898,11 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
     context.generate_macro_padding(document, cb::xattr::macros::SEQNO);
 
     bool modified;
-    if (!operate_single_json(context, document, temp_doc, modified)) {
+    if (!operate_single_doc(context,
+                            document,
+                            PROTOCOL_BINARY_DATATYPE_JSON,
+                            temp_doc,
+                            modified)) {
         // Something failed..
         return false;
     }
@@ -949,13 +962,6 @@ static bool do_body_phase(SubdocCmdContext& context) {
         return true;
     }
 
-    if (!mcbp::datatype::is_json(context.in_datatype)) {
-        // No good; need to have JSON
-        mcbp_write_packet(&context.connection,
-                          PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON);
-        return false;
-    }
-
     size_t xattrsize = 0;
     cb::const_char_buffer document {context.in_doc.buf,
                                     context.in_doc.len};
@@ -970,7 +976,8 @@ static bool do_body_phase(SubdocCmdContext& context) {
     std::unique_ptr<char[]> temp_doc;
     bool modified;
 
-    if (!operate_single_json(context, document, temp_doc, modified)) {
+    if (!operate_single_doc(
+                context, document, context.in_datatype, temp_doc, modified)) {
         return false;
     }
 

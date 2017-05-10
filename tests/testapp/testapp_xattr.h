@@ -224,11 +224,13 @@ protected:
         return multiResp;
     }
 
-    void setBodyAndXattr(const std::string& startValue,
-                         const std::string& xattrValue) {
+    void setBodyAndXattr(
+            const std::string& startValue,
+            const std::string& xattrValue,
+            mcbp::Datatype datatype = mcbp::Datatype::Json) {
         Document document;
         document.info.cas = mcbp::cas::Wildcard;
-        document.info.datatype = mcbp::Datatype::Json;
+        document.info.datatype = datatype;
         document.info.flags = 0xcaffee;
         document.info.id = name;
         std::copy(startValue.begin(),
@@ -243,10 +245,11 @@ protected:
         xattr_upsert(xattr, xattrValue);
 
         auto resp = subdoc_get(xattr, SUBDOC_FLAG_XATTR_PATH);
-        EXPECT_EQ(xattrValue, resp.getValue());
+        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(xattrValue, resp.getValue());
     }
 
-    const std::string value = "{\"Field\":56}";
+    std::string value = "{\"Field\":56}";
     const std::string xattr = "_sync.eg";
     const std::string xattrVal = "99";
 };
