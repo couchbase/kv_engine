@@ -188,6 +188,16 @@ bool VBucketTest::public_deleteStoredValue(const DocKey& key) {
     return vbucket->deleteStoredValue(hbl_sv.first, *hbl_sv.second);
 }
 
+GetValue VBucketTest::public_getAndUpdateTtl(const DocKey& key,
+                                             time_t exptime) {
+    auto hbl = lockAndFind(key);
+    GetValue gv;
+    MutationStatus status;
+    std::tie(status, gv) = vbucket->processGetAndUpdateTtl(
+            hbl.first, key, hbl.second, exptime);
+    return gv;
+}
+
 size_t EPVBucketTest::public_queueBGFetchItem(
         const DocKey& key,
         std::unique_ptr<VBucketBGFetchItem> fetchItem,

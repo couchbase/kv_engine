@@ -1414,6 +1414,71 @@ ENGINE_ERROR_CODE VBucket::add(Item& itm,
     return ENGINE_SUCCESS;
 }
 
+std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
+        HashTable::HashBucketLock& hbl,
+        const DocKey& key,
+        StoredValue* v,
+        time_t exptime) {
+    if (v) {
+        if (v->isDeleted() || v->isTempDeletedItem() ||
+            v->isTempNonExistentItem()) {
+            return {MutationStatus::NotFound, {}};
+        }
+
+        if (!v->isResident()) {
+            return {MutationStatus::NeedBgFetch, {}};
+        }
+
+        if (v->isLocked(ep_current_time())) {
+            return {MutationStatus::IsLocked,
+                    GetValue(nullptr, ENGINE_KEY_EEXISTS, 0)};
+        }
+
+        const bool exptime_mutated = exptime != v->getExptime();
+        auto bySeqNo = v->getBySeqno();
+        if (exptime_mutated) {
+            v->markDirty();
+            v->setExptime(exptime);
+            v->setRevSeqno(v->getRevSeqno() + 1);
+        }
+
+        Item* item =
+                v->toItem(v->isLocked(ep_current_time()), getId()).release();
+
+        GetValue rv(item, ENGINE_SUCCESS, bySeqNo);
+
+        if (exptime_mutated) {
+            VBQueueItemCtx qItemCtx(GenerateBySeqno::Yes,
+                                    GenerateCas::Yes,
+                                    TrackCasDrift::No,
+                                    false,
+                                    nullptr);
+            VBNotifyCtx notifyCtx;
+            std::tie(v, std::ignore, notifyCtx) =
+                    updateStoredValue(hbl, *v, *item, &qItemCtx, true);
+            rv.getValue()->setCas(v->getCas());
+            // we unlock ht lock here because we want to avoid potential lock
+            // inversions arising from notifyNewSeqno() call
+            hbl.getHTLock().unlock();
+            notifyNewSeqno(notifyCtx);
+        }
+
+        return {MutationStatus::WasClean, rv};
+    } else {
+        if (eviction == VALUE_ONLY) {
+            return {MutationStatus::NotFound, {}};
+        } else {
+            if (maybeKeyExistsInFilter(key)) {
+                return {MutationStatus::NeedBgFetch, {}};
+            } else {
+                // As bloomfilter predicted that item surely doesn't exist
+                // on disk, return ENOENT for getAndUpdateTtl().
+                return {MutationStatus::NotFound, {}};
+            }
+        }
+    }
+}
+
 GetValue VBucket::getAndUpdateTtl(const DocKey& key,
                                   const void* cookie,
                                   EventuallyPersistentEngine& engine,
@@ -1425,58 +1490,22 @@ GetValue VBucket::getAndUpdateTtl(const DocKey& key,
                                      WantsDeleted::Yes,
                                      TrackReference::Yes,
                                      QueueExpired::Yes);
+    GetValue gv;
+    MutationStatus status;
+    std::tie(status, gv) = processGetAndUpdateTtl(hbl, key, v, exptime);
 
-    if (v) {
-        if (v->isDeleted() || v->isTempDeletedItem() ||
-            v->isTempNonExistentItem()) {
-            return {};
-        }
-
-        if (!v->isResident()) {
+    if (status == MutationStatus::NeedBgFetch) {
+        if (v) {
             bgFetch(key, cookie, engine, bgFetchDelay);
             return GetValue(nullptr, ENGINE_EWOULDBLOCK, v->getBySeqno());
-        }
-        if (v->isLocked(ep_current_time())) {
-            return GetValue(nullptr, ENGINE_KEY_EEXISTS, 0);
-        }
-
-        const bool exptime_mutated = exptime != v->getExptime();
-        if (exptime_mutated) {
-            v->markDirty();
-            v->setExptime(exptime);
-            v->setRevSeqno(v->getRevSeqno() + 1);
-        }
-
-        GetValue rv(
-                v->toItem(v->isLocked(ep_current_time()), getId()).release(),
-                ENGINE_SUCCESS,
-                v->getBySeqno());
-
-        if (exptime_mutated) {
-            VBNotifyCtx notifyCtx = queueDirty(*v);
-            rv.getValue()->setCas(v->getCas());
-            // we unlock ht lock here because we want to avoid potential lock
-            // inversions arising from notifyNewSeqno() call
-            hbl.getHTLock().unlock();
-            notifyNewSeqno(notifyCtx);
-        }
-
-        return rv;
-    } else {
-        if (eviction == VALUE_ONLY) {
-            return {};
         } else {
-            if (maybeKeyExistsInFilter(key)) {
-                ENGINE_ERROR_CODE ec = addTempItemAndBGFetch(
-                        hbl, key, cookie, engine, bgFetchDelay, false);
-                return GetValue(NULL, ec, -1, true);
-            } else {
-                // As bloomfilter predicted that item surely doesn't exist
-                // on disk, return ENOENT for getAndUpdateTtl().
-                return {};
-            }
+            ENGINE_ERROR_CODE ec = addTempItemAndBGFetch(
+                    hbl, key, cookie, engine, bgFetchDelay, false);
+            return GetValue(NULL, ec, -1, true);
         }
     }
+
+    return gv;
 }
 
 MutationStatus VBucket::insertFromWarmup(Item& itm,

@@ -222,6 +222,62 @@ TEST_F(EphemeralVBucketTest, UpdateDuringBackfill) {
               mockEpheVB->public_getNumListItems());
 }
 
+TEST_F(EphemeralVBucketTest, GetAndUpdateTtl) {
+    const int numItems = 2;
+
+    /* Add 2 keys */
+    auto keys = generateKeys(numItems);
+    setMany(keys, MutationStatus::WasClean);
+
+    ASSERT_EQ(numItems, vbucket->getNumItems());
+    EXPECT_EQ(numItems, vbucket->getHighSeqno());
+    EXPECT_EQ(0, mockEpheVB->public_getNumStaleItems());
+
+    /* --- basic test --- */
+    /* set the ttl of one item */
+    GetValue gv1 = public_getAndUpdateTtl(keys[0], 100);
+
+    /* New seqno should have been used */
+    EXPECT_EQ(numItems + 1, vbucket->getHighSeqno());
+
+    /* No.of items in the bucket should NOT change */
+    EXPECT_EQ(numItems, vbucket->getNumItems());
+
+    /* No.of items in the list should NOT change */
+    EXPECT_EQ(numItems, mockEpheVB->public_getNumListItems());
+
+    /* There should be NO stale items */
+    EXPECT_EQ(0, mockEpheVB->public_getNumStaleItems());
+
+    /* --- Repeat the above test with a similated ReadRange --- */
+    mockEpheVB->registerFakeReadRange(1, numItems);
+    GetValue gv2 = public_getAndUpdateTtl(keys[1], 101);
+
+    /* New seqno should have been used */
+    EXPECT_EQ(numItems + 2, vbucket->getHighSeqno());
+
+    /* No.of items in the bucket should remain the same */
+    EXPECT_EQ(numItems, vbucket->getNumItems());
+
+    /* No.of items in the sequence list should inc by 1 */
+    EXPECT_EQ(numItems + 1, mockEpheVB->public_getNumListItems());
+
+    /* There should be 1 stale item */
+    EXPECT_EQ(1, mockEpheVB->public_getNumStaleItems());
+
+    auto seqNoVec = mockEpheVB->getLL()->getAllSeqnoForVerification();
+    seqno_t prevSeqNo = 0;
+
+    for (const auto& seqNo : seqNoVec) {
+        EXPECT_GT(seqNo, prevSeqNo);
+        prevSeqNo = seqNo;
+    }
+
+    // explicit delete to keep valgrind happy
+    delete (Item*)gv1.getValue();
+    delete (Item*)gv2.getValue();
+}
+
 TEST_F(EphemeralVBucketTest, SoftDeleteDuringBackfill) {
     /* Add 5 items and then soft delete all of them */
     const int numItems = 5;

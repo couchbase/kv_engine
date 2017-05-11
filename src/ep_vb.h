@@ -145,7 +145,8 @@ private:
             const HashTable::HashBucketLock& hbl,
             StoredValue& v,
             const Item& itm,
-            const VBQueueItemCtx* queueItmCtx) override;
+            const VBQueueItemCtx* queueItmCtx,
+            bool justTouch = false) override;
 
     std::pair<StoredValue*, VBNotifyCtx> addNewStoredValue(
             const HashTable::HashBucketLock& hbl,

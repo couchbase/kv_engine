@@ -1223,6 +1223,15 @@ public:
 
 protected:
     /**
+     * This function checks for the various states of the value & depending on
+     * which the calling function can issue a bgfetch as needed.
+     */
+    std::pair<MutationStatus, GetValue> processGetAndUpdateTtl(
+            HashTable::HashBucketLock& hbl,
+            const DocKey& key,
+            StoredValue* v,
+            time_t exptime);
+    /**
      * This function checks cas, expiry and other partition (vbucket) related
      * rules before setting an item into other in-memory structure like HT,
      * and checkpoint mgr. This function assumes that HT bucket lock is grabbed.
@@ -1468,7 +1477,8 @@ private:
      * @param itm Item to be updated.
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
      *                    backfill queue; NULL if item need not be queued
-     *
+     * @param justTouch   To note that this object is an existing item with
+     *                    the same value but with few flags changed.
      * @return pointer to the updated StoredValue. It can be same as that of
      *         v or different value if a new StoredValue is created for the
      *         update.
@@ -1479,7 +1489,8 @@ private:
     updateStoredValue(const HashTable::HashBucketLock& hbl,
                       StoredValue& v,
                       const Item& itm,
-                      const VBQueueItemCtx* queueItmCtx) = 0;
+                      const VBQueueItemCtx* queueItmCtx,
+                      bool justTouch = false) = 0;
 
     /**
      * Adds a new StoredValue in in-memory data structures like HT.

@@ -86,6 +86,8 @@ protected:
 
     bool public_deleteStoredValue(const DocKey& key);
 
+    GetValue public_getAndUpdateTtl(const DocKey& key, time_t exptime);
+
     std::unique_ptr<VBucket> vbucket;
     EPStats global_stats;
     CheckpointConfig checkpoint_config;

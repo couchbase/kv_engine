@@ -444,9 +444,14 @@ std::tuple<StoredValue*, MutationStatus, VBNotifyCtx>
 EPVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
                              StoredValue& v,
                              const Item& itm,
-                             const VBQueueItemCtx* queueItmCtx) {
-    MutationStatus status =
-            ht.unlocked_updateStoredValue(hbl.getHTLock(), v, itm);
+                             const VBQueueItemCtx* queueItmCtx,
+                             bool justTouch) {
+    MutationStatus status;
+    if (justTouch) {
+        status = MutationStatus::WasDirty;
+    } else {
+        status = ht.unlocked_updateStoredValue(hbl.getHTLock(), v, itm);
+    }
 
     if (queueItmCtx) {
         return std::make_tuple(&v, status, queueDirty(v, *queueItmCtx));

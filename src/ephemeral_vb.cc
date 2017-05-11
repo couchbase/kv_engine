@@ -293,7 +293,8 @@ std::tuple<StoredValue*, MutationStatus, VBNotifyCtx>
 EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
                                     StoredValue& v,
                                     const Item& itm,
-                                    const VBQueueItemCtx* queueItmCtx) {
+                                    const VBQueueItemCtx* queueItmCtx,
+                                    bool justTouch) {
     std::lock_guard<std::mutex> lh(sequenceLock);
 
     const bool oldValueDeleted = v.isDeleted();
