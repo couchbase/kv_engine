@@ -147,10 +147,6 @@ TEST_F(CollectionsTest, collections_basic) {
 class CollectionsFlushTest : public CollectionsTest {
 public:
     void SetUp() override {
-        kvsc = std::make_unique<KVStoreConfig>(
-                1024, 4, test_dbname, "couchdb", 0, true /*persistnamespace*/);
-        kvs = std::unique_ptr<KVStore>(KVStoreFactory::create(*kvsc));
-
         CollectionsTest::SetUp();
     }
 
@@ -192,9 +188,6 @@ private:
      */
     static bool cannotWrite(const std::string& jsonManifest,
                             const std::string& collection);
-
-    std::unique_ptr<KVStore> kvs;
-    std::unique_ptr<KVStoreConfig> kvsc;
 };
 
 void CollectionsFlushTest::storeItems(const std::string& collection,
@@ -234,7 +227,8 @@ std::string CollectionsFlushTest::completeDeletionAndFlush(
 }
 
 std::string CollectionsFlushTest::getManifest() {
-    return kvs->getCollectionsManifest(vbid);
+    VBucketPtr vb = store->getVBucket(vbid);
+    return vb->getShard()->getRWUnderlying()->getCollectionsManifest(vbid);
 }
 
 bool CollectionsFlushTest::canWrite(const std::string& jsonManifest,

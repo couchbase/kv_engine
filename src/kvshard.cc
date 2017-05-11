@@ -35,10 +35,9 @@ KVShard::KVShard(uint16_t id, KVBucket& kvBucket)
     const std::string backend = kvConfig.getBackend();
 
     if (backend == "couchdb") {
-        rwStore.reset(KVStoreFactory::create(kvConfig, false));
-        roStore.reset(KVStoreFactory::create(kvConfig, true));
-    } else if (backend == "forestdb") {
-        rwStore.reset(KVStoreFactory::create(kvConfig));
+        auto stores = KVStoreFactory::create(kvConfig);
+        rwStore = std::move(stores.rw);
+        roStore = std::move(stores.ro);
     } else {
         throw std::logic_error(
                 "KVShard::KVShard: "

@@ -157,6 +157,8 @@ protected:
 // Initializes a KVStore
 static void initialize_kv_store(KVStore* kvstore) {
     std::string failoverLog("");
+    // simulate the setVbState by incrementing the rev
+    kvstore->incrementRevision(0);
     vbucket_state state(vbucket_state_active, 0, 0, 0, 0, 0, 0, 0, failoverLog);
     // simulate the setVbState by incrementing the rev
     kvstore->incrementRevision(0);
@@ -166,9 +168,9 @@ static void initialize_kv_store(KVStore* kvstore) {
 
 // Creates and initializes a KVStore with the given config
 static std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config) {
-    auto kvstore = std::unique_ptr<KVStore>(KVStoreFactory::create(config));
-    initialize_kv_store(kvstore.get());
-    return kvstore;
+    auto kvstore = KVStoreFactory::create(config);
+    initialize_kv_store(kvstore.rw.get());
+    return std::move(kvstore.rw);
 }
 
 /* Test callback for stats handling.
@@ -346,28 +348,24 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
 TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
     KVStoreConfig config(
             1024, 4, data_dir, "couchdb", 0, false /*persistnamespace*/);
-    KVStore* kvstore = KVStoreFactory::create(config);
-    ASSERT_NE(nullptr, kvstore);
+    auto kvstore = KVStoreFactory::create(config);
+    ASSERT_NE(nullptr, kvstore.rw);
 
     // Activate vBucket.
     std::string failoverLog("[]");
     vbucket_state state(vbucket_state_active, /*ckid*/0, /*maxDelSeqNum*/0,
                         /*highSeqno*/0, /*purgeSeqno*/0, /*lastSnapStart*/0,
                         /*lastSnapEnd*/0, /*maxCas*/-1, failoverLog);
-    EXPECT_TRUE(kvstore->snapshotVBucket(/*vbid*/0, state,
-                                         VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT));
-    EXPECT_EQ(~0ull, kvstore->listPersistedVbuckets()[0]->maxCas);
+    EXPECT_TRUE(kvstore.rw->snapshotVBucket(
+            /*vbid*/ 0, state, VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT));
+    EXPECT_EQ(~0ull, kvstore.rw->listPersistedVbuckets()[0]->maxCas);
 
     // Close the file, then re-open.
-    delete kvstore;
     kvstore = KVStoreFactory::create(config);
-    EXPECT_NE(nullptr, kvstore);
+    EXPECT_NE(nullptr, kvstore.rw);
 
     // Check that our max CAS was repaired on startup.
-    EXPECT_EQ(0u, kvstore->listPersistedVbuckets()[0]->maxCas);
-
-    // Cleanup
-    delete kvstore;
+    EXPECT_EQ(0u, kvstore.rw->listPersistedVbuckets()[0]->maxCas);
 }
 
 // Regression test for MB-19430 - ensure that an attempt to get the
@@ -378,14 +376,11 @@ TEST_F(CouchKVStoreTest, MB_18580_ENOENT) {
             1024, 4, data_dir, "couchdb", 0, false /*persistnamespace*/);
     // Create a read-only kvstore (which disables item count caching), then
     // attempt to get the count from a non-existent vbucket.
-    KVStore* kvstore = KVStoreFactory::create(config, /*readOnly*/true);
-    ASSERT_NE(nullptr, kvstore);
+    auto kvstore = KVStoreFactory::create(config);
+    ASSERT_NE(nullptr, kvstore.ro);
 
     // Expect to get a system_error (ENOENT)
-    EXPECT_THROW(kvstore->getDbFileInfo(0), std::system_error);
-
-    // Cleanup
-    delete kvstore;
+    EXPECT_THROW(kvstore.ro->getDbFileInfo(0), std::system_error);
 }
 
 /**
@@ -492,7 +487,7 @@ public:
                          .setLogger(logger)
                          .setBuffered(false)) {
         cb::io::rmrf(data_dir.c_str());
-        kvstore.reset(new CouchKVStore(config, ops, false));
+        kvstore.reset(new CouchKVStore(config, ops));
         initialize_kv_store(kvstore.get());
     }
     ~CouchKVStoreErrorInjectionTest() {
@@ -1117,8 +1112,8 @@ public:
 
 class MockCouchKVStore : public CouchKVStore {
 public:
-    MockCouchKVStore(KVStoreConfig& config)
-        : CouchKVStore(config, false) {}
+    MockCouchKVStore(KVStoreConfig& config) : CouchKVStore(config) {
+    }
 
     // Mocks original code but returns the IORequest for fuzzing
     MockCouchRequest* setAndReturnRequest(const Item &itm, Callback<mutation_result> &cb) {
@@ -1164,6 +1159,9 @@ public:
         kvstore.reset(new MockCouchKVStore(config));
         StatsCallback sc;
         std::string failoverLog("");
+        // simulate a setVBState - increment the rev and then persist the
+        // state
+        kvstore->incrementRevision(0);
         vbucket_state state(vbucket_state_active, 0, 0, 0, 0, 0, 0, 0,
                             failoverLog);
         // simulate a setVBState - increment the dbFile revision

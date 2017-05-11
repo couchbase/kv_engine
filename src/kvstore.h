@@ -581,7 +581,7 @@ public:
         return dbname;
     }
 
-    std::string getBackend() const {
+    const std::string& getBackend() const {
         return backend;
     }
 
@@ -1013,19 +1013,31 @@ protected:
 };
 
 /**
+ * Structure holding the read/write and read only instances of the KVStore.
+ * They could be the same underlying object, or different.
+ */
+struct KVStoreRWRO {
+    KVStoreRWRO() /*rw/ro default init is ok*/ {
+    }
+    KVStoreRWRO(KVStore* rw, KVStore* ro) : rw(rw), ro(ro) {
+    }
+
+    std::unique_ptr<KVStore> rw;
+    std::unique_ptr<KVStore> ro;
+};
+
+/**
  * The KVStoreFactory creates the correct KVStore instance(s) when
  * needed by EPStore.
  */
 class KVStoreFactory {
 public:
-
     /**
-     * Create a KVStore with the given type.
+     * Create a KVStore using the type found in the config
      *
-     * @param config    engine configuration
-     * @param read_only true if the kvstore instance is for read operations only
+     * @param config engine configuration
      */
-    static KVStore *create(KVStoreConfig &config, bool read_only = false);
+    static KVStoreRWRO create(KVStoreConfig& config);
 };
 
 /**

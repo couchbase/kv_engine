@@ -151,22 +151,19 @@ class CouchKVStore : public KVStore
 {
 public:
     /**
-     * Constructor
+     * Constructor - creates a read/write CouchKVStore
      *
      * @param config    Configuration information
-     * @param read_only flag indicating if this kvstore instance is for read-only operations
      */
-    CouchKVStore(KVStoreConfig &config, bool read_only = false);
+    CouchKVStore(KVStoreConfig& config);
 
     /**
      * Alternate constructor for injecting base FileOps
      *
      * @param config    Configuration information
      * @param ops       Couchstore FileOps implementation to be used
-     * @param read_only flag indicating if this kvstore instance is for read-only operations
      */
-    CouchKVStore(KVStoreConfig &config, FileOpsInterface& ops,
-                 bool read_only = false);
+    CouchKVStore(KVStoreConfig& config, FileOpsInterface& ops);
 
     /**
      * Copy constructor
@@ -179,6 +176,14 @@ public:
      * Deconstructor
      */
     ~CouchKVStore();
+
+    /**
+     * A read only CouchKVStore can only be created by a RW store. They should
+     * be created in pairs as they share some data.
+     *
+     * @return a unique_ptr holding a RO 'sibling' to this object.
+     */
+    std::unique_ptr<CouchKVStore> makeReadOnlyStore();
 
     void initialize();
 
@@ -481,11 +486,8 @@ protected:
     couchstore_error_t openDB(uint16_t vbucketId,
                               uint64_t fileRev,
                               Db** db,
-                              uint64_t options,
+                              couchstore_open_flags options,
                               FileOpsInterface* ops = nullptr);
-    couchstore_error_t openDB_retry(std::string &dbfile, uint64_t options,
-                                    FileOpsInterface *ops,
-                                    Db **db, uint64_t *newFileRev);
 
     /**
      * save the Documents held in docs to the file associated with vbid/rev
@@ -559,9 +561,17 @@ protected:
     const std::string dbname;
 
     /**
-     * Per-vbucket file revision atomic to ensure writer threads see increments
+     * Per-vbucket file revision atomic to ensure writer threads see increments.
+     * This is a reference of the real vector which there should be one per
+     * RW/RO pair.
      */
-    std::vector<std::atomic<uint64_t>> dbFileRevMap;
+    std::vector<std::atomic<uint64_t>>& dbFileRevMap;
+
+    /**
+     * The RW couch-kvstore owns the fileRevMap and passes a reference to it's
+     * RO sibling.
+     */
+    std::vector<std::atomic<uint64_t>> fileRevMap;
 
     uint16_t numDbFiles;
     std::vector<CouchRequest *> pendingReqsQ;
@@ -603,6 +613,38 @@ protected:
     FileOpsInterface& base_ops;
 
 private:
+    /**
+     * Construct the store, this constructor does the object initialisation and
+     * is used by the public read/write constructors and the private read-only
+     * constructor.
+     *
+     * @param config configuration data for the store
+     * @param ops the file ops to use
+     * @param readOnly true if the store can only do read functionality
+     * @param dbFileRevMap a reference to the map (which should be data owned by
+     *        the RW store).
+     * @param fileRevMapSize how big to make the fileRevMap. E.g. when the
+     *        read-only constructor is called, it doesn't need to resize the map
+     *        as it will use a reference to the RW store's map, so 0 would be
+     *        passed.
+     */
+    CouchKVStore(KVStoreConfig& config,
+                 FileOpsInterface& ops,
+                 bool readOnly,
+                 std::vector<std::atomic<uint64_t>>& dbFileRevMap,
+                 size_t fileRevMapSize);
+
+    /**
+     * Construct a read-only store - private as should be called via
+     * CouchKVStore::makeReadOnlyStore
+     *
+     * @param config configuration data for the store
+     * @param dbFileRevMap a reference to the map (which should be data owned by
+     *        the RW store).
+     */
+    CouchKVStore(KVStoreConfig& config,
+                 std::vector<std::atomic<uint64_t>>& dbFileRevMap);
+
     class DbHolder {
     public:
         DbHolder(CouchKVStore* kvs) : kvstore(kvs), db(nullptr) {}

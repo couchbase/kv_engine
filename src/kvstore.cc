@@ -68,20 +68,17 @@ KVStoreConfig& KVStoreConfig::setBuffered(bool _buffered) {
     return *this;
 }
 
-KVStore *KVStoreFactory::create(KVStoreConfig &config, bool read_only) {
-    KVStore *ret = NULL;
-    std::string backend = config.getBackend();
-    if (backend.compare("couchdb") == 0) {
-        ret = new CouchKVStore(config, read_only);
-#ifdef EP_USE_FORESTDB
-    } else if (backend.compare("forestdb") == 0) {
-        ret = new ForestKVStore(config);
-#endif
+KVStoreRWRO KVStoreFactory::create(KVStoreConfig& config) {
+    if (config.getBackend().compare("couchdb") == 0) {
+        auto rw = std::make_unique<CouchKVStore>(config);
+        auto ro = rw->makeReadOnlyStore();
+        return {rw.release(), ro.release()};
     } else {
-        LOG(EXTENSION_LOG_WARNING, "Unknown backend: [%s]", backend.c_str());
+        throw std::invalid_argument("KVStoreFactory::create unknown backend:" +
+                                    config.getBackend());
     }
 
-    return ret;
+    return {};
 }
 
 void KVStore::createDataDir(const std::string& dbname) {
