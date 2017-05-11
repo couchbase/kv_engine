@@ -56,7 +56,7 @@ public:
     uint32_t flags;
     std::string expiration;
     mcbp::Datatype datatype;
-    mcbp::cas_t cas;
+    uint64_t cas;
 };
 
 class Document {

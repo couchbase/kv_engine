@@ -2564,12 +2564,11 @@ inline std::string to_string(const protocol_binary_datatype_t datatype) {
 } // namespace mcbp
 
 namespace mcbp {
-typedef uint64_t cas_t;
 
 namespace cas {
 /**
  * The special value used as a wildcard and match all CAS values
  */
-const cas_t Wildcard = 0x0;
+const uint64_t Wildcard = 0x0;
 } // namespace cas
 } // namespace mcbp
