@@ -63,7 +63,7 @@ public:
      * The value retrieved for the key.
      */
     Item* getValue() const {
-        return value;
+        return const_cast<Item*>(value);
     }
 
     /**
@@ -96,7 +96,7 @@ public:
 
 private:
 
-    Item* value;
+    const Item* value;
     uint64_t id;
     ENGINE_ERROR_CODE status;
     bool partial;
