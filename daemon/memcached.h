@@ -120,7 +120,6 @@ extern void notify_dispatcher(void);
 extern bool create_notification_pipe(LIBEVENT_THREAD *me);
 
 #include "connection.h"
-#include "connection_greenstack.h"
 #include "connection_listen.h"
 #include "connection_mcbp.h"
 

@@ -45,7 +45,6 @@
 #include "stats.h"
 #include "mcbp_executors.h"
 #include "memcached_openssl.h"
-#include "greenstack.h"
 #include "mcbpdestroybuckettask.h"
 #include "libevent_locking.h"
 #include "doc_pre_expiry.h"

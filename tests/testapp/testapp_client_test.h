@@ -25,13 +25,6 @@ enum class TransportProtocols {
     McbpSsl,
     McbpIpv6Plain,
     McbpIpv6Ssl
-#ifdef ENABLE_GREENSTACK
-    ,
-    GreenstackPlain,
-    GreenstackSsl,
-    GreenstackIpv6Plain,
-    GreenstackIpv6Ssl
-#endif
 };
 
 std::ostream& operator << (std::ostream& os, const TransportProtocols& t);

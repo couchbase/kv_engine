@@ -21,7 +21,6 @@
 
 #include "testapp.h"
 #include "testapp_client_test.h"
-#include <protocol/connection/client_greenstack_connection.h>
 #include <protocol/connection/client_mcbp_connection.h>
 
 #include <algorithm>

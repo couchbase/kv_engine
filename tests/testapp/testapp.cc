@@ -1166,13 +1166,8 @@ MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
         c.setXerrorSupport(true);
         c.setXattrSupport(true);
     } else {
-#ifdef ENABLE_GREENSTACK
-        auto& c = dynamic_cast<MemcachedGreenstackConnection&>(connection);
-    c.hello("memcached_testapp", "1,0", "BucketTest");
-#else
         throw std::logic_error(
             "TestappClientTest::prepare: built without Greenstack support");
-#endif
     }
     return connection;
 }

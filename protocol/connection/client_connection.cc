@@ -16,7 +16,6 @@
  */
 #include "config.h"
 #include "client_connection.h"
-#include "client_greenstack_connection.h"
 #include "client_mcbp_connection.h"
 #include "cJSON_utils.h"
 
@@ -121,16 +120,8 @@ void ConnectionMap::initialize(cJSON* ports) {
 
         MemcachedConnection* connection;
         if (strcmp(protocol->valuestring, "greenstack") == 0) {
-#ifdef ENABLE_GREENSTACK
-            // Enable when we get greenstack support
-            connection = new MemcachedGreenstackConnection("",
-                                                           portval,
-                                                           family,
-                                                           useSsl);
-#else
             throw std::logic_error(
                 "ConnectionMap::initialize: built without greenstack support");
-#endif
         } else {
             connection = new MemcachedBinprotConnection("",
                                                         portval,

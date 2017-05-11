@@ -1,5 +1,3 @@
-INCLUDE_DIRECTORIES(AFTER ${Greenstack_SOURCE_DIR/include})
-
 IF (BREAKPAD_FOUND)
     IF (WIN32)
         SET(BREAKPAD_SRCS breakpad_win32.cc)
@@ -34,18 +32,8 @@ IF (HAVE_LIBNUMA)
     SET(NUMA_LIBRARIES numa)
 ENDIF ()
 
-IF (MEMCACHED_USE_GREENSTACK)
-    LIST(APPEND MEMCACHED_EXTRA_LIBS greenstack)
-    LIST(APPEND MEMCACHED_GREENSTACK_SRC
-         greenstack.cc
-         greenstack.h
-         connection_greenstack.cc
-         connection_greenstack.h)
-ENDIF (MEMCACHED_USE_GREENSTACK)
-
 ADD_LIBRARY(memcached_daemon STATIC
             ${BREAKPAD_SRCS}
-            ${MEMCACHED_GREENSTACK_SRC}
             ${Memcached_SOURCE_DIR}/utilities/protocol2text.cc
             ${Memcached_SOURCE_DIR}/utilities/string_utilities.cc
             ${Memcached_SOURCE_DIR}/utilities/terminate_handler.cc

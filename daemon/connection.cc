@@ -227,20 +227,6 @@ const char* to_string(const Protocol& protocol) {
     }
 }
 
-const char* to_string(const ConnectionState& connectionState) {
-    switch (connectionState) {
-    case ConnectionState::ESTABLISHED:
-        return "established";
-    case ConnectionState::OPEN:
-        return "open";
-    case ConnectionState::AUTHENTICATED:
-        return "authenticated";
-    }
-
-    throw std::logic_error(
-        "Unknown connection state: " + std::to_string(int(connectionState)));
-}
-
 cJSON* Connection::toJSON() const {
     cJSON* obj = cJSON_CreateObject();
     json_add_uintptr_to_object(obj, "connection", (uintptr_t)this);

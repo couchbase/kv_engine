@@ -162,8 +162,7 @@ connections on the same thread do not have to wait.
 
 When a new TCP connection is made it will be connected to the dispatch thread
 which is listening for new connections on all the server ports. The dispatch
-thread will assign it to a worker thread. Note: Greenstack Protocol (mentioned
-below) will use libevent's bufferevent framework
+thread will assign it to a worker thread.
 
 Each worker thread is running a [libevent](http://libevent.org/) loop. libevent
 is an abstraction which allows for scheduling tasks to be done in response to
@@ -182,12 +181,6 @@ Memcached binary protocol. While the encoding is the same as the Memcached
 binary protocol there are additional opcodes for Couchbase specific features
 such as DCP and Subdoc. More in-depth explanation of the binary protocol used by
 Couchbase can be found in the [Binary Protocol document](./BinaryProtocol.md).
-
-##### Greenstack Protocol
-[Greenstack](../protocol/Greenstack) is a 'next-generation' protocol for all
-components of Couchbase Server using flatbuffers allowing for more flexible
-commands and out of order operations. Greenstack is still in development so a
-lot of this connection lifecycle overview will not apply.
 
 #### Reading the request
 The first step to reading a packet from a socket is to read the header. The

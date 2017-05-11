@@ -16,9 +16,6 @@
  */
 #pragma once
 
-#include <libgreenstack/Request.h>
-#include <libgreenstack/Response.h>
-#include <libgreenstack/memcached/Document.h>
 #include <string>
 #include <cstdint>
 #include <memory>
@@ -39,68 +36,4 @@ namespace Greenstack {
 
         mutation_type_t from_string(const std::string& str);
     }
-
-    class MutationRequest
-        : public Greenstack::Request {
-    public:
-        MutationRequest();
-
-        void setMutationType(mutation_type_t type);
-
-        mutation_type_t getMutationType() const;
-
-        std::shared_ptr<DocumentInfo> const& getDocumentInfo() const {
-            return documentInfo;
-        }
-
-        void setDocumentInfo(
-            std::shared_ptr<DocumentInfo> const& documentInfo) {
-            MutationRequest::documentInfo = documentInfo;
-        }
-
-        std::shared_ptr<Buffer> const& getValue() const {
-            return value;
-        }
-
-        void setValue(std::shared_ptr<Buffer> const& value) {
-            MutationRequest::value = value;
-        }
-
-        void assemble();
-
-        void disassemble();
-
-    protected:
-        mutation_type_t mutationType;
-        std::shared_ptr<DocumentInfo> documentInfo;
-        std::shared_ptr<Buffer> value;
-
-        friend class Message;
-
-        virtual void validate() override;
-    };
-
-    class MutationResponse
-        : public Greenstack::Response {
-    public:
-        MutationResponse(cas_t cas, uint32_t size, uint64_t seqno,
-                         uint64_t vbucketuuid);
-
-        MutationResponse(const Greenstack::Status& status);
-
-        cas_t getCas() const;
-
-        size_t getSize() const;
-
-        uint64_t getSeqno() const;
-
-        uint64_t getVbucketUuid() const;
-
-    protected:
-        MutationResponse();
-
-        friend class Message;
-
-        virtual void validate() override;
-    };
 }

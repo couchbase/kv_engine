@@ -30,10 +30,12 @@
 #include <programs/hostname_utils.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_connection.h>
+#include <utilities/protocol2text.h>
+
+#include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
-#include <utilities/protocol2text.h>
 
 /**
  * Get the verbosity level on the server.

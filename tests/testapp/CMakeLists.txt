@@ -1,9 +1,3 @@
-IF (MEMCACHED_USE_GREENSTACK)
-    LIST(APPEND MEMCACHED_GREENSTACK_SRC
-         testapp_greenstack.cc
-         testapp_greenstack.h)
-ENDIF (MEMCACHED_USE_GREENSTACK)
-
 INCLUDE_DIRECTORIES(AFTER ${Platform_SOURCE_DIR}/external)
 
 list(APPEND ssl_impl_sources
@@ -13,7 +7,6 @@ list(APPEND TESTAPP_SOURCES
      ${Memcached_SOURCE_DIR}/daemon/ssl_utils.cc
      ${Memcached_SOURCE_DIR}/daemon/ssl_utils.h
      ${Memcached_SOURCE_DIR}/utilities/subdoc_encoder.cc
-     ${MEMCACHED_GREENSTACK_SRC}
      ssl_impl.h
      ${ssl_impl_sources}
      testapp.cc
@@ -107,7 +100,7 @@ target_compile_options(memcached_testapp PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE})
 ADD_TEST(NAME memcached-basic-unit-tests-bulk
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp
-                    --gtest_filter=*-Transport/*:*PerfTest.*:ShutdownTest.*:RequireInitTest.*:*TransportProtocols*:*Greenstack*:AuditTest*:*ConnectionTimeout*:*ArithmeticTest*:SslCertTest.*)
+                    --gtest_filter=*-Transport/*:*PerfTest.*:ShutdownTest.*:RequireInitTest.*:*TransportProtocols*:AuditTest*:*ConnectionTimeout*:*ArithmeticTest*:SslCertTest.*)
 SET_TESTS_PROPERTIES(memcached-basic-unit-tests-bulk PROPERTIES TIMEOUT 60)
 
 ADD_TEST(NAME memcached-basic-unit-tests-require-init
@@ -172,13 +165,13 @@ SET_TESTS_PROPERTIES(memcached-stats-unit-tests PROPERTIES TIMEOUT 120)
 # Run the unit tests for the memcached binary protocol over a plain socket
 ADD_TEST(NAME memcached-mcbp-unit-tests-plain
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        COMMAND memcached_testapp --gtest_filter=Transport/*/Plain:-*/BucketTest*:-*Greenstack*)
+        COMMAND memcached_testapp --gtest_filter=Transport/*/Plain:-*/BucketTest*)
 SET_TESTS_PROPERTIES(memcached-mcbp-unit-tests-plain PROPERTIES TIMEOUT 200)
 
 # Run the unit tests for the memcached binary protocol over SSL
 ADD_TEST(NAME memcached-mcbp-unit-tests-ssl
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        COMMAND memcached_testapp --gtest_filter=Transport/*/SSL:-*/BucketTest*:-*Greenstack*)
+        COMMAND memcached_testapp --gtest_filter=Transport/*/SSL:-*/BucketTest*)
 SET_TESTS_PROPERTIES(memcached-mcbp-unit-tests-ssl PROPERTIES TIMEOUT 400)
 
 # Run the RBAC tests
@@ -222,12 +215,6 @@ ADD_TEST(NAME memcached-ssl-cert-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=SslCertTest.*)
 SET_TESTS_PROPERTIES(memcached-ssl-cert-tests PROPERTIES TIMEOUT 120)
-
-IF (MEMCACHED_USE_GREENSTACK)
-   ADD_TEST(NAME memcached-greenstack-tests
-            WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-            COMMAND memcached_testapp --gtest_filter=*Greenstack*)
-ENDIF(MEMCACHED_USE_GREENSTACK)
 
 # For perf tests we also want GTest to output XML so we can plot the
 # results in Jenkins.

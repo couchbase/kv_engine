@@ -22,7 +22,6 @@ eventually persistent engine -
 
 # Protocols
 
-* [Greenstack](protocol/Greenstack/README.md)
 * [Memcached Binary Protocol](docs/BinaryProtocol.md)
     * [SASL](docs/sasl.md)
     * [TAP](docs/TAP.md)
