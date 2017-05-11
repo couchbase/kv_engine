@@ -19,17 +19,11 @@
 #include <platform/uuid.h>
 #include <stdexcept>
 
-class Command;
-
 class Connection;
 
 /**
  * The Cookie class represents the cookie passed from the memcached core
  * down through the engine interface to the engine.
- *
- * With Greenstack we want to allow a connection to have multiple
- * commands being active simultaneously in the underlying engine so we can't
- * use the connection id as the identifier.
  *
  * By passing a common class as the cookie our notification model may
  * know what the argument is and provide it's own logic depending on
@@ -37,15 +31,9 @@ class Connection;
  */
 class Cookie {
 public:
-    Cookie(Command* cmd)
-        : magic(0xdeadcafe),
-          connection(nullptr),
-          command(cmd) { }
-
     Cookie(Connection* conn)
         : magic(0xdeadcafe),
-          connection(conn),
-          command(nullptr) { }
+          connection(conn) { }
 
     void validate() const {
         if (magic != 0xdeadcafe) {
@@ -124,7 +112,6 @@ public:
      */
     uint64_t magic;
     Connection* const connection;
-    Command* const command;
 
 protected:
     mutable std::string event_id;

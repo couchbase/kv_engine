@@ -204,11 +204,7 @@ void SaslAuthTask::notifyExecutionComplete() {
         }
     }
 
-    if (cookie.command == nullptr) {
-        notify_io_complete(
-            reinterpret_cast<McbpConnection&>(connection).getCookie(),
-            ENGINE_SUCCESS);
-    } else {
-        throw new std::runtime_error("Not implemented for greenstack");
-    }
+    notify_io_complete(
+        reinterpret_cast<McbpConnection&>(connection).getCookie(),
+        ENGINE_SUCCESS);
 }
