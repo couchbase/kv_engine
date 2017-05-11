@@ -60,11 +60,6 @@ TEST_P(BucketTest, TestMaxNameLength) {
 TEST_P(BucketTest, TestEmptyName) {
     auto& connection = getAdminConnection();
 
-    if (connection.getProtocol() == Protocol::Greenstack) {
-        // libgreenstack won't allow us to send such packets
-        return;
-    }
-
     try {
         connection.createBucket("", "", BucketType::Memcached);
         FAIL() << "Empty bucket name is not refused";

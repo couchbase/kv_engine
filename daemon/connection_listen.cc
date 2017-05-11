@@ -127,7 +127,7 @@ unique_cJSON_ptr ListenConnection::getDetails() {
         cJSON_AddFalseToObject(obj, "ssl");
     }
 
-    cJSON_AddStringToObject(obj, "protocol", to_string(protocol));
+    cJSON_AddStringToObject(obj, "protocol", to_string(protocol).c_str());
     if (family == AF_INET) {
         cJSON_AddStringToObject(obj, "family", "AF_INET");
     } else {

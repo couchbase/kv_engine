@@ -422,8 +422,6 @@ void stats_reset(const void *void_cookie) {
     if (cookie->connection == nullptr) {
         throw std::logic_error("stats_reset: connection can't be null");
     }
-    // Using dynamic cast to ensure a coredump when we implement this for
-    // Greenstack and fix it
     auto* conn = dynamic_cast<McbpConnection*>(cookie->connection);
 
     {
@@ -746,8 +744,6 @@ std::pair<uint32_t, std::string> cookie_get_log_info(const void* void_cookie) {
  * Check if the cookie holds the privilege
  *
  * @param void_cookie this is the cookie passed down to the engine.
- *                    it may either be a connection handle (MCBP) or
- *                    a given command (Greenstack)
  * @param privilege The privilege to check for
  * @return if the privilege is held or not (or if the privilege data is stale)
  */
@@ -790,9 +786,6 @@ static ENGINE_ERROR_CODE pre_link_document(const void* void_cookie,
     auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
     cookie->validate();
 
-    // Greenstack operates in directly in the command context pattern. Given
-    // that greenstack is currently on a hold we don't bother adding the
-    // code for that yet.
     if (cookie->connection == nullptr) {
         throw std::logic_error("pre_link_document: connection can't be null");
     }

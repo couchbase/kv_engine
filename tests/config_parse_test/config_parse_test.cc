@@ -308,23 +308,12 @@ TEST_F(SettingsTest, Interfaces) {
 
     cJSON_AddItemToArray(array.get(), obj.release());
 
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddNumberToObject(obj.get(), "port", 0);
-    cJSON_AddTrueToObject(obj.get(), "ipv4");
-    cJSON_AddTrueToObject(obj.get(), "ipv6");
-    cJSON_AddNumberToObject(obj.get(), "maxconn", 10);
-    cJSON_AddNumberToObject(obj.get(), "backlog", 10);
-    cJSON_AddStringToObject(obj.get(), "host", "*");
-    cJSON_AddStringToObject(obj.get(), "protocol", "greenstack");
-    cJSON_AddTrueToObject(obj.get(), "management");
-    cJSON_AddItemToArray(array.get(), obj.release());
-
     unique_cJSON_ptr root(cJSON_CreateObject());
     cJSON_AddItemToObject(root.get(), "interfaces", array.release());
 
     try {
         Settings settings(root);
-        EXPECT_EQ(2, settings.getInterfaces().size());
+        EXPECT_EQ(1, settings.getInterfaces().size());
         EXPECT_TRUE(settings.has.interfaces);
 
         const auto& ifc0 = settings.getInterfaces()[0];
@@ -337,18 +326,6 @@ TEST_F(SettingsTest, Interfaces) {
         EXPECT_EQ("*", ifc0.host);
         EXPECT_EQ(Protocol::Memcached, ifc0.protocol);
         EXPECT_TRUE(ifc0.management);
-
-        const auto& ifc1 = settings.getInterfaces()[1];
-        EXPECT_EQ(0, ifc1.port);
-        EXPECT_TRUE(ifc1.ipv4);
-        EXPECT_TRUE(ifc1.ipv6);
-        EXPECT_EQ(10, ifc1.maxconn);
-        EXPECT_EQ(10, ifc1.backlog);
-        EXPECT_EQ("*", ifc1.host);
-        EXPECT_EQ(Protocol::Greenstack, ifc1.protocol);
-        EXPECT_TRUE(ifc1.management);
-
-
     } catch (std::exception& exception) {
         FAIL() << exception.what();
     }
@@ -1141,16 +1118,6 @@ TEST(SettingsUpdateTest, InterfaceSomeValuesMayNotChange) {
         Settings updated;
         interface myifc;
         myifc.management = true;
-        updated.addInterface(myifc);
-
-        EXPECT_THROW(settings.updateSettings(updated, false),
-                     std::invalid_argument);
-    }
-
-    {
-        Settings updated;
-        interface myifc;
-        myifc.protocol = Protocol::Greenstack;
         updated.addInterface(myifc);
 
         EXPECT_THROW(settings.updateSettings(updated, false),

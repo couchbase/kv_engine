@@ -217,14 +217,13 @@ static void json_add_bool_to_object(cJSON* obj, const char* name, bool value) {
     }
 }
 
-const char* to_string(const Protocol& protocol) {
-    if (protocol == Protocol::Memcached) {
+std::string to_string(Protocol protocol) {
+    switch (protocol) {
+    case Protocol::Memcached:
         return "memcached";
-    } else if (protocol == Protocol::Greenstack) {
-        return "greenstack";
-    } else {
-        return "unknown";
     }
+
+    return "unknown protocol: " + std::to_string(int(protocol));
 }
 
 cJSON* Connection::toJSON() const {
@@ -234,7 +233,8 @@ cJSON* Connection::toJSON() const {
         cJSON_AddStringToObject(obj, "socket", "disconnected");
     } else {
         cJSON_AddNumberToObject(obj, "socket", (double)socketDescriptor);
-        cJSON_AddStringToObject(obj, "protocol", to_string(getProtocol()));
+        cJSON_AddStringToObject(
+                obj, "protocol", to_string(getProtocol()).c_str());
         cJSON_AddStringToObject(obj, "peername", getPeername().c_str());
         cJSON_AddStringToObject(obj, "sockname", getSockname().c_str());
         cJSON_AddNumberToObject(obj, "parent_port", parent_port);

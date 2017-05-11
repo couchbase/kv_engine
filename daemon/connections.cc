@@ -116,7 +116,6 @@ void close_all_connections(void)
             }
 
             if (c->getRefcount() > 1) {
-                // @todo fix this for Greenstack
                 auto* mcbp = dynamic_cast<McbpConnection*>(c);
                 if (mcbp == nullptr) {
                     abort();
@@ -197,9 +196,11 @@ Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
         return nullptr;
     }
 
-    LOG_INFO(nullptr, "%u: Accepted new client %s using protocol: %s",
-             c->getId(), c->getDescription().c_str(),
-             to_string(c->getProtocol()));
+    LOG_INFO(nullptr,
+             "%u: Accepted new client %s using protocol: %s",
+             c->getId(),
+             c->getDescription().c_str(),
+             to_string(c->getProtocol()).c_str());
 
     stats.total_conns++;
 
@@ -434,15 +435,7 @@ static Connection *allocate_connection(SOCKET sfd,
     Connection *ret = nullptr;
 
     try {
-        switch (interface.protocol) {
-        case Protocol::Memcached:
-            ret = new McbpConnection(sfd, base, interface);
-            break;
-        case Protocol::Greenstack:
-            throw std::logic_error(
-                "allocate_connection: server built without support for Greenstack");
-        }
-
+        ret = new McbpConnection(sfd, base, interface);
         std::lock_guard<std::mutex> lock(connections.mutex);
         connections.conns.push_back(ret);
         stats.conn_structs++;

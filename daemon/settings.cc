@@ -820,11 +820,8 @@ static void handle_interface_protocol(struct interface& ifc, cJSON* obj) {
 
     if (protocol == "memcached") {
         ifc.protocol = Protocol::Memcached;
-    } else if (protocol == "greenstack") {
-        ifc.protocol = Protocol::Greenstack;
     } else {
-        throw std::invalid_argument(
-            "\"protocol\" must be \"memcached\" or \"greenstack\"");
+        throw std::invalid_argument("\"protocol\" must be \"memcached\"");
     }
 }
 

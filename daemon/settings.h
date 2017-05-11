@@ -37,14 +37,11 @@
  * on the server.
  */
 enum class Protocol : uint8_t {
-    /** The memcached binary protocol used in Couchbase < 4.0 */
-    Memcached,
-    /** The (new and upcomming) Greenstack protocol */
-    Greenstack
+    /** The memcached binary protocol as described in docs/BinaryProtocol.md */
+    Memcached
 };
 
-const char* to_string(const Protocol& protocol);
-
+std::string to_string(Protocol protocol);
 
 struct interface {
     interface()
