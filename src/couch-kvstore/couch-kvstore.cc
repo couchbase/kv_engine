@@ -396,8 +396,8 @@ void CouchKVStore::reset(uint16_t vbucketId) {
         unlinkCouchFile(vbucketId, dbFileRevMap[vbucketId]);
         incrementRevision(vbucketId);
 
-        setVBucketState(vbucketId, *state, VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT,
-                        true);
+        setVBucketState(
+                vbucketId, *state, VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT);
     } else {
         throw std::invalid_argument("CouchKVStore::reset: No entry in cached "
                         "states for vbucket " + std::to_string(vbucketId));
@@ -902,8 +902,10 @@ bool CouchKVStore::compactDB(compaction_ctx *hook_ctx) {
     hook_ctx->config = &configuration;
 
     // Open the source VBucket database file ...
-    errCode = openDB(vbid, fileRev, &compactdb,
-                     (uint64_t)COUCHSTORE_OPEN_FLAG_RDONLY, nullptr, false,
+    errCode = openDB(vbid,
+                     fileRev,
+                     &compactdb,
+                     (uint64_t)COUCHSTORE_OPEN_FLAG_RDONLY,
                      def_iops);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.log(EXTENSION_LOG_WARNING,
@@ -958,8 +960,8 @@ bool CouchKVStore::compactDB(compaction_ctx *hook_ctx) {
     }
 
     // Open the newly compacted VBucket database file ...
-    errCode = openDB(vbid, new_rev, &targetDb,
-                     (uint64_t)COUCHSTORE_OPEN_FLAG_RDONLY, NULL);
+    errCode = openDB(
+            vbid, new_rev, &targetDb, (uint64_t)COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.log(EXTENSION_LOG_WARNING,
                        "CouchKVStore::compactDB: openDB#2 error:%s, file:%s, "
@@ -1009,13 +1011,10 @@ vbucket_state * CouchKVStore::getVBucketState(uint16_t vbucketId) {
 }
 
 bool CouchKVStore::setVBucketState(uint16_t vbucketId,
-                                   const vbucket_state &vbstate,
-                                   VBStatePersist options,
-                                   bool reset) {
+                                   const vbucket_state& vbstate,
+                                   VBStatePersist options) {
     Db *db = NULL;
-    uint64_t fileRev, newFileRev;
-    std::stringstream id, rev;
-    std::string dbFileName;
+    uint64_t fileRev;
     std::map<uint16_t, uint64_t>::iterator mapItr;
     kvstats_ctx kvctx(configuration);
     kvctx.vbucket = vbucketId;
@@ -1023,33 +1022,29 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId,
 
     if (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
             options == VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT) {
-        id << vbucketId;
         fileRev = dbFileRevMap[vbucketId];
-        rev << fileRev;
-        dbFileName = dbname + "/" + id.str() + ".couch." + rev.str();
-
-        errorCode = openDB(vbucketId, fileRev, &db,
-                           (uint64_t)COUCHSTORE_OPEN_FLAG_CREATE,
-                           &newFileRev, reset);
+        errorCode = openDB(
+                vbucketId, fileRev, &db, (uint64_t)COUCHSTORE_OPEN_FLAG_CREATE);
         if (errorCode != COUCHSTORE_SUCCESS) {
             ++st.numVbSetFailure;
             logger.log(EXTENSION_LOG_WARNING,
-                       "CouchKVStore::setVBucketState: openDB error:%s, name:%s",
-                       couchstore_strerror(errorCode), dbFileName.c_str());
+                       "CouchKVStore::setVBucketState: openDB error:%s, "
+                       "vb:%" PRIu16 ", fileRev:%" PRIu64,
+                       couchstore_strerror(errorCode),
+                       vbucketId,
+                       fileRev);
             return false;
         }
-
-        fileRev = newFileRev;
-        rev << fileRev;
-        dbFileName = dbname + "/" + id.str() + ".couch." + rev.str();
 
         errorCode = saveVBState(db, vbstate);
         if (errorCode != COUCHSTORE_SUCCESS) {
             ++st.numVbSetFailure;
             logger.log(EXTENSION_LOG_WARNING,
                        "CouchKVStore:setVBucketState: saveVBState error:%s, "
-                       "name:%s", couchstore_strerror(errorCode),
-                       dbFileName.c_str());
+                       "vb:%" PRIu16 ", fileRev:%" PRIu64,
+                       couchstore_strerror(errorCode),
+                       vbucketId,
+                       fileRev);
             closeDatabaseHandle(db);
             return false;
         }
@@ -1432,8 +1427,6 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
                                         uint64_t fileRev,
                                         Db **db,
                                         uint64_t options,
-                                        uint64_t *newFileRev,
-                                        bool reset,
                                         FileOpsInterface* ops) {
     std::string dbFileName = getDBFileName(dbname, vbucketId, fileRev);
 
@@ -1454,60 +1447,40 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
         options |= COUCHSTORE_OPEN_FLAG_UNBUFFERED;
     }
 
-    if (reset) {
-        errorCode = couchstore_open_db_ex(dbFileName.c_str(), options,
-                                          ops, db);
-        if (errorCode == COUCHSTORE_SUCCESS) {
-            newRevNum = 1;
-            updateDbFileMap(vbucketId, fileRev);
-            logger.log(EXTENSION_LOG_INFO,
-                       "CouchKVStore::openDB: created new couchstore file "
-                       "name:%s, rev:%" PRIu64 ", reset:true",
-                       dbFileName.c_str(), fileRev);
-        } else {
-            logger.log(EXTENSION_LOG_WARNING,
-                       "CouchKVStore::openDB: couchstore_open_db_ex error:%s, "
-                       "name:%s, rev:%" PRIu64 ", reset:true",
-                       couchstore_strerror(errorCode), dbFileName.c_str(),
-                       fileRev);
-        }
-    } else {
-        if (options & COUCHSTORE_OPEN_FLAG_CREATE) {
-            // first try to open the requested file without the
-            // create option in case it does already exist
-            errorCode = couchstore_open_db_ex(dbFileName.c_str(), 0, ops, db);
-            if (errorCode != COUCHSTORE_SUCCESS) {
-                // open_db failed but still check if the file exists
-                newRevNum = checkNewRevNum(dbFileName);
-                bool fileExists = (newRevNum) ? true : false;
-                if (fileExists) {
-                    errorCode = openDB_retry(dbFileName, 0, ops, db,
-                                             &newRevNum);
+    if (options & COUCHSTORE_OPEN_FLAG_CREATE) {
+        // first try to open the requested file without the
+        // create option in case it does already exist
+        errorCode = couchstore_open_db_ex(dbFileName.c_str(), 0, ops, db);
+        if (errorCode != COUCHSTORE_SUCCESS) {
+            // open_db failed but still check if the file exists
+            newRevNum = checkNewRevNum(dbFileName);
+            bool fileExists = (newRevNum) ? true : false;
+            if (fileExists) {
+                errorCode = openDB_retry(dbFileName, 0, ops, db, &newRevNum);
+            } else {
+                // requested file doesn't seem to exist, just create one
+                errorCode = couchstore_open_db_ex(
+                        dbFileName.c_str(), options, ops, db);
+                if (errorCode == COUCHSTORE_SUCCESS) {
+                    logger.log(EXTENSION_LOG_INFO,
+                               "CouchKVStore::openDB: created new couch db "
+                               "file, name:%s "
+                               "rev:%" PRIu64,
+                               dbFileName.c_str(),
+                               fileRev);
                 } else {
-                    // requested file doesn't seem to exist, just create one
-                    errorCode = couchstore_open_db_ex(dbFileName.c_str(),
-                                                      options, ops, db);
-                    if (errorCode == COUCHSTORE_SUCCESS) {
-                        newRevNum = 1;
-                        updateDbFileMap(vbucketId, fileRev);
-                        logger.log(EXTENSION_LOG_INFO,
-                                   "CouchKVStore::openDB: created new couch db file, name:%s "
-                                   "rev:%" PRIu64 ", reset:false",
-                                   dbFileName.c_str(), fileRev);
-                    } else {
-                        logger.log(EXTENSION_LOG_WARNING,
-                                   "CouchKVStore::openDB: couchstore_open_db_ex"
-                                   " error:%s, name:%s, rev:%" PRIu64
-                                   ", reset:false",
-                                   couchstore_strerror(errorCode),
-                                   dbFileName.c_str(), fileRev);
-                    }
+                    logger.log(EXTENSION_LOG_WARNING,
+                               "CouchKVStore::openDB: couchstore_open_db_ex"
+                               " error:%s, name:%s, rev:%" PRIu64
+                               ", reset:false",
+                               couchstore_strerror(errorCode),
+                               dbFileName.c_str(),
+                               fileRev);
                 }
             }
-        } else {
-            errorCode = openDB_retry(dbFileName, options, ops, db,
-                                     &newRevNum);
         }
+    } else {
+        errorCode = openDB_retry(dbFileName, options, ops, db, &newRevNum);
     }
 
     /* update command statistics */
@@ -1519,16 +1492,8 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
                    couchstore_strerror(errorCode),
                    cb_strerror().c_str(), dbFileName.c_str(), options,
                    ((newRevNum > fileRev) ? newRevNum : fileRev));
-    } else {
-        if (newRevNum > fileRev) {
-            // new revision number found, update it
-            updateDbFileMap(vbucketId, newRevNum);
-        }
     }
 
-    if (newFileRev != NULL) {
-        *newFileRev = (newRevNum > fileRev) ? newRevNum : fileRev;
-    }
     return errorCode;
 }
 
@@ -1956,8 +1921,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid,
     }
 
     DbHolder db(this);
-    uint64_t newFileRev;
-    errCode = openDB(vbid, fileRev, db.getDbAddress(), 0, &newFileRev);
+    errCode = openDB(vbid, fileRev, db.getDbAddress(), 0);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.log(EXTENSION_LOG_WARNING,
                    "CouchKVStore::saveDocs: openDB error:%s, vb:%" PRIu16

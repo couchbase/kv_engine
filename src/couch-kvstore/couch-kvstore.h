@@ -460,8 +460,9 @@ protected:
      */
     DbInfo getDbInfo(uint16_t vbid);
 
-    bool setVBucketState(uint16_t vbucketId, const vbucket_state &vbstate,
-                         VBStatePersist options, bool reset=false);
+    bool setVBucketState(uint16_t vbucketId,
+                         const vbucket_state& vbstate,
+                         VBStatePersist options);
 
     template <typename T>
     void addStat(const std::string &prefix, const char *nm, T &val,
@@ -477,9 +478,11 @@ protected:
                              std::vector<uint16_t> *vbids);
     void remVBucketFromDbFileMap(uint16_t vbucketId);
     void updateDbFileMap(uint16_t vbucketId, uint64_t newFileRev);
-    couchstore_error_t openDB(uint16_t vbucketId, uint64_t fileRev, Db **db,
-                              uint64_t options, uint64_t *newFileRev = NULL,
-                              bool reset=false, FileOpsInterface* ops = nullptr);
+    couchstore_error_t openDB(uint16_t vbucketId,
+                              uint64_t fileRev,
+                              Db** db,
+                              uint64_t options,
+                              FileOpsInterface* ops = nullptr);
     couchstore_error_t openDB_retry(std::string &dbfile, uint64_t options,
                                     FileOpsInterface *ops,
                                     Db **db, uint64_t *newFileRev);

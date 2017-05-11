@@ -158,6 +158,8 @@ protected:
 static void initialize_kv_store(KVStore* kvstore) {
     std::string failoverLog("");
     vbucket_state state(vbucket_state_active, 0, 0, 0, 0, 0, 0, 0, failoverLog);
+    // simulate the setVbState by incrementing the rev
+    kvstore->incrementRevision(0);
     kvstore->snapshotVBucket(0, state,
                             VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT);
 }
@@ -1164,6 +1166,8 @@ public:
         std::string failoverLog("");
         vbucket_state state(vbucket_state_active, 0, 0, 0, 0, 0, 0, 0,
                             failoverLog);
+        // simulate a setVBState - increment the dbFile revision
+        kvstore->incrementRevision(0);
         kvstore->snapshotVBucket(0, state,
                                  VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT);
     }
