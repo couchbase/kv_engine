@@ -199,7 +199,7 @@ public:
     }
 
 protected:
-    MutationInfo store(MemcachedBinprotConnection& conn, mutation_type_t type) {
+    MutationInfo store(MemcachedBinprotConnection& conn, MutationType type) {
         Document document;
         document.info.cas = mcbp::cas::Wildcard;
         document.info.datatype = mcbp::Datatype::Json;
@@ -329,7 +329,7 @@ TEST_P(RbacRoleTest, MutationTest_ReadOnly) {
         try {
             store(ro, type);
             FAIL() << "The read-only user should not be able modify document with operation: "
-                   << type;
+                   << to_string(type);
         } catch (const ConnectionError& error) {
             EXPECT_TRUE(error.isAccessDenied());
         }

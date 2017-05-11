@@ -80,14 +80,11 @@ enum class BucketType : uint8_t {
     EWouldBlock = 3
 };
 
-typedef uint8_t mutation_type_t;
-namespace MutationType {
-const mutation_type_t Add = 0;
-const mutation_type_t Set = 1;
-const mutation_type_t Replace = 2;
-const mutation_type_t Append = 3;
-const mutation_type_t Prepend = 4;
-} // namespace MutationType
+enum class MutationType {
+    Add, Set, Replace, Append, Prepend
+};
+
+std::string to_string(MutationType type);
 
 class ConnectionError : public std::runtime_error {
 public:
@@ -306,7 +303,7 @@ public:
 
     MutationInfo mutate(const Document& doc,
                         uint16_t vbucket,
-                        const mutation_type_t type) {
+                        MutationType type) {
         return mutate(doc.info,
                       vbucket,
                       cb::const_byte_buffer(doc.value.data(), doc.value.size()),
@@ -327,7 +324,7 @@ public:
     virtual MutationInfo mutate(const DocumentInfo& info,
                                 uint16_t vbucket,
                                 cb::const_byte_buffer value,
-                                const mutation_type_t type) = 0;
+                                MutationType type) = 0;
 
     /**
      * Convenience method to store (aka "upsert") an item.

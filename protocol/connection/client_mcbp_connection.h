@@ -149,7 +149,7 @@ public:
     MutationInfo mutate(const DocumentInfo& doc,
                         uint16_t vbucket,
                         cb::const_byte_buffer value,
-                        const mutation_type_t type) override;
+                        MutationType type) override;
 
     using MemcachedConnection::mutate;
 

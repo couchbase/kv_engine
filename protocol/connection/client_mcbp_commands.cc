@@ -232,21 +232,41 @@ uint32_t BinprotGetResponse::getDocumentFlags() const {
 }
 
 BinprotMutationCommand& BinprotMutationCommand::setMutationType(
-        const mutation_type_t type) {
-    if (type == MutationType::Append) {
-        setOp(PROTOCOL_BINARY_CMD_APPEND);
-    } else if (type == MutationType::Prepend) {
-        setOp(PROTOCOL_BINARY_CMD_PREPEND);
-    } else if (type == MutationType::Replace) {
-        setOp(PROTOCOL_BINARY_CMD_REPLACE);
-    } else if (type == MutationType::Set) {
-        setOp(PROTOCOL_BINARY_CMD_SET);
-    } else if (type == MutationType::Add) {
+    MutationType type) {
+    switch (type) {
+    case MutationType::Add:
         setOp(PROTOCOL_BINARY_CMD_ADD);
-    } else {
-        throw std::invalid_argument("BinprotMutationCommand::setMutationType: Mutation type not supported");
+        return *this;
+    case MutationType::Set:
+        setOp(PROTOCOL_BINARY_CMD_SET);
+        return *this;
+    case MutationType::Replace:
+        setOp(PROTOCOL_BINARY_CMD_REPLACE);
+        return *this;
+    case MutationType::Append:
+        setOp(PROTOCOL_BINARY_CMD_APPEND);
+        return *this;
+    case MutationType::Prepend:
+        setOp(PROTOCOL_BINARY_CMD_PREPEND);
+        return *this;
     }
-    return *this;
+
+    throw std::invalid_argument(
+        "BinprotMutationCommand::setMutationType: Mutation type not supported: " +
+        std::to_string(int(type)));
+}
+
+std::string to_string(MutationType type) {
+    switch (type) {
+    case MutationType::Add: return "ADD";
+    case MutationType::Set: return "SET";
+    case MutationType::Replace: return "REPLACE";
+    case MutationType::Append: return "APPEND";
+    case MutationType::Prepend: return "PREPEND";
+    }
+
+    return "to_string(MutationType type) Unknown type: " +
+           std::to_string(int(type));
 }
 
 BinprotMutationCommand& BinprotMutationCommand::setDocumentInfo(

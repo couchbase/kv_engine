@@ -940,7 +940,7 @@ using BinprotIsaslRefreshResponse = BinprotResponse;
 
 class BinprotMutationCommand : public BinprotCommandT<BinprotMutationCommand> {
 public:
-    BinprotMutationCommand& setMutationType(const mutation_type_t);
+    BinprotMutationCommand& setMutationType(MutationType);
     BinprotMutationCommand& setDocumentInfo(const DocumentInfo& info);
 
     BinprotMutationCommand& setValue(std::vector<uint8_t>&& value_) {

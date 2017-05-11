@@ -377,7 +377,7 @@ Frame MemcachedBinprotConnection::encodeCmdGet(const std::string& id,
 MutationInfo MemcachedBinprotConnection::mutate(const DocumentInfo& info,
                                                 uint16_t vbucket,
                                                 cb::const_byte_buffer value,
-                                                const mutation_type_t type) {
+                                                MutationType type) {
     BinprotMutationCommand command;
     command.setDocumentInfo(info);
     command.addValueBuffer(value);
