@@ -333,7 +333,7 @@ int McbpConnection::sslPreConnection() {
                 ERR_error_string_n(ERR_get_error(), ssl_err.data(),
                                    ssl_err.size());
 
-                LOG_WARNING(this, "%u: ERROR: %s\n%s",
+                LOG_WARNING(this, "%u: %s: %s",
                             getId(), errmsg.c_str(), ssl_err.data());
             } catch (const std::bad_alloc&) {
                 // unable to print error message; continue.
