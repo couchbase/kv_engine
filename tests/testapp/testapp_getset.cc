@@ -25,9 +25,8 @@
 class GetSetTest : public TestappClientTest {
 public:
     void SetUp() {
-        document.info.cas = Greenstack::CAS::Wildcard;
-        document.info.compression = Greenstack::Compression::None;
-        document.info.datatype = Greenstack::Datatype::Json;
+        document.info.cas = mcbp::cas::Wildcard;
+        document.info.datatype = mcbp::Datatype::Json;
         document.info.flags = 0xcaffee;
         document.info.id = name;
         const std::string content = to_string(memcached_cfg, false);
@@ -50,12 +49,12 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
 
 TEST_P(GetSetTest, TestAdd) {
     MemcachedConnection& conn = getConnection();
-    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    conn.mutate(document, 0, MutationType::Add);
 
     int eExistsCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
     // Adding it one more time should fail
     try {
-        conn.mutate(document, 0, Greenstack::MutationType::Add);
+        conn.mutate(document, 0, MutationType::Add);
         FAIL() << "It should not be possible to add a document that exists";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
@@ -67,8 +66,8 @@ TEST_P(GetSetTest, TestAdd) {
     // Add with a cas should fail
     int invalCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_EINVAL);
     try {
-        document.info.cas = Greenstack::CAS::Wildcard + 1;
-        conn.mutate(document, 0, Greenstack::MutationType::Add);
+        document.info.cas = mcbp::cas::Wildcard + 1;
+        conn.mutate(document, 0, MutationType::Add);
         FAIL() << "It should not be possible to add a document that exists";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isInvalidArguments()) << error.what();
@@ -84,7 +83,7 @@ TEST_P(GetSetTest, TestReplace) {
     // Replacing a nonexisting document should fail
     int eNoentCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
     try {
-        conn.mutate(document, 0, Greenstack::MutationType::Replace);
+        conn.mutate(document, 0, MutationType::Replace);
         FAIL() << "It's not possible to replace a nonexisting document";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound()) << error.what();
@@ -93,17 +92,17 @@ TEST_P(GetSetTest, TestReplace) {
                   getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT));
     }
 
-    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    conn.mutate(document, 0, MutationType::Add);
     // Replace this time should be fine!
     MutationInfo info;
-    info = conn.mutate(document, 0, Greenstack::MutationType::Replace);
+    info = conn.mutate(document, 0, MutationType::Replace);
 
     // Replace with invalid cas should fail
     document.info.cas = info.cas + 1;
 
     int eExistsCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
     try {
-        conn.mutate(document, 0, Greenstack::MutationType::Replace);
+        conn.mutate(document, 0, MutationType::Replace);
         FAIL() << "replace with CAS mismatch should fail!";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
@@ -116,7 +115,7 @@ TEST_P(GetSetTest, TestReplace) {
     conn.remove(name, 0, 0);
     document.info.cas = 0;
     try {
-        conn.mutate(document, 0, Greenstack::MutationType::Replace);
+        conn.mutate(document, 0, MutationType::Replace);
         FAIL() << "It's not possible to replace a nonexisting document (deleted)";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound()) << error.what();
@@ -125,7 +124,7 @@ TEST_P(GetSetTest, TestReplace) {
     // And CAS replace
     document.info.cas = 1;
     try {
-        conn.mutate(document, 0, Greenstack::MutationType::Replace);
+        conn.mutate(document, 0, MutationType::Replace);
         FAIL() << "It's not possible to replace a nonexisting document (deleted)";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound()) << error.what();
@@ -136,11 +135,11 @@ TEST_P(GetSetTest, TestReplace) {
 TEST_P(GetSetTest, TestReplaceWithXattr) {
     // The current code does not preserve XATTRs yet
     auto& conn = getConnection();
-    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    conn.mutate(document, 0, MutationType::Add);
     createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
     const auto mutation_cas = getXattr("meta.cas");
     EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas);
-    conn.mutate(document, 0, Greenstack::MutationType::Replace);
+    conn.mutate(document, 0, MutationType::Replace);
     // The xattr should have been preserved, and the macro should not
     // be expanded more than once..
     EXPECT_EQ(mutation_cas, getXattr("meta.cas"));
@@ -153,7 +152,7 @@ TEST_P(GetSetTest, TestSet) {
 
     int eNoentCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
     try {
-        conn.mutate(document, 0, Greenstack::MutationType::Set);
+        conn.mutate(document, 0, MutationType::Set);
         FAIL() << "Set with CAS and no such doc should fail!";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound()) << error.what();
@@ -163,15 +162,15 @@ TEST_P(GetSetTest, TestSet) {
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     // set should work even if a nonexisting document should fail
-    document.info.cas = Greenstack::CAS::Wildcard;
-    conn.mutate(document, 0, Greenstack::MutationType::Set);
+    document.info.cas = mcbp::cas::Wildcard;
+    conn.mutate(document, 0, MutationType::Set);
 
     // And it should be possible to set it once more
-    auto info = conn.mutate(document, 0, Greenstack::MutationType::Set);
+    auto info = conn.mutate(document, 0, MutationType::Set);
 
     // And it should be possible to set it with a CAS
     document.info.cas = info.cas;
-    info = conn.mutate(document, 0, Greenstack::MutationType::Set);
+    info = conn.mutate(document, 0, MutationType::Set);
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
@@ -182,7 +181,7 @@ TEST_P(GetSetTest, TestSet) {
     int eExistsCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
 
     try {
-        conn.mutate(document, 0, Greenstack::MutationType::Replace);
+        conn.mutate(document, 0, MutationType::Replace);
         FAIL() << "set with CAS mismatch should fail!";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
@@ -208,7 +207,7 @@ TEST_P(GetSetTest, TestGetMiss) {
 
 TEST_P(GetSetTest, TestGetSuccess) {
     MemcachedConnection& conn = getConnection();
-    conn.mutate(document, 0, Greenstack::MutationType::Set);
+    conn.mutate(document, 0, MutationType::Set);
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     const auto stored = conn.get(name, 0);
@@ -216,9 +215,8 @@ TEST_P(GetSetTest, TestGetSuccess) {
     EXPECT_EQ(successCount + statResps() + 1,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
-    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
-    EXPECT_EQ(Greenstack::Datatype::Json, stored.info.datatype);
+    EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
+    EXPECT_EQ(mcbp::Datatype::Json, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     EXPECT_EQ(document.value, stored.value);
@@ -226,22 +224,21 @@ TEST_P(GetSetTest, TestGetSuccess) {
 
 TEST_P(GetSetTest, TestAppend) {
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = Greenstack::Datatype::Raw;
+    document.info.datatype = mcbp::Datatype::Raw;
     document.value.clear();
     document.value.push_back('a');
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    conn.mutate(document, 0, Greenstack::MutationType::Set);
+    conn.mutate(document, 0, MutationType::Set);
     document.value[0] = 'b';
-    conn.mutate(document, 0, Greenstack::MutationType::Append);
+    conn.mutate(document, 0, MutationType::Append);
 
     const auto stored = conn.get(name, 0);
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
-    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
-    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
+    EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
+    EXPECT_EQ(mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     document.value[0] = 'a';
@@ -252,17 +249,17 @@ TEST_P(GetSetTest, TestAppend) {
 TEST_P(GetSetTest, TestAppendWithXattr) {
     // The current code does not preserve XATTRs
     auto& conn = getConnection();
-    document.info.datatype = Greenstack::Datatype::Raw;
+    document.info.datatype = mcbp::Datatype::Raw;
     document.value.clear();
     document.value.push_back('a');
     int sucCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    conn.mutate(document, 0, MutationType::Add);
     createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
     const auto mutation_cas = getXattr("meta.cas");
     EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas);
 
     document.value[0] = 'b';
-    conn.mutate(document, 0, Greenstack::MutationType::Append);
+    conn.mutate(document, 0, MutationType::Append);
 
     // The xattr should have been preserved, and the macro should not
     // be expanded more than once..
@@ -281,9 +278,8 @@ TEST_P(GetSetTest, TestAppendWithXattr) {
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     // And the rest of the doc should look the same
-    EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
-    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
-    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
+    EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
+    EXPECT_EQ(mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     document.value[0] = 'a';
@@ -294,15 +290,15 @@ TEST_P(GetSetTest, TestAppendWithXattr) {
 
 TEST_P(GetSetTest, TestAppendCasSuccess) {
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = Greenstack::Datatype::Raw;
+    document.info.datatype = mcbp::Datatype::Raw;
     document.value.clear();
     document.value.push_back('a');
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    const auto info = conn.mutate(document, 0, Greenstack::MutationType::Set);
+    const auto info = conn.mutate(document, 0, MutationType::Set);
     document.value[0] = 'b';
     document.info.cas = info.cas;
-    conn.mutate(document, 0, Greenstack::MutationType::Append);
+    conn.mutate(document, 0, MutationType::Append);
 
     const auto stored = conn.get(name, 0);
     // Check that we correctly increment the status counter stat
@@ -310,8 +306,7 @@ TEST_P(GetSetTest, TestAppendCasSuccess) {
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_NE(info.cas, stored.info.cas);
-    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
-    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     document.value[0] = 'a';
@@ -321,15 +316,15 @@ TEST_P(GetSetTest, TestAppendCasSuccess) {
 
 TEST_P(GetSetTest, TestAppendCasMismatch) {
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = Greenstack::Datatype::Raw;
+    document.info.datatype = mcbp::Datatype::Raw;
     document.value.clear();
     document.value.push_back('a');
 
-    const auto info = conn.mutate(document, 0, Greenstack::MutationType::Set);
+    const auto info = conn.mutate(document, 0, MutationType::Set);
     document.value[0] = 'b';
     document.info.cas = info.cas + 1;
     try {
-        conn.mutate(document, 0, Greenstack::MutationType::Append);
+        conn.mutate(document, 0, MutationType::Append);
         FAIL() << "Append with illegal CAS should fail";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
@@ -339,7 +334,6 @@ TEST_P(GetSetTest, TestAppendCasMismatch) {
     const auto stored = conn.get(name, 0);
 
     EXPECT_EQ(info.cas, stored.info.cas);
-    EXPECT_EQ(document.info.compression, stored.info.compression);
     EXPECT_EQ(document.info.datatype, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
@@ -349,22 +343,21 @@ TEST_P(GetSetTest, TestAppendCasMismatch) {
 
 TEST_P(GetSetTest, TestPrepend) {
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = Greenstack::Datatype::Raw;
+    document.info.datatype = mcbp::Datatype::Raw;
     document.value.clear();
     document.value.push_back('a');
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    conn.mutate(document, 0, Greenstack::MutationType::Set);
+    conn.mutate(document, 0, MutationType::Set);
     document.value[0] = 'b';
-    conn.mutate(document, 0, Greenstack::MutationType::Prepend);
+    conn.mutate(document, 0, MutationType::Prepend);
 
     const auto stored = conn.get(name, 0);
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
-    EXPECT_EQ(document.info.compression, stored.info.compression);
+    EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
     EXPECT_EQ(document.info.datatype, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
@@ -375,19 +368,19 @@ TEST_P(GetSetTest, TestPrepend) {
 TEST_P(GetSetTest, TestPrependWithXattr) {
     // The current code does not preserve XATTRs
     auto& conn = getConnection();
-    document.info.datatype = Greenstack::Datatype::Raw;
+    document.info.datatype = mcbp::Datatype::Raw;
     document.value.clear();
     document.value.push_back('a');
 
     int sucCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    conn.mutate(document, 0, MutationType::Add);
     createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
     const auto mutation_cas = getXattr("meta.cas");
     EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas);
 
     document.value[0] = 'b';
-    conn.mutate(document, 0, Greenstack::MutationType::Prepend);
+    conn.mutate(document, 0, MutationType::Prepend);
 
     // The xattr should have been preserved, and the macro should not
     // be expanded more than once..
@@ -406,9 +399,8 @@ TEST_P(GetSetTest, TestPrependWithXattr) {
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     // And the rest of the doc should look the same
-    EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
-    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
-    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
+    EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
+    EXPECT_EQ(mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     document.value.push_back('a');
@@ -417,23 +409,22 @@ TEST_P(GetSetTest, TestPrependWithXattr) {
 
 TEST_P(GetSetTest, TestPrependCasSuccess) {
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = Greenstack::Datatype::Raw;
+    document.info.datatype = mcbp::Datatype::Raw;
     document.value.clear();
     document.value.push_back('a');
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    const auto info = conn.mutate(document, 0, Greenstack::MutationType::Set);
+    const auto info = conn.mutate(document, 0, MutationType::Set);
     document.value[0] = 'b';
     document.info.cas = info.cas;
-    conn.mutate(document, 0, Greenstack::MutationType::Prepend);
+    conn.mutate(document, 0, MutationType::Prepend);
 
     const auto stored = conn.get(name, 0);
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
-    EXPECT_EQ(document.info.compression, stored.info.compression);
+    EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
     EXPECT_EQ(document.info.datatype, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
@@ -443,23 +434,22 @@ TEST_P(GetSetTest, TestPrependCasSuccess) {
 
 TEST_P(GetSetTest, TestPerpendCasMismatch) {
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = Greenstack::Datatype::Raw;
+    document.info.datatype = mcbp::Datatype::Raw;
     document.value.clear();
     document.value.push_back('a');
 
-    const auto info = conn.mutate(document, 0, Greenstack::MutationType::Set);
+    const auto info = conn.mutate(document, 0, MutationType::Set);
     document.value[0] = 'b';
     document.info.cas = info.cas + 1;
     try {
-        conn.mutate(document, 0, Greenstack::MutationType::Prepend);
+        conn.mutate(document, 0, MutationType::Prepend);
         FAIL() << "Prepend with illegal CAS should fail";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
     }
     const auto stored = conn.get(name, 0);
 
-    EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
-    EXPECT_EQ(document.info.compression, stored.info.compression);
+    EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
     EXPECT_EQ(document.info.datatype, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
@@ -471,7 +461,7 @@ TEST_P(GetSetTest, TestIllegalVbucket) {
     auto& conn = getConnection();
     conn.authenticate("@admin", "password", "PLAIN");
     // A memcached bucket only use vbucket 0
-    conn.createBucket("bucket", "", Greenstack::BucketType::Memcached);
+    conn.createBucket("bucket", "", BucketType::Memcached);
     conn.selectBucket("bucket");
 
     try {
@@ -498,27 +488,25 @@ static void compress_vector(const std::vector<char>& input,
 
 TEST_P(GetSetTest, TestAppendCompressedSource) {
     MemcachedConnection& conn = getConnection();
-    document.info.compression = Greenstack::Compression::Snappy;
-    document.info.datatype = Greenstack::Datatype::Raw;
+    document.info.datatype = mcbp::Datatype::Snappy;
 
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'a');
     compress_vector(input, document.value);
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    conn.mutate(document, 0, Greenstack::MutationType::Set);
+    conn.mutate(document, 0, MutationType::Set);
     document.value.resize(input.size());
     std::fill(document.value.begin(), document.value.end(), 'b');
-    document.info.compression = Greenstack::Compression::None;
+    document.info.datatype = mcbp::Datatype::Raw;
 
-    conn.mutate(document, 0, Greenstack::MutationType::Append);
+    conn.mutate(document, 0, MutationType::Append);
     const auto stored = conn.get(name, 0);
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
-    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
@@ -530,19 +518,19 @@ TEST_P(GetSetTest, TestAppendCompressedSource) {
 
 TEST_P(GetSetTest, TestAppendCompressedData) {
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = Greenstack::Datatype::Raw;
+    document.info.datatype = mcbp::Datatype::Raw;
     document.value.resize(1024);
     std::fill(document.value.begin(), document.value.end(), 'a');
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    conn.mutate(document, 0, Greenstack::MutationType::Set);
+    conn.mutate(document, 0, MutationType::Set);
 
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'b');
     compress_vector(input, document.value);
-    document.info.compression = Greenstack::Compression::Snappy;
-    conn.mutate(document, 0, Greenstack::MutationType::Append);
+    document.info.datatype = mcbp::Datatype::Snappy;
+    conn.mutate(document, 0, MutationType::Append);
 
     const auto stored = conn.get(name, 0);
 
@@ -550,8 +538,7 @@ TEST_P(GetSetTest, TestAppendCompressedData) {
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
-    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
@@ -566,28 +553,26 @@ TEST_P(GetSetTest, TestAppendCompressedData) {
 
 TEST_P(GetSetTest, TestAppendCompressedSourceAndData) {
     MemcachedConnection& conn = getConnection();
-    document.info.compression = Greenstack::Compression::Snappy;
-    document.info.datatype = Greenstack::Datatype::Raw;
+    document.info.datatype = mcbp::Datatype::Snappy;
 
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'a');
     compress_vector(input, document.value);
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    conn.mutate(document, 0, Greenstack::MutationType::Set);
+    conn.mutate(document, 0, MutationType::Set);
 
     std::vector<char> append(1024);
     std::fill(append.begin(), append.end(), 'b');
     compress_vector(append, document.value);
-    conn.mutate(document, 0, Greenstack::MutationType::Append);
+    conn.mutate(document, 0, MutationType::Append);
     const auto stored = conn.get(name, 0);
 
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
-    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
@@ -600,28 +585,26 @@ TEST_P(GetSetTest, TestAppendCompressedSourceAndData) {
 
 TEST_P(GetSetTest, TestPrependCompressedSource) {
     MemcachedConnection& conn = getConnection();
-    document.info.compression = Greenstack::Compression::Snappy;
-    document.info.datatype = Greenstack::Datatype::Raw;
+    document.info.datatype = mcbp::Datatype::Snappy;
 
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'a');
     compress_vector(input, document.value);
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    conn.mutate(document, 0, Greenstack::MutationType::Set);
+    conn.mutate(document, 0, MutationType::Set);
     document.value.resize(input.size());
     std::fill(document.value.begin(), document.value.end(), 'b');
-    document.info.compression = Greenstack::Compression::None;
+    document.info.datatype = mcbp::Datatype::Raw;
 
-    conn.mutate(document, 0, Greenstack::MutationType::Prepend);
+    conn.mutate(document, 0, MutationType::Prepend);
     const auto stored = conn.get(name, 0);
 
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
-    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
@@ -633,18 +616,18 @@ TEST_P(GetSetTest, TestPrependCompressedSource) {
 
 TEST_P(GetSetTest, TestPrependCompressedData) {
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = Greenstack::Datatype::Raw;
+    document.info.datatype = mcbp::Datatype::Raw;
     document.value.resize(1024);
     std::fill(document.value.begin(), document.value.end(), 'a');
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    conn.mutate(document, 0, Greenstack::MutationType::Set);
+    conn.mutate(document, 0, MutationType::Set);
 
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'b');
     compress_vector(input, document.value);
-    document.info.compression = Greenstack::Compression::Snappy;
-    conn.mutate(document, 0, Greenstack::MutationType::Prepend);
+    document.info.datatype = mcbp::Datatype::Snappy;
+    conn.mutate(document, 0, MutationType::Prepend);
 
     const auto stored = conn.get(name, 0);
 
@@ -652,8 +635,7 @@ TEST_P(GetSetTest, TestPrependCompressedData) {
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
-    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
@@ -665,28 +647,26 @@ TEST_P(GetSetTest, TestPrependCompressedData) {
 
 TEST_P(GetSetTest, TestPrepepndCompressedSourceAndData) {
     MemcachedConnection& conn = getConnection();
-    document.info.compression = Greenstack::Compression::Snappy;
-    document.info.datatype = Greenstack::Datatype::Raw;
+    document.info.datatype = mcbp::Datatype::Snappy;
 
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'a');
     compress_vector(input, document.value);
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    conn.mutate(document, 0, Greenstack::MutationType::Set);
+    conn.mutate(document, 0, MutationType::Set);
 
     std::vector<char> append(1024);
     std::fill(append.begin(), append.end(), 'b');
     compress_vector(append, document.value);
-    conn.mutate(document, 0, Greenstack::MutationType::Prepend);
+    conn.mutate(document, 0, MutationType::Prepend);
     const auto stored = conn.get(name, 0);
 
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
-    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 

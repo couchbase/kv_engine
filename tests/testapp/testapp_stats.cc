@@ -119,16 +119,15 @@ TEST_P(StatsTest, Test_MB_17815) {
                                     0xfffffffd);
 
     Document doc;
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    doc.info.compression = Greenstack::Compression::None;
-    doc.info.datatype = Greenstack::Datatype::Json;
+    doc.info.cas = mcbp::cas::Wildcard;
+    doc.info.datatype = mcbp::Datatype::Json;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
     char* ptr = cJSON_Print(memcached_cfg.get());
     std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
     cJSON_Free(ptr);
 
-    conn.mutate(doc, 0, Greenstack::MutationType::Add);
+    conn.mutate(doc, 0, MutationType::Add);
     stats = conn.stats("");
     count = cJSON_GetObjectItem(stats.get(), "cmd_set");
     ASSERT_NE(nullptr, count);
@@ -309,16 +308,15 @@ TEST_P(StatsTest, TestTopkeys) {
 
     for (int ii = 0; ii < 10; ++ii) {
         Document doc;
-        doc.info.cas = Greenstack::CAS::Wildcard;
-        doc.info.compression = Greenstack::Compression::None;
-        doc.info.datatype = Greenstack::Datatype::Json;
+        doc.info.cas = mcbp::cas::Wildcard;
+        doc.info.datatype = mcbp::Datatype::Json;
         doc.info.flags = 0xcaffee;
         doc.info.id = name;
         char* ptr = cJSON_Print(memcached_cfg.get());
         std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
         cJSON_Free(ptr);
 
-        conn.mutate(doc, 0, Greenstack::MutationType::Set);
+        conn.mutate(doc, 0, MutationType::Set);
     }
 
     auto stats = conn.stats("topkeys");
@@ -331,16 +329,15 @@ TEST_P(StatsTest, TestTopkeysJson) {
 
     for (int ii = 0; ii < 10; ++ii) {
         Document doc;
-        doc.info.cas = Greenstack::CAS::Wildcard;
-        doc.info.compression = Greenstack::Compression::None;
-        doc.info.datatype = Greenstack::Datatype::Json;
+        doc.info.cas = mcbp::cas::Wildcard;
+        doc.info.datatype = mcbp::Datatype::Json;
         doc.info.flags = 0xcaffee;
         doc.info.id = name;
         char* ptr = cJSON_Print(memcached_cfg.get());
         std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
         cJSON_Free(ptr);
 
-        conn.mutate(doc, 0, Greenstack::MutationType::Set);
+        conn.mutate(doc, 0, MutationType::Set);
     }
 
     auto stats = conn.stats("topkeys_json");

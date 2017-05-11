@@ -40,7 +40,7 @@ TEST_P(BucketTest, TestNameTooLong) {
     std::fill(name.begin(), name.end(), 'a');
 
     try {
-        connection.createBucket(name, "", Greenstack::BucketType::Memcached);
+        connection.createBucket(name, "", BucketType::Memcached);
         FAIL() << "Invalid bucket name is not refused";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isInvalidArguments()) << error.getReason();
@@ -53,7 +53,7 @@ TEST_P(BucketTest, TestMaxNameLength) {
     name.resize(100);
     std::fill(name.begin(), name.end(), 'a');
 
-    connection.createBucket(name, "", Greenstack::BucketType::Memcached);
+    connection.createBucket(name, "", BucketType::Memcached);
     connection.deleteBucket(name);
 }
 
@@ -66,7 +66,7 @@ TEST_P(BucketTest, TestEmptyName) {
     }
 
     try {
-        connection.createBucket("", "", Greenstack::BucketType::Memcached);
+        connection.createBucket("", "", BucketType::Memcached);
         FAIL() << "Empty bucket name is not refused";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isInvalidArguments()) << error.getReason();
@@ -98,12 +98,11 @@ TEST_P(BucketTest, TestInvalidCharacters) {
         }
 
         if (legal) {
-            connection.createBucket(name, "", Greenstack::BucketType::Memcached);
+            connection.createBucket(name, "", BucketType::Memcached);
             connection.deleteBucket(name);
         } else {
             try {
-                connection.createBucket(name, "",
-                                        Greenstack::BucketType::Memcached);
+                connection.createBucket(name, "", BucketType::Memcached);
                 FAIL() <<
                        "I was able to create a bucket with character of value " <<
                        ii;
@@ -120,7 +119,7 @@ TEST_P(BucketTest, TestMultipleBuckets) {
     try {
         for (ii = 1; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
             std::string name = "bucket-" + std::to_string(ii);
-            connection.createBucket(name, "", Greenstack::BucketType::Memcached);
+            connection.createBucket(name, "", BucketType::Memcached);
         }
     } catch (ConnectionError& ex) {
         FAIL() << "Failed to create more than " << ii << " buckets";
@@ -135,7 +134,7 @@ TEST_P(BucketTest, TestMultipleBuckets) {
 TEST_P(BucketTest, TestCreateBucketAlreadyExists) {
     auto& conn = getAdminConnection();
     try {
-        conn.createBucket("default", "", Greenstack::BucketType::Memcached);
+        conn.createBucket("default", "", BucketType::Memcached);
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.getReason();
     }
@@ -154,7 +153,7 @@ TEST_P(BucketTest, TestDeleteNonexistingBucket) {
 // is connection in the conn_nread state, then delete will hang.
 TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
     auto& conn = getAdminConnection();
-    conn.createBucket("bucket", "", Greenstack::BucketType::Memcached);
+    conn.createBucket("bucket", "", BucketType::Memcached);
 
     auto second_conn = conn.clone();
     second_conn->authenticate("@admin", "password", "PLAIN");
@@ -218,8 +217,7 @@ TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
 // (i.e. in a pending state) or not.
 TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
     auto& conn = getAdminConnection();
-    conn.createBucket("bucket", "default_engine.so",
-                      Greenstack::BucketType::EWouldBlock);
+    conn.createBucket("bucket", "default_engine.so", BucketType::EWouldBlock);
     auto second_conn = conn.clone();
     second_conn->authenticate("@admin", "password", "PLAIN");
     second_conn->selectBucket("bucket");
@@ -299,8 +297,7 @@ TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
     second_conn->authenticate("@admin", "password", "PLAIN");
     auto* mcbp_conn = dynamic_cast<MemcachedBinprotConnection*>(second_conn.get());
 
-
-    conn.createBucket("bucket", "default_engine.so", Greenstack::BucketType::EWouldBlock);
+    conn.createBucket("bucket", "default_engine.so", BucketType::EWouldBlock);
     second_conn->selectBucket("bucket");
 
     // We need to get into the `conn_ship_log` state, and then fill up the
@@ -432,7 +429,7 @@ TEST_P(BucketTest, TestListBucket_not_authenticated) {
 
 TEST_P(BucketTest, TestNoAutoSelectOfBucketForNormalUser) {
     auto& conn = getAdminConnection();
-    conn.createBucket("rbac_test", "", Greenstack::BucketType::Memcached);
+    conn.createBucket("rbac_test", "", BucketType::Memcached);
 
     conn = getConnection();
     conn.authenticate("smith", "smithpassword", "PLAIN");
@@ -450,9 +447,9 @@ TEST_P(BucketTest, TestNoAutoSelectOfBucketForNormalUser) {
 
 TEST_P(BucketTest, TestListSomeBuckets) {
     auto& conn = getAdminConnection();
-    conn.createBucket("bucket-1", "", Greenstack::BucketType::Memcached);
-    conn.createBucket("bucket-2", "", Greenstack::BucketType::Memcached);
-    conn.createBucket("rbac_test", "", Greenstack::BucketType::Memcached);
+    conn.createBucket("bucket-1", "", BucketType::Memcached);
+    conn.createBucket("bucket-2", "", BucketType::Memcached);
+    conn.createBucket("rbac_test", "", BucketType::Memcached);
 
     const std::vector<std::string> all_buckets = {"default", "bucket-1",
                                                   "bucket-2", "rbac_test"};
@@ -477,14 +474,13 @@ TEST_P(BucketTest, TestBucketIsolationBuckets)
     for (int ii = 1; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
         std::stringstream ss;
         ss << "mybucket_" << std::setfill('0') << std::setw(3) << ii;
-        connection.createBucket(ss.str(), "", Greenstack::BucketType::Memcached);
+        connection.createBucket(ss.str(), "", BucketType::Memcached);
     }
 
     // I should be able to select each bucket and the same document..
     Document doc;
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    doc.info.compression = Greenstack::Compression::None;
-    doc.info.datatype = Greenstack::Datatype::Raw;
+    doc.info.cas = mcbp::cas::Wildcard;
+    doc.info.datatype = mcbp::Datatype::Raw;
     doc.info.flags = 0xcaffee;
     doc.info.id = "TestBucketIsolationBuckets";
     char* ptr = cJSON_Print(memcached_cfg.get());
@@ -496,7 +492,7 @@ TEST_P(BucketTest, TestBucketIsolationBuckets)
         ss << "mybucket_" << std::setfill('0') << std::setw(3) << ii;
         const auto name = ss.str();
         connection.selectBucket(name);
-        connection.mutate(doc, 0, Greenstack::MutationType::Add);
+        connection.mutate(doc, 0, MutationType::Add);
     }
 
     connection = getAdminConnection();
@@ -515,22 +511,20 @@ TEST_P(BucketTest, TestMemcachedBucketBigObjects)
     const size_t item_max_size = 2 * 1024 * 1024; // 2MB
     std::string config = "item_size_max=" + std::to_string(item_max_size);
 
-    ASSERT_NO_THROW(connection.createBucket("mybucket_000",
-                                            config,
-                                            Greenstack::BucketType::Memcached));
+    ASSERT_NO_THROW(connection.createBucket(
+            "mybucket_000", config, BucketType::Memcached));
     connection.selectBucket("mybucket_000");
 
     Document doc;
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    doc.info.compression = Greenstack::Compression::None;
-    doc.info.datatype = Greenstack::Datatype::Raw;
+    doc.info.cas = mcbp::cas::Wildcard;
+    doc.info.datatype = mcbp::Datatype::Raw;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
     // Unfortunately the item_max_size is the full item including the
     // internal headers (this would be the key and the hash_item struct).
     doc.value.resize(item_max_size - name.length() - 100);
 
-    connection.mutate(doc, 0, Greenstack::MutationType::Add);
+    connection.mutate(doc, 0, MutationType::Add);
     connection.get(name, 0);
     connection.deleteBucket("mybucket_000");
 }

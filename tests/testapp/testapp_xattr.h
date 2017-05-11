@@ -227,15 +227,14 @@ protected:
     void setBodyAndXattr(const std::string& startValue,
                          const std::string& xattrValue) {
         Document document;
-        document.info.cas = Greenstack::CAS::Wildcard;
-        document.info.compression = Greenstack::Compression::None;
-        document.info.datatype = Greenstack::Datatype::Json;
+        document.info.cas = mcbp::cas::Wildcard;
+        document.info.datatype = mcbp::Datatype::Json;
         document.info.flags = 0xcaffee;
         document.info.id = name;
         std::copy(startValue.begin(),
                   startValue.end(),
                   std::back_inserter(document.value));
-        getConnection().mutate(document, 0, Greenstack::MutationType::Set);
+        getConnection().mutate(document, 0, MutationType::Set);
         auto doc = getConnection().get(name, 0);
 
         EXPECT_EQ(doc.value, document.value);

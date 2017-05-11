@@ -161,7 +161,7 @@ class RbacRoleTest : public TestappClientTest {
 public:
     void SetUp() override {
         auto& conn = getAdminConnection();
-        conn.createBucket("rbac_test", "", Greenstack::BucketType::Memcached);
+        conn.createBucket("rbac_test", "", BucketType::Memcached);
 
         conn = getConnection();
         smith_holder = conn.clone();
@@ -199,13 +199,10 @@ public:
     }
 
 protected:
-
-    MutationInfo store(MemcachedBinprotConnection& conn,
-                       Greenstack::mutation_type_t type) {
+    MutationInfo store(MemcachedBinprotConnection& conn, mutation_type_t type) {
         Document document;
-        document.info.cas = Greenstack::CAS::Wildcard;
-        document.info.compression = Greenstack::Compression::None;
-        document.info.datatype = Greenstack::Datatype::Json;
+        document.info.cas = mcbp::cas::Wildcard;
+        document.info.datatype = mcbp::Datatype::Json;
         document.info.flags = 0xcaffee;
         document.info.id = name;
         const std::string content = to_string(memcached_cfg, false);
@@ -316,19 +313,19 @@ TEST_P(RbacRoleTest, MutationTest_ReadOnly) {
     auto& ro = getROConnection();
 
     try {
-        store(ro, Greenstack::MutationType::Add);
+        store(ro, MutationType::Add);
         FAIL() << "The read-only user should not be able to add documents";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied());
     }
 
     auto& rw = getRWConnection();
-    store(rw, Greenstack::MutationType::Add);
+    store(rw, MutationType::Add);
 
-    for (const auto& type : {Greenstack::MutationType::Append,
-                             Greenstack::MutationType::Prepend,
-                             Greenstack::MutationType::Set,
-                             Greenstack::MutationType::Replace}) {
+    for (const auto& type : {MutationType::Append,
+                             MutationType::Prepend,
+                             MutationType::Set,
+                             MutationType::Replace}) {
         try {
             store(ro, type);
             FAIL() << "The read-only user should not be able modify document with operation: "
@@ -343,18 +340,18 @@ TEST_P(RbacRoleTest, MutationTest_WriteOnly) {
     auto& wo = getWOConnection();
 
     // The Write Only user should be allowed to do all of these ops
-    for (const auto& type : {Greenstack::MutationType::Add,
-                             Greenstack::MutationType::Append,
-                             Greenstack::MutationType::Prepend,
-                             Greenstack::MutationType::Set,
-                             Greenstack::MutationType::Replace}) {
+    for (const auto& type : {MutationType::Add,
+                             MutationType::Append,
+                             MutationType::Prepend,
+                             MutationType::Set,
+                             MutationType::Replace}) {
         store(wo, type);
     }
 }
 
 TEST_P(RbacRoleTest, Remove_ReadOnly) {
     auto& rw = getRWConnection();
-    store(rw, Greenstack::MutationType::Add);
+    store(rw, MutationType::Add);
 
     try {
         auto& ro = getROConnection();
@@ -367,13 +364,13 @@ TEST_P(RbacRoleTest, Remove_ReadOnly) {
 
 TEST_P(RbacRoleTest, Remove_WriteOnly) {
     auto& rw = getRWConnection();
-    store(rw, Greenstack::MutationType::Add);
+    store(rw, MutationType::Add);
     rw.remove(name, 0, 0);
 }
 
 TEST_P(RbacRoleTest, NoAccessToUserXattrs) {
     auto& rw = getRWConnection();
-    store(rw, Greenstack::MutationType::Add);
+    store(rw, MutationType::Add);
 
     // The read only user should not have access to create a user xattr
     auto resp = createXattr(getROConnection(), "meta.author", "\"larry\"");
@@ -406,7 +403,7 @@ TEST_P(RbacRoleTest, NoAccessToUserXattrs) {
 
 TEST_P(RbacRoleTest, NoAccessToSystemXattrs) {
     auto& rw = getRWConnection();
-    store(rw, Greenstack::MutationType::Add);
+    store(rw, MutationType::Add);
 
     // The read only user should not have access to create a system xattr
     auto resp = createXattr(getROConnection(), "_meta.author", "\"larry\"");
@@ -439,7 +436,7 @@ TEST_P(RbacRoleTest, NoAccessToSystemXattrs) {
 
 TEST_P(RbacRoleTest, DontAutoselectBucket) {
     auto& conn = getAdminConnection();
-    conn.createBucket("larry", "", Greenstack::BucketType::Memcached);
+    conn.createBucket("larry", "", BucketType::Memcached);
     conn.authenticate("larry", "larrypassword", "PLAIN");
 
     auto& c = dynamic_cast<MemcachedBinprotConnection&>(conn);

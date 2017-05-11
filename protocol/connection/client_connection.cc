@@ -20,7 +20,6 @@
 #include "cJSON_utils.h"
 
 #include <cbsasl/cbsasl.h>
-#include <libgreenstack/Greenstack.h>
 #include <memcached/protocol_binary.h>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>

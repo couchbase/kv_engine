@@ -249,16 +249,16 @@ void MemcachedBinprotConnection::authenticate(const std::string& username,
 
 void MemcachedBinprotConnection::createBucket(const std::string& name,
                                               const std::string& config,
-                                              const Greenstack::BucketType& type) {
+                                              const BucketType type) {
     std::string module;
     switch (type) {
-    case Greenstack::BucketType::Memcached:
+    case BucketType::Memcached:
         module.assign("default_engine.so");
         break;
-    case Greenstack::BucketType::EWouldBlock:
+    case BucketType::EWouldBlock:
         module.assign("ewouldblock_engine.so");
         break;
-    case Greenstack::BucketType::Couchbase:
+    case BucketType::Couchbase:
         module.assign("ep.so");
         break;
     default:
@@ -360,17 +360,7 @@ Document MemcachedBinprotConnection::get(const std::string& id,
     ret.info.flags = response.getDocumentFlags();
     ret.info.cas = response.getCas();
     ret.info.id = id;
-    if (response.getDatatype() & PROTOCOL_BINARY_DATATYPE_JSON) {
-        ret.info.datatype = Greenstack::Datatype::Json;
-    } else {
-        ret.info.datatype = Greenstack::Datatype::Raw;
-    }
-
-    if (response.getDatatype() & PROTOCOL_BINARY_DATATYPE_SNAPPY) {
-        ret.info.compression = Greenstack::Compression::Snappy;
-    } else {
-        ret.info.compression = Greenstack::Compression::None;
-    }
+    ret.info.datatype = mcbp::Datatype(response.getDatatype());
     ret.value.assign(response.getData().data(),
                      response.getData().data() + response.getData().size());
     return ret;
@@ -387,8 +377,7 @@ Frame MemcachedBinprotConnection::encodeCmdGet(const std::string& id,
 MutationInfo MemcachedBinprotConnection::mutate(const DocumentInfo& info,
                                                 uint16_t vbucket,
                                                 cb::const_byte_buffer value,
-                                                const Greenstack::mutation_type_t type) {
-
+                                                const mutation_type_t type) {
     BinprotMutationCommand command;
     command.setDocumentInfo(info);
     command.addValueBuffer(value);
@@ -664,17 +653,7 @@ Document MemcachedBinprotConnection::get_and_lock(const std::string& id,
     ret.info.flags = response.getDocumentFlags();
     ret.info.cas = response.getCas();
     ret.info.id = id;
-    if (response.getDatatype() & PROTOCOL_BINARY_DATATYPE_JSON) {
-        ret.info.datatype = Greenstack::Datatype::Json;
-    } else {
-        ret.info.datatype = Greenstack::Datatype::Raw;
-    }
-
-    if (response.getDatatype() & PROTOCOL_BINARY_DATATYPE_SNAPPY) {
-        ret.info.compression = Greenstack::Compression::Snappy;
-    } else {
-        ret.info.compression = Greenstack::Compression::None;
-    }
+    ret.info.datatype = mcbp::Datatype(response.getDatatype());
     ret.value.assign(response.getData().data(),
                      response.getData().data() + response.getData().size());
     return ret;

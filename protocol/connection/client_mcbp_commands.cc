@@ -232,16 +232,16 @@ uint32_t BinprotGetResponse::getDocumentFlags() const {
 }
 
 BinprotMutationCommand& BinprotMutationCommand::setMutationType(
-        const Greenstack::mutation_type_t type) {
-    if (type == Greenstack::MutationType::Append) {
+        const mutation_type_t type) {
+    if (type == MutationType::Append) {
         setOp(PROTOCOL_BINARY_CMD_APPEND);
-    } else if (type == Greenstack::MutationType::Prepend) {
+    } else if (type == MutationType::Prepend) {
         setOp(PROTOCOL_BINARY_CMD_PREPEND);
-    } else if (type == Greenstack::MutationType::Replace) {
+    } else if (type == MutationType::Replace) {
         setOp(PROTOCOL_BINARY_CMD_REPLACE);
-    } else if (type == Greenstack::MutationType::Set) {
+    } else if (type == MutationType::Set) {
         setOp(PROTOCOL_BINARY_CMD_SET);
-    } else if (type == Greenstack::MutationType::Add) {
+    } else if (type == MutationType::Add) {
         setOp(PROTOCOL_BINARY_CMD_ADD);
     } else {
         throw std::invalid_argument("BinprotMutationCommand::setMutationType: Mutation type not supported");
@@ -259,27 +259,7 @@ BinprotMutationCommand& BinprotMutationCommand::setDocumentInfo(
     setCas(info.cas);
     // TODO: Set expiration from DocInfo
 
-    // Determine datatype
-    switch (info.compression) {
-    case Greenstack::Compression::None:
-        break;
-    case Greenstack::Compression::Snappy:
-        datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
-        break;
-    default:
-        throw std::invalid_argument("BinprotMutationCommand::setDocumentInfo: Unrecognized compression type");
-    }
-
-    switch (info.datatype) {
-    case Greenstack::Datatype::Raw:
-        break;
-    case Greenstack::Datatype::Json:
-        datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
-        break;
-    default:
-        throw std::invalid_argument("BinprotMutationCommand::setDocumentInfo: Unknown datatype");
-    }
-
+    datatype = mcbp::datatype_t(info.datatype);
     return *this;
 }
 

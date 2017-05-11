@@ -129,8 +129,7 @@ public:
 
     void createBucket(const std::string& name,
                       const std::string& config,
-                      const Greenstack::BucketType& type) override;
-
+                      const BucketType type) override;
 
     void deleteBucket(const std::string& name) override;
 
@@ -150,7 +149,7 @@ public:
     MutationInfo mutate(const DocumentInfo& doc,
                         uint16_t vbucket,
                         cb::const_byte_buffer value,
-                        const Greenstack::mutation_type_t type) override;
+                        const mutation_type_t type) override;
 
     using MemcachedConnection::mutate;
 

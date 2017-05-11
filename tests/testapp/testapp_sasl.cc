@@ -150,10 +150,10 @@ TEST_P(SaslTest, TestSaslMixFrom_SCRAM_SHA512) {
 void SaslTest::SetUp() {
     auto& connection = getConnection();
     connection.authenticate("@admin", "password", "PLAIN");
-    ASSERT_NO_THROW(connection.createBucket(bucket1, "",
-                                            Greenstack::BucketType::Memcached));
-    ASSERT_NO_THROW(connection.createBucket(bucket2, "",
-                                            Greenstack::BucketType::Memcached));
+    ASSERT_NO_THROW(
+            connection.createBucket(bucket1, "", BucketType::Memcached));
+    ASSERT_NO_THROW(
+            connection.createBucket(bucket2, "", BucketType::Memcached));
     connection.reconnect();
 }
 

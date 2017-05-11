@@ -174,31 +174,29 @@ TEST_P(ArithmeticTest, TestMutationInfo) {
     // The cas should be filled out, so we should be able to do a CAS replace
     Document doc;
     doc.info.cas = info.cas;
-    doc.info.compression = Greenstack::Compression::None;
-    doc.info.datatype = Greenstack::Datatype::Json;
+    doc.info.datatype = mcbp::Datatype::Json;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
     char* ptr = cJSON_Print(memcached_cfg.get());
     std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
     cJSON_Free(ptr);
 
-    conn.mutate(doc, 0, Greenstack::MutationType::Replace);
+    conn.mutate(doc, 0, MutationType::Replace);
 }
 
 TEST_P(ArithmeticTest, TestIllegalDatatype) {
     auto& conn = getConnection();
 
     Document doc;
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    doc.info.compression = Greenstack::Compression::None;
-    doc.info.datatype = Greenstack::Datatype::Json;
+    doc.info.cas = mcbp::cas::Wildcard;
+    doc.info.datatype = mcbp::Datatype::Json;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
     char* ptr = cJSON_Print(memcached_cfg.get());
     std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
     cJSON_Free(ptr);
 
-    ASSERT_NO_THROW(conn.mutate(doc, 0, Greenstack::MutationType::Add));
+    ASSERT_NO_THROW(conn.mutate(doc, 0, MutationType::Add));
 
     try {
         conn.increment(name, 0);
@@ -213,14 +211,13 @@ static void test_stored_doc(MemcachedConnection& conn,
                             bool badval) {
 
     Document doc;
-    doc.info.cas = Greenstack::CAS::Wildcard;
-    doc.info.compression = Greenstack::Compression::None;
-    doc.info.datatype = Greenstack::Datatype::Raw;
+    doc.info.cas = mcbp::cas::Wildcard;
+    doc.info.datatype = mcbp::Datatype::Raw;
     doc.info.flags = 0xcaffee;
     doc.info.id = key;
     std::copy(content.begin(), content.end(), std::back_inserter(doc.value));
 
-    ASSERT_NO_THROW(conn.mutate(doc, 0, Greenstack::MutationType::Set));
+    ASSERT_NO_THROW(conn.mutate(doc, 0, MutationType::Set));
     if (badval) {
         try {
             conn.increment(key, 1);

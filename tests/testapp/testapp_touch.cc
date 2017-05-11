@@ -26,9 +26,8 @@
 class TouchTest : public TestappClientTest {
 public:
     void SetUp() {
-        document.info.cas = Greenstack::CAS::Wildcard;
-        document.info.compression = Greenstack::Compression::None;
-        document.info.datatype = Greenstack::Datatype::Json;
+        document.info.cas = mcbp::cas::Wildcard;
+        document.info.datatype = mcbp::Datatype::Json;
         document.info.flags = 0xcaffee;
         document.info.id = name;
         const std::string content = to_string(memcached_cfg, false);
@@ -70,7 +69,7 @@ size_t TouchTest::get_cmd_counter(const std::string& name,
 
 void TouchTest::testHit(bool quiet) {
     auto& conn = reinterpret_cast<MemcachedBinprotConnection&>(getConnection());
-    const auto info = conn.mutate(document, 0, Greenstack::MutationType::Add);
+    const auto info = conn.mutate(document, 0, MutationType::Add);
 
     // Verify that we can set the expiry time to the same value without
     // getting a new cas value generated
@@ -153,7 +152,7 @@ TEST_P(TouchTest, Gatq_Miss) {
 
 TEST_P(TouchTest, Touch_Hit) {
     auto& conn = reinterpret_cast<MemcachedBinprotConnection&>(getConnection());
-    const auto info = conn.mutate(document, 0, Greenstack::MutationType::Add);
+    const auto info = conn.mutate(document, 0, MutationType::Add);
 
     // Verify that we can set the expiry time to the same value without
     // getting a new cas value generated

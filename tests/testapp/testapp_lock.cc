@@ -25,9 +25,8 @@
 class LockTest : public TestappClientTest {
 public:
     void SetUp() override {
-        document.info.cas = Greenstack::CAS::Wildcard;
-        document.info.compression = Greenstack::Compression::None;
-        document.info.datatype = Greenstack::Datatype::Json;
+        document.info.cas = mcbp::cas::Wildcard;
+        document.info.datatype = mcbp::Datatype::Json;
         document.info.flags = 0xcaffee;
         document.info.id = name;
         const std::string content = to_string(memcached_cfg, false);
@@ -77,14 +76,14 @@ TEST_P(LockTest, LockIncorrectVBucket) {
 TEST_P(LockTest, LockWithDefaultValue) {
     auto& conn = getMcbpConnection();
 
-    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    conn.mutate(document, 0, MutationType::Add);
     conn.get_and_lock(name, 0, 0);
 }
 
 TEST_P(LockTest, LockWithTimeValue) {
     auto& conn = getMcbpConnection();
 
-    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    conn.mutate(document, 0, MutationType::Add);
     conn.get_and_lock(name, 0, 5);
 }
 
@@ -92,7 +91,7 @@ TEST_P(LockTest, LockWithTimeValue) {
 TEST_P(LockTest, LockLockedDocument) {
     auto& conn = getMcbpConnection();
 
-    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    conn.mutate(document, 0, MutationType::Add);
     conn.get_and_lock(name, 0, 0);
 
     try {
@@ -111,7 +110,7 @@ TEST_P(LockTest, MB_22459_LockLockedDocument_WithoutXerror) {
     auto& conn = getMcbpConnection();
     conn.setXerrorSupport(false);
 
-    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    conn.mutate(document, 0, MutationType::Add);
     conn.get_and_lock(name, 0, 0);
 
     try {
@@ -125,12 +124,12 @@ TEST_P(LockTest, MB_22459_LockLockedDocument_WithoutXerror) {
 TEST_P(LockTest, MutateLockedDocument) {
     auto& conn = getMcbpConnection();
 
-    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    conn.mutate(document, 0, MutationType::Add);
 
-    for (const auto op : {Greenstack::MutationType::Set,
-                          Greenstack::MutationType::Replace,
-                          Greenstack::MutationType::Append,
-                          Greenstack::MutationType::Prepend}) {
+    for (const auto op : {MutationType::Set,
+                          MutationType::Replace,
+                          MutationType::Append,
+                          MutationType::Prepend}) {
         const auto locked = conn.get_and_lock(name, 0, 0);
         EXPECT_NE(uint64_t(-1), locked.info.cas);
         try {
@@ -165,7 +164,7 @@ TEST_P(LockTest, ArithmeticLockedDocument) {
 TEST_P(LockTest, DeleteLockedDocument) {
     auto& conn = getMcbpConnection();
 
-    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    conn.mutate(document, 0, MutationType::Add);
     const auto locked = conn.get_and_lock(name, 0, 0);
 
     try {
@@ -200,7 +199,7 @@ TEST_P(LockTest, UnlockInvalidVBucket) {
 
 TEST_P(LockTest, UnlockWrongCas) {
     auto& conn = getMcbpConnection();
-    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    conn.mutate(document, 0, MutationType::Add);
     const auto locked = conn.get_and_lock(name, 0, 0);
 
     try {
@@ -213,7 +212,7 @@ TEST_P(LockTest, UnlockWrongCas) {
 
 TEST_P(LockTest, UnlockThereIsNoCasWildcard) {
     auto& conn = getMcbpConnection();
-    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    conn.mutate(document, 0, MutationType::Add);
     const auto locked = conn.get_and_lock(name, 0, 0);
 
     try {
@@ -226,12 +225,12 @@ TEST_P(LockTest, UnlockThereIsNoCasWildcard) {
 
 TEST_P(LockTest, UnlockSuccess) {
     auto& conn = getMcbpConnection();
-    conn.mutate(document, 0, Greenstack::MutationType::Add);
+    conn.mutate(document, 0, MutationType::Add);
     const auto locked = conn.get_and_lock(name, 0, 0);
     conn.unlock(name, 0, locked.info.cas);
 
     // The document should no longer be locked
-    conn.mutate(document, 0, Greenstack::MutationType::Set);
+    conn.mutate(document, 0, MutationType::Set);
 }
 
 /**

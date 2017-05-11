@@ -23,7 +23,6 @@
 #include <cstdlib>
 #include <daemon/settings.h>
 #include <engines/ewouldblock_engine/ewouldblock_engine.h>
-#include <libgreenstack/Greenstack.h>
 #include <memcached/openssl.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
@@ -56,9 +55,8 @@ public:
     std::string id;
     uint32_t flags;
     std::string expiration;
-    Greenstack::Compression compression;
-    Greenstack::Datatype datatype;
-    uint64_t cas;
+    mcbp::Datatype datatype;
+    mcbp::cas_t cas;
 };
 
 class Document {
@@ -74,6 +72,22 @@ public:
     uint64_t seqno;
     uint64_t vbucketuuid;
 };
+
+enum class BucketType : uint8_t {
+    Invalid = 0,
+    Memcached = 1,
+    Couchbase = 2,
+    EWouldBlock = 3
+};
+
+typedef uint8_t mutation_type_t;
+namespace MutationType {
+const mutation_type_t Add = 0;
+const mutation_type_t Set = 1;
+const mutation_type_t Replace = 2;
+const mutation_type_t Append = 3;
+const mutation_type_t Prepend = 4;
+} // namespace MutationType
 
 class ConnectionError : public std::runtime_error {
 public:
@@ -218,7 +232,7 @@ public:
      */
     virtual void createBucket(const std::string& name,
                               const std::string& config,
-                              const Greenstack::BucketType& type) = 0;
+                              const BucketType type) = 0;
 
     /**
      * Delete the named bucket
@@ -290,8 +304,9 @@ public:
      */
     virtual Frame encodeCmdGet(const std::string& id, uint16_t vbucket) = 0;
 
-    MutationInfo mutate(const Document& doc, uint16_t vbucket,
-                        const Greenstack::mutation_type_t type) {
+    MutationInfo mutate(const Document& doc,
+                        uint16_t vbucket,
+                        const mutation_type_t type) {
         return mutate(doc.info,
                       vbucket,
                       cb::const_byte_buffer(doc.value.data(), doc.value.size()),
@@ -309,9 +324,10 @@ public:
      * @param type the type of mutation to perform
      * @return the new cas value for success
      */
-    virtual MutationInfo mutate(const DocumentInfo& info, uint16_t vbucket,
+    virtual MutationInfo mutate(const DocumentInfo& info,
+                                uint16_t vbucket,
                                 cb::const_byte_buffer value,
-                                const Greenstack::mutation_type_t type) = 0;
+                                const mutation_type_t type) = 0;
 
     /**
      * Convenience method to store (aka "upsert") an item.
@@ -325,12 +341,12 @@ public:
             const std::string& id,
             uint16_t vbucket,
             const T& value,
-            Greenstack::Datatype datatype = Greenstack::Datatype::Raw) {
+            mcbp::Datatype datatype = mcbp::Datatype::Raw) {
         Document doc{};
         doc.value.assign(value.begin(), value.end());
         doc.info.id = id;
         doc.info.datatype = datatype;
-        return mutate(doc, vbucket, Greenstack::MutationType::Set);
+        return mutate(doc, vbucket, MutationType::Set);
     }
     MutationInfo store(const std::string& id, uint16_t vbucket,
                        const char *value, size_t len) {

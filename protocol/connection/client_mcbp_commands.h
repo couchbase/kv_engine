@@ -940,7 +940,7 @@ using BinprotIsaslRefreshResponse = BinprotResponse;
 
 class BinprotMutationCommand : public BinprotCommandT<BinprotMutationCommand> {
 public:
-    BinprotMutationCommand& setMutationType(const Greenstack::mutation_type_t);
+    BinprotMutationCommand& setMutationType(const mutation_type_t);
     BinprotMutationCommand& setDocumentInfo(const DocumentInfo& info);
 
     BinprotMutationCommand& setValue(std::vector<uint8_t>&& value_) {
@@ -977,7 +977,7 @@ public:
         datatype = datatype_;
         return *this;
     }
-    BinprotMutationCommand& setDatatype(Greenstack::Datatype datatype_) {
+    BinprotMutationCommand& setDatatype(mcbp::Datatype datatype_) {
         return setDatatype(uint8_t(datatype_));
     }
     BinprotMutationCommand& setDocumentFlags(uint32_t flags_) {

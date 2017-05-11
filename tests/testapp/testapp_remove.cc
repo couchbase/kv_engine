@@ -34,15 +34,14 @@ protected:
      */
     void createDocument() {
         Document doc;
-        doc.info.cas = Greenstack::CAS::Wildcard;
-        doc.info.compression = Greenstack::Compression::None;
-        doc.info.datatype = Greenstack::Datatype::Json;
+        doc.info.cas = mcbp::cas::Wildcard;
+        doc.info.datatype = mcbp::Datatype::Json;
         doc.info.flags = 0xcaffee;
         doc.info.id = name;
         auto content = to_string(memcached_cfg);
         std::copy(content.begin(), content.end(),
                   std::back_inserter(doc.value));
-        info = getConnection().mutate(doc, 0, Greenstack::MutationType::Add);
+        info = getConnection().mutate(doc, 0, MutationType::Add);
     }
 
     MutationInfo info;
@@ -53,7 +52,7 @@ void RemoveTest::verify_MB_22553(const std::string& config) {
     auto& connection = dynamic_cast<MemcachedBinprotConnection&>(conn);
 
     std::string name = "bucket-1";
-    conn.createBucket(name, config, Greenstack::BucketType::Memcached);
+    conn.createBucket(name, config, BucketType::Memcached);
     conn.selectBucket("bucket-1");
 
     // Create a document

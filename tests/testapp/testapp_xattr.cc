@@ -870,7 +870,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeleted) {
 TEST_P(XattrTest, MB24152_GetXattrAndBodyWithoutXattr) {
 
     // Create a document without an XATTR.
-    getConnection().store(name, 0, value, Greenstack::Datatype::Json);
+    getConnection().store(name, 0, value, mcbp::Datatype::Json);
 
     // Attempt to request both the body and a non-existent XATTR.
     BinprotSubdocMultiLookupCommand cmd;

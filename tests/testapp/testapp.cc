@@ -137,8 +137,7 @@ void TestappTest::CreateTestBucket()
     conn.reconnect();
     conn.authenticate("@admin", "password", "PLAIN");
 
-    conn.createBucket(BUCKET_NAME, BUCKET_CONFIG,
-                      Greenstack::BucketType::EWouldBlock);
+    conn.createBucket(BUCKET_NAME, BUCKET_CONFIG, BucketType::EWouldBlock);
 
     // Reconnect the object to avoid others to reuse the admin creds
     conn.reconnect();

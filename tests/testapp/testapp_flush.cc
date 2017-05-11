@@ -27,12 +27,11 @@ protected:
 
         // Store our lone document
         Document doc;
-        doc.info.compression = Greenstack::Compression::None;
-        doc.info.datatype = Greenstack::Datatype::Raw;
+        doc.info.datatype = mcbp::Datatype::Raw;
         doc.info.cas = 0;
         doc.info.flags = 0;
         doc.info.id = key;
-        conn->mutate(doc, vbid, Greenstack::MutationType::Set);
+        conn->mutate(doc, vbid, MutationType::Set);
     }
 
     virtual void TearDown() {

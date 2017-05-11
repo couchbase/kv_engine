@@ -546,11 +546,16 @@ typedef enum {
  * See section 3.4 Data Types
  */
 
-typedef uint8_t protocol_binary_datatype_t;
-#define PROTOCOL_BINARY_RAW_BYTES uint8_t(0)
-#define PROTOCOL_BINARY_DATATYPE_JSON uint8_t(1)
-#define PROTOCOL_BINARY_DATATYPE_SNAPPY uint8_t(2)
-#define PROTOCOL_BINARY_DATATYPE_XATTR uint8_t(4)
+namespace mcbp {
+typedef uint8_t datatype_t;
+enum class Datatype : datatype_t { Raw = 0, Json = 1, Snappy = 2, Xattr = 4 };
+} // namespace mcbp
+
+typedef mcbp::datatype_t protocol_binary_datatype_t;
+#define PROTOCOL_BINARY_RAW_BYTES mcbp::datatype_t(mcbp::Datatype::Raw)
+#define PROTOCOL_BINARY_DATATYPE_JSON mcbp::datatype_t(mcbp::Datatype::Json)
+#define PROTOCOL_BINARY_DATATYPE_SNAPPY mcbp::datatype_t(mcbp::Datatype::Snappy)
+#define PROTOCOL_BINARY_DATATYPE_XATTR mcbp::datatype_t(mcbp::Datatype::Xattr)
 
 /*
  * Bitmask that defines the datatypes that can be resident in memory. For
@@ -2556,4 +2561,15 @@ inline std::string to_string(const protocol_binary_datatype_t datatype) {
     }
 }
 } // namespace datatype
+} // namespace mcbp
+
+namespace mcbp {
+typedef uint64_t cas_t;
+
+namespace cas {
+/**
+ * The special value used as a wildcard and match all CAS values
+ */
+const cas_t Wildcard = 0x0;
+} // namespace cas
 } // namespace mcbp
