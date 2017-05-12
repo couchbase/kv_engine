@@ -1863,8 +1863,8 @@ union protocol_binary_request_dcp_system_event {
         req.extlen = getExtrasLength();
         req.bodylen = htonl(req.extlen + valueLen + keyLen);
         req.datatype = PROTOCOL_BINARY_RAW_BYTES;
-        message.body.event = event;
-        message.body.by_seqno = bySeqno;
+        message.body.event = htonl(event);
+        message.body.by_seqno = htonll(bySeqno);
     }
     struct {
         protocol_binary_request_header header;
