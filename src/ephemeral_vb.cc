@@ -310,11 +310,12 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
         // highSeqno and highestDedupedSeqno are both incorrect. We have to hold
         // this lock to prevent a new rangeRead starting, and covering an
         // inconsistent range.
-        std::lock_guard<std::mutex> highSeqnoLh(seqList->getHighSeqnosLock());
+        std::lock_guard<std::mutex> listWriteLg(seqList->getListWriteLock());
 
         /* Update the OrderedStoredValue in hash table + Ordered data structure
            (list) */
-        res = seqList->updateListElem(lh, *(v.toOrderedStoredValue()));
+        res = seqList->updateListElem(
+                lh, listWriteLg, *(v.toOrderedStoredValue()));
 
         switch (res) {
         case SequenceList::UpdateStatus::Success:
@@ -341,7 +342,8 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
             /* Add a new storedvalue for the item */
             newSv = ht.unlocked_addNewStoredValue(hbl, itm);
 
-            seqList->appendToList(lh, *(newSv->toOrderedStoredValue()));
+            seqList->appendToList(
+                    lh, listWriteLg, *(newSv->toOrderedStoredValue()));
         } break;
         }
 
@@ -352,8 +354,19 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
 
         /* Update the high seqno in the sequential storage */
         auto& osv = *(newSv->toOrderedStoredValue());
-        seqList->updateHighSeqno(highSeqnoLh, osv);
-        seqList->updateHighestDedupedSeqno(highSeqnoLh, osv);
+        seqList->updateHighSeqno(listWriteLg, osv);
+        seqList->updateHighestDedupedSeqno(listWriteLg, osv);
+
+        if (res == SequenceList::UpdateStatus::Append) {
+            /* Mark the un-updated storedValue as stale. This must be done after
+             the new storedvalue for the item is visible for range read in the
+             list. This is because we do not want the seqlist to delete the
+             stale
+             item before its latest copy is added to the list.
+             (item becomes visible for range read only after updating the list
+             with the seqno of the item) */
+            seqList->markItemStale(listWriteLg, std::move(ownedSv));
+        }
     }
 
     if (recreatingDeletedItem) {
@@ -364,15 +377,6 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
 
     seqList->updateNumDeletedItems(oldValueDeleted, itm.isDeleted());
 
-    if (res == SequenceList::UpdateStatus::Append) {
-        /* Mark the un-updated storedValue as stale. This must be done after
-           the new storedvalue for the item is visible for range read in the
-           list. This is because we do not want the seqlist to delete the stale
-           item before its latest copy is added to the list.
-           (item becomes visible for range read only after updating the list
-            with the seqno of the item) */
-        seqList->markItemStale(std::move(ownedSv));
-    }
     return std::make_tuple(newSv, status, notifyCtx);
 }
 
@@ -384,9 +388,9 @@ std::pair<StoredValue*, VBNotifyCtx> EphemeralVBucket::addNewStoredValue(
 
     std::lock_guard<std::mutex> lh(sequenceLock);
 
-    /* Add to the sequential storage */
+    OrderedStoredValue* osv;
     try {
-        seqList->appendToList(lh, *(v->toOrderedStoredValue()));
+        osv = v->toOrderedStoredValue();
     } catch (const std::bad_cast& e) {
         throw std::logic_error(
                 "EphemeralVBucket::addNewStoredValue(): Error " +
@@ -397,14 +401,20 @@ std::pair<StoredValue*, VBNotifyCtx> EphemeralVBucket::addNewStoredValue(
     }
 
     VBNotifyCtx notifyCtx;
-    if (queueItmCtx) {
-        /* Put on checkpoint mgr */
-        notifyCtx = queueDirty(*v, *queueItmCtx);
-    }
+    {
+        std::lock_guard<std::mutex> listWriteLg(seqList->getListWriteLock());
 
-    /* Update the high seqno in the sequential storage */
-    std::lock_guard<std::mutex> highSeqnoLh(seqList->getHighSeqnosLock());
-    seqList->updateHighSeqno(highSeqnoLh, *(v->toOrderedStoredValue()));
+        /* Add to the sequential storage */
+        seqList->appendToList(lh, listWriteLg, *osv);
+
+        if (queueItmCtx) {
+            /* Put on checkpoint mgr */
+            notifyCtx = queueDirty(*v, *queueItmCtx);
+        }
+
+        /* Update the high seqno in the sequential storage */
+        seqList->updateHighSeqno(listWriteLg, *osv);
+    }
     ++opsCreate;
 
     seqList->updateNumDeletedItems(false, itm.isDeleted());
@@ -432,11 +442,12 @@ std::tuple<StoredValue*, VBNotifyCtx> EphemeralVBucket::softDeleteStoredValue(
         // highSeqno and highestDedupedSeqno are both incorrect. We have to hold
         // this lock to prevent a new rangeRead starting, and covering an
         // inconsistent range.
-        std::lock_guard<std::mutex> highSeqnoLh(seqList->getHighSeqnosLock());
+        std::lock_guard<std::mutex> listWriteLg(seqList->getListWriteLock());
 
         /* Update the OrderedStoredValue in hash table + Ordered data structure
            (list) */
-        res = seqList->updateListElem(lh, *(v.toOrderedStoredValue()));
+        res = seqList->updateListElem(
+                lh, listWriteLg, *(v.toOrderedStoredValue()));
 
         switch (res) {
         case SequenceList::UpdateStatus::Success:
@@ -459,7 +470,8 @@ std::tuple<StoredValue*, VBNotifyCtx> EphemeralVBucket::softDeleteStoredValue(
                */
             std::tie(newSv, ownedSv) = ht.unlocked_replaceByCopy(hbl, v);
 
-            seqList->appendToList(lh, *(newSv->toOrderedStoredValue()));
+            seqList->appendToList(
+                    lh, listWriteLg, *(newSv->toOrderedStoredValue()));
         } break;
         }
 
@@ -474,23 +486,25 @@ std::tuple<StoredValue*, VBNotifyCtx> EphemeralVBucket::softDeleteStoredValue(
 
         /* Update the high seqno in the sequential storage */
         auto& osv = *(newSv->toOrderedStoredValue());
-        seqList->updateHighSeqno(highSeqnoLh, osv);
-        seqList->updateHighestDedupedSeqno(highSeqnoLh, osv);
+        seqList->updateHighSeqno(listWriteLg, osv);
+        seqList->updateHighestDedupedSeqno(listWriteLg, osv);
+
+        if (res == SequenceList::UpdateStatus::Append) {
+            /* Mark the un-updated storedValue as stale. This must be done after
+             the new storedvalue for the item is visible for range read in the
+             list. This is because we do not want the seqlist to delete the
+             stale
+             item before its latest copy is added to the list.
+             (item becomes visible for range read only after updating the list
+             with the seqno of the item) */
+            seqList->markItemStale(listWriteLg, std::move(ownedSv));
+        }
     }
 
     ++opsDelete;
 
     seqList->updateNumDeletedItems(oldValueDeleted, true);
 
-    if (res == SequenceList::UpdateStatus::Append) {
-        /* Mark the un-updated storedValue as stale. This must be done after
-           the new storedvalue for the item is visible for range read in the
-           list. This is because we do not want the seqlist to delete the stale
-           item before its latest copy is added to the list.
-           (item becomes visible for range read only after updating the list
-           with the seqno of the item) */
-        seqList->markItemStale(std::move(ownedSv));
-    }
     return std::make_tuple(newSv, notifyCtx);
 }
 

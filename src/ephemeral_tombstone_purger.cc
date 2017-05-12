@@ -46,7 +46,11 @@ void EphemeralVBucket::HTTombstonePurger::visit(
     // This item should be purged. Remove from the HashTable and move over to
     // being owned by the sequence list.
     auto ownedSV = vbucket.ht.unlocked_release(hbl, v->getKey());
-    vbucket.seqList->markItemStale(std::move(ownedSV));
+    {
+        std::lock_guard<std::mutex> listWriteLg(
+                vbucket.seqList->getListWriteLock());
+        vbucket.seqList->markItemStale(listWriteLg, std::move(ownedSV));
+    }
     ++numPurgedItems;
 }
 

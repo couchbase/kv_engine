@@ -129,6 +129,21 @@ private:
  *      VBucket delete or rollback, we first remove the element from
  *      BasicLinkedList (invalidate next, prev links) and then delete from the
  *      hashtable.
+ *
+ * Ordering/Hierarchy of Locks:
+ * ===========================
+ * BasicLinkedList has 3 locks namely:
+ * (i) writeLock (ii) rangeLock (iii) rangeReadLock
+ * Description of each lock can be found below in the class declaration, here
+ * we describe in what order the locks should be grabbed
+ *
+ * rangeReadLock ==> writeLock ==> rangeLock is the valid lock hierarchy.
+ *
+ * Preferred/Expected Lock Duration:
+ * ================================
+ * 'writeLock' and 'rangeLock' are held for short durations, typically for
+ * single list element writes and reads.
+ * 'rangeReadLock' is held for longer duration on the list (for entire range).
  */
 class BasicLinkedList : public SequenceList {
 public:
@@ -137,22 +152,25 @@ public:
     ~BasicLinkedList();
 
     void appendToList(std::lock_guard<std::mutex>& seqLock,
+                      std::lock_guard<std::mutex>& writeLock,
                       OrderedStoredValue& v) override;
 
     SequenceList::UpdateStatus updateListElem(
             std::lock_guard<std::mutex>& seqLock,
+            std::lock_guard<std::mutex>& writeLock,
             OrderedStoredValue& v) override;
 
     std::tuple<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>, seqno_t>
     rangeRead(seqno_t start, seqno_t end) override;
 
-    void updateHighSeqno(std::lock_guard<std::mutex>& highSeqnoLock,
+    void updateHighSeqno(std::lock_guard<std::mutex>& listWriteLg,
                          const OrderedStoredValue& v) override;
 
-    void updateHighestDedupedSeqno(std::lock_guard<std::mutex>& highSeqnoLock,
+    void updateHighestDedupedSeqno(std::lock_guard<std::mutex>& listWriteLg,
                                    const OrderedStoredValue& v) override;
 
-    void markItemStale(StoredValue::UniquePtr ownedSv) override;
+    void markItemStale(std::lock_guard<std::mutex>& listWriteLg,
+                       StoredValue::UniquePtr ownedSv) override;
 
     size_t purgeTombstones() override;
 
@@ -178,7 +196,7 @@ public:
 
     uint64_t getRangeReadEnd() const override;
 
-    std::mutex& getHighSeqnosLock() const override;
+    std::mutex& getListWriteLock() const override;
 
     SequenceList::RangeIterator makeRangeIterator() override;
 
@@ -190,7 +208,8 @@ protected:
 
     /**
      * Lock that serializes writes (append, update, purgeTombstones) on
-     * 'seqList'
+     * 'seqList' + the updation of the corresponding highSeqno or the
+     * highestDedupedSeqno atomic
      */
     mutable std::mutex writeLock;
 
@@ -207,11 +226,6 @@ protected:
      * periods.
      */
     mutable SpinLock rangeLock;
-
-    /**
-     * Lock protecting the highSeqno and highestDedupedSeqno.
-     */
-    mutable std::mutex highSeqnosLock;
 
     /**
      * Lock that serializes range reads on the 'seqList' - i.e. serializes

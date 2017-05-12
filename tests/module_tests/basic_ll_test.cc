@@ -86,10 +86,11 @@ protected:
 
             sv = ht.find(key, TrackReference::Yes, WantsDeleted::No)
                          ->toOrderedStoredValue();
-            basicLL->appendToList(lg, *sv);
-            std::lock_guard<std::mutex> highSeqnoLh(
-                    basicLL->getHighSeqnosLock());
-            basicLL->updateHighSeqno(highSeqnoLh, *sv);
+
+            std::lock_guard<std::mutex> listWriteLg(
+                    basicLL->getListWriteLock());
+            basicLL->appendToList(lg, listWriteLg, *sv);
+            basicLL->updateHighSeqno(listWriteLg, *sv);
             expectedSeqno.push_back(i);
         }
         return expectedSeqno;
@@ -108,11 +109,12 @@ protected:
                                           TrackReference::No,
                                           WantsDeleted::Yes)
                                           ->toOrderedStoredValue();
+
+        std::lock_guard<std::mutex> listWriteLg(basicLL->getListWriteLock());
         EXPECT_EQ(SequenceList::UpdateStatus::Success,
-                  basicLL->updateListElem(lg, *osv));
+                  basicLL->updateListElem(lg, listWriteLg, *osv));
         osv->setBySeqno(highSeqno + 1);
-        std::lock_guard<std::mutex> highSeqnoLh(basicLL->getHighSeqnosLock());
-        basicLL->updateHighSeqno(highSeqnoLh, *osv);
+        basicLL->updateHighSeqno(listWriteLg, *osv);
     }
 
     /**
@@ -131,14 +133,15 @@ protected:
                                           WantsDeleted::Yes)
                                           ->toOrderedStoredValue();
 
+        std::lock_guard<std::mutex> listWriteLg(basicLL->getListWriteLock());
         EXPECT_EQ(SequenceList::UpdateStatus::Append,
-                  basicLL->updateListElem(lg, *osv));
+                  basicLL->updateListElem(lg, listWriteLg, *osv));
 
         /* Release the current sv from the HT */
         StoredDocKey sKey = makeStoredDocKey(key);
         auto hbl = ht.getLockedBucket(sKey);
         auto ownedSv = ht.unlocked_release(hbl, osv->getKey());
-        basicLL->markItemStale(std::move(ownedSv));
+        basicLL->markItemStale(listWriteLg, std::move(ownedSv));
 
         /* Add a new storedvalue for the append */
         Item itm(sKey,
@@ -152,9 +155,9 @@ protected:
                  /*bySeqno*/ highSeqno + 1);
         auto newSv = ht.unlocked_addNewStoredValue(hbl, itm);
 
-        basicLL->appendToList(lg, *(newSv->toOrderedStoredValue()));
-        std::lock_guard<std::mutex> highSeqnoLh(basicLL->getHighSeqnosLock());
-        basicLL->updateHighSeqno(highSeqnoLh, *(newSv->toOrderedStoredValue()));
+        basicLL->appendToList(
+                lg, listWriteLg, *(newSv->toOrderedStoredValue()));
+        basicLL->updateHighSeqno(listWriteLg, *(newSv->toOrderedStoredValue()));
     }
 
     /**
@@ -411,11 +414,14 @@ TEST_F(BasicLinkedListTest, MarkStale) {
     size_t svMetaDataSize = ownedSv->metaDataSize();
 
     /* Mark the item stale */
-    basicLL->markItemStale(std::move(ownedSv));
+    {
+        std::lock_guard<std::mutex> writeGuard(basicLL->getListWriteLock());
+        basicLL->markItemStale(writeGuard, std::move(ownedSv));
+    }
 
     /* Check if the StoredValue is marked stale */
     {
-        std::lock_guard<std::mutex> writeGuard(basicLL->getWriteLock());
+        std::lock_guard<std::mutex> writeGuard(basicLL->getListWriteLock());
         EXPECT_TRUE(nonOwnedSvPtr->isStale(writeGuard));
     }
 

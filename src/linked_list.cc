@@ -35,7 +35,7 @@ BasicLinkedList::BasicLinkedList(uint16_t vbucketId, EPStats& st)
 BasicLinkedList::~BasicLinkedList() {
     /* Delete stale items here, other items are deleted by the hash
        table */
-    std::lock_guard<std::mutex> writeGuard(writeLock);
+    std::lock_guard<std::mutex> writeGuard(getListWriteLock());
     seqList.remove_and_dispose_if(
             [&writeGuard](const OrderedStoredValue& v) {
                 return v.isStale(writeGuard);
@@ -51,18 +51,15 @@ BasicLinkedList::~BasicLinkedList() {
 }
 
 void BasicLinkedList::appendToList(std::lock_guard<std::mutex>& seqLock,
+                                   std::lock_guard<std::mutex>& writeLock,
                                    OrderedStoredValue& v) {
-    /* Allow only one write to the list at a time */
-    std::lock_guard<std::mutex> lckGd(writeLock);
-
     seqList.push_back(v);
 }
 
 SequenceList::UpdateStatus BasicLinkedList::updateListElem(
-        std::lock_guard<std::mutex>& seqLock, OrderedStoredValue& v) {
-    /* Allow only one write to the list at a time */
-    std::lock_guard<std::mutex> lckGd(writeLock);
-
+        std::lock_guard<std::mutex>& seqLock,
+        std::lock_guard<std::mutex>& writeLock,
+        OrderedStoredValue& v) {
     /* Lock that needed for consistent read of SeqRange 'readRange' */
     std::lock_guard<SpinLock> lh(rangeLock);
 
@@ -102,6 +99,7 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
     std::lock_guard<std::mutex> lckGd(rangeReadLock);
 
     {
+        std::lock_guard<std::mutex> listWriteLg(getListWriteLock());
         std::lock_guard<SpinLock> lh(rangeLock);
         if (start > highSeqno) {
             LOG(EXTENSION_LOG_WARNING,
@@ -169,18 +167,17 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
     return std::make_tuple(ENGINE_SUCCESS, std::move(items), end);
 }
 
-void BasicLinkedList::updateHighSeqno(
-        std::lock_guard<std::mutex>& highSeqnoLock,
-        const OrderedStoredValue& v) {
+void BasicLinkedList::updateHighSeqno(std::lock_guard<std::mutex>& listWriteLg,
+                                      const OrderedStoredValue& v) {
     highSeqno = v.getBySeqno();
 }
 void BasicLinkedList::updateHighestDedupedSeqno(
-        std::lock_guard<std::mutex>& highSeqnoLock,
-        const OrderedStoredValue& v) {
+        std::lock_guard<std::mutex>& listWriteLg, const OrderedStoredValue& v) {
     highestDedupedSeqno = v.getBySeqno();
 }
 
-void BasicLinkedList::markItemStale(StoredValue::UniquePtr ownedSv) {
+void BasicLinkedList::markItemStale(std::lock_guard<std::mutex>& listWriteLg,
+                                    StoredValue::UniquePtr ownedSv) {
     /* Release the StoredValue as BasicLinkedList does not want it to be of
        owned type */
     StoredValue* v = ownedSv.release();
@@ -191,10 +188,7 @@ void BasicLinkedList::markItemStale(StoredValue::UniquePtr ownedSv) {
     st.currentSize.fetch_add(v->metaDataSize());
 
     ++numStaleItems;
-    {
-        std::lock_guard<std::mutex> writeGuard(writeLock);
-        v->toOrderedStoredValue()->markStale(writeGuard);
-    }
+    v->toOrderedStoredValue()->markStale(listWriteLg);
 }
 
 size_t BasicLinkedList::purgeTombstones() {
@@ -232,7 +226,7 @@ size_t BasicLinkedList::purgeTombstones() {
     OrderedLL::iterator startIt;
     OrderedLL::iterator endIt;
     {
-        std::lock_guard<std::mutex> writeGuard(writeLock);
+        std::lock_guard<std::mutex> writeGuard(getListWriteLock());
         if (seqList.empty()) {
             // Nothing in sequence list - nothing to purge.
             return 0;
@@ -267,7 +261,7 @@ size_t BasicLinkedList::purgeTombstones() {
     bool stale;
     for (auto it = startIt; it != endIt;) {
         {
-            std::lock_guard<std::mutex> writeGuard(writeLock);
+            std::lock_guard<std::mutex> writeGuard(getListWriteLock());
             stale = it->isStale(writeGuard);
         }
         // Only stale items are purged.
@@ -282,7 +276,7 @@ size_t BasicLinkedList::purgeTombstones() {
     }
     // Handle the last element.
     {
-        std::lock_guard<std::mutex> writeGuard(writeLock);
+        std::lock_guard<std::mutex> writeGuard(getListWriteLock());
         stale = endIt->isStale(writeGuard);
     }
     if (stale) {
@@ -319,22 +313,22 @@ size_t BasicLinkedList::getStaleMetadataBytes() const {
 }
 
 uint64_t BasicLinkedList::getNumDeletedItems() const {
-    std::lock_guard<std::mutex> lckGd(writeLock);
+    std::lock_guard<std::mutex> lckGd(getListWriteLock());
     return numDeletedItems;
 }
 
 uint64_t BasicLinkedList::getNumItems() const {
-    std::lock_guard<std::mutex> lckGd(writeLock);
+    std::lock_guard<std::mutex> lckGd(getListWriteLock());
     return seqList.size();
 }
 
 uint64_t BasicLinkedList::getHighSeqno() const {
-    std::lock_guard<std::mutex> lckGd(highSeqnosLock);
+    std::lock_guard<std::mutex> lckGd(getListWriteLock());
     return highSeqno;
 }
 
 uint64_t BasicLinkedList::getHighestDedupedSeqno() const {
-    std::lock_guard<std::mutex> lckGd(highSeqnosLock);
+    std::lock_guard<std::mutex> lckGd(getListWriteLock());
     return highestDedupedSeqno;
 }
 
@@ -351,8 +345,8 @@ uint64_t BasicLinkedList::getRangeReadEnd() const {
     std::lock_guard<SpinLock> lh(rangeLock);
     return readRange.getEnd();
 }
-std::mutex& BasicLinkedList::getHighSeqnosLock() const {
-    return highSeqnosLock;
+std::mutex& BasicLinkedList::getListWriteLock() const {
+    return writeLock;
 }
 
 SequenceList::RangeIterator BasicLinkedList::makeRangeIterator() {
@@ -382,7 +376,7 @@ std::ostream& operator <<(std::ostream& os, const BasicLinkedList& ll) {
 OrderedLL::iterator BasicLinkedList::purgeListElem(OrderedLL::iterator it) {
     StoredValue::UniquePtr purged(&*it);
     {
-        std::lock_guard<std::mutex> lckGd(writeLock);
+        std::lock_guard<std::mutex> lckGd(getListWriteLock());
         it = seqList.erase(it);
     }
 
@@ -406,6 +400,7 @@ OrderedLL::iterator BasicLinkedList::purgeListElem(OrderedLL::iterator it) {
 
 BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll)
     : list(ll), readLockHolder(list.rangeReadLock), itrRange(0, 0) {
+    std::lock_guard<std::mutex> listWriteLg(list.getListWriteLock());
     std::lock_guard<SpinLock> lh(list.rangeLock);
     if (list.highSeqno < 1) {
         /* No need of holding a lock for the snapshot as there are no items;

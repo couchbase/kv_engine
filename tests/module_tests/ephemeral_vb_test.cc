@@ -381,7 +381,7 @@ TEST_F(EphTombstoneTest, ImmediatePurgeOfAliveStale) {
         ASSERT_EQ(staleIt->getKey(), newIt->getKey());
         {
             std::lock_guard<std::mutex> writeGuard(
-                    mockEpheVB->getLL()->getWriteLock());
+                    mockEpheVB->getLL()->getListWriteLock());
             ASSERT_TRUE(staleIt->isStale(writeGuard));
             ASSERT_FALSE(newIt->isStale(writeGuard));
         }

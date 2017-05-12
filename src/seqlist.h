@@ -189,10 +189,12 @@ public:
      * Add a new item at the end of the list.
      *
      * @param seqLock A sequence lock the calling module is expected to hold.
+     * @param writeLock Write lock of the sequenceList from getListWriteLock()
      * @param v Ref to orderedStoredValue which will placed into the linked list
      *          Its intrusive list links will be updated.
      */
     virtual void appendToList(std::lock_guard<std::mutex>& seqLock,
+                              std::lock_guard<std::mutex>& writeLock,
                               OrderedStoredValue& v) = 0;
 
     /**
@@ -201,6 +203,7 @@ public:
      * we do not allow the update and indicate the caller to do an append.
      *
      * @param seqLock A sequence lock the calling module is expected to hold.
+     * @param writeLock Write lock of the sequenceList from getListWriteLock()
      * @param v Ref to orderedStoredValue which will placed into the linked list
      *          Its intrusive list links will be updated.
      *
@@ -210,7 +213,9 @@ public:
      *                              handle the append.
      */
     virtual SequenceList::UpdateStatus updateListElem(
-            std::lock_guard<std::mutex>& seqLock, OrderedStoredValue& v) = 0;
+            std::lock_guard<std::mutex>& seqLock,
+            std::lock_guard<std::mutex>& writeLock,
+            OrderedStoredValue& v) = 0;
 
     /**
      * Provides point-in-time snapshots which can be used for incremental
@@ -237,24 +242,24 @@ public:
      * Updates the highSeqno in the list. Since seqno is generated and managed
      * outside the list, the module managing it must update this after the seqno
      * is generated for the item already put in the list.
-     * @param highSeqnoLock The lock protecting the high seqnos the caller is
-     * expected to hold
+     *
+     * @param listWriteLg Write lock of the sequenceList from getListWriteLock()
      * @param v Ref to orderedStoredValue
      */
-    virtual void updateHighSeqno(std::lock_guard<std::mutex>& highSeqnoLock,
+    virtual void updateHighSeqno(std::lock_guard<std::mutex>& listWriteLg,
                                  const OrderedStoredValue& v) = 0;
 
     /**
      * Updates the highestDedupedSeqno in the list. Since seqno is generated and
      * managed outside the list, the module managing it must update this after
      * the seqno is generated for the item already put in the list.
-     * @param highSeqnoLock The lock protecting the high seqnos the caller is
-     * expected to hold
+     *
+     * @param listWriteLg Write lock of the sequenceList from getListWriteLock()
      * @param v Ref to orderedStoredValue
      *
      */
     virtual void updateHighestDedupedSeqno(
-            std::lock_guard<std::mutex>& highSeqnoLock,
+            std::lock_guard<std::mutex>& listWriteLg,
             const OrderedStoredValue& v) = 0;
 
     /**
@@ -263,10 +268,12 @@ public:
      *       wants to own the OrderedStoredValue (as owned type vs non-owned
      *       type)
      *
+     * @param listWriteLg Write lock of the sequenceList from getListWriteLock()
      * @param ownedSv StoredValue whose ownership is passed to the sequential
      *                data structure.
      */
-    virtual void markItemStale(StoredValue::UniquePtr ownedSv) = 0;
+    virtual void markItemStale(std::lock_guard<std::mutex>& listWriteLg,
+                               StoredValue::UniquePtr ownedSv) = 0;
 
     /**
      * Remove from sequence list and delete all OSVs which are purgable.
@@ -344,10 +351,11 @@ public:
     virtual uint64_t getRangeReadEnd() const = 0;
 
     /**
-     * Returns the lock which must be held to modify the highSeqno or the
-     * highestDedupedSeqno
+     * Returns the lock which must be held to make append/update to the seqList
+     * + the updation of the corresponding highSeqno or the
+     * highestDedupedSeqno atomic
      */
-    virtual std::mutex& getHighSeqnosLock() const = 0;
+    virtual std::mutex& getListWriteLock() const = 0;
 
     /**
      * Returns a range iterator for the underlying SequenceList obj
