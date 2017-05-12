@@ -96,8 +96,10 @@ General format of a packet:
 
 | Raw  | Description                               |
 | -----|-------------------------------------------|
-| 0x80 | Request packet for this protocol version  |
-| 0x81 | Response packet for this protocol version |
+| 0x80 | Request packet from client to server      |
+| 0x81 | Response packet from server to client     |
+| 0x82 | Request packet from server to client      |
+| 0x83 | Response packet from client to server     |
 
 Magic byte / version. For each version of the protocol, we'll use a different
 request/response value pair. This is useful for protocol analyzers to
@@ -187,6 +189,8 @@ performed, and these error codes falls into two categories: *temporarily* and
 
 Possible values of the one-byte field. See [Commands](#Commands) for more
 information about a given command.
+
+#### Opcodes for Magic 0x80 and 0x81 (client initiated messages)
 
 | Raw  | Description                                             |
 | -----|---------------------------------------------------------|
@@ -343,6 +347,12 @@ given response is interesting is dependent upon the command. See the
 descriptions of the set commands (Section 4.2) and set commands (Section 4.3)
 for examples of commands that include quiet variants.
 
+#### Opcodes for Magic 0x82 and 0x83 (server initiated messages)
+
+| Raw  | Description                                             |
+| -----|---------------------------------------------------------|
+| 0x00 |  |
+
 ### Data Types
 
 Possible values of the one-byte field which is a bit-filed.
@@ -360,11 +370,24 @@ datatype bits by performing a successful HELLO with the DATATYPE feature.
 ## Commands
 
 ### Introduction
-All communication is initiated by a request from the client, and the server will
-respond to each request with zero or multiple packets for each request. If the
-status code of a response packet is non-nil, the body of the packet will contain
-a textual error message. If the status code is nil, the command opcode will
-define the layout of the body of the message.
+The communication is initially initiated by a request being sent from the
+client to the server, and the server will respond to the request with
+zero or multiple packets for each request. The client is always the
+initiator of communication unless it enables the [`duplex`](#0x1f-helo)
+feature. When (explicitly) enabled by the client, the server may also
+send requests to the client and expect a response being returned.
+
+The command opcode defines the layout of the body of the message.
+
+The current protocol dictates that the server won't start processing
+the next command until the current command is completely processed
+(due to the lack of barriers or any other primitives to enforce
+execution order). The protocol defines some "quiet commands" which
+won't send responses in certain cases (success for mutations,
+not found for gets etc). The client would know that such commands
+was executed when it encounters the _response_ for the next _command_
+requested issued by the client.
+
 
 #### Example
 The following figure illustrates the packet layout for a packet with an error
@@ -1476,6 +1499,7 @@ The following features is defined:
 | 0x0006 | XATTR |
 | 0x0007 | XERROR |
 | 0x0008 | Select bucket |
+| 0x0009 | Duplex |
 
 * `Datatype` - The client understands the 'non-null' values in the
   [datatype field](#data-types). The server expects the client to fill
@@ -1501,6 +1525,10 @@ The following features is defined:
                     (select bucket was a privileged command pre-spock. In
                     spock all users may run select bucket, but only to a
                     bucket they have access to).
+* `Duplex` - The client allows for full duplex on the socket. This means
+             that the server may send requests back to the client.
+             These messages is identified by the magic values of
+             0x82 (request) and 0x83 (response).
 
 Response:
 
