@@ -77,6 +77,14 @@ private:
      */
     static bool validSeparator(const char* separator);
 
+    /**
+     * Check if the C-string represents a legal collection name.
+     * Current validation is to ensure we block creation of _ prefixed
+     * collections and only accept $default for $ prefixed names.
+     * @param collection a C-string representing a collection name.
+     */
+    static bool validCollection(const char* collection);
+
     int revision;
     std::string separator;
     std::vector<std::string> collections;

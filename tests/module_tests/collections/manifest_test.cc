@@ -62,7 +62,13 @@ TEST(ManifestTest, validation) {
             "------------------------------------------------------------------"
             "------------------------------------------------------------------"
             "---\","
-            "\"collections\":[\"beer\",\"brewery\"]}"};
+            "\"collections\":[\"beer\",\"brewery\"]}",
+            "{\"revision\":0"
+            "\"separator\":\":\"," // illegal $ prefixed  name
+            "\"collections\":[\"$magic\",\"beer\",\"brewery\"]}",
+            "{\"revision\":0"
+            "\"separator\":\":\"," // illegal _ prefixed  name
+            "\"collections\":[\"beer\",\"_brewery\"]}"};
 
     std::vector<std::string> validManifests = {
             "{\"revision\":0,"

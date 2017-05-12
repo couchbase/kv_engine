@@ -84,8 +84,12 @@ Manifest::Manifest(const std::string& json) {
                         std::to_string(ii) +
                         (!collection ? " nullptr"
                                      : std::to_string(collection->type)));
-            } else {
+            } else if (validCollection(collection->valuestring)) {
                 collections.push_back(collection->valuestring);
+            } else {
+                throw std::invalid_argument(
+                        "Manifest::Manifest invalid collection name:" +
+                        std::string(collection->valuestring));
             }
         }
     }
@@ -94,5 +98,16 @@ Manifest::Manifest(const std::string& json) {
 bool Manifest::validSeparator(const char* separator) {
     size_t size = std::strlen(separator);
     return size > 0 && size <= 250;
+}
+
+bool Manifest::validCollection(const char* collection) {
+    // Current validation is to just check the prefix to ensure
+    // 1. $default is the only $ prefixed collection.
+    // 2. _ is not allowed as the first character.
+
+    if (collection[0] == '$' && !(DefaultCollectionIdentifier == collection)) {
+        return false;
+    }
+    return collection[0] != '_';
 }
 }
