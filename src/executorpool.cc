@@ -690,19 +690,14 @@ void ExecutorPool::_unregisterTaskable(Taskable& taskable, bool force) {
                     "Attempting to unregister taskable '" +
                     taskable.getName() + "' but taskLocator is not empty");
         }
-        for (unsigned int idx = 0; idx < numTaskSets; idx++) {
-            TaskQueue *sleepQ = getSleepQ(idx);
-            size_t wakeAll = threadQ.size();
-            numReadyTasks[idx]++; // this prevents woken workers from sleeping
-            totReadyTasks++;
-            sleepQ->doWake(wakeAll);
-        }
         for (size_t tidx = 0; tidx < threadQ.size(); ++tidx) {
             threadQ[tidx]->stop(false); // only set state to DEAD
         }
+
         for (unsigned int idx = 0; idx < numTaskSets; idx++) {
-            numReadyTasks[idx]--; // once woken reset the ready tasks
-            totReadyTasks--;
+            TaskQueue *sleepQ = getSleepQ(idx);
+            size_t wakeAll = threadQ.size();
+            sleepQ->doWake(wakeAll);
         }
 
         for (size_t tidx = 0; tidx < threadQ.size(); ++tidx) {
