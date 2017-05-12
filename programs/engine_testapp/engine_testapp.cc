@@ -20,6 +20,7 @@
 #include <memcached/extension_loggers.h>
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
+#include <platform/processclock.h>
 
 struct mock_engine {
     ENGINE_HANDLE_V1 me;
@@ -759,7 +760,11 @@ static void usage(void) {
     printf("-n                           Regex specifying name(s) of test(s) to run\n");
 }
 
-static int report_test(const char *name, time_t duration, enum test_result r, bool quiet, bool compact) {
+static int report_test(const char *name,
+                       ProcessClock::duration duration,
+                       enum test_result r,
+                       bool quiet,
+                       bool compact) {
     int rc = 0;
     const char *msg = NULL;
     int color = 0;
@@ -814,9 +819,10 @@ static int report_test(const char *name, time_t duration, enum test_result r, bo
         snprintf(color_str, sizeof(color_str), "\033[%dm", color);
     }
 
+    auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
     if (quiet) {
         if (r != SUCCESS) {
-            printf("%s:  (%lu sec) %s%s%s\n", name, (long)duration,
+            printf("%s:  (%" PRIu64 " ms) %s%s%s\n", name, duration_ms.count(),
                    color_str, msg, reset_color);
             fflush(stdout);
         }
@@ -832,8 +838,8 @@ static int report_test(const char *name, time_t duration, enum test_result r, bo
             fprintf(stdout, "\r");
             fflush(stdout);
         } else {
-            printf("(%lu sec) %s%s%s\n", (long)duration,
-                                         color_str, msg, reset_color);
+            printf("(%" PRIu64 " ms) %s%s%s\n", duration_ms.count(), color_str,
+                   msg, reset_color);
         }
     }
     return rc;
@@ -1524,8 +1530,6 @@ int main(int argc, char **argv) {
 
             {
                 enum test_result ecode = FAIL;
-                time_t start;
-                time_t stop;
                 int rc;
 
                 // Setup args for this test instance.
@@ -1541,9 +1545,9 @@ int main(int argc, char **argv) {
                      (attempt < attempts) && ((ecode != SUCCESS) &&
                                               (ecode != SUCCESS_AFTER_RETRY));
                      attempt++) {
-                    start = time(NULL);
+                    auto start = ProcessClock::now();
                     rc = spawn_and_wait(argc + 2, child_argv.data());
-                    stop = time(NULL);
+                    auto stop = ProcessClock::now();
 
 #ifdef WIN32
                     ecode = (enum test_result)rc;
