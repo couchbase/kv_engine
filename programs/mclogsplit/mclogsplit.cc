@@ -69,7 +69,7 @@ void process_stream(FILE* stream, const std::string& output, bool preserve) {
             } else {
                 std::stringstream ss;
                 ss << output << "/memcached.log." << std::setw(6)
-                   << std::setfill('0') << idx << ".txt";
+                   << std::setfill('0') << idx++ << ".txt";
                 filename = ss.str();
             }
 
