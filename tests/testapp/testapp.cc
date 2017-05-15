@@ -1293,7 +1293,6 @@ stats_response_t request_stats() {
         const size_t val_len(buffer.response.message.header.response.bodylen -
                              key_len -
                              buffer.response.message.header.response.extlen);
-        EXPECT_GT(val_len, 0u);
 
         result.insert(std::make_pair(std::string(key_ptr, key_len),
                                      std::string(val_ptr, val_len)));

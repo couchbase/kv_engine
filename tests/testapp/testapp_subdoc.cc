@@ -2002,9 +2002,8 @@ TEST_P(McdTestappTest, SubdocLockedItem)
 {
     store_object("item", "{}", true);
 
-    // Set the item's CAS as -1
-    ewouldblock_engine_configure(ENGINE_SUCCESS, EWBEngineMode::SetItemCas,
-                                 uint32_t(-1), "item");
+    // Lock the object
+    auto doc = getConnection().get_and_lock("item", 0, 10);
 
     // Construct the subdoc command
     BinprotSubdocCommand sd_cmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
@@ -2016,13 +2015,8 @@ TEST_P(McdTestappTest, SubdocLockedItem)
     sd_cmd.setCas(-1);
     EXPECT_SUBDOC_CMD(sd_cmd, PROTOCOL_BINARY_RESPONSE_ETMPFAIL, "");
 
-    // Set our "normal" CAS back
-    ewouldblock_engine_configure(ENGINE_SUCCESS, EWBEngineMode::SetItemCas, uint32_t(42), "item");
-
-    auto rv = fetch_value("item");
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, rv.first);
-
-    sd_cmd.setCas(htonll(42));
+    // Set our "normal" CAS back (
+    sd_cmd.setCas(doc.info.cas);
     EXPECT_SUBDOC_CMD(sd_cmd, PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
 
     validate_object("item", "{\"p\":true}");
