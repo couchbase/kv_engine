@@ -2151,7 +2151,7 @@ static enum test_result test_dcp_producer_keep_stream_open(ENGINE_HANDLE *h,
     /* We want to stream items till end and keep the stream open. Then we want
        to verify the stream is still open */
     stop_continuous_dcp_thread.store(false, std::memory_order_relaxed);
-    struct continuous_dcp_ctx cdc = {h, h1, cookie, 0, conn_name.c_str(), 0};
+    struct continuous_dcp_ctx cdc = {h, h1, cookie, 0, conn_name, 0};
     cb_thread_t dcp_thread;
     cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0)
               == 0);
@@ -2255,7 +2255,7 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
     const void *cookie1 = testHarness.create_cookie();
     const std::string conn_name1("unittest1");
     stop_continuous_dcp_thread.store(false, std::memory_order_relaxed);
-    struct continuous_dcp_ctx cdc = {h, h1, cookie1, 0, conn_name1.c_str(), 0};
+    struct continuous_dcp_ctx cdc = {h, h1, cookie1, 0, conn_name1, 0};
     cb_thread_t dcp_thread;
     cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0)
               == 0);
@@ -2337,7 +2337,7 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
     /* We want to stream items till end and keep the stream open. We want to
        verify if the DCP cursor has moved to new open checkpoint */
     stop_continuous_dcp_thread.store(false, std::memory_order_relaxed);
-    struct continuous_dcp_ctx cdc = {h, h1, cookie, 0, conn_name.c_str(), 20};
+    struct continuous_dcp_ctx cdc = {h, h1, cookie, 0, conn_name, 20};
     cb_thread_t dcp_thread;
     cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0)
               == 0);
@@ -5460,12 +5460,12 @@ static enum test_result test_dcp_multiple_streams(ENGINE_HANDLE *h,
 
 static enum test_result test_dcp_on_vbucket_state_change(ENGINE_HANDLE *h,
                                                          ENGINE_HANDLE_V1 *h1) {
-
+    const std::string conn_name = "unittest";
     const void *cookie = testHarness.create_cookie();
 
     // Set up a DcpTestConsumer that would remain in in-memory mode
     stop_continuous_dcp_thread.store(false, std::memory_order_relaxed);
-    struct continuous_dcp_ctx cdc = {h, h1, cookie, 0, "unittest", 0};
+    struct continuous_dcp_ctx cdc = {h, h1, cookie, 0, conn_name, 0};
     cb_thread_t dcp_thread;
     cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0) == 0);
 
@@ -5480,7 +5480,8 @@ static enum test_result test_dcp_on_vbucket_state_change(ENGINE_HANDLE *h,
     h1->release(h, NULL, i);
 
     // Wait for producer to stream that item
-    wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:items_sent", 1, "dcp");
+    const std::string items_sent_str = "eq_dcpq:" + conn_name + ":items_sent";
+    wait_for_stat_to_be(h, h1, items_sent_str.c_str(), 1, "dcp");
 
     // Change vbucket state to pending
     check(set_vbucket_state(h, h1, 0, vbucket_state_pending),
