@@ -34,6 +34,8 @@ public:
 
     virtual ~TestBucketImpl() {}
 
+    virtual std::string getName() const = 0;
+
     // Whether the given bucket type supports an opcode
     virtual bool supportsOp(protocol_binary_command cmd) const = 0;
     virtual bool canStoreCompressedItems() const = 0;

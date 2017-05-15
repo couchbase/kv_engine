@@ -45,6 +45,10 @@ public:
         createEwbBucket(name, "default_engine.so", config, conn);
     }
 
+    std::string getName() const override {
+        return "default_engine";
+    }
+
     bool supportsOp(protocol_binary_command cmd) const override {
         switch (cmd) {
             case PROTOCOL_BINARY_CMD_DCP_OPEN:
@@ -129,6 +133,10 @@ public:
         } while (resp.getStatus() == PROTOCOL_BINARY_RESPONSE_ETMPFAIL);
 
         ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    }
+
+    std::string getName() const override {
+        return "ep_engine";
     }
 
     bool supportsOp(protocol_binary_command cmd ) const override {
