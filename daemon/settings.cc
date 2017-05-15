@@ -59,6 +59,7 @@ Settings::Settings()
     dedupe_nmvb_maps.store(false);
     xattr_enabled.store(false);
     privilege_debug.store(false);
+    collections_prototype.store(false);
 
     memset(&has, 0, sizeof(has));
     memset(&extensions, 0, sizeof(extensions));
@@ -575,6 +576,25 @@ static void handle_client_cert_auth(Settings& s, cJSON* obj) {
 }
 
 /**
+ * Handle the "collections_prototype" tag in the settings
+ *
+ *  The value must be a boolean value
+ *
+ * @param s the settings object to update
+ * @param obj the object in the configuration
+ */
+static void handle_collections_prototype(Settings& s, cJSON* obj) {
+    if (obj->type == cJSON_True) {
+        s.setCollectionsPrototype(true);
+    } else if (obj->type == cJSON_False) {
+        s.setCollectionsPrototype(false);
+    } else {
+        throw std::invalid_argument(
+                "\"collections_prototype\" must be a boolean value");
+    }
+}
+
+/**
  * Handle the "extensions" tag in the settings
  *
  *  The value must be an array
@@ -684,7 +704,8 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
             {"ssl_sasl_mechanisms", handle_ssl_sasl_mechanisms},
             {"dedupe_nmvb_maps", handle_dedupe_nmvb_maps},
             {"xattr_enabled", handle_xattr_enabled},
-            {"client_cert_auth", handle_client_cert_auth}};
+            {"client_cert_auth", handle_client_cert_auth},
+            {"collections_prototype", handle_collections_prototype}};
 
     cJSON* obj = json->child;
     while (obj != nullptr) {

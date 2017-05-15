@@ -990,6 +990,28 @@ public:
         notify_changed("xattr_enabled");
     }
 
+    /**
+     * Collections prototype means certain work-in-progress parts of collections
+     * are enabled/disabled and also means DCP auto-enables collections for
+     * replication streams (as opposed to ns_server requesting it).
+     *
+     * @return true if the collections prototype should be enabled
+     */
+    bool isCollectionsPrototypeEnabled() const {
+        return collections_prototype.load();
+    }
+
+    /**
+     * Set if the server should enable collection support
+     *
+     * @param collections_enabled true if the system should enable collections
+     */
+    void setCollectionsPrototype(const bool collections_enabled) {
+        Settings::collections_prototype.store(collections_enabled);
+        has.collections_prototype = collections_enabled;
+        notify_changed("collections_prototype");
+    }
+
 protected:
 
     /**
@@ -1149,6 +1171,11 @@ protected:
      */
     std::atomic_bool xattr_enabled;
 
+    /**
+     * Should collections be enabled (off by default as it's a work in progress)
+     */
+    std::atomic_bool collections_prototype;
+
 public:
     /**
      * Flags for each of the above config options, indicating if they were
@@ -1189,6 +1216,7 @@ public:
         bool dedupe_nmvb_maps;
         bool error_maps;
         bool xattr_enabled;
+        bool collections_prototype;
     } has;
 
 protected:

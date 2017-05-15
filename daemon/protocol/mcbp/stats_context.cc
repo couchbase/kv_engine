@@ -440,6 +440,10 @@ static void process_stat_settings(ADD_STAT add_stat_callback,
     add_stat(cookie, add_stat_callback, "saslauthd_socketpath",
              cb::sasl::saslauthd::get_socketpath().c_str());
 
+    add_stat(cookie,
+             add_stat_callback,
+             "collections_prototype",
+             settings.isCollectionsPrototypeEnabled());
 }
 
 static void append_bin_stats(const char* key, const uint16_t klen,

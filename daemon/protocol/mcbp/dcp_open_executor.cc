@@ -46,8 +46,9 @@ void dcp_open_executor(McbpConnection* c, void* packet) {
 
         const char* name =
                 reinterpret_cast<const char*>(req->bytes + sizeof(req->bytes));
-        if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->dcp.open(
+
+        auto dcpOpen = [=, &flags]() {
+            return c->getBucketEngine()->dcp.open(
                     c->getBucketEngineAsV0(),
                     c->getCookie(),
                     req->message.header.request.opaque,
@@ -55,6 +56,24 @@ void dcp_open_executor(McbpConnection* c, void* packet) {
                     flags,
                     {name, nkey},
                     {req->bytes + sizeof(req->bytes) + nkey, valuelen});
+        };
+
+        // Collections Prototype: The following code allows the bucket to decide
+        // if this stream should be forced to being collection aware. So we can
+        // run with collections enabled, but with a non-collection bucket and a
+        // collection bucket. This is only whilst collections are in development
+        if (ret == ENGINE_SUCCESS) {
+            ret = dcpOpen();
+            if (settings.isCollectionsPrototypeEnabled() &&
+                ret != ENGINE_SUCCESS) {
+                flags |= DCP_OPEN_COLLECTIONS;
+                ret = dcpOpen();
+                LOG_NOTICE(
+                        c,
+                        "%u: Retried DCP open with DCP_OPEN_COLLECTIONS ret:%d",
+                        c->getId(),
+                        ret);
+            }
         }
     }
 
