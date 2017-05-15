@@ -55,7 +55,7 @@ public:
     std::string id;
     uint32_t flags;
     std::string expiration;
-    mcbp::Datatype datatype;
+    cb::mcbp::Datatype datatype;
     uint64_t cas;
 };
 
@@ -338,7 +338,7 @@ public:
             const std::string& id,
             uint16_t vbucket,
             const T& value,
-            mcbp::Datatype datatype = mcbp::Datatype::Raw) {
+            cb::mcbp::Datatype datatype = cb::mcbp::Datatype::Raw) {
         Document doc{};
         doc.value.assign(value.begin(), value.end());
         doc.info.id = id;

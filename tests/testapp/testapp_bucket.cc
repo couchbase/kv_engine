@@ -475,7 +475,7 @@ TEST_P(BucketTest, TestBucketIsolationBuckets)
     // I should be able to select each bucket and the same document..
     Document doc;
     doc.info.cas = mcbp::cas::Wildcard;
-    doc.info.datatype = mcbp::Datatype::Raw;
+    doc.info.datatype = cb::mcbp::Datatype::JSON;
     doc.info.flags = 0xcaffee;
     doc.info.id = "TestBucketIsolationBuckets";
     char* ptr = cJSON_Print(memcached_cfg.get());
@@ -512,7 +512,7 @@ TEST_P(BucketTest, TestMemcachedBucketBigObjects)
 
     Document doc;
     doc.info.cas = mcbp::cas::Wildcard;
-    doc.info.datatype = mcbp::Datatype::Raw;
+    doc.info.datatype = cb::mcbp::Datatype::Raw;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
     // Unfortunately the item_max_size is the full item including the

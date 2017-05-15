@@ -27,7 +27,7 @@ class TouchTest : public TestappClientTest {
 public:
     void SetUp() {
         document.info.cas = mcbp::cas::Wildcard;
-        document.info.datatype = mcbp::Datatype::Json;
+        document.info.datatype = cb::mcbp::Datatype::JSON;
         document.info.flags = 0xcaffee;
         document.info.id = name;
         const std::string content = to_string(memcached_cfg, false);

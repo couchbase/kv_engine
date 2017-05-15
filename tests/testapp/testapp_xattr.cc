@@ -874,7 +874,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeleted) {
 TEST_P(XattrTest, MB24152_GetXattrAndBodyWithoutXattr) {
 
     // Create a document without an XATTR.
-    getConnection().store(name, 0, value, mcbp::Datatype::Json);
+    getConnection().store(name, 0, value, cb::mcbp::Datatype::JSON);
 
     // Attempt to request both the body and a non-existent XATTR.
     BinprotSubdocMultiLookupCommand cmd;
@@ -935,7 +935,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeletedAndEmpty) {
 TEST_P(XattrTest, MB24152_GetXattrAndBodyNonJSON) {
     // Store a document with a non-JSON body + XATTR.
     value = "non-JSON value";
-    setBodyAndXattr(value, xattrVal, mcbp::Datatype::Raw);
+    setBodyAndXattr(value, xattrVal, cb::mcbp::Datatype::Raw);
 
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);

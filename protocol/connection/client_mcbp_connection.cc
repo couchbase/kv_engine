@@ -21,7 +21,7 @@
 #include <engines/ewouldblock_engine/ewouldblock_engine.h>
 #include <iostream>
 #include <iterator>
-#include <libmcbp/mcbp.h>
+#include <mcbp/mcbp.h>
 #include <memcached/protocol_binary.h>
 #include <platform/strerror.h>
 #include <sstream>
@@ -360,7 +360,7 @@ Document MemcachedBinprotConnection::get(const std::string& id,
     ret.info.flags = response.getDocumentFlags();
     ret.info.cas = response.getCas();
     ret.info.id = id;
-    ret.info.datatype = mcbp::Datatype(response.getDatatype());
+    ret.info.datatype = cb::mcbp::Datatype(response.getDatatype());
     ret.value.assign(response.getData().data(),
                      response.getData().data() + response.getData().size());
     return ret;
@@ -653,7 +653,7 @@ Document MemcachedBinprotConnection::get_and_lock(const std::string& id,
     ret.info.flags = response.getDocumentFlags();
     ret.info.cas = response.getCas();
     ret.info.id = id;
-    ret.info.datatype = mcbp::Datatype(response.getDatatype());
+    ret.info.datatype = cb::mcbp::Datatype(response.getDatatype());
     ret.value.assign(response.getData().data(),
                      response.getData().data() + response.getData().size());
     return ret;

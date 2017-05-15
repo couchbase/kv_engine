@@ -55,515 +55,383 @@
  * host order.
  */
 
-/**
- * Definition of the legal "magic" values used in a packet.
- * See section 3.1 Magic byte
- */
-typedef enum {
-    PROTOCOL_BINARY_REQ = 0x80,
-    PROTOCOL_BINARY_RES = 0x81
-} protocol_binary_magic;
-
-/**
- * Definition of the valid response status numbers.
- *
- * A well written client should be "future proof" by handling new
- * error codes to be defined. Note that new error codes means that
- * the requested operation wasn't performed.
- */
-typedef enum {
-    /** The operation completed successfully */
-    PROTOCOL_BINARY_RESPONSE_SUCCESS = 0x00,
-    /** The key does not exists */
-    PROTOCOL_BINARY_RESPONSE_KEY_ENOENT = 0x01,
-    /** The key exists in the cluster (with another CAS value) */
-    PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS = 0x02,
-    /** The document exceeds the maximum size */
-    PROTOCOL_BINARY_RESPONSE_E2BIG = 0x03,
-    /** Invalid request */
-    PROTOCOL_BINARY_RESPONSE_EINVAL = 0x04,
-    /** The document was not stored for some reason. This is
-     * currently a "catch all" for number or error situations, and
-     * should be split into multiple error codes. */
-    PROTOCOL_BINARY_RESPONSE_NOT_STORED = 0x05,
-    /** Non-numeric server-side value for incr or decr */
-    PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL = 0x06,
-    /** The server is not responsible for the requested vbucket */
-    PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET = 0x07,
-    /** Not connected to a bucket */
-    PROTOCOL_BINARY_RESPONSE_NO_BUCKET = 0x08,
-    /** The requested resource is locked */
-    PROTOCOL_BINARY_RESPONSE_LOCKED = 0x09,
-    /** The authentication context is stale. You should reauthenticate*/
-    PROTOCOL_BINARY_RESPONSE_AUTH_STALE = 0x1f,
-    /** Authentication failure (invalid user/password combination,
-     * OR an internal error in the authentication library. Could
-     * be a misconfigured SASL configuration. See server logs for
-     * more information.) */
-    PROTOCOL_BINARY_RESPONSE_AUTH_ERROR = 0x20,
-    /** Authentication OK so far, please continue */
-    PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE = 0x21,
-    /** The requested value is outside the legal range
-     * (similar to EINVAL, but more specific) */
-    PROTOCOL_BINARY_RESPONSE_ERANGE = 0x22,
-    /** Roll back to an earlier version of the vbucket UUID
-     * (_currently_ only used by DCP for agreeing on selecting a
-     * starting point) */
-    PROTOCOL_BINARY_RESPONSE_ROLLBACK = 0x23,
-    /** No access (could be opcode, value, bucket etc) */
-    PROTOCOL_BINARY_RESPONSE_EACCESS = 0x24,
-    /** The Couchbase cluster is currently initializing this
-     * node, and the Cluster manager has not yet granted all
-     * users access to the cluster. */
-    PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED = 0x25,
-    /** The server have no idea what this command is for */
-    PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND = 0x81,
-    /** Not enough memory */
-    PROTOCOL_BINARY_RESPONSE_ENOMEM = 0x82,
-    /** The server does not support this command */
-    PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED = 0x83,
-    /** An internal error in the server */
-    PROTOCOL_BINARY_RESPONSE_EINTERNAL = 0x84,
-    /** The system is currently too busy to handle the request.
-     * it is _currently_ only being used by the scrubber in
-     * default_engine to run a task there may only be one of
-     * (subsequent requests to start it would return ebusy until
-     * it's done). */
-    PROTOCOL_BINARY_RESPONSE_EBUSY = 0x85,
-    /** A temporary error condition occurred. Retrying the
-     * operation may resolve the problem. This could be that the
-     * server is in a degraded situation (like running warmup on
-     * the node), the vbucket could be in an "incorrect" state, a
-     * temporary failure from the underlying persistence layer,
-     * etc).
-     */
-    PROTOCOL_BINARY_RESPONSE_ETMPFAIL = 0x86,
-
-    /**
-     * There is something wrong with the syntax of the provided
-     * XATTR.
-     */
-    PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL = 0x87,
-
-    /**
-     * Operation attempted with an unknown collection.
-     */
-    PROTOCOL_BINARY_RESPONSE_UNKNOWN_COLLECTION = 0x88,
-
-    /*
-     * Sub-document specific responses.
-     */
-
-    /** The provided path does not exist in the document. */
-    PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT = 0xc0,
-
-    /** One of path components treats a non-dictionary as a dictionary, or
-     * a non-array as an array.
-     * [Arithmetic operations only] The value the path points to is not
-     * a number. */
-    PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH = 0xc1,
-
-    /** The path’s syntax was incorrect. */
-    PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EINVAL = 0xc2,
-
-    /** The path provided is too large; either the string is too long,
-     * or it contains too many components. */
-    PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_E2BIG = 0xc3,
-
-    /** The document has too many levels to parse. */
-    PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_E2DEEP = 0xc4,
-
-    /** [For mutations only] The value provided will invalidate the JSON if
-     * inserted. */
-    PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_CANTINSERT = 0xc5,
-
-    /** The existing document is not valid JSON. */
-    PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON = 0xc6,
-
-    /** [For arithmetic ops] The existing number is out of the valid range
-     * for arithmetic ops (cannot be represented as an int64_t). */
-    PROTOCOL_BINARY_RESPONSE_SUBDOC_NUM_ERANGE = 0xc7,
-
-    /** [For arithmetic ops] The delta supplied is invalid. It is either
-     * 0, not an integer, or out of the int64 range */
-    PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_EINVAL = 0xc8,
-
-    /** [For mutations only] The requested operation requires the path to
-     * not already exist, but it exists. */
-    PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS = 0xc9,
-
-    /** [For mutations only] Inserting the value would cause the document
-     * to be too deep. */
-    PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_ETOODEEP = 0xca,
-
-    /** [For multi-path commands only] An invalid combination of commands
-     * was specified. */
-    PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO = 0xcb,
-
-    /** [For multi-path commands only] Specified key was successfully
-     * found, but one or more path operations failed. Examine the individual
-     * lookup_result (MULTI_LOOKUP) / mutation_result (MULTI_MUTATION)
-     * structures for details. */
-    PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE = 0xcc,
-
-    /**
-     * The operation completed successfully, but operated on a deleted
-     * document.
-     */
-    PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED = 0xcd,
-
-    /**
-     * The combination of the subdoc flags for the xattrs doesn't make
-     * any sense
-     */
-    PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO = 0xce,
-
-    /**
-     * Only a single xattr key may be accessed at the same time.
-     */
-    PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_KEY_COMBO = 0xcf,
-
-    /**
-     * The server has no knowledge of the requested macro
-     */
-    PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_MACRO = 0xd0,
-
-    /**
-     * The server has no knowledge of the requested virtual xattr
-     */
-    PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_VATTR = 0xd1,
-
-    /**
-     * Virtual xattrs can't be modified
-     */
-    PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_CANT_MODIFY_VATTR = 0xd2,
-
-    /**
-     * [For multi-path commands only] Specified key was found as a
-     * Deleted document, but one or more path operations
-     * failed. Examine the individual lookup_result (MULTI_LOOKUP) /
-     * mutation_result (MULTI_MUTATION) structures for details.
-     */
-    PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE_DELETED = 0xd3,
-
-    /**
-     * The maximum number of responses
-     */
-    PROTOCOL_BINARY_RESPONSE_SIZE
-} protocol_binary_response_status;
-
-/**
- * Defintion of the different command opcodes.
- * See section 3.3 Command Opcodes
- */
-typedef enum {
-    PROTOCOL_BINARY_CMD_GET = 0x00,
-    PROTOCOL_BINARY_CMD_SET = 0x01,
-    PROTOCOL_BINARY_CMD_ADD = 0x02,
-    PROTOCOL_BINARY_CMD_REPLACE = 0x03,
-    PROTOCOL_BINARY_CMD_DELETE = 0x04,
-    PROTOCOL_BINARY_CMD_INCREMENT = 0x05,
-    PROTOCOL_BINARY_CMD_DECREMENT = 0x06,
-    PROTOCOL_BINARY_CMD_QUIT = 0x07,
-    PROTOCOL_BINARY_CMD_FLUSH = 0x08,
-    PROTOCOL_BINARY_CMD_GETQ = 0x09,
-    PROTOCOL_BINARY_CMD_NOOP = 0x0a,
-    PROTOCOL_BINARY_CMD_VERSION = 0x0b,
-    PROTOCOL_BINARY_CMD_GETK = 0x0c,
-    PROTOCOL_BINARY_CMD_GETKQ = 0x0d,
-    PROTOCOL_BINARY_CMD_APPEND = 0x0e,
-    PROTOCOL_BINARY_CMD_PREPEND = 0x0f,
-    PROTOCOL_BINARY_CMD_STAT = 0x10,
-    PROTOCOL_BINARY_CMD_SETQ = 0x11,
-    PROTOCOL_BINARY_CMD_ADDQ = 0x12,
-    PROTOCOL_BINARY_CMD_REPLACEQ = 0x13,
-    PROTOCOL_BINARY_CMD_DELETEQ = 0x14,
-    PROTOCOL_BINARY_CMD_INCREMENTQ = 0x15,
-    PROTOCOL_BINARY_CMD_DECREMENTQ = 0x16,
-    PROTOCOL_BINARY_CMD_QUITQ = 0x17,
-    PROTOCOL_BINARY_CMD_FLUSHQ = 0x18,
-    PROTOCOL_BINARY_CMD_APPENDQ = 0x19,
-    PROTOCOL_BINARY_CMD_PREPENDQ = 0x1a,
-    PROTOCOL_BINARY_CMD_VERBOSITY = 0x1b,
-    PROTOCOL_BINARY_CMD_TOUCH = 0x1c,
-    PROTOCOL_BINARY_CMD_GAT = 0x1d,
-    PROTOCOL_BINARY_CMD_GATQ = 0x1e,
-    PROTOCOL_BINARY_CMD_HELLO = 0x1f,
-
-    PROTOCOL_BINARY_CMD_SASL_LIST_MECHS = 0x20,
-    PROTOCOL_BINARY_CMD_SASL_AUTH = 0x21,
-    PROTOCOL_BINARY_CMD_SASL_STEP = 0x22,
-
-    /* Control */
-    PROTOCOL_BINARY_CMD_IOCTL_GET = 0x23,
-    PROTOCOL_BINARY_CMD_IOCTL_SET = 0x24,
-
-    /* Config */
-    PROTOCOL_BINARY_CMD_CONFIG_VALIDATE = 0x25,
-    PROTOCOL_BINARY_CMD_CONFIG_RELOAD = 0x26,
-
-    /* Audit */
-    PROTOCOL_BINARY_CMD_AUDIT_PUT = 0x27,
-    PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD = 0x28,
-
-    /* Shutdown the server */
-    PROTOCOL_BINARY_CMD_SHUTDOWN = 0x29,
-
-    /* These commands are used for range operations and exist within
-     * this header for use in other projects.  Range operations are
-     * not expected to be implemented in the memcached server itself.
-     */
-    PROTOCOL_BINARY_CMD_RGET = 0x30,
-    PROTOCOL_BINARY_CMD_RSET = 0x31,
-    PROTOCOL_BINARY_CMD_RSETQ = 0x32,
-    PROTOCOL_BINARY_CMD_RAPPEND = 0x33,
-    PROTOCOL_BINARY_CMD_RAPPENDQ = 0x34,
-    PROTOCOL_BINARY_CMD_RPREPEND = 0x35,
-    PROTOCOL_BINARY_CMD_RPREPENDQ = 0x36,
-    PROTOCOL_BINARY_CMD_RDELETE = 0x37,
-    PROTOCOL_BINARY_CMD_RDELETEQ = 0x38,
-    PROTOCOL_BINARY_CMD_RINCR = 0x39,
-    PROTOCOL_BINARY_CMD_RINCRQ = 0x3a,
-    PROTOCOL_BINARY_CMD_RDECR = 0x3b,
-    PROTOCOL_BINARY_CMD_RDECRQ = 0x3c,
-    /* End Range operations */
-
-    /* VBucket commands */
-    PROTOCOL_BINARY_CMD_SET_VBUCKET = 0x3d,
-    PROTOCOL_BINARY_CMD_GET_VBUCKET = 0x3e,
-    PROTOCOL_BINARY_CMD_DEL_VBUCKET = 0x3f,
-    /* End VBucket commands */
-
-    /* TAP commands */
-    PROTOCOL_BINARY_CMD_TAP_CONNECT = 0x40,
-    PROTOCOL_BINARY_CMD_TAP_MUTATION = 0x41,
-    PROTOCOL_BINARY_CMD_TAP_DELETE = 0x42,
-    PROTOCOL_BINARY_CMD_TAP_FLUSH = 0x43,
-    PROTOCOL_BINARY_CMD_TAP_OPAQUE = 0x44,
-    PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET = 0x45,
-    PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START = 0x46,
-    PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END = 0x47,
-    /* End TAP */
-
-    /* Vbucket command to get the VBUCKET sequence numbers for all
-     * vbuckets on the node */
-    PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS = 0x48,
-
-    /* DCP */
-    PROTOCOL_BINARY_CMD_DCP_OPEN = 0x50,
-    PROTOCOL_BINARY_CMD_DCP_ADD_STREAM = 0x51,
-    PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM = 0x52,
-    PROTOCOL_BINARY_CMD_DCP_STREAM_REQ = 0x53,
-    PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG = 0x54,
-    PROTOCOL_BINARY_CMD_DCP_STREAM_END = 0x55,
-    PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER = 0x56,
-    PROTOCOL_BINARY_CMD_DCP_MUTATION = 0x57,
-    PROTOCOL_BINARY_CMD_DCP_DELETION = 0x58,
-    PROTOCOL_BINARY_CMD_DCP_EXPIRATION = 0x59,
-    PROTOCOL_BINARY_CMD_DCP_FLUSH = 0x5a,
-    PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE = 0x5b,
-    PROTOCOL_BINARY_CMD_DCP_NOOP = 0x5c,
-    PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT = 0x5d,
-    PROTOCOL_BINARY_CMD_DCP_CONTROL = 0x5e,
-    PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT = 0x5f,
-
-    /* End DCP */
-
-    PROTOCOL_BINARY_CMD_STOP_PERSISTENCE = 0x80,
-    PROTOCOL_BINARY_CMD_START_PERSISTENCE = 0x81,
-    PROTOCOL_BINARY_CMD_SET_PARAM = 0x82,
-    PROTOCOL_BINARY_CMD_GET_REPLICA = 0x83,
-
-    /* Bucket engine */
-    PROTOCOL_BINARY_CMD_CREATE_BUCKET = 0x85,
-    PROTOCOL_BINARY_CMD_DELETE_BUCKET = 0x86,
-    PROTOCOL_BINARY_CMD_LIST_BUCKETS = 0x87,
-    PROTOCOL_BINARY_CMD_SELECT_BUCKET = 0x89,
-
-    PROTOCOL_BINARY_CMD_OBSERVE_SEQNO = 0x91,
-    PROTOCOL_BINARY_CMD_OBSERVE = 0x92,
-
-    PROTOCOL_BINARY_CMD_EVICT_KEY = 0x93,
-    PROTOCOL_BINARY_CMD_GET_LOCKED = 0x94,
-    PROTOCOL_BINARY_CMD_UNLOCK_KEY = 0x95,
-
-    /**
-     * Return the last closed checkpoint Id for a given VBucket.
-     */
-    PROTOCOL_BINARY_CMD_LAST_CLOSED_CHECKPOINT = 0x97,
-    /**
-     * Close the TAP connection for the registered TAP client and
-     * remove the checkpoint cursors from its registered vbuckets.
-     */
-    PROTOCOL_BINARY_CMD_DEREGISTER_TAP_CLIENT = 0x9e,
-
-    /**
-     * Reset the replication chain from the node that receives
-     * this command. For example, given the replication chain,
-     * A->B->C, if A receives this command, it will reset all the
-     * replica vbuckets on B and C, which are replicated from A.
-     */
-    PROTOCOL_BINARY_CMD_RESET_REPLICATION_CHAIN = 0x9f,
-
-    /**
-     * CMD_GET_META is used to retrieve the meta section for an item.
-     */
-    PROTOCOL_BINARY_CMD_GET_META = 0xa0,
-    PROTOCOL_BINARY_CMD_GETQ_META = 0xa1,
-    PROTOCOL_BINARY_CMD_SET_WITH_META = 0xa2,
-    PROTOCOL_BINARY_CMD_SETQ_WITH_META = 0xa3,
-    PROTOCOL_BINARY_CMD_ADD_WITH_META = 0xa4,
-    PROTOCOL_BINARY_CMD_ADDQ_WITH_META = 0xa5,
-    PROTOCOL_BINARY_CMD_SNAPSHOT_VB_STATES = 0xa6,
-    PROTOCOL_BINARY_CMD_VBUCKET_BATCH_COUNT = 0xa7,
-    PROTOCOL_BINARY_CMD_DEL_WITH_META = 0xa8,
-    PROTOCOL_BINARY_CMD_DELQ_WITH_META = 0xa9,
-
-    /**
-     * Command to create a new checkpoint on a given vbucket by force
-     */
-    PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT = 0xaa,
-    PROTOCOL_BINARY_CMD_NOTIFY_VBUCKET_UPDATE = 0xac,
-    /**
-     * Command to enable data traffic after completion of warm
-     */
-    PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC = 0xad,
-    /**
-     * Command to disable data traffic temporarily
-     */
-    PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC = 0xae,
-    /**
-     * Command to change the vbucket filter for a given TAP producer.
-     */
-    PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER = 0xb0,
-    /**
-     * Command to wait for the checkpoint persistence
-     */
-    PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE = 0xb1,
-    /**
-     * Command that returns meta data for typical memcached ops
-     */
-    PROTOCOL_BINARY_CMD_RETURN_META = 0xb2,
-    /**
-     * Command to trigger compaction of a vbucket
-     */
-    PROTOCOL_BINARY_CMD_COMPACT_DB = 0xb3,
-    /**
-     * Command to set cluster configuration
-     */
-    PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG = 0xb4,
-    /**
-     * Command that returns cluster configuration
-     */
-    PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG = 0xb5,
-    PROTOCOL_BINARY_CMD_GET_RANDOM_KEY = 0xb6,
-    /**
-     * Command to wait for the dcp sequence number persistence
-     */
-    PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE = 0xb7,
-    /**
-     * Command to get all keys
-     */
-    PROTOCOL_BINARY_CMD_GET_KEYS = 0xb8,
-
-    /**
-     * Command to set collections manifest
-     */
-    PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST = 0xb9,
-
-    /**
-     * Commands for GO-XDCR
-     */
-    PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE = 0xc1,
-    PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME = 0xc2,
-
-    /**
-     * Commands for the Sub-document API.
-     */
-
-    /* Retrieval commands */
-    PROTOCOL_BINARY_CMD_SUBDOC_GET = 0xc5,
-    PROTOCOL_BINARY_CMD_SUBDOC_EXISTS = 0xc6,
-
-    /* Dictionary commands */
-    PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD = 0xc7,
-    PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT = 0xc8,
-
-    /* Generic modification commands */
-    PROTOCOL_BINARY_CMD_SUBDOC_DELETE = 0xc9,
-    PROTOCOL_BINARY_CMD_SUBDOC_REPLACE = 0xca,
-
-    /* Array commands */
-    PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST = 0xcb,
-    PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST = 0xcc,
-    PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT = 0xcd,
-    PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE = 0xce,
-
-    /* Arithmetic commands */
-    PROTOCOL_BINARY_CMD_SUBDOC_COUNTER = 0xcf,
-
-    /* Multi-Path commands */
-    PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP = 0xd0,
-    PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION = 0xd1,
-
-    /* Subdoc additions for Spock: */
-    PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT = 0xd2,
-
-    /* Scrub the data */
-    PROTOCOL_BINARY_CMD_SCRUB = 0xf0,
-    /* Refresh the ISASL data */
-    PROTOCOL_BINARY_CMD_ISASL_REFRESH = 0xf1,
-    /* Refresh the SSL certificates */
-    PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH = 0xf2,
-    /* Internal timer ioctl */
-    PROTOCOL_BINARY_CMD_GET_CMD_TIMER = 0xf3,
-    /* ns_server - memcached session validation */
-    PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN = 0xf4,
-    PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN = 0xf5,
-
-    /* ns_server - memcached internal communication */
-    PROTOCOL_BINARY_CMD_INIT_COMPLETE = 0xf6,
-
-    /* Refresh the RBAC database */
-    PROTOCOL_BINARY_CMD_RBAC_REFRESH = 0xf7,
-
-    /**
-     * Command used by our test application to mock with gettimeofday.
-     */
-    PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY = 0xfc,
-
-    /*
-     * Command used to instruct the ewouldblock engine. This command
-     * is used by the unit test suite to mock the underlying engines, and
-     * should *not* be used in production (note that the none of the
-     * underlying engines know of this command so _if_ it is used in
-     * production you'll get an error message back. It is listed here
-     * to avoid people using the opcode for anything else).
-     */
-    PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL = 0xfd,
-
-    /* get error code mappings */
-    PROTOCOL_BINARY_CMD_GET_ERROR_MAP = 0xfe,
-
-    /* Reserved for being able to signal invalid opcode */
-    PROTOCOL_BINARY_CMD_INVALID = 0xff
-} protocol_binary_command;
-
-/**
- * Definition of the data types in the packet
- * See section 3.4 Data Types
- */
-
-namespace mcbp {
-typedef uint8_t datatype_t;
-enum class Datatype : datatype_t { Raw = 0, Json = 1, Snappy = 2, Xattr = 4 };
-} // namespace mcbp
-
-typedef mcbp::datatype_t protocol_binary_datatype_t;
-#define PROTOCOL_BINARY_RAW_BYTES mcbp::datatype_t(mcbp::Datatype::Raw)
-#define PROTOCOL_BINARY_DATATYPE_JSON mcbp::datatype_t(mcbp::Datatype::Json)
-#define PROTOCOL_BINARY_DATATYPE_SNAPPY mcbp::datatype_t(mcbp::Datatype::Snappy)
-#define PROTOCOL_BINARY_DATATYPE_XATTR mcbp::datatype_t(mcbp::Datatype::Xattr)
+#include <mcbp/protocol/datatype.h>
+#include <mcbp/protocol/magic.h>
+#include <mcbp/protocol/opcode.h>
+#include <mcbp/protocol/request.h>
+#include <mcbp/protocol/response.h>
+#include <mcbp/protocol/status.h>
+
+// For backward compatibility with old sources
+
+// Magic
+const uint8_t PROTOCOL_BINARY_REQ = uint8_t(cb::mcbp::Magic::ClientRequest);
+const uint8_t PROTOCOL_BINARY_RES = uint8_t(cb::mcbp::Magic::ClientResponse);
+
+// Status codes
+using protocol_binary_response_status = uint16_t;
+
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUCCESS =
+        uint16_t(cb::mcbp::Status::Success);
+const uint16_t PROTOCOL_BINARY_RESPONSE_KEY_ENOENT =
+        uint16_t(cb::mcbp::Status::KeyEnoent);
+const uint16_t PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS =
+        uint16_t(cb::mcbp::Status::KeyEexists);
+const uint16_t PROTOCOL_BINARY_RESPONSE_E2BIG = uint16_t(cb::mcbp::Status::E2big);
+const uint16_t PROTOCOL_BINARY_RESPONSE_EINVAL =
+        uint16_t(cb::mcbp::Status::Einval);
+const uint16_t PROTOCOL_BINARY_RESPONSE_NOT_STORED =
+        uint16_t(cb::mcbp::Status::NotStored);
+const uint16_t PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL =
+        uint16_t(cb::mcbp::Status::DeltaBadval);
+const uint16_t PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET =
+        uint16_t(cb::mcbp::Status::NotMyVbucket);
+const uint16_t PROTOCOL_BINARY_RESPONSE_NO_BUCKET =
+        uint16_t(cb::mcbp::Status::NoBucket);
+const uint16_t PROTOCOL_BINARY_RESPONSE_LOCKED =
+        uint16_t(cb::mcbp::Status::Locked);
+const uint16_t PROTOCOL_BINARY_RESPONSE_AUTH_STALE =
+        uint16_t(cb::mcbp::Status::AuthStale);
+const uint16_t PROTOCOL_BINARY_RESPONSE_AUTH_ERROR =
+        uint16_t(cb::mcbp::Status::AuthError);
+const uint16_t PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE =
+        uint16_t(cb::mcbp::Status::AuthContinue);
+const uint16_t PROTOCOL_BINARY_RESPONSE_ERANGE =
+        uint16_t(cb::mcbp::Status::Erange);
+const uint16_t PROTOCOL_BINARY_RESPONSE_ROLLBACK =
+        uint16_t(cb::mcbp::Status::Rollback);
+const uint16_t PROTOCOL_BINARY_RESPONSE_EACCESS =
+        uint16_t(cb::mcbp::Status::Eaccess);
+const uint16_t PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED =
+        uint16_t(cb::mcbp::Status::NotInitialized);
+const uint16_t PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND =
+        uint16_t(cb::mcbp::Status::UnknownCommand);
+const uint16_t PROTOCOL_BINARY_RESPONSE_ENOMEM =
+        uint16_t(cb::mcbp::Status::Enomem);
+const uint16_t PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED =
+        uint16_t(cb::mcbp::Status::NotSupported);
+const uint16_t PROTOCOL_BINARY_RESPONSE_EINTERNAL =
+        uint16_t(cb::mcbp::Status::Einternal);
+const uint16_t PROTOCOL_BINARY_RESPONSE_EBUSY = uint16_t(cb::mcbp::Status::Ebusy);
+const uint16_t PROTOCOL_BINARY_RESPONSE_ETMPFAIL =
+        uint16_t(cb::mcbp::Status::Etmpfail);
+const uint16_t PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL =
+        uint16_t(cb::mcbp::Status::XattrEinval);
+const uint16_t PROTOCOL_BINARY_RESPONSE_UNKNOWN_COLLECTION =
+        uint16_t(cb::mcbp::Status::UnknownCollection);
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT =
+        uint16_t(cb::mcbp::Status::SubdocPathEnoent);
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH =
+        uint16_t(cb::mcbp::Status::SubdocPathMismatch);
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EINVAL =
+        uint16_t(cb::mcbp::Status::SubdocPathEinval);
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_E2BIG =
+        uint16_t(cb::mcbp::Status::SubdocPathE2big);
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_E2DEEP =
+        uint16_t(cb::mcbp::Status::SubdocDocE2deep);
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_CANTINSERT =
+        uint16_t(cb::mcbp::Status::SubdocValueCantinsert);
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON =
+        uint16_t(cb::mcbp::Status::SubdocDocNotJson);
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_NUM_ERANGE =
+        uint16_t(cb::mcbp::Status::SubdocNumErange);
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_EINVAL =
+        uint16_t(cb::mcbp::Status::SubdocDeltaEinval);
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS =
+        uint16_t(cb::mcbp::Status::SubdocPathEexists);
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_ETOODEEP =
+        uint16_t(cb::mcbp::Status::SubdocValueEtoodeep);
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO =
+        uint16_t(cb::mcbp::Status::SubdocInvalidCombo);
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE =
+        uint16_t(cb::mcbp::Status::SubdocMultiPathFailure);
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED =
+        uint16_t(cb::mcbp::Status::SubdocSuccessDeleted);
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO =
+        uint16_t(cb::mcbp::Status::SubdocXattrInvalidFlagCombo);
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_KEY_COMBO =
+        uint16_t(cb::mcbp::Status::SubdocXattrInvalidKeyCombo);
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_MACRO =
+        uint16_t(cb::mcbp::Status::SubdocXattrUnknownMacro);
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_VATTR =
+        uint16_t(cb::mcbp::Status::SubdocXattrUnknownVattr);
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_CANT_MODIFY_VATTR =
+        uint16_t(cb::mcbp::Status::SubdocXattrCantModifyVattr);
+const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE_DELETED =
+        uint16_t(cb::mcbp::Status::SubdocMultiPathFailureDeleted);
+
+// @todo fixme
+const uint16_t PROTOCOL_BINARY_RESPONSE_SIZE = 0xd4;
+
+using protocol_binary_command = uint8_t;
+
+const uint8_t PROTOCOL_BINARY_CMD_GET = uint8_t(cb::mcbp::Opcode::Get);
+const uint8_t PROTOCOL_BINARY_CMD_SET = uint8_t(cb::mcbp::Opcode::Set);
+const uint8_t PROTOCOL_BINARY_CMD_ADD = uint8_t(cb::mcbp::Opcode::Add);
+const uint8_t PROTOCOL_BINARY_CMD_REPLACE = uint8_t(cb::mcbp::Opcode::Replace);
+const uint8_t PROTOCOL_BINARY_CMD_DELETE = uint8_t(cb::mcbp::Opcode::Delete);
+const uint8_t PROTOCOL_BINARY_CMD_INCREMENT =
+        uint8_t(cb::mcbp::Opcode::Increment);
+const uint8_t PROTOCOL_BINARY_CMD_DECREMENT =
+        uint8_t(cb::mcbp::Opcode::Decrement);
+const uint8_t PROTOCOL_BINARY_CMD_QUIT = uint8_t(cb::mcbp::Opcode::Quit);
+const uint8_t PROTOCOL_BINARY_CMD_FLUSH = uint8_t(cb::mcbp::Opcode::Flush);
+const uint8_t PROTOCOL_BINARY_CMD_GETQ = uint8_t(cb::mcbp::Opcode::Getq);
+const uint8_t PROTOCOL_BINARY_CMD_NOOP = uint8_t(cb::mcbp::Opcode::Noop);
+const uint8_t PROTOCOL_BINARY_CMD_VERSION = uint8_t(cb::mcbp::Opcode::Version);
+const uint8_t PROTOCOL_BINARY_CMD_GETK = uint8_t(cb::mcbp::Opcode::Getk);
+const uint8_t PROTOCOL_BINARY_CMD_GETKQ = uint8_t(cb::mcbp::Opcode::Getkq);
+const uint8_t PROTOCOL_BINARY_CMD_APPEND = uint8_t(cb::mcbp::Opcode::Append);
+const uint8_t PROTOCOL_BINARY_CMD_PREPEND = uint8_t(cb::mcbp::Opcode::Prepend);
+const uint8_t PROTOCOL_BINARY_CMD_STAT = uint8_t(cb::mcbp::Opcode::Stat);
+const uint8_t PROTOCOL_BINARY_CMD_SETQ = uint8_t(cb::mcbp::Opcode::Setq);
+const uint8_t PROTOCOL_BINARY_CMD_ADDQ = uint8_t(cb::mcbp::Opcode::Addq);
+const uint8_t PROTOCOL_BINARY_CMD_REPLACEQ =
+        uint8_t(cb::mcbp::Opcode::Replaceq);
+const uint8_t PROTOCOL_BINARY_CMD_DELETEQ = uint8_t(cb::mcbp::Opcode::Deleteq);
+const uint8_t PROTOCOL_BINARY_CMD_INCREMENTQ =
+        uint8_t(cb::mcbp::Opcode::Incrementq);
+const uint8_t PROTOCOL_BINARY_CMD_DECREMENTQ =
+        uint8_t(cb::mcbp::Opcode::Decrementq);
+const uint8_t PROTOCOL_BINARY_CMD_QUITQ = uint8_t(cb::mcbp::Opcode::Quitq);
+const uint8_t PROTOCOL_BINARY_CMD_FLUSHQ = uint8_t(cb::mcbp::Opcode::Flushq);
+const uint8_t PROTOCOL_BINARY_CMD_APPENDQ = uint8_t(cb::mcbp::Opcode::Appendq);
+const uint8_t PROTOCOL_BINARY_CMD_PREPENDQ =
+        uint8_t(cb::mcbp::Opcode::Prependq);
+const uint8_t PROTOCOL_BINARY_CMD_VERBOSITY =
+        uint8_t(cb::mcbp::Opcode::Verbosity);
+const uint8_t PROTOCOL_BINARY_CMD_TOUCH = uint8_t(cb::mcbp::Opcode::Touch);
+const uint8_t PROTOCOL_BINARY_CMD_GAT = uint8_t(cb::mcbp::Opcode::Gat);
+const uint8_t PROTOCOL_BINARY_CMD_GATQ = uint8_t(cb::mcbp::Opcode::Gatq);
+const uint8_t PROTOCOL_BINARY_CMD_HELLO = uint8_t(cb::mcbp::Opcode::Hello);
+const uint8_t PROTOCOL_BINARY_CMD_SASL_LIST_MECHS =
+        uint8_t(cb::mcbp::Opcode::SaslListMechs);
+const uint8_t PROTOCOL_BINARY_CMD_SASL_AUTH =
+        uint8_t(cb::mcbp::Opcode::SaslAuth);
+const uint8_t PROTOCOL_BINARY_CMD_SASL_STEP =
+        uint8_t(cb::mcbp::Opcode::SaslStep);
+const uint8_t PROTOCOL_BINARY_CMD_IOCTL_GET =
+        uint8_t(cb::mcbp::Opcode::IoctlGet);
+const uint8_t PROTOCOL_BINARY_CMD_IOCTL_SET =
+        uint8_t(cb::mcbp::Opcode::IoctlSet);
+const uint8_t PROTOCOL_BINARY_CMD_CONFIG_VALIDATE =
+        uint8_t(cb::mcbp::Opcode::ConfigValidate);
+const uint8_t PROTOCOL_BINARY_CMD_CONFIG_RELOAD =
+        uint8_t(cb::mcbp::Opcode::ConfigReload);
+const uint8_t PROTOCOL_BINARY_CMD_AUDIT_PUT =
+        uint8_t(cb::mcbp::Opcode::AuditPut);
+const uint8_t PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD =
+        uint8_t(cb::mcbp::Opcode::AuditConfigReload);
+const uint8_t PROTOCOL_BINARY_CMD_SHUTDOWN =
+        uint8_t(cb::mcbp::Opcode::Shutdown);
+const uint8_t PROTOCOL_BINARY_CMD_RGET = uint8_t(cb::mcbp::Opcode::Rget);
+const uint8_t PROTOCOL_BINARY_CMD_RSET = uint8_t(cb::mcbp::Opcode::Rset);
+const uint8_t PROTOCOL_BINARY_CMD_RSETQ = uint8_t(cb::mcbp::Opcode::Rsetq);
+const uint8_t PROTOCOL_BINARY_CMD_RAPPEND = uint8_t(cb::mcbp::Opcode::Rappend);
+const uint8_t PROTOCOL_BINARY_CMD_RAPPENDQ =
+        uint8_t(cb::mcbp::Opcode::Rappendq);
+const uint8_t PROTOCOL_BINARY_CMD_RPREPEND =
+        uint8_t(cb::mcbp::Opcode::Rprepend);
+const uint8_t PROTOCOL_BINARY_CMD_RPREPENDQ =
+        uint8_t(cb::mcbp::Opcode::Rprependq);
+const uint8_t PROTOCOL_BINARY_CMD_RDELETE = uint8_t(cb::mcbp::Opcode::Rdelete);
+const uint8_t PROTOCOL_BINARY_CMD_RDELETEQ =
+        uint8_t(cb::mcbp::Opcode::Rdeleteq);
+const uint8_t PROTOCOL_BINARY_CMD_RINCR = uint8_t(cb::mcbp::Opcode::Rincr);
+const uint8_t PROTOCOL_BINARY_CMD_RINCRQ = uint8_t(cb::mcbp::Opcode::Rincrq);
+const uint8_t PROTOCOL_BINARY_CMD_RDECR = uint8_t(cb::mcbp::Opcode::Rdecr);
+const uint8_t PROTOCOL_BINARY_CMD_RDECRQ = uint8_t(cb::mcbp::Opcode::Rdecrq);
+const uint8_t PROTOCOL_BINARY_CMD_SET_VBUCKET =
+        uint8_t(cb::mcbp::Opcode::SetVbucket);
+const uint8_t PROTOCOL_BINARY_CMD_GET_VBUCKET =
+        uint8_t(cb::mcbp::Opcode::GetVbucket);
+const uint8_t PROTOCOL_BINARY_CMD_DEL_VBUCKET =
+        uint8_t(cb::mcbp::Opcode::DelVbucket);
+const uint8_t PROTOCOL_BINARY_CMD_TAP_CONNECT =
+        uint8_t(cb::mcbp::Opcode::TapConnect);
+const uint8_t PROTOCOL_BINARY_CMD_TAP_MUTATION =
+        uint8_t(cb::mcbp::Opcode::TapMutation);
+const uint8_t PROTOCOL_BINARY_CMD_TAP_DELETE =
+        uint8_t(cb::mcbp::Opcode::TapDelete);
+const uint8_t PROTOCOL_BINARY_CMD_TAP_FLUSH =
+        uint8_t(cb::mcbp::Opcode::TapFlush);
+const uint8_t PROTOCOL_BINARY_CMD_TAP_OPAQUE =
+        uint8_t(cb::mcbp::Opcode::TapOpaque);
+const uint8_t PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET =
+        uint8_t(cb::mcbp::Opcode::TapVbucketSet);
+const uint8_t PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START =
+        uint8_t(cb::mcbp::Opcode::TapCheckpointStart);
+const uint8_t PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END =
+        uint8_t(cb::mcbp::Opcode::TapCheckpointEnd);
+const uint8_t PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS =
+        uint8_t(cb::mcbp::Opcode::GetAllVbSeqnos);
+const uint8_t PROTOCOL_BINARY_CMD_DCP_OPEN = uint8_t(cb::mcbp::Opcode::DcpOpen);
+const uint8_t PROTOCOL_BINARY_CMD_DCP_ADD_STREAM =
+        uint8_t(cb::mcbp::Opcode::DcpAddStream);
+const uint8_t PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM =
+        uint8_t(cb::mcbp::Opcode::DcpCloseStream);
+const uint8_t PROTOCOL_BINARY_CMD_DCP_STREAM_REQ =
+        uint8_t(cb::mcbp::Opcode::DcpStreamReq);
+const uint8_t PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG =
+        uint8_t(cb::mcbp::Opcode::DcpGetFailoverLog);
+const uint8_t PROTOCOL_BINARY_CMD_DCP_STREAM_END =
+        uint8_t(cb::mcbp::Opcode::DcpStreamEnd);
+const uint8_t PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER =
+        uint8_t(cb::mcbp::Opcode::DcpSnapshotMarker);
+const uint8_t PROTOCOL_BINARY_CMD_DCP_MUTATION =
+        uint8_t(cb::mcbp::Opcode::DcpMutation);
+const uint8_t PROTOCOL_BINARY_CMD_DCP_DELETION =
+        uint8_t(cb::mcbp::Opcode::DcpDeletion);
+const uint8_t PROTOCOL_BINARY_CMD_DCP_EXPIRATION =
+        uint8_t(cb::mcbp::Opcode::DcpExpiration);
+const uint8_t PROTOCOL_BINARY_CMD_DCP_FLUSH =
+        uint8_t(cb::mcbp::Opcode::DcpFlush);
+const uint8_t PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE =
+        uint8_t(cb::mcbp::Opcode::DcpSetVbucketState);
+const uint8_t PROTOCOL_BINARY_CMD_DCP_NOOP = uint8_t(cb::mcbp::Opcode::DcpNoop);
+const uint8_t PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT =
+        uint8_t(cb::mcbp::Opcode::DcpBufferAcknowledgement);
+const uint8_t PROTOCOL_BINARY_CMD_DCP_CONTROL =
+        uint8_t(cb::mcbp::Opcode::DcpControl);
+const uint8_t PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT =
+        uint8_t(cb::mcbp::Opcode::DcpSystemEvent);
+const uint8_t PROTOCOL_BINARY_CMD_STOP_PERSISTENCE =
+        uint8_t(cb::mcbp::Opcode::StopPersistence);
+const uint8_t PROTOCOL_BINARY_CMD_START_PERSISTENCE =
+        uint8_t(cb::mcbp::Opcode::StartPersistence);
+const uint8_t PROTOCOL_BINARY_CMD_SET_PARAM =
+        uint8_t(cb::mcbp::Opcode::SetParam);
+const uint8_t PROTOCOL_BINARY_CMD_GET_REPLICA =
+        uint8_t(cb::mcbp::Opcode::GetReplica);
+const uint8_t PROTOCOL_BINARY_CMD_CREATE_BUCKET =
+        uint8_t(cb::mcbp::Opcode::CreateBucket);
+const uint8_t PROTOCOL_BINARY_CMD_DELETE_BUCKET =
+        uint8_t(cb::mcbp::Opcode::DeleteBucket);
+const uint8_t PROTOCOL_BINARY_CMD_LIST_BUCKETS =
+        uint8_t(cb::mcbp::Opcode::ListBuckets);
+const uint8_t PROTOCOL_BINARY_CMD_SELECT_BUCKET =
+        uint8_t(cb::mcbp::Opcode::SelectBucket);
+const uint8_t PROTOCOL_BINARY_CMD_OBSERVE_SEQNO =
+        uint8_t(cb::mcbp::Opcode::ObserveSeqno);
+const uint8_t PROTOCOL_BINARY_CMD_OBSERVE = uint8_t(cb::mcbp::Opcode::Observe);
+const uint8_t PROTOCOL_BINARY_CMD_EVICT_KEY =
+        uint8_t(cb::mcbp::Opcode::EvictKey);
+const uint8_t PROTOCOL_BINARY_CMD_GET_LOCKED =
+        uint8_t(cb::mcbp::Opcode::GetLocked);
+const uint8_t PROTOCOL_BINARY_CMD_UNLOCK_KEY =
+        uint8_t(cb::mcbp::Opcode::UnlockKey);
+const uint8_t PROTOCOL_BINARY_CMD_LAST_CLOSED_CHECKPOINT =
+        uint8_t(cb::mcbp::Opcode::LastClosedCheckpoint);
+const uint8_t PROTOCOL_BINARY_CMD_RESET_REPLICATION_CHAIN =
+        uint8_t(cb::mcbp::Opcode::ResetReplicationChain);
+const uint8_t PROTOCOL_BINARY_CMD_DEREGISTER_TAP_CLIENT =
+        uint8_t(cb::mcbp::Opcode::DeregisterTapClient);
+const uint8_t PROTOCOL_BINARY_CMD_GET_META = uint8_t(cb::mcbp::Opcode::GetMeta);
+const uint8_t PROTOCOL_BINARY_CMD_GETQ_META =
+        uint8_t(cb::mcbp::Opcode::GetqMeta);
+const uint8_t PROTOCOL_BINARY_CMD_SET_WITH_META =
+        uint8_t(cb::mcbp::Opcode::SetWithMeta);
+const uint8_t PROTOCOL_BINARY_CMD_SETQ_WITH_META =
+        uint8_t(cb::mcbp::Opcode::SetqWithMeta);
+const uint8_t PROTOCOL_BINARY_CMD_ADD_WITH_META =
+        uint8_t(cb::mcbp::Opcode::AddWithMeta);
+const uint8_t PROTOCOL_BINARY_CMD_ADDQ_WITH_META =
+        uint8_t(cb::mcbp::Opcode::AddqWithMeta);
+const uint8_t PROTOCOL_BINARY_CMD_SNAPSHOT_VB_STATES =
+        uint8_t(cb::mcbp::Opcode::SnapshotVbStates);
+const uint8_t PROTOCOL_BINARY_CMD_VBUCKET_BATCH_COUNT =
+        uint8_t(cb::mcbp::Opcode::VbucketBatchCount);
+const uint8_t PROTOCOL_BINARY_CMD_DEL_WITH_META =
+        uint8_t(cb::mcbp::Opcode::DelWithMeta);
+const uint8_t PROTOCOL_BINARY_CMD_DELQ_WITH_META =
+        uint8_t(cb::mcbp::Opcode::DelqWithMeta);
+const uint8_t PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT =
+        uint8_t(cb::mcbp::Opcode::CreateCheckpoint);
+const uint8_t PROTOCOL_BINARY_CMD_NOTIFY_VBUCKET_UPDATE =
+        uint8_t(cb::mcbp::Opcode::NotifyVbucketUpdate);
+const uint8_t PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC =
+        uint8_t(cb::mcbp::Opcode::EnableTraffic);
+const uint8_t PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC =
+        uint8_t(cb::mcbp::Opcode::DisableTraffic);
+const uint8_t PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER =
+        uint8_t(cb::mcbp::Opcode::ChangeVbFilter);
+const uint8_t PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE =
+        uint8_t(cb::mcbp::Opcode::CheckpointPersistence);
+const uint8_t PROTOCOL_BINARY_CMD_RETURN_META =
+        uint8_t(cb::mcbp::Opcode::ReturnMeta);
+const uint8_t PROTOCOL_BINARY_CMD_COMPACT_DB =
+        uint8_t(cb::mcbp::Opcode::CompactDb);
+const uint8_t PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG =
+        uint8_t(cb::mcbp::Opcode::SetClusterConfig);
+const uint8_t PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG =
+        uint8_t(cb::mcbp::Opcode::GetClusterConfig);
+const uint8_t PROTOCOL_BINARY_CMD_GET_RANDOM_KEY =
+        uint8_t(cb::mcbp::Opcode::GetRandomKey);
+const uint8_t PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE =
+        uint8_t(cb::mcbp::Opcode::SeqnoPersistence);
+const uint8_t PROTOCOL_BINARY_CMD_GET_KEYS = uint8_t(cb::mcbp::Opcode::GetKeys);
+const uint8_t PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST =
+        uint8_t(cb::mcbp::Opcode::CollectionsSetManifest);
+const uint8_t PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE =
+        uint8_t(cb::mcbp::Opcode::SetDriftCounterState);
+const uint8_t PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME =
+        uint8_t(cb::mcbp::Opcode::GetAdjustedTime);
+const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_GET =
+        uint8_t(cb::mcbp::Opcode::SubdocGet);
+const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_EXISTS =
+        uint8_t(cb::mcbp::Opcode::SubdocExists);
+const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD =
+        uint8_t(cb::mcbp::Opcode::SubdocDictAdd);
+const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT =
+        uint8_t(cb::mcbp::Opcode::SubdocDictUpsert);
+const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_DELETE =
+        uint8_t(cb::mcbp::Opcode::SubdocDelete);
+const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_REPLACE =
+        uint8_t(cb::mcbp::Opcode::SubdocReplace);
+const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST =
+        uint8_t(cb::mcbp::Opcode::SubdocArrayPushLast);
+const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST =
+        uint8_t(cb::mcbp::Opcode::SubdocArrayPushFirst);
+const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT =
+        uint8_t(cb::mcbp::Opcode::SubdocArrayInsert);
+const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE =
+        uint8_t(cb::mcbp::Opcode::SubdocArrayAddUnique);
+const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_COUNTER =
+        uint8_t(cb::mcbp::Opcode::SubdocCounter);
+const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP =
+        uint8_t(cb::mcbp::Opcode::SubdocMultiLookup);
+const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION =
+        uint8_t(cb::mcbp::Opcode::SubdocMultiMutation);
+const uint8_t PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT =
+        uint8_t(cb::mcbp::Opcode::SubdocGetCount);
+const uint8_t PROTOCOL_BINARY_CMD_SCRUB = uint8_t(cb::mcbp::Opcode::Scrub);
+const uint8_t PROTOCOL_BINARY_CMD_ISASL_REFRESH =
+        uint8_t(cb::mcbp::Opcode::IsaslRefresh);
+const uint8_t PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH =
+        uint8_t(cb::mcbp::Opcode::SslCertsRefresh);
+const uint8_t PROTOCOL_BINARY_CMD_GET_CMD_TIMER =
+        uint8_t(cb::mcbp::Opcode::GetCmdTimer);
+const uint8_t PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN =
+        uint8_t(cb::mcbp::Opcode::SetCtrlToken);
+const uint8_t PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN =
+        uint8_t(cb::mcbp::Opcode::GetCtrlToken);
+const uint8_t PROTOCOL_BINARY_CMD_INIT_COMPLETE =
+        uint8_t(cb::mcbp::Opcode::InitComplete);
+const uint8_t PROTOCOL_BINARY_CMD_RBAC_REFRESH =
+        uint8_t(cb::mcbp::Opcode::RbacRefresh);
+const uint8_t PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY =
+        uint8_t(cb::mcbp::Opcode::AdjustTimeofday);
+const uint8_t PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL =
+        uint8_t(cb::mcbp::Opcode::EwouldblockCtl);
+const uint8_t PROTOCOL_BINARY_CMD_GET_ERROR_MAP =
+        uint8_t(cb::mcbp::Opcode::GetErrorMap);
+const uint8_t PROTOCOL_BINARY_CMD_INVALID = uint8_t(cb::mcbp::Opcode::Invalid);
+
+using protocol_binary_datatype_t = uint8_t;
+#define PROTOCOL_BINARY_RAW_BYTES uint8_t(cb::mcbp::Datatype::Raw)
+#define PROTOCOL_BINARY_DATATYPE_JSON uint8_t(cb::mcbp::Datatype::JSON)
+#define PROTOCOL_BINARY_DATATYPE_SNAPPY uint8_t(cb::mcbp::Datatype::Snappy)
+#define PROTOCOL_BINARY_DATATYPE_XATTR uint8_t(cb::mcbp::Datatype::Xattr)
 
 /*
  * Bitmask that defines the datatypes that can be resident in memory. For
@@ -573,100 +441,13 @@ typedef mcbp::datatype_t protocol_binary_datatype_t;
  */
 #define RESIDENT_DATATYPE_MASK uint8_t(5);
 
-/**
- * Definitions for extended (flexible) metadata
- *
- * @1: Flex Code to identify the number of extended metadata fields
- * @2: Size of the Flex Code, set to 1 byte
- * @3: Current size of extended metadata
- */
-typedef enum {
-    FLEX_META_CODE = 0x01,
-    FLEX_DATA_OFFSET = 1,
-    EXT_META_LEN = 1
-} protocol_binary_flexmeta;
-
-/**
- * Definitions of sub-document path flags (this is a bitmap)
- */
-typedef enum {
-    /** No flags set */
-    SUBDOC_FLAG_NONE = 0x0,
-
-    /** (Mutation) Should non-existent intermediate paths be created? */
-    SUBDOC_FLAG_MKDIR_P = 0x01,
-
-    /**
-     * 0x02 is unused
-     */
-
-    /**
-     * If set, the path refers to an Extended Attribute (XATTR).
-     * If clear, the path refers to a path inside the document body.
-     */
-    SUBDOC_FLAG_XATTR_PATH = 0x04,
-
-    /**
-     * 0x08 is unused
-     */
-
-    /**
-     * Expand macro values inside extended attributes. The request is
-     * invalid if this flag is set without SUBDOC_FLAG_XATTR_PATH being
-     * set.
-     */
-    SUBDOC_FLAG_EXPAND_MACROS = 0x10,
-
-} protocol_binary_subdoc_flag;
-
-namespace mcbp {
-namespace subdoc {
-/**
- * Definitions of sub-document doc flags (this is a bitmap).
- */
-
-enum class doc_flag : uint8_t {
-    None = 0x0,
-
-    /**
-     * (Mutation) Create the document if it does not exist. Implies
-     * SUBDOC_FLAG_MKDIR_P and Set (upsert) mutation semantics. Not valid
-     * with Add.
-     */
-    Mkdoc = 0x1,
-
-    /**
-     * (Mutation) Add the document only if it does not exist. Implies
-     * SUBDOC_FLAG_MKDIR_P. Not valid with Mkdoc.
-     */
-    Add = 0x02,
-
-    /**
-     * Allow access to XATTRs for deleted documents (instead of
-     * returning KEY_ENOENT).
-     */
-    AccessDeleted = 0x04,
-
-};
-} // namespace subdoc
-} // namespace mcbp
 
 /**
  * Definition of the header structure for a request packet.
  * See section 2
  */
 typedef union {
-    struct {
-        uint8_t magic;
-        uint8_t opcode;
-        uint16_t keylen;
-        uint8_t extlen;
-        uint8_t datatype;
-        uint16_t vbucket;
-        uint32_t bodylen;
-        uint32_t opaque;
-        uint64_t cas;
-    } request;
+    cb::mcbp::Request request;
     uint8_t bytes[24];
 } protocol_binary_request_header;
 
@@ -675,17 +456,7 @@ typedef union {
  * See section 2
  */
 typedef union {
-    struct {
-        uint8_t magic;
-        uint8_t opcode;
-        uint16_t keylen;
-        uint8_t extlen;
-        uint8_t datatype;
-        uint16_t status;
-        uint32_t bodylen;
-        uint32_t opaque;
-        uint64_t cas;
-    } response;
+    cb::mcbp::Response response;
     uint8_t bytes[24];
 } protocol_binary_response_header;
 
@@ -963,6 +734,88 @@ typedef protocol_binary_request_gat protocol_binary_request_gatq;
  */
 typedef protocol_binary_response_get protocol_binary_response_gat;
 typedef protocol_binary_response_get protocol_binary_response_gatq;
+
+
+/**
+ * Definitions for extended (flexible) metadata
+ *
+ * @1: Flex Code to identify the number of extended metadata fields
+ * @2: Size of the Flex Code, set to 1 byte
+ * @3: Current size of extended metadata
+ */
+typedef enum {
+    FLEX_META_CODE = 0x01,
+    FLEX_DATA_OFFSET = 1,
+    EXT_META_LEN = 1
+} protocol_binary_flexmeta;
+
+/**
+ * Definitions of sub-document path flags (this is a bitmap)
+ */
+typedef enum {
+    /** No flags set */
+        SUBDOC_FLAG_NONE = 0x0,
+
+    /** (Mutation) Should non-existent intermediate paths be created? */
+        SUBDOC_FLAG_MKDIR_P = 0x01,
+
+    /**
+     * 0x02 is unused
+     */
+
+    /**
+     * If set, the path refers to an Extended Attribute (XATTR).
+     * If clear, the path refers to a path inside the document body.
+     */
+        SUBDOC_FLAG_XATTR_PATH = 0x04,
+
+    /**
+     * 0x08 is unused
+     */
+
+    /**
+     * Expand macro values inside extended attributes. The request is
+     * invalid if this flag is set without SUBDOC_FLAG_XATTR_PATH being
+     * set.
+     */
+        SUBDOC_FLAG_EXPAND_MACROS = 0x10,
+
+} protocol_binary_subdoc_flag;
+
+namespace mcbp {
+namespace subdoc {
+/**
+ * Definitions of sub-document doc flags (this is a bitmap).
+ */
+
+enum class doc_flag : uint8_t {
+    None = 0x0,
+
+    /**
+     * (Mutation) Create the document if it does not exist. Implies
+     * SUBDOC_FLAG_MKDIR_P and Set (upsert) mutation semantics. Not valid
+     * with Add.
+     */
+        Mkdoc = 0x1,
+
+    /**
+     * (Mutation) Add the document only if it does not exist. Implies
+     * SUBDOC_FLAG_MKDIR_P. Not valid with Mkdoc.
+     */
+        Add = 0x02,
+
+    /**
+     * Allow access to XATTRs for deleted documents (instead of
+     * returning KEY_ENOENT).
+     */
+        AccessDeleted = 0x04,
+
+};
+} // namespace subdoc
+} // namespace mcbp
+
+
+
 
 /**
  * Definition of the packet used by SUBDOCUMENT single-path commands.

@@ -22,12 +22,6 @@
 #include <memcached/extension_loggers.h>
 #include <memcached/protocol_binary.h>
 
-std::ostream& operator<<(std::ostream& os, const protocol_binary_response_status status) {
-    os << memcached_status_2_text(status)
-       << " (0x" << std::hex << uint16_t(status) << std::dec << ")";
-    return os;
-}
-
 /**
  * Test all of the command validators we've got to ensure that they
  * catch broken packets. There is still a high number of commands we

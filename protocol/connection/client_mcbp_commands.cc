@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 #include "client_mcbp_commands.h"
-#include <libmcbp/mcbp.h>
+#include <mcbp/mcbp.h>
 #include <array>
 
 void BinprotCommand::encode(std::vector<uint8_t>& buf) const {
@@ -279,7 +279,7 @@ BinprotMutationCommand& BinprotMutationCommand::setDocumentInfo(
     setCas(info.cas);
     // TODO: Set expiration from DocInfo
 
-    datatype = mcbp::datatype_t(info.datatype);
+    datatype = uint8_t(info.datatype);
     return *this;
 }
 

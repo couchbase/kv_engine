@@ -120,7 +120,7 @@ TEST_P(StatsTest, Test_MB_17815) {
 
     Document doc;
     doc.info.cas = mcbp::cas::Wildcard;
-    doc.info.datatype = mcbp::Datatype::Json;
+    doc.info.datatype = cb::mcbp::Datatype::JSON;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
     char* ptr = cJSON_Print(memcached_cfg.get());
@@ -309,7 +309,7 @@ TEST_P(StatsTest, TestTopkeys) {
     for (int ii = 0; ii < 10; ++ii) {
         Document doc;
         doc.info.cas = mcbp::cas::Wildcard;
-        doc.info.datatype = mcbp::Datatype::Json;
+        doc.info.datatype = cb::mcbp::Datatype::JSON;
         doc.info.flags = 0xcaffee;
         doc.info.id = name;
         char* ptr = cJSON_Print(memcached_cfg.get());
@@ -330,7 +330,7 @@ TEST_P(StatsTest, TestTopkeysJson) {
     for (int ii = 0; ii < 10; ++ii) {
         Document doc;
         doc.info.cas = mcbp::cas::Wildcard;
-        doc.info.datatype = mcbp::Datatype::Json;
+        doc.info.datatype = cb::mcbp::Datatype::JSON;
         doc.info.flags = 0xcaffee;
         doc.info.id = name;
         char* ptr = cJSON_Print(memcached_cfg.get());

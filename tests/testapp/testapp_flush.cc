@@ -27,7 +27,7 @@ protected:
 
         // Store our lone document
         Document doc;
-        doc.info.datatype = mcbp::Datatype::Raw;
+        doc.info.datatype = cb::mcbp::Datatype::Raw;
         doc.info.cas = 0;
         doc.info.flags = 0;
         doc.info.id = key;

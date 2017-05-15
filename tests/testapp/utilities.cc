@@ -19,7 +19,7 @@
 #include "utilities/protocol2text.h"
 #include <cbsasl/cbsasl.h>
 #include <iostream>
-#include <libmcbp/mcbp.h>
+#include <mcbp/mcbp.h>
 #include <memcached/protocol_binary.h>
 #include <openssl/conf.h>
 #include <openssl/engine.h>

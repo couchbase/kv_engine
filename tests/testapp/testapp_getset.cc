@@ -26,7 +26,7 @@ class GetSetTest : public TestappClientTest {
 public:
     void SetUp() {
         document.info.cas = mcbp::cas::Wildcard;
-        document.info.datatype = mcbp::Datatype::Json;
+        document.info.datatype = cb::mcbp::Datatype::JSON;
         document.info.flags = 0xcaffee;
         document.info.id = name;
         const std::string content = to_string(memcached_cfg, false);
@@ -216,7 +216,7 @@ TEST_P(GetSetTest, TestGetSuccess) {
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
-    EXPECT_EQ(mcbp::Datatype::Json, stored.info.datatype);
+    EXPECT_EQ(cb::mcbp::Datatype::JSON, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     EXPECT_EQ(document.value, stored.value);
@@ -224,7 +224,7 @@ TEST_P(GetSetTest, TestGetSuccess) {
 
 TEST_P(GetSetTest, TestAppend) {
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = mcbp::Datatype::Raw;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value.clear();
     document.value.push_back('a');
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -238,7 +238,7 @@ TEST_P(GetSetTest, TestAppend) {
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
-    EXPECT_EQ(mcbp::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     document.value[0] = 'a';
@@ -249,7 +249,7 @@ TEST_P(GetSetTest, TestAppend) {
 TEST_P(GetSetTest, TestAppendWithXattr) {
     // The current code does not preserve XATTRs
     auto& conn = getConnection();
-    document.info.datatype = mcbp::Datatype::Raw;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value.clear();
     document.value.push_back('a');
     int sucCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -279,7 +279,7 @@ TEST_P(GetSetTest, TestAppendWithXattr) {
 
     // And the rest of the doc should look the same
     EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
-    EXPECT_EQ(mcbp::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     document.value[0] = 'a';
@@ -290,7 +290,7 @@ TEST_P(GetSetTest, TestAppendWithXattr) {
 
 TEST_P(GetSetTest, TestAppendCasSuccess) {
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = mcbp::Datatype::Raw;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value.clear();
     document.value.push_back('a');
 
@@ -306,7 +306,7 @@ TEST_P(GetSetTest, TestAppendCasSuccess) {
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     EXPECT_NE(info.cas, stored.info.cas);
-    EXPECT_EQ(mcbp::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     document.value[0] = 'a';
@@ -316,7 +316,7 @@ TEST_P(GetSetTest, TestAppendCasSuccess) {
 
 TEST_P(GetSetTest, TestAppendCasMismatch) {
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = mcbp::Datatype::Raw;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value.clear();
     document.value.push_back('a');
 
@@ -343,7 +343,7 @@ TEST_P(GetSetTest, TestAppendCasMismatch) {
 
 TEST_P(GetSetTest, TestPrepend) {
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = mcbp::Datatype::Raw;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value.clear();
     document.value.push_back('a');
 
@@ -368,7 +368,7 @@ TEST_P(GetSetTest, TestPrepend) {
 TEST_P(GetSetTest, TestPrependWithXattr) {
     // The current code does not preserve XATTRs
     auto& conn = getConnection();
-    document.info.datatype = mcbp::Datatype::Raw;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value.clear();
     document.value.push_back('a');
 
@@ -400,7 +400,7 @@ TEST_P(GetSetTest, TestPrependWithXattr) {
 
     // And the rest of the doc should look the same
     EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
-    EXPECT_EQ(mcbp::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
     document.value.push_back('a');
@@ -409,7 +409,7 @@ TEST_P(GetSetTest, TestPrependWithXattr) {
 
 TEST_P(GetSetTest, TestPrependCasSuccess) {
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = mcbp::Datatype::Raw;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value.clear();
     document.value.push_back('a');
 
@@ -434,7 +434,7 @@ TEST_P(GetSetTest, TestPrependCasSuccess) {
 
 TEST_P(GetSetTest, TestPerpendCasMismatch) {
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = mcbp::Datatype::Raw;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value.clear();
     document.value.push_back('a');
 
@@ -489,7 +489,7 @@ static void compress_vector(const std::vector<char>& input,
 TEST_P(GetSetTest, TestAppendCompressedSource) {
     TESTAPP_SKIP_IF_NO_COMPRESSION();
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = mcbp::Datatype::Snappy;
+    document.info.datatype = cb::mcbp::Datatype::Snappy;
 
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'a');
@@ -499,7 +499,7 @@ TEST_P(GetSetTest, TestAppendCompressedSource) {
     conn.mutate(document, 0, MutationType::Set);
     document.value.resize(input.size());
     std::fill(document.value.begin(), document.value.end(), 'b');
-    document.info.datatype = mcbp::Datatype::Raw;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
 
     conn.mutate(document, 0, MutationType::Append);
     const auto stored = conn.get(name, 0);
@@ -507,7 +507,7 @@ TEST_P(GetSetTest, TestAppendCompressedSource) {
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_EQ(mcbp::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
@@ -520,7 +520,7 @@ TEST_P(GetSetTest, TestAppendCompressedSource) {
 TEST_P(GetSetTest, TestAppendCompressedData) {
     TESTAPP_SKIP_IF_NO_COMPRESSION();
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = mcbp::Datatype::Raw;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value.resize(1024);
     std::fill(document.value.begin(), document.value.end(), 'a');
 
@@ -531,7 +531,7 @@ TEST_P(GetSetTest, TestAppendCompressedData) {
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'b');
     compress_vector(input, document.value);
-    document.info.datatype = mcbp::Datatype::Snappy;
+    document.info.datatype = cb::mcbp::Datatype::Snappy;
     conn.mutate(document, 0, MutationType::Append);
 
     const auto stored = conn.get(name, 0);
@@ -540,7 +540,7 @@ TEST_P(GetSetTest, TestAppendCompressedData) {
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_EQ(mcbp::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
@@ -556,7 +556,7 @@ TEST_P(GetSetTest, TestAppendCompressedData) {
 TEST_P(GetSetTest, TestAppendCompressedSourceAndData) {
     TESTAPP_SKIP_IF_NO_COMPRESSION();
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = mcbp::Datatype::Snappy;
+    document.info.datatype = cb::mcbp::Datatype::Snappy;
 
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'a');
@@ -575,7 +575,7 @@ TEST_P(GetSetTest, TestAppendCompressedSourceAndData) {
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_EQ(mcbp::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
@@ -589,7 +589,7 @@ TEST_P(GetSetTest, TestAppendCompressedSourceAndData) {
 TEST_P(GetSetTest, TestPrependCompressedSource) {
     TESTAPP_SKIP_IF_NO_COMPRESSION();
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = mcbp::Datatype::Snappy;
+    document.info.datatype = cb::mcbp::Datatype::Snappy;
 
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'a');
@@ -599,7 +599,7 @@ TEST_P(GetSetTest, TestPrependCompressedSource) {
     conn.mutate(document, 0, MutationType::Set);
     document.value.resize(input.size());
     std::fill(document.value.begin(), document.value.end(), 'b');
-    document.info.datatype = mcbp::Datatype::Raw;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
 
     conn.mutate(document, 0, MutationType::Prepend);
     const auto stored = conn.get(name, 0);
@@ -608,7 +608,7 @@ TEST_P(GetSetTest, TestPrependCompressedSource) {
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_EQ(mcbp::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
@@ -621,7 +621,7 @@ TEST_P(GetSetTest, TestPrependCompressedSource) {
 TEST_P(GetSetTest, TestPrependCompressedData) {
     TESTAPP_SKIP_IF_NO_COMPRESSION();
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = mcbp::Datatype::Raw;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value.resize(1024);
     std::fill(document.value.begin(), document.value.end(), 'a');
 
@@ -631,7 +631,7 @@ TEST_P(GetSetTest, TestPrependCompressedData) {
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'b');
     compress_vector(input, document.value);
-    document.info.datatype = mcbp::Datatype::Snappy;
+    document.info.datatype = cb::mcbp::Datatype::Snappy;
     conn.mutate(document, 0, MutationType::Prepend);
 
     const auto stored = conn.get(name, 0);
@@ -640,7 +640,7 @@ TEST_P(GetSetTest, TestPrependCompressedData) {
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_EQ(mcbp::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 
@@ -653,7 +653,7 @@ TEST_P(GetSetTest, TestPrependCompressedData) {
 TEST_P(GetSetTest, TestPrepepndCompressedSourceAndData) {
     TESTAPP_SKIP_IF_NO_COMPRESSION();
     MemcachedConnection& conn = getConnection();
-    document.info.datatype = mcbp::Datatype::Snappy;
+    document.info.datatype = cb::mcbp::Datatype::Snappy;
 
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'a');
@@ -672,7 +672,7 @@ TEST_P(GetSetTest, TestPrepepndCompressedSourceAndData) {
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
-    EXPECT_EQ(mcbp::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(document.info.flags, stored.info.flags);
     EXPECT_EQ(document.info.id, stored.info.id);
 

@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2016 Couchbase, Inc.
+ *     Copyright 2017 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -16,22 +16,16 @@
  */
 #pragma once
 
-// This file contains various methods for the Memcached Binary Protocol
-#include <memcached/protocol_binary.h>
-
-#include <ostream>
-#include <vector>
+#include <cstdint>
 
 namespace cb {
 namespace mcbp {
 
 /**
- * Dump a raw packet to the named stream (the packet is expected to contain
- * a valid packet)
- *
- * @param packet pointer to the first byte of a correctly encoded mcbp packet
- * @param out where to dump the bytes
+ * Definition of the data types in the packet
+ * See section 3.4 Data Types
  */
-void dump(const uint8_t* packet, std::ostream& out);
-}
-}
+
+enum class Datatype : uint8_t { Raw = 0, JSON = 1, Snappy = 2, Xattr = 4 };
+} // namespace mcbp
+} // namespace cb

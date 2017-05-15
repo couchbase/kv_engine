@@ -19,7 +19,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
-#include <libmcbp/mcbp.h>
+#include <mcbp/mcbp.h>
 #include <iomanip>
 #include <include/memcached/protocol_binary.h>
 #include <utilities/protocol2text.h>

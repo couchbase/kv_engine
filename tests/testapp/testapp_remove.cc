@@ -35,7 +35,7 @@ protected:
     void createDocument() {
         Document doc;
         doc.info.cas = mcbp::cas::Wildcard;
-        doc.info.datatype = mcbp::Datatype::Json;
+        doc.info.datatype = cb::mcbp::Datatype::JSON;
         doc.info.flags = 0xcaffee;
         doc.info.id = name;
         auto content = to_string(memcached_cfg);

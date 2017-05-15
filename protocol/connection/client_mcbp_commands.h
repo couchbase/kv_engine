@@ -977,7 +977,7 @@ public:
         datatype = datatype_;
         return *this;
     }
-    BinprotMutationCommand& setDatatype(mcbp::Datatype datatype_) {
+    BinprotMutationCommand& setDatatype(cb::mcbp::Datatype datatype_) {
         return setDatatype(uint8_t(datatype_));
     }
     BinprotMutationCommand& setDocumentFlags(uint32_t flags_) {

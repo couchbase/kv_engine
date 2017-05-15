@@ -174,7 +174,7 @@ TEST_P(ArithmeticTest, TestMutationInfo) {
     // The cas should be filled out, so we should be able to do a CAS replace
     Document doc;
     doc.info.cas = info.cas;
-    doc.info.datatype = mcbp::Datatype::Json;
+    doc.info.datatype = cb::mcbp::Datatype::JSON;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
     char* ptr = cJSON_Print(memcached_cfg.get());
@@ -189,7 +189,7 @@ TEST_P(ArithmeticTest, TestIllegalDatatype) {
 
     Document doc;
     doc.info.cas = mcbp::cas::Wildcard;
-    doc.info.datatype = mcbp::Datatype::Json;
+    doc.info.datatype = cb::mcbp::Datatype::JSON;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
     char* ptr = cJSON_Print(memcached_cfg.get());
@@ -212,7 +212,7 @@ static void test_stored_doc(MemcachedConnection& conn,
 
     Document doc;
     doc.info.cas = mcbp::cas::Wildcard;
-    doc.info.datatype = mcbp::Datatype::Raw;
+    doc.info.datatype = cb::mcbp::Datatype::JSON;
     doc.info.flags = 0xcaffee;
     doc.info.id = key;
     std::copy(content.begin(), content.end(), std::back_inserter(doc.value));
