@@ -23,7 +23,6 @@
 
 #include <memory>
 
-#include "hash_table.h"
 #include "stored-value.h"
 
 /**
@@ -41,12 +40,9 @@ public:
      *             the hash bucket chain, which this new item will take
      *             ownership of. (Typically the top of the hash bucket into
      *             which the new item is being inserted).
-     * @param ht the hashtable that will contain the StoredValue instance
-     *           created
      */
     virtual StoredValue::UniquePtr operator()(const Item& itm,
-                                              StoredValue::UniquePtr next,
-                                              HashTable& ht) = 0;
+                                              StoredValue::UniquePtr next) = 0;
 
     /**
      * Create a new StoredValue (or subclass) from the given StoredValue.
@@ -55,12 +51,9 @@ public:
      * @param next The StoredValue which will follow the new StoredValue (the
      *             copy) in the hash bucket chain (typically the top of the
      *             hash bucket into which the new item is being inserted).
-     * @param ht the hashtable that will contain the StoredValue instance
-     *           created
      */
     virtual StoredValue::UniquePtr copyStoredValue(const StoredValue& other,
-                                                   StoredValue::UniquePtr next,
-                                                   HashTable& ht) = 0;
+                                                   StoredValue::UniquePtr next) = 0;
 };
 
 /**
@@ -77,8 +70,7 @@ public:
      * Create an concrete StoredValue object.
      */
     StoredValue::UniquePtr operator()(const Item& itm,
-                                      StoredValue::UniquePtr next,
-                                      HashTable& ht) override {
+                                      StoredValue::UniquePtr next) override {
         // Allocate a buffer to store the StoredValue and any trailing bytes
         // that maybe required.
         return StoredValue::UniquePtr(
@@ -86,13 +78,11 @@ public:
                         StoredValue(itm,
                                     std::move(next),
                                     *stats,
-                                    ht,
                                     /*isOrdered*/ false));
     }
 
     StoredValue::UniquePtr copyStoredValue(const StoredValue& other,
-                                           StoredValue::UniquePtr next,
-                                           HashTable& ht) override {
+                                           StoredValue::UniquePtr next) override {
         throw std::logic_error("Copy of StoredValue is not supported");
     }
 
@@ -114,27 +104,25 @@ public:
      * Create a new OrderedStoredValue with the given item.
      */
     StoredValue::UniquePtr operator()(const Item& itm,
-                                      StoredValue::UniquePtr next,
-                                      HashTable& ht) override {
+                                      StoredValue::UniquePtr next) override {
         // Allocate a buffer to store the OrderStoredValue and any trailing
         // bytes required for the key.
         return StoredValue::UniquePtr(
                 new (::operator new(
                         OrderedStoredValue::getRequiredStorage(itm)))
-                        OrderedStoredValue(itm, std::move(next), *stats, ht));
+                        OrderedStoredValue(itm, std::move(next), *stats));
     }
 
     /**
      * Create a copy of OrderedStoredValue from the given one.
      */
     StoredValue::UniquePtr copyStoredValue(const StoredValue& other,
-                                           StoredValue::UniquePtr next,
-                                           HashTable& ht) override {
+                                           StoredValue::UniquePtr next) override {
         // Allocate a buffer to store the copy ofOrderStoredValue and any
         // trailing bytes required for the key.
         return StoredValue::UniquePtr(
                 new (::operator new(other.getObjectSize()))
-                        OrderedStoredValue(other, std::move(next), *stats, ht));
+                        OrderedStoredValue(other, std::move(next), *stats));
     }
 
 private:

@@ -308,6 +308,15 @@ public:
     MutationStatus set(Item& val);
 
     /**
+     * Set item into StoredValue
+     *
+     * @param itm the Item to store
+     * @param   v the stored value in which itm needs
+     *            to be stored
+     */
+    void setValue(const Item& itm, StoredValue& v);
+
+    /**
      * Updates an existing StoredValue in the HT.
      * Assumes that HT bucket lock is grabbed.
      *
@@ -661,6 +670,26 @@ private:
     }
 
     void clear_UNLOCKED(bool deactivate);
+
+    /**
+     * Increase the size of the cache
+     */
+    void increaseCacheSize(size_t by);
+
+    /**
+     * Reduce the size of the cache
+     */
+    void reduceCacheSize(size_t by);
+
+    /**
+     * Increase the size of the meta data
+     */
+    void increaseMetaDataSize(EPStats& st, size_t by);
+
+    /**
+     * Reduce the size of the meta data
+     */
+    void reduceMetaDataSize(EPStats &st, size_t by);
 
     DISALLOW_COPY_AND_ASSIGN(HashTable);
 };

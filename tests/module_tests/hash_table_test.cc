@@ -466,7 +466,7 @@ TEST_F(HashTableTest, ItemAge) {
     // Check changing age when new value is used.
     Item item2(key, 0, 0, "value2", strlen("value2"));
     item2.getValue()->incrementAge();
-    v->setValue(item2, ht);
+    ht.setValue(item2, *v);
     EXPECT_EQ(1, v->getValue()->getAge());
 }
 

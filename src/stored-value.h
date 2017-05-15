@@ -25,7 +25,6 @@
 
 #include <boost/intrusive/list.hpp>
 
-class HashTable;
 class OrderedStoredValue;
 
 /**
@@ -249,9 +248,8 @@ public:
      * Set a new value for this item.
      *
      * @param itm the item with a new value
-     * @param ht the hashtable that contains this StoredValue instance
      */
-    void setValue(const Item& itm, HashTable& ht);
+    void setValue(const Item& itm);
 
     void markDeleted() {
         deleted = true;
@@ -260,9 +258,8 @@ public:
 
     /**
      * Eject an item value from memory.
-     * @param ht the hashtable that contains this StoredValue instance
      */
-    bool ejectValue(HashTable &ht, item_eviction_policy_t policy);
+    void ejectValue();
 
     /**
      * Restore the value for this item.
@@ -452,9 +449,10 @@ public:
     }
 
     /**
-     * Logically delete this object.
+     * Logically delete this object
+     * @return true if the item was deleted
      */
-    void del(HashTable &ht);
+    bool del();
 
     uint64_t getRevSeqno() const {
         return revSeqno;
@@ -599,47 +597,12 @@ protected:
      *           ownership of. (Typically the top of the hash bucket into
      *           which the new item is being inserted).
      * @param stats EPStats to update for this new StoredValue
-     * @param ht HashTable to update stats for this new StoredValue.
      * @param isOrdered Are we constructing an OrderedStoredValue?
      */
     StoredValue(const Item& itm,
                 UniquePtr n,
                 EPStats& stats,
-                HashTable& ht,
-                bool isOrdered)
-        : value(itm.getValue()),
-          chain_next_or_replacement(std::move(n)),
-          cas(itm.getCas()),
-          revSeqno(itm.getRevSeqno()),
-          bySeqno(itm.getBySeqno()),
-          lock_expiry_or_delete_time(0),
-          exptime(itm.getExptime()),
-          flags(itm.getFlags()),
-          datatype(itm.getDataType()),
-          deleted(itm.isDeleted()),
-          newCacheItem(true),
-          isOrdered(isOrdered),
-          nru(itm.getNRUValue()),
-          stale(false) {
-        // Placement-new the key which lives in memory directly after this
-        // object.
-        new (key()) SerialisedDocKey(itm.getKey());
-
-        if (isTempInitialItem()) {
-            markClean();
-        } else {
-            markDirty();
-        }
-
-        if (isTempItem()) {
-            markNotResident();
-        }
-
-        increaseMetaDataSize(ht, stats, metaDataSize());
-        increaseCacheSize(ht, size());
-
-        ObjectRegistry::onCreateStoredValue(this);
-    }
+                bool isOrdered);
 
     // Destructor. protected, as needs to be carefully deleted (via
     // StoredValue::Destructor) depending on the value of isOrdered flag.
@@ -657,37 +620,10 @@ protected:
      *           ownership of. (Typically the top of the hash bucket into
      *           which the new item is being inserted).
      * @param stats EPStats to update for this new StoredValue
-     * @param ht HashTable to update stats for this new StoredValue.
      */
     StoredValue(const StoredValue& other,
                 UniquePtr n,
-                EPStats& stats,
-                HashTable& ht)
-        : value(other.value),
-          chain_next_or_replacement(std::move(n)),
-          cas(other.cas),
-          revSeqno(other.revSeqno),
-          bySeqno(other.bySeqno),
-          lock_expiry_or_delete_time(other.lock_expiry_or_delete_time),
-          exptime(other.exptime),
-          flags(other.flags),
-          datatype(other.datatype),
-          _isDirty(other._isDirty),
-          deleted(other.deleted),
-          newCacheItem(other.newCacheItem),
-          isOrdered(other.isOrdered),
-          nru(other.nru),
-          stale(false) {
-        // Placement-new the key which lives in memory directly after this
-        // object.
-        StoredDocKey sKey(other.getKey());
-        new (key()) SerialisedDocKey(sKey);
-
-        increaseMetaDataSize(ht, stats, metaDataSize());
-        increaseCacheSize(ht, size());
-
-        ObjectRegistry::onCreateStoredValue(this);
-    }
+                EPStats& stats);
 
     /* Do not allow assignment */
     StoredValue& operator=(const StoredValue& other) = delete;
@@ -702,16 +638,14 @@ protected:
      * Implementation for StoredValue instances (dispatched to by del() based
      * on isOrdered==false).
      */
-    void deleteImpl(HashTable& ht);
+    bool deleteImpl();
 
     /* Update the value for this SV from the given item.
      * Implementation for StoredValue instances (dispatched to by setValue()).
      */
-    void setValueImpl(const Item& itm, HashTable& ht);
+    void setValueImpl(const Item& itm);
 
-    friend class HashTable;
     friend class StoredValueFactory;
-    friend std::ostream& operator<<(std::ostream& os, const HashTable& ht);
 
     value_t            value;          // 8 bytes
 
@@ -752,10 +686,6 @@ protected:
     // Note (2): Only 1 bit of this is currently used; rest is "spare".
     std::atomic<bool> stale;
 
-    static void increaseMetaDataSize(HashTable &ht, EPStats &st, size_t by);
-    static void reduceMetaDataSize(HashTable &ht, EPStats &st, size_t by);
-    static void increaseCacheSize(HashTable &ht, size_t by);
-    static void reduceCacheSize(HashTable &ht, size_t by);
     static double mutation_mem_threshold;
 
     friend std::ostream& operator<<(std::ostream& os, const StoredValue& sv);
@@ -847,13 +777,13 @@ protected:
      * OrderedStoredValue instances (dispatched to by del() based on
      * isOrdered==true).
      */
-    void deleteImpl(HashTable& ht);
+    bool deleteImpl();
 
     /* Update the value for this OSV from the given item.
      * Implementation for OrderedStoredValue instances (dispatched to by
      *  setValue()).
      */
-    void setValueImpl(const Item& itm, HashTable& ht);
+    void setValueImpl(const Item& itm);
 
     /**
      * Set the time the item was deleted to the specified time.
@@ -865,9 +795,8 @@ private:
     // OrderedStoredValueFactory.
     OrderedStoredValue(const Item& itm,
                        UniquePtr n,
-                       EPStats& stats,
-                       HashTable& ht)
-        : StoredValue(itm, std::move(n), stats, ht, /*isOrdered*/ true) {
+                       EPStats& stats)
+        : StoredValue(itm, std::move(n), stats, /*isOrdered*/ true) {
     }
 
     // Copy Constructor. Private, as needs to be carefully created via
@@ -878,9 +807,8 @@ private:
     // data structure.
     OrderedStoredValue(const StoredValue& other,
                        UniquePtr n,
-                       EPStats& stats,
-                       HashTable& ht)
-        : StoredValue(other, std::move(n), stats, ht) {
+                       EPStats& stats)
+        : StoredValue(other, std::move(n), stats) {
     }
 
     /* Do not allow assignment */

@@ -304,7 +304,8 @@ MutationStatus HashTable::unlocked_updateStoredValue(
     }
 
     /* setValue() will mark v as undeleted if required */
-    v.setValue(itm, *this);
+    setValue(itm, v);
+
     return status;
 }
 
@@ -323,7 +324,10 @@ StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
     }
 
     // Create a new StoredValue and link it into the head of the bucket chain.
-    auto v = (*valFact)(itm, std::move(values[hbl.getBucketNum()]), *this);
+    auto v = (*valFact)(itm, std::move(values[hbl.getBucketNum()]));
+    increaseMetaDataSize(stats, v->metaDataSize());
+    increaseCacheSize(v->size());
+
     if (v->isTempItem()) {
         ++numTempItems;
     } else {
@@ -359,7 +363,7 @@ HashTable::unlocked_replaceByCopy(const HashBucketLock& hbl,
 
     /* Copy the StoredValue and link it into the head of the bucket chain. */
     auto newSv = valFact->copyStoredValue(
-            vToCopy, std::move(values[hbl.getBucketNum()]), *this);
+            vToCopy, std::move(values[hbl.getBucketNum()]));
     if (newSv->isTempItem()) {
         ++numTempItems;
     } else {
@@ -389,7 +393,10 @@ void HashTable::unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
             ++numItems;
             ++numTotalItems;
         }
-        v.del(*this);
+        size_t len = v.valuelen();
+        if (v.del()) {
+            reduceCacheSize(len);
+        }
     }
     if (!alreadyDeleted) {
         ++numDeletedItems;
@@ -447,8 +454,8 @@ StoredValue::UniquePtr HashTable::unlocked_release(
     }
 
     // Update statistics now the item has been removed.
-    StoredValue::reduceCacheSize(*this, released->size());
-    StoredValue::reduceMetaDataSize(*this, stats, released->metaDataSize());
+    reduceCacheSize(released->size());
+    reduceMetaDataSize(stats, released->metaDataSize());
     if (released->isTempItem()) {
         --numTempItems;
     } else {
@@ -624,8 +631,9 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
                 "Unable to delete NULL StoredValue");
     }
     if (policy == VALUE_ONLY) {
-        bool rv = vptr->ejectValue(*this, policy);
-        if (rv) {
+        if (vptr->eligibleForEviction(policy)) {
+            reduceCacheSize(vptr->valuelen());
+            vptr->ejectValue();
             ++stats.numValueEjects;
             ++numNonResidentItems;
             ++numEjects;
@@ -636,9 +644,8 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
         }
     } else { // full eviction.
         if (vptr->eligibleForEviction(policy)) {
-            StoredValue::reduceMetaDataSize(*this, stats,
-                                            vptr->metaDataSize());
-            StoredValue::reduceCacheSize(*this, vptr->size());
+            reduceMetaDataSize(stats, vptr->metaDataSize());
+            reduceCacheSize(vptr->size());
             int bucket_num = getBucketForHash(vptr->getKey().hash());
 
             // Remove the item from the hash table.
@@ -698,7 +705,7 @@ bool HashTable::unlocked_restoreValue(
 
     v.restoreValue(itm);
 
-    StoredValue::increaseCacheSize(*this, v.getValue()->length());
+    increaseCacheSize(v.getValue()->length());
     return true;
 }
 
@@ -724,6 +731,32 @@ void HashTable::unlocked_restoreMeta(const std::unique_lock<std::mutex>& htLock,
         ++numNonResidentItems;
         ++datatypeCounts[v.getDatatype()];
     }
+}
+
+void HashTable::increaseCacheSize(size_t by) {
+    cacheSize.fetch_add(by);
+    memSize.fetch_add(by);
+}
+
+void HashTable::reduceCacheSize(size_t by) {
+    cacheSize.fetch_sub(by);
+    memSize.fetch_sub(by);
+}
+
+void HashTable::increaseMetaDataSize(EPStats& st, size_t by) {
+    metaDataMemory.fetch_add(by);
+    st.currentSize.fetch_add(by);
+}
+
+void HashTable::reduceMetaDataSize(EPStats &st, size_t by) {
+    metaDataMemory.fetch_sub(by);
+    st.currentSize.fetch_sub(by);
+}
+
+void HashTable::setValue(const Item& itm, StoredValue& v) {
+    reduceCacheSize(v.size());
+    v.setValue(itm);
+    increaseCacheSize(v.size());
 }
 
 std::ostream& operator<<(std::ostream& os, const HashTable& ht) {

@@ -390,7 +390,7 @@ void VBucket::handlePreExpiry(StoredValue& v) {
                           v.getNRUValue());
 
             new_item.setDeleted();
-            v.setValue(new_item, ht);
+            ht.setValue(new_item, v);
         }
     }
 }
@@ -1348,7 +1348,7 @@ void VBucket::deleteExpiredItem(const Item& it,
                                      TrackReference::No);
                 v->setDeleted();
                 v->setRevSeqno(it.getRevSeqno());
-                v->setValue(it, ht);
+                ht.setValue(it, *v);
                 VBNotifyCtx notifyCtx;
                 std::tie(std::ignore, std::ignore, notifyCtx) =
                         processExpiredItem(hbl, *v);

@@ -45,7 +45,7 @@ public:
     void SetUp() override {
         // Create an initial stored value for testing - key length (3) and
         // value length (5).
-        sv = factory(item, {}, ht);
+        sv = factory(item, {});
     }
 
     /// Returns the number of bytes in the Fixed part of StoredValue
@@ -107,7 +107,7 @@ TYPED_TEST(ValueTest, valuelenDeletedWithValue) {
 
 TYPED_TEST(ValueTest, valuelenDeletedWithoutValue) {
     // Check valuelen reports correctly for a StoredValue logically delete
-    this->sv->del(this->ht);
+    this->sv->del();
     EXPECT_EQ(0, this->sv->valuelen())
             << "valuelen() expected to be 0 as we do not want to keep deleted "
                "body";

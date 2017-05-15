@@ -17,10 +17,7 @@
 
 #include "config.h"
 #include <platform/cb_malloc.h>
-
 #include "stored-value.h"
-
-#include "hash_table.h"
 
 double StoredValue::mutation_mem_threshold = 0.9;
 const int64_t StoredValue::state_deleted_key = -3;
@@ -28,22 +25,78 @@ const int64_t StoredValue::state_non_existent_key = -4;
 const int64_t StoredValue::state_temp_init = -5;
 const int64_t StoredValue::state_collection_open = -6;
 
-void StoredValue::setValue(const Item& itm, HashTable& ht) {
-    if (isOrdered) {
-        return static_cast<OrderedStoredValue*>(this)->setValueImpl(itm, ht);
+StoredValue::StoredValue(const Item& itm,
+                         UniquePtr n,
+                         EPStats& stats,
+                         bool isOrdered)
+    : value(itm.getValue()),
+      chain_next_or_replacement(std::move(n)),
+      cas(itm.getCas()),
+      revSeqno(itm.getRevSeqno()),
+      bySeqno(itm.getBySeqno()),
+      lock_expiry_or_delete_time(0),
+      exptime(itm.getExptime()),
+      flags(itm.getFlags()),
+      datatype(itm.getDataType()),
+      deleted(itm.isDeleted()),
+      newCacheItem(true),
+      isOrdered(isOrdered),
+      nru(itm.getNRUValue()),
+      stale(false) {
+    // Placement-new the key which lives in memory directly after this
+    // object.
+    new (key()) SerialisedDocKey(itm.getKey());
+
+    if (isTempInitialItem()) {
+        markClean();
     } else {
-        return this->setValueImpl(itm, ht);
+        markDirty();
+    }
+
+    if (isTempItem()) {
+        markNotResident();
+    }
+
+    ObjectRegistry::onCreateStoredValue(this);
+}
+
+StoredValue::StoredValue(const StoredValue& other,
+                         UniquePtr n,
+                         EPStats& stats)
+    : value(other.value),
+      chain_next_or_replacement(std::move(n)),
+      cas(other.cas),
+      revSeqno(other.revSeqno),
+      bySeqno(other.bySeqno),
+      lock_expiry_or_delete_time(other.lock_expiry_or_delete_time),
+      exptime(other.exptime),
+      flags(other.flags),
+      datatype(other.datatype),
+      _isDirty(other._isDirty),
+      deleted(other.deleted),
+      newCacheItem(other.newCacheItem),
+      isOrdered(other.isOrdered),
+      nru(other.nru),
+      stale(false) {
+    // Placement-new the key which lives in memory directly after this
+    // object.
+    StoredDocKey sKey(other.getKey());
+    new (key()) SerialisedDocKey(sKey);
+
+    ObjectRegistry::onCreateStoredValue(this);
+}
+
+void StoredValue::setValue(const Item& itm) {
+    if (isOrdered) {
+        return static_cast<OrderedStoredValue*>(this)->setValueImpl(itm);
+    } else {
+        return this->setValueImpl(itm);
     }
 }
 
-bool StoredValue::ejectValue(HashTable &ht, item_eviction_policy_t policy) {
-    if (eligibleForEviction(policy)) {
-        reduceCacheSize(ht, value->length());
-        markNotResident();
-        value = NULL;
-        return true;
-    }
-    return false;
+void StoredValue::ejectValue() {
+    markNotResident();
+    value = nullptr;
 }
 
 void StoredValue::referenced() {
@@ -103,11 +156,11 @@ void StoredValue::restoreMeta(const Item& itm) {
     }
 }
 
-void StoredValue::del(HashTable& ht) {
+bool StoredValue::del() {
     if (isOrdered) {
-        return static_cast<OrderedStoredValue*>(this)->deleteImpl(ht);
+        return static_cast<OrderedStoredValue*>(this)->deleteImpl();
     } else {
-        return this->deleteImpl(ht);
+        return this->deleteImpl();
     }
 }
 
@@ -115,28 +168,6 @@ void StoredValue::setMutationMemoryThreshold(double memThreshold) {
     if (memThreshold > 0.0 && memThreshold <= 1.0) {
         mutation_mem_threshold = memThreshold;
     }
-}
-
-// TODO: Move these two methods to HashTable (it doesn't do anything with
-// StoredValue objects).
-void StoredValue::increaseCacheSize(HashTable &ht, size_t by) {
-    ht.cacheSize.fetch_add(by);
-    ht.memSize.fetch_add(by);
-}
-
-void StoredValue::reduceCacheSize(HashTable &ht, size_t by) {
-    ht.cacheSize.fetch_sub(by);
-    ht.memSize.fetch_sub(by);
-}
-
-void StoredValue::increaseMetaDataSize(HashTable &ht, EPStats &st, size_t by) {
-    ht.metaDataMemory.fetch_add(by);
-    st.currentSize.fetch_add(by);
-}
-
-void StoredValue::reduceMetaDataSize(HashTable &ht, EPStats &st, size_t by) {
-    ht.metaDataMemory.fetch_sub(by);
-    st.currentSize.fetch_sub(by);
 }
 
 /**
@@ -236,23 +267,22 @@ bool StoredValue::operator==(const StoredValue& other) const {
             getKey() == other.getKey());
 }
 
-void StoredValue::deleteImpl(HashTable& ht) {
+bool StoredValue::deleteImpl() {
     if (isDeleted() && !getValue()) {
         // SV is already marked as deleted and has no value - no further
         // deletion possible.
-        return;
+        return false;
     }
 
-    reduceCacheSize(ht, valuelen());
     markNotResident();
     // item no longer resident once value is reset
     deleted = true;
     markDirty();
+
+    return true;
 }
 
-void StoredValue::setValueImpl(const Item& itm, HashTable& ht) {
-    size_t currSize = size();
-    reduceCacheSize(ht, currSize);
+void StoredValue::setValueImpl(const Item& itm) {
     value = itm.getValue();
     deleted = itm.isDeleted();
     flags = itm.getFlags();
@@ -275,9 +305,6 @@ void StoredValue::setValueImpl(const Item& itm, HashTable& ht) {
     if (isTempItem()) {
         markNotResident();
     }
-
-    size_t newSize = size();
-    increaseCacheSize(ht, newSize);
 }
 
 std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
@@ -342,16 +369,18 @@ rel_time_t OrderedStoredValue::getDeletedTime() const {
     }
 }
 
-void OrderedStoredValue::deleteImpl(HashTable& ht) {
-    StoredValue::deleteImpl(ht);
-
-    // Need to record the time when an item is deleted for subsequent purging
-    // (ephemeral_metadata_purge_age).
-    setDeletedTime(ep_current_time());
+bool OrderedStoredValue::deleteImpl() {
+    if (StoredValue::deleteImpl()) {
+        // Need to record the time when an item is deleted for subsequent
+        //purging (ephemeral_metadata_purge_age).
+        setDeletedTime(ep_current_time());
+        return true;
+    }
+    return false;
 }
 
-void OrderedStoredValue::setValueImpl(const Item& itm, HashTable& ht) {
-    StoredValue::setValueImpl(itm, ht);
+void OrderedStoredValue::setValueImpl(const Item& itm) {
+    StoredValue::setValueImpl(itm);
 
     // Update the deleted time (note - even if it was already deleted we should
     // refresh this).
