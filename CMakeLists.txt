@@ -108,9 +108,11 @@ FIND_PACKAGE(PythonInterp)
 SET(ENV{PYTHONDONTWRITEBYTECODE} 1)
 
 # runs cbstats & cbepctl - will fail on basic syntax errors
-ADD_TEST(cbstats_test ${PYTHON_EXECUTABLE}
+ADD_TEST(NAME cbstats_test
+        COMMAND ${PYTHON_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/management/cbstats --help)
-ADD_TEST(cbepctl_test ${PYTHON_EXECUTABLE}
+ADD_TEST(NAME cbepctl_test
+        COMMAND ${PYTHON_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/management/cbepctl --help)
 
 IF (WIN32)
@@ -350,11 +352,11 @@ TARGET_INCLUDE_DIRECTORIES(ep_engine_benchmarks PUBLIC
                            benchmarks
                            ${Couchstore_SOURCE_DIR})
 
-ADD_TEST(ep-engine_atomic_ptr_test ep-engine_atomic_ptr_test)
-ADD_TEST(ep-engine_couch-fs-stats_test ep-engine_couch-fs-stats_test)
-ADD_TEST(ep-engine_ep_unit_tests ep-engine_ep_unit_tests)
-ADD_TEST(ep-engine_hrtime_test ep-engine_hrtime_test)
-ADD_TEST(ep-engine_misc_test ep-engine_misc_test)
+ADD_TEST(NAME ep-engine_atomic_ptr_test COMMAND ep-engine_atomic_ptr_test)
+ADD_TEST(NAME ep-engine_couch-fs-stats_test COMMAND ep-engine_couch-fs-stats_test)
+ADD_TEST(NAME ep-engine_ep_unit_tests COMMAND ep-engine_ep_unit_tests)
+ADD_TEST(NAME ep-engine_hrtime_test COMMAND ep-engine_hrtime_test)
+ADD_TEST(NAME ep-engine_misc_test COMMAND ep-engine_misc_test)
 
 ADD_LIBRARY(timing_tests SHARED tests/module_tests/timing_tests.cc)
 SET_TARGET_PROPERTIES(timing_tests PROPERTIES PREFIX "")
@@ -518,9 +520,9 @@ FUNCTION(ADD_TESTSUITE name timeout)
   CMAKE_PARSE_ARGUMENTS("arg" "SKIP_EPHEMERAL" "" "" ${ARGN} )
 
   SET(_cmdline
-    ${CMAKE_BINARY_DIR}/memcached/engine_testapp
-        -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so
-        -T ${CMAKE_CURRENT_BINARY_DIR}/${name}.so)
+    ${Memcached_BINARY_DIR}/engine_testapp
+        -E $<TARGET_FILE:ep>
+        -T $<TARGET_FILE:${name}>)
   ADD_TEST(NAME ${name}.value_eviction
          COMMAND ${_cmdline} -v -e "dbname=./${name}.value_eviction.db")
   ADD_TEST(NAME ${name}.full_eviction
@@ -549,13 +551,13 @@ ADD_TESTSUITE(ep_testsuite_checkpoint 120)
 ADD_TESTSUITE(ep_testsuite_xdcr 120)
 
 # ================================ PERF_TESTS ================================ #
-SET(_ep_perfsuite_cmdline ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so -T ${CMAKE_CURRENT_BINARY_DIR}/ep_perfsuite.so -v)
+SET(_ep_perfsuite_cmdline $<TARGET_FILE:engine_testapp> -E $<TARGET_FILE:ep> -T $<TARGET_FILE:ep_perfsuite> -v)
 
 # Micro perf tests: value-only eviction mode. Note that it makes no sense to run
 # these tests in full-eviction mode as we disable persistence - see MB-19504.
 ADD_CUSTOM_TARGET(test-perfsuite
                   COMMAND ${_ep_perfsuite_cmdline}
-                  DEPENDS ${CMAKE_BINARY_DIR}/memcached/engine_testapp
+                  DEPENDS engine_testapp
                           ep
                           ep_perfsuite
                   VERBATIM)
