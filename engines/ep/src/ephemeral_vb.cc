@@ -567,6 +567,6 @@ void EphemeralVBucket::setupDeferredDeletion(const void* cookie) {
 
 void EphemeralVBucket::scheduleDeferredDeletion(
         EventuallyPersistentEngine& engine) {
-    ExTask task = new VBucketMemoryDeletionTask(engine, this);
+    ExTask task = std::make_shared<VBucketMemoryDeletionTask>(engine, this);
     ExecutorPool::get()->schedule(task);
 }

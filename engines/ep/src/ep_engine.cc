@@ -3645,7 +3645,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(
     if (nkey == 10) {
         void* es = getEngineSpecific(cookie);
         if (es == NULL) {
-            ExTask task = new StatCheckpointTask(this, cookie, add_stat);
+            ExTask task = std::make_shared<StatCheckpointTask>(
+                    this, cookie, add_stat);
             ExecutorPool::get()->schedule(task);
             storeEngineSpecific(cookie, this);
             return ENGINE_EWOULDBLOCK;
@@ -6009,8 +6010,8 @@ EventuallyPersistentEngine::getAllKeys(const void* cookie,
     const uint8_t* keyPtr = (request->bytes + sizeof(request->bytes) + extlen);
     DocKey start_key(keyPtr, keylen, docNamespace);
 
-    ExTask task = new FetchAllKeysTask(this, cookie, response, start_key,
-                                       vbucket, count);
+    ExTask task = std::make_shared<FetchAllKeysTask>(
+            this, cookie, response, start_key, vbucket, count);
     ExecutorPool::get()->schedule(task);
     return ENGINE_EWOULDBLOCK;
 }

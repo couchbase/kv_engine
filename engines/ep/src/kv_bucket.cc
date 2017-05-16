@@ -478,26 +478,27 @@ bool KVBucket::initialize() {
 
     // Always create the item pager; but leave scheduling up to the specific
     // KVBucket subclasses.
-    itemPagerTask = new ItemPager(&engine, stats);
+    itemPagerTask = std::make_shared<ItemPager>(&engine, stats);
 
     initializeExpiryPager(config);
 
-    ExTask htrTask = make_STRCPtr<HashtableResizerTask>(this, 10);
+    ExTask htrTask = std::make_shared<HashtableResizerTask>(this, 10);
     ExecutorPool::get()->schedule(htrTask);
 
     size_t checkpointRemoverInterval = config.getChkRemoverStime();
-    chkTask = new ClosedUnrefCheckpointRemoverTask(&engine, stats,
-                                                   checkpointRemoverInterval);
+    chkTask = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
+            &engine, stats, checkpointRemoverInterval);
     ExecutorPool::get()->schedule(chkTask);
 
-    ExTask workloadMonitorTask = make_STRCPtr<WorkLoadMonitor>(&engine, false);
+    ExTask workloadMonitorTask =
+            std::make_shared<WorkLoadMonitor>(&engine, false);
     ExecutorPool::get()->schedule(workloadMonitorTask);
 
 #if HAVE_JEMALLOC
     /* Only create the defragmenter task if we have an underlying memory
      * allocator which can facilitate defragmenting memory.
      */
-    defragmenterTask = new DefragmenterTask(&engine, stats);
+    defragmenterTask = std::make_shared<DefragmenterTask>(&engine, stats);
     ExecutorPool::get()->schedule(defragmenterTask);
 #endif
 
@@ -803,7 +804,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
         if (oldstate == vbucket_state_pending &&
             to == vbucket_state_active) {
             ExTask notifyTask =
-                    make_STRCPtr<PendingOpsNotification>(engine, vb);
+                    std::make_shared<PendingOpsNotification>(engine, vb);
             ExecutorPool::get()->schedule(notifyTask);
         }
         scheduleVBStatePersist(vbid);
@@ -938,7 +939,7 @@ ENGINE_ERROR_CODE KVBucket::scheduleCompaction(uint16_t vbid, compaction_ctx c,
     c.max_purged_seq[vbid] = vb->getPurgeSeqno();
 
     LockHolder lh(compactionLock);
-    ExTask task = make_STRCPtr<CompactTask>(&engine, c, cookie);
+    ExTask task = std::make_shared<CompactTask>(&engine, c, cookie);
     compactionTasks.push_back(std::make_pair(c.db_file_id, task));
     if (compactionTasks.size() > 1) {
         if ((stats.diskQueueSize > compactionWriteQueueCap &&
@@ -1992,7 +1993,7 @@ bool KVBucket::scheduleDeleteAllTask(const void* cookie) {
     if (diskDeleteAll.compare_exchange_strong(inverse, true)) {
         deleteAllTaskCtx.cookie = cookie;
         deleteAllTaskCtx.delay.compare_exchange_strong(inverse, true);
-        ExTask task = make_STRCPtr<DeleteAllTask>(&engine);
+        ExTask task = std::make_shared<DeleteAllTask>(&engine);
         ExecutorPool::get()->schedule(task);
         return true;
     } else {
@@ -2356,7 +2357,7 @@ void KVBucket::warmupCompleted() {
     // right after warmup. Subsequent snapshot tasks will be scheduled every
     // 60 sec by default.
     ExecutorPool *iom = ExecutorPool::get();
-    ExTask task = make_STRCPtr<StatSnap>(&engine, 0, false);
+    ExTask task = std::make_shared<StatSnap>(&engine, 0, false);
     statsSnapshotTaskId = iom->schedule(task);
 }
 
@@ -2443,7 +2444,7 @@ void KVBucket::setExpiryPagerSleeptime(size_t val) {
 
     expiryPager.sleeptime = val;
     if (expiryPager.enabled) {
-        ExTask expTask = make_STRCPtr<ExpiredItemPager>(
+        ExTask expTask = std::make_shared<ExpiredItemPager>(
                 &engine, stats, expiryPager.sleeptime);
         expiryPager.task = ExecutorPool::get()->schedule(expTask);
     } else {
@@ -2457,7 +2458,7 @@ void KVBucket::setExpiryPagerTasktime(ssize_t val) {
     LockHolder lh(expiryPager.mutex);
     if (expiryPager.enabled) {
         ExecutorPool::get()->cancel(expiryPager.task);
-        ExTask expTask = make_STRCPtr<ExpiredItemPager>(
+        ExTask expTask = std::make_shared<ExpiredItemPager>(
                 &engine, stats, expiryPager.sleeptime, val);
         expiryPager.task = ExecutorPool::get()->schedule(expTask);
     } else {
@@ -2473,7 +2474,7 @@ void KVBucket::enableExpiryPager() {
         expiryPager.enabled = true;
 
         ExecutorPool::get()->cancel(expiryPager.task);
-        ExTask expTask = make_STRCPtr<ExpiredItemPager>(
+        ExTask expTask = std::make_shared<ExpiredItemPager>(
                 &engine, stats, expiryPager.sleeptime);
         expiryPager.task = ExecutorPool::get()->schedule(expTask);
     } else {
@@ -2512,7 +2513,7 @@ void KVBucket::enableAccessScannerTask() {
         size_t alogSleepTime = engine.getConfiguration().getAlogSleepTime();
         accessScanner.sleeptime = alogSleepTime * 60;
         if (accessScanner.sleeptime != 0) {
-            ExTask task = make_STRCPtr<AccessScanner>(
+            ExTask task = std::make_shared<AccessScanner>(
                     *this, stats, accessScanner.sleeptime, true);
             accessScanner.task = ExecutorPool::get()->schedule(task);
         } else {
@@ -2546,7 +2547,7 @@ void KVBucket::setAccessScannerSleeptime(size_t val, bool useStartTime) {
         // store sleeptime in seconds
         accessScanner.sleeptime = val * 60;
         if (accessScanner.sleeptime != 0) {
-            ExTask task = make_STRCPtr<AccessScanner>(
+            ExTask task = std::make_shared<AccessScanner>(
                     *this, stats, accessScanner.sleeptime, useStartTime);
             accessScanner.task = ExecutorPool::get()->schedule(task);
         }
@@ -2560,7 +2561,7 @@ void KVBucket::resetAccessScannerStartTime() {
         if (accessScanner.sleeptime != 0) {
             ExecutorPool::get()->cancel(accessScanner.task);
             // re-schedule task according to the new task start hour
-            ExTask task = make_STRCPtr<AccessScanner>(
+            ExTask task = std::make_shared<AccessScanner>(
                     *this, stats, accessScanner.sleeptime, true);
             accessScanner.task = ExecutorPool::get()->schedule(task);
         }

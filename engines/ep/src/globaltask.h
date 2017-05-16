@@ -52,11 +52,11 @@ enum class TaskPriority : int {
 class Taskable;
 class EventuallyPersistentEngine;
 
-class GlobalTask : public RCValue {
-friend class CompareByDueDate;
-friend class CompareByPriority;
-friend class ExecutorPool;
-friend class ExecutorThread;
+class GlobalTask {
+    friend class CompareByDueDate;
+    friend class CompareByPriority;
+    friend class ExecutorPool;
+    friend class ExecutorThread;
 public:
 
     GlobalTask(Taskable& t,
@@ -235,7 +235,7 @@ private:
     atomic_time_point waketime; // used for priority_queue
 };
 
-typedef SingleThreadedRCPtr<GlobalTask> ExTask;
+typedef std::shared_ptr<GlobalTask> ExTask;
 
 /**
  * Order tasks by their priority and taskId (try to ensure FIFO)

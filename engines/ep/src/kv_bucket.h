@@ -416,8 +416,8 @@ public:
                  const char* lbl,
                  TaskId id,
                  double sleepTime = 0) {
-        return ExecutorPool::get()->schedule(
-                new VBCBAdaptor(this, id, std::move(visitor), lbl, sleepTime));
+        return ExecutorPool::get()->schedule(std::make_shared<VBCBAdaptor>(
+                this, id, std::move(visitor), lbl, sleepTime));
     }
 
     /**

@@ -274,13 +274,13 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
         }
         ++stats.numRemainingBgJobs;
         ExecutorPool* iom = ExecutorPool::get();
-        ExTask task = new VKeyStatBGFetchTask(&engine,
-                                              key,
-                                              getId(),
-                                              v->getBySeqno(),
-                                              cookie,
-                                              bgFetchDelay,
-                                              false);
+        ExTask task = std::make_shared<VKeyStatBGFetchTask>(&engine,
+                                                            key,
+                                                            getId(),
+                                                            v->getBySeqno(),
+                                                            cookie,
+                                                            bgFetchDelay,
+                                                            false);
         iom->schedule(task);
         return ENGINE_EWOULDBLOCK;
     } else {
@@ -304,7 +304,7 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
             case AddStatus::BgFetch: {
                 ++stats.numRemainingBgJobs;
                 ExecutorPool* iom = ExecutorPool::get();
-                ExTask task = new VKeyStatBGFetchTask(
+                ExTask task = std::make_shared<VKeyStatBGFetchTask>(
                         &engine, key, getId(), -1, cookie, bgFetchDelay, false);
                 iom->schedule(task);
             }
@@ -511,7 +511,7 @@ void EPVBucket::bgFetch(const DocKey& key,
                 std::max(stats.maxRemainingBgJobs.load(),
                          stats.numRemainingBgJobs.load()));
         ExecutorPool* iom = ExecutorPool::get();
-        ExTask task = new SingleBGFetcherTask(
+        ExTask task = std::make_shared<SingleBGFetcherTask>(
                 &engine, key, getId(), cookie, isMeta, bgFetchDelay, false);
         iom->schedule(task);
         LOG(EXTENSION_LOG_DEBUG,
@@ -605,6 +605,7 @@ void EPVBucket::setupDeferredDeletion(const void* cookie) {
 }
 
 void EPVBucket::scheduleDeferredDeletion(EventuallyPersistentEngine& engine) {
-    ExTask task = new VBucketMemoryAndDiskDeletionTask(engine, *shard, this);
+    ExTask task = std::make_shared<VBucketMemoryAndDiskDeletionTask>(
+            engine, *shard, this);
     ExecutorPool::get()->schedule(task);
 }

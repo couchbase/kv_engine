@@ -163,5 +163,5 @@ private:
     };
 
     // Private member variables ///////////////////////////////////////////////
-    SingleThreadedRCPtr<NotifyHighPriorityReqTask> notifyHpReqTask;
+    std::shared_ptr<NotifyHighPriorityReqTask> notifyHpReqTask;
 };

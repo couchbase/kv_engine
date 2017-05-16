@@ -128,7 +128,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     pendingEnableValueCompression = config.isDcpValueCompressionEnabled();
     pendingSupportCursorDropping = true;
 
-    ExTask task = new Processor(&engine, this, 1);
+    ExTask task = std::make_shared<Processor>(&engine, this, 1);
     processorTaskId = ExecutorPool::get()->schedule(task);
 }
 
@@ -771,8 +771,8 @@ bool DcpConsumer::handleRollbackResponse(uint16_t vbid,
             logHeader(),
             vbid,
             rollbackSeqno);
-        ExTask task =
-                new RollbackTask(&engine_, opaque, vbid, rollbackSeqno, this);
+        ExTask task = std::make_shared<RollbackTask>(
+                &engine_, opaque, vbid, rollbackSeqno, this);
         ExecutorPool::get()->schedule(task);
     }
     return true;

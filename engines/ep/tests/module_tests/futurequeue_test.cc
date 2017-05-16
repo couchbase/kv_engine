@@ -31,8 +31,8 @@ TEST_F(FutureQueueTest, initAssumptions) {
 }
 
 TEST_F(FutureQueueTest, push1) {
-    ExTask hpTask = new TestTask(nullptr,
-                                 TaskId::PendingOpsNotification);
+    ExTask hpTask =
+            std::make_shared<TestTask>(nullptr, TaskId::PendingOpsNotification);
 
     queue.push(hpTask);
     EXPECT_EQ(1u, queue.size());
@@ -42,8 +42,8 @@ TEST_F(FutureQueueTest, push1) {
 }
 
 TEST_F(FutureQueueTest, pushn) {
-    ExTask hpTask = new TestTask(nullptr,
-                                 TaskId::PendingOpsNotification);
+    ExTask hpTask =
+            std::make_shared<TestTask>(nullptr, TaskId::PendingOpsNotification);
 
     const size_t n = 10;
     for (size_t i = 0; i < n; i++) {
@@ -62,9 +62,8 @@ TEST_F(FutureQueueTest, pushOrder) {
     const int n = 10;
     for (int i = 0; i <= n; i++) {
         ExTask hpTask;
-        hpTask = new TestTask(nullptr,
-                              TaskId::PendingOpsNotification,
-                              i);
+        hpTask = std::make_shared<TestTask>(
+                nullptr, TaskId::PendingOpsNotification, i);
         const auto newtime = std::chrono::nanoseconds(n - i);
         hpTask->updateWaketime(ProcessClock::time_point(newtime));
         queue.push(hpTask);
@@ -86,9 +85,8 @@ TEST_F(FutureQueueTest, updateWaketime) {
     ExTask middleTask;
     for (int i = 0; i <= n; i++) {
         ExTask hpTask;
-        hpTask = new TestTask(nullptr,
-                              TaskId::PendingOpsNotification,
-                              i);
+        hpTask = std::make_shared<TestTask>(
+                nullptr, TaskId::PendingOpsNotification, i);
         const auto newtime = std::chrono::nanoseconds((n * 2) - i);
         hpTask->updateWaketime(ProcessClock::time_point(newtime));
         queue.push(hpTask);
@@ -126,9 +124,8 @@ TEST_F(FutureQueueTest, snooze) {
 
     for (int i = 0; i <= n; i++) {
         ExTask hpTask;
-        hpTask = new TestTask(nullptr,
-                              TaskId::PendingOpsNotification,
-                              i);
+        hpTask = std::make_shared<TestTask>(
+                nullptr, TaskId::PendingOpsNotification, i);
         const auto newtime = std::chrono::nanoseconds((n * 2) - i);
         hpTask->updateWaketime(ProcessClock::time_point(newtime));
         queue.push(hpTask);
@@ -160,7 +157,8 @@ TEST_F(FutureQueueTest, snooze) {
  * snooze/wake a task not in the queue, the queue is also empty.
  */
 TEST_F(FutureQueueTest, taskNotInEmptyQueue) {
-    ExTask task = new TestTask(nullptr, TaskId::PendingOpsNotification);
+    ExTask task =
+            std::make_shared<TestTask>(nullptr, TaskId::PendingOpsNotification);
 
     const auto wake = task->getWaketime();
     queue.snooze(task, 5.0);
@@ -185,18 +183,20 @@ TEST_F(FutureQueueTest, taskNotInEmptyQueue) {
 TEST_F(FutureQueueTest, taskNotInQueue) {
     const size_t nTasks = 5;
     for (size_t ii = 1; ii < nTasks; ii++) {
-        ExTask t = new TestTask(nullptr, TaskId::PendingOpsNotification);
+        ExTask t = std::make_shared<TestTask>(nullptr,
+                                              TaskId::PendingOpsNotification);
         const auto newtime = std::chrono::nanoseconds(1+ii);
         t->updateWaketime(ProcessClock::time_point(newtime));
         queue.push(t);
     }
     // Finally push a task with an obvious ID value of -1
-    ExTask task = new TestTask(nullptr, TaskId::PendingOpsNotification, -1);
+    ExTask task = std::make_shared<TestTask>(
+            nullptr, TaskId::PendingOpsNotification, -1);
     task->updateWaketime(ProcessClock::time_point::min());
     queue.push(task);
 
     // Now operate with a new task not in the queue
-    task = new TestTask(nullptr, TaskId::PendingOpsNotification);
+    task = std::make_shared<TestTask>(nullptr, TaskId::PendingOpsNotification);
     const auto wake = task->getWaketime();
     EXPECT_FALSE(queue.snooze(task, 5.0));
 

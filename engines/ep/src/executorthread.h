@@ -115,6 +115,11 @@ public:
     // Changes this threads' current task to the specified task
     void setCurrentTask(ExTask newTask);
 
+    /**
+     * Reset the currentTask shared_ptr so it 'owns' nothing
+     */
+    void resetCurrentTask();
+
     const std::string& getName() const { return name; }
 
     cb::const_char_buffer getTaskName();

@@ -37,7 +37,8 @@ void BgFetcher::start() {
     bool inverse = false;
     pendingFetch.compare_exchange_strong(inverse, true);
     ExecutorPool* iom = ExecutorPool::get();
-    ExTask task = new MultiBGFetcherTask(&(store->getEPEngine()), this, false);
+    auto task = std::make_shared<MultiBGFetcherTask>(
+            &(store->getEPEngine()), this, false);
     this->setTaskId(task->getId());
     iom->schedule(task);
 }

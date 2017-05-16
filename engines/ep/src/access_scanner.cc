@@ -308,12 +308,13 @@ bool AccessScanner::run() {
             } else {
                 auto pv = std::make_unique<ItemAccessVisitor>(
                         store, stats, i, available, *this, maxStoredItems);
-                ExTask task = new VBCBAdaptor(&store,
-                                              TaskId::AccessScannerVisitor,
-                                              std::move(pv),
-                                              "Item Access Scanner",
-                                              sleepTime,
-                                              true);
+                ExTask task = std::make_shared<VBCBAdaptor>(
+                        &store,
+                        TaskId::AccessScannerVisitor,
+                        std::move(pv),
+                        "Item Access Scanner",
+                        sleepTime,
+                        true);
                 ExecutorPool::get()->schedule(task);
             }
         }

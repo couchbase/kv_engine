@@ -266,7 +266,8 @@ void TapConnMap::manageConnections() {
         (*ii)->releaseReference();
         TapProducer *tp = dynamic_cast<TapProducer*>((*ii).get());
         if (tp) {
-            ExTask reapTask = new ConnectionReaperCallback(engine, *this, *ii);
+            ExTask reapTask = std::make_shared<ConnectionReaperCallback>(
+                    engine, *this, *ii);
             ExecutorPool::get()->schedule(reapTask);
         }
     }

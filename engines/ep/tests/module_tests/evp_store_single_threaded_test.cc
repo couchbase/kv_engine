@@ -579,7 +579,7 @@ TEST_F(SingleThreadedEPBucketTest, MB20235_wake_and_work_count) {
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
 
     // New task with a massive sleep
-    ExTask task = new TestTask(engine.get(), 99999.0);
+    ExTask task = std::make_shared<TestTask>(engine.get(), 99999.0);
     EXPECT_EQ(0, lpAuxioQ.getFutureQueueSize());
 
     // schedule the task, futureQueue grows
@@ -938,12 +938,12 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
 TEST_F(SingleThreadedEPBucketTest, MB18953_taskWake) {
     auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
 
-    ExTask hpTask = new TestTask(engine.get(),
-                                 TaskId::PendingOpsNotification);
+    ExTask hpTask = std::make_shared<TestTask>(engine.get(),
+                                               TaskId::PendingOpsNotification);
     task_executor->schedule(hpTask);
 
-    ExTask lpTask = new TestTask(engine.get(),
-                                 TaskId::DefragmenterTask);
+    ExTask lpTask =
+            std::make_shared<TestTask>(engine.get(), TaskId::DefragmenterTask);
     task_executor->schedule(lpTask);
 
     runNextTask(lpNonioQ, "TestTask PendingOpsNotification"); // hptask goes first
@@ -988,8 +988,8 @@ TEST_F(SingleThreadedEPBucketTest, MB20735_rescheduleWaketime) {
         }
     };
 
-    TestTask* task =
-            new SnoozingTestTask(engine.get(), TaskId::PendingOpsNotification);
+    auto task = std::make_shared<SnoozingTestTask>(
+            engine.get(), TaskId::PendingOpsNotification);
     ExTask hpTask = task;
     task_executor->schedule(hpTask);
 

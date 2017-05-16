@@ -117,7 +117,7 @@ BENCHMARK_DEFINE_F(AccessLogBenchEngine, MemoryOverhead)
     engine->getKVBucket()->setVBucketState(0, vbucket_state_active, false);
     if (state.range(0) == 1) {
         state.SetLabel("AccessScanner");
-        task = make_STRCPtr<AccessScanner>(
+        task = std::make_shared<AccessScanner>(
                 *(engine->getKVBucket()), engine->getEpStats(), 1000);
         ExecutorPool::get()->schedule(task);
     } else {

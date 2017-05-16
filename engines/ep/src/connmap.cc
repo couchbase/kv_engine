@@ -66,7 +66,8 @@ private:
 void ConnNotifier::start() {
     bool inverse = false;
     pendingNotification.compare_exchange_strong(inverse, true);
-    ExTask connotifyTask = new ConnNotifierCallback(&connMap.getEngine(), this);
+    ExTask connotifyTask =
+            std::make_shared<ConnNotifierCallback>(&connMap.getEngine(), this);
     task = ExecutorPool::get()->schedule(connotifyTask);
 }
 
@@ -162,7 +163,7 @@ ConnMap::ConnMap(EventuallyPersistentEngine &theEngine)
 void ConnMap::initialize(conn_notifier_type ntype) {
     connNotifier_ = new ConnNotifier(ntype, *this);
     connNotifier_->start();
-    ExTask connMgr = new ConnManager(&engine, this);
+    ExTask connMgr = std::make_shared<ConnManager>(&engine, this);
     ExecutorPool::get()->schedule(connMgr);
 }
 

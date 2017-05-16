@@ -68,7 +68,7 @@ void KVBucketTest::SetUp() {
     engine->setKVBucket(engine->public_makeBucket(engine->getConfiguration()));
     store = engine->getKVBucket();
 
-    store->chkTask = new ClosedUnrefCheckpointRemoverTask(
+    store->chkTask = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
             engine.get(),
             engine->getEpStats(),
             engine->getConfiguration().getChkRemoverStime());
@@ -185,7 +185,8 @@ GetValue KVBucketTest::getInternal(const StoredDocKey& key,
 }
 
 void KVBucketTest::createAndScheduleItemPager() {
-    store->itemPagerTask = new ItemPager(engine.get(), engine->getEpStats());
+    store->itemPagerTask =
+            std::make_shared<ItemPager>(engine.get(), engine->getEpStats());
     ExecutorPool::get()->schedule(store->itemPagerTask);
 }
 

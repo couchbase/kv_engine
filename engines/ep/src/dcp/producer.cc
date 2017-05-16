@@ -1143,7 +1143,8 @@ bool DcpProducer::bufferLogInsert(size_t bytes) {
 }
 
 void DcpProducer::createCheckpointProcessorTask() {
-    checkpointCreatorTask = new ActiveStreamCheckpointProcessorTask(engine_);
+    checkpointCreatorTask =
+            std::make_shared<ActiveStreamCheckpointProcessorTask>(engine_);
 }
 
 void DcpProducer::scheduleCheckpointProcessorTask() {

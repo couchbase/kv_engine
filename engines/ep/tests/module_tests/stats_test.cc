@@ -252,7 +252,7 @@ TEST_P(DatatypeStatTest, datatypeEviction) {
     store->get(key, 0, cookie, QUEUE_BG_FETCH);
     if (GetParam() == "full_eviction") {
         // Run the bgfetch to restore the item from disk
-        ExTask task = new SingleBGFetcherTask(
+        ExTask task = std::make_shared<SingleBGFetcherTask>(
                 engine.get(), key, 0, cookie, false, 0, false);
         task_executor->schedule(task);
         runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX]);

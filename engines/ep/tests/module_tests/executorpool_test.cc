@@ -72,10 +72,11 @@ void MockTaskable::logRunTime(TaskId id, const ProcessClock::duration runTime) {
 }
 
 ExTask makeTask(Taskable& taskable, ThreadGate& tg, size_t i) {
-    return new LambdaTask(taskable, TaskId::StatSnap, 0, true, [&]() -> bool {
-        tg.threadUp();
-        return false;
-    });
+    return std::make_shared<LambdaTask>(
+            taskable, TaskId::StatSnap, 0, true, [&]() -> bool {
+                tg.threadUp();
+                return false;
+            });
 }
 
 TEST_F(ExecutorPoolTest, register_taskable_test) {
@@ -237,10 +238,11 @@ TEST_F(ExecutorPoolDynamicWorkerTest, new_worker_naming_test) {
 TEST_F(ExecutorPoolDynamicWorkerTest, reschedule_dead_task) {
     size_t runCount{0};
 
-    ExTask task = new LambdaTask(taskable, TaskId::ItemPager, 0, true, [&] {
-        ++runCount;
-        return false;
-    });
+    ExTask task = std::make_shared<LambdaTask>(
+            taskable, TaskId::ItemPager, 0, true, [&] {
+                ++runCount;
+                return false;
+            });
 
     ASSERT_EQ(TASK_RUNNING, task->getState())
             << "Initial task state should be RUNNING";
@@ -266,7 +268,7 @@ TEST_F(ExecutorPoolDynamicWorkerTest, reschedule_dead_task) {
  * in the queue.
  */
 TEST_F(SingleThreadedExecutorPoolTest, ignore_duplicate_schedule) {
-    ExTask task = new LambdaTask(
+    ExTask task = std::make_shared<LambdaTask>(
             taskable, TaskId::ItemPager, 10, true, [&] { return false; });
 
     size_t taskId = task->getId();

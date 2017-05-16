@@ -90,7 +90,7 @@ private:
 
 EphemeralBucket::EphemeralBucket(EventuallyPersistentEngine& theEngine)
     : KVBucket(theEngine),
-      notifyHpReqTask(make_STRCPtr<NotifyHighPriorityReqTask>(theEngine)) {
+      notifyHpReqTask(std::make_shared<NotifyHighPriorityReqTask>(theEngine)) {
     /* We always have VALUE_ONLY eviction policy because a key not
        present in HashTable implies key not present at all.
        Note: This should not be confused with the eviction algorithm
@@ -117,7 +117,8 @@ bool EphemeralBucket::initialize() {
 
     // Tombstone purger - scheduled periodically as long as we have a
     // non-zero interval. Can be dynamically adjusted, so add config listeners.
-    tombstonePurgerTask = new EphTombstonePurgerTask(&engine, stats);
+    tombstonePurgerTask =
+            std::make_shared<EphTombstonePurgerTask>(&engine, stats);
     auto interval = config.getEphemeralMetadataPurgeInterval();
     if (interval > 0) {
         enableTombstonePurgerTask();

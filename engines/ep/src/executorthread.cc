@@ -72,10 +72,8 @@ void ExecutorThread::run() {
     LOG(EXTENSION_LOG_DEBUG, "Thread %s running..", getName().c_str());
 
     for (uint8_t tick = 1;; tick++) {
-        {
-            LockHolder lh(currentTaskMutex);
-            currentTask.reset();
-        }
+        resetCurrentTask();
+
         if (state != EXECUTOR_RUNNING) {
             break;
         }
@@ -180,6 +178,22 @@ void ExecutorThread::run() {
 void ExecutorThread::setCurrentTask(ExTask newTask) {
     LockHolder lh(currentTaskMutex);
     currentTask = newTask;
+}
+
+// MB-24394: reset currentTask, however we will perform the actual shared_ptr
+// reset without the lock. This is because the task *can* re-enter the
+// executorthread/pool code from it's destructor path, specifically if the task
+// owns a VBucketPtr which is marked as "deferred-delete". Doing this std::move
+// and lockless reset prevents a lock inversion.
+void ExecutorThread::resetCurrentTask() {
+    ExTask resetThisObject;
+    {
+        LockHolder lh(currentTaskMutex);
+        // move currentTask so we 'steal' the pointer and ensure currentTask
+        // owns nothing.
+        resetThisObject = std::move(currentTask);
+    }
+    resetThisObject.reset();
 }
 
 cb::const_char_buffer ExecutorThread::getTaskName() {

@@ -138,9 +138,8 @@ void Flusher::initialize() {
 
 void Flusher::schedule_UNLOCKED() {
     ExecutorPool* iom = ExecutorPool::get();
-    ExTask task = new FlusherTask(ObjectRegistry::getCurrentEngine(),
-                                  this,
-                                  shard->getId());
+    ExTask task = std::make_shared<FlusherTask>(
+            ObjectRegistry::getCurrentEngine(), this, shard->getId());
     this->setTaskId(task->getId());
     iom->schedule(task);
 }
