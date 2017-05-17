@@ -22,6 +22,7 @@
 #include <programs/engine_testapp/mock_server.h>
 #include "benchmark_memory_tracker.h"
 #include "dcp/dcpconnmap.h"
+#include "ep_time.h"
 
 class EngineFixture : public benchmark::Fixture {
 protected:

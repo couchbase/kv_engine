@@ -28,6 +28,7 @@
 #include "dcp/dcpconnmap.h"
 #include "dcp/flow-control-manager.h"
 #include "ep_engine.h"
+#include "ep_time.h"
 #include "flusher.h"
 #include "replicationthrottle.h"
 #include "tapconnmap.h"

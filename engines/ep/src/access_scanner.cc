@@ -24,6 +24,7 @@
 
 #include "access_scanner.h"
 #include "ep_engine.h"
+#include "ep_time.h"
 #include "mutation_log.h"
 #include "vb_count_visitor.h"
 

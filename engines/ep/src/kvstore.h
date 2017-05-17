@@ -34,6 +34,9 @@
 #include "item.h"
 #include "logger.h"
 
+#include <platform/histogram.h>
+#include <platform/processclock.h>
+
 /* Forward declarations */
 class KVStore;
 class PersistenceCallback;

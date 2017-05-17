@@ -16,6 +16,9 @@
  */
 
 #include "linked_list.h"
+
+#include "stats.h"
+
 #include <mutex>
 
 BasicLinkedList::BasicLinkedList(uint16_t vbucketId, EPStats& st)

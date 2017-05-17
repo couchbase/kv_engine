@@ -19,6 +19,7 @@
 
 #include "atomic.h"
 #include "ep_engine.h"
+#include "ep_time.h"
 #include "ephemeral_vb.h"
 #include "seqlist.h"
 

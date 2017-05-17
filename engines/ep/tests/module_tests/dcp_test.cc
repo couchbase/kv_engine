@@ -22,15 +22,16 @@
  * need an instance of EPBucket& other related objects.
  */
 
+#include "../mock/mock_dcp.h"
+#include "../mock/mock_dcp_consumer.h"
+#include "../mock/mock_dcp_producer.h"
+#include "../mock/mock_stream.h"
 #include "connmap.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
 #include "dcp/stream.h"
+#include "ep_time.h"
 #include "evp_engine_test.h"
-#include "../mock/mock_dcp.h"
-#include "../mock/mock_dcp_producer.h"
-#include "../mock/mock_dcp_consumer.h"
-#include "../mock/mock_stream.h"
 #include "test_helpers.h"
 
 #include <gtest/gtest.h>

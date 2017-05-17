@@ -24,6 +24,7 @@
 
 #include "checkpoint.h"
 #include "ep_engine.h"
+#include "ep_time.h"
 #include "pre_link_document_context.h"
 #define STATWRITER_NAMESPACE checkpoint
 #include "statwriter.h"
@@ -106,6 +107,32 @@ std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c) {
        << " offset:" << c.offset.load()
        << " ckptMetaItemsRead:" << c.getCurrentCkptMetaItemsRead();
     return os;
+}
+
+Checkpoint::Checkpoint(EPStats& st,
+                       uint64_t id,
+                       uint64_t snapStart,
+                       uint64_t snapEnd,
+                       uint16_t vbid)
+    : stats(st),
+      checkpointId(id),
+      snapStartSeqno(snapStart),
+      snapEndSeqno(snapEnd),
+      vbucketId(vbid),
+      creationTime(ep_real_time()),
+      checkpointState(CHECKPOINT_OPEN),
+      numItems(0),
+      numMetaItems(0),
+      memOverhead(0),
+      effectiveMemUsage(0) {
+    stats.memOverhead->fetch_add(memorySize());
+    if (stats.memOverhead->load() >= GIGANTOR) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Checkpoint::Checkpoint: stats.memOverhead (which is %" PRId64
+            ") is greater than %" PRId64,
+            uint64_t(stats.memOverhead->load()),
+            uint64_t(GIGANTOR));
+    }
 }
 
 Checkpoint::~Checkpoint() {

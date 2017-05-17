@@ -27,6 +27,7 @@
 #include <phosphor/phosphor.h>
 
 #include "connmap.h"
+#include "ep_time.h"
 #include "executorthread.h"
 #include "tapconnection.h"
 #include "tapconnmap.h"

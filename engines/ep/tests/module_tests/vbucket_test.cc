@@ -17,13 +17,14 @@
 
 #include "config.h"
 
-#include "vbucket_test.h"
 #include "bgfetcher.h"
+#include "ep_time.h"
 #include "ep_vb.h"
 #include "failover-table.h"
 #include "item.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/module_tests/test_helpers.h"
+#include "vbucket_test.h"
 
 #include <platform/cb_malloc.h>
 

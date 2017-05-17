@@ -27,6 +27,7 @@
 #include "dcp/response.h"
 #include "dcp/stream.h"
 #include "ep_engine.h"
+#include "ep_time.h"
 #include "failover-table.h"
 #include "kvstore.h"
 #include "replicationthrottle.h"

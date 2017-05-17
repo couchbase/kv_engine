@@ -40,6 +40,7 @@
 #include <fstream>
 #include <iterator>
 #include <mutex>
+#include <numeric>
 #include <random>
 #include <thread>
 #include <type_traits>

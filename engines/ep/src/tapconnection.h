@@ -390,9 +390,7 @@ public:
         return expiryTime;
     }
 
-    void setLastWalkTime() {
-        lastWalkTime.store(ep_current_time());
-    }
+    void setLastWalkTime();
 
     rel_time_t getLastWalkTime() {
         return lastWalkTime.load();

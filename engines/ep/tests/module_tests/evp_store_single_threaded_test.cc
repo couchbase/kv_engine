@@ -15,15 +15,16 @@
  *   limitations under the License.
  */
 
-#include "dcp/dcpconnmap.h"
-#include "evp_store_test.h"
 #include "evp_store_single_threaded_test.h"
-#include "fakes/fake_executorpool.h"
-#include "taskqueue.h"
-#include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_dcp_consumer.h"
+#include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_stream.h"
+#include "dcp/dcpconnmap.h"
+#include "ep_time.h"
+#include "evp_store_test.h"
+#include "fakes/fake_executorpool.h"
 #include "programs/engine_testapp/mock_server.h"
+#include "taskqueue.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/test_task.h"
 

@@ -22,8 +22,9 @@
 
 #pragma once
 
-#include "atomic.h"
 #include "config.h"
+
+#include "atomic.h"
 #include "monotonic.h"
 #include "seqlist.h"
 #include "stored-value.h"

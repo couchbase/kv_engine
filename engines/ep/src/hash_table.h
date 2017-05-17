@@ -20,6 +20,8 @@
 #include "config.h"
 #include "storeddockey.h"
 #include "stored-value.h"
+
+#include <platform/histogram.h>
 #include <platform/non_negative_counter.h>
 
 class AbstractStoredValueFactory;

@@ -20,7 +20,7 @@
 
 #include "config.h"
 
-#include <atomic>
+#include "atomic.h"
 #include "memcached/engine.h"
 
 #include <relaxed_atomic.h>

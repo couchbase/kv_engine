@@ -19,8 +19,9 @@
 
 #include "connmap.h"
 #include "dcp/dcpconnmap.h"
-#include "kv_bucket_iface.h"
 #include "ep_engine.h"
+#include "ep_time.h"
+#include "kv_bucket_iface.h"
 #include "tapconnmap.h"
 
 #include <cstdlib>

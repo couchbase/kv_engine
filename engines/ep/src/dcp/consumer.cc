@@ -20,6 +20,7 @@
 #include "dcp/dcpconnmap.h"
 #include "dcp/stream.h"
 #include "ep_engine.h"
+#include "ep_time.h"
 #include "failover-table.h"
 #include "replicationthrottle.h"
 

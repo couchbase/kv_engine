@@ -29,10 +29,6 @@
 
 #include "atomic.h"
 #include "blob.h"
-#include "ep_time.h"
-#include "locks.h"
-#include "objectregistry.h"
-#include "stats.h"
 #include "storeddockey.h"
 
 /// The set of possible operations which can be queued into a checkpoint.

@@ -22,8 +22,9 @@
 #include <phosphor/phosphor.h>
 
 #include "backfill.h"
-#include "tasks.h"
 #include "ep_engine.h"
+#include "ep_time.h"
+#include "tasks.h"
 #define STATWRITER_NAMESPACE tap
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
@@ -344,6 +345,10 @@ void ConnHandler::releaseReference(bool force)
     if (force || reserved.compare_exchange_strong(inverse, false)) {
         engine_.releaseCookie(cookie);
     }
+}
+
+void ConnHandler::setLastWalkTime() {
+    lastWalkTime.store(ep_current_time());
 }
 
 void Producer::addStats(ADD_STAT add_stat, const void *c) {

@@ -16,8 +16,14 @@
  */
 
 #include "config.h"
-#include <platform/cb_malloc.h>
+
+#include "ep_time.h"
+#include "stats.h"
 #include "stored-value.h"
+
+#include "objectregistry.h"
+
+#include <platform/cb_malloc.h>
 
 double StoredValue::mutation_mem_threshold = 0.9;
 const int64_t StoredValue::state_deleted_key = -3;
@@ -58,6 +64,10 @@ StoredValue::StoredValue(const Item& itm,
     }
 
     ObjectRegistry::onCreateStoredValue(this);
+}
+
+StoredValue::~StoredValue() {
+    ObjectRegistry::onDeleteStoredValue(this);
 }
 
 StoredValue::StoredValue(const StoredValue& other,

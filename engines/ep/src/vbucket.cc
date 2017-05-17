@@ -27,6 +27,7 @@
 #include "bgfetcher.h"
 #include "conflict_resolution.h"
 #include "ep_engine.h"
+#include "ep_time.h"
 #include "ep_types.h"
 #include "failover-table.h"
 #include "flusher.h"
@@ -352,6 +353,15 @@ void VBucket::resetStats() {
     dirtyQueueDrain.store(0);
 
     hlc.resetStats();
+}
+
+uint64_t VBucket::getQueueAge() {
+    uint64_t currDirtyQueueAge = dirtyQueueAge.load(std::memory_order_relaxed);
+    rel_time_t currentAge = ep_current_time() * dirtyQueueSize;
+    if (currentAge < currDirtyQueueAge) {
+        return 0;
+    }
+    return (currentAge - currDirtyQueueAge) * 1000;
 }
 
 template <typename T>

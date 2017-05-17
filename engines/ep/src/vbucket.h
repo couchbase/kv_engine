@@ -414,15 +414,7 @@ public:
     virtual void resetStats();
 
     // Get age sum in millisecond
-    uint64_t getQueueAge() {
-        uint64_t currDirtyQueueAge = dirtyQueueAge.load(
-                                                    std::memory_order_relaxed);
-        rel_time_t currentAge = ep_current_time() * dirtyQueueSize;
-        if (currentAge < currDirtyQueueAge) {
-            return 0;
-        }
-        return (currentAge - currDirtyQueueAge) * 1000;
-    }
+    uint64_t getQueueAge();
 
     void fireAllOps(EventuallyPersistentEngine &engine);
 

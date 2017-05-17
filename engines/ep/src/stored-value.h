@@ -606,9 +606,7 @@ protected:
 
     // Destructor. protected, as needs to be carefully deleted (via
     // StoredValue::Destructor) depending on the value of isOrdered flag.
-    ~StoredValue() {
-        ObjectRegistry::onDeleteStoredValue(this);
-    }
+    ~StoredValue();
 
     /**
      * Copy constructor - protected as allocation needs to be done via

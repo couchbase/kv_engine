@@ -26,8 +26,9 @@
 #include <gtest/gtest.h>
 
 #include "configuration.h"
-#include "logger.h"
+#include "ep_time.h"
 #include "hash_table.h"
+#include "logger.h"
 
 /* static storage for environment variable set by putenv(). */
 static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";

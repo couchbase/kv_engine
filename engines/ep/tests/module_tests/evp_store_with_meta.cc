@@ -17,6 +17,7 @@
  */
 
 #include "bgfetcher.h"
+#include "ep_time.h"
 #include "evp_store_single_threaded_test.h"
 #include "tests/mock/mock_global_task.h"
 

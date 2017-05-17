@@ -15,12 +15,15 @@
  *   limitations under the License.
  */
 
-#include "ep_engine.h"
 #include "config.h"
-#include "objectregistry.h"
 
-#include "dcp/flow-control.h"
+#include "flow-control.h"
+
 #include "dcp/flow-control-manager.h"
+#include "dcp/flow-control.h"
+#include "ep_engine.h"
+#include "ep_time.h"
+#include "objectregistry.h"
 
 FlowControl::FlowControl(EventuallyPersistentEngine &engine,
                          DcpConsumer* consumer) :

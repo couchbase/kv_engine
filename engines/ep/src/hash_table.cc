@@ -17,6 +17,7 @@
 
 #include "hash_table.h"
 
+#include "stats.h"
 #include "stored_value_factories.h"
 
 #include <cstring>
