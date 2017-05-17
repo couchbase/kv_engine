@@ -163,6 +163,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/atomic.cc
             src/backfill.cc
             src/bgfetcher.cc
+            src/blob.cc
             src/bloomfilter.cc
             src/checkpoint.cc
             src/checkpoint_remover.cc
