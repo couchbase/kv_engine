@@ -7218,8 +7218,15 @@ static enum test_result test_mb20697(ENGINE_HANDLE *h,
 
     std::string dbname = vals["ep_dbname"];
 
-    /* Nuke the database directory to simulate the commit failure */
-    rmdb(dbname.c_str());
+    /* Nuke the database directory to simulate the commit failure.
+     * In case of failure to remove the directory, then retry atmost
+     * 10 times.
+     */
+    int retries = 0;
+    while (rmdb(dbname.c_str()) == FAIL && retries < 10) {
+        retries++;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
 
     checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET,"key", "somevalue",
                                   NULL, 0, 0, 0), "store should have succeeded");

@@ -136,7 +136,11 @@ static enum test_result skipped_test_function(ENGINE_HANDLE *h,
 }
 
 enum test_result rmdb(const char* path) {
-    cb::io::rmrf(path);
+    try {
+        cb::io::rmrf(path);
+    } catch (std::system_error& e) {
+        throw e;
+    }
     if (access(path, F_OK) != -1) {
         std::cerr << "Failed to remove: " << path << " " << std::endl;
         return FAIL;
@@ -220,7 +224,13 @@ enum test_result prepare(engine_test_t *test) {
 
     std::string dbname = get_dbname(test->cfg);
     /* Remove if the same DB directory already exists */
-    rmdb(dbname.c_str());
+    try {
+        rmdb(dbname.c_str());
+    } catch (std::system_error& e) {
+        if (e.code() != std::error_code(ENOENT, std::system_category())) {
+            throw e;
+        }
+    }
     mkdir(dbname.c_str(), 0777);
     return SUCCESS;
 }
@@ -280,7 +290,13 @@ void cleanup(engine_test_t *test, enum test_result result) {
     // Nuke the database files we created
     std::string dbname = get_dbname(test->cfg);
     /* Remove only the db file this test created */
-    rmdb(dbname.c_str());
+    try {
+        rmdb(dbname.c_str());
+    } catch (std::system_error& e) {
+        if (e.code() != std::error_code(ENOENT, std::system_category())) {
+            throw e;
+        }
+    }
 }
 
 // Array of testcases to return back to engine_testapp.
@@ -380,7 +396,13 @@ int create_buckets(const char* cfg, int n_buckets, std::vector<BucketHolder> &bu
             config << str_cfg << "dbname=" << dbpath.str();
         }
 
-        rmdb(dbpath.str().c_str());
+        try {
+            rmdb(dbpath.str().c_str());
+        } catch (std::system_error& e) {
+            if (e.code() != std::error_code(ENOENT, std::system_category())) {
+                throw e;
+            }
+        }
         ENGINE_HANDLE_V1* handle = testHarness.create_bucket(true, config.str().c_str());
         if (handle) {
             buckets.push_back(BucketHolder((ENGINE_HANDLE*)handle, handle, dbpath.str()));

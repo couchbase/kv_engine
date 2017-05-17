@@ -486,7 +486,13 @@ public:
                                false /*persistnamespace*/)
                          .setLogger(logger)
                          .setBuffered(false)) {
-        cb::io::rmrf(data_dir.c_str());
+        try {
+            cb::io::rmrf(data_dir.c_str());
+        } catch (std::system_error& e) {
+            if (e.code() != std::error_code(ENOENT, std::system_category())) {
+                throw e;
+            }
+        }
         kvstore.reset(new CouchKVStore(config, ops));
         initialize_kv_store(kvstore.get());
     }
@@ -1155,7 +1161,13 @@ public:
                                0,
                                false /*persistnamespace*/)
                          .setBuffered(false)) {
-        cb::io::rmrf(data_dir.c_str());
+        try {
+            cb::io::rmrf(data_dir.c_str());
+        } catch (std::system_error& e) {
+            if (e.code() != std::error_code(ENOENT, std::system_category())) {
+                throw e;
+            }
+        }
         kvstore.reset(new MockCouchKVStore(config));
         StatsCallback sc;
         std::string failoverLog("");
