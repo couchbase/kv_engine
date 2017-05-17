@@ -144,10 +144,6 @@ backfill_status_t DCPBackfillDisk::run() {
                            std::to_string(state));
 }
 
-uint16_t DCPBackfillDisk::getVBucketId() {
-    return stream->getVBucket();
-}
-
 void DCPBackfillDisk::cancel() {
     LockHolder lh(lock);
     if (state != backfill_state_done) {

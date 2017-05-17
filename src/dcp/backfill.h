@@ -55,7 +55,9 @@ public:
      *
      * @return vbid
      */
-    virtual uint16_t getVBucketId() = 0;
+    uint16_t getVBucketId() const {
+        return stream->getVBucket();
+    }
 
     /**
      * Indicates if the DCP stream associated with the backfill is dead

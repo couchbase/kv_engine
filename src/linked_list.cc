@@ -414,7 +414,10 @@ OrderedLL::iterator BasicLinkedList::purgeListElem(OrderedLL::iterator it) {
 }
 
 BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll)
-    : list(ll), readLockHolder(list.rangeReadLock), itrRange(0, 0) {
+    : list(ll),
+      readLockHolder(list.rangeReadLock),
+      itrRange(0, 0),
+      numRemaining(0) {
     std::lock_guard<std::mutex> listWriteLg(list.getListWriteLock());
     std::lock_guard<SpinLock> lh(list.rangeLock);
     if (list.highSeqno < 1) {
@@ -427,9 +430,17 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll)
     /* Iterator to the beginning of linked list */
     currIt = list.seqList.begin();
 
+    /* Number of items that can be iterated over */
+    numRemaining = list.seqList.size();
+
+    /* The minimum seqno in the iterator that must be read to get a consistent
+       read snapshot */
+    earlySnapShotEndSeqno = list.highestDedupedSeqno;
+
     /* Mark the snapshot range on linked list. The range that can be read by the
        iterator is inclusive of the start and the end. */
-    list.readRange = SeqRange(currIt->getBySeqno(), list.highSeqno);
+    list.readRange =
+            SeqRange(currIt->getBySeqno(), list.seqList.back().getBySeqno());
 
     /* Keep the range in the iterator obj. We store the range end seqno as one
        higher than the end seqno that can be read by this iterator.
@@ -439,7 +450,8 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll)
        Further, since use the class 'SeqRange' for 'itrRange' we cannot use
        curr() == end() + 1 to identify the end point because 'SeqRange' does
        not internally allow curr > end */
-    itrRange = SeqRange(currIt->getBySeqno(), list.highSeqno + 1);
+    itrRange = SeqRange(currIt->getBySeqno(),
+                        list.seqList.back().getBySeqno() + 1);
 }
 
 BasicLinkedList::RangeIteratorLL::~RangeIteratorLL() {
@@ -469,6 +481,8 @@ operator++() {
                 " seqno " +
                 std::to_string(end()));
     }
+
+    --numRemaining;
 
     /* Check if the iterator is pointing to the last element. Increment beyond
        the last element indicates the end of the iteration */

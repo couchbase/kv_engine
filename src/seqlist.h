@@ -104,6 +104,23 @@ protected:
          * in the iterator range
          */
         virtual seqno_t end() const = 0;
+
+        /**
+         * Seqno of the last item in the iterator
+         */
+        virtual seqno_t back() const = 0;
+
+        /**
+         * Returns the number of items that can be iterated over by this
+         * (forward only) iterator at that instance
+         */
+        virtual uint64_t count() const = 0;
+
+        /**
+         * Indicates the minimum seqno in the iterator that must be read to
+         * get a consistent read snapshot
+         */
+        virtual seqno_t getEarlySnapShotEnd() const = 0;
     };
 
 public:
@@ -153,6 +170,11 @@ public:
             : rangeIterImpl(std::move(other.rangeIterImpl)) {
         }
 
+        RangeIterator& operator=(RangeIterator&& other) {
+            rangeIterImpl = std::move(other.rangeIterImpl);
+            return *this;
+        }
+
         RangeIterator(RangeIterator& other) = delete;
 
         /**
@@ -169,13 +191,30 @@ public:
          * Curr iterator position, indicated by the seqno of the item at that
          * position
          */
-        seqno_t curr();
+        seqno_t curr() const;
 
         /**
-         * Curr iterator position, indicated by the seqno of the item at that
-         * position
+         * End position of iterator, indicated by the seqno > highest_seqno
+         * in the iterator range
          */
-        seqno_t end();
+        seqno_t end() const;
+
+        /**
+         * Seqno of the last item in the iterator
+         */
+        seqno_t back() const;
+
+        /**
+         * Returns the number of items that can be iterated over by this
+         * (forward only) iterator at that instance
+         */
+        uint64_t count() const;
+
+        /**
+         * Indicates the minimum seqno in the iterator that must be read to
+         * get a consistent read snapshot
+         */
+        seqno_t getEarlySnapShotEnd() const;
 
     private:
         /* Pointer to the abstract class of range iterator implementation */

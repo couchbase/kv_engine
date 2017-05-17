@@ -32,10 +32,22 @@ SequenceList::RangeIterator& SequenceList::RangeIterator::operator++() {
     return *this;
 }
 
-seqno_t SequenceList::RangeIterator::curr() {
+seqno_t SequenceList::RangeIterator::curr() const {
     return rangeIterImpl->curr();
 }
 
-seqno_t SequenceList::RangeIterator::end() {
+seqno_t SequenceList::RangeIterator::end() const {
     return rangeIterImpl->end();
+}
+
+seqno_t SequenceList::RangeIterator::back() const {
+    return rangeIterImpl->back();
+}
+
+uint64_t SequenceList::RangeIterator::count() const {
+    return rangeIterImpl->count();
+}
+
+seqno_t SequenceList::RangeIterator::getEarlySnapShotEnd() const {
+    return rangeIterImpl->getEarlySnapShotEnd();
 }

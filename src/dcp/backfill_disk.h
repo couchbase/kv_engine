@@ -72,8 +72,6 @@ public:
 
     backfill_status_t run() override;
 
-    uint16_t getVBucketId() override;
-
     bool isStreamDead() override {
         return !stream->isActive();
     }

@@ -57,7 +57,13 @@ EphemeralVBucket::EphemeralVBucket(id_type i,
               purgeSeqno,
               maxCas,
               collectionsManifest),
-      seqList(std::make_unique<BasicLinkedList>(i, st)) {
+      seqList(std::make_unique<BasicLinkedList>(i, st)),
+      backfillType(BackfillType::None) {
+    /* Get the flow control policy */
+    std::string dcpBackfillType = config.getDcpEphemeralBackfillType();
+    if (!dcpBackfillType.compare("buffered")) {
+        backfillType = BackfillType::Buffered;
+    }
 }
 
 size_t EphemeralVBucket::getNumItems() const {
@@ -237,13 +243,22 @@ std::unique_ptr<DCPBackfill> EphemeralVBucket::createDCPBackfill(
     /* create a memory backfill object */
     EphemeralVBucketPtr evb =
             std::static_pointer_cast<EphemeralVBucket>(shared_from_this());
-    return std::make_unique<DCPBackfillMemory>(
-            evb, stream, startSeqno, endSeqno);
+    if (backfillType == BackfillType::Buffered) {
+        return std::make_unique<DCPBackfillMemoryBuffered>(
+                evb, stream, startSeqno, endSeqno);
+    } else {
+        return std::make_unique<DCPBackfillMemory>(
+                evb, stream, startSeqno, endSeqno);
+    }
 }
 
 std::tuple<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>, seqno_t>
 EphemeralVBucket::inMemoryBackfill(uint64_t start, uint64_t end) {
     return seqList->rangeRead(start, end);
+}
+
+SequenceList::RangeIterator EphemeralVBucket::makeRangeIterator() {
+    return seqList->makeRangeIterator();
 }
 
 /* Vb level backfill queue is for items in a huge snapshot (disk backfill

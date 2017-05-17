@@ -123,6 +123,11 @@ public:
     std::tuple<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>, seqno_t>
     inMemoryBackfill(uint64_t start, uint64_t end);
 
+    /**
+     * Returns a range iterator for the underlying SequenceList obj
+     */
+    SequenceList::RangeIterator makeRangeIterator();
+
     void dump() const override;
 
     uint64_t getPersistenceSeqno() const override {
@@ -230,6 +235,12 @@ private:
      *  (removed from seqList and deleted).
      */
     EPStats::Counter seqListPurgeCount;
+
+    /**
+     * Enum indicating if the backfill is memory managed or not
+     */
+    enum class BackfillType : uint8_t { None, Buffered };
+    BackfillType backfillType;
 };
 
 using EphemeralVBucketPtr = std::shared_ptr<EphemeralVBucket>;

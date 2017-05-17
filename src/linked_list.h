@@ -324,6 +324,18 @@ private:
             return itrRange.getEnd();
         }
 
+        seqno_t back() const override {
+            return itrRange.getEnd() - 1;
+        }
+
+        uint64_t count() const override {
+            return numRemaining;
+        }
+
+        seqno_t getEarlySnapShotEnd() const override {
+            return earlySnapShotEndSeqno;
+        }
+
     private:
         /* Ref to BasicLinkedList object which is iterated by this iterator.
            By setting the member variables of the list obj appropriately we
@@ -338,6 +350,14 @@ private:
 
         /* Current range of the iterator */
         SeqRange itrRange;
+
+        /* Number of items that can be iterated over by this (forward only)
+           iterator at that instance */
+        uint64_t numRemaining;
+
+        /* Indicates the minimum seqno in the iterator that can give a
+           consistent read snapshot */
+        seqno_t earlySnapShotEndSeqno;
     };
 
     friend class RangeIteratorLL;

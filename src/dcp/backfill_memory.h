@@ -40,8 +40,6 @@ public:
 
     backfill_status_t run() override;
 
-    uint16_t getVBucketId() override;
-
     bool isStreamDead() override {
         return !stream->isActive();
     }
@@ -54,4 +52,75 @@ private:
      * weak pointer to EphemeralVBucket
      */
     std::weak_ptr<EphemeralVBucket> weakVb;
+};
+
+/**
+ * Concrete class that does backfill from in-memory ordered data strucuture and
+ * informs the DCP stream of the backfill progress.
+ *
+ * This class calls one synchronous vBucket API to read items in the sequential
+ * order from the in-memory ordered data structure and calls the DCP stream
+ * for disk snapshot, backfill items and backfill completion.
+ */
+class DCPBackfillMemoryBuffered : public DCPBackfill {
+public:
+    DCPBackfillMemoryBuffered(EphemeralVBucketPtr evb,
+                              const active_stream_t& s,
+                              uint64_t startSeqno,
+                              uint64_t endSeqno);
+
+    backfill_status_t run() override;
+
+    bool isStreamDead() override {
+        return !stream->isActive();
+    }
+
+    void cancel() override;
+
+private:
+    /* The possible states of the DCPBackfillMemoryBuffered */
+    enum class BackfillState : uint8_t { Init, Scanning, Done };
+
+    static std::string backfillStateToString(BackfillState state);
+
+    /**
+     * Creates a range iterator on Ephemeral VBucket to read items as a snapshot
+     * in sequential order. Backfill snapshot range is decided here.
+     *
+     * @param evb Ref to the ephemeral vbucket on which backfill is run
+     */
+    backfill_status_t create(EphemeralVBucket& evb);
+
+    /**
+     * Reads the items in the snapshot (iterator) one by one. In case of high
+     * memory usage postpones the reading of items, and reading can be resumed
+     * later on from that point.
+     */
+    backfill_status_t scan();
+
+    /**
+     * Indicates the completion to the stream.
+     *
+     * @param cancelled indicates if the backfill finished fully or was
+     *                  cancelled in between; for debug
+     */
+    void complete(bool cancelled);
+
+    /**
+     * Makes valid transitions on the backfill state machine
+     */
+    void transitionState(BackfillState newState);
+
+    /**
+     * Ensures there can be no cyclic dependency with VB pointers in the
+     * complex DCP slab of objects and tasks.
+     */
+    std::weak_ptr<EphemeralVBucket> weakVb;
+
+    BackfillState state;
+
+    /**
+     * Range iterator (on the vbucket) created for the backfill
+     */
+    SequenceList::RangeIterator rangeItr;
 };

@@ -106,12 +106,6 @@ public:
         return makeResponseFromItem(item);
     }
 
-    void waitForStreamClose() {
-        while (getState() != StreamState::Dead) {
-            usleep(10);
-        }
-    }
-
     /**
      * Consumes numItems from the stream readyQ
      */

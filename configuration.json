@@ -704,6 +704,17 @@
             "dynamic": false,
             "type": "size_t"
         },
+        "dcp_ephemeral_backfill_type": {
+            "default": "buffered",
+            "descr": "Type of memory backfill done in Ephemeral buckets",
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                         "none",
+                         "buffered"
+                         ]
+            }
+        },
         "dcp_flow_control_policy": {
             "default": "aggressive",
             "descr": "Flow control policy used on consumer side buffer",
