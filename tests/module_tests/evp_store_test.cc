@@ -458,6 +458,8 @@ TEST_P(EPStoreEvictionTest, xattrExpiryOnFullyEvictedItem) {
     const std::string& meta_str = to_string(new_blob.get(to_const_byte_buffer("_meta")));
 
     EXPECT_EQ(rev_str, meta_str) << "Unexpected system xattrs";
+    EXPECT_TRUE(new_blob.get(to_const_byte_buffer("foo")).empty()) <<
+                "The foo attribute should be gone";
 }
 
 // Test cases which run in both Full and Value eviction

@@ -1097,9 +1097,13 @@ TEST_F(SingleThreadedEPBucketTest, pre_expiry_xattrs) {
     cb::xattr::Blob new_blob(value_buf);
 
     const std::string& cas_str{"{\"cas\":\"0xdeadbeefcafefeed\"}"};
-    const std::string& sync_str = to_string(blob.get(to_const_byte_buffer("_sync")));
+    const std::string& sync_str = to_string(new_blob.get(to_const_byte_buffer("_sync")));
 
     EXPECT_EQ(cas_str, sync_str) << "Unexpected system xattrs";
+    EXPECT_TRUE(new_blob.get(to_const_byte_buffer("user")).empty()) <<
+              "The user attribute should be gone";
+    EXPECT_TRUE(new_blob.get(to_const_byte_buffer("meta")).empty()) <<
+              "The meta attribute should be gone";
 
     kvbucket.getMetaData(makeStoredDocKey("key"), vbid, cookie, metadata,
                          deleted, datatype);

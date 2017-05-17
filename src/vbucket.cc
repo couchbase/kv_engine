@@ -1325,6 +1325,7 @@ void VBucket::deleteExpiredItem(const Item& it,
             }
         } else if (v->isExpired(startTime) && !v->isDeleted()) {
             VBNotifyCtx notifyCtx;
+            ht.setValue(it, *v);
             std::tie(std::ignore, std::ignore, notifyCtx) =
                     processExpiredItem(hbl, *v);
             // we unlock ht lock here because we want to avoid potential lock
