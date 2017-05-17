@@ -734,6 +734,7 @@ TEST_F(SubdocMultiMutationTest, InvalidLocationOpcodes) {
         // Skip over mutation opcodes.
         switch (cmd) {
         case PROTOCOL_BINARY_CMD_SET:
+        case PROTOCOL_BINARY_CMD_DELETE:
         case PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD:
         case PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT:
         case PROTOCOL_BINARY_CMD_SUBDOC_DELETE:
@@ -764,6 +765,67 @@ TEST_F(SubdocMultiMutationTest, InvalidCas) {
     request.setCas(12234);
     request.addDocFlag(mcbp::subdoc::doc_flag::Add);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+}
+
+TEST_F(SubdocMultiMutationTest, WholeDocDeleteInvalidValue) {
+    request.clearMutations();
+    // Shouldn't have value.
+    request.addMutation({PROTOCOL_BINARY_CMD_DELETE,
+                         protocol_binary_subdoc_flag(0),
+                         "",
+                         "value"});
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+}
+
+TEST_F(SubdocMultiMutationTest, WholeDocDeleteInvalidPath) {
+    request.clearMutations();
+    // Must not have path.
+    request.addMutation({PROTOCOL_BINARY_CMD_DELETE,
+                         protocol_binary_subdoc_flag(0),
+                         "_sync",
+                         ""});
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+}
+
+TEST_F(SubdocMultiMutationTest, WholeDocDeleteInvalidXattrFlag) {
+    request.clearMutations();
+    // Can't use CMD_DELETE to delete Xattr
+    request.addMutation(
+            {PROTOCOL_BINARY_CMD_DELETE, SUBDOC_FLAG_XATTR_PATH, "", ""});
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+}
+
+TEST_F(SubdocMultiMutationTest, ValidWholeDocDeleteFlags) {
+    request.clearMutations();
+    request.addMutation({PROTOCOL_BINARY_CMD_DELETE,
+                         protocol_binary_subdoc_flag(0),
+                         "",
+                         ""});
+    request.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
+}
+
+TEST_F(SubdocMultiMutationTest, InvalidWholeDocDeleteMulti) {
+    // Doing a delete and another subdoc/wholedoc command on the body in
+    // the same multi mutation is invalid
+    // Note that the setup of this test adds an initial mutation
+    request.addMutation({PROTOCOL_BINARY_CMD_DELETE,
+                         protocol_binary_subdoc_flag(0),
+                         "",
+                         ""});
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO, validate(request));
+
+    // Now try the delete first
+    request.clearMutations();
+    request.addMutation({PROTOCOL_BINARY_CMD_DELETE,
+                         protocol_binary_subdoc_flag(0),
+                         "",
+                         ""});
+    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                         protocol_binary_subdoc_flag(0),
+                         "key",
+                         "value"});
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO, validate(request));
 }
 
 } // namespace BinaryProtocolValidator

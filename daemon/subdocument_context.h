@@ -71,6 +71,8 @@ public:
         response_val_len(0),
         do_macro_expansion(false),
         do_allow_deleted_docs(false),
+        do_delete_doc(false),
+        no_sys_xattrs(false),
         mutationSemantics(MutationSemantics::Replace),
         currentPhase(Phase::XATTR) {
         std::memset(&input_item_info, 0, sizeof(input_item_info));
@@ -238,6 +240,12 @@ public:
     // Set to true if we want to operate on deleted documents
     bool do_allow_deleted_docs;
 
+    // Set to true if we want to delete the document after modifying it
+    bool do_delete_doc;
+
+    // true if there are no system xattrs after the operation. In
+    // reality this means we do a bucket_remove rather than a bucket_update
+    bool no_sys_xattrs;
     /* Specification of a single path operation. Encapsulates both the request
      * parameters, and (later) the result of the operation.
      */

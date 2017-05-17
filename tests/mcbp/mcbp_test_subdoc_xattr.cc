@@ -474,4 +474,12 @@ TEST_F(SubdocXattrMultiMutationTest, AllMutationsMustBeOnTheSamePath) {
               validate());
 }
 
+TEST_F(SubdocXattrMultiMutationTest, AllowXattrUpdateAndWholeDocDelete) {
+    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+                         SUBDOC_FLAG_XATTR_PATH,
+                         "_sync.cas",
+                         "{\"foo\" : \"bar\"}"});
+    request.addMutation({PROTOCOL_BINARY_CMD_DELETE, SUBDOC_FLAG_NONE, "", ""});
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+}
 } // namespace BinaryProtocolValidator

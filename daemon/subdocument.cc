@@ -32,6 +32,7 @@
 #include "xattr/utils.h"
 
 #include <memcached/protocol_binary.h>
+#include <memcached/types.h>
 #include <platform/histogram.h>
 #include <xattr/blob.h>
 
@@ -237,6 +238,9 @@ static void create_multi_path_context(SubdocCmdContext& context,
         // Mkdoc and Add imply MKDIR_P, ensure that MKDIR_P is set
         if (impliesMkdir_p(doc_flags)) {
             flags = flags | SUBDOC_FLAG_MKDIR_P;
+        }
+        if (traits.mcbpCommand == PROTOCOL_BINARY_CMD_DELETE) {
+            context.do_delete_doc = true;
         }
         ops.emplace_back(SubdocCmdContext::OperationSpec{traits, flags, path,
                                                          spec_value});
@@ -658,6 +662,10 @@ static protocol_binary_response_status subdoc_operate_wholedoc(
         spec.result.push_newdoc({spec.value.buf, spec.value.len});
         return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
+    case PROTOCOL_BINARY_CMD_DELETE:
+        spec.result.push_newdoc({nullptr, 0});
+        return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+
     default:
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
@@ -814,6 +822,69 @@ static ENGINE_ERROR_CODE validate_xattr_privilege(SubdocCmdContext& context) {
 }
 
 /**
+ * Replaces the xattrs on the document with the new ones provided
+ * @param new_xattr The new xattrs to use
+ * @param context The command context for this operation
+ * @param bodyoffset The offset in to the body of the xattr section
+ * @param bodysize The size of the body (excludes xattrs)
+ */
+static inline void replace_xattrs(const cb::byte_buffer& new_xattr,
+                                  SubdocCmdContext& context,
+                                  const size_t bodyoffset,
+                                  const size_t bodysize) {
+    auto total = new_xattr.len + bodysize;
+
+    std::unique_ptr<char[]> full_document(new char[total]);
+    std::copy(
+            new_xattr.buf, new_xattr.buf + new_xattr.len, full_document.get());
+    std::copy(context.in_doc.buf + bodyoffset,
+              context.in_doc.buf + bodyoffset + bodysize,
+              full_document.get() + new_xattr.len);
+
+    context.temp_doc.swap(full_document);
+    context.in_doc = {context.temp_doc.get(), total};
+
+    if (new_xattr.empty()) {
+        context.in_datatype &= ~PROTOCOL_BINARY_DATATYPE_XATTR;
+        context.no_sys_xattrs = true;
+
+    } else {
+        context.in_datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
+    }
+}
+
+/**
+ * Delete user xattrs from the xattr blob if required.
+ * @param context The command context for this operation
+ * @return true if success and that we may progress to the
+ *              next phase
+ */
+static bool do_xattr_delete_phase(SubdocCmdContext& context) {
+    if (!context.do_delete_doc ||
+        !mcbp::datatype::is_xattr(context.in_datatype)) {
+        return true;
+    }
+
+    // We need to remove the user keys from the Xattrs and rebuild the document
+
+    const auto bodyoffset = cb::xattr::get_body_offset(context.in_doc);
+    const auto bodysize = context.in_doc.len - bodyoffset;
+
+    cb::byte_buffer blob_buffer{(uint8_t*)context.in_doc.buf,
+                                (size_t)bodyoffset};
+
+    cb::xattr::Blob xattr_blob(blob_buffer);
+
+    // Remove the user xattrs so we're just left with system xattrs
+    xattr_blob.prune_user_keys();
+
+    const auto new_xattr = xattr_blob.finalize();
+    replace_xattrs(new_xattr, context, bodyoffset, bodysize);
+
+    return true;
+}
+
+/**
  * Parse the XATTR blob and only operate on the single xattr
  * requested
  *
@@ -936,22 +1007,7 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
         xattr_blob.remove(key);
     }
     const auto new_xattr = xattr_blob.finalize();
-    auto total = new_xattr.len + bodysize;
-
-    std::unique_ptr<char[]> full_document(new char[total]);;
-    std::copy(new_xattr.buf, new_xattr.buf + new_xattr.len, full_document.get());
-    std::copy(context.in_doc.buf + bodyoffset, context.in_doc.buf + bodyoffset + bodysize,
-              full_document.get() + new_xattr.len);
-
-    context.temp_doc.swap(full_document);
-    context.in_doc = { context.temp_doc.get(), total };
-
-    if (new_xattr.len == 0) {
-        context.in_datatype &= ~PROTOCOL_BINARY_DATATYPE_XATTR;
-
-    } else {
-        context.in_datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
-    }
+    replace_xattrs(new_xattr, context, bodyoffset, bodysize);
 
     return true;
 }
@@ -1029,7 +1085,8 @@ static bool subdoc_operate(SubdocCmdContext& context) {
     context.overall_status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
     try {
-        if (do_xattr_phase(context) && do_body_phase(context)) {
+        if (do_xattr_phase(context) && do_xattr_delete_phase(context) &&
+            do_body_phase(context)) {
             context.executed = true;
             return true;
         }
@@ -1075,7 +1132,8 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
     }
 
     // Allocate a new item of this size.
-    if (context.out_doc == NULL) {
+    if (context.out_doc == NULL &&
+        !(context.no_sys_xattrs && context.do_delete_doc)) {
         item *new_doc;
 
         if (ret == ENGINE_SUCCESS) {
@@ -1129,24 +1187,46 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
 
     // And finally, store the new document.
     uint64_t new_cas;
+    mutation_descr_t mdt;
     auto new_op = context.needs_new_doc ? OPERATION_ADD : OPERATION_CAS;
-    ret = bucket_store(&connection, context.out_doc, &new_cas, new_op,
-                       context.in_document_state);
+    if (context.do_delete_doc && context.no_sys_xattrs) {
+        new_cas = context.in_cas;
+        DocKey docKey(reinterpret_cast<const uint8_t*>(key),
+                      keylen,
+                      connection.getDocNamespace());
+        ret = bucket_remove(&connection, docKey, &new_cas, vbucket, &mdt);
+    } else {
+        ret = bucket_store(&connection,
+                           context.out_doc,
+                           &new_cas,
+                           new_op,
+                           context.do_delete_doc ? DocumentState::Deleted
+                                                 : context.in_document_state);
+    }
     ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
         // Record the UUID / Seqno if MUTATION_SEQNO feature is enabled so
         // we can include it in the response.
         if (connection.isSupportsMutationExtras()) {
-            item_info info;
-            if (!bucket_get_item_info(&connection, context.out_doc, &info)) {
-                LOG_WARNING(&connection, "%u: Subdoc: Failed to get item info",
-                            connection.getId());
-                mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
-                return ENGINE_FAILED;
+            if (context.do_delete_doc && context.no_sys_xattrs) {
+                context.vbucket_uuid = mdt.vbucket_uuid;
+                context.sequence_no = mdt.seqno;
+            } else {
+                item_info info;
+                if (!bucket_get_item_info(
+                            &connection, context.out_doc, &info)) {
+                    LOG_WARNING(&connection,
+                                "%u: Subdoc: Failed to get item info",
+                                connection.getId());
+                    mcbp_write_packet(&connection,
+                                      PROTOCOL_BINARY_RESPONSE_EINTERNAL);
+                    return ENGINE_FAILED;
+                }
+
+                context.vbucket_uuid = info.vbucket_uuid;
+                context.sequence_no = info.seqno;
             }
-            context.vbucket_uuid = info.vbucket_uuid;
-            context.sequence_no = info.seqno;
         }
 
         connection.setCAS(new_cas);

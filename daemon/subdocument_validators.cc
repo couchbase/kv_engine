@@ -286,6 +286,8 @@ protocol_binary_response_status subdoc_get_count_validator(const Cookie& cookie)
  *                  and the encoded key may be anything. If it's already set
  *                  the key `must` be the same.
  * @param doc_flags The doc flags of the multipath command
+ * @param is_singleton [OUT] Does this spec require that it is the only spec
+ * operating on the body.
  * @return PROTOCOL_BINARY_RESPONSE_SUCCESS if everything is correct, or an
  *         error to return to the client otherwise
  */
@@ -296,7 +298,8 @@ static protocol_binary_response_status is_valid_multipath_spec(
         size_t& spec_len,
         bool& xattr,
         cb::const_byte_buffer& xattr_key,
-        mcbp::subdoc::doc_flag doc_flags) {
+        mcbp::subdoc::doc_flag doc_flags,
+        bool& is_singleton) {
     // Decode the operation spec from the body. Slightly different struct
     // depending on LOOKUP/MUTATION.
     protocol_binary_command opcode;
@@ -391,6 +394,8 @@ static protocol_binary_response_status is_valid_multipath_spec(
         }
     }
 
+    is_singleton = (op_traits.mcbpCommand == PROTOCOL_BINARY_CMD_DELETE);
+
     spec_len = headerlen + pathlen + valuelen;
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
@@ -459,20 +464,30 @@ static protocol_binary_response_status subdoc_multi_validator(const Cookie& cook
 
     cb::const_byte_buffer xattr_key;
 
+    bool body_commands_allowed = true;
+
     for (path_index = 0;
          (path_index < PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) &&
          (body_validated < bodylen);
          path_index++) {
+        if (!body_commands_allowed) {
+            return PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO;
+        }
 
         size_t spec_len = 0;
         bool is_xattr;
+
+        // true if the spec command needs to be alone in operating on the body
+        bool is_isolationist;
+
         const auto status = is_valid_multipath_spec(cookie,
                                                     body_ptr + body_validated,
                                                     traits,
                                                     spec_len,
                                                     is_xattr,
                                                     xattr_key,
-                                                    doc_flags);
+                                                    doc_flags,
+                                                    is_isolationist);
         if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             return status;
         }
@@ -481,6 +496,12 @@ static protocol_binary_response_status subdoc_multi_validator(const Cookie& cook
             xattrs_allowed = is_xattr;
         } else if (is_xattr) {
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        } else if (is_isolationist) {
+            return PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO;
+        }
+
+        if (is_isolationist) {
+            body_commands_allowed = false;
         }
 
         body_validated += spec_len;

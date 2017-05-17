@@ -111,6 +111,20 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SET>() {
 }
 
 template <>
+inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_DELETE>() {
+    return {CommandScope::WholeDoc,
+            Subdoc::Command::INVALID,
+            PROTOCOL_BINARY_CMD_DELETE,
+            SUBDOC_FLAG_NONE,
+            mcbp::subdoc::doc_flag::AccessDeleted,
+            /*request_has_value*/ false,
+            /*allow_empty_path*/ true,
+            /*response_has_value*/ false,
+            /*is_mutator*/ true,
+            SubdocPath::SINGLE};
+}
+
+template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>() {
     return {CommandScope::SubJSON,
             Subdoc::Command::GET,

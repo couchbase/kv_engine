@@ -25,6 +25,9 @@ SubdocCmdTraits get_subdoc_cmd_traits(protocol_binary_command cmd) {
     case PROTOCOL_BINARY_CMD_SET:
         return get_traits<PROTOCOL_BINARY_CMD_SET>();
 
+    case PROTOCOL_BINARY_CMD_DELETE:
+        return get_traits<PROTOCOL_BINARY_CMD_DELETE>();
+
     case PROTOCOL_BINARY_CMD_SUBDOC_GET:
         return get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>();
 

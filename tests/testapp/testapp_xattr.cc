@@ -31,7 +31,7 @@ TEST_P(XattrTest, GetXattrAndBody) {
 
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
-    cmd.addGet(xattr, SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet(sysXattr, SUBDOC_FLAG_XATTR_PATH);
     cmd.addLookup("", PROTOCOL_BINARY_CMD_GET, SUBDOC_FLAG_NONE);
 
     auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
@@ -51,7 +51,7 @@ TEST_P(XattrTest, SetXattrAndBodyNewDoc) {
     cmd.setKey(name);
     cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                     SUBDOC_FLAG_XATTR_PATH,
-                    xattr,
+                    sysXattr,
                     xattrVal);
     cmd.addMutation(PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE, "", value);
     cmd.addDocFlag(mcbp::subdoc::doc_flag::Mkdoc);
@@ -66,7 +66,7 @@ TEST_P(XattrTest, SetXattrAndBodyExistingDoc) {
     cmd.setKey(name);
     cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                     SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
-                    xattr,
+                    sysXattr,
                     xattrVal);
     cmd.addMutation(PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE, "", value);
 
@@ -154,7 +154,7 @@ TEST_P(XattrTest, AddBodyAndXattr) {
     cmd.setKey(name);
     cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                     SUBDOC_FLAG_XATTR_PATH,
-                    xattr,
+                    sysXattr,
                     xattrVal);
     cmd.addMutation(PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE, "", value);
     cmd.addDocFlag(mcbp::subdoc::doc_flag::Add);
@@ -178,7 +178,7 @@ TEST_P(XattrTest, AddBodyAndXattrAlreadyExistDoc) {
     cmd.setKey(name);
     cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                     SUBDOC_FLAG_XATTR_PATH,
-                    xattr,
+                    sysXattr,
                     xattrVal);
     cmd.addMutation(PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE, "", value);
     cmd.addDocFlag(mcbp::subdoc::doc_flag::Add);
@@ -204,7 +204,7 @@ TEST_P(XattrTest, AddBodyAndXattrInvalidDocFlags) {
     cmd.setKey(name);
     cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                     SUBDOC_FLAG_XATTR_PATH,
-                    xattr,
+                    sysXattr,
                     xattrVal);
     cmd.addMutation(PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE, "", value);
     cmd.addDocFlag(mcbp::subdoc::doc_flag::Add);
@@ -856,7 +856,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeleted) {
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
     cmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
-    cmd.addGet(xattr, SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet(sysXattr, SUBDOC_FLAG_XATTR_PATH);
     cmd.addLookup("", PROTOCOL_BINARY_CMD_GET);
 
     auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
@@ -880,7 +880,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyWithoutXattr) {
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
     cmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
-    cmd.addGet(xattr, SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet(sysXattr, SUBDOC_FLAG_XATTR_PATH);
     cmd.addLookup("", PROTOCOL_BINARY_CMD_GET);
 
     auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
@@ -911,7 +911,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeletedAndEmpty) {
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
     cmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
-    cmd.addGet(xattr, SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet(sysXattr, SUBDOC_FLAG_XATTR_PATH);
     cmd.addLookup("", PROTOCOL_BINARY_CMD_GET);
 
     auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
@@ -940,7 +940,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyNonJSON) {
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
     cmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
-    cmd.addGet(xattr, SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet(sysXattr, SUBDOC_FLAG_XATTR_PATH);
     cmd.addLookup("", PROTOCOL_BINARY_CMD_GET);
 
     auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
@@ -970,7 +970,7 @@ TEST_P(XattrTest, MB23808_MultiPathFailureDeleted) {
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
     cmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
-    cmd.addGet(xattr, SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet(sysXattr, SUBDOC_FLAG_XATTR_PATH);
     cmd.addGet("_sync.non_existant", SUBDOC_FLAG_XATTR_PATH);
 
     auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
@@ -988,4 +988,108 @@ TEST_P(XattrTest, MB23808_MultiPathFailureDeleted) {
 
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT,
               multiResp.getResults()[1].status);
+}
+
+TEST_P(XattrTest, SetXattrAndDeleteBasic) {
+    setBodyAndXattr(value, "55");
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+    cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    sysXattr,
+                    xattrVal);
+    cmd.addMutation(PROTOCOL_BINARY_CMD_DELETE, SUBDOC_FLAG_NONE, "", "");
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiMutationResponse multiResp;
+    conn.recvResponse(multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+
+    auto resp = subdoc_get(sysXattr,
+                           SUBDOC_FLAG_XATTR_PATH,
+                           mcbp::subdoc::doc_flag::AccessDeleted);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED,
+              resp.getStatus());
+    EXPECT_EQ(xattrVal, resp.getValue());
+
+    // Check we can't access the deleted document
+    resp = subdoc_get(sysXattr, SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, resp.getStatus());
+
+    BinprotSubdocMultiLookupCommand getCmd;
+    getCmd.setKey(name);
+    getCmd.addLookup("", PROTOCOL_BINARY_CMD_GET);
+    conn.sendCommand(getCmd);
+
+    BinprotSubdocMultiLookupResponse getResp;
+    conn.recvResponse(getResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, getResp.getStatus());
+
+    // Worth noting the difference in the way it fails if AccessDeleted is set.
+    getCmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
+    conn.sendCommand(getCmd);
+    conn.recvResponse(getResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE_DELETED,
+              getResp.getStatus());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT,
+              getResp.getResults().at(0).status);
+}
+
+TEST_P(XattrTest, SetXattrAndDeleteCheckUserXattrsDeleted) {
+    setBodyAndXattr(value, xattrVal);
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+    cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    "userXattr",
+                    "66");
+    cmd.addMutation(PROTOCOL_BINARY_CMD_DELETE, SUBDOC_FLAG_NONE, "", "");
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiMutationResponse multiResp;
+    conn.recvResponse(multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+
+    auto resp = subdoc_get("userXattr", SUBDOC_FLAG_XATTR_PATH);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, resp.getStatus());
+
+    // The delete should delete user Xattrs as well as the body, leaving only
+    // system Xattrs
+    resp = subdoc_get("userXattr",
+                      SUBDOC_FLAG_XATTR_PATH,
+                      mcbp::subdoc::doc_flag::AccessDeleted);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, resp.getStatus());
+
+    // System Xattr should still be there so lets check it
+    resp = subdoc_get(sysXattr,
+                      SUBDOC_FLAG_XATTR_PATH,
+                      mcbp::subdoc::doc_flag::AccessDeleted);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED,
+              resp.getStatus());
+    EXPECT_EQ(xattrVal, resp.getValue());
+}
+
+TEST_P(XattrTest, SetXattrAndDeleteJustUserXattrs) {
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+    cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    "userXattr",
+                    "66");
+    cmd.addMutation(
+            PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE, "", "{\"Field\": 88}");
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiMutationResponse multiResp;
+    conn.recvResponse(multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+
+    cmd.clearMutations();
+    cmd.addMutation(PROTOCOL_BINARY_CMD_DELETE, SUBDOC_FLAG_NONE, "", "");
+    conn.sendCommand(cmd);
+    conn.recvResponse(multiResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
 }

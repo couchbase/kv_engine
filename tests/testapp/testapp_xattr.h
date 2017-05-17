@@ -218,7 +218,7 @@ protected:
         EXPECT_EQ(expected, doc.value);
 
         // Check the xattr was set correctly
-        auto resp = subdoc_get(xattr, SUBDOC_FLAG_XATTR_PATH);
+        auto resp = subdoc_get(sysXattr, SUBDOC_FLAG_XATTR_PATH);
         EXPECT_EQ(xattrVal, resp.getValue());
 
         return multiResp;
@@ -242,14 +242,14 @@ protected:
         EXPECT_EQ(doc.value, document.value);
 
         // Now add the xattr
-        xattr_upsert(xattr, xattrValue);
+        xattr_upsert(sysXattr, xattrValue);
 
-        auto resp = subdoc_get(xattr, SUBDOC_FLAG_XATTR_PATH);
+        auto resp = subdoc_get(sysXattr, SUBDOC_FLAG_XATTR_PATH);
         ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
         ASSERT_EQ(xattrValue, resp.getValue());
     }
 
     std::string value = "{\"Field\":56}";
-    const std::string xattr = "_sync.eg";
+    const std::string sysXattr = "_sync.eg";
     const std::string xattrVal = "99";
 };
