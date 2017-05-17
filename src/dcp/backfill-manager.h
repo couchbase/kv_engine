@@ -46,10 +46,7 @@
 #define SRC_DCP_BACKFILL_MANAGER_H_ 1
 
 #include "config.h"
-#include "connmap.h"
 #include "dcp/backfill.h"
-#include "dcp/producer.h"
-#include "dcp/stream.h"
 
 #include <list>
 

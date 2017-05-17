@@ -20,13 +20,11 @@
 
 #include "config.h"
 
-#include <relaxed_atomic.h>
-
-#include "connmap.h"
-#include "dcp/dcp-types.h"
+#include "atomic_unordered_map.h"
 #include "dcp/flow-control.h"
-#include "dcp/stream.h"
 #include "tapconnection.h"
+
+#include <relaxed_atomic.h>
 
 class DcpResponse;
 class StreamEndResponse;

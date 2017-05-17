@@ -53,6 +53,11 @@ typedef SingleThreadedRCPtr<ActiveStream> active_stream_t;
 class PassiveStream;
 typedef RCPtr<PassiveStream> passive_stream_t;
 
+class ConnHandler;
+typedef SingleThreadedRCPtr<ConnHandler> connection_t;
+
+enum process_items_error_t { all_processed, more_to_process, cannot_process };
+
 /**
  * DcpReadyQueue is a std::queue wrapper for managing a
  * queue of vbuckets that are ready for a DCP producer/consumer to process.

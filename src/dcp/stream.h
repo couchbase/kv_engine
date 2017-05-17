@@ -53,12 +53,6 @@ enum end_stream_status_t {
     END_STREAM_BACKFILL_FAIL
 };
 
-enum process_items_error_t {
-    all_processed,
-    more_to_process,
-    cannot_process
-};
-
 enum backfill_source_t {
     BACKFILL_FROM_MEMORY,
     BACKFILL_FROM_DISK

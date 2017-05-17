@@ -21,6 +21,7 @@
 
 #include "atomic.h"
 #include "atomicqueue.h"
+#include "dcp/dcp-types.h"
 
 #include <climits>
 #include <iterator>
@@ -35,8 +36,6 @@ class ConnNotifier;
 class ConnHandler;
 class Consumer;
 class EventuallyPersistentEngine;
-
-typedef SingleThreadedRCPtr<ConnHandler> connection_t;
 
 /**
  * Connection notifier type.

@@ -15,9 +15,6 @@
  *   limitations under the License.
  */
 
-#include <vector>
-#include <memcached/server_api.h>
-
 #include "dcp/producer.h"
 
 #include "backfill.h"
@@ -26,8 +23,9 @@
 #include "failover-table.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/dcpconnmap.h"
-#include "dcp/response.h"
-#include "dcp/stream.h"
+
+#include <memcached/server_api.h>
+#include <vector>
 
 const std::chrono::seconds DcpProducer::defaultDcpNoopTxInterval(20);
 

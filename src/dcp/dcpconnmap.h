@@ -19,18 +19,14 @@
 
 #include "config.h"
 
+#include "connmap.h"
+
 #include <atomic>
-#include <climits>
 #include <list>
 #include <string>
 
-#include "ep_engine.h"
-#include "locks.h"
-#include "syncobject.h"
-#include "atomicqueue.h"
-#include "connmap.h"
-#include "dcp/consumer.h"
-#include "dcp/producer.h"
+class DcpProducer;
+class DcpConsumer;
 
 class DcpConnMap : public ConnMap {
 
@@ -193,12 +189,5 @@ protected:
     /* Total memory used by all DCP consumer buffers */
     std::atomic<size_t> aggrDcpConsumerBufferSize;
 
-    class DcpConfigChangeListener : public ValueChangedListener {
-    public:
-        DcpConfigChangeListener(DcpConnMap& connMap);
-        virtual ~DcpConfigChangeListener() { }
-        virtual void sizeValueChanged(const std::string &key, size_t value);
-    private:
-        DcpConnMap& myConnMap;
-    };
+    class DcpConfigChangeListener;
 };

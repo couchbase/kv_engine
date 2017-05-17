@@ -17,21 +17,26 @@
 
 #include "config.h"
 
-#include <algorithm>
-#include <limits>
-#include <string>
-#include <vector>
-
-#include "connmap.h"
-#include "executorthread.h"
-#include "dcp/backfill-manager.h"
+#include "configuration.h"
 #include "dcp/consumer.h"
-#include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
+#include "dcpconnmap.h"
+#include "ep_engine.h"
 
 const uint32_t DcpConnMap::dbFileMem = 10 * 1024;
 const uint16_t DcpConnMap::numBackfillsThreshold = 4096;
 const uint8_t DcpConnMap::numBackfillsMemThreshold = 1;
+
+class DcpConnMap::DcpConfigChangeListener : public ValueChangedListener {
+public:
+    DcpConfigChangeListener(DcpConnMap& connMap);
+    virtual ~DcpConfigChangeListener() {
+    }
+    virtual void sizeValueChanged(const std::string& key, size_t value);
+
+private:
+    DcpConnMap& myConnMap;
+};
 
 DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
     : ConnMap(e),

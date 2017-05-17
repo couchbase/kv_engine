@@ -20,6 +20,8 @@
  */
 
 #include "dcp/dcpconnmap.h"
+#include "dcp/producer.h"
+#include "dcp/stream.h"
 #include "evp_store_single_threaded_test.h"
 #include "evp_store_test.h"
 #include "failover-table.h"
