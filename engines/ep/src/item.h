@@ -136,28 +136,15 @@ public:
      * Used when a value already exists, and the Item should refer to that
      * value.
      */
-    Item(const DocKey& k, const uint32_t fl, const time_t exp,
-         const value_t &val, uint64_t theCas = 0,  int64_t i = -1,
-         uint16_t vbid = 0, uint64_t sno = 1,
-         uint8_t nru_value = INITIAL_NRU_VALUE)
-        : metaData(theCas, sno, fl, exp),
-          value(val),
-          key(k),
-          bySeqno(i),
-          queuedTime(ep_current_time()),
-          vbucketId(vbid),
-          op(k.getDocNamespace() == DocNamespace::System
-                     ? queue_op::system_event
-                     : queue_op::set),
-          nru(nru_value) {
-        if (bySeqno == 0) {
-            throw std::invalid_argument("Item(): bySeqno must be non-zero");
-        }
-        // Update the cached version of the datatype
-        getDataType();
-
-        ObjectRegistry::onCreateItem(this);
-    }
+    Item(const DocKey& k,
+         const uint32_t fl,
+         const time_t exp,
+         const value_t& val,
+         uint64_t theCas = 0,
+         int64_t i = -1,
+         uint16_t vbid = 0,
+         uint64_t sno = 1,
+         uint8_t nru_value = INITIAL_NRU_VALUE);
 
     /* Constructor (new value).
      * k         specify the item's DocKey.
@@ -169,67 +156,30 @@ public:
      *           then no data is copied in.
      *  The remaining arguments specify various optional attributes.
      */
-    Item(const DocKey& k, const uint32_t fl, const time_t exp,
-         const void *dta, const size_t nb, uint8_t* ext_meta = NULL,
-         uint8_t ext_len = 0, uint64_t theCas = 0, int64_t i = -1,
-         uint16_t vbid = 0, uint64_t sno = 1,
-         uint8_t nru_value = INITIAL_NRU_VALUE)
-        : metaData(theCas, sno, fl, exp),
-          key(k),
-          bySeqno(i),
-          queuedTime(ep_current_time()),
-          vbucketId(vbid),
-          op(k.getDocNamespace() == DocNamespace::System
-                     ? queue_op::system_event
-                     : queue_op::set),
-          nru(nru_value) {
-        if (bySeqno == 0) {
-            throw std::invalid_argument("Item(): bySeqno must be non-zero");
-        }
-        setData(static_cast<const char*>(dta), nb, ext_meta, ext_len);
+    Item(const DocKey& k,
+         const uint32_t fl,
+         const time_t exp,
+         const void* dta,
+         const size_t nb,
+         uint8_t* ext_meta = NULL,
+         uint8_t ext_len = 0,
+         uint64_t theCas = 0,
+         int64_t i = -1,
+         uint16_t vbid = 0,
+         uint64_t sno = 1,
+         uint8_t nru_value = INITIAL_NRU_VALUE);
 
-        ObjectRegistry::onCreateItem(this);
-    }
-
-    Item(const DocKey& k, const uint16_t vb,
-         queue_op o, const uint64_t revSeq,
-         const int64_t bySeq, uint8_t nru_value = INITIAL_NRU_VALUE) :
-        metaData(),
-        key(k),
-        bySeqno(bySeq),
-        queuedTime(ep_current_time()),
-        vbucketId(vb),
-        op(o),
-        nru(nru_value)
-    {
-       if (bySeqno < 0) {
-           throw std::invalid_argument("Item(): bySeqno must be non-negative");
-       }
-       metaData.revSeqno = revSeq;
-       ObjectRegistry::onCreateItem(this);
-    }
+    Item(const DocKey& k,
+         const uint16_t vb,
+         queue_op o,
+         const uint64_t revSeq,
+         const int64_t bySeq,
+         uint8_t nru_value = INITIAL_NRU_VALUE);
 
     /* Copy constructor */
-    Item(const Item& other, bool copyKeyOnly = false) :
-        metaData(other.metaData),
-        key(other.key),
-        bySeqno(other.bySeqno.load()),
-        queuedTime(other.queuedTime),
-        vbucketId(other.vbucketId),
-        op(other.op),
-        nru(other.nru)
-    {
-        if (copyKeyOnly) {
-            setData(nullptr, 0, nullptr, 0);
-        } else {
-            value = other.value;
-        }
-        ObjectRegistry::onCreateItem(this);
-    }
+    Item(const Item& other, bool copyKeyOnly = false);
 
-    ~Item() {
-        ObjectRegistry::onDeleteItem(this);
-    }
+    ~Item();
 
     /* Snappy compress value and update datatype */
     bool compressValue(float minCompressionRatio = 1.0);

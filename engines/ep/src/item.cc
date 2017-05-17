@@ -27,6 +27,100 @@
 std::atomic<uint64_t> Item::casCounter(1);
 const uint32_t Item::metaDataSize(2*sizeof(uint32_t) + 2*sizeof(uint64_t) + 2);
 
+Item::Item(const DocKey& k,
+           const uint32_t fl,
+           const time_t exp,
+           const value_t& val,
+           uint64_t theCas,
+           int64_t i,
+           uint16_t vbid,
+           uint64_t sno,
+           uint8_t nru_value)
+    : metaData(theCas, sno, fl, exp),
+      value(val),
+      key(k),
+      bySeqno(i),
+      queuedTime(ep_current_time()),
+      vbucketId(vbid),
+      op(k.getDocNamespace() == DocNamespace::System ? queue_op::system_event
+                                                     : queue_op::set),
+      nru(nru_value) {
+    if (bySeqno == 0) {
+        throw std::invalid_argument("Item(): bySeqno must be non-zero");
+    }
+    // Update the cached version of the datatype
+    getDataType();
+
+    ObjectRegistry::onCreateItem(this);
+}
+
+Item::Item(const DocKey& k,
+           const uint32_t fl,
+           const time_t exp,
+           const void* dta,
+           const size_t nb,
+           uint8_t* ext_meta,
+           uint8_t ext_len,
+           uint64_t theCas,
+           int64_t i,
+           uint16_t vbid,
+           uint64_t sno,
+           uint8_t nru_value)
+    : metaData(theCas, sno, fl, exp),
+      key(k),
+      bySeqno(i),
+      queuedTime(ep_current_time()),
+      vbucketId(vbid),
+      op(k.getDocNamespace() == DocNamespace::System ? queue_op::system_event
+                                                     : queue_op::set),
+      nru(nru_value) {
+    if (bySeqno == 0) {
+        throw std::invalid_argument("Item(): bySeqno must be non-zero");
+    }
+    setData(static_cast<const char*>(dta), nb, ext_meta, ext_len);
+
+    ObjectRegistry::onCreateItem(this);
+}
+
+Item::Item(const DocKey& k,
+           const uint16_t vb,
+           queue_op o,
+           const uint64_t revSeq,
+           const int64_t bySeq,
+           uint8_t nru_value)
+    : metaData(),
+      key(k),
+      bySeqno(bySeq),
+      queuedTime(ep_current_time()),
+      vbucketId(vb),
+      op(o),
+      nru(nru_value) {
+    if (bySeqno < 0) {
+        throw std::invalid_argument("Item(): bySeqno must be non-negative");
+    }
+    metaData.revSeqno = revSeq;
+    ObjectRegistry::onCreateItem(this);
+}
+
+Item::Item(const Item& other, bool copyKeyOnly)
+    : metaData(other.metaData),
+      key(other.key),
+      bySeqno(other.bySeqno.load()),
+      queuedTime(other.queuedTime),
+      vbucketId(other.vbucketId),
+      op(other.op),
+      nru(other.nru) {
+    if (copyKeyOnly) {
+        setData(nullptr, 0, nullptr, 0);
+    } else {
+        value = other.value;
+    }
+    ObjectRegistry::onCreateItem(this);
+}
+
+Item::~Item() {
+    ObjectRegistry::onDeleteItem(this);
+}
 
 std::string to_string(queue_op op) {
     switch(op) {
