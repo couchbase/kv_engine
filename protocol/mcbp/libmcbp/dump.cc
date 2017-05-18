@@ -16,16 +16,53 @@
  */
 #include "config.h"
 
+#include <mcbp/mcbp.h>
+#include <memcached/protocol_binary.h>
+#include <utilities/protocol2text.h>
+
+#include <cctype>
 #include <cstring>
+#include <iomanip>
 #include <stdexcept>
 #include <string>
-#include <mcbp/mcbp.h>
-#include <iomanip>
-#include <include/memcached/protocol_binary.h>
-#include <utilities/protocol2text.h>
 
 // This file contains the functionality to generate a packet dump
 // of a memcached frame
+
+namespace cb {
+namespace mcbp {
+
+void dumpBytes(cb::byte_buffer buffer, std::ostream& out, size_t offset) {
+    out << std::hex;
+    size_t nbytes = 0;
+    while (nbytes < buffer.size()) {
+        out << "0x" << std::setfill('0') << std::setw(8) << offset << "\t";
+        offset += 8;
+        std::string chars;
+        for (int ii = 0; (ii < 8) && (nbytes < buffer.size()); ++ii, ++nbytes) {
+            unsigned int val = buffer.data()[nbytes];
+            if (std::isprint(val)) {
+                chars.push_back(char(val));
+            } else {
+                chars.push_back('.');
+            }
+            out << "0x" << std::setw(2) << val << " ";
+        }
+
+        // we need to pad out to align the last buffer
+        for (auto ii = chars.size(); ii < 8; ++ii) {
+            out << "     ";
+        }
+
+        out << "    " << chars << std::endl;
+    }
+
+    out << std::dec << std::setfill(' ');
+}
+
+}
+}
+
 
 /**
  * The Frame class represents a complete frame as it is being sent on the
@@ -575,6 +612,41 @@ void cb::mcbp::dump(const uint8_t* packet, std::ostream& out) {
         dump_response(res, out);
         break;
     default:
-        throw std::invalid_argument("Couchbase::MCBP::dump: Invalid magic");
+        throw std::invalid_argument("cb::mcbp::dump: Invalid magic");
+    }
+}
+
+void cb::mcbp::dumpStream(cb::byte_buffer buffer, std::ostream& out) {
+    size_t offset = 0;
+
+    while ((offset + sizeof(cb::mcbp::Request)) < buffer.len) {
+        // Check to see if we've got the entire next packet available
+        auto* req = reinterpret_cast<const cb::mcbp::Request*>(buffer.data() +
+                                                               offset);
+        // verify that the magic is one of the known magics:
+        if (req->magic != 0x80 && req->magic != 0x81) {
+            std::stringstream ss;
+            ss << "Invalid magic at offset: " << offset
+                << ". Dumping next header" << std::endl;
+            for (int ii = 0; ii < 68; ++ii) {
+                ss << "-";
+            }
+            ss << std::endl;
+            dumpBytes({buffer.data() + offset, 24}, ss, offset);
+            for (int ii = 0; ii < 68; ++ii) {
+                ss << "-";
+            }
+            ss << std::endl;
+
+            throw std::invalid_argument(ss.str());
+        }
+
+        offset += sizeof(*req) + req->getBodylen();
+        if (offset > buffer.len) {
+            out << "Last frame truncated..." << std::endl;
+            return;
+        }
+
+        dump(reinterpret_cast<const uint8_t*>(req), out);
     }
 }

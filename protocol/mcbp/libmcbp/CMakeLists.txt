@@ -7,6 +7,18 @@ add_library(mcbp STATIC
             ${Memcached_SOURCE_DIR}/include/mcbp/protocol/response.h
             ${Memcached_SOURCE_DIR}/include/mcbp/protocol/status.h
             dump.cc
+            gdb_dump_parser.cc
+            lldb_dump_parser.cc
             status_to_string.cc
             )
 target_link_libraries(mcbp mcd_util)
+
+add_executable(mcbp_dump_parser_test mcbp_dump_parser_test.cc)
+target_link_libraries(mcbp_dump_parser_test mcbp gtest gtest_main)
+add_test(NAME mcbp_dump_parser_test
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND mcbp_dump_parser_test)
+
+add_executable(mcbp_packet_printer mcbp_packet_printer.cc)
+target_link_libraries(mcbp_packet_printer mcbp dirutils)
+install(TARGETS mcbp_packet_printer RUNTIME DESTINATION bin)
