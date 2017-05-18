@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include "item.h"
 #include "systemevent.h"
 
 #include <gtest/gtest.h>

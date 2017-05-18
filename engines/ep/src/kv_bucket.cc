@@ -55,6 +55,7 @@
 #include "tapconnmap.h"
 #include "tasks.h"
 #include "vb_count_visitor.h"
+#include "vbucket_bgfetch_item.h"
 #include "vbucketdeletiontask.h"
 #include "warmup.h"
 

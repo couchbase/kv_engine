@@ -20,6 +20,7 @@
 
 #include "config.h"
 
+#include "item.h"
 #include "locks.h"
 #include "storeddockey.h"
 #include "syncobject.h"

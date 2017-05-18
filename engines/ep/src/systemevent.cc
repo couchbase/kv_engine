@@ -16,9 +16,11 @@
  */
 
 #include "systemevent.h"
+
 #include "collections/collections_types.h"
 #include "collections/vbucket_manifest.h"
 #include "dcp/response.h"
+#include "item.h"
 #include "kvstore.h"
 
 std::unique_ptr<Item> SystemEventFactory::make(

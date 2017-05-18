@@ -22,6 +22,7 @@
 #include "failover-table.h"
 #include "linked_list.h"
 #include "stored_value_factories.h"
+#include "vbucket_bgfetch_item.h"
 #include "vbucketdeletiontask.h"
 
 EphemeralVBucket::EphemeralVBucket(id_type i,

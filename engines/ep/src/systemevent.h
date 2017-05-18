@@ -17,10 +17,12 @@
 
 #pragma once
 
+#include "atomic.h"
+#include "ep_types.h"
+
 #include <string>
 
-#include "item.h"
-
+class Item;
 class KVStore;
 class SystemEventMessage;
 

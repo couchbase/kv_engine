@@ -50,6 +50,7 @@
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 #include "vbucket.h"
+#include "vbucket_bgfetch_item.h"
 
 #include <JSON_checker.h>
 #include <kvstore.h>

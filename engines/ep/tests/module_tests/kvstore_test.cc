@@ -25,6 +25,7 @@
 #include "src/internal.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/test_fileops.h"
+#include "vbucket_bgfetch_item.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>

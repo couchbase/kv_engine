@@ -26,6 +26,7 @@
 #include "kv_bucket.h"
 #include "kvshard.h"
 #include "tasks.h"
+#include "vbucket_bgfetch_item.h"
 
 const double BgFetcher::sleepInterval = MIN_SLEEP_TIME;
 

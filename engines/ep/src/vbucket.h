@@ -41,6 +41,7 @@ class PreLinkDocumentContext;
 class EventuallyPersistentEngine;
 class DCPBackfill;
 class RollbackResult;
+class VBucketBGFetchItem;
 
 /**
  * The following will be used to identify

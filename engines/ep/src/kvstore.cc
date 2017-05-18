@@ -294,6 +294,20 @@ void KVStore::addTimingStats(ADD_STAT add_stat, const void *c) {
     addStat(prefix, "fsReadSeek",  st.fsStats.readSeekHisto,  add_stat, c);
 }
 
+void KVStore::optimizeWrites(std::vector<queued_item>& items) {
+    if (isReadOnly()) {
+        throw std::logic_error(
+                "KVStore::optimizeWrites: Not valid on a "
+                "read-only object");
+    }
+    if (items.empty()) {
+        return;
+    }
+
+    CompareQueuedItemsBySeqnoAndKey cq;
+    std::sort(items.begin(), items.end(), cq);
+}
+
 std::string vbucket_state::toJSON() const {
     std::stringstream jsonState;
     jsonState << "{\"state\": \"" << VBucket::toString(state) << "\""

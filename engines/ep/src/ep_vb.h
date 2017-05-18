@@ -19,6 +19,7 @@
 #include "config.h"
 #include "dcp/backfill_disk.h"
 #include "vbucket.h"
+#include "vbucket_bgfetch_item.h"
 
 /**
  * Eventually Peristent VBucket (EPVBucket) is a child class of VBucket.

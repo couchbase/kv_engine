@@ -24,6 +24,7 @@
 #include "kvshard.h"
 #include "stored_value_factories.h"
 #include "tasks.h"
+#include "vbucket_bgfetch_item.h"
 #include "vbucketdeletiontask.h"
 
 EPVBucket::EPVBucket(id_type i,

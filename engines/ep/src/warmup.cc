@@ -27,6 +27,7 @@
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
 #include "tapconnmap.h"
+#include "vbucket_bgfetch_item.h"
 
 #include <platform/make_unique.h>
 

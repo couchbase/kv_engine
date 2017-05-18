@@ -22,6 +22,13 @@
 
 #include <boost/optional/optional.hpp>
 
+// Forward declarations for types defined elsewhere.
+class Item;
+
+template <class T>
+class SingleThreadedRCPtr;
+using queued_item = SingleThreadedRCPtr<Item>;
+
 enum class GenerateBySeqno {
     No, Yes
 };

@@ -41,6 +41,8 @@ namespace Collections {
 class Manager;
 }
 
+using bgfetched_item_t = std::pair<StoredDocKey, const VBucketBGFetchItem*>;
+
 /**
  * vbucket-aware hashtable visitor.
  */

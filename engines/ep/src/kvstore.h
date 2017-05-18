@@ -19,6 +19,15 @@
 
 #include "config.h"
 
+#include "atomic.h"
+#include "callbacks.h"
+#include "configuration.h"
+#include "ep_types.h"
+#include "logger.h"
+
+#include <platform/histogram.h>
+#include <platform/processclock.h>
+
 #include <cJSON.h>
 #include <cstring>
 #include <list>
@@ -29,41 +38,16 @@
 #include <utility>
 #include <vector>
 
-#include "callbacks.h"
-#include "configuration.h"
-#include "item.h"
-#include "logger.h"
-
-#include <platform/histogram.h>
-#include <platform/processclock.h>
-
 /* Forward declarations */
+class Item;
 class KVStore;
 class PersistenceCallback;
 class RollbackResult;
 
-class VBucketBGFetchItem {
-public:
-    VBucketBGFetchItem(const void* c, bool meta_only)
-        : cookie(c), initTime(ProcessClock::now()), metaDataOnly(meta_only) {
-    }
-    VBucketBGFetchItem(GetValue* value_,
-                       const void* c,
-                       const ProcessClock::time_point& init_time,
-                       bool meta_only)
-        : value(value_),
-          cookie(c),
-          initTime(init_time),
-          metaDataOnly(meta_only) {
-    }
+struct vb_bgfetch_item_ctx_t;
 
-    ~VBucketBGFetchItem() {}
-
-    GetValue* value;
-    const void * cookie;
-    ProcessClock::time_point initTime;
-    bool metaDataOnly;
-};
+using vb_bgfetch_queue_t =
+        std::unordered_map<StoredDocKey, vb_bgfetch_item_ctx_t>;
 
 enum class GetMetaOnly { Yes, No };
 
@@ -74,29 +58,6 @@ static const int DOC_NOT_FOUND = 0;
 static const int MUTATION_SUCCESS = 1;
 
 static const int64_t INITIAL_DRIFT = -140737488355328; //lowest possible 48-bit integer
-
-struct vb_bgfetch_item_ctx_t {
-    // These need to be here due to MSVC2013 which otherwise would generate
-    // an incorrect move constructor.
-    vb_bgfetch_item_ctx_t() : bgfetched_list(), isMetaOnly(GetMetaOnly::No) {
-    }
-    vb_bgfetch_item_ctx_t(vb_bgfetch_item_ctx_t&& other)
-        : bgfetched_list(std::move(other.bgfetched_list)),
-          isMetaOnly(other.isMetaOnly) {
-    }
-
-    vb_bgfetch_item_ctx_t& operator=(vb_bgfetch_item_ctx_t&& other) {
-        this->bgfetched_list = std::move(other.bgfetched_list);
-        this->isMetaOnly = other.isMetaOnly;
-        return *this;
-    }
-    std::list<std::unique_ptr<VBucketBGFetchItem>> bgfetched_list;
-    GetMetaOnly isMetaOnly;
-    GetValue value;
-};
-
-typedef std::unordered_map<StoredDocKey, vb_bgfetch_item_ctx_t> vb_bgfetch_queue_t;
-typedef std::pair<StoredDocKey, const VBucketBGFetchItem*> bgfetched_item_t;
 
 /**
  * Compaction context to perform compaction
@@ -775,7 +736,6 @@ public:
      * Get multiple items if supported by the kv store
      */
     virtual void getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
-        (void) itms; (void) vb;
         throw std::runtime_error("Backend does not support getMulti()");
     }
 
@@ -891,18 +851,7 @@ public:
      * This method is called before persisting a batch of data if you'd like to
      * do stuff to them that might improve performance at the IO layer.
      */
-    void optimizeWrites(std::vector<queued_item> &items) {
-        if (isReadOnly()) {
-            throw std::logic_error("KVStore::optimizeWrites: Not valid on a "
-                    "read-only object");
-        }
-        if (items.empty()) {
-            return;
-        }
-
-        CompareQueuedItemsBySeqnoAndKey cq;
-        std::sort(items.begin(), items.end(), cq);
-    }
+    void optimizeWrites(std::vector<queued_item>& items);
 
     std::list<PersistenceCallback *>& getPersistenceCbList() {
         return pcbs;
