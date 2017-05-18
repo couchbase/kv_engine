@@ -277,6 +277,10 @@ static protocol_binary_response_status dcp_system_event_validator(
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
+    if (!mcbp::systemevent::validate(ntohl(req->message.body.event))) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
     if (cookie.connection == nullptr ||

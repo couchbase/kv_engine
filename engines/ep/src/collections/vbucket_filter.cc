@@ -114,8 +114,8 @@ bool Collections::VB::Filter::remove(cb::const_char_buffer collection) {
 bool Collections::VB::Filter::allowSystemEvent(
         SystemEventMessage* response) const {
     switch (response->getSystemEvent()) {
-    case SystemEvent::CreateCollection:
-    case SystemEvent::BeginDeleteCollection: {
+    case mcbp::systemevent::id::CreateCollection:
+    case mcbp::systemevent::id::DeleteCollection: {
         if ((response->getKey() == DefaultCollectionIdentifier &&
              defaultAllowed) ||
             passthrough) {
@@ -126,12 +126,9 @@ bool Collections::VB::Filter::allowSystemEvent(
             return filter.count(response->getKey()) > 0;
         }
     }
-    case SystemEvent::CollectionsSeparatorChanged:
+    case mcbp::systemevent::id::CollectionsSeparatorChanged:
         // The separator changed event is sent if system events are allowed
         return systemEventsAllowed;
-    case SystemEvent::DeleteCollectionHard:
-    case SystemEvent::DeleteCollectionSoft:
-        break;
     }
     throw std::invalid_argument(
             "SystemEventReplicate::filter event:" +

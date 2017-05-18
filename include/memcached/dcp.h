@@ -278,7 +278,7 @@ struct dcp_message_producers {
     ENGINE_ERROR_CODE (* system_event)(const void* cookie,
                                        uint32_t opaque,
                                        uint16_t vbucket,
-                                       uint32_t event,
+                                       mcbp::systemevent::id event,
                                        uint64_t bySeqno,
                                        cb::const_byte_buffer key,
                                        cb::const_byte_buffer eventData);
@@ -522,7 +522,7 @@ struct dcp_interface {
                                         const void* cookie,
                                         uint32_t opaque,
                                         uint16_t vbucket,
-                                        uint32_t event,
+                                        mcbp::systemevent::id event,
                                         uint64_t bySeqno,
                                         cb::const_byte_buffer key,
                                         cb::const_byte_buffer eventData);

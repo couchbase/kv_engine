@@ -115,6 +115,12 @@ public:
                                       size_t itemSize,
                                       OptionalSeqno seqno);
 
+    /**
+     * Map the internal ep-engine SystemEvent IDs to mcbp values.
+     * Internally there are more events than the outside world will know about.
+     */
+    static mcbp::systemevent::id mapToMcbp(SystemEvent se);
+
 private:
     static std::string makeKey(SystemEvent se,
                                const std::string& collectionsSeparator,

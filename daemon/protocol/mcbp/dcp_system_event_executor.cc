@@ -41,7 +41,7 @@ void dcp_system_event_executor(McbpConnection* c, void* packet) {
                 c->getCookie(),
                 req->message.header.request.opaque,
                 ntohs(req->message.header.request.vbucket),
-                ntohl(req->message.body.event),
+                mcbp::systemevent::id(ntohl(req->message.body.event)),
                 ntohll(req->message.body.by_seqno),
                 key,
                 eventData);
@@ -68,7 +68,7 @@ void dcp_system_event_executor(McbpConnection* c, void* packet) {
 ENGINE_ERROR_CODE dcp_message_system_event(const void* cookie,
                                           uint32_t opaque,
                                           uint16_t vbucket,
-                                          uint32_t event,
+                                          mcbp::systemevent::id event,
                                           uint64_t bySeqno,
                                           cb::const_byte_buffer key,
                                           cb::const_byte_buffer eventData) {

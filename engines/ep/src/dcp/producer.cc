@@ -601,7 +601,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                     getCookie(),
                     s->getOpaque(),
                     s->getVBucket(),
-                    uint32_t(s->getSystemEvent()),
+                    s->getSystemEvent(),
                     *s->getBySeqno(),
                     {reinterpret_cast<const uint8_t*>(s->getKey().data()),
                      s->getKey().size()},

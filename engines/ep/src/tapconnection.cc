@@ -325,7 +325,7 @@ bool ConnHandler::handleResponse(protocol_binary_response_header* resp) {
 
 ENGINE_ERROR_CODE ConnHandler::systemEvent(uint32_t opaque,
                                            uint16_t vbucket,
-                                           uint32_t event,
+                                           mcbp::systemevent::id event,
                                            uint64_t bySeqno,
                                            cb::const_byte_buffer key,
                                            cb::const_byte_buffer eventData) {

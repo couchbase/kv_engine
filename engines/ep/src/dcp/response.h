@@ -428,7 +428,7 @@ public:
     static const uint32_t baseMsgBytes =
             sizeof(protocol_binary_request_header) + sizeof(SystemEvent) +
             sizeof(uint16_t) + sizeof(int64_t);
-    virtual SystemEvent getSystemEvent() const = 0;
+    virtual mcbp::systemevent::id getSystemEvent() const = 0;
     virtual uint16_t getVBucket() const = 0;
     virtual cb::const_char_buffer getKey() const = 0;
     virtual cb::const_byte_buffer getEventData() const = 0;
@@ -443,7 +443,7 @@ public:
 class SystemEventConsumerMessage : public SystemEventMessage {
 public:
     SystemEventConsumerMessage(uint32_t opaque,
-                               SystemEvent ev,
+                               mcbp::systemevent::id ev,
                                uint64_t seqno,
                                uint16_t vbucket,
                                cb::const_byte_buffer _key,
@@ -465,7 +465,7 @@ public:
         return SystemEventMessage::baseMsgBytes + key.size() + eventData.size();
     }
 
-    SystemEvent getSystemEvent() const override {
+    mcbp::systemevent::id getSystemEvent() const override {
         return event;
     }
 
@@ -486,7 +486,7 @@ public:
     }
 
 private:
-    SystemEvent event;
+    mcbp::systemevent::id event;
     int64_t bySeqno;
     uint16_t vbid;
     std::string key;
@@ -519,8 +519,8 @@ public:
                getEventData().size();
     }
 
-    SystemEvent getSystemEvent() const override {
-        return SystemEvent(item->getFlags());
+    mcbp::systemevent::id getSystemEvent() const override {
+        return SystemEventFactory::mapToMcbp(SystemEvent(item->getFlags()));
     }
 
     OptionalSeqno getBySeqno() const override {

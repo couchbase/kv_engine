@@ -893,7 +893,7 @@ private:
                                               const void* cookie,
                                               uint32_t opaque,
                                               uint16_t vbucket,
-                                              uint32_t event,
+                                              mcbp::systemevent::id event,
                                               uint64_t bySeqno,
                                               cb::const_byte_buffer key,
                                               cb::const_byte_buffer eventData);
@@ -1629,7 +1629,7 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_system_event(ENGINE_HANDLE* handle,
                                                const void* cookie,
                                                uint32_t opaque,
                                                uint16_t vbucket,
-                                               uint32_t event,
+                                               mcbp::systemevent::id event,
                                                uint64_t bySeqno,
                                                cb::const_byte_buffer key,
                                                cb::const_byte_buffer eventData) {

@@ -1697,6 +1697,34 @@ typedef protocol_binary_request_no_extras protocol_binary_request_dcp_control;
 typedef protocol_binary_response_no_extras protocol_binary_response_dcp_control;
 
 /**
+ * Events that the system may send
+ */
+namespace mcbp {
+namespace systemevent {
+
+enum class id : uint32_t {
+    CreateCollection = 0,
+    DeleteCollection = 1,
+    CollectionsSeparatorChanged = 2
+};
+
+/**
+ * Validate that the uint32_t represents a valid systemevent::id
+ */
+static inline bool validate(uint32_t event) {
+    switch (id(event)) {
+        case id::CreateCollection:
+        case id::DeleteCollection:
+        case id::CollectionsSeparatorChanged:
+            return true;
+    }
+    return false;
+}
+
+}
+}
+
+/**
  * Format for a DCP_SYSTEM_EVENT packet. Encodes a sequence number for the
  * event and the event's identifier.
  */
@@ -1705,7 +1733,7 @@ union protocol_binary_request_dcp_system_event {
                                              uint16_t vbucket,
                                              uint16_t keyLen,
                                              size_t valueLen,
-                                             uint32_t event,
+                                             mcbp::systemevent::id event,
                                              uint64_t bySeqno) {
         auto& req = message.header.request;
         req.magic = (uint8_t)PROTOCOL_BINARY_REQ;
@@ -1716,7 +1744,7 @@ union protocol_binary_request_dcp_system_event {
         req.extlen = getExtrasLength();
         req.bodylen = htonl(req.extlen + valueLen + keyLen);
         req.datatype = PROTOCOL_BINARY_RAW_BYTES;
-        message.body.event = htonl(event);
+        message.body.event = htonl(uint32_t(event));
         message.body.by_seqno = htonll(bySeqno);
     }
     struct {

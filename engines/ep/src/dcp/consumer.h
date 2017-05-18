@@ -145,14 +145,14 @@ public:
      *
      * @param opaque The opaque for the stream.
      * @param vbucket The vbucket the event is being sent to.
-     * @param event The SystemEvent value as a uint32_t.
+     * @param event The mcbp::systemevent::id value.
      * @param bySeqno The seqno of the event.
      * @param key The event's key.
      * @param eventData The event's specific data.
      */
     ENGINE_ERROR_CODE systemEvent(uint32_t opaque,
                                   uint16_t vbucket,
-                                  uint32_t event,
+                                  mcbp::systemevent::id event,
                                   uint64_t bySeqno,
                                   cb::const_byte_buffer key,
                                   cb::const_byte_buffer eventData) override;

@@ -1464,10 +1464,10 @@ void ActiveStream::dropCheckpointCursor_UNLOCKED()
 void ActiveStream::processSystemEvent(DcpResponse* response) {
     if (response->getEvent() == DcpResponse::Event::SystemEvent) {
         auto se = static_cast<SystemEventProducerMessage*>(response);
-        if (se->getSystemEvent() == SystemEvent::CollectionsSeparatorChanged) {
+        if (se->getSystemEvent() == mcbp::systemevent::id::CollectionsSeparatorChanged) {
             currentSeparator =
                     std::string(se->getKey().data(), se->getKey().size());
-        } else if (se->getSystemEvent() == SystemEvent::BeginDeleteCollection &&
+        } else if (se->getSystemEvent() == mcbp::systemevent::id::DeleteCollection &&
                    filter->remove(se->getKey())) {
             // Filter empty, so endStream
             endStream(END_STREAM_CLOSED);
@@ -2082,21 +2082,20 @@ ENGINE_ERROR_CODE PassiveStream::processSystemEvent(
     // Depending on the event, extras is different and key may even be empty
     // The specific handler will know how to interpret.
     switch (event.getSystemEvent()) {
-    case SystemEvent::CreateCollection: {
+    case mcbp::systemevent::id::CreateCollection: {
         rv = processCreateCollection(*vb, {event});
         break;
     }
-    case SystemEvent::BeginDeleteCollection: {
+    case mcbp::systemevent::id::DeleteCollection: {
         rv = processBeginDeleteCollection(*vb, {event});
         break;
     }
-    case SystemEvent::CollectionsSeparatorChanged: {
+    case mcbp::systemevent::id::CollectionsSeparatorChanged: {
         rv = processSeparatorChanged(*vb, {event});
         break;
     }
-    case SystemEvent::DeleteCollectionSoft:
-    case SystemEvent::DeleteCollectionHard: {
-        rv = ENGINE_EINVAL; // Producer won't send
+    default: {
+        rv = ENGINE_EINVAL;
         break;
     }
     }

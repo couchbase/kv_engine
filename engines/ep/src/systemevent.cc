@@ -68,6 +68,22 @@ std::string SystemEventFactory::makeKey(SystemEvent se,
     return key;
 }
 
+mcbp::systemevent::id SystemEventFactory::mapToMcbp(SystemEvent se) {
+    switch (se) {
+    case SystemEvent::CreateCollection:
+        return mcbp::systemevent::id::CreateCollection;
+    case SystemEvent::BeginDeleteCollection:
+        return mcbp::systemevent::id::DeleteCollection;
+    case SystemEvent::CollectionsSeparatorChanged:
+        return mcbp::systemevent::id::CollectionsSeparatorChanged;
+    case SystemEvent::DeleteCollectionSoft:
+    case SystemEvent::DeleteCollectionHard:
+        break;
+    }
+
+    throw std::invalid_argument("SystemEventFactory::mapToMcbp unknown input se:" + std::to_string(int(se)));
+}
+
 ProcessStatus SystemEventFlush::process(const queued_item& item) {
     if (item->getOperation() != queue_op::system_event) {
         return ProcessStatus::Continue;

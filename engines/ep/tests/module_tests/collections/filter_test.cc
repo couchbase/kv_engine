@@ -375,7 +375,7 @@ TEST_F(CollectionsVBFilterTest, remove2) {
 }
 
 std::unique_ptr<SystemEventConsumerMessage> makeTestMessage(
-        const std::string name, SystemEvent ev, const int* rev) {
+        const std::string name, mcbp::systemevent::id ev, const int* rev) {
     cb::const_byte_buffer n{reinterpret_cast<const uint8_t*>(name.data()),
                             name.size()};
     cb::const_byte_buffer r{reinterpret_cast<const uint8_t*>(rev), sizeof(int)};
@@ -405,31 +405,35 @@ TEST_F(CollectionsVBFilterTest, system_events1) {
     // create and delete of meat is allowed by the meat filter
     std::string name = "meat";
     EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name, SystemEvent::CreateCollection, &rev).get()));
+            makeTestMessage(name, mcbp::systemevent::id::CreateCollection, &rev)
+                    .get()));
     EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name, SystemEvent::BeginDeleteCollection, &rev)
+            makeTestMessage(name, mcbp::systemevent::id::DeleteCollection, &rev)
                     .get()));
 
     // create and delete of $default is allowed by the filter
     name = "$default";
     EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name, SystemEvent::CreateCollection, &rev).get()));
+            makeTestMessage(name, mcbp::systemevent::id::CreateCollection, &rev)
+                    .get()));
     EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name, SystemEvent::BeginDeleteCollection, &rev)
+            makeTestMessage(name, mcbp::systemevent::id::DeleteCollection, &rev)
                     .get()));
 
     // create and delete of dairy is not allowed by the filter
     name = "dairy";
     EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name, SystemEvent::CreateCollection, &rev).get()));
+            makeTestMessage(name, mcbp::systemevent::id::CreateCollection, &rev)
+                    .get()));
     EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name, SystemEvent::BeginDeleteCollection, &rev)
+            makeTestMessage(name, mcbp::systemevent::id::DeleteCollection, &rev)
                     .get()));
 
     // A change of separator is also allowed
     EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(
-                    name, SystemEvent::CollectionsSeparatorChanged, &rev)
+            makeTestMessage(name,
+                            mcbp::systemevent::id::CollectionsSeparatorChanged,
+                            &rev)
                     .get()));
 }
 
@@ -454,31 +458,35 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
     // create and delete of meat is allowed by the meat filter
     std::string name = "meat";
     EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name, SystemEvent::CreateCollection, &rev).get()));
+            makeTestMessage(name, mcbp::systemevent::id::CreateCollection, &rev)
+                    .get()));
     EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name, SystemEvent::BeginDeleteCollection, &rev)
+            makeTestMessage(name, mcbp::systemevent::id::DeleteCollection, &rev)
                     .get()));
 
     // create and delete of $default is allowed by the filter
     name = "$default";
     EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name, SystemEvent::CreateCollection, &rev).get()));
+            makeTestMessage(name, mcbp::systemevent::id::CreateCollection, &rev)
+                    .get()));
     EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(name, SystemEvent::BeginDeleteCollection, &rev)
+            makeTestMessage(name, mcbp::systemevent::id::DeleteCollection, &rev)
                     .get()));
 
     // create and delete of dairy is not allowed by the filter
     name = "dairy";
     EXPECT_FALSE(vbf.allowSystemEvent(
-            makeTestMessage(name, SystemEvent::CreateCollection, &rev).get()));
+            makeTestMessage(name, mcbp::systemevent::id::CreateCollection, &rev)
+                    .get()));
     EXPECT_FALSE(vbf.allowSystemEvent(
-            makeTestMessage(name, SystemEvent::BeginDeleteCollection, &rev)
+            makeTestMessage(name, mcbp::systemevent::id::DeleteCollection, &rev)
                     .get()));
 
     // A change of separator is also allowed
     EXPECT_TRUE(vbf.allowSystemEvent(
-            makeTestMessage(
-                    name, SystemEvent::CollectionsSeparatorChanged, &rev)
+            makeTestMessage(name,
+                            mcbp::systemevent::id::CollectionsSeparatorChanged,
+                            &rev)
                     .get()));
 }
 
@@ -503,12 +511,14 @@ TEST_F(CollectionsVBFilterTest, system_events3) {
     std::string name = "meat";
     int rev = 0;
     EXPECT_FALSE(vbf.allowSystemEvent(
-            makeTestMessage(name, SystemEvent::CreateCollection, &rev).get()));
-    EXPECT_FALSE(vbf.allowSystemEvent(
-            makeTestMessage(name, SystemEvent::BeginDeleteCollection, &rev)
+            makeTestMessage(name, mcbp::systemevent::id::CreateCollection, &rev)
                     .get()));
     EXPECT_FALSE(vbf.allowSystemEvent(
-            makeTestMessage(
-                    name, SystemEvent::CollectionsSeparatorChanged, &rev)
+            makeTestMessage(name, mcbp::systemevent::id::DeleteCollection, &rev)
+                    .get()));
+    EXPECT_FALSE(vbf.allowSystemEvent(
+            makeTestMessage(name,
+                            mcbp::systemevent::id::CollectionsSeparatorChanged,
+                            &rev)
                     .get()));
 }

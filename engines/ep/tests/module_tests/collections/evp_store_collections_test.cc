@@ -579,7 +579,7 @@ TEST_F(CollectionsTest, test_dcp_consumer) {
               consumer->systemEvent(
                       /*opaque*/ 1,
                       vbid,
-                      uint32_t(SystemEvent::CreateCollection),
+                      mcbp::systemevent::id::CreateCollection,
                       /*seqno*/ 1,
                       {reinterpret_cast<const uint8_t*>(collection.data()),
                        collection.size()},
@@ -596,7 +596,7 @@ TEST_F(CollectionsTest, test_dcp_consumer) {
               consumer->systemEvent(
                       /*opaque*/ 1,
                       vbid,
-                      uint32_t(SystemEvent::BeginDeleteCollection),
+                      mcbp::systemevent::id::DeleteCollection,
                       /*seqno*/ 2,
                       {reinterpret_cast<const uint8_t*>(collection.data()),
                        collection.size()},
@@ -698,7 +698,7 @@ public:
     static ENGINE_ERROR_CODE sendSystemEvent(const void* cookie,
                                              uint32_t opaque,
                                              uint16_t vbucket,
-                                             uint32_t event,
+                                             mcbp::systemevent::id event,
                                              uint64_t bySeqno,
                                              cb::const_byte_buffer key,
                                              cb::const_byte_buffer eventData) {
