@@ -19,12 +19,14 @@
 
 #include "config.h"
 
-#include "item.h"
+#include "blob.h"
 #include "item_pager.h"
+#include "storeddockey.h"
 #include "utility.h"
 
 #include <boost/intrusive/list.hpp>
 
+class Item;
 class OrderedStoredValue;
 
 /**
@@ -581,10 +583,7 @@ public:
                                   bool isReplication = false);
 
     /// Return how many bytes are need to store Item as a StoredValue
-    static size_t getRequiredStorage(const Item& item) {
-        return sizeof(StoredValue) +
-               SerialisedDocKey::getObjectSize(item.getKey().size());
-    }
+    static size_t getRequiredStorage(const Item& item);
 
 protected:
     /**
@@ -755,10 +754,7 @@ public:
     bool operator==(const OrderedStoredValue& other) const;
 
     /// Return how many bytes are need to store Item as an OrderedStoredValue
-    static size_t getRequiredStorage(const Item& item) {
-        return sizeof(OrderedStoredValue) +
-               SerialisedDocKey::getObjectSize(item.getKey());
-    }
+    static size_t getRequiredStorage(const Item& item);
 
     /**
      * Return the time the item was deleted. Only valid for deleted items.

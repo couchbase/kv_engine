@@ -17,11 +17,12 @@
 
 #include "config.h"
 
-#include "ep_time.h"
-#include "stats.h"
 #include "stored-value.h"
 
+#include "ep_time.h"
+#include "item.h"
 #include "objectregistry.h"
+#include "stats.h"
 
 #include <platform/cb_malloc.h>
 
@@ -195,6 +196,11 @@ bool StoredValue::hasAvailableSpace(EPStats &st, const Item &itm,
     }
 }
 
+size_t StoredValue::getRequiredStorage(const Item& item) {
+    return sizeof(StoredValue) +
+           SerialisedDocKey::getObjectSize(item.getKey().size());
+}
+
 std::unique_ptr<Item> StoredValue::toItem(bool lck, uint16_t vbucket) const {
     auto itm =
             std::make_unique<Item>(getKey(),
@@ -365,6 +371,11 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
 
 bool OrderedStoredValue::operator==(const OrderedStoredValue& other) const {
     return StoredValue::operator==(other);
+}
+
+size_t OrderedStoredValue::getRequiredStorage(const Item& item) {
+    return sizeof(OrderedStoredValue) +
+           SerialisedDocKey::getObjectSize(item.getKey());
 }
 
 /**
