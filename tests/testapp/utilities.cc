@@ -185,7 +185,11 @@ int do_sasl_auth(BIO* bio, const char* user, const char* pass) {
     size_t pwlen = (pass == nullptr) ? 0 : strlen(pass);
     std::vector<uint8_t> buffer(sizeof(context.secret->len) + pwlen + 10);
     context.secret = reinterpret_cast<cbsasl_secret_t*>(buffer.data());
-    memcpy(context.secret->data, pass, pwlen);
+    if (pwlen > 0) {
+        // Mute code analyzers who detects that pass may be null (but don't
+        // check if pwlen is 0 at the same time ;-) )
+        memcpy(context.secret->data, pass, pwlen);
+    }
     context.secret->len = pwlen;
 
     cbsasl_conn_t* client;

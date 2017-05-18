@@ -112,10 +112,13 @@ bool initialize_engine_map(char **msg, EXTENSION_LOGGER_DESCRIPTOR *logger)
                                            logger);
                 ENGINE_HANDLE *h;
                 if (!engine->createInstance(nullptr, &h)) {
+                    delete engine;
                     *msg = cb_strdup("Failed to create instance of crash engine");
                     return false;
                 }
                 reinterpret_cast<ENGINE_HANDLE_V1*>(h)->initialize(h, nullptr);
+                // Not reached, but to mute code analyzers
+                delete engine;
             }
             map[BucketType::EWouldBlock] = createEngine("ewouldblock_engine.so",
                                                         "create_instance",
