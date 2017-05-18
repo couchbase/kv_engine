@@ -126,16 +126,40 @@ public:
  */
 class MockPassiveStream : public PassiveStream {
 public:
-    MockPassiveStream(EventuallyPersistentEngine* e, dcp_consumer_t consumer,
-                      const std::string &name, uint32_t flags, uint32_t opaque,
-                      uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
-                      uint64_t vb_uuid, uint64_t snap_start_seqno,
-                      uint64_t snap_end_seqno, uint64_t vb_high_seqno)
-    : PassiveStream(e, consumer, name, flags, opaque, vb, start_seqno,
-                    end_seqno, vb_uuid, snap_start_seqno, snap_end_seqno,
+    MockPassiveStream(EventuallyPersistentEngine& e,
+                      dcp_consumer_t consumer,
+                      const std::string& name,
+                      uint32_t flags,
+                      uint32_t opaque,
+                      uint16_t vb,
+                      uint64_t start_seqno,
+                      uint64_t end_seqno,
+                      uint64_t vb_uuid,
+                      uint64_t snap_start_seqno,
+                      uint64_t snap_end_seqno,
+                      uint64_t vb_high_seqno)
+    : PassiveStream(&e,
+                    consumer,
+                    name,
+                    flags,
+                    opaque,
+                    vb,
+                    start_seqno,
+                    end_seqno,
+                    vb_uuid,
+                    snap_start_seqno,
+                    snap_end_seqno,
                     vb_high_seqno) {}
 
     void transitionStateToDead() {
         transitionState(StreamState::Dead);
     }
+
+    ENGINE_ERROR_CODE messageReceived(
+            std::unique_ptr<DcpResponse> dcpResponse) override {
+        responseMessageSize = dcpResponse->getMessageSize();
+        return PassiveStream::messageReceived(std::move(dcpResponse));
+    }
+
+    uint32_t responseMessageSize;
 };

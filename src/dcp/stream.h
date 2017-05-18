@@ -551,7 +551,14 @@ public:
     void reconnectStream(VBucketPtr &vb, uint32_t new_opaque,
                          uint64_t start_seqno);
 
-    ENGINE_ERROR_CODE messageReceived(std::unique_ptr<DcpResponse> response);
+    /*
+     * Calls the appropriate function to process the message.
+     *
+     * @params response The dcp message that needs to be processed.
+     * @returns the error code from processing the message.
+     */
+    virtual ENGINE_ERROR_CODE messageReceived(
+            std::unique_ptr<DcpResponse> response);
 
     void addStats(ADD_STAT add_stat, const void *c);
 

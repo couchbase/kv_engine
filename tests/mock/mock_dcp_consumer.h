@@ -18,6 +18,7 @@
 #pragma once
 
 #include "dcp/consumer.h"
+#include "mock_stream.h"
 
 /*
  * Mock of the DcpConsumer class.  Wraps the real DcpConsumer class
@@ -45,4 +46,37 @@ public:
     void public_notifyVbucketReady(uint16_t vbid) {
         notifyVbucketReady(vbid);
     }
+
+    /*
+     * Creates a PassiveStream.
+     * @return a SingleThreadedRCPtr to the newly created MockPassiveStream.
+     */
+    SingleThreadedRCPtr<PassiveStream> makePassiveStream(
+            EventuallyPersistentEngine& e,
+            dcp_consumer_t consumer,
+            const std::string& name,
+            uint32_t flags,
+            uint32_t opaque,
+            uint16_t vb,
+            uint64_t start_seqno,
+            uint64_t end_seqno,
+            uint64_t vb_uuid,
+            uint64_t snap_start_seqno,
+            uint64_t snap_end_seqno,
+            uint64_t vb_high_seqno) override {
+        return SingleThreadedRCPtr<PassiveStream>(
+                new MockPassiveStream(e,
+                                      consumer,
+                                      name,
+                                      flags,
+                                      opaque,
+                                      vb,
+                                      start_seqno,
+                                      end_seqno,
+                                      vb_uuid,
+                                      snap_start_seqno,
+                                      snap_end_seqno,
+                                      vb_high_seqno));
+    }
+
 };

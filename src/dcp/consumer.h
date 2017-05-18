@@ -38,6 +38,38 @@ public:
 
     virtual ~DcpConsumer();
 
+    /*
+     * Creates a PassiveStream.
+     *
+     * @param e Reference to the engine
+     * @param consumer The consumer the new stream will belong to
+     * @param name The name of the new stream
+     * @param flags The DCP flags
+     * @param opaque The stream opaque
+     * @param vb The vbucket the stream belongs to
+     * @param start_seqno The start sequence number of the stream
+     * @param end_seqno The end sequence number of the stream
+     * @param vb_uuid The uuid of the vbucket the stream belongs to
+     * @param snap_start_seqno The snapshot start sequence number
+     * @param snap_end_seqno The snapshot end sequence number
+     * @param vb_high_seqno The last received sequence number
+     *
+     * @return a SingleThreadedRCPtr to the newly created PassiveStream.
+     */
+    virtual SingleThreadedRCPtr<PassiveStream> makePassiveStream(
+            EventuallyPersistentEngine& e,
+            dcp_consumer_t consumer,
+            const std::string& name,
+            uint32_t flags,
+            uint32_t opaque,
+            uint16_t vb,
+            uint64_t start_seqno,
+            uint64_t end_seqno,
+            uint64_t vb_uuid,
+            uint64_t snap_start_seqno,
+            uint64_t snap_end_seqno,
+            uint64_t vb_high_seqno);
+
     ENGINE_ERROR_CODE addStream(uint32_t opaque, uint16_t vbucket,
                                 uint32_t flags) override;
 

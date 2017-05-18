@@ -149,6 +149,34 @@ void DcpConsumer::taskCancelled() {
     taskAlreadyCancelled.compare_exchange_strong(inverse, true);
 }
 
+SingleThreadedRCPtr<PassiveStream> DcpConsumer::makePassiveStream(
+        EventuallyPersistentEngine& e,
+        dcp_consumer_t consumer,
+        const std::string& name,
+        uint32_t flags,
+        uint32_t opaque,
+        uint16_t vb,
+        uint64_t start_seqno,
+        uint64_t end_seqno,
+        uint64_t vb_uuid,
+        uint64_t snap_start_seqno,
+        uint64_t snap_end_seqno,
+        uint64_t vb_high_seqno) {
+    return SingleThreadedRCPtr<PassiveStream>(
+            new PassiveStream(&e,
+                              consumer,
+                              name,
+                              flags,
+                              opaque,
+                              vb,
+                              start_seqno,
+                              end_seqno,
+                              vb_uuid,
+                              snap_start_seqno,
+                              snap_end_seqno,
+                              vb_high_seqno));
+}
+
 ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
                                          uint32_t flags) {
     lastMessageTime = ep_current_time();
@@ -198,12 +226,18 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
     }
 
     streams.insert({vbucket,
-                    SingleThreadedRCPtr<PassiveStream>(
-                           new PassiveStream(&engine_, this, getName(), flags,
-                                             new_opaque, vbucket, start_seqno,
-                                             end_seqno, vbucket_uuid,
-                                             snap_start_seqno, snap_end_seqno,
-                                             high_seqno))});
+                    makePassiveStream(engine_,
+                                      this,
+                                      getName(),
+                                      flags,
+                                      new_opaque,
+                                      vbucket,
+                                      start_seqno,
+                                      end_seqno,
+                                      vbucket_uuid,
+                                      snap_start_seqno,
+                                      snap_end_seqno,
+                                      high_seqno)});
     ready.push_back(vbucket);
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
 
@@ -321,7 +355,10 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
 
         try {
             err = stream->messageReceived(
-                    std::make_unique<MutationResponse>(item, opaque, emd));
+                    std::make_unique<MutationResponse>(item,
+                                                       opaque,
+                                                       /*isKeyOnly*/false,
+                                                       emd));
         } catch (const std::bad_alloc&) {
             delete emd;
             return ENGINE_ENOMEM;
@@ -386,7 +423,10 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
 
         try {
             err = stream->messageReceived(
-                    std::make_unique<MutationResponse>(item, opaque, emd));
+                    std::make_unique<MutationResponse>(item,
+                                                       opaque,
+                                                       /*isKeyOnly*/false,
+                                                       emd));
         } catch (const std::bad_alloc&) {
             delete emd;
             return ENGINE_ENOMEM;
