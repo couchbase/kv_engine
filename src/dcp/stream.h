@@ -223,7 +223,7 @@ public:
                  uint64_t vb_uuid, uint64_t snap_start_seqno,
                  uint64_t snap_end_seqno, bool isKeyOnly);
 
-    ~ActiveStream();
+    virtual ~ActiveStream();
 
     DcpResponse* next();
 
@@ -535,7 +535,7 @@ public:
                   uint64_t vb_uuid, uint64_t snap_start_seqno,
                   uint64_t snap_end_seqno, uint64_t vb_high_seqno);
 
-    ~PassiveStream();
+    virtual ~PassiveStream();
 
     process_items_error_t processBufferedMessages(uint32_t &processed_bytes,
                                                   size_t batchSize);

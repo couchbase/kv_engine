@@ -694,6 +694,8 @@ private:
 public:
     Consumer(EventuallyPersistentEngine &theEngine, const void* cookie,
              const std::string& name);
+    virtual ~Consumer() {
+    }
     virtual void processedEvent(uint16_t event, ENGINE_ERROR_CODE ret);
     virtual void addStats(ADD_STAT add_stat, const void *c);
     virtual const char *getType() const { return "consumer"; };
@@ -842,6 +844,9 @@ public:
         totalBackfillBacklogs(0),
         reconnects(0) {}
 
+    virtual ~Producer() {
+    }
+
     void addStats(ADD_STAT add_stat, const void *c);
 
     bool isReconnected() const {
@@ -871,8 +876,6 @@ public:
         LockHolder lh(queueLock);
         return vbucketFilter;
     }
-
-    virtual ~Producer() {}
 
 protected:
     friend class ConnMap;

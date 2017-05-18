@@ -61,7 +61,7 @@ enum class MutationType {
                 bool startTask,
                 MutationType mutType);
 
-    ~DcpProducer();
+    virtual ~DcpProducer();
 
     ENGINE_ERROR_CODE streamRequest(uint32_t flags, uint32_t opaque,
                                     uint16_t vbucket, uint64_t start_seqno,
