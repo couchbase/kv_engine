@@ -27,65 +27,21 @@ class Item;
 
 template <class T>
 class SingleThreadedRCPtr;
+
 using queued_item = SingleThreadedRCPtr<Item>;
 
-enum class GenerateBySeqno {
-    No, Yes
-};
-
-typedef std::underlying_type<GenerateBySeqno>::type GenerateBySeqnoUType;
-
-static inline std::string to_string(const GenerateBySeqno generateBySeqno) {
-    switch (generateBySeqno) {
-        case GenerateBySeqno::Yes:
-            return "Yes";
-        case GenerateBySeqno::No:
-            return "No";
-        default:
-            throw std::invalid_argument("to_string(GenerateBySeqno) unknown " +
-                    std::to_string(static_cast<GenerateBySeqnoUType>(generateBySeqno)));
-            return "";
-    }
-}
-
-enum class GenerateCas {
-    No, Yes
-};
-
-typedef std::underlying_type<GenerateCas>::type GenerateByCasUType;
-
-static inline std::string to_string(GenerateCas generateCas) {
-    switch (generateCas) {
-        case GenerateCas::Yes:
-            return "Yes";
-        case GenerateCas::No:
-            return "No";
-        default:
-            throw std::invalid_argument("to_string(GenerateCas) unknown " +
-                    std::to_string(static_cast<GenerateByCasUType>(generateCas)));
-            return "";
-    }
-}
-
+// Enumerations representing binary states - more explicit than using a generic
+// bool.
+enum class GenerateBySeqno { No, Yes };
+enum class GenerateCas { No, Yes };
 enum class TrackCasDrift { No, Yes };
-
-typedef std::underlying_type<TrackCasDrift>::type TrackCasDriftUType;
-
-static inline std::string to_string(TrackCasDrift trackCasDrift) {
-    switch (trackCasDrift) {
-    case TrackCasDrift::Yes:
-        return "Yes";
-    case TrackCasDrift::No:
-        return "No";
-    }
-    throw std::invalid_argument(
-            "to_string(TrackCasDrift) unknown " +
-            std::to_string(static_cast<TrackCasDriftUType>(trackCasDrift)));
-}
-
 enum class WantsDeleted { No, Yes };
 enum class TrackReference { No, Yes };
 enum class QueueExpired { No, Yes };
+
+std::string to_string(GenerateBySeqno generateBySeqno);
+std::string to_string(GenerateCas generateCas);
+std::string to_string(TrackCasDrift trackCasDrift);
 
 /**
  * The following options can be specified

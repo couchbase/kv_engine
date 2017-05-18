@@ -19,6 +19,48 @@
 
 #include "ep_types.h"
 
+std::string to_string(GenerateBySeqno generateBySeqno) {
+    using GenerateBySeqnoUType = std::underlying_type<GenerateBySeqno>::type;
+
+    switch (generateBySeqno) {
+    case GenerateBySeqno::Yes:
+        return "Yes";
+    case GenerateBySeqno::No:
+        return "No";
+    }
+    throw std::invalid_argument(
+            "to_string(GenerateBySeqno) unknown " +
+            std::to_string(static_cast<GenerateBySeqnoUType>(generateBySeqno)));
+}
+
+std::string to_string(GenerateCas generateCas) {
+    using GenerateByCasUType = std::underlying_type<GenerateCas>::type;
+
+    switch (generateCas) {
+    case GenerateCas::Yes:
+        return "Yes";
+    case GenerateCas::No:
+        return "No";
+    }
+    throw std::invalid_argument(
+            "to_string(GenerateCas) unknown " +
+            std::to_string(static_cast<GenerateByCasUType>(generateCas)));
+}
+
+std::string to_string(TrackCasDrift trackCasDrift) {
+    using TrackCasDriftUType = std::underlying_type<TrackCasDrift>::type;
+
+    switch (trackCasDrift) {
+    case TrackCasDrift::Yes:
+        return "Yes";
+    case TrackCasDrift::No:
+        return "No";
+    }
+    throw std::invalid_argument(
+            "to_string(TrackCasDrift) unknown " +
+            std::to_string(static_cast<TrackCasDriftUType>(trackCasDrift)));
+}
+
 std::string to_string(HighPriorityVBNotify hpNotifyType) {
     using HighPriorityVBNotifyUType =
             std::underlying_type<HighPriorityVBNotify>::type;
@@ -28,11 +70,9 @@ std::string to_string(HighPriorityVBNotify hpNotifyType) {
         return "seqno";
     case HighPriorityVBNotify::ChkPersistence:
         return "checkpoint persistence";
-    default:
-        throw std::invalid_argument(
-                "to_string(HighPriorityVBNotify) unknown " +
-                std::to_string(
-                        static_cast<HighPriorityVBNotifyUType>(hpNotifyType)));
-        return "";
     }
+    throw std::invalid_argument(
+            "to_string(HighPriorityVBNotify) unknown " +
+            std::to_string(
+                    static_cast<HighPriorityVBNotifyUType>(hpNotifyType)));
 }
