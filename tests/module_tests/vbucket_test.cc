@@ -122,7 +122,9 @@ std::pair<HashTable::HashBucketLock, StoredValue*> VBucketTest::lockAndFind(
     return std::make_pair(std::move(hbl), storedVal);
 }
 
-MutationStatus VBucketTest::public_processSet(Item& itm, const uint64_t cas) {
+MutationStatus VBucketTest::public_processSet(Item& itm,
+                                              const uint64_t cas,
+                                              bool withCtx) {
     auto hbl_sv = lockAndFind(itm.getKey());
     VBQueueItemCtx queueItmCtx(GenerateBySeqno::Yes,
                                GenerateCas::No,
@@ -136,7 +138,7 @@ MutationStatus VBucketTest::public_processSet(Item& itm, const uint64_t cas) {
                          cas,
                          true,
                          false,
-                         &queueItmCtx)
+                         withCtx ? &queueItmCtx : nullptr)
             .first;
 }
 

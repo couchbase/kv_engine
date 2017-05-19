@@ -76,7 +76,9 @@ protected:
     std::pair<HashTable::HashBucketLock, StoredValue*> lockAndFind(
             const StoredDocKey& key);
 
-    MutationStatus public_processSet(Item& itm, const uint64_t cas);
+    MutationStatus public_processSet(Item& itm,
+                                     const uint64_t cas,
+                                     bool withCtx = true);
 
     AddStatus public_processAdd(Item& itm);
 

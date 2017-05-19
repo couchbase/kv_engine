@@ -123,19 +123,22 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
     std::vector<UniqueItemPtr> items;
 
     for (const auto& osv : seqList) {
-        if (osv.getBySeqno() > end) {
-            /* we are done */
+        int64_t currSeqno(osv.getBySeqno());
+
+        if (currSeqno > end || currSeqno < 0) {
+            /* We have read all the items in the requested range, or the osv
+             * does not yet have a valid seqno; either way we are done */
             break;
         }
 
         {
             std::lock_guard<SpinLock> lh(rangeLock);
-            readRange.setBegin(osv.getBySeqno()); /* [EPHE TODO]: should we
+            readRange.setBegin(currSeqno); /* [EPHE TODO]: should we
                                                      update the min every time ?
                                                    */
         }
 
-        if (osv.getBySeqno() < start) {
+        if (currSeqno < start) {
             /* skip this item */
             continue;
         }
@@ -166,7 +169,7 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
                 "(vb %d) ENOMEM while trying to copy "
                 "item with seqno %" PRIi64 "before streaming it",
                 vbid,
-                osv.getBySeqno());
+                currSeqno);
             return std::make_tuple(ENGINE_ENOMEM, std::move(empty), 0);
         }
     }

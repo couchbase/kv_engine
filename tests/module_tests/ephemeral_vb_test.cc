@@ -677,3 +677,31 @@ TEST_F(EphemeralVBucketTest, SnapshotHasNoDuplicatesWithMultipleStale) {
     EXPECT_EQ(numItems * (updateIterations + 1),
               std::get<2>(res)); // extended end of readRange
 }
+
+TEST_F(EphemeralVBucketTest, RangeReadStopsOnInvalidSeqno) {
+    /* MB-24376: rangeRead has to stop if it encounters an OSV with a seqno of
+     * -1; this item is definitely past the end of the rangeRead, and has not
+     * yet had its seqno updated in queueDirty */
+    const int numItems = 2;
+
+    // store two items
+    auto keys = generateKeys(numItems);
+    setMany(keys, MutationStatus::WasClean);
+
+    auto lastKey = makeStoredDocKey(std::to_string(numItems + 1));
+    Item i(lastKey, 0, 0, lastKey.data(), lastKey.size());
+
+    // set item with no queueItemCtx - will not be queueDirty'd, and will
+    // keep seqno -1
+    EXPECT_EQ(MutationStatus::WasClean,
+              public_processSet(i, i.getCas(), false));
+
+    EXPECT_EQ(-1, mockEpheVB->getLL()->getSeqList().back().getBySeqno());
+
+    auto res = mockEpheVB->inMemoryBackfill(
+            1, std::numeric_limits<seqno_t>::max());
+
+    EXPECT_EQ(ENGINE_SUCCESS, std::get<0>(res));
+    EXPECT_EQ(numItems, std::get<1>(res).size());
+    EXPECT_EQ(numItems, std::get<2>(res));
+}
