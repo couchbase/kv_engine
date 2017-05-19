@@ -487,6 +487,7 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
         case ENGINE_SUCCESS:
             if (ctx.traits.is_mutator &&
                 ctx.mutationSemantics == MutationSemantics::Add) {
+                bucket_release_item(&c, initial_item);
                 mcbp_write_packet(
                         &c,
                         engine_error_2_mcbp_protocol_error(ENGINE_KEY_EEXISTS));
