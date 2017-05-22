@@ -216,7 +216,9 @@ SOCKET new_socket(std::string& host, in_port_t port, sa_family_t family) {
     }
 
     for (struct addrinfo* next = ai; next; next = next->ai_next) {
-        SOCKET sfd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        SOCKET sfd = socket(next->ai_family,
+                            next->ai_socktype,
+                            next->ai_protocol);
         if (sfd != INVALID_SOCKET) {
 
 #ifdef WIN32
@@ -235,7 +237,7 @@ SOCKET new_socket(std::string& host, in_port_t port, sa_family_t family) {
             }
 #endif
 
-            if (connect(sfd, ai->ai_addr, ai->ai_addrlen) != SOCKET_ERROR) {
+            if (connect(sfd, next->ai_addr, next->ai_addrlen) != SOCKET_ERROR) {
                 freeaddrinfo(ai);
                 return sfd;
             }
