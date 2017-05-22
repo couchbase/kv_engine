@@ -363,7 +363,7 @@ public:
 #else
         unsetenv("COUCHBASE_CBSASL_SECRETS");
 #endif
-        EXPECT_TRUE(cb::io::rmrf(filename));
+        EXPECT_NO_THROW(cb::io::rmrf(filename));
     }
 
 protected:

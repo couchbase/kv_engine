@@ -35,7 +35,7 @@ public:
     void SetUp() {
         TestappClientTest::SetUp();
         auto& logdir = mcd_env->getAuditLogDir();
-        ASSERT_TRUE(cb::io::rmrf(logdir));
+        EXPECT_NO_THROW(cb::io::rmrf(logdir));
         cb::io::mkdirp(logdir);
         setEnabled(true);
     }
@@ -43,7 +43,7 @@ public:
     void TearDown() {
         setEnabled(false);
         auto& logdir = mcd_env->getAuditLogDir();
-        EXPECT_TRUE(cb::io::rmrf(mcd_env->getAuditLogDir()));
+        EXPECT_NO_THROW(cb::io::rmrf(mcd_env->getAuditLogDir()));
         cb::io::mkdirp(logdir);
         TestappClientTest::TearDown();
     }

@@ -212,7 +212,7 @@ void McdEnvironment::SetupAuditFile() {
         audit_file_name = cwd + "/" + cb::io::mktemp("audit.cfg");
         audit_log_dir = cwd + "/" + cb::io::mktemp("audit.log");
         const std::string descriptor = cwd + "/auditd";
-        EXPECT_TRUE(cb::io::rmrf(audit_log_dir));
+        EXPECT_NO_THROW(cb::io::rmrf(audit_log_dir));
         cb::io::mkdirp(audit_log_dir);
 
         // Generate the auditd config file.

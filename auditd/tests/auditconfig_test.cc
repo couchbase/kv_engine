@@ -281,7 +281,7 @@ TEST_F(AuditConfigTest, TestGetSetSanitizeLogPathMixedSeparators) {
     std::string path = testdir + std::string("/mydir\\baddir");
     EXPECT_NO_THROW(config.set_log_directory(path));
     EXPECT_EQ(testdir + "\\mydir\\baddir", config.get_log_directory());
-    EXPECT_TRUE(cb::io::rmrf(config.get_log_directory()))
+    EXPECT_NO_THROW(cb::io::rmrf(config.get_log_directory()))
         << "Failed to remove: " << config.get_log_directory()
         << ": " << strerror(errno) << std::endl;
 }
@@ -300,7 +300,7 @@ TEST_F(AuditConfigTest, TestCreateDirLogPath) {
     cJSON_ReplaceItemInObject(json, "log_path",
                               cJSON_CreateString(path.c_str()));
     EXPECT_NO_THROW(config.initialize_config(json));
-    EXPECT_TRUE(cb::io::rmrf(config.get_log_directory()))
+    EXPECT_NO_THROW(cb::io::rmrf(config.get_log_directory()))
         << "Failed to remove: " << config.get_log_directory()
         << ": " << strerror(errno) << std::endl;
 }
@@ -322,7 +322,7 @@ TEST_F(AuditConfigTest, TestSetMissingEventDescrFileDescriptorsPath) {
     cb::io::mkdirp(path);
 
     EXPECT_THROW(config.set_descriptors_path(path), std::string);
-    EXPECT_TRUE(cb::io::rmrf(path))
+    EXPECT_NO_THROW(cb::io::rmrf(path))
         << "Failed to remove: " << path
         << ": " << strerror(errno) << std::endl;
 }

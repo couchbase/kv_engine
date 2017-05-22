@@ -672,13 +672,11 @@ int main(int argc, char** argv) {
                 createCache(cachefile, argv[optind]);
             } catch (std::runtime_error& e) {
                 std::cerr << e.what() << std::endl;
-                if (!cb::io::rmrf(cachefile)) {
-                    if (access(cachefile.c_str(), F_OK) != -1) {
+                cb::io::rmrf(cachefile);
+                if (access(cachefile.c_str(), F_OK) != -1) {
                         std::cerr << "You should manually nuke " << cachefile
                         << std::endl;
-                    }
                 }
-                return EXIT_FAILURE;
             }
         } else {
             std::cout << "Using cache in " << cachefile.c_str() << std::endl;

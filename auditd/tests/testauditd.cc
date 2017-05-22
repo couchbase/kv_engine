@@ -77,12 +77,24 @@ protected:
     static void SetUpTestCase() {
         // create the test directory
         testdir = std::string("auditd-test-") + std::to_string(cb_getpid());
-        cb::io::rmrf(testdir);
+        try {
+            cb::io::rmrf(testdir);
+        } catch (std::system_error& e) {
+            if (e.code() != std::error_code(ENOENT, std::system_category())) {
+                throw e;
+            }
+        }
         cb::io::mkdirp(testdir);
 
         // create the name of the configuration file to use
         cfgfile = "test_audit-" + std::to_string(cb_getpid()) + ".json";
-        cb::io::rmrf(cfgfile);
+        try {
+            cb::io::rmrf(cfgfile);
+        } catch (std::system_error& e) {
+            if (e.code() != std::error_code(ENOENT, std::system_category())) {
+                throw e;
+            }
+        }
 
         // Start the audit daemon
         AUDIT_EXTENSION_DATA audit_extension_data;
