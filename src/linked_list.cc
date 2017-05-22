@@ -420,7 +420,8 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll)
     : list(ll),
       readLockHolder(list.rangeReadLock),
       itrRange(0, 0),
-      numRemaining(0) {
+      numRemaining(0),
+      earlySnapShotEndSeqno(0) {
     std::lock_guard<std::mutex> listWriteLg(list.getListWriteLock());
     std::lock_guard<SpinLock> lh(list.rangeLock);
     if (list.highSeqno < 1) {
