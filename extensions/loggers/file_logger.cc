@@ -544,7 +544,7 @@ static void logger_thread_main(void* arg)
                     char log_entry[1024];
                     format_log_entry(log_entry, sizeof(log_entry),
                                      now.tv_sec, now.tv_usec,
-                                     EXTENSION_LOG_WARNING,
+                                     EXTENSION_LOG_NOTICE,
                                      "Restarting file logging\n");
 
                     fwrite(log_entry, 1, strlen(log_entry), fp);
