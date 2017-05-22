@@ -23,7 +23,7 @@
 #include <platform/backtrace.h>
 
 static EXTENSION_LOGGER_DESCRIPTOR* terminate_logger;
-static std::terminate_handler default_terminate_handler;
+static std::terminate_handler default_terminate_handler = nullptr;
 
 /**
  * Prints the given C-style string to either the terminate_logger (if
@@ -100,6 +100,10 @@ static void backtrace_terminate_handler() {
 }
 
 void install_backtrace_terminate_handler(EXTENSION_LOGGER_DESCRIPTOR* logger) {
+    if (default_terminate_handler != nullptr) {
+        // restore the previously saved one before (re)installing ours.
+        std::set_terminate(default_terminate_handler);
+    }
     terminate_logger = logger;
     default_terminate_handler = std::set_terminate(backtrace_terminate_handler);
 }

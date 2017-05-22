@@ -2699,7 +2699,9 @@ extern "C" int memcached_main(int argc, char **argv) {
 #endif
     std::unique_ptr<ParentMonitor> parent_monitor;
 
-    install_backtrace_terminate_handler(settings.extensions.logger);
+    // Setup terminate handler - initially with no logger (to catch
+    // super-early crashes).
+    install_backtrace_terminate_handler(nullptr);
 
     setup_libevent_locking();
 
@@ -2743,6 +2745,11 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     /* load extensions specified in the settings */
     load_extensions();
+
+    /* File-based logging available from this point onwards... */
+
+    // Reinstall the terminate handler now, using the file logger.
+    install_backtrace_terminate_handler(settings.extensions.logger);
 
     /* Logging available now extensions have been loaded. */
     LOG_NOTICE(NULL, "Couchbase version %s starting.", get_server_version());
