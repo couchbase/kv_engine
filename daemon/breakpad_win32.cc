@@ -30,7 +30,7 @@ ExceptionHandler* handler;
 
 /* Callback function to print to the logger. */
 static void write_to_logger(void* ctx, const char* frame) {
-    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+    settings.extensions.logger->log(EXTENSION_LOG_FATAL, NULL,
                                     "    %s", frame);
 }
 
@@ -38,13 +38,13 @@ static void write_to_logger(void* ctx, const char* frame) {
 static bool dumpCallback(const wchar_t* dump_path, const wchar_t* minidump_id,
                          void* context, EXCEPTION_POINTERS* exinfo,
                          MDRawAssertionInfo* assertion, bool succeeded) {
-    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+    settings.extensions.logger->log(EXTENSION_LOG_FATAL, NULL,
                                     "Breakpad caught crash in memcached version %s. Writing crash dump to "
                                     "%S\\%S.dmp before terminating.",
                                     get_server_version(),
                                     dump_path, minidump_id);
 
-    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+    settings.extensions.logger->log(EXTENSION_LOG_FATAL, NULL,
                                     "Stack backtrace of crashed thread:");
     print_backtrace(write_to_logger, NULL);
 
