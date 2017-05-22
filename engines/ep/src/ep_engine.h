@@ -177,7 +177,7 @@ public:
         ENGINE_ERROR_CODE ret = gv.getStatus();
 
         if (ret == ENGINE_SUCCESS) {
-            *itm = gv.getValue();
+            *itm = gv.item.release();
             if (options & TRACK_STATISTICS) {
                 ++stats.numOpsGet;
             }

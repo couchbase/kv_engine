@@ -92,17 +92,7 @@ size_t BgFetcher::doFetch(VBucket::id_type vbId,
                 fetchedItems.size());
     }
 
-    clearItems(vbId, itemsToFetch);
     return fetchedItems.size();
-}
-
-void BgFetcher::clearItems(VBucket::id_type vbId,
-                           vb_bgfetch_queue_t& itemsToFetch) {
-    for (auto& fetch : itemsToFetch) {
-        // every fetched item belonging to the same key shares
-        // a single data buffer, just delete it from the shared context
-        delete fetch.second.value.getValue();
-    }
 }
 
 bool BgFetcher::run(GlobalTask *task) {

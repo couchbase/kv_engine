@@ -1378,8 +1378,6 @@ void KVBucket::completeBGFetch(const DocKey& key,
     }
 
     --stats.numRemainingBgJobs;
-
-    delete gcb.getValue();
 }
 
 void KVBucket::completeBGFetchMulti(uint16_t vbId,
@@ -1474,7 +1472,7 @@ GetValue KVBucket::getRandomKey() {
         }
 
         if ((itm = vb->ht.getRandomKey(random()))) {
-            GetValue rv(itm.release(), ENGINE_SUCCESS);
+            GetValue rv(std::move(itm), ENGINE_SUCCESS);
             return rv;
         }
 

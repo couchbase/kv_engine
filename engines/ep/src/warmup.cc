@@ -339,10 +339,6 @@ static bool batchWarmupCallback(uint16_t vbId,
                     applyItem = false;
                 }
             } else {
-                // Providing that the status is SUCCESS, delete the Item
-                if (fetchedItem->value->getStatus() == ENGINE_SUCCESS) {
-                    delete fetchedItem->value->getValue();
-                }
                 c->skipped++;
             }
         }
@@ -482,7 +478,7 @@ LoadStorageKVPairCallback::LoadStorageKVPairCallback(KVBucket& ep,
 
 void LoadStorageKVPairCallback::callback(GetValue &val) {
     // This callback method is responsible for deleting the Item
-    std::unique_ptr<Item> i(val.getValue());
+    std::unique_ptr<Item> i(std::move(val.item));
 
     // Don't attempt to load the system event documents.
     if (i->getKey().getDocNamespace() == DocNamespace::System) {
@@ -545,8 +541,6 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                         std::to_string(static_cast<uint16_t>(res)));
             }
         } while (!succeeded && retry-- > 0);
-
-        val.setValue(NULL);
 
         if (maybeEnableTraffic) {
             stopLoading = epstore.maybeEnableTraffic();

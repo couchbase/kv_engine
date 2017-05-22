@@ -273,10 +273,6 @@ TEST_F(EphemeralVBucketTest, GetAndUpdateTtl) {
         EXPECT_GT(seqNo, prevSeqNo);
         prevSeqNo = seqNo;
     }
-
-    // explicit delete to keep valgrind happy
-    delete (Item*)gv1.getValue();
-    delete (Item*)gv2.getValue();
 }
 
 TEST_F(EphemeralVBucketTest, SoftDeleteDuringBackfill) {

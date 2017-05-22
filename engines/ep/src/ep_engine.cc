@@ -943,7 +943,7 @@ static ENGINE_ERROR_CODE getReplicaCmd(EventuallyPersistentEngine* e,
             return error_code;
         }
     } else {
-        *it = rv.getValue();
+        *it = rv.item.release();
         *res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
     }
     ++(e->getEpStats().numOpsGet);
@@ -2159,7 +2159,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(const void* co
         ++stats.numOpsGet;
         ++stats.numOpsStore;
         return std::make_pair(cb::engine_errc::success,
-                              cb::unique_item_ptr{gv.getValue(),
+                              cb::unique_item_ptr{gv.item.release(),
                                                   cb::ItemDeleter{handle}});
     }
 
@@ -2227,7 +2227,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(const void* cookie,
                                                       cb::ItemDeleter{handle}});
         }
 
-        auto* item = gv.getValue();
+        auto* item = gv.item.release();
         cb::unique_item_ptr ret{item, cb::ItemDeleter{handle}};
 
         const VBucketPtr vb = getKVBucket()->getVBucket(vbucket);
@@ -2278,7 +2278,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get_locked(const void* cookie,
 
     if (result.getStatus() == ENGINE_SUCCESS) {
         ++stats.numOpsGet;
-        *itm = result.getValue();
+        *itm = result.item.release();
     }
 
     return result.getStatus();
@@ -6028,7 +6028,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(const void *cookie,
     ENGINE_ERROR_CODE ret = gv.getStatus();
 
     if (ret == ENGINE_SUCCESS) {
-        Item *it = gv.getValue();
+        Item* it = gv.item.get();
         uint32_t flags = it->getFlags();
         ret = sendResponse(response, static_cast<const void *>(it->getKey().data()),
                            it->getKey().size(),
@@ -6037,7 +6037,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(const void *cookie,
                            it->getNBytes(), it->getDataType(),
                            PROTOCOL_BINARY_RESPONSE_SUCCESS, it->getCas(),
                            cookie);
-        delete it;
     }
 
     return ret;

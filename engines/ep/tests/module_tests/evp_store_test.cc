@@ -396,7 +396,6 @@ TEST_P(EPStoreEvictionTest, TouchCmdDuringBgFetch) {
         GetValue gv = store->getAndUpdateTtl(dockey, vbid, cookie,
                                              (i + 1) * (expiryTime));
         EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
-        delete gv.getValue();
     }
     EXPECT_EQ(numTouchCmds + 1 /* Initial item store */,
               store->getVBucket(vbid)->getHighSeqno());
@@ -428,7 +427,7 @@ TEST_P(EPStoreEvictionTest, xattrExpiryOnFullyEvictedItem) {
     GetValue gv = store->getAndUpdateTtl(makeStoredDocKey("key"), vbid, cookie,
                                          time(NULL) + 120);
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
-    std::unique_ptr<Item> get_itm(gv.getValue());
+    std::unique_ptr<Item> get_itm(std::move(gv.item));
 
     flush_vbucket_to_disk(vbid);
     evict_key(vbid, makeStoredDocKey("key"));
@@ -445,7 +444,7 @@ TEST_P(EPStoreEvictionTest, xattrExpiryOnFullyEvictedItem) {
     gv = store->get(makeStoredDocKey("key"), vbid, cookie, options);
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
 
-    get_itm.reset(gv.getValue());
+    get_itm = std::move(gv.item);
     auto get_data = const_cast<char*>(get_itm->getData());
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, get_itm->getDataType())
               << "Unexpected Datatype";

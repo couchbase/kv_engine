@@ -132,13 +132,12 @@ public:
         if (expectedGetReturnValue == ENGINE_SUCCESS) {
             EXPECT_EQ(0,
                       strncmp(expectedValue.data(),
-                              result.getValue()->getData(),
-                              result.getValue()->getNBytes()));
-            EXPECT_EQ(expectedMeta.cas, result.getValue()->getCas());
-            EXPECT_EQ(expectedMeta.revSeqno, result.getValue()->getRevSeqno());
-            EXPECT_EQ(expectedMeta.flags, result.getValue()->getFlags());
-            EXPECT_EQ(expectedMeta.exptime, result.getValue()->getExptime());
-            delete result.getValue();
+                              result.item->getData(),
+                              result.item->getNBytes()));
+            EXPECT_EQ(expectedMeta.cas, result.item->getCas());
+            EXPECT_EQ(expectedMeta.revSeqno, result.item->getRevSeqno());
+            EXPECT_EQ(expectedMeta.flags, result.item->getFlags());
+            EXPECT_EQ(expectedMeta.exptime, result.item->getExptime());
         }
     }
 
@@ -433,8 +432,7 @@ TEST_P(AllWithMetaTest, regenerateCAS) {
                              nullptr,
                              GET_DELETED_VALUE);
     ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
-    EXPECT_NE(cas, result.getValue()->getCas()) << "CAS didn't change";
-    delete result.getValue();
+    EXPECT_NE(cas, result.item->getCas()) << "CAS didn't change";
 }
 
 TEST_P(AllWithMetaTest, invalid_extlen) {
@@ -977,11 +975,10 @@ TEST_P(AllWithMetaTest, markJSON) {
     ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
     EXPECT_EQ(0,
               strncmp(value.data(),
-                      result.getValue()->getData(),
-                      result.getValue()->getNBytes()));
+                      result.item->getData(),
+                      result.item->getNBytes()));
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR,
-              result.getValue()->getDataType());
-    delete result.getValue();
+              result.item->getDataType());
 }
 
 // Test uses an XATTR body that has 1 system key (see createXattrValue)
@@ -1017,9 +1014,9 @@ TEST_F(WithMetaTest, xattrPruneUserKeysOnDelete1) {
     // Now reconstruct a XATTR Blob and validate the user keys are gone
     // These code relies on knowing what createXattrValue generates.
     auto sz = cb::xattr::get_body_offset(
-            {result.getValue()->getData(), result.getValue()->getNBytes()});
+            {result.item->getData(), result.item->getNBytes()});
 
-    auto p = reinterpret_cast<const uint8_t*>(result.getValue()->getData());
+    auto p = reinterpret_cast<const uint8_t*>(result.item->getData());
     cb::xattr::Blob blob({const_cast<uint8_t*>(p), sz});
 
     EXPECT_EQ(0, blob.get("user").size());
@@ -1028,14 +1025,13 @@ TEST_F(WithMetaTest, xattrPruneUserKeysOnDelete1) {
     EXPECT_STREQ("{\"cas\":\"0xdeadbeefcafefeed\"}",
                  reinterpret_cast<char*>(blob.get("_sync").data()));
 
-    auto itm = result.getValue();
+    auto itm = result.item.get();
     // The meta-data should match the delete_with_meta
     EXPECT_EQ(itemMeta.cas, itm->getCas());
     EXPECT_EQ(itemMeta.flags, itm->getFlags());
     EXPECT_EQ(itemMeta.revSeqno, itm->getRevSeqno());
     EXPECT_EQ(itemMeta.exptime, itm->getExptime());
 
-    delete result.getValue();
 }
 
 // Test uses an XATTR body that has no system keys

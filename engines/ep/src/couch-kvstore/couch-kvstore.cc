@@ -517,7 +517,7 @@ GetValue CouchKVStore::getWithHeader(void* dbHandle,
         // record stats
         st.readTimeHisto.add((gethrtime() - start) / 1000);
         if (errCode == COUCHSTORE_SUCCESS) {
-            st.readSizeHisto.add(key.size() + rv.getValue()->getNBytes());
+            st.readSizeHisto.add(key.size() + rv.item->getNBytes());
         }
     }
 
@@ -1563,25 +1563,25 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
         uint8_t extMeta[EXT_META_LEN];
         extMeta[0] = metadata->getDataType();
         // Collections: TODO: Permanently restore to stored namespace
-        Item* it =
-                new Item(makeDocKey(docinfo->id,
-                                    configuration.shouldPersistDocNamespace()),
-                         metadata->getFlags(),
-                         metadata->getExptime(),
-                         nullptr,
-                         docinfo->size,
-                         extMeta,
-                         EXT_META_LEN,
-                         metadata->getCas(),
-                         docinfo->db_seq,
-                         vbId);
+        auto it = std::make_unique<Item>(
+                makeDocKey(docinfo->id,
+                           configuration.shouldPersistDocNamespace()),
+                metadata->getFlags(),
+                metadata->getExptime(),
+                nullptr,
+                docinfo->size,
+                extMeta,
+                EXT_META_LEN,
+                metadata->getCas(),
+                docinfo->db_seq,
+                vbId);
 
         it->setRevSeqno(docinfo->rev_seq);
 
         if (docinfo->deleted) {
             it->setDeleted();
         }
-        docValue = GetValue(it);
+        docValue = GetValue(std::move(it));
         // update ep-engine IO stats
         ++st.io_num_read;
         st.io_read_bytes += docinfo->id.size;
@@ -1613,11 +1613,9 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
                 extMeta = metadata->getDataType();
             }
 
-            Item* it = nullptr;
-
             try {
                 // Collections: TODO: Restore to stored namespace
-                it = new Item(
+                auto it = std::make_unique<Item>(
                         makeDocKey(docinfo->id,
                                    configuration.shouldPersistDocNamespace()),
                         metadata->getFlags(),
@@ -1630,22 +1628,21 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
                         docinfo->db_seq,
                         vbId,
                         docinfo->rev_seq);
-             } catch(std::bad_alloc &) {
-                 couchstore_free_document(doc);
-                 return COUCHSTORE_ERROR_ALLOC_FAIL;
-             }
 
-             if (docinfo->deleted) {
-                 it->setDeleted();
-             }
+                if (docinfo->deleted) {
+                    it->setDeleted();
+                }
+                docValue = GetValue(std::move(it));
+            } catch (std::bad_alloc&) {
+                couchstore_free_document(doc);
+                return COUCHSTORE_ERROR_ALLOC_FAIL;
+            }
 
-             docValue = GetValue(it);
+            // update ep-engine IO stats
+            ++st.io_num_read;
+            st.io_read_bytes += (docinfo->id.size + valuelen);
 
-             // update ep-engine IO stats
-             ++st.io_num_read;
-             st.io_read_bytes += (docinfo->id.size + valuelen);
-
-             couchstore_free_document(doc);
+            couchstore_free_document(doc);
         }
     }
     return errCode;
@@ -1738,10 +1735,8 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     uint8_t extMeta = metadata->getDataType();
     uint8_t extMetaLen = metadata->getFlexCode() == FLEX_META_CODE ? EXT_META_LEN : 0;
     // Collections: TODO: Permanently restore to stored namespace
-    Item* it = new Item(
-            DocKey(makeDocKey(
-                    key,
-                    sctx->config.shouldPersistDocNamespace())),
+    auto it = std::make_unique<Item>(
+            DocKey(makeDocKey(key, sctx->config.shouldPersistDocNamespace())),
             metadata->getFlags(),
             metadata->getExptime(),
             value.buf,
@@ -1758,7 +1753,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     }
 
     bool onlyKeys = (sctx->valFilter == ValueFilter::KEYS_ONLY) ? true : false;
-    GetValue rv(it, ENGINE_SUCCESS, -1, onlyKeys);
+    GetValue rv(std::move(it), ENGINE_SUCCESS, -1, onlyKeys);
     cb->callback(rv);
 
     couchstore_free_document(doc);
@@ -2310,8 +2305,8 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
                         ProcessClock::now() - fetch->initTime)
                         .count());
         if (errCode == COUCHSTORE_SUCCESS) {
-            st.readSizeHisto.add(returnVal.getValue()->getKey().size() +
-                                 returnVal.getValue()->getNBytes());
+            st.readSizeHisto.add(bg_itm_ctx.value.item->getKey().size() +
+                                 bg_itm_ctx.value.item->getNBytes());
         }
     }
     if (!return_val_ownership_transferred) {
@@ -2320,7 +2315,6 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
                               "items in bgfetched_list, vb:%" PRIu16
                               ", seqno:%" PRIu64,
                               cbCtx->vbId, docinfo->rev_seq);
-        delete returnVal.getValue();
     }
 
     return 0;

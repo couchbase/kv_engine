@@ -85,15 +85,14 @@ public:
         if (result.getStatus() == ENGINE_SUCCESS) {
             if (expectCompressed) {
                 EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_SNAPPY,
-                          result.getValue()->getDataType());
-                result.getValue()->decompressValue();
+                          result.item->getDataType());
+                result.item->decompressValue();
             }
 
             EXPECT_EQ(0,
                       strncmp("value",
-                              result.getValue()->getData(),
-                              result.getValue()->getNBytes()));
-            delete result.getValue();
+                              result.item->getData(),
+                              result.item->getNBytes()));
         }
     }
 
@@ -109,15 +108,14 @@ void checkGetValue(GetValue& result,
     if (result.getStatus() == ENGINE_SUCCESS) {
         if (expectCompressed) {
             EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_SNAPPY,
-                      result.getValue()->getDataType());
-            result.getValue()->decompressValue();
+                      result.item->getDataType());
+            result.item->decompressValue();
         }
 
         EXPECT_EQ(0,
                   strncmp("value",
-                          result.getValue()->getData(),
-                          result.getValue()->getNBytes()));
-        delete result.getValue();
+                          result.item->getData(),
+                          result.item->getNBytes()));
     }
 }
 
@@ -146,7 +144,7 @@ public:
         : cb([](RV... val){}) {}
 
     void callback(RV&...result) {
-        cb(result...);
+        cb(std::move(result...));
     }
 
 protected:
@@ -165,8 +163,7 @@ public:
         : cb([](GetValue val){}) {}
 
     void callback(GetValue &result) {
-        cb(result);
-        delete result.getValue();
+        cb(std::move(result));
     }
 
 protected:
@@ -1215,26 +1212,22 @@ class MockedGetCallback : public Callback<T> {
     public:
         MockedGetCallback() {}
 
-        ~MockedGetCallback() {
-            delete savedValue.getValue();
-        }
-
         void callback(GetValue& value){
             status(value.getStatus());
             if (value.getStatus() == ENGINE_SUCCESS) {
                 EXPECT_CALL(*this, value("value"));
-                cas(value.getValue()->getCas());
-                expTime(value.getValue()->getExptime());
-                flags(value.getValue()->getFlags());
-                datatype(protocol_binary_datatype_t(value.getValue()->getDataType()));
-                this->value(std::string(value.getValue()->getData(),
-                                        value.getValue()->getNBytes()));
-                savedValue = value;
+                cas(value.item->getCas());
+                expTime(value.item->getExptime());
+                flags(value.item->getFlags());
+                datatype(protocol_binary_datatype_t(value.item->getDataType()));
+                this->value(std::string(value.item->getData(),
+                                        value.item->getNBytes()));
+                savedValue = std::move(value);
             }
         }
 
         Item* getValue() {
-            return savedValue.getValue();
+            return savedValue.item.get();
         }
 
         /*

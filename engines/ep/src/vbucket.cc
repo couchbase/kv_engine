@@ -1433,11 +1433,11 @@ std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
     if (v) {
         if (v->isDeleted() || v->isTempDeletedItem() ||
             v->isTempNonExistentItem()) {
-            return {MutationStatus::NotFound, {}};
+            return {MutationStatus::NotFound, GetValue()};
         }
 
         if (!v->isResident()) {
-            return {MutationStatus::NeedBgFetch, {}};
+            return {MutationStatus::NeedBgFetch, GetValue()};
         }
 
         if (v->isLocked(ep_current_time())) {
@@ -1453,10 +1453,9 @@ std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
             v->setRevSeqno(v->getRevSeqno() + 1);
         }
 
-        Item* item =
-                v->toItem(v->isLocked(ep_current_time()), getId()).release();
-
-        GetValue rv(item, ENGINE_SUCCESS, bySeqNo);
+        GetValue rv(v->toItem(v->isLocked(ep_current_time()), getId()),
+                    ENGINE_SUCCESS,
+                    bySeqNo);
 
         if (exptime_mutated) {
             VBQueueItemCtx qItemCtx(GenerateBySeqno::Yes,
@@ -1466,25 +1465,25 @@ std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
                                     nullptr);
             VBNotifyCtx notifyCtx;
             std::tie(v, std::ignore, notifyCtx) =
-                    updateStoredValue(hbl, *v, *item, &qItemCtx, true);
-            rv.getValue()->setCas(v->getCas());
+                    updateStoredValue(hbl, *v, *rv.item, &qItemCtx, true);
+            rv.item->setCas(v->getCas());
             // we unlock ht lock here because we want to avoid potential lock
             // inversions arising from notifyNewSeqno() call
             hbl.getHTLock().unlock();
             notifyNewSeqno(notifyCtx);
         }
 
-        return {MutationStatus::WasClean, rv};
+        return {MutationStatus::WasClean, std::move(rv)};
     } else {
         if (eviction == VALUE_ONLY) {
-            return {MutationStatus::NotFound, {}};
+            return {MutationStatus::NotFound, GetValue()};
         } else {
             if (maybeKeyExistsInFilter(key)) {
-                return {MutationStatus::NeedBgFetch, {}};
+                return {MutationStatus::NeedBgFetch, GetValue()};
             } else {
                 // As bloomfilter predicted that item surely doesn't exist
                 // on disk, return ENOENT for getAndUpdateTtl().
-                return {MutationStatus::NotFound, {}};
+                return {MutationStatus::NotFound, GetValue()};
             }
         }
     }
@@ -1613,7 +1612,7 @@ GetValue VBucket::getInternal(const DocKey& key,
         // Should we hide (return -1) for the items' CAS?
         const bool hide_cas =
                 (options & HIDE_LOCKED_CAS) && v->isLocked(ep_current_time());
-        return GetValue(v->toItem(hide_cas, getId()).release(),
+        return GetValue(v->toItem(hide_cas, getId()),
                         ENGINE_SUCCESS,
                         v->getBySeqno(),
                         false,
@@ -1784,7 +1783,7 @@ GetValue VBucket::getLocked(const DocKey& key,
         it->setCas(nextHLCCas());
         v->setCas(it->getCas());
 
-        return GetValue(it.release());
+        return GetValue(std::move(it));
 
     } else {
         // No value found in the hashtable.

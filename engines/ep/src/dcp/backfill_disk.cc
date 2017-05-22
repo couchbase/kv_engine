@@ -104,11 +104,11 @@ DiskCallback::DiskCallback(active_stream_t& s) : stream_(s) {
 }
 
 void DiskCallback::callback(GetValue& val) {
-    if (val.getValue() == nullptr) {
+    if (!val.item) {
         throw std::invalid_argument("DiskCallback::callback: val is NULL");
     }
 
-    if (!stream_->backfillReceived(std::unique_ptr<Item>(val.getValue()),
+    if (!stream_->backfillReceived(std::move(val.item),
                                    BACKFILL_FROM_DISK,
                                    /*force*/ false)) {
         setStatus(ENGINE_ENOMEM); // Pause the backfill

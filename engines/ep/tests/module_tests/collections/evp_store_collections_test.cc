@@ -81,11 +81,7 @@ TEST_F(CollectionsTest, namespace_separation) {
             cookie,
             options);
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
-    EXPECT_EQ(0,
-              strncmp("value",
-                      gv.getValue()->getData(),
-                      gv.getValue()->getNBytes()));
-    delete gv.getValue();
+    EXPECT_EQ(0, strncmp("value", gv.item->getData(), gv.item->getNBytes()));
 }
 
 TEST_F(CollectionsTest, collections_basic) {
@@ -120,7 +116,6 @@ TEST_F(CollectionsTest, collections_basic) {
     GetValue gv = store->get(
             {"meat::beef", DocNamespace::Collections}, vbid, cookie, options);
     ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
-    delete gv.getValue();
 
     // A key in meat that doesn't exist
     gv = store->get({"meat::sausage", DocNamespace::Collections},

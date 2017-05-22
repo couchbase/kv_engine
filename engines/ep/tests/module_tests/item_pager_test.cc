@@ -233,7 +233,6 @@ TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
         auto key = makeStoredDocKey("key_" + std::to_string(ii));
         auto result = store->get(key, vbid, nullptr, get_options_t());
         EXPECT_EQ(ENGINE_SUCCESS, result.getStatus()) << "For key:" << key;
-        delete result.getValue();
     }
 
     // Documents which had a TTL should be deleted:
@@ -396,7 +395,6 @@ TEST_P(STExpiryPagerTest, ExpiredItemsDeleted) {
     auto result = store->get(key_0, vbid, nullptr, get_options_t());
     EXPECT_EQ(ENGINE_SUCCESS, result.getStatus())
         << "Key without TTL should still exist.";
-    delete result.getValue();
 
     auto key_1 = makeStoredDocKey("key_1");
     EXPECT_EQ(ENGINE_KEY_ENOENT,
@@ -407,7 +405,6 @@ TEST_P(STExpiryPagerTest, ExpiredItemsDeleted) {
     result = store->get(key_2, vbid, nullptr, get_options_t());
     EXPECT_EQ(ENGINE_SUCCESS, result.getStatus())
          << "Key with TTL:20 should still exist.";
-    delete result.getValue();
 
     // Move time forward by +10s, so key_2 should also be expired.
     TimeTraveller philConners(10);
@@ -428,7 +425,6 @@ TEST_P(STExpiryPagerTest, ExpiredItemsDeleted) {
     result = store->get(key_0, vbid, nullptr, get_options_t());
     EXPECT_EQ(ENGINE_SUCCESS, result.getStatus())
         << "Key without TTL should still exist.";
-    delete result.getValue();
 
     EXPECT_EQ(ENGINE_KEY_ENOENT,
               store->get(key_1, vbid, nullptr, get_options_t()).getStatus())

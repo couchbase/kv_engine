@@ -1011,7 +1011,7 @@ bool BGFetchCallback::run() {
 
     if (gcb.getStatus() != ENGINE_SUCCESS) {
         CompletedBGFetchTapOperation tapop(connToken, vbucket);
-        epe.getTapConnMap().performOp(name, tapop, gcb.getValue());
+        epe.getTapConnMap().performOp(name, tapop, gcb.item.release());
         if (gcb.getStatus() != ENGINE_KEY_ENOENT) {
             LOG(EXTENSION_LOG_WARNING,
                 "Failed TAP background fetch for VBucket %d, TAP %s"
@@ -1024,8 +1024,13 @@ bool BGFetchCallback::run() {
     }
 
     CompletedBGFetchTapOperation tapop(connToken, vbucket);
-    if (!epe.getTapConnMap().performOp(name, tapop, gcb.getValue())) {
-        delete gcb.getValue(); // connection is closed. Free an item instance.
+    // Either the item is added to backfilledItems (thereby transfering
+    // ownership to that structure) or it is deleted. If we weren't removing TAP
+    // this would probably be worth cleaning up.
+    Item* itemPtr = gcb.item.release();
+    if (!epe.getTapConnMap().performOp(name, tapop, itemPtr)) {
+        delete itemPtr; // connection is closed. Free an
+        // item instance.
     }
 
     hrtime_t stop = gethrtime();
@@ -1885,7 +1890,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
                                                options));
         if (gv.getStatus() == ENGINE_SUCCESS) {
             delete itm;
-            itm = gv.getValue();
+            itm = gv.item.release();
         } else if (gv.getStatus() == ENGINE_KEY_ENOENT ||
                    itm->isExpired(ep_real_time()) || itm->isDeleted()) {
             ret = TAP_DELETION;
@@ -1924,7 +1929,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
                                                    options));
             ENGINE_ERROR_CODE r = gv.getStatus();
             if (r == ENGINE_SUCCESS) {
-                itm = gv.getValue();
+                itm = gv.item.release();
                 if (itm == nullptr) {
                     throw std::logic_error("TapProducer::getNextItem: found a"
                             " NULL value for GetValue from queue_op::set");

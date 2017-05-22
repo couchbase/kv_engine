@@ -1105,7 +1105,7 @@ TEST_F(SingleThreadedEPBucketTest, pre_expiry_xattrs) {
     GetValue gv = kvbucket.get(makeStoredDocKey("key"), vbid, cookie, options);
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
 
-    auto get_itm = gv.getValue();
+    auto get_itm = gv.item.get();
     auto get_data = const_cast<char*>(get_itm->getData());
 
     cb::byte_buffer value_buf{reinterpret_cast<uint8_t*>(get_data),
@@ -1126,5 +1126,4 @@ TEST_F(SingleThreadedEPBucketTest, pre_expiry_xattrs) {
     EXPECT_EQ(prev_revseqno + 1, metadata.revSeqno) <<
              "Unexpected revision sequence number";
 
-    delete get_itm;
 }

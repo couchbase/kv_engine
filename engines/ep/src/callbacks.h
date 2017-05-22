@@ -50,20 +50,15 @@ private:
  */
 class GetValue {
 public:
-    GetValue() : value(NULL), id(-1),
-                 status(ENGINE_KEY_ENOENT),
-                 partial(false), nru(0xff) { }
+    GetValue() : id(-1), status(ENGINE_KEY_ENOENT), partial(false), nru(0xff) {
+    }
 
-    explicit GetValue(Item *v, ENGINE_ERROR_CODE s=ENGINE_SUCCESS,
+    explicit GetValue(std::unique_ptr<Item> v,
+                      ENGINE_ERROR_CODE s = ENGINE_SUCCESS,
                       uint64_t i = -1,
-                      bool incomplete = false, uint8_t _nru = 0xff) :
-        value(v), id(i), status(s), partial(incomplete), nru(_nru) { }
-
-    /**
-     * The value retrieved for the key.
-     */
-    Item* getValue() const {
-        return const_cast<Item*>(value);
+                      bool incomplete = false,
+                      uint8_t _nru = 0xff)
+        : item(std::move(v)), id(i), status(s), partial(incomplete), nru(_nru) {
     }
 
     /**
@@ -92,11 +87,9 @@ public:
 
     uint8_t getNRUValue() const { return nru; }
 
-    void setValue(Item *i) { value = i; }
+    std::unique_ptr<Item> item;
 
 private:
-
-    const Item* value;
     uint64_t id;
     ENGINE_ERROR_CODE status;
     bool partial;

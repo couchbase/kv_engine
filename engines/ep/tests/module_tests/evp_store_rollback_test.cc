@@ -101,9 +101,8 @@ protected:
         auto result = getInternal(
                 a, vbid, /*cookie*/ nullptr, vbucket_state_replica, {});
         ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
-        EXPECT_EQ(item_v1, *result.getValue())
-            << "Fetched item after rollback should match item_v1";
-        delete result.getValue();
+        EXPECT_EQ(item_v1, *result.item)
+                << "Fetched item after rollback should match item_v1";
 
         if (!flush_before_rollback) {
             EXPECT_EQ(0, store->flushVBucket(vbid));
@@ -139,9 +138,8 @@ protected:
         {
             auto result = store->get(a, vbid, nullptr, {});
             ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
-            EXPECT_EQ(item_v1, *result.getValue())
-                << "Fetched item after rollback should match item_v1";
-            delete result.getValue();
+            EXPECT_EQ(item_v1, *result.item)
+                    << "Fetched item after rollback should match item_v1";
         }
 
         // key should be gone
@@ -500,7 +498,6 @@ TEST_F(RollbackDcpTest, test_rollback_zero) {
         auto result = store->get(
                 {key, DocNamespace::DefaultCollection}, vbid, nullptr, {});
         EXPECT_EQ(ENGINE_SUCCESS, result.getStatus()) << "Problem with " << key;
-        delete result.getValue();
     }
 
     responseRollback(rollbackPoint);
@@ -554,7 +551,6 @@ TEST_F(RollbackDcpTest, test_rollback_nonzero) {
                     {key, DocNamespace::DefaultCollection}, vbid, nullptr, {});
             EXPECT_EQ(ENGINE_SUCCESS, result.getStatus()) << "Expected to find "
                                                           << key;
-            delete result.getValue();
         }
     }
 
@@ -569,7 +565,6 @@ TEST_F(RollbackDcpTest, test_rollback_nonzero) {
                     {key, DocNamespace::DefaultCollection}, vbid, nullptr, {});
             EXPECT_EQ(ENGINE_SUCCESS, result.getStatus()) << "Expected to find "
                                                           << key;
-            delete result.getValue();
         }
     }
 

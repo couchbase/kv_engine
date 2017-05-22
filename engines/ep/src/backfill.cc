@@ -96,18 +96,19 @@ private:
 };
 
 void BackfillDiskCallback::callback(GetValue &gv) {
-    if (gv.getValue() == nullptr) {
+    if (!gv.item) {
         LOG(EXTENSION_LOG_WARNING,
         "BackfillDiskCallback::callback: gv must be non-NULL."
         "Ignoring callback for tapConnName:%s",
         tapConnName.c_str());
         return;
     }
-    CompletedBGFetchTapOperation tapop(connToken,
-                                       gv.getValue()->getVBucketId(), true);
+    CompletedBGFetchTapOperation tapop(
+            connToken, gv.item->getVBucketId(), true);
     // if the tap connection is closed, then free an Item instance
-    if (!connMap.performOp(tapConnName, tapop, gv.getValue())) {
-        delete gv.getValue();
+    auto* itemPtr = gv.item.release(); // Take ownership of item
+    if (!connMap.performOp(tapConnName, tapop, itemPtr)) {
+        delete itemPtr;
     }
 }
 

@@ -81,7 +81,7 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
         const VBucketBGFetchItem& fetched_item,
         const ProcessClock::time_point startTime) {
     ENGINE_ERROR_CODE status = fetched_item.value->getStatus();
-    Item* fetchedValue = fetched_item.value->getValue();
+    Item* fetchedValue = fetched_item.value->item.get();
     { // locking scope
         ReaderLockHolder rlh(getStateLock());
         auto hbl = ht.getLockedBucket(key);
@@ -324,7 +324,7 @@ void EPVBucket::completeStatsVKey(const DocKey& key, const GetValue& gcb) {
 
     if (v && v->isTempInitialItem()) {
         if (gcb.getStatus() == ENGINE_SUCCESS) {
-            ht.unlocked_restoreValue(hbl.getHTLock(), *(gcb.getValue()), *v);
+            ht.unlocked_restoreValue(hbl.getHTLock(), *gcb.item, *v);
             if (!v->isResident()) {
                 throw std::logic_error(
                         "VBucket::completeStatsVKey: "
@@ -585,7 +585,7 @@ GetValue EPVBucket::getInternalNonResident(const DocKey& key,
         bgFetch(key, cookie, engine, bgFetchDelay);
     } else if (options & get_options_t::ALLOW_META_ONLY) {
         // You can't both ask for a background fetch and just the meta...
-        return GetValue(v.toItem(false, 0).release(),
+        return GetValue(v.toItem(false, 0),
                         ENGINE_SUCCESS,
                         v.getBySeqno(),
                         true,
@@ -593,7 +593,7 @@ GetValue EPVBucket::getInternalNonResident(const DocKey& key,
     }
 
     return GetValue(
-            NULL, ENGINE_EWOULDBLOCK, v.getBySeqno(), true, v.getNRUValue());
+            nullptr, ENGINE_EWOULDBLOCK, v.getBySeqno(), true, v.getNRUValue());
 }
 
 void EPVBucket::setupDeferredDeletion(const void* cookie) {

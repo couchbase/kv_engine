@@ -280,7 +280,7 @@ void EPBucket::completeStatsVKey(const void* cookie,
     }
 
     if (gcb.getStatus() == ENGINE_SUCCESS) {
-        engine.addLookupResult(cookie, gcb.getValue());
+        engine.addLookupResult(cookie, gcb.item.release());
     } else {
         engine.addLookupResult(cookie, NULL);
     }
@@ -296,7 +296,7 @@ public:
     }
 
     void callback(GetValue& val) {
-        if (val.getValue() == nullptr) {
+        if (!val.item) {
             throw std::invalid_argument(
                     "EPDiskRollbackCB::callback: val is NULL");
         }
@@ -304,7 +304,7 @@ public:
             throw std::logic_error(
                     "EPDiskRollbackCB::callback: dbHandle is NULL");
         }
-        UniqueItemPtr itm(val.getValue());
+        UniqueItemPtr itm(std::move(val.item));
         VBucketPtr vb = engine.getVBucket(itm->getVBucketId());
         GetValue gcb = engine.getKVBucket()
                                ->getROUnderlying(itm->getVBucketId())
@@ -313,7 +313,7 @@ public:
                                                itm->getVBucketId(),
                                                GetMetaOnly::No);
         if (gcb.getStatus() == ENGINE_SUCCESS) {
-            UniqueItemPtr it(gcb.getValue());
+            UniqueItemPtr it(std::move(gcb.item));
             if (it->isDeleted()) {
                 bool ret = vb->deleteKey(it->getKey());
                 if (!ret) {
@@ -363,12 +363,10 @@ void EPBucket::rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) {
                                    ->get(item->getKey(), vb.getId(), false);
 
             if (gcb.getStatus() == ENGINE_SUCCESS) {
-                vb.setFromInternal(*gcb.getValue());
+                vb.setFromInternal(*gcb.item.get());
             } else {
                 vb.deleteKey(item->getKey());
             }
-
-            delete gcb.getValue();
         }
     }
 }
