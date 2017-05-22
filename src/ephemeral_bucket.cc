@@ -216,7 +216,12 @@ size_t EphemeralBucket::getNumPersistedDeletes(uint16_t vbid) {
        meaning is the number of deletes seen by the vbucket.
        This is needed by ns-server during vb-takeover */
     VBucketPtr vb = getVBucket(vbid);
-    return vb->getNumInMemoryDeletes();
+    if (vb) {
+        return vb->getNumInMemoryDeletes();
+    }
+    throw std::runtime_error(
+            "EphemeralBucket::getNumPersistedDeletes: No vbucket with id '" +
+            std::to_string(vbid) + "' in vbMap");
 }
 
 void EphemeralBucket::notifyNewSeqno(const uint16_t vbid,
