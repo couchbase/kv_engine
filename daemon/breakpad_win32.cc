@@ -20,6 +20,8 @@
 #include "client/windows/handler/exception_handler.h"
 #include "memcached.h"
 #include "memcached/extension_loggers.h"
+#include "utilities/terminate_handler.h"
+
 #include <platform/backtrace.h>
 #include <stdlib.h>
 
@@ -77,6 +79,13 @@ void initialize_breakpad(const BreakpadSettings& settings) {
 
     if (settings.isEnabled()) {
         create_breakpad(settings.getMinidumpDir());
+        // Turn off the terminate handler's backtrace - otherwise we
+        // just print it twice.
+        set_terminate_handler_print_backtrace(false);
+    } else {
+        // If breakpad is off, then at least print the backtrace via
+        // terminate_handler.
+        set_terminate_handler_print_backtrace(true);
     }
 }
 

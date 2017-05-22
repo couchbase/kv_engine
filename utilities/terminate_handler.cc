@@ -23,6 +23,7 @@
 #include <platform/backtrace.h>
 
 static EXTENSION_LOGGER_DESCRIPTOR* terminate_logger;
+static bool should_include_backtrace = true;
 static std::terminate_handler default_terminate_handler = nullptr;
 
 /**
@@ -63,14 +64,8 @@ static void log_handled_exception() {
     fatal_msg(buffer);
 }
 
-// Replacement terminate_handler which prints the exception's what() and a
-// backtrace of the current stack before chaining to the default handler.
-static void backtrace_terminate_handler() {
-    fatal_msg("*** Fatal error encountered during exception handling ***");
-
-    log_handled_exception();
-
-    // Attempt to get the symbolified backtrace to this point.
+// Log the symbolified backtrace to this point.
+static void log_backtrace() {
     static const char format_str[] = "Call stack:\n%s";
 
     char buffer[4096];
@@ -88,6 +83,18 @@ static void backtrace_terminate_handler() {
             terminate_logger->log(
                     EXTENSION_LOG_FATAL, nullptr, "Call stack exceeds 4k");
         }
+    }
+}
+
+// Replacement terminate_handler which prints the exception's what() and a
+// backtrace of the current stack before chaining to the default handler.
+static void backtrace_terminate_handler() {
+    fatal_msg("*** Fatal error encountered during exception handling ***");
+
+    log_handled_exception();
+
+    if (should_include_backtrace) {
+        log_backtrace();
     }
 
     // Chain to the default handler if available (as it may be able to print
@@ -108,3 +115,6 @@ void install_backtrace_terminate_handler(EXTENSION_LOGGER_DESCRIPTOR* logger) {
     default_terminate_handler = std::set_terminate(backtrace_terminate_handler);
 }
 
+void set_terminate_handler_print_backtrace(bool print) {
+    should_include_backtrace = print;
+}

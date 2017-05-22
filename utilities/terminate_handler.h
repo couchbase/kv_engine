@@ -30,3 +30,8 @@
  *               stderr.
  */
 void install_backtrace_terminate_handler(EXTENSION_LOGGER_DESCRIPTOR* logger = nullptr);
+
+/**
+ * Control if our C++ terminate handler should include a backtrace or not.
+ */
+void set_terminate_handler_print_backtrace(bool print);
