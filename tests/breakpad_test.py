@@ -112,7 +112,7 @@ if len(sys.argv) == 3:
 elif len(sys.argv) == 5:
     (memcached_exe, crash_mode, md2core_exe, gdb_exe) = sys.argv[1:]
 else:
-    print(("Usage: {0} <path/to/memcached> <segfault|exception> [path/to/md2core] " +
+    print(("Usage: {0} <path/to/memcached> <segfault|std_exception|unknown_exception> [path/to/md2core] " +
           "[path/to/gdb]").format(os.path.basename(sys.argv[0])),
           file=sys.stderr)
     cleanup_and_exit(1)
@@ -173,6 +173,11 @@ if 'Breakpad caught crash' not in stderrdata:
     print_stderrdata(stderrdata)
     cleanup_and_exit(3)
 
+# Check the message includes the exception what() message (std::exception crash)
+if crash_mode == 'std_exception' and 'what():' not in stderrdata:
+    print("FAIL - No exception what() message written to stderr on crash.")
+    print_stderrdata(stderrdata)
+    cleanup_and_exit(3)
 
 # Check the message also included a stack backtrace - we just check
 # for one known function.

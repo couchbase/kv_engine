@@ -63,7 +63,8 @@ static const engine_info* get_info(ENGINE_HANDLE* handle)
 // How do I crash thee? Let me count the ways.
 enum class CrashMode {
     SegFault,
-    UncaughtException
+    UncaughtStdException,
+    UncaughtUnknownException
 };
 
 static char dummy;
@@ -81,8 +82,13 @@ char recursive_crash_function(char depth, CrashMode mode) {
             char* death = (char*)0xdeadcbdb;
             return *death + dummy;
         }
-        case CrashMode::UncaughtException:
-            throw std::runtime_error("crash_engine: This exception wasn't handled");
+        case CrashMode::UncaughtStdException:
+            throw std::runtime_error(
+                    "crash_engine: This exception wasn't handled");
+        case CrashMode::UncaughtUnknownException:
+            // Crash via exception not derived from std::exception
+            class UnknownException {};
+            throw UnknownException();
         }
     }
     recursive_crash_function(depth - 1, mode);
@@ -101,8 +107,10 @@ static ENGINE_ERROR_CODE initialize(ENGINE_HANDLE* handle,
     CrashMode mode;
     if (mode_string == "segfault") {
         mode = CrashMode::SegFault;
-    } else if (mode_string == "exception") {
-        mode = CrashMode::UncaughtException;
+    } else if (mode_string == "std_exception") {
+        mode = CrashMode::UncaughtStdException;
+    } else if (mode_string == "unknown_exception") {
+        mode = CrashMode::UncaughtUnknownException;
     } else {
         fprintf(stderr, "crash_engine::initialize: could not find a valid "
                 "CrashMode from MEMCACHED_CRASH_TEST env var ('%s')\n",

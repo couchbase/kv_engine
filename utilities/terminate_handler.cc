@@ -25,23 +25,58 @@
 static EXTENSION_LOGGER_DESCRIPTOR* terminate_logger;
 static std::terminate_handler default_terminate_handler;
 
-// Replacement terminate_handler which prints a backtrace of the current stack
-// before chaining to the default handler.
-static void backtrace_terminate_handler() {
+/**
+ * Prints the given C-style string to either the terminate_logger (if
+ * non-null) or otherwise stderr.
+ */
+static void fatal_msg(const char* msg) {
+    if (terminate_logger != nullptr) {
+        terminate_logger->log(EXTENSION_LOG_FATAL, nullptr, "%s", msg);
+    } else {
+        fprintf(stderr, "%s\n", msg);
+    }
+}
+
+// Logs details on the handled exception. Attempts to log to
+// `terminate_logger` if non-null; otherwise prints to stderr.
+static void log_handled_exception() {
     char buffer[1024];
 
-    static const char format_str[] =
-            "*** Fatal error encountered during exception handling ***\n"
-            "Call stack:\n%s";
-
-    if (print_backtrace_to_buffer("    ", buffer, sizeof(buffer))) {
-        if (terminate_logger != nullptr) {
-            terminate_logger->log(EXTENSION_LOG_FATAL, nullptr, format_str,
-                                  buffer);
-        } else {
-            fprintf(stderr, format_str, buffer);
-            fprintf(stderr, "\n");
+    // Attempt to get the exception's what() message.
+    try {
+        static int tried_throw = 0;
+        // try once to re-throw currently active exception (so we can print
+        // its what() message).
+        if (tried_throw++ == 0) {
+            throw;
         }
+    } catch (const std::exception& e) {
+        snprintf(buffer,
+                 sizeof(buffer),
+                 "Caught unhandled std::exception-derived exception. what(): %s",
+                 e.what());
+    } catch (...) {
+        snprintf(buffer,
+                 sizeof(buffer),
+                 "Caught unknown/unhandled exception.");
+    }
+    fatal_msg(buffer);
+}
+
+// Replacement terminate_handler which prints the exception's what() and a
+// backtrace of the current stack before chaining to the default handler.
+static void backtrace_terminate_handler() {
+    fatal_msg("*** Fatal error encountered during exception handling ***");
+
+    log_handled_exception();
+
+    // Attempt to get the symbolified backtrace to this point.
+    static const char format_str[] = "Call stack:\n%s";
+
+    char buffer[4096];
+    if (print_backtrace_to_buffer("    ", buffer, sizeof(buffer))) {
+        fatal_msg("Call stack:");
+        fatal_msg(buffer);
     } else {
         // Exceeded buffer space - print directly to stderr FD (requires no
         // buffering, but has the disadvantage that we don't get it in the log).
@@ -51,9 +86,7 @@ static void backtrace_terminate_handler() {
 
         if (terminate_logger != nullptr) {
             terminate_logger->log(
-                EXTENSION_LOG_FATAL, nullptr,
-                "*** Fatal error encountered during exception handling ***\n"
-                "Call stack exceeds 1k");
+                    EXTENSION_LOG_FATAL, nullptr, "Call stack exceeds 4k");
         }
     }
 
