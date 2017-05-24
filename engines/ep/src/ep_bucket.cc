@@ -270,10 +270,7 @@ void EPBucket::completeStatsVKey(const void* cookie,
                                  const DocKey& key,
                                  uint16_t vbid,
                                  uint64_t bySeqNum) {
-    RememberingCallback<GetValue> gcb;
-
-    getROUnderlying(vbid)->get(key, vbid, gcb);
-    gcb.waitForValue();
+    GetValue gcb = getROUnderlying(vbid)->get(key, vbid);
 
     if (eviction_policy == FULL_EVICTION) {
         VBucketPtr vb = getVBucket(vbid);
@@ -282,8 +279,8 @@ void EPBucket::completeStatsVKey(const void* cookie,
         }
     }
 
-    if (gcb.val.getStatus() == ENGINE_SUCCESS) {
-        engine.addLookupResult(cookie, gcb.val.getValue());
+    if (gcb.getStatus() == ENGINE_SUCCESS) {
+        engine.addLookupResult(cookie, gcb.getValue());
     } else {
         engine.addLookupResult(cookie, NULL);
     }
@@ -309,14 +306,14 @@ public:
         }
         UniqueItemPtr itm(val.getValue());
         VBucketPtr vb = engine.getVBucket(itm->getVBucketId());
-        RememberingCallback<GetValue> gcb;
-        engine.getKVBucket()
-                ->getROUnderlying(itm->getVBucketId())
-                ->getWithHeader(
-                        dbHandle, itm->getKey(), itm->getVBucketId(), gcb);
-        gcb.waitForValue();
-        if (gcb.val.getStatus() == ENGINE_SUCCESS) {
-            UniqueItemPtr it(gcb.val.getValue());
+        GetValue gcb = engine.getKVBucket()
+                               ->getROUnderlying(itm->getVBucketId())
+                               ->getWithHeader(dbHandle,
+                                               itm->getKey(),
+                                               itm->getVBucketId(),
+                                               GetMetaOnly::No);
+        if (gcb.getStatus() == ENGINE_SUCCESS) {
+            UniqueItemPtr it(gcb.getValue());
             if (it->isDeleted()) {
                 bool ret = vb->deleteKey(it->getKey());
                 if (!ret) {
@@ -331,7 +328,7 @@ public:
                     setStatus(ENGINE_ENOMEM);
                 }
             }
-        } else if (gcb.val.getStatus() == ENGINE_KEY_ENOENT) {
+        } else if (gcb.getStatus() == ENGINE_KEY_ENOENT) {
             bool ret = vb->deleteKey(itm->getKey());
             if (!ret) {
                 setStatus(ENGINE_KEY_ENOENT);
@@ -341,7 +338,7 @@ public:
         } else {
             LOG(EXTENSION_LOG_WARNING,
                 "EPDiskRollbackCB::callback:Unexpected Error Status: %d",
-                gcb.val.getStatus());
+                gcb.getStatus());
         }
     }
 
@@ -362,17 +359,16 @@ void EPBucket::rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) {
     for (const auto& item : items) {
         if (item->getBySeqno() > rollbackSeqno &&
             !item->isCheckPointMetaItem()) {
-            RememberingCallback<GetValue> gcb;
-            getROUnderlying(vb.getId())->get(item->getKey(), vb.getId(), gcb);
-            gcb.waitForValue();
+            GetValue gcb = getROUnderlying(vb.getId())
+                                   ->get(item->getKey(), vb.getId(), false);
 
-            if (gcb.val.getStatus() == ENGINE_SUCCESS) {
-                vb.setFromInternal(*gcb.val.getValue());
+            if (gcb.getStatus() == ENGINE_SUCCESS) {
+                vb.setFromInternal(*gcb.getValue());
             } else {
                 vb.deleteKey(item->getKey());
             }
 
-            delete gcb.val.getValue();
+            delete gcb.getValue();
         }
     }
 }

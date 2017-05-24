@@ -1356,12 +1356,7 @@ void KVBucket::completeBGFetch(const DocKey& key,
                                bool isMeta) {
     ProcessClock::time_point startTime(ProcessClock::now());
     // Go find the data
-    RememberingCallback<GetValue> gcb;
-    if (isMeta) {
-        gcb.val.setPartial();
-    }
-    getROUnderlying(vbucket)->get(key, vbucket, gcb);
-    gcb.waitForValue();
+    GetValue gcb = getROUnderlying(vbucket)->get(key, vbucket, isMeta);
 
     {
       // Lock to prevent a race condition between a fetch for restore and delete
@@ -1369,7 +1364,7 @@ void KVBucket::completeBGFetch(const DocKey& key,
 
         VBucketPtr vb = getVBucket(vbucket);
         if (vb) {
-            VBucketBGFetchItem item{&gcb.val, cookie, init, isMeta};
+            VBucketBGFetchItem item{&gcb, cookie, init, isMeta};
             ENGINE_ERROR_CODE status =
                     vb->completeBGFetchForSingleItem(key, item, startTime);
             engine.notifyIOComplete(item.cookie, status);
@@ -1383,7 +1378,7 @@ void KVBucket::completeBGFetch(const DocKey& key,
 
     --stats.numRemainingBgJobs;
 
-    delete gcb.val.getValue();
+    delete gcb.getValue();
 }
 
 void KVBucket::completeBGFetchMulti(uint16_t vbId,

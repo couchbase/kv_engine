@@ -455,12 +455,9 @@ void CouchKVStore::set(const Item &itm, Callback<mutation_result> &cb) {
     pendingReqsQ.push_back(req);
 }
 
-void CouchKVStore::get(const DocKey& key, uint16_t vb,
-                       Callback<GetValue> &cb, bool fetchDelete) {
+GetValue CouchKVStore::get(const DocKey& key, uint16_t vb, bool fetchDelete) {
     Db *db = NULL;
-    GetValue rv;
     uint64_t fileRev = dbFileRevMap[vb];
-
     couchstore_error_t errCode = openDB(vb, fileRev, &db,
                                         COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errCode != COUCHSTORE_SUCCESS) {
@@ -468,23 +465,21 @@ void CouchKVStore::get(const DocKey& key, uint16_t vb,
         logger.log(EXTENSION_LOG_WARNING,
                    "CouchKVStore::get: openDB error:%s, vb:%" PRIu16,
                    couchstore_strerror(errCode), vb);
-        rv.setStatus(couchErr2EngineErr(errCode));
-        cb.callback(rv);
-        return;
+        return GetValue(nullptr, couchErr2EngineErr(errCode));
     }
 
-    getWithHeader(db, key, vb, cb, fetchDelete);
+    GetValue gv = getWithHeader(db, key, vb, GetMetaOnly::No, fetchDelete);
     closeDatabaseHandle(db);
+    return gv;
 }
 
-void CouchKVStore::getWithHeader(void *dbHandle, const DocKey& key,
-                                 uint16_t vb, Callback<GetValue> &cb,
-                                 bool fetchDelete) {
-
+GetValue CouchKVStore::getWithHeader(void* dbHandle,
+                                     const DocKey& key,
+                                     uint16_t vb,
+                                     GetMetaOnly getMetaOnly,
+                                     bool fetchDelete) {
     Db *db = (Db *)dbHandle;
     hrtime_t start = gethrtime();
-    RememberingCallback<GetValue> *rc = dynamic_cast<RememberingCallback<GetValue> *>(&cb);
-    bool getMetaOnly = rc && rc->val.isPartial();
     DocInfo *docInfo = NULL;
     sized_buf id;
     GetValue rv;
@@ -495,7 +490,7 @@ void CouchKVStore::getWithHeader(void *dbHandle, const DocKey& key,
     couchstore_error_t errCode = couchstore_docinfo_by_id(db, (uint8_t *)id.buf,
                                                           id.size, &docInfo);
     if (errCode != COUCHSTORE_SUCCESS) {
-        if (!getMetaOnly) {
+        if (getMetaOnly == GetMetaOnly::No) {
             // log error only if this is non-xdcr case
             logger.log(EXTENSION_LOG_WARNING,
                        "CouchKVStore::getWithHeader: couchstore_docinfo_by_id "
@@ -532,7 +527,7 @@ void CouchKVStore::getWithHeader(void *dbHandle, const DocKey& key,
 
     couchstore_free_docinfo(docInfo);
     rv.setStatus(couchErr2EngineErr(errCode));
-    cb.callback(rv);
+    return rv;
 }
 
 void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
@@ -1551,9 +1546,11 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string> &filenames,
     }
 }
 
-couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
-                                          GetValue &docValue, uint16_t vbId,
-                                          bool metaOnly) {
+couchstore_error_t CouchKVStore::fetchDoc(Db* db,
+                                          DocInfo* docinfo,
+                                          GetValue& docValue,
+                                          uint16_t vbId,
+                                          GetMetaOnly metaOnly) {
     couchstore_error_t errCode = COUCHSTORE_SUCCESS;
     std::unique_ptr<MetaData> metadata;
     try {
@@ -1562,7 +1559,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
         return COUCHSTORE_ERROR_DB_NO_LONGER_VALID;
     }
 
-    if (metaOnly) {
+    if (metaOnly == GetMetaOnly::Yes) {
         uint8_t extMeta[EXT_META_LEN];
         extMeta[0] = metadata->getDataType();
         // Collections: TODO: Permanently restore to stored namespace
@@ -2289,12 +2286,12 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
     }
 
     vb_bgfetch_item_ctx_t& bg_itm_ctx = (*qitr).second;
-    bool meta_only = bg_itm_ctx.isMetaOnly;
+    GetMetaOnly meta_only = bg_itm_ctx.isMetaOnly;
 
     GetValue returnVal;
     couchstore_error_t errCode = cbCtx->cks.fetchDoc(db, docinfo, returnVal,
                                                      cbCtx->vbId, meta_only);
-    if (errCode != COUCHSTORE_SUCCESS && !meta_only) {
+    if (errCode != COUCHSTORE_SUCCESS && (meta_only == GetMetaOnly::No)) {
         st.numGetFailure++;
     }
 

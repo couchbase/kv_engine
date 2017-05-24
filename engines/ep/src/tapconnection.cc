@@ -995,7 +995,6 @@ bool TapProducer::waitForOpaqueMsgAck() {
 bool BGFetchCallback::run() {
     TRACE_EVENT("ep-engine/task", "BGFetchCallback", vbucket, connToken);
     hrtime_t start = gethrtime();
-    RememberingCallback<GetValue> gcb;
 
     EPStats &stats = epe.getEpStats();
     KVBucketIface* kvBucket = epe.getKVBucket();
@@ -1003,24 +1002,25 @@ bool BGFetchCallback::run() {
         throw std::logic_error("BGFetchCallback::run: kvBucket is NULL");
     }
 
-    kvBucket->getROUnderlying(vbucket)->get(key, vbucket, gcb, true);
-    gcb.waitForValue();
+    GetValue gcb = kvBucket->getROUnderlying(vbucket)->get(key, vbucket, true);
 
-    if (gcb.val.getStatus() != ENGINE_SUCCESS) {
+    if (gcb.getStatus() != ENGINE_SUCCESS) {
         CompletedBGFetchTapOperation tapop(connToken, vbucket);
-        epe.getTapConnMap().performOp(name, tapop, gcb.val.getValue());
-        if (gcb.val.getStatus() != ENGINE_KEY_ENOENT) {
+        epe.getTapConnMap().performOp(name, tapop, gcb.getValue());
+        if (gcb.getStatus() != ENGINE_KEY_ENOENT) {
             LOG(EXTENSION_LOG_WARNING,
                 "Failed TAP background fetch for VBucket %d, TAP %s"
                 " with the status code (%d)\n",
-                vbucket, name.c_str(), gcb.val.getStatus());
+                vbucket,
+                name.c_str(),
+                gcb.getStatus());
         }
         return false;
     }
 
     CompletedBGFetchTapOperation tapop(connToken, vbucket);
-    if (!epe.getTapConnMap().performOp(name, tapop, gcb.val.getValue())) {
-        delete gcb.val.getValue(); // connection is closed. Free an item instance.
+    if (!epe.getTapConnMap().performOp(name, tapop, gcb.getValue())) {
+        delete gcb.getValue(); // connection is closed. Free an item instance.
     }
 
     hrtime_t stop = gethrtime();

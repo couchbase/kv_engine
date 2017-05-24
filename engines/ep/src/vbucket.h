@@ -774,8 +774,7 @@ public:
      * @param gcb Bgfetch cbk obj containing the item from disk
      *
      */
-    virtual void completeStatsVKey(
-            const DocKey& key, const RememberingCallback<GetValue>& gcb) = 0;
+    virtual void completeStatsVKey(const DocKey& key, const GetValue& gcb) = 0;
 
     /**
      * Set (add new or update) an item into in-memory structure like

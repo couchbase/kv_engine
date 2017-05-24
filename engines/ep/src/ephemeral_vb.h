@@ -75,8 +75,7 @@ public:
         return ENGINE_ENOTSUP;
     }
 
-    void completeStatsVKey(const DocKey& key,
-                           const RememberingCallback<GetValue>& gcb) override;
+    void completeStatsVKey(const DocKey& key, const GetValue& gcb) override;
 
     bool maybeKeyExistsInFilter(const DocKey& key) override {
         /* There is no disk to indicate that a key may exist */

@@ -314,8 +314,7 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
     }
 }
 
-void EPVBucket::completeStatsVKey(const DocKey& key,
-                                  const RememberingCallback<GetValue>& gcb) {
+void EPVBucket::completeStatsVKey(const DocKey& key, const GetValue& gcb) {
     auto hbl = ht.getLockedBucket(key);
     StoredValue* v = fetchValidValue(hbl,
                                      key,
@@ -324,9 +323,8 @@ void EPVBucket::completeStatsVKey(const DocKey& key,
                                      QueueExpired::Yes);
 
     if (v && v->isTempInitialItem()) {
-        if (gcb.val.getStatus() == ENGINE_SUCCESS) {
-            ht.unlocked_restoreValue(
-                    hbl.getHTLock(), *(gcb.val.getValue()), *v);
+        if (gcb.getStatus() == ENGINE_SUCCESS) {
+            ht.unlocked_restoreValue(hbl.getHTLock(), *(gcb.getValue()), *v);
             if (!v->isResident()) {
                 throw std::logic_error(
                         "VBucket::completeStatsVKey: "
@@ -334,7 +332,7 @@ void EPVBucket::completeStatsVKey(const DocKey& key,
                         std::to_string(v->getBySeqno()) +
                         ") should be resident after calling restoreValue()");
             }
-        } else if (gcb.val.getStatus() == ENGINE_KEY_ENOENT) {
+        } else if (gcb.getStatus() == ENGINE_KEY_ENOENT) {
             v->setNonExistent();
         } else {
             // underlying kvstore couldn't fetch requested data
@@ -427,11 +425,11 @@ size_t EPVBucket::queueBGFetchItem(const DocKey& key,
     vb_bgfetch_item_ctx_t& bgfetch_itm_ctx = pendingBGFetches[key];
 
     if (bgfetch_itm_ctx.bgfetched_list.empty()) {
-        bgfetch_itm_ctx.isMetaOnly = true;
+        bgfetch_itm_ctx.isMetaOnly = GetMetaOnly::Yes;
     }
 
     if (!fetch->metaDataOnly) {
-        bgfetch_itm_ctx.isMetaOnly = false;
+        bgfetch_itm_ctx.isMetaOnly = GetMetaOnly::No;
     }
 
     fetch->value = &bgfetch_itm_ctx.value;

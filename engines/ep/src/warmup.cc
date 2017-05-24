@@ -301,7 +301,7 @@ static bool batchWarmupCallback(uint16_t vbId,
         for (auto& key : fetches) {
             // Deleted below via a unique_ptr in the next loop
             vb_bgfetch_item_ctx_t& bg_itm_ctx = items2fetch[key];
-            bg_itm_ctx.isMetaOnly = false;
+            bg_itm_ctx.isMetaOnly = GetMetaOnly::No;
             bg_itm_ctx.bgfetched_list.emplace_back(
                     std::make_unique<VBucketBGFetchItem>(nullptr, false));
             bg_itm_ctx.bgfetched_list.back()->value = &bg_itm_ctx.value;
@@ -359,17 +359,19 @@ static bool warmupCallback(void *arg, uint16_t vb, const DocKey& key)
     WarmupCookie *cookie = static_cast<WarmupCookie*>(arg);
 
     if (!cookie->epstore->maybeEnableTraffic()) {
-        RememberingCallback<GetValue> cb;
-        cookie->epstore->getROUnderlying(vb)->get(key, vb, cb);
-        cb.waitForValue();
+        GetValue cb = cookie->epstore->getROUnderlying(vb)->get(key, vb);
 
-        if (cb.val.getStatus() == ENGINE_SUCCESS) {
-            cookie->cb.callback(cb.val);
+        if (cb.getStatus() == ENGINE_SUCCESS) {
+            cookie->cb.callback(cb);
             cookie->loaded++;
         } else {
-            LOG(EXTENSION_LOG_WARNING, "Warmup failed to load data "
-                "for vb:%" PRIu16 ", key{%.*s}, error:%X\n", vb,
-                int(key.size()), key.data(), cb.val.getStatus());
+            LOG(EXTENSION_LOG_WARNING,
+                "Warmup failed to load data "
+                "for vb:%" PRIu16 ", key{%.*s}, error:%X\n",
+                vb,
+                int(key.size()),
+                key.data(),
+                cb.getStatus());
             cookie->error++;
         }
 

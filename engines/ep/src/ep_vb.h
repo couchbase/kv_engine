@@ -73,8 +73,7 @@ public:
                                 EventuallyPersistentEngine& engine,
                                 int bgFetchDelay) override;
 
-    void completeStatsVKey(const DocKey& key,
-                           const RememberingCallback<GetValue>& gcb) override;
+    void completeStatsVKey(const DocKey& key, const GetValue& gcb) override;
 
     protocol_binary_response_status evictKey(const DocKey& key,
                                              const char** msg) override;

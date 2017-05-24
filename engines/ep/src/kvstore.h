@@ -62,6 +62,8 @@ public:
     bool metaDataOnly;
 };
 
+enum class GetMetaOnly { Yes, No };
+
 const size_t CONFLICT_RES_META_LEN = 1;
 
 static const int MUTATION_FAILED = -1;
@@ -73,7 +75,7 @@ static const int64_t INITIAL_DRIFT = -140737488355328; //lowest possible 48-bit 
 struct vb_bgfetch_item_ctx_t {
     // These need to be here due to MSVC2013 which otherwise would generate
     // an incorrect move constructor.
-    vb_bgfetch_item_ctx_t() : bgfetched_list(), isMetaOnly() {
+    vb_bgfetch_item_ctx_t() : bgfetched_list(), isMetaOnly(GetMetaOnly::No) {
     }
     vb_bgfetch_item_ctx_t(vb_bgfetch_item_ctx_t&& other)
         : bgfetched_list(std::move(other.bgfetched_list)),
@@ -86,7 +88,7 @@ struct vb_bgfetch_item_ctx_t {
         return *this;
     }
     std::list<std::unique_ptr<VBucketBGFetchItem>> bgfetched_list;
-    bool isMetaOnly;
+    GetMetaOnly isMetaOnly;
     GetValue value;
 };
 
@@ -757,12 +759,15 @@ public:
     /**
      * Get an item from the kv store.
      */
-    virtual void get(const DocKey& key, uint16_t vb,
-                     Callback<GetValue> &cb, bool fetchDelete = false) = 0;
+    virtual GetValue get(const DocKey& key,
+                         uint16_t vb,
+                         bool fetchDelete = false) = 0;
 
-    virtual void getWithHeader(void *dbHandle, const DocKey& key,
-                               uint16_t vb, Callback<GetValue> &cb,
-                               bool fetchDelete = false) = 0;
+    virtual GetValue getWithHeader(void* dbHandle,
+                                   const DocKey& key,
+                                   uint16_t vb,
+                                   GetMetaOnly getMetaOnly,
+                                   bool fetchDelete = false) = 0;
     /**
      * Get multiple items if supported by the kv store
      */

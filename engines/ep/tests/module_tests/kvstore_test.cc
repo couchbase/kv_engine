@@ -102,6 +102,25 @@ private:
     ENGINE_ERROR_CODE expectedErrorCode;
 };
 
+void checkGetValue(GetValue& result,
+                   ENGINE_ERROR_CODE expectedErrorCode = ENGINE_SUCCESS,
+                   bool expectCompressed = false) {
+    EXPECT_EQ(expectedErrorCode, result.getStatus());
+    if (result.getStatus() == ENGINE_SUCCESS) {
+        if (expectCompressed) {
+            EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_SNAPPY,
+                      result.getValue()->getDataType());
+            result.getValue()->decompressValue();
+        }
+
+        EXPECT_EQ(0,
+                  strncmp("value",
+                          result.getValue()->getData(),
+                          result.getValue()->getNBytes()));
+        delete result.getValue();
+    }
+}
+
 class BloomFilterCallback : public Callback<std::string&, bool&> {
 public:
     BloomFilterCallback() {}
@@ -229,8 +248,8 @@ TEST_P(CouchAndForestTest, BasicTest) {
 
     EXPECT_TRUE(kvstore->commit(nullptr /*no collections manifest*/));
 
-    GetCallback gc;
-    kvstore->get(key, 0, gc);
+    GetValue gv = kvstore->get(key, 0);
+    checkGetValue(gv);
 }
 
 TEST_F(CouchKVStoreTest, CompressedTest) {
@@ -523,7 +542,7 @@ protected:
         vb_bgfetch_queue_t itms;
         for(const auto& item: items) {
             vb_bgfetch_item_ctx_t ctx;
-            ctx.isMetaOnly = false;
+            ctx.isMetaOnly = GetMetaOnly::No;
             itms[item.getKey()] = std::move(ctx);
         }
         return itms;
@@ -671,7 +690,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, commit_commit) {
  */
 TEST_F(CouchKVStoreErrorInjectionTest, get_docinfo_by_id) {
     populate_items(1);
-    CustomCallback<GetValue> get_callback;
+    GetValue gv;
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
@@ -683,8 +702,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, get_docinfo_by_id) {
         EXPECT_CALL(ops, pread(_, _, _, _, _))
             .WillOnce(Return(COUCHSTORE_ERROR_READ)).RetiresOnSaturation();
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
-        kvstore->get(items.front().getKey(), 0, get_callback);
-
+        gv = kvstore->get(items.front().getKey(), 0);
     }
 }
 
@@ -693,7 +711,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, get_docinfo_by_id) {
  */
 TEST_F(CouchKVStoreErrorInjectionTest, get_open_doc_with_docinfo) {
     populate_items(1);
-    CustomCallback<GetValue> get_callback;
+    GetValue gv;
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
@@ -705,8 +723,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, get_open_doc_with_docinfo) {
         EXPECT_CALL(ops, pread(_, _, _, _, _))
             .WillOnce(Return(COUCHSTORE_ERROR_READ)).RetiresOnSaturation();
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(5).RetiresOnSaturation();
-        kvstore->get(items.front().getKey(), 0, get_callback);
-
+        gv = kvstore->get(items.front().getKey(), 0);
     }
 }
 
@@ -1261,8 +1278,8 @@ TEST_F(CouchstoreTest, noMeta) {
 
     kvstore->commit(nullptr /*no collections manifest*/);
 
-    GetCallback gc(ENGINE_TMPFAIL);
-    kvstore->get(key, 0, gc);
+    GetValue gv = kvstore->get(key, 0);
+    checkGetValue(gv, ENGINE_TMPFAIL);
 }
 
 TEST_F(CouchstoreTest, shortMeta) {
@@ -1277,8 +1294,8 @@ TEST_F(CouchstoreTest, shortMeta) {
     request->writeMetaData(meta, 4); // not enough meta!
     kvstore->commit(nullptr /*no collections manifest*/);
 
-    GetCallback gc(ENGINE_TMPFAIL);
-    kvstore->get(key, 0, gc);
+    GetValue gv = kvstore->get(key, 0);
+    checkGetValue(gv, ENGINE_TMPFAIL);
 }
 
 TEST_F(CouchstoreTest, testV0MetaThings) {
@@ -1303,7 +1320,8 @@ TEST_F(CouchstoreTest, testV0MetaThings) {
     EXPECT_CALL(gc, expTime(0xaa00bb11));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(PROTOCOL_BINARY_RAW_BYTES));
-    kvstore->get(key, 0, gc);
+    GetValue gv = kvstore->get(key, 0);
+    gc.callback(gv);
 }
 
 TEST_F(CouchstoreTest, testV1MetaThings) {
@@ -1330,7 +1348,8 @@ TEST_F(CouchstoreTest, testV1MetaThings) {
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(PROTOCOL_BINARY_DATATYPE_JSON));
 
-    kvstore->get(key, 0, gc);
+    GetValue gv = kvstore->get(key, 0);
+    gc.callback(gv);
 }
 
 TEST_F(CouchstoreTest, fuzzV0) {
@@ -1355,7 +1374,8 @@ TEST_F(CouchstoreTest, fuzzV0) {
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(PROTOCOL_BINARY_RAW_BYTES));
-    kvstore->get(key, 0, gc);
+    GetValue gv = kvstore->get(key, 0);
+    gc.callback(gv);
 }
 
 TEST_F(CouchstoreTest, fuzzV1) {
@@ -1381,7 +1401,8 @@ TEST_F(CouchstoreTest, fuzzV1) {
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(protocol_binary_datatype_t(expectedDataType)));
-    kvstore->get(key, 0, gc);
+    GetValue gv = kvstore->get(key, 0);
+    gc.callback(gv);
 }
 
 TEST_F(CouchstoreTest, testV0WriteReadWriteRead) {
@@ -1419,7 +1440,8 @@ TEST_F(CouchstoreTest, testV0WriteReadWriteRead) {
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(protocol_binary_datatype_t(meta.ext2)));
-    kvstore->get(key, 0, gc);
+    GetValue gv = kvstore->get(key, 0);
+    gc.callback(gv);
 
     // Write back the item we read (this will write out V1 meta)
     kvstore->begin();
@@ -1433,7 +1455,8 @@ TEST_F(CouchstoreTest, testV0WriteReadWriteRead) {
     EXPECT_CALL(gc2, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc2, flags(0x01020304));
     EXPECT_CALL(gc2, datatype(protocol_binary_datatype_t(meta.ext2)));
-    kvstore->get(key, 0, gc2);
+    GetValue gv2 = kvstore->get(key, 0);
+    gc2.callback(gv2);
 }
 
 TEST_F(CouchstoreTest, testV2WriteRead) {
@@ -1476,7 +1499,8 @@ TEST_F(CouchstoreTest, testV2WriteRead) {
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(protocol_binary_datatype_t(meta.ext2)));
-    kvstore->get(key, 0, gc);
+    GetValue gv = kvstore->get(key, 0);
+    gc.callback(gv);
 }
 
 class CouchKVStoreMetaData : public ::testing::Test {

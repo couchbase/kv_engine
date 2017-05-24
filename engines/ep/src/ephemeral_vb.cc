@@ -70,8 +70,8 @@ size_t EphemeralVBucket::getNumItems() const {
     return ht.getNumInMemoryItems() - ht.getNumDeletedItems();
 }
 
-void EphemeralVBucket::completeStatsVKey(
-        const DocKey& key, const RememberingCallback<GetValue>& gcb) {
+void EphemeralVBucket::completeStatsVKey(const DocKey& key,
+                                         const GetValue& gcb) {
     throw std::logic_error(
             "EphemeralVBucket::completeStatsVKey() is not valid call. "
             "Called on vb " +

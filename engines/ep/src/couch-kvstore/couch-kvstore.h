@@ -245,20 +245,35 @@ public:
     void set(const Item &itm, Callback<mutation_result> &cb) override;
 
     /**
-     * Retrieve the document with a given key from the underlying storage system.
+     * Retrieve the document with a given key from the underlying storage
+     * system.
      *
      * @param key the key of a document to be retrieved
      * @param vb vbucket id of a document
-     * @param cb callback instance for GET
      * @param fetchDelete True if we want to retrieve a deleted item if it not
      *        purged yet.
+     * @return the result of the get
      */
-    void get(const DocKey& key, uint16_t vb, Callback<GetValue> &cb,
-             bool fetchDelete = false) override;
+    GetValue get(const DocKey& key,
+                 uint16_t vb,
+                 bool fetchDelete = false) override;
 
-    void getWithHeader(void *dbHandle, const DocKey& key,
-                       uint16_t vb, Callback<GetValue> &cb,
-                       bool fetchDelete = false) override;
+    /**
+     * Retrieve the document with a given key from the underlying storage.
+     * @param dbHandle the dbhandle
+     * @param key the key of a document to be retrieved
+     * @param vb vbucket id of a document
+     * @param getMetaOnly Yes if we only want to retrieve the meta data for a
+     * document
+     * @param fetchDelete True if we want to retrieve a deleted item if it not
+     *        purged yet.
+     * @return the result of the get
+     */
+    GetValue getWithHeader(void* dbHandle,
+                           const DocKey& key,
+                           uint16_t vb,
+                           GetMetaOnly getMetaOnly,
+                           bool fetchDelete = false) override;
 
     /**
      * Retrieve the multiple documents from the underlying storage system at once.
@@ -404,9 +419,11 @@ public:
     static int getMultiCb(Db *db, DocInfo *docinfo, void *ctx);
     ENGINE_ERROR_CODE readVBState(Db *db, uint16_t vbId);
 
-    couchstore_error_t fetchDoc(Db *db, DocInfo *docinfo,
-                                GetValue &docValue, uint16_t vbId,
-                                bool metaOnly);
+    couchstore_error_t fetchDoc(Db* db,
+                                DocInfo* docinfo,
+                                GetValue& docValue,
+                                uint16_t vbId,
+                                GetMetaOnly metaOnly);
     ENGINE_ERROR_CODE couchErr2EngineErr(couchstore_error_t errCode);
 
     uint64_t getLastPersistedSeqno(uint16_t vbid);
