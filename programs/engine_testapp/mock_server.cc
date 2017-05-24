@@ -62,7 +62,8 @@ mock_connstruct::mock_connstruct()
       handle_ewouldblock(true),
       handle_mutation_extras(true),
       handle_collections_support(false),
-      references(1) {
+      references(1),
+      num_io_notifications(0) {
     cb_mutex_initialize(&mutex);
     cb_cond_initialize(&cond);
 }
@@ -241,6 +242,7 @@ static void mock_notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status
         struct mock_connstruct *c = (struct mock_connstruct *)cookie;
         cb_mutex_enter(&c->mutex);
         c->status = status;
+        c->num_io_notifications++;
         cb_cond_signal(&c->cond);
         cb_mutex_exit(&c->mutex);
     }
