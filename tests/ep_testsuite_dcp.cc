@@ -952,6 +952,9 @@ static void dcp_waiting_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     bool pending_marker_ack = false;
     uint64_t marker_end = 0;
     uint64_t num_mutations = 0;
+    uint64_t num_io_processed = 0;
+    struct mock_connstruct* c = nullptr;
+
     std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
 
     do {
@@ -999,7 +1002,11 @@ static void dcp_waiting_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                        the api expects the cookie to be locked before
                        calling it */
                     wait_started = true;
-                    testHarness.waitfor_cookie(cookie);
+                    c = (struct mock_connstruct*)cookie;
+                    if (num_io_processed == c->num_io_notifications) {
+                        testHarness.waitfor_cookie(cookie);
+                    }
+                    num_io_processed = c->num_io_notifications;
                     testHarness.unlock_cookie(cookie);
                     break;
                 default:
