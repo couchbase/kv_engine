@@ -105,10 +105,10 @@ public:
         }
 
         /**
-         * @returns true/false if the collection exists
+         * @returns true if collection is open, false if not or unknown
          */
-        bool doesCollectionExist(cb::const_char_buffer collection) const {
-            return manifest.doesCollectionExist(collection);
+        bool isCollectionOpen(cb::const_char_buffer collection) const {
+            return manifest.isCollectionOpen(collection);
         }
 
     private:
@@ -422,10 +422,14 @@ private:
     }
 
     /**
-     * @returns true/false if the collection exists
+     * @returns true is the collection isOpen - false if not (or doesn't exist)
      */
-    bool doesCollectionExist(cb::const_char_buffer collection) const {
-        return map.count(collection) != 0;
+    bool isCollectionOpen(cb::const_char_buffer collection) const {
+        auto itr = map.find(collection);
+        if (itr != map.end()) {
+            return itr->second->isOpen();
+        }
+        return false;
     }
 
 protected:

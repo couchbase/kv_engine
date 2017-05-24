@@ -198,6 +198,35 @@ TEST_F(CollectionsFilterTest, filter_basic2) {
 class CollectionsVBFilterTest : public CollectionsFilterTest {};
 
 /**
+ * Try and create filter for collections which exist, but have been deleted
+ * i.e. they aren't writable so should never feature in a new VB::Filter
+ */
+TEST_F(CollectionsVBFilterTest, deleted_collection) {
+    Collections::Manifest m1(
+            R"({"revision":0,"separator":"$",)"
+            R"("collections":["$default", "vegetable", "fruit", "meat", "dairy"]})");
+    Collections::Manifest m2(
+            R"({"revision":1,"separator":"$",)"
+            R"("collections":["$default", "meat", "dairy"]})");
+
+    // Create the "producer" level filter so that we in theory produce at least
+    // these collections
+    std::string jsonFilter = R"({"collections":["vegetable", "fruit"]})";
+    boost::optional<const std::string&> json(jsonFilter);
+    Collections::Filter f(json, m1);
+
+    Collections::VB::Manifest vbm({});
+    // push creates
+    vbm.wlock().update(vb, m1);
+    // push deletes, removing both filtered collections
+    vbm.wlock().update(vb, m2);
+
+    // Construction will fail as the filter would not match anything valid
+    EXPECT_THROW(std::make_unique<Collections::VB::Filter>(f, vbm),
+                 std::invalid_argument);
+}
+
+/**
  * Create a filter with collections and check we allow what should be allowed.
  */
 TEST_F(CollectionsVBFilterTest, basic_allow) {

@@ -51,18 +51,22 @@ Collections::VB::Filter::Filter(const Collections::Filter& filter,
     }
 
     for (const auto& c : filter.getFilter()) {
-        if (rh.doesCollectionExist({c.data(), c.size()})) {
+        if (rh.isCollectionOpen({c.data(), c.size()})) {
             auto m = std::make_unique<std::string>(c);
             cb::const_char_buffer b{m->data(), m->size()};
             this->filter.emplace(b, std::move(m));
         } else {
-            // The VB::Manifest no longer has the collection so we won't filter
-            // it
+            // The VB::Manifest doesn't gave the collection, or the collection
+            // is deleted
             LOG(EXTENSION_LOG_NOTICE,
-                "VB::Filter::Filter: dropping collection:%s as it's not in the "
-                "VB::Manifest",
+                "VB::Filter::Filter: dropping collection:%s as it's not open",
                 c.c_str());
         }
+    }
+
+    // All collections dropped
+    if (this->filter.empty() && !defaultAllowed) {
+        throw std::invalid_argument("VB::Filter::Filter: nothing to filter");
     }
 }
 
