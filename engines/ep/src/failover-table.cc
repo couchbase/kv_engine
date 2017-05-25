@@ -85,6 +85,10 @@ void FailoverTable::createEntry(uint64_t high_seqno) {
     table.push_front(entry);
     latest_uuid = entry.vb_uuid;
 
+    LOG(EXTENSION_LOG_NOTICE,
+        "FailoverTable::createEntry: Created new failover entry with "
+        "uuid: %" PRIu64" and seqno: %" PRIu64, latest_uuid.load(), high_seqno);
+
     // Cap the size of the table
     while (table.size() > max_entries) {
         table.pop_back();
