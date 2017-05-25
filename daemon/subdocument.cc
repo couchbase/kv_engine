@@ -308,7 +308,8 @@ uint32_t subdoc_decode_expiration(const protocol_binary_request_header* header,
         break;
 
     case SubdocPath::MULTI:
-        if (header->request.extlen == sizeof(uint32_t)) {
+        if ((header->request.extlen == SUBDOC_MULTI_EXPIRY_EXTRAS_LEN) ||
+            (header->request.extlen == SUBDOC_MULTI_ALL_EXTRAS_LEN)) {
             expiration_ptr = reinterpret_cast<const char*>(header) +
                              sizeof(*header);
         }

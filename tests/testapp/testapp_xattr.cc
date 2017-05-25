@@ -59,6 +59,36 @@ TEST_P(XattrTest, SetXattrAndBodyNewDoc) {
     testBodyAndXattrCmd(cmd);
 }
 
+TEST_P(XattrTest, SetXattrAndBodyNewDocWithExpiry) {
+    // For MB-24542
+    // Ensure we are working on a new doc
+    getConnection().remove(name, 0);
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+    cmd.setExpiry(3);
+    cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    sysXattr,
+                    xattrVal);
+    cmd.addMutation(PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE, "", value);
+    cmd.addDocFlag(mcbp::subdoc::doc_flag::Mkdoc);
+
+    testBodyAndXattrCmd(cmd);
+
+    // Jump forward in time to expire item
+    adjust_memcached_clock(4, TimeType::Uptime);
+
+    auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());
+    BinprotSubdocMultiLookupCommand getCmd;
+    getCmd.setKey(name);
+    getCmd.addLookup("", PROTOCOL_BINARY_CMD_GET);
+    conn.sendCommand(getCmd);
+
+    BinprotSubdocMultiLookupResponse getResp;
+    conn.recvResponse(getResp);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, getResp.getStatus());
+}
+
 TEST_P(XattrTest, SetXattrAndBodyExistingDoc) {
     // Ensure that a doc is already present
     setBodyAndXattr("{\"TestField\":56788}", "4543");
@@ -116,7 +146,6 @@ TEST_P(XattrTest, SetBodyInMultiLookup) {
     // Check that we can't put a CMD_SET in a multi lookup
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
-
     // Should not be able to put a set in a multi lookup
     cmd.addLookup("", PROTOCOL_BINARY_CMD_SET, SUBDOC_FLAG_NONE);
     auto& conn = dynamic_cast<MemcachedBinprotConnection&>(getConnection());

@@ -2155,7 +2155,7 @@ TEST_P(McdTestappTest, DCP_Control) {
 /*
     Using a memcached protocol extesnsion, shift the time
 */
-static void adjust_memcached_clock(int64_t clock_shift, TimeType timeType) {
+void adjust_memcached_clock(int64_t clock_shift, TimeType timeType) {
     union {
         protocol_binary_adjust_time request;
         protocol_binary_adjust_time_response response;
@@ -2164,7 +2164,7 @@ static void adjust_memcached_clock(int64_t clock_shift, TimeType timeType) {
 
     size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                                   PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY,
-                                  NULL, 0, NULL, 9);
+                                  NULL, 0, NULL,sizeof(uint64_t) + sizeof(uint8_t));
 
     buffer.request.message.body.offset = htonll(clock_shift);
     buffer.request.message.body.timeType = timeType;

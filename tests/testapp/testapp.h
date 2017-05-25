@@ -347,3 +347,4 @@ unique_cJSON_ptr loadJsonFile(const std::string &file);
 void set_phase_ssl();
 ssize_t socket_recv(SOCKET s, char *buf, size_t len);
 ssize_t socket_send(SOCKET s, const char *buf, size_t len);
+void adjust_memcached_clock(int64_t clock_shift, TimeType timeType);
