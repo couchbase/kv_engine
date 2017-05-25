@@ -1,0 +1,933 @@
+{
+    "params": {
+        "alog_block_size": {
+            "default": "4096",
+            "descr": "Logging block size.",
+            "dynamic": false,
+            "type": "size_t",
+            "requires": {
+                "bucket_type": "persistent"
+            }
+        },
+        "alog_path": {
+            "default": "",
+            "descr": "Path to the access log.",
+            "dynamic": false,
+            "type": "std::string",
+            "requires": {
+                "bucket_type": "persistent"
+            }
+        },
+        "access_scanner_enabled": {
+            "default": "true",
+            "descr": "True if access scanner task is enabled",
+            "type": "bool",
+            "requires": {
+                "bucket_type": "persistent"
+            }
+        },
+        "alog_sleep_time": {
+            "default": "1440",
+            "descr": "Number of minutes between each sweep for the access log",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 4320,
+                    "min": 1
+                }
+            },
+            "requires": {
+                "bucket_type": "persistent"
+            }
+        },
+        "alog_task_time": {
+            "default": "2",
+            "descr": "Hour in GMT time when access scanner task is scheduled to run",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 23,
+                    "min": 0
+                }
+            },
+            "requires": {
+                "bucket_type": "persistent"
+            }
+        },
+        "alog_resident_ratio_threshold": {
+            "default": "95",
+            "desr": "Resident ratio percentage above which we do not generate access log",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100,
+                    "min": 0
+                }
+            },
+            "requires": {
+                "bucket_type": "persistent"
+            }
+        },
+        "alog_max_stored_items": {
+            "default": "1024",
+            "desr": "The maximum number of items the Access Scanner will hold in memory before commiting them to disk",
+            "type": "size_t",
+            "dynamic": false,
+            "validator": {
+                "range": {
+                    "min": 1
+                }
+            },
+            "requires": {
+                "bucket_type": "persistent"
+            }
+        },
+        "backend": {
+            "default": "couchdb",
+            "dynamic": false,
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "couchdb",
+                    "forestdb"
+                ]
+            }
+        },
+        "backfill_mem_threshold": {
+            "default": "96",
+            "desr": "Percentage of memory that backfill task is allowed to consume",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100,
+                    "min": 0
+                }
+            }
+        },
+        "bg_fetch_delay": {
+            "default": "0",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 900,
+                    "min": 0
+                }
+            }
+        },
+        "bfilter_enabled": {
+            "default": "true",
+            "desr": "Enable or disable the bloom filter",
+            "type": "bool"
+        },
+        "bfilter_key_count": {
+            "default": "10000",
+            "desr": "Bloomfilter: Estimated key count per vbucket",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 1
+                }
+            }
+        },
+        "bfilter_fp_prob": {
+            "default": "0.01",
+            "desr": "Bloomfilter: Allowed probability for false positives",
+            "type": "float"
+        },
+        "bfilter_residency_threshold": {
+            "default": "0.1",
+            "desr" : "If resident ratio (during full eviction) were found less than this threshold, compaction will include all items into bloomfilter",
+            "type" : "float",
+            "validator": {
+                "range": {
+                    "max": 1.0,
+                    "min": 0.0
+                }
+            }
+        },
+        "bucket_type": {
+            "default": "persistent",
+            "descr": "Bucket type in the couchbase server",
+            "dynamic": false,
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                         "ephemeral",
+                         "persistent"
+                        ]
+            }
+        },
+        "compaction_exp_mem_threshold": {
+            "default": "85",
+            "desr": "Memory usage threshold after which compaction will not queue expired items for deletion",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100,
+                    "min": 0
+                }
+            }
+        },
+        "chk_max_items": {
+            "default": "500",
+            "type": "size_t"
+        },
+        "chk_period": {
+            "default": "5",
+            "type": "size_t"
+        },
+        "chk_remover_stime": {
+            "default": "5",
+            "type": "size_t"
+        },
+        "collections_prototype_enabled" : {
+            "default": "false",
+            "descr": "Enable the collections functionality. Warning breaks upgrades and compatibility with legacy clients",
+            "type": "bool"
+        },
+        "compaction_write_queue_cap": {
+            "default": "10000",
+            "desr" : "Disk write queue threshold after which compaction tasks will be made to snooze, if there are already pending compaction tasks",
+            "type" : "size_t",
+            "validator": {
+                "range": {
+                    "min": 1
+                }
+            }
+        },
+        "config_file": {
+            "default": "",
+            "dynamic": false,
+            "type": "std::string"
+        },
+        "conflict_resolution_type": {
+            "default": "seqno",
+            "dynamic": false,
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "seqno",
+                    "lww"
+                ]
+            }
+        },
+        "couch_bucket": {
+            "default": "default",
+            "dynamic": false,
+            "type": "std::string"
+        },
+        "cursor_dropping_lower_mark": {
+            "default": "80",
+            "descr": "Percentage of memQuota, below which checkpoint cursor dropping will not continue",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100,
+                    "min": 0
+                }
+            }
+        },
+        "cursor_dropping_upper_mark": {
+            "default": "95",
+            "descr": "Percentage of memQuota, above which checkpoint cursor dropping will commence",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100,
+                    "min": 0
+                }
+            }
+        },
+        "data_traffic_enabled": {
+            "default": "true",
+            "descr": "True if we want to enable data traffic after warmup is complete",
+            "type": "bool"
+        },
+        "dbname": {
+            "default": "./test",
+            "descr": "Path to on-disk storage.",
+            "dynamic": false,
+            "type": "std::string"
+        },
+        "defragmenter_enabled": {
+            "default": "true",
+            "descr": "True if defragmenter task is enabled",
+            "type": "bool"
+        },
+        "defragmenter_interval": {
+            "default": "10",
+            "descr": "How often defragmenter task should be run (in seconds).",
+            "type": "size_t"
+        },
+        "defragmenter_age_threshold": {
+            "default": "10",
+            "descr": "How old (measured in number of defragmenter passes) must a document be to be considered for degragmentation.",
+            "type": "size_t"
+        },
+        "defragmenter_chunk_duration": {
+            "default": "20",
+            "descr": "Maximum time (in ms) defragmentation task will run for before being paused (and resumed at the next defragmenter_interval).",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 1
+                }
+            }
+        },
+        "enable_chk_merge": {
+            "default": "false",
+            "descr": "True if merging closed checkpoints is enabled",
+            "type": "bool"
+        },
+        "ephemeral_full_policy": {
+            "default": "auto_delete",
+            "descr": "How should an Ephemeral bucket becoming full be handled?",
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "auto_delete",
+                    "fail_new_data"
+                ]
+            },
+            "requires": {
+                "bucket_type": "ephemeral"
+            }
+        },
+        "ephemeral_metadata_purge_age": {
+            "default": "60",
+            "descr": "Age in seconds after which Ephemeral metadata is purged entirely from memory. Purging disabled if set to -1.",
+            "type": "ssize_t",
+            "requires": {
+                "bucket_type": "ephemeral"
+            }
+        },
+        "ephemeral_metadata_purge_interval": {
+            "default": "60",
+            "descr": "Time in seconds between automatic, periodic runs of the Ephemeral metadata purge task. Periodic purging disabled if set to 0.",
+            "type": "size_t",
+            "requires": {
+                "bucket_type": "ephemeral"
+            }
+        },
+        "exp_pager_enabled": {
+            "default": "true",
+            "descr": "True if expiry pager task is enabled",
+            "type": "bool"
+        },
+        "exp_pager_stime": {
+            "default": "3600",
+            "descr": "Number of seconds between expiry pager runs.",
+            "type": "size_t"
+        },
+        "exp_pager_initial_run_time": {
+            "default": "-1",
+            "descr": "Hour in GMT time when expiry pager can be scheduled for initial run",
+            "type": "ssize_t",
+            "validator": {
+                "range": {
+                    "max": 23,
+                    "min": -1
+                }
+            }
+        },
+        "failpartialwarmup": {
+            "default": "true",
+            "type": "bool"
+        },
+        "flushall_enabled": {
+            "default": "true",
+            "descr": "True if memcached flush API is enabled",
+            "type": "bool"
+        },
+        "getl_default_timeout": {
+            "default": "15",
+            "descr": "The default timeout for a getl lock in (s)",
+            "type": "size_t"
+        },
+        "getl_max_timeout": {
+            "default": "30",
+            "descr": "The maximum timeout for a getl lock in (s)",
+            "type": "size_t"
+        },
+        "hlc_drift_ahead_threshold_us": {
+            "default": "5000000",
+            "descr": "The μs threshold of drift at which we will increment a vbucket's ahead counter.",
+            "type": "size_t"
+        },
+        "hlc_drift_behind_threshold_us": {
+            "default": "5000000",
+            "descr": "The μs threshold of drift at which we will increment a vbucket's behind counter.",
+            "type": "size_t"
+        },
+        "ht_locks": {
+            "default": "47",
+            "type": "size_t"
+        },
+        "ht_resize_interval": {
+            "default": "1",
+            "descr": "Interval in seconds to wait between HashtableResizerTask executions.",
+            "type": "size_t"
+        },
+        "ht_size": {
+            "default": "47",
+            "descr": "Initial number of slots in HashTable objects.",
+            "type": "size_t"
+        },
+        "initfile": {
+            "default": "",
+            "type": "std::string"
+        },
+        "item_eviction_policy": {
+            "default": "value_only",
+            "descr": "Item eviction policy on cache, which is used by the item pager",
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "value_only",
+                    "full_eviction"
+                ]
+            },
+            "requires": {
+                "bucket_type": "persistent"
+            }
+        },
+        "item_num_based_new_chk": {
+            "default": "true",
+            "descr": "True if the number of items in the current checkpoint plays a role in a new checkpoint creation",
+            "type": "bool"
+        },
+        "keep_closed_chks": {
+            "default": "false",
+            "descr": "True if we want to keep the closed checkpoints for each vbucket unless the memory usage is above high water mark",
+            "type": "bool"
+        },
+        "connection_manager_interval": {
+            "default": "1",
+            "descr": "How often connection manager task should be run (in seconds).",
+            "type": "size_t",
+            "dynamic": false,
+            "validator": {
+                "range": {
+                    "min": 1
+                }
+            }
+        },
+        "max_checkpoints": {
+            "default": "2",
+            "type": "size_t"
+        },
+        "max_failover_entries": {
+            "default": "25",
+            "descr": "maximum number of failover log entries",
+            "type": "size_t"
+        },
+        "max_item_privileged_bytes": {
+            "default": "(1024 * 1024)",
+            "descr": "Maximum number of bytes allowed for 'privileged' (system) data for an item in addition to the max_item_size bytes",
+            "type": "size_t"
+        },
+        "max_item_size": {
+            "default": "(20 * 1024 * 1024)",
+            "descr": "Maximum number of bytes allowed for an item",
+            "type": "size_t"
+        },
+        "max_size": {
+            "default": "0",
+            "type": "size_t",
+            "aliases":["cache_size"]
+        },
+        "max_vbuckets": {
+            "default": "1024",
+            "descr": "Maximum number of vbuckets expected",
+            "dynamic": false,
+            "type": "size_t"
+        },
+        "max_threads": {
+            "default": "0",
+            "descr": "Maximum number of threads in global pool",
+            "dynamic": false,
+            "type": "size_t"
+        },
+        "max_num_shards": {
+            "default": "4",
+            "descr": "Maximum number of shards",
+            "dynamic": false,
+            "type": "size_t"
+        },
+        "max_num_workers": {
+            "default": "4",
+            "descr": "Bucket Priority relative to other buckets",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 8,
+                    "min": 1
+                }
+            }
+        },
+	"mem_merge_count_threshold" : {
+            "default": "100",
+            "descr": "No.of mem changes after which the thread-local mem is merged to the bucket counter",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 1000000,
+                    "min": 1
+                }
+            }
+        },
+	"mem_merge_bytes_threshold" : {
+            "default": "102400",
+            "descr": "Amount of mem changes after which the thread-local mem is merged to the bucket counter",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 104857600,
+                    "min": 1
+                }
+            }
+        },
+        "num_reader_threads": {
+            "default": "0",
+            "descr": "Throttle max number of reader threads",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 512,
+                    "min": 0
+                }
+            },
+            "aliases":["max_num_readers"]
+        },
+        "num_writer_threads": {
+            "default": "0",
+            "descr": "Throttle max number of writer threads",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 512,
+                    "min": 0
+                }
+            },
+            "aliases":["max_num_writers"]
+        },
+        "num_auxio_threads": {
+            "default": "0",
+            "descr": "Throttle max number of aux io threads",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 512,
+                    "min": 0
+                }
+            },
+            "aliases":["max_num_auxio"]
+        },
+        "num_nonio_threads": {
+            "default": "0",
+            "descr": "Throttle max number of non io threads",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 512,
+                    "min": 0
+                }
+            },
+            "aliases":["max_num_nonio"]
+        },
+        "mem_high_wat": {
+            "default": "max",
+            "type": "size_t"
+        },
+        "mem_low_wat": {
+            "default": "max",
+            "type": "size_t"
+        },
+        "mutation_mem_threshold": {
+            "default": "93",
+            "desr": "Percentage of memory that can be used before mutations return tmpOOMs",
+            "type": "size_t",
+            "validator" : {
+                "range" : {
+                    "max": 100,
+                    "min": 0
+                }
+            }
+        },
+        "pager_active_vb_pcnt": {
+            "default": "40",
+            "descr": "Active vbuckets paging percentage",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 50,
+                    "min": 0
+                }
+            }
+        },
+        "postInitfile": {
+            "default": "",
+            "type": "std::string"
+        },
+        "tap": {
+            "default": "true",
+            "descr":"True if the TAP protocol is supported and enabled.",
+            "type": "bool",
+            "dynamic": false
+        },
+        "tap_ack_grace_period": {
+            "default": "300",
+            "type": "size_t",
+            "requires": {
+                "tap": true
+            }
+        },
+        "tap_ack_initial_sequence_number": {
+            "default": "1",
+            "type": "size_t",
+            "requires": {
+                "tap": true
+            }
+        },
+        "tap_ack_interval": {
+            "default": "1000",
+            "type": "size_t",
+            "requires": {
+                "tap": true
+            }
+        },
+        "tap_ack_window_size": {
+            "default": "10",
+            "type": "size_t",
+            "requires": {
+                "tap": true
+            }
+        },
+        "tap_backfill_resident": {
+            "default": "0.9",
+            "type": "float",
+            "requires": {
+                "tap": true
+            }
+        },
+        "tap_backlog_limit": {
+            "default": "5000",
+            "type": "size_t",
+            "requires": {
+                "tap": true
+            }
+        },
+        "tap_backoff_period": {
+            "default": "5.0",
+            "type": "float",
+            "requires": {
+                "tap": true
+            }
+        },
+        "tap_bg_max_pending": {
+            "default": "500",
+            "type": "size_t",
+            "requires": {
+                "tap": true
+            }
+        },
+        "tap_keepalive": {
+            "default": "0",
+            "type": "size_t",
+            "requires": {
+                "tap": true
+            }
+        },
+        "tap_noop_interval": {
+            "default": "200",
+            "descr": "Number of seconds between a noop is sent on an idle connection",
+            "type": "size_t",
+            "requires": {
+                "tap": true
+            }
+        },
+        "tap_requeue_sleep_time": {
+            "default": "0.1",
+            "type": "float",
+            "requires": {
+                "tap": true
+            }
+        },
+        "replication_throttle_cap_pcnt": {
+            "default": "10",
+            "descr": "Percentage of total items in write queue at which we throttle tap input",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100,
+                    "min": 0
+                }
+            }
+        },
+        "replication_throttle_queue_cap": {
+            "default": "-1",
+            "descr": "Max size of a write queue to throttle incoming tap input.",
+            "type": "ssize_t",
+            "validator": {
+                "range": {
+                    "max": 100000000,
+                    "min": -1
+                }
+            }
+        },
+        "replication_throttle_threshold": {
+            "default": "99",
+            "descr": "Percentage of max mem at which we begin NAKing tap input.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100,
+                    "min": 0
+                }
+            }
+        },
+        "uuid": {
+            "default": "",
+            "descr": "The UUID for the bucket",
+            "dynamic" : false,
+            "type": "std::string"
+        },
+        "dcp_backfill_byte_limit": {
+            "default": "20971832",
+            "descr": "Max bytes a connection can backfill into memory",
+            "dynamic": false,
+            "type": "size_t"
+        },
+        "dcp_ephemeral_backfill_type": {
+            "default": "buffered",
+            "descr": "Type of memory backfill done in Ephemeral buckets",
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                         "none",
+                         "buffered"
+                         ]
+            }
+        },
+        "dcp_flow_control_policy": {
+            "default": "aggressive",
+            "descr": "Flow control policy used on consumer side buffer",
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                         "none",
+                         "static",
+                         "dynamic",
+                         "aggressive"
+                        ]
+            }
+        },
+        "dcp_conn_buffer_size": {
+            "default": "10485760",
+            "descr": "Size in bytes of an dcp consumer connection buffer",
+            "dynamic": false,
+            "type": "size_t"
+        },
+        "dcp_conn_buffer_size_max": {
+            "default": "52428800",
+            "descr": "Max size in bytes of an dcp consumer connection buffer",
+            "dynamic": false,
+            "type": "size_t"
+        },
+        "dcp_conn_buffer_size_perc": {
+            "default": "1",
+            "descr": "Percentage of memQuota for a dcp consumer connection buffer in dynamic flow ctl policy",
+            "type": "size_t",
+            "dynamic": false,
+            "validator": {
+                "range": {
+                    "max": 10,
+                    "min": 1
+                }
+            }
+        },
+        "dcp_conn_buffer_size_aggr_mem_threshold": {
+            "default": "10",
+            "descr": "Aggr mem usage by all dcp conns (as percentage of memQuota) after which only dcp_conn_buffer_size is allocated",
+            "type": "size_t",
+            "dynamic": false,
+            "validator": {
+                "range": {
+                    "max": 20,
+                    "min": 1
+                }
+            }
+        },
+        "dcp_conn_buffer_size_aggressive_perc": {
+            "default": "5",
+            "descr": "Percentage of memQuota for all dcp consumer connection buffers in aggressive flow ctl policy",
+            "type": "size_t",
+            "dynamic": false,
+            "validator": {
+                "range": {
+                    "max": 20,
+                    "min": 1
+                }
+            }
+        },
+        "dcp_enable_noop": {
+            "default": "true",
+            "descr": "Whether or not dcp connections should use no-ops",
+            "dynamic": false,
+            "type": "bool"
+        },
+        "dcp_value_compression_enabled": {
+            "default": "false",
+            "desr": "Whether or not dcp producer should compress value before transmitting",
+            "dynamic": false,
+            "type": "bool"
+        },
+        "dcp_min_compression_ratio": {
+            "default": "0.85",
+            "desr": "Compression ratio to be achieved above which producer will ship documents as is",
+            "type": "float",
+            "validator": {
+                "range": {
+                    "min": 0.0
+                }
+            }
+        },
+        "dcp_idle_timeout": {
+            "default": "360",
+            "descr": "The maximum number of seconds between dcp messages before a connection is disconnected",
+            "type": "size_t"
+        },
+        "dcp_noop_tx_interval": {
+            "default": "1",
+            "descr": "The time interval in seconds between noop messages being sent to the consumer",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max" : 360,
+                    "min" : 1
+                }
+            }
+        },
+        "dcp_max_unacked_bytes": {
+            "default": "524288",
+            "descr": "Amount of processed bytes before an ack is required",
+            "dynamic": false,
+            "type": "size_t"
+        },
+        "dcp_scan_byte_limit": {
+            "default": "4194304",
+            "descr": "Max bytes that can be read in a single disk scan",
+            "dynamic": false,
+            "type": "size_t"
+        },
+        "dcp_scan_item_limit": {
+            "default": "4096",
+            "descr": "Max items that can be read in a single disk scan",
+            "dynamic": false,
+            "type": "size_t"
+        },
+        "dcp_takeover_max_time": {
+            "default": "60",
+            "descr": "Max amount of time for takeover send (in seconds) after which front end ops would return ETMPFAIL",
+            "dynamic": false,
+            "type": "size_t"
+        },
+        "dcp_producer_snapshot_marker_yield_limit": {
+            "default": "10",
+            "descr": "The number of snapshots before ActiveStreamCheckpointProcessorTask::run yields.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100000000,
+                    "min": 1
+                }
+            }
+        },
+        "dcp_consumer_process_buffered_messages_yield_limit" : {
+            "default": "10",
+            "descr": "The number of processBufferedMessages iterations before forcing the task to yield.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100000000,
+                    "min": 1
+                }
+            }
+        },
+        "dcp_consumer_process_buffered_messages_batch_size" : {
+            "default": "10",
+            "descr": "The maximum number of items stream->processBufferedMessages will consume.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100000000,
+                    "min": 1
+                }
+            }
+        },
+        "time_synchronization": {
+            "default": "disabled",
+            "descr": "No longer supported. This config parameter has no effect.",
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "disabled",
+                    "enabled_without_drift",
+                    "enabled_with_drift"
+                ]
+            }
+        },
+        "vb0": {
+            "default": "false",
+            "type": "bool"
+        },
+        "waitforwarmup": {
+            "default": "false",
+            "type": "bool"
+        },
+        "warmup": {
+            "default": "true",
+            "type": "bool"
+        },
+        "warmup_batch_size": {
+            "default": "10000",
+            "descr": "The size of each batch loaded during warmup.",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100000000,
+                    "min": 1
+                }
+            }
+        },
+        "warmup_min_memory_threshold": {
+            "default": "100",
+            "descr": "Percentage of max mem warmed up before we enable traffic.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100,
+                    "min": 0
+                }
+            }
+        },
+        "warmup_min_items_threshold": {
+            "default": "100",
+            "descr": "Percentage of total items warmed up before we enable traffic.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100,
+                    "min": 0
+                }
+            }
+        }
+    }
+}

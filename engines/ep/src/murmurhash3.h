@@ -1,0 +1,30 @@
+//-----------------------------------------------------------------------------
+// MurmurHash3 was written by Austin Appleby, and is placed in the public
+// domain. The author hereby disclaims copyright to this source code.
+
+#ifndef _MURMURHASH3_H_
+#define _MURMURHASH3_H_
+
+//-----------------------------------------------------------------------------
+// Platform-specific functions and macros
+
+#include <stdint.h>
+
+//-----------------------------------------------------------------------------
+
+void MurmurHash3_x86_32 (const void * key, int len, uint32_t seed,
+                         uint32_t* out);
+
+/**
+ * The following 2 functions have been altered to just return the
+ * 64 most significant bits.
+ */
+void MurmurHash3_x86_128 (const void * key, int len, uint32_t seed,
+                          uint64_t* out);
+
+void MurmurHash3_x64_128 (const void * key, int len, uint32_t seed,
+                          uint64_t* out);
+
+//-----------------------------------------------------------------------------
+
+#endif // _MURMURHASH3_H_

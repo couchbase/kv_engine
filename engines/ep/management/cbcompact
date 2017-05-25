@@ -1,0 +1,56 @@
+#!/usr/bin/env python
+
+# Example Usage for local host..
+# install/bin/cbcompact 127.0.0.1:12000 compact -b beer-sample 799
+#   where 12000 is memcached port and 799 is vbucket id
+
+import cli_auth_utils
+from time import sleep
+import sys
+import mc_bin_client
+
+def cmd(f):
+    f = cli_auth_utils.cmd_decorator(f)
+    def g(*args, **kwargs):
+        mc = args[0]
+
+        try:
+            vbucket = int(args[1])
+        except IndexError:
+            print "Must specify a vbucket id after the compact argument"
+            sys.exit(1)
+
+        # These arguments are /always/ in kwargs, but if they are not specified
+        # on the command line will have the value None.
+        purgeBeforeTs = long(kwargs.pop('purgeBeforeTs') or 0)
+        purgeBeforeSeq = long(kwargs.pop('purgeBeforeSeq') or 0)
+        dropDeletes = int(kwargs.pop('dropDeletes') or 0)
+
+        f(mc, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes, **kwargs)
+    return g
+
+@cmd
+def compact(mc, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes):
+     try:
+        return mc.compact_db(vbucket, purgeBeforeTs, purgeBeforeSeq,
+                             dropDeletes)
+     except:
+         print "Unable to compact vbucket %d with the following parameters "\
+               "(purge before time: %d, purge before seqno: %d, drop deletes: "\
+               "%d) in requested engine."\
+             % (vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes)
+
+def main():
+    c = cli_auth_utils.get_authed_clitool()
+
+    c.addCommand('compact', compact, 'compact vbucketid')
+    c.addOption('--purge-before', 'purgeBeforeTs',
+                'purge documents before this timestamp')
+    c.addOption('--purge-only-upto-seq', 'purgeBeforeSeq',
+                'purge only upto this document sequence number')
+    c.addFlag('--dropdeletes', 'dropDeletes', 'drop deleted items')
+
+    c.execute()
+
+if __name__ == '__main__':
+    main()

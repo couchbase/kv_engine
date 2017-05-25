@@ -1,0 +1,1424 @@
+#+TITLE:     EP Stats
+#+AUTHOR:    Dustin Sallings
+#+EMAIL:     dustin@spy.net
+#+DATE:      2010-02-08 Mon
+#+DESCRIPTION:
+#+KEYWORDS:
+#+LANGUAGE:  en
+#+OPTIONS:   H:3 num:t toc:t \n:nil @:t ::t |:t ^:nil -:t f:t *:t <:t
+#+OPTIONS:   TeX:t LaTeX:nil skip:nil d:nil todo:t pri:nil tags:not-in-toc
+#+INFOJS_OPT: view:nil toc:nil ltoc:t mouse:underline buttons:0 path:http://orgmode.org/org-info.js
+#+EXPORT_SELECT_TAGS: export
+#+EXPORT_EXCLUDE_TAGS: noexport
+#+LINK_UP:
+#+LINK_HOME:
+#+STYLE:  <link rel="stylesheet" type="text/css" href="myorg.css" />
+
+* Getting Started
+
+For introductory information on stats within Couchbase, start with the
+[[http://docs.couchbase.com/][Couchbase server documentations]].
+
+* Stats Definitions
+
+** Toplevel Stats
+
+| Stat                               | Description                            |
+|------------------------------------+----------------------------------------|
+| uuid                               | The unique identifier for the bucket   |
+| ep_version                         | Version number of ep_engine            |
+| ep_storage_age                     | Seconds since most recently            |
+|                                    | stored object was initially queued     |
+| ep_storage_age_highwat             | ep_storage_age high water mark         |
+| ep_startup_time                    | System-generated engine startup time   |
+| ep_data_age                        | Seconds since most recently            |
+|                                    | stored object was modified             |
+| ep_data_age_highwat                | ep_data_age high water mark            |
+| ep_num_workers                     | Global number of shared worker threads |
+| ep_bucket_priority                 | Priority assigned to the bucket        |
+| ep_total_enqueued                  | Total number of items queued for       |
+|                                    | persistence                            |
+| ep_total_new_items                 | Total number of persisted new items    |
+| ep_total_del_items                 | Total number of persisted deletions    |
+| ep_total_persisted                 | Total number of items persisted        |
+| ep_item_flush_failed               | Number of times an item failed to      |
+|                                    | flush due to storage errors            |
+| ep_item_commit_failed              | Number of times a transaction failed   |
+|                                    | to commit due to storage errors        |
+| ep_item_begin_failed               | Number of times a transaction failed   |
+|                                    | to start due to storage errors         |
+| ep_expired_access                  | Number of times an item was expired on |
+|                                    | application access.                    |
+| ep_expired_compactor               | Number of times an item was expired by |
+|                                    | the ep engine compactor                |
+| ep_expired_pager                   | Number of times an item was expired by |
+|                                    | ep engine item pager                   |
+| ep_item_flush_expired              | Number of times an item is not flushed |
+|                                    | due to the expiry of the item          |
+| ep_queue_size                      | Number of items queued for storage     |
+| ep_vb_backfill_queue_size          | Number of items in vb backfill queues  |
+| ep_flusher_todo                    | Number of items currently being        |
+|                                    | written                                |
+| ep_flusher_state                   | Current state of the flusher thread    |
+| ep_commit_num                      | Total number of write commits          |
+| ep_commit_time                     | Number of milliseconds of most recent  |
+|                                    | commit                                 |
+| ep_commit_time_total               | Cumulative milliseconds spent          |
+|                                    | committing                             |
+| ep_vbucket_del                     | Number of vbucket deletion events      |
+| ep_vbucket_del_fail                | Number of failed vbucket deletion      |
+|                                    | events                                 |
+| ep_vbucket_del_max_walltime        | Max wall time (µs) spent by deleting   |
+|                                    | a vbucket                              |
+| ep_vbucket_del_avg_walltime        | Avg wall time (µs) spent by deleting   |
+|                                    | a vbucket                              |
+| ep_pending_compactions             | Number of pending vbucket compactions  |
+| ep_rollback_count                  | Number of rollbacks on consumer        |
+| ep_flush_duration_total            | Cumulative milliseconds spent flushing |
+| ep_flush_all                       | True if disk flush_all is scheduled    |
+| ep_num_ops_get_meta                | Number of getMeta operations           |
+| ep_num_ops_set_meta                | Number of setWithMeta operations       |
+| ep_num_ops_del_meta                | Number of delWithMeta operations       |
+| ep_num_ops_set_meta_res_failed     | Number of setWithMeta ops that failed  |
+|                                    | conflict resolution                    |
+| ep_num_ops_del_meta_res_failed     | Number of delWithMeta ops that failed  |
+|                                    | conflict resolution                    |
+| ep_num_ops_set_ret_meta            | Number of setRetMeta operations        |
+| ep_num_ops_del_ret_meta            | Number of delRetMeta operations        |
+| ep_num_ops_get_meta_on_set_meta    | Num of background getMeta operations   |
+|                                    | spawn due to setWithMeta operations    |
+| curr_items                         | Num items in active vbuckets (temp +   |
+|                                    | live)                                  |
+| curr_temp_items                    | Num temp items in active vbuckets      |
+| curr_items_tot                     | Num current items including those not  |
+|                                    | active (replica, dead and pending      |
+|                                    | states)                                |
+| ep_kv_size                         | Memory used to store item metadata,    |
+|                                    | keys and values, no matter the         |
+|                                    | vbucket's state. If an item's value is |
+|                                    | ejected, this stats will be            |
+|                                    | decremented by the size of the item's  |
+|                                    | value.                                 |
+| ep_blob_num                        | The number of blob objects in the cache|
+| ep_blob_overhead                   | The "unused" memory caused by the      |
+|                                    | allocator returning bigger chunks than |
+|                                    | requested                              |
+| ep_value_size                      | Memory used to store values for        |
+|                                    | resident keys                          |
+| ep_storedval_size                  | Memory used by storedval objects       |
+| ep_storedval_overhead              | The "unused" memory caused by the      |
+|                                    | allocator returning bigger chunks than |
+|                                    | requested                              |
+| ep_storedval_num                   | The number of storedval objects        |
+|                                    | allocated                              |
+| ep_overhead                        | Extra memory used by transient data    |
+|                                    | like persistence queues, replication   |
+|                                    | queues, checkpoints, etc               |
+| ep_item_num                        | The number of item objects allocated   |
+| ep_mem_low_wat                     | Low water mark for auto-evictions      |
+| ep_mem_low_wat_percent             | Low water mark (as a percentage)       |
+| ep_mem_high_wat                    | High water mark for auto-evictions     |
+| ep_mem_high_wat_percent            | High water mark (as a percentage)      |
+| ep_total_cache_size                | The total byte size of all items, no   |
+|                                    | matter the vbucket's state, no matter  |
+|                                    | if an item's value is ejected          |
+| ep_oom_errors                      | Number of times unrecoverable OOMs     |
+|                                    | happened while processing operations   |
+| ep_tmp_oom_errors                  | Number of times temporary OOMs         |
+|                                    | happened while processing operations   |
+| ep_mem_tracker_enabled             | True if memory usage tracker is        |
+|                                    | enabled                                |
+| ep_bg_fetched                      | Number of items fetched from disk      |
+| ep_bg_meta_fetched                 | Number of meta items fetched from disk |
+| ep_bg_remaining_items              | Number of remaining bg fetch items     |
+| ep_bg_remaining_jobs               | Number of remaining bg fetch jobs      |
+| ep_max_bg_remaining_jobs           | Max number of remaining bg fetch jobs  |
+|                                    | that we have seen in the queue so far  |
+| ep_tap_bg_fetched                  | Number of tap disk fetches             |
+| ep_tap_bg_fetch_requeued           | Number of times a tap bg fetch task is |
+|                                    | requeued                               |
+| ep_num_pager_runs                  | Number of times we ran pager loops     |
+|                                    | to seek additional memory              |
+| ep_num_expiry_pager_runs           | Number of times we ran expiry pager    |
+|                                    | loops to purge expired items from      |
+|                                    | memory/disk                            |
+| ep_num_access_scanner_runs         | Number of times we ran accesss scanner |
+|                                    | to snapshot working set                |
+| ep_num_access_scanner_skips        | Number of times accesss scanner task   |
+|                                    | decided not to generate access log     |
+| ep_access_scanner_num_items        | Number of items that last access       |
+|                                    | scanner task swept to access log.      |
+| ep_access_scanner_task_time        | Time of the next access scanner task   |
+|                                    | (GMT), NOT_SCHEDULED if access scanner |
+|                                    | has been disabled                      |
+| ep_access_scanner_last_runtime     | Number of seconds that last access     |
+|                                    | scanner task took to complete.         |
+| ep_expiry_pager_task_time          | Time of the next expiry pager task     |
+|                                    | (GMT), NOT_SCHEDULED if expiry pager   |
+|                                    | has been disabled
+| ep_items_rm_from_checkpoints       | Number of items removed from closed    |
+|                                    | unreferenced checkpoints               |
+| ep_num_value_ejects                | Number of times item values got        |
+|                                    | ejected from memory to disk            |
+| ep_num_eject_failures              | Number of items that could not be      |
+|                                    | ejected                                |
+| ep_num_not_my_vbuckets             | Number of times Not My VBucket         |
+|                                    | exception happened during runtime      |
+| ep_tap_keepalive                   | Tap keepalive time                     |
+| ep_dbname                          | DB path                                |
+| ep_pending_ops                     | Number of ops awaiting pending         |
+|                                    | vbuckets                               |
+| ep_pending_ops_total               | Total blocked pending ops since reset  |
+| ep_pending_ops_max                 | Max ops seen awaiting 1 pending        |
+|                                    | vbucket                                |
+| ep_pending_ops_max_duration        | Max time (µs) used waiting on pending  |
+|                                    | vbuckets                               |
+| ep_bg_num_samples                  | The number of samples included in the  |
+|                                    | average                                |
+| ep_bg_min_wait                     | The shortest time (µs) in the wait     |
+|                                    | queue                                  |
+| ep_bg_max_wait                     | The longest time (µs) in the wait      |
+|                                    | queue                                  |
+| ep_bg_wait_avg                     | The average wait time (µs) for an item |
+|                                    | before it's serviced by the dispatcher |
+| ep_bg_min_load                     | The shortest load time (µs)            |
+| ep_bg_max_load                     | The longest load time (µs)             |
+| ep_bg_load_avg                     | The average time (µs) for an item to   |
+|                                    | be loaded from the persistence layer   |
+| ep_num_non_resident                | The number of non-resident items       |
+| ep_bg_wait                         | The total elapse time for the wait     |
+|                                    | queue                                  |
+| ep_bg_load                         | The total elapse time for items to be  |
+|                                    | loaded from the persistence layer      |
+| ep_allow_data_loss_during_shutdown | Whether data loss is allowed during    |
+|                                    | server shutdown                        |
+| ep_alog_block_size                 | Access log block size                  |
+| ep_alog_path                       | Path to the access log                 |
+| ep_access_scanner_enabled          | Status of access scanner task          |
+| ep_alog_sleep_time                 | Interval between access scanner runs   |
+|                                    | in minutes                             |
+| ep_alog_task_time                  | Hour in GMT time when access scanner   |
+|                                    | task is scheduled to run               |
+| ep_backend                         | The backend that is being used for     |
+|                                    | data persistence                       |
+| ep_backfill_mem_threshold          | The maximum percentage of memory that  |
+|                                    | the backfill task can consume before   |
+|                                    | it is made to back off.                |
+| ep_bg_fetch_delay                  | The amount of time to wait before      |
+|                                    | doing a background fetch               |
+| ep_bfilter_enabled                 | Bloom filter use: enabled or disabled  |
+| ep_bfilter_key_count               | Minimum key count that bloom filter    |
+|                                    | will accomodate                        |
+| ep_bfilter_fp_prob                 | Bloom filter's allowed false positive  |
+|                                    | probability                            |
+| ep_bfilter_residency_threshold     | Resident ratio threshold for full      |
+|                                    | eviction policy, after which bloom     |
+|                                    | switches modes from accounting just    |
+|                                    | non resident items and deletes to      |
+|                                    | accounting all items                   |
+| ep_bucket_type                     | The bucket type                        |
+| ep_chk_max_items                   | The number of items allowed in a       |
+|                                    | checkpoint before a new one is created |
+| ep_chk_period                      | The maximum lifetime of a checkpoint   |
+|                                    | before a new one is created            |
+| ep_chk_persistence_remains         | Number of remaining vbuckets for       |
+|                                    | checkpoint persistence                 |
+| ep_chk_persistence_timeout         | Timeout for vbucket checkpoint         |
+|                                    | persistence                            |
+| ep_chk_remover_stime               | The time interval for purging closed   |
+|                                    | checkpoints from memory                |
+| ep_config_file                     | The location of the ep-engine config   |
+|                                    | file                                   |
+| ep_couch_bucket                    | The name of this bucket                |
+| ep_couch_host                      | The hostname that the couchdb views    |
+|                                    | server is listening on                 |
+| ep_couch_port                      | The port the couchdb views server is   |
+|                                    | listening on                           |
+| ep_couch_reconnect_sleeptime       | The amount of time to wait before      |
+|                                    | reconnecting to couchdb                |
+| ep_data_traffic_enabled            | Whether or not data traffic is enabled |
+|                                    | for this bucket                        |
+| ep_db_data_size                    | Total size of valid data in db files   |
+| ep_db_file_size                    | Total size of the db files             |
+| ep_degraded_mode                   | True if the engine is either warming   |
+|                                    | up or data traffic is disabled         |
+| ep_enable_chk_merge                | True if merging closed checkpoints is  |
+|                                    | enabled.                               |
+| ep_exp_pager_enabled               | True if the expiry pager is enabled    |
+| ep_exp_pager_stime                 | The time interval for purging expired  |
+|                                    | items from memory                      |
+| ep_exp_pager_initial_run_time      | An initial start time for the expiry   |
+|                                    | pager task in GMT                      |
+| ep_flushall_enabled                | True if this bucket allows the use of  |
+|                                    | the flush_all command                  |
+| ep_getl_default_timeout            | The default getl lock duration         |
+| ep_getl_max_timeout                | The maximum getl lock duration         |
+| ep_ht_locks                        | The amount of locks per vb hashtable   |
+| ep_ht_size                         | The initial size of each vb hashtable  |
+| ep_item_num_based_new_chk          | True if the number of items in the     |
+|                                    | current checkpoint plays a role in a   |
+|                                    | new checkpoint creation                |
+| ep_keep_closed_chks                | True if we want to keep the closed     |
+|                                    | checkpoints for each vbucket unless    |
+|                                    | the memory usage is above high water   |
+|                                    | mark                                   |
+| ep_max_checkpoints                 | The maximum amount of checkpoints that |
+|                                    | can be in memory per vbucket           |
+| ep_max_item_size                   | The maximum value size                 |
+| ep_max_size                        | The maximum amount of memory this      |
+|                                    | bucket can use                         |
+| ep_max_vbuckets                    | The maximum amount of vbuckets that    |
+|                                    | can exist in this bucket               |
+| ep_mutation_mem_threshold          | The ratio of total memory available    |
+|                                    | that we should start sending temp oom  |
+|                                    | or oom message when hitting            |
+| ep_pager_active_vb_pcnt            | Active vbuckets paging percentage      |
+| ep_tap_ack_grace_period            | The amount of time to wait for a tap   |
+|                                    | acks before disconnecting              |
+| ep_tap_ack_initial_sequence_number | The initial sequence number for a tap  |
+|                                    | ack when a tap stream is created       |
+| ep_tap_ack_interval                | The amount of messages a tap producer  |
+|                                    | should send before requesting an ack   |
+| ep_tap_ack_window_size             | The maximum amount of ack requests     |
+|                                    | that can be sent before the consumer   |
+|                                    | sends a response ack. When the window  |
+|                                    | is full the tap stream is paused.      |
+| ep_tap_backfill_resident           | The resident ratio for deciding how to |
+|                                    | do backfill. If under the ratio we     |
+|                                    | schedule full disk backfill. If above  |
+|                                    | the ratio then we do bg fetches for    |
+|                                    | non-resident items.                    |
+| ep_tap_backlog_limit               | The maximum amount of backfill items   |
+|                                    | that can be in memory waiting to be    |
+|                                    | sent to the tap consumer               |
+| ep_tap_backoff_period              | The number of seconds the tap          |
+|                                    | connection                             |
+| ep_tap_bg_fetch_requeued           | Number of times a tap bg fetch task is |
+|                                    | requeued                               |
+| ep_tap_bg_max_pending              | The maximum number of bg jobs a tap    |
+|                                    | connection may have                    |
+| ep_tap_noop_interval               | Number of seconds between a noop is    |
+|                                    | sent on an idle connection             |
+| ep_tap_requeue_sleep_time          | The amount of time to wait before a    |
+|                                    | failed tap item is requeued            |
+| ep_replication_throttle_cap_pcnt   | Percentage of total items in write     |
+|                                    | queue at which we throttle tap input   |
+| ep_replication_throttle_queue_cap  | Max size of a write queue to throttle  |
+|                                    | incoming tap input                     |
+| ep_replication_throttle_threshold  | Percentage of max mem at which we      |
+|                                    | begin NAKing tap input                 |
+| ep_uncommitted_items               | The amount of items that have not been |
+|                                    | written to disk                        |
+| ep_warmup                          | Shows if warmup is enabled / disabled  |
+| ep_warmup_batch_size               | The size of each batch loaded during   |
+|                                    | warmup                                 |
+| ep_warmup_dups                     | Number of Duplicate items encountered  |
+|                                    | during warmup                          |
+| ep_warmup_min_items_threshold      | Percentage of total items warmed up    |
+|                                    | before we enable traffic               |
+| ep_warmup_min_memory_threshold     | Percentage of max mem warmed up before |
+|                                    | we enable traffic                      |
+| ep_warmup_oom                      | The amount of oom errors that occured  |
+|                                    | during warmup                          |
+| ep_warmup_thread                   | The status of the warmup thread        |
+| ep_warmup_time                     | The amount of time warmup took         |
+| ep_workload_pattern                | Workload pattern (mixed, read_heavy,   |
+|                                    | write_heavy) monitored at runtime      |
+| ep_defragmenter_interval           | How often defragmenter task should be  |
+|                                    | run (in seconds).                      |
+| ep_defragmenter_num_moved          | Number of items moved by the           |
+|                                    | defragmentater task.                   |
+| ep_defragmenter_num_visited        | Number of items visited (considered    |
+|                                    | for defragmentation) by the            |
+|                                    | defragmenter task.                     |
+| ep_cursor_dropping_lower_threshold | Memory threshold below which checkpoint|
+|                                    | remover will discontinue cursor        |
+|                                    | dropping.                              |
+| ep_cursor_dropping_upper_threshold | Memory threshold above which checkpoint|
+|                                    | remover will start cursor dropping     |
+| ep_cursors_dropped                 | Number of cursors dropped by the       |
+|                                    | checkpoint remover                     |
+| ep_active_hlc_drift                | The total absolute drift for all active|
+|                                    | vbuckets. This is microsecond          |
+|                                    | granularity.                           |
+| ep_active_hlc_drift_count          | The number of updates applied to       |
+|                                    | ep_active_hlc_drift.                   |
+| ep_replica_hlc_drift               | The total absolute drift for all       |
+|                                    | replica vbuckets. This is microsecond  |
+|                                    | granularity.                           |
+| ep_replica_hlc_drift_count         | The number of updates applied to       |
+|                                    | ep_replica_hlc_drift.                  |
+| ep_active_ahead_exceptions         | The total number of ahead exceptions   |
+|                                    | for all active vbuckets.               |
+| ep_active_behind_exceptions        | The total number of behind exceptions  |
+|                                    | for all active vbuckets.               |
+| ep_replica_ahead_exceptions        | The total number of ahead exceptions   |
+|                                    | for all replica vbuckets.              |
+| ep_replica_behind_exceptions       | The total number of behind exceptions  |
+|                                    | for all replica vbuckets.              |
+| ep_clock_cas_drift_threshold_excee-| ep_active_ahead_exceptions +           |
+| ded                                | ep_replica_ahead_exceptions            |
+
+** vBucket total stats
+
+| Stat                     | Description                                    |
+|--------------------------+------------------------------------------------|
+| ep_vb_total              | Total vBuckets (count)                         |
+| curr_items_tot           | Total number of items                          |
+| curr_items               | Number of active items in memory               |
+| curr_temp_items          | Number of temporary items in memory            |
+| vb_dead_num              | Number of dead vBuckets                        |
+| ep_diskqueue_items       | Total items in disk queue                      |
+| ep_diskqueue_memory      | Total memory used in disk queue                |
+| ep_diskqueue_fill        | Total enqueued items on disk queue             |
+| ep_diskqueue_drain       | Total drained items on disk queue              |
+| ep_diskqueue_pending     | Total bytes of pending writes                  |
+| ep_persist_vbstate_total | Total VB persist state to disk                 |
+| ep_meta_data_memory      | Total memory used by meta data                 |
+| ep_meta_data_disk        | Total disk used by meta data                   |
+
+*** Active vBucket class stats
+
+| Stat                          | Description                                |
+|-------------------------------+--------------------------------------------|
+| vb_active_num                 | Number of active vBuckets                  |
+| vb_active_curr_items          | Number of in memory items                  |
+| vb_active_num_non_resident    | Number of non-resident items               |
+| vb_active_perc_mem_resident   | % memory resident                          |
+| vb_active_eject               | Number of times item values got ejected    |
+| vb_active_expired             | Number of times an item was expired        |
+| vb_active_ht_memory           | Memory overhead of the hashtable           |
+| vb_active_itm_memory          | Total memory of all items in active        |
+|                               | vBuckets (StoredValue + key + value Blob)  |
+| vb_active_meta_data_memory    | Metadata memory of all items in active     |
+|                               | vBuckets (StoredValue + key)               |
+| vb_active_meta_data_disk      | Total metadata disk                        |
+| vb_active_ops_create          | Number of create operations                |
+| vb_active_ops_update          | Number of update operations                |
+| vb_active_ops_delete          | Number of delete operations                |
+| vb_active_ops_reject          | Number of rejected operations              |
+| vb_active_queue_size          | Active items in disk queue                 |
+| vb_active_backfill_queue_size | Items in active vbucket backfill queue     |
+| vb_active_queue_memory        | Memory used for disk queue                 |
+| vb_active_queue_age           | Sum of disk queue item age in milliseconds |
+| vb_active_queue_pending       | Total bytes of pending writes              |
+| vb_active_queue_fill          | Total enqueued items                       |
+| vb_active_queue_drain         | Total drained items                        |
+| vb_active_rollback_item_count | Num of items rolled back                   |
+| vb_active_hp_vb_req_size      | Num of async high priority requests        |
+
+*** Replica vBucket stats
+
+| Stat                          | Description                                |
+|-------------------------------+--------------------------------------------|
+| vb_replica_num                | Number of replica vBuckets                 |
+| vb_replica_curr_items         | Number of in memory items                  |
+| vb_replica_num_non_resident   | Number of non-resident items               |
+| vb_replica_perc_mem_resident  | % memory resident                          |
+| vb_replica_eject              | Number of times item values got ejected    |
+| vb_replica_expired            | Number of times an item was expired        |
+| vb_replica_ht_memory          | Memory overhead of the hashtable           |
+| vb_replica_itm_memory         | Total memory of all items in replica       |
+|                               | vBuckets (StoredValue + key + value Blob)  |
+| vb_replica_meta_data_memory   | Metadata memory of all items in replica    |
+|                               | vBuckets (StoredValue + key)               |
+| vb_replica_meta_data_disk     | Total metadata disk                        |
+| vb_replica_ops_create         | Number of create operations                |
+| vb_replica_ops_update         | Number of update operations                |
+| vb_replica_ops_delete         | Number of delete operations                |
+| vb_replica_ops_reject         | Number of rejected operations              |
+| vb_replica_queue_size         | Replica items in disk queue                |
+| vb_replica_backfill_queue_size| Items in replica vbucket backfill queue    |
+| vb_replica_queue_memory       | Memory used for disk queue                 |
+| vb_replica_queue_age          | Sum of disk queue item age in milliseconds |
+| vb_replica_queue_pending      | Total bytes of pending writes              |
+| vb_replica_queue_fill         | Total enqueued items                       |
+| vb_replica_queue_drain        | Total drained items                        |
+| vb_replica_rollback_item_count| Num of items rolled back                   |
+| vb_replica_hp_vb_req_size     | Num of async high priority requests        |
+
+*** Pending vBucket stats
+
+| Stat                          | Description                                |
+|-------------------------------+--------------------------------------------|
+| vb_pending_num                | Number of pending vBuckets                 |
+| vb_pending_curr_items         | Number of in memory items                  |
+| vb_pending_num_non_resident   | Number of non-resident items               |
+| vb_pending_perc_mem_resident  | % memory resident                          |
+| vb_pending_eject              | Number of times item values got ejected    |
+| vb_pending_expired            | Number of times an item was expired        |
+| vb_pending_ht_memory          | Memory overhead of the hashtable           |
+| vb_pending_itm_memory         | Total memory of all items in pending       |
+|                               | vBuckets (StoredValue + key + value Blob)  |
+| vb_pending_meta_data_memory   | Metadata memory of all items in pending    |
+|                               | vBuckets (StoredValue + key)               |
+| vb_pending_meta_data_disk     | Total metadata disk                        |
+| vb_pending_ops_create         | Number of create operations                |
+| vb_pending_ops_update         | Number of update operations                |
+| vb_pending_ops_delete         | Number of delete operations                |
+| vb_pending_ops_reject         | Number of rejected operations              |
+| vb_pending_queue_size         | Pending items in disk queue                |
+| vb_pending_backfill_queue_size| Items in pending vbucket backfill queue    |
+| vb_pending_queue_memory       | Memory used for disk queue                 |
+| vb_pending_queue_age          | Sum of disk queue item age in milliseconds |
+| vb_pending_queue_pending      | Total bytes of pending writes              |
+| vb_pending_queue_fill         | Total enqueued items                       |
+| vb_pending_queue_drain        | Total drained items                        |
+| vb_pending_rollback_item_count| Num of items rolled back                   |
+| vb_pending_hp_vb_req_size     | Num of async high priority requests        |
+
+
+** vBucket detail stats
+
+The stats below are listed for each vbucket.
+
+| Stat                          | Description                                |
+|-------------------------------+--------------------------------------------|
+| num_items                     | Number of items in this vbucket            |
+| num_tmp_items                 | Number of temporary items in memory        |
+| num_non_resident              | Number of non-resident items               |
+| vb_pending_perc_mem_resident  | % memory resident                          |
+| vb_pending_eject              | Number of times item values got ejected    |
+| vb_pending_expired            | Number of times an item was expired        |
+| ht_memory                     | Memory overhead of the hashtable           |
+| ht_item_memory                | Total item memory                          |
+| ht_cache_size                 | Total size of cache (Includes non resident |
+|                               | items)                                     |
+| num_ejects                    | Number of times an item was ejected from   |
+|                               | memory                                     |
+| ops_create                    | Number of create operations                |
+| ops_update                    | Number of update operations                |
+| ops_delete                    | Number of delete operations                |
+| ops_reject                    | Number of rejected operations              |
+| queue_size                    | Pending items in disk queue                |
+| backfill_queue_size           | Items in backfill queue                    |
+| queue_memory                  | Memory used for disk queue                 |
+| queue_age                     | Sum of disk queue item age in milliseconds |
+| queue_fill                    | Total enqueued items                       |
+| queue_drain                   | Total drained items                        |
+| pending writes                | Total bytes of pending writes              |
+| db_data_size                  | Total size of valid data on disk           |
+| db_file_size                  | Total size of the db file                  |
+| high_seqno                    | The last seqno assigned by this vbucket    |
+| purge_seqno                   | The last seqno purged by the compactor     |
+| bloom_filter                  | Status of the vbucket's bloom filter       |
+| bloom_filter_size             | Size of the bloom filter bit array         |
+| bloom_filter_key_count        | Number of keys inserted into the bloom     |
+|                               | filter, considers overlapped items as one, |
+|                               | so this may not be accurate at times.      |
+| uuid                          | The current vbucket uuid                   |
+| rollback_item_count           | Num of items rolled back                   |
+| hp_vb_req_size                | Num of async high priority requests        |
+| max_cas                       | Maximum CAS of all items in the vbucket.   |
+|                               | This is a hybrid logical clock value in    |
+|                               | nanoseconds.                               |
+| max_cas_str                   | max_cas as a time stamp string (seconds    |
+|                               | since epoch).                              |
+| total_abs_drift               | The accumulated absolute drift for this    |
+|                               | vbucket's hybrid logical clock in          |
+|                               | microseconds.                              |
+| total_abs_drift_count         | The number of updates applied to           |
+|                               | total_abs_drift.                           |
+| drift_ahead_threshold_exceeded| The number of HLC updates that had a value |
+|                               | ahead of the local HLC and were over the   |
+|                               | drift_ahead_threshold.                     |
+| drift_ahead_threshold         | The ahead threshold in ns.                 |
+|drift_behind_threshold_exceeded| The number of HLC updates that had a value |
+|                               | behind the local HLC and were over the     |
+|                               | drift_behind_threshold.                    |
+| drift_behind_threshold        | The behind threshold in ns.                |
+| logical_clock_ticks           | How many times this vbucket's HLC has      |
+|                               | returned logical clock ticks.              |
+
+For Ephemeral buckets, the following additional statistics are listed for
+each vbucket:
+
+| Stat                          | Description                                                                                                                                   |
+|-------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------|
+| seqlist_count                 | number of documents in this VBucket's sequence list.                                                                                          |
+| seqlist_deleted_count         | Count of deleted documents in this VBucket's sequence list.                                                                                   |
+| seqlist_high_seqno            | High sequence number in sequence list for this VBucket.                                                                                       |
+| seqlist_highest_deduped_seqno | Highest de-duplicated sequence number in sequence list for this VBucket.                                                                      |
+| seqlist_read_range_begin      | Starting sequence number for this VBucket's sequence list read range. Marks the lower bound of possible stale documents in the sequence list. |
+| seqlist_read_range_end        | Ending sequence number for this VBucket's sequence list read range. Marks the upper bound of possible stale documents in the sequence list.   |
+| seqlist_read_range_count      | Count of elements for this VBucket's sequence list read range (i.e. end - begin).                                                             |
+| seqlist_stale_count           | Count of stale documents in this VBucket's sequence list.                                                                                     |
+| seqlist_stale_value_bytes     | Number of bytes of stale values in this VBucket's sequence list.                                                                              |
+| seqlist_stale_metadata_bytes  | Number of bytes of stale metadata (key + fixed metadata) in this VBucket's sequence list.                                                     |
+
+** vBucket seqno stats
+
+| Stats                         | Description                                |
+| ------------------------------+--------------------------------------------|
+| abs_high_seqno                | The last seqno assigned by this vbucket    |
+| high_seqno                    | The last seqno assigned by this vbucket, in|
+|                               | in case of replica, the last closed check- |
+|                               | point's end seqno.                         |
+| last_persisted_seqno          | The last persisted seqno for the vbucket   |
+| purge_seqno                   | The last seqno purged by the compactor     |
+| uuid                          | The current vbucket uuid                   |
+| last_persisted_snap_start     | The last persisted snapshot start seqno for|
+|                               | the vbucket                                |
+| last_persisted_snap_end       | The last persisted snapshot end seqno for  |
+|                               | the vbucket                                |
+
+** vBucket failover stats
+
+| Stats                         | Description                                |
+| ------------------------------+--------------------------------------------|
+| num_entries                   | Number of entries in the failover table of |
+|                               | this vbucket                               |
+| erroneous_entries_erased      | Number of erroneous entries erased in the  |
+|                               | failover table of this vbucket             |
+| n:id                          | vb_uuid of nth failover entry in the       |
+|                               | failover table of this vbucket             |
+| n:seq                         | seqno of nth failover entry in the         |
+|                               | failover table of this vbucket             |
+
+** Tap stats
+
+| ep_tap_ack_grace_period          | The amount of time to wait for a tap acks |
+|                                  | before disconnecting                      |
+| ep_tap_ack_interval              | The amount of messages a tap producer     |
+|                                  | should send before requesting an ack      |
+| ep_tap_ack_window_size           | The maximum amount of ack requests that   |
+|                                  | can be sent before the consumer sends a   |
+|                                  | response ack. When the window is full the |
+|                                  | tap stream is paused                      |
+| ep_tap_queue_backfillremaining   | Number of items needing to be backfilled  |
+| ep_tap_total_backlog_size        | Number of remaining items for replication |
+| ep_tap_total_queue               | Sum of tap queue sizes on the current     |
+|                                  | tap queues                                |
+| ep_tap_total_fetched             | Sum of all tap messages sent              |
+| ep_tap_bg_max_pending            | The maximum number of bg jobs a tap       |
+|                                  | connection may have                       |
+| ep_tap_bg_fetched                | Number of tap disk fetches                |
+| ep_tap_bg_fetch_requeued         | Number of times a tap bg fetch task is    |
+|                                  | requeued                                  |
+| ep_tap_fg_fetched                | Number of tap memory fetches              |
+| ep_tap_deletes                   | Number of tap deletion messages sent      |
+| ep_replication_throttled         | Number of tap messages refused due to     |
+|                                  | throttling                                |
+| ep_tap_count                     | Number of tap connections                 |
+| ep_tap_bg_num_samples            | The number of tap bg fetch samples        |
+|                                  | included in the avg                       |
+| ep_tap_bg_min_wait               | The shortest time (µs) for a tap item     |
+|                                  | before it is serviced by the dispatcher   |
+| ep_tap_bg_max_wait               | The longest time (µs) for a tap item      |
+|                                  | before it is serviced by the dispatcher   |
+| ep_tap_bg_wait_avg               | The average wait time (µs) for a tap item |
+|                                  | before it is serviced by the dispatcher   |
+| ep_tap_bg_min_load               | The shortest time (µs) for a tap item to  |
+|                                  | be loaded from the persistence layer      |
+| ep_tap_bg_max_load               | The longest time (µs) for a tap item to   |
+|                                  | be loaded from the persistence layer      |
+| ep_tap_bg_load_avg               | The average time (µs) for a tap item to   |
+|                                  | be loaded from the persistence layer      |
+| ep_tap_noop_interval             | The number of secs between a noop is      |
+|                                  | added to an idle connection               |
+| ep_tap_backoff_period            | The number of seconds the tap connection  |
+|                                  | should back off after receiving ETMPFAIL  |
+| ep_tap_queue_fill                | Total enqueued items                      |
+| ep_tap_queue_drain               | Total drained items                       |
+| ep_tap_queue_backoff             | Total back-off items                      |
+| ep_tap_queue_backfill            | Number of backfill remaining              |
+| ep_tap_queue_itemondisk          | Number of items remaining on disk         |
+| ep_replication_throttle_threshold| Percentage of memory in use before we     |
+|                                  | throttle tap streams                      |
+| ep_replication_throttle_queue_cap| Disk write queue cap to throttle          |
+|                                  | tap streams                               |
+
+
+*** Per Tap Client Stats
+
+Each stat begins with =ep_tapq:= followed by a unique /client_id/ and
+another colon.  For example, if your client is named, =slave1=, the
+=qlen= stat would be =ep_tapq:slave1:qlen=.
+
+| type                        | The kind of tap connection (producer or  | PC |
+|                             | consumer)                                |    |
+| created                     | Creation time for the tap connection     | PC |
+| supports_ack                | true if the connection use acks          | PC |
+| connected                   | true if this client is connected         | PC |
+| disconnects                 | Number of disconnects from this client   | PC |
+| reserved                    | true if the tap stream is reserved       | P  |
+| suspended                   | true if the tap stream is suspended      | P  |
+| qlen                        | Queue size for the given client_id       | P  |
+| qlen_high_pri               | High priority tap queue items            | P  |
+| qlen_low_pri                | Low priority tap queue items             | P  |
+| vb_filters                  | Size of connection vbucket filter set    | P  |
+| vb_filter                   | The content of the vbucket filter        | P  |
+| rec_fetched                 | Tap messages sent to the client          | P  |
+| rec_skipped                 | Number of messages skipped due to        | P  |
+|                             | tap reconnect with a different filter    | P  |
+| idle                        | True if this connection is idle          | P  |
+| has_queued_item             | True if there are any remaining items    | P  |
+|                             | from hash table or disk                  |    |
+| bg_result_size              | Number of ready background results       | P  |
+| bg_jobs_issued              | Number of background jobs started        | P  |
+| bg_jobs_completed           | Number of background jobs completed      | P  |
+| flags                       | Connection flags set by the client       | P  |
+| pending_disconnect          | true if we're hanging up on this client  | P  |
+| paused                      | true if this client is blocked           | P  |
+| pending_backfill            | true if we're still backfilling keys     | P  |
+|                             | for this connection                      | P  |
+| pending_disk_backfill       | true if we're still backfilling keys     | P  |
+|                             | from disk for this connection            | P  |
+| backfill_completed          | true if all items from backfill is       | P  |
+|                             | successfully transmitted to the client   | P  |
+| backfill_start_timestamp    | Timestamp of backfill start              | P  |
+| reconnects                  | Number of reconnects from this client    | P  |
+| backfill_age                | The age of the start of the backfill     | P  |
+| ack_seqno                   | The current tap ACK sequence number      | P  |
+| recv_ack_seqno              | Last receive tap ACK sequence number     | P  |
+| ack_log_size                | Tap ACK backlog size                     | P  |
+| ack_window_full             | true if our tap ACK window is full       | P  |
+| seqno_ack_requested         | The seqno of the ack message that the    | P  |
+|                             | producer is wants to get a response for  |    |
+| expires                     | When this ACK backlog expires            | P  |
+| queue_memory                | Memory used for tap queue                | P  |
+| queue_fill                  | Total queued items                       | P  |
+| queue_drain                 | Total drained items                      | P  |
+| queue_backoff               | Total back-off items                     | P  |
+| queue_backfillremaining     | Number of backfill remaining             | P  |
+| queue_itemondisk            | Number of items remaining on disk        | P  |
+| total_backlog_size          | Num of remaining items for replication   | P  |
+| total_noops                 | Number of NOOP messages sent             | P  |
+| num_checkpoint_end          | Number of chkpoint end operations        |  C |
+| num_checkpoint_end_failed   | Number of chkpoint end operations failed |  C |
+| num_checkpoint_start        | Number of chkpoint end operations        |  C |
+| num_checkpoint_start_failed | Number of chkpoint end operations failed |  C |
+| num_delete                  | Number of delete operations              |  C |
+| num_delete_failed           | Number of failed delete operations       |  C |
+| num_flush                   | Number of flush operations               |  C |
+| num_flush_failed            | Number of failed flush operations        |  C |
+| num_mutation                | Number of mutation operations            |  C |
+| num_mutation_failed         | Number of failed mutation operations     |  C |
+| num_opaque                  | Number of opaque operation               |  C |
+| num_opaque_failed           | Number of failed opaque operations       |  C |
+| num_vbucket_set             | Number of vbucket set operations         |  C |
+| num_vbucket_set_failed      | Number of failed vbucket set operations  |  C |
+| num_unknown                 | Number of unknown operations             |  C |
+
+** Tap Aggregated Stats
+
+Aggregated tap stats allow named tap connections to be logically
+grouped and aggregated together by prefixes.
+
+For example, if all of your tap connections started with =rebalance_=
+or =replication_=, you could call =stats tapagg _= to request stats
+grouped by everything before the first =_= character, giving you a set
+for =rebalance= and a set for =replication=.
+
+*** Results
+
+| [prefix]:count              | Number of connections matching this prefix |
+| [prefix]:qlen               | Total length of queues with this prefix    |
+| [prefix]:backfill_remaining | Number of items needing to be backfilled   |
+| [prefix]:backoff            | Total number of backoff events             |
+| [prefix]:drain              | Total number of items drained              |
+| [prefix]:fill               | Total number of items filled               |
+| [prefix]:itemondisk         | Number of items remaining on disk          |
+| [prefix]:total_backlog_size | Num of remaining items for replication     |
+
+** Dcp Stats
+
+Each stat begins with =ep_dcpq:= followed by a unique /client_id/ and
+another colon.  For example, if your client is named, =slave1=, the
+=created= stat would be =ep_dcpq:slave1:created=.
+
+***Consumer Connections
+
+| connected          | True if this client is connected                            |
+| created            | Creation time for the tap connection                        |
+| pending_disconnect | True if we're hanging up on this client                     |
+| reserved           | True if the dcp stream is reserved                          |
+| supports_ack       | True if the connection use flow control                     |
+| total_acked_bytes  | The amount of bytes that the consumer has acked             |
+| unacked_bytes      | The amount of bytes the consumer has processed but not acked|
+| type               | The connection type (producer, consumer, or notifier)       |
+| max_buffer_bytes   | Size of flow control buffer                                 |
+
+****Per Stream Stats
+
+| buffer_bytes       | The amount of unprocessed bytes                       |
+| buffer_items       | The amount of unprocessed items                       |
+| end_seqno          | The seqno where this stream should end                |
+| flags              | The flags used to create this stream                  |
+| items_ready        | Whether the stream has messages ready to send         |
+| ready_queue_memory | Memory occupied by elements in the DCP readyQ         |
+| opaque             | The unique stream identifier                          |
+| snap_end_seqno     | The start seqno of the last snapshot received         |
+| snap_start_seqno   | The end seqno of the last snapshot received           |
+| start_seqno        | The start start seqno used to create this stream      |
+| state              | The stream state (pending, reading, or dead)          |
+| vb_uuid            | The vb uuid used to create this stream                |
+
+***Producer/Notifier Connections
+
+| buf_backfill_bytes    | The amount of bytes backfilled but not sent            |
+| buf_backfill_items    | The amount of items backfilled but not sent            |
+| bytes_sent            | The amount of unacked bytes sent to the consumer       |
+| connected             | True if this client is connected                       |
+| created               | Creation time for the tap connection                   |
+| flow_control          | True if the connection use flow control                |
+| items_remaining       | The amount of items remaining to be sent               |
+| items_sent            | The amount of items already sent to the consumer       |
+| last_sent_time        | The last time this connection sent a message           |
+| last_receive_time     | The last time this connection received a message       |
+| max_buffer_bytes      | The maximum amount of bytes that can be sent without   |
+|                       | receiving an ack from the consumer                     |
+| noop_enabled          | Whether or not this connection sends noops             |
+| noop_wait             | Whether or not this connection is waiting for a        |
+|                       | noop response from the consumer                        |
+| pending_disconnect    | True if we're hanging up on this client                |
+| priority              | The connection priority for streaming data             |
+| num_streams           | Total number of streams in the connection in any state |
+| reserved              | True if the dcp stream is reserved                     |
+| supports_ack          | True if the connection use flow control                |
+| total_acked_bytes     | The amount of bytes that have been acked by the        |
+|                       | consumer when flow control is enabled                  |
+| total_bytes_sent      | The amount of bytes already sent to the consumer       |
+| type                  | The connection type (producer, consumer, or notifier)  |
+| unacked_bytes         | The amount of bytes the consumer has no acked          |
+| backfill_num_active   | Number of active (running) backfills                   |
+| backfill_num_snoozing | Number of snoozing (running) backfills                 |
+| backfill_num_pending  | Number of pending (not running) backfills              |
+
+****Per Stream Stats
+
+| backfill_disk_items      | The amount of items read during backfill from disk    |
+| backfill_mem_items       | The amount of items read during backfill from memory  |
+| backfill_sent            | The amount of items sent to the consumer during the   |
+| end_seqno                | The seqno send mutations up to                        |
+| flags                    | The flags supplied in the stream request              |
+| items_ready              | Whether the stream has items ready to send            |
+| last_sent_seqno          | The last seqno sent by this stream                    |
+| last_sent_snap_end_seqno | The last snapshot end seqno sent by active stream     |
+| last_read_seqno          | The last seqno read by this stream from disk or memory|
+| ready_queue_memory       | Memory occupied by elements in the DCP readyQ         |
+| memory_phase             | The amount of items sent during the memory phase      |
+| opaque                   | The unique stream identifier                          |
+| snap_end_seqno           | The last snapshot end seqno (Used if a consumer is    |
+|                          | resuming a stream)                                    |
+| snap_start_seqno         | The last snapshot start seqno (Used if a consumer is  |
+|                          | resuming a stream)                                    |
+| start_seqno              | The seqno to start sending mutations from             |
+| state                    | The stream state (pending, backfilling, in-memory,    |
+|                          | takeover-send, takeover-wait, or dead)                |
+| vb_uuid                  | The vb uuid used in the stream request                |
+| cur_snapshot_type        | The type of the current snapshot being received       |
+| cur_snapshot_start       | The start seqno of the current snapshot being         |
+|                          | received                                              |
+| cur_snapshot_end         | The end seqno of the current snapshot being received  |
+
+** Dcp Aggregated Stats
+
+Aggregated dcp stats allow dcp connections to be logically grouped and
+aggregated together by prefixes.
+
+For example, if all of your dcp connections started with =xdcr:= or
+=replication=, you could call =stats dcpagg := to request stats grouped by
+everything before the first =:= character, giving you a set for =xdcr= and a
+set for =replication=.
+
+*** Results
+
+| [prefix]:count              | Number of connections matching this prefix   |
+| [prefix]:producer_count     | Total producer connections with this prefix  |
+| [prefix]:items_sent         | Total items sent with this prefix            |
+| [prefix]:items_remaining    | Total items remaining to be sent with this   |
+|                             | prefix                                       |
+| [prefix]:total_bytes        | Total number of bytes sent with this prefix  |
+| [prefix]:total_backlog_size | Total backfill items remaining to be sent    |
+|                             | with this prefix                             |
+| ep_dcp_num_running_backfills| Total number of running backfills across all |
+|                             | dcp connections                              |
+| ep_dcp_max_running_backfills| Max running backfills we can have across all |
+|                             | dcp connections                              |
+| ep_dcp_dead_conn_count      | Total dead connections                       |
+
+** Timing Stats
+
+Timing stats provide histogram data from high resolution timers over
+various operations within the system.
+
+*** General Form
+
+As this data is multi-dimensional, some parsing may be required for
+machine processing.  It's somewhat human readable, but the =stats=
+script mentioned in the Getting Started section above will do fancier
+formatting for you.
+
+Consider the following sample stats:
+
+: STAT disk_insert_8,16 9488
+: STAT disk_insert_16,32 290
+: STAT disk_insert_32,64 73
+: STAT disk_insert_64,128 86
+: STAT disk_insert_128,256 48
+: STAT disk_insert_256,512 2
+: STAT disk_insert_512,1024 12
+: STAT disk_insert_1024,2048 1
+
+This tells you that =disk_insert= took 8-16µs 9,488 times, 16-32µs
+290 times, and so on.
+
+The same stats displayed through the =stats= CLI tool would look like
+this:
+
+: disk_insert (10008 total)
+:    8us - 16us    : ( 94.80%) 9488 ###########################################
+:    16us - 32us   : ( 97.70%)  290 #
+:    32us - 64us   : ( 98.43%)   73
+:    64us - 128us  : ( 99.29%)   86
+:    128us - 256us : ( 99.77%)   48
+:    256us - 512us : ( 99.79%)    2
+:    512us - 1ms   : ( 99.91%)   12
+:    1ms - 2ms     : ( 99.92%)    1
+
+
+*** Available Stats
+
+The following histograms are available from "timings" in the above
+form to describe when time was spent doing various things:
+
+| bg_wait                         | bg fetches waiting in the dispatcher queue     |
+| bg_load                         | bg fetches waiting for disk                    |
+| set_with_meta                   | set_with_meta latencies                        |
+| access_scanner                  | access scanner run times                       |
+| checkpoint_remover              | checkpoint remover run times                   |
+| item_pager                      | item pager run times                           |
+| expiry_pager                    | expiry pager run times                         |
+| bg_tap_wait                     | tap bg fetches waiting in the dispatcher queue |
+| bg_tap_load                     | tap bg fetches waiting for disk                |
+| pending_ops                     | client connections blocked for operations      |
+|                                 | in pending vbuckets                            |
+| storage_age                     | Analogous to ep_storage_age in main stats      |
+| data_age                        | Analogous to ep_data_age in main stats         |
+| get_cmd                         | servicing get requests                         |
+| arith_cmd                       | servicing incr/decr requests                   |
+| get_stats_cmd                   | servicing get_stats requests                   |
+| get_vb_cmd                      | servicing vbucket status requests              |
+| set_vb_cmd                      | servicing vbucket set state commands           |
+| del_vb_cmd                      | servicing vbucket deletion commands            |
+| chk_persistence_cmd             | waiting for checkpoint persistence             |
+| tap_vb_set                      | servicing tap vbucket set state commands       |
+| tap_vb_reset                    | servicing tap vbucket reset commands           |
+| tap_mutation                    | servicing tap mutations                        |
+| notify_io                       | waking blocked connections                     |
+| paged_out_time                  | time (in seconds) objects are non-resident     |
+| disk_insert                     | waiting for disk to store a new item           |
+| disk_update                     | waiting for disk to modify an existing item    |
+| disk_del                        | waiting for disk to delete an item             |
+| disk_vb_del                     | waiting for disk to delete a vbucket           |
+| disk_commit                     | waiting for a commit after a batch of updates  |
+| item_alloc_sizes                | Item allocation size counters (in bytes)       |
+| persistence_cursor_get_all_items| Time spent in fetching all items by            |
+|                                 | persistence cursor from checkpoint queues      |
+| dcp_cursors_get_all_items       | Time spent in fetching all items by all dcp    |
+|                                 | cursors from checkpoint queues                 |
+
+The following histograms are available from "scheduler" and "runtimes"
+describing the scheduling overhead times and task runtimes incurred by various
+IO and Non-IO tasks respectively:
+
+| READ tasks                  |                                          |
+| bg_fetcher_tasks            | histogram of scheduling overhead/task    |
+|                             | runtimes for background fetch tasks      |
+| bg_fetcher_meta_tasks       | histogram of scheduling overhead/task    |
+|                             | runtimes for background fetch meta tasks |
+| vkey_stat_bg_fetcher_tasks  | histogram of scheduling overhead/task    |
+|                             | runtimes for fetching item from disk for |
+|                             | vkey stat tasks                          |
+| warmup_tasks                | histogram of scheduling overhead/task    |
+|                             | runtimes for warmup tasks                |
+|-----------------------------+------------------------------------------|
+| WRITE tasks                 |                                          |
+| vbucket_persist_high_tasks  | histogram of scheduling overhead/task    |
+|                             | runtimes for snapshot vbucket state in   |
+|                             | high priority tasks                      |
+| vbucket_persist_low_tasks   | histogram of scheduling overhead/task    |
+|                             | runtimes for snapshot vbucket state in   |
+|                             | low priority tasks                       |
+| vbucket_deletion_tasks      | histogram of scheduling overhead/task    |
+|                             | runtimes for vbucket deletion tasks      |
+| flusher_tasks               | histogram of scheduling overhead/task    |
+|                             | runtimes for flusher tasks               |
+| flush_all_tasks             | histogram of scheduling overhead/task    |
+|                             | runtimes for flush all tasks             |
+| compactor_tasks             | histogram of scheduling overhead/task    |
+|                             | runtimes for vbucket level compaction    |
+|                             | tasks                                    |
+| statsnap_tasks              | histogram of scheduling overhead/task    |
+|                             | runtimes for stats snapshot tasks        |
+| mutation_log_compactor_tasks| histogram of scheduling overhead/task    |
+|                             | runtimes for access log compaction tasks |
+|-----------------------------+------------------------------------------|
+| AUXIO tasks                 |                                          |
+| tap_bg_fetcher_tasks        | histogram of scheduling overhead/task    |
+|                             | runtimes for tap background fetch tasks  |
+| access_scanner_tasks        | histogram of scheduling overhead/task    |
+|                             | runtimes for access scanner tasks        |
+| backfill_tasks              | histogram of scheduling overhead/task    |
+|                             | runtimes for backfill tasks              |
+|-----------------------------+------------------------------------------|
+| NONIO tasks                 |                                          |
+| conn_notification_tasks     | histogram of scheduling overhead/task    |
+|                             | runtimes for connection notification     |
+|                             | tasks                                    |
+| checkpoint_remover_tasks    | histogram of scheduling overhead/task    |
+|                             | runtimes for checkpoint removal tasks    |
+| vb_memory_deletion_tasks    | histogram of scheduling overhead/task    |
+|                             | runtimes for memory deletion of vbucket  |
+|                             | tasks                                    |
+| checkpoint_stats_tasks      | histogram of scheduling overhead/task    |
+|                             | runtimes for checkpoint stats tasks      |
+| item_pager_tasks            | histogram of scheduling overhead/task    |
+|                             | runtimes for item pager tasks            |
+| tap_resume_tasks            | histogram of scheduling overhead/task    |
+|                             | runtimes for resume suspended tap        |
+|                             | connection tasks                         |
+| tapconnection_reaper_tasks  | histogram of scheduling overhead/task    |
+|                             | runtimes for tap/dcp connection reaper   |
+|                             | tasks                                    |
+| hashtable_resize_tasks      | histogram of scheduling overhead/task    |
+|                             | runtimes for hash table resizer tasks    |
+| pending_ops_tasks           | histogram of scheduling overhead/task    |
+|                             | runtimes for processing dcp bufferred    |
+|                             | items tasks                              |
+| conn_manager_tasks          | histogram of scheduling overhead/task    |
+|                             | runtimes for dcp/tap connection manager  |
+|                             | tasks                                    |
+| defragmenter_tasks          | histogram of scheduling overhead/task    |
+|                             | runtimes for the in-memory defragmenter  |
+|                             | tasks                                    |
+| workload_monitor_tasks      | histogram of scheduling overhead/task    |
+|                             | runtimes for the workload monitor which  |
+|                             | detects and sets the workload pattern    |
+
+** Hash Stats
+
+Hash stats provide information on your vbucket hash tables.
+
+Requesting these stats does affect performance, so don't do it too
+regularly, but it's useful for debugging certain types of performance
+issues.  For example, if your hash table is tuned to have too few
+buckets for the data load within it, the =max_depth= will be too large
+and performance will suffer.
+
+| avg_count    | The average number of items per vbucket                  |
+| avg_max      | The average max depth of a vbucket hash table            |
+| avg_min      | The average min depth of a vbucket hash table            |
+| largest_max  | The largest hash table depth of in all vbuckets          |
+| largest_min  | The the largest minimum hash table depth of all vbuckets |
+| max_count    | The largest number of items in a vbucket                 |
+| min_count    | The smallest number of items in a vbucket                |
+| total_counts | The total numer of items in all vbuckets                 |
+
+It is also possible to get more detailed hash tables stats by using
+'hash detail'. This will print per-vbucket stats.
+
+Each stat is prefixed with =vb_= followed by a number, a colon, then
+the individual stat name.
+
+For example, the stat representing the size of the hash table for
+vbucket 0 is =vb_0:size=.
+
+| state            | The current state of this vbucket                |
+| size             | Number of hash buckets                           |
+| locks            | Number of locks covering hash table operations   |
+| min_depth        | Minimum number of items found in a bucket        |
+| max_depth        | Maximum number of items found in a bucket        |
+| reported         | Number of items this hash table reports having   |
+| counted          | Number of items found while walking the table    |
+| resized          | Number of times the hash table resized           |
+| mem_size         | Running sum of memory used by each item          |
+| mem_size_counted | Counted sum of current memory used by each item  |
+
+** Checkpoint Stats
+
+Checkpoint stats provide detailed information on per-vbucket checkpoint
+datastructure.
+
+Like Hash stats, requesting these stats has some impact on performance.
+Therefore, please do not poll them from the server frequently.
+Each stat is prefixed with =vb_= followed by a number, a colon, and then
+each stat name.
+
+| cursor_name:cursor_checkpoint_id | Checkpoint ID at which the cursor is      |
+|                                  | name 'cursor_name' is pointing now        |
+| cursor_name:cursor_seqno         | The seqno at which the cursor             |
+|                                  | 'cursor_name' is pointing now             |
+| cursor_name:num_visits           | Number of times a batch of items have been|
+|                                  | drained from a checkpoint of 'cursor_name'|
+| open_checkpoint_id               | ID of the current open checkpoint         |
+| num_conn_cursors                 | Number of referencing dcp/tap cursors     |
+| num_checkpoint_items             | Number of total items in a checkpoint     |
+|                                  | datastructure                             |
+| num_open_checkpoint_items        | Number of items in the open checkpoint    |
+| num_checkpoints                  | Number of checkpoints in a checkpoint     |
+|                                  | datastructure                             |
+| num_items_for_persistence        | Number of items remaining for persistence |
+| state                            | The state of the vbucket this checkpoint  |
+|                                  | contains data for                         |
+| last_closed_checkpoint_id        | The last closed checkpoint number         |
+| persisted_checkpoint_id          | The slast persisted checkpoint number     |
+| mem_usage                        | Total memory taken up by items in all     |
+|                                  | checkpoints under given manager           |
+
+** Memory Stats
+
+This provides various memory-related stats including the stats from tcmalloc.
+Note that tcmalloc stats are not available on some operating systems
+(e.g., Windows) that do not support tcmalloc.
+
+| mem_used (deprecated)               | Engine's total memory usage          |
+| bytes                               | Engine's total memory usage          |
+| ep_kv_size                          | Memory used to store item metadata,  |
+|                                     | keys and values, no matter the       |
+|                                     | vbucket's state. If an item's value  |
+|                                     | is ejected, this stat will be        |
+|                                     | decremented by the size of the       |
+|                                     | item's value.                        |
+| ep_value_size                       | Memory used to store values for      |
+|                                     | resident keys                        |
+| ep_overhead                         | Extra memory used by transient data  |
+|                                     | like persistence queue, replication  |
+|                                     | queues, checkpoints, etc             |
+| ep_max_size                         | Max amount of data allowed in memory |
+| ep_mem_low_wat                      | Low water mark for auto-evictions    |
+| ep_mem_low_wat_percent              | Low water mark (as a percentage)       |
+| ep_mem_high_wat                     | High water mark for auto-evictions   |
+| ep_mem_high_wat_percent             | High water mark (as a percentage)      |
+| ep_mem_merge_bytes_threshold        | The amount of thread-local memory    |
+|                                     | accumulation at which the local ctr  |
+|                                     | is to be merged with bucket level ctr|
+| ep_mem_merge_count_threshold        | No.of modifications to thread-local  |
+|                                     | mem ctr after which the ctr is to be |
+|                                     | merged with bucket level ctr         |
+| ep_oom_errors                       | Number of times unrecoverable OOMs   |
+|                                     | happened while processing operations |
+| ep_tmp_oom_errors                   | Number of times temporary OOMs       |
+|                                     | happened while processing operations |
+| ep_blob_num                         | The number of blob objects in the    |
+|                                     | cache                                |
+| ep_blob_overhead                    | The "unused" memory caused by the    |
+|                                     | allocator returning bigger chunks    |
+|                                     | than requested                       |
+| ep_storedval_size                   | Memory used by storedval objects     |
+| ep_storedval_overhead               | The "unused" memory caused by the    |
+|                                     | allocator returning bigger chunks    |
+|                                     | than requested                       |
+| ep_storedval_num                    | The number of storedval objects      |
+|                                     | allocated                            |
+| ep_item_num                         | The number of item objects allocated |
+| ep_mem_tracker_enabled              | If smart memory tracking is enabled  |
+| total_allocated_bytes               | Engine's total memory usage reported |
+|                                     | from the underlying memory allocator |
+| total_heap_size                     | Bytes of system memory reserved by   |
+|                                     | the underlying memory allocator      |
+| total_free_mapped_bytes             | Number of bytes in free, mapped      |
+|                                     | pages in the underlying allocator's  |
+|                                     | page heap                            |
+| total_free_unmapped_bytes           | Number of bytes in free, unmapped    |
+|                                     | pages in page heap. These are bytes  |
+|                                     | that have been released back to OS   |
+|                                     | by the underlying memory allocator   |
+| total_fragmentation_bytes           | Bytes of the fragmented memory in    |
+|                                     | the underlying allocator. Note that  |
+|                                     | the free and mapped pages inside the |
+|                                     | allocator are not considered as the  |
+|                                     | fragmentation as they can be used    |
+|                                     | for incoming memory allocations.     |
+| tcmalloc_max_thread_cache_bytes     | A limit to how much memory the       |
+|                                     | underlying memory allocator TCMalloc |
+|                                     | dedicates for small objects          |
+| tcmalloc_current_thread_cache_bytes | A measure of some of the memory that |
+|                                     | the underlying allocator TCMalloc is |
+|                                     | using for small objects              |
+
+
+** Stats Key and Vkey
+| key_cas                       | The keys current cas value             |KV|
+| key_data_age                  | How long the key has waited for its    |KV|
+|                               | value to be persisted (0 if clean)     |KV|
+| key_exptime                   | Expiration time from the epoch         |KV|
+| key_flags                     | Flags for this key                     |KV|
+| key_is_dirty                  | If the value is not yet persisted      |KV|
+| key_last_modified_time        | Last updated time                      |KV|
+| key_valid                     | See description below                  | V|
+| key_vb_state                  | The vbucket state of this key          |KV|
+
+All of the above numeric statistics (cas, exptime, flags) are printed as
+decimal integers.
+
+=key_valid= can have the following responses:
+
+this_is_a_bug - Some case we didn't take care of.
+dirty - The value in memory has not been persisted yet.
+length_mismatch - The key length in memory doesn't match the length on disk.
+data_mismatch - The data in memroy doesn't match the data on disk.
+flags_mismatch - The flags in memory don't match the flags on disk.
+valid - The key is both on disk and in memory
+ram_but_not_disk - The value doesn't exist yet on disk.
+item_deleted - The item has been deleted.
+
+** Warmup
+
+Stats =warmup= shows statistics related to warmup logic
+
+| ep_warmup                       | Shows if warmup is enabled / disabled      |
+| ep_warmup_estimated_key_count   | Estimated number of keys in database       |
+| ep_warmup_estimated_value_count | Estimated number of values in database     |
+| ep_warmup_state                 | The current state of the warmup thread     |
+| ep_warmup_thread                | Warmup thread status                       |
+| ep_warmup_key_count             | Number of keys warmed up                   |
+| ep_warmup_value_count           | Number of values warmed up                 |
+| ep_warmup_dups                  | Duplicates encountered during warmup       |
+| ep_warmup_oom                   | OOMs encountered during warmup             |
+| ep_warmup_time                  | Time (µs) spent by warming data            |
+| ep_warmup_keys_time             | Time (µs) spent by warming keys            |
+| ep_warmup_mutation_log          | Number of keys present in mutation log     |
+| ep_warmup_access_log            | Number of keys present in access log       |
+| ep_warmup_min_items_threshold   | Percentage of total items warmed up        |
+|                                 | before we enable traffic                   |
+| ep_warmup_min_memory_threshold  | Percentage of max mem warmed up before     |
+|                                 | we enable traffic                          |
+
+
+** KV Store Stats
+
+These provide various low-level stats and timings from the underlying KV
+storage system and useful to understand various states of the storage
+system.
+
+The following stats are available for all database engine:
+
+| open              | Number of database open operations                 |
+| close             | Number of database close operations                |
+| readTime          | Time spent in read operations                      |
+| readSize          | Size of data in read operations                    |
+| writeTime         | Time spent in write operations                     |
+| writeSize         | Size of data in write operations                   |
+| delete            | Time spent  in delete() calls                      |
+
+The following stats are available for the CouchStore database engine:
+
+| backend_type              | Type of backend database engine                                                           |
+| commit                    | Time spent in CouchStore commit operation                                                 |
+| compaction                | Time spent in compacting vbucket database file                                            |
+| numLoadedVb               | Number of Vbuckets loaded into memory                                                     |
+| lastCommDocs              | Number of docs in the last commit                                                         |
+| failure_set               | Number of failed set operation                                                            |
+| failure_get               | Number of failed get operation                                                            |
+| failure_vbset             | Number of failed vbucket set operation                                                    |
+| save_documents            | Time spent in CouchStore save documents operation                                         |
+| io_num_read               | Number of io read operations                                                              |
+| io_num_write              | Number of io write operations                                                             |
+| io_read_bytes             | Number of bytes read (key + values + rev_meta)                                            |
+| io_write_bytes            | Number of bytes written (key + values + rev_meta                                          |
+| io_total_read_bytes       | Number of bytes read (total, including Couchstore B-Tree and other overheads)             |
+| io_total_write_bytes      | Number of bytes written (total, including Couchstore B-Tree and other overheads)          |
+| io_compaction_read_bytes  | Number of bytes read (compaction only, includes Couchstore B-Tree and other overheads)    |
+| io_compaction_write_bytes | Number of bytes written (compaction only, includes Couchstore B-Tree and other overheads) |
+| block_cache_hits          | Number of block cache hits in buffer cache provided by underlying store                   |
+| block_cache_misses        | Number of block cache misses in buffer cache provided by underlying store                 |
+
+** KV Store Timing Stats
+
+KV Store Timing stats provide timing information from the underlying storage
+system. These stats are on shard (group of partitions) level.
+
+*** Available Stats
+The following histograms are available from "kvtimings" in the form
+described in Timings section above. These stats are prefixed with the
+rw_<Shard number>: indicating the times spent doing various things:
+
+| commit                | time spent in commit operations                |
+| compact               | time spent in file compaction operations       |
+| snapshot              | time spent in VB state snapshot operations     |
+| delete                | time spent in delete operations                |
+| save_documents        | time spent in persisting documents in storage  |
+| writeTime             | time spent in writing to storage subsystem     |
+| writeSize             | sizes of writes given to storage subsystem     |
+| bulkSize              | batch sizes of the save documents calls        |
+| fsReadTime            | time spent in doing filesystem reads           |
+| fsWriteTime           | time spent in doing filesystem writes          |
+| fsSyncTime            | time spent in doing filesystem sync operations |
+| fsReadSize            | sizes of various filesystem reads issued       |
+| fsWriteSize           | sizes of various filesystem writes issued      |
+| fsReadSeek            | values of various seek operations in file      |
+
+
+** Workload Raw Stats
+Some information about the number of shards and Executor pool information.
+These are available as "workload" stats:
+
+| ep_workload:num_shards  | number of shards or groups of partitions     |
+| ep_workload:num_writers | number of threads that prioritize write ops  |
+| ep_workload:num_readers | number of threads that prioritize read ops   |
+| ep_workload:num_auxio   | number of threads that prioritize aux io ops |
+| ep_workload:num_nonio   | number of threads that prioritize non io ops |
+| ep_workload:max_writers | max number of threads doing write ops        |
+| ep_workload:max_readers | max number of threads doing read ops         |
+| ep_workload:max_auxio   | max number of threads doing aux io ops       |
+| ep_workload:max_nonio   | max number of threads doing non io ops       |
+| ep_workload:num_sleepers| number of threads that are sleeping |
+| ep_workload:ready_tasks | number of global tasks that are ready to run |
+
+Additionally the following stats on the current state of the TaskQueues are
+also presented
+| HiPrioQ_Writer:InQsize   | count high priority bucket writer tasks waiting  |
+| HiPrioQ_Writer:OutQsize  | count high priority bucket writer tasks runnable |
+| HiPrioQ_Reader:InQsize   | count high priority bucket reader tasks waiting  |
+| HiPrioQ_Reader:OutQsize  | count high priority bucket reader tasks runnable |
+| HiPrioQ_AuxIO:InQsize    | count high priority bucket auxio  tasks waiting  |
+| HiPrioQ_AuxIO:OutQsize   | count high priority bucket auxio  tasks runnable |
+| HiPrioQ_NonIO:InQsize    | count high priority bucket nonio  tasks waiting  |
+| HiPrioQ_NonIO:OutQsize   | count high priority bucket nonio  tasks runnable |
+| LowPrioQ_Writer:InQsize  | count low priority bucket writer tasks waiting   |
+| LowPrioQ_Writer:OutQsize | count low priority bucket writer tasks runnable  |
+| LowPrioQ_Reader:InQsize  | count low priority bucket reader tasks waiting   |
+| LowPrioQ_Reader:OutQsize | count low priority bucket reader tasks runnable  |
+| LowPrioQ_AuxIO:InQsize   | count low priority bucket auxio  tasks waiting   |
+| LowPrioQ_AuxIO:OutQsize  | count low priority bucket auxio  tasks runnable  |
+| LowPrioQ_NonIO:InQsize   | count low priority bucket nonio  tasks waiting   |
+| LowPrioQ_NonIO:OutQsize  | count low priority bucket nonio  tasks runnable  |
+
+** Dispatcher Stats/JobLogs
+
+This provides the stats from AUX dispatcher and non-IO dispatcher, and
+from all the reader and writer threads running for the specific bucket.
+Along with stats, the job logs for each of the dispatchers and worker
+threads is also made available.
+
+The following stats are available for the workers and dispatchers:
+
+| state             | Threads's current status: running, sleeping etc.              |
+| runtime           | The amount of time since the thread started running           |
+| task              | The activity/job the thread is involved with at the moment    |
+
+The following stats are for individual job logs:
+
+| starttime         | The timestamp when the job started                            |
+| runtime           | Time it took for the job to run                               |
+| task              | The activity/job the thread ran during that time              |
+
+
+** Stats Reset
+
+Resets the list of stats below.
+
+Reset Stats:
+
+| ep_bg_load                        |
+| ep_bg_wait                        |
+| ep_bg_max_load                    |
+| ep_bg_min_load                    |
+| ep_bg_max_wait                    |
+| ep_bg_min_wait                    |
+| ep_commit_time                    |
+| ep_flush_duration                 |
+| ep_flush_duration_highwat         |
+| ep_io_num_read                    |
+| ep_io_num_write                   |
+| ep_io_read_bytes                  |
+| ep_io_write_bytes                 |
+| ep_items_rm_from_checkpoints      |
+| ep_num_eject_failures             |
+| ep_num_pager_runs                 |
+| ep_num_not_my_vbuckets            |
+| ep_num_value_ejects               |
+| ep_pending_ops_max                |
+| ep_pending_ops_max_duration       |
+| ep_pending_ops_total              |
+| ep_storage_age                    |
+| ep_storage_age_highwat            |
+| ep_tap_bg_load_avg                |
+| ep_tap_bg_max_load                |
+| ep_tap_bg_max_wait                |
+| ep_tap_bg_min_load                |
+| ep_tap_bg_min_wait                |
+| ep_tap_bg_wait_avg                |
+| ep_replication_throttled          |
+| ep_tap_total_fetched              |
+| ep_vbucket_del_max_walltime       |
+| pending_ops                       |
+
+Reset Histograms:
+
+| bg_load                           |
+| bg_wait                           |
+| bg_tap_load                       |
+| bg_tap_wait                       |
+| chk_persistence_cmd               |
+| data_age                          |
+| del_vb_cmd                        |
+| disk_insert                       |
+| disk_update                       |
+| disk_del                          |
+| disk_vb_del                       |
+| disk_commit                       |
+| get_stats_cmd                     |
+| item_alloc_sizes                  |
+| get_vb_cmd                        |
+| notify_io                         |
+| pending_ops                       |
+| persistence_cursor_get_all_items  |
+| dcp_cursors_get_all_items         |
+| set_vb_cmd                        |
+| storage_age                       |
+| tap_mutation                      |
+| tap_vb_reset                      |
+| tap_vb_set                        |
+
+
+* Details
+
+** Ages
+
+The difference between =ep_storage_age= and =ep_data_age= is somewhat
+subtle, but when you consider that a given record may be updated
+multiple times before hitting persistence, it starts to be clearer.
+
+=ep_data_age= is how old the data we actually wrote is.
+
+=ep_storage_age= is how long the object has been waiting to be
+persisted.
+
+** Warming Up
+
+Opening the data store is broken into three distinct phases:
+
+*** Initializing
+
+During the initialization phase, the server is not accepting
+connections or otherwise functional.  This is often quick, but in a
+server crash can take some time to perform recovery of the underlying
+storage.
+
+This time is made available via the =ep_dbinit= stat.
+
+*** Warming Up
+
+After initialization, warmup begins.  At this point, the server is
+capable of taking new writes and responding to reads.  However, only
+records that have been pulled out of the storage or have been updated
+from other clients will be available for request.
+
+(note that records read from persistence will not overwrite new
+records captured from the network)
+
+During this phase, =ep_warmup_thread= will report =running= and
+=ep_warmed_up= will be increasing as records are being read.
+
+*** Complete
+
+Once complete, =ep_warmed_up= will stop increasing and
+=ep_warmup_thread= will report =complete=.
+
+* Uuid
+The uuid stats allows clients to check if the unique identifier created
+and assigned to the bucket when it is created. By looking at this a client
+can verify that the bucket hasn't been recreated since it was used.
