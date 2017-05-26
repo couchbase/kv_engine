@@ -20,6 +20,7 @@
 #include "ep_time.h"
 #include "evp_store_single_threaded_test.h"
 #include "tests/mock/mock_global_task.h"
+#include "utilities/protocol2text.h"
 
 #include <string_utilities.h>
 #include <xattr/blob.h>
@@ -1115,6 +1116,14 @@ struct PrintToStringCombinedName {
     }
 };
 
+struct PrintOpcode {
+    std::string operator()(
+            const ::testing::TestParamInfo<protocol_binary_command>& info)
+            const {
+        return memcached_opcode_2_text(info.param);
+    }
+};
+
 INSTANTIATE_TEST_CASE_P(DelWithMeta,
                         DelWithMetaTest,
                         ::testing::Combine(::testing::Bool(),
@@ -1127,20 +1136,17 @@ INSTANTIATE_TEST_CASE_P(DelWithMetaLww,
                                            deleteOpcodeValues),
                         PrintToStringCombinedName());
 
-#if 0
-// TEMP: MB-24552
 INSTANTIATE_TEST_CASE_P(AddSetWithMeta,
                         AddSetWithMetaTest,
                         addSetOpcodeValues,
-                        ::testing::PrintToStringParamName());
+                        PrintOpcode());
 
 INSTANTIATE_TEST_CASE_P(AddSetWithMetaLww,
                         AddSetWithMetaLwwTest,
                         addSetOpcodeValues,
-                        ::testing::PrintToStringParamName());
+                        PrintOpcode());
 
 INSTANTIATE_TEST_CASE_P(AddSetDelMeta,
                         AllWithMetaTest,
                         opcodeValues,
-                        ::testing::PrintToStringParamName());
-#endif
+                        PrintOpcode());
