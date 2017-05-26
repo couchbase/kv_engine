@@ -39,13 +39,13 @@ memcached/ep-engine repo to kv_engine repo.
 Checks out the specifed change, rebases to kv_engine and re-uploads to
 gerrit as a kv_engine change.
 
-Usage: gerrit_move_to_kv_engine.py <username> <change> <patch_set>
+Usage: gerrit_move_to_kv_engine.py <username> <change>
 
     username   Username for Gerrit - see
                http://review.couchbase.org/#/settings/ under 'Profile'
     change     Change number
 
-Example: gerrit_move_to_kv_engine.py drigby memcached 78322 3
+Example: gerrit_move_to_kv_engine.py drigby 78322
     """, file=sys.stderr)
     exit(1)
 
