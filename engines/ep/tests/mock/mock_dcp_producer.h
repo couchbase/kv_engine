@@ -121,6 +121,10 @@ public:
     const Collections::Filter& getFilter() {
         return *filter;
     }
+
+    void bytesForceRead(size_t bytes) {
+        backfillMgr->bytesForceRead(bytes);
+    }
 };
 
 using mock_dcp_producer_t = SingleThreadedRCPtr<MockDcpProducer>;

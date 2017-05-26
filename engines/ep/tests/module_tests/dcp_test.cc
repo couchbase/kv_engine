@@ -27,6 +27,8 @@
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_stream.h"
 #include "connmap.h"
+#include "dcp/backfill_disk.h"
+#include "dcp/dcp-types.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
 #include "dcp/stream.h"
@@ -557,6 +559,134 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
 
     /* Read the other item */
     mock_stream->consumeBackfillItems(1);
+}
+
+class CacheCallbackTest : public StreamTest {
+protected:
+    void SetUp() override {
+        StreamTest::SetUp();
+        store_item(vbid, key, "value");
+
+        /* Create new checkpoint so that we can remove the current checkpoint
+         * and force a backfill in the DCP stream */
+        CheckpointManager& ckpt_mgr = vb0->checkpointManager;
+        ckpt_mgr.createNewCheckpoint();
+
+        /* Wait for removal of the old checkpoint, this also would imply that
+         * the items are persisted (in case of persistent buckets) */
+        {
+            bool new_ckpt_created;
+            std::chrono::microseconds uSleepTime(128);
+            while (numItems !=
+                    ckpt_mgr.removeClosedUnrefCheckpoints(*vb0,
+                                                          new_ckpt_created)) {
+                uSleepTime = decayingSleep(uSleepTime);
+            }
+        }
+
+        /* Set up a DCP stream for the backfill */
+        setup_dcp_stream();
+    }
+
+    void TearDown() override {
+        producer.get()->closeAllStreams();
+        StreamTest::TearDown();
+    }
+
+    const size_t numItems = 1;
+    const std::string key = "key";
+    const DocKey docKey{key, DocNamespace::DefaultCollection};
+};
+
+/*
+ * Tests the callback member function of the CacheCallback class.  This
+ * particular test should result in the CacheCallback having a status of
+ * ENGINE_KEY_EEXISTS.
+ */
+TEST_P(CacheCallbackTest, CacheCallback_key_eexists) {
+    MockActiveStream* mockStream = static_cast<MockActiveStream*>(stream.get());
+    active_stream_t activeStream(mockStream);
+    CacheCallback callback(*engine, activeStream);
+
+    mockStream->transitionStateToBackfilling();
+    CacheLookup lookup(docKey, /*BySeqno*/ 1, vbid);
+    callback.callback(lookup);
+
+    /* Invoking callback should result in backfillReceived being called on
+     * activeStream, which should return true and hence set the callback status
+     * to ENGINE_KEY_EEXISTS.
+     */
+    EXPECT_EQ(ENGINE_KEY_EEXISTS, callback.getStatus());
+
+    /* Verify that the item is read in the backfill */
+    EXPECT_EQ(numItems, mockStream->getNumBackfillItems());
+
+    /* Verify have the backfill item sitting in the readyQ */
+    EXPECT_EQ(numItems, mockStream->public_readyQ().size());
+}
+
+/*
+ * Tests the callback member function of the CacheCallback class.  This
+ * particular test should result in the CacheCallback having a status of
+ * ENGINE_SUCCESS.
+ */
+TEST_P(CacheCallbackTest, CacheCallback_engine_success) {
+    MockActiveStream* mockStream = static_cast<MockActiveStream*>(stream.get());
+    active_stream_t activeStream(mockStream);
+    CacheCallback callback(*engine, activeStream);
+
+    mockStream->transitionStateToBackfilling();
+    // Passing in wrong BySeqno - should be 1, but passing in 0
+    CacheLookup lookup(docKey, /*BySeqno*/ 0, vbid);
+    callback.callback(lookup);
+
+    /* Invoking callback should result in backfillReceived NOT being called on
+     * activeStream, and hence the callback status should be set to
+     * ENGINE_SUCCESS.
+     */
+    EXPECT_EQ(ENGINE_SUCCESS, callback.getStatus());
+
+    /* Verify that the item is not read in the backfill */
+    EXPECT_EQ(0, mockStream->getNumBackfillItems());
+
+    /* Verify do not have the backfill item sitting in the readyQ */
+    EXPECT_EQ(0, mockStream->public_readyQ().size());
+}
+
+/*
+ * Tests the callback member function of the CacheCallback class.  This
+ * particular test should result in the CacheCallback having a status of
+ * ENGINE_ENOMEM.
+ */
+TEST_P(CacheCallbackTest, CacheCallback_engine_enomem) {
+    /*
+     * Ensure that DcpProducer::recordBackfillManagerBytesRead returns false
+     * by setting the backfill buffer size to zero, and then setting bytes read
+     * to one.
+     */
+    dynamic_cast<MockDcpProducer*>(producer.get())->setBackfillBufferSize(0);
+    dynamic_cast<MockDcpProducer*>(producer.get())->bytesForceRead(1);
+
+    MockActiveStream* mockStream = static_cast<MockActiveStream*>(stream.get());
+    active_stream_t activeStream(mockStream);
+    CacheCallback callback(*engine, activeStream);
+
+    mockStream->transitionStateToBackfilling();
+    CacheLookup lookup(docKey, /*BySeqno*/ 1, vbid);
+    callback.callback(lookup);
+
+    /* Invoking callback should result in backfillReceived being called on
+     * activeStream, which should return false (due to
+     * DcpProducer::recordBackfillManagerBytesRead returning false), and hence
+     * set the callback status to ENGINE_ENOMEM.
+     */
+    EXPECT_EQ(ENGINE_ENOMEM, callback.getStatus());
+
+    /* Verify that the item is not read in the backfill */
+    EXPECT_EQ(0, mockStream->getNumBackfillItems());
+
+    /* Verify do not have the backfill item sitting in the readyQ */
+    EXPECT_EQ(0, mockStream->public_readyQ().size());
 }
 
 class ConnectionTest : public DCPTest {
@@ -1476,6 +1606,14 @@ TEST_F(ConnectionTest, test_mb24424_mutationResponse) {
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
                         StreamTest,
+                        ::testing::Values("persistent", "ephemeral"),
+                        [](const ::testing::TestParamInfo<std::string>& info) {
+                            return info.param;
+                        });
+
+// Test cases which run in both Full and Value eviction
+INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
+                        CacheCallbackTest,
                         ::testing::Values("persistent", "ephemeral"),
                         [](const ::testing::TestParamInfo<std::string>& info) {
                             return info.param;
