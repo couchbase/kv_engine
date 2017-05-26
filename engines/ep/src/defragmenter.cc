@@ -155,8 +155,7 @@ size_t DefragmenterTask::getMappedBytes() {
     stats.ext_stats = new allocator_ext_stat[stats.ext_stats_size];
     alloc_hooks->get_allocator_stats(&stats);
 
-    size_t mapped_bytes = stats.heap_size - stats.free_mapped_size -
-                          stats.free_unmapped_size;
+    size_t mapped_bytes = stats.fragmentation_size + stats.allocated_size;
     delete[] stats.ext_stats;
     return mapped_bytes;
 }

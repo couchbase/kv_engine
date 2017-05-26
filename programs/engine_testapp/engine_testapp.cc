@@ -994,8 +994,7 @@ static size_t get_mapped_bytes(void) {
         (cb_calloc(stats.ext_stats_size, sizeof(allocator_ext_stat)));
 
     alloc_hooks->get_allocator_stats(&stats);
-    mapped_bytes = stats.heap_size - stats.free_mapped_size
-                   - stats.free_unmapped_size;
+    mapped_bytes = stats.fragmentation_size + stats.allocated_size;
     cb_free(stats.ext_stats);
     return mapped_bytes;
 }

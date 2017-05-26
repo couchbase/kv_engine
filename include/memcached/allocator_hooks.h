@@ -31,16 +31,17 @@ typedef struct allocator_stats {
     /* Bytes of memory reserved by the allocator */
     size_t heap_size;
 
-    /* free, mapped bytes (contributing to VSZ and RSS) */
-    size_t free_mapped_size;
+    /* mem occupied by allocator metadata */
+    size_t metadata_size;
 
-    /* free, unmapped bytes (contributing to VSZ) */
-    size_t free_unmapped_size;
-
-    /* Memory overhead of the allocator:
-     *   heap_size - allocated_size - free_mapped_size - free_unmapped_size.
-     */
+    /* Memory overhead of the allocator*/
     size_t fragmentation_size;
+
+    /* memory that has not been given back to the OS */
+    size_t retained_size;
+
+    /* max bytes in resident pages mapped by the allocator*/
+    size_t resident_size;
 
     /* Array of additional allocator-specific statistics, of size
        `ext_stats_size` */

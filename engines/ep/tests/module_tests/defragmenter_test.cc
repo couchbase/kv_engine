@@ -35,8 +35,7 @@ static size_t get_mapped_bytes(void) {
     stats.ext_stats = extra_stats.data();
 
     AllocHooks::get_allocator_stats(&stats);
-    mapped_bytes = stats.heap_size - stats.free_mapped_size
-        - stats.free_unmapped_size;
+    mapped_bytes = stats.fragmentation_size + stats.allocated_size;
     return mapped_bytes;
 }
 

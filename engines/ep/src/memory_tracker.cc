@@ -157,10 +157,12 @@ void MemoryTracker::getAllocatorStats(std::map<std::string, size_t>
                                       stats.allocated_size));
     alloc_stats.insert(std::make_pair("total_heap_bytes",
                                       stats.heap_size));
-    alloc_stats.insert(std::make_pair("total_free_mapped_bytes",
-                                      stats.free_mapped_size));
-    alloc_stats.insert(std::make_pair("total_free_unmapped_bytes",
-                                      stats.free_unmapped_size));
+    alloc_stats.insert(
+            std::make_pair("total_metadata_bytes", stats.metadata_size));
+    alloc_stats.insert(
+            std::make_pair("total_resident_bytes", stats.resident_size));
+    alloc_stats.insert(
+            std::make_pair("total_retained_bytes", stats.retained_size));
     alloc_stats.insert(std::make_pair("total_fragmentation_bytes",
                                       stats.fragmentation_size));
 }
