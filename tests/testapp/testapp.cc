@@ -495,9 +495,9 @@ void TestappTest::parse_portnumber_file(in_port_t& port_out,
     ssl_port_out = (in_port_t)-1;
 
     unique_cJSON_ptr portnumbers;
-    ASSERT_NO_THROW(portnumbers = loadJsonFile(portnumber_file));
+    portnumbers = loadJsonFile(portnumber_file);
     ASSERT_NE(nullptr, portnumbers);
-    ASSERT_NO_THROW(connectionMap.initialize(portnumbers.get()));
+    connectionMap.initialize(portnumbers.get());
 
     cJSON* array = cJSON_GetObjectItem(portnumbers.get(), "ports");
     ASSERT_NE(nullptr, array) << "ports not found in portnumber file";
