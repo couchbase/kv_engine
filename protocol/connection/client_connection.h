@@ -632,7 +632,7 @@ public:
      * @return A connection to the server
      */
     MemcachedConnection& getConnection() {
-        return *connections.front();
+        return *connections.front().get();
     }
 
     /**
@@ -641,5 +641,5 @@ public:
     bool contains(const Protocol& protocol, bool ssl, sa_family_t family);
 
 private:
-    std::vector<MemcachedConnection*> connections;
+    std::vector<std::unique_ptr<MemcachedConnection>> connections;
 };

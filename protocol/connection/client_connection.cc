@@ -38,11 +38,11 @@ MemcachedConnection& ConnectionMap::getConnection(const Protocol& protocol,
                                                   bool ssl,
                                                   sa_family_t family,
                                                   in_port_t port) {
-    for (auto* conn : connections) {
+    for (auto& conn : connections) {
         if (conn->getProtocol() == protocol && conn->isSsl() == ssl &&
             conn->getFamily() == family &&
             (port == 0 || conn->getPort() == port)) {
-            return *conn;
+            return *conn.get();
         }
     }
 
@@ -54,7 +54,7 @@ bool ConnectionMap::contains(const Protocol& protocol, bool ssl,
     try {
         (void)getConnection(protocol, ssl, family, 0);
         return true;
-    } catch (std::runtime_error) {
+    } catch (const std::runtime_error&) {
         return false;
     }
 }
@@ -128,14 +128,11 @@ void ConnectionMap::initialize(cJSON* ports) {
                                                         useSsl);
         }
         connection->connect();
-        connections.push_back(connection);
+        connections.push_back(std::unique_ptr<MemcachedConnection>{connection});
     }
 }
 
 void ConnectionMap::invalidate() {
-    for (auto c : connections) {
-        delete c;
-    }
     connections.resize(0);
 }
 
