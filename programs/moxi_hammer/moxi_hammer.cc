@@ -131,8 +131,8 @@ SOCKET new_socket(std::string host,
                 socket(next->ai_family, next->ai_socktype, next->ai_protocol);
         if (sfd != INVALID_SOCKET) {
             if (connect(sfd, next->ai_addr, next->ai_addrlen) != SOCKET_ERROR) {
-                freeaddrinfo(ai);
                 if (evutil_make_socket_nonblocking(sfd) != -1) {
+                    freeaddrinfo(ai);
                     return sfd;
                 }
             }
