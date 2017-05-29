@@ -34,8 +34,11 @@ SOCKET create_connect_ssl_socket(in_port_t port) {
 
     ssl_ctx = nullptr;
     EXPECT_EQ(nullptr, bio);
-    EXPECT_EQ(0, create_ssl_connection(&ssl_ctx, &bio, "127.0.0.1", port_str,
-                                       NULL, NULL, 1));
+    if (create_ssl_connection(&ssl_ctx, &bio, "127.0.0.1", port_str,
+                                       NULL, NULL, 1) != 0) {
+        ADD_FAILURE() << "Failed to connect over ssl to port: " << port;
+        return INVALID_SOCKET;
+    }
 
     /* SSL "trickery". To ensure we have full control over send/receive of data.
        create_ssl_connection will have negotiated the SSL connection, now:
