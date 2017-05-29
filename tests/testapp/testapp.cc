@@ -273,10 +273,6 @@ static void log_network_error(const char* prefix) {
         fprintf(stderr, prefix, "unknown error");
     }
 }
-#else
-static void log_network_error(const char* prefix) {
-    fprintf(stderr, prefix, strerror(errno));
-}
 #endif
 
 std::string CERTIFICATE_PATH(const std::string& file) {
@@ -673,18 +669,24 @@ SOCKET create_connect_plain_socket(in_port_t port)
     struct addrinfo *ai = lookuphost("127.0.0.1", port);
     SOCKET sock = INVALID_SOCKET;
     if (ai != NULL) {
-       if ((sock = socket(ai->ai_family, ai->ai_socktype,
-                          ai->ai_protocol)) != INVALID_SOCKET) {
-          if (connect(sock, ai->ai_addr, (socklen_t)ai->ai_addrlen) == SOCKET_ERROR) {
-             log_network_error("Failed to connect socket: %s\n");
-             closesocket(sock);
-             sock = INVALID_SOCKET;
-          }
-       } else {
-          fprintf(stderr, "Failed to create socket: %s\n", strerror(errno));
-       }
+        for (auto* next = ai; next != nullptr && sock == INVALID_SOCKET;
+             next = next->ai_next) {
+            sock = socket(
+                    next->ai_family, next->ai_socktype, next->ai_protocol);
+            if (sock != INVALID_SOCKET) {
+                if (connect(sock, next->ai_addr, (socklen_t)next->ai_addrlen) ==
+                    SOCKET_ERROR) {
+                    closesocket(sock);
+                    sock = INVALID_SOCKET;
+                }
+            }
+        }
+        freeaddrinfo(ai);
+    }
 
-       freeaddrinfo(ai);
+    if (sock == INVALID_SOCKET) {
+        ADD_FAILURE() << "Failed to connect socket to port: " << port;
+        return sock;
     }
 
     int nodelay_flag = 1;
@@ -700,13 +702,7 @@ SOCKET create_connect_plain_socket(in_port_t port)
 }
 
 SOCKET connect_to_server_plain(in_port_t port) {
-    SOCKET sock = create_connect_plain_socket(port);
-    if (sock == INVALID_SOCKET) {
-        ADD_FAILURE() << "Failed to connect socket to port" << port;
-        return INVALID_SOCKET;
-    }
-
-    return sock;
+    return create_connect_plain_socket(port);
 }
 
 static SOCKET connect_to_server_ssl(in_port_t ssl_port) {
