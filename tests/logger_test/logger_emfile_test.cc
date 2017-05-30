@@ -29,29 +29,36 @@
 #include <platform/dirutils.h>
 #include <sys/resource.h>
 
-void wait_for_log_to_contain(int fd, const char* log_message) {
+#include <string>
+
+void wait_for_log_to_contain(FILE* log, const char* log_message) {
     // read() gives no guarantees of how the data will be chunked, so accumulate
     // one lines' worth (up to \n) in a string.
     std::string line;
     while (true) {
         char buffer[1024];
-        ssize_t bytes_read = read(fd, buffer, sizeof(buffer));
+        ssize_t bytes_read = fread(buffer, 1, sizeof(buffer), log);
         if (bytes_read > 0) {
             line.append(buffer, bytes_read);
         } else if (bytes_read == 0) {
+            if (fseek(log, 0, SEEK_CUR) != 0) {
+                perror("fseek failed:");
+                abort();
+            }
             usleep(10);
         } else {
-            perror("read failed:");
-            return;
+            perror("fread failed:");
+            abort();
         }
 
-        if (line.find('\n')) {
+        std::string::size_type pos;
+        while ((pos = line.find('\n')) != std::string::npos) {
             if (line.find(log_message) != std::string::npos) {
                 // Pass - found the warning in our log about rotation.
-                break;
-            } else {
-                line.clear();
+                return;
             }
+            // Discard the line we've already cheched.
+            line.erase(0, pos + 1);
         }
     }
 }
@@ -90,8 +97,8 @@ int main() {
     cb_assert(ret == EXTENSION_SUCCESS);
 
     // Wait for first log file to be created, and open it
-    int log_file;
-    while ((log_file = open("log_test_emfile.000000.txt", O_RDONLY)) == -1) {
+    FILE* log_file;
+    while ((log_file = fopen("log_test_emfile.000000.txt", "rb")) == nullptr) {
         usleep(10);
     }
 
@@ -119,8 +126,8 @@ int main() {
     }
 
     // Wait for second log file to be created, and open it
-    close(log_file);
-    while ((log_file = open("log_test_emfile.000001.txt", O_RDONLY)) == -1) {
+    fclose(log_file);
+    while ((log_file = fopen("log_test_emfile.000001.txt", "r")) == nullptr) {
         usleep(10);
     }
 
@@ -130,5 +137,6 @@ int main() {
 
     wait_for_log_to_contain(log_file, "Restarting file logging");
 
+    fclose(log_file);
     logger->shutdown(false);
 }
