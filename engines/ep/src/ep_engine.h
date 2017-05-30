@@ -757,30 +757,29 @@ protected:
     void addSeqnoVbStats(const void *cookie, ADD_STAT add_stat,
                                   const VBucketPtr &vb);
 
-    void addLookupResult(const void *cookie, Item *result) {
+    void addLookupResult(const void* cookie, std::unique_ptr<Item> result) {
         LockHolder lh(lookupMutex);
-        std::map<const void*, Item*>::iterator it = lookups.find(cookie);
+        auto it = lookups.find(cookie);
         if (it != lookups.end()) {
             if (it->second != NULL) {
                 LOG(EXTENSION_LOG_DEBUG,
                     "Cleaning up old lookup result for '%s'",
                     it->second->getKey().data());
-                delete it->second;
             } else {
                 LOG(EXTENSION_LOG_DEBUG, "Cleaning up old null lookup result");
             }
             lookups.erase(it);
         }
-        lookups[cookie] = result;
+        lookups[cookie] = std::move(result);
     }
 
-    bool fetchLookupResult(const void *cookie, Item **itm) {
+    bool fetchLookupResult(const void* cookie, std::unique_ptr<Item>& itm) {
         // This will return *and erase* the lookup result for a connection.
         // You look it up, you own it.
         LockHolder lh(lookupMutex);
-        std::map<const void*, Item*>::iterator it = lookups.find(cookie);
+        auto it = lookups.find(cookie);
         if (it != lookups.end()) {
-            *itm = it->second;
+            itm = std::move(it->second);
             lookups.erase(it);
             return true;
         } else {
@@ -949,7 +948,7 @@ protected:
     bucket_priority_t workloadPriority;
 
     ReplicationThrottle *replicationThrottle;
-    std::map<const void*, Item*> lookups;
+    std::map<const void*, std::unique_ptr<Item>> lookups;
     std::unordered_map<const void*, ENGINE_ERROR_CODE> allKeysLookups;
     std::mutex lookupMutex;
     GET_SERVER_API getServerApiFunc;

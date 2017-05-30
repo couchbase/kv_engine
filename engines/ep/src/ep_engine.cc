@@ -3974,17 +3974,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
                                                          bool validate) {
     ENGINE_ERROR_CODE rv = ENGINE_FAILED;
 
-    Item *it = NULL;
-    std::shared_ptr<Item> diskItem;
+    std::unique_ptr<Item> it;
     struct key_stats kstats;
 
-    if (fetchLookupResult(cookie, &it)) {
-        diskItem.reset(it); // Will be null if the key was not found
+    if (fetchLookupResult(cookie, it)) {
         if (!validate) {
             LOG(EXTENSION_LOG_DEBUG,
                 "Found lookup results for non-validating key "
                 "stat call. Would have leaked\n");
-            diskItem.reset();
+            it.reset();
         }
     } else if (validate) {
         rv = kvBucket->statsVKey(key, vbid, cookie);
@@ -4002,8 +4000,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
         if (validate) {
             if (kstats.dirty) {
                 valid.assign("dirty");
-            } else if (diskItem.get()) {
-                valid.assign(kvBucket->validateKey(key, vbid, *diskItem));
+            } else if (it) {
+                valid.assign(kvBucket->validateKey(key, vbid, *it));
             } else {
                 valid.assign("ram_but_not_disk");
             }

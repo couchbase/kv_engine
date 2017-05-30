@@ -280,7 +280,7 @@ void EPBucket::completeStatsVKey(const void* cookie,
     }
 
     if (gcb.getStatus() == ENGINE_SUCCESS) {
-        engine.addLookupResult(cookie, gcb.item.release());
+        engine.addLookupResult(cookie, std::move(gcb.item));
     } else {
         engine.addLookupResult(cookie, NULL);
     }
