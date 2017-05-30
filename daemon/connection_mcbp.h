@@ -376,14 +376,6 @@ public:
         McbpConnection::rlbytes = rlbytes;
     }
 
-    void* getItem() const {
-        return item;
-    }
-
-    void setItem(void* item) {
-        McbpConnection::item = item;
-    }
-
     /**
      * Get the number of entries in use in the IO Vector
      */
@@ -832,13 +824,6 @@ protected:
      * nread state
      */
     uint32_t rlbytes;
-
-    /**
-     * item is used to hold an item structure created after reading the command
-     * line of set/add/replace commands, but before we finished reading the actual
-     * data.
-     */
-    void* item;
 
     /* data for the mwrite state */
     std::vector<iovec> iov;

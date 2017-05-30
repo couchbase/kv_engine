@@ -411,10 +411,6 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
                 // Retry the operation. Reset the command context and related
                 // state, so start from the beginning again.
                 ret = ENGINE_SUCCESS;
-                if (c.getItem() != nullptr) {
-                    bucket_release_item(&c, c.getItem());
-                    c.setItem(nullptr);
-                }
 
                 c.resetCommandContext();
                 continue;
@@ -472,10 +468,7 @@ static void subdoc_executor(McbpConnection& c, const void *packet,
 static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
                          ENGINE_ERROR_CODE ret, const char* key,
                          size_t keylen, uint16_t vbucket, uint64_t cas) {
-
-    if (c.getItem() == NULL && !ctx.needs_new_doc) {
-        item* initial_item;
-
+    if (!ctx.fetchedItem && !ctx.needs_new_doc) {
         if (ret == ENGINE_SUCCESS) {
             DocKey get_key(reinterpret_cast<const uint8_t*>(key),
                            keylen, c.getDocNamespace());
@@ -485,10 +478,9 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
             }
             auto r = bucket_get(&c, get_key, vbucket, state);
             if (r.first == cb::engine_errc::success) {
-                initial_item = r.second.release();
+                ctx.fetchedItem = std::move(r.second);
                 ret = ENGINE_SUCCESS;
             } else {
-                initial_item = nullptr;
                 ret = ENGINE_ERROR_CODE(r.first);
                 ret = ctx.connection.remapErrorCode(ret);
             }
@@ -498,15 +490,11 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
         case ENGINE_SUCCESS:
             if (ctx.traits.is_mutator &&
                 ctx.mutationSemantics == MutationSemantics::Add) {
-                bucket_release_item(&c, initial_item);
                 mcbp_write_packet(
                         &c,
                         engine_error_2_mcbp_protocol_error(ENGINE_KEY_EEXISTS));
                 return false;
             }
-            // We have the item; assign to c.item (so we'll start from step 2
-            // next time).
-            c.setItem(initial_item);
             ctx.needs_new_doc = false;
             break;
 

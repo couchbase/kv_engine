@@ -74,6 +74,7 @@ public:
         do_delete_doc(false),
         no_sys_xattrs(false),
         mutationSemantics(MutationSemantics::Replace),
+        fetchedItem{nullptr, cb::ItemDeleter{connection.getBucketEngineAsV0()}},
         currentPhase(Phase::XATTR) {
         std::memset(&input_item_info, 0, sizeof(input_item_info));
     }
@@ -337,6 +338,11 @@ public:
      */
     protocol_binary_response_status get_document_for_searching(
             uint64_t client_cas);
+
+    /**
+     * The result of subdoc_fetch.
+     */
+    cb::unique_item_ptr fetchedItem;
 
 private:
     // The item info representing the input document

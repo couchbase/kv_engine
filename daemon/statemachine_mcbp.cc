@@ -121,10 +121,6 @@ const char* McbpStateMachine::getTaskName(TaskFunction task) const {
 
 static void reset_cmd_handler(McbpConnection *c) {
     c->setCmd(-1);
-    if(c->getItem() != nullptr) {
-        bucket_release_item(c, c->getItem());
-        c->setItem(nullptr);
-    }
 
     c->getCookieObject().reset();
     c->resetCommandContext();

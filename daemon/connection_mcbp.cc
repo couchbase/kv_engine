@@ -784,7 +784,6 @@ McbpConnection::McbpConnection(SOCKET sfd, event_base *b)
       write_and_go(conn_new_cmd),
       ritem(nullptr),
       rlbytes(0),
-      item(nullptr),
       iov(IOV_LIST_INITIAL),
       iovused(0),
       msglist(),
@@ -832,7 +831,6 @@ McbpConnection::McbpConnection(SOCKET sfd,
       write_and_go(conn_new_cmd),
       ritem(nullptr),
       rlbytes(0),
-      item(nullptr),
       iov(IOV_LIST_INITIAL),
       iovused(0),
       msglist(),
@@ -995,7 +993,6 @@ cJSON* McbpConnection::toJSON() const {
         }
         json_add_uintptr_to_object(obj, "ritem", (uintptr_t)ritem);
         cJSON_AddNumberToObject(obj, "rlbytes", rlbytes);
-        json_add_uintptr_to_object(obj, "item", (uintptr_t)item);
 
         {
             cJSON* iovobj = cJSON_CreateObject();

@@ -237,12 +237,6 @@ Connection* conn_pipe_new(const int fd,
 }
 
 void conn_cleanup_engine_allocations(McbpConnection * c) {
-    ENGINE_HANDLE* handle = reinterpret_cast<ENGINE_HANDLE*>(c->getBucketEngine());
-    if (c->getItem() != nullptr) {
-        c->getBucketEngine()->release(handle, c, c->getItem());
-        c->setItem(nullptr);
-    }
-
     c->releaseReservedItems();
 }
 
