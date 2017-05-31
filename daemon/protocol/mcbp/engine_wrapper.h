@@ -92,8 +92,7 @@ ENGINE_ERROR_CODE bucket_unlock(McbpConnection& c,
 
 void bucket_release_item(McbpConnection* c, item* it);
 
-ENGINE_ERROR_CODE bucket_allocate(McbpConnection* c,
-                                  item** it,
+cb::EngineErrorItemPair bucket_allocate(McbpConnection* c,
                                   const DocKey& key,
                                   const size_t nbytes,
                                   const int flags,

@@ -233,17 +233,17 @@ void bucket_release_item(McbpConnection* c, item* it) {
                                   c->getCookie(), it);
 }
 
-ENGINE_ERROR_CODE bucket_allocate(McbpConnection* c,
-                                  item** it,
+cb::EngineErrorItemPair bucket_allocate(McbpConnection* c,
                                   const DocKey& key,
                                   const size_t nbytes,
                                   const int flags,
                                   const rel_time_t exptime,
                                   uint8_t datatype,
                                   uint16_t vbucket) {
+    item* it = nullptr;
     auto ret = c->getBucketEngine()->allocate(c->getBucketEngineAsV0(),
                                               c->getCookie(),
-                                              it,
+                                              &it,
                                               key,
                                               nbytes,
                                               flags,
@@ -256,7 +256,10 @@ ENGINE_ERROR_CODE bucket_allocate(McbpConnection* c,
                  c->getId(),
                  c->getDescription().c_str());
     }
-    return ret;
+
+    return std::make_pair(cb::engine_errc(ret),
+                          cb::unique_item_ptr{it,
+                                              cb::ItemDeleter{c->getBucketEngineAsV0()}});
 }
 
 std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(McbpConnection& c,

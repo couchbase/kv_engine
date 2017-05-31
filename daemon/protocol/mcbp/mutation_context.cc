@@ -171,19 +171,18 @@ ENGINE_ERROR_CODE MutationCommandContext::getExistingItemToPreserveXattr() {
 }
 
 ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
-    item* it = nullptr;
     auto dtype = datatype;
     if (xattr_size > 0) {
         dtype |= PROTOCOL_BINARY_DATATYPE_XATTR;
     }
-    auto ret = bucket_allocate(&connection, &it, key, value.len + xattr_size,
+    auto ret = bucket_allocate(&connection, key, value.len + xattr_size,
                                flags, expiration, dtype, vbucket);
 
-    if (ret != ENGINE_SUCCESS) {
-        return ret;
+    if (ret.first != cb::engine_errc::success) {
+        return ENGINE_ERROR_CODE(ret.first);
     }
 
-    newitem.reset(it);
+    newitem = std::move(ret.second);
 
     if (operation == OPERATION_ADD || input_cas != 0) {
         bucket_item_set_cas(&connection, newitem.get(), input_cas);

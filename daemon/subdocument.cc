@@ -1148,13 +1148,21 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
             DocKey allocate_key(reinterpret_cast<const uint8_t*>(key),
                                 keylen, connection.getDocNamespace());
             // Calculate the updated document length - use the last operation result.
-            ret = bucket_allocate(&connection, &new_doc, allocate_key,
-                                  context.out_doc_len,
-                                  context.in_flags,
-                                  expiration,
-                                  context.in_datatype,
-                                  vbucket);
-            ret = context.connection.remapErrorCode(ret);
+            auto r =  bucket_allocate(&connection,
+                                      allocate_key,
+                                      context.out_doc_len,
+                                      context.in_flags,
+                                      expiration,
+                                      context.in_datatype,
+                                      vbucket);
+            if (r.first == cb::engine_errc::success) {
+                new_doc = r.second.release();
+                ret = ENGINE_SUCCESS;
+            } else {
+                new_doc = nullptr;
+                ret = ENGINE_ERROR_CODE(r.first);
+                ret = context.connection.remapErrorCode(ret);
+            }
         }
 
         switch (ret) {
