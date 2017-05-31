@@ -22,16 +22,12 @@
 #include <xattr/utils.h>
 #include <daemon/mcaudit.h>
 
-GetCommandContext::~GetCommandContext() {
-    if (it != nullptr) {
-        bucket_release_item(&connection, it);
-    }
-}
-
 ENGINE_ERROR_CODE GetCommandContext::getItem() {
-    auto ret = bucket_get(&connection, &it, key, vbucket);
+    item* item = nullptr;
+    auto ret = bucket_get(&connection, &item, key, vbucket);
     if (ret == ENGINE_SUCCESS) {
-        if (!bucket_get_item_info(&connection, it, &info)) {
+        it.reset(item);
+        if (!bucket_get_item_info(&connection, it.get(), &info)) {
             LOG_WARNING(&connection, "%u: Failed to get item info",
                         connection.getId());
             return ENGINE_FAILED;

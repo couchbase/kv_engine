@@ -44,11 +44,9 @@ public:
               ntohs(req->message.header.request.keylen),
               c.getDocNamespace()),
           vbucket(ntohs(req->message.header.request.vbucket)),
-          it(nullptr),
+          it(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
           state(State::GetItem) {
     }
-
-    ~GetCommandContext() override;
 
 protected:
     /**
@@ -127,7 +125,7 @@ private:
     const DocKey key;
     const uint16_t vbucket;
 
-    item* it;
+    cb::unique_item_ptr it;
     item_info info;
 
     cb::const_char_buffer payload;
