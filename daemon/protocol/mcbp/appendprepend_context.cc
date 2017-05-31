@@ -74,10 +74,9 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::inflateInputData() {
 }
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
-    item* it;
-    auto ret = bucket_get(&connection, &it, key, vbucket);
-    if (ret == ENGINE_SUCCESS) {
-        olditem.reset(it);
+    auto ret = bucket_get(&connection, key, vbucket);
+    if (ret.first == cb::engine_errc::success) {
+        olditem = std::move(ret.second);
         if (!bucket_get_item_info(&connection, olditem.get(),
                                   &oldItemInfo)) {
             return ENGINE_FAILED;
@@ -112,7 +111,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
         state = State::AllocateNewItem;
     }
 
-    return ret;
+    return ENGINE_ERROR_CODE(ret.first);
 }
 
 ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {

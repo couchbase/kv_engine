@@ -135,14 +135,14 @@ ENGINE_ERROR_CODE bucket_remove(McbpConnection* c,
     return ret;
 }
 
-ENGINE_ERROR_CODE bucket_get(McbpConnection* c,
-                             item** item_,
+cb::EngineErrorItemPair bucket_get(McbpConnection* c,
                              const DocKey& key,
                              uint16_t vbucket,
                              DocStateFilter documentStateFilter) {
+    item* it = nullptr;
     auto ret = c->getBucketEngine()->get(c->getBucketEngineAsV0(),
                                          c->getCookie(),
-                                         item_,
+                                         &it,
                                          key,
                                          vbucket,
                                          documentStateFilter);
@@ -152,7 +152,9 @@ ENGINE_ERROR_CODE bucket_get(McbpConnection* c,
                  c->getId(),
                  c->getDescription().c_str());
     }
-    return ret;
+    return std::make_pair(cb::engine_errc(ret),
+                          cb::unique_item_ptr{it,
+                                              cb::ItemDeleter{c->getBucketEngineAsV0()}});
 }
 
 cb::EngineErrorItemPair bucket_get_if(McbpConnection* c,

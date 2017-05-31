@@ -483,8 +483,15 @@ static bool subdoc_fetch(McbpConnection& c, SubdocCmdContext& ctx,
             if (ctx.do_allow_deleted_docs) {
                 state = DocStateFilter::AliveOrDeleted;
             }
-            ret = bucket_get(&c, &initial_item, get_key, vbucket, state);
-            ret = ctx.connection.remapErrorCode(ret);
+            auto r = bucket_get(&c, get_key, vbucket, state);
+            if (r.first == cb::engine_errc::success) {
+                initial_item = r.second.release();
+                ret = ENGINE_SUCCESS;
+            } else {
+                initial_item = nullptr;
+                ret = ENGINE_ERROR_CODE(r.first);
+                ret = ctx.connection.remapErrorCode(ret);
+            }
         }
 
         switch (ret) {

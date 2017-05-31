@@ -23,10 +23,9 @@
 #include <daemon/mcaudit.h>
 
 ENGINE_ERROR_CODE GetCommandContext::getItem() {
-    item* item = nullptr;
-    auto ret = bucket_get(&connection, &item, key, vbucket);
-    if (ret == ENGINE_SUCCESS) {
-        it.reset(item);
+    auto ret = bucket_get(&connection, key, vbucket);
+    if (ret.first == cb::engine_errc::success) {
+        it = std::move(ret.second);
         if (!bucket_get_item_info(&connection, it.get(), &info)) {
             LOG_WARNING(&connection, "%u: Failed to get item info",
                         connection.getId());
@@ -47,12 +46,12 @@ ENGINE_ERROR_CODE GetCommandContext::getItem() {
         } else {
             state = State::SendResponse;
         }
-    } else if (ret == ENGINE_KEY_ENOENT) {
+    } else if (ret.first == cb::engine_errc::no_such_key) {
         state = State::NoSuchItem;
-        ret = ENGINE_SUCCESS;
+        ret.first = cb::engine_errc::success;
     }
 
-    return ret;
+    return ENGINE_ERROR_CODE(ret.first);
 }
 
 ENGINE_ERROR_CODE GetCommandContext::inflateItem() {

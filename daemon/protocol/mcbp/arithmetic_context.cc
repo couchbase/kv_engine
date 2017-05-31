@@ -21,10 +21,9 @@
 #include <xattr/utils.h>
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
-    item* it;
-    auto ret = bucket_get(&connection, &it, key, vbucket);
-    if (ret == ENGINE_SUCCESS) {
-        olditem.reset(it);
+    auto ret = bucket_get(&connection, key, vbucket);
+    if (ret.first == cb::engine_errc::success) {
+        olditem = std::move(ret.second);
 
         if (!bucket_get_item_info(&connection, olditem.get(),
                                   &oldItemInfo)) {
@@ -52,10 +51,10 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
 
         // Move on to the next state
         state = State::AllocateNewItem;
-    } else if (ret == ENGINE_KEY_ENOENT) {
+    } else if (ret.first == cb::engine_errc::no_such_key) {
         if (ntohl(request.message.body.expiration) != 0xffffffff) {
             state = State::CreateNewItem;
-            ret = ENGINE_SUCCESS;
+            ret.first = cb::engine_errc::success;
         } else {
             if ((connection.getCmd() == PROTOCOL_BINARY_CMD_INCREMENT) ||
                 (connection.getCmd() == PROTOCOL_BINARY_CMD_INCREMENTQ)) {
@@ -66,7 +65,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
         }
     }
 
-    return ret;
+    return ENGINE_ERROR_CODE(ret.first);
 }
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::createNewItem() {

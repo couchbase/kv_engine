@@ -61,10 +61,9 @@ ENGINE_ERROR_CODE RemoveCommandContext::step() {
 }
 
 ENGINE_ERROR_CODE RemoveCommandContext::getItem() {
-    item* it;
-    auto ret = bucket_get(&connection, &it, key, vbucket);
-    if (ret == ENGINE_SUCCESS) {
-        existing.reset(it);
+    auto ret = bucket_get(&connection, key, vbucket);
+    if (ret.first == cb::engine_errc::success) {
+        existing = std::move(ret.second);
         if (!bucket_get_item_info(&connection, existing.get(),
                                   &existing_info)) {
             return ENGINE_FAILED;
@@ -88,7 +87,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::getItem() {
             state = State::RemoveItem;
         }
     }
-    return ret;
+    return ENGINE_ERROR_CODE(ret.first);
 }
 
 ENGINE_ERROR_CODE RemoveCommandContext::allocateDeletedItem() {
