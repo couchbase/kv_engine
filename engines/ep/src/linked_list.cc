@@ -186,10 +186,25 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
 
 void BasicLinkedList::updateHighSeqno(std::lock_guard<std::mutex>& listWriteLg,
                                       const OrderedStoredValue& v) {
+    if (v.getBySeqno() < 1) {
+        throw std::invalid_argument("BasicLinkedList::updateHighSeqno(): vb " +
+                                    std::to_string(vbid) +
+                                    "; Cannot set the highSeqno to a value " +
+                                    std::to_string(v.getBySeqno()) +
+                                    " which is < 1");
+    }
     highSeqno = v.getBySeqno();
 }
 void BasicLinkedList::updateHighestDedupedSeqno(
         std::lock_guard<std::mutex>& listWriteLg, const OrderedStoredValue& v) {
+    if (v.getBySeqno() < 1) {
+        throw std::invalid_argument(
+                "BasicLinkedList::updateHighestDedupedSeqno(): vb " +
+                std::to_string(vbid) +
+                "; Cannot set the highestDedupedSeqno to "
+                "a value " +
+                std::to_string(v.getBySeqno()) + " which is < 1");
+    }
     highestDedupedSeqno = v.getBySeqno();
 }
 

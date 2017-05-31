@@ -1220,7 +1220,7 @@ protected:
      *                      item exists already
      * @param hasMetaData
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
-     *                    backfill queue; NULL if item need not be queued
+     *                    backfill queue
      * @param maybeKeyExists true if bloom filter predicts that key may exist
      * @param isReplication true if issued by consumer (for replication)
      *
@@ -1234,7 +1234,7 @@ protected:
             uint64_t cas,
             bool allowExisting,
             bool hasMetaData,
-            const VBQueueItemCtx* queueItmCtx = nullptr,
+            const VBQueueItemCtx& queueItmCtx,
             bool maybeKeyExists = true,
             bool isReplication = false);
 
@@ -1248,7 +1248,7 @@ protected:
      * @param itm Item to be added/updated. On success, its revSeqno is updated
      * @param isReplication true if issued by consumer (for replication)
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
-     *                    backfill queue; NULL if item need not be queued
+     *                    backfill queue
      *
      * @return Result indicating the status of the operation and notification
      *                info
@@ -1259,7 +1259,7 @@ protected:
             Item& itm,
             bool maybeKeyExists,
             bool isReplication,
-            const VBQueueItemCtx* queueItmCtx = nullptr);
+            const VBQueueItemCtx& queueItmCtx);
 
     /**
      * This function checks cas, eviction policy and other partition
@@ -1450,7 +1450,7 @@ private:
      * @param v Reference to the StoredValue to be updated.
      * @param itm Item to be updated.
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
-     *                    backfill queue; NULL if item need not be queued
+     *                    backfill queue
      * @param justTouch   To note that this object is an existing item with
      *                    the same value but with few flags changed.
      * @return pointer to the updated StoredValue. It can be same as that of
@@ -1463,7 +1463,7 @@ private:
     updateStoredValue(const HashTable::HashBucketLock& hbl,
                       StoredValue& v,
                       const Item& itm,
-                      const VBQueueItemCtx* queueItmCtx,
+                      const VBQueueItemCtx& queueItmCtx,
                       bool justTouch = false) = 0;
 
     /**
@@ -1473,14 +1473,14 @@ private:
      * @param hbl Hash table bucket lock that must be held
      * @param itm Item to be added.
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
-     *                    backfill queue; NULL if item need not be queued
+     *                    backfill queue
      *
      * @return Ptr of the StoredValue added and notification info
      */
     virtual std::pair<StoredValue*, VBNotifyCtx> addNewStoredValue(
             const HashTable::HashBucketLock& hbl,
             const Item& itm,
-            const VBQueueItemCtx* queueItmCtx) = 0;
+            const VBQueueItemCtx& queueItmCtx) = 0;
 
     /**
      * Logically (soft) delete item in all in-memory data structures. Also

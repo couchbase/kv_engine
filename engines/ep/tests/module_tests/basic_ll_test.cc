@@ -97,6 +97,29 @@ protected:
     }
 
     /**
+     * Adds one item without a seqno to the linked list
+     */
+    void addItemWithoutSeqno(const std::string& key) {
+        const std::string val("data");
+
+        /* Get a fake sequence lock */
+        std::mutex fakeSeqLock;
+        std::lock_guard<std::mutex> lg(fakeSeqLock);
+
+        StoredDocKey sKey = makeStoredDocKey(key);
+        Item item(sKey, 0, 0, sKey.data(), sKey.size());
+
+        EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
+
+        OrderedStoredValue* sv =
+                ht.find(sKey, TrackReference::Yes, WantsDeleted::No)
+                        ->toOrderedStoredValue();
+
+        std::lock_guard<std::mutex> listWriteLg(basicLL->getListWriteLock());
+        basicLL->appendToList(lg, listWriteLg, *sv);
+    }
+
+    /**
      * Updates an existing item with key == key and assigns it a seqno of
      * highSeqno + 1. To be called when there is no range read.
      */
@@ -623,4 +646,26 @@ TEST_F(BasicLinkedListTest, RangeIteratorUpdateItemDuringRead) {
         }
         EXPECT_EQ(expectedSeqno, actualSeqno);
     }
+}
+
+TEST_F(BasicLinkedListTest, RangeReadStopsOnInvalidSeqno) {
+    /* MB-24376: rangeRead has to stop if it encounters an OSV with a seqno of
+     * -1; this item is definitely past the end of the rangeRead, and has not
+     * yet had its seqno updated in queueDirty */
+    const int numItems = 2;
+    const std::string keyPrefix("key");
+
+    /* Add 2 new items */
+    addNewItemsToList(1, keyPrefix, numItems);
+
+    /* Add a key that does not yet have a vaild seqno (say -1) */
+    addItemWithoutSeqno("key3");
+
+    EXPECT_EQ(-1, basicLL->getSeqList().back().getBySeqno());
+
+    auto res = basicLL->rangeRead(1, std::numeric_limits<seqno_t>::max());
+
+    EXPECT_EQ(ENGINE_SUCCESS, std::get<0>(res));
+    EXPECT_EQ(numItems, std::get<1>(res).size());
+    EXPECT_EQ(numItems, std::get<2>(res));
 }

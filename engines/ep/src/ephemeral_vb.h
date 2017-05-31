@@ -168,13 +168,13 @@ private:
             const HashTable::HashBucketLock& hbl,
             StoredValue& v,
             const Item& itm,
-            const VBQueueItemCtx* queueItmCtx,
+            const VBQueueItemCtx& queueItmCtx,
             bool justTouch = false) override;
 
     std::pair<StoredValue*, VBNotifyCtx> addNewStoredValue(
             const HashTable::HashBucketLock& hbl,
             const Item& itm,
-            const VBQueueItemCtx* queueItmCtx) override;
+            const VBQueueItemCtx& queueItmCtx) override;
 
     std::tuple<StoredValue*, VBNotifyCtx> softDeleteStoredValue(
             const HashTable::HashBucketLock& hbl,
@@ -204,6 +204,25 @@ private:
                                     int bgFetchDelay,
                                     get_options_t options,
                                     const StoredValue& v) override;
+
+    /**
+     * (i) Updates an already non-temp element in the sequence list (OR)
+     * (ii) For a temp item that is being updated (that is, being made non-temp
+     *      by an update), appends it to the sequence list
+     *
+     * @param seqLock A sequence lock the calling module is expected to hold.
+     * @param writeLock Write lock of the sequenceList from getListWriteLock()
+     * @param v Ref to orderedStoredValue which will placed into the linked list
+     *
+     * @return UpdateStatus::Success list element has been updated and moved to
+     *                               end.
+     *         UpdateStatus::Append list element is *not* updated. Caller must
+     *                              handle the append.
+     */
+    SequenceList::UpdateStatus modifySeqList(
+            std::lock_guard<std::mutex>& seqLock,
+            std::lock_guard<std::mutex>& writeLock,
+            OrderedStoredValue& osv);
 
     /**
      * Lock to synchronize order of bucket elements.

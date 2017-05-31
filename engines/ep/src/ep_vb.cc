@@ -443,7 +443,7 @@ std::tuple<StoredValue*, MutationStatus, VBNotifyCtx>
 EPVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
                              StoredValue& v,
                              const Item& itm,
-                             const VBQueueItemCtx* queueItmCtx,
+                             const VBQueueItemCtx& queueItmCtx,
                              bool justTouch) {
     MutationStatus status;
     if (justTouch) {
@@ -452,23 +452,15 @@ EPVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
         status = ht.unlocked_updateStoredValue(hbl.getHTLock(), v, itm);
     }
 
-    if (queueItmCtx) {
-        return std::make_tuple(&v, status, queueDirty(v, *queueItmCtx));
-    }
-    return std::make_tuple(&v, status, VBNotifyCtx());
+    return std::make_tuple(&v, status, queueDirty(v, queueItmCtx));
 }
 
 std::pair<StoredValue*, VBNotifyCtx> EPVBucket::addNewStoredValue(
         const HashTable::HashBucketLock& hbl,
         const Item& itm,
-        const VBQueueItemCtx* queueItmCtx) {
+        const VBQueueItemCtx& queueItmCtx) {
     StoredValue* v = ht.unlocked_addNewStoredValue(hbl, itm);
-
-    if (queueItmCtx) {
-        return {v, queueDirty(*v, *queueItmCtx)};
-    }
-
-    return {v, VBNotifyCtx()};
+    return {v, queueDirty(*v, queueItmCtx)};
 }
 
 std::tuple<StoredValue*, VBNotifyCtx> EPVBucket::softDeleteStoredValue(
@@ -623,18 +615,12 @@ MutationStatus EPVBucket::insertFromWarmup(Item& itm,
                                       TrackReference::No);
 
     if (v == NULL) {
-        v = addNewStoredValue(hbl, itm, /*queueItmCtx*/ nullptr).first;
+        v = ht.unlocked_addNewStoredValue(hbl, itm);
         if (keyMetaDataOnly) {
             v->markNotResident();
-            /* For now ht stats are updated from outside ht. This seems to be
-             a better option for now than passing a flag to
-             addNewStoredValue() just for this func */
             ++(ht.numNonResidentItems);
         }
-        /* For now ht stats are updated from outside ht. This seems to be
-         a better option for now than passing a flag to
-         addNewStoredValue() just for this func.
-         We need to decrNumTotalItems because ht.numTotalItems is already
+        /* We need to decrNumTotalItems because ht.numTotalItems is already
          set by warmup when it estimated the item count from disk */
         ht.decrNumTotalItems();
         v->setNewCacheItem(false);
@@ -655,7 +641,7 @@ MutationStatus EPVBucket::insertFromWarmup(Item& itm,
                 return MutationStatus::InvalidCas;
             }
         }
-        updateStoredValue(hbl, *v, itm, /*queueItmCtx*/ nullptr);
+        ht.unlocked_updateStoredValue(hbl.getHTLock(), *v, itm);
     }
 
     v->markClean();

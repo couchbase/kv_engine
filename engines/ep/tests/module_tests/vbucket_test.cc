@@ -64,6 +64,11 @@ AddStatus VBucketTest::addOne(const StoredDocKey& k, int expiry) {
     return public_processAdd(i);
 }
 
+AddStatus VBucketTest::addOneTemp(const StoredDocKey& k) {
+    auto hbl_sv = lockAndFind(k);
+    return vbucket->addTempStoredValue(hbl_sv.first, k);
+}
+
 void VBucketTest::addMany(std::vector<StoredDocKey>& keys, AddStatus expect) {
     for (const auto& k : keys) {
         EXPECT_EQ(expect, addOne(k));
@@ -123,9 +128,7 @@ std::pair<HashTable::HashBucketLock, StoredValue*> VBucketTest::lockAndFind(
     return std::make_pair(std::move(hbl), storedVal);
 }
 
-MutationStatus VBucketTest::public_processSet(Item& itm,
-                                              const uint64_t cas,
-                                              bool withCtx) {
+MutationStatus VBucketTest::public_processSet(Item& itm, const uint64_t cas) {
     auto hbl_sv = lockAndFind(itm.getKey());
     VBQueueItemCtx queueItmCtx(GenerateBySeqno::Yes,
                                GenerateCas::No,
@@ -139,18 +142,24 @@ MutationStatus VBucketTest::public_processSet(Item& itm,
                          cas,
                          true,
                          false,
-                         withCtx ? &queueItmCtx : nullptr)
+                         queueItmCtx)
             .first;
 }
 
 AddStatus VBucketTest::public_processAdd(Item& itm) {
     auto hbl_sv = lockAndFind(itm.getKey());
+    VBQueueItemCtx queueItmCtx(GenerateBySeqno::Yes,
+                               GenerateCas::No,
+                               TrackCasDrift::No,
+                               /*isBackfillItem*/ false,
+                               /*preLinkDocumentContext_*/ nullptr);
     return vbucket
             ->processAdd(hbl_sv.first,
                          hbl_sv.second,
                          itm,
                          /*maybeKeyExists*/ true,
-                         /*isReplication*/ false)
+                         /*isReplication*/ false,
+                         queueItmCtx)
             .first;
 }
 

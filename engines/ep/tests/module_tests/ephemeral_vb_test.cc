@@ -180,6 +180,77 @@ TEST_F(EphemeralVBucketTest, SoftDelete) {
     EXPECT_EQ(0, vbucket->getNumItems());
 }
 
+TEST_F(EphemeralVBucketTest, AddItems) {
+    const int numItems = 3;
+
+    auto keys = generateKeys(numItems);
+    addMany(keys, AddStatus::Success);
+    EXPECT_EQ(numItems, vbucket->getNumItems());
+    EXPECT_EQ(numItems, vbucket->getHighSeqno());
+}
+
+TEST_F(EphemeralVBucketTest, AddTempItem) {
+    /* Add temp item */
+    EXPECT_EQ(AddStatus::BgFetch, addOneTemp(makeStoredDocKey("one")));
+
+    /* hash table contains the temp item */
+    EXPECT_EQ(1, vbucket->getNumTempItems());
+
+    /* linked list and ephemeral vb do not have the temp item */
+    EXPECT_EQ(0, vbucket->getNumItems());
+    EXPECT_EQ(0, mockEpheVB->public_getNumListItems());
+
+    /* High seqno is still 0 */
+    EXPECT_EQ(0, vbucket->getHighSeqno());
+    EXPECT_EQ(0, mockEpheVB->public_getListHighSeqno());
+}
+
+TEST_F(EphemeralVBucketTest, AddTempItemAndUpdate) {
+    const StoredDocKey k = makeStoredDocKey("one");
+
+    /* Add temp item */
+    EXPECT_EQ(AddStatus::BgFetch, addOneTemp(k));
+
+    /* Update the temp item (make it non-temp) */
+    Item i(k, 0, /*expiry*/ 0, k.data(), k.size());
+    EXPECT_EQ(MutationStatus::WasClean, setOne(k));
+
+    /* hash table contains no temp item */
+    EXPECT_EQ(0, vbucket->getNumTempItems());
+
+    /* linked list and ephemeral vb have the 1 item */
+    EXPECT_EQ(1, vbucket->getNumItems());
+    EXPECT_EQ(1, mockEpheVB->public_getNumListItems());
+
+    /* High seqno is 1 */
+    EXPECT_EQ(1, vbucket->getHighSeqno());
+    EXPECT_EQ(1, mockEpheVB->public_getListHighSeqno());
+}
+
+TEST_F(EphemeralVBucketTest, AddTempItemAndSoftDelete) {
+    const StoredDocKey k = makeStoredDocKey("one");
+
+    /* Add temp item */
+    EXPECT_EQ(AddStatus::BgFetch, addOneTemp(k));
+
+    /* SoftDelete the temp item (make it non-temp) */
+    softDeleteOne(k, MutationStatus::WasClean);
+
+    /* hash table contains no temp item */
+    EXPECT_EQ(0, vbucket->getNumTempItems());
+
+    /* ephemeral vb has 0 items */
+    EXPECT_EQ(0, vbucket->getNumItems());
+
+    /* linked list has 1 deleted item */
+    EXPECT_EQ(1, mockEpheVB->public_getNumListDeletedItems());
+    EXPECT_EQ(1, mockEpheVB->public_getNumListItems());
+
+    /* High seqno is 1 */
+    EXPECT_EQ(1, vbucket->getHighSeqno());
+    EXPECT_EQ(1, mockEpheVB->public_getListHighSeqno());
+}
+
 TEST_F(EphemeralVBucketTest, Backfill) {
     /* Add 3 items and get them by backfill */
     const int numItems = 3;
@@ -673,32 +744,4 @@ TEST_F(EphemeralVBucketTest, SnapshotHasNoDuplicatesWithMultipleStale) {
     EXPECT_EQ(numItems, std::get<1>(res).size()); // how many items returned
     EXPECT_EQ(numItems * (updateIterations + 1),
               std::get<2>(res)); // extended end of readRange
-}
-
-TEST_F(EphemeralVBucketTest, RangeReadStopsOnInvalidSeqno) {
-    /* MB-24376: rangeRead has to stop if it encounters an OSV with a seqno of
-     * -1; this item is definitely past the end of the rangeRead, and has not
-     * yet had its seqno updated in queueDirty */
-    const int numItems = 2;
-
-    // store two items
-    auto keys = generateKeys(numItems);
-    setMany(keys, MutationStatus::WasClean);
-
-    auto lastKey = makeStoredDocKey(std::to_string(numItems + 1));
-    Item i(lastKey, 0, 0, lastKey.data(), lastKey.size());
-
-    // set item with no queueItemCtx - will not be queueDirty'd, and will
-    // keep seqno -1
-    EXPECT_EQ(MutationStatus::WasClean,
-              public_processSet(i, i.getCas(), false));
-
-    EXPECT_EQ(-1, mockEpheVB->getLL()->getSeqList().back().getBySeqno());
-
-    auto res = mockEpheVB->inMemoryBackfill(
-            1, std::numeric_limits<seqno_t>::max());
-
-    EXPECT_EQ(ENGINE_SUCCESS, std::get<0>(res));
-    EXPECT_EQ(numItems, std::get<1>(res).size());
-    EXPECT_EQ(numItems, std::get<2>(res));
 }

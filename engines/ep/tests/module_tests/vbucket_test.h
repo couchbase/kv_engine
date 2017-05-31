@@ -56,6 +56,8 @@ protected:
 
     AddStatus addOne(const StoredDocKey& k, int expiry = 0);
 
+    AddStatus addOneTemp(const StoredDocKey& k);
+
     void addMany(std::vector<StoredDocKey>& keys, AddStatus expect);
 
     MutationStatus setOne(const StoredDocKey& k, int expiry = 0);
@@ -76,9 +78,7 @@ protected:
     std::pair<HashTable::HashBucketLock, StoredValue*> lockAndFind(
             const StoredDocKey& key);
 
-    MutationStatus public_processSet(Item& itm,
-                                     const uint64_t cas,
-                                     bool withCtx = true);
+    MutationStatus public_processSet(Item& itm, const uint64_t cas);
 
     AddStatus public_processAdd(Item& itm);
 

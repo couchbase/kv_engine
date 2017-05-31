@@ -161,13 +161,13 @@ private:
             const HashTable::HashBucketLock& hbl,
             StoredValue& v,
             const Item& itm,
-            const VBQueueItemCtx* queueItmCtx,
+            const VBQueueItemCtx& queueItmCtx,
             bool justTouch = false) override;
 
     std::pair<StoredValue*, VBNotifyCtx> addNewStoredValue(
             const HashTable::HashBucketLock& hbl,
             const Item& itm,
-            const VBQueueItemCtx* queueItmCtx) override;
+            const VBQueueItemCtx& queueItmCtx) override;
 
     std::tuple<StoredValue*, VBNotifyCtx> softDeleteStoredValue(
             const HashTable::HashBucketLock& hbl,

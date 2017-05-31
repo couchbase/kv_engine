@@ -734,7 +734,7 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
                                              itm.getCas(),
                                              /*allowExisting*/ true,
                                              /*hashMetaData*/ false,
-                                             &queueItmCtx,
+                                             queueItmCtx,
                                              maybeKeyExists);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
@@ -813,7 +813,7 @@ ENGINE_ERROR_CODE VBucket::replace(Item& itm,
                                                     0,
                                                     /*allowExisting*/ true,
                                                     /*hasMetaData*/ false,
-                                                    &queueItmCtx);
+                                                    queueItmCtx);
         }
 
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
@@ -890,7 +890,7 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm,
                                              0,
                                              /*allowExisting*/ true,
                                              /*hasMetaData*/ true,
-                                             &queueItmCtx);
+                                             queueItmCtx);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (status) {
@@ -997,7 +997,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
                                              cas,
                                              allowExisting,
                                              true,
-                                             &queueItmCtx,
+                                             queueItmCtx,
                                              maybeKeyExists,
                                              isReplication);
 
@@ -1267,7 +1267,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
         if (mcbp::datatype::is_xattr(v->getDatatype()) &&
             (itm = pruneXattrDocument(*v, itemMeta))) {
             std::tie(v, delrv, notifyCtx) =
-                    updateStoredValue(hbl, *v, *itm, &queueItmCtx);
+                    updateStoredValue(hbl, *v, *itm, queueItmCtx);
         } else {
             std::tie(delrv, v, notifyCtx) = processSoftDelete(hbl,
                                                               *v,
@@ -1401,7 +1401,7 @@ ENGINE_ERROR_CODE VBucket::add(Item& itm,
     AddStatus status;
     VBNotifyCtx notifyCtx;
     std::tie(status, notifyCtx) =
-            processAdd(hbl, v, itm, maybeKeyExists, false, &queueItmCtx);
+            processAdd(hbl, v, itm, maybeKeyExists, false, queueItmCtx);
 
     switch (status) {
     case AddStatus::NoMem:
@@ -1465,7 +1465,7 @@ std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
                                     nullptr);
             VBNotifyCtx notifyCtx;
             std::tie(v, std::ignore, notifyCtx) =
-                    updateStoredValue(hbl, *v, *rv.item, &qItemCtx, true);
+                    updateStoredValue(hbl, *v, *rv.item, qItemCtx, true);
             rv.item->setCas(v->getCas());
             // we unlock ht lock here because we want to avoid potential lock
             // inversions arising from notifyNewSeqno() call
@@ -1896,7 +1896,7 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
         uint64_t cas,
         bool allowExisting,
         bool hasMetaData,
-        const VBQueueItemCtx* queueItmCtx,
+        const VBQueueItemCtx& queueItmCtx,
         bool maybeKeyExists,
         bool isReplication) {
     if (!hbl.getHTLock()) {
@@ -2001,7 +2001,7 @@ std::pair<AddStatus, VBNotifyCtx> VBucket::processAdd(
         Item& itm,
         bool maybeKeyExists,
         bool isReplication,
-        const VBQueueItemCtx* queueItmCtx) {
+        const VBQueueItemCtx& queueItmCtx) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
                 "VBucket::processAdd: htLock not held for "
@@ -2048,7 +2048,15 @@ std::pair<AddStatus, VBNotifyCtx> VBucket::processAdd(
                 return {AddStatus::AddTmpAndBgFetch, VBNotifyCtx()};
             }
         }
-        std::tie(v, rv.second) = addNewStoredValue(hbl, itm, queueItmCtx);
+
+        if (itm.getBySeqno() == StoredValue::state_temp_init) {
+            /* A 'temp initial item' is just added to the hash table. It is
+             not put on checkpoint manager or sequence list */
+            v = ht.unlocked_addNewStoredValue(hbl, itm);
+        } else {
+            std::tie(v, rv.second) = addNewStoredValue(hbl, itm, queueItmCtx);
+        }
+
         updateRevSeqNoOfNewStoredValue(*v);
         itm.setRevSeqno(v->getRevSeqno());
         if (v->isTempItem()) {
@@ -2172,6 +2180,13 @@ bool VBucket::deleteStoredValue(const HashTable::HashBucketLock& hbl,
 AddStatus VBucket::addTempStoredValue(const HashTable::HashBucketLock& hbl,
                                       const DocKey& key,
                                       bool isReplication) {
+    if (!hbl.getHTLock()) {
+        throw std::invalid_argument(
+                "VBucket::addTempStoredValue: htLock not held for "
+                "VBucket " +
+                std::to_string(getId()));
+    }
+
     uint8_t ext_meta[EXT_META_LEN] = {PROTOCOL_BINARY_RAW_BYTES};
     static_assert(sizeof(ext_meta) == 1,
                   "VBucket::addTempStoredValue(): expected "
@@ -2186,11 +2201,19 @@ AddStatus VBucket::addTempStoredValue(const HashTable::HashBucketLock& hbl,
              0,
              StoredValue::state_temp_init);
 
-    /* if a temp item for a possibly deleted, set it non-resident by resetting
-       the value cuz normally a new item added is considered resident which
-       does not apply for temp item. */
-    StoredValue* v = nullptr;
-    return processAdd(hbl, v, itm, true, isReplication, nullptr).first;
+    if (!StoredValue::hasAvailableSpace(stats, itm, isReplication)) {
+        return AddStatus::NoMem;
+    }
+
+    /* A 'temp initial item' is just added to the hash table. It is
+       not put on checkpoint manager or sequence list */
+    StoredValue* v = ht.unlocked_addNewStoredValue(hbl, itm);
+
+    updateRevSeqNoOfNewStoredValue(*v);
+    itm.setRevSeqno(v->getRevSeqno());
+    v->setNRUValue(MAX_NRU_VALUE);
+
+    return AddStatus::BgFetch;
 }
 
 void VBucket::notifyNewSeqno(const VBNotifyCtx& notifyCtx) {

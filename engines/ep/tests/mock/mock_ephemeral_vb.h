@@ -77,6 +77,14 @@ public:
         return mockLL->getNumItems();
     }
 
+    int public_getNumListDeletedItems() {
+        return mockLL->getNumDeletedItems();
+    }
+
+    uint64_t public_getListHighSeqno() const {
+        return mockLL->getHighSeqno();
+    }
+
     MockBasicLinkedList* getLL() {
         return mockLL;
     }
