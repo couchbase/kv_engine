@@ -33,7 +33,7 @@ int main(void) {
             << "larry larrypassword" << std::endl
             << "legacy;legacy legacy" << std::endl
             << "legacy new" << std::endl
-            << "default;legacy" << std::endl;
+            << "default" << std::endl;
 
     isaslpw.close();
 

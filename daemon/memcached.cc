@@ -811,7 +811,7 @@ static void cbsasl_refresh_main(void *c)
 
     try {
         rv = cbsasl_server_refresh();
-        if (cb::sasl::plain::authenticate("default;legacy", "") == CBSASL_OK) {
+        if (cb::sasl::plain::authenticate("default", "") == CBSASL_OK) {
             set_default_bucket_enabled(true);
         } else {
             set_default_bucket_enabled(false);
@@ -2692,7 +2692,7 @@ static void initialize_sasl() {
         FATAL_ERROR(EXIT_FAILURE, "Failed to initialize SASL server");
     }
 
-    if (cb::sasl::plain::authenticate("default;legacy", "") == CBSASL_OK) {
+    if (cb::sasl::plain::authenticate("default", "") == CBSASL_OK) {
         set_default_bucket_enabled(true);
     } else {
         set_default_bucket_enabled(false);

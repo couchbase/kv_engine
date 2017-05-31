@@ -210,7 +210,7 @@ extern const char* getBucketName(const Connection* c);
 /**
  * All of the buckets are stored in the following array. Index 0 is reserved
  * for the "no bucket" where all connections start off (unless there is a
- * bucket named "default", and there is a username named "default;legacy"
+ * bucket named "default", and there is a username named "default"
  * with an empty password.).
  */
 extern std::array<Bucket, COUCHBASE_MAX_NUM_BUCKETS + 1> all_buckets;
