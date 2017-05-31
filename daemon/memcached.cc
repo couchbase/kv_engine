@@ -244,7 +244,9 @@ void associate_initial_bucket(Connection *c) {
     c->setBucketIndex(0);
     c->setBucketEngine(b.engine);
 
-    associate_bucket(c, "default");
+    if (is_default_bucket_enabled()) {
+        associate_bucket(c, "default");
+    }
 }
 
 static void populate_log_level(void*) {
@@ -809,6 +811,11 @@ static void cbsasl_refresh_main(void *c)
 
     try {
         rv = cbsasl_server_refresh();
+        if (cb::sasl::plain::authenticate("default;legacy", "") == CBSASL_OK) {
+            set_default_bucket_enabled(true);
+        } else {
+            set_default_bucket_enabled(false);
+        }
     } catch (...) {
         rv = ENGINE_FAILED;
     }
@@ -2683,6 +2690,12 @@ static void initialize_sasl() {
 
     if (cbsasl_server_init(sasl_callbacks, "memcached") != CBSASL_OK) {
         FATAL_ERROR(EXIT_FAILURE, "Failed to initialize SASL server");
+    }
+
+    if (cb::sasl::plain::authenticate("default;legacy", "") == CBSASL_OK) {
+        set_default_bucket_enabled(true);
+    } else {
+        set_default_bucket_enabled(false);
     }
 }
 

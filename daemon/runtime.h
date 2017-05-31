@@ -41,3 +41,6 @@ class Audit;
 
 void set_audit_handle(Audit*);
 Audit* get_audit_handle(void);
+
+bool is_default_bucket_enabled();
+void set_default_bucket_enabled(bool enabled);

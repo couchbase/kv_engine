@@ -183,3 +183,14 @@ cbsasl_error_t PlainClientBackend::start(const char* input,
     *outputlen = unsigned(buffer.size());
     return CBSASL_OK;
 }
+
+CBSASL_PUBLIC_API
+cbsasl_error_t cb::sasl::plain::authenticate(const std::string& username,
+                                             const std::string& passwd) {
+    cb::sasl::User user;
+    if (!find_user(username, user)) {
+        return CBSASL_NOUSER;
+    }
+
+    return check_password(nullptr, user, passwd);
+}

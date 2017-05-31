@@ -488,7 +488,8 @@ void Connection::setBucketIndex(int bucketIndex) {
             // representing the users context in the desired bucket.
             privilegeContext = cb::rbac::createContext(username,
                                                        all_buckets[bucketIndex].name);
-        } else if (strcmp("default", all_buckets[bucketIndex].name) == 0) {
+        } else if (is_default_bucket_enabled() &&
+                   strcmp("default", all_buckets[bucketIndex].name) == 0) {
             // We've just connected to the _default_ bucket, _AND_ the client
             // is unknown.
             // Personally I think the "default bucket" concept is a really

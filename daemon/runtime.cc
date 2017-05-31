@@ -95,3 +95,19 @@ void set_audit_handle(Audit* handle) {
 Audit* get_audit_handle(void) {
     return auditHandle.load(std::memory_order_relaxed);
 }
+
+static const bool unit_tests{getenv("MEMCACHED_UNIT_TESTS") != NULL};
+
+static std::atomic_bool default_bucket_enabled;
+bool is_default_bucket_enabled() {
+    if (unit_tests) {
+        if (getenv("MEMCACHED_UNIT_TESTS_NO_DEFAULT_BUCKET")) {
+            return false;
+        }
+    }
+    return default_bucket_enabled.load(std::memory_order_relaxed);
+}
+
+void set_default_bucket_enabled(bool enabled) {
+    default_bucket_enabled.store(enabled, std::memory_order_relaxed);
+}

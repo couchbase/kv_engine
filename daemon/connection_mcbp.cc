@@ -296,7 +296,7 @@ int McbpConnection::sslPreConnection() {
             if (settings.getClientCertAuth() ==
                 ClientCertAuth::Mode::Mandatory) {
                 disconnect = true;
-            } else {
+            } else if (is_default_bucket_enabled()) {
                 associate_bucket(this, "default");
             }
             break;

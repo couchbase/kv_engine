@@ -30,6 +30,7 @@ list(APPEND TESTAPP_SOURCES
      testapp_getset.cc
      testapp_legacy_users.cc
      testapp_lock.cc
+     testapp_no_autoselect_default_bucket.cc
      testapp_rbac.cc
      testapp_remove.cc
      testapp_require_init.cc
@@ -222,3 +223,9 @@ ADD_TEST(NAME memcached-basic-perf-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=*PerfTest.* --gtest_output=xml:gtest_results/memcached_basic_perf_tests.xml)
 SET_TESTS_PROPERTIES(memcached-basic-perf-tests PROPERTIES TIMEOUT 400)
+
+# Verify that we don't connect to a password protected default bucket
+ADD_TEST(NAME memcached-no-autoselect-default-bucket-tests
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND memcached_testapp --gtest_filter=TransportProtocols/NoAutoselectDefaultBucketTest.*)
+SET_TESTS_PROPERTIES(memcached-no-autoselect-default-bucket-tests PROPERTIES TIMEOUT 120)

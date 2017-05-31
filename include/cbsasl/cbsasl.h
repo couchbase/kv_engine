@@ -333,6 +333,21 @@ Domain get_domain(cbsasl_conn_t* conn);
  */
 CBSASL_PUBLIC_API
 std::string& get_uuid(cbsasl_conn_t* conn);
+} // namespace sasl
+} // namespace cb
 
+namespace cb {
+namespace sasl {
+namespace plain {
+
+/**
+ * Try to run a plain text authentication with the specified username and
+ * password.
+ */
+CBSASL_PUBLIC_API
+cbsasl_error_t authenticate(const std::string& username,
+                            const std::string& passwd);
+
+} // namespace plain
 } // namespace sasl
 } // namespace cb
