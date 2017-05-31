@@ -20,6 +20,7 @@
 #include "common.h"
 #include "connmap.h"
 #include "ep_engine.h"
+#include "ep_vb.h"
 #include "failover-table.h"
 #include "mutation_log.h"
 #define STATWRITER_NAMESPACE warmup
@@ -503,8 +504,14 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                 }
             }
 
+            EPVBucket* epVb = dynamic_cast<EPVBucket*>(vb.get());
+            if (!epVb) {
+                setStatus(ENGINE_NOT_MY_VBUCKET);
+                return;
+            }
+
             const auto res =
-                    vb->insertFromWarmup(*i, shouldEject(), val.isPartial());
+                    epVb->insertFromWarmup(*i, shouldEject(), val.isPartial());
             switch (res) {
             case MutationStatus::NoMem:
                 if (retry == 2) {

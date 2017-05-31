@@ -1518,64 +1518,6 @@ GetValue VBucket::getAndUpdateTtl(const DocKey& key,
     return gv;
 }
 
-MutationStatus VBucket::insertFromWarmup(Item& itm,
-                                         bool eject,
-                                         bool keyMetaDataOnly) {
-    if (!StoredValue::hasAvailableSpace(stats, itm)) {
-        return MutationStatus::NoMem;
-    }
-
-    auto hbl = ht.getLockedBucket(itm.getKey());
-    StoredValue* v = ht.unlocked_find(itm.getKey(),
-                                      hbl.getBucketNum(),
-                                      WantsDeleted::Yes,
-                                      TrackReference::No);
-
-    if (v == NULL) {
-        v = addNewStoredValue(hbl, itm, /*queueItmCtx*/ nullptr).first;
-        if (keyMetaDataOnly) {
-            v->markNotResident();
-            /* For now ht stats are updated from outside ht. This seems to be
-               a better option for now than passing a flag to
-               addNewStoredValue() just for this func */
-            ++(ht.numNonResidentItems);
-        }
-        /* For now ht stats are updated from outside ht. This seems to be
-           a better option for now than passing a flag to
-           addNewStoredValue() just for this func.
-           We need to decrNumTotalItems because ht.numTotalItems is already
-           set by warmup when it estimated the item count from disk */
-        ht.decrNumTotalItems();
-        v->setNewCacheItem(false);
-    } else {
-        if (keyMetaDataOnly) {
-            // We don't have a better error code ;)
-            return MutationStatus::InvalidCas;
-        }
-
-        // Verify that the CAS isn't changed
-        if (v->getCas() != itm.getCas()) {
-            if (v->getCas() == 0) {
-                v->setCas(itm.getCas());
-                v->setFlags(itm.getFlags());
-                v->setExptime(itm.getExptime());
-                v->setRevSeqno(itm.getRevSeqno());
-            } else {
-                return MutationStatus::InvalidCas;
-            }
-        }
-        updateStoredValue(hbl, *v, itm, /*queueItmCtx*/ nullptr);
-    }
-
-    v->markClean();
-
-    if (eject && !keyMetaDataOnly) {
-        ht.unlocked_ejectItem(v, eviction);
-    }
-
-    return MutationStatus::NotFound;
-}
-
 GetValue VBucket::getInternal(const DocKey& key,
                               const void* cookie,
                               EventuallyPersistentEngine& engine,
