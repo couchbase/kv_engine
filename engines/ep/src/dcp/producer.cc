@@ -1082,15 +1082,25 @@ void DcpProducer::notifyPaused(bool schedule) {
 }
 
 ENGINE_ERROR_CODE DcpProducer::maybeDisconnect() {
-    std::chrono::seconds elapsedTime(ep_current_time() - lastReceiveTime);
+    const auto now = ep_current_time();
+    std::chrono::seconds elapsedTime(now - lastReceiveTime);
     if (noopCtx.enabled && elapsedTime > noopCtx.dcpIdleTimeout) {
-        LOG(EXTENSION_LOG_NOTICE, "%s Disconnecting because the connection"
-            " appears to be dead", logHeader());
-            return ENGINE_DISCONNECT;
-        }
-        // Returning ENGINE_FAILED means ignore and continue
-        // without disconnecting
-        return ENGINE_FAILED;
+        LOG(EXTENSION_LOG_NOTICE,
+            "%s Disconnecting because a message has not been received for "
+            "%" PRIu64 "s. lastSendTime:%" PRIu32 ", lastReceiveTime:%" PRIu64
+            ", noopCtx {sendTime:%" PRIu32 ", opaque: %" PRIu32 ", pendingRecv:%s}",
+            logHeader(),
+            uint64_t(noopCtx.dcpIdleTimeout.count()),
+            (now - lastSendTime),
+            uint64_t(elapsedTime.count()),
+            (now - noopCtx.sendTime),
+            noopCtx.opaque,
+            noopCtx.pendingRecv ? "true" : "false");
+        return ENGINE_DISCONNECT;
+    }
+    // Returning ENGINE_FAILED means ignore and continue
+    // without disconnecting
+    return ENGINE_FAILED;
 }
 
 ENGINE_ERROR_CODE DcpProducer::maybeSendNoop(

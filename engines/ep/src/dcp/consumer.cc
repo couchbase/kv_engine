@@ -1079,11 +1079,14 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
         return ret;
     }
 
-    if ((ep_current_time() - lastMessageTime) > dcpIdleTimeout.count()) {
-        LOG(EXTENSION_LOG_NOTICE, "%s Disconnecting because a message has not been "
-            "received for %" PRIu64 " seconds. lastMessageTime was %u seconds ago.",
-            logHeader(), uint64_t(dcpIdleTimeout.count()),
-            (ep_current_time() - lastMessageTime));
+    const auto now = ep_current_time();
+    if ((now - lastMessageTime) > dcpIdleTimeout.count()) {
+        LOG(EXTENSION_LOG_NOTICE,
+            "%s Disconnecting because a message has not been received for "
+            "%" PRIu64 "s. lastMessageTime:%" PRIu32,
+            logHeader(),
+            uint64_t(dcpIdleTimeout.count()),
+            (now - lastMessageTime));
         return ENGINE_DISCONNECT;
     }
 
