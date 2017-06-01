@@ -45,101 +45,102 @@ const std::error_category& error_category() NOEXCEPT {
 } // namespace cb
 
 std::string to_string(cb::mcbp::Status status) {
+    using namespace cb::mcbp;
+
     switch (status) {
-    case cb::mcbp::Status::Success:
+    case Status::Success:
         return "Success";
-    case cb::mcbp::Status::KeyEnoent:
+    case Status::KeyEnoent:
         return "Not found";
-    case cb::mcbp::Status::KeyEexists:
+    case Status::KeyEexists:
         return "Data exists for key";
-    case cb::mcbp::Status::E2big:
+    case Status::E2big:
         return "Too large";
-    case cb::mcbp::Status::Einval:
+    case Status::Einval:
         return "Invalid arguments";
-    case cb::mcbp::Status::NotStored:
+    case Status::NotStored:
         return "Not stored";
-    case cb::mcbp::Status::DeltaBadval:
+    case Status::DeltaBadval:
         return "Non-numeric server-side value for incr or decr";
-    case cb::mcbp::Status::NotMyVbucket:
+    case Status::NotMyVbucket:
         return "I'm not responsible for this vbucket";
-    case cb::mcbp::Status::NoBucket:
+    case Status::NoBucket:
         return "Not connected to a bucket";
-    case cb::mcbp::Status::Locked:
+    case Status::Locked:
         return "Resource locked";
-    case cb::mcbp::Status::AuthStale:
+    case Status::AuthStale:
         return "Authentication stale. Please reauthenticate";
-    case cb::mcbp::Status::AuthError:
+    case Status::AuthError:
         return "Auth failure";
-    case cb::mcbp::Status::AuthContinue:
+    case Status::AuthContinue:
         return "Auth continue";
-    case cb::mcbp::Status::Erange:
+    case Status::Erange:
         return "Outside range";
-    case cb::mcbp::Status::Rollback:
+    case Status::Rollback:
         return "Rollback";
-    case cb::mcbp::Status::Eaccess:
+    case Status::Eaccess:
         return "No access";
-    case cb::mcbp::Status::NotInitialized:
+    case Status::NotInitialized:
         return "Node not initialized";
-    case cb::mcbp::Status::UnknownCommand:
+    case Status::UnknownCommand:
         return "Unknown command";
-    case cb::mcbp::Status::Enomem:
+    case Status::Enomem:
         return "Out of memory";
-    case cb::mcbp::Status::NotSupported:
+    case Status::NotSupported:
         return "Not supported";
-    case cb::mcbp::Status::Einternal:
+    case Status::Einternal:
         return "Internal error";
-    case cb::mcbp::Status::Ebusy:
+    case Status::Ebusy:
         return "Server too busy";
-    case cb::mcbp::Status::Etmpfail:
+    case Status::Etmpfail:
         return "Temporary failure";
-    case cb::mcbp::Status::XattrEinval:
+    case Status::XattrEinval:
         return "Invalid XATTR section";
-    case cb::mcbp::Status::UnknownCollection:
+    case Status::UnknownCollection:
         return "Unknown Collection";
-    case cb::mcbp::Status::SubdocPathEnoent:
+    case Status::SubdocPathEnoent:
         return "Subdoc: Path not does not exist";
-    case cb::mcbp::Status::SubdocPathMismatch:
+    case Status::SubdocPathMismatch:
         return "Subdoc: Path mismatch";
-    case cb::mcbp::Status::SubdocPathEinval:
+    case Status::SubdocPathEinval:
         return "Subdoc: Invalid path";
-    case cb::mcbp::Status::SubdocPathE2big:
+    case Status::SubdocPathE2big:
         return "Subdoc: Path too large";
-    case cb::mcbp::Status::SubdocDocE2deep:
+    case Status::SubdocDocE2deep:
         return "Subdoc: Document too deep";
-    case cb::mcbp::Status::SubdocValueCantinsert:
+    case Status::SubdocValueCantinsert:
         return "Subdoc: Cannot insert specified value";
-    case cb::mcbp::Status::SubdocDocNotJson:
+    case Status::SubdocDocNotJson:
         return "Subdoc: Existing document not JSON";
-    case cb::mcbp::Status::SubdocNumErange:
+    case Status::SubdocNumErange:
         return "Subdoc: Existing number outside valid arithmetic range";
-    case cb::mcbp::Status::SubdocDeltaEinval:
+    case Status::SubdocDeltaEinval:
         return "Subdoc: Delta is 0, not a number, or outside the valid range";
-    case cb::mcbp::Status::SubdocPathEexists:
+    case Status::SubdocPathEexists:
         return "Subdoc: Document path already exists";
-    case cb::mcbp::Status::SubdocValueEtoodeep:
+    case Status::SubdocValueEtoodeep:
         return "Subdoc: Inserting value would make document too deep";
-    case cb::mcbp::Status::SubdocInvalidCombo:
+    case Status::SubdocInvalidCombo:
         return "Subdoc: Invalid combination for multi-path command";
-    case cb::mcbp::Status::SubdocMultiPathFailure:
+    case Status::SubdocMultiPathFailure:
         return "Subdoc: One or more paths in a multi-path command failed";
-    case cb::mcbp::Status::SubdocSuccessDeleted:
+    case Status::SubdocSuccessDeleted:
         return "Subdoc: Operation completed successfully on a deleted document";
-    case cb::mcbp::Status::SubdocXattrInvalidFlagCombo:
+    case Status::SubdocXattrInvalidFlagCombo:
         return "Subdoc: Invalid combination of xattr flags";
-    case cb::mcbp::Status::SubdocXattrInvalidKeyCombo:
+    case Status::SubdocXattrInvalidKeyCombo:
         return "Subdoc: Invalid combination of xattr keys";
-    case cb::mcbp::Status::SubdocXattrUnknownMacro:
+    case Status::SubdocXattrUnknownMacro:
         return "Subdoc: Unknown xattr macro";
-    case cb::mcbp::Status::SubdocXattrUnknownVattr:
+    case Status::SubdocXattrUnknownVattr:
         return "Subdoc: Unknown xattr virtual attribute";
-    case cb::mcbp::Status::SubdocXattrCantModifyVattr:
+    case Status::SubdocXattrCantModifyVattr:
         return "Subdoc: Can't modify virtual attributes";
-    case cb::mcbp::Status::SubdocMultiPathFailureDeleted:
+    case Status::SubdocMultiPathFailureDeleted:
         return "Subdoc: One or more paths in a multi-path command failed on a "
                "deleted document";
     }
 
-    throw std::invalid_argument(
-        "to_string(cb::mcbp::Status): Invalid status code: " +
-        std::to_string(int(status)));
+    throw std::invalid_argument("to_string(cb::mcbp::Status): Invalid status code: " +
+                                std::to_string(int(status)));
 }
