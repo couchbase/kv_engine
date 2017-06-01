@@ -114,8 +114,11 @@ const char* McbpStateMachine::getTaskName(TaskFunction task) const {
         return "conn_sasl_auth";
     } else if (task == conn_rbac_reload) {
         return "conn_rbac_reload";
+    } else if (task == conn_destroyed) {
+        return "conn_destroyed";
     } else {
-        throw std::invalid_argument("Unknown task");
+        throw std::invalid_argument(
+                "McbpStateMachine::getTaskName: Unknown task");
     }
 }
 
