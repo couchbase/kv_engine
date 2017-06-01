@@ -456,3 +456,14 @@ bool isEphemeralBucket(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
 bool isTapEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
     return get_bool_stat(h, h1, "ep_tap");
 }
+
+void checkPersistentBucketTempItems(ENGINE_HANDLE* h,
+                                    ENGINE_HANDLE_V1* h1,
+                                    int exp) {
+    if (isPersistentBucket(h, h1)) {
+        checkeq(exp,
+                get_int_stat(h, h1, "curr_temp_items"),
+                "CheckPersistentBucketTempItems(): Num temp items not as "
+                "expected");
+    }
+}

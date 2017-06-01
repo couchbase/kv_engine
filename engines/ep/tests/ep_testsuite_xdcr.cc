@@ -286,7 +286,7 @@ static enum test_result test_get_meta_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     wait_for_stat_to_be(h, h1, "curr_items", 0);
     check(get_meta(h, h1, key1), "Expected to get meta");
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
-    checkeq(1, get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
+    checkPersistentBucketTempItems(h, h1, 1);
 
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected success");
@@ -593,7 +593,7 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
             "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
-    checkeq(1,get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
+    checkPersistentBucketTempItems(h, h1, 1);
 
     // this is the cas to be used with a subsequent delete with meta
     uint64_t valid_cas = last_cas;
@@ -611,7 +611,7 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
             "Expected invalid cas error");
     checkeq(0, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Faild ops does not count");
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
-    checkeq(1,get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
+    checkPersistentBucketTempItems(h, h1, 1);
 
     // do delete with meta with the correct cas value. should pass.
     del_with_meta(h, h1, key, keylen, 0, &itm_meta, valid_cas);
@@ -630,7 +630,7 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
     check(itm_meta.cas == last_meta.cas, "Expected cas to match");
     check(itm_meta.flags == last_meta.flags, "Expected flags to match");
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
-    checkeq(1, get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
+    checkPersistentBucketTempItems(h, h1, 1);
 
     h1->release(h, NULL, i);
     return SUCCESS;
@@ -670,7 +670,7 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
     // check the stat
     checkeq(0, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Failed op does not count");
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
-    checkeq(1, get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
+    checkPersistentBucketTempItems(h, h1, 1);
 
     // do delete with meta with the correct cas value. should pass.
     del_with_meta(h, h1, key, keylen, 0, &itm_meta, valid_cas);
@@ -690,7 +690,7 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
     check(itm_meta.cas == last_meta.cas, "Expected cas to match");
     check(itm_meta.flags == last_meta.flags, "Expected flags to match");
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
-    checkeq(1, get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
+    checkPersistentBucketTempItems(h, h1, 1);
 
     return SUCCESS;
 }
@@ -1070,7 +1070,7 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
-    checkeq(1, get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
+    checkPersistentBucketTempItems(h, h1, 1);
 
     // this is the cas to be used with a subsequent set with meta
     uint64_t cas_for_set = last_cas;
@@ -1088,7 +1088,7 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     // check the stat
     checkeq(0, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Failed op does not count");
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
-    checkeq(1, get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
+    checkPersistentBucketTempItems(h, h1, 1);
 
     // do set with meta with the correct cas value. should pass.
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set);
@@ -2496,9 +2496,12 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("get meta followed by get", test_get_meta_with_get,
                  test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("get meta followed by set", test_get_meta_with_set,
-                 test_setup, teardown, NULL,
-                 /* TODO Ephemeral: temp_items not currently updated on DELETE*/prepare_skip_broken_under_ephemeral,
+        TestCase("get meta followed by set",
+                 test_get_meta_with_set,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
                  cleanup),
         TestCase("get meta followed by delete", test_get_meta_with_delete,
                  test_setup, teardown, NULL, prepare, cleanup),
@@ -2508,19 +2511,26 @@ BaseTestCase testsuite_testcases[] = {
                  teardown, NULL, prepare, cleanup),
         TestCase("delete with meta", test_delete_with_meta,
                  test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("delete with meta deleted", test_delete_with_meta_deleted,
-                 test_setup, teardown, NULL,
-                 /* TODO Ephemeral: temp_items not currently updated on DELETE*/prepare_skip_broken_under_ephemeral,
+        TestCase("delete with meta deleted",
+                 test_delete_with_meta_deleted,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
                  cleanup),
         TestCase("delete with meta nonexistent",
-                 test_delete_with_meta_nonexistent, test_setup,
-                 teardown, NULL,
-                 /* TODO Ephemeral: temp_items not currently updated on DELETE*/prepare_skip_broken_under_ephemeral,
+                 test_delete_with_meta_nonexistent,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
                  cleanup),
         TestCase("delete with meta nonexistent no temp",
-                 test_delete_with_meta_nonexistent_no_temp, test_setup,
-                 teardown, NULL,
-                 /* TODO Ephemeral: temp_items not currently updated on DELETE*/prepare_skip_broken_under_ephemeral,
+                 test_delete_with_meta_nonexistent_no_temp,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
                  cleanup),
         TestCase("delete_with_meta race with concurrent delete",
                  test_delete_with_meta_race_with_delete, test_setup,
@@ -2536,9 +2546,12 @@ BaseTestCase testsuite_testcases[] = {
                  teardown, NULL, prepare, cleanup),
         TestCase("set with meta by force", test_set_with_meta_by_force,
                  test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("set with meta deleted", test_set_with_meta_deleted,
-                 test_setup, teardown, NULL,
-                 /* TODO Ephemeral: curr_items not currently updated on DELETE*/prepare_skip_broken_under_ephemeral,
+        TestCase("set with meta deleted",
+                 test_set_with_meta_deleted,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
                  cleanup),
         TestCase("set with meta nonexistent", test_set_with_meta_nonexistent,
                  test_setup, teardown, NULL, prepare, cleanup),
@@ -2553,8 +2566,11 @@ BaseTestCase testsuite_testcases[] = {
                  prepare_ep_bucket,  // Requires persistence
                  cleanup),
         TestCase("test del meta conflict resolution",
-                 test_del_meta_conflict_resolution, test_setup, teardown, NULL,
-                 /* TODO Ephemeral: temp_items not currently updated on DELETE*/prepare_skip_broken_under_ephemeral,
+                 test_del_meta_conflict_resolution,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
                  cleanup),
         TestCase("test add meta conflict resolution",
                  test_add_meta_conflict_resolution, test_setup, teardown, NULL,
@@ -2564,9 +2580,11 @@ BaseTestCase testsuite_testcases[] = {
                  test_set_meta_conflict_resolution, test_setup, teardown, NULL,
                  prepare, cleanup),
         TestCase("test del meta lww conflict resolution",
-                 test_del_meta_lww_conflict_resolution, test_setup, teardown,
+                 test_del_meta_lww_conflict_resolution,
+                 test_setup,
+                 teardown,
                  "conflict_resolution_type=lww",
-                 /* TODO Ephemeral: temp_items not currently updated on DELETE*/prepare_skip_broken_under_ephemeral,
+                 prepare,
                  cleanup),
         TestCase("test set meta lww conflict resolution",
                  test_set_meta_lww_conflict_resolution, test_setup, teardown,
@@ -2581,10 +2599,12 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("delete with meta lww xattr", test_delete_with_meta_xattr,
                  test_setup, teardown, "conflict_resolution_type=lww",
                  prepare, cleanup),
-        TestCase("temp item deletion", test_temp_item_deletion,
-                 test_setup, teardown,
+        TestCase("temp item deletion",
+                 test_temp_item_deletion,
+                 test_setup,
+                 teardown,
                  "exp_pager_stime=1",
-                 /* TODO Ephemeral: temp_items not currently updated on FLUSH*/prepare_skip_broken_under_ephemeral,
+                 /* related to temp items in hash table */prepare_ep_bucket,
                  cleanup),
         TestCase("test get_meta with item_eviction",
                  test_getMeta_with_item_eviction, test_setup, teardown,

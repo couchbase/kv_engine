@@ -262,4 +262,9 @@ bool isEphemeralBucket(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
 // Returns true if the given engine has Tap enabled.
 bool isTapEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
 
+// Checks number of temp items in a persistent bucket (EPBucket).
+void checkPersistentBucketTempItems(ENGINE_HANDLE* h,
+                                    ENGINE_HANDLE_V1* h1,
+                                    int exp);
+
 #endif /* TESTS_EP_TESTSUITE_COMMON_H_ */
