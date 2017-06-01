@@ -160,9 +160,6 @@ const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_CANT_MODIFY_VATTR =
 const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE_DELETED =
         uint16_t(cb::mcbp::Status::SubdocMultiPathFailureDeleted);
 
-// @todo fixme
-const uint16_t PROTOCOL_BINARY_RESPONSE_SIZE = 0xd4;
-
 using protocol_binary_command = uint8_t;
 
 const uint8_t PROTOCOL_BINARY_CMD_GET = uint8_t(cb::mcbp::Opcode::Get);

@@ -191,7 +191,7 @@ public:
      * Response counters that count the number of times a specific response
      * status is sent
      */
-    std::array<ResponseCounter, PROTOCOL_BINARY_RESPONSE_SIZE> responseCounters;
+    std::array<ResponseCounter, size_t(cb::mcbp::Status::COUNT)> responseCounters;
 };
 
 class Connection;

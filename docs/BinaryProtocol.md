@@ -161,6 +161,9 @@ Possible values of this two-byte field:
 | 0x00cc | (Subdoc) Specified key was successfully found, but one or more path operations failed. Examine the individual lookup_result (MULTI_LOOKUP) / mutation_result (MULTI_MUTATION) structures for details. |
 | 0x00cd | (Subdoc) Operation completed successfully on a deleted document |
 
+In addition to the above defined status codes, the range 0xff00 - 0xffff
+is reserved for end-user applications (e.g. proxies). Couchbase itself will
+not return them.
 
 A well written client should provide logic to gracefully recover from
 unknown error codes being returned. The status code falls into two main

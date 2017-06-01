@@ -139,6 +139,18 @@ std::string to_string(cb::mcbp::Status status) {
     case Status::SubdocMultiPathFailureDeleted:
         return "Subdoc: One or more paths in a multi-path command failed on a "
                "deleted document";
+
+    // Following are here to keep compiler happy; either handled below or
+    // will throw if invalid (e.g. COUNT).
+    case Status::COUNT:
+    case Status::ReservedUserStart:
+    case Status::ReservedUserEnd:
+        break;
+    }
+
+    if (status >= cb::mcbp::Status::ReservedUserStart &&
+        status <= cb::mcbp::Status::ReservedUserEnd) {
+        return "ReservedUserRange: " + std::to_string(int(status));
     }
 
     throw std::invalid_argument("to_string(cb::mcbp::Status): Invalid status code: " +

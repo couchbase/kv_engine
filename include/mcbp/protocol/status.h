@@ -205,6 +205,21 @@ enum class Status : uint16_t {
      * mutation_result (MULTI_MUTATION) structures for details.
      */
     SubdocMultiPathFailureDeleted = 0xd3,
+
+    /*************************************************************************/
+
+    /**
+     * Number of valid elements in the enumeration (as used by Couchbase).
+     * Note there are additional values reserved for user application below).
+     */
+    COUNT,
+
+    /**
+     * The following range of 256 error codes is reserved for end-user
+     * applications (e.g. proxies). Couchbase itself does not return them.
+     */
+    ReservedUserStart = 0xff00,
+    ReservedUserEnd = 0xffff
 };
 
 const std::error_category& error_category() NOEXCEPT;
