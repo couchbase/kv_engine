@@ -17,6 +17,7 @@
 #include <memcached/rbac.h>
 
 #include <cJSON_utils.h>
+#include <platform/make_unique.h>
 #include <platform/memorymap.h>
 #include <platform/rwlock.h>
 #include <strings.h>
@@ -258,9 +259,7 @@ void loadPrivilegeDatabase(const std::string& filename) {
                 "PrivilegeDatabaseManager::load: Failed to parse json");
     }
 
-    std::unique_ptr<PrivilegeDatabase> database;
-    // Guess what, MSVC wasn't happy with std::make_unique :P
-    database.reset(new PrivilegeDatabase(json.get()));
+    auto database = std::make_unique<PrivilegeDatabase>(json.get());
 
     std::lock_guard<cb::WriterLock> guard(rwlock.writer());
     // Handle race conditions
@@ -271,9 +270,8 @@ void loadPrivilegeDatabase(const std::string& filename) {
 
 void initialize() {
     // Create an empty database to avoid having to add checks
-    // if it exists or not... Guess what, MSVC wasn't happy with
-    // std::make_unique :P
-    db.reset(new PrivilegeDatabase(nullptr));
+    // if it exists or not...
+    db = std::make_unique<PrivilegeDatabase>(nullptr);
 }
 
 void destroy() {
