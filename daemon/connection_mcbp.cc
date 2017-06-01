@@ -1214,7 +1214,8 @@ void McbpConnection::runEventLoop(short which) {
         }
     }
 
-    conn_return_buffers(this);
+    // MB-24634: Temporarily disabled
+    // conn_return_buffers(this);
 }
 
 void McbpConnection::initiateShutdown() {
