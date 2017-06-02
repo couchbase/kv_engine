@@ -638,7 +638,6 @@ static void update_settings_from_config(void)
             settings.setErrorMapsDir(error_maps_dir);
         }
     }
-    settings.loadErrorMaps(settings.getErrorMapsDir());
 
     // If the user didn't set a socket path, use the default
     if (settings.getSaslauthdSocketpath().empty()) {
@@ -2739,7 +2738,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     try {
         parse_arguments(argc, argv);
     } catch (std::exception& exception) {
-        FATAL_ERROR(EXIT_FAILURE, "Failed initialize server: %s",
+        FATAL_ERROR(EXIT_FAILURE, "Failed to initialize server: %s",
                     exception.what());
     }
 
@@ -2785,6 +2784,15 @@ extern "C" int memcached_main(int argc, char **argv) {
     LOG_NOTICE(nullptr, "Loading RBAC configuration from [%s]",
                settings.getRbacFile().c_str());
     cb::rbac::loadPrivilegeDatabase(settings.getRbacFile());
+
+    LOG_NOTICE(nullptr,
+               "Loading error maps from [%s]",
+               settings.getErrorMapsDir().c_str());
+    try {
+        settings.loadErrorMaps(settings.getErrorMapsDir());
+    } catch (std::exception& e) {
+        FATAL_ERROR(EXIT_FAILURE, "Failed to load error maps: %s", e.what());
+    }
 
     initialize_audit();
 
