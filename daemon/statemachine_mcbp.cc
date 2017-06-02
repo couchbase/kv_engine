@@ -26,6 +26,8 @@
 #include "runtime.h"
 #include "mcaudit.h"
 
+static bool conn_execute(McbpConnection *c);
+
 void McbpStateMachine::setCurrentTask(McbpConnection& connection, TaskFunction task) {
     // Moving to the same state is legal
     if (task == currentTask) {
@@ -86,6 +88,8 @@ const char* McbpStateMachine::getTaskName(TaskFunction task) const {
         return "conn_write";
     } else if (task == conn_nread) {
         return "conn_nread";
+    } else if (task == conn_execute) {
+        return "conn_execute";
     } else if (task == conn_closing) {
         return "conn_closing";
     } else if (task == conn_mwrite) {
@@ -316,22 +320,39 @@ bool conn_new_cmd(McbpConnection *c) {
     return true;
 }
 
+static bool conn_execute(McbpConnection *c) {
+    if (is_bucket_dying(c)) {
+        return true;
+    }
+
+    if (c->getRlbytes() != 0) {
+        throw std::logic_error("conn_execute: Expecting more data (" +
+                               std::to_string(c->getRlbytes()) + ")");
+    }
+
+    c->setEwouldblock(false);
+    bool block = false;
+
+    mcbp_complete_nread(c);
+
+    if (c->isEwouldblock()) {
+        c->unregisterEvent();
+        block = true;
+    }
+    return !block;
+}
+
 bool conn_nread(McbpConnection *c) {
     if (is_bucket_dying(c)) {
         return true;
     }
 
     if (c->getRlbytes() == 0) {
-        c->setEwouldblock(false);
-        bool block = false;
-        mcbp_complete_nread(c);
-        if (c->isEwouldblock()) {
-            c->unregisterEvent();
-            block = true;
-        }
-        return !block;
+        c->setState(conn_execute);
+        return true;
     }
-    /* first check if we have leftovers in the conn_read buffer */
+
+    /* first check if we have the bytes present in our input buffer */
     if (c->read.bytes > 0) {
         auto tocopy = std::min(c->getRlbytes(), c->read.bytes);
         c->setRlbytes(c->getRlbytes() - tocopy);
@@ -339,6 +360,8 @@ bool conn_nread(McbpConnection *c) {
         c->read.bytes -= tocopy;
 
         if (c->getRlbytes() == 0) {
+            // We've got all we need... go execute the command
+            c->setState(conn_execute);
             return true;
         }
     }
