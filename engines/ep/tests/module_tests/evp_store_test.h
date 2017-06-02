@@ -31,8 +31,6 @@
  * Test fixture for EPBucket unit tests.
  */
 class EPBucketTest : public KVBucketTest {
-    // Note this class is currently identical to it's parent class as the
-    // default bucket_type in configuration.json is EPBucket, therefore
-    // KVBucketTest already defaults to creating EPBucket. Introducing this
-    // subclass to just make the name more descriptive.
+public:
+    void runBGFetcherTask();
 };

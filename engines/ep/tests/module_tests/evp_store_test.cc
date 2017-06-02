@@ -42,6 +42,12 @@
 
 #include <thread>
 
+void EPBucketTest::runBGFetcherTask() {
+    MockGlobalTask mockTask(engine->getTaskable(),
+                            TaskId::MultiBGFetcherTask);
+    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+}
+
 // Verify that when handling a bucket delete with open DCP
 // connections, we don't deadlock when notifying the front-end
 // connection.
@@ -141,9 +147,7 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsEjected) {
 
         // Manually run the BGFetcher task; to fetch the two outstanding
         // requests (for the same key).
-        MockGlobalTask mockTask(engine->getTaskable(),
-                                TaskId::MultiBGFetcherTask);
-        store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+        runBGFetcherTask();
 
         ASSERT_EQ(ENGINE_SUCCESS, do_getKeyStats())
             << "Expected to get key stats on evicted item after notify_IO_complete";
@@ -184,9 +188,7 @@ TEST_P(EPStoreEvictionTest, ReplaceEExists) {
 
         // Manually run the BGFetcher task; to fetch the two outstanding
         // requests (for the same key).
-        MockGlobalTask mockTask(engine->getTaskable(),
-                                TaskId::MultiBGFetcherTask);
-        store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+        runBGFetcherTask();
 
         EXPECT_EQ(ENGINE_SUCCESS, do_replace())
             << "Expected to replace on evicted item after notify_IO_complete";
@@ -223,9 +225,7 @@ TEST_P(EPStoreEvictionTest, SetEExists) {
 
         // Manually run the BGFetcher task; to fetch the two outstanding
         // requests (for the same key).
-        MockGlobalTask mockTask(engine->getTaskable(),
-                                TaskId::MultiBGFetcherTask);
-        store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+        runBGFetcherTask();
 
         EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie))
             << "Expected to set on evicted item after notify_IO_complete";
@@ -267,9 +267,7 @@ TEST_P(EPStoreEvictionTest, AddEExists) {
 
         // Manually run the BGFetcher task; to fetch the two outstanding
         // requests (for the same key).
-        MockGlobalTask mockTask(engine->getTaskable(),
-                                TaskId::MultiBGFetcherTask);
-        store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+        runBGFetcherTask();
 
         EXPECT_EQ(ENGINE_NOT_STORED, do_add())
             << "Expected to fail to add on evicted item after notify_IO_complete";
@@ -314,9 +312,7 @@ TEST_P(EPStoreEvictionTest, SetWithMeta_ReplaceNonResident) {
 
         // Manually run the BGFetcher task; to fetch the two outstanding
         // requests (for the same key).
-        MockGlobalTask mockTask(engine->getTaskable(),
-                                TaskId::MultiBGFetcherTask);
-        store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+        runBGFetcherTask();
 
         ASSERT_EQ(ENGINE_SUCCESS, do_setWithMeta())
             << "Expected to setWithMeta on evicted item after notify_IO_complete";
@@ -388,8 +384,7 @@ TEST_P(EPStoreEvictionTest, TouchCmdDuringBgFetch) {
 
     // Manually run the BGFetcher task; to fetch the two outstanding
     // requests (for the same key).
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    runBGFetcherTask();
 
     // Issue 2 touch commands again to mock actions post notify from bgFetch
     for (int i = 0; i < numTouchCmds; ++i) {
