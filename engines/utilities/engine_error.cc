@@ -15,6 +15,8 @@
  *   limitations under the License.
  */
 #include <memcached/engine_error.h>
+
+#include <iostream>
 #include <map>
 #include <string>
 
@@ -97,4 +99,8 @@ std::string cb::to_string(cb::engine_errc code) {
     throw std::invalid_argument(
         "engine_error_category::message: code does not represent a "
             "legal error code: " + std::to_string(int(code)));
+}
+
+void cb::PrintTo(cb::engine_errc ev, ::std::ostream* os) {
+    *os << cb::to_string(ev);
 }

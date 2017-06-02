@@ -123,7 +123,11 @@ static inline std::error_condition make_error_condition(engine_errc e) {
 ENGINE_UTILITIES_PUBLIC_API
 std::string to_string(engine_errc ev);
 
-}
+// GoogleTest printing function.
+ENGINE_UTILITIES_PUBLIC_API
+void PrintTo(engine_errc ev, ::std::ostream* os);
+
+} // namespace cb
 
 // For backwards compatibility with the old memcached source code we need
 // to keep the old constants around
