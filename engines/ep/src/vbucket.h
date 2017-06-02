@@ -376,9 +376,6 @@ public:
     cb::RWLock& getStateLock() {return stateLock;}
 
     vbucket_state_t getInitialState(void) { return initialState; }
-    void setInitialState(vbucket_state_t initState) {
-        initialState = initState;
-    }
 
     vbucket_state getVBucketState() const;
 
