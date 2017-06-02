@@ -32,6 +32,19 @@ public:
     }
 
     static void TearDownTestCase() {
+        // We need to unset the environment variable when we're done with
+        // the testsuite in case someone runs all testsuites. If we don't
+        // do that all of the following test suites will fail as they
+        // (at least right now) expects to be associated with the default
+        // bucket.
+#ifdef WIN32
+        // Windows don't have unsetenv, but use putenv with an empty variable
+        env.resize(env.size() - 4);
+        putenv(const_cast<char*>(env.c_str()));
+#else
+        env.resize(env.size() - 5);
+        unsetenv(env.c_str());
+#endif
         stop_memcached_server();
     }
 
