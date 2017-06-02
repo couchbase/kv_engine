@@ -360,14 +360,6 @@ public:
         McbpConnection::write_and_go = write_and_go;
     }
 
-    char* getRitem() const {
-        return ritem;
-    }
-
-    void setRitem(char* ritem) {
-        McbpConnection::ritem = ritem;
-    }
-
     uint32_t getRlbytes() const {
         return rlbytes;
     }
@@ -816,9 +808,6 @@ protected:
 
     /** which state to go into after finishing current write */
     TaskFunction write_and_go;
-
-    /** when we read in an item's value, it goes here */
-    char* ritem;
 
     /* read 'left' bytes - how many bytes of data remain to be read for the
      * nread state

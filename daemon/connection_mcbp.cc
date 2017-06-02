@@ -782,7 +782,6 @@ McbpConnection::McbpConnection(SOCKET sfd, event_base *b)
       currentEvent(0),
       ev_timeout_enabled(false),
       write_and_go(conn_new_cmd),
-      ritem(nullptr),
       rlbytes(0),
       iov(IOV_LIST_INITIAL),
       iovused(0),
@@ -829,7 +828,6 @@ McbpConnection::McbpConnection(SOCKET sfd,
       currentEvent(0),
       ev_timeout_enabled(false),
       write_and_go(conn_new_cmd),
-      ritem(nullptr),
       rlbytes(0),
       iov(IOV_LIST_INITIAL),
       iovused(0),
@@ -991,7 +989,6 @@ cJSON* McbpConnection::toJSON() const {
                                     stateMachine->getTaskName(write_and_go));
 
         }
-        json_add_uintptr_to_object(obj, "ritem", (uintptr_t)ritem);
         cJSON_AddNumberToObject(obj, "rlbytes", rlbytes);
 
         {

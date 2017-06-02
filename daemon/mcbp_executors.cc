@@ -132,8 +132,8 @@ static void bin_read_chunk(McbpConnection* c, uint32_t chunk) {
         }
     }
 
-    /* preserve the header in the buffer.. */
-    c->setRitem(c->read.curr + sizeof(protocol_binary_request_header));
+    // The input buffer is big enough to fit the entire packet.
+    // Go fetch the rest of the data
     c->setState(conn_nread);
 }
 

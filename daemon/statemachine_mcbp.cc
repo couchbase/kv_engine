@@ -321,8 +321,6 @@ bool conn_nread(McbpConnection *c) {
         return true;
     }
 
-    ssize_t res;
-
     if (c->getRlbytes() == 0) {
         c->setEwouldblock(false);
         bool block = false;
@@ -335,28 +333,22 @@ bool conn_nread(McbpConnection *c) {
     }
     /* first check if we have leftovers in the conn_read buffer */
     if (c->read.bytes > 0) {
-        uint32_t tocopy = c->read.bytes > c->getRlbytes() ? c->getRlbytes() : c->read.bytes;
-        if (c->getRitem() != c->read.curr) {
-            memmove(c->getRitem(), c->read.curr, tocopy);
-        }
-        c->setRitem(c->getRitem() + tocopy);
+        auto tocopy = std::min(c->getRlbytes(), c->read.bytes);
         c->setRlbytes(c->getRlbytes() - tocopy);
         c->read.curr += tocopy;
         c->read.bytes -= tocopy;
+
         if (c->getRlbytes() == 0) {
             return true;
         }
     }
 
     /*  now try reading from the socket */
-    res = c->recv(c->getRitem(), c->getRlbytes());
+    auto res = c->recv(c->read.curr, c->getRlbytes());
     auto error = GetLastNetworkError();
     if (res > 0) {
         get_thread_stats(c)->bytes_read += res;
-        if (c->read.curr == c->getRitem()) {
-            c->read.curr += res;
-        }
-        c->setRitem(c->getRitem() + res);
+        c->read.curr += res;
         c->setRlbytes(c->getRlbytes() - res);
         return true;
     }
@@ -382,9 +374,9 @@ bool conn_nread(McbpConnection *c) {
         LOG_WARNING(c,
                     "%u Failed to read, and not due to blocking:\n"
                         "errno: %d %s \n"
-                        "rcurr=%lx ritem=%lx rbuf=%lx rlbytes=%d rsize=%d\n",
+                        "rcurr=%lx rbuf=%lx rlbytes=%d rsize=%d\n",
                     c->getId(), errno, strerror(errno),
-                    (long)c->read.curr, (long)c->getRitem(), (long)c->read.buf,
+                    (long)c->read.curr, (long)c->read.buf,
                     (int)c->getRlbytes(), (int)c->read.size);
     }
     c->setState(conn_closing);
