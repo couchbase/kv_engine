@@ -18,6 +18,7 @@
 
 #include <memcached/engine_utilities_visibility.h>
 #include <platform/platform.h>
+#include <ostream>
 #include <system_error>
 
 #ifdef _MSC_VER
@@ -128,6 +129,10 @@ ENGINE_UTILITIES_PUBLIC_API
 void PrintTo(engine_errc ev, ::std::ostream* os);
 
 } // namespace cb
+
+// For checkeqfn
+ENGINE_UTILITIES_PUBLIC_API
+std::ostream& operator<<(std::ostream& os, cb::engine_errc ec);
 
 // For backwards compatibility with the old memcached source code we need
 // to keep the old constants around

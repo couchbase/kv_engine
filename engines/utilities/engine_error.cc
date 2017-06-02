@@ -104,3 +104,8 @@ std::string cb::to_string(cb::engine_errc code) {
 void cb::PrintTo(cb::engine_errc ev, ::std::ostream* os) {
     *os << cb::to_string(ev);
 }
+
+std::ostream& operator<<(std::ostream& os, cb::engine_errc ec) {
+    cb::PrintTo(ec, &os);
+    return os;
+}

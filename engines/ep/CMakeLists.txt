@@ -384,7 +384,7 @@ ADD_LIBRARY(ep_testsuite SHARED
    tests/mock/mock_dcp.cc
    ${Memcached_SOURCE_DIR}/utilities/string_utilities.cc)
 SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep_testsuite couchstore dirutils JSON_checker platform
+TARGET_LINK_LIBRARIES(ep_testsuite engine_utilities couchstore dirutils JSON_checker platform
                       xattr
                       ${LIBEVENT_LIBRARIES})
 ADD_DEPENDENCIES(ep_testsuite engine_testapp)
@@ -409,7 +409,7 @@ tests/ep_test_apis.cc
 tests/mock/mock_dcp.cc
 )
 SET_TARGET_PROPERTIES(ep_testsuite_dcp PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep_testsuite_dcp cbcompress JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+TARGET_LINK_LIBRARIES(ep_testsuite_dcp engine_utilities cbcompress JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
 ADD_DEPENDENCIES(ep_testsuite_dcp engine_testapp)
 
 ADD_LIBRARY(ep_testsuite_tap SHARED
@@ -418,7 +418,7 @@ ADD_LIBRARY(ep_testsuite_tap SHARED
    tests/ep_test_apis.cc
    src/ext_meta_parser.cc)
 SET_TARGET_PROPERTIES(ep_testsuite_tap PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep_testsuite_tap JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+TARGET_LINK_LIBRARIES(ep_testsuite_tap engine_utilities JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
 ADD_DEPENDENCIES(ep_testsuite_tap engine_testapp)
 
 ADD_LIBRARY(ep_testsuite_checkpoint SHARED
@@ -427,7 +427,7 @@ ADD_LIBRARY(ep_testsuite_checkpoint SHARED
    tests/ep_test_apis.cc
    src/ext_meta_parser.cc)
 SET_TARGET_PROPERTIES(ep_testsuite_checkpoint PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep_testsuite_checkpoint JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+TARGET_LINK_LIBRARIES(ep_testsuite_checkpoint engine_utilities JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
 ADD_DEPENDENCIES(ep_testsuite_checkpoint engine_testapp)
 
 ADD_LIBRARY(ep_testsuite_xdcr SHARED
@@ -437,7 +437,7 @@ ADD_LIBRARY(ep_testsuite_xdcr SHARED
    src/ext_meta_parser.cc
    ${Memcached_SOURCE_DIR}/utilities/string_utilities.cc)
 SET_TARGET_PROPERTIES(ep_testsuite_xdcr PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep_testsuite_xdcr JSON_checker dirutils platform xattr
+TARGET_LINK_LIBRARIES(ep_testsuite_xdcr engine_utilities JSON_checker dirutils platform xattr
                       ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
 ADD_DEPENDENCIES(ep_testsuite_xdcr engine_testapp)
 
@@ -448,7 +448,7 @@ ADD_LIBRARY(ep_perfsuite SHARED
    tests/ep_test_apis.cc
    tests/mock/mock_dcp.cc)
 SET_TARGET_PROPERTIES(ep_perfsuite PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep_perfsuite dirutils platform)
+TARGET_LINK_LIBRARIES(ep_perfsuite engine_utilities dirutils platform)
 ADD_DEPENDENCIES(ep_perfsuite engine_testapp)
 
 #ADD_CUSTOM_COMMAND(OUTPUT

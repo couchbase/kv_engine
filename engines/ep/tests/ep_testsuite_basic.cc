@@ -914,13 +914,12 @@ static enum test_result test_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->release(h, NULL, i);
     check_key_value(h, h1, "key", "somevalue", 9);
 
-    checkeq(ENGINE_SUCCESS,
-            get(h, h1, NULL, &i, "key", 0),
-            "Failed to get value.");
+    auto ret = get(h, h1, NULL, "key", 0);
+    checkeq(cb::engine_errc::success, ret.first, "Failed to get value.");
 
     item_info info;
-    check(h1->get_item_info(h, NULL, i, &info), "Failed to get item info.");
-    h1->release(h, NULL, i);
+    check(h1->get_item_info(h, NULL, ret.second.get(), &info),
+          "Failed to get item info.");
 
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_CAS, "key", "winCas", &i, info.cas),
@@ -1018,8 +1017,9 @@ static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     testHarness.time_travel(2);
 
     // The item should have expired now...
-    checkeq(ENGINE_KEY_ENOENT,
-            get(h, h1, NULL, &itm, "mykey", 0), "Item should be gone");
+    checkeq(cb::engine_errc::no_such_key,
+            get(h, h1, NULL, "mykey", 0).first,
+            "Item should be gone");
     return SUCCESS;
 }
 
@@ -1115,8 +1115,9 @@ static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     testHarness.time_travel(2);
 
     // The item should have expired now...
-    checkeq(ENGINE_KEY_ENOENT,
-            get(h, h1, NULL, &itm, "mykey", 0), "Item should be gone");
+    checkeq(cb::engine_errc::no_such_key,
+            get(h, h1, NULL, "mykey", 0).first,
+            "Item should be gone");
     return SUCCESS;
 }
 
@@ -1143,8 +1144,8 @@ static enum test_result test_gat_locked(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS, ENGINE_ERROR_CODE(ret.first), "Expected success");
 
     testHarness.time_travel(11);
-    checkeq(ENGINE_KEY_ENOENT,
-            get(h, h1, NULL, &itm, "key", 0),
+    checkeq(cb::engine_errc::no_such_key,
+            get(h, h1, NULL, "key", 0).first,
             "Expected value to be expired");
     return SUCCESS;
 }
@@ -1170,8 +1171,8 @@ static enum test_result test_touch_locked(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS, touch(h, h1, "key", 0, 10), "Expected success");
 
     testHarness.time_travel(11);
-    checkeq(ENGINE_KEY_ENOENT,
-            get(h, h1, NULL, &itm, "key", 0),
+    checkeq(cb::engine_errc::no_such_key,
+            get(h, h1, NULL, "key", 0).first,
             "Expected value to be expired");
 
     return SUCCESS;
@@ -1207,10 +1208,9 @@ static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     //verify persisted expiration time
     const char *statkey = "key coolkey 0";
     int newExpTime;
-    checkeq(ENGINE_SUCCESS,
-            get(h, h1, NULL, &itm, "coolkey", 0),
+    checkeq(cb::engine_errc::success,
+            get(h, h1, NULL, "coolkey", 0).first,
             "Missing key");
-    h1->release(h, NULL, itm);
     newExpTime = get_int_stat(h, h1, "key_exptime", statkey);
     checkeq(expTime, newExpTime, "Failed to persist new exptime");
 
@@ -1227,10 +1227,9 @@ static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               true, false);
     wait_for_warmup_complete(h, h1);
 
-    checkeq(ENGINE_SUCCESS,
-            get(h, h1, NULL, &itm, "coolkey", 0),
+    checkeq(cb::engine_errc::success,
+            get(h, h1, NULL, "coolkey", 0).first,
             "Missing key");
-    h1->release(h, NULL, itm);
     newExpTime = get_int_stat(h, h1, "key_exptime", statkey);
     checkeq(expTime, newExpTime, "Failed to persist new exptime");
 
@@ -1453,10 +1452,8 @@ static enum test_result test_delete_with_value_cas(ENGINE_HANDLE *h,
 
     wait_for_flusher_to_settle(h, h1);
 
-    checkeq(ENGINE_SUCCESS,
-            get(h, h1, nullptr, &i, "key2", 0 ,
-                DocStateFilter::AliveOrDeleted),
-                "Failed to get value");
+    auto ret = get(h, h1, nullptr, "key2", 0, DocStateFilter::AliveOrDeleted);
+    checkeq(cb::engine_errc::success, ret.first, "Failed to get value");
 
     check(get_meta(h, h1, "key2"), "Get meta failed");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -1465,7 +1462,7 @@ static enum test_result test_delete_with_value_cas(ENGINE_HANDLE *h,
     checkeq(last_meta.revSeqno, curr_revseqno + 1,
             "rev seqno should have incremented");
 
-    check(h1->get_item_info(h, nullptr, i, &info),
+    check(h1->get_item_info(h, nullptr, ret.second.get(), &info),
           "Getting item info failed");
     checkeq(int(DocumentState::Deleted),
             int(info.document_state),
@@ -1480,11 +1477,10 @@ static enum test_result test_delete_with_value_cas(ENGINE_HANDLE *h,
 
     checkeq(0, buf.compare("newdeletevaluewithcas"), "Data mismatch");
 
-    h1->release(h, nullptr, i);
-
-    checkeq(ENGINE_KEY_ENOENT,
-            get(h, h1, nullptr, &i, "key", 0, DocStateFilter::Alive),
-                "Getting value should have failed");
+    ret = get(h, h1, nullptr, "key", 0, DocStateFilter::Alive);
+    checkeq(cb::engine_errc::no_such_key,
+            ret.first,
+            "Getting value should have failed");
 
     return SUCCESS;
 }
@@ -1619,22 +1615,20 @@ static enum test_result test_get_delete_missing_file(ENGINE_HANDLE *h, ENGINE_HA
     std::string dbname = vals["ep_dbname"];
     rmdb(dbname.c_str());
 
-    item *i = NULL;
-    ENGINE_ERROR_CODE errorCode = get(h, h1, NULL, &i, key, 0);
-    h1->release(h, NULL, i);
+    auto ret = get(h, h1, NULL, key, 0);
 
     // ep engine must be unaware of well-being of the db file as long as
     // the item is still in the memory
-    checkeq(ENGINE_SUCCESS, errorCode, "Expected success for get");
+    checkeq(cb::engine_errc::success, ret.first, "Expected success for get");
 
-    i = NULL;
     evict_key(h, h1, key);
-    errorCode = get(h, h1, NULL, &i, key, 0);
-    h1->release(h, NULL, i);
+    ret = get(h, h1, NULL, key, 0);
 
     // ep engine must be now aware of the ill-fated db file where
     // the item is supposedly stored
-    checkeq(ENGINE_TMPFAIL, errorCode, "Expected tmp fail for get");
+    checkeq(cb::engine_errc::temporary_failure,
+            ret.first,
+            "Expected tmp fail for get");
 
     return SUCCESS;
 }
@@ -2110,12 +2104,12 @@ static test_result pre_link_document(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     testHarness.set_pre_link_function({});
 
     // Fetch the value and verify that the callback was called!
-    checkeq(ENGINE_SUCCESS, get(h, h1, nullptr, &it, "key", 0), "get failed");
-    check(h1->get_item_info(h, nullptr, it, &info), "Failed to get item info.");
+    auto ret = get(h, h1, nullptr, "key", 0);
+    checkeq(cb::engine_errc::success, ret.first, "get failed");
+    check(h1->get_item_info(h, nullptr, ret.second.get(), &info), "Failed to get item info.");
     checkeq(0, memcmp(info.value[0].iov_base, "valuesome", 9),
            "Expected value to be modified");
     checkeq(pre_link_seqno, info.seqno, "Sequence numbers should match");
-    h1->release(h, nullptr, it);
 
     return SUCCESS;
 }

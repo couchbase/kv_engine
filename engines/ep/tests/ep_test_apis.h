@@ -241,11 +241,13 @@ ENGINE_ERROR_CODE allocate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                            const std::string& key, size_t nbytes, int flags,
                            rel_time_t exptime, uint8_t datatype, uint16_t vb);
 
-ENGINE_ERROR_CODE get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                      const void* cookie, item** item, const std::string& key,
-                      uint16_t vb,
-                      DocStateFilter documentStateFilter =
-                           DocStateFilter::Alive);
+cb::EngineErrorItemPair get(
+        ENGINE_HANDLE* h,
+        ENGINE_HANDLE_V1* h1,
+        const void* cookie,
+        const std::string& key,
+        uint16_t vb,
+        DocStateFilter documentStateFilter = DocStateFilter::Alive);
 
 /* Stores the specified document; returning the new CAS value via
  * {out_cas}.

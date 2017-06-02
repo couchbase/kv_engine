@@ -211,23 +211,24 @@ static enum test_result test_get_meta_with_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     check(temp == 0, "Expect zero getMeta ops");
     check(get_meta(h, h1, key1), "Expected to get meta");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    checkeq(ENGINE_SUCCESS,
-            get(h, h1, NULL, &i, key1, 0), "Expected get success");
-    h1->release(h, NULL, i);
+    auto ret = get(h, h1, NULL, key1, 0);
+    checkeq(cb::engine_errc::success, ret.first,
+            "Expected get success");
+    ret.second.reset();
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 1, "Expect one getMeta op");
 
     // test get_meta followed by get for a deleted key. should fail.
-    checkeq(ENGINE_SUCCESS,
-            del(h, h1, key1, 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h, h1);
     check(get_meta(h, h1, key1), "Expected to get meta");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
-    checkeq(ENGINE_KEY_ENOENT,
-            get(h, h1, NULL, &i, key1, 0), "Expected enoent");
+    checkeq(cb::engine_errc::no_such_key,
+            get(h, h1, NULL, key1, 0).first,
+            "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     checkeq(2, temp, "Expect more getMeta ops");
@@ -236,8 +237,9 @@ static enum test_result test_get_meta_with_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     check(!get_meta(h, h1, key2), "Expected get meta to return false");
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
             "Expected enoent");
-    checkeq(ENGINE_KEY_ENOENT,
-            get(h, h1, NULL, &i, key2, 0), "Expected enoent");
+    checkeq(cb::engine_errc::no_such_key,
+            get(h, h1, NULL, key2, 0).first,
+            "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     checkeq(3, temp, "Expected one extra getMeta ops");
@@ -998,12 +1000,13 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
     check(last_seqno == high_seqno + 3, "Expected valid sequence number");
 
+    h1->release(h, NULL, i);
+
     // Make sure the item expiration was processed correctly
     testHarness.time_travel(301);
-    checkeq(ENGINE_KEY_ENOENT, get(h, h1, NULL, &i, key, 0),
-            "Failed to get value.");
+    auto ret = get(h, h1, NULL, key, 0);
+    checkeq(cb::engine_errc::no_such_key, ret.first, "Failed to get value.");
 
-    h1->release(h, NULL, i);
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
@@ -1464,12 +1467,10 @@ static enum test_result test_delete_with_meta_xattr(ENGINE_HANDLE* h,
 
     // Verify the new value is as expected
     item_info info;
-    item* itm = nullptr;
-    checkeq(ENGINE_SUCCESS,
-            get(h, h1, nullptr, &itm, key1, 0, DocStateFilter::AliveOrDeleted),
-            "Failed to get(key1)");
+    auto ret = get(h, h1, nullptr, key1, 0, DocStateFilter::AliveOrDeleted);
+    checkeq(cb::engine_errc::success, ret.first, "Failed to get(key1)");
 
-    check(h1->get_item_info(h, nullptr, itm, &info),
+    check(h1->get_item_info(h, nullptr, ret.second.get(), &info),
           "Failed get_item_info of key1");
     checkeq(data.size(), info.value[0].iov_len, "Value length mismatch");
     checkeq(0, memcmp(info.value[0].iov_base, data.data(), data.size()),
@@ -1482,8 +1483,6 @@ static enum test_result test_delete_with_meta_xattr(ENGINE_HANDLE* h,
     checkeq(int(PROTOCOL_BINARY_DATATYPE_XATTR | PROTOCOL_BINARY_DATATYPE_JSON),
             int(info.datatype),
             "datatype isn't JSON and XATTR");
-
-    h1->release(h, nullptr, itm);
 
     // @todo implement test for the deletion of a value that has xattr using
     // a delete that has none (i.e. non-xattr/!spock client)

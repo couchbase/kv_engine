@@ -380,14 +380,11 @@ static void perf_latency_core(ENGINE_HANDLE *h,
 
     // Get
     for (auto& key : keys) {
-        item* item = NULL;
         const hrtime_t start = gethrtime();
-        checkeq(ENGINE_SUCCESS,
-                get(h, h1, cookie, &item, key, 0),
-                "Failed to get a value");
+        auto ret = get(h, h1, cookie, key, 0);
+        checkeq(cb::engine_errc::success, ret.first, "Failed to get a value");
         const hrtime_t end = gethrtime();
         get_timings.push_back(end - start);
-        h1->release(h, cookie, item);
     }
 
     // Update (Replace)

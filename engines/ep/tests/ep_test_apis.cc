@@ -565,17 +565,15 @@ cb::EngineErrorItemPair gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 bool get_item_info(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item_info *info,
                    const char* key, uint16_t vb) {
-    item *i = NULL;
-    if (get(h, h1, NULL, &i, key, vb) != ENGINE_SUCCESS) {
+    auto ret = get(h, h1, NULL, key, vb);
+    if (ret.first != cb::engine_errc::success) {
         return false;
     }
-    if (!h1->get_item_info(h, NULL, i, info)) {
-        h1->release(h, NULL, i);
+    if (!h1->get_item_info(h, NULL, ret.second.get(), info)) {
         fprintf(stderr, "get_item_info failed\n");
         return false;
     }
 
-    h1->release(h, NULL, i);
     return true;
 }
 
@@ -1066,12 +1064,8 @@ void vbucketDelete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
 
 ENGINE_ERROR_CODE verify_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                              const char* key, uint16_t vbucket) {
-    item *i = NULL;
-    ENGINE_ERROR_CODE rv = get(h, h1, NULL, &i, key, vbucket);
-    if (rv == ENGINE_SUCCESS) {
-        h1->release(h, NULL, i);
-    }
-    return rv;
+    auto rv = get(h, h1, NULL, key, vbucket);
+    return ENGINE_ERROR_CODE(rv.first);
 }
 
 std::pair<ENGINE_ERROR_CODE, std::string> get_value(ENGINE_HANDLE* h,
@@ -1080,19 +1074,17 @@ std::pair<ENGINE_ERROR_CODE, std::string> get_value(ENGINE_HANDLE* h,
                                                     const char* key,
                                                     uint16_t vbucket,
                                                     DocStateFilter state) {
-    item* itm = NULL;
-    ENGINE_ERROR_CODE rv = get(h, h1, cookie, &itm, key, vbucket, state);
-    if (rv != ENGINE_SUCCESS) {
-        return {rv, ""};
+    auto rv = get(h, h1, cookie, key, vbucket, state);
+    if (rv.first != cb::engine_errc::success) {
+        return {ENGINE_ERROR_CODE(rv.first), ""};
     }
     item_info info;
-    if (!h1->get_item_info(h, cookie, itm, &info)) {
+    if (!h1->get_item_info(h, cookie, rv.second.get(), &info)) {
         return {ENGINE_FAILED, ""};
     }
-    h1->release(h, cookie, itm);
     auto value = std::string(reinterpret_cast<char*>(info.value[0].iov_base),
                              info.value[0].iov_len);
-    return make_pair(rv, value);
+    return make_pair(ENGINE_ERROR_CODE(rv.first), value);
 }
 
 bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -1616,15 +1608,12 @@ int write_items_upto_mem_perc(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 uint64_t get_CAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                  const std::string& key) {
-    item *i = NULL;
-    checkeq(ENGINE_SUCCESS,
-            get(h, h1, nullptr, &i, key, 0),
-            "get_CAS: Failed to get key");
+    auto ret = get(h, h1, nullptr, key, 0);
+    checkeq(cb::engine_errc::success, ret.first, "get_CAS: Failed to get key");
 
     item_info info;
-    check(h1->get_item_info(h, NULL, i, &info),
+    check(h1->get_item_info(h, NULL, ret.second.get(), &info),
           "get_CAS: Failed to get item info for key");
-    h1->release(h, NULL, i);
 
     return info.cas;
 }
@@ -1638,9 +1627,22 @@ ENGINE_ERROR_CODE allocate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                         nbytes, flags, exptime, datatype, vb);
 }
 
-ENGINE_ERROR_CODE get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                      const void* cookie, item** item, const std::string& key,
-                      uint16_t vb, DocStateFilter documentStateFilter) {
-    return h1->get(h, cookie, item, DocKey(key, testHarness.doc_namespace),
-                   vb, documentStateFilter);
+cb::EngineErrorItemPair get(ENGINE_HANDLE* h,
+                            ENGINE_HANDLE_V1* h1,
+                            const void* cookie,
+                            const std::string& key,
+                            uint16_t vb,
+                            DocStateFilter documentStateFilter) {
+    item* itm;
+    auto ret = h1->get(h,
+                       cookie,
+                       &itm,
+                       DocKey(key, testHarness.doc_namespace),
+                       vb,
+                       documentStateFilter);
+    if (ret != ENGINE_SUCCESS) {
+        return {cb::engine_errc(ret),
+                cb::unique_item_ptr{nullptr, cb::ItemDeleter{h}}};
+    }
+    return {cb::engine_errc(ret), cb::unique_item_ptr{itm, cb::ItemDeleter{h}}};
 }

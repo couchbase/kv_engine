@@ -683,11 +683,9 @@ static enum test_result test_vb_get_pending(ENGINE_HANDLE *h,
     const void *cookie = testHarness.create_cookie();
     testHarness.set_ewouldblock_handling(cookie, false);
 
-    item *i = NULL;
-    checkeq(ENGINE_EWOULDBLOCK,
-            get(h, h1, cookie, &i, "key", 1),
+    checkeq(cb::engine_errc::would_block,
+            get(h, h1, cookie, "key", 1).first,
             "Expected woodblock.");
-    h1->release(h, NULL, i);
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -862,10 +860,10 @@ static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h,
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_XATTR),
             last_datatype.load(), "Datatype is not XATTR");
 
-    checkeq(ENGINE_SUCCESS,
-            get(h, h1, cookie, &itm, key, 0,
-                DocStateFilter::AliveOrDeleted),
-                "Unable to get a deleted item");
+    auto ret = get(h, h1, cookie, key, 0, DocStateFilter::AliveOrDeleted);
+    checkeq(cb::engine_errc::success,
+            ret.first,
+            "Unable to get a deleted item");
 
     checkeq(true,
             get_meta(h, h1, "test_expiry", false, GetMetaVersion::V1, cookie),
@@ -876,7 +874,8 @@ static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h,
 
     /* Retrieve the item info and create a new blob out of the data */
     item_info info;
-    checkeq(true, h1->get_item_info(h, cookie, itm, &info),
+    checkeq(true,
+            h1->get_item_info(h, cookie, ret.second.get(), &info),
             "Unable to retrieve item info");
 
     cb::byte_buffer value_buf{static_cast<uint8_t*>(info.value[0].iov_base),
@@ -897,7 +896,6 @@ static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h,
 
     checkeq(cas_str, sync_str , "system xattr is invalid");
 
-    h1->release(h, nullptr, itm);
     testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
@@ -927,8 +925,8 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->release(h, NULL, it);
 
     testHarness.time_travel(5);
-    checkeq(ENGINE_KEY_ENOENT,
-            get(h, h1, NULL, &it, key, 0),
+    checkeq(cb::engine_errc::no_such_key,
+            get(h, h1, NULL, key, 0).first,
             "Item didn't expire");
 
     int expired_access = get_int_stat(h, h1, "ep_expired_access");
@@ -982,9 +980,8 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
     testHarness.time_travel(3);
 
-    checkeq(ENGINE_KEY_ENOENT,
-            get(h, h1, NULL, &it, key, 0),
-            "Item didn't expire");
+    auto ret = get(h, h1, NULL, key, 0);
+    checkeq(cb::engine_errc::no_such_key, ret.first, "Item didn't expire");
 
     // Restart the engine to ensure the above expired item is not loaded
     testHarness.reload_engine(&h, &h1,
@@ -1138,9 +1135,8 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     // Advance the ep_engine time by 10 sec for the above item to be expired.
     testHarness.time_travel(10);
-    checkeq(ENGINE_KEY_ENOENT,
-            get(h, h1, NULL, &it, key, 0),
-            "Item didn't expire");
+    auto ret = get(h, h1, NULL, key, 0);
+    checkeq(cb::engine_errc::no_such_key, ret.first, "Item didn't expire");
 
     rv = allocate(h, h1, NULL, &it, key, strlen(data), 0, 0,
                       PROTOCOL_BINARY_RAW_BYTES, 0);
@@ -1159,10 +1155,9 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->release(h, NULL, it);
     wait_for_flusher_to_settle(h, h1);
 
-    checkeq(ENGINE_SUCCESS,
-            get(h, h1, NULL, &it, key, 0),
+    checkeq(cb::engine_errc::success,
+            get(h, h1, NULL, key, 0).first,
             "Item shouldn't expire");
-    h1->release(h, NULL, it);
 
     // Restart the engine to ensure the above unexpired new item is loaded
     testHarness.reload_engine(&h, &h1,
@@ -1614,11 +1609,9 @@ test_multi_vb_compactions_with_workload(ENGINE_HANDLE *h,
         count = 0;
         for (it = keys.begin(); it != keys.end(); ++it) {
             uint16_t vbid = count % 4;
-            item *i = NULL;
-            checkeq(ENGINE_SUCCESS,
-                    get(h, h1, NULL, &i, it->c_str(), vbid),
+            checkeq(cb::engine_errc::success,
+                    get(h, h1, NULL, it->c_str(), vbid).first,
                     "Unable to get stored item");
-            h1->release(h, NULL, i);
             ++count;
         }
     }
@@ -2187,7 +2180,6 @@ static enum test_result test_bg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static enum test_result test_bg_meta_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *itm = NULL;
     h1->reset_stats(h, NULL);
 
     wait_for_persisted_value(h, h1, "k1", "v1");
@@ -2205,10 +2197,11 @@ static enum test_result test_bg_meta_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 0");
     checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 1");
 
-    checkeq(ENGINE_SUCCESS, get(h, h1, NULL, &itm, "k1", 0), "Missing key");
+    checkeq(cb::engine_errc::success,
+            get(h, h1, NULL, "k1", 0).first,
+            "Missing key");
     checkeq(1, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 1");
     checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 1");
-    h1->release(h, NULL, itm);
 
     // store new key with some random metadata
     const size_t keylen = strlen("k3");
@@ -2575,8 +2568,8 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
         for (i = 0; i < 5; i++) {
             std::stringstream key;
             key << "key-" << i;
-            checkeq(ENGINE_KEY_ENOENT,
-                    get(h, h1, NULL, &it, key.str(), 0),
+            checkeq(cb::engine_errc::no_such_key,
+                    get(h, h1, NULL, key.str(), 0).first,
                     "Unable to get stored item");
         }
         // + 6 because last delete is not purged by the compactor
@@ -2750,13 +2743,11 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             storeCasOut(h, h1, NULL, 0, key, value, datatype, itm, cas),
             "Expected set to succeed");
 
-    checkeq(ENGINE_SUCCESS,
-            get(h, h1, cookie, &itm, key, 0),
-            "Unable to get stored item");
+    auto ret = get(h, h1, cookie, key, 0);
+    checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
 
     item_info info;
-    h1->get_item_info(h, cookie, itm, &info);
-    h1->release(h, cookie, itm);
+    h1->get_item_info(h, cookie, ret.second.get(), &info);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
             info.datatype, "Invalid datatype");
 
@@ -2770,12 +2761,10 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     set_with_meta(h, h1, key1, strlen(key1), val1, strlen(val1), 0, &itm_meta,
                   last_cas, 0, info.datatype, cookie);
 
-    checkeq(ENGINE_SUCCESS,
-            get(h, h1, cookie, &itm, key1, 0),
-            "Unable to get stored item");
+    ret = get(h, h1, cookie, key1, 0);
+    checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
 
-    h1->get_item_info(h, cookie, itm, &info);
-    h1->release(h, cookie, itm);
+    h1->get_item_info(h, cookie, ret.second.get(), &info);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
             info.datatype, "Invalid datatype, when setWithMeta");
 
@@ -2787,7 +2776,6 @@ static enum test_result test_datatype_with_unknown_command(ENGINE_HANDLE *h,
                                                            ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
     testHarness.set_datatype_support(cookie, true);
-    item *itm = NULL;
     const char* key = "foo";
     const char* val = "{\"foo\":\"bar\"}";
     uint8_t datatype = PROTOCOL_BINARY_DATATYPE_JSON;
@@ -2802,13 +2790,11 @@ static enum test_result test_datatype_with_unknown_command(ENGINE_HANDLE *h,
     set_with_meta(h, h1, key, strlen(key), val, strlen(val), 0, &itm_meta,
                   0, 0, datatype, cookie);
 
-    checkeq(ENGINE_SUCCESS,
-            get(h, h1, cookie, &itm, key, 0),
-            "Unable to get stored item");
+    auto ret = get(h, h1, cookie, key, 0);
+    checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
 
     item_info info;
-    h1->get_item_info(h, cookie, itm, &info);
-    h1->release(h, NULL, itm);
+    h1->get_item_info(h, cookie, ret.second.get(), &info);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
             info.datatype, "Invalid datatype, when setWithMeta");
 
@@ -4161,10 +4147,10 @@ static enum test_result test_regression_mb4314(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     set_with_meta(h, h1, "test_regression_mb4314", 22, NULL, 0, 0, &itm_meta, last_cas);
 
     // Now try to read the item back:
-    item *it = NULL;
-    ENGINE_ERROR_CODE ret = get(h, h1, NULL, &it, "test_regression_mb4314", 0);
-    checkeq(ENGINE_SUCCESS, ret, "Expected to get the item back!");
-    h1->release(h, NULL, it);
+    auto ret = get(h, h1, NULL, "test_regression_mb4314", 0);
+    checkeq(cb::engine_errc::success,
+            ret.first,
+            "Expected to get the item back!");
 
     return SUCCESS;
 }
@@ -4785,11 +4771,9 @@ static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
         std::string key(ss.str());
         // Reference each stored item multiple times.
         for (int k = 0; k < 5; ++k) {
-            item *i;
-            checkeq(ENGINE_SUCCESS,
-                    get(h, h1, NULL, &i, key, 0),
+            checkeq(cb::engine_errc::success,
+                    get(h, h1, NULL, key, 0).first,
                     "Failed to get value.");
-            h1->release(h, NULL, i);
         }
     }
 
@@ -4832,7 +4816,6 @@ static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     if (num_non_resident == 0) {
         wait_for_stat_change(h, h1, "ep_num_non_resident", 0);
     }
-
     // Check we can successfully fetch all of the documents (even ones not
     // resident).
     for (int j = 0; j < docs_stored; ++j) {
@@ -4840,17 +4823,18 @@ static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
         ss << "key-" << j;
         std::string key(ss.str());
 
-        item *i;
         // Given we're in a high watermark scenario, may (temporarily) fail
         // to allocate memory for the response, so retry in that case.
-        ENGINE_ERROR_CODE result;
+        cb::EngineErrorItemPair result = std::make_pair(
+                cb::engine_errc{},
+                cb::unique_item_ptr{nullptr, cb::ItemDeleter{h}});
         do {
-            result = get(h, h1, NULL, &i, key, 0);
-        } while (result == ENGINE_ENOMEM);
+            result = get(h, h1, NULL, key, 0);
+        } while (result.first == cb::engine_errc::no_memory);
 
-        checkeq(ENGINE_SUCCESS, result,
+        checkeq(cb::engine_errc::success,
+                result.first,
                 "Failed to get value after hitting high watermark.");
-        h1->release(h, NULL, i);
     }
 
     //Tmp ooms now trigger the item_pager task to eject some items,
@@ -5455,8 +5439,8 @@ static enum test_result test_gat_with_item_eviction(ENGINE_HANDLE *h,
     testHarness.time_travel(2);
 
     // The item should have expired now...
-    checkeq(ENGINE_KEY_ENOENT,
-            get(h, h1, NULL, &itm, "mykey", 0),
+    checkeq(cb::engine_errc::no_such_key,
+            get(h, h1, NULL, "mykey", 0).first,
             "Item should be gone");
     return SUCCESS;
 }
@@ -5661,18 +5645,16 @@ static enum test_result test_expired_item_with_item_eviction(ENGINE_HANDLE *h,
           "Expect the compactor to delete an expired item");
 
     // The item is already expired...
-    checkeq(ENGINE_KEY_ENOENT,
-            get(h, h1, NULL, &itm, "mykey", 0),
+    checkeq(cb::engine_errc::no_such_key,
+            get(h, h1, NULL, "mykey", 0).first,
             "Item should be gone");
     return SUCCESS;
 }
 
 static enum test_result test_non_existent_get_and_delete(ENGINE_HANDLE *h,
                                                          ENGINE_HANDLE_V1 *h1) {
-
-    item *i = NULL;
-    checkeq(ENGINE_KEY_ENOENT,
-            get(h, h1, NULL, &i, "key1", 0),
+    checkeq(cb::engine_errc::no_such_key,
+            get(h, h1, NULL, "key1", 0).first,
             "Unexpected return status");
     checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Unexpected temp item");
     checkeq(ENGINE_KEY_ENOENT, del(h, h1, "key3", 0, 0), "Unexpected return status");
@@ -5697,9 +5679,9 @@ static enum test_result test_mb16421(ENGINE_HANDLE *h,
     check(get_meta(h, h1, "mykey"), "Expected to get meta");
 
     // Issue Get
-    checkeq(ENGINE_SUCCESS,
-            get(h, h1, NULL, &itm, "mykey", 0), "Item should be there");
-    h1->release(h, NULL, itm);
+    checkeq(cb::engine_errc::success,
+            get(h, h1, NULL, "mykey", 0).first,
+            "Item should be there");
 
     return SUCCESS;
 }
@@ -5767,10 +5749,9 @@ static enum test_result test_get_random_key(ENGINE_HANDLE *h,
                   &itm, 0, 0, 3600, PROTOCOL_BINARY_DATATYPE_JSON),
             "Failed set.");
     h1->release(h, NULL, itm);
-    checkeq(ENGINE_SUCCESS,
-            get(h, h1, NULL, &itm, "mykey", 0),
+    checkeq(cb::engine_errc::success,
+            get(h, h1, NULL, "mykey", 0).first,
             "Item should be there");
-    h1->release(h, NULL, itm);
 
     // We should be able to get one if there is something in there
     checkeq(ENGINE_SUCCESS,
@@ -7290,14 +7271,14 @@ static enum test_result test_mb20943_complete_pending_ops_on_vbucket_delete(
     bool  ready = false;
     std::mutex m;
     std::condition_variable cv;
-    item *i = NULL;
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_pending),
               "Failed to set vbucket state.");
     testHarness.set_ewouldblock_handling(cookie, false);
 
-    checkeq(ENGINE_EWOULDBLOCK, get(h, h1, cookie, &i, "key",
-                                        1), "Expected EWOULDBLOCK.");
+    checkeq(cb::engine_errc::would_block,
+            get(h, h1, cookie, "key", 1).first,
+            "Expected EWOULDBLOCK.");
 
     // Create a thread that will wait for the cookie notify.
     std::thread notify_waiter{[&cv, &ready, &m, &cookie](){
@@ -7324,10 +7305,9 @@ static enum test_result test_mb20943_complete_pending_ops_on_vbucket_delete(
     notify_waiter.join();
 
     // vbucket no longer exists and therefore should return not my vbucket.
-    checkeq(ENGINE_NOT_MY_VBUCKET,
-           get(h, h1, cookie, &i, "key", 1),
+    checkeq(cb::engine_errc::not_my_vbucket,
+            get(h, h1, cookie, "key", 1).first,
             "Expected NOT MY VBUCKET.");
-    h1->release(h, NULL, i);
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
@@ -7408,20 +7388,17 @@ static enum test_result test_mb23640(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     // I should be able to get the key if I ask for anything which
     // includes Alive
-    checkeq(ENGINE_SUCCESS,
-            get(h, h1, nullptr, &itm, key, 0, DocStateFilter::Alive),
+    checkeq(cb::engine_errc::success,
+            get(h, h1, nullptr, key, 0, DocStateFilter::Alive).first,
             "Failed to get the document when specifying Alive");
-    h1->release(h, nullptr, itm);
 
-    checkeq(ENGINE_SUCCESS,
-            get(h, h1, nullptr, &itm, key, 0,
-                DocStateFilter::AliveOrDeleted),
+    checkeq(cb::engine_errc::success,
+            get(h, h1, nullptr, key, 0, DocStateFilter::AliveOrDeleted).first,
             "Failed to get the document when specifying dead or alive");
-    h1->release(h, nullptr, itm);
 
     // ep-engine don't support fetching deleted only
-    checkeq(ENGINE_ENOTSUP,
-            get(h, h1, nullptr, &itm, key, 0, DocStateFilter::Deleted),
+    checkeq(cb::engine_errc::not_supported,
+            get(h, h1, nullptr, key, 0, DocStateFilter::Deleted).first,
             "AFAIK ep-engine don't support fetching only deleted items");
 
     // Delete the document
@@ -7434,19 +7411,17 @@ static enum test_result test_mb23640(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     // I should be able to get the key if I ask for anything which
     // includes Deleted
-    checkeq(ENGINE_ENOTSUP,
-            get(h, h1, nullptr, &itm, key, 0, DocStateFilter::Deleted),
+    checkeq(cb::engine_errc::not_supported,
+            get(h, h1, nullptr, key, 0, DocStateFilter::Deleted).first,
             "AFAIK ep-engine don't support fetching only deleted items");
 
-    checkeq(ENGINE_SUCCESS,
-            get(h, h1, nullptr, &itm, key, 0,
-                DocStateFilter::AliveOrDeleted),
+    checkeq(cb::engine_errc::success,
+            get(h, h1, nullptr, key, 0, DocStateFilter::AliveOrDeleted).first,
             "Failed to get the deleted document when specifying dead or alive");
-    h1->release(h, nullptr, itm);
 
     // It should _not_ be found if I ask for a deleted document
-    checkeq(ENGINE_KEY_ENOENT,
-            get(h, h1, nullptr, &itm, key, 0, DocStateFilter::Alive),
+    checkeq(cb::engine_errc::no_such_key,
+            get(h, h1, nullptr, key, 0, DocStateFilter::Alive).first,
             "Expected the document to be gone");
     return SUCCESS;
 }
