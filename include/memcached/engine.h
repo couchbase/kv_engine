@@ -378,6 +378,9 @@ typedef struct engine_interface_v1 {
      * @param filter callback filter to see if the item should be returned
      *               or not. If filter returns false the item should be
      *               skipped.
+     *               Note: the filter is applied only to the *metadata* of the
+     *               item_info - i.e. the `value` should not be expected to be
+     *               present when filter is invoked.
      * @return A pair of the error code and (optionally) the item
      */
     cb::EngineErrorItemPair (* get_if)(ENGINE_HANDLE* handle,

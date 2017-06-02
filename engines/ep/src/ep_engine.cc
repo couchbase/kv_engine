@@ -2199,10 +2199,17 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(const void* cookie,
     // action but this time we _do_ schedule a bg-fetch.
     for (int ii = 0; ii < 2; ++ii) {
         auto options = static_cast<get_options_t>(HONOR_STATES |
-                                                  TRACK_REFERENCE |
                                                   DELETE_TEMP |
-                                                  HIDE_LOCKED_CAS |
-                                                  ALLOW_META_ONLY);
+                                                  HIDE_LOCKED_CAS);
+
+        // For the first pass, if we need to do a BGfetch, only fetch metadata
+        // (no point in fetching the whole document if the filter doesn't want
+        // it).
+        if (ii == 0) {
+            options = static_cast<get_options_t>(int(options) | ALLOW_META_ONLY);
+        }
+
+        // For second pass, or if full eviction, we'll need to issue a BG fetch.
         if (ii == 1 || kvBucket->getItemEvictionPolicy() == FULL_EVICTION) {
             options = static_cast<get_options_t>(int(options) | QUEUE_BG_FETCH);
         }
@@ -2233,8 +2240,13 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(const void* cookie,
         const VBucketPtr vb = getKVBucket()->getVBucket(vbucket);
         const uint64_t vb_uuid = vb ? vb->failovers->getLatestUUID() : 0;
 
-        // Currently
-        if (filter(item->toItemInfo(vb_uuid))) {
+        // Apply filter; the item value isn't guaranteed to be present
+        // (meta only) so remove it to prevent people accidently trying to
+        // test it.
+        auto info = item->toItemInfo(vb_uuid);
+        info.value[0].iov_base = nullptr;
+        info.value[0].iov_len = 0;
+        if (filter(info)) {
             if (!gv.isPartial()) {
                 return std::make_pair(cb::engine_errc::success,
                                cb::unique_item_ptr{ret.release(),

@@ -456,6 +456,140 @@ TEST_P(EPStoreEvictionTest, xattrExpiryOnFullyEvictedItem) {
                 "The foo attribute should be gone";
 }
 
+/**
+ * Verify that when getIf is used it only fetches the metdata from disk for
+ * the filter, and not the complete document.
+ * Negative case where filter doesn't match.
+**/
+TEST_P(EPStoreEvictionTest, getIfOnlyFetchesMetaForFilterNegative) {
+    // Store an item, then eject it.
+    auto item = make_item(vbid, makeStoredDocKey("key"), "value");
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+    flush_vbucket_to_disk(vbid);
+    evict_key(item.getVBucketId(), item.getKey());
+
+    // Setup a lambda for how we want to call get_if() - filter always returns
+    // false.
+    auto do_getIf = [this]() {
+        return engine->get_if(cookie,
+                              makeStoredDocKey("key"),
+                              vbid,
+                              [](const item_info& info) { return false; });
+    };
+
+    auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.bg_fetched);
+    ASSERT_EQ(0, stats.bg_meta_fetched);
+
+    if (GetParam() == "value_only") {
+        // Value-only should reject (via filter) on first attempt (no need to
+        // go to disk).
+        auto res = do_getIf();
+        EXPECT_EQ(cb::engine_errc::success, res.first);
+        EXPECT_EQ(nullptr, res.second.get());
+
+    } else if (GetParam() == "full_eviction") {
+
+        // First attempt should return EWOULDBLOCK (as the item has been evicted
+        // and we need to fetch).
+        auto res = do_getIf();
+        EXPECT_EQ(cb::engine_errc::would_block, res.first);
+
+        // Manually run the BGFetcher task; to fetch the outstanding meta fetch.
+        // requests (for the same key).
+        runBGFetcherTask();
+        EXPECT_EQ(0, stats.bg_fetched);
+        EXPECT_EQ(1, stats.bg_meta_fetched);
+
+        // Second attempt - should succeed this time, without a match.
+        res = do_getIf();
+        EXPECT_EQ(cb::engine_errc::success, res.first);
+        EXPECT_EQ(nullptr, res.second.get());
+
+    } else {
+        FAIL() << "Unhandled GetParam() value:" << GetParam();
+    }
+}
+
+/**
+ * Verify that when getIf is used it only fetches the metdata from disk for
+ * the filter, and not the complete document.
+ * Positive case where filter does match.
+**/
+TEST_P(EPStoreEvictionTest, getIfOnlyFetchesMetaForFilterPositive) {
+    // Store an item, then eject it.
+    auto item = make_item(vbid, makeStoredDocKey("key"), "value");
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+    flush_vbucket_to_disk(vbid);
+    evict_key(item.getVBucketId(), item.getKey());
+
+    // Setup a lambda for how we want to call get_if() - filter always returns
+    // true.
+    auto do_getIf = [this]() {
+        return engine->get_if(cookie,
+                              makeStoredDocKey("key"),
+                              vbid,
+                              [](const item_info& info) { return true; });
+    };
+
+    auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.bg_fetched);
+    ASSERT_EQ(0, stats.bg_meta_fetched);
+
+    if (GetParam() == "value_only") {
+        // Value-only should match filter on first attempt, and then return
+        // bgfetch to get the body.
+        auto res = do_getIf();
+        EXPECT_EQ(cb::engine_errc::would_block, res.first);
+        EXPECT_EQ(nullptr, res.second.get());
+
+        // Manually run the BGFetcher task; to fetch the outstanding body.
+        runBGFetcherTask();
+        EXPECT_EQ(1, stats.bg_fetched);
+        ASSERT_EQ(0, stats.bg_meta_fetched);
+
+        res = do_getIf();
+        EXPECT_EQ(cb::engine_errc::success, res.first);
+        ASSERT_NE(nullptr, res.second.get());
+        Item* epItem = static_cast<Item*>(res.second.get());
+        ASSERT_NE(nullptr, epItem->getValue().get());
+        EXPECT_EQ("value", epItem->getValue()->to_s());
+
+    } else if (GetParam() == "full_eviction") {
+
+        // First attempt should return would_block (as the item has been evicted
+        // and we need to fetch).
+        auto res = do_getIf();
+        EXPECT_EQ(cb::engine_errc::would_block, res.first);
+
+        // Manually run the BGFetcher task; to fetch the outstanding meta fetch.
+        runBGFetcherTask();
+        EXPECT_EQ(0, stats.bg_fetched);
+        EXPECT_EQ(1, stats.bg_meta_fetched);
+
+        // Second attempt - should get as far as applying the filter, but
+        // will need to go to disk a second time for the body.
+        res = do_getIf();
+        EXPECT_EQ(cb::engine_errc::would_block, res.first);
+
+        // Manually run the BGFetcher task; this time to fetch the body.
+        runBGFetcherTask();
+        EXPECT_EQ(1, stats.bg_fetched);
+        EXPECT_EQ(1, stats.bg_meta_fetched);
+
+        // Third call to getIf - should have result now.
+        res = do_getIf();
+        EXPECT_EQ(cb::engine_errc::success, res.first);
+        ASSERT_NE(nullptr, res.second.get());
+        Item* epItem = static_cast<Item*>(res.second.get());
+        ASSERT_NE(nullptr, epItem->getValue().get());
+        EXPECT_EQ("value", epItem->getValue()->to_s());
+
+    } else {
+        FAIL() << "Unhandled GetParam() value:" << GetParam();
+    }
+}
+
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(FullAndValueEviction,
                         EPStoreEvictionTest,

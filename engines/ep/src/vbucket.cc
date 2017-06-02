@@ -1527,6 +1527,7 @@ GetValue VBucket::getInternal(const DocKey& key,
     const TrackReference trackReference = (options & TRACK_REFERENCE)
                                                   ? TrackReference::Yes
                                                   : TrackReference::No;
+    const bool metadataOnly = (options & ALLOW_META_ONLY);
     const bool getDeletedValue = (options & GET_DELETED_VALUE);
     auto hbl = ht.getLockedBucket(key);
     StoredValue* v = fetchValidValue(
@@ -1545,8 +1546,8 @@ GetValue VBucket::getInternal(const DocKey& key,
             return GetValue();
         }
 
-        // If the value is not resident, wait for it...
-        if (!v->isResident()) {
+        // If the value is not resident (and it was requested), wait for it...
+        if (!v->isResident() && !metadataOnly) {
             return getInternalNonResident(
                     key, cookie, engine, bgFetchDelay, options, *v);
         }
@@ -1557,7 +1558,7 @@ GetValue VBucket::getInternal(const DocKey& key,
         return GetValue(v->toItem(hide_cas, getId()),
                         ENGINE_SUCCESS,
                         v->getBySeqno(),
-                        false,
+                        !v->isResident(),
                         v->getNRUValue());
     } else {
         if (!getDeletedValue && (eviction == VALUE_ONLY || diskFlushAll)) {
@@ -1569,7 +1570,7 @@ GetValue VBucket::getInternal(const DocKey& key,
             if (options &
                 QUEUE_BG_FETCH) { // Full eviction and need a bg fetch.
                 ec = addTempItemAndBGFetch(
-                        hbl, key, cookie, engine, bgFetchDelay, false);
+                        hbl, key, cookie, engine, bgFetchDelay, metadataOnly);
             }
             return GetValue(NULL, ec, -1, true);
         } else {

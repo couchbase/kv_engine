@@ -190,6 +190,21 @@ public:
         return ret;
     }
 
+    /**
+     * Fetch an item only if the specified filter predicate returns true.
+     *
+     * Note: The implementation of this method is a performance tradeoff based
+     * on the expected ratio of filter hit/misses under Full Eviction:
+     * Currently get_if filter is used only for checking if a Document has
+     * XATTRs, and so the assumption is such documents will be rare in general,
+     * hence we first perform a meta bg fetch (instead of full meta+value) as
+     * the value is not expected to be needed.
+     * If however this assumption fails, and actually it is more common to have
+     * documents which match the filter, then this tradeoff should be
+     * re-visited, as we'll then need to go to disk a *second* time for the
+     * value (whereas we could have just fetched the meta+value in the first
+     * place).
+     */
     cb::EngineErrorItemPair get_if(const void* cookie,
                                    const DocKey& key,
                                    uint16_t vbucket,
