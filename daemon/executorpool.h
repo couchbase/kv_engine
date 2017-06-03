@@ -31,8 +31,15 @@ class ExecutorPool {
 public:
     /**
      * Create an executor pool with a given number of worker threads
+     * and the default clock source.
      */
     ExecutorPool(size_t sz);
+
+    /**
+     * Create an executor pool with a given number of worker threads
+     * and an injected clock source
+     */
+    ExecutorPool(size_t sz, cb::ProcessClockSource& clock);
 
     ExecutorPool(const ExecutorPool &) = delete;
 
@@ -51,6 +58,14 @@ public:
      * to make tasks that are scheduled to run the future runnable.
      */
     void clockTick();
+
+    // @todo expose these as stats
+
+    size_t waitqSize() const;
+
+    size_t runqSize() const;
+
+    size_t futureqSize() const;
 
 private:
     /**

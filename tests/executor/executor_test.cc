@@ -14,24 +14,22 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include <atomic>
 #include <daemon/executorpool.h>
 #include <daemon/task.h>
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <memory>
 #include <platform/backtrace.h>
+#include <platform/make_unique.h>
+#include <atomic>
+#include <memory>
 
 class ExecutorTest : public ::testing::Test {
 protected:
     void SetUp() {
-        executorpool = new ExecutorPool(4);
+        executorpool = std::make_unique<ExecutorPool>(4);
     }
 
-    void TearDown() {
-        delete executorpool;
-    }
-
-    ExecutorPool* executorpool;
+    std::unique_ptr<ExecutorPool> executorpool;
 };
 
 /**
@@ -81,7 +79,11 @@ TEST_F(ExecutorTest, SingleExecution) {
     std::unique_lock<std::mutex> lock(task->getMutex());
     executorpool->schedule(task);
 
+    // Note: cannot verify if the runq size is 1 here
+    // because the executor pool removes the task from
+    // the queue before acquiring its lock.
     cmd->cond.wait(lock);
+    EXPECT_EQ(0, executorpool->runqSize());
     EXPECT_EQ(1, cmd->runcount);
     EXPECT_TRUE(cmd->executionComplete);
 }
@@ -95,7 +97,10 @@ TEST_F(ExecutorTest, MultipleExecution) {
     executorpool->schedule(task);
 
     for (int ii = 1; ii < cmd->max; ++ii) {
+        EXPECT_EQ(0, executorpool->waitqSize());
         cmd->cond.wait(lock);
+        EXPECT_EQ(0, executorpool->runqSize());
+        EXPECT_EQ(1, executorpool->waitqSize());
         EXPECT_EQ(ii, cmd->runcount);
         cmd->makeRunnable();
     }
@@ -130,18 +135,64 @@ TEST_F(ExecutorTest, RescheduleMissingLock) {
     EXPECT_TRUE(cmd->executionComplete);
 }
 
+struct MockProcessClockSource : cb::ProcessClockSource {
+    MOCK_METHOD0(now, ProcessClock::time_point());
+};
+
+/*
+ * This test creates a task and schedules it in the future,
+ * it runs ExecutorPool::ClockTick and verifies that since no
+ * time has passed that the task should not have moved from the
+ * futureq to the runq.
+ *
+ * It then moves the time forward to the time that the task should
+ * begin executing. It runs ExecutorPool::ClockTick again and
+ * verifies that it has been moved from the futureq and subsequently
+ * run.
+ */
 TEST_F(ExecutorTest, FutureExecution) {
+    using namespace testing;
+
+    MockProcessClockSource mockClock;
+    auto now = ProcessClock::now();
+
+    executorpool = std::make_unique<ExecutorPool>(4, mockClock);
+
     auto cmd = std::make_shared<BasicTestTask>(1);
     std::shared_ptr<Task> task = cmd;
 
     std::unique_lock<std::mutex> lock(task->getMutex());
     executorpool->schedule(task, false);
 
-    task->makeRunnable(ProcessClock::now());
+    auto taskTime = now + std::chrono::seconds(5);
+    task->makeRunnable(taskTime);
+
+    // Clock source will just return now. The source should be called
+    // once per executor (ie. 4 times).
+    EXPECT_CALL(mockClock, now()).Times(AtLeast(4)).WillRepeatedly(Return(now));
+
+    EXPECT_EQ(1, executorpool->waitqSize());
+    EXPECT_EQ(1, executorpool->futureqSize());
+
     // can't hold lock for clock tick
     lock.unlock();
     executorpool->clockTick();
     lock.lock();
+
+    EXPECT_EQ(1, executorpool->waitqSize());
+    EXPECT_EQ(1, executorpool->futureqSize());
+
+    // Clock source returns the time the task executes
+    EXPECT_CALL(mockClock, now())
+            .Times(AtLeast(4))
+            .WillRepeatedly(Return(taskTime));
+
+    lock.unlock();
+    executorpool->clockTick();
+    lock.lock();
+
+    EXPECT_EQ(0, executorpool->waitqSize());
+    EXPECT_EQ(0, executorpool->futureqSize());
 
     // because we weren't holding the lock after the task was made
     // runnable then the executor might have already run it.

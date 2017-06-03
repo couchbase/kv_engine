@@ -44,7 +44,8 @@ public:
     /**
      * Initialize the Executor object
      */
-    Executor() : Couchbase::Thread("mc:executor") {
+    Executor(cb::ProcessClockSource& clock)
+        : Couchbase::Thread("mc:executor"), clock(clock) {
         shutdown.store(false);
         running.store(false);
     }
@@ -77,6 +78,12 @@ public:
      */
     void clockTick();
 
+    size_t waitqSize() const;
+
+    size_t runqSize() const;
+
+    size_t futureqSize() const;
+
 protected:
     virtual void run() override;
 
@@ -95,7 +102,7 @@ protected:
      *
      * @todo measure and refactor if needed
      */
-    std::mutex mutex;
+    mutable std::mutex mutex;
 
     /**
      * The FIFO queue of commands ready to run
@@ -136,6 +143,12 @@ protected:
      * thread to shut down.
      */
     std::condition_variable shutdowncond;
+
+    /**
+     * The source to use for getting 'now' for the ProcessClock. Mostly
+     * intended for allowing mocking of the time source in testing.
+     */
+    cb::ProcessClockSource& clock;
 };
 
-std::unique_ptr<Executor> createWorker();
+std::unique_ptr<Executor> createWorker(cb::ProcessClockSource& clock);

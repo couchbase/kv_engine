@@ -143,7 +143,7 @@ void Executor::clockTick() {
 
     {
         std::lock_guard<std::mutex> guard(mutex);
-        auto now = ProcessClock::now();
+        auto now = clock.now();
 
         futureq.erase(
                 std::remove_if(futureq.begin(),
@@ -165,8 +165,23 @@ void Executor::clockTick() {
     }
 }
 
-std::unique_ptr<Executor> createWorker() {
-    auto *executor = new Executor;
+size_t Executor::waitqSize() const {
+    std::lock_guard<std::mutex> guard(mutex);
+    return waitq.size();
+}
+
+size_t Executor::runqSize() const {
+    std::lock_guard<std::mutex> guard(mutex);
+    return runq.size();
+}
+
+size_t Executor::futureqSize() const {
+    std::lock_guard<std::mutex> guard(mutex);
+    return futureq.size();
+}
+
+std::unique_ptr<Executor> createWorker(cb::ProcessClockSource& clock) {
+    auto* executor = new Executor(clock);
     executor->start();
     return std::unique_ptr<Executor>(executor);
 }

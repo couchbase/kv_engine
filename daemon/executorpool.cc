@@ -22,11 +22,15 @@
 #include <iostream>
 #include <string>
 
-ExecutorPool::ExecutorPool(size_t sz) {
+ExecutorPool::ExecutorPool(size_t sz)
+    : ExecutorPool(sz, cb::defaultProcessClockSource()) {
+}
+
+ExecutorPool::ExecutorPool(size_t sz, cb::ProcessClockSource& clock) {
     roundRobin.store(0);
     executors.reserve(sz);
     for (size_t ii = 0; ii < sz; ++ii) {
-        executors.emplace_back(createWorker());
+        executors.emplace_back(createWorker(clock));
     }
 }
 
@@ -44,4 +48,28 @@ void ExecutorPool::clockTick() {
     for (const auto& executor : executors) {
         executor->clockTick();
     }
+}
+
+size_t ExecutorPool::waitqSize() const {
+    size_t count = 0;
+    for (const auto& executor : executors) {
+        count += executor->waitqSize();
+    }
+    return count;
+}
+
+size_t ExecutorPool::runqSize() const {
+    size_t count = 0;
+    for (const auto& executor : executors) {
+        count += executor->runqSize();
+    }
+    return count;
+}
+
+size_t ExecutorPool::futureqSize() const {
+    size_t count = 0;
+    for (const auto& executor : executors) {
+        count += executor->futureqSize();
+    }
+    return count;
 }

@@ -103,6 +103,7 @@ INCLUDE_DIRECTORIES(BEFORE
 
 INCLUDE_DIRECTORIES(AFTER
                     ${gtest_SOURCE_DIR}/include
+                    ${gmock_SOURCE_DIR}/include
                     ${phosphor_SOURCE_DIR}/include)
 
 INCLUDE_DIRECTORIES(AFTER ${PROJECT_BINARY_DIR}/include)
