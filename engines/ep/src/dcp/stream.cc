@@ -1299,9 +1299,11 @@ const char* ActiveStream::getEndStreamStatusStr(end_stream_status_t status)
 }
 
 void ActiveStream::transitionState(StreamState newState) {
-    producer->getLogger().log(EXTENSION_LOG_DEBUG,
-                              "(vb %d) Transitioning from %s to %s",
-                              vb_, to_string(state_.load()).c_str(),
+    producer->getLogger().log(EXTENSION_LOG_NOTICE,
+                              "ActiveStream::transitionState: (vb %d) "
+                              "Transitioning from %s to %s",
+                              vb_,
+                              to_string(state_.load()).c_str(),
                               to_string(newState).c_str());
 
     if (state_ == newState) {
@@ -1580,9 +1582,12 @@ DcpResponse* NotifierStream::next() {
 }
 
 void NotifierStream::transitionState(StreamState newState) {
-    producer->getLogger().log(EXTENSION_LOG_DEBUG,
-        "(vb %d) Transitioning from %s to %s", vb_,
-        to_string(state_.load()).c_str(), to_string(newState).c_str());
+    producer->getLogger().log(EXTENSION_LOG_NOTICE,
+                              "NotifierStream::transitionState: (vb %d) "
+                              "Transitioning from %s to %s",
+                              vb_,
+                              to_string(state_.load()).c_str(),
+                              to_string(newState).c_str());
 
     if (state_ == newState) {
         return;
@@ -2300,9 +2305,12 @@ uint32_t PassiveStream::clearBuffer_UNLOCKED() {
 }
 
 bool PassiveStream::transitionState(StreamState newState) {
-    consumer->getLogger().log(EXTENSION_LOG_DEBUG,
-        "(vb %d) Transitioning from %s to %s",
-        vb_, to_string(state_.load()).c_str(), to_string(newState).c_str());
+    consumer->getLogger().log(EXTENSION_LOG_NOTICE,
+                              "PassiveStream::transitionState: (vb %d) "
+                              "Transitioning from %s to %s",
+                              vb_,
+                              to_string(state_.load()).c_str(),
+                              to_string(newState).c_str());
 
     if (state_ == newState) {
         return false;
