@@ -57,7 +57,7 @@ void Executor::run() {
         // Lock the task so no one else can touch it and we won't
         // have any races..
         task->getMutex().lock();
-        if (task->execute()) {
+        if (task->execute() == Task::Status::Finished) {
             // Unlock the mutex, we're not going to use this anymore
             // By not holding the mutex in notifyExecutionComplete
             // we won't get any warnings from ThreadSanitizer by

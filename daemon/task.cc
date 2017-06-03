@@ -29,5 +29,23 @@ void Task::makeRunnable(ProcessClock::time_point time) {
     if (executor == nullptr) {
         throw std::logic_error("task need to be scheduled");
     }
+    scheduledTime = time;
     executor->makeRunnable(*this, time);
+}
+
+Task::Status PeriodicTask::execute() {
+    auto next_time = next();
+    Status status = periodicExecute();
+    if (status == Status::Continue) {
+        makeRunnable(next_time);
+    }
+    return status;
+}
+
+ProcessClock::time_point PeriodicTask::next() {
+    if (scheduledTime == ProcessClock::time_point()) {
+        return ProcessClock::now() + period;
+    }
+    // This reduces jitter / clock drift
+    return scheduledTime + period;
 }

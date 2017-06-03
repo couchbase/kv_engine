@@ -49,14 +49,14 @@ public:
 
     }
 
-    virtual bool execute() override {
+    virtual Status execute() override {
         ++runcount;
         if (runcount < max) {
             cond.notify_one();
-            return false;
+            return Status::Continue;
         }
 
-        return true;
+        return Status::Finished;
     }
 
 
@@ -201,6 +201,91 @@ TEST_F(ExecutorTest, FutureExecution) {
     }
 
     EXPECT_EQ(1, cmd->runcount);
+    EXPECT_TRUE(cmd->executionComplete);
+}
+
+// This is essentially a periodic version of BasicTestTask above
+class PeriodicBasicTestTask : public PeriodicTask {
+public:
+    /**
+     * @param max_ Maximum number of times for the task to run
+     */
+    PeriodicBasicTestTask(int max_)
+        : PeriodicTask(std::chrono::seconds(1)), runcount(0), max(max_) {
+        executionComplete.store(false);
+    }
+
+    virtual Status periodicExecute() override {
+        ++runcount;
+        if (runcount < max) {
+            cond.notify_one();
+            return Status::Continue;
+        }
+
+        return Status::Finished;
+    }
+
+    virtual void notifyExecutionComplete() override {
+        executionComplete.store(true);
+        cond.notify_one();
+    }
+
+    int runcount;
+    int max;
+    std::condition_variable cond;
+    std::atomic_bool executionComplete;
+};
+
+/*
+ * This test creates a periodic task with a 1 second period
+ * and verifies the executor queue states as time is moved forwards
+ */
+TEST_F(ExecutorTest, PeriodicExecution) {
+    using namespace testing;
+
+    MockProcessClockSource mockClock;
+    auto now = ProcessClock::now();
+
+    executorpool = std::make_unique<ExecutorPool>(4, mockClock);
+
+    auto cmd = std::make_shared<PeriodicBasicTestTask>(5);
+    std::shared_ptr<Task> task = cmd;
+
+    std::unique_lock<std::mutex> lock(task->getMutex());
+    executorpool->schedule(task, false);
+    task->makeRunnable(ProcessClock::now());
+
+    for (int i = 1; i < 6; ++i) {
+        // Move 1 second into the future on each iteration
+        EXPECT_CALL(mockClock, now())
+                .Times(AtLeast(4))
+                .WillRepeatedly(Return(now + std::chrono::seconds(i)));
+
+        EXPECT_EQ(1, executorpool->waitqSize());
+        EXPECT_EQ(1, executorpool->futureqSize());
+
+        // can't hold lock for clock tick
+        lock.unlock();
+        executorpool->clockTick();
+        lock.lock();
+
+        // because we weren't holding the lock after the task was made
+        // runnable then the executor might have already run it.
+        if (cmd->runcount != i) {
+            // Not ideal that we're only testing this if the executor
+            // didn't already get around to running it already but
+            // there's not a lot that can be done about that without
+            // bloating the executor implementation with external locking
+            EXPECT_EQ(0, executorpool->waitqSize());
+            EXPECT_EQ(0, executorpool->futureqSize());
+
+            cmd->cond.wait(lock);
+        }
+
+        EXPECT_EQ(i, cmd->runcount);
+    }
+    EXPECT_EQ(0, executorpool->waitqSize());
+    EXPECT_EQ(0, executorpool->futureqSize());
     EXPECT_TRUE(cmd->executionComplete);
 }
 

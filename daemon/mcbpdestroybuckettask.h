@@ -39,8 +39,8 @@ public:
         thread.start();
     }
 
-    virtual bool execute() override {
-        return true;
+    virtual Status execute() override {
+        return Status::Finished;
     }
 
     virtual void notifyExecutionComplete() override {

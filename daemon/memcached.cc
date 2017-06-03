@@ -2441,8 +2441,8 @@ void delete_all_buckets() {
             thread.start();
         }
 
-        virtual bool execute() override {
-            return true;
+        Status execute() override {
+            return Status::Finished;
         }
 
         DestroyBucketThread thread;

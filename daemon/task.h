@@ -32,6 +32,8 @@ class Executor;
  */
 class Task {
 public:
+    enum class Status { Finished, Continue };
+
     Task() : executor(nullptr) {
         // empty
     }
@@ -45,10 +47,10 @@ public:
     /**
      * Execute the task
      *
-     * @return true if the task executed completely, or false if the
-     *         execution blocked.
+     * @return Status::Finished if the task executed completely, or
+     *         Status::Continue if the execution blocked.
      */
-    virtual bool execute() = 0;
+    virtual Status execute() = 0;
 
     /**
      * This method is called by the executor when it is done executing
@@ -84,6 +86,13 @@ public:
      */
     void makeRunnable(ProcessClock::time_point time);
 
+protected:
+    /**
+     * If the task was scheduled via makeRunnable(time_point) then this
+     * is the time that it was scheduled for.
+     */
+    ProcessClock::time_point scheduledTime;
+
 private:
     /**
      * The task is pinned to an executor thread while being executed. In
@@ -118,4 +127,32 @@ private:
      * to set the tasks internal state
      */
     std::mutex mutex;
+};
+
+/**
+ * The PeriodicTask class represents a task that needs to be executed with a
+ * regular period (passed in the constructor).
+ */
+class PeriodicTask : public Task {
+public:
+    PeriodicTask(std::chrono::seconds period) : period(period) {
+    }
+
+    Status execute() final;
+
+    /**
+     * Execute the task
+     *
+     * @return Status::Finished if the task is complete or Status::Continue if
+     *         the task needs to be resumed at the end of the period
+     */
+    virtual Status periodicExecute() = 0;
+
+private:
+    /**
+     * @return the time of the next execution
+     */
+    ProcessClock::time_point next();
+
+    const std::chrono::seconds period;
 };

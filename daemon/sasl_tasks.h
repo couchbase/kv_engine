@@ -79,7 +79,7 @@ public:
                       const std::string& mechanism_,
                       const std::string& challenge_);
 
-    virtual bool execute() override;
+    Status execute() override;
 };
 
 /**
@@ -97,5 +97,5 @@ public:
                      const std::string& mechanism_,
                      const std::string& challenge_);
 
-    virtual bool execute() override;
+    Status execute() override;
 };

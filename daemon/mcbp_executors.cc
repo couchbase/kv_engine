@@ -1486,8 +1486,8 @@ public:
         thread.start();
     }
 
-    virtual bool execute() override {
-        return true;
+    virtual Status execute() override {
+        return Status::Finished;
     }
 
     virtual void notifyExecutionComplete() override {
@@ -1657,7 +1657,7 @@ public:
         // Empty
     }
 
-    virtual bool execute() override {
+    virtual Status execute() override {
         try {
             LOG_NOTICE(nullptr, "%u: Loading RBAC configuration from [%s] %s",
                        connection.getId(),
@@ -1674,7 +1674,7 @@ public:
             status = ENGINE_FAILED;
         }
 
-        return true;
+        return Status::Finished;
     }
 
     virtual void notifyExecutionComplete() override {

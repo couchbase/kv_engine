@@ -29,7 +29,7 @@ StartSaslAuthTask::StartSaslAuthTask(Cookie& cookie_,
     // No extra initialization needed
 }
 
-bool StartSaslAuthTask::execute() {
+Task::Status StartSaslAuthTask::execute() {
     connection.restartAuthentication();
     try {
         error = cbsasl_server_start(connection.getSaslConn(),
@@ -58,7 +58,7 @@ bool StartSaslAuthTask::execute() {
         error = CBSASL_FAIL;
     }
 
-    return true;
+    return Status::Finished;
 }
 
 StepSaslAuthTask::StepSaslAuthTask(Cookie& cookie_,
@@ -69,7 +69,7 @@ StepSaslAuthTask::StepSaslAuthTask(Cookie& cookie_,
     // No extra initialization needed
 }
 
-bool StepSaslAuthTask::execute() {
+Task::Status StepSaslAuthTask::execute() {
     try {
         error = cbsasl_server_step(connection.getSaslConn(), challenge.data(),
                                    static_cast<unsigned int>(challenge.length()),
@@ -94,7 +94,7 @@ bool StepSaslAuthTask::execute() {
         cookie.setErrorContext("An exception occurred");
         error = CBSASL_FAIL;
     }
-    return true;
+    return Status::Finished;
 }
 
 
