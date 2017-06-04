@@ -19,11 +19,69 @@
 
 #include "config.h"
 
-#include <stddef.h>
 #include <memcached/types.h>
+#include <phosphor/phosphor.h>
+#include <phosphor/tools/export.h>
+#include <stddef.h>
 
 #include "memcached.h"
 #include "utilities/string_utilities.h"
+
+/**
+ * Initialises Tracing
+ */
+void initializeTracing();
+
+/**
+ * Deinitialises Tracing
+ */
+void deinitializeTracing();
+
+/**
+ * DumpContext holds all the information required for an ongoing
+ * trace dump
+ */
+struct DumpContext {
+    DumpContext(phosphor::TraceContext&& _context)
+        : context(std::move(_context)),
+          json_export(context),
+          last_touch(ProcessClock::now()) {
+    }
+
+    // Moving is dangerous as json_export contains a reference to
+    // context.
+    DumpContext(DumpContext&& other) = delete;
+
+    phosphor::TraceContext context;
+    phosphor::tools::JSONExport json_export;
+    ProcessClock::time_point last_touch;
+};
+
+/**
+ * Aggregate object to hold a map of dumps and a mutex protecting them
+ */
+struct TraceDumps {
+    std::map<cb::uuid::uuid_t, std::unique_ptr<DumpContext>> dumps;
+    std::mutex mutex;
+};
+
+/**
+ * StaleTraceDumpRemover is a periodic task that removes old dumps
+ */
+class StaleTraceDumpRemover : public PeriodicTask {
+public:
+    StaleTraceDumpRemover(TraceDumps& traceDumps,
+                          std::chrono::seconds period,
+                          std::chrono::seconds max_age)
+        : PeriodicTask(period), traceDumps(traceDumps), max_age(max_age) {
+    }
+
+    Status periodicExecute() override;
+
+private:
+    TraceDumps& traceDumps;
+    const std::chrono::seconds max_age;
+};
 
 /**
  * IOCTL Get callback to get the tracing status

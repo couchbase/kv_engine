@@ -14,40 +14,41 @@
  *      Brad Fitzpatrick <brad@danga.com>
  */
 #include "config.h"
-#include "config_parse.h"
-#include "debug_helpers.h"
 #include "memcached.h"
-#include "memcached/extension_loggers.h"
-#include "memcached/audit_interface.h"
-#include "mcbp.h"
 #include "alloc_hooks.h"
-#include "utilities/engine_loader.h"
-#include "timings.h"
+#include "breakpad.h"
+#include "buckets.h"
 #include "cmdline.h"
+#include "config_parse.h"
 #include "connections.h"
+#include "debug_helpers.h"
+#include "doc_pre_expiry.h"
+#include "enginemap.h"
+#include "ioctl.h"
+#include "libevent_locking.h"
+#include "mc_time.h"
+#include "mcaudit.h"
+#include "mcbp.h"
+#include "mcbp_executors.h"
 #include "mcbp_topkeys.h"
 #include "mcbp_validators.h"
-#include "ioctl.h"
-#include "mc_time.h"
+#include "mcbpdestroybuckettask.h"
+#include "memcached/audit_interface.h"
+#include "memcached/extension_loggers.h"
+#include "memcached_openssl.h"
+#include "parent_monitor.h"
 #include "protocol/mcbp/engine_wrapper.h"
-#include "utilities/protocol2text.h"
-#include "utilities/terminate_handler.h"
-#include "breakpad.h"
 #include "runtime.h"
-#include "mcaudit.h"
 #include "session_cas.h"
 #include "settings.h"
-#include "subdocument.h"
-#include "enginemap.h"
-#include "buckets.h"
-#include "parent_monitor.h"
-#include "topkeys.h"
 #include "stats.h"
-#include "mcbp_executors.h"
-#include "memcached_openssl.h"
-#include "mcbpdestroybuckettask.h"
-#include "libevent_locking.h"
-#include "doc_pre_expiry.h"
+#include "subdocument.h"
+#include "timings.h"
+#include "topkeys.h"
+#include "tracing.h"
+#include "utilities/engine_loader.h"
+#include "utilities/protocol2text.h"
+#include "utilities/terminate_handler.h"
 
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
@@ -2844,6 +2845,8 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     executorPool.reset(new ExecutorPool(size_t(settings.getNumWorkerThreads())));
 
+    initializeTracing();
+
     /*
      * MB-20034.
      * Now that all threads have been created, e.g. the audit thread, threads
@@ -2916,8 +2919,8 @@ extern "C" int memcached_main(int argc, char **argv) {
     LOG_NOTICE(NULL, "Releasing connection objects");
     destroy_connections();
 
-    LOG_NOTICE(nullptr, "Stopping tracing");
-    phosphor::TraceLog::getInstance().stop();
+    LOG_NOTICE(nullptr, "Deinitialising tracing");
+    deinitializeTracing();
 
     LOG_NOTICE(NULL, "Shutting down engine map");
     shutdown_engine_map();

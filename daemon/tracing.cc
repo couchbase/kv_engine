@@ -15,11 +15,11 @@
  *   limitations under the License.
  */
 
-
 #include "tracing.h"
+#include "task.h"
 
-#include <phosphor/phosphor.h>
-#include <phosphor/tools/export.h>
+#include <platform/processclock.h>
+
 #include <mutex>
 
 // TODO: MB-20640 The default config should be configurable from memcached.json
@@ -43,21 +43,55 @@ ENGINE_ERROR_CODE ioctlGetTracingConfig(Connection*,
     return ENGINE_SUCCESS;
 }
 
-struct DumpContext {
-    DumpContext(phosphor::TraceContext&& _context)
-        : context(std::move(_context)), json_export(context) {
+template <typename ContainerT, typename PredicateT>
+void erase_if(ContainerT& items, const PredicateT& predicate) {
+    for (auto it = items.begin(); it != items.end();) {
+        if (predicate(*it)) {
+            it = items.erase(it);
+        } else {
+            ++it;
+        }
     }
+}
 
-    // Moving is dangerous as json_export contains a reference to
-    // context.
-    DumpContext(DumpContext&& other) = delete;
+Task::Status StaleTraceDumpRemover::periodicExecute() {
+    {
+        const auto now = ProcessClock::now();
+        std::lock_guard<std::mutex> lh(traceDumps.mutex);
 
-    phosphor::TraceContext context;
-    phosphor::tools::JSONExport json_export;
-};
+        using value_type = decltype(TraceDumps::dumps)::value_type;
+        erase_if(traceDumps.dumps, [now, this](const value_type& dump) {
+            if (dump.second->last_touch + std::chrono::seconds(max_age) <=
+                now) {
+                return true;
+            }
+            return false;
+        });
+    }
+    return Status::Continue; // always repeat
+}
 
-static std::map<cb::uuid::uuid_t, std::unique_ptr<DumpContext>> dumps;
-static std::mutex dumpsMutex;
+static TraceDumps traceDumps;
+static std::shared_ptr<StaleTraceDumpRemover> dump_remover;
+
+void initializeTracing() {
+    // Currently just creating the stale dump remover periodic task
+    // @todo make period and max_age configurable
+    dump_remover = std::make_shared<StaleTraceDumpRemover>(
+            traceDumps, std::chrono::seconds(60), std::chrono::seconds(300));
+    std::shared_ptr<Task> task = dump_remover;
+    {
+        std::lock_guard<std::mutex> lg(task->getMutex());
+        executorPool->schedule(task);
+    }
+}
+
+void deinitializeTracing() {
+    dump_remover.reset();
+    phosphor::TraceLog::getInstance().stop();
+    std::lock_guard<std::mutex>(traceDumps.mutex);
+    traceDumps.dumps.clear();
+}
 
 ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Connection*,
                                            const StrToStrMap&,
@@ -75,8 +109,9 @@ ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Connection*,
     // Create the new dump associated with a random uuid
     cb::uuid::uuid_t uuid = cb::uuid::random();
     {
-        std::lock_guard<std::mutex> lh(dumpsMutex);
-        dumps.emplace(uuid, std::make_unique<DumpContext>(std::move(context)));
+        std::lock_guard<std::mutex> lh(traceDumps.mutex);
+        traceDumps.dumps.emplace(
+                uuid, std::make_unique<DumpContext>(std::move(context)));
     }
 
     // Return the textual form of the uuid back to the user with success
@@ -102,9 +137,9 @@ ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection*,
     }
 
     {
-        std::lock_guard<std::mutex> lh(dumpsMutex);
-        auto dump = dumps.find(uuid);
-        if (dump == dumps.end()) {
+        std::lock_guard<std::mutex> lh(traceDumps.mutex);
+        auto dump = traceDumps.dumps.find(uuid);
+        if (dump == traceDumps.dumps.end()) {
             // uuid must exist in dumps map
             return ENGINE_EINVAL;
         }
@@ -115,6 +150,7 @@ ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection*,
         if (dump->second->json_export.done()) {
             value = "";
         } else {
+            dump->second->last_touch = ProcessClock::now();
             // @todo generate on background thread
             // and add ewouldblock functionality
             value.resize(chunk_size);
@@ -138,14 +174,14 @@ ENGINE_ERROR_CODE ioctlSetTracingClearDump(Connection*,
     }
 
     {
-        std::lock_guard<std::mutex> lh(dumpsMutex);
-        auto dump = dumps.find(uuid);
-        if (dump == dumps.end()) {
+        std::lock_guard<std::mutex> lh(traceDumps.mutex);
+        auto dump = traceDumps.dumps.find(uuid);
+        if (dump == traceDumps.dumps.end()) {
             // uuid must exist in dumps map
             return ENGINE_EINVAL;
         }
 
-        dumps.erase(dump);
+        traceDumps.dumps.erase(dump);
     }
 
     return ENGINE_SUCCESS;

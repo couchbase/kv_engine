@@ -16,12 +16,16 @@
  */
 #include <daemon/executorpool.h>
 #include <daemon/task.h>
+#include <daemon/tracing.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <platform/backtrace.h>
 #include <platform/make_unique.h>
 #include <atomic>
 #include <memory>
+
+// Create an instance of the singleton executor pool declared in memcached.h
+std::unique_ptr<ExecutorPool> executorPool = std::make_unique<ExecutorPool>(4);
 
 class ExecutorTest : public ::testing::Test {
 protected:
@@ -287,6 +291,101 @@ TEST_F(ExecutorTest, PeriodicExecution) {
     EXPECT_EQ(0, executorpool->waitqSize());
     EXPECT_EQ(0, executorpool->futureqSize());
     EXPECT_TRUE(cmd->executionComplete);
+}
+
+using StaleTraceDumpRemoverTest = ExecutorTest;
+
+/**
+ * Extension of StaleTraceDumpRemover that exposes a condition variable
+ * to allow for notification when the task has been executed.
+ */
+class NotifiableStaleTraceDumpRemover : public StaleTraceDumpRemover {
+public:
+    using StaleTraceDumpRemover::StaleTraceDumpRemover;
+
+    Status periodicExecute() override {
+        Status r = StaleTraceDumpRemover::periodicExecute();
+        cond.notify_one();
+        ++runcount;
+        return r;
+    }
+    std::condition_variable cond;
+    int runcount = 0;
+};
+
+/*
+ * This test verifies the behaviour of the StaleTraceDumpRemover as a unit test
+ * as a testapp test is impractical (since the actual SDR takes 5 minutes
+ * to remove a stale dump and there's no time travel).
+ */
+TEST_F(StaleTraceDumpRemoverTest, DoesRemove) {
+    using namespace testing;
+
+    MockProcessClockSource mockClock;
+    executorpool = std::make_unique<ExecutorPool>(4, mockClock);
+
+    // Create a trace dump remover task that runs every second and remove
+    // dumps that are older than one second from a function local map.
+    TraceDumps traceDumps;
+    auto cmd = std::make_shared<NotifiableStaleTraceDumpRemover>(
+            traceDumps, std::chrono::seconds(1), std::chrono::seconds(1));
+    std::shared_ptr<Task> task = cmd;
+
+    std::unique_lock<std::mutex> lock(task->getMutex());
+    executorpool->schedule(task, false);
+
+    // Fastest way to create a TraceContext is to start tracing, stop it, and
+    // pull out the context
+    PHOSPHOR_INSTANCE.start(
+            phosphor::TraceConfig(phosphor::BufferMode::ring, 1024 * 1024));
+    PHOSPHOR_INSTANCE.stop();
+    auto context = PHOSPHOR_INSTANCE.getTraceContext();
+
+    cb::uuid::uuid_t uuid = cb::uuid::random();
+    {
+        std::lock_guard<std::mutex> lh(traceDumps.mutex);
+        traceDumps.dumps.emplace(
+                uuid,
+                std::make_unique<DumpContext>(
+                        phosphor::TraceContext(std::move(context))));
+    }
+
+    auto now = traceDumps.dumps.begin()->second->last_touch;
+    auto removeTime = now + std::chrono::seconds(1);
+    task->makeRunnable(now);
+
+    EXPECT_CALL(mockClock, now()).Times(AtLeast(4)).WillRepeatedly(Return(now));
+    lock.unlock();
+    executorpool->clockTick();
+    lock.lock();
+
+    // It's necessary to check the run count as the task might have already
+    // executed. There's no race in checking it as the task won't execute
+    // while we hold the task lock.
+    if (cmd->runcount != 1) {
+        cmd->cond.wait(lock);
+    }
+
+    {
+        std::lock_guard<std::mutex> lh(traceDumps.mutex);
+        EXPECT_EQ(1, traceDumps.dumps.size());
+    }
+
+    EXPECT_CALL(mockClock, now())
+            .Times(AtLeast(4))
+            .WillRepeatedly(Return(removeTime));
+    lock.unlock();
+    executorpool->clockTick();
+    lock.lock();
+
+    if (cmd->runcount != 2) {
+        cmd->cond.wait(lock);
+    }
+
+    {
+        std::lock_guard<std::mutex> lh(traceDumps.mutex);
+        EXPECT_EQ(1, traceDumps.dumps.size());
+    }
 }
 
 static std::terminate_handler default_terminate_handler;

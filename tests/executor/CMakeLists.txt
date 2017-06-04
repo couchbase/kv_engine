@@ -5,8 +5,10 @@ ADD_EXECUTABLE(memcached_executor_test
                ${PROJECT_SOURCE_DIR}/daemon/executorpool.h
                ${PROJECT_SOURCE_DIR}/daemon/task.cc
                ${PROJECT_SOURCE_DIR}/daemon/task.h
+               ${PROJECT_SOURCE_DIR}/daemon/tracing.cc
+               ${PROJECT_SOURCE_DIR}/daemon/tracing.h
                executor_test.cc)
-TARGET_LINK_LIBRARIES(memcached_executor_test platform gtest gmock)
+TARGET_LINK_LIBRARIES(memcached_executor_test platform phosphor gtest gmock)
 ADD_TEST(NAME memcached-executor-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_executor_test)
