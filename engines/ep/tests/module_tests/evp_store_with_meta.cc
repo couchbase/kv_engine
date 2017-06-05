@@ -20,6 +20,7 @@
 #include "ep_time.h"
 #include "evp_store_single_threaded_test.h"
 #include "tests/mock/mock_global_task.h"
+#include "tests/module_tests/test_helpers.h"
 #include "utilities/protocol2text.h"
 
 #include <string_utilities.h>

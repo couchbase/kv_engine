@@ -239,7 +239,8 @@ public:
                  uint64_t vb_uuid,
                  uint64_t snap_start_seqno,
                  uint64_t snap_end_seqno,
-                 bool isKeyOnly,
+                 IncludeValue includeVal,
+                 IncludeXattrs includeXattrs,
                  std::unique_ptr<Collections::VB::Filter> filter);
 
     virtual ~ActiveStream();
@@ -298,9 +299,11 @@ public:
        in-memory to backfilling */
     void handleSlowStream();
 
-    /// @returns true if keyOnly is true and false if KeyOnly is false
+    /// @return true if both includeValue and includeXattributes are set to No,
+    /// otherwise return false.
     bool isKeyOnly() const {
-        return keyOnly;
+        return (includeValue == IncludeValue::No) &&
+               (includeXattributes == IncludeXattrs::No);
     }
 
     /// @returns a copy of the current collections separator.
@@ -451,9 +454,11 @@ private:
        items are added to the readyQ */
     std::atomic<bool> chkptItemsExtractionInProgress;
 
-    // Whether the responses sent using this stream should contain the key and
-    // value or just the key
-    bool keyOnly;
+    // Whether the responses sent using this stream should contain the value
+    IncludeValue includeValue;
+    // Whether the responses sent using the stream should contain the xattrs
+    // (if any exist)
+    IncludeXattrs includeXattributes;
 
     /**
      * A copy of the collections separator so we can generate MutationResponse

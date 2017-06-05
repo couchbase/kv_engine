@@ -38,6 +38,7 @@
 
 #include <gtest/gtest.h>
 #include <dcp/backfill_memory.h>
+#include <xattr/utils.h>
 
 /*
  * Mock of the DcpConnMap class.  Wraps the real DcpConnMap, but exposes
@@ -113,10 +114,14 @@ protected:
     }
 
     // Setup a DCP producer and attach a stream and cursor to it.
-    void setup_dcp_stream(bool keyOnlyDcp = false) {
+    void setup_dcp_stream(IncludeValue includeVal = IncludeValue::Yes,
+                          IncludeXattrs includeXattrs = IncludeXattrs::Yes) {
         int flags = 0;
-        if (keyOnlyDcp) {
+        if (includeVal == IncludeValue::No) {
             flags |= DCP_OPEN_NO_VALUE;
+        }
+        if (includeXattrs == IncludeXattrs::Yes) {
+            flags |= DCP_OPEN_INCLUDE_XATTRS;
         }
         producer = new MockDcpProducer(*engine,
                                        /*cookie*/ nullptr,
@@ -138,13 +143,47 @@ protected:
                                       /*vb_uuid*/ 0xabcd,
                                       /*snap_start_seqno*/ 0,
                                       /*snap_end_seqno*/ ~0,
-                                      keyOnlyDcp);
+                                      includeVal,
+                                      includeXattrs);
 
         EXPECT_FALSE(vb0->checkpointManager.registerCursor(
                                                            producer->getName(),
                                                            1, false,
                                                            MustSendCheckpointEnd::NO))
             << "Found an existing TAP cursor when attempting to register ours";
+    }
+
+    /*
+     * Creates an item with the key \"key\", containing json data and xattrs.
+     * @return a unique_ptr to a newly created item.
+     */
+    std::unique_ptr<Item> makeItemWithXattrs() {
+        std::string valueData = R"({"json":"yes"})";
+        std::string data = createXattrValue(valueData);
+        uint8_t ext_meta[EXT_META_LEN] = {PROTOCOL_BINARY_DATATYPE_JSON |
+                                          PROTOCOL_BINARY_DATATYPE_XATTR};
+        return std::make_unique<Item>(makeStoredDocKey("key"),
+                                      /*flags*/0,
+                                      /*exp*/0,
+                                      data.c_str(),
+                                      data.size(),
+                                      ext_meta, sizeof(ext_meta));
+    }
+
+    /*
+     * Creates an item with the key \"key\", containing json data and no xattrs.
+     * @return a unique_ptr to a newly created item.
+     */
+    std::unique_ptr<Item> makeItemWithoutXattrs() {
+            std::string valueData = R"({"json":"yes"})";
+            uint8_t ext_meta[EXT_META_LEN] = {PROTOCOL_BINARY_DATATYPE_JSON};
+            return std::make_unique<Item>(makeStoredDocKey("key"),
+                                          /*flags*/0,
+                                          /*exp*/0,
+                                          valueData.c_str(),
+                                          valueData.size(),
+                                          ext_meta,
+                                          sizeof(ext_meta));
     }
 
     /*
@@ -162,11 +201,12 @@ protected:
 };
 
 /*
- * Test that when have a producer with MutationType set to KeyOnly an active
- * stream created via a streamRequest returns true for isKeyOnly.
+ * Test that when have a producer with IncludeValue and IncludeXattrs both set
+ * to No an active stream created via a streamRequest returns true for
+ * isKeyOnly.
  */
-TEST_P(StreamTest, test_streamSetMutationTypeKeyOnly) {
-    setup_dcp_stream(/*keyOnly*/ true);
+TEST_P(StreamTest, test_streamIsKeyOnlyTrue) {
+    setup_dcp_stream(IncludeValue::No, IncludeXattrs::No);
     uint64_t rollbackSeqno;
     auto err = producer->streamRequest(/*flags*/0,
                                        /*opaque*/0,
@@ -186,33 +226,13 @@ TEST_P(StreamTest, test_streamSetMutationTypeKeyOnly) {
     producer.get()->closeAllStreams();
 }
 
-/* MB-24159 - Test to confirm a dcp stream backfill from an ephemeral bucket
- * over a range which includes /no/ items doesn't cause the producer to
- * segfault.
- * */
-
-TEST_P(StreamTest, backfillGetsNoItems) {
-    if (engine->getConfiguration().getBucketType() == "ephemeral") {
-        setup_dcp_stream(true /*keyOnly*/);
-        store_item(vbid, "key", "value1");
-        store_item(vbid, "key", "value2");
-
-        active_stream_t aStream = dynamic_cast<ActiveStream *>(stream.get());
-
-        auto evb = std::shared_ptr<EphemeralVBucket>(
-                std::dynamic_pointer_cast<EphemeralVBucket>(vb0));
-        auto dcpbfm = DCPBackfillMemory(evb, aStream, 1, 1);
-        dcpbfm.run();
-        producer.get()->closeAllStreams();
-    }
-}
-
 /*
- * Test that when have a producer with MutationType set to KeyAndValue an active
- * stream created via a streamRequest returns false for isKeyOnly.
+ * Test that when have a producer with IncludeValue set to Yes and IncludeXattrs
+ * set to No an active stream created via a streamRequest returns false for
+ * isKeyOnly.
  */
-TEST_P(StreamTest, test_streamSettMutationTypeAllValue) {
-    setup_dcp_stream(/*keyOnly*/ false);
+TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeValue) {
+    setup_dcp_stream(IncludeValue::Yes, IncludeXattrs::No);
     uint64_t rollbackSeqno;
     auto err = producer->streamRequest(/*flags*/0,
                                        /*opaque*/0,
@@ -233,59 +253,173 @@ TEST_P(StreamTest, test_streamSettMutationTypeAllValue) {
 }
 
 /*
- * Test for a dcpResponse retrieved from a stream where isKeyOnly is true, that
- * the message size does not include the size of the body.
+ * Test that when have a producer with IncludeValue set to No and IncludeXattrs
+ * set to Yes an active stream created via a streamRequest returns false for
+ * isKeyOnly.
+ */
+TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeXattrs) {
+    setup_dcp_stream(IncludeValue::No, IncludeXattrs::Yes);
+    uint64_t rollbackSeqno;
+    auto err = producer->streamRequest(/*flags*/0,
+                                       /*opaque*/0,
+                                       /*vbucket*/0,
+                                       /*start_seqno*/0,
+                                       /*end_seqno*/0,
+                                       /*vb_uuid*/0,
+                                       /*snap_start*/0,
+                                       /*snap_end*/0,
+                                       &rollbackSeqno,
+                                       StreamTest::fakeDcpAddFailoverLog);
+    ASSERT_EQ(ENGINE_SUCCESS, err)
+        << "stream request did not return ENGINE_SUCCESS";
+
+    stream = dynamic_cast<MockDcpProducer*>(producer.get())->findStream(0);
+    EXPECT_FALSE(dynamic_cast<ActiveStream*>(stream.get())->isKeyOnly());
+    producer.get()->closeAllStreams();
+}
+
+/*
+ * Test for a dcpResponse retrieved from a stream where IncludeValue and
+ * IncludeXattrs are both No, that the message size does not include the size of
+ * the body.
  */
 TEST_P(StreamTest, test_keyOnlyMessageSize) {
-    std::string value("value");
-    uint8_t ext_meta[EXT_META_LEN] = {PROTOCOL_BINARY_DATATYPE_JSON};
-    SingleThreadedRCPtr<Item> item = std::make_unique<Item>(
-            makeStoredDocKey("key"),
-            0,
-            0,
-            value.c_str(),
-            value.size(),
-            ext_meta,
-            sizeof(ext_meta));
-
+    auto item = makeItemWithXattrs();
     auto keyOnlyMessageSize = MutationResponse::mutationBaseMsgBytes +
-            item.get()->getKey().size();
-    queued_item qi(item);
+            item->getKey().size();
+    queued_item qi(std::move(item));
 
-  setup_dcp_stream(/*keyOnly*/ true);
-  std::unique_ptr<DcpResponse> dcpResponse =
-          dynamic_cast<MockActiveStream*>(
-                  stream.get())->public_makeResponseFromItem(qi);
+    setup_dcp_stream(IncludeValue::No, IncludeXattrs::No);
+    std::unique_ptr<DcpResponse> dcpResponse =
+            dynamic_cast<MockActiveStream*>(
+                    stream.get())->public_makeResponseFromItem(qi);
 
   EXPECT_EQ(keyOnlyMessageSize, dcpResponse->getMessageSize());
 }
 
 /*
- * Test for a dcpResponse retrieved from a stream where isKeyOnly is false, that
- * the message size includes the size of the body.
+ * Test for a dcpResponse retrieved from a stream where IncludeValue and
+ * IncludeXattrs are both Yes, that the message size includes the size of the
+ * body.
  */
-TEST_P(StreamTest, test_keyAndValueMessageSize) {
-    std::string value("value");
-    uint8_t ext_meta[EXT_META_LEN] = {PROTOCOL_BINARY_DATATYPE_JSON};
-    SingleThreadedRCPtr<Item> item = std::make_unique<Item>(
-            makeStoredDocKey("key"),
-            0,
-            0,
-            value.c_str(),
-            value.size(),
-            ext_meta,
-            sizeof(ext_meta));
-
+TEST_P(StreamTest, test_keyValueAndXattrsMessageSize) {
+    auto item = makeItemWithXattrs();
     auto keyAndValueMessageSize = MutationResponse::mutationBaseMsgBytes +
-            item.get()->getKey().size() + item->getNBytes();
-    queued_item qi(item);
+            item->getKey().size() + item->getNBytes();
+    queued_item qi(std::move(item));
 
-  setup_dcp_stream(/*keyOnly*/ false);
-  std::unique_ptr<DcpResponse> dcpResponse =
-          dynamic_cast<MockActiveStream*>(
-                  stream.get())->public_makeResponseFromItem(qi);
+    setup_dcp_stream(IncludeValue::Yes, IncludeXattrs::Yes);
+    std::unique_ptr<DcpResponse> dcpResponse =
+            dynamic_cast<MockActiveStream*>(
+                    stream.get())->public_makeResponseFromItem(qi);
 
   EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
+}
+
+/*
+ * Test for a dcpResponse retrieved from a stream where IncludeValue and
+ * IncludeXattrs are both Yes, however the document does not have any xattrs
+ * and so the message size should equal the size of the value.
+ */
+TEST_P(StreamTest, test_keyAndValueMessageSize) {
+    auto item = makeItemWithoutXattrs();
+    auto keyAndValueMessageSize = MutationResponse::mutationBaseMsgBytes +
+            item->getKey().size() + item->getNBytes();
+    queued_item qi(std::move(item));
+
+    setup_dcp_stream(IncludeValue::Yes, IncludeXattrs::Yes);
+    std::unique_ptr<DcpResponse> dcpResponse =
+            dynamic_cast<MockActiveStream*>(
+                    stream.get())->public_makeResponseFromItem(qi);
+
+    EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
+}
+
+/*
+ * Test for a dcpResponse retrieved from a stream where IncludeValue is Yes and
+ * IncludeXattrs is No, that the message size includes the size of only the
+ * value (excluding the xattrs).
+ */
+TEST_P(StreamTest, test_keyAndValueExcludingXattrsMessageSize) {
+    auto item = makeItemWithXattrs();
+    auto root = const_cast<char*>(item->getData());
+    cb::byte_buffer buffer{(uint8_t*)root, item->getValue()->vlength()};
+    auto sz = cb::xattr::get_body_offset({
+           reinterpret_cast<char*>(buffer.buf), buffer.len});
+    auto keyAndValueMessageSize = MutationResponse::mutationBaseMsgBytes +
+            item->getKey().size() + item->getNBytes() - sz;
+    queued_item qi(std::move(item));
+
+    setup_dcp_stream(IncludeValue::Yes, IncludeXattrs::No);
+    std::unique_ptr<DcpResponse> dcpResponse =
+            dynamic_cast<MockActiveStream*>(
+                    stream.get())->public_makeResponseFromItem(qi);
+
+    EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
+}
+
+/*
+ * Test for a dcpResponse retrieved from a stream where IncludeValue is Yes and
+ * IncludeXattrs are No, and the document does not have any xattrs.  So again
+ * the message size should equal the size of the value.
+ */
+TEST_P(StreamTest,
+       test_keyAndValueExcludingXattrsAndNotContainXattrMessageSize) {
+    auto item = makeItemWithoutXattrs();
+    auto keyAndValueMessageSize = MutationResponse::mutationBaseMsgBytes +
+            item->getKey().size() + item->getNBytes();
+    queued_item qi(std::move(item));
+
+    setup_dcp_stream(IncludeValue::Yes, IncludeXattrs::No);
+    std::unique_ptr<DcpResponse> dcpResponse =
+            dynamic_cast<MockActiveStream*>(
+                    stream.get())->public_makeResponseFromItem(qi);
+
+    EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
+}
+
+/*
+ * Test for a dcpResponse retrieved from a stream where IncludeValue is No and
+ * IncludeXattrs is Yes, that the message size includes the size of only the
+ * xattrs (excluding the value).
+ */
+TEST_P(StreamTest, test_keyAndValueExcludingValueDataMessageSize) {
+    auto item = makeItemWithXattrs();
+    auto root = const_cast<char*>(item->getData());
+    cb::byte_buffer buffer{(uint8_t*)root, item->getValue()->vlength()};
+    auto sz = cb::xattr::get_body_offset({
+           reinterpret_cast<char*>(buffer.buf), buffer.len});
+    auto keyAndValueMessageSize = MutationResponse::mutationBaseMsgBytes +
+            item->getKey().size() + sz;
+    queued_item qi(std::move(item));
+
+    setup_dcp_stream(IncludeValue::No, IncludeXattrs::Yes);
+    std::unique_ptr<DcpResponse> dcpResponse =
+            dynamic_cast<MockActiveStream*>(
+                    stream.get())->public_makeResponseFromItem(qi);
+
+    EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
+}
+
+/* MB-24159 - Test to confirm a dcp stream backfill from an ephemeral bucket
+ * over a range which includes /no/ items doesn't cause the producer to
+ * segfault.
+ */
+
+TEST_P(StreamTest, backfillGetsNoItems) {
+    if (engine->getConfiguration().getBucketType() == "ephemeral") {
+        setup_dcp_stream(IncludeValue::No, IncludeXattrs::No);
+        store_item(vbid, "key", "value1");
+        store_item(vbid, "key", "value2");
+
+        active_stream_t aStream = dynamic_cast<ActiveStream *>(stream.get());
+
+        auto evb = std::shared_ptr<EphemeralVBucket>(
+                std::dynamic_pointer_cast<EphemeralVBucket>(vb0));
+        auto dcpbfm = DCPBackfillMemory(evb, aStream, 1, 1);
+        dcpbfm.run();
+        producer.get()->closeAllStreams();
+    }
 }
 
 /* Regression test for MB-17766 - ensure that when an ActiveStream is preparing

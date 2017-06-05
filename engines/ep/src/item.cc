@@ -23,6 +23,7 @@
 
 #include <cJSON.h>
 #include <platform/compress.h>
+#include <xattr/utils.h>
 
 #include  <iomanip>
 
@@ -106,20 +107,16 @@ Item::Item(const DocKey& k,
     ObjectRegistry::onCreateItem(this);
 }
 
-Item::Item(const Item& other, bool copyKeyOnly)
+Item::Item(const Item& other)
     : metaData(other.metaData),
+      value(other.value),
       key(other.key),
       bySeqno(other.bySeqno.load()),
       queuedTime(other.queuedTime),
       vbucketId(other.vbucketId),
       op(other.op),
-      nru(other.nru) {
-    if (copyKeyOnly) {
-        setData(nullptr, 0, nullptr, 0);
-    } else {
-        value = other.value;
-        datatype = other.datatype;
-    }
+      nru(other.nru),
+      datatype(other.datatype) {
     ObjectRegistry::onCreateItem(this);
 }
 
@@ -281,4 +278,54 @@ item_info Item::toItemInfo(uint64_t vb_uuid) const {
     info.value[0].iov_len = getNBytes();
 
     return info;
+}
+
+void Item::pruneValueAndOrXattrs(IncludeValue includeVal,
+                               IncludeXattrs includeXattrs) {
+    if (includeVal == IncludeValue::Yes) {
+        if ((includeXattrs == IncludeXattrs::Yes) ||
+                !(mcbp::datatype::is_xattr(getDataType()))) {
+            // If we want to include the value and either, we want to include
+            // the xattrs or there are no xattrs, then no pruning is required
+            // and we can just return.
+            return;
+        }
+    }
+
+    auto root = reinterpret_cast<const char*>(value->getData());
+    const cb::const_char_buffer buffer{root, value->vlength()};
+    const auto sz = cb::xattr::get_body_offset(buffer);
+
+    char* extMeta = const_cast<char*>(value->getExtMeta());
+
+    if (includeXattrs == IncludeXattrs::Yes) {
+        if (mcbp::datatype::is_xattr(getDataType())) {
+            // Want just the xattributes
+            setData(value->getData(),
+                    sz,
+                    reinterpret_cast<uint8_t*>(extMeta),
+                    value->getExtLen());
+            // Remove all other datatype flags as we're only sending the xattrs
+            setDataType(PROTOCOL_BINARY_DATATYPE_XATTR);
+        } else {
+            // We don't want the value and there are no xattributes,
+            // so just send the key
+            setData(nullptr, 0, nullptr, 0);
+            setDataType(PROTOCOL_BINARY_RAW_BYTES);
+        }
+    } else if (includeVal == IncludeValue::Yes)  {
+        // Want just the value, so remove xattributes if there are any
+        if (mcbp::datatype::is_xattr(getDataType())) {
+            setData(value->getData() + sz,
+                value->vlength() - sz,
+                reinterpret_cast<uint8_t*>(extMeta),
+                value->getExtLen());
+            // Clear the xattr datatype
+            setDataType(getDataType() & ~PROTOCOL_BINARY_DATATYPE_XATTR);
+        }
+    } else {
+        // Don't want the xattributes or value, so just send the key
+        setData(nullptr, 0, nullptr, 0);
+        setDataType(PROTOCOL_BINARY_RAW_BYTES);
+    }
 }

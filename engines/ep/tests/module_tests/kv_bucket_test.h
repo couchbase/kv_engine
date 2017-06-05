@@ -133,12 +133,6 @@ public:
                             uint64_t pcas,
                             const void* cookie);
 
-    /**
-     * Create an XATTR document using the supplied string as the body
-     * @returns string containing the new value
-     */
-    static std::string createXattrValue(const std::string& body);
-
     static protocol_binary_response_status getAddResponseStatus(
             protocol_binary_response_status newval =
                     PROTOCOL_BINARY_RESPONSE_SUCCESS);

@@ -58,6 +58,24 @@ typedef SingleThreadedRCPtr<ConnHandler> connection_t;
 
 enum process_items_error_t { all_processed, more_to_process, cannot_process };
 
+/*
+ * IncludeValue is used to state whether an active stream needs to send the
+ * value in the response.
+ */
+enum class IncludeValue {
+    Yes,
+    No,
+};
+
+/*
+ * IncludeXattrs is used to state whether an active stream needs to send the
+ * xattrs, (if any exist), in the response.
+ */
+enum class IncludeXattrs {
+    Yes,
+    No,
+};
+
 /**
  * DcpReadyQueue is a std::queue wrapper for managing a
  * queue of vbuckets that are ready for a DCP producer/consumer to process.

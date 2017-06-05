@@ -18,6 +18,8 @@
 #include "test_helpers.h"
 
 #include <thread>
+#include <string_utilities.h>
+#include <xattr/blob.h>
 
 Item make_item(uint16_t vbid,
                const StoredDocKey& key,
@@ -37,3 +39,25 @@ std::chrono::microseconds decayingSleep(std::chrono::microseconds uSeconds) {
     std::this_thread::sleep_for(uSeconds);
     return std::min(uSeconds * 2, maxSleepTime);
 }
+
+std::string createXattrValue(const std::string& body) {
+      cb::xattr::Blob blob;
+
+      //Add a few XAttrs
+      blob.set(to_const_byte_buffer("ABCuser"),
+               to_const_byte_buffer("{\"author\":\"bubba\"}"));
+      blob.set(to_const_byte_buffer("_sync"),
+               to_const_byte_buffer("{\"cas\":\"0xdeadbeefcafefeed\"}"));
+      blob.set(to_const_byte_buffer("meta"),
+               to_const_byte_buffer("{\"content-type\":\"text\"}"));
+
+      auto xattr_value = blob.finalize();
+
+      // append body to the xattrs and store in data
+      std::string data;
+      std::copy(xattr_value.buf, xattr_value.buf + xattr_value.len,
+                std::back_inserter(data));
+      std::copy(body.c_str(), body.c_str() + body.size(),
+                std::back_inserter(data));
+      return data;
+  }

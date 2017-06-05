@@ -29,6 +29,7 @@
 
 #include "atomic.h"
 #include "blob.h"
+#include "dcp/dcp-types.h"
 #include "storeddockey.h"
 
 /// The set of possible operations which can be queued into a checkpoint.
@@ -173,7 +174,7 @@ public:
          uint8_t nru_value = INITIAL_NRU_VALUE);
 
     /* Copy constructor */
-    Item(const Item& other, bool copyKeyOnly = false);
+    Item(const Item& other);
 
     ~Item();
 
@@ -410,6 +411,16 @@ public:
      *        information
      */
     item_info toItemInfo(uint64_t vb_uuid) const;
+
+    /**
+     * Removes the value and / or the xattributes from the item if they
+     * are not to be sent over the wire to the consumer.
+     *
+     * @param includeVal states whether the item should include value, or not
+     * @param includeXattrs states whether the item should include xattrs or not
+     **/
+    void pruneValueAndOrXattrs(IncludeValue includeVal,
+                               IncludeXattrs includeXattrs);
 
 private:
     /**

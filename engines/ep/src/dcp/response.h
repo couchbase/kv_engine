@@ -20,6 +20,7 @@
 
 #include "config.h"
 
+#include "dcp-types.h"
 #include "ep_types.h"
 #include "ext_meta_parser.h"
 #include "item.h"
@@ -96,7 +97,7 @@ public:
                 std::to_string(int(event_)));
     }
 
-    virtual uint32_t getMessageSize() = 0;
+    virtual uint32_t getMessageSize() const = 0;
 
     /**
      * Return approximately how many bytes this response message is using
@@ -155,7 +156,7 @@ public:
         return snapEndSeqno_;
     }
 
-    uint32_t getMessageSize() {
+    uint32_t getMessageSize() const {
         return baseMsgBytes;
     }
 
@@ -187,7 +188,7 @@ public:
         return status_;
     }
 
-    uint32_t getMessageSize() {
+    uint32_t getMessageSize() const {
         return baseMsgBytes;
     }
 
@@ -207,7 +208,7 @@ public:
         return status_;
     }
 
-    uint32_t getMessageSize() {
+    uint32_t getMessageSize() const {
         return baseMsgBytes;
     }
 
@@ -226,7 +227,7 @@ public:
         return status_;
     }
 
-    uint32_t getMessageSize() {
+    uint32_t getMessageSize() const {
         return baseMsgBytes;
     }
 
@@ -250,7 +251,7 @@ public:
         return vbucket_;
     }
 
-    uint32_t getMessageSize() {
+    uint32_t getMessageSize() const {
         return baseMsgBytes;
     }
 
@@ -275,7 +276,7 @@ public:
         return state_;
     }
 
-    uint32_t getMessageSize() {
+    uint32_t getMessageSize() const {
         return baseMsgBytes;
     }
 
@@ -309,7 +310,7 @@ public:
         return flags_;
     }
 
-    uint32_t getMessageSize() {
+    uint32_t getMessageSize() const {
         return baseMsgBytes;
     }
 
@@ -324,17 +325,24 @@ private:
 
 class MutationResponse : public DcpResponse {
 public:
-    MutationResponse(queued_item item, uint32_t opaque, bool isKeyOnly,
+    MutationResponse(queued_item item,
+                     uint32_t opaque,
+                     IncludeValue includeVal = IncludeValue::Yes,
+                     IncludeXattrs includeXattrs = IncludeXattrs::Yes,
                      ExtendedMetaData *e = NULL)
         : DcpResponse(item->isDeleted() ? Event::Deletion : Event::Mutation, opaque),
-          item_(item), keyOnly(isKeyOnly), emd(e) {}
+          item_(item),
+          includeValue(includeVal),
+          includeXattributes(includeXattrs),
+          emd(e) {}
 
     queued_item& getItem() {
         return item_;
     }
 
+    /// @return pointer to copy of the item.
     Item* getItemCopy() {
-        return new Item(*item_, keyOnly);
+        return new Item(*item_);
     }
 
     uint16_t getVBucket() {
@@ -352,24 +360,13 @@ public:
         return item_->getRevSeqno();
     }
 
-    uint32_t getMessageSize() {
-        const uint32_t base = item_->isDeleted() ? deletionBaseMsgBytes :
-                        mutationBaseMsgBytes;
-
-        uint32_t body = item_->getKey().size();
-        if (!keyOnly) {
-            // Add the size of the value
-            body += item_->getNBytes();
-        }
-
-        if (emd) {
-            body += emd->getExtMeta().second;
-        }
-        return base + body;
-    }
+    /**
+      * @return size of message to be sent over the wire to the consumer.
+      */
+    uint32_t getMessageSize() const;
 
     /**
-     * @returns a size representing approximatley the memory used, in this case
+     * @returns a size representing approximately the memory used, in this case
      * the item's size.
      */
     size_t getApproximateSize() const {
@@ -386,8 +383,10 @@ public:
 private:
     queued_item item_;
 
-    // Whether the response should contain the key and value or just the key
-    bool keyOnly;
+    // Whether the response should contain the value
+    IncludeValue includeValue;
+    // Whether the response should contain the xattributes, if they exist.
+    IncludeXattrs includeXattributes;
 
     std::unique_ptr<ExtendedMetaData> emd;
 };
@@ -400,10 +399,15 @@ class MutationProducerResponse : public MutationResponse {
 public:
     MutationProducerResponse(queued_item item,
                              uint32_t opaque,
-                             bool isKeyOnly,
+                             IncludeValue includeVal,
+                             IncludeXattrs includeXattrs,
                              uint8_t _collectionLen,
                              ExtendedMetaData* e = NULL)
-        : MutationResponse(item, opaque, isKeyOnly, e),
+        : MutationResponse(item,
+                           opaque,
+                           includeVal,
+                           includeXattrs,
+                           e),
           collectionLen(_collectionLen) {
     }
 
@@ -461,7 +465,7 @@ public:
         }
     }
 
-    uint32_t getMessageSize() override {
+    uint32_t getMessageSize() const override {
         return SystemEventMessage::baseMsgBytes + key.size() + eventData.size();
     }
 
@@ -514,7 +518,7 @@ public:
     static std::unique_ptr<SystemEventProducerMessage> make(uint32_t opaque,
                                                             queued_item& item);
 
-    uint32_t getMessageSize() override {
+    uint32_t getMessageSize() const override {
         return SystemEventMessage::baseMsgBytes + getKey().size() +
                getEventData().size();
     }

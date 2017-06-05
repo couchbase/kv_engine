@@ -37,7 +37,8 @@ public:
                      uint64_t vb_uuid,
                      uint64_t snap_start_seqno,
                      uint64_t snap_end_seqno,
-                     bool isKeyOnly)
+                     IncludeValue includeValue = IncludeValue::Yes,
+                     IncludeXattrs includeXattrs = IncludeXattrs::Yes)
         : ActiveStream(e,
                        p,
                        p->getName(),
@@ -49,7 +50,8 @@ public:
                        vb_uuid,
                        snap_start_seqno,
                        snap_end_seqno,
-                       isKeyOnly,
+                       includeValue,
+                       includeXattrs,
                        std::make_unique<Collections::VB::Filter>(
                                p->getFilter(), vb.getManifest())) {
     }

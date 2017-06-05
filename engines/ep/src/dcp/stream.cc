@@ -238,7 +238,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            uint64_t vb_uuid,
                            uint64_t snap_start_seqno,
                            uint64_t snap_end_seqno,
-                           bool isKeyOnly,
+                           IncludeValue includeVal,
+                           IncludeXattrs includeXattrs,
                            std::unique_ptr<Collections::VB::Filter> filter)
     : Stream(n,
              flags,
@@ -265,7 +266,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       producer(p),
       lastSentSnapEndSeqno(0),
       chkptItemsExtractionInProgress(false),
-      keyOnly(isKeyOnly),
+      includeValue(includeVal),
+      includeXattributes(includeXattrs),
       filter(std::move(filter)) {
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
@@ -910,7 +912,11 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
     if (item->getOperation() != queue_op::system_event) {
         auto cKey = Collections::DocKey::make(item->getKey(), currentSeparator);
         return std::make_unique<MutationProducerResponse>(
-                item, opaque_, isKeyOnly(), cKey.getCollectionLen());
+                item,
+                opaque_,
+                includeValue,
+                includeXattributes,
+                cKey.getCollectionLen());
     } else {
         return SystemEventProducerMessage::make(opaque_, item);
     }

@@ -65,7 +65,7 @@ void CacheCallback::callback(CacheLookup& lookup) {
         std::unique_ptr<Item> it;
         try {
             it = stream_->isKeyOnly() ?
-                    v->toItemWithNoValue(lookup.getVBucketId()) :
+                    v->toItemKeyOnly(lookup.getVBucketId()) :
                     v->toItem(false, lookup.getVBucketId());
         } catch (const std::bad_alloc&) {
             setStatus(ENGINE_ENOMEM);

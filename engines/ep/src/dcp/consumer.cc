@@ -358,7 +358,8 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
             err = stream->messageReceived(
                     std::make_unique<MutationResponse>(item,
                                                        opaque,
-                                                       /*isKeyOnly*/false,
+                                                       IncludeValue::Yes,
+                                                       IncludeXattrs::Yes,
                                                        emd));
         } catch (const std::bad_alloc&) {
             delete emd;
@@ -426,7 +427,8 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
             err = stream->messageReceived(
                     std::make_unique<MutationResponse>(item,
                                                        opaque,
-                                                       /*isKeyOnly*/false,
+                                                       IncludeValue::Yes,
+                                                       IncludeXattrs::Yes,
                                                        emd));
         } catch (const std::bad_alloc&) {
             delete emd;

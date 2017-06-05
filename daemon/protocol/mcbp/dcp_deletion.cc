@@ -101,15 +101,6 @@ ENGINE_ERROR_CODE dcp_message_deletion(const void* void_cookie,
         return ENGINE_FAILED;
     }
 
-    uint32_t payloadsize = 0;
-    protocol_binary_datatype_t datatype = PROTOCOL_BINARY_RAW_BYTES;
-    if (c->isDcpXattrAware()) {
-        if (mcbp::datatype::is_xattr(info.datatype)) {
-            datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
-            payloadsize = info.nbytes;
-        }
-    }
-
     if (!c->reserveItem(it)) {
         LOG_WARNING(c, "%u: dcp_message_deletion: Failed to grow item array",
                     c->getId());
@@ -125,8 +116,8 @@ ENGINE_ERROR_CODE dcp_message_deletion(const void* void_cookie,
                                                 vbucket,
                                                 info.cas,
                                                 info.nkey,
-                                                payloadsize,
-                                                datatype,
+                                                info.nbytes,
+                                                info.datatype,
                                                 by_seqno,
                                                 rev_seqno,
                                                 nmeta,
@@ -154,8 +145,8 @@ ENGINE_ERROR_CODE dcp_message_deletion(const void* void_cookie,
     c->addIov(info.key, info.nkey);
 
     // Add the optional payload (xattr)
-    if (payloadsize > 0) {
-        c->addIov(info.value[0].iov_base, payloadsize);
+    if (info.nbytes > 0) {
+        c->addIov(info.value[0].iov_base, info.nbytes);
     }
 
     // Add the nmeta

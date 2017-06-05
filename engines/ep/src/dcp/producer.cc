@@ -141,9 +141,10 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       log(*this),
       itemsSent(0),
       totalBytesSent(0),
-      mutationType(((flags & DCP_OPEN_NO_VALUE) != 0)
-                           ? DcpProducer::MutationType::KeyOnly
-                           : DcpProducer::MutationType::KeyAndValue),
+      includeValue(((flags & DCP_OPEN_NO_VALUE) != 0) ?
+              IncludeValue::No : IncludeValue::Yes),
+      includeXattrs(((flags & DCP_OPEN_INCLUDE_XATTRS) != 0) ?
+              IncludeXattrs::Yes : IncludeXattrs::No),
       filter(e.getKVBucket()->getCollectionsManager().makeFilter(
               (flags & DCP_OPEN_COLLECTIONS) != 0,
               {reinterpret_cast<const char*>(jsonFilter.data()),
@@ -409,7 +410,8 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
                              vbucket_uuid,
                              snap_start_seqno,
                              snap_end_seqno,
-                             (mutationType == MutationType::KeyOnly),
+                             includeValue,
+                             includeXattrs,
                              std::move(vbFilter));
     }
 
@@ -489,11 +491,12 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
     if (mutationResponse != nullptr) {
         try {
             itmCpy = mutationResponse->getItemCopy();
+            itmCpy->pruneValueAndOrXattrs(includeValue, includeXattrs);
         } catch (const std::bad_alloc&) {
             rejectResp = resp;
             LOG(EXTENSION_LOG_WARNING,
-                "%s (vb %d) ENOMEM while trying to copy "
-                "item with seqno %" PRIu64 "before streaming it",
+                "%s (vb %d) std::bad_alloc while trying to copy "
+                "item or prune copy with seqno:%" PRIu64 " before streaming it",
                 logHeader(),
                 mutationResponse->getVBucket(),
                 *mutationResponse->getBySeqno());

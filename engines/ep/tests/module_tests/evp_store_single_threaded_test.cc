@@ -154,7 +154,8 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_backfilling_but_task_finished) {
              /*vb_uuid*/ 0xabcd,
              /*snap_start_seqno*/ 0,
              /*snap_end_seqno*/ ~0,
-             /*keyOnly*/ false);
+             IncludeValue::Yes,
+             IncludeXattrs::Yes);
 
      MockActiveStream* mock_stream =
              static_cast<MockActiveStream*>(stream.get());
@@ -214,7 +215,8 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
             /*vb_uuid*/ 0xabcd,
             /*snap_start_seqno*/ 0,
             /*snap_end_seqno*/ ~0,
-            /*keyOnly*/ false);
+            IncludeValue::Yes,
+            IncludeXattrs::Yes);
 
     MockActiveStream* mock_stream =
             static_cast<MockActiveStream*>(stream.get());
@@ -307,7 +309,8 @@ TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
             /*vb_uuid*/ 0xabcd,
             /*snap_start_seqno*/ 0,
             /*snap_end_seqno*/ ~0,
-            /*keyOnly*/ false);
+            IncludeValue::Yes,
+            IncludeXattrs::Yes);
 
     MockActiveStream* mock_stream =
             static_cast<MockActiveStream*>(stream.get());
@@ -452,7 +455,8 @@ TEST_F(SingleThreadedEPBucketTest, test_mb22451) {
             /*vb_uuid*/ 0xabcd,
             /*snap_start_seqno*/ 0,
             /*snap_end_seqno*/ ~0,
-            /*keyOnly*/ false);
+            IncludeValue::Yes,
+            IncludeXattrs::Yes);
 
     MockActiveStream* mock_stream =
             static_cast<MockActiveStream*>(stream.get());

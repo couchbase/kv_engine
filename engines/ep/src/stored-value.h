@@ -501,7 +501,7 @@ public:
      *
      * @param vbucket the vbucket containing this item.
      */
-    std::unique_ptr<Item> toItemWithNoValue(uint16_t vbucket) const;
+    std::unique_ptr<Item> toItemKeyOnly(uint16_t vbucket) const;
 
     /**
      * Get an item_info from the StoredValue

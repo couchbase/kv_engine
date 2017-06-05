@@ -629,7 +629,10 @@ public:
         CollectionsDcpTest::consumer =
                 new MockDcpConsumer(*engine, cookieC, "test_consumer");
 
-        int flags = (dcpCollectionAware) ? DCP_OPEN_COLLECTIONS : 0;
+        int flags = DCP_OPEN_INCLUDE_XATTRS;
+        if (dcpCollectionAware) {
+            flags |= DCP_OPEN_COLLECTIONS;
+        }
         producer = new MockDcpProducer(
                 *engine,
                 cookieP,

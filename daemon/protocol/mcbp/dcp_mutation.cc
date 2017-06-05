@@ -51,63 +51,6 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
 
     char* root = reinterpret_cast<char*>(info.value[0].iov_base);
     cb::char_buffer buffer{root, info.value[0].iov_len};
-    cb::compression::Buffer inflated;
-
-    if (c->isDcpNoValue() && !c->isDcpXattrAware()) {
-        // The client don't want the body or any xattrs.. just
-        // drop everything
-        buffer.len = 0;
-        info.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    } else if (!c->isDcpNoValue() && c->isDcpXattrAware()) {
-        // The client want both value and xattrs.. we don't need to
-        // do anything
-
-    } else {
-        // we want either values or xattrs
-        if (mcbp::datatype::is_snappy(info.datatype)) {
-            if (!cb::compression::inflate(
-                cb::compression::Algorithm::Snappy,
-                buffer.buf, buffer.len, inflated)) {
-                LOG_WARNING(c, "%u: Failed to inflate document",
-                            c->getId());
-                return ENGINE_FAILED;
-            }
-
-            // @todo figure out this one.. Right now our tempAlloc list is
-            //       memory allocated by cb_malloc... it would probably be
-            //       better if we had something similar for new'd memory..
-            buffer.buf = reinterpret_cast<char*>(cb_malloc(inflated.len));
-            if (buffer.buf == nullptr) {
-                return ENGINE_ENOMEM;
-            }
-            buffer.len = inflated.len;
-            memcpy(buffer.buf, inflated.data.get(), buffer.len);
-            if (!c->pushTempAlloc(buffer.buf)) {
-                cb_free(buffer.buf);
-                return ENGINE_ENOMEM;
-            }
-        }
-
-        if (c->isDcpXattrAware()) {
-            if (mcbp::datatype::is_xattr(info.datatype)) {
-                buffer.len = cb::xattr::get_body_offset({buffer.buf, buffer.len});
-                // MB-23085 - Remove all other datatype flags as we're only
-                //            sending the xattrs
-                info.datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
-            } else {
-                buffer.len = 0;
-                info.datatype = PROTOCOL_BINARY_RAW_BYTES;
-            }
-        } else {
-            // we want the body
-            if (mcbp::datatype::is_xattr(info.datatype)) {
-                auto body = cb::xattr::get_body({buffer.buf, buffer.len});
-                buffer.buf = const_cast<char*>(body.buf);
-                buffer.len = body.len;
-                info.datatype &= ~PROTOCOL_BINARY_DATATYPE_XATTR;
-            }
-        }
-    }
 
     if (!c->reserveItem(it)) {
         LOG_WARNING(c, "%u: Failed to grow item array", c->getId());

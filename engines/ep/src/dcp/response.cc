@@ -19,6 +19,8 @@
 
 #include "dcp/response.h"
 
+#include <xattr/utils.h>
+
 /*
  * These constants are calculated from the size of the packets that are
  * created by each message when it gets sent over the wire. The packet
@@ -59,4 +61,37 @@ const char* DcpResponse::to_string() const {
     }
     throw std::logic_error(
         "DcpResponse::to_string(): " + std::to_string(int(event_)));
+}
+
+uint32_t MutationResponse::getMessageSize() const {
+    const uint32_t header = item_->isDeleted() ? deletionBaseMsgBytes :
+                    mutationBaseMsgBytes;
+
+    uint32_t body = item_->getKey().size();
+    uint32_t sz = 0;
+
+    // If the item has xattributes then calculate the size of the xattributes
+    if (mcbp::datatype::is_xattr(item_->getDataType())) {
+        auto root = reinterpret_cast<const char*>(item_->getData());
+        const cb::const_char_buffer buffer{root, item_->getValue()->vlength()};
+        sz = cb::xattr::get_body_offset(buffer);
+    }
+
+    // If need to include the xattributes in the response
+    if (includeXattributes == IncludeXattrs::Yes) {
+        // Include the xattributes size, but not the value size
+        body += sz;
+    }
+
+    // If need to include the value in the response
+    if (includeValue == IncludeValue::Yes) {
+        body += (item_->getNBytes() - sz);
+    }
+
+    // Check to see if we need to include the extended meta data size.
+    if (emd) {
+        body += emd->getExtMeta().second;
+    }
+
+    return header + body;
 }

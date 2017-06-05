@@ -48,6 +48,12 @@ inline StoredDocKey makeStoredDocKey(
 }
 
 /**
+ * Create an XATTR document using the supplied string as the body
+ * @returns string containing the new value
+ */
+std::string createXattrValue(const std::string& body);
+
+/**
  * Class which moves time forward when created by the given amount, and upon
  * destruction returns time to where it was.
  *

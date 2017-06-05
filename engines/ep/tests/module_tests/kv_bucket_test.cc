@@ -275,27 +275,6 @@ std::vector<char> KVBucketTest::buildWithMetaPacket(
     return packet;
 }
 
-std::string KVBucketTest::createXattrValue(const std::string& body) {
-    cb::xattr::Blob blob;
-
-    // Add a few XAttrs
-    blob.set(to_const_byte_buffer("user"),
-             to_const_byte_buffer("{\"author\":\"bubba\"}"));
-    blob.set(to_const_byte_buffer("_sync"),
-             to_const_byte_buffer("{\"cas\":\"0xdeadbeefcafefeed\"}"));
-    blob.set(to_const_byte_buffer("meta"),
-             to_const_byte_buffer("{\"content-type\":\"text\"}"));
-
-    auto xattrValue = blob.finalize();
-
-    // append body to the xattrs and store in data
-    std::string data;
-    std::copy_n(xattrValue.buf, xattrValue.len, std::back_inserter(data));
-    std::copy_n(body.c_str(), body.size(), std::back_inserter(data));
-
-    return data;
-}
-
 bool KVBucketTest::addResponse(const void* k,
                                uint16_t keylen,
                                const void* ext,
