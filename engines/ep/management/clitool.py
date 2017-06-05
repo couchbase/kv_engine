@@ -34,9 +34,12 @@ class CliTool(object):
                                help=description)
 
     def execute(self):
-        self.parser.usage +=  "\n" + self.format_command_list()
+        shortUsage = self.parser.usage
+        self.parser.usage += "\n" + self.format_command_list()
 
-        opts, args = self.parser.parse_args()
+        opts, args = self.parser.parse_args()  # -h handled here
+
+        self.parser.usage = shortUsage  # set usage back to short
 
         if len(args) < 2:
             print >> sys.stderr, self.parser.error("Too few arguments")

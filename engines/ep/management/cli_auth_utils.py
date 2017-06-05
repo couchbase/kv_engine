@@ -76,8 +76,8 @@ def cmd_decorator(f):
 
 
 
-def get_authed_clitool():
-    c = clitool.CliTool()
+def get_authed_clitool(extraUsage=""):
+    c = clitool.CliTool(extraUsage)
 
     c.addFlag('-a', 'allBuckets', 'iterate over all buckets')
     c.addOption('-b', 'bucketName', 'the bucket to get stats from (Default: default)')
