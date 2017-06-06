@@ -76,27 +76,46 @@ ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
                                                 nru,
                                                 collection_len);
 
-    const size_t packetlen =
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    c->write->produce([&c, &packet, &info, &buffer, &meta, &nmeta, &ret](
+        void* ptr, size_t size) -> size_t {
+
+        const size_t packetlen =
             protocol_binary_request_dcp_mutation::getHeaderLength(
-                    c->isDcpCollectionAware());
-    if (c->write.bytes + packetlen + nmeta >= c->write.size) {
-        /* We don't have room in the buffer */
-        return ENGINE_E2BIG;
-    }
+                c->isDcpCollectionAware());
 
-    memcpy(c->write.curr, packet.bytes, packetlen);
-    c->addIov(c->write.curr, packetlen);
-    c->write.curr += packetlen;
-    c->write.bytes += packetlen;
-    c->addIov(info.key, info.nkey);
-    c->addIov(buffer.buf, buffer.len);
 
-    memcpy(c->write.curr, meta, nmeta);
-    c->addIov(c->write.curr, nmeta);
-    c->write.curr += nmeta;
-    c->write.bytes += nmeta;
+        if (size < (packetlen + nmeta)) {
+            ret = ENGINE_E2BIG;
+            return 0;
+        }
 
-    return ENGINE_SUCCESS;
+        std::copy(packet.bytes,
+                  packet.bytes + packetlen,
+                  static_cast<uint8_t*>(ptr));
+
+        std::copy(static_cast<const uint8_t*>(meta),
+                  static_cast<const uint8_t*>(meta) + nmeta,
+                  static_cast<uint8_t*>(ptr) + packetlen);
+
+        // Add the header
+        c->addIov(ptr, packetlen);
+
+        // Add the key
+        c->addIov(info.key, info.nkey);
+
+        // Add the value
+        c->addIov(buffer.buf, buffer.len);
+
+        // Add the optional meta section
+        if (nmeta > 0) {
+            c->addIov(static_cast<char*>(ptr) + packetlen, nmeta);
+        }
+
+        return packetlen + nmeta;
+    });
+
+    return ret;
 }
 
 static inline ENGINE_ERROR_CODE do_dcp_mutation(McbpConnection* conn,

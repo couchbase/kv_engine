@@ -48,8 +48,15 @@ enum class BufferLoan {
 
 static BufferLoan conn_loan_single_buffer(McbpConnection *c, struct net_buf *thread_buf,
                                              struct net_buf *conn_buf);
+static BufferLoan conn_loan_single_buffer(McbpConnection& c,
+                                          std::unique_ptr<cb::Pipe>& thread_buf,
+                                          std::unique_ptr<cb::Pipe>& conn_buf);
+
 static void conn_return_single_buffer(Connection *c, struct net_buf *thread_buf,
                                       struct net_buf *conn_buf);
+static void conn_return_single_buffer(McbpConnection& c,
+                                      std::unique_ptr<cb::Pipe>& thread_buf,
+                                      std::unique_ptr<cb::Pipe>& conn_buf);
 static void conn_destructor(Connection *c);
 static Connection *allocate_connection(SOCKET sfd,
                                        event_base *base,
@@ -264,8 +271,7 @@ static void conn_cleanup(Connection *c) {
 
         mcbpc->read.curr = mcbpc->read.buf;
         mcbpc->read.bytes = 0;
-        mcbpc->write.curr = mcbpc->write.buf;
-        mcbpc->write.bytes = 0;
+        mcbpc->write->clear();
 
         /* Return any buffers back to the thread; before we disassociate the
          * connection from the thread. Note we clear TAP / UDP status first, so
@@ -386,11 +392,13 @@ void conn_loan_buffers(Connection *connection) {
         ts->rbufs_existing++;
     }
 
-    res = conn_loan_single_buffer(c, &c->getThread()->write, &c->write);
+    res = conn_loan_single_buffer(*c, c->getThread()->write, c->write);
     if (res == BufferLoan::Allocated) {
         ts->wbufs_allocated++;
     } else if (res == BufferLoan::Loaned) {
         ts->wbufs_loaned++;
+    } else if (res == BufferLoan::Existing) {
+        ts->wbufs_existing++;
     }
 }
 
@@ -405,7 +413,7 @@ void conn_return_buffers(Connection *connection) {
     if (thread == nullptr) {
         // Connection already cleaned up - nothing to do.
         cb_assert(c->read.buf == NULL);
-        cb_assert(c->write.buf == NULL);
+        cb_assert(!c->write);
         return;
     }
 
@@ -415,7 +423,7 @@ void conn_return_buffers(Connection *connection) {
     }
 
     conn_return_single_buffer(c, &thread->read, &c->read);
-    conn_return_single_buffer(c, &thread->write, &c->write);
+    conn_return_single_buffer(*c, thread->write, c->write);
 }
 
 /** Internal functions *******************************************************/
@@ -529,9 +537,42 @@ static void release_connection(Connection *c) {
  * it does by either loaning out the threads, or allocating a new one if
  * necessary.
  */
-static BufferLoan conn_loan_single_buffer(McbpConnection *c, struct net_buf *thread_buf,
-                                    struct net_buf *conn_buf)
-{
+static BufferLoan conn_loan_single_buffer(McbpConnection& c,
+                                          std::unique_ptr<cb::Pipe>& thread_buf,
+                                          std::unique_ptr<cb::Pipe>& conn_buf) {
+    /* Already have a (partial) buffer - nothing to do. */
+    if (conn_buf) {
+        return BufferLoan::Existing;
+    }
+
+    // If the thread has a buffer, let's loan that to the connection
+    if (thread_buf) {
+        thread_buf.swap(conn_buf);
+        return BufferLoan::Loaned;
+    }
+
+    // Need to allocate a new buffer
+    try {
+        conn_buf = std::make_unique<cb::Pipe>(DATA_BUFFER_SIZE);
+    } catch (const std::bad_alloc&) {
+        // Unable to alloc a buffer for the thread. Not much we can do here
+        // other than terminate the current connection.
+        if (settings.getVerbose()) {
+            LOG_WARNING(&c,
+                        "%u: Failed to allocate new network buffer.. closing"
+                        " connection",
+                        c.getId());
+        }
+        c.setState(conn_closing);
+        return BufferLoan::Existing;
+    }
+
+    return BufferLoan::Allocated;
+}
+
+static BufferLoan conn_loan_single_buffer(McbpConnection* c,
+                                          struct net_buf* thread_buf,
+                                          struct net_buf* conn_buf) {
     /* Already have a (partial) buffer - nothing to do. */
     if (conn_buf->buf != NULL) {
         return BufferLoan::Existing;
@@ -552,10 +593,11 @@ static BufferLoan conn_loan_single_buffer(McbpConnection *c, struct net_buf *thr
              * other than terminate the current connection.
              */
             if (settings.getVerbose()) {
-                LOG_WARNING(c,
-                            "%u: Failed to allocate new read buffer.. closing"
-                                " connection",
-                            c->getId());
+                LOG_WARNING(
+                        c,
+                        "%u: Failed to allocate new network buffer.. closing"
+                        " connection",
+                        c->getId());
             }
             c->setState(conn_closing);
             return BufferLoan::Existing;
@@ -565,6 +607,31 @@ static BufferLoan conn_loan_single_buffer(McbpConnection *c, struct net_buf *thr
         conn_buf->bytes = 0;
         return BufferLoan::Allocated;
     }
+}
+
+/**
+ * Return an empty read buffer back to the owning worker thread.
+ */
+static void conn_return_single_buffer(McbpConnection& c,
+                                      std::unique_ptr<cb::Pipe>& thread_buf,
+                                      std::unique_ptr<cb::Pipe>& conn_buf) {
+    if (!conn_buf) {
+        // No buffer - nothing to do
+    }
+
+    if (conn_buf->empty()) {
+        // Buffer clean, dispose of it
+        if (thread_buf) {
+            // Already got a thread buffer.. release this one
+            conn_buf.reset();
+        } else {
+            conn_buf.swap(thread_buf);
+        }
+
+        return;
+    }
+
+    // Partial data exists; leave the buffer with the connection
 }
 
 /**
