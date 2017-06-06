@@ -24,6 +24,12 @@ void mc_time_init(struct event_base* ev_base);
 rel_time_t mc_time_get_current_time(void);
 
 /*
+ * Update a number of time keeping variables and account for system
+ * clock changes.
+ */
+void mc_time_clock_tick(void);
+
+/*
  * Convert a relative time value to an absolute time.
  *
  * Note that the following usage approximates gettimeofday()

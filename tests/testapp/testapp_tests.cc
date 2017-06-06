@@ -2155,7 +2155,7 @@ TEST_P(McdTestappTest, DCP_Control) {
 /*
     Using a memcached protocol extesnsion, shift the time
 */
-static void adjust_memcached_clock(uint64_t clock_shift) {
+static void adjust_memcached_clock(int64_t clock_shift, TimeType timeType) {
     union {
         protocol_binary_adjust_time request;
         protocol_binary_adjust_time_response response;
@@ -2164,9 +2164,10 @@ static void adjust_memcached_clock(uint64_t clock_shift) {
 
     size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                                   PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY,
-                                  NULL, 0, NULL, 0);
+                                  NULL, 0, NULL, 9);
 
     buffer.request.message.body.offset = htonll(clock_shift);
+    buffer.request.message.body.timeType = timeType;
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
@@ -2199,13 +2200,7 @@ static void test_expiry(const char* key, time_t expiry,
     mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    adjust_memcached_clock(clock_shift);
-
-#ifdef WIN32
-    Sleep((DWORD)(wait1 * 1000));
-#else
-    sleep(wait1);
-#endif
+    adjust_memcached_clock(clock_shift, TimeType::TimeOfDay);
 
     memset(send.bytes, 0, 1024);
     len = mcbp_raw_command(send.bytes, sizeof(send.bytes),

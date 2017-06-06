@@ -12,6 +12,7 @@
 #include "extensions/protocol_extension.h"
 
 static EXTENSION_BINARY_PROTOCOL_DESCRIPTOR descriptor;
+static SERVER_HANDLE_V1* server;
 
 static const char *get_name(void) {
     return "testapp protocol extension";
@@ -23,10 +24,16 @@ static ENGINE_ERROR_CODE handle_adjust_time(EXTENSION_BINARY_PROTOCOL_DESCRIPTOR
                                             protocol_binary_request_header *request,
                                             ADD_RESPONSE response) {
     auto *req = reinterpret_cast<protocol_binary_adjust_time*>(request);
-    uint64_t offset = ntohll(req->message.body.offset);
+    int64_t offset = ntohll(req->message.body.offset);
+    TimeType timeType = req->message.body.timeType;
 
     if (request->request.opcode == PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY) {
-        cb_set_timeofday_offset(offset);
+        if (timeType == TimeType::TimeOfDay) {
+            cb_set_timeofday_offset(offset);
+        } else if (timeType == TimeType::Uptime) {
+            cb_set_uptime_offset((uint64_t)offset);
+        }
+        server->core->trigger_tick();
     }
 
     if (!response(nullptr, 0, nullptr, 0, nullptr, 0,
@@ -48,7 +55,7 @@ static void setup(void (*add)(EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *descriptor,
 MEMCACHED_PUBLIC_API
 EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
                                                      GET_SERVER_API get_server_api) {
-    SERVER_HANDLE_V1 *server = get_server_api();
+    server = get_server_api();
     descriptor.get_name = get_name;
     descriptor.setup = setup;
 

@@ -56,7 +56,6 @@ static volatile uint64_t memcached_monotonic_start = 0;
 static struct event_base* main_ev_base = NULL;
 
 static void mc_time_clock_event_handler(evutil_socket_t fd, short which, void *arg);
-static void mc_time_clock_tick(void);
 static void mc_time_init_epoch(void);
 static void mc_gather_timing_samples(void);
 
@@ -165,13 +164,13 @@ static void mc_time_clock_event_handler(evutil_socket_t fd, short which, void *a
  * Update a number of time keeping variables and account for system
  * clock changes.
  */
-static void mc_time_clock_tick(void) {
+void mc_time_clock_tick(void) {
     static uint64_t check_system_time = 0;
     static bool previous_time_valid = false;
     static struct timeval previous_time = {0, 0};
 
     /* calculate our monotonic uptime */
-    memcached_uptime = (rel_time_t)(cb_get_monotonic_seconds() - memcached_monotonic_start);
+    memcached_uptime = (rel_time_t)(cb_get_monotonic_seconds() - memcached_monotonic_start + cb_get_uptime_offset());
 
     /* Collect samples */
     mc_gather_timing_samples();

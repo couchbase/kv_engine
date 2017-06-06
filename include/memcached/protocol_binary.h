@@ -2231,17 +2231,23 @@ typedef protocol_binary_response_no_extras
  */
 typedef protocol_binary_request_no_extras protocol_binary_request_get_keys;
 
+
+enum class TimeType : uint8_t {
+    TimeOfDay,
+    Uptime
+};
 /**
- * Definition of the packet used by adjust timeofday
+ * Definition of the packet used to adjust timeofday and memcached uptime
  */
 typedef union {
     struct {
         protocol_binary_request_header header;
         struct {
             uint64_t offset;
+            TimeType timeType;
         } body;
     } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 8];
+    uint8_t bytes[sizeof(protocol_binary_request_header) + sizeof(uint64_t) + sizeof(TimeType)];
 } protocol_binary_adjust_time;
 
 /**

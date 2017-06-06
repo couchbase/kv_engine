@@ -1990,6 +1990,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         core_api.parse_config = parse_config;
         core_api.shutdown = shutdown_server;
         core_api.get_max_item_iovec_size = get_max_item_iovec_size;
+        core_api.trigger_tick = mc_time_clock_tick;
 
         server_cookie_api.store_engine_specific = store_engine_specific;
         server_cookie_api.get_engine_specific = get_engine_specific;

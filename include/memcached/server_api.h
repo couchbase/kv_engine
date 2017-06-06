@@ -60,6 +60,11 @@ typedef struct {
      * within these limits.
      */
     size_t (*get_max_item_iovec_size)(void);
+
+    /**
+     * Trigger a tick of the clock
+     */
+    void (*trigger_tick)(void);
 } SERVER_CORE_API;
 
 typedef struct {
