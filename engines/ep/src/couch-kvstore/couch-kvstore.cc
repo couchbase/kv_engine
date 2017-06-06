@@ -1588,6 +1588,9 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
         st.io_read_bytes += docinfo->id.size;
     } else {
         Doc *doc = nullptr;
+        size_t valuelen = 0;
+        void* valuePtr = nullptr;
+        uint8_t extMeta = 0;
         errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc,
                                                    DECOMPRESS_DOC_BODIES);
         if (errCode == COUCHSTORE_SUCCESS) {
@@ -1602,10 +1605,9 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
                             + std::to_string(UINT16_MAX));
             }
 
-            size_t valuelen = doc->data.size;
-            void *valuePtr = doc->data.buf;
+            valuelen = doc->data.size;
+            valuePtr = doc->data.buf;
 
-            uint8_t extMeta = 0;
             if (metadata->getVersionInitialisedFrom() == MetaData::Version::V0) {
                 // This is a super old version of a couchstore file.
                 // Try to determine if the document is JSON or raw bytes
@@ -1613,40 +1615,44 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
             } else {
                 extMeta = metadata->getDataType();
             }
-
-            try {
-                // Collections: TODO: Restore to stored namespace
-                auto it = std::make_unique<Item>(
-                        makeDocKey(docinfo->id,
-                                   configuration.shouldPersistDocNamespace()),
-                        metadata->getFlags(),
-                        metadata->getExptime(),
-                        valuePtr,
-                        valuelen,
-                        &extMeta,
-                        EXT_META_LEN,
-                        metadata->getCas(),
-                        docinfo->db_seq,
-                        vbId,
-                        docinfo->rev_seq);
-
-                if (docinfo->deleted) {
-                    it->setDeleted();
-                }
-                docValue = GetValue(std::move(it));
-            } catch (std::bad_alloc&) {
-                couchstore_free_document(doc);
-                return COUCHSTORE_ERROR_ALLOC_FAIL;
-            }
-
-            // update ep-engine IO stats
-            ++st.io_num_read;
-            st.io_read_bytes += (docinfo->id.size + valuelen);
-
-            couchstore_free_document(doc);
+        } else if (errCode == COUCHSTORE_ERROR_DOC_NOT_FOUND && docinfo->deleted) {
+            extMeta = metadata->getDataType();
+        } else {
+            return errCode;
         }
+
+        try {
+            // Collections: TODO: Restore to stored namespace
+            auto it = std::make_unique<Item>(
+                            makeDocKey(docinfo->id,
+                                   configuration.shouldPersistDocNamespace()),
+                            metadata->getFlags(),
+                            metadata->getExptime(),
+                            valuePtr,
+                            valuelen,
+                            &extMeta,
+                            EXT_META_LEN,
+                            metadata->getCas(),
+                            docinfo->db_seq,
+                            vbId,
+                            docinfo->rev_seq);
+
+             if (docinfo->deleted) {
+                 it->setDeleted();
+             }
+             docValue = GetValue(std::move(it));
+        } catch (std::bad_alloc&) {
+            couchstore_free_document(doc);
+            return COUCHSTORE_ERROR_ALLOC_FAIL;
+        }
+
+        // update ep-engine IO stats
+        ++st.io_num_read;
+        st.io_read_bytes += (docinfo->id.size + valuelen);
+
+        couchstore_free_document(doc);
     }
-    return errCode;
+    return COUCHSTORE_SUCCESS;
 }
 
 int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {

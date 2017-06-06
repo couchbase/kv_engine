@@ -1084,6 +1084,8 @@ TEST_F(WithMetaTest, xattrPruneUserKeysOnDelete2) {
     MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
     store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
 
+    options = get_options_t(options & (~GET_DELETED_VALUE));
+
     // K/V is gone
     result = store->get(key, vbid, nullptr, options);
     EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus());
