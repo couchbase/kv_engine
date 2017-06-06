@@ -51,7 +51,9 @@ Item::Item(const DocKey& k,
         throw std::invalid_argument("Item(): bySeqno must be non-zero");
     }
     // Update the cached version of the datatype
-    getDataType();
+    if (haveExtMetaData()) {
+        datatype = value->getDataType();
+    }
 
     ObjectRegistry::onCreateItem(this);
 }
@@ -116,6 +118,7 @@ Item::Item(const Item& other, bool copyKeyOnly)
         setData(nullptr, 0, nullptr, 0);
     } else {
         value = other.value;
+        datatype = other.datatype;
     }
     ObjectRegistry::onCreateItem(this);
 }
