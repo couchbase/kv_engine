@@ -45,3 +45,6 @@
 /memcached*test
 /*_test
 .DS_Store
+/.cproject
+/.project
+/.settings/
