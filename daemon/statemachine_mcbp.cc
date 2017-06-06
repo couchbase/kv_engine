@@ -63,7 +63,7 @@ void McbpStateMachine::setCurrentTask(McbpConnection& connection, TaskFunction t
                                         getTaskName(task));
     }
 
-    if (task == conn_write || task == conn_mwrite) {
+    if (task == conn_mwrite) {
         if (connection.getStart() != 0) {
             mcbp_collect_timings(&connection);
             connection.setStart(0);
@@ -84,8 +84,6 @@ const char* McbpStateMachine::getTaskName(TaskFunction task) const {
         return "conn_read";
     } else if (task == conn_parse_cmd) {
         return "conn_parse_cmd";
-    } else if (task == conn_write) {
-        return "conn_write";
     } else if (task == conn_nread) {
         return "conn_nread";
     } else if (task == conn_execute) {
@@ -406,31 +404,17 @@ bool conn_nread(McbpConnection *c) {
     return true;
 }
 
-bool conn_write(McbpConnection *c) {
-    // conn_write is basically the same as conn_mwrite, except that we're not
-    // going to release any reserved items..
-    //
-    // @todo Trond, check why this is the case? From my understanding we
-    // should _ALWAYS_ empty the list of reserved items as part of completing
-    // transfer..
-    return conn_mwrite(c);
-}
-
 bool conn_mwrite(McbpConnection *c) {
     bool ret = true;
 
     switch (c->transmit()) {
     case McbpConnection::TransmitResult::Complete:
-
+        // Release all allocated resources
         c->releaseTempAlloc();
-        if (c->getState() == conn_mwrite) {
-            c->releaseReservedItems();
-        } else if (c->getState() != conn_write) {
-            LOG_WARNING(c, "%u: Unexpected state %d, closing",
-                        c->getId(), c->getState());
-            c->setState(conn_closing);
-            return true;
-        }
+        c->releaseReservedItems();
+
+        // We're done sending the response to the client. Enter the next
+        // state in the state machine
         c->setState(c->getWriteAndGo());
         break;
 
