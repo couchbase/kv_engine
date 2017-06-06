@@ -41,7 +41,6 @@ int try_read_mcbp_command(McbpConnection *c);
 
 void initialize_mbcp_lookup_map(void);
 
-void ship_mcbp_tap_log(McbpConnection* c);
 void ship_mcbp_dcp_log(McbpConnection* c);
 void setup_mcbp_lookup_cmd(
     EXTENSION_BINARY_PROTOCOL_DESCRIPTOR* descriptor,

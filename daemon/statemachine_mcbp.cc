@@ -193,7 +193,11 @@ bool conn_ship_log(McbpConnection *c) {
             if (c->isDCP()) {
                 ship_mcbp_dcp_log(c);
             } else {
-                ship_mcbp_tap_log(c);
+                LOG_WARNING(c,
+                            "%u: TAP no longer supported. Closing connection",
+                            c->getId());
+                c->setState(conn_closing);
+                return true;
             }
             if (c->isEwouldblock()) {
                 mask = EV_READ | EV_PERSIST;
