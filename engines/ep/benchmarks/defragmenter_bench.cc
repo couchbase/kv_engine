@@ -18,6 +18,7 @@
 #include "defragmenter_visitor.h"
 #include "tests/module_tests/defragmenter_test.h"
 #include "tests/module_tests/test_helpers.h"
+#include "vbucket.h"
 
 #include <gtest/gtest.h>
 #include <valgrind/valgrind.h>

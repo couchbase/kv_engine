@@ -19,6 +19,7 @@
 
 #include "daemon/alloc_hooks.h"
 #include "defragmenter_visitor.h"
+#include "vbucket.h"
 
 #include <valgrind/valgrind.h>
 

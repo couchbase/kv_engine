@@ -21,7 +21,9 @@
 
 #include "atomic.h"
 #include "hlc.h"
-#include "kv_bucket_iface.h"
+#include "vb_visitors.h"
+
+#include <array>
 
 class VBucket;
 

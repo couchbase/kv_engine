@@ -36,68 +36,13 @@ class PauseResumeEPStoreVisitor;
 class PersistenceCallback;
 class Producer;
 class VBucketMap;
+class VBucketVisitor;
 class Warmup;
 namespace Collections {
 class Manager;
 }
 
 using bgfetched_item_t = std::pair<StoredDocKey, const VBucketBGFetchItem*>;
-
-/**
- * vbucket-aware hashtable visitor.
- */
-class VBucketVisitor {
-public:
-    VBucketVisitor() = default;
-
-    VBucketVisitor(const VBucketFilter &filter)
-        : vBucketFilter(filter) { }
-
-    virtual ~VBucketVisitor() = default;
-
-    /**
-     * Begin visiting a bucket.
-     *
-     * @param vb the vbucket we are beginning to visit
-     */
-    virtual void visitBucket(VBucketPtr &vb) = 0;
-
-    const VBucketFilter &getVBucketFilter() {
-        return vBucketFilter;
-    }
-
-    /**
-     * Called after all vbuckets have been visited.
-     */
-    virtual void complete() { }
-
-    /**
-     * Return true if visiting vbuckets should be paused temporarily.
-     */
-    virtual bool pauseVisitor() {
-        return false;
-    }
-
-protected:
-    VBucketFilter vBucketFilter;
-};
-
-/**
- * Base class for visiting an epStore with pause/resume support.
- */
-class PauseResumeEPStoreVisitor {
-public:
-    virtual ~PauseResumeEPStoreVisitor() {}
-
-    /**
-     * Visit a hashtable within an epStore.
-     *
-     * @param vbucket_id ID of the vbucket being visited.
-     * @param ht a reference to the hashtable.
-     * @return True if visiting should continue, otherwise false.
-     */
-    virtual bool visit(uint16_t vbucket_id, HashTable& ht) = 0;
-};
 
 /**
  * This is the abstract base class that manages the bucket behavior in
@@ -541,7 +486,7 @@ public:
     /**
      * Run a vBucket visitor, visiting all items. Synchronous.
      */
-    virtual void visit(VBucketVisitor &visitor) = 0;
+    virtual void visit(VBucketVisitor& visitor) = 0;
 
     /**
      * Run a vbucket visitor with separate jobs per vbucket.

@@ -415,10 +415,7 @@ public:
     size_t visit(std::unique_ptr<VBucketVisitor> visitor,
                  const char* lbl,
                  TaskId id,
-                 double sleepTime = 0) {
-        return ExecutorPool::get()->schedule(std::make_shared<VBCBAdaptor>(
-                this, id, std::move(visitor), lbl, sleepTime));
-    }
+                 double sleepTime = 0);
 
     /**
      * Visit the items in this epStore, starting the iteration from the

@@ -29,8 +29,9 @@
 
 #include "logger.h"
 #include "statwriter.h"
-#include "vbucket.h"
 #include "utility.h"
+#include "vb_filter.h"
+#include "vbucket.h"
 
 // forward decl
 class ConnHandler;

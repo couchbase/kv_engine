@@ -2587,6 +2587,14 @@ void KVBucket::visit(VBucketVisitor &visitor)
     visitor.complete();
 }
 
+size_t KVBucket::visit(std::unique_ptr<VBucketVisitor> visitor,
+                       const char* lbl,
+                       TaskId id,
+                       double sleepTime) {
+    return ExecutorPool::get()->schedule(std::make_shared<VBCBAdaptor>(
+            this, id, std::move(visitor), lbl, sleepTime));
+}
+
 KVBucket::Position KVBucket::pauseResumeVisit(
                                             PauseResumeEPStoreVisitor& visitor,
                                             Position& start_pos)

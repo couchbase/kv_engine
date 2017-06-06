@@ -20,7 +20,7 @@
 #include "config.h"
 
 #include "ephemeral_vb.h"
-#include "kv_bucket_iface.h"
+#include "vb_visitors.h"
 
 /**
  * HashTable Tombstone Purger visitor

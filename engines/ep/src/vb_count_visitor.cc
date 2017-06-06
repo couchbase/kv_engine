@@ -17,6 +17,8 @@
 
 #include "vb_count_visitor.h"
 
+#include "vbucket.h"
+
 void VBucketCountVisitor::visitBucket(VBucketPtr& vb) {
     ++numVbucket;
     numItems += vb->getNumItems();

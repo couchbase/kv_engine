@@ -23,11 +23,13 @@
 #include <string>
 
 #include "globaltask.h"
-#include "kv_bucket_iface.h"
+#include "vb_visitors.h"
 
 #define DEFAULT_BACKFILL_SNOOZE_TIME 1.0
 
 class EventuallyPersistentEngine;
+class KVStore;
+class Producer;
 class TapConnMap;
 
 enum backfill_t {

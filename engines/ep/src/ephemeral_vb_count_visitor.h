@@ -15,9 +15,12 @@
  *   limitations under the License.
  */
 
-#include "vb_count_visitor.h"
+#pragma once
+
+#include "config.h"
 
 #include "ephemeral_vb.h"
+#include "vb_count_visitor.h"
 
 /**
  * vBucket visitor that counts statistics related to Ephemeral Buckets (both

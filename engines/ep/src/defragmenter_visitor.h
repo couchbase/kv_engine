@@ -15,10 +15,12 @@
  *   limitations under the License.
  */
 
-#ifndef DEFRAGMENTER_VISITOR_H_
-#define DEFRAGMENTER_VISITOR_H_
+#pragma once
 
-#include "kv_bucket_iface.h"
+#include "config.h"
+
+#include "hash_table.h"
+#include "vb_visitors.h"
 
 class ProgressTracker;
 
@@ -79,5 +81,3 @@ private:
     // How many documents have been visited.
     size_t visited_count;
 };
-
-#endif /* DEFRAGMENTER_VISITOR_H_ */

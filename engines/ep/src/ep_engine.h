@@ -24,7 +24,7 @@
 #include "storeddockey.h"
 #include "tapconnection.h"
 #include "taskable.h"
-#include "vbucket.h"
+#include "vb_visitors.h"
 
 #include <memcached/engine.h>
 #include <platform/processclock.h>
