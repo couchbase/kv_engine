@@ -82,26 +82,25 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
 
     datatype = connection.getEnabledDatatypes(datatype);
 
-    auto* rsp = reinterpret_cast<protocol_binary_response_get*>(connection.write.buf);
-
     uint16_t keylen = 0;
-    uint32_t bodylen = sizeof(rsp->message.body) + payload.len;
+    uint32_t bodylen = sizeof(info.flags) + payload.len;
 
     if (shouldSendKey()) {
         keylen = uint16_t(key.size());
         bodylen += keylen;
     }
 
+    // Set the CAS to add into the header
+    connection.setCAS(info.cas);
     mcbp_add_header(&connection,
                     PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                    sizeof(rsp->message.body),
+                    sizeof(info.flags),
                     keylen, bodylen, datatype);
 
-    rsp->message.header.response.cas = htonll(info.cas);
-    /* add the flags */
-    rsp->message.body.flags = info.flags;
-    connection.addIov(&rsp->message.body, sizeof(rsp->message.body));
+    // Add the flags
+    connection.addIov(&info.flags, sizeof(info.flags));
 
+    // Add the value
     if (shouldSendKey()) {
         connection.addIov(info.key, info.nkey);
     }

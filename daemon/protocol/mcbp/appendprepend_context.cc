@@ -184,13 +184,10 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
                                       &newItemInfo)) {
                 return ENGINE_FAILED;
             }
-            mutation_descr_t* const extras = (mutation_descr_t*)
-                (connection.write.buf +
-                 sizeof(protocol_binary_response_no_extras));
-            extras->vbucket_uuid = htonll(newItemInfo.vbucket_uuid);
-            extras->seqno = htonll(newItemInfo.seqno);
-            mcbp_write_response(&connection, extras, sizeof(*extras), 0,
-                                sizeof(*extras));
+            extras.vbucket_uuid = htonll(newItemInfo.vbucket_uuid);
+            extras.seqno = htonll(newItemInfo.seqno);
+            mcbp_write_response(&connection, &extras, sizeof(extras), 0,
+                                sizeof(extras));
         } else {
             mcbp_write_packet(&connection,
                               PROTOCOL_BINARY_RESPONSE_SUCCESS);

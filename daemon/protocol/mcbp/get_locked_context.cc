@@ -84,17 +84,16 @@ ENGINE_ERROR_CODE GetLockedCommandContext::sendResponse() {
 
     datatype = connection.getEnabledDatatypes(datatype);
 
-    auto* rsp = reinterpret_cast<protocol_binary_response_get*>(connection.write.buf);
-    const uint32_t bodylength = sizeof(rsp->message.body) + payload.len;
+    const uint32_t bodylength = sizeof(info.flags) + payload.len;
 
+    // Set the CAS to add into the header
+    connection.setCAS(info.cas);
     mcbp_add_header(&connection, PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                    sizeof(rsp->message.body), 0 /* keylength */, bodylength,
+                    sizeof(info.flags), 0 /* keylength */, bodylength,
                     datatype);
-    rsp->message.header.response.cas = htonll(info.cas);
-
-    /* add the flags */
-    rsp->message.body.flags = info.flags;
-    connection.addIov(&rsp->message.body, sizeof(rsp->message.body));
+    // Add the flags
+    connection.addIov(&info.flags, sizeof(info.flags));
+    // Add the value
     connection.addIov(payload.buf, payload.len);
     connection.setState(conn_mwrite);
 

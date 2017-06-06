@@ -110,19 +110,19 @@ ENGINE_ERROR_CODE GatCommandContext::sendResponse() {
     }
     datatype = connection.getEnabledDatatypes(datatype);
 
-    auto* rsp = reinterpret_cast<protocol_binary_response_gat*>(connection.write.buf);
-    uint32_t bodylen = sizeof(rsp->message.body) + payload.len;
+    uint32_t bodylen = sizeof(info.flags) + payload.len;
+    // Set the CAS to add into the header
+    connection.setCAS(info.cas);
     mcbp_add_header(&connection,
                     PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                    sizeof(rsp->message.body),
+                    sizeof(info.flags),
                     0, // no key
                     bodylen,
                     datatype);
 
-    rsp->message.header.response.cas = htonll(info.cas);
-    /* add the flags */
-    rsp->message.body.flags = info.flags;
-    connection.addIov(&rsp->message.body, sizeof(rsp->message.body));
+    // Add the flags
+    connection.addIov(&info.flags, sizeof(info.flags));
+    // Add the value
     connection.addIov(payload.buf, payload.len);
     connection.setState(conn_mwrite);
     cb::audit::document::add(connection, cb::audit::document::Operation::Read);

@@ -109,4 +109,11 @@ private:
     cb::compression::Buffer buffer;
     cb::compression::Buffer inputbuffer;
     State state;
+
+    // The extras section is used as a buffer to hold extra meta information
+    // about the mutation while it is being sent back to the client iff the
+    // client requested them (as the context object have the same lifetime
+    // as the command). They're stored in network byte order in this
+    // member variable.
+    mutation_descr_t extras = {};
 };
