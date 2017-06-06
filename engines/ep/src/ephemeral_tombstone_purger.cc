@@ -80,7 +80,7 @@ bool EphTombstonePurgerTask::run() {
         return false;
     }
 
-    LOG(EXTENSION_LOG_NOTICE,
+    LOG(EXTENSION_LOG_INFO,
         "%s starting with purge age:%" PRIu64,
         to_string(getDescription()).c_str(),
         uint64_t(getDeletedPurgeAge()));
@@ -94,7 +94,7 @@ bool EphTombstonePurgerTask::run() {
     auto duration_ms =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-    LOG(EXTENSION_LOG_NOTICE,
+    LOG(EXTENSION_LOG_INFO,
         "%s completed. Purged %" PRIu64 " items. Took %" PRIu64
         "ms. Sleeping for %" PRIu64 " seconds.",
         to_string(getDescription()).c_str(),
