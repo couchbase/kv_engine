@@ -475,7 +475,11 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll)
 
 BasicLinkedList::RangeIteratorLL::~RangeIteratorLL() {
     std::lock_guard<SpinLock> lh(list.rangeLock);
-    list.readRange.reset();
+    if (readLockHolder.owns_lock()) {
+        /* we must reset the list readRange only if the list iterator still owns
+           the read lock on the list */
+        list.readRange.reset();
+    }
     /* As readLockHolder goes out of scope here, it will automatically release
        the snapshot read lock on the linked list */
 }
@@ -507,7 +511,9 @@ operator++() {
        the last element indicates the end of the iteration */
     if (curr() == itrRange.getEnd() - 1) {
         std::lock_guard<SpinLock> lh(list.rangeLock);
-        /* Release snapshot read lock on the linked list */
+        /* We reset the range and release the readRange lock here so that any
+           iterator client that does not delete the iterator obj will not end up
+           holding the list readRange lock forever */
         list.readRange.reset();
         readLockHolder.unlock();
 

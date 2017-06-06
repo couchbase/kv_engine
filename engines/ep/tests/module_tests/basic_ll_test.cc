@@ -648,6 +648,43 @@ TEST_F(BasicLinkedListTest, RangeIteratorUpdateItemDuringRead) {
     }
 }
 
+/* Creates 2 range iterators such that iterator2 is created after iterator1
+   has read all items, and has hence released the rangeReadLock, but before
+   iterator1 is deleted */
+TEST_F(BasicLinkedListTest, MultipleRangeIterator_MB24474) {
+    const int numItems = 3;
+    const std::string keyPrefix("key");
+
+    /* Add 3 items */
+    std::vector<seqno_t> expectedSeqno =
+            addNewItemsToList(1, keyPrefix, numItems);
+
+    /* Create a 'RangeIterator' on the heap so that it can be deleted before
+       the function scope ends */
+    auto itr1 = std::make_unique<SequenceList::RangeIterator>(
+            basicLL->makeRangeIterator());
+
+    /* Read all items */
+    std::vector<seqno_t> actualSeqno;
+    for (; itr1->curr() != itr1->end(); ++(*itr1)) {
+        actualSeqno.push_back((**itr1).getBySeqno());
+    }
+    EXPECT_EQ(expectedSeqno, actualSeqno);
+
+    /* Create another 'RangeIterator' after all items are read from itr1, but
+       before itr1 is deleted */
+    auto itr2 = basicLL->makeRangeIterator();
+    itr1.reset();
+
+    /* Now read the items after itr1 is deleted */
+    actualSeqno.clear();
+    while (itr2.curr() != itr2.end()) {
+        actualSeqno.push_back((*itr2).getBySeqno());
+        ++itr2;
+    }
+    EXPECT_EQ(expectedSeqno, actualSeqno);
+}
+
 TEST_F(BasicLinkedListTest, RangeReadStopsOnInvalidSeqno) {
     /* MB-24376: rangeRead has to stop if it encounters an OSV with a seqno of
      * -1; this item is definitely past the end of the rangeRead, and has not
