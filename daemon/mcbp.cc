@@ -146,8 +146,7 @@ void mcbp_write_and_free(McbpConnection* c, DynamicBuffer* buf) {
             c->setState(conn_closing);
             return;
         }
-        c->write.curr = buf->getRoot();
-        c->write.bytes = (uint32_t)buf->getOffset();
+        c->addIov(buf->getRoot(), buf->getOffset());
         c->setState(conn_write);
         c->setWriteAndGo(conn_new_cmd);
 

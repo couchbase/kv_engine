@@ -407,15 +407,12 @@ bool conn_nread(McbpConnection *c) {
 }
 
 bool conn_write(McbpConnection *c) {
-    /*
-     * We want to write out a simple response. If we haven't already,
-     * assemble it into a msgbuf list (this will be a single-entry
-     * list for TCP).
-     */
-    if (c->getIovUsed() == 0) {
-        c->addIov(c->write.curr, c->write.bytes);
-    }
-
+    // conn_write is basically the same as conn_mwrite, except that we're not
+    // going to release any reserved items..
+    //
+    // @todo Trond, check why this is the case? From my understanding we
+    // should _ALWAYS_ empty the list of reserved items as part of completing
+    // transfer..
     return conn_mwrite(c);
 }
 
