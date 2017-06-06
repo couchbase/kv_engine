@@ -43,6 +43,7 @@ public:
               vbucket_state_t initState = vbucket_state_dead,
               uint64_t purgeSeqno = 0,
               uint64_t maxCas = 0,
+              int64_t hlcEpochSeqno = HlcCasSeqnoUninitialised,
               const std::string& collectionsManifest = "");
 
     ~EPVBucket();

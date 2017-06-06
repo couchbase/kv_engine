@@ -63,6 +63,12 @@ protected:
 
     void cancelAndPurgeTasks();
 
+    /**
+     * This method will keep running reader tasks until the engine shows warmup
+     * is complete.
+     */
+    void runReadersUntilWarmedUp();
+
     /*
      * Fake callback emulating dcp_add_failover_log
      */

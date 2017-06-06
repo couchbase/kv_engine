@@ -57,8 +57,11 @@ void KVBucketTest::SetUp() {
         }
     }
 
+    initialise(config_string);
+}
+
+void KVBucketTest::initialise(std::string config) {
     // Add dbname to config string.
-    std::string config = config_string;
     if (config.size() > 0) {
         config += ";";
     }
@@ -86,17 +89,25 @@ void KVBucketTest::SetUp() {
 }
 
 void KVBucketTest::TearDown() {
-    destroy_mock_cookie(cookie);
-    destroy_mock_event_callbacks();
-    engine->getDcpConnMap().manageConnections();
-    ObjectRegistry::onSwitchThread(nullptr);
-    engine.reset();
-
+    destroy();
     // Shutdown the ExecutorPool singleton (initialized when we create
     // an EPBucket object). Must happen after engine
     // has been destroyed (to allow the tasks the engine has
     // registered a chance to be unregistered).
     ExecutorPool::shutdown();
+}
+
+void KVBucketTest::destroy() {
+    destroy_mock_cookie(cookie);
+    destroy_mock_event_callbacks();
+    engine->getDcpConnMap().manageConnections();
+    ObjectRegistry::onSwitchThread(nullptr);
+    engine.reset();
+}
+
+void KVBucketTest::reinitialise(std::string config) {
+    destroy();
+    initialise(config);
 }
 
 Item KVBucketTest::store_item(uint16_t vbid,
@@ -573,6 +584,41 @@ TEST_P(KVBucketParamTest, mb22824) {
 
     // Should be getting the same CAS from the failed delete as getMetaData
     EXPECT_EQ(itemMeta1.cas, itemMeta2.cas);
+}
+
+/**
+ *  Test that the first item updates the hlcSeqno, but not the second
+ */
+TEST_P(KVBucketParamTest, test_hlcEpochSeqno) {
+    auto vb = store->getVBucket(vbid);
+
+    // A persistent bucket will store something then set the hlc_epoch
+    // An ephemeral bucket always has an epoch
+    int64_t initialEpoch =
+            engine->getConfiguration().getBucketType() == "persistent"
+                    ? HlcCasSeqnoUninitialised
+                    : 0;
+
+    EXPECT_EQ(initialEpoch, vb->getHLCEpochSeqno());
+    auto item = make_item(vbid, makeStoredDocKey("key1"), "value");
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item, nullptr));
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        // Trigger a flush to disk.
+        flush_vbucket_to_disk(vbid);
+    }
+
+    auto seqno = vb->getHLCEpochSeqno();
+    EXPECT_NE(HlcCasSeqnoUninitialised, seqno);
+
+    auto item2 = make_item(vbid, makeStoredDocKey("key2"), "value");
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item2, nullptr));
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        // Trigger a flush to disk.
+        flush_vbucket_to_disk(vbid);
+    }
+
+    // hlc seqno doesn't change was more items are stored
+    EXPECT_EQ(seqno, vb->getHLCEpochSeqno());
 }
 
 TEST_F(KVBucketTest, DataRaceInDoWorkerStat) {

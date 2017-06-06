@@ -51,12 +51,14 @@ public:
 
     /*
      * @param initHLC a HLC value to start from
+     * @param epochSeqno the first seqno which has a HLC generated CAS
      * @param aheadThresholdAhead threshold a peer can be ahead before we
      *        increment driftAheadExceeded. Expressed in us.
      * @param behindThresholdhreshold a peer can be ahead before we
      *        increment driftBehindExceeded. Expressed in us.
      */
     HLC(uint64_t initHLC,
+        int64_t epochSeqno,
         std::chrono::microseconds aheadThreshold,
         std::chrono::microseconds behindThreshold)
         : maxHLC(initHLC),
@@ -64,7 +66,8 @@ public:
           cummulativeDriftIncrements(0),
           logicalClockTicks(0),
           driftAheadExceeded(0),
-          driftBehindExceeded(0) {
+          driftBehindExceeded(0),
+          epochSeqno(epochSeqno) {
         setDriftAheadThreshold(aheadThreshold);
         setDriftBehindThreshold(behindThreshold);
     }
@@ -158,6 +161,14 @@ public:
 
     void resetStats();
 
+    int64_t getEpochSeqno() const {
+        return epochSeqno;
+    }
+
+    void setEpochSeqno(int64_t seqno) {
+        epochSeqno = seqno;
+    }
+
 private:
     /*
      * Returns 48-bit of t (bottom 16-bit zero)
@@ -190,4 +201,9 @@ private:
     std::atomic<uint32_t> driftBehindExceeded;
     std::atomic<uint64_t> driftAheadThreshold;
     std::atomic<uint64_t> driftBehindThreshold;
+
+    /**
+     * Documents with a seqno >= epochSeqno have a HLC generated CAS.
+     */
+    int64_t epochSeqno;
 };

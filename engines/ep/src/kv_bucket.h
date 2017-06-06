@@ -98,6 +98,16 @@ public:
     bool initialize();
 
     /**
+     * Creates a warmup task if the engine configuration has "warmup=true"
+     */
+    void initializeWarmupTask();
+
+    /**
+     * Starts the warmup task if one is present
+     */
+    void startWarmupTask();
+
+    /**
      * Stop tasks started in initialize()
      */
     void deinitialize();
@@ -748,6 +758,7 @@ public:
             uint64_t lastSnapEnd = 0,
             uint64_t purgeSeqno = 0,
             uint64_t maxCas = 0,
+            int64_t hlcEpochSeqno = HlcCasSeqnoUninitialised,
             const std::string& collectionsManifest = "") = 0;
 
     /**

@@ -2059,6 +2059,7 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db *db, uint16_t vbId) {
     uint64_t lastSnapStart = 0;
     uint64_t lastSnapEnd = 0;
     uint64_t maxCas = 0;
+    int64_t hlcCasEpochSeqno = HlcCasSeqnoUninitialised;
 
     DbInfo info;
     errCode = couchstore_db_info(db, &info);
@@ -2110,6 +2111,8 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db *db, uint16_t vbId) {
                                 cJSON_GetObjectItem(jsonObj, "snap_end"));
         const std::string maxCasValue = getJSONObjString(
                                 cJSON_GetObjectItem(jsonObj, "max_cas"));
+        const std::string hlcCasEpoch =
+                getJSONObjString(cJSON_GetObjectItem(jsonObj, "hlc_epoch"));
         cJSON *failover_json = cJSON_GetObjectItem(jsonObj, "failover_table");
         if (vb_state.compare("") == 0 || checkpoint_id.compare("") == 0
                 || max_deleted_seqno.compare("") == 0) {
@@ -2151,6 +2154,10 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db *db, uint16_t vbId) {
                 }
             }
 
+            if (!hlcCasEpoch.empty()) {
+                parseInt64(hlcCasEpoch.c_str(), &hlcCasEpochSeqno);
+            }
+
             if (failover_json) {
                 char* json = cJSON_PrintUnformatted(failover_json);
                 failovers.assign(json);
@@ -2162,10 +2169,16 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db *db, uint16_t vbId) {
     }
 
     delete cachedVBStates[vbId];
-    cachedVBStates[vbId] = new vbucket_state(state, checkpointId,
-                                             maxDeletedSeqno, highSeqno,
-                                             purgeSeqno, lastSnapStart,
-                                             lastSnapEnd, maxCas, failovers);
+    cachedVBStates[vbId] = new vbucket_state(state,
+                                             checkpointId,
+                                             maxDeletedSeqno,
+                                             highSeqno,
+                                             purgeSeqno,
+                                             lastSnapStart,
+                                             lastSnapEnd,
+                                             maxCas,
+                                             hlcCasEpochSeqno,
+                                             failovers);
 
     return couchErr2EngineErr(errCode);
 }
@@ -2181,6 +2194,7 @@ couchstore_error_t CouchKVStore::saveVBState(Db *db,
               << ",\"snap_start\": \"" << vbState.lastSnapStart << "\""
               << ",\"snap_end\": \"" << vbState.lastSnapEnd << "\""
               << ",\"max_cas\": \"" << vbState.maxCas << "\""
+              << ",\"hlc_epoch\": \"" << vbState.hlcCasEpochSeqno << "\""
               << "}";
 
     LocalDoc lDoc;

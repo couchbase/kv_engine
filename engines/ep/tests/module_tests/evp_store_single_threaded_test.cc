@@ -28,6 +28,7 @@
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/test_task.h"
 
+#include <libcouchstore/couch_db.h>
 #include <string_utilities.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
@@ -121,6 +122,13 @@ void SingleThreadedKVBucketTest::cancelAndPurgeTasks() {
         runTasks(*task_executor->getLpTaskQ()[t]);
         task_executor->stopTaskGroup(engine->getTaskable().getGID(), t,
                                      engine->getEpStats().forceShutdown);
+    }
+}
+
+void SingleThreadedKVBucketTest::runReadersUntilWarmedUp() {
+    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    while (engine->getKVBucket()->isWarmingUp()) {
+        runNextTask(readerQueue);
     }
 }
 
@@ -1130,4 +1138,99 @@ TEST_F(SingleThreadedEPBucketTest, pre_expiry_xattrs) {
     EXPECT_EQ(prev_revseqno + 1, metadata.revSeqno) <<
              "Unexpected revision sequence number";
 
+}
+
+class WarmupHLCEpochTest : public SingleThreadedKVBucketTest {
+public:
+    /**
+     * Test is currently using couchstore API directly to make the VB appear old
+     */
+    static void rewriteVBStateAs25x(uint16_t vbucket) {
+        std::string filename = std::string(test_dbname) + "/" +
+                               std::to_string(vbucket) + ".couch.1";
+        Db* handle;
+        couchstore_error_t err = couchstore_open_db(
+                filename.c_str(), COUCHSTORE_OPEN_FLAG_CREATE, &handle);
+
+        ASSERT_EQ(COUCHSTORE_SUCCESS, err) << "Failed to open new database";
+
+        // Create a 2.5 _local/vbstate
+        std::string vbstate2_5_x =
+                "{\"state\": \"active\","
+                " \"checkpoint_id\": \"1\","
+                " \"max_deleted_seqno\": \"0\"}";
+        LocalDoc vbstate;
+        vbstate.id.buf = (char*)"_local/vbstate";
+        vbstate.id.size = sizeof("_local/vbstate") - 1;
+        vbstate.json.buf = (char*)vbstate2_5_x.c_str();
+        vbstate.json.size = vbstate2_5_x.size();
+        vbstate.deleted = 0;
+
+        err = couchstore_save_local_document(handle, &vbstate);
+        ASSERT_EQ(COUCHSTORE_SUCCESS, err) << "Failed to write local document";
+        couchstore_commit(handle);
+        couchstore_close_file(handle);
+        couchstore_free_db(handle);
+    }
+
+    /**
+     * Destroy engine and replace it with a new engine that can be warmed up.
+     * Finally, run warmup.
+     */
+    void resetEngineAndWarmup() {
+        shutdownAndPurgeTasks();
+        std::string config = config_string;
+
+        // check if warmup=false needs replacing with warmup=true
+        size_t pos;
+        std::string warmupT = "warmup=true";
+        std::string warmupF = "warmup=false";
+        if ((pos = config.find(warmupF)) != std::string::npos) {
+            config.replace(pos, warmupF.size(), warmupT);
+        } else {
+            config += warmupT;
+        }
+
+        reinitialise(config);
+
+        engine->getKVBucket()->initializeWarmupTask();
+        engine->getKVBucket()->startWarmupTask();
+
+        // Now get the engine warmed up
+        runReadersUntilWarmedUp();
+    }
+};
+
+TEST_F(WarmupHLCEpochTest, warmup) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Store an item, then make the VB appear old ready for warmup
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    flush_vbucket_to_disk(vbid);
+    rewriteVBStateAs25x(vbid);
+
+    resetEngineAndWarmup();
+
+    {
+        auto vb = engine->getKVBucket()->getVBucket(vbid);
+        // We've warmed up from a down-level vbstate, so expect epoch to be
+        // HlcCasSeqnoUninitialised
+        ASSERT_EQ(HlcCasSeqnoUninitialised, vb->getHLCEpochSeqno());
+
+        // Store a new key, the flush will change hlc_epoch to be the next seqno
+        // (2)
+        store_item(vbid, makeStoredDocKey("key2"), "value");
+        flush_vbucket_to_disk(vbid);
+
+        EXPECT_EQ(2, vb->getHLCEpochSeqno());
+
+        // Store a 3rd item
+        store_item(vbid, makeStoredDocKey("key3"), "value");
+        flush_vbucket_to_disk(vbid);
+    }
+
+    // Warmup again, hlcEpoch will still be 2
+    resetEngineAndWarmup();
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    EXPECT_EQ(2, vb->getHLCEpochSeqno());
 }

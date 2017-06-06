@@ -57,6 +57,7 @@ EphemeralVBucket::EphemeralVBucket(id_type i,
               initState,
               purgeSeqno,
               maxCas,
+              0, // Every item in ephemeral has a HLC cas
               collectionsManifest),
       seqList(std::make_unique<BasicLinkedList>(i, st)),
       backfillType(BackfillType::None) {

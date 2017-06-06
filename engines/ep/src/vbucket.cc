@@ -150,6 +150,7 @@ VBucket::VBucket(id_type i,
                  vbucket_state_t initState,
                  uint64_t purgeSeqno,
                  uint64_t maxCas,
+                 int64_t hlcEpochSeqno,
                  const std::string& collectionsManifest)
     : ht(st, std::move(valFact), config.getHtSize(), config.getHtLocks()),
       checkpointManager(st,
@@ -185,6 +186,7 @@ VBucket::VBucket(id_type i,
       persisted_snapshot_end(lastSnapEnd),
       rollbackItemCount(0),
       hlc(maxCas,
+          hlcEpochSeqno,
           std::chrono::microseconds(config.getHlcDriftAheadThresholdUs()),
           std::chrono::microseconds(config.getHlcDriftBehindThresholdUs())),
       statPrefix("vb_" + std::to_string(i)),
@@ -305,10 +307,15 @@ vbucket_state VBucket::getVBucketState() const {
      auto persisted_range = getPersistedSnapshot();
 
      return vbucket_state{getState(),
-                          getPersistenceCheckpointId(), 0, getHighSeqno(),
+                          getPersistenceCheckpointId(),
+                          0,
+                          getHighSeqno(),
                           getPurgeSeqno(),
-                          persisted_range.start, persisted_range.end,
-                          getMaxCas(), failovers->toJSON()};
+                          persisted_range.start,
+                          persisted_range.end,
+                          getMaxCas(),
+                          hlc.getEpochSeqno(),
+                          failovers->toJSON()};
 }
 
 

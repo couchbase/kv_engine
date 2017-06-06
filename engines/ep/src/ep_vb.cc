@@ -43,6 +43,7 @@ EPVBucket::EPVBucket(id_type i,
                      vbucket_state_t initState,
                      uint64_t purgeSeqno,
                      uint64_t maxCas,
+                     int64_t hlcEpochSeqno,
                      const std::string& collectionsManifest)
     : VBucket(i,
               newState,
@@ -60,6 +61,7 @@ EPVBucket::EPVBucket(id_type i,
               initState,
               purgeSeqno,
               maxCas,
+              hlcEpochSeqno,
               collectionsManifest),
       multiBGFetchEnabled(kvshard
                                   ? kvshard->getROUnderlying()

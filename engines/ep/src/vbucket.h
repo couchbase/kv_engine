@@ -136,6 +136,7 @@ public:
             vbucket_state_t initState = vbucket_state_dead,
             uint64_t purgeSeqno = 0,
             uint64_t maxCas = 0,
+            int64_t hlcEpochSeqno = HlcCasSeqnoUninitialised,
             const std::string& collectionsManifest = "");
 
     virtual ~VBucket();
@@ -201,6 +202,28 @@ public:
 
     void setHLCDriftBehindThreshold(std::chrono::microseconds threshold) {
         hlc.setDriftBehindThreshold(threshold);
+    }
+
+    /**
+     * @returns a seqno, documents with a seqno >= the returned value have a HLC
+     * generated CAS. Can return HlcCasSeqnoUninitialised if warmup has not
+     * established or nothing is persisted
+     */
+    int64_t getHLCEpochSeqno() const {
+        return hlc.getEpochSeqno();
+    }
+
+    /**
+     * Set the seqno to be used to establish if an item has a HLC generated CAS.
+     * @param seqno the value to store in the vbucket
+     * @throws if an attempt to set to < 0
+     */
+    void setHLCEpochSeqno(int64_t seqno) {
+        if (seqno < 0) {
+            throw std::invalid_argument("VBucket::setHLCEpochSeqno(" +
+                                        std::to_string(seqno) + ") seqno < 0 ");
+        }
+        hlc.setEpochSeqno(seqno);
     }
 
     bool isTakeoverBackedUp() {

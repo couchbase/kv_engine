@@ -117,6 +117,7 @@ bool KVStore::updateCachedVBState(uint16_t vbid, const vbucket_state& newState) 
         vbState->lastSnapStart = newState.lastSnapStart;
         vbState->lastSnapEnd = newState.lastSnapEnd;
         vbState->maxCas = std::max(vbState->maxCas, newState.maxCas);
+        vbState->hlcCasEpochSeqno = newState.hlcCasEpochSeqno;
     } else {
         cachedVBStates[vbid] = new vbucket_state(newState);
         if (cachedVBStates[vbid]->state != vbucket_state_dead) {

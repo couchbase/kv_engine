@@ -112,3 +112,8 @@ enum class HighPriorityVBReqStatus {
     RequestScheduled,
     RequestNotScheduled
 };
+
+/**
+ * Value of vbucket's hlc seqno epoch before any data is stored
+ */
+const int64_t HlcCasSeqnoUninitialised = -1;

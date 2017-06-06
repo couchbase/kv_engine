@@ -106,6 +106,12 @@ public:
     void initializeExpiryPager();
 
     /**
+     * Effectively shutdown/restart. This destroys the test engine/store/cookie
+     * and re-creates them.
+     */
+    void reinitialise(std::string config);
+
+    /**
      * Create a *_with_meta packet with the key/body
      * Allows *_with_meta to be invoked via EventuallyPersistentEngine which
      * begins with a packet
@@ -141,6 +147,18 @@ public:
 
     static const char test_dbname[];
 
+private:
+    /**
+     * Initialise test objects - e.g. engine/store/cookie
+     */
+    void initialise(std::string config);
+
+    /**
+     * Destroy the test objects - e.g. engine/store/cookie
+     */
+    void destroy();
+
+public:
     std::string config_string;
 
     const uint16_t vbid = 0;

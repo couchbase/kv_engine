@@ -219,17 +219,18 @@ ENGINE_ERROR_CODE EPBucket::getPerVBucketDiskStats(const void* cookie,
 }
 
 VBucketPtr EPBucket::makeVBucket(VBucket::id_type id,
-                                     vbucket_state_t state,
-                                     KVShard* shard,
-                                     std::unique_ptr<FailoverTable> table,
-                                     NewSeqnoCallback newSeqnoCb,
-                                     vbucket_state_t initState,
-                                     int64_t lastSeqno,
-                                     uint64_t lastSnapStart,
-                                     uint64_t lastSnapEnd,
-                                     uint64_t purgeSeqno,
-                                     uint64_t maxCas,
-                                     const std::string& collectionsManifest) {
+                                 vbucket_state_t state,
+                                 KVShard* shard,
+                                 std::unique_ptr<FailoverTable> table,
+                                 NewSeqnoCallback newSeqnoCb,
+                                 vbucket_state_t initState,
+                                 int64_t lastSeqno,
+                                 uint64_t lastSnapStart,
+                                 uint64_t lastSnapEnd,
+                                 uint64_t purgeSeqno,
+                                 uint64_t maxCas,
+                                 int64_t hlcEpochSeqno,
+                                 const std::string& collectionsManifest) {
     auto flusherCb = std::make_shared<NotifyFlusherCB>(shard);
     // Not using make_shared or allocate_shared
     // 1. make_shared doesn't accept a Deleter
@@ -251,6 +252,7 @@ VBucketPtr EPBucket::makeVBucket(VBucket::id_type id,
                                     initState,
                                     purgeSeqno,
                                     maxCas,
+                                    hlcEpochSeqno,
                                     collectionsManifest),
                       VBucket::DeferredDeleter(engine));
 }

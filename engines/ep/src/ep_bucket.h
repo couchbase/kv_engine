@@ -70,17 +70,18 @@ public:
      * Creates a VBucket object.
      */
     VBucketPtr makeVBucket(VBucket::id_type id,
-                               vbucket_state_t state,
-                               KVShard* shard,
-                               std::unique_ptr<FailoverTable> table,
-                               NewSeqnoCallback newSeqnoCb,
-                               vbucket_state_t initState,
-                               int64_t lastSeqno,
-                               uint64_t lastSnapStart,
-                               uint64_t lastSnapEnd,
-                               uint64_t purgeSeqno,
-                               uint64_t maxCas,
-                               const std::string& collectionsManifest) override;
+                           vbucket_state_t state,
+                           KVShard* shard,
+                           std::unique_ptr<FailoverTable> table,
+                           NewSeqnoCallback newSeqnoCb,
+                           vbucket_state_t initState,
+                           int64_t lastSeqno,
+                           uint64_t lastSnapStart,
+                           uint64_t lastSnapEnd,
+                           uint64_t purgeSeqno,
+                           uint64_t maxCas,
+                           int64_t hlcEpochSeqno,
+                           const std::string& collectionsManifest) override;
 
     ENGINE_ERROR_CODE statsVKey(const DocKey& key,
                                 uint16_t vbucket,

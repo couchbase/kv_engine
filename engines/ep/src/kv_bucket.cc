@@ -458,9 +458,7 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     config.addValueChangedListener("dcp_min_compression_ratio",
                                    new EPStoreValueChangeListener(*this));
 
-    if (config.isWarmup()) {
-        warmupTask = std::make_unique<Warmup>(*this, config);
-    }
+    initializeWarmupTask();
 }
 
 bool KVBucket::initialize() {
@@ -470,12 +468,7 @@ bool KVBucket::initialize() {
         reset();
     }
 
-    if (warmupTask) {
-        warmupTask->start();
-    } else {
-        // No warmup, immediately online the bucket.
-        warmupCompleted();
-    }
+    startWarmupTask();
 
     // Always create the item pager; but leave scheduling up to the specific
     // KVBucket subclasses.
@@ -504,6 +497,21 @@ bool KVBucket::initialize() {
 #endif
 
     return true;
+}
+
+void KVBucket::initializeWarmupTask() {
+    if (engine.getConfiguration().isWarmup()) {
+        warmupTask = std::make_unique<Warmup>(*this, engine.getConfiguration());
+    }
+}
+
+void KVBucket::startWarmupTask() {
+    if (warmupTask) {
+        warmupTask->start();
+    } else {
+        // No warmup, immediately online the bucket.
+        warmupCompleted();
+    }
 }
 
 void KVBucket::deinitialize() {
@@ -2158,6 +2166,15 @@ int KVBucket::flushVBucket(uint16_t vbid) {
                 // (which will persisted as part of the commit() below).
                 vbstate.lastSnapStart = range.start;
                 vbstate.lastSnapEnd = range.end;
+
+                // Track the lowest seqno written in spock and record it as
+                // the HLC epoch, a seqno which we can be sure the value has a
+                // HLC CAS.
+                vbstate.hlcCasEpochSeqno = vb->getHLCEpochSeqno();
+                if (vbstate.hlcCasEpochSeqno == HlcCasSeqnoUninitialised) {
+                    vbstate.hlcCasEpochSeqno = range.start;
+                    vb->setHLCEpochSeqno(range.start);
+                }
 
                 // Do we need to trigger a persist of the state?
                 // If there are no "real" items to flush, and we encountered

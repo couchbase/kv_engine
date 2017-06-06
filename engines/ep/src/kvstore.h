@@ -115,33 +115,29 @@ public:
 };
 
 struct vbucket_state {
-    vbucket_state() = default;
+    vbucket_state() : hlcCasEpochSeqno(HlcCasSeqnoUninitialised) {
+    }
 
-    vbucket_state(vbucket_state_t _state, uint64_t _chkid,
-                  uint64_t _maxDelSeqNum, int64_t _highSeqno,
-                  uint64_t _purgeSeqno, uint64_t _lastSnapStart,
-                  uint64_t _lastSnapEnd, uint64_t _maxCas,
-                  std::string _failovers) :
-        state(_state),
-        checkpointId(_chkid),
-        maxDeletedSeqno(_maxDelSeqNum),
-        highSeqno(_highSeqno),
-        purgeSeqno(_purgeSeqno),
-        lastSnapStart(_lastSnapStart),
-        lastSnapEnd(_lastSnapEnd),
-        maxCas(_maxCas),
-        failovers(std::move(_failovers)) { }
-
-    vbucket_state(const vbucket_state& vbstate) {
-        state = vbstate.state;
-        checkpointId = vbstate.checkpointId;
-        maxDeletedSeqno = vbstate.maxDeletedSeqno;
-        highSeqno = vbstate.highSeqno;
-        failovers.assign(vbstate.failovers);
-        purgeSeqno = vbstate.purgeSeqno;
-        lastSnapStart = vbstate.lastSnapStart;
-        lastSnapEnd = vbstate.lastSnapEnd;
-        maxCas = vbstate.maxCas;
+    vbucket_state(vbucket_state_t _state,
+                  uint64_t _chkid,
+                  uint64_t _maxDelSeqNum,
+                  int64_t _highSeqno,
+                  uint64_t _purgeSeqno,
+                  uint64_t _lastSnapStart,
+                  uint64_t _lastSnapEnd,
+                  uint64_t _maxCas,
+                  int64_t _hlcCasEpochSeqno,
+                  std::string _failovers)
+        : state(_state),
+          checkpointId(_chkid),
+          maxDeletedSeqno(_maxDelSeqNum),
+          highSeqno(_highSeqno),
+          purgeSeqno(_purgeSeqno),
+          lastSnapStart(_lastSnapStart),
+          lastSnapEnd(_lastSnapEnd),
+          maxCas(_maxCas),
+          hlcCasEpochSeqno(_hlcCasEpochSeqno),
+          failovers(std::move(_failovers)) {
     }
 
     std::string toJSON() const;
@@ -167,6 +163,7 @@ struct vbucket_state {
         lastSnapStart = 0;
         lastSnapEnd = 0;
         maxCas = 0;
+        hlcCasEpochSeqno = HlcCasSeqnoUninitialised;
         failovers.assign("[{\"id\":0, \"seq\":0}]");
     }
 
@@ -178,6 +175,7 @@ struct vbucket_state {
     uint64_t lastSnapStart;
     uint64_t lastSnapEnd;
     uint64_t maxCas;
+    int64_t hlcCasEpochSeqno;
     std::string failovers;
 };
 

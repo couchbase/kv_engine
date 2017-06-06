@@ -60,17 +60,18 @@ public:
      * Creates an EphemeralVBucket
      */
     VBucketPtr makeVBucket(VBucket::id_type id,
-                               vbucket_state_t state,
-                               KVShard* shard,
-                               std::unique_ptr<FailoverTable> table,
-                               NewSeqnoCallback newSeqnoCb,
-                               vbucket_state_t initState,
-                               int64_t lastSeqno,
-                               uint64_t lastSnapStart,
-                               uint64_t lastSnapEnd,
-                               uint64_t purgeSeqno,
-                               uint64_t maxCas,
-                               const std::string& collectionsManifest) override;
+                           vbucket_state_t state,
+                           KVShard* shard,
+                           std::unique_ptr<FailoverTable> table,
+                           NewSeqnoCallback newSeqnoCb,
+                           vbucket_state_t initState,
+                           int64_t lastSeqno,
+                           uint64_t lastSnapStart,
+                           uint64_t lastSnapEnd,
+                           uint64_t purgeSeqno,
+                           uint64_t maxCas,
+                           int64_t hlcEpochSeqno,
+                           const std::string& collectionsManifest) override;
 
     /// Do nothing - no flusher to notify
     void notifyFlusher(const uint16_t vbid) override {
