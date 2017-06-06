@@ -1300,9 +1300,6 @@ static size_t encode_multi_mutation_result_spec(uint8_t index,
 static void subdoc_single_response(SubdocCmdContext& context) {
     auto& connection = context.connection;
 
-    protocol_binary_response_subdocument* rsp =
-            reinterpret_cast<protocol_binary_response_subdocument*>(connection.write.buf);
-
     // Calculate extras size
     const bool include_mutation_dscr = (connection.isSupportsMutationExtras() &&
                                         context.traits.is_mutator);
@@ -1331,7 +1328,6 @@ static void subdoc_single_response(SubdocCmdContext& context) {
     mcbp_add_header(&connection, status_code, extlen,
                     0 /*keylen*/, extlen + context.response_val_len,
                     PROTOCOL_BINARY_RAW_BYTES);
-    rsp->message.header.response.cas = htonll(connection.getCAS());
 
     // Add mutation descr to response buffer if requested.
     if (include_mutation_dscr) {
@@ -1359,8 +1355,6 @@ static void subdoc_single_response(SubdocCmdContext& context) {
  */
 static void subdoc_multi_mutation_response(SubdocCmdContext& context) {
     auto& connection = context.connection;
-    protocol_binary_response_subdocument* rsp =
-            reinterpret_cast<protocol_binary_response_subdocument*>(connection.write.buf);
 
     // MULTI_MUTATION: On success, zero to N multi_mutation_result_spec objects
     // (one for each spec which wants to return a value), with optional 16byte
@@ -1430,7 +1424,6 @@ static void subdoc_multi_mutation_response(SubdocCmdContext& context) {
     mcbp_add_header(&connection, status_code, extlen, /*keylen*/0,
                     extlen + response_buf_needed + iov_len,
                     PROTOCOL_BINARY_RAW_BYTES);
-    rsp->message.header.response.cas = htonll(connection.getCAS());
 
     // Append extras if requested.
     if (extlen > 0) {
@@ -1480,8 +1473,6 @@ static void subdoc_multi_mutation_response(SubdocCmdContext& context) {
  */
 static void subdoc_multi_lookup_response(SubdocCmdContext& context) {
     auto& connection = context.connection;
-    protocol_binary_response_subdocument* rsp =
-            reinterpret_cast<protocol_binary_response_subdocument*>(connection.write.buf);
 
     // Calculate the value length - sum of all the operation results.
     context.response_val_len = 0;
@@ -1529,7 +1520,6 @@ static void subdoc_multi_lookup_response(SubdocCmdContext& context) {
 
     mcbp_add_header(&connection, status_code, /*extlen*/0, /*keylen*/
                     0, context.response_val_len, PROTOCOL_BINARY_RAW_BYTES);
-    rsp->message.header.response.cas = htonll(connection.getCAS());
 
     // Append the iovecs for each operation result.
     for (auto phase : phases) {
