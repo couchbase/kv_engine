@@ -74,19 +74,19 @@ public:
         wasHighMemoryUsage(s.isMemoryUsageTooHigh()),
         taskStart(gethrtime()), pager_phase(phase) {}
 
-    void visit(const HashTable::HashBucketLock& lh, StoredValue* v) override {
+    bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override {
         // Delete expired items for an active vbucket.
         bool isExpired = (currentBucket->getState() == vbucket_state_active) &&
-            v->isExpired(startTime) && !v->isDeleted();
-        if (isExpired || v->isTempNonExistentItem() || v->isTempDeletedItem()) {
-            std::unique_ptr<Item> it = v->toItem(false, currentBucket->getId());
+                         v.isExpired(startTime) && !v.isDeleted();
+        if (isExpired || v.isTempNonExistentItem() || v.isTempDeletedItem()) {
+            std::unique_ptr<Item> it = v.toItem(false, currentBucket->getId());
             expired.push_back(*it.get());
-            return;
+            return true;
         }
 
         // return if not ItemPager, which uses valid eviction percentage
         if (percent <= 0 || !pager_phase) {
-            return;
+            return true;
         }
 
         // always evict unreferenced items, or randomly evict referenced item
@@ -95,13 +95,14 @@ public:
             static_cast<double>(std::rand()) / static_cast<double>(RAND_MAX);
 
         if (*pager_phase == PAGING_UNREFERENCED &&
-            v->getNRUValue() == MAX_NRU_VALUE) {
-            doEviction(lh, v);
+            v.getNRUValue() == MAX_NRU_VALUE) {
+            doEviction(lh, &v);
         } else if (*pager_phase == PAGING_RANDOM &&
-                   v->incrNRUValue() == MAX_NRU_VALUE &&
-                   r <= percent) {
-            doEviction(lh, v);
+                   v.incrNRUValue() == MAX_NRU_VALUE && r <= percent) {
+            doEviction(lh, &v);
         }
+
+        return true;
     }
 
     void visitBucket(VBucketPtr &vb) override {

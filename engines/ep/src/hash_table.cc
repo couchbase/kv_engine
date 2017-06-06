@@ -483,10 +483,8 @@ void HashTable::visit(HashTableVisitor &visitor) {
     VisitorTracker vt(&visitors);
     lh.unlock();
 
-    bool aborted = !visitor.shouldContinue();
     size_t visited = 0;
-    for (int l = 0; isActive() && !aborted && l < static_cast<int>(n_locks);
-         l++) {
+    for (int l = 0; isActive() && l < static_cast<int>(n_locks); l++) {
         for (int i = l; i < static_cast<int>(size); i+= n_locks) {
             // (re)acquire mutex on each HashBucket, to minimise any impact
             // on front-end threads.
@@ -507,12 +505,11 @@ void HashTable::visit(HashTableVisitor &visitor) {
             }
             while (v) {
                 StoredValue* tmp = v->getNext().get();
-                visitor.visit(lh, v);
+                visitor.visit(lh, *v);
                 v = tmp;
             }
             ++visited;
         }
-        aborted = !visitor.shouldContinue();
     }
 }
 
@@ -552,9 +549,8 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
     }
 }
 
-HashTable::Position
-HashTable::pauseResumeVisit(PauseResumeHashTableVisitor& visitor,
-                            Position& start_pos) {
+HashTable::Position HashTable::pauseResumeVisit(HashTableVisitor& visitor,
+                                                Position& start_pos) {
     if ((numItems.load() + numTempItems.load()) == 0 || !isActive()) {
         // Nothing to visit
         return endPosition();
@@ -596,12 +592,12 @@ HashTable::pauseResumeVisit(PauseResumeHashTableVisitor& visitor,
         // Note: we don't record how far into the bucket linked-list we
         // pause at; so any restart will begin from the next bucket.
         for (; !paused && hash_bucket < size; hash_bucket += n_locks) {
-            LockHolder lh(mutexes[lock]);
+            HashBucketLock lh(lock, mutexes[lock]);
 
             StoredValue* v = values[hash_bucket].get();
             while (!paused && v) {
                 StoredValue* tmp = v->getNext().get();
-                paused = !visitor.visit(*v);
+                paused = !visitor.visit(lh, *v);
                 v = tmp;
             }
         }

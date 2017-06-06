@@ -26,7 +26,7 @@ class ProgressTracker;
  *
  */
 class DefragmentVisitor : public PauseResumeEPStoreVisitor,
-                          public PauseResumeHashTableVisitor {
+                          public HashTableVisitor {
 public:
     DefragmentVisitor(uint8_t age_threshold_);
 
@@ -38,8 +38,8 @@ public:
     // Implementation of PauseResumeEPStoreVisitor interface:
     virtual bool visit(uint16_t vbucket_id, HashTable& ht);
 
-    // Implementation of PauseResumeHashTableVisitor interface:
-    virtual bool visit(StoredValue& v);
+    // Implementation of HashTableVisitor interface:
+    virtual bool visit(const HashTable::HashBucketLock& lh, StoredValue& v);
 
     // Returns the current hashtable position.
     HashTable::Position getHashtablePosition() const;

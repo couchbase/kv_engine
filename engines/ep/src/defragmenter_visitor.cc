@@ -86,7 +86,8 @@ bool DefragmentVisitor::visit(uint16_t vbucket_id, HashTable& ht) {
     }
 }
 
-bool DefragmentVisitor::visit(StoredValue& v) {
+bool DefragmentVisitor::visit(const HashTable::HashBucketLock& lh,
+                              StoredValue& v) {
     const size_t value_len = v.valuelen();
 
     // value must be at least non-zero (also covers Items with null Blobs)

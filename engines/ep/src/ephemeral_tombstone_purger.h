@@ -36,7 +36,7 @@ class EphemeralVBucket::HTTombstonePurger : public HashTableVisitor {
 public:
     HTTombstonePurger(EphemeralVBucket& vbucket, rel_time_t purgeAge);
 
-    void visit(const HashTable::HashBucketLock& lh, StoredValue* v) override;
+    bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override;
 
     /// Return the number of items purged from the HashTable.
     size_t getNumPurged() const {

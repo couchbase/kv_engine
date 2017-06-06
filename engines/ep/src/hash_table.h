@@ -28,7 +28,6 @@ class AbstractStoredValueFactory;
 class HashTableStatVisitor;
 class HashTableVisitor;
 class HashTableDepthVisitor;
-class PauseResumeHashTableVisitor;
 
 /**
  * Mutation types as returned by store commands.
@@ -480,8 +479,7 @@ public:
      *         HashTable::end() if all items were visited otherwise the
      *         position to resume from.
      */
-    Position pauseResumeVisit(PauseResumeHashTableVisitor& visitor,
-                              Position& start_pos);
+    Position pauseResumeVisit(HashTableVisitor& visitor, Position& start_pos);
 
     /**
      * Return a position at the end of the hashtable. Has similar semantics
@@ -710,30 +708,9 @@ public:
      * locked while visited (the appropriate hashTable lock is held).
      *
      * @param v a pointer to a value in the hash table
+     * @return true if visiting should continue, false if it should terminate.
      */
-    virtual void visit(const HashTable::HashBucketLock& lh, StoredValue* v) = 0;
-
-    /**
-     * True if the visiting should continue.
-     *
-     * This is called periodically to ensure the visitor still wants
-     * to visit items.
-     */
-    virtual bool shouldContinue() { return true; }
-};
-
-/**
- * Base class for visiting a hash table with pause/resume support.
- */
-class PauseResumeHashTableVisitor {
-public:
-    /**
-     * Visit an individual item within a hash table.
-     *
-     * @param v a pointer to a value in the hash table.
-     * @return True if visiting should continue, otherwise false.
-     */
-    virtual bool visit(StoredValue& v) = 0;
+    virtual bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) = 0;
 };
 
 /**

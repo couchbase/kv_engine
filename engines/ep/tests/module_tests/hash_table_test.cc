@@ -42,17 +42,18 @@ public:
 
     Counter(bool v) : count(), deleted(), verify(v) {}
 
-    void visit(const HashTable::HashBucketLock& lh, StoredValue* v) {
-        if (v->isDeleted()) {
+    bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
+        if (v.isDeleted()) {
             ++deleted;
         } else {
             ++count;
             if (verify) {
-                StoredDocKey key(v->getKey());
-                value_t val = v->getValue();
+                StoredDocKey key(v.getKey());
+                value_t val = v.getValue();
                 EXPECT_STREQ(key.c_str(), val->to_s().c_str());
             }
         }
+        return true;
     }
 private:
     bool verify;
