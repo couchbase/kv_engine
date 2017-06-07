@@ -72,3 +72,15 @@ void VBucketCountVisitor::visitBucket(VBucketPtr& vb) {
         }
     }
 }
+
+void VBucketCountAggregator::visitBucket(VBucketPtr &vb) {
+    std::map<vbucket_state_t, VBucketCountVisitor*>::iterator it;
+    it = visitorMap.find(vb->getState());
+    if ( it != visitorMap.end() ) {
+        it->second->visitBucket(vb);
+    }
+}
+
+void VBucketCountAggregator::addVisitor(VBucketCountVisitor* visitor) {
+    visitorMap[visitor->getVBucketState()] = visitor;
+}

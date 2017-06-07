@@ -39,7 +39,6 @@
 #include "connmap.h"
 #include "dcp/dcpconnmap.h"
 #include "defragmenter.h"
-#include "ep_engine.h"
 #include "ep_time.h"
 #include "ext_meta_parser.h"
 #include "failover-table.h"

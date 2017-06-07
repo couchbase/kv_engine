@@ -90,19 +90,6 @@ private:
 };
 
 /**
- * A container class holding VBucketCountVisitors to aggregate stats for
- * different vbucket states.
- */
-class VBucketCountAggregator : public VBucketVisitor  {
-public:
-    void visitBucket(VBucketPtr &vb) override;
-
-    void addVisitor(VBucketCountVisitor* visitor);
-private:
-    std::map<vbucket_state_t, VBucketCountVisitor*> visitorMap;
-};
-
-/**
  * memcached engine interface to the KVBucket.
  */
 class EventuallyPersistentEngine : public ENGINE_HANDLE_V1 {

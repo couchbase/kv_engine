@@ -24,6 +24,7 @@
 #include "vb_visitors.h"
 
 #include <array>
+#include <map>
 
 class VBucket;
 
@@ -213,4 +214,18 @@ private:
     size_t numHpVBReqs;
     HLC::DriftStats totalAbsHLCDrift;
     HLC::DriftExceptions totalHLCDriftExceptionCounters;
+};
+
+/**
+ * A container class holding VBucketCountVisitors to aggregate stats for
+ * different vbucket states.
+ */
+class VBucketCountAggregator : public VBucketVisitor  {
+public:
+    void visitBucket(VBucketPtr &vb) override;
+
+    void addVisitor(VBucketCountVisitor* visitor);
+
+private:
+    std::map<vbucket_state_t, VBucketCountVisitor*> visitorMap;
 };
