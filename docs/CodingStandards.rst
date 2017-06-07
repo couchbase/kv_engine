@@ -1140,6 +1140,11 @@ In general, names should be in camel case (e.g. ``TextFileReader`` and
   Baz = 1, ...}`` should only be used when the actual values
   matter, for example when using an enum for a bitfield.
 
+* **Namespaces** (e.g. ``namespace foo {}``) should be a single word all
+  lowercase. Namespaces act as a prefix so should be kept as short as reasonably
+  possible, using abbrevations where well known (e.g. ``mcbp`` vs
+  ``binaryprotocol``).
+
 As an exception, classes that mimic STL classes can have member names in STL's
 style of lower-case words separated by underscores (e.g. ``begin()``,
 ``push_back()``, and ``empty()``). Classes that provide multiple
