@@ -185,12 +185,11 @@ static enum test_result replace_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     }
     h1->release(h, NULL, it);
 
-    cb_assert(h1->get(h, NULL, &it, key, 0, DocStateFilter::Alive) ==
-              ENGINE_SUCCESS);
-    cb_assert(h1->get_item_info(h, NULL, it, &item_info) == true);
+    auto ret = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
+    cb_assert(ret.first == cb::engine_errc::success);
+    cb_assert(h1->get_item_info(h, NULL, ret.second.get(), &item_info) == true);
     cb_assert(item_info.value[0].iov_len == sizeof(int));
     cb_assert(*(int*)(item_info.value[0].iov_base) == 9);
-    h1->release(h, NULL, it);
 
     return SUCCESS;
 }
@@ -218,21 +217,15 @@ static enum test_result store_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  */
 static enum test_result get_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
-    item *test_item_get = NULL;
     DocKey key("get_test_key", test_harness.doc_namespace);
     uint64_t cas = 0;
     cb_assert(h1->allocate(h, NULL, &test_item, key, 1, 0, 0,
                            PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
     cb_assert(h1->store(h, NULL, test_item, &cas,
                         OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
-    cb_assert(h1->get(h,
-                      NULL,
-                      &test_item_get,
-                      key,
-                      0,
-                      DocStateFilter::Alive) == ENGINE_SUCCESS);
-    h1->release(h,NULL,test_item);
-    h1->release(h,NULL,test_item_get);
+    h1->release(h, NULL, test_item);
+    auto ret = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
+    cb_assert(ret.first == cb::engine_errc::success);
     return SUCCESS;
 }
 
@@ -242,53 +235,32 @@ static enum test_result get_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  */
 static enum test_result get_deleted_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item* test_item = nullptr;
-    item* test_item_get = nullptr;
     DocKey key("get_removed_test_key", test_harness.doc_namespace);
     uint64_t cas = 0;
     cb_assert(h1->allocate(h, nullptr, &test_item, key, 1, 0, 0,
                            PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
     cb_assert(h1->store(h, nullptr, test_item, &cas,
                         OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
-    cb_assert(h1->get(h,
-                      nullptr,
-                      &test_item_get,
-                      key,
-                      0,
-                      DocStateFilter::Alive) == ENGINE_SUCCESS);
     h1->release(h, nullptr, test_item);
-    h1->release(h, nullptr, test_item_get);
+    auto ret = h1->get(h, nullptr, key, 0, DocStateFilter::Alive);
+    cb_assert(ret.first == cb::engine_errc::success);
 
     // Asking for a dead document should not find it!
-    test_item_get = nullptr;
-    cb_assert(h1->get(h,
-                      nullptr,
-                      &test_item_get,
-                      key,
-                      0,
-                      DocStateFilter::Deleted) == ENGINE_KEY_ENOENT);
-    cb_assert(test_item_get == nullptr);
+    ret = h1->get(h, nullptr, key, 0, DocStateFilter::Deleted);
+    cb_assert(ret.first == cb::engine_errc::no_such_key);
+    cb_assert(ret.second == nullptr);
 
     // remove it
     mutation_descr_t mut_info;
     cb_assert(h1->remove(h, nullptr, key, &cas, 0, &mut_info) == ENGINE_SUCCESS);
-    item* check_item;
-    cb_assert(h1->get(h,
-                      nullptr,
-                      &check_item,
-                      key,
-                      0,
-                      DocStateFilter::Alive) == ENGINE_KEY_ENOENT);
-    cb_assert(check_item == nullptr);
+    ret = h1->get(h, nullptr, key, 0, DocStateFilter::Alive);
+    cb_assert(ret.first == cb::engine_errc::no_such_key);
+    cb_assert(ret.second == nullptr);
 
     // But we should be able to fetch it if we ask for deleted
-    cb_assert(h1->get(h,
-                      nullptr,
-                      &check_item,
-                      key,
-                      0,
-                      DocStateFilter::Deleted) == ENGINE_SUCCESS);
-    cb_assert(check_item != nullptr);
-    h1->release(h, nullptr, check_item);
+    ret = h1->get(h, nullptr, key, 0, DocStateFilter::Deleted);
+    cb_assert(ret.first == cb::engine_errc::success);
+    cb_assert(ret.second != nullptr);
 
     return SUCCESS;
 }
@@ -296,21 +268,16 @@ static enum test_result get_deleted_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 
 static enum test_result expiry_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
-    item *test_item_get = NULL;
     DocKey key("get_test_key", test_harness.doc_namespace);
     uint64_t cas = 0;
     cb_assert(h1->allocate(h, NULL, &test_item, key, 1, 0, 10,
                            PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
     cb_assert(h1->store(h, NULL, test_item, &cas,
                         OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
+    h1->release(h, NULL, test_item);
     test_harness.time_travel(11);
-    cb_assert(h1->get(h,
-                      NULL,
-                      &test_item_get,
-                      key,
-                      0,
-                      DocStateFilter::Alive) == ENGINE_KEY_ENOENT);
-    h1->release(h,NULL,test_item);
+    auto ret = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
+    cb_assert(ret.first == cb::engine_errc::no_such_key);
     return SUCCESS;
 }
 
@@ -340,19 +307,16 @@ static enum test_result remove_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     DocKey key("remove_test_key", test_harness.doc_namespace);
     uint64_t cas = 0;
     mutation_descr_t mut_info;
-    item *check_item;
 
     cb_assert(h1->allocate(h, NULL, &test_item, key, 1, 0, 0,
                            PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
     cb_assert(h1->store(h, NULL, test_item, &cas,
                         OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
     cb_assert(h1->remove(h, NULL, key, &cas, 0, &mut_info) == ENGINE_SUCCESS);
-    check_item = test_item;
-    cb_assert(
-            h1->get(h, NULL, &check_item, key, 0, DocStateFilter::Alive) ==
-            ENGINE_KEY_ENOENT);
-    cb_assert(check_item == NULL);
     h1->release(h, NULL, test_item);
+    auto ret = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
+    cb_assert(ret.first == cb::engine_errc::no_such_key);
+    cb_assert(ret.second == nullptr);
     return SUCCESS;
 }
 
@@ -364,7 +328,6 @@ static enum test_result flush_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *test_item = NULL;
     DocKey key("flush_test_key", test_harness.doc_namespace);
     uint64_t cas = 0;
-    item *check_item;
 
     test_harness.time_travel(3);
     cb_assert(h1->allocate(h, NULL, &test_item, key, 1, 0, 0,
@@ -372,12 +335,10 @@ static enum test_result flush_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     cb_assert(h1->store(h, NULL, test_item, &cas,
                         OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
     cb_assert(h1->flush(h, NULL) == ENGINE_SUCCESS);
-    check_item = test_item;
-    cb_assert(
-            h1->get(h, NULL, &check_item, key, 0, DocStateFilter::Alive) ==
-            ENGINE_KEY_ENOENT);
-    cb_assert(check_item == NULL);
     h1->release(h, NULL, test_item);
+    auto ret = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
+    cb_assert(ret.first == cb::engine_errc::no_such_key);
+    cb_assert(ret.second == nullptr);
     return SUCCESS;
 }
 
@@ -462,13 +423,8 @@ static enum test_result lru_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     for (ii = 0; ii < 250; ++ii) {
         uint8_t key[1024];
 
-        cb_assert(h1->get(h,
-                          NULL,
-                          &test_item,
-                          hot_key,
-                          0,
-                          DocStateFilter::Alive) == ENGINE_SUCCESS);
-        h1->release(h, NULL, test_item);
+        auto ret = h1->get(h, NULL, hot_key, 0, DocStateFilter::Alive);
+        cb_assert(ret.first == cb::engine_errc::success);
         DocKey allocate_key(key,
                             snprintf(reinterpret_cast<char*>(key), sizeof(key),
                                      "lru_test_key_%08d", ii),
@@ -495,21 +451,12 @@ static enum test_result lru_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                                 "lru_test_key_%08d", jj),
                        test_harness.doc_namespace);
         if (jj == 0 || jj == 1) {
-            cb_assert(h1->get(h,
-                              NULL,
-                              &test_item,
-                              get_key,
-                              0,
-                              DocStateFilter::Alive) == ENGINE_KEY_ENOENT);
+            auto ret = h1->get(h, NULL, get_key, 0, DocStateFilter::Alive);
+            cb_assert(ret.first == cb::engine_errc::no_such_key);
         } else {
-            cb_assert(h1->get(h,
-                              NULL,
-                              &test_item,
-                              get_key,
-                              0,
-                              DocStateFilter::Alive) == ENGINE_SUCCESS);
-            cb_assert(test_item != NULL);
-            h1->release(h, NULL, test_item);
+            auto ret = h1->get(h, NULL, get_key, 0, DocStateFilter::Alive);
+            cb_assert(ret.first == cb::engine_errc::success);
+            cb_assert(ret.second != nullptr);
         }
     }
     return SUCCESS;
@@ -544,13 +491,11 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                         OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
     h1->release(h, NULL, test_item);
 
-    cb_assert(
-            h1->get(h, NULL, &test_item, key, 0, DocStateFilter::Alive) ==
-            ENGINE_SUCCESS);
+    auto ret = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
+    cb_assert(ret.first == cb::engine_errc::success);
 
-    cb_assert(h1->get_item_info(h, NULL, test_item, &ii) == true);
+    cb_assert(h1->get_item_info(h, NULL, ret.second.get(), &ii) == true);
     cb_assert(ii.datatype == 1);
-    h1->release(h, NULL, test_item);
 
     return SUCCESS;
 }

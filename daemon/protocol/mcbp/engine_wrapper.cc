@@ -139,21 +139,18 @@ cb::EngineErrorItemPair bucket_get(McbpConnection* c,
                              const DocKey& key,
                              uint16_t vbucket,
                              DocStateFilter documentStateFilter) {
-    item* it = nullptr;
     auto ret = c->getBucketEngine()->get(c->getBucketEngineAsV0(),
                                          c->getCookie(),
-                                         &it,
                                          key,
                                          vbucket,
                                          documentStateFilter);
-    if (ret == ENGINE_DISCONNECT) {
+    if (ret.first == cb::engine_errc::disconnect) {
         LOG_INFO(c,
                  "%u: %s bucket_get return ENGINE_DISCONNECT",
                  c->getId(),
                  c->getDescription().c_str());
     }
-    return cb::makeEngineErrorItemPair(
-            cb::engine_errc(ret), it, c->getBucketEngineAsV0());
+    return ret;
 }
 
 cb::EngineErrorItemPair bucket_get_if(McbpConnection* c,

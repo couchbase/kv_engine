@@ -368,20 +368,20 @@ public:
         }
     }
 
-    static ENGINE_ERROR_CODE get(ENGINE_HANDLE* handle,
-                                 const void* cookie,
-                                 item** item,
-                                 const DocKey& key,
-                                 uint16_t vbucket,
-                                 DocStateFilter documentStateFilter) {
+    static cb::EngineErrorItemPair get(ENGINE_HANDLE* handle,
+                                       const void* cookie,
+                                       const DocKey& key,
+                                       uint16_t vbucket,
+                                       DocStateFilter documentStateFilter) {
         EWB_Engine* ewb = to_engine(handle);
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         if (ewb->should_inject_error(Cmd::GET, cookie, err)) {
-            return err;
+            return std::make_pair(
+                    cb::engine_errc(err),
+                    cb::unique_item_ptr{nullptr, cb::ItemDeleter{handle}});
         } else {
             return ewb->real_engine->get(ewb->real_handle,
                                          cookie,
-                                         item,
                                          key,
                                          vbucket,
                                          documentStateFilter);
@@ -1836,21 +1836,17 @@ ENGINE_ERROR_CODE EWB_Engine::setItemCas(const void *cookie,
         cas64 = -1ull;
     }
 
-    item* item = nullptr;
-    ENGINE_ERROR_CODE rv =
-            real_engine->get(real_handle,
-                             cookie,
-                             &item,
-                             DocKey{key, DocNamespace::DefaultCollection},
-                             0,
-                             DocStateFilter::Alive);
-    if (rv != ENGINE_SUCCESS) {
-        return rv;
+    auto rv = real_engine->get(real_handle,
+                               cookie,
+                               DocKey{key, DocNamespace::DefaultCollection},
+                               0,
+                               DocStateFilter::Alive);
+    if (rv.first != cb::engine_errc::success) {
+        return ENGINE_ERROR_CODE(rv.first);
     }
 
     // item_set_cas has no return value!
-    real_engine->item_set_cas(real_handle, cookie, item, cas64);
-    real_engine->release(real_handle, cookie, item);
+    real_engine->item_set_cas(real_handle, cookie, rv.second.get(), cas64);
     response(nullptr, 0, nullptr, 0, nullptr, 0,
              PROTOCOL_BINARY_RAW_BYTES,
              PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);

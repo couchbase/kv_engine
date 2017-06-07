@@ -359,12 +359,11 @@ typedef struct engine_interface_v1 {
      *
      * @return ENGINE_SUCCESS if all goes well
      */
-    ENGINE_ERROR_CODE (* get)(ENGINE_HANDLE* handle,
-                              const void* cookie,
-                              item** item,
-                              const DocKey& key,
-                              uint16_t vbucket,
-                              DocStateFilter documentStateFilter);
+    cb::EngineErrorItemPair (*get)(ENGINE_HANDLE* handle,
+                                   const void* cookie,
+                                   const DocKey& key,
+                                   uint16_t vbucket,
+                                   DocStateFilter documentStateFilter);
 
     /**
      * Optionally retrieve an item. Only non-deleted items may be fetched

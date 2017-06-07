@@ -129,13 +129,12 @@ private:
                                    " been allocated from this engine");
     }
 
-    static ENGINE_ERROR_CODE get(ENGINE_HANDLE*,
-                                 const void*,
-                                 item**,
-                                 const DocKey&,
-                                 uint16_t,
-                                 DocStateFilter) {
-        return ENGINE_NO_BUCKET;
+    static cb::EngineErrorItemPair get(ENGINE_HANDLE* h,
+                                       const void*,
+                                       const DocKey&,
+                                       uint16_t,
+                                       DocStateFilter) {
+        return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
     static cb::EngineErrorItemPair get_if(ENGINE_HANDLE* handle,

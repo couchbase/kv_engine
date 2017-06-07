@@ -246,22 +246,20 @@ static void mock_release(ENGINE_HANDLE* handle,
     me->the_engine->release((ENGINE_HANDLE*)me->the_engine, cookie, item);
 }
 
-static ENGINE_ERROR_CODE mock_get(ENGINE_HANDLE* handle,
-                                  const void* cookie,
-                                  item** item,
-                                  const DocKey& key,
-                                  uint16_t vbucket,
-                                  DocStateFilter documentStateFilter) {
+static cb::EngineErrorItemPair mock_get(ENGINE_HANDLE* handle,
+                                        const void* cookie,
+                                        const DocKey& key,
+                                        uint16_t vbucket,
+                                        DocStateFilter documentStateFilter) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->get,
                                get_engine_from_handle(handle),
                                static_cast<const void*>(c),
-                               item,
                                key,
                                vbucket,
                                documentStateFilter);
 
-    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
+    auto ret = do_blocking_engine_call(handle, c, engine_fn);
 
     check_and_destroy_mock_connstruct(c, cookie);
     return ret;

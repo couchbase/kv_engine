@@ -80,12 +80,10 @@ void set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
     item_info info;
-    item *i = NULL;
-    ENGINE_ERROR_CODE rv =
-            h1->get(h, NULL, &i, key, 0, DocStateFilter::Alive);
-    cb_assert(rv == ENGINE_SUCCESS);
+    auto rv = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
+    cb_assert(rv.first == cb::engine_errc::success);
 
-    h1->get_item_info(h, NULL, i, &info);
+    h1->get_item_info(h, NULL, rv.second.get(), &info);
 
     char* buf = new char[info.value[0].iov_len + 1];
     memcpy(buf, info.value[0].iov_base, info.value[0].iov_len);
@@ -101,15 +99,12 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
         abort();
     }
 
-    h1->release(h, NULL, i);
     delete []buf;
 }
 
 void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *i;
-    ENGINE_ERROR_CODE rv =
-            h1->get(h, NULL, &i, key, 0, DocStateFilter::Alive);
-    cb_assert(rv == ENGINE_KEY_ENOENT);
+    auto rv = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
+    cb_assert(rv.first == cb::engine_errc::no_such_key);
 }
 
 MEMCACHED_PUBLIC_API

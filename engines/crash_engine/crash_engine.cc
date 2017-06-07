@@ -167,13 +167,12 @@ static void item_release(ENGINE_HANDLE* handle, const void *cookie,
 
 }
 
-static ENGINE_ERROR_CODE get(ENGINE_HANDLE* handle,
-                             const void* cookie,
-                             item** item,
-                             const DocKey& key,
-                             uint16_t vbucket,
-                             DocStateFilter) {
-    return ENGINE_FAILED;
+static cb::EngineErrorItemPair get(ENGINE_HANDLE* handle,
+                                   const void* cookie,
+                                   const DocKey& key,
+                                   uint16_t vbucket,
+                                   DocStateFilter) {
+    return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
 static cb::EngineErrorItemPair get_if(ENGINE_HANDLE* handle,

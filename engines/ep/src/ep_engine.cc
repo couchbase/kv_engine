@@ -238,12 +238,11 @@ static void EvpItemRelease(ENGINE_HANDLE* handle,
     acquireEngine(handle)->itemRelease(cookie, itm);
 }
 
-static ENGINE_ERROR_CODE EvpGet(ENGINE_HANDLE* handle,
-                                const void* cookie,
-                                item** itm,
-                                const DocKey& key,
-                                uint16_t vbucket,
-                                DocStateFilter documentStateFilter) {
+static cb::EngineErrorItemPair EvpGet(ENGINE_HANDLE* handle,
+                                      const void* cookie,
+                                      const DocKey& key,
+                                      uint16_t vbucket,
+                                      DocStateFilter documentStateFilter) {
     get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
                                                        HONOR_STATES |
                                                        TRACK_REFERENCE |
@@ -260,13 +259,18 @@ static ENGINE_ERROR_CODE EvpGet(ENGINE_HANDLE* handle,
         // way of requesting just deleted documents, and luckily for
         // us no part of our code is using this yet. Return an error
         // if anyone start using it
-        return ENGINE_ENOTSUP;
+        return std::make_pair(
+                cb::engine_errc::not_supported,
+                cb::unique_item_ptr{nullptr, cb::ItemDeleter{handle}});
     case DocStateFilter::AliveOrDeleted:
         options = static_cast<get_options_t>(options | GET_DELETED_VALUE);
         break;
     }
 
-    return acquireEngine(handle)->get(cookie, itm, key, vbucket, options);
+    item* itm = nullptr;
+    ENGINE_ERROR_CODE ret =
+            acquireEngine(handle)->get(cookie, &itm, key, vbucket, options);
+    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, handle);
 }
 
 static cb::EngineErrorItemPair EvpGetIf(ENGINE_HANDLE* handle,

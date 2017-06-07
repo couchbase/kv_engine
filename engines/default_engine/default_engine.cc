@@ -56,12 +56,11 @@ static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
 
 static void default_item_release(ENGINE_HANDLE* handle, const void *cookie,
                                  item* item);
-static ENGINE_ERROR_CODE default_get(ENGINE_HANDLE* handle,
-                                     const void* cookie,
-                                     item** item,
-                                     const DocKey& key,
-                                     uint16_t vbucket,
-                                     DocStateFilter);
+static cb::EngineErrorItemPair default_get(ENGINE_HANDLE* handle,
+                                           const void* cookie,
+                                           const DocKey& key,
+                                           uint16_t vbucket,
+                                           DocStateFilter);
 
 static cb::EngineErrorItemPair default_get_if(ENGINE_HANDLE*,
                                               const void*,
@@ -433,21 +432,26 @@ static void default_item_release(ENGINE_HANDLE* handle,
    item_release(get_handle(handle), get_real_item(item));
 }
 
-static ENGINE_ERROR_CODE default_get(ENGINE_HANDLE* handle,
-                                     const void* cookie,
-                                     item** item,
-                                     const DocKey& key,
-                                     uint16_t vbucket,
-                                     DocStateFilter documentStateFilter) {
+static cb::EngineErrorItemPair default_get(ENGINE_HANDLE* handle,
+                                           const void* cookie,
+                                           const DocKey& key,
+                                           uint16_t vbucket,
+                                           DocStateFilter documentStateFilter) {
     struct default_engine* engine = get_handle(handle);
-    VBUCKET_GUARD(engine, vbucket);
 
-    *item = item_get(
+    if (!handled_vbucket(engine, vbucket)) {
+        return std::make_pair(
+                cb::engine_errc::not_my_vbucket,
+                cb::unique_item_ptr{nullptr, cb::ItemDeleter{handle}});
+    }
+
+    item* it = item_get(
             engine, cookie, key.data(), key.size(), documentStateFilter);
-    if (*item != NULL) {
-        return ENGINE_SUCCESS;
+    if (it != nullptr) {
+        return cb::makeEngineErrorItemPair(
+                cb::engine_errc::success, it, handle);
     } else {
-        return ENGINE_KEY_ENOENT;
+        return cb::makeEngineErrorItemPair(cb::engine_errc::no_such_key);
     }
 }
 

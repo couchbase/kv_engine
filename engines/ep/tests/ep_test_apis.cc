@@ -1633,15 +1633,9 @@ cb::EngineErrorItemPair get(ENGINE_HANDLE* h,
                             const std::string& key,
                             uint16_t vb,
                             DocStateFilter documentStateFilter) {
-    item* itm;
-    auto ret = h1->get(h,
-                       cookie,
-                       &itm,
-                       DocKey(key, testHarness.doc_namespace),
-                       vb,
-                       documentStateFilter);
-    if (ret != ENGINE_SUCCESS) {
-        return cb::makeEngineErrorItemPair(cb::engine_errc(ret));
-    }
-    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, h);
+    return h1->get(h,
+                   cookie,
+                   DocKey(key, testHarness.doc_namespace),
+                   vb,
+                   documentStateFilter);
 }
