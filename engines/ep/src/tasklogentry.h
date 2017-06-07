@@ -46,6 +46,13 @@ public:
                  rel_time_t t = 0)
         : name(n), taskType(type), ts(t), duration(d) {}
 
+    TaskLogEntry(const TaskLogEntry& tle)
+        : name(std::string(tle.name.begin(), tle.name.end())),
+          taskType(tle.taskType),
+          ts(tle.ts),
+          duration(tle.duration) {
+    }
+
     /**
      * Get the name of the job.
      */

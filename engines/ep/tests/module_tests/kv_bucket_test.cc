@@ -30,6 +30,7 @@
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "flusher.h"
+#include "lambda_task.h"
 #include "replicationthrottle.h"
 #include "tapconnmap.h"
 #include "tasks.h"
@@ -593,6 +594,43 @@ TEST_P(KVBucketParamTest, mb22824) {
 
     // Should be getting the same CAS from the failed delete as getMetaData
     EXPECT_EQ(itemMeta1.cas, itemMeta2.cas);
+}
+
+TEST_F(KVBucketTest, DataRaceInDoWorkerStat) {
+    /* MB-23529: TSAN intermittently reports a data race.
+     * This race appears to be caused by GGC's buggy string COW as seen
+     * multiple times, e.g., MB-23454.
+     * doWorkerStat calls getLog/getSlowLog to get a vector of TaskLogEntrys,
+     * which have been copied out of the tasklog ringbuffer of a given
+     * ExecutorThread. These copies logically have copies of the original's
+     * `std::string name`.
+     * As the ringbuffer overwrites older entries, the deletion of the old
+     * entry's `std::string name` races with doWorkerStats reading the COW'd
+     * name of its copy.
+     * */
+    EpEngineTaskable& taskable = engine->getTaskable();
+    ExecutorPool* pool = ExecutorPool::get();
+
+    // Task which does nothing
+    ExTask task = std::make_shared<LambdaTask>(
+            taskable, TaskId::Processor, 0, true, [&]() -> bool {
+                return true; // reschedule (immediately)
+            });
+
+    pool->schedule(task);
+
+    // nop callback to serve as add_stat
+    auto dummy_cb = [](const char* key,
+                       const uint16_t klen,
+                       const char* val,
+                       const uint32_t vlen,
+                       const void* cookie) {};
+
+    for (uint64_t i = 0; i < 10; ++i) {
+        pool->doWorkerStat(engine.get(), /* cookie*/ nullptr, dummy_cb);
+    }
+
+    pool->cancel(task->getId());
 }
 
 // Test cases which run for EP (Full and Value eviction) and Ephemeral
