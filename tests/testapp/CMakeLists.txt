@@ -69,7 +69,7 @@ TARGET_LINK_LIBRARIES(generate_test_cbsaslpw cbsasl cJSON platform
 
 ADD_EXECUTABLE(memcached_testapp ${TESTAPP_SOURCES})
 
-ADD_DEPENDENCIES(memcached_testapp blackhole_logger default_engine
+ADD_DEPENDENCIES(memcached_testapp blackhole_logger default_engine ep
                  ewouldblock_engine memcached nobucket testapp_extension)
 
 TARGET_LINK_LIBRARIES(memcached_testapp
