@@ -61,8 +61,8 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_DECREMENTQ, require<Privilege::Write>);
     setup(PROTOCOL_BINARY_CMD_QUIT, empty);
     setup(PROTOCOL_BINARY_CMD_QUITQ, empty);
-    setup(PROTOCOL_BINARY_CMD_FLUSH, require<Privilege::Write>);
-    setup(PROTOCOL_BINARY_CMD_FLUSHQ, require<Privilege::Write>);
+    setup(PROTOCOL_BINARY_CMD_FLUSH, require<Privilege::BucketManagement>);
+    setup(PROTOCOL_BINARY_CMD_FLUSHQ, require<Privilege::BucketManagement>);
     setup(PROTOCOL_BINARY_CMD_NOOP, empty);
     setup(PROTOCOL_BINARY_CMD_VERSION, empty);
     setup(PROTOCOL_BINARY_CMD_STAT, require<Privilege::SimpleStats>);
