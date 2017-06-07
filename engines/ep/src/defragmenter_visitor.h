@@ -34,7 +34,7 @@ public:
     ~DefragmentVisitor();
 
     // Set the deadline at which point the visitor will pause visiting.
-    void setDeadline(hrtime_t deadline_);
+    void setDeadline(ProcessClock::time_point deadline_);
 
     // Implementation of HashTableVisitor interface:
     virtual bool visit(const HashTable::HashBucketLock& lh, StoredValue& v);

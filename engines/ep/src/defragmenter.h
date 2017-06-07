@@ -118,9 +118,9 @@ private:
     // must be to be considered for defragmentation.
     size_t getAgeThreshold() const;
 
-    // Upper limit on how long (in milliseconds) each defragmention chunk
-    // can run for, before being paused.
-    size_t getChunkDurationMS() const;
+    // Upper limit on how long each defragmention chunk can run for, before
+    // being paused.
+    std::chrono::milliseconds getChunkDuration() const;
 
     /// Return the current number of mapped bytes from the allocator.
     size_t getMappedBytes();

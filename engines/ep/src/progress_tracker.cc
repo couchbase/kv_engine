@@ -22,12 +22,12 @@
 ProgressTracker::ProgressTracker()
   : need_initial_time(true),
     next_visit_count_check(INITIAL_VISIT_COUNT_CHECK),
-    deadline(std::numeric_limits<hrtime_t>::max()),
-    previous_time(0),
+    deadline(ProcessClock::time_point::max()),
+    previous_time(ProcessClock::time_point::min()),
     previous_visited(0) {
 }
 
-void ProgressTracker::setDeadline(hrtime_t new_deadline) {
+void ProgressTracker::setDeadline(ProcessClock::time_point new_deadline) {
     need_initial_time = true;
     deadline = new_deadline;
 }
@@ -43,7 +43,7 @@ bool ProgressTracker::shouldContinueVisiting(size_t visited_items) {
     // Grab time if we haven't already got it.
     if (need_initial_time) {
         next_visit_count_check = visited_items + INITIAL_VISIT_COUNT_CHECK;
-        previous_time = gethrtime();
+        previous_time = ProcessClock::now();
         previous_visited = visited_items;
         need_initial_time = false;
     }
@@ -56,7 +56,7 @@ bool ProgressTracker::shouldContinueVisiting(size_t visited_items) {
         return true;
     } else {
         // First check if the deadline has been exceeded; if so need to pause.
-        const hrtime_t now = gethrtime();
+        const auto now = ProcessClock::now();
         if (now >= deadline) {
             should_continue = false;
         } else {
@@ -66,20 +66,22 @@ bool ProgressTracker::shouldContinueVisiting(size_t visited_items) {
             // Calculate time delta since last check. In the worst case,
             // visiting items *may* take less time than a single period of
             // our "high" resolution clock (e.g. some platforms only have
-            // microsecond-level precision for gethrtime()).
+            // microsecond-level precision).
             // Therefore to prevent successive time measurements being
             // identical (and hence time_delta being zero, ultimately
-            // triggering a div-by-zero error), add the period of the clock to
-            // the delta.
-            const hrtime_t time_delta = (now - previous_time) + gethrtime_period();
+            // triggering a div-by-zero error), add the minimum duration of the
+            // clock to the delta.
+            const auto time_delta =
+                    (now - previous_time) + ProcessClock::duration(1);
 
             const size_t visited_delta = visited_items - previous_visited;
             // Calculate time for one item. Similar to above, ensure this is
-            // always at least a nonzero value (by adding hrtime_period) to
-            // prevent div-by-zero.
-            const hrtime_t time_per_item = (time_delta / visited_delta) + gethrtime_period();
+            // always at least a nonzero value (by adding the clock min
+            // duration) to prevent div-by-zero.
+            const auto time_per_item =
+                    (time_delta / visited_delta) + ProcessClock::duration(1);
 
-            const hrtime_t time_remaining = (deadline - now);
+            const auto time_remaining = (deadline - now);
             const size_t est_items_to_deadline = time_remaining / time_per_item;
 
             // If there isn't sufficient time to visit our minimum, pause now.

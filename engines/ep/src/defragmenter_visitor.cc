@@ -29,7 +29,7 @@ DefragmentVisitor::DefragmentVisitor(uint8_t age_threshold_)
 DefragmentVisitor::~DefragmentVisitor() {
 }
 
-void DefragmentVisitor::setDeadline(hrtime_t deadline) {
+void DefragmentVisitor::setDeadline(ProcessClock::time_point deadline) {
     progressTracker.setDeadline(deadline);
 }
 

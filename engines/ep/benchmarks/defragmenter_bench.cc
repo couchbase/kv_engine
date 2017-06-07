@@ -32,26 +32,25 @@
  */
 static size_t benchmarkDefragment(VBucket& vbucket, size_t passes,
                                   uint8_t age_threshold,
-                                  size_t chunk_duration_ms) {
+                                  std::chrono::milliseconds chunk_duration) {
     // Create and run visitor for the specified number of iterations, with
     // the given age.
     DefragmentVisitor visitor(age_threshold);
-    hrtime_t start = gethrtime();
+    auto start = ProcessClock::now();
     for (size_t i = 0; i < passes; i++) {
         // Loop until we get to the end; this may take multiple chunks depending
         // on the chunk_duration.
         HashTable::Position pos;
         while (pos != vbucket.ht.endPosition()) {
-            visitor.setDeadline(gethrtime() +
-                                (chunk_duration_ms * 1000 * 1000));
+            visitor.setDeadline(ProcessClock::now() + chunk_duration);
             pos = vbucket.ht.pauseResumeVisit(visitor, pos);
         }
     }
-    hrtime_t end = gethrtime();
+    auto end = ProcessClock::now();
     size_t visited = visitor.getVisitedCount();
 
-    double duration_s = (end - start) / double(1000 * 1000 * 1000);
-    return size_t(visited / duration_s);
+    std::chrono::duration<double> duration = (end - start);
+    return size_t(visited / duration.count());
 }
 
 
@@ -72,19 +71,19 @@ protected:
 
         /* Store items */
         char value[256];
-        hrtime_t start = gethrtime();
+        auto start = ProcessClock::now();
         for (size_t i = 0; i < ndocs; i++) {
             std::string key = "key" + std::to_string(i);
             Item item(makeStoredDocKey(key), 0, 0, value, sizeof(value));
             public_processSet(item, 0);
         }
-        hrtime_t end = gethrtime();
+        auto end = ProcessClock::now();
 
         // Let hashTable set itself to correct size, post-fill
         vbucket->ht.resize();
 
-        double duration_s = (end - start) / double(1000 * 1000 * 1000);
-        return size_t(ndocs / duration_s);
+        std::chrono::duration<double> duration = (end - start);
+        return size_t(ndocs / duration.count());
     }
 
 };
@@ -96,32 +95,30 @@ TEST_P(DefragmenterBenchmarkTest, Populate) {
 
 TEST_P(DefragmenterBenchmarkTest, Visit) {
     populateVbucket();
-    const size_t one_minute = 60 * 1000;
     size_t visit_rate = benchmarkDefragment(*vbucket, 1,
                                             std::numeric_limits<uint8_t>::max(),
-                                            one_minute);
+                                            std::chrono::minutes(1));
     RecordProperty("items_per_sec", visit_rate);
 }
 
 TEST_P(DefragmenterBenchmarkTest, DefragAlways) {
     populateVbucket();
-    const size_t one_minute = 60 * 1000;
     size_t defrag_always_rate = benchmarkDefragment(*vbucket, 1, 0,
-                                                    one_minute);
+                                                    std::chrono::minutes(1));
     RecordProperty("items_per_sec", defrag_always_rate);
 }
 
 TEST_P(DefragmenterBenchmarkTest, DefragAge10) {
     populateVbucket();
-    const size_t one_minute = 60 * 1000;
     size_t defrag_age10_rate = benchmarkDefragment(*vbucket, 1, 10,
-                                                   one_minute);
+                                                   std::chrono::minutes(1));
     RecordProperty("items_per_sec", defrag_age10_rate);
 }
 
 TEST_P(DefragmenterBenchmarkTest, DefragAge10_20ms) {
     populateVbucket();
-    size_t defrag_age10_20ms_rate = benchmarkDefragment(*vbucket, 1, 10, 20);
+    size_t defrag_age10_20ms_rate =
+            benchmarkDefragment(*vbucket, 1, 10, std::chrono::milliseconds(20));
     RecordProperty("items_per_sec", defrag_age10_20ms_rate);
 }
 

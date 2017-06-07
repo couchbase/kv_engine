@@ -52,7 +52,7 @@ bool DefragmenterTask::run(void) {
             ss << " resuming from " << epstore_position << ", ";
             ss << prAdapter->getHashtablePosition() << ".";
         }
-        ss << " Using chunk_duration=" << getChunkDurationMS() << " ms."
+        ss << " Using chunk_duration=" << getChunkDuration().count() << " ms."
            << " mem_used=" << stats.getTotalMemoryUsed()
            << ", mapped_bytes=" << getMappedBytes();
         LOG(EXTENSION_LOG_INFO, "%s", ss.str().c_str());
@@ -64,15 +64,15 @@ bool DefragmenterTask::run(void) {
 
         // Prepare the underlying visitor.
         auto& visitor = getDefragVisitor();
-        hrtime_t start = gethrtime();
-        hrtime_t deadline = start + (getChunkDurationMS() * 1000 * 1000);
+        const auto start = ProcessClock::now();
+        const auto deadline = start + getChunkDuration();
         visitor.setDeadline(deadline);
         visitor.clearStats();
 
         // Do it - set off the visitor.
         epstore_position = engine->getKVBucket()->pauseResumeVisit(
                 *prAdapter, epstore_position);
-        hrtime_t end = gethrtime();
+        const auto end = ProcessClock::now();
 
         // Defrag complete. Restore thread caching.
         alloc_hooks->enable_thread_cache(old_tcache);
@@ -99,7 +99,10 @@ bool DefragmenterTask::run(void) {
         } else {
             ss << " paused at position " << epstore_position << ".";
         }
-        ss << " Took " << (end - start) / 1024 << " us."
+        std::chrono::microseconds duration =
+                std::chrono::duration_cast<std::chrono::microseconds>(end -
+                                                                      start);
+        ss << " Took " << duration.count() << " us."
            << " moved " << visitor.getDefragCount() << "/"
            << visitor.getVisitedCount() << " visited documents."
            << " mem_used=" << stats.getTotalMemoryUsed()
@@ -138,8 +141,9 @@ size_t DefragmenterTask::getAgeThreshold() const {
     return engine->getConfiguration().getDefragmenterAgeThreshold();
 }
 
-size_t DefragmenterTask::getChunkDurationMS() const {
-    return engine->getConfiguration().getDefragmenterChunkDuration();
+std::chrono::milliseconds DefragmenterTask::getChunkDuration() const {
+    return std::chrono::milliseconds(
+            engine->getConfiguration().getDefragmenterChunkDuration());
 }
 
 size_t DefragmenterTask::getMappedBytes() {
