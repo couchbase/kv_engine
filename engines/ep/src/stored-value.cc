@@ -231,14 +231,18 @@ std::unique_ptr<Item> StoredValue::toItemWithNoValue(uint16_t vbucket) const {
             std::make_unique<Item>(getKey(),
                                    getFlags(),
                                    getExptime(),
-                                   /* valuePtr */ nullptr,
-                                   /* valuelen */ 0,
-                                   /* ext_meta*/ nullptr,
-                                   /* ext_len */ 0,
+                                   value_t{},
                                    getCas(),
                                    getBySeqno(),
                                    vbucket,
                                    getRevSeqno());
+
+    itm->setDataType(datatype);
+    itm->setNRUValue(nru);
+
+    if (deleted) {
+       itm->setDeleted();
+    }
 
     return itm;
 }
