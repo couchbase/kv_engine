@@ -33,6 +33,7 @@
 class ItemAccessVisitor : public VBucketVisitor, public HashTableVisitor {
 public:
     ItemAccessVisitor(KVBucket& _store,
+                      Configuration& conf,
                       EPStats& _stats,
                       uint16_t sh,
                       std::atomic<bool>& sfin,
@@ -48,7 +49,6 @@ public:
           stateFinalizer(sfin),
           as(aS),
           items_to_scan(items_to_scan) {
-        Configuration &conf = store.getEPEngine().getConfiguration();
         name = conf.getAlogPath();
         std::stringstream s;
         s << shardID;
@@ -212,6 +212,7 @@ private:
 };
 
 AccessScanner::AccessScanner(KVBucket& _store,
+                             Configuration& conf,
                              EPStats& st,
                              double sleeptime,
                              bool useStartTime,
@@ -222,10 +223,10 @@ AccessScanner::AccessScanner(KVBucket& _store,
                  completeBeforeShutdown),
       completedCount(0),
       store(_store),
+      conf(conf),
       stats(st),
       sleepTime(sleeptime),
       available(true) {
-    Configuration &conf = store.getEPEngine().getConfiguration();
     residentRatioThreshold = conf.getAlogResidentRatioThreshold();
     alogPath = conf.getAlogPath();
     maxStoredItems = conf.getAlogMaxStoredItems();
@@ -306,8 +307,13 @@ bool AccessScanner::run() {
                 deleteAlogFile(name);
                 stats.accessScannerSkips++;
             } else {
-                auto pv = std::make_unique<ItemAccessVisitor>(
-                        store, stats, i, available, *this, maxStoredItems);
+                auto pv = std::make_unique<ItemAccessVisitor>(store,
+                                                              conf,
+                                                              stats,
+                                                              i,
+                                                              available,
+                                                              *this,
+                                                              maxStoredItems);
                 ExTask task = std::make_shared<VBCBAdaptor>(
                         &store,
                         TaskId::AccessScannerVisitor,

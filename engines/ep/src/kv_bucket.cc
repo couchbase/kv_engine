@@ -2508,8 +2508,12 @@ void KVBucket::enableAccessScannerTask() {
         size_t alogSleepTime = engine.getConfiguration().getAlogSleepTime();
         accessScanner.sleeptime = alogSleepTime * 60;
         if (accessScanner.sleeptime != 0) {
-            ExTask task = std::make_shared<AccessScanner>(
-                    *this, stats, accessScanner.sleeptime, true);
+            ExTask task =
+                    std::make_shared<AccessScanner>(*this,
+                                                    engine.getConfiguration(),
+                                                    stats,
+                                                    accessScanner.sleeptime,
+                                                    true);
             accessScanner.task = ExecutorPool::get()->schedule(task);
         } else {
             LOG(EXTENSION_LOG_NOTICE, "Did not enable access scanner task, "
@@ -2542,8 +2546,12 @@ void KVBucket::setAccessScannerSleeptime(size_t val, bool useStartTime) {
         // store sleeptime in seconds
         accessScanner.sleeptime = val * 60;
         if (accessScanner.sleeptime != 0) {
-            ExTask task = std::make_shared<AccessScanner>(
-                    *this, stats, accessScanner.sleeptime, useStartTime);
+            ExTask task =
+                    std::make_shared<AccessScanner>(*this,
+                                                    engine.getConfiguration(),
+                                                    stats,
+                                                    accessScanner.sleeptime,
+                                                    useStartTime);
             accessScanner.task = ExecutorPool::get()->schedule(task);
         }
     }
@@ -2556,8 +2564,12 @@ void KVBucket::resetAccessScannerStartTime() {
         if (accessScanner.sleeptime != 0) {
             ExecutorPool::get()->cancel(accessScanner.task);
             // re-schedule task according to the new task start hour
-            ExTask task = std::make_shared<AccessScanner>(
-                    *this, stats, accessScanner.sleeptime, true);
+            ExTask task =
+                    std::make_shared<AccessScanner>(*this,
+                                                    engine.getConfiguration(),
+                                                    stats,
+                                                    accessScanner.sleeptime,
+                                                    true);
             accessScanner.task = ExecutorPool::get()->schedule(task);
         }
     }

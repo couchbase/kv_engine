@@ -25,6 +25,7 @@
 #include <string>
 
 // Forward declaration.
+class Configuration;
 class EPStats;
 class KVBucket;
 class AccessScannerValueChangeListener;
@@ -32,7 +33,9 @@ class AccessScannerValueChangeListener;
 class AccessScanner : public GlobalTask {
     friend class AccessScannerValueChangeListener;
 public:
-    AccessScanner(KVBucket& _store, EPStats& st,
+    AccessScanner(KVBucket& _store,
+                  Configuration& conf,
+                  EPStats& st,
                   double sleeptime = 0,
                   bool useStartTime = false,
                   bool completeBeforeShutdown = false);
@@ -46,6 +49,7 @@ private:
     void deleteAlogFile(const std::string& fileName);
 
     KVBucket& store;
+    Configuration& conf;
     EPStats& stats;
     double sleepTime;
     std::string alogPath;
