@@ -30,6 +30,7 @@
 #include <list>
 #include <mutex>
 #include <sstream>
+#include <thread>
 
 #include "mock/mock_dcp.h"
 
@@ -1638,4 +1639,18 @@ cb::EngineErrorItemPair get(ENGINE_HANDLE* h,
                    DocKey(key, testHarness.doc_namespace),
                    vb,
                    documentStateFilter);
+}
+
+bool repeat_till_true(std::function<bool()> functor,
+                      uint16_t max_repeat,
+                      std::chrono::microseconds sleepTime) {
+    bool fSuccess = false;
+    do {
+        fSuccess = functor();
+        if (!fSuccess) {
+            std::this_thread::sleep_for(sleepTime);
+            max_repeat--;
+        }
+    } while (!fSuccess && max_repeat > 0);
+    return fSuccess;
 }

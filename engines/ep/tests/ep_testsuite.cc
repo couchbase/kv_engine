@@ -2881,9 +2881,20 @@ static enum test_result test_access_scanner_settings(ENGINE_HANDLE *h,
     checkeq(0, str.substr(11, 5).compare(expected_time), err_msg.c_str());
 
     // Update alog_task_time and ensure the update is successful
-    set_param(h, h1, protocol_binary_engine_param_flush, "alog_task_time", "5");
     expected_time = "05:00";
-    str = get_str_stat(h, h1, "ep_access_scanner_task_time");
+
+    // [MB-24422] we need to set this multiple times as the change listeners
+    //  may not have been initialized at the time of call
+    repeat_till_true([&]() {
+        set_param(h,
+                  h1,
+                  protocol_binary_engine_param_flush,
+                  "alog_task_time",
+                  "5");
+        str = get_str_stat(h, h1, "ep_access_scanner_task_time");
+        return (0 == str.substr(11, 5).compare(expected_time));
+    });
+
     err_msg.assign("Updated time incorrect, expect: " +
                    expected_time + ", actual: " + str.substr(11, 5));
     checkeq(0, str.substr(11, 5).compare(expected_time), err_msg.c_str());

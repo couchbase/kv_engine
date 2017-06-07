@@ -398,6 +398,16 @@ void wait_for_memory_usage_below(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                  int mem_threshold,
                                  const time_t max_wait_time_in_secs = 60);
 
+/**
+ * Repeat a functor returning bool upto max repeat times, sleeping
+ * inbetween for sleep_time. return True if the functor returns
+ * true or False if the functor did not succeed at all
+ */
+bool repeat_till_true(std::function<bool()> functor,
+                      uint16_t max_repeat = 50,
+                      std::chrono::microseconds sleepTime =
+                              std::chrono::microseconds(1000 * 100));
+
 // Tap Operations
 void changeVBFilter(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, std::string name,
                     std::map<uint16_t, uint64_t> &filtermap);
