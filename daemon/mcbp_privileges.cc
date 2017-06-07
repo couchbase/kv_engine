@@ -29,6 +29,18 @@ static PrivilegeAccess require(Cookie& cookie) {
     return cookie.connection->checkPrivilege(T, cookie);
 }
 
+static PrivilegeAccess requireInsertOrUpsert(Cookie& cookie) {
+    if (cookie.connection == nullptr) {
+        throw std::logic_error("insert: cookie.connection can't be null");
+    }
+    auto ret = cookie.connection->checkPrivilege(Privilege::Insert, cookie);
+    if (ret == PrivilegeAccess::Ok) {
+        return PrivilegeAccess::Ok;
+    } else {
+        return cookie.connection->checkPrivilege(Privilege::Upsert, cookie);
+    }
+}
+
 static PrivilegeAccess empty(Cookie& cookie) {
     return PrivilegeAccess::Ok;
 }
@@ -39,26 +51,26 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_GETQ, require<Privilege::Read>);
     setup(PROTOCOL_BINARY_CMD_GETK, require<Privilege::Read>);
     setup(PROTOCOL_BINARY_CMD_GETKQ, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_SET, require<Privilege::Write>);
-    setup(PROTOCOL_BINARY_CMD_SETQ, require<Privilege::Write>);
-    setup(PROTOCOL_BINARY_CMD_ADD, require<Privilege::Write>);
-    setup(PROTOCOL_BINARY_CMD_ADDQ, require<Privilege::Write>);
-    setup(PROTOCOL_BINARY_CMD_REPLACE, require<Privilege::Write>);
-    setup(PROTOCOL_BINARY_CMD_REPLACEQ, require<Privilege::Write>);
-    setup(PROTOCOL_BINARY_CMD_DELETE, require<Privilege::Write>);
-    setup(PROTOCOL_BINARY_CMD_DELETEQ, require<Privilege::Write>);
-    setup(PROTOCOL_BINARY_CMD_APPEND, require<Privilege::Write>);
-    setup(PROTOCOL_BINARY_CMD_APPENDQ, require<Privilege::Write>);
-    setup(PROTOCOL_BINARY_CMD_PREPEND, require<Privilege::Write>);
-    setup(PROTOCOL_BINARY_CMD_PREPENDQ, require<Privilege::Write>);
+    setup(PROTOCOL_BINARY_CMD_SET, require<Privilege::Upsert>);
+    setup(PROTOCOL_BINARY_CMD_SETQ, require<Privilege::Upsert>);
+    setup(PROTOCOL_BINARY_CMD_ADD, requireInsertOrUpsert);
+    setup(PROTOCOL_BINARY_CMD_ADDQ, requireInsertOrUpsert);
+    setup(PROTOCOL_BINARY_CMD_REPLACE, require<Privilege::Upsert>);
+    setup(PROTOCOL_BINARY_CMD_REPLACEQ, require<Privilege::Upsert>);
+    setup(PROTOCOL_BINARY_CMD_DELETE, require<Privilege::Delete>);
+    setup(PROTOCOL_BINARY_CMD_DELETEQ, require<Privilege::Delete>);
+    setup(PROTOCOL_BINARY_CMD_APPEND, require<Privilege::Upsert>);
+    setup(PROTOCOL_BINARY_CMD_APPENDQ, require<Privilege::Upsert>);
+    setup(PROTOCOL_BINARY_CMD_PREPEND, require<Privilege::Upsert>);
+    setup(PROTOCOL_BINARY_CMD_PREPENDQ, require<Privilege::Upsert>);
     setup(PROTOCOL_BINARY_CMD_INCREMENT, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_INCREMENT, require<Privilege::Write>);
+    setup(PROTOCOL_BINARY_CMD_INCREMENT, require<Privilege::Upsert>);
     setup(PROTOCOL_BINARY_CMD_INCREMENTQ, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_INCREMENTQ, require<Privilege::Write>);
+    setup(PROTOCOL_BINARY_CMD_INCREMENTQ, require<Privilege::Upsert>);
     setup(PROTOCOL_BINARY_CMD_DECREMENT, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_DECREMENT, require<Privilege::Write>);
+    setup(PROTOCOL_BINARY_CMD_DECREMENT, require<Privilege::Upsert>);
     setup(PROTOCOL_BINARY_CMD_DECREMENTQ, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_DECREMENTQ, require<Privilege::Write>);
+    setup(PROTOCOL_BINARY_CMD_DECREMENTQ, require<Privilege::Upsert>);
     setup(PROTOCOL_BINARY_CMD_QUIT, empty);
     setup(PROTOCOL_BINARY_CMD_QUITQ, empty);
     setup(PROTOCOL_BINARY_CMD_FLUSH, require<Privilege::BucketManagement>);
@@ -67,11 +79,11 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_VERSION, empty);
     setup(PROTOCOL_BINARY_CMD_STAT, require<Privilege::SimpleStats>);
     setup(PROTOCOL_BINARY_CMD_VERBOSITY, require<Privilege::NodeManagement>);
-    setup(PROTOCOL_BINARY_CMD_TOUCH, require<Privilege::Write>);
+    setup(PROTOCOL_BINARY_CMD_TOUCH, require<Privilege::Upsert>);
     setup(PROTOCOL_BINARY_CMD_GAT, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_GAT, require<Privilege::Write>);
+    setup(PROTOCOL_BINARY_CMD_GAT, require<Privilege::Upsert>);
     setup(PROTOCOL_BINARY_CMD_GATQ, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_GATQ, require<Privilege::Write>);
+    setup(PROTOCOL_BINARY_CMD_GATQ, require<Privilege::Upsert>);
     setup(PROTOCOL_BINARY_CMD_HELLO, empty);
     setup(PROTOCOL_BINARY_CMD_GET_ERROR_MAP, empty);
     setup(PROTOCOL_BINARY_CMD_SASL_LIST_MECHS, empty);
@@ -257,28 +269,28 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, require<Privilege::Read>);
 
     /* Dictionary commands */
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, require<Privilege::Write>);
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT, require<Privilege::Write>);
+    setup(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, require<Privilege::Upsert>);
+    setup(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT, require<Privilege::Upsert>);
 
     /* Generic modification commands */
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, require<Privilege::Write>);
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, require<Privilege::Write>);
+    setup(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, require<Privilege::Upsert>);
+    setup(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, require<Privilege::Upsert>);
 
     /* Array commands */
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST, require<Privilege::Write>);
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST, require<Privilege::Write>);
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT, require<Privilege::Write>);
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE, require<Privilege::Write>);
+    setup(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST, require<Privilege::Upsert>);
+    setup(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST, require<Privilege::Upsert>);
+    setup(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT, require<Privilege::Upsert>);
+    setup(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE, require<Privilege::Upsert>);
     setup(PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, require<Privilege::Read>);
 
     /* Arithmetic commands */
     setup(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER, require<Privilege::Write>);
+    setup(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER, require<Privilege::Upsert>);
 
     /* Multi-Path commands */
     setup(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP, require<Privilege::Read>);
     setup(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION, require<Privilege::Write>);
+    setup(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION, require<Privilege::Upsert>);
 
 
     /* Scrub the data */

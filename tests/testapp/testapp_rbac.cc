@@ -302,6 +302,20 @@ TEST_P(RbacRoleTest, Arithmetic) {
         EXPECT_TRUE(error.isAccessDenied());
     }
 
+    // The rw user should not be able to perform arithmetic if we drop
+    // the upsert privilege
+    rw.dropPrivilege(cb::rbac::Privilege::Upsert);
+    try {
+        wo.arithmetic(name, 1, 0);
+        FAIL() << "The rw user user should not be allowed to create keys"
+               << " the privilege set don't include upsert";
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isAccessDenied());
+    }
+
+    // reset the connection to get back the privilege
+    rw = getRWConnection();
+    // With upsert it should be allowed to create the key
     rw.arithmetic(name, 0, 0);
 
     // The key exists, verify that we can't increment it if it exists
@@ -317,6 +331,17 @@ TEST_P(RbacRoleTest, Arithmetic) {
         wo.arithmetic(name, 1);
         FAIL() << "The write-only user should not be allowed to perform "
                << "arithmetic operations";
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isAccessDenied());
+    }
+
+    // The rw user should not be able to perform arithmetic if we drop
+    // the upsert privilege
+    rw.dropPrivilege(cb::rbac::Privilege::Upsert);
+    try {
+        wo.arithmetic(name, 1, 0);
+        FAIL() << "The rw user user should not be allowed to create keys"
+               << " the privilege set don't include upsert";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied());
     }
@@ -353,12 +378,43 @@ TEST_P(RbacRoleTest, MutationTest_WriteOnly) {
     auto& wo = getWOConnection();
 
     // The Write Only user should be allowed to do all of these ops
-    for (const auto& type : {MutationType::Add,
-                             MutationType::Append,
+    for (int ii = 0; ii < 2; ++ii) {
+        for (const auto& type : {MutationType::Add,
+                                 MutationType::Append,
+                                 MutationType::Prepend,
+                                 MutationType::Set,
+                                 MutationType::Replace}) {
+            store(wo, type);
+        }
+
+        wo.remove(name, 0, 0);
+
+        // If we drop the Insert privilege the upsert privilege should
+        // allow us to do all that we want..
+        if (ii == 0) {
+            wo.dropPrivilege(cb::rbac::Privilege::Insert);
+        }
+    }
+
+    // Reset privilege set
+    wo = getWOConnection();
+
+    // If we drop the Upsert privilege we should only be allowed to do add
+    wo.dropPrivilege(cb::rbac::Privilege::Upsert);
+
+    store(wo, MutationType::Add);
+    for (const auto& type : {MutationType::Append,
                              MutationType::Prepend,
                              MutationType::Set,
                              MutationType::Replace}) {
-        store(wo, type);
+        try {
+            store(wo, type);
+            FAIL() << "The write-only user should not be able to modify "
+                   << "the document by using " << to_string(type)
+                   << " without Upsert privilege";
+        } catch (const ConnectionError& error) {
+            EXPECT_TRUE(error.isAccessDenied());
+        }
     }
 }
 
@@ -376,9 +432,23 @@ TEST_P(RbacRoleTest, Remove_ReadOnly) {
 }
 
 TEST_P(RbacRoleTest, Remove_WriteOnly) {
-    auto& rw = getRWConnection();
-    store(rw, MutationType::Add);
-    rw.remove(name, 0, 0);
+    auto& wo = getWOConnection();
+    store(wo, MutationType::Add);
+    wo.remove(name, 0, 0);
+
+    store(wo, MutationType::Add);
+
+    // And if we drop the delete privilege we shouldn't be able to delete
+    // the document
+    wo.dropPrivilege(cb::rbac::Privilege::Delete);
+    try {
+        wo.remove(name, 0, 0);
+        FAIL() << "The write-only user should not be able to delete document"
+               << " without delete privilege";
+
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isAccessDenied());
+    }
 }
 
 TEST_P(RbacRoleTest, NoAccessToUserXattrs) {

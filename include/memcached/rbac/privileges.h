@@ -33,8 +33,24 @@ enum class Privilege {
      */
     Read,
     /**
+     * The `Insert` privilege allows for inserting data by using the
+     * 'add' command.
+     */
+    Insert,
+    /**
+     * The `Delete` privilege allows for deleting documents by using
+     * the `delete` command.
+     */
+    Delete,
+    /**
+     * The `Upsert` privilege allows for adding or modifying documents
+     * by using add, set, replace, append/prepend/arithmetic
+     */
+    Upsert,
+    /**
      * The `Write` privilege allows for creating, updating or deleting
-     * documents in the selected bucket.
+     * documents in the selected bucket. This privilege is deprecated
+     * and will go away
      */
     Write,
     /**

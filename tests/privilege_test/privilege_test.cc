@@ -67,7 +67,9 @@ TEST(PrivilegeDatabaseTest, ParseLegalConfig) {
     {
         cb::rbac::PrivilegeMask privs{};
         privs[int(cb::rbac::Privilege::Read)] = true;
-        privs[int(cb::rbac::Privilege::Write)] = true;
+        privs[int(cb::rbac::Privilege::Insert)] = true;
+        privs[int(cb::rbac::Privilege::Delete)] = true;
+        privs[int(cb::rbac::Privilege::Upsert)] = true;
         privs[int(cb::rbac::Privilege::SimpleStats)] = true;
 
         EXPECT_EQ(privs, it->second);

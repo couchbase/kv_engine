@@ -24,10 +24,9 @@ namespace rbac {
 
 static const std::unordered_map<std::string, Privilege> privilegemap = {
         {"Read", Privilege::Read},
-        // MB-24684 - Split write privilege
-        {"Insert", Privilege::Write},
-        {"Delete", Privilege::Write},
-        {"Upsert", Privilege::Write},
+        {"Insert", Privilege::Insert},
+        {"Delete", Privilege::Delete},
+        {"Upsert", Privilege::Upsert},
         {"Write", Privilege::Write},
         {"SimpleStats", Privilege::SimpleStats},
         {"Stats", Privilege::Stats},
@@ -53,11 +52,6 @@ static const std::unordered_map<std::string, Privilege> privilegemap = {
         {"Impersonate", Privilege::Impersonate}};
 
 std::string to_string(const Privilege& privilege) {
-    // MB-24684 - Split write privilege
-    if (privilege == Privilege::Write) {
-        return "Write";
-    }
-
     for (const auto& entry : privilegemap) {
         if (entry.second == privilege) {
             return entry.first;

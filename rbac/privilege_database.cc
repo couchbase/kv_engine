@@ -97,7 +97,16 @@ PrivilegeMask UserEntry::parsePrivileges(const cJSON* priv, bool buckets) {
         if (str == "all") {
             ret.set();
         } else {
-            ret[int(to_privilege(str))] = true;
+            auto priv = to_privilege(str);
+            ret[int(priv)] = true;
+
+            if (priv == Privilege::Write) {
+                // MB-24686 : Write is to be split up into these 3..
+                ret[int(priv)] = false; // Never set the Write privilege
+                ret[int(Privilege::Insert)] = true;
+                ret[int(Privilege::Delete)] = true;
+                ret[int(Privilege::Upsert)] = true;
+            }
         }
     }
 
@@ -112,6 +121,9 @@ PrivilegeMask UserEntry::parsePrivileges(const cJSON* priv, bool buckets) {
         ret[int(Privilege::Impersonate)] = false;
     } else {
         ret[int(Privilege::Read)] = false;
+        ret[int(Privilege::Insert)] = false;
+        ret[int(Privilege::Delete)] = false;
+        ret[int(Privilege::Upsert)] = false;
         ret[int(Privilege::Write)] = false;
         ret[int(Privilege::DcpConsumer)] = false;
         ret[int(Privilege::DcpProducer)] = false;
@@ -206,6 +218,9 @@ std::string PrivilegeContext::to_string() const {
 
 void PrivilegeContext::clearBucketPrivileges() {
     mask[int(Privilege::Read)] = false;
+    mask[int(Privilege::Insert)] = false;
+    mask[int(Privilege::Upsert)] = false;
+    mask[int(Privilege::Delete)] = false;
     mask[int(Privilege::Write)] = false;
     mask[int(Privilege::SimpleStats)] = false;
     mask[int(Privilege::DcpConsumer)] = false;
@@ -221,6 +236,9 @@ void PrivilegeContext::clearBucketPrivileges() {
 
 void PrivilegeContext::setBucketPrivileges() {
     mask[int(Privilege::Read)] = true;
+    mask[int(Privilege::Insert)] = true;
+    mask[int(Privilege::Upsert)] = true;
+    mask[int(Privilege::Delete)] = true;
     mask[int(Privilege::Write)] = true;
     mask[int(Privilege::SimpleStats)] = true;
     mask[int(Privilege::DcpConsumer)] = true;
