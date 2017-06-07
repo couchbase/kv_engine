@@ -20,9 +20,8 @@
 #include "config.h"
 
 #include "hash_table.h"
+#include "progress_tracker.h"
 #include "vb_visitors.h"
-
-class ProgressTracker;
 
 /**
  * Defragmentation visitor - visit all objects in a VBucket, and defragment
@@ -61,7 +60,7 @@ private:
     /* Runtime state */
 
     // Estimates how far we have got, and when we should pause.
-    ProgressTracker* progressTracker;
+    ProgressTracker progressTracker;
 
     /* Statistics */
     // Count of how many documents have been defrag'd.

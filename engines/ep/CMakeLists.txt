@@ -207,6 +207,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/mutation_log_entry.cc
             src/pre_link_document_context.cc
             src/pre_link_document_context.h
+            src/progress_tracker.cc
             src/replicationthrottle.cc
             src/linked_list.cc
             src/seqlist.cc
