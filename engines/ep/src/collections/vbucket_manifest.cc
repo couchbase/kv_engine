@@ -304,12 +304,11 @@ Collections::VB::Manifest::processManifest(
 
 bool Collections::VB::Manifest::doesKeyContainValidCollection(
         const ::DocKey& key) const {
-    const auto cKey = Collections::DocKey::make(key, separator);
-
     if (defaultCollectionExists &&
-        cKey.getDocNamespace() == DocNamespace::DefaultCollection) {
+        key.getDocNamespace() == DocNamespace::DefaultCollection) {
         return true;
-    } else if (cKey.getDocNamespace() == DocNamespace::Collections) {
+    } else if (key.getDocNamespace() == DocNamespace::Collections) {
+        const auto cKey = Collections::DocKey::make(key, separator);
         auto itr = map.find({reinterpret_cast<const char*>(cKey.data()),
                              cKey.getCollectionLen()});
         if (itr != map.end()) {
