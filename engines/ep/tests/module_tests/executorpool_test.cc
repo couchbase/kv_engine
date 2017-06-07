@@ -20,28 +20,7 @@
  */
 
 #include "executorpool_test.h"
-
-class LambdaTask : public GlobalTask {
-public:
-    LambdaTask(Taskable& t,
-               TaskId taskId,
-               double sleeptime,
-               bool completeBeforeShutdown,
-               std::function<bool()> f)
-        : GlobalTask(t, taskId, sleeptime, completeBeforeShutdown), func(f) {
-    }
-
-    bool run() override {
-        return func();
-    }
-
-    cb::const_char_buffer getDescription() override {
-        return "Lambda Task";
-    }
-
-protected:
-    std::function<bool()> func;
-};
+#include "lambda_task.h"
 
 MockTaskable::MockTaskable() : policy(HIGH_BUCKET_PRIORITY, 1) {
 }
