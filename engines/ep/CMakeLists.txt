@@ -220,6 +220,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/tasks.cc
             src/taskqueue.cc
             src/vb_count_visitor.cc
+            src/vb_visitors.cc
             src/vbucket.cc
             src/vbucketmap.cc
             src/vbucketdeletiontask.cc

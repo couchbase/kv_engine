@@ -2626,10 +2626,8 @@ size_t KVBucket::visit(std::unique_ptr<VBucketVisitor> visitor,
             this, id, std::move(visitor), lbl, sleepTime));
 }
 
-KVBucket::Position KVBucket::pauseResumeVisit(
-                                            PauseResumeEPStoreVisitor& visitor,
-                                            Position& start_pos)
-{
+KVBucket::Position KVBucket::pauseResumeVisit(PauseResumeVBVisitor& visitor,
+                                              Position& start_pos) {
     uint16_t vbid = start_pos.vbucket_id;
     for (; vbid < vbMap.getSize(); ++vbid) {
         VBucketPtr vb = vbMap.getBucket(vbid);

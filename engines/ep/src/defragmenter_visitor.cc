@@ -50,8 +50,6 @@ DefragmentVisitor::DefragmentVisitor(uint8_t age_threshold_)
   : max_size_class(3584),  // TODO: Derive from allocator hooks.
     age_threshold(age_threshold_),
     progressTracker(NULL),
-    resume_vbucket_id(0),
-    hashtable_position(),
     defrag_count(0),
     visited_count(0) {
     progressTracker = new ProgressTracker(*this);
@@ -63,27 +61,6 @@ DefragmentVisitor::~DefragmentVisitor() {
 
 void DefragmentVisitor::setDeadline(hrtime_t deadline) {
     progressTracker->setDeadline(deadline);
-}
-
-bool DefragmentVisitor::visit(uint16_t vbucket_id, HashTable& ht) {
-
-    // Check if this vbucket_id matches the position we should resume
-    // from. If so then call the visitor using our stored HashTable::Position.
-    HashTable::Position ht_start;
-    if (resume_vbucket_id == vbucket_id) {
-        ht_start = hashtable_position;
-    }
-
-    hashtable_position = ht.pauseResumeVisit(*this, ht_start);
-
-    if (hashtable_position != ht.endPosition()) {
-        // We didn't get to the end of this hashtable. Record the vbucket_id
-        // we got to and return false.
-        resume_vbucket_id = vbucket_id;
-        return false;
-    } else {
-        return true;
-    }
 }
 
 bool DefragmentVisitor::visit(const HashTable::HashBucketLock& lh,
@@ -113,10 +90,6 @@ bool DefragmentVisitor::visit(const HashTable::HashBucketLock& lh,
     // See if we have done enough work for this chunk. If so
     // stop visiting (for now).
     return progressTracker->shouldContinueVisiting();
-}
-
-HashTable::Position DefragmentVisitor::getHashtablePosition() const {
-    return hashtable_position;
 }
 
 void DefragmentVisitor::clearStats() {

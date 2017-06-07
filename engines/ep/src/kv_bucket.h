@@ -437,29 +437,8 @@ public:
                  TaskId id,
                  double sleepTime = 0);
 
-    /**
-     * Visit the items in this epStore, starting the iteration from the
-     * given startPosition and allowing the visit to be paused at any point.
-     *
-     * During visitation, the visitor object can request that the visit
-     * is stopped after the current item. The position passed to the
-     * visitor can then be used to restart visiting at the *APPROXIMATE*
-     * same position as it paused.
-     * This is approximate as various locks are released when the
-     * function returns, so any changes to the underlying epStore may cause
-     * the visiting to restart at the slightly different place.
-     *
-     * As a consequence, *DO NOT USE THIS METHOD* if you need to guarantee
-     * that all items are visited!
-     *
-     * @param visitor The visitor object.
-     * @return The final epStore position visited; equal to
-     *         EPBucket::end() if all items were visited
-     *         otherwise the position to resume from.
-     */
-    Position pauseResumeVisit(PauseResumeEPStoreVisitor& visitor,
+    Position pauseResumeVisit(PauseResumeVBVisitor& visitor,
                               Position& start_pos);
-
 
     /**
      * Return a position at the start of the epStore.

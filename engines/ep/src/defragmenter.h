@@ -23,8 +23,9 @@
 #include "globaltask.h"
 #include "kv_bucket_iface.h"
 
-class EPStats;
 class DefragmentVisitor;
+class EPStats;
+class PauseResumeVBAdapter;
 
 /** Task responsible for defragmenting items in memory.
  *
@@ -102,8 +103,6 @@ class DefragmenterTask : public GlobalTask {
 public:
     DefragmenterTask(EventuallyPersistentEngine* e, EPStats& stats_);
 
-    ~DefragmenterTask();
-
     bool run(void);
 
     void stop(void);
@@ -126,14 +125,21 @@ private:
     /// Return the current number of mapped bytes from the allocator.
     size_t getMappedBytes();
 
+    /// Returns the underlying DefragmentVisitor instance.
+    DefragmentVisitor& getDefragVisitor();
+
     /// Reference to EP stats, used to check on mem_used.
     EPStats &stats;
 
     // Opaque marker indicating how far through the epStore we have visited.
     KVBucketIface::Position epstore_position;
 
-    /// Visitor object in use.
-    DefragmentVisitor* visitor;
+    /**
+     * Visitor adapter which supports pausing & resuming (records how far
+     * though a VBucket is has got). unique_ptr as we re-create it for each
+     * complete pass.
+     */
+    std::unique_ptr<PauseResumeVBAdapter> prAdapter;
 };
 
 #endif /* DEFRAGMENTER_H_ */

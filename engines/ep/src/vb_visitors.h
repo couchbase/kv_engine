@@ -19,9 +19,10 @@
 
 #include "config.h"
 
+#include "hash_table.h"
 #include "vb_filter.h"
 
-class HashTable;
+class HashTableVisitor;
 class VBucket;
 
 using VBucketPtr = std::shared_ptr<VBucket>;
@@ -67,11 +68,11 @@ protected:
 };
 
 /**
- * Base class for visiting an epStore with pause/resume support.
+ * Base class for visiting VBuckets with pause/resume support.
  */
-class PauseResumeEPStoreVisitor {
+class PauseResumeVBVisitor {
 public:
-    virtual ~PauseResumeEPStoreVisitor() {
+    virtual ~PauseResumeVBVisitor() {
     }
 
     /**
@@ -82,4 +83,44 @@ public:
      * @return True if visiting should continue, otherwise false.
      */
     virtual bool visit(uint16_t vbucket_id, HashTable& ht) = 0;
+};
+
+/**
+ * Adapts a HashTableVisitor, recording the position into the
+ * HashTable the visit reached when it paused; and resumes Visiting from that
+ * position when visit() is next called.
+ */
+class PauseResumeVBAdapter : public PauseResumeVBVisitor {
+public:
+    PauseResumeVBAdapter(std::unique_ptr<HashTableVisitor> htVisitor);
+
+    /**
+     * Visit a hashtable within an epStore.
+     *
+     * @param vbucket_id ID of the vbucket being visited.
+     * @param ht a reference to the hashtable.
+     * @return True if visiting should continue (in the given HashTable),
+     *         otherwise false if the HashTable is complete.
+     */
+    bool visit(uint16_t vbucket_id, HashTable& ht);
+
+    /// Returns the current hashtable position.
+    HashTable::Position getHashtablePosition() const {
+        return hashtable_position;
+    }
+
+    /// Returns the wrapped HashTable visitor.
+    HashTableVisitor& getHTVisitor() {
+        return *htVisitor;
+    }
+
+private:
+    // The HashTable visitor to apply to each VBucket's HashTable.
+    std::unique_ptr<HashTableVisitor> htVisitor;
+
+    // When resuming, which vbucket should we start from?
+    uint16_t resume_vbucket_id = 0;
+
+    // When pausing / resuming, hashtable position to use.
+    HashTable::Position hashtable_position;
 };

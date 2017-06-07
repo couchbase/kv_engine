@@ -229,8 +229,8 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
     // 3. Enable defragmenter and trigger defragmentation
     AllocHooks::enable_thread_cache(false);
 
-    DefragmentVisitor visitor(0);
-    visitor.visit(vbucket->getId(), vbucket->ht);
+    PauseResumeVBAdapter prAdapter(std::make_unique<DefragmentVisitor>(0));
+    prAdapter.visit(vbucket->getId(), vbucket->ht);
 
     AllocHooks::enable_thread_cache(true);
     AllocHooks::release_free_memory();
@@ -241,6 +241,7 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
     // Give it 10 seconds to drop.
     const size_t expected_mapped = ((mapped_2 - mapped_0) * 0.5) + mapped_0;
 
+    auto& visitor = dynamic_cast<DefragmentVisitor&>(prAdapter.getHTVisitor());
     EXPECT_TRUE(wait_for_mapped_below(expected_mapped, 1 * 1000 * 1000))
         << "Mapped memory (" << get_mapped_bytes() << ") didn't fall below "
         << "estimate (" <<  expected_mapped << ") after the defragmentater "
@@ -313,11 +314,14 @@ TEST_P(DefragmenterTest, DISABLED_RefCountMemUsage) {
     {
         AllocHooks::enable_thread_cache(false);
 
-        DefragmentVisitor visitor(0);
-        visitor.visit(vbucket->getId(), vbucket->ht);
+        PauseResumeVBAdapter prAdapter(std::make_unique<DefragmentVisitor>(0));
+        prAdapter.visit(vbucket->getId(), vbucket->ht);
 
         AllocHooks::enable_thread_cache(true);
         AllocHooks::release_free_memory();
+
+        auto& visitor =
+                dynamic_cast<DefragmentVisitor&>(prAdapter.getHTVisitor());
         ASSERT_EQ(visitor.getVisitedCount(), num_remaining);
         ASSERT_EQ(visitor.getDefragCount(), 0);
     }

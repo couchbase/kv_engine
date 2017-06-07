@@ -25,24 +25,20 @@
 
 DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine* e,
                                    EPStats& stats_)
-  : GlobalTask(e, TaskId::DefragmenterTask, 0, false),
-    stats(stats_),
-    epstore_position(engine->getKVBucket()->startPosition()),
-    visitor(NULL) {
-}
-
-DefragmenterTask::~DefragmenterTask() {
-    delete visitor;
+    : GlobalTask(e, TaskId::DefragmenterTask, 0, false),
+      stats(stats_),
+      epstore_position(engine->getKVBucket()->startPosition()) {
 }
 
 bool DefragmenterTask::run(void) {
     TRACE_EVENT0("ep-engine/task", "DefragmenterTask");
     if (engine->getConfiguration().isDefragmenterEnabled()) {
-        // Get our visitor. If we didn't finish the previous pass,
-        // then resume from where we last were, otherwise create a new visitor and
-        // reset the position.
-        if (visitor == NULL) {
-            visitor = new DefragmentVisitor(getAgeThreshold());
+        // Get our pause/resume visitor. If we didn't finish the previous pass,
+        // then resume from where we last were, otherwise create a new visitor
+        // starting from the beginning.
+        if (!prAdapter) {
+            prAdapter = std::make_unique<PauseResumeVBAdapter>(
+                    std::make_unique<DefragmentVisitor>(getAgeThreshold()));
             epstore_position = engine->getKVBucket()->startPosition();
         }
 
@@ -54,7 +50,7 @@ bool DefragmenterTask::run(void) {
             ss << " starting. ";
         } else {
             ss << " resuming from " << epstore_position << ", ";
-            ss << visitor->getHashtablePosition() << ".";
+            ss << prAdapter->getHashtablePosition() << ".";
         }
         ss << " Using chunk_duration=" << getChunkDurationMS() << " ms."
            << " mem_used=" << stats.getTotalMemoryUsed()
@@ -66,24 +62,24 @@ bool DefragmenterTask::run(void) {
         ALLOCATOR_HOOKS_API* alloc_hooks = engine->getServerApi()->alloc_hooks;
         bool old_tcache = alloc_hooks->enable_thread_cache(false);
 
-        // Prepare the visitor.
+        // Prepare the underlying visitor.
+        auto& visitor = getDefragVisitor();
         hrtime_t start = gethrtime();
         hrtime_t deadline = start + (getChunkDurationMS() * 1000 * 1000);
-        visitor->setDeadline(deadline);
-        visitor->clearStats();
+        visitor.setDeadline(deadline);
+        visitor.clearStats();
 
         // Do it - set off the visitor.
         epstore_position = engine->getKVBucket()->pauseResumeVisit(
-                                                            *visitor,
-                                                            epstore_position);
+                *prAdapter, epstore_position);
         hrtime_t end = gethrtime();
 
         // Defrag complete. Restore thread caching.
         alloc_hooks->enable_thread_cache(old_tcache);
 
         // Update stats
-        stats.defragNumMoved.fetch_add(visitor->getDefragCount());
-        stats.defragNumVisited.fetch_add(visitor->getVisitedCount());
+        stats.defragNumMoved.fetch_add(visitor.getDefragCount());
+        stats.defragNumVisited.fetch_add(visitor.getVisitedCount());
 
         // Release any free memory we now have in the allocator back to the OS.
         // TODO: Benchmark this - is it necessary? How much of a slowdown does it
@@ -104,17 +100,16 @@ bool DefragmenterTask::run(void) {
             ss << " paused at position " << epstore_position << ".";
         }
         ss << " Took " << (end - start) / 1024 << " us."
-           << " moved " << visitor->getDefragCount() << "/"
-           << visitor->getVisitedCount() << " visited documents."
+           << " moved " << visitor.getDefragCount() << "/"
+           << visitor.getVisitedCount() << " visited documents."
            << " mem_used=" << stats.getTotalMemoryUsed()
-           << ", mapped_bytes=" << getMappedBytes()
-           << ". Sleeping for " << getSleepTime() << " seconds.";
+           << ", mapped_bytes=" << getMappedBytes() << ". Sleeping for "
+           << getSleepTime() << " seconds.";
         LOG(EXTENSION_LOG_INFO, "%s", ss.str().c_str());
 
-        // Delete visitor if it finished.
+        // Delete(reset) visitor if it finished.
         if (completed) {
-            delete visitor;
-            visitor = NULL;
+            prAdapter.reset();
         }
     }
 
@@ -158,4 +153,8 @@ size_t DefragmenterTask::getMappedBytes() {
     size_t mapped_bytes = stats.fragmentation_size + stats.allocated_size;
     delete[] stats.ext_stats;
     return mapped_bytes;
+}
+
+DefragmentVisitor& DefragmenterTask::getDefragVisitor() {
+    return dynamic_cast<DefragmentVisitor&>(prAdapter->getHTVisitor());
 }

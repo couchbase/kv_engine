@@ -24,11 +24,11 @@
 
 class ProgressTracker;
 
-/** Defragmentation visitor - visit all objects and defragment
- *
+/**
+ * Defragmentation visitor - visit all objects in a VBucket, and defragment
+ * any which have reached the specified age.
  */
-class DefragmentVisitor : public PauseResumeEPStoreVisitor,
-                          public HashTableVisitor {
+class DefragmentVisitor : public HashTableVisitor {
 public:
     DefragmentVisitor(uint8_t age_threshold_);
 
@@ -37,14 +37,8 @@ public:
     // Set the deadline at which point the visitor will pause visiting.
     void setDeadline(hrtime_t deadline_);
 
-    // Implementation of PauseResumeEPStoreVisitor interface:
-    virtual bool visit(uint16_t vbucket_id, HashTable& ht);
-
     // Implementation of HashTableVisitor interface:
     virtual bool visit(const HashTable::HashBucketLock& lh, StoredValue& v);
-
-    // Returns the current hashtable position.
-    HashTable::Position getHashtablePosition() const;
 
     // Resets any held stats to zero.
     void clearStats();
@@ -68,12 +62,6 @@ private:
 
     // Estimates how far we have got, and when we should pause.
     ProgressTracker* progressTracker;
-
-    // When resuming, which vbucket should we start from?
-    uint16_t resume_vbucket_id;
-
-    // When pausing / resuming, hashtable position to use.
-    HashTable::Position hashtable_position;
 
     /* Statistics */
     // Count of how many documents have been defrag'd.

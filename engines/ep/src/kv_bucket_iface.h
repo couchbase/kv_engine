@@ -32,7 +32,7 @@ class HashTable;
 class ItemMetaData;
 class KVBucket;
 class MutationLog;
-class PauseResumeEPStoreVisitor;
+class PauseResumeVBVisitor;
 class PersistenceCallback;
 class Producer;
 class VBucketMap;
@@ -528,9 +528,8 @@ public:
      *         EPBucket::end() if all items were visited
      *         otherwise the position to resume from.
      */
-    virtual Position pauseResumeVisit(PauseResumeEPStoreVisitor& visitor,
+    virtual Position pauseResumeVisit(PauseResumeVBVisitor& visitor,
                                       Position& start_pos) = 0;
-
 
     /**
      * Return a position at the start of the epStore.
