@@ -106,5 +106,7 @@ struct Request {
 
 static_assert(sizeof(Request) == 24, "Incorrect compiler padding");
 
+using DropPrivilegeRequest = Request;
+
 } // namespace mcbp
 } // namespace cb

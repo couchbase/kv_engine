@@ -298,6 +298,9 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     /* ns_server - memcached internal communication */
     setup(PROTOCOL_BINARY_CMD_INIT_COMPLETE, require<Privilege::NodeManagement>);
 
+    // Drop a privilege from the effective set
+    setup(PROTOCOL_BINARY_CMD_DROP_PRIVILEGE, empty);
+
     /* Refresh the RBAC data */
     setup(PROTOCOL_BINARY_CMD_RBAC_REFRESH,
           require<Privilege::SecurityManagement>);

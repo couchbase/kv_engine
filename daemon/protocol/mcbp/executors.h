@@ -48,3 +48,5 @@ void dcp_stream_req_executor(McbpConnection* c, void* packet);
 
 // Collections
 void collections_set_manifest_executor(McbpConnection* c, void* packet);
+
+void drop_privilege_executor(McbpConnection* c, void* packet);

@@ -422,6 +422,8 @@ const uint8_t PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL =
         uint8_t(cb::mcbp::Opcode::EwouldblockCtl);
 const uint8_t PROTOCOL_BINARY_CMD_GET_ERROR_MAP =
         uint8_t(cb::mcbp::Opcode::GetErrorMap);
+const uint8_t PROTOCOL_BINARY_CMD_DROP_PRIVILEGE =
+        uint8_t(cb::mcbp::Opcode::DropPrivilege);
 const uint8_t PROTOCOL_BINARY_CMD_INVALID = uint8_t(cb::mcbp::Opcode::Invalid);
 
 using protocol_binary_datatype_t = uint8_t;

@@ -278,6 +278,14 @@ public:
     cb::rbac::PrivilegeAccess checkPrivilege(cb::rbac::Privilege privilege,
                                              Cookie& cookie);
 
+    /**
+     * Try to drop the specified privilege from the current context
+     *
+     * @param privilege the privilege to drop
+     * @return The appropriate error code to return back to the client
+     */
+    cb::engine_errc dropPrivilege(cb::rbac::Privilege privilege);
+
     int getBucketIndex() const {
         return bucketIndex.load(std::memory_order_relaxed);
     }

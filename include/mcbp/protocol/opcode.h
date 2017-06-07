@@ -294,6 +294,21 @@ enum class Opcode : uint8_t {
     RbacRefresh = 0xf7,
 
     /**
+     * Drop a privilege from the current privilege set.
+     *
+     * The intention of the DropPrivilege command is to ease unit tests
+     * testing access to commands with and without the required privileges
+     * without having to regenerate the privilege database and
+     * re-authenticating all the time.
+     *
+     * The privilege is dropped from the effective set until the security
+     * context object gets reset by:
+     *    * Selecting a new bucket
+     *    * The RBAC database is invalidated
+     */
+    DropPrivilege = 0xfb,
+
+    /**
      * Command used by our test application to mock with gettimeofday.
      */
     AdjustTimeofday = 0xfc,

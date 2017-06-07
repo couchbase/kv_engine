@@ -280,6 +280,14 @@ void Connection::restartAuthentication() {
     username = "";
 }
 
+cb::engine_errc Connection::dropPrivilege(cb::rbac::Privilege privilege) {
+    if (privilegeContext.dropPrivilege(privilege)) {
+        return cb::engine_errc::success;
+    }
+
+    return cb::engine_errc::no_access;
+}
+
 cb::rbac::PrivilegeAccess Connection::checkPrivilege(
         cb::rbac::Privilege privilege, Cookie& cookie) {
     cb::rbac::PrivilegeAccess ret;

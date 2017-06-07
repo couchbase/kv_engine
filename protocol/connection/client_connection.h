@@ -294,7 +294,7 @@ public:
         throw std::invalid_argument("Not implemented");
     }
 
-
+    virtual void dropPrivilege(cb::rbac::Privilege privilege) = 0;
 
     /*
      * Form a Frame representing a CMD_GET

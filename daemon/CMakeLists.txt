@@ -125,6 +125,7 @@ ADD_LIBRARY(memcached_daemon STATIC
             protocol/mcbp/dcp_stream_req_executor.cc
             protocol/mcbp/dcp_system_event_executor.cc
             protocol/mcbp/dcp_system_event_executor.h
+            protocol/mcbp/drop_privilege_executor.cc
             protocol/mcbp/engine_errc_2_mcbp.cc
             protocol/mcbp/engine_errc_2_mcbp.h
             protocol/mcbp/engine_wrapper.cc

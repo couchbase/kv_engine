@@ -179,6 +179,15 @@ public:
      */
     void setBucketPrivileges();
 
+    /**
+     * Drop the named privilege from the privilege mask
+     *
+     * @param privilege the privilege to drop
+     * @return true if the privilege was dropped
+     *         false if the requested privilege wasn't set in the mask
+     */
+    bool dropPrivilege(Privilege privilege);
+
 protected:
     uint32_t generation;
     PrivilegeMask mask;

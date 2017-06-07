@@ -106,5 +106,7 @@ struct Response {
 
 static_assert(sizeof(Response) == 24, "Incorrect compiler padding");
 
+using DropPrivilegeResponse = Response;
+
 } // namespace mcbp
 } // namespace cb

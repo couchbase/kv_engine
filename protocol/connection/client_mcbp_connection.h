@@ -144,6 +144,8 @@ public:
 
     void unlock(const std::string& id, uint16_t vbucket, uint64_t cas) override;
 
+    void dropPrivilege(cb::rbac::Privilege privilege) override;
+
     Frame encodeCmdGet(const std::string& id, uint16_t vbucket) override;
 
     MutationInfo mutate(const DocumentInfo& doc,

@@ -686,3 +686,17 @@ void MemcachedBinprotConnection::close() {
     MemcachedConnection::close();
     effective_features.clear();
 }
+
+void MemcachedBinprotConnection::dropPrivilege(cb::rbac::Privilege privilege) {
+    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_DROP_PRIVILEGE,
+                                  cb::rbac::to_string(privilege));
+    sendCommand(command);
+
+    BinprotResponse response;
+    recvResponse(response);
+    if (!response.isSuccess()) {
+        throw BinprotConnectionError(
+            "dropPrivilege \"" + cb::rbac::to_string(privilege) + "\" failed.",
+            response.getStatus());
+    }
+}

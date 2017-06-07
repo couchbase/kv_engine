@@ -234,6 +234,15 @@ void PrivilegeContext::setBucketPrivileges() {
     mask[int(Privilege::SystemXattrWrite)] = true;
 }
 
+bool PrivilegeContext::dropPrivilege(Privilege privilege) {
+    if (mask[int(privilege)]) {
+        mask[int(privilege)] = false;
+        return true;
+    }
+
+    return false;
+}
+
 PrivilegeContext createContext(const std::string& user,
                                const std::string& bucket) {
     std::lock_guard<cb::ReaderLock> guard(rwlock.reader());

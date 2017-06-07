@@ -1811,6 +1811,7 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors(void) {
     executors[PROTOCOL_BINARY_CMD_GET_LOCKED] = get_locked_executor;
     executors[PROTOCOL_BINARY_CMD_UNLOCK_KEY] = unlock_executor;
 
+    executors[PROTOCOL_BINARY_CMD_DROP_PRIVILEGE] = drop_privilege_executor;
     executors[PROTOCOL_BINARY_CMD_RBAC_REFRESH] = rbac_refresh_executor;
     executors[PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST] =
             collections_set_manifest_executor;

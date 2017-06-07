@@ -123,6 +123,18 @@ TEST_P(RbacTest, Scrub) {
     EXPECT_TRUE(response.isSuccess());
 }
 
+TEST_P(RbacTest, DropPrivilege) {
+    auto& c = dynamic_cast<MemcachedBinprotConnection&>(getAdminConnection());
+    c.selectBucket("default");
+    c.stats("");
+    c.dropPrivilege(cb::rbac::Privilege::SimpleStats);
+    try {
+        c.stats("");
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isAccessDenied());
+    }
+}
+
 TEST_P(RbacTest, MB23909_ErrorIncudingErrorInfo) {
     auto& conn = reinterpret_cast<MemcachedBinprotConnection&>(getConnection());
     conn.reconnect();
