@@ -54,8 +54,7 @@ void McbpStateMachine::setCurrentTask(McbpConnection& connection, TaskFunction t
         }
     }
 
-    if (settings.getVerbose() > 2 || task == conn_closing
-        || task == conn_setup_tap_stream) {
+    if (settings.getVerbose() > 2 || task == conn_closing) {
         settings.extensions.logger->log(EXTENSION_LOG_DETAIL, this,
                                         "%u: going from %s to %s\n",
                                         connection.getId(),
@@ -94,8 +93,6 @@ const char* McbpStateMachine::getTaskName(TaskFunction task) const {
         return "conn_mwrite";
     } else if (task == conn_ship_log) {
         return "conn_ship_log";
-    } else if (task == conn_setup_tap_stream) {
-        return "conn_setup_tap_stream";
     } else if (task == conn_pending_close) {
         return "conn_pending_close";
     } else if (task == conn_immediate_close) {

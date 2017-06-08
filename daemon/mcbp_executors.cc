@@ -63,8 +63,6 @@
 #include <snappy-c.h>
 #include <utilities/protocol2text.h>
 
-struct tap_stats tap_stats;
-
 std::array<bool, 0x100>&  topkey_commands = get_mcbp_topkeys();
 std::array<mcbp_package_execute, 0x100>& executors = get_mcbp_executors();
 
@@ -270,201 +268,6 @@ static void process_bin_unknown_packet(McbpConnection* c) {
         /* Release the dynamic buffer.. it may be partial.. */
         c->clearDynamicBuffer();
         mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-    }
-}
-
-static void process_bin_tap_connect(McbpConnection* c) {
-    TAP_ITERATOR iterator;
-    char* packet = (c->read.curr - (c->binary_header.request.bodylen +
-                                    sizeof(c->binary_header)));
-    auto* req = reinterpret_cast<protocol_binary_request_tap_connect*>(packet);
-    const char* key = packet + sizeof(req->bytes);
-    const char* data = key + c->binary_header.request.keylen;
-    uint32_t flags = 0;
-    size_t ndata = c->binary_header.request.bodylen -
-                   c->binary_header.request.extlen -
-                   c->binary_header.request.keylen;
-
-    if (c->binary_header.request.extlen == 4) {
-        flags = ntohl(req->message.body.flags);
-
-        if (flags & TAP_CONNECT_FLAG_BACKFILL) {
-            /* the userdata has to be at least 8 bytes! */
-            if (ndata < 8) {
-                LOG_WARNING(c, "%u: ERROR: Invalid tap connect message",
-                            c->getId());
-                c->setState(conn_closing);
-                return;
-            }
-        }
-    } else {
-        data -= 4;
-        key -= 4;
-    }
-
-    if (settings.getVerbose() && c->binary_header.request.keylen > 0) {
-        char buffer[1024];
-        size_t len = c->binary_header.request.keylen;
-        if (len >= sizeof(buffer)) {
-            len = sizeof(buffer) - 1;
-        }
-        memcpy(buffer, key, len);
-        buffer[len] = '\0';
-        LOG_DEBUG(c, "%u: Trying to connect with named tap connection: <%s>",
-                  c->getId(), buffer);
-    }
-
-    iterator = c->getBucketEngine()->get_tap_iterator(c->getBucketEngineAsV0(),
-                                                      c->getCookie(), key,
-                                                      c->binary_header.request.keylen,
-                                                      flags, data, ndata);
-
-    if (iterator == NULL) {
-        LOG_WARNING(c, "%u: FATAL: The engine does not support tap",
-                    c->getId());
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-        c->setWriteAndGo(conn_closing);
-    } else {
-        c->setPriority(Connection::Priority::High);
-        c->setTapIterator(iterator);
-        c->setCurrentEvent(EV_WRITE);
-        c->setState(conn_ship_log);
-    }
-}
-
-static void process_bin_tap_packet(tap_event_t event, McbpConnection* c) {
-    char* packet;
-    uint16_t nengine;
-    uint16_t tap_flags;
-    uint32_t seqno;
-    uint8_t ttl;
-    char* engine_specific;
-    char* key;
-    uint16_t nkey;
-    char* data;
-    uint32_t flags;
-    uint32_t exptime;
-    uint32_t ndata;
-    ENGINE_ERROR_CODE ret;
-
-    packet = (c->read.curr - (c->binary_header.request.bodylen +
-                              sizeof(c->binary_header)));
-    auto* tap = reinterpret_cast<protocol_binary_request_tap_no_extras*>(packet);
-    nengine = ntohs(tap->message.body.tap.enginespecific_length);
-    tap_flags = ntohs(tap->message.body.tap.flags);
-    seqno = ntohl(tap->message.header.request.opaque);
-    ttl = tap->message.body.tap.ttl;
-    engine_specific = packet + sizeof(tap->bytes);
-    key = engine_specific + nengine;
-    nkey = c->binary_header.request.keylen;
-    data = key + nkey;
-    flags = 0;
-    exptime = 0;
-    ndata = c->binary_header.request.bodylen - nengine - nkey - 8;
-    ret = c->getAiostat();
-
-    if (ttl == 0) {
-        ret = ENGINE_EINVAL;
-    } else {
-        if (event == TAP_MUTATION || event == TAP_CHECKPOINT_START ||
-            event == TAP_CHECKPOINT_END) {
-            auto* mutation =
-                reinterpret_cast<protocol_binary_request_tap_mutation*>(tap);
-
-            /* engine_specific data in protocol_binary_request_tap_mutation is */
-            /* at a different offset than protocol_binary_request_tap_no_extras */
-            engine_specific = packet + sizeof(mutation->bytes);
-
-            flags = mutation->message.body.item.flags;
-            if ((tap_flags & TAP_FLAG_NETWORK_BYTE_ORDER) == 0) {
-                flags = ntohl(flags);
-            }
-
-            exptime = ntohl(mutation->message.body.item.expiration);
-            key += 8;
-            data += 8;
-            ndata -= 8;
-        }
-
-        if (ret == ENGINE_SUCCESS) {
-            uint8_t datatype = c->binary_header.request.datatype;
-            if (event == TAP_MUTATION && !c->isJsonEnabled()) {
-                auto* validator = c->getThread()->validator;
-                try {
-                    if (validator->validate(reinterpret_cast<uint8_t*>(data),
-                                            ndata)) {
-                        datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-                    }
-                } catch (std::bad_alloc&) {
-                    // @todo send ENOMEM
-                    c->setState(conn_closing);
-                    return;
-                }
-            }
-
-            ret = c->getBucketEngine()->tap_notify(c->getBucketEngineAsV0(),
-                                                   c->getCookie(),
-                                                   engine_specific, nengine,
-                                                   ttl - 1, tap_flags,
-                                                   event, seqno,
-                                                   key, nkey,
-                                                   flags, exptime,
-                                                   ntohll(
-                                                       tap->message.header.request.cas),
-                                                   datatype,
-                                                   data, ndata,
-                                                   c->binary_header.request.vbucket);
-        }
-    }
-
-    switch (ret) {
-    case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
-        break;
-    case ENGINE_EWOULDBLOCK:
-        c->setEwouldblock(true);
-        break;
-    default:
-        if ((tap_flags & TAP_FLAG_ACK) || (ret != ENGINE_SUCCESS)) {
-            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-        } else {
-            c->setState(conn_new_cmd);
-        }
-    }
-}
-
-static void process_bin_tap_ack(McbpConnection* c) {
-    char* packet;
-    uint32_t seqno;
-    uint16_t status;
-    char* key;
-    ENGINE_ERROR_CODE ret = ENGINE_DISCONNECT;
-
-    packet = (c->read.curr -
-              (c->binary_header.request.bodylen + sizeof(c->binary_header)));
-    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(packet);
-    seqno = ntohl(rsp->message.header.response.opaque);
-    status = ntohs(rsp->message.header.response.status);
-    key = packet + sizeof(rsp->bytes);
-
-    if (c->getBucketEngine()->tap_notify != NULL) {
-        ret = c->getBucketEngine()->tap_notify(c->getBucketEngineAsV0(),
-                                               c->getCookie(),
-                                               NULL, 0,
-                                               0, status,
-                                               TAP_ACK, seqno, key,
-                                               c->binary_header.request.keylen,
-                                               0, 0,
-                                               0,
-                                               c->binary_header.request.datatype,
-                                               NULL,
-                                               0, 0);
-    }
-
-    if (ret == ENGINE_DISCONNECT) {
-        c->setState(conn_closing);
-    } else {
-        c->setState(conn_ship_log);
     }
 }
 
@@ -890,89 +693,6 @@ void ship_mcbp_dcp_log(McbpConnection* c) {
 
     if (ret != ENGINE_SUCCESS) {
         c->setState(conn_closing);
-    }
-}
-
-/******************************************************************************
- *                        TAP packet executors                                *
- ******************************************************************************/
-static void tap_connect_executor(McbpConnection* c, void* packet) {
-    (void)packet;
-    if (c->getBucketEngine()->get_tap_iterator == NULL) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    } else {
-        tap_stats.received.connect++;
-        c->setState(conn_setup_tap_stream);
-    }
-}
-
-static void tap_mutation_executor(McbpConnection* c, void* packet) {
-    (void)packet;
-    if (c->getBucketEngine()->tap_notify == NULL) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    } else {
-        tap_stats.received.mutation++;
-        process_bin_tap_packet(TAP_MUTATION, c);
-    }
-}
-
-static void tap_delete_executor(McbpConnection* c, void* packet) {
-    (void)packet;
-    if (c->getBucketEngine()->tap_notify == NULL) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    } else {
-        tap_stats.received.del++;
-        process_bin_tap_packet(TAP_DELETION, c);
-    }
-}
-
-static void tap_flush_executor(McbpConnection* c, void* packet) {
-    (void)packet;
-    if (c->getBucketEngine()->tap_notify == NULL) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    } else {
-        tap_stats.received.flush++;
-        process_bin_tap_packet(TAP_FLUSH, c);
-    }
-}
-
-static void tap_opaque_executor(McbpConnection* c, void* packet) {
-    (void)packet;
-    if (c->getBucketEngine()->tap_notify == NULL) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    } else {
-        tap_stats.received.opaque++;
-        process_bin_tap_packet(TAP_OPAQUE, c);
-    }
-}
-
-static void tap_vbucket_set_executor(McbpConnection* c, void* packet) {
-    (void)packet;
-    if (c->getBucketEngine()->tap_notify == NULL) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    } else {
-        tap_stats.received.vbucket_set++;
-        process_bin_tap_packet(TAP_VBUCKET_SET, c);
-    }
-}
-
-static void tap_checkpoint_start_executor(McbpConnection* c, void* packet) {
-    (void)packet;
-    if (c->getBucketEngine()->tap_notify == NULL) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    } else {
-        tap_stats.received.checkpoint_start++;
-        process_bin_tap_packet(TAP_CHECKPOINT_START, c);
-    }
-}
-
-static void tap_checkpoint_end_executor(McbpConnection* c, void* packet) {
-    (void)packet;
-    if (c->getBucketEngine()->tap_notify == NULL) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-    } else {
-        tap_stats.received.checkpoint_end++;
-        process_bin_tap_packet(TAP_CHECKPOINT_END, c);
     }
 }
 
@@ -1720,14 +1440,6 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors(void) {
     executors[PROTOCOL_BINARY_CMD_DCP_ADD_STREAM] = dcp_add_stream_executor;
     executors[PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM] = dcp_close_stream_executor;
     executors[PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER] = dcp_snapshot_marker_executor;
-    executors[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END] = tap_checkpoint_end_executor;
-    executors[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START] = tap_checkpoint_start_executor;
-    executors[PROTOCOL_BINARY_CMD_TAP_CONNECT] = tap_connect_executor;
-    executors[PROTOCOL_BINARY_CMD_TAP_DELETE] = tap_delete_executor;
-    executors[PROTOCOL_BINARY_CMD_TAP_FLUSH] = tap_flush_executor;
-    executors[PROTOCOL_BINARY_CMD_TAP_MUTATION] = tap_mutation_executor;
-    executors[PROTOCOL_BINARY_CMD_TAP_OPAQUE] = tap_opaque_executor;
-    executors[PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET] = tap_vbucket_set_executor;
     executors[PROTOCOL_BINARY_CMD_DCP_DELETION] = dcp_deletion_executor;
     executors[PROTOCOL_BINARY_CMD_DCP_EXPIRATION] = dcp_expiration_executor;
     executors[PROTOCOL_BINARY_CMD_DCP_FLUSH] = dcp_flush_executor;
@@ -1850,13 +1562,6 @@ void initialize_mbcp_lookup_map(void) {
     }
 
     response_handlers[PROTOCOL_BINARY_CMD_NOOP] = process_bin_noop_response;
-    response_handlers[PROTOCOL_BINARY_CMD_TAP_MUTATION] = process_bin_tap_ack;
-    response_handlers[PROTOCOL_BINARY_CMD_TAP_DELETE] = process_bin_tap_ack;
-    response_handlers[PROTOCOL_BINARY_CMD_TAP_FLUSH] = process_bin_tap_ack;
-    response_handlers[PROTOCOL_BINARY_CMD_TAP_OPAQUE] = process_bin_tap_ack;
-    response_handlers[PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET] = process_bin_tap_ack;
-    response_handlers[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START] = process_bin_tap_ack;
-    response_handlers[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END] = process_bin_tap_ack;
 
     response_handlers[PROTOCOL_BINARY_CMD_DCP_OPEN] = process_bin_dcp_response;
     response_handlers[PROTOCOL_BINARY_CMD_DCP_ADD_STREAM] = process_bin_dcp_response;
@@ -1875,11 +1580,6 @@ void initialize_mbcp_lookup_map(void) {
     response_handlers[PROTOCOL_BINARY_CMD_DCP_CONTROL] = process_bin_dcp_response;
     response_handlers[PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT] =
             process_bin_dcp_response;
-}
-
-bool conn_setup_tap_stream(McbpConnection* c) {
-    process_bin_tap_connect(c);
-    return true;
 }
 
 /**

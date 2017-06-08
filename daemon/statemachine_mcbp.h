@@ -89,7 +89,6 @@ bool conn_closing(McbpConnection* c);
 bool conn_destroyed(McbpConnection* c);
 bool conn_mwrite(McbpConnection* c);
 bool conn_ship_log(McbpConnection* c);
-bool conn_setup_tap_stream(McbpConnection* c);
 bool conn_refresh_cbsasl(McbpConnection* c);
 bool conn_refresh_ssl_certs(McbpConnection* c);
 bool conn_flush(McbpConnection* c);
