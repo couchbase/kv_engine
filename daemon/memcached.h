@@ -83,8 +83,6 @@ struct LIBEVENT_THREAD {
     int index;                  /* index of this thread in the threads array */
     ThreadType type;      /* Type of IO this thread processes */
 
-    rel_time_t last_checked;
-
     struct net_buf read; /** Shared read buffer for all connections serviced by this thread. */
     struct net_buf write; /** Shared write buffer for all connections serviced by this thread. */
 
