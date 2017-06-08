@@ -138,6 +138,8 @@ static cb::EngineErrorItemPair do_blocking_engine_call(
                                                       cb::ItemDeleter{handle}});
         }
     }
+    cb_mutex_exit(&c->mutex);
+
     return ret;
 }
 
