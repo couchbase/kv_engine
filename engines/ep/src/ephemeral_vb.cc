@@ -568,7 +568,6 @@ GetValue EphemeralVBucket::getInternalNonResident(
         const void* cookie,
         EventuallyPersistentEngine& engine,
         int bgFetchDelay,
-        get_options_t options,
         const StoredValue& v) {
     /* We reach here only if the v is deleted and does not have any value */
     return GetValue();

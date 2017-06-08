@@ -771,9 +771,22 @@ protected:
     PersistenceCallback* flushOneDelOrSet(const queued_item &qi,
                                           VBucketPtr &vb);
 
-    GetValue getInternal(const DocKey& key, uint16_t vbucket, const void *cookie,
+    /**
+     * Get metadata and value for a given key
+     *
+     * @param key Key for which metadata and value should be retrieved
+     * @param vbucket the vbucket from which to retrieve the key
+     * @param cookie The connection cookie
+     * @param allowedState Whether getting for active or replica vbucket
+     * @param options Flags indicating some retrieval related info
+     *
+     * @return the result of the operation
+     */
+    GetValue getInternal(const DocKey& key,
+                         uint16_t vbucket,
+                         const void *cookie,
                          vbucket_state_t allowedState,
-                         get_options_t options = TRACK_REFERENCE);
+                         get_options_t options);
 
     bool resetVBucket_UNLOCKED(uint16_t vbid,
                                std::unique_lock<std::mutex>& vbset,

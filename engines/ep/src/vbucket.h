@@ -120,6 +120,11 @@ public:
     // Identifier for a vBucket
     typedef uint16_t id_type;
 
+    enum class GetKeyOnly {
+        Yes,
+        No
+    };
+
     VBucket(id_type i,
             vbucket_state_t newState,
             EPStats& st,
@@ -962,6 +967,7 @@ public:
      * @param bgFetchDelay
      * @param options flags indicating some retrieval related info
      * @param diskFlushAll
+     * @param getKeyOnly if GetKeyOnly::Yes we want only the key
      *
      * @return the result of the operation
      */
@@ -970,7 +976,8 @@ public:
                          EventuallyPersistentEngine& engine,
                          int bgFetchDelay,
                          get_options_t options,
-                         bool diskFlushAll);
+                         bool diskFlushAll,
+                         GetKeyOnly getKeyOnly);
 
     /**
      * Retrieve the meta data for given key
@@ -1522,7 +1529,6 @@ private:
      * @param cookie the cookie representing the client
      * @param engine Reference to ep engine
      * @param bgFetchDelay Delay in secs before we run the bgFetch task
-     * @param options flags indicating some retrieval related info
      * @param v reference to the stored value of the non-resident key
      *
      * @return the result of the operation
@@ -1531,7 +1537,6 @@ private:
                                             const void* cookie,
                                             EventuallyPersistentEngine& engine,
                                             int bgFetchDelay,
-                                            get_options_t options,
                                             const StoredValue& v) = 0;
 
     /**

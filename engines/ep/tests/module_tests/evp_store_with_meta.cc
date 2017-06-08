@@ -127,7 +127,8 @@ public:
         auto result = store->get({key, DocNamespace::DefaultCollection},
                                  vbid,
                                  nullptr,
-                                 GET_DELETED_VALUE);
+                                 static_cast<get_options_t>(GET_DELETED_VALUE |
+                                                            QUEUE_BG_FETCH));
 
         ASSERT_EQ(expectedGetReturnValue, result.getStatus());
 

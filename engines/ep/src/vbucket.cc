@@ -1548,12 +1548,14 @@ GetValue VBucket::getInternal(const DocKey& key,
                               EventuallyPersistentEngine& engine,
                               int bgFetchDelay,
                               get_options_t options,
-                              bool diskFlushAll) {
+                              bool diskFlushAll,
+                              GetKeyOnly getKeyOnly) {
     const TrackReference trackReference = (options & TRACK_REFERENCE)
                                                   ? TrackReference::Yes
                                                   : TrackReference::No;
     const bool metadataOnly = (options & ALLOW_META_ONLY);
     const bool getDeletedValue = (options & GET_DELETED_VALUE);
+    const bool bgFetchRequired = (options & QUEUE_BG_FETCH);
     auto hbl = ht.getLockedBucket(key);
     StoredValue* v = fetchValidValue(
             hbl, key, WantsDeleted::Yes, trackReference, QueueExpired::Yes);
@@ -1572,15 +1574,21 @@ GetValue VBucket::getInternal(const DocKey& key,
         }
 
         // If the value is not resident (and it was requested), wait for it...
-        if (!v->isResident() && !metadataOnly) {
+        if (!v->isResident() && !metadataOnly && bgFetchRequired) {
             return getInternalNonResident(
-                    key, cookie, engine, bgFetchDelay, options, *v);
+                    key, cookie, engine, bgFetchDelay, *v);
         }
 
         // Should we hide (return -1) for the items' CAS?
-        const bool hide_cas =
+        const bool hideCas =
                 (options & HIDE_LOCKED_CAS) && v->isLocked(ep_current_time());
-        return GetValue(v->toItem(hide_cas, getId()),
+        std::unique_ptr<Item> item;
+        if (getKeyOnly == GetKeyOnly::Yes) {
+            item = v->toItemKeyOnly(getId());
+        } else {
+            item = v->toItem(hideCas, getId());
+        }
+        return GetValue(std::move(item),
                         ENGINE_SUCCESS,
                         v->getBySeqno(),
                         !v->isResident(),
@@ -1592,8 +1600,7 @@ GetValue VBucket::getInternal(const DocKey& key,
 
         if (maybeKeyExistsInFilter(key)) {
             ENGINE_ERROR_CODE ec = ENGINE_EWOULDBLOCK;
-            if (options &
-                QUEUE_BG_FETCH) { // Full eviction and need a bg fetch.
+            if (bgFetchRequired) { // Full eviction and need a bg fetch.
                 ec = addTempItemAndBGFetch(
                         hbl, key, cookie, engine, bgFetchDelay, metadataOnly);
             }

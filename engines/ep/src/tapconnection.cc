@@ -1881,7 +1881,8 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
             return NULL;
         }
 
-        get_options_t options = DELETE_TEMP;
+        get_options_t options = static_cast<get_options_t>(DELETE_TEMP |
+                                                           QUEUE_BG_FETCH);
 
         // If there's a better version in memory, grab it,
         // else go with what we pulled from disk.
@@ -1923,7 +1924,8 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
         }
 
         if (qi->getOperation() == queue_op::set) {
-            get_options_t options = DELETE_TEMP;
+            get_options_t options = static_cast<get_options_t>(DELETE_TEMP |
+                                                               QUEUE_BG_FETCH);
             GetValue gv(engine_.getKVBucket()->get(qi->getKey(),
                                                    qi->getVBucketId(), c,
                                                    options));

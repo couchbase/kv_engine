@@ -54,6 +54,7 @@
 #include "tapconnmap.h"
 #include "tasks.h"
 #include "vb_count_visitor.h"
+#include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucketdeletiontask.h"
 #include "warmup.h"
@@ -1429,8 +1430,10 @@ void KVBucket::completeBGFetchMulti(uint16_t vbId,
     }
 }
 
-GetValue KVBucket::getInternal(const DocKey& key, uint16_t vbucket,
-                               const void *cookie, vbucket_state_t allowedState,
+GetValue KVBucket::getInternal(const DocKey& key,
+                               uint16_t vbucket,
+                               const void *cookie,
+                               vbucket_state_t allowedState,
                                get_options_t options) {
 
     vbucket_state_t disallowedState = (allowedState == vbucket_state_active) ?
@@ -1466,8 +1469,13 @@ GetValue KVBucket::getInternal(const DocKey& key, uint16_t vbucket,
             return GetValue(NULL, ENGINE_UNKNOWN_COLLECTION);
         }
 
-        return vb->getInternal(
-                key, cookie, engine, bgFetchDelay, options, diskDeleteAll);
+        return vb->getInternal(key,
+                               cookie,
+                               engine,
+                               bgFetchDelay,
+                               options,
+                               diskDeleteAll,
+                               VBucket::GetKeyOnly::No);
     }
 }
 
