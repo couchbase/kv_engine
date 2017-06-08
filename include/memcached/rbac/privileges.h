@@ -48,12 +48,6 @@ enum class Privilege {
      */
     Upsert,
     /**
-     * The `Write` privilege allows for creating, updating or deleting
-     * documents in the selected bucket. This privilege is deprecated
-     * and will go away
-     */
-    Write,
-    /**
      * The `SimpleStats` privilege allows for requesting basic statistics
      * information from the system (restricted to the selected bucket)
      */

@@ -39,7 +39,6 @@ TEST(PrivilegeDatabaseTest, ParseLegalConfig) {
         cJSON_AddItemToArray(privileges, cJSON_CreateString("Insert"));
         cJSON_AddItemToArray(privileges, cJSON_CreateString("Delete"));
         cJSON_AddItemToArray(privileges, cJSON_CreateString("Upsert"));
-        cJSON_AddItemToArray(privileges, cJSON_CreateString("Write"));
         cJSON_AddItemToArray(privileges, cJSON_CreateString("SimpleStats"));
         cJSON_AddItemToObject(buckets, "bucket1", privileges);
 

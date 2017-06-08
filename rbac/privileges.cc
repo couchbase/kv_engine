@@ -27,7 +27,6 @@ static const std::unordered_map<std::string, Privilege> privilegemap = {
         {"Insert", Privilege::Insert},
         {"Delete", Privilege::Delete},
         {"Upsert", Privilege::Upsert},
-        {"Write", Privilege::Write},
         {"SimpleStats", Privilege::SimpleStats},
         {"Stats", Privilege::Stats},
         {"BucketManagement", Privilege::BucketManagement},

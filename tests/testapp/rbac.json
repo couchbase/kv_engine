@@ -10,7 +10,9 @@
         "SimpleStats",
         "TapConsumer",
         "TapProducer",
-        "Write",
+        "Insert",
+        "Delete",
+        "Upsert",
         "SystemXattrRead",
         "SystemXattrWrite",
         "XattrRead",
@@ -27,40 +29,46 @@
         "XattrRead"
       ]
     },
-    "privileges":[],
+    "privileges": [],
     "domain": "local"
   },
   "Trond": {
     "buckets": {
       "default": [
         "Read",
-        "Write",
+        "Insert",
+        "Delete",
+        "Upsert",
         "XattrRead"
       ]
     },
-    "privileges":[],
+    "privileges": [],
     "domain": "local"
   },
   "jones": {
     "buckets": {
       "rbac_test": [
-        "Write",
+        "Insert",
+        "Delete",
+        "Upsert",
         "XattrWrite"
-        ]
+      ]
     },
-    "privileges":[],
+    "privileges": [],
     "domain": "local"
   },
   "larry": {
     "buckets": {
       "rbac_test": [
         "Read",
-        "Write",
+        "Insert",
+        "Delete",
+        "Upsert",
         "SystemXattrRead",
         "SystemXattrWrite"
       ]
     },
-    "privileges":[],
+    "privileges": [],
     "domain": "local"
   },
   "@admin": {
@@ -413,13 +421,17 @@
   },
   "legacy;legacy": {
     "buckets": {
-      "default": ["all"]
+      "default": [
+        "all"
+      ]
     },
     "domain": "local"
   },
   "legacy": {
     "buckets": {
-      "default": ["all"]
+      "default": [
+        "all"
+      ]
     },
     "domain": "local"
   }
