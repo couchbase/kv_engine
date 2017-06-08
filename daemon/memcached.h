@@ -64,7 +64,6 @@ extern struct stats stats;
 
 enum class ThreadType {
     GENERAL = 11,
-    TAP = 13,
     DISPATCHER = 15
 };
 
