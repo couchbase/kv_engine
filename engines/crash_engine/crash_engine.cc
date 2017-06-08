@@ -181,16 +181,12 @@ static cb::EngineErrorItemPair get_if(ENGINE_HANDLE* handle,
                                       const DocKey&,
                                       uint16_t,
                                       std::function<bool(const item_info&)>) {
-    return std::make_pair(cb::engine_errc::failed,
-                          cb::unique_item_ptr{nullptr,
-                                              cb::ItemDeleter{handle}});
+    return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
 static cb::EngineErrorItemPair get_and_touch(
         ENGINE_HANDLE* handle, const void*, const DocKey&, uint16_t, uint32_t) {
-    return std::make_pair(
-            cb::engine_errc::failed,
-            cb::unique_item_ptr{nullptr, cb::ItemDeleter{handle}});
+    return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
 static ENGINE_ERROR_CODE get_locked(ENGINE_HANDLE* handle,

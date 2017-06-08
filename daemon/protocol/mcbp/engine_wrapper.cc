@@ -152,9 +152,8 @@ cb::EngineErrorItemPair bucket_get(McbpConnection* c,
                  c->getId(),
                  c->getDescription().c_str());
     }
-    return std::make_pair(cb::engine_errc(ret),
-                          cb::unique_item_ptr{it,
-                                              cb::ItemDeleter{c->getBucketEngineAsV0()}});
+    return cb::makeEngineErrorItemPair(
+            cb::engine_errc(ret), it, c->getBucketEngineAsV0());
 }
 
 cb::EngineErrorItemPair bucket_get_if(McbpConnection* c,

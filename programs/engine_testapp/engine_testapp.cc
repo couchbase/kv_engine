@@ -133,9 +133,7 @@ static cb::EngineErrorItemPair do_blocking_engine_call(
         if (c->status == ENGINE_SUCCESS) {
             ret = engine_function();
         } else {
-            return std::make_pair(cb::engine_errc(c->status),
-                                  cb::unique_item_ptr{nullptr,
-                                                      cb::ItemDeleter{handle}});
+            return cb::makeEngineErrorItemPair(cb::engine_errc(c->status));
         }
     }
     cb_mutex_exit(&c->mutex);

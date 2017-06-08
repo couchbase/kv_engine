@@ -653,7 +653,7 @@ typedef struct engine_interface_v1 {
 namespace cb {
 class ItemDeleter {
 public:
-    ItemDeleter() = delete;
+    ItemDeleter() : handle(nullptr) {}
 
     /**
      * Create a new instance of the item deleter.
@@ -675,13 +675,28 @@ public:
     }
 
     void operator()(item* item) {
-        auto* v1 = reinterpret_cast<ENGINE_HANDLE_V1*>(handle);
-        v1->release(handle, nullptr, item);
+        if (handle) {
+            auto* v1 = reinterpret_cast<ENGINE_HANDLE_V1*>(handle);
+            v1->release(handle, nullptr, item);
+        } else {
+            throw std::invalid_argument("cb::ItemDeleter: item attempted to be "
+                                        "freed by null engine handle");
+        }
     }
 
 private:
     ENGINE_HANDLE* handle;
 };
+
+inline EngineErrorItemPair makeEngineErrorItemPair(cb::engine_errc err) {
+    return {err, unique_item_ptr{nullptr, ItemDeleter{}}};
+}
+
+inline EngineErrorItemPair makeEngineErrorItemPair(cb::engine_errc err,
+                                                   item* it,
+                                                   ENGINE_HANDLE* handle) {
+    return {err, unique_item_ptr{it, ItemDeleter{handle}}};
+}
 }
 
 /**

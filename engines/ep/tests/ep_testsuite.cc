@@ -4825,9 +4825,7 @@ static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
         // Given we're in a high watermark scenario, may (temporarily) fail
         // to allocate memory for the response, so retry in that case.
-        cb::EngineErrorItemPair result = std::make_pair(
-                cb::engine_errc{},
-                cb::unique_item_ptr{nullptr, cb::ItemDeleter{h}});
+        auto result = cb::makeEngineErrorItemPair(cb::engine_errc{});
         do {
             result = get(h, h1, NULL, key, 0);
         } while (result.first == cb::engine_errc::no_memory);

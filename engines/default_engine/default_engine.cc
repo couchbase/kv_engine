@@ -460,9 +460,7 @@ static cb::EngineErrorItemPair default_get_if(
     struct default_engine* engine = get_handle(handle);
 
     if (!handled_vbucket(engine, vbucket)) {
-        return std::make_pair(cb::engine_errc::not_my_vbucket,
-                              cb::unique_item_ptr{nullptr,
-                                                  cb::ItemDeleter{handle}});
+        return cb::makeEngineErrorItemPair(cb::engine_errc::not_my_vbucket);
     }
 
     cb::unique_item_ptr ret(item_get(engine,
@@ -472,9 +470,7 @@ static cb::EngineErrorItemPair default_get_if(
                                      DocStateFilter::Alive),
                             cb::ItemDeleter{handle});
     if (!ret) {
-        return std::make_pair(cb::engine_errc::no_such_key,
-                              cb::unique_item_ptr{nullptr,
-                                                  cb::ItemDeleter{handle}});
+        return cb::makeEngineErrorItemPair(cb::engine_errc::no_such_key);
     }
 
     item_info info;
@@ -487,9 +483,8 @@ static cb::EngineErrorItemPair default_get_if(
         ret.reset(nullptr);
     }
 
-    return std::make_pair(cb::engine_errc::success,
-                          cb::unique_item_ptr{ret.release(),
-                                              cb::ItemDeleter{handle}});
+    return cb::makeEngineErrorItemPair(
+            cb::engine_errc::success, ret.release(), handle);
 }
 
 static cb::EngineErrorItemPair default_get_and_touch(ENGINE_HANDLE* handle,
@@ -501,18 +496,15 @@ static cb::EngineErrorItemPair default_get_and_touch(ENGINE_HANDLE* handle,
     struct default_engine* engine = get_handle(handle);
 
     if (!handled_vbucket(engine, vbucket)) {
-        return std::make_pair(cb::engine_errc::not_my_vbucket,
-                              cb::unique_item_ptr{nullptr,
-                                                  cb::ItemDeleter{handle}});
+        return cb::makeEngineErrorItemPair(cb::engine_errc::not_my_vbucket);
     }
 
     hash_item* it = nullptr;
     auto ret = item_get_and_touch(engine, cookie, &it, key.data(), key.size(),
                                   engine->server.core->realtime(expiry_time));
 
-    return std::make_pair(cb::engine_errc(ret),
-                          cb::unique_item_ptr{reinterpret_cast<item*>(it),
-                                              cb::ItemDeleter{handle}});
+    return cb::makeEngineErrorItemPair(
+            cb::engine_errc(ret), reinterpret_cast<item*>(it), handle);
 }
 
 static ENGINE_ERROR_CODE default_get_locked(ENGINE_HANDLE* handle,

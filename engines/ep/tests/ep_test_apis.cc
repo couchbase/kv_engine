@@ -1641,8 +1641,7 @@ cb::EngineErrorItemPair get(ENGINE_HANDLE* h,
                        vb,
                        documentStateFilter);
     if (ret != ENGINE_SUCCESS) {
-        return {cb::engine_errc(ret),
-                cb::unique_item_ptr{nullptr, cb::ItemDeleter{h}}};
+        return cb::makeEngineErrorItemPair(cb::engine_errc(ret));
     }
-    return {cb::engine_errc(ret), cb::unique_item_ptr{itm, cb::ItemDeleter{h}}};
+    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, h);
 }

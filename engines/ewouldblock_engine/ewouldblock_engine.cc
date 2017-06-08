@@ -397,9 +397,7 @@ public:
         EWB_Engine* ewb = to_engine(handle);
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         if (ewb->should_inject_error(Cmd::GET, cookie, err)) {
-            return std::make_pair(cb::engine_errc::would_block,
-                                  cb::unique_item_ptr{nullptr,
-                                                      cb::ItemDeleter{handle}});
+            return cb::makeEngineErrorItemPair(cb::engine_errc::would_block);
         } else {
             return ewb->real_engine->get_if(
                     ewb->real_handle, cookie, key, vbucket, filter);
@@ -414,9 +412,7 @@ public:
         EWB_Engine* ewb = to_engine(handle);
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         if (ewb->should_inject_error(Cmd::GET, cookie, err)) {
-            return std::make_pair(
-                    cb::engine_errc::would_block,
-                    cb::unique_item_ptr{nullptr, cb::ItemDeleter{handle}});
+            return cb::makeEngineErrorItemPair(cb::engine_errc::would_block);
         } else {
             return ewb->real_engine->get_and_touch(
                     ewb->real_handle, cookie, key, vbucket, exptime);

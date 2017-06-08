@@ -144,9 +144,7 @@ private:
                                           uint16_t,
                                           std::function<bool(
                                               const item_info&)>) {
-        return std::make_pair(cb::engine_errc::no_bucket,
-                              cb::unique_item_ptr{nullptr,
-                                                  cb::ItemDeleter{handle}});
+        return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
     static cb::EngineErrorItemPair get_and_touch(ENGINE_HANDLE* handle,
@@ -154,9 +152,7 @@ private:
                                                  const DocKey&,
                                                  uint16_t,
                                                  uint32_t) {
-        return std::make_pair(
-                cb::engine_errc::no_bucket,
-                cb::unique_item_ptr{nullptr, cb::ItemDeleter{handle}});
+        return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
     static ENGINE_ERROR_CODE get_locked(ENGINE_HANDLE*, const void*, item**,

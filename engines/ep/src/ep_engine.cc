@@ -2158,9 +2158,8 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(const void* co
     if (rv == ENGINE_SUCCESS) {
         ++stats.numOpsGet;
         ++stats.numOpsStore;
-        return std::make_pair(cb::engine_errc::success,
-                              cb::unique_item_ptr{gv.item.release(),
-                                                  cb::ItemDeleter{handle}});
+        return cb::makeEngineErrorItemPair(
+                cb::engine_errc::success, gv.item.release(), handle);
     }
 
     if (isDegradedMode()) {
@@ -2180,9 +2179,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(const void* co
         rv = ENGINE_LOCKED;
     }
 
-    return std::make_pair(cb::engine_errc(rv),
-                          cb::unique_item_ptr{nullptr,
-                                              cb::ItemDeleter{handle}});
+    return cb::makeEngineErrorItemPair(cb::engine_errc(rv));
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(const void* cookie,
@@ -2229,9 +2226,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(const void* cookie,
             }
             // FALLTHROUGH
         default:
-            return std::make_pair(cb::engine_errc(status),
-                                  cb::unique_item_ptr{nullptr,
-                                                      cb::ItemDeleter{handle}});
+            return cb::makeEngineErrorItemPair(cb::engine_errc(status));
         }
 
         auto* item = gv.item.release();
@@ -2248,17 +2243,12 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(const void* cookie,
         info.value[0].iov_len = 0;
         if (filter(info)) {
             if (!gv.isPartial()) {
-                return std::make_pair(cb::engine_errc::success,
-                               cb::unique_item_ptr{ret.release(),
-                                                   cb::ItemDeleter{handle}});
+                return std::make_pair(cb::engine_errc::success, std::move(ret));
             }
             // We want this item, but we need to fetch it off disk
         } else {
             // the client don't care about this thing..
-            ret.reset(nullptr);
-            return std::make_pair(cb::engine_errc::success,
-                                  cb::unique_item_ptr{ret.release(),
-                                                      cb::ItemDeleter{handle}});
+            return cb::makeEngineErrorItemPair(cb::engine_errc::success);
         }
     }
 
