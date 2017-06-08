@@ -112,20 +112,6 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_DEL_VBUCKET, require<Privilege::BucketManagement>);
     /* End VBucket commands */
 
-    /* MB-22394 - temporary disable TAP prior to its removal */
-#if 0
-    /* TAP commands */
-    setup(PROTOCOL_BINARY_CMD_TAP_CONNECT, require<Privilege::Tap>);
-    setup(PROTOCOL_BINARY_CMD_TAP_MUTATION, require<Privilege::Tap>);
-    setup(PROTOCOL_BINARY_CMD_TAP_DELETE, require<Privilege::Tap>);
-    setup(PROTOCOL_BINARY_CMD_TAP_FLUSH, require<Privilege::Tap>);
-    setup(PROTOCOL_BINARY_CMD_TAP_OPAQUE, require<Privilege::Tap>);
-    setup(PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET, require<Privilege::Tap>);
-    setup(PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START, require<Privilege::Tap>);
-    setup(PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END, require<Privilege::Tap>);
-    /* End TAP */
-#endif
-
     /* Vbucket command to get the VBUCKET sequence numbers for all
      * vbuckets on the node */
     setup(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS, require<Privilege::MetaRead>);
@@ -176,11 +162,6 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
      * Return the last closed checkpoint Id for a given VBucket.
      */
     setup(PROTOCOL_BINARY_CMD_LAST_CLOSED_CHECKPOINT, require<Privilege::MetaRead>);
-    /**
-     * Close the TAP connection for the registered TAP client and
-     * remove the checkpoint cursors from its registered vbuckets.
-     */
-    setup(PROTOCOL_BINARY_CMD_DEREGISTER_TAP_CLIENT, require<Privilege::Tap>);
 
     /**
      * Reset the replication chain from the node that receives
@@ -219,10 +200,6 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
      */
     setup(PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC,
           require<Privilege::NodeManagement>);
-    /**
-     * Command to change the vbucket filter for a given TAP producer.
-     */
-    setup(PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER, require<Privilege::Tap>);
     /**
      * Command to wait for the checkpoint persistence
      */
