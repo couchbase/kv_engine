@@ -253,22 +253,23 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     cb::compression::Buffer buffer;
     cb::const_char_buffer payload(static_cast<const char*>(body), bodylen);
 
-    if (!c->isSnappyEnabled()) {
-        if (mcbp::datatype::is_snappy(datatype)) {
-            if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                          payload.buf, payload.len, buffer)) {
-                std::string mykey(reinterpret_cast<const char*>(key), keylen);
-                LOG_WARNING(c,
-                            "<%u ERROR: Failed to inflate body, "
-                                "Key: %s may have an incorrect datatype, "
-                                "Datatype indicates that document is %s",
-                            c->getId(), mykey.c_str(),
-                            mcbp::datatype::to_string(datatype).c_str());
-                return false;
-            }
-            payload.buf = buffer.data.get();
-            payload.len = buffer.len;
+    if (!c->isSnappyEnabled() && mcbp::datatype::is_snappy(datatype)) {
+        // The client is not snappy-aware, and the content contains
+        // snappy encoded data.. We need to inflate it!
+        if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
+                                      payload.buf, payload.len, buffer)) {
+            std::string mykey(reinterpret_cast<const char*>(key), keylen);
+            LOG_WARNING(c,
+                        "<%u ERROR: Failed to inflate body, "
+                            "Key: %s may have an incorrect datatype, "
+                            "Datatype indicates that document is %s",
+                        c->getId(), mykey.c_str(),
+                        mcbp::datatype::to_string(datatype).c_str());
+            return false;
         }
+        payload.buf = buffer.data.get();
+        payload.len = buffer.len;
+        datatype &= ~(PROTOCOL_BINARY_DATATYPE_SNAPPY);
     }
 
     if (mcbp::datatype::is_xattr(datatype)) {
@@ -306,8 +307,7 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
         return false;
     }
 
-    protocol_binary_response_header header;
-    memset(&header, 0, sizeof(header));
+    protocol_binary_response_header header = {};
     header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
     header.response.opcode = c->binary_header.request.opcode;
     header.response.keylen = (uint16_t)htons(keylen);
