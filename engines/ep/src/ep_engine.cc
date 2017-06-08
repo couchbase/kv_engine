@@ -802,9 +802,9 @@ static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine* e,
     size_t bodylen = ntohl(req->message.header.request.bodylen)
                      - ntohs(req->message.header.request.keylen);
     if (bodylen != sizeof(vbucket_state_t)) {
-        const std::string msg("Incorrect packet format");
-        return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
-                            msg.length(), PROTOCOL_BINARY_RAW_BYTES,
+        e->setErrorContext(cookie, "Body too short");
+        return sendResponse(response, NULL, 0, NULL, 0, NULL,
+                            0, PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL,
                             cas, cookie);
     }
@@ -814,18 +814,18 @@ static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine* e,
     state = static_cast<vbucket_state_t>(ntohl(state));
 
     if (!is_valid_vbucket_state_t(state)) {
-        const std::string msg("Invalid vbucket state");
-        return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
-                            msg.length(), PROTOCOL_BINARY_RAW_BYTES,
+        e->setErrorContext(cookie, "Invalid vbucket state");
+        return sendResponse(response, NULL, 0, NULL, 0, NULL,
+                            0, PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL,
                             cas, cookie);
     }
 
     uint16_t vb = ntohs(req->message.header.request.vbucket);
     if (e->setVBucketState(vb, state, false) == ENGINE_ERANGE) {
-        const std::string msg("VBucket number too big");
-        return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
-                            msg.length(), PROTOCOL_BINARY_RAW_BYTES,
+        e->setErrorContext(cookie, "VBucket number too big");
+        return sendResponse(response, NULL, 0, NULL, 0, NULL,
+                            0, PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_ERANGE,
                             cas, cookie);
     }
@@ -845,11 +845,10 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
     protocol_binary_response_status res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
     uint16_t vbucket = ntohs(req->request.vbucket);
 
-    std::string msg = "";
     if (ntohs(req->request.keylen) > 0 || req->request.extlen > 0) {
-        msg = "Incorrect packet format.";
-        return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
-                            msg.length(),
+        e->setErrorContext(cookie, "Key and extras required");
+        return sendResponse(response, NULL, 0, NULL, 0, NULL,
+                            0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, cas, cookie);
     }
@@ -893,7 +892,9 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
     case ENGINE_EINVAL:
         LOG(EXTENSION_LOG_WARNING, "Deletion of vbucket %d failed "
             "because the vbucket is not in a dead state\n", vbucket);
-        msg = "Failed to delete vbucket.  Must be in the dead state.";
+        e->setErrorContext(
+                cookie,
+                "Failed to delete vbucket.  Must be in the dead state.");
         res = PROTOCOL_BINARY_RESPONSE_EINVAL;
         break;
     case ENGINE_EWOULDBLOCK:
@@ -905,13 +906,13 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
     default:
         LOG(EXTENSION_LOG_WARNING, "Deletion of vbucket %d failed "
             "because of unknown reasons\n", vbucket);
-        msg = "Failed to delete vbucket.  Unknown reason.";
+        e->setErrorContext(cookie, "Failed to delete vbucket.  Unknown reason.");
         res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
 
     if (err != ENGINE_NOT_MY_VBUCKET) {
-        return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
-                            msg.length(), PROTOCOL_BINARY_RAW_BYTES,
+        return sendResponse(response, NULL, 0, NULL, 0, NULL,
+                            0, PROTOCOL_BINARY_RAW_BYTES,
                             res, cas, cookie);
     } else {
         return e->sendNotMyVBucketResponse(response, cookie, cas);
@@ -959,7 +960,6 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
                                    protocol_binary_request_compact_db* req,
                                    ADD_RESPONSE response) {
 
-    std::string msg = "";
     protocol_binary_response_status res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
     compaction_ctx compactreq;
     uint64_t cas = ntohll(req->message.header.request.cas);
@@ -970,9 +970,9 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
             "Compaction received bad ext/key len %d/%d.",
             req->message.header.request.extlen,
             ntohs(req->message.header.request.keylen));
-        msg = "Incorrect packet format.";
-        return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
-                            msg.length(),
+        e->setErrorContext(cookie, "Key and correct extras required");
+        return sendResponse(response, NULL, 0, NULL, 0, NULL,
+                            0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_EINVAL, cas, cookie);
     }
@@ -1022,21 +1022,21 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
         LOG(EXTENSION_LOG_WARNING, "Request to compact db file id: %d hit"
                 " a temporary failure and may need to be retried",
             compactreq.db_file_id);
-        msg = "Temporary failure in compacting db file.";
+        e->setErrorContext(cookie, "Temporary failure in compacting db file.");
         res = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
         break;
     default:
         --stats.pendingCompactions;
         LOG(EXTENSION_LOG_WARNING, "Compaction of db file id: %d failed "
             "because of unknown reasons\n", compactreq.db_file_id);
-        msg = "Failed to compact db file.  Unknown reason.";
+        e->setErrorContext(cookie, "Failed to compact db file.  Unknown reason.");
         res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
         break;
     }
 
     if (err != ENGINE_NOT_MY_VBUCKET) {
-        return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
-                            msg.length(), PROTOCOL_BINARY_RAW_BYTES,
+        return sendResponse(response, NULL, 0, NULL, 0, NULL,
+                            0, PROTOCOL_BINARY_RAW_BYTES,
                             res, cas, cookie);
     } else {
         return e->sendNotMyVBucketResponse(response, cookie, cas);
@@ -1074,9 +1074,9 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         if (h->getEngineSpecific(cookie) == NULL) {
             uint64_t cas = ntohll(request->request.cas);
             if (!h->validateSessionCas(cas)) {
-                const std::string message("Invalid session token");
+                h->setErrorContext(cookie, "Invalid session token");
                 return sendResponse(response, NULL, 0, NULL, 0,
-                                    message.c_str(), message.length(),
+                                    NULL, 0,
                                     PROTOCOL_BINARY_RAW_BYTES,
                                     PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
                                     cas, cookie);
@@ -1881,6 +1881,14 @@ void EventuallyPersistentEngine::registerEngineCallback(ENGINE_EVENT_TYPE type,
     SERVER_CALLBACK_API *sapi = getServerApi()->callback;
     sapi->register_callback(reinterpret_cast<ENGINE_HANDLE*>(this),
                             type, cb, cb_data);
+    ObjectRegistry::onSwitchThread(epe);
+}
+
+void EventuallyPersistentEngine::setErrorContext(
+        const void* cookie, cb::const_char_buffer message) {
+    EventuallyPersistentEngine* epe =
+            ObjectRegistry::onSwitchThread(NULL, true);
+    serverApi->cookie->set_error_context(const_cast<void*>(cookie), message);
     ObjectRegistry::onSwitchThread(epe);
 }
 
@@ -4499,9 +4507,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
 
         // Parse a key
         if (data_len - offset < 4) {
-            std::string msg("Invalid packet structure");
-            return sendResponse(response, NULL, 0, 0, 0, msg.c_str(),
-                                msg.length(),
+            setErrorContext(cookie, "Requires vbid and keylen.");
+            return sendResponse(response, NULL, 0, 0, 0, NULL, 0,
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
                                 cookie);
@@ -4516,9 +4523,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
         offset += sizeof(uint16_t);
 
         if (data_len - offset < keylen) {
-            std::string msg("Invalid packet structure");
-            return sendResponse(response, NULL, 0, 0, 0, msg.c_str(),
-                                msg.length(),
+            setErrorContext(cookie, "Incorrect keylen");
+            return sendResponse(response, NULL, 0, 0, 0, NULL, 0,
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
                                 cookie);
@@ -4550,9 +4556,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
         } else if (rv == ENGINE_EWOULDBLOCK) {
             return rv;
         } else {
-            std::string msg("Internal error");
-            return sendResponse(response, NULL, 0, 0, 0, msg.c_str(),
-                                msg.length(),
+            return sendResponse(response, NULL, 0, 0, 0, NULL, 0,
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0,
                                 cookie);
@@ -4707,7 +4711,6 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                                            protocol_binary_request_header *req,
                                            ADD_RESPONSE response)
 {
-    std::stringstream msg;
     uint16_t vbucket = ntohs(req->request.vbucket);
     VBucketPtr vb = getVBucket(vbucket);
 
@@ -4768,9 +4771,10 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
         uint16_t keylen = ntohs(req->request.keylen);
         uint32_t bodylen = ntohl(req->request.bodylen);
         if ((bodylen - keylen) == 0) {
-            msg << "No checkpoint id is given for "
-                   "CMD_CHECKPOINT_PERSISTENCE!!!";
             status = PROTOCOL_BINARY_RESPONSE_EINVAL;
+            setErrorContext(cookie,
+                            "No checkpoint id is given for "
+                            "CMD_CHECKPOINT_PERSISTENCE!!!");
             } else {
                 uint64_t chk_id;
                 memcpy(&chk_id, req->bytes + sizeof(req->bytes) + keylen,
@@ -4821,14 +4825,15 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
         break;
     default:
         {
-            msg << "Unknown checkpoint command opcode: " <<
-                   req->request.opcode;
             status = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
+            setErrorContext(cookie,
+                            "Unknown checkpoint command opcode: " +
+                                    std::to_string(req->request.opcode));
         }
     }
 
     return sendResponse(response, NULL, 0, NULL, 0,
-                        msg.str().c_str(), msg.str().length(),
+                        NULL, 0,
                         PROTOCOL_BINARY_RAW_BYTES,
                         status, 0, cookie);
 }
@@ -4838,7 +4843,6 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
                                            protocol_binary_request_header *req,
                                            ADD_RESPONSE response)
 {
-    std::stringstream msg;
     uint16_t vbucket = ntohs(req->request.vbucket);
     VBucketPtr vb = getVBucket(vbucket);
 
@@ -4851,8 +4855,8 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
     uint16_t extlen = req->request.extlen;
     uint32_t bodylen = ntohl(req->request.bodylen);
     if ((bodylen - extlen) != 0) {
-        msg << "Invalid packet format";
         status = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        setErrorContext(cookie, "Body should be all extras.");
     } else {
         uint64_t seqno;
         memcpy(&seqno, req->bytes + sizeof(req->bytes), 8);
@@ -4901,7 +4905,7 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
     }
 
     return sendResponse(response, NULL, 0, NULL, 0,
-                        msg.str().c_str(), msg.str().length(),
+                        NULL, 0,
                         PROTOCOL_BINARY_RAW_BYTES,
                         status, 0, cookie);
 }
@@ -5474,14 +5478,13 @@ EventuallyPersistentEngine::changeTapVBFilter(const void *cookie,
     std::string tap_name = "eq_tapq:";
     tap_name.append(std::string(ptr, keylen));
 
-    const char *msg = NULL;
     protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
     size_t nuserdata = ntohl(req->message.header.request.bodylen) - keylen;
     uint16_t nvbuckets = 0;
 
     if (nuserdata < sizeof(nvbuckets)) {
-        msg = "Number of vbuckets is missing";
         rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        setErrorContext(cookie, "Number of vbuckets is missing");
     } else {
         ptr += keylen;
         memcpy(&nvbuckets, ptr, sizeof(nvbuckets));
@@ -5491,9 +5494,10 @@ EventuallyPersistentEngine::changeTapVBFilter(const void *cookie,
         if (nvbuckets > 0) {
             if (nuserdata <
                 ((sizeof(uint16_t) + sizeof(uint64_t)) * nvbuckets)) {
-                msg =
-                   "Number of (vbucket id, checkpoint id) pair is not matched";
                 rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+                setErrorContext(cookie,
+                                "Number of (vbucket id, checkpoint id) pair is "
+                                "not matched");
             } else {
                 std::vector<uint16_t> vbuckets;
                 std::map<uint16_t, uint64_t> checkpointIds;
@@ -5509,18 +5513,19 @@ EventuallyPersistentEngine::changeTapVBFilter(const void *cookie,
                 }
                 if (!tapConnMap->changeVBucketFilter(tap_name, vbuckets,
                                                      checkpointIds)) {
-                    msg = "TAP producer not exist!!!";
                     rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+                    setErrorContext(cookie, "TAP producer not exist!!!");
                 }
             }
         } else {
-            msg = "Number of vbuckets should be greater than 0";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+            setErrorContext(cookie,
+                            "Number of vbuckets should be greater than 0");
         }
     }
 
     return sendResponse(response, NULL, 0, NULL, 0,
-                        msg, msg ? static_cast<uint16_t>(strlen(msg)) : 0,
+                        NULL, 0,
                         PROTOCOL_BINARY_RAW_BYTES,
                         static_cast<uint16_t>(rv),
                         cas, cookie);
@@ -5531,45 +5536,54 @@ EventuallyPersistentEngine::handleTrafficControlCmd(const void *cookie,
                                        protocol_binary_request_header *request,
                                        ADD_RESPONSE response)
 {
-    std::stringstream msg;
     int16_t status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
     switch (request->request.opcode) {
     case PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC:
         if (kvBucket->isWarmingUp()) {
             // engine is still warming up, do not turn on data traffic yet
-            msg << "Persistent engine is still warming up!";
             status = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+            setErrorContext(cookie, "Persistent engine is still warming up!");
         } else if (configuration.isFailpartialwarmup() &&
                    kvBucket->isWarmupOOMFailure()) {
             // engine has completed warm up, but data traffic cannot be
             // turned on due to an OOM failure
-            msg << "Data traffic to persistent engine cannot be enabled"
-                   " due to out of memory failures during warmup";
             status = PROTOCOL_BINARY_RESPONSE_ENOMEM;
+            setErrorContext(
+                    cookie,
+                    "Data traffic to persistent engine cannot be enabled"
+                    " due to out of memory failures during warmup");
         } else {
             if (enableTraffic(true)) {
-                msg << "Data traffic to persistence engine is enabled";
+                setErrorContext(
+                        cookie,
+                        "Data traffic to persistence engine is enabled");
             } else {
-                msg <<
-                      "Data traffic to persistence engine was already enabled";
+                setErrorContext(cookie,
+                                "Data traffic to persistence engine was "
+                                "already enabled");
             }
         }
         break;
     case PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC:
         if (enableTraffic(false)) {
-            msg << "Data traffic to persistence engine is disabled";
+            setErrorContext(cookie,
+                            "Data traffic to persistence engine is disabled");
         } else {
-            msg << "Data traffic to persistence engine was already disabled";
+            setErrorContext(
+                    cookie,
+                    "Data traffic to persistence engine was already disabled");
         }
         break;
     default:
-        msg << "Unknown traffic control opcode: " << request->request.opcode;
         status = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
+        setErrorContext(cookie,
+                        "Unknown traffic control opcode: " +
+                                std::to_string(request->request.opcode));
     }
 
     return sendResponse(response, NULL, 0, NULL, 0,
-                        msg.str().c_str(), msg.str().length(),
+                        NULL, 0,
                         PROTOCOL_BINARY_RAW_BYTES,
                         status, 0, cookie);
 }

@@ -742,6 +742,13 @@ std::pair<uint32_t, std::string> cookie_get_log_info(const void* void_cookie) {
                           cookie->connection->getDescription());
 }
 
+void cookie_set_error_context(void* void_cookie,
+                              cb::const_char_buffer message) {
+    auto* cookie = reinterpret_cast<Cookie*>(void_cookie);
+    cookie->validate();
+    cookie->setErrorContext(to_string(message));
+}
+
 /**
  * Check if the cookie holds the privilege
  *
@@ -2007,6 +2014,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         server_cookie_api.check_privilege = check_privilege;
         server_cookie_api.engine_error2mcbp = engine_error2mcbp;
         server_cookie_api.get_log_info = cookie_get_log_info;
+        server_cookie_api.set_error_context = cookie_set_error_context;
 
         server_stat_api.evicting = count_eviction;
 

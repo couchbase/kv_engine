@@ -403,6 +403,8 @@ public:
         ObjectRegistry::onSwitchThread(epe);
     }
 
+    void setErrorContext(const void* cookie, cb::const_char_buffer message);
+
     void registerEngineCallback(ENGINE_EVENT_TYPE type,
                                 EVENT_CALLBACK cb, const void *cb_data);
 

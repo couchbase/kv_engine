@@ -253,6 +253,16 @@ typedef struct {
      */
     std::pair<uint32_t, std::string> (*get_log_info)(const void* cookie);
 
+    /**
+     * Set the error context string to be sent in response. This should not
+     * contain security sensitive information. If sensitive information needs to
+     * be preserved, log it with a UUID and send the UUID.
+     *
+     * @param cookie the client cookie (to look up client connection)
+     * @param message the message string to be set as the error context
+     */
+    void (*set_error_context)(void* cookie, cb::const_char_buffer message);
+
 } SERVER_COOKIE_API;
 
 struct SERVER_DOCUMENT_API {
