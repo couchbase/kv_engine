@@ -206,40 +206,6 @@ std::string PrivilegeContext::to_string() const {
     return ret;
 }
 
-void PrivilegeContext::clearBucketPrivileges() {
-    mask[int(Privilege::Read)] = false;
-    mask[int(Privilege::Insert)] = false;
-    mask[int(Privilege::Upsert)] = false;
-    mask[int(Privilege::Delete)] = false;
-    mask[int(Privilege::SimpleStats)] = false;
-    mask[int(Privilege::DcpConsumer)] = false;
-    mask[int(Privilege::DcpProducer)] = false;
-    mask[int(Privilege::Tap)] = false;
-    mask[int(Privilege::MetaRead)] = false;
-    mask[int(Privilege::MetaWrite)] = false;
-    mask[int(Privilege::XattrRead)] = false;
-    mask[int(Privilege::SystemXattrRead)] = false;
-    mask[int(Privilege::XattrWrite)] = false;
-    mask[int(Privilege::SystemXattrWrite)] = false;
-}
-
-void PrivilegeContext::setBucketPrivileges() {
-    mask[int(Privilege::Read)] = true;
-    mask[int(Privilege::Insert)] = true;
-    mask[int(Privilege::Upsert)] = true;
-    mask[int(Privilege::Delete)] = true;
-    mask[int(Privilege::SimpleStats)] = true;
-    mask[int(Privilege::DcpConsumer)] = true;
-    mask[int(Privilege::DcpProducer)] = true;
-    mask[int(Privilege::Tap)] = true;
-    mask[int(Privilege::MetaRead)] = true;
-    mask[int(Privilege::MetaWrite)] = true;
-    mask[int(Privilege::XattrRead)] = true;
-    mask[int(Privilege::SystemXattrRead)] = true;
-    mask[int(Privilege::XattrWrite)] = true;
-    mask[int(Privilege::SystemXattrWrite)] = true;
-}
-
 bool PrivilegeContext::dropPrivilege(Privilege privilege) {
     if (mask[int(privilege)]) {
         mask[int(privilege)] = false;
@@ -247,6 +213,31 @@ bool PrivilegeContext::dropPrivilege(Privilege privilege) {
     }
 
     return false;
+}
+
+void PrivilegeContext::clearBucketPrivileges() {
+    setBucketPrivilegeBits(false);
+}
+
+void PrivilegeContext::setBucketPrivileges() {
+    setBucketPrivilegeBits(true);
+}
+
+void PrivilegeContext::setBucketPrivilegeBits(bool value) {
+    mask[int(Privilege::Read)] = value;
+    mask[int(Privilege::Insert)] = value;
+    mask[int(Privilege::Upsert)] = value;
+    mask[int(Privilege::Delete)] = value;
+    mask[int(Privilege::SimpleStats)] = value;
+    mask[int(Privilege::DcpConsumer)] = value;
+    mask[int(Privilege::DcpProducer)] = value;
+    mask[int(Privilege::Tap)] = value;
+    mask[int(Privilege::MetaRead)] = value;
+    mask[int(Privilege::MetaWrite)] = value;
+    mask[int(Privilege::XattrRead)] = value;
+    mask[int(Privilege::SystemXattrRead)] = value;
+    mask[int(Privilege::XattrWrite)] = value;
+    mask[int(Privilege::SystemXattrWrite)] = value;
 }
 
 PrivilegeContext createContext(const std::string& user,

@@ -189,6 +189,8 @@ public:
     bool dropPrivilege(Privilege privilege);
 
 protected:
+    void setBucketPrivilegeBits(bool value);
+
     uint32_t generation;
     PrivilegeMask mask;
 };
