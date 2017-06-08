@@ -16,54 +16,62 @@
  */
 
 #include "defragmenter_visitor.h"
+#include "ep_vb.h"
+#include "failover-table.h"
 #include "tests/module_tests/defragmenter_test.h"
 #include "tests/module_tests/test_helpers.h"
-#include "vbucket.h"
 
+#include <benchmark/benchmark.h>
 #include <gtest/gtest.h>
 #include <valgrind/valgrind.h>
 
-
-/* Measure the rate at which the defragmenter can defragment documents, using
- * the given age threshold.
- *
- * Setup a Defragmenter, then time how long it takes to visit them all
- * documents in the given vbucket, npasses times.
- */
-static size_t benchmarkDefragment(VBucket& vbucket, size_t passes,
-                                  uint8_t age_threshold,
-                                  std::chrono::milliseconds chunk_duration) {
-    // Create and run visitor for the specified number of iterations, with
-    // the given age.
-    DefragmentVisitor visitor(age_threshold);
-    auto start = ProcessClock::now();
-    for (size_t i = 0; i < passes; i++) {
-        // Loop until we get to the end; this may take multiple chunks depending
-        // on the chunk_duration.
-        HashTable::Position pos;
-        while (pos != vbucket.ht.endPosition()) {
-            visitor.setDeadline(ProcessClock::now() + chunk_duration);
-            pos = vbucket.ht.pauseResumeVisit(visitor, pos);
+class DefragmentBench : public benchmark::Fixture {
+public:
+    void SetUp(::benchmark::State& state) {
+        // The first parameter specifies the eviction mode:
+        item_eviction_policy_t evictionPolicy;
+        switch (state.range(0)) {
+        case 0:
+            state.SetLabel("ValueOnly");
+            evictionPolicy = VALUE_ONLY;
+            break;
+        case 1:
+            state.SetLabel("FullEviction");
+            evictionPolicy = FULL_EVICTION;
+            break;
+        default:
+            FAIL() << "Invalid input param(0) value:" << state.range(0);
         }
+        vbucket.reset(new EPVBucket(0,
+                                    vbucket_state_active,
+                                    globalStats,
+                                    checkpointConfig,
+                                    /*kvshard*/ nullptr,
+                                    /*lastSeqno*/ 1000,
+                                    /*lastSnapStart*/ 0,
+                                    /*lastSnapEnd*/ 0,
+                                    /*table*/ nullptr,
+                                    std::make_shared<DummyCB>(),
+                                    /*newSeqnoCb*/ nullptr,
+                                    config,
+                                    evictionPolicy));
+
+        populateVbucket();
     }
-    auto end = ProcessClock::now();
-    size_t visited = visitor.getVisitedCount();
 
-    std::chrono::duration<double> duration = (end - start);
-    return size_t(visited / duration.count());
-}
+    void TearDown(const ::benchmark::State& state) {
+        vbucket.reset();
+    }
 
-
-class DefragmenterBenchmarkTest : public DefragmenterTest {
 protected:
-    /* Fill the bucket with the given number of docs. Returns the rate at which
-     * items were added.
+    /* Fill the bucket with the given number of docs.
      */
-    size_t populateVbucket() {
+    void populateVbucket() {
         // How many items to create in the VBucket. Use a large number for
-        // normal runs when measuring performance, but a very small number
-        // (enough for functional testing) when running under Valgrind
-        // where there's no sense in measuring performance.
+        // normal runs when measuring performance (ideally we want to exceed
+        // the D$ as that's how we'd expect to run in production), but a very
+        // small number (enough for functional testing) when running under
+        // Valgrind where there's no sense in measuring performance.
         const size_t ndocs = RUNNING_ON_VALGRIND ? 10 : 500000;
 
         /* Set the hashTable to a sensible size */
@@ -71,65 +79,102 @@ protected:
 
         /* Store items */
         char value[256];
-        auto start = ProcessClock::now();
         for (size_t i = 0; i < ndocs; i++) {
             std::string key = "key" + std::to_string(i);
             Item item(makeStoredDocKey(key), 0, 0, value, sizeof(value));
-            public_processSet(item, 0);
+            ASSERT_EQ(MutationStatus::WasClean, vbucket->ht.set(item));
         }
-        auto end = ProcessClock::now();
 
-        // Let hashTable set itself to correct size, post-fill
-        vbucket->ht.resize();
-
-        std::chrono::duration<double> duration = (end - start);
-        return size_t(ndocs / duration.count());
+        ASSERT_EQ(ndocs, vbucket->ht.getNumItems());
     }
 
+    /* Measure the rate at which the defragmenter can defragment documents, using
+     * the given age threshold.
+     *
+     * Setup a Defragmenter, then time how long it takes to visit them all
+     * documents in the given vbucket, 10 passes times.
+     * @return a pair of {items visited, duration}.
+     */
+    std::pair<size_t, std::chrono::nanoseconds> benchmarkDefragment(
+            uint8_t age_threshold,
+            std::chrono::milliseconds chunk_duration) {
+        // Create and run visitor for the specified number of iterations, with
+        // the given age.
+        DefragmentVisitor visitor(age_threshold);
+        // Need to run 10 passes; so we allow the deframenter to defrag at
+        // least once (given the age_threshold may be up to 10).
+        const size_t passes = 10;
+
+        auto start = ProcessClock::now();
+        for (size_t i = 0; i < passes; i++) {
+            // Loop until we get to the end; this may take multiple chunks
+            // depending
+            // on the chunk_duration.
+            HashTable::Position pos;
+            while (pos != vbucket->ht.endPosition()) {
+                visitor.setDeadline(ProcessClock::now() + chunk_duration);
+                pos = vbucket->ht.pauseResumeVisit(visitor, pos);
+            }
+        }
+        auto end = ProcessClock::now();
+        auto duration = (end - start);
+
+        return {visitor.getVisitedCount(), duration};
+    }
+
+    std::unique_ptr<VBucket> vbucket;
+    EPStats globalStats;
+    CheckpointConfig checkpointConfig;
+    Configuration config;
 };
 
-TEST_P(DefragmenterBenchmarkTest, Populate) {
-    size_t populateRate = populateVbucket();
-    RecordProperty("items_per_sec", populateRate);
+BENCHMARK_DEFINE_F(DefragmentBench, Visit)(benchmark::State& state) {
+    std::pair<size_t, std::chrono::nanoseconds> total;
+    while (state.KeepRunning()) {
+        auto result = benchmarkDefragment(std::numeric_limits<uint8_t>::max(),
+                                          std::chrono::minutes(1));
+        total.first += result.first;
+        total.second += result.second;
+    }
+    state.counters["ItemsPerSec"] =
+            total.first / std::chrono::duration<double>(total.second).count();
 }
 
-TEST_P(DefragmenterBenchmarkTest, Visit) {
-    populateVbucket();
-    size_t visit_rate = benchmarkDefragment(*vbucket, 1,
-                                            std::numeric_limits<uint8_t>::max(),
-                                            std::chrono::minutes(1));
-    RecordProperty("items_per_sec", visit_rate);
+BENCHMARK_DEFINE_F(DefragmentBench, DefragAlways)(benchmark::State& state) {
+    std::pair<size_t, std::chrono::nanoseconds> total;
+    while (state.KeepRunning()) {
+        auto result = benchmarkDefragment(0, std::chrono::minutes(1));
+        total.first += result.first;
+        total.second += result.second;
+    }
+    state.counters["ItemsPerSec"] =
+            total.first / std::chrono::duration<double>(total.second).count();
 }
 
-TEST_P(DefragmenterBenchmarkTest, DefragAlways) {
-    populateVbucket();
-    size_t defrag_always_rate = benchmarkDefragment(*vbucket, 1, 0,
-                                                    std::chrono::minutes(1));
-    RecordProperty("items_per_sec", defrag_always_rate);
+BENCHMARK_DEFINE_F(DefragmentBench, DefragAge10)(benchmark::State& state) {
+    std::pair<size_t, std::chrono::nanoseconds> total;
+    while (state.KeepRunning()) {
+        auto result = benchmarkDefragment(10, std::chrono::minutes(1));
+        total.first += result.first;
+        total.second += result.second;
+    }
+    state.counters["ItemsPerSec"] =
+            total.first / std::chrono::duration<double>(total.second).count();
 }
 
-TEST_P(DefragmenterBenchmarkTest, DefragAge10) {
-    populateVbucket();
-    size_t defrag_age10_rate = benchmarkDefragment(*vbucket, 1, 10,
-                                                   std::chrono::minutes(1));
-    RecordProperty("items_per_sec", defrag_age10_rate);
+BENCHMARK_DEFINE_F(DefragmentBench, DefragAge10_20ms)(benchmark::State& state) {
+    std::pair<size_t, std::chrono::nanoseconds> total;
+    while (state.KeepRunning()) {
+        auto result = benchmarkDefragment(10, std::chrono::milliseconds(20));
+        total.first += result.first;
+        total.second += result.second;
+    }
+    state.counters["ItemsPerSec"] =
+            total.first / std::chrono::duration<double>(total.second).count();
 }
 
-TEST_P(DefragmenterBenchmarkTest, DefragAge10_20ms) {
-    populateVbucket();
-    size_t defrag_age10_20ms_rate =
-            benchmarkDefragment(*vbucket, 1, 10, std::chrono::milliseconds(20));
-    RecordProperty("items_per_sec", defrag_age10_20ms_rate);
-}
+BENCHMARK_REGISTER_F(DefragmentBench, Visit)->Range(0,1);
+BENCHMARK_REGISTER_F(DefragmentBench, DefragAlways)->Range(0,1);
+BENCHMARK_REGISTER_F(DefragmentBench, DefragAge10)->Range(0,1);
+BENCHMARK_REGISTER_F(DefragmentBench, DefragAge10_20ms)->Range(0,1);
 
-INSTANTIATE_TEST_CASE_P(
-        FullAndValueEviction,
-        DefragmenterBenchmarkTest,
-        ::testing::Values(VALUE_ONLY, FULL_EVICTION),
-        [](const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
-            if (info.param == VALUE_ONLY) {
-                return "VALUE_ONLY";
-            } else {
-                return "FULL_EVICTION";
-            }
-        });
