@@ -1072,16 +1072,13 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
     if ((which & EV_TIMEOUT) == EV_TIMEOUT) {
         auto* mcbp = dynamic_cast<McbpConnection*>(c);
 
-        if (mcbp != nullptr && (c->isInternal() || c->isDCP() || c->isTAP())) {
+        if (mcbp != nullptr && (c->isInternal() || c->isDCP())) {
             auto* mcbp = dynamic_cast<McbpConnection*>(c);
             if (c->isInternal()) {
                 LOG_NOTICE(c, "%u: Timeout for admin connection. (ignore)",
                            c->getId());
             } else if (c->isDCP()) {
                 LOG_NOTICE(c, "%u: Timeout for DCP connection. (ignore)",
-                           c->getId());
-            } else if (c->isTAP()) {
-                LOG_NOTICE(c, "%u: Timeout for TAP connection. (ignore)",
                            c->getId());
             }
             if (!mcbp->reapplyEventmask()) {

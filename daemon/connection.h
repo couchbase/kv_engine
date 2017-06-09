@@ -259,10 +259,6 @@ public:
         Connection::parent_port = parent_port;
     }
 
-    virtual bool isTAP() const {
-        return false;
-    }
-
     virtual bool isDCP() const {
         return false;
     }

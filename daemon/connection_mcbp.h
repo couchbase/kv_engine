@@ -82,18 +82,6 @@ public:
         return stateMachine->getCurrentTaskName();
     }
 
-    const TAP_ITERATOR getTapIterator() const {
-        return tap_iterator;
-    }
-
-    void setTapIterator(TAP_ITERATOR tap_iterator) {
-        McbpConnection::tap_iterator = tap_iterator;
-    }
-
-    virtual bool isTAP() const override {
-        return tap_iterator != nullptr;
-    }
-
     virtual bool isDCP() const override {
         return dcp;
     }
@@ -762,9 +750,6 @@ protected:
      * The state machine we're currently using
      */
     std::unique_ptr<McbpStateMachine> stateMachine;
-
-    /** The iterator function to use to traverse the TAP stream */
-    TAP_ITERATOR tap_iterator;
 
     /** Is this connection used by a DCP connection? */
     bool dcp;

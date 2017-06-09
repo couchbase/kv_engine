@@ -34,10 +34,9 @@ void McbpStateMachine::setCurrentTask(McbpConnection& connection, TaskFunction t
         return;
     }
 
-
-    if (connection.isTAP() || connection.isDCP()) {
+    if (connection.isDCP()) {
         /*
-         * TAP and DCP connections behaves differently than normal
+         * DCP connections behaves differently than normal
          * connections because they operate in a full duplex mode.
          * New messages may appear from both sides, so we can't block on
          * read from the nework / engine
@@ -187,15 +186,7 @@ bool conn_ship_log(McbpConnection *c) {
     } else if (c->isWriteEvent()) {
         if (c->decrementNumEvents() >= 0) {
             c->setEwouldblock(false);
-            if (c->isDCP()) {
-                ship_mcbp_dcp_log(c);
-            } else {
-                LOG_WARNING(c,
-                            "%u: TAP no longer supported. Closing connection",
-                            c->getId());
-                c->setState(conn_closing);
-                return true;
-            }
+            ship_mcbp_dcp_log(c);
             if (c->isEwouldblock()) {
                 mask = EV_READ | EV_PERSIST;
             } else {
@@ -298,7 +289,7 @@ bool conn_new_cmd(McbpConnection *c) {
          * connections in the way that they may not even get data from
          * the other end so that they'll _have_ to wait for a write event.
          */
-        if (c->havePendingInputData() || c->isDCP() || c->isTAP()) {
+        if (c->havePendingInputData() || c->isDCP()) {
             short flags = EV_WRITE | EV_PERSIST;
             // pipe requires EV_READ forcing to ensure we can read until EOF
             if (c->isPipeConnection()) {

@@ -87,7 +87,7 @@ bool McbpConnection::registerEvent() {
     struct timeval tv;
     struct timeval* tp = nullptr;
 
-    if (settings.getConnectionIdleTime() == 0 || isInternal() || isDCP() || isTAP()) {
+    if (settings.getConnectionIdleTime() == 0 || isInternal() || isDCP()) {
         tp = nullptr;
         ev_timeout_enabled = false;
     } else {
@@ -137,7 +137,7 @@ bool McbpConnection::updateEvent(const short new_flags) {
         // never update their libevent state we'll forcibly re-enter it half way
         // into the timeout.
 
-        if (ev_timeout_enabled && (isInternal() || isDCP() || isTAP())) {
+        if (ev_timeout_enabled && (isInternal() || isDCP())) {
             LOG_DEBUG(this,
                       "%u: Forcibly reset the event connection flags to"
                           " disable timeout", getId());
@@ -769,7 +769,6 @@ void McbpConnection::ensureIovSpace() {
 McbpConnection::McbpConnection(SOCKET sfd, event_base *b)
     : Connection(sfd, b),
       stateMachine(new McbpStateMachine(conn_immediate_close)),
-      tap_iterator(nullptr),
       dcp(false),
       dcpXattrAware(false),
       dcpNoValue(false),
@@ -815,7 +814,6 @@ McbpConnection::McbpConnection(SOCKET sfd,
                                const ListeningPort& ifc)
     : Connection(sfd, b, ifc),
       stateMachine(new McbpStateMachine(conn_new_cmd)),
-      tap_iterator(nullptr),
       dcp(false),
       dcpXattrAware(false),
       dcpNoValue(false),
@@ -945,7 +943,6 @@ cJSON* McbpConnection::toJSON() const {
     cJSON* obj = Connection::toJSON();
     if (obj != nullptr) {
         json_add_bool_to_object(obj, "sasl_enabled", saslAuthEnabled);
-        json_add_bool_to_object(obj, "tap", isTAP());
         json_add_bool_to_object(obj, "dcp", isDCP());
         json_add_bool_to_object(obj, "dcp_xattr_aware", isDcpXattrAware());
         json_add_bool_to_object(obj, "dcp_no_value", isDcpNoValue());

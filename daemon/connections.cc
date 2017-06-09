@@ -259,7 +259,6 @@ static void conn_cleanup(Connection *c) {
          * connection from the thread. Note we clear TAP / UDP status first, so
          * conn_return_buffers() will actually free the buffers.
          */
-        mcbpc->setTapIterator(nullptr);
         mcbpc->setDCP(false);
     }
     conn_return_buffers(c);
@@ -398,10 +397,8 @@ void conn_return_buffers(Connection *connection) {
         return;
     }
 
-    if (c->isTAP() || c->isDCP()) {
-        /* TAP & DCP work differently - let them keep their buffers once
-         * allocated.
-         */
+    if (c->isDCP()) {
+        // DCP work differently - let them keep their buffers once allocated.
         return;
     }
 
