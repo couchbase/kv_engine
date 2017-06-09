@@ -1740,7 +1740,7 @@ static void dispatch_bin_command(McbpConnection* c) {
     }
 }
 
-void mcbp_complete_nread(McbpConnection* c) {
+void mcbp_complete_packet(McbpConnection* c) {
     if (c->binary_header.request.magic == PROTOCOL_BINARY_RES) {
         RESPONSE_HANDLER handler;
         handler = response_handlers[c->binary_header.request.opcode];
