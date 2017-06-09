@@ -1606,7 +1606,7 @@ static protocol_binary_response_status validate_bin_header(McbpConnection* c) {
     }
 }
 
-static void process_bin_packet(McbpConnection* c) {
+static void execute_request_packet(McbpConnection* c) {
     static McbpPrivilegeChains privilegeChains;
     protocol_binary_response_status result;
 
@@ -1666,11 +1666,29 @@ static void process_bin_packet(McbpConnection* c) {
     }
 
     LOG_WARNING(c,
-                "%u: process_bin_packet: res (which is %d) is not a valid "
-                    "AuthResult - closing connection", res);
+                "%u: execute_request_packet: res (which is %d) is not a valid "
+                "AuthResult - closing connection",
+                res);
     c->setState(conn_closing);
 }
 
+/**
+ * We've received a response packet. Parse and execute it
+ *
+ * @param c The connection receiving the packet
+ */
+static void execute_response_packet(McbpConnection* c) {
+    auto handler = response_handlers[c->binary_header.request.opcode];
+    if (handler) {
+        handler(c);
+    } else {
+        LOG_NOTICE(c,
+                   "%u: Unsupported response packet received with opcode: %02x",
+                   c->getId(),
+                   c->binary_header.request.opcode);
+        c->setState(conn_closing);
+    }
+}
 
 static inline bool is_initialized(McbpConnection* c, uint8_t opcode) {
     if (c->isInternal() || is_server_initialized()) {
@@ -1742,18 +1760,11 @@ static void dispatch_bin_command(McbpConnection* c) {
 
 void mcbp_complete_packet(McbpConnection* c) {
     if (c->binary_header.request.magic == PROTOCOL_BINARY_RES) {
-        RESPONSE_HANDLER handler;
-        handler = response_handlers[c->binary_header.request.opcode];
-        if (handler) {
-            handler(c);
-        } else {
-            LOG_WARNING(c, "%u: Unsupported response packet received: %u",
-                        c->getId(),
-                        (unsigned int)c->binary_header.request.opcode);
-            c->setState(conn_closing);
-        }
+        execute_response_packet(c);
     } else {
-        process_bin_packet(c);
+        // We've already verified that the packet is a legal packet
+        // so it must be a request
+        execute_request_packet(c);
     }
 }
 
