@@ -80,6 +80,7 @@ static LIBEVENT_THREAD dispatcher_thread;
 static int nthreads;
 static LIBEVENT_THREAD *threads;
 static cb_thread_t *thread_ids;
+std::vector<TimingHistogram> scheduler_info;
 
 /*
  * Number of worker threads that have finished setting themselves up.
@@ -517,6 +518,7 @@ void thread_init(int nthr, struct event_base *main_base,
     cb_mutex_initialize(&init_lock);
     cb_cond_initialize(&init_cond);
 
+    scheduler_info.resize(nthreads);
     threads = reinterpret_cast<LIBEVENT_THREAD*>(cb_calloc(nthreads,
                                                         sizeof(LIBEVENT_THREAD)));
     if (threads == nullptr) {

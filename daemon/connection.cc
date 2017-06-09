@@ -269,6 +269,16 @@ cJSON* Connection::toJSON() const {
         } else {
             cJSON_AddNumberToObject(obj, "clustermap_revno", clustermap_revno);
         }
+
+        cJSON_AddStringToObject(obj,
+                                "total_cpu_time",
+                                std::to_string(total_cpu_time.count()).c_str());
+        cJSON_AddStringToObject(obj,
+                                "min_sched_time",
+                                std::to_string(min_sched_time.count()).c_str());
+        cJSON_AddStringToObject(obj,
+                                "max_sched_time",
+                                std::to_string(max_sched_time.count()).c_str());
     }
     return obj;
 }
@@ -527,4 +537,10 @@ void Connection::setBucketIndex(int bucketIndex) {
     LOG_DEBUG(nullptr, "RBAC: %u %s switch privilege context %s",
               getId(), getDescription().c_str(),
               privilegeContext.to_string().c_str());
+}
+
+void Connection::addCpuTime(std::chrono::nanoseconds ns) {
+    total_cpu_time += ns;
+    min_sched_time = std::min(min_sched_time, ns);
+    max_sched_time = std::max(min_sched_time, ns);
 }

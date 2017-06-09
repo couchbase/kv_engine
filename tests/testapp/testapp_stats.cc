@@ -245,6 +245,26 @@ TEST_P(StatsTest, TestBucketDetails) {
     conn.reconnect();
 }
 
+TEST_P(StatsTest, TestSchedulerInfo) {
+    auto stats = getConnection().stats("worker_thread_info");
+    // We should at least have an entry for the first thread
+    EXPECT_NE(nullptr, cJSON_GetObjectItem(stats.get(), "0"));
+}
+
+TEST_P(StatsTest, TestSchedulerInfo_Aggregate) {
+    auto stats = getConnection().stats("worker_thread_info aggregate");
+    EXPECT_NE(nullptr, cJSON_GetObjectItem(stats.get(), "aggregate"));
+}
+
+TEST_P(StatsTest, TestSchedulerInfo_InvalidSubcommand) {
+    try {
+        getConnection().stats("worker_thread_info foo");
+        FAIL() << "Invalid subcommand";
+    } catch (const ConnectionError& error) {
+        EXPECT_TRUE(error.isInvalidArguments());
+    }
+}
+
 TEST_P(StatsTest, TestAggregate) {
     MemcachedConnection& conn = getConnection();
     auto stats = conn.stats("aggregate");

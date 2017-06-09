@@ -150,7 +150,22 @@ void close_all_connections(void)
 }
 
 void run_event_loop(Connection* c, short which) {
+    const auto start = ProcessClock::now();
     c->runEventLoop(which);
+    const auto stop = ProcessClock::now();
+
+    using namespace std::chrono;
+    const auto ns = duration_cast<nanoseconds>(stop - start).count();
+    c->addCpuTime(stop - start);
+
+    // @todo verify if it is ever possible we can run without a thread
+    auto* thread = c->getThread();
+    if (thread == nullptr) {
+        LOG_WARNING(nullptr, "%u: ran without a thread context", c->getId());
+    } else {
+        scheduler_info[thread->index].add(ns);
+    }
+
     if (c->shouldDelete()) {
         release_connection(c);
     }

@@ -21,6 +21,7 @@
 #include "cookie.h"
 #include "settings.h"
 
+#include <chrono>
 #include <cJSON.h>
 #include <cbsasl/cbsasl.h>
 #include <memcached/rbac.h>
@@ -379,6 +380,18 @@ public:
      */
     ENGINE_ERROR_CODE remapErrorCode(ENGINE_ERROR_CODE code) const;
 
+    /**
+     * Add the specified number of ns to the amount of CPU time this
+     * connection have used on the CPU (We could alternatively have
+     * separate "ON_CPU" and "OFF_CPU" events and record all of this
+     * within the connection object instead, but it seemed easier to
+     * just wrap it from the method driving the event loop (as we
+     * also want to record the delta to the thread scheduler histogram
+     *
+     * @param ns The number of nanoseconds spent in this iteration.
+     */
+    void addCpuTime(std::chrono::nanoseconds ns);
+
 protected:
     Connection(SOCKET sfd, event_base* b);
 
@@ -495,6 +508,19 @@ protected:
      * default collection mutations/deletions etc... when subscribed to DCP.
      */
     bool collections_support;
+
+    /**
+     * The total time this connection been on the CPU
+     */
+    std::chrono::nanoseconds total_cpu_time = std::chrono::nanoseconds::zero();
+    /**
+     * The shortest time this connection was occupying the thread
+     */
+    std::chrono::nanoseconds min_sched_time = std::chrono::nanoseconds::max();
+    /**
+     * The longest time this connection was occupying the thread
+     */
+    std::chrono::nanoseconds max_sched_time = std::chrono::nanoseconds::zero();
 };
 
 /**

@@ -27,6 +27,7 @@
 #include "log_macros.h"
 #include "net_buf.h"
 #include "settings.h"
+#include "timing_histogram.h"
 
 /** Maximum length of a key. */
 #define KEY_MAX_LENGTH 250
@@ -119,6 +120,8 @@ extern bool create_notification_pipe(LIBEVENT_THREAD *me);
 #include "connection.h"
 #include "connection_listen.h"
 #include "connection_mcbp.h"
+
+extern std::vector<TimingHistogram> scheduler_info;
 
 /* list of listening connections */
 extern Connection *listen_conn;

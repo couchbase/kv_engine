@@ -496,6 +496,40 @@ static ENGINE_ERROR_CODE stat_reset_executor(const std::string& arg,
 }
 
 /**
+ * Handler for the <code>stats sched</code> used to get the
+ * histogram for the scheduler histogram.
+ *
+ * @param arg - should be empty
+ * @param connection the connection that requested the operation
+ */
+static ENGINE_ERROR_CODE stat_sched_executor(const std::string& arg,
+                                             McbpConnection& connection) {
+
+    if (arg.empty()) {
+        for (int ii = 0; ii < settings.getNumWorkerThreads(); ++ii) {
+            auto hist = scheduler_info[ii].to_string();
+            std::string key = std::to_string(ii);
+            append_stats(key.data(), key.size(), hist.data(), hist.size(),
+                         connection.getCookie());
+        }
+        return ENGINE_SUCCESS;
+    } else if (arg == "aggregate") {
+        static const std::string key = {"aggregate"};
+        TimingHistogram histogram;
+        for (const auto& h : scheduler_info) {
+            histogram += h;
+        }
+        // Add the stat
+        auto hist = histogram.to_string();
+        append_stats(key.data(), key.size(), hist.data(), hist.size(),
+                     connection.getCookie());
+        return ENGINE_SUCCESS;
+    } else {
+        return ENGINE_EINVAL;
+    }
+}
+
+/**
  * Handler for the <code>stats settings</code> used to get the current
  * settings.
  *
@@ -728,6 +762,7 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
      */
     static std::unordered_map<std::string, struct stat_handler> handlers = {
             {"reset", {true, stat_reset_executor}},
+            {"worker_thread_info", {false, stat_sched_executor}},
             {"settings", {false, stat_settings_executor}},
             {"audit", {true, stat_audit_executor}},
             {"bucket_details", {true, stat_bucket_details_executor}},
