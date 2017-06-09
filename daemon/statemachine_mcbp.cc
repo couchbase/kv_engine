@@ -39,7 +39,7 @@ void McbpStateMachine::setCurrentTask(McbpConnection& connection, TaskFunction t
          * DCP connections behaves differently than normal
          * connections because they operate in a full duplex mode.
          * New messages may appear from both sides, so we can't block on
-         * read from the nework / engine
+         * read from the network / engine
          */
 
         if (task == conn_waiting) {
@@ -54,11 +54,11 @@ void McbpStateMachine::setCurrentTask(McbpConnection& connection, TaskFunction t
     }
 
     if (settings.getVerbose() > 2 || task == conn_closing) {
-        settings.extensions.logger->log(EXTENSION_LOG_DETAIL, this,
-                                        "%u: going from %s to %s\n",
-                                        connection.getId(),
-                                        getTaskName(currentTask),
-                                        getTaskName(task));
+        LOG_DETAIL(this,
+                   "%u: going from %s to %s\n",
+                   connection.getId(),
+                   getTaskName(currentTask),
+                   getTaskName(task));
     }
 
     if (task == conn_mwrite) {
