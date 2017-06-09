@@ -2488,8 +2488,8 @@ TEST_P(McdTestappTest, MB_12762_SSLHandshakeHang) {
 #endif
     cb_assert(len == 2);
 
-    /* Done writing, close the socket for writing. This triggers the bug: a
-     * conn_read -> conn_waiting -> conn_read ... loop in memcached */
+/* Done writing, close the socket for writing. This triggers the bug: a
+ * conn_read -> conn_waiting -> conn_read_packet_header ... loop in memcached */
 #if defined(WIN32)
     int res = shutdown(sock_ssl, SD_SEND);
 #else

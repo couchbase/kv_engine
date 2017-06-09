@@ -145,7 +145,7 @@ TEST_P(BucketTest, TestDeleteNonexistingBucket) {
 }
 
 // Regression test for MB-19756 - if a bucket delete is attempted while there
-// is connection in the conn_nread state, then delete will hang.
+// is connection in the conn_read_packet_body state, then delete will hang.
 TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
     auto& conn = getAdminConnection();
     conn.createBucket("bucket", "", BucketType::Memcached);
@@ -154,9 +154,9 @@ TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
     second_conn->authenticate("@admin", "password", "PLAIN");
     second_conn->selectBucket("bucket");
 
-    // We need to get the second connection sitting the `conn_nread` state in
-    // memcached - i.e. waiting to read a variable-amount of data from the
-    // client. Simplest is to perform a GET where we don't send the full key
+    // We need to get the second connection sitting the `conn_read_packet_body`
+    // state in memcached - i.e. waiting to read a variable-amount of data from
+    // the client. Simplest is to perform a GET where we don't send the full key
     // length, by only sending a partial frame
     Frame frame = second_conn->encodeCmdGet("dummy_key_which_we_will_crop", 0);
     second_conn->sendPartialFrame(frame, frame.payload.size() - 1);
@@ -189,9 +189,9 @@ TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
 
     conn.deleteBucket("bucket");
     // Check that the watchdog didn't fire.
-    EXPECT_FALSE(watchdog_fired) <<
-            "Bucket deletion (with connected client in conn_nread) only "
-            "completed after watchdog fired";
+    EXPECT_FALSE(watchdog_fired) << "Bucket deletion (with connected client in "
+                                    "conn_read_packet_body) only "
+                                    "completed after watchdog fired";
 
     // Cleanup - stop the watchdog (if it hasn't already fired).
     bucket_deleted = true;
@@ -200,9 +200,9 @@ TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
 }
 
 // Regression test for MB-19981 - if a bucket delete is attempted while there
-// is connection in the conn_nread state.  And that connection is currently
-// blocked waiting for a response from the server; the connection will not
-// have an event registered in libevent.  Therefore a call to updateEvent
+// is connection in the conn_read_packet_body state.  And that connection is
+// currently blocked waiting for a response from the server; the connection will
+// not have an event registered in libevent.  Therefore a call to updateEvent
 // will fail.
 
 // Note before the fix, if the event_active function call is removed from the

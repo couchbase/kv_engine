@@ -48,7 +48,7 @@ void McbpStateMachine::setCurrentTask(McbpConnection& connection, TaskFunction t
             task = conn_ship_log;
         }
 
-        if (task == conn_read) {
+        if (task == conn_read_packet_header) {
             // If we're starting to read data, reset any running timers
             connection.setStart(0);
         }
@@ -79,12 +79,12 @@ const char* McbpStateMachine::getTaskName(TaskFunction task) const {
         return "conn_new_cmd";
     } else if (task == conn_waiting) {
         return "conn_waiting";
-    } else if (task == conn_read) {
-        return "conn_read";
+    } else if (task == conn_read_packet_header) {
+        return "conn_read_packet_header";
     } else if (task == conn_parse_cmd) {
         return "conn_parse_cmd";
-    } else if (task == conn_nread) {
-        return "conn_nread";
+    } else if (task == conn_read_packet_body) {
+        return "conn_read_packet_body";
     } else if (task == conn_execute) {
         return "conn_execute";
     } else if (task == conn_closing) {
@@ -166,10 +166,10 @@ bool conn_ship_log(McbpConnection *c) {
     if (c->isReadEvent() || c->read.bytes > 0) {
         if (c->read.bytes > 0) {
             if (try_read_mcbp_command(c) == 0) {
-                c->setState(conn_read);
+                c->setState(conn_read_packet_header);
             }
         } else {
-            c->setState(conn_read);
+            c->setState(conn_read_packet_header);
         }
 
         /* we're going to process something.. let's proceed */
@@ -227,11 +227,11 @@ bool conn_waiting(McbpConnection *c) {
         c->setState(conn_closing);
         return true;
     }
-    c->setState(conn_read);
+    c->setState(conn_read_packet_header);
     return false;
 }
 
-bool conn_read(McbpConnection *c) {
+bool conn_read_packet_header(McbpConnection* c) {
     if (is_bucket_dying(c)) {
         return true;
     }
@@ -341,7 +341,7 @@ static bool conn_execute(McbpConnection *c) {
     return !block;
 }
 
-bool conn_nread(McbpConnection *c) {
+bool conn_read_packet_body(McbpConnection* c) {
     if (is_bucket_dying(c)) {
         return true;
     }
@@ -381,9 +381,12 @@ bool conn_nread(McbpConnection *c) {
 
     if (res == -1 && is_blocking(error)) {
         if (!c->updateEvent(EV_READ | EV_PERSIST)) {
-            LOG_WARNING(c, "%u: conn_nread - Unable to update libevent "
+            LOG_WARNING(c,
+                        "%u: conn_read_packet_body - Unable to update libevent "
                         "settings with (EV_READ | EV_PERSIST), closing "
-                        "connection (%p) %s", c->getId(), c->getCookie(),
+                        "connection (%p) %s",
+                        c->getId(),
+                        c->getCookie(),
                         c->getDescription().c_str());
             c->setState(conn_closing);
             return true;

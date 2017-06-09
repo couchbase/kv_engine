@@ -1221,12 +1221,10 @@ void McbpConnection::initiateShutdown() {
 
 void McbpConnection::signalIfIdle(bool logbusy, int workerthread) {
     auto state = getState();
-    if (!isEwouldblock() && (state == conn_read ||
-                             state == conn_nread ||
-                             state == conn_waiting ||
-                             state == conn_new_cmd ||
-                             state == conn_ship_log)) {
-
+    if (!isEwouldblock() &&
+        (state == conn_read_packet_header || state == conn_read_packet_body ||
+         state == conn_waiting || state == conn_new_cmd ||
+         state == conn_ship_log)) {
         // Raise a 'fake' write event to ensure the connection has an
         // event delivered (for example if its sendQ is full).
         if (!registered_in_libevent) {

@@ -80,9 +80,9 @@ protected:
 
 bool conn_new_cmd(McbpConnection* c);
 bool conn_waiting(McbpConnection* c);
-bool conn_read(McbpConnection* c);
+bool conn_read_packet_header(McbpConnection* c);
 bool conn_parse_cmd(McbpConnection* c);
-bool conn_nread(McbpConnection* c);
+bool conn_read_packet_body(McbpConnection* c);
 bool conn_pending_close(McbpConnection* c);
 bool conn_immediate_close(McbpConnection* c);
 bool conn_closing(McbpConnection* c);

@@ -132,7 +132,7 @@ static void bin_read_chunk(McbpConnection* c, uint32_t chunk) {
 
     // The input buffer is big enough to fit the entire packet.
     // Go fetch the rest of the data
-    c->setState(conn_nread);
+    c->setState(conn_read_packet_body);
 }
 
 /* Just write an error message and disconnect the client */
