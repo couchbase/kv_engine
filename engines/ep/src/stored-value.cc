@@ -49,6 +49,7 @@ StoredValue::StoredValue(const Item& itm,
       newCacheItem(true),
       isOrdered(isOrdered),
       nru(itm.getNRUValue()),
+      resident(!isTempItem()),
       stale(false) {
     // Placement-new the key which lives in memory directly after this
     // object.
@@ -61,7 +62,7 @@ StoredValue::StoredValue(const Item& itm,
     }
 
     if (isTempItem()) {
-        markNotResident();
+        resetValue();
     }
 
     ObjectRegistry::onCreateStoredValue(this);
@@ -88,6 +89,7 @@ StoredValue::StoredValue(const StoredValue& other,
       newCacheItem(other.newCacheItem),
       isOrdered(other.isOrdered),
       nru(other.nru),
+      resident(other.resident),
       stale(false) {
     // Placement-new the key which lives in memory directly after this
     // object.
@@ -107,7 +109,6 @@ void StoredValue::setValue(const Item& itm) {
 
 void StoredValue::ejectValue() {
     markNotResident();
-    value = nullptr;
 }
 
 void StoredValue::referenced() {
@@ -146,6 +147,7 @@ void StoredValue::restoreValue(const Item& itm) {
     datatype = itm.getDataType();
     deleted = itm.isDeleted();
     value = itm.getValue();
+    resident = true;
 }
 
 void StoredValue::restoreMeta(const Item& itm) {
@@ -284,6 +286,7 @@ bool StoredValue::operator==(const StoredValue& other) const {
             _isDirty == other._isDirty && deleted == other.deleted &&
             newCacheItem == other.newCacheItem &&
             isOrdered == other.isOrdered && nru == other.nru &&
+            resident == other.resident &&
             getKey() == other.getKey());
 }
 
@@ -294,8 +297,8 @@ bool StoredValue::deleteImpl() {
         return false;
     }
 
-    markNotResident();
-    // item no longer resident once value is reset
+    resetValue();
+
     deleted = true;
     markDirty();
 
@@ -303,7 +306,6 @@ bool StoredValue::deleteImpl() {
 }
 
 void StoredValue::setValueImpl(const Item& itm) {
-    value = itm.getValue();
     deleted = itm.isDeleted();
     flags = itm.getFlags();
     datatype = itm.getDataType();
@@ -323,7 +325,10 @@ void StoredValue::setValueImpl(const Item& itm) {
     }
 
     if (isTempItem()) {
-        markNotResident();
+        resident = false;
+    } else {
+        resident = true;
+        value = itm.getValue();
     }
 }
 
@@ -342,6 +347,7 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
     os << (sv.isDirty() ? 'W' : '.');
     os << (sv.isDeleted() ? 'D' : '.');
     os << (sv.isNewCacheItem() ? 'N' : '.');
+    os << (sv.isResident() ? 'R' : '.');
     os << ' ';
 
     // Temporary states

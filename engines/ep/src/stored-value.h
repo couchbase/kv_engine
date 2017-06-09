@@ -38,7 +38,7 @@ class OrderedStoredValue;
  * It contains the documents' key, related metadata (CAS, rev, seqno, ...).
  * It also has a pointer to the documents' value - which may be null if the
  * value of the item is not currently resident (for example it's been evicted to
- * save memory).
+ * save memory) or if the item has no value (deleted item has value as null)
  * Additionally it contains flags to help HashTable manage the state of the
  * item - such as dirty flag, NRU bits, and a `next` pointer to support
  * chaining of StoredValues which hash to the same hash bucket.
@@ -394,7 +394,7 @@ public:
      }
 
     size_t valuelen() const {
-        if (!isResident()) {
+        if (!value) {
             return 0;
         }
         return value->length();
@@ -436,11 +436,17 @@ public:
      * True if this value is resident in memory currently.
      */
     bool isResident() const {
-        return value.get() != NULL;
+        return resident;
     }
 
     void markNotResident() {
+        resetValue();
+        resident = false;
+    }
+
+    void resetValue() {
         value.reset();
+        value = nullptr;
     }
 
     /**
@@ -668,7 +674,8 @@ protected:
     bool               newCacheItem : 1;
     const bool isOrdered : 1; //!< Is this an instance of OrderedStoredValue?
     uint8_t            nru       :  2; //!< True if referenced since last sweep
-    bool unused : 2; // Unused bits in first byte of bitfields.
+    bool               resident :  1;
+    bool unused : 1; // Unused bits in first byte of bitfields.
 
     // Indicates if a newer instance of the item is added. Logically part of
     // OSV, but is physically located in SV as there are spare bytes here.

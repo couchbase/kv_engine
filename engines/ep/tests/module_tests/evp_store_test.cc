@@ -396,6 +396,55 @@ TEST_P(EPStoreEvictionTest, TouchCmdDuringBgFetch) {
               store->getVBucket(vbid)->getHighSeqno());
 }
 
+TEST_P(EPStoreEvictionTest, checkIfResidentAfterBgFetch) {
+    const DocKey dockey("key", DocNamespace::DefaultCollection);
+
+    //Store an item
+    store_item(vbid, dockey, "value");
+
+    //Trigger a flush to disk
+    flush_vbucket_to_disk(vbid);
+
+    //Now, delete the item
+    uint64_t cas = 0;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              store->deleteItem(dockey, cas, vbid,
+                                /*cookie*/ cookie,
+                                /*itemMeta*/ nullptr,
+                                /*mutation_descr_t*/ nullptr));
+
+    flush_vbucket_to_disk(vbid);
+
+    get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
+                                                       HONOR_STATES   |
+                                                       TRACK_REFERENCE |
+                                                       DELETE_TEMP |
+                                                       HIDE_LOCKED_CAS |
+                                                       TRACK_STATISTICS |
+                                                       GET_DELETED_VALUE);
+
+    GetValue gv = store->get(makeStoredDocKey("key"), vbid, cookie, options);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+
+    // Run the BGFetcher task
+    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
+    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+
+    // The Get should succeed in this case
+    gv = store->get(makeStoredDocKey("key"), vbid, cookie, options);
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    auto hbl = vb->ht.getLockedBucket(dockey);
+    StoredValue* v = vb->ht.unlocked_find(dockey,
+                                          hbl.getBucketNum(),
+                                          WantsDeleted::Yes,
+                                          TrackReference::No);
+
+    EXPECT_TRUE(v->isResident());
+}
+
 TEST_P(EPStoreEvictionTest, xattrExpiryOnFullyEvictedItem) {
     if (GetParam() == "value_only") {
         return;

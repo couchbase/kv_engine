@@ -108,6 +108,7 @@ TYPED_TEST(ValueTest, valuelenDeletedWithValue) {
 TYPED_TEST(ValueTest, valuelenDeletedWithoutValue) {
     // Check valuelen reports correctly for a StoredValue logically delete
     this->sv->del();
+    EXPECT_TRUE(this->sv->isResident());
     EXPECT_EQ(0, this->sv->valuelen())
             << "valuelen() expected to be 0 as we do not want to keep deleted "
                "body";
@@ -125,6 +126,39 @@ TYPED_TEST(ValueTest, getRequiredStorage) {
               this->public_getRequiredStorage(this->item))
             << "Actual object size doesn't match what getRequiredStorage "
                "predicted";
+}
+
+/// Check if the value is resident. Also, check for
+/// residency once the value has been ejected
+TYPED_TEST(ValueTest, checkIfResident) {
+    EXPECT_TRUE(this->sv->getValue());
+    EXPECT_TRUE(this->sv->isResident());
+
+    this->sv->ejectValue();
+    EXPECT_FALSE(this->sv->getValue());
+    EXPECT_FALSE(this->sv->isResident());
+}
+
+/// Check if the value is resident for a temporary
+/// item
+TYPED_TEST(ValueTest, checkIfTempItemIsResident) {
+    Item itm(makeStoredDocKey("k"), 0, 0, nullptr, 0,
+             StoredValue::state_temp_init);
+    this->sv->setValue(itm);
+    EXPECT_TRUE(this->sv->isTempItem());
+    EXPECT_FALSE(this->sv->isResident());
+}
+
+/// Check if the deleted item is resident or not
+TYPED_TEST(ValueTest, checkIfDeletedWithValueIsResident) {
+    ///Just mark the value as deleted. There should
+    ///be a value and the item should be resident
+    this->sv->markDeleted();
+    EXPECT_TRUE(this->sv->getValue());
+    EXPECT_TRUE(this->sv->isResident());
+
+    this->sv->ejectValue();
+    EXPECT_FALSE(this->sv->isResident());
 }
 
 /// Check that StoredValue / OrderedStoredValue don't unexpectedly change in
