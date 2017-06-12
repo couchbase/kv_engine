@@ -117,8 +117,7 @@ bool EphemeralBucket::initialize() {
 
     // Tombstone purger - scheduled periodically as long as we have a
     // non-zero interval. Can be dynamically adjusted, so add config listeners.
-    tombstonePurgerTask =
-            std::make_shared<EphTombstonePurgerTask>(&engine, stats);
+    tombstonePurgerTask = std::make_shared<EphTombstoneHTCleaner>(&engine);
     auto interval = config.getEphemeralMetadataPurgeInterval();
     if (interval > 0) {
         enableTombstonePurgerTask();

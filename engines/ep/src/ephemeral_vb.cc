@@ -288,18 +288,23 @@ void EphemeralVBucket::queueBackfillItem(
     stats.memOverhead->fetch_add(sizeof(queued_item));
 }
 
-size_t EphemeralVBucket::purgeTombstones(rel_time_t purgeAge) {
-    // First mark all deleted items in the HashTable which can be purged as
-    // Stale - this removes them from the HashTable, transferring ownership to
+size_t EphemeralVBucket::markOldTombstonesStale(rel_time_t purgeAge) {
+    // Mark all deleted items in the HashTable which can be purged as Stale -
+    // this removes them from the HashTable, transferring ownership to
     // SequenceList.
     HTTombstonePurger purger(*this, purgeAge);
     ht.visit(purger);
 
-    // Secondly iterate over the sequence list and delete any stale items
+    // Update stats.
+    htDeletedPurgeCount += purger.getNumPurged();
+    return purger.getNumPurged();
+}
+
+size_t EphemeralVBucket::purgeStaleItems() {
+    // Iterate over the sequence list and delete any stale items
     auto seqListPurged = seqList->purgeTombstones();
 
     // Update stats and return.
-    htDeletedPurgeCount += purger.getNumPurged();
     seqListPurgeCount += seqListPurged;
     setPurgeSeqno(seqList->getHighestPurgedDeletedSeqno());
 

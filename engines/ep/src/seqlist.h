@@ -40,7 +40,7 @@ using seqno_t = int64_t;
 
 /**
  * SequenceList is the abstract base class for the classes that hold ordered
- * sequence of items in memory. To store/retreive items sequencially in memory,
+ * sequence of items in memory. To store/retrieve items sequentially in memory,
  * in our multi-threaded, monotonically increasing seq model, we need these
  * classes around basic data structures like Linkedlist or Skiplist.
  *
@@ -51,7 +51,7 @@ using seqno_t = int64_t;
  * is necessary for the list.
  *
  * SequenceList expects the module that contains it, takes the responsibility
- * of serializing the OrderedStoredValue. SequenceList only guarentees to hold
+ * of serializing the OrderedStoredValue. SequenceList only guarantees to hold
  * the OrderedStoredValue in the order they are sent to it. For this it forces
  * the write calls to pass the seq lock held by them
  *
