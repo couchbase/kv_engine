@@ -2618,15 +2618,13 @@ static test_result test_dcp_value_compression(ENGINE_HANDLE *h,
               "dcp_min_compression_ratio",
               std::to_string(std::numeric_limits<float>::max()).c_str());
 
-    item *i = NULL;
     std::string originalValue("{\"FOO\":\"BAR\"}");
 
     checkeq(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
                          originalValue.c_str(), originalValue.length(),
-                         0, &i, 0, 0, 3600,
-                         PROTOCOL_BINARY_DATATYPE_JSON),
-            ENGINE_SUCCESS, "Failed to store an item.");
-    h1->release(h, NULL, i);
+                         0, 0, 0, 3600,
+                         PROTOCOL_BINARY_DATATYPE_JSON).first,
+            cb::engine_errc::success, "Failed to store an item.");
     wait_for_flusher_to_settle(h, h1);
 
     uint64_t end = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");

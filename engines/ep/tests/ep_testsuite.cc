@@ -650,12 +650,10 @@ static enum test_result test_restart_bin_val(ENGINE_HANDLE *h,
     char binaryData[] = "abcdefg\0gfedcba";
     cb_assert(sizeof(binaryData) != strlen(binaryData));
 
-    item *i = NULL;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
-                         binaryData, sizeof(binaryData), 82758, &i, 0, 0),
+                         binaryData, sizeof(binaryData), 82758, 0, 0).first,
             "Failed set.");
-    h1->release(h, NULL, i);
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
@@ -837,14 +835,12 @@ static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h,
 
     const void* cookie = testHarness.create_cookie();
 
-    item *itm = nullptr;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasVb11(h, h1, cookie, OPERATION_SET, key,
                          reinterpret_cast<char*>(data.data()),
-                         data.size(), 9258, &itm, 0, 0, 10,
-                         PROTOCOL_BINARY_DATATYPE_XATTR),
+                         data.size(), 9258, 0, 0, 10,
+                         PROTOCOL_BINARY_DATATYPE_XATTR).first,
             "Failed to store xattr document");
-    h1->release(h, nullptr, itm);
 
     if (isPersistentBucket(h, h1)) {
         wait_for_flusher_to_settle(h, h1);
@@ -5714,15 +5710,12 @@ static enum test_result test_eviction_with_xattr(ENGINE_HANDLE* h,
     std::string data;
     std::copy(blob.buf, blob.buf + blob.size(), std::back_inserter(data));
 
-    item *itm = NULL;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasVb11(h, h1, nullptr, OPERATION_SET, key,
-                         data.data(), data.size(), 0, &itm, 0, 0, 0,
-                         PROTOCOL_BINARY_DATATYPE_XATTR, DocumentState::Alive),
+                         data.data(), data.size(), 0, 0, 0, 0,
+                         PROTOCOL_BINARY_DATATYPE_XATTR, DocumentState::Alive).first,
             "Unable to store item");
 
-    h1->release(h, NULL, itm);
-    itm = nullptr;
     wait_for_flusher_to_settle(h, h1);
 
     // Evict Item!
@@ -7387,13 +7380,11 @@ static enum test_result test_vbucket_compact_no_purge(ENGINE_HANDLE *h,
 static enum test_result test_mb23640(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const std::string key{"mb-23640"};
     const std::string value{"my value"};
-    item* itm = nullptr;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasVb11(h, h1, nullptr, OPERATION_SET, key.c_str(),
-                         value.data(), value.size(), 0, &itm, 0, 0, 0,
-                         PROTOCOL_BINARY_RAW_BYTES, DocumentState::Alive),
+                         value.data(), value.size(), 0, 0, 0, 0,
+                         PROTOCOL_BINARY_RAW_BYTES, DocumentState::Alive).first,
             "Unable to store item");
-    h1->release(h, nullptr, itm);
 
     // I should be able to get the key if I ask for anything which
     // includes Alive
@@ -7411,12 +7402,11 @@ static enum test_result test_mb23640(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             "AFAIK ep-engine don't support fetching only deleted items");
 
     // Delete the document
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasVb11(h, h1, nullptr, OPERATION_SET, key.c_str(),
-                         value.data(), value.size(), 0, &itm, 0, 0, 0,
-                         PROTOCOL_BINARY_RAW_BYTES, DocumentState::Deleted),
+                         value.data(), value.size(), 0, 0, 0, 0,
+                         PROTOCOL_BINARY_RAW_BYTES, DocumentState::Deleted).first,
             "Unable to delete item");
-    h1->release(h, nullptr, itm);
 
     // I should be able to get the key if I ask for anything which
     // includes Deleted

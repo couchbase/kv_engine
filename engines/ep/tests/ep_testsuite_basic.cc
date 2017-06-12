@@ -642,11 +642,10 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     char binaryData1[] = "abcdefg\0gfedcba";
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasVb11(h, h1, NULL, OPERATION_SET, key,
-                         binaryData1, sizeof(binaryData1) - 1, 82758, &i, 0, 0),
+                         binaryData1, sizeof(binaryData1) - 1, 82758, 0, 0).first,
             "Failed set.");
-    h1->release(h, NULL, i);
 
     /* acquire lock, should succeed */
     checkeq(ENGINE_SUCCESS,
@@ -686,11 +685,9 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     cas = last_cas;
 
     /* cas should fail */
-    check(storeCasVb11(h, h1, NULL, OPERATION_CAS, ekey,
-                       binaryData1, sizeof(binaryData1) - 1, 82758, &i, cas, 0)
-          != ENGINE_SUCCESS,
-          "CAS succeeded.");
-    h1->release(h, NULL, i);
+    auto ret = storeCasVb11(h, h1, NULL, OPERATION_CAS, ekey,
+                       binaryData1, sizeof(binaryData1) - 1, 82758, cas, 0);
+    checkne(cb::engine_errc::success, ret.first, "CAS succeeded.");
 
     /* but a simple store should succeed */
     checkeq(ENGINE_SUCCESS,
@@ -787,12 +784,10 @@ static enum test_result test_set_get_hit_bin(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     char binaryData[] = "abcdefg\0gfedcba";
     cb_assert(sizeof(binaryData) != strlen(binaryData));
 
-    item *i = NULL;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
-                         binaryData, sizeof(binaryData), 82758, &i, 0, 0),
+                         binaryData, sizeof(binaryData), 82758, 0, 0).first,
             "Failed to set.");
-    h1->release(h, NULL, i);
     check_key_value(h, h1, "key", binaryData, sizeof(binaryData));
     return SUCCESS;
 }
@@ -831,11 +826,10 @@ static enum test_result test_set_change_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     check(get_item_info(h, h1, &info, "key"), "Failed to get value.");
     cb_assert(info.flags != flags);
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
-                         "newvalue", strlen("newvalue"), flags, &i, 0, 0),
+                         "newvalue", strlen("newvalue"), flags, 0, 0).first,
             "Failed to set again.");
-    h1->release(h, NULL, i);
 
     check(get_item_info(h, h1, &info, "key"), "Failed to get value.");
 

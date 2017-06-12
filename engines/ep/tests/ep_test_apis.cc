@@ -935,8 +935,12 @@ ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                         const char *key, const char *value, item **outitem,
                         uint64_t casIn, uint16_t vb, uint32_t exp,
                         uint8_t datatype, DocumentState docState) {
-    return storeCasVb11(h, h1, cookie, op, key, value, strlen(value),
-                        9258, outitem, casIn, vb, exp, datatype, docState);
+    auto ret = storeCasVb11(h, h1, cookie, op, key, value, strlen(value),
+                        9258, casIn, vb, exp, datatype, docState);
+    if (outitem) {
+        *outitem = ret.second.release();
+    }
+    return ENGINE_ERROR_CODE(ret.first);
 }
 
 ENGINE_ERROR_CODE storeCasOut(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -958,10 +962,10 @@ ENGINE_ERROR_CODE storeCasOut(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return res;
 }
 
-ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+cb::EngineErrorItemPair storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                const void *cookie, ENGINE_STORE_OPERATION op,
                                const char *key, const char *value, size_t vlen,
-                               uint32_t flags, item **outitem, uint64_t casIn,
+                               uint32_t flags, uint64_t casIn,
                                uint16_t vb, uint32_t exp, uint8_t datatype,
                                DocumentState docState) {
     item *it = NULL;
@@ -970,7 +974,7 @@ ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     ENGINE_ERROR_CODE rv = allocate(h, h1, cookie, &it, key, vlen, flags, exp,
                                     datatype, vb);
     if (rv != ENGINE_SUCCESS) {
-        return rv;
+        return cb::makeEngineErrorItemPair(cb::engine_errc(rv));
     }
 
     item_info info;
@@ -984,13 +988,7 @@ ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     rv = h1->store(h, cookie, it, &cas, op, docState);
 
-    if (outitem) {
-        *outitem = it;
-    } else {
-        h1->release(h, NULL, it);
-    }
-
-    return rv;
+    return cb::makeEngineErrorItemPair(cb::engine_errc(rv), it, h);
 }
 
 ENGINE_ERROR_CODE touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,

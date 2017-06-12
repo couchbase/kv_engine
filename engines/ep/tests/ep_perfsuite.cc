@@ -326,9 +326,9 @@ static void add_sentinel_doc(ENGINE_HANDLE *h,
                              ENGINE_HANDLE_V1 *h1, uint16_t vbid) {
     // Use ADD instead of SET as we only expect to mutate the sentinel
     // doc once per run.
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasVb11(h, h1, nullptr, OPERATION_ADD, SENTINEL_KEY,
-                         nullptr, 0, /*flags*/0, /*out*/nullptr, 0, vbid),
+                         nullptr, 0, /*flags*/0, 0, vbid).first,
             "Failed to add sentinel document.");
 }
 
@@ -366,16 +366,14 @@ static void perf_latency_core(ENGINE_HANDLE *h,
 
     // Create (add)
     for (auto& key : keys) {
-        item* item = NULL;
         const hrtime_t start = gethrtime();
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 storeCasVb11(h, h1, cookie, OPERATION_ADD, key.c_str(),
-                             data.c_str(), data.length(), 0, &item, 0,
-                             /*vBucket*/0, 0, 0),
+                             data.c_str(), data.length(), 0, 0,
+                             /*vBucket*/0, 0, 0).first,
                 "Failed to add a value");
         const hrtime_t end = gethrtime();
         add_timings.push_back(end - start);
-        h1->release(h, cookie, item);
     }
 
     // Get
@@ -389,16 +387,14 @@ static void perf_latency_core(ENGINE_HANDLE *h,
 
     // Update (Replace)
     for (auto& key : keys) {
-        item* item = NULL;
         const hrtime_t start = gethrtime();
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 storeCasVb11(h, h1, cookie, OPERATION_REPLACE, key.c_str(),
-                             data.c_str(), data.length(), 0, &item, 0,
-                             /*vBucket*/0, 0, 0),
+                             data.c_str(), data.length(), 0, 0,
+                             /*vBucket*/0, 0, 0).first,
                 "Failed to replace a value");
         const hrtime_t end = gethrtime();
         replace_timings.push_back(end - start);
-        h1->release(h, cookie, item);
     }
 
     // Delete
@@ -783,14 +779,12 @@ static void perf_load_client(ENGINE_HANDLE* h,
             genVectorOfValues(typeOfData, count, ITERATIONS);
 
     for (int i = 0; i < count; ++i) {
-        item *it = nullptr;
         checkeq(storeCasVb11(h, h1, NULL, OPERATION_SET, keys[i].c_str(),
                              vals[i].data(), vals[i].size(), /*flags*/9258,
-                             &it, 0, vbid),
-                ENGINE_SUCCESS,
+                             0, vbid).first,
+                cb::engine_errc::success,
                 "Failed set.");
         insertTimes.push_back(gethrtime());
-        h1->release(h, NULL, it);
     }
 
     add_sentinel_doc(h, h1, vbid);
@@ -829,15 +823,13 @@ static void perf_background_sets(ENGINE_HANDLE* h,
         if (ii == count) {
             ii = 0;
         }
-        item *it = nullptr;
         const hrtime_t start = gethrtime();
         checkeq(storeCasVb11(h, h1, cookie, OPERATION_SET, keys[ii].c_str(),
                              vals[ii].data(), vals[ii].size(), /*flags*/9258,
-                             &it, 0, vbid),
-                ENGINE_SUCCESS, "Failed set.");
+                             0, vbid).first,
+                cb::engine_errc::success, "Failed set.");
         const hrtime_t end = gethrtime();
         insertTimes.push_back(end - start);
-        h1->release(h, cookie, it);
         ++ii;
     }
 
@@ -1212,9 +1204,9 @@ static void perf_stat_latency_core(ENGINE_HANDLE *h,
 
     const void* cookie = testHarness.create_cookie();
     // For some of the stats we need to have a document stored
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasVb11(h, h1, nullptr, OPERATION_ADD, "example_doc", nullptr,
-                         0, /*flags*/0, /*out*/nullptr, 0, /*vbid*/0),
+                         0, /*flags*/0, 0, /*vbid*/0).first,
                          "Failed to add example document.");
 
     if (isWarmupEnabled(h, h1)) {

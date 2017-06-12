@@ -369,14 +369,12 @@ static enum test_result test_get_meta_with_xattr(ENGINE_HANDLE* h, ENGINE_HANDLE
 
     const void* cookie = testHarness.create_cookie();
 
-    item *itm = nullptr;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasVb11(h, h1, cookie, OPERATION_SET, key,
                          reinterpret_cast<char*>(data.data()),
-                         data.size(), 9258, &itm, 0, 0, 0,
-                         PROTOCOL_BINARY_DATATYPE_XATTR),
+                         data.size(), 9258, 0, 0, 0,
+                         PROTOCOL_BINARY_DATATYPE_XATTR).first,
             "Failed to store xattr document");
-    h1->release(h, nullptr, itm);
 
     if (isPersistentBucket(h, h1)) {
         wait_for_flusher_to_settle(h, h1);
@@ -427,14 +425,12 @@ static enum test_result test_get_meta_mb23905(ENGINE_HANDLE* h,
 
     const void* cookie = testHarness.create_cookie();
 
-    item *itm = nullptr;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasVb11(h, h1, cookie, OPERATION_SET, key,
                          reinterpret_cast<char*>(data.data()),
-                         data.size(), 9258, &itm, 0, 0, 0,
-                         PROTOCOL_BINARY_DATATYPE_XATTR),
+                         data.size(), 9258, 0, 0, 0,
+                         PROTOCOL_BINARY_DATATYPE_XATTR).first,
             "Failed to store xattr document");
-    h1->release(h, nullptr, itm);
 
     if (isPersistentBucket(h, h1)) {
         wait_for_flusher_to_settle(h, h1);
