@@ -139,7 +139,7 @@ bool BgFetcher::run(GlobalTask *task) {
         if (pendingFetch.load()) {
             // check again a new fetch request could have arrived
             // right before calling above snooze()
-            task->snooze(0);
+            task->wakeUp();
         }
     }
     return true;

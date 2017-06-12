@@ -82,6 +82,10 @@ void GlobalTask::snooze(const double secs) {
     }
 }
 
+void GlobalTask::wakeUp() {
+    updateWaketime(ProcessClock::now());
+}
+
 /*
  * Generate a switch statement from tasks.def.h that maps TaskId to a
  * stringified value of the task's name.

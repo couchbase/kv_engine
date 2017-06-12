@@ -73,15 +73,15 @@ public:
         }
 
         if (consumer->notifiedProcessor(false)) {
-            snooze(0.0);
             state = more_to_process;
         } else {
-            snooze(sleepFor);
             // Check if the processor was notified again,
-            // in which case the task should wake immediately.
+            // in which case the task should not sleep (and hence be
+            // re-scheduled immediately).
             if (consumer->notifiedProcessor(false)) {
-                snooze(0.0);
                 state = more_to_process;
+            } else {
+                snooze(sleepFor);
             }
         }
 
