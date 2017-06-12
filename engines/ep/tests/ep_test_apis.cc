@@ -949,16 +949,14 @@ ENGINE_ERROR_CODE storeCasOut(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                               const protocol_binary_datatype_t datatype,
                               item*& out_item, uint64_t& out_cas,
                               DocumentState docState) {
-    item *it = NULL;
-    checkeq(ENGINE_SUCCESS,
-            allocate(h, h1, NULL, &it, key, value.size(), 0, 0, datatype, vb),
-           "Allocation failed.");
+    auto ret = allocate(h, h1, NULL, key, value.size(), 0, 0, datatype, vb);
+    checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
     item_info info;
-    check(h1->get_item_info(h, h1, it, &info), "Unable to get item_info");
+    check(h1->get_item_info(h, h1, ret.second.get(), &info),
+          "Unable to get item_info");
     memcpy(info.value[0].iov_base, value.data(), value.size());
-    ENGINE_ERROR_CODE res = h1->store(h, NULL, it, &out_cas,
-                                      OPERATION_SET, docState);
-    h1->release(h, NULL, it);
+    ENGINE_ERROR_CODE res = h1->store(
+            h, NULL, ret.second.get(), &out_cas, OPERATION_SET, docState);
     return res;
 }
 
@@ -968,27 +966,24 @@ cb::EngineErrorItemPair storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                uint32_t flags, uint64_t casIn,
                                uint16_t vb, uint32_t exp, uint8_t datatype,
                                DocumentState docState) {
-    item *it = NULL;
     uint64_t cas = 0;
 
-    ENGINE_ERROR_CODE rv = allocate(h, h1, cookie, &it, key, vlen, flags, exp,
-                                    datatype, vb);
-    if (rv != ENGINE_SUCCESS) {
-        return cb::makeEngineErrorItemPair(cb::engine_errc(rv));
+    auto rv = allocate(h, h1, cookie, key, vlen, flags, exp, datatype, vb);
+    if (rv.first != cb::engine_errc::success) {
+        return rv;
     }
-
     item_info info;
-    if (!h1->get_item_info(h, cookie, it, &info)) {
+    if (!h1->get_item_info(h, cookie, rv.second.get(), &info)) {
         abort();
     }
 
     cb_assert(info.value[0].iov_len == vlen);
     memcpy(info.value[0].iov_base, value, vlen);
-    h1->item_set_cas(h, cookie, it, casIn);
+    h1->item_set_cas(h, cookie, rv.second.get(), casIn);
 
-    rv = h1->store(h, cookie, it, &cas, op, docState);
+    auto storeRet = h1->store(h, cookie, rv.second.get(), &cas, op, docState);
 
-    return cb::makeEngineErrorItemPair(cb::engine_errc(rv), it, h);
+    return {cb::engine_errc(storeRet), std::move(rv.second)};
 }
 
 ENGINE_ERROR_CODE touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
@@ -1617,13 +1612,26 @@ uint64_t get_CAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return info.cas;
 }
 
-ENGINE_ERROR_CODE allocate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                           const void* cookie, item** outitem,
-                           const std::string& key, size_t nbytes, int flags,
-                           rel_time_t exptime, uint8_t datatype, uint16_t vb) {
-    return h1->allocate(h, cookie, outitem,
-                        DocKey(key, testHarness.doc_namespace),
-                        nbytes, flags, exptime, datatype, vb);
+cb::EngineErrorItemPair allocate(ENGINE_HANDLE* h,
+                                 ENGINE_HANDLE_V1* h1,
+                                 const void* cookie,
+                                 const std::string& key,
+                                 size_t nbytes,
+                                 int flags,
+                                 rel_time_t exptime,
+                                 uint8_t datatype,
+                                 uint16_t vb) {
+    item* outitem = nullptr;
+    auto ret = h1->allocate(h,
+                            cookie,
+                            &outitem,
+                            DocKey(key, testHarness.doc_namespace),
+                            nbytes,
+                            flags,
+                            exptime,
+                            datatype,
+                            vb);
+    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), outitem, h);
 }
 
 cb::EngineErrorItemPair get(ENGINE_HANDLE* h,

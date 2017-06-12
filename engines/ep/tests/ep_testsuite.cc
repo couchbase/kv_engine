@@ -901,24 +901,25 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *key = "test_expiry";
     const char *data = "some test data here.";
 
-    item *it = NULL;
-
-    ENGINE_ERROR_CODE rv;
-    rv = allocate(h, h1, NULL, &it, key, strlen(data), 0, 2,
-                  PROTOCOL_BINARY_RAW_BYTES, 0);
-    checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
+    auto ret = allocate(
+            h, h1, NULL, key, strlen(data), 0, 2, PROTOCOL_BINARY_RAW_BYTES, 0);
+    checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(h, NULL, it, &info)) {
+    if (!h1->get_item_info(h, NULL, ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    rv = h1->store(h, NULL, it, &cas, OPERATION_SET, DocumentState::Alive);
+    auto rv = h1->store(h,
+                        NULL,
+                        ret.second.get(),
+                        &cas,
+                        OPERATION_SET,
+                        DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, h1, key, data, strlen(data));
-    h1->release(h, NULL, it);
 
     testHarness.time_travel(5);
     checkeq(cb::engine_errc::no_such_key,
@@ -931,9 +932,9 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(0, expired_pager, "Expected zero expired item by pager");
     checkeq(1, expired_access, "Expected an expired item on access");
     checkeq(1, active_expired, "Expected an expired active item");
-    checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET, key, data, &it),
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key, data, nullptr),
             "Failed set.");
-    h1->release(h, NULL, it);
 
     // When run under full eviction, the total item stats are set from the
     // flusher. So we need to wait for it to finish before checking the
@@ -955,28 +956,29 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     const char *key = "test_expiry_loader";
     const char *data = "some test data here.";
 
-    item *it = NULL;
-
-    ENGINE_ERROR_CODE rv;
-    rv = allocate(h, h1, NULL, &it, key, strlen(data), 0, 2,
-                  PROTOCOL_BINARY_RAW_BYTES, 0);
-    checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
+    auto ret = allocate(
+            h, h1, NULL, key, strlen(data), 0, 2, PROTOCOL_BINARY_RAW_BYTES, 0);
+    checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(h, NULL, it, &info)) {
+    if (!h1->get_item_info(h, NULL, ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    rv = h1->store(h, NULL, it, &cas, OPERATION_SET, DocumentState::Alive);
+    auto rv = h1->store(h,
+                        NULL,
+                        ret.second.get(),
+                        &cas,
+                        OPERATION_SET,
+                        DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, h1, key, data, strlen(data));
-    h1->release(h, NULL, it);
 
     testHarness.time_travel(3);
 
-    auto ret = get(h, h1, NULL, key, 0);
+    ret = get(h, h1, NULL, key, 0);
     checkeq(cb::engine_errc::no_such_key, ret.first, "Item didn't expire");
 
     // Restart the engine to ensure the above expired item is not loaded
@@ -1043,24 +1045,33 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
     const char *key = "KEY";
     const char *data = "VALUE";
 
-    item *it = NULL;
-
-    ENGINE_ERROR_CODE rv;
-    rv = allocate(h, h1, NULL, &it, key, strlen(data), 0, 10,
-                      PROTOCOL_BINARY_RAW_BYTES, 0);
-    checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
+    auto ret = allocate(h,
+                        h1,
+                        NULL,
+                        key,
+                        strlen(data),
+                        0,
+                        10,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        0);
+    checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(h, NULL, it, &info)) {
+    if (!h1->get_item_info(h, NULL, ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    rv = h1->store(h, NULL, it, &cas, OPERATION_SET, DocumentState::Alive);
+    auto rv = h1->store(h,
+                        NULL,
+                        ret.second.get(),
+                        &cas,
+                        OPERATION_SET,
+                        DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, h1, key, data, strlen(data));
-    h1->release(h, NULL, it);
+    ret.second.reset();
     wait_for_flusher_to_settle(h, h1);
 
     checkeq(1, get_int_stat(h, h1, "curr_items"), "Failed store item");
@@ -1109,46 +1120,52 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *key = "test_expiry_duplicate_warmup";
     const char *data = "some test data here.";
 
-    item *it = NULL;
-
-    ENGINE_ERROR_CODE rv;
-    rv = allocate(h, h1, NULL, &it, key, strlen(data), 0, 5,
-                      PROTOCOL_BINARY_RAW_BYTES, 0);
-    checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
+    auto ret = allocate(
+            h, h1, NULL, key, strlen(data), 0, 5, PROTOCOL_BINARY_RAW_BYTES, 0);
+    checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(h, NULL, it, &info)) {
+    if (!h1->get_item_info(h, NULL, ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    rv = h1->store(h, NULL, it, &cas, OPERATION_SET, DocumentState::Alive);
+    auto rv = h1->store(h,
+                        NULL,
+                        ret.second.get(),
+                        &cas,
+                        OPERATION_SET,
+                        DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, h1, key, data, strlen(data));
-    h1->release(h, NULL, it);
     wait_for_flusher_to_settle(h, h1);
 
     // Advance the ep_engine time by 10 sec for the above item to be expired.
     testHarness.time_travel(10);
-    auto ret = get(h, h1, NULL, key, 0);
+    ret = get(h, h1, NULL, key, 0);
     checkeq(cb::engine_errc::no_such_key, ret.first, "Item didn't expire");
 
-    rv = allocate(h, h1, NULL, &it, key, strlen(data), 0, 0,
-                      PROTOCOL_BINARY_RAW_BYTES, 0);
-    checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
+    ret = allocate(
+            h, h1, NULL, key, strlen(data), 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
-    if (!h1->get_item_info(h, NULL, it, &info)) {
+    if (!h1->get_item_info(h, NULL, ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     cas = 0;
     // Add a new item with the same key.
-    rv = h1->store(h, NULL, it, &cas, OPERATION_ADD, DocumentState::Alive);
+    rv = h1->store(h,
+                   NULL,
+                   ret.second.get(),
+                   &cas,
+                   OPERATION_ADD,
+                   DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Add failed.");
     check_key_value(h, h1, key, data, strlen(data));
-    h1->release(h, NULL, it);
+    ret.second.reset();
     wait_for_flusher_to_settle(h, h1);
 
     checkeq(cb::engine_errc::success,
@@ -1175,43 +1192,56 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *key = "test_expiry_no_items_warmup";
     const char *data = "some test data here.";
 
-    item *it = NULL;
-
-    ENGINE_ERROR_CODE rv;
-    rv = allocate(h, h1, NULL, &it, key, strlen(data), 0, 0,
-                  PROTOCOL_BINARY_RAW_BYTES, 0);
-    checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
+    auto ret = allocate(
+            h, h1, NULL, key, strlen(data), 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(h, NULL, it, &info)) {
+    if (!h1->get_item_info(h, NULL, ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    rv = h1->store(h, NULL, it, &cas, OPERATION_SET, DocumentState::Alive);
+    auto rv = h1->store(h,
+                        NULL,
+                        ret.second.get(),
+                        &cas,
+                        OPERATION_SET,
+                        DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, h1, key, data, strlen(data));
-    h1->release(h, NULL, it);
     wait_for_flusher_to_settle(h, h1);
 
     // Add a new item with the same key and 2 sec of expiration.
     const char *new_data = "new data here.";
-    rv = allocate(h, h1, NULL, &it, key, strlen(new_data), 0, 2,
-                  PROTOCOL_BINARY_RAW_BYTES, 0);
-    checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
+    ret = allocate(h,
+                   h1,
+                   NULL,
+                   key,
+                   strlen(new_data),
+                   0,
+                   2,
+                   PROTOCOL_BINARY_RAW_BYTES,
+                   0);
+    checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
-    if (!h1->get_item_info(h, NULL, it, &info)) {
+    if (!h1->get_item_info(h, NULL, ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, new_data, strlen(new_data));
 
     int pager_runs = get_int_stat(h, h1, "ep_num_expiry_pager_runs");
     cas = 0;
-    rv = h1->store(h, NULL, it, &cas, OPERATION_SET, DocumentState::Alive);
+    rv = h1->store(h,
+                   NULL,
+                   ret.second.get(),
+                   &cas,
+                   OPERATION_SET,
+                   DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, h1, key, new_data, strlen(new_data));
-    h1->release(h, NULL, it);
+    ret.second.reset();
     testHarness.time_travel(3);
     wait_for_stat_change(h, h1, "ep_num_expiry_pager_runs", pager_runs);
     wait_for_flusher_to_settle(h, h1);

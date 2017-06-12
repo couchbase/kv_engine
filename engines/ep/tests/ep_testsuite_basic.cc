@@ -47,17 +47,27 @@ static bool epsilon(int val, int target, int ep=5) {
 
 static enum test_result test_alloc_limit(ENGINE_HANDLE *h,
                                          ENGINE_HANDLE_V1 *h1) {
-    item *it = NULL;
-    ENGINE_ERROR_CODE rv;
+    auto rv = allocate(h,
+                       h1,
+                       NULL,
+                       "key",
+                       20 * 1024 * 1024,
+                       0,
+                       0,
+                       PROTOCOL_BINARY_RAW_BYTES,
+                       0);
+    checkeq(cb::engine_errc::success, rv.first, "Allocated 20MB item");
 
-    rv = allocate(h, h1, NULL, &it, "key", 20 * 1024 * 1024, 0, 0,
-                      PROTOCOL_BINARY_RAW_BYTES, 0);
-    checkeq(ENGINE_SUCCESS, rv, "Allocated 20MB item");
-    h1->release(h, NULL, it);
-
-    rv = allocate(h, h1, NULL, &it, "key", (20 * 1024 * 1024) + 1, 0, 0,
-                      PROTOCOL_BINARY_RAW_BYTES, 0);
-    checkeq(ENGINE_E2BIG, rv, "Object too big");
+    rv = allocate(h,
+                  h1,
+                  NULL,
+                  "key",
+                  (20 * 1024 * 1024) + 1,
+                  0,
+                  0,
+                  PROTOCOL_BINARY_RAW_BYTES,
+                  0);
+    checkeq(cb::engine_errc::too_big, rv.first, "Object too big");
 
     return SUCCESS;
 }
@@ -663,30 +673,46 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *ekey = "test_expiry";
     const char *edata = "some test data here.";
 
-    item *it = NULL;
+    auto ret = allocate(h,
+                        h1,
+                        NULL,
+                        ekey,
+                        strlen(edata),
+                        0,
+                        2,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        0);
+    checkeq(cb::engine_errc::success, ret.first, "Allocation Failed");
 
-    checkeq(ENGINE_SUCCESS,
-            allocate(h, h1, NULL, &it, ekey, strlen(edata), 0, 2,
-                     PROTOCOL_BINARY_RAW_BYTES, 0),
-            "Allocation Failed");
-
-    check(h1->get_item_info(h, NULL, it, &info),
+    check(h1->get_item_info(h, NULL, ret.second.get(), &info),
           "Failed to get item info");
 
     memcpy(info.value[0].iov_base, edata, strlen(edata));
 
     checkeq(ENGINE_SUCCESS,
-            h1->store(h, NULL, it, &cas, OPERATION_SET, DocumentState::Alive),
-           "Failed to Store item");
+            h1->store(h,
+                      NULL,
+                      ret.second.get(),
+                      &cas,
+                      OPERATION_SET,
+                      DocumentState::Alive),
+            "Failed to Store item");
     check_key_value(h, h1, ekey, edata, strlen(edata));
-    h1->release(h, NULL, it);
 
     testHarness.time_travel(3);
     cas = last_cas;
 
     /* cas should fail */
-    auto ret = storeCasVb11(h, h1, NULL, OPERATION_CAS, ekey,
-                       binaryData1, sizeof(binaryData1) - 1, 82758, cas, 0);
+    ret = storeCasVb11(h,
+                       h1,
+                       NULL,
+                       OPERATION_CAS,
+                       ekey,
+                       binaryData1,
+                       sizeof(binaryData1) - 1,
+                       82758,
+                       cas,
+                       0);
     checkne(cb::engine_errc::success, ret.first, "CAS succeeded.");
 
     /* but a simple store should succeed */
@@ -795,21 +821,23 @@ static enum test_result test_set_get_hit_bin(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
 static enum test_result test_set_with_cas_non_existent(ENGINE_HANDLE *h,
                                                        ENGINE_HANDLE_V1 *h1) {
     const char *key = "test_expiry_flush";
-    item *i = NULL;
 
-    checkeq(ENGINE_SUCCESS,
-            allocate(h, h1, NULL, &i, key, 10, 0, 0,
-            PROTOCOL_BINARY_RAW_BYTES, 0),
-            "Allocation failed.");
+    auto ret =
+            allocate(h, h1, NULL, key, 10, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
-    Item *it = reinterpret_cast<Item*>(i);
+    Item* it = reinterpret_cast<Item*>(ret.second.get());
     it->setCas(1234);
 
     uint64_t cas = 0;
     checkeq(ENGINE_KEY_ENOENT,
-            h1->store(h, NULL, i, &cas, OPERATION_SET, DocumentState::Alive),
+            h1->store(h,
+                      NULL,
+                      ret.second.get(),
+                      &cas,
+                      OPERATION_SET,
+                      DocumentState::Alive),
             "Expected not found");
-    h1->release(h, NULL, i);
 
     return SUCCESS;
 }

@@ -236,10 +236,15 @@ ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                         uint32_t exp = 3600, uint8_t datatype = 0x00,
                         DocumentState docState = DocumentState::Alive);
 
-ENGINE_ERROR_CODE allocate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                           const void* cookie, item** outitem,
-                           const std::string& key, size_t nbytes, int flags,
-                           rel_time_t exptime, uint8_t datatype, uint16_t vb);
+cb::EngineErrorItemPair allocate(ENGINE_HANDLE* h,
+                                 ENGINE_HANDLE_V1* h1,
+                                 const void* cookie,
+                                 const std::string& key,
+                                 size_t nbytes,
+                                 int flags,
+                                 rel_time_t exptime,
+                                 uint8_t datatype,
+                                 uint16_t vb);
 
 cb::EngineErrorItemPair get(
         ENGINE_HANDLE* h,
