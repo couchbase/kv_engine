@@ -2649,7 +2649,7 @@ KVBucket::Position KVBucket::pauseResumeVisit(PauseResumeVBVisitor& visitor,
     for (; vbid < vbMap.getSize(); ++vbid) {
         VBucketPtr vb = vbMap.getBucket(vbid);
         if (vb) {
-            bool paused = !visitor.visit(vbid, vb->ht);
+            bool paused = !visitor.visit(*vb);
             if (paused) {
                 break;
             }

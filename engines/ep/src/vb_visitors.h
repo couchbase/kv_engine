@@ -76,13 +76,12 @@ public:
     }
 
     /**
-     * Visit a hashtable within an epStore.
+     * Visit a VBucket within an epStore.
      *
-     * @param vbucket_id ID of the vbucket being visited.
-     * @param ht a reference to the hashtable.
+     * @param vb a reference to the VBucket.
      * @return True if visiting should continue, otherwise false.
      */
-    virtual bool visit(uint16_t vbucket_id, HashTable& ht) = 0;
+    virtual bool visit(VBucket& vb) = 0;
 };
 
 /**
@@ -95,14 +94,10 @@ public:
     PauseResumeVBAdapter(std::unique_ptr<HashTableVisitor> htVisitor);
 
     /**
-     * Visit a hashtable within an epStore.
-     *
-     * @param vbucket_id ID of the vbucket being visited.
-     * @param ht a reference to the hashtable.
-     * @return True if visiting should continue (in the given HashTable),
-     *         otherwise false if the HashTable is complete.
+     * Visit a VBucket within an epStore. Records the place where the visit
+     * stops, for later resuming from *approximately* the same place.
      */
-    bool visit(uint16_t vbucket_id, HashTable& ht);
+    bool visit(VBucket& vb) override;
 
     /// Returns the current hashtable position.
     HashTable::Position getHashtablePosition() const {

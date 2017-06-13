@@ -230,7 +230,7 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
     AllocHooks::enable_thread_cache(false);
 
     PauseResumeVBAdapter prAdapter(std::make_unique<DefragmentVisitor>(0));
-    prAdapter.visit(vbucket->getId(), vbucket->ht);
+    prAdapter.visit(*vbucket);
 
     AllocHooks::enable_thread_cache(true);
     AllocHooks::release_free_memory();
@@ -315,7 +315,7 @@ TEST_P(DefragmenterTest, DISABLED_RefCountMemUsage) {
         AllocHooks::enable_thread_cache(false);
 
         PauseResumeVBAdapter prAdapter(std::make_unique<DefragmentVisitor>(0));
-        prAdapter.visit(vbucket->getId(), vbucket->ht);
+        prAdapter.visit(*vbucket);
 
         AllocHooks::enable_thread_cache(true);
         AllocHooks::release_free_memory();
