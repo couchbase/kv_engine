@@ -25,6 +25,7 @@
 #include "tests/module_tests/test_helpers.h"
 #include "threadtests.h"
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <platform/cb_malloc.h>
 
@@ -670,4 +671,42 @@ TEST_F(HashTableTest, LockAfterDelete) {
     Item i(key, 0, 0, key.data(), key.size());
     EXPECT_EQ(MutationStatus::WasDirty, ht.set(i));
     EXPECT_FALSE(sv->isLocked(1985));
+}
+
+// Check that pauseResumeVisit calls with the correct Hash bucket.
+TEST_F(HashTableTest, PauseResumeHashBucket) {
+    // Two buckets, one lock.
+    HashTable ht(global_stats, makeFactory(true), 2, 1);
+
+    // Store keys to both hash buckets - need keys which hash to bucket 0 and 1.
+    StoredDocKey key0("c", DocNamespace::DefaultCollection);
+    ASSERT_EQ(0, ht.getLockedBucket(key0).getBucketNum());
+    store(ht, key0);
+
+    StoredDocKey key1("b", DocNamespace::DefaultCollection);
+    ASSERT_EQ(1, ht.getLockedBucket(key1).getBucketNum());
+    store(ht, key1);
+
+    class MockHTVisitor : public HashTableVisitor {
+    public:
+        MOCK_METHOD2(visit,
+                     bool(const HashTable::HashBucketLock& lh, StoredValue& v));
+    } mockVisitor;
+
+    // Visit the HashTable; should find two keys, one in each bucket and the
+    // lockHolder should have the correct hashbucket.
+    using namespace ::testing;
+    EXPECT_CALL(mockVisitor,
+                visit(Property(&HashTable::HashBucketLock::getBucketNum, 0),
+                      Property(&StoredValue::getKey, Eq(key0))))
+            .Times(1)
+            .WillOnce(Return(true));
+    EXPECT_CALL(mockVisitor,
+                visit(Property(&HashTable::HashBucketLock::getBucketNum, 1),
+                      Property(&StoredValue::getKey, Eq(key1))))
+            .Times(1)
+            .WillOnce(Return(true));
+
+    HashTable::Position start;
+    ht.pauseResumeVisit(mockVisitor, start);
 }

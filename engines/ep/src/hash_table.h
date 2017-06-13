@@ -607,6 +607,8 @@ private:
     // The initial (and minimum) size of the HashTable.
     const size_t initialSize;
 
+    // The size of the hash table (number of buckets) - i.e. number of elements
+    // in `values`
     std::atomic<size_t> size;
     size_t               n_locks;
     table_type values;
