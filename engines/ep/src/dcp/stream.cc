@@ -284,9 +284,15 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
         }
     }
 
-    producer->getLogger().log(EXTENSION_LOG_NOTICE,
-        "(vb %" PRIu16 ") Creating %sstream with start seqno %" PRIu64
-        " and end seqno %" PRIu64, vb, type, st_seqno, en_seqno);
+    producer->getLogger().log(
+            EXTENSION_LOG_NOTICE,
+            "(vb %" PRIu16 ") Creating %sstream with start seqno %" PRIu64
+            " and end seqno %" PRIu64 "; requested end seqno was %" PRIu64,
+            vb,
+            type,
+            st_seqno,
+            end_seqno_,
+            en_seqno);
 
     backfillItems.memory = 0;
     backfillItems.disk = 0;
