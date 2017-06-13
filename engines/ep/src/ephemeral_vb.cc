@@ -258,7 +258,8 @@ EphemeralVBucket::inMemoryBackfill(uint64_t start, uint64_t end) {
     return seqList->rangeRead(start, end);
 }
 
-SequenceList::RangeIterator EphemeralVBucket::makeRangeIterator() {
+boost::optional<SequenceList::RangeIterator>
+EphemeralVBucket::makeRangeIterator() {
     return seqList->makeRangeIterator();
 }
 

@@ -200,7 +200,7 @@ public:
 
     std::mutex& getListWriteLock() const override;
 
-    SequenceList::RangeIterator makeRangeIterator() override;
+    boost::optional<SequenceList::RangeIterator> makeRangeIterator() override;
 
     void dump() const override;
 
@@ -309,7 +309,16 @@ private:
 
     class RangeIteratorLL : public SequenceList::RangeIteratorImpl {
     public:
-        RangeIteratorLL(BasicLinkedList& ll);
+        /**
+         * Method to create instances of RangeIteratorLL. We only
+         * allow one RangeIteratorLL object to exist at any one time,
+         * hence creation can fail and that's why object creation is via a
+         * public method and not constructor.
+         *
+         * @return Non-null pointer on success, or null if a RangeIteratorLL
+         *         already exists.
+         */
+        static std::unique_ptr<RangeIteratorLL> create(BasicLinkedList& ll);
 
         ~RangeIteratorLL();
 
@@ -338,6 +347,22 @@ private:
         }
 
     private:
+        /* We have a private constructor because we want to create the iterator
+           optionally, that is, only when it is possible to get a read lock */
+        RangeIteratorLL(BasicLinkedList& ll);
+
+        /**
+         * Indicates if the client should try creating the iterator at a later
+         * point.
+         *
+         * @return true: iterator should be created later again
+         *         false: iterator created successfully
+         */
+        bool tryLater() const {
+            /* could not lock and the list has items */
+            return (!readLockHolder && (list.getHighSeqno() > 0));
+        }
+
         /* Ref to BasicLinkedList object which is iterated by this iterator.
            By setting the member variables of the list obj appropriately we
            ensure that iterator is not invalidated */

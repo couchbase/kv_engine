@@ -33,6 +33,8 @@
 #include "memcached/engine_error.h"
 #include "stored-value.h"
 
+#include <boost/optional/optional.hpp>
+
 /* [EPHE TODO]: Check if uint64_t can be used instead */
 using seqno_t = int64_t;
 
@@ -401,9 +403,15 @@ public:
     virtual std::mutex& getListWriteLock() const = 0;
 
     /**
-     * Returns a range iterator for the underlying SequenceList obj
+     * Creates a range iterator for the underlying SequenceList 'optionally'.
+     * Under scenarios like where we want to limit the number of range iterators
+     * the SequenceList, new range iterator will not be allowed
+     *
+     * @return range iterator object when possible
+     *         null when not possible
      */
-    virtual SequenceList::RangeIterator makeRangeIterator() = 0;
+    virtual boost::optional<SequenceList::RangeIterator>
+    makeRangeIterator() = 0;
 
     /**
      * Debug - prints a representation of the list to stderr.

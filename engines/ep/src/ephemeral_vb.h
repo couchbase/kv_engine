@@ -21,6 +21,8 @@
 #include "seqlist.h"
 #include "vbucket.h"
 
+#include <boost/optional/optional.hpp>
+
 class EphemeralVBucket : public VBucket {
 public:
     class CountVisitor;
@@ -123,9 +125,14 @@ public:
     inMemoryBackfill(uint64_t start, uint64_t end);
 
     /**
-     * Returns a range iterator for the underlying SequenceList obj
+     * Creates a range iterator for the underlying SequenceList 'optionally'.
+     * Under scenarios like where we want to limit the number of range iterators
+     * the SequenceList, new range iterator will not be allowed
+     *
+     * @return range iterator object when possible
+     *         null when not possible
      */
-    SequenceList::RangeIterator makeRangeIterator();
+    boost::optional<SequenceList::RangeIterator> makeRangeIterator();
 
     void dump() const override;
 

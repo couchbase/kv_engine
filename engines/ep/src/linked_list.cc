@@ -382,9 +382,11 @@ std::mutex& BasicLinkedList::getListWriteLock() const {
     return writeLock;
 }
 
-SequenceList::RangeIterator BasicLinkedList::makeRangeIterator() {
-    return SequenceList::RangeIterator(
-            std::make_unique<RangeIteratorLL>(*this));
+boost::optional<SequenceList::RangeIterator>
+BasicLinkedList::makeRangeIterator() {
+    auto pRangeItr = RangeIteratorLL::create(*this);
+    return pRangeItr ? RangeIterator(std::move(pRangeItr))
+                     : boost::optional<SequenceList::RangeIterator>{};
 }
 
 void BasicLinkedList::dump() const {
@@ -431,12 +433,27 @@ OrderedLL::iterator BasicLinkedList::purgeListElem(OrderedLL::iterator it) {
     return it;
 }
 
+std::unique_ptr<BasicLinkedList::RangeIteratorLL>
+BasicLinkedList::RangeIteratorLL::create(BasicLinkedList& ll) {
+    /* Note: cannot use std::make_unique because the constructor of
+       RangeIteratorLL is private */
+    std::unique_ptr<BasicLinkedList::RangeIteratorLL> pRangeItr(
+            new BasicLinkedList::RangeIteratorLL(ll));
+    return pRangeItr->tryLater() ? nullptr : std::move(pRangeItr);
+}
+
 BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll)
     : list(ll),
-      readLockHolder(list.rangeReadLock),
+      /* Try to get range read lock, do not block */
+      readLockHolder(list.rangeReadLock, std::try_to_lock),
       itrRange(0, 0),
       numRemaining(0),
       earlySnapShotEndSeqno(0) {
+    if (!readLockHolder) {
+        /* no blocking */
+        return;
+    }
+
     std::lock_guard<std::mutex> listWriteLg(list.getListWriteLock());
     std::lock_guard<SpinLock> lh(list.rangeLock);
     if (list.highSeqno < 1) {

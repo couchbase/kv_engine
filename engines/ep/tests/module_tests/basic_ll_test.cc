@@ -211,6 +211,16 @@ protected:
         return ht.unlocked_release(hbl, makeStoredDocKey(key));
     }
 
+    /**
+     * Creates an optional 'RangeIterator'. Expected to create the optional
+     * one always.
+     */
+    SequenceList::RangeIterator getRangeIterator() {
+        auto itrOptional = basicLL->makeRangeIterator();
+        EXPECT_TRUE(itrOptional);
+        return std::move(*itrOptional);
+    }
+
     /* We need a HashTable because StoredValue is created only in the HashTable
        and then put onto the sequence list */
     HashTable ht;
@@ -474,7 +484,7 @@ TEST_F(BasicLinkedListTest, RangeIterator) {
     std::vector<seqno_t> expectedSeqno =
             addNewItemsToList(1, std::string("key"), numItems);
 
-    auto itr = basicLL->makeRangeIterator();
+    auto itr = getRangeIterator();
 
     std::vector<seqno_t> actualSeqno;
 
@@ -487,7 +497,7 @@ TEST_F(BasicLinkedListTest, RangeIterator) {
 }
 
 TEST_F(BasicLinkedListTest, RangeIteratorNoItems) {
-    auto itr = basicLL->makeRangeIterator();
+    auto itr = getRangeIterator();
     /* Since there are no items in the list to iterate over, we expect itr start
        to be end */
     EXPECT_EQ(itr.curr(), itr.end());
@@ -498,7 +508,7 @@ TEST_F(BasicLinkedListTest, RangeIteratorSingleItem) {
     std::vector<seqno_t> expectedSeqno =
             addNewItemsToList(1, std::string("key"), 1);
 
-    auto itr = basicLL->makeRangeIterator();
+    auto itr = getRangeIterator();
 
     std::vector<seqno_t> actualSeqno;
     /* Read all the items with the iterator */
@@ -516,7 +526,7 @@ TEST_F(BasicLinkedListTest, RangeIteratorOverflow) {
     /* Add an item */
     addNewItemsToList(1, std::string("key"), numItems);
 
-    auto itr = basicLL->makeRangeIterator();
+    auto itr = getRangeIterator();
 
     /* Iterator till end */
     while (itr.curr() != itr.end()) {
@@ -542,7 +552,8 @@ TEST_F(BasicLinkedListTest, RangeIteratorDeletion) {
     /* Check if second range reader can read items after the first one is
        deleted */
     for (int i = 0; i < 2; ++i) {
-        auto itr = basicLL->makeRangeIterator();
+        auto itr = getRangeIterator();
+
         std::vector<seqno_t> actualSeqno;
 
         /* Read all the items with the iterator */
@@ -564,7 +575,7 @@ TEST_F(BasicLinkedListTest, RangeIteratorAddNewItemDuringRead) {
             addNewItemsToList(1, std::string("key"), numItems);
 
     {
-        auto itr = basicLL->makeRangeIterator();
+        auto itr = getRangeIterator();
 
         std::vector<seqno_t> actualSeqno;
 
@@ -589,7 +600,8 @@ TEST_F(BasicLinkedListTest, RangeIteratorAddNewItemDuringRead) {
     expectedSeqno.push_back(numItems + 1);
 
     {
-        auto itr = basicLL->makeRangeIterator();
+        auto itr = getRangeIterator();
+
         std::vector<seqno_t> actualSeqno;
 
         /* Read the other items */
@@ -610,7 +622,7 @@ TEST_F(BasicLinkedListTest, RangeIteratorUpdateItemDuringRead) {
             addNewItemsToList(1, keyPrefix, numItems);
 
     {
-        auto itr = basicLL->makeRangeIterator();
+        auto itr = getRangeIterator();
 
         std::vector<seqno_t> actualSeqno;
 
@@ -636,7 +648,7 @@ TEST_F(BasicLinkedListTest, RangeIteratorUpdateItemDuringRead) {
     expectedSeqno.push_back(numItems + 1);
 
     {
-        auto itr = basicLL->makeRangeIterator();
+        auto itr = getRangeIterator();
         std::vector<seqno_t> actualSeqno;
 
         /* Read the other items */
@@ -661,26 +673,57 @@ TEST_F(BasicLinkedListTest, MultipleRangeIterator_MB24474) {
 
     /* Create a 'RangeIterator' on the heap so that it can be deleted before
        the function scope ends */
-    auto itr1 = std::make_unique<SequenceList::RangeIterator>(
-            basicLL->makeRangeIterator());
+    auto itr1Optional =
+            std::make_unique<boost::optional<SequenceList::RangeIterator>>(
+                    basicLL->makeRangeIterator());
+    auto itr1 = std::move(**itr1Optional);
 
     /* Read all items */
     std::vector<seqno_t> actualSeqno;
-    for (; itr1->curr() != itr1->end(); ++(*itr1)) {
-        actualSeqno.push_back((**itr1).getBySeqno());
+    for (; itr1.curr() != itr1.end(); ++(itr1)) {
+        actualSeqno.push_back((*itr1).getBySeqno());
     }
     EXPECT_EQ(expectedSeqno, actualSeqno);
 
     /* Create another 'RangeIterator' after all items are read from itr1, but
        before itr1 is deleted */
-    auto itr2 = basicLL->makeRangeIterator();
-    itr1.reset();
+    auto itr2 = getRangeIterator();
+    itr1Optional.reset();
 
     /* Now read the items after itr1 is deleted */
     actualSeqno.clear();
     while (itr2.curr() != itr2.end()) {
         actualSeqno.push_back((*itr2).getBySeqno());
         ++itr2;
+    }
+    EXPECT_EQ(expectedSeqno, actualSeqno);
+}
+
+TEST_F(BasicLinkedListTest, NonBlockingRangeIterators) {
+    const int numItems = 3;
+    const std::string keyPrefix("key");
+
+    /* Add 3 items */
+    std::vector<seqno_t> expectedSeqno =
+            addNewItemsToList(1, keyPrefix, numItems);
+
+    {
+        auto itr1 = getRangeIterator();
+        auto itr2 = basicLL->makeRangeIterator();
+        /* itr1 is already using the list, we cannot have another iterator */
+        EXPECT_FALSE(itr2);
+
+        /* itr1 goes out of scope and releases the read lock on the list */
+    }
+
+    /* Iterator created now, should be able to read all items */
+    auto itr = getRangeIterator();
+    std::vector<seqno_t> actualSeqno;
+
+    /* Read all the items with the iterator */
+    while (itr.curr() != itr.end()) {
+        actualSeqno.push_back((*itr).getBySeqno());
+        ++itr;
     }
     EXPECT_EQ(expectedSeqno, actualSeqno);
 }

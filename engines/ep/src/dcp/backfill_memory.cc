@@ -150,7 +150,17 @@ void DCPBackfillMemoryBuffered::cancel() {
 backfill_status_t DCPBackfillMemoryBuffered::create(EphemeralVBucket& evb) {
     /* Create range read cursor */
     try {
-        rangeItr = evb.makeRangeIterator();
+        auto rangeItrOptional = evb.makeRangeIterator();
+        if (rangeItrOptional) {
+            rangeItr = std::move(*rangeItrOptional);
+        } else {
+            stream->getLogger().log(
+                    EXTENSION_LOG_WARNING,
+                    "Deferring backfill creation as another range iterator is "
+                    "already on the sequence list for (vb %" PRIu16 ")",
+                    getVBucketId());
+            return backfill_snooze;
+        }
     } catch (const std::bad_alloc&) {
         stream->getLogger().log(
                 EXTENSION_LOG_WARNING,
