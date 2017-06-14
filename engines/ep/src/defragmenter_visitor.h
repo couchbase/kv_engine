@@ -27,7 +27,7 @@
  * Defragmentation visitor - visit all objects in a VBucket, and defragment
  * any which have reached the specified age.
  */
-class DefragmentVisitor : public HashTableVisitor {
+class DefragmentVisitor : public VBucketAwareHTVisitor {
 public:
     DefragmentVisitor(uint8_t age_threshold_);
 

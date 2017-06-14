@@ -20,7 +20,7 @@
 #include "vbucket.h"
 
 PauseResumeVBAdapter::PauseResumeVBAdapter(
-        std::unique_ptr<HashTableVisitor> htVisitor)
+        std::unique_ptr<VBucketAwareHTVisitor> htVisitor)
     : htVisitor(std::move(htVisitor)) {
 }
 
@@ -32,6 +32,7 @@ bool PauseResumeVBAdapter::visit(VBucket& vb) {
         ht_start = hashtable_position;
     }
 
+    htVisitor->setCurrentVBucket(vb);
     hashtable_position = vb.ht.pauseResumeVisit(*htVisitor, ht_start);
 
     if (hashtable_position != vb.ht.endPosition()) {

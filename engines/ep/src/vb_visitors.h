@@ -85,17 +85,39 @@ public:
 };
 
 /**
- * Adapts a HashTableVisitor, recording the position into the
+ * VBucket-aware variant of HashTableVisitor - abstract base class for
+ * visiting StoredValues, where the visitor needs to know which VBucket is
+ * being visited.
+ *
+ * setCurrentVBucket() will be called to inform the visitor of the current
+ * VBucket (whenever the Bucket being visited moves to a new VBucket).
+ */
+class VBucketAwareHTVisitor : public HashTableVisitor {
+public:
+    bool visit(const HashTable::HashBucketLock& lh,
+               StoredValue& v) override = 0;
+
+    /**
+     * Inform the visitor of the current vBucket.
+     * Called (before visit()) whenever we move to a different VBucket.
+     */
+    virtual void setCurrentVBucket(VBucket& vb) {
+    }
+};
+
+/**
+ * Adapts a VBucketAwareHTVisitor, recording the position into the
  * HashTable the visit reached when it paused; and resumes Visiting from that
  * position when visit() is next called.
  */
 class PauseResumeVBAdapter : public PauseResumeVBVisitor {
 public:
-    PauseResumeVBAdapter(std::unique_ptr<HashTableVisitor> htVisitor);
+    PauseResumeVBAdapter(std::unique_ptr<VBucketAwareHTVisitor> htVisitor);
 
     /**
      * Visit a VBucket within an epStore. Records the place where the visit
-     * stops, for later resuming from *approximately* the same place.
+     * stops (when the wrapped htVisitor returns false), for later resuming
+     * from *approximately* the same place.
      */
     bool visit(VBucket& vb) override;
 
@@ -105,13 +127,13 @@ public:
     }
 
     /// Returns the wrapped HashTable visitor.
-    HashTableVisitor& getHTVisitor() {
+    VBucketAwareHTVisitor& getHTVisitor() {
         return *htVisitor;
     }
 
 private:
     // The HashTable visitor to apply to each VBucket's HashTable.
-    std::unique_ptr<HashTableVisitor> htVisitor;
+    std::unique_ptr<VBucketAwareHTVisitor> htVisitor;
 
     // When resuming, which vbucket should we start from?
     uint16_t resume_vbucket_id = 0;
