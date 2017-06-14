@@ -2189,9 +2189,11 @@ couchstore_error_t CouchKVStore::saveVBState(Db *db,
 
     jsonState << "{\"state\": \"" << VBucket::toString(vbState.state) << "\""
               << ",\"checkpoint_id\": \"" << vbState.checkpointId << "\""
-              << ",\"max_deleted_seqno\": \"" << vbState.maxDeletedSeqno << "\""
-              << ",\"failover_table\": " << vbState.failovers
-              << ",\"snap_start\": \"" << vbState.lastSnapStart << "\""
+              << ",\"max_deleted_seqno\": \"" << vbState.maxDeletedSeqno << "\"";
+    if (!vbState.failovers.empty()) {
+        jsonState << ",\"failover_table\": " << vbState.failovers;
+    }
+    jsonState << ",\"snap_start\": \"" << vbState.lastSnapStart << "\""
               << ",\"snap_end\": \"" << vbState.lastSnapEnd << "\""
               << ",\"max_cas\": \"" << vbState.maxCas << "\""
               << ",\"hlc_epoch\": \"" << vbState.hlcCasEpochSeqno << "\""

@@ -164,7 +164,7 @@ struct vbucket_state {
         lastSnapEnd = 0;
         maxCas = 0;
         hlcCasEpochSeqno = HlcCasSeqnoUninitialised;
-        failovers.assign("[{\"id\":0, \"seq\":0}]");
+        failovers.clear();
     }
 
     vbucket_state_t state;
