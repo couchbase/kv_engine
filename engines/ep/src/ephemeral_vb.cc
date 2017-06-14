@@ -123,6 +123,10 @@ void EphemeralVBucket::addStats(bool details,
     if (details) {
         // Ephemeral-specific details
         addStat("auto_delete_count", autoDeleteCount.load(), add_stat, c);
+        addStat("ht_tombstone_purged_count",
+                htDeletedPurgeCount.load(),
+                add_stat,
+                c);
         addStat("seqlist_count", seqList->getNumItems(), add_stat, c);
         addStat("seqlist_deleted_count",
                 seqList->getNumDeletedItems(),
@@ -133,6 +137,7 @@ void EphemeralVBucket::addStats(bool details,
                 seqList->getHighestDedupedSeqno(),
                 add_stat,
                 c);
+        addStat("seqlist_purged_count", seqListPurgeCount.load(), add_stat, c);
         const auto rr_begin = seqList->getRangeReadBegin();
         const auto rr_end = seqList->getRangeReadEnd();
         addStat("seqlist_range_read_begin", rr_begin, add_stat, c);

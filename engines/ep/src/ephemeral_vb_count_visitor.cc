@@ -30,8 +30,10 @@ void EphemeralVBucket::CountVisitor::visitBucket(VBucketPtr& vb) {
     if (desired_state != vbucket_state_dead) {
         auto& ephVB = dynamic_cast<EphemeralVBucket&>(*vb);
         autoDeleteCount += ephVB.autoDeleteCount;
+        htDeletedPurgeCount += ephVB.htDeletedPurgeCount;
         seqlistCount += ephVB.seqList->getNumItems();
         seqlistDeletedCount += ephVB.seqList->getNumDeletedItems();
+        seqListPurgeCount += ephVB.seqListPurgeCount;
         seqlistReadRangeCount += ephVB.seqList->getRangeReadEnd() -
                                  ephVB.seqList->getRangeReadBegin();
         seqlistStaleCount += ephVB.seqList->getNumStaleItems();

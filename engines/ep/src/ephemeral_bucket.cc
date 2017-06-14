@@ -279,8 +279,11 @@ void EphemeralBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
 
     // Active vBuckets:
     DO_STAT("vb_active_auto_delete_count", ephActive.autoDeleteCount);
+    DO_STAT("vb_active_ht_tombstone_purged_count",
+            ephActive.htDeletedPurgeCount);
     DO_STAT("vb_active_seqlist_count", ephActive.seqlistCount);
     DO_STAT("vb_active_seqlist_deleted_count", ephActive.seqlistDeletedCount);
+    DO_STAT("vb_active_seqlist_purged_count", ephActive.seqListPurgeCount);
     DO_STAT("vb_active_seqlist_read_range_count",
             ephActive.seqlistReadRangeCount);
     DO_STAT("vb_active_seqlist_stale_count", ephActive.seqlistStaleCount);
@@ -291,8 +294,11 @@ void EphemeralBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
 
     // Replica vBuckets:
     DO_STAT("vb_replica_auto_delete_count", ephReplica.autoDeleteCount);
+    DO_STAT("vb_replica_ht_tombstone_purged_count",
+            ephReplica.htDeletedPurgeCount);
     DO_STAT("vb_replica_seqlist_count", ephReplica.seqlistCount);
     DO_STAT("vb_replica_seqlist_deleted_count", ephReplica.seqlistDeletedCount);
+    DO_STAT("vb_replica_seqlist_purged_count", ephReplica.seqListPurgeCount);
     DO_STAT("vb_replica_seqlist_read_range_count",
             ephReplica.seqlistReadRangeCount);
     DO_STAT("vb_replica_seqlist_stale_count", ephReplica.seqlistStaleCount);
@@ -303,8 +309,11 @@ void EphemeralBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
 
     // Pending vBuckets:
     DO_STAT("vb_pending_auto_delete_count", ephPending.autoDeleteCount);
+    DO_STAT("vb_pending_ht_tombstone_purged_count",
+            ephPending.htDeletedPurgeCount);
     DO_STAT("vb_pending_seqlist_count", ephPending.seqlistCount);
     DO_STAT("vb_pending_seqlist_deleted_count", ephPending.seqlistDeletedCount);
+    DO_STAT("vb_pending_seqlist_purged_count", ephPending.seqListPurgeCount);
     DO_STAT("vb_pending_seqlist_read_range_count",
             ephPending.seqlistReadRangeCount);
     DO_STAT("vb_pending_seqlist_stale_count", ephPending.seqlistStaleCount);

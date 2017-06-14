@@ -35,8 +35,10 @@ public:
     void visitBucket(VBucketPtr &vb) override;
 
     size_t autoDeleteCount = 0;
+    size_t htDeletedPurgeCount = 0;
     uint64_t seqlistCount = 0;
     uint64_t seqlistDeletedCount = 0;
+    size_t seqListPurgeCount = 0;
     uint64_t seqlistReadRangeCount = 0;
     uint64_t seqlistStaleCount = 0;
     size_t seqlistStaleValueBytes = 0;
