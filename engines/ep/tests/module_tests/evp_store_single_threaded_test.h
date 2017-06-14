@@ -24,6 +24,8 @@
 #include "evp_store_test.h"
 #include "fakes/fake_executorpool.h"
 
+class MockActiveStreamWithOverloadedRegisterCursor;
+
 /*
  * A subclass of KVBucketTest which uses a fake ExecutorPool,
  * which will not spawn ExecutorThreads and hence not run any tasks

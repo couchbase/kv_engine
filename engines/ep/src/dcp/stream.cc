@@ -363,6 +363,43 @@ DcpResponse* ActiveStream::next(std::lock_guard<std::mutex>& lh) {
     return response;
 }
 
+void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
+                                  uint64_t startBySeqno) {
+    try {
+        CursorRegResult result = chkptmgr.registerCursorBySeqno(
+                name_,
+                startBySeqno,
+                MustSendCheckpointEnd::NO);
+        /*
+         * MB-22960:  Due to cursor dropping we re-register the replication
+         * cursor only during backfill when we mark the disk snapshot.  However
+         * by this point it is possible that the persistence cursor has moved
+         * ahead.  This would mean we would lose data when we switch over to
+         * in-memory streaming from backfilling.
+         *
+         * To avoid this data loss when we register the cursor we check to see
+         * if the result minus one is greater than the requested starting seqno.
+         * If so we know we have missed some items and we must perform
+         * another backfill.
+         *
+         * The reason for the minus one is that registerCursorBySeqno returns
+         * the bySeqno with which the cursor can start and therefore we want to
+         * ensure the previous end is not greater than the requested starting
+         * seqno.
+         */
+        if (result.first - 1 > startBySeqno) {
+            pendingBackfill = true;
+        }
+        curChkSeqno = result.first;
+    } catch(std::exception& error) {
+        producer->getLogger().log(EXTENSION_LOG_WARNING,
+                                  "(vb %" PRIu16 ") Failed to register "
+                                  "cursor: %s",
+                                  vb_, error.what());
+        endStream(END_STREAM_STATE);
+    }
+}
+
 void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
     {
         LockHolder lh(streamMutex);
@@ -418,19 +455,7 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
         if (!(flags_ & DCP_ADD_STREAM_FLAG_DISKONLY)) {
             // Only re-register the cursor if we still need to get memory
             // snapshots
-            try {
-                CursorRegResult result =
-                        vb->checkpointManager.registerCursorBySeqno(
-                                name_, chkCursorSeqno,
-                                MustSendCheckpointEnd::NO);
-
-                curChkSeqno = result.first;
-            } catch(std::exception& error) {
-                producer->getLogger().log(EXTENSION_LOG_WARNING,
-                        "(vb %" PRIu16 ") Failed to register cursor: %s",
-                        vb_, error.what());
-                endStream(END_STREAM_STATE);
-            }
+            registerCursor(vb->checkpointManager, chkCursorSeqno);
         }
     }
     bool inverse = false;

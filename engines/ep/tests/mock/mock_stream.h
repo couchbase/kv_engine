@@ -126,6 +126,66 @@ public:
     }
 };
 
+/**
+  * Variation of the MockActiveStream class, which overloads the registerCursor
+  * method.  In addition it implements two additional methods
+  * (continueRegisterCursor and waitForRegisterCursor), which are used to
+  * control the when registerCursor is executed.
+  */
+class MockActiveStreamWithOverloadedRegisterCursor : public MockActiveStream {
+public:
+    MockActiveStreamWithOverloadedRegisterCursor(EventuallyPersistentEngine* e,
+                     mock_dcp_producer_t p,
+                     uint32_t flags,
+                     uint32_t opaque,
+                     const VBucket& vb,
+                     uint64_t st_seqno,
+                     uint64_t en_seqno,
+                     uint64_t vb_uuid,
+                     uint64_t snap_start_seqno,
+                     uint64_t snap_end_seqno,
+                     IncludeValue includeValue = IncludeValue::Yes,
+                     IncludeXattrs includeXattrs = IncludeXattrs::Yes)
+        : MockActiveStream(e,
+                       p,
+                       flags,
+                       opaque,
+                       vb,
+                       st_seqno,
+                       en_seqno,
+                       vb_uuid,
+                       snap_start_seqno,
+                       snap_end_seqno,
+                       includeValue,
+                       includeXattrs) {
+    }
+
+    /**
+      * Overload of the ActiveStream registerCursor method.  It first executes
+      * the callback function which is used to inject additional work prior to
+      * the execution of the method ActiveStream::registerCursor.
+      */
+    virtual void registerCursor(CheckpointManager& chkptmgr,
+                                uint64_t startBySeqno) override {
+        callback();
+        ActiveStream::registerCursor(chkptmgr, startBySeqno);
+
+    }
+
+    // Function that sets the callback function.  The callback is invoked at the
+    // start of the overloaded registerCursor method.
+    void setCallback(std::function<void()> func) {
+        callback = func;
+    }
+
+    /**
+      * The callback function which is used to perform additional work on its
+      * first invocation.  The function moves checkpoints forward, whilst in the
+      * middle of performing a backfill.
+      */
+    std::function<void()> callback;
+};
+
 /* Mock of the PassiveStream class. Wraps the real PassiveStream, but exposes
  * normally protected methods publically for test purposes.
  */

@@ -349,6 +349,16 @@ protected:
      */
     bool queueResponse(DcpResponse* resp) const;
 
+    /**
+     * Registers a cursor with a given CheckpointManager.
+     *
+     * @param chkptmgr  The CheckpointManager the cursor will be registered to.
+     * @param startBySeqno  The bySeqno from where to start retrieving items.
+     */
+    virtual void registerCursor(CheckpointManager& chkptmgr,
+                                uint64_t startBySeqno);
+
+
     /* Indicates that a backfill has been scheduled and has not yet completed.
      * Is protected (as opposed to private) for testing purposes.
      */

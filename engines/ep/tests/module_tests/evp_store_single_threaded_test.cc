@@ -291,6 +291,8 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
  *
  */
 TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
+    // Records the number of times the callback function is invoked.
+    size_t callbackCount = 0;
     // Make vbucket active.
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
@@ -306,7 +308,7 @@ TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
                                                        /*flags*/ 0,
                                                        {/*no json*/});
     // Create a Mock Active Stream
-    stream_t stream = new MockActiveStream(
+    stream_t stream = new MockActiveStreamWithOverloadedRegisterCursor(
             static_cast<EventuallyPersistentEngine*>(engine.get()),
             producer,
             /*flags*/ 0,
@@ -320,8 +322,56 @@ TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
             IncludeValue::Yes,
             IncludeXattrs::Yes);
 
-    MockActiveStream* mock_stream =
-            static_cast<MockActiveStream*>(stream.get());
+    MockActiveStreamWithOverloadedRegisterCursor* mock_stream =
+            static_cast<MockActiveStreamWithOverloadedRegisterCursor*>(
+                    stream.get());
+
+    mock_stream->setCallback([mock_stream, this, vb, &callbackCount]() {
+       /**
+         * This callback function is called every time a backfill is performed.
+         * The test performs two backfills, and the callback is only required
+         * on the first.  As its used to test what happens when checkpoints
+         * are moved forward during a backfill.
+         */
+        callbackCount++;
+        if (callbackCount == 1) {
+            bool new_ckpt_created;
+            CheckpointManager& ckpt_mgr = vb->checkpointManager;
+
+            //pendingBackfill has now been cleared
+            EXPECT_FALSE(mock_stream->public_getPendingBackfill())
+            << "pendingBackfill is not false";
+            // we are now in backfill mode
+            EXPECT_TRUE(mock_stream->public_isBackfillTaskRunning())
+            << "isBackfillRunning is not true";
+
+            //Add a doc and close previous checkpoint
+            store_item(vbid, makeStoredDocKey("key3"), "value");
+            EXPECT_EQ(1, store->flushVBucket(vbid));
+            ckpt_mgr.createNewCheckpoint();
+            EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
+            EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+
+            // Now remove the earlier checkpoint
+            EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(
+                    *vb, new_ckpt_created));
+            EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
+            EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+
+            //Add a doc and close previous checkpoint
+            store_item(vbid, makeStoredDocKey("key4"), "value");
+            EXPECT_EQ(1, store->flushVBucket(vbid));
+            ckpt_mgr.createNewCheckpoint();
+            EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
+            EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+
+            // Now remove the earlier checkpoint
+            EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(
+                    *vb, new_ckpt_created));
+            EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
+            EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+        }
+    });
 
     EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
     mock_stream->transitionStateToBackfilling();
@@ -363,36 +413,6 @@ TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
 
     //schedule a backfill
     mock_stream->next();
-    //pendingBackfill has now been cleared
-    EXPECT_FALSE(mock_stream->public_getPendingBackfill())
-        << "pendingBackfill is not false";
-    // we are now in backfill mode
-    EXPECT_TRUE(mock_stream->public_isBackfillTaskRunning())
-        << "isBackfillRunning is not true";
-
-    //Add a doc and close previous checkpoint
-    store_item(vbid, makeStoredDocKey("key3"), "value");
-    EXPECT_EQ(1, store->flushVBucket(vbid));
-    ckpt_mgr.createNewCheckpoint();
-    EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
-    EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
-
-    // Now remove the earlier checkpoint
-    EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
-    EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
-    EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
-
-    //Add a doc and close previous checkpoint
-    store_item(vbid, makeStoredDocKey("key4"), "value");
-    EXPECT_EQ(1, store->flushVBucket(vbid));
-    ckpt_mgr.createNewCheckpoint();
-    EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
-    EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
-
-    // Now remove the earlier checkpoint
-    EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
-    EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
-    EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
     EXPECT_EQ(2, lpAuxioQ.getFutureQueueSize());
@@ -402,12 +422,26 @@ TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
     runNextTask(lpAuxioQ);
     // backfill:complete()
     runNextTask(lpAuxioQ);
+    // backfill:finished()
+    runNextTask(lpAuxioQ);
+    // inMemoryPhase and pendingBackfill is true and so transitions to
+    // backfillPhase
+    // take snapshot marker off the ReadyQ
     DcpResponse* resp = mock_stream->next();
     delete resp;
     // backfillPhase() - take doc "key1" off the ReadyQ
     resp = mock_stream->next();
     delete resp;
     // backfillPhase - take doc "key2" off the ReadyQ
+    resp = mock_stream->next();
+    delete resp;
+    runNextTask(lpAuxioQ);
+    runNextTask(lpAuxioQ);
+    runNextTask(lpAuxioQ);
+    runNextTask(lpAuxioQ);
+    // Assert that the callback (and hence backfill) was only invoked twice
+    ASSERT_EQ(2, callbackCount);
+    // take snapshot marker off the ReadyQ
     resp = mock_stream->next();
     delete resp;
     // backfillPhase - take doc "key3" off the ReadyQ
