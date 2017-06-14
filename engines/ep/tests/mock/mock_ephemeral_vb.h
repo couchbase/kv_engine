@@ -89,6 +89,14 @@ public:
         return mockLL;
     }
 
+    /**
+     * Convenience method to run the HT tombstone purger across the entire
+     * vBucket (this is normally done with a seperate task using the
+     * pause/resumevisitor).
+     * @return Count of items marked stale and moved to sequenceList.
+     */
+    size_t markOldTombstonesStale(rel_time_t purgeAge);
+
 private:
     /* non owning ptr to the linkedlist in the ephemeral vbucket obj */
     MockBasicLinkedList* mockLL;

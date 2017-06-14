@@ -25,53 +25,47 @@
 
 #include <climits>
 
-EphemeralVBucket::HTTombstonePurger::HTTombstonePurger(
-        EphemeralVBucket& vbucket, rel_time_t purgeAge)
-    : vbucket(vbucket),
-      now(ep_current_time()),
-      purgeAge(purgeAge),
-      numPurgedItems(0) {
+EphemeralVBucket::HTTombstonePurger::HTTombstonePurger(rel_time_t purgeAge)
+    : now(ep_current_time()), purgeAge(purgeAge), numPurgedItems(0) {
+}
+
+void EphemeralVBucket::HTTombstonePurger::setDeadline(
+        ProcessClock::time_point deadline) {
+    progressTracker.setDeadline(deadline);
+}
+
+void EphemeralVBucket::HTTombstonePurger::setCurrentVBucket(VBucket& vb) {
+    vbucket = &dynamic_cast<EphemeralVBucket&>(vb);
 }
 
 bool EphemeralVBucket::HTTombstonePurger::visit(
         const HashTable::HashBucketLock& hbl, StoredValue& v) {
     auto* osv = v.toOrderedStoredValue();
 
-    if (!osv->isDeleted()) {
-        return true;
+    if (osv->isDeleted() && (now - osv->getDeletedTime() >= purgeAge)) {
+        // This item should be purged. Remove from the HashTable and move over
+        // to being owned by the sequence list.
+        auto ownedSV = vbucket->ht.unlocked_release(hbl, v.getKey());
+        {
+            std::lock_guard<std::mutex> listWriteLg(
+                    vbucket->seqList->getListWriteLock());
+            // Mark the item stale, with no replacement item
+            vbucket->seqList->markItemStale(
+                    listWriteLg, std::move(ownedSV), nullptr);
+        }
+        ++vbucket->htDeletedPurgeCount;
+        ++numPurgedItems;
     }
+    ++numVisitedItems;
 
-    // Skip if deleted item is too young.
-    if (now - osv->getDeletedTime() < purgeAge) {
-        return true;
-    }
-
-    // This item should be purged. Remove from the HashTable and move over to
-    // being owned by the sequence list.
-    auto ownedSV = vbucket.ht.unlocked_release(hbl, v.getKey());
-    {
-        std::lock_guard<std::mutex> listWriteLg(
-                vbucket.seqList->getListWriteLock());
-        // Mark the item stale, with no replacement item
-        vbucket.seqList->markItemStale(listWriteLg, std::move(ownedSV), nullptr);
-    }
-    ++numPurgedItems;
-
-    return true;
+    // See if we have done enough work for this chunk. If so
+    // stop visiting (for now).
+    return progressTracker.shouldContinueVisiting(numVisitedItems);
 }
 
-EphemeralVBucket::HTCleaner::HTCleaner(rel_time_t purgeAge)
-    : purgeAge(purgeAge), numItemsMarkedStale(0) {
-}
-
-void EphemeralVBucket::HTCleaner::visitBucket(VBucketPtr& vb) {
-    auto vbucket = dynamic_cast<EphemeralVBucket*>(vb.get());
-    if (!vbucket) {
-        throw std::invalid_argument(
-                "VBTombstonePurger::visitBucket: Called with a non-Ephemeral "
-                "bucket");
-    }
-    numItemsMarkedStale += vbucket->markOldTombstonesStale(purgeAge);
+void EphemeralVBucket::HTTombstonePurger::clearStats() {
+    numVisitedItems = 0;
+    numPurgedItems = 0;
 }
 
 EphTombstoneHTCleaner::EphTombstoneHTCleaner(EventuallyPersistentEngine* e)
@@ -79,43 +73,75 @@ EphTombstoneHTCleaner::EphTombstoneHTCleaner(EventuallyPersistentEngine* e)
                  TaskId::EphTombstoneHTCleaner,
                  e->getConfiguration().getEphemeralMetadataPurgeInterval(),
                  false),
+      bucketPosition(engine->getKVBucket()->endPosition()),
       staleItemDeleterTask(std::make_shared<EphTombstoneStaleItemDeleter>(e)) {
     ExecutorPool::get()->schedule(staleItemDeleterTask);
 }
 
 bool EphTombstoneHTCleaner::run() {
-    LOG(EXTENSION_LOG_INFO,
-        "%s starting with purge age:%" PRIu64,
-        getDescription().data(),
-        uint64_t(getDeletedPurgeAge()));
+    auto* bucket = engine->getKVBucket();
 
-    // Create a VB purger, and run across all VBuckets.
+    // Get our pause/resume visitor. If we didn't finish the previous pass,
+    // then resume from where we last were, otherwise create a new visitor
+    // starting from the beginning.
+    if (bucketPosition == bucket->endPosition()) {
+        prAdapter = std::make_unique<PauseResumeVBAdapter>(
+                std::make_unique<EphemeralVBucket::HTTombstonePurger>(
+                        getDeletedPurgeAge()));
+        bucketPosition = bucket->startPosition();
+
+        LOG(EXTENSION_LOG_NOTICE /*INFO*/,
+            "%s starting with purge age:%" PRIu64 "s",
+            getDescription().data(),
+            uint64_t(getDeletedPurgeAge()));
+    }
+
+    // Prepare the underlying visitor.
+    auto& visitor = getPurgerVisitor();
+    visitor.setDeadline(ProcessClock::now() + getChunkDuration());
+    visitor.clearStats();
+
+    // (re)start visiting.
     auto start = ProcessClock::now();
-    EphemeralVBucket::HTCleaner purger(getDeletedPurgeAge());
-    engine->getKVBucket()->visit(purger);
+    bucketPosition = bucket->pauseResumeVisit(*prAdapter, bucketPosition);
     auto end = ProcessClock::now();
+
+    // Check if the visitor completed a full pass.
+    bool completed = (bucketPosition == bucket->endPosition());
 
     auto duration_ms =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-    LOG(EXTENSION_LOG_INFO,
-        "%s completed. Marked %" PRIu64 " items as stale. Took %" PRIu64
-        "ms. Sleeping for %" PRIu64 " seconds.",
+    if (!completed) {
+        // Schedule to run again asap - note this still yields to the scheduler
+        // if there are any higher priority tasks which want to run.
+        return true;
+    }
+
+    // Completed a full pass. Sleep ourselves, and wakeup the StaleItemDeleter
+    // task to complete the purge.
+    LOG(EXTENSION_LOG_NOTICE /*INFO*/,
+        "%s %s. Took %" PRIu64 " ms. Visited %" PRIu64 " items, marked %" PRIu64
+        " items as stale. Sleeping for %" PRIu64 " seconds.",
         getDescription().data(),
-        uint64_t(purger.getNumItemsMarkedStale()),
+        completed ? "completed" : "paused",
         uint64_t(duration_ms.count()),
+        uint64_t(visitor.getVisitedCount()),
+        uint64_t(visitor.getNumItemsMarkedStale()),
         uint64_t(getSleepTime()));
 
-    // Sleep ourselves, and wakeup the StaleItemDeleter task to complete the
-    // purge.
     snooze(getSleepTime());
     staleItemDeleterTask->wakeUp();
-
     return true;
 }
 
 cb::const_char_buffer EphTombstoneHTCleaner::getDescription() {
     return "Eph tombstone hashtable cleaner";
+}
+
+std::chrono::milliseconds EphTombstoneHTCleaner::getChunkDuration() const {
+    return std::chrono::milliseconds(
+            engine->getConfiguration().getEphemeralMetadataPurgeChunkDuration());
 }
 
 size_t EphTombstoneHTCleaner::getSleepTime() const {
@@ -124,6 +150,12 @@ size_t EphTombstoneHTCleaner::getSleepTime() const {
 
 size_t EphTombstoneHTCleaner::getDeletedPurgeAge() const {
     return engine->getConfiguration().getEphemeralMetadataPurgeAge();
+}
+
+EphemeralVBucket::HTTombstonePurger&
+EphTombstoneHTCleaner::getPurgerVisitor() {
+    return dynamic_cast<EphemeralVBucket::HTTombstonePurger&>(
+            prAdapter->getHTVisitor());
 }
 
 /**

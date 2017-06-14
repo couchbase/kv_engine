@@ -248,6 +248,7 @@ TARGET_LINK_LIBRARIES(ep cJSON JSON_checker couchstore ${EP_FORESTDB_LIB}
 # so simpler / quicker just to link them into a single executable).
 ADD_EXECUTABLE(ep-engine_ep_unit_tests
                tests/mock/mock_dcp.cc
+               tests/mock/mock_ephemeral_vb.cc
                tests/mock/mock_synchronous_ep_engine.cc
                tests/module_tests/atomic_unordered_map_test.cc
                tests/module_tests/basic_ll_test.cc

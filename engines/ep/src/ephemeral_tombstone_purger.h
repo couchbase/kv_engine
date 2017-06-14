@@ -66,6 +66,8 @@
 #include "config.h"
 
 #include "ephemeral_vb.h"
+#include "kv_bucket_iface.h"
+#include "progress_tracker.h"
 #include "vb_visitors.h"
 
 class EphTombstoneStaleItemDeleter;
@@ -80,20 +82,32 @@ class EphTombstoneStaleItemDeleter;
  * cleanup of the SequenceList is handled seperately (see
  * SequenceList::purgeTombstones).
 */
-class EphemeralVBucket::HTTombstonePurger : public HashTableVisitor {
+class EphemeralVBucket::HTTombstonePurger : public VBucketAwareHTVisitor {
 public:
-    HTTombstonePurger(EphemeralVBucket& vbucket, rel_time_t purgeAge);
+    HTTombstonePurger(rel_time_t purgeAge);
+
+    // Set the deadline at which point the visitor will pause visiting.
+    void setDeadline(ProcessClock::time_point deadline);
+
+    void setCurrentVBucket(VBucket& vb) override;
 
     bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override;
 
+    /// Return the number of items visited in the HashTable.
+    size_t getVisitedCount() const {
+        return numVisitedItems;
+    }
+
     /// Return the number of items purged from the HashTable.
-    size_t getNumPurged() const {
+    size_t getNumItemsMarkedStale() const {
         return numPurgedItems;
     }
 
+    void clearStats();
+
 protected:
     /// VBucket being visited.
-    EphemeralVBucket& vbucket;
+    EphemeralVBucket* vbucket;
 
     /// Time point the purge is running at. Set to ep_current_time in object
     /// creation.
@@ -103,45 +117,19 @@ protected:
     ///    now - delete_time.
     const rel_time_t purgeAge;
 
+    /// Estimates how far we have got, and when we should pause.
+    ProgressTracker progressTracker;
+
+    /// Count of how many items have been visited.
+    size_t numVisitedItems;
+
     /// Count of how many items have been purged.
     size_t numPurgedItems;
 };
 
 /**
- * Ephemeral VBucket HashTable cleaner visitor
- *
- * Visitor which is responsible for identifying tombstones which are older
- * than the given age and marking them as stale.
- * Mostly delegates to HTTombstonePurger for the 'real' work.
- */
-class EphemeralVBucket::HTCleaner : public VBucketVisitor {
-public:
-    HTCleaner(rel_time_t purgeAge);
-
-    void visitBucket(VBucketPtr& vb) override;
-
-    size_t getNumItemsMarkedStale() const {
-        return numItemsMarkedStale;
-    }
-
-protected:
-    /// Items older than this age are purged.
-    const rel_time_t purgeAge;
-
-    /// Count of how many items have been marked as stale for all visited
-    /// vBuckets.
-    size_t numItemsMarkedStale;
-};
-
-/**
  * Task responsible for identifying tombstones (deleted item markers) which
  * are too old, and removing from the Ephemeral buckets' HashTable.
- * One of two tasks responsible for cleaning up items which are no longer
- * required. There are two stages to fully purge tombstones:
- *   1. Identify old deletes in the HashTable; marking as stale and
- *      transferring them to the SequenceList.
- *   2. Visit the SequenceList for stale items, and deleting any found.
- * This task deals with (1); the EphTombstoneStaleValueRemover task handles (2).
  */
 class EphTombstoneHTCleaner : public GlobalTask {
 public:
@@ -152,11 +140,27 @@ public:
     cb::const_char_buffer getDescription() override;
 
 private:
+    /// How long should each chunk of HT cleaning run for?
+    std::chrono::milliseconds getChunkDuration() const;
+
     /// Duration (in seconds) task should sleep for between runs.
     size_t getSleepTime() const;
 
     /// Age (in seconds) which deleted items will be purged after.
     size_t getDeletedPurgeAge() const;
+
+    /// Returns the underlying VBTombstonePurger instance.
+    EphemeralVBucket::HTTombstonePurger& getPurgerVisitor();
+
+    /// Opaque marker indicating how far through the KVBucket we have visited.
+    KVBucketIface::Position bucketPosition;
+
+    /**
+     * Visitor adapter which supports pausing & resuming (records how far
+     * though a VBucket is has got). unique_ptr as we re-create it for each
+     * complete pass.
+     */
+    std::unique_ptr<PauseResumeVBAdapter> prAdapter;
 
     /// Second paired task which deletes stale items from the sequenceList.
     std::shared_ptr<EphTombstoneStaleItemDeleter> staleItemDeleterTask;

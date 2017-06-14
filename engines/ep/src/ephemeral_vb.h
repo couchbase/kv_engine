@@ -152,14 +152,6 @@ public:
     void queueBackfillItem(queued_item& qi,
                            const GenerateBySeqno generateBySeqno) override;
 
-    /**
-     * Mark Tombstones in this VBucket which are older than the specified
-     * duration as stale.
-     * @param purgeAge Items older than this should be purged.
-     * @return Number of items marked as stale.
-     */
-    size_t markOldTombstonesStale(rel_time_t purgeAge);
-
     /** Purge any stale items in this VBucket's sequenceList.
      * @return Number of items purged.
      */
