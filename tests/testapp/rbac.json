@@ -8,6 +8,8 @@
         "MetaWrite",
         "Read",
         "SimpleStats",
+        "TapConsumer",
+        "TapProducer",
         "Insert",
         "Delete",
         "Upsert",

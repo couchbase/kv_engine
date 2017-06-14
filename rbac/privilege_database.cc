@@ -117,6 +117,7 @@ PrivilegeMask UserEntry::parsePrivileges(const cJSON* priv, bool buckets) {
         ret[int(Privilege::Upsert)] = false;
         ret[int(Privilege::DcpConsumer)] = false;
         ret[int(Privilege::DcpProducer)] = false;
+        ret[int(Privilege::Tap)] = false;
         ret[int(Privilege::MetaRead)] = false;
         ret[int(Privilege::MetaWrite)] = false;
         ret[int(Privilege::XattrRead)] = false;
@@ -230,6 +231,7 @@ void PrivilegeContext::setBucketPrivilegeBits(bool value) {
     mask[int(Privilege::SimpleStats)] = value;
     mask[int(Privilege::DcpConsumer)] = value;
     mask[int(Privilege::DcpProducer)] = value;
+    mask[int(Privilege::Tap)] = value;
     mask[int(Privilege::MetaRead)] = value;
     mask[int(Privilege::MetaWrite)] = value;
     mask[int(Privilege::XattrRead)] = value;
