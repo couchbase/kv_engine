@@ -65,7 +65,7 @@ extern void shutdown_server();
 
 std::set<protocol_binary_hello_features_t> enabled_hello_features;
 
-bool memcached_verbose = false;
+int memcached_verbose = 0;
 // State variable if we're running the memcached server in a
 // thread in the same process or not
 static bool embedded_memcached_server;
@@ -302,8 +302,8 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     const std::string pem_path = cwd + CERTIFICATE_PATH("testapp.pem");
     const std::string cert_path = cwd + CERTIFICATE_PATH("testapp.cert");
 
-    if (memcached_verbose) {
-        cJSON_AddNumberToObject(root, "verbosity", 2);
+    if (memcached_verbose > 0) {
+        cJSON_AddNumberToObject(root, "verbosity", memcached_verbose);
     } else {
         obj = cJSON_CreateObject();
         cJSON_AddStringToObject(obj, "module", "blackhole_logger.so");
@@ -1194,7 +1194,7 @@ int main(int argc, char **argv) {
     while ((cmd = getopt(argc, argv, "veE:")) != EOF) {
         switch (cmd) {
         case 'v':
-            memcached_verbose = true;
+            memcached_verbose++;
             break;
         case 'e':
             embedded_memcached_server = true;
@@ -1206,7 +1206,9 @@ int main(int argc, char **argv) {
             std::cerr << "Usage: " << argv[0] << " [-v] [-i]" << std::endl
                       << std::endl
                       << "  -v Verbose - Print verbose memcached output "
-                      << "to stderr.\n" << std::endl
+                      << "to stderr." << std::endl
+                      << "               (use multiple times to increase the"
+                      << " verbosity level." << std::endl
                       << "  -e Embedded - Run the memcached daemon in the "
                       << "same process (for debugging only..)" << std::endl
                       << "  -E ENGINE engine type to use. <default|ep>"
