@@ -432,13 +432,13 @@ StoredValue::UniquePtr HashTable::unlocked_release(
         const HashBucketLock& hbl, const DocKey& key) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
-                "HashTable::unlocked_remove: htLock "
+                "HashTable::unlocked_release: htLock "
                 "not held");
     }
 
     if (!isActive()) {
         throw std::logic_error(
-                "HashTable::unlocked_remove: Cannot call on a "
+                "HashTable::unlocked_release: Cannot call on a "
                 "non-active object");
     }
 
@@ -451,7 +451,7 @@ StoredValue::UniquePtr HashTable::unlocked_release(
         /* We shouldn't reach here, we must delete the StoredValue in the
            HashTable */
         throw std::logic_error(
-                "HashTable::unlocked_del: StoredValue to be deleted "
+                "HashTable::unlocked_release: StoredValue to be released "
                 "not found in HashTable; possibly HashTable leak");
     }
 
