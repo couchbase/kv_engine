@@ -93,9 +93,14 @@ public:
      * Set an item in the store.
      * @param item the item to set
      * @param cookie the cookie representing the client to store the item
+     * @param predicate an optional function to call which if returns true,
+     *        the replace will succeed. The function is called against any
+     *        existing item.
      * @return the result of the store operation
      */
-    virtual ENGINE_ERROR_CODE set(Item &item, const void *cookie) = 0;
+    virtual ENGINE_ERROR_CODE set(Item& item,
+                                  const void* cookie,
+                                  cb::StoreIfPredicate predicate = {}) = 0;
 
     /**
      * Add an item in the store.
@@ -109,9 +114,14 @@ public:
      * Replace an item in the store.
      * @param item the item to replace
      * @param cookie the cookie representing the client to store the item
+     * @param predicate an optional function to call which if returns true,
+     *        the replace will succeed. The function is called against any
+     *        existing item.
      * @return the result of the operation
      */
-    virtual ENGINE_ERROR_CODE replace(Item &item, const void *cookie) = 0;
+    virtual ENGINE_ERROR_CODE replace(Item& item,
+                                      const void* cookie,
+                                      cb::StoreIfPredicate predicate = {}) = 0;
 
     /**
      * Add an TAP backfill or DCP backfill item into its corresponding vbucket

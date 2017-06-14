@@ -33,7 +33,7 @@ MutationCommandContext::MutationCommandContext(McbpConnection& c,
           c.getDocNamespace()),
       value(reinterpret_cast<const char*>(key.data() + key.size()),
             ntohl(req->message.header.request.bodylen) - key.size() -
-            req->message.header.request.extlen),
+                    req->message.header.request.extlen),
       vbucket(ntohs(req->message.header.request.vbucket)),
       input_cas(ntohll(req->message.header.request.cas)),
       expiration(ntohl(req->message.body.expiration)),
@@ -43,6 +43,14 @@ MutationCommandContext::MutationCommandContext(McbpConnection& c,
       newitem(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
       existing(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
       xattr_size(0) {
+    // MSVC2015 can't do this in the initializer list
+    if (settings.isXattrEnabled()) {
+        store_if_predicate = [](const item_info& existing) {
+            return !mcbp::datatype::is_xattr(existing.datatype);
+        };
+    } else {
+        store_if_predicate = [](const item_info& existing) { return true; };
+    }
 }
 
 ENGINE_ERROR_CODE MutationCommandContext::step() {
@@ -113,12 +121,7 @@ ENGINE_ERROR_CODE MutationCommandContext::validateInput() {
         }
     }
 
-    if (operation == OPERATION_ADD || !settings.isXattrEnabled()) {
-        state = State::AllocateNewItem;
-    } else {
-        // We might want to preserve XATTRs
-        state = State::GetExistingItemToPreserveXattr;
-    }
+    state = State::AllocateNewItem;
     return ENGINE_SUCCESS;
 }
 
@@ -167,6 +170,7 @@ ENGINE_ERROR_CODE MutationCommandContext::getExistingItemToPreserveXattr() {
     xattr_size = cb::xattr::get_body_offset(payload);
 
     state = State::AllocateNewItem;
+
     return ENGINE_SUCCESS;
 }
 
@@ -215,26 +219,40 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
 }
 
 ENGINE_ERROR_CODE MutationCommandContext::storeItem() {
-    uint64_t new_cas = input_cas;
-    auto ret = bucket_store(&connection, newitem.get(), &new_cas, operation);
-    if (ret == ENGINE_SUCCESS) {
-        connection.setCAS(new_cas);
+    auto ret = bucket_store_if(&connection,
+                               newitem.get(),
+                               input_cas,
+                               operation,
+                               store_if_predicate);
+    if (ret.status == cb::engine_errc::success) {
+        connection.setCAS(ret.cas);
         state = State::SendResponse;
-    } else if (ret == ENGINE_NOT_STORED) {
+    } else if (ret.status == cb::engine_errc::predicate_failed) {
+        // predicate failed because xattrs are present
+        state = State::GetExistingItemToPreserveXattr;
+
+        // Mark as success and we'll move to the next state
+        ret.status = cb::engine_errc::success;
+
+        // We will re-enter the StoreItem state after the xattr merge - that
+        // store will be forced using this predicate which returns true.
+        store_if_predicate = [](const item_info& existing) { return true; };
+    } else if (ret.status == cb::engine_errc::not_stored) {
         // Need to remap error for add and replace
         if (operation == OPERATION_ADD) {
-            ret = ENGINE_KEY_EEXISTS;
+            ret.status = cb::engine_errc::key_already_exists;
         } else if (operation == OPERATION_REPLACE) {
-            ret = ENGINE_KEY_ENOENT;
+            ret.status = cb::engine_errc::no_such_key;
         }
-    } else if (ret == ENGINE_KEY_EEXISTS && input_cas == 0) {
+    } else if (ret.status == cb::engine_errc::key_already_exists &&
+               input_cas == 0) {
         // We failed due to CAS mismatch, and the user did not specify
         // the CAS, retry the operation.
         state = State::Reset;
-        ret = ENGINE_SUCCESS;
+        ret.status = cb::engine_errc::success;
     }
 
-    return ret;
+    return ENGINE_ERROR_CODE(ret.status);
 }
 
 ENGINE_ERROR_CODE MutationCommandContext::sendResponse() {

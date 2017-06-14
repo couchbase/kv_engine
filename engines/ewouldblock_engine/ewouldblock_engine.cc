@@ -467,6 +467,29 @@ public:
         }
     }
 
+    static cb::EngineErrorCasPair store_if(ENGINE_HANDLE* handle,
+                                           const void* cookie,
+                                           item* item,
+                                           uint64_t cas,
+                                           ENGINE_STORE_OPERATION operation,
+                                           cb::StoreIfPredicate predicate,
+                                           DocumentState document_state) {
+        EWB_Engine* ewb = to_engine(handle);
+        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        Cmd opcode = (operation == OPERATION_CAS) ? Cmd::CAS : Cmd::STORE;
+        if (ewb->should_inject_error(opcode, cookie, err)) {
+            return {cb::engine_errc(err), 0};
+        } else {
+            return ewb->real_engine->store_if(ewb->real_handle,
+                                              cookie,
+                                              item,
+                                              cas,
+                                              operation,
+                                              predicate,
+                                              document_state);
+        }
+    }
+
     static ENGINE_ERROR_CODE flush(ENGINE_HANDLE* handle, const void* cookie) {
         // Flush is a little different - it often returns EWOULDBLOCK, and
         // notify_io_complete() just tells the server it can issue it's *next*
@@ -1206,6 +1229,7 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     ENGINE_HANDLE_V1::get_and_touch = get_and_touch;
     ENGINE_HANDLE_V1::unlock = unlock;
     ENGINE_HANDLE_V1::store = store;
+    ENGINE_HANDLE_V1::store_if = store_if;
     ENGINE_HANDLE_V1::flush = flush;
     ENGINE_HANDLE_V1::get_stats = get_stats;
     ENGINE_HANDLE_V1::reset_stats = reset_stats;

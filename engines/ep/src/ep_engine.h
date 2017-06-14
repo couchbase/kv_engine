@@ -237,6 +237,12 @@ public:
                             uint64_t *cas,
                             ENGINE_STORE_OPERATION operation);
 
+    cb::EngineErrorCasPair store_if(const void* cookie,
+                                    Item& itm,
+                                    uint64_t cas,
+                                    ENGINE_STORE_OPERATION operation,
+                                    cb::StoreIfPredicate predicate);
+
     ENGINE_ERROR_CODE flush(const void *cookie);
 
     uint16_t walkTapQueue(const void *cookie, item **itm, void **es,
@@ -519,8 +525,6 @@ public:
     engine_info *getInfo() {
         return &info.info;
     }
-
-    item_info getItemInfo(const Item& itm);
 
     EPStats &getEpStats() {
         return stats;

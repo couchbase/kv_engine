@@ -736,10 +736,22 @@ hash_item* item_get(struct default_engine* engine,
     if (!hash_key_create(&hkey, key, nkey, engine, cookie)) {
         return NULL;
     }
-    cb_mutex_enter(&engine->items.lock);
-    it = do_item_get(engine, &hkey, document_state);
-    cb_mutex_exit(&engine->items.lock);
+    it = item_get(engine, cookie, hkey, document_state);
     hash_key_destroy(&hkey);
+    return it;
+}
+
+/*
+ * Returns an item if it hasn't been marked as expired,
+ * lazy-expiring as needed.
+ */
+hash_item* item_get(struct default_engine* engine,
+                    const void* cookie,
+                    const hash_key& key,
+                    const DocStateFilter state) {
+    cb_mutex_enter(&engine->items.lock);
+    auto* it = do_item_get(engine, &key, state);
+    cb_mutex_exit(&engine->items.lock);
     return it;
 }
 

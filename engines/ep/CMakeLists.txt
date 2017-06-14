@@ -520,6 +520,11 @@ INSTALL(TARGETS ep
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 
+# Run the testapp get set tests against ep-engine
+ADD_TEST(NAME ep-engine-getset-unit-tests
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        COMMAND memcached_testapp --gtest_filter=TransportProtocols/GetSetTest.* -E ep)
+SET_TESTS_PROPERTIES(ep-engine-getset-unit-tests PROPERTIES TIMEOUT 400)
 
 # Defines a testsuite which runs in full and value eviction
 # (persistent), ephemeral buckets (which has no eviction).

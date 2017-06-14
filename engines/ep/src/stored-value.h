@@ -503,6 +503,14 @@ public:
      */
     std::unique_ptr<Item> toItemWithNoValue(uint16_t vbucket) const;
 
+    /**
+     * Get an item_info from the StoredValue
+     *
+     * @param vbuuid a VB UUID to set in to the item_info
+     * @returns item_info populated with the StoredValue's state
+     */
+    item_info getItemInfo(uint64_t vbuuid) const;
+
     void setNext(UniquePtr&& nextSv) {
         if (stale) {
             throw std::logic_error(

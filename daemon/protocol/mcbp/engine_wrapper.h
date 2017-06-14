@@ -56,6 +56,14 @@ ENGINE_ERROR_CODE bucket_store(McbpConnection* c,
                                ENGINE_STORE_OPERATION operation,
                                DocumentState document_state = DocumentState::Alive);
 
+cb::EngineErrorCasPair bucket_store_if(
+        McbpConnection* c,
+        item* item_,
+        uint64_t cas,
+        ENGINE_STORE_OPERATION operation,
+        std::function<bool(const item_info&)> filter,
+        DocumentState document_state = DocumentState::Alive);
+
 ENGINE_ERROR_CODE bucket_remove(McbpConnection* c,
                                 const DocKey& key,
                                 uint64_t* cas,

@@ -129,4 +129,11 @@ private:
 
     // The size of the xattr segment of the existing item
     size_t xattr_size;
+
+    /**
+     * The predicate function to use for the mutation store, if xattrs are
+     * enabled this is initialised to a predicate that will check the existing
+     * item's datatype.
+     */
+    cb::StoreIfPredicate store_if_predicate;
 };

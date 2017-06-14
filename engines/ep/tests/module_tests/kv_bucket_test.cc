@@ -633,6 +633,31 @@ TEST_F(KVBucketTest, DataRaceInDoWorkerStat) {
     pool->cancel(task->getId());
 }
 
+class StoreIfTest : public KVBucketTest {
+public:
+    void SetUp() override {
+        config_string += "warmup=false";
+        KVBucketTest::SetUp();
+        // Have all the objects, activate vBucket zero so we can store data.
+        store->setVBucketState(vbid, vbucket_state_active, false);
+    }
+};
+
+/**
+ * Test the basic store_if (via engine) - a forced false predicate will allow
+ * add, but fail set/replace with predicate_failed
+ */
+TEST_F(StoreIfTest, store_if_basic) {
+    cb::StoreIfPredicate pred = [](const item_info& existing) { return false; };
+    auto item = make_item(vbid, {"key", DocNamespace::DefaultCollection}, "value", 0, 0);
+    auto rv = engine->store_if(cookie, item, 0, OPERATION_ADD, pred);
+    EXPECT_EQ(cb::engine_errc::success, rv.status);
+    rv = engine->store_if(cookie, item, 0, OPERATION_REPLACE, pred);
+    EXPECT_EQ(cb::engine_errc::predicate_failed, rv.status);
+    rv = engine->store_if(cookie, item, 0, OPERATION_SET, pred);
+    EXPECT_EQ(cb::engine_errc::predicate_failed, rv.status);
+}
+
 // Test cases which run for EP (Full and Value eviction) and Ephemeral
 INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         KVBucketParamTest,

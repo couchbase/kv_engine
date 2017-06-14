@@ -709,13 +709,16 @@ public:
      * @param cookie the connection cookie
      * @param engine Reference to ep engine
      * @param bgFetchDelay
+     * @param predicate a function to call which if returns true, the set will
+     *        succeed. The function is called against any existing item.
      *
      * @return ENGINE_ERROR_CODE status notified to be to the front end
      */
     ENGINE_ERROR_CODE set(Item& itm,
                           const void* cookie,
                           EventuallyPersistentEngine& engine,
-                          int bgFetchDelay);
+                          int bgFetchDelay,
+                          cb::StoreIfPredicate predicate);
 
     /**
      * Replace (overwrite existing) an item in the vbucket.
@@ -725,13 +728,16 @@ public:
      * @param cookie the connection cookie
      * @param engine Reference to ep engine
      * @param bgFetchDelay
+     * @param predicate a function to call which if returns true, the replace
+     *        will succeed. The function is called against any existing item.
      *
      * @return ENGINE_ERROR_CODE status notified to be to the front end
      */
     ENGINE_ERROR_CODE replace(Item& itm,
                               const void* cookie,
                               EventuallyPersistentEngine& engine,
-                              int bgFetchDelay);
+                              int bgFetchDelay,
+                              cb::StoreIfPredicate predicate);
 
     /**
      * Add an item directly into its vbucket rather than putting it on a

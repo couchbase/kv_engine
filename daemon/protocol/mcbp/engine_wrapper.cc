@@ -113,6 +113,35 @@ ENGINE_ERROR_CODE bucket_store(McbpConnection* c,
     return ret;
 }
 
+cb::EngineErrorCasPair bucket_store_if(
+        McbpConnection* c,
+        item* item_,
+        uint64_t cas,
+        ENGINE_STORE_OPERATION operation,
+        std::function<bool(const item_info&)> filter,
+        DocumentState document_state) {
+    auto ret = c->getBucketEngine()->store_if(c->getBucketEngineAsV0(),
+                                              c->getCookie(),
+                                              item_,
+                                              cas,
+                                              operation,
+                                              filter,
+                                              document_state);
+    if (ret.status == cb::engine_errc::success) {
+        using namespace cb::audit::document;
+        add(*c,
+            document_state == DocumentState::Alive ? Operation::Modify
+                                                   : Operation::Delete);
+    } else if (ret.status == cb::engine_errc::disconnect) {
+        LOG_INFO(c,
+                 "%u: %s store_if return ENGINE_DISCONNECT",
+                 c->getId(),
+                 c->getDescription().c_str());
+    }
+
+    return ret;
+}
+
 ENGINE_ERROR_CODE bucket_remove(McbpConnection* c,
                                 const DocKey& key,
                                 uint64_t* cas,

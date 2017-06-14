@@ -95,6 +95,11 @@ enum class engine_errc {
      */
     unknown_collection = 0x16,
 
+    /**
+     * A command with a predicate has been failed because of the predicate
+     */
+    predicate_failed = 0x17,
+
     /** Generic failue. */
     failed = 0xff
 };
@@ -160,9 +165,9 @@ typedef enum {
     ENGINE_LOCKED = int(cb::engine_errc::locked),
     ENGINE_LOCKED_TMPFAIL = int(cb::engine_errc::locked_tmpfail),
     ENGINE_UNKNOWN_COLLECTION = int(cb::engine_errc::unknown_collection),
-    ENGINE_FAILED = int(cb::engine_errc::failed)
+    ENGINE_FAILED = int(cb::engine_errc::failed),
+    ENGINE_PREDICATE_FAILED = int(cb::engine_errc::predicate_failed)
 } ENGINE_ERROR_CODE;
-
 
 namespace std {
 

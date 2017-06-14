@@ -6,10 +6,6 @@
 #ifndef ITEMS_H
 #define ITEMS_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /*
  * You should not try to aquire any of the item locks before calling these
  * functions.
@@ -193,6 +189,20 @@ hash_item* item_get(struct default_engine* engine,
                     const DocStateFilter state);
 
 /**
+ * Get an item from the cache using a hash_key
+ *
+ * @param engine handle to the storage engine
+ * @param cookie connection cookie
+ * @param key to lookup
+ * @param state Only return documents in this state
+ * @return pointer to the item if it exists or NULL otherwise
+ */
+hash_item* item_get(struct default_engine* engine,
+                    const void* cookie,
+                    const hash_key& key,
+                    const DocStateFilter state);
+
+/**
  * Get an item from the cache and acquire the lock.
  *
  * @param engine handle to the storage engine
@@ -338,10 +348,5 @@ void item_scrubber_main(struct default_engine *engine);
  * @return true if the scrubber has been invoked
  */
 bool item_start_scrub(struct default_engine *engine);
-
-#ifdef __cplusplus
-}
-#endif
-
 
 #endif

@@ -332,6 +332,29 @@ void StoredValue::setValueImpl(const Item& itm) {
     }
 }
 
+/**
+ * Get an item_info from the StoredValue
+ */
+item_info StoredValue::getItemInfo(uint64_t vbuuid) const {
+    item_info info;
+    info.cas = cas;
+    info.vbucket_uuid = vbuuid;
+    info.seqno = bySeqno;
+    info.exptime = exptime;
+    info.nbytes = 0;
+    info.flags = flags;
+    info.datatype = datatype;
+    info.document_state =
+            isDeleted() ? DocumentState::Deleted : DocumentState::Alive;
+    info.nkey = getKey().size();
+    info.key = getKey().data();
+    if (getValue()) {
+        info.value[0].iov_base = const_cast<char*>(getValue()->getData());
+        info.value[0].iov_len = getValue()->vlength();
+    }
+    return info;
+}
+
 std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
 
     // type, address

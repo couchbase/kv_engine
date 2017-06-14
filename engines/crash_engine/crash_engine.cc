@@ -224,6 +224,16 @@ static ENGINE_ERROR_CODE store(ENGINE_HANDLE* handle,
     return ENGINE_FAILED;
 }
 
+static cb::EngineErrorCasPair store_if(ENGINE_HANDLE* handle,
+                                       const void* cookie,
+                                       item* item,
+                                       uint64_t cas,
+                                       ENGINE_STORE_OPERATION operation,
+                                       cb::StoreIfPredicate,
+                                       DocumentState) {
+    return {cb::engine_errc::failed, 0};
+}
+
 static ENGINE_ERROR_CODE flush(ENGINE_HANDLE* handle,
                                const void* cookie)
 {
@@ -283,6 +293,7 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     engine->engine.get_stats = get_stats;
     engine->engine.reset_stats = reset_stats;
     engine->engine.store = store;
+    engine->engine.store_if = store_if;
     engine->engine.flush = flush;
     engine->engine.item_set_cas = item_set_cas;
     engine->engine.get_item_info = get_item_info;

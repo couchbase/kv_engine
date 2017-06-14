@@ -203,6 +203,13 @@ class ItemDeleter;
 typedef std::unique_ptr<item, ItemDeleter> unique_item_ptr;
 
 using EngineErrorItemPair = std::pair<cb::engine_errc, cb::unique_item_ptr>;
+
+using StoreIfPredicate = std::function<bool(const item_info&)>;
+
+struct EngineErrorCasPair {
+    engine_errc status;
+    uint64_t cas;
+};
 }
 
 /**
@@ -465,6 +472,31 @@ typedef struct engine_interface_v1 {
                                 uint64_t* cas,
                                 ENGINE_STORE_OPERATION operation,
                                 DocumentState document_state);
+
+    /**
+     * Store an item into the underlying engine with the given
+     * state only if the predicate argument returns true when called against an
+     * existing item.
+     *
+     * @param handle the engine handle
+     * @param cookie The cookie provided by the frontend
+     * @param item the item to store
+     * @param cas the CAS value for conditional sets
+     * @param operation the type of store operation to perform.
+     * @param predicate a function which returns true if the item should be
+     *        stored
+     * @param document_state The state the document should have after
+     *                       the update
+     *
+     * @return a std::pair containing the engine_error code and new CAS
+     */
+    cb::EngineErrorCasPair (*store_if)(ENGINE_HANDLE* handle,
+                                       const void* cookie,
+                                       item* item,
+                                       uint64_t cas,
+                                       ENGINE_STORE_OPERATION operation,
+                                       cb::StoreIfPredicate predicate,
+                                       DocumentState document_state);
 
     /**
      * Flush the cache.

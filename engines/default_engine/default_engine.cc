@@ -98,6 +98,15 @@ static ENGINE_ERROR_CODE default_store(ENGINE_HANDLE* handle,
                                        uint64_t *cas,
                                        ENGINE_STORE_OPERATION operation,
                                        DocumentState);
+
+static cb::EngineErrorCasPair default_store_if(ENGINE_HANDLE* handle,
+                                               const void* cookie,
+                                               item* item_,
+                                               uint64_t cas,
+                                               ENGINE_STORE_OPERATION operation,
+                                               cb::StoreIfPredicate predicate,
+                                               DocumentState document_state);
+
 static ENGINE_ERROR_CODE default_flush(ENGINE_HANDLE* handle,
                                        const void* cookie);
 static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
@@ -180,6 +189,7 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     engine->engine.get_stats = default_get_stats;
     engine->engine.reset_stats = default_reset_stats;
     engine->engine.store = default_store;
+    engine->engine.store_if = default_store_if;
     engine->engine.flush = default_flush;
     engine->engine.unknown_command = default_unknown_command;
     engine->engine.item_set_cas = item_set_cas;
@@ -639,6 +649,49 @@ static ENGINE_ERROR_CODE default_store(ENGINE_HANDLE* handle,
 
     return store_item(engine, it, cas, operation,
                       cookie, document_state);
+}
+
+static cb::EngineErrorCasPair default_store_if(ENGINE_HANDLE* handle,
+                                               const void* cookie,
+                                               item* item,
+                                               uint64_t cas,
+                                               ENGINE_STORE_OPERATION operation,
+                                               cb::StoreIfPredicate predicate,
+                                               DocumentState document_state) {
+    struct default_engine* engine = get_handle(handle);
+
+    bool allow_store = true;
+    if (predicate) {
+        // Check for an existing item and call the predicate on it.
+        auto* it = get_real_item(item);
+        auto* key = item_get_key(it);
+        if (!key) {
+            throw cb::engine_error(cb::engine_errc::failed,
+                                   "default_store_if: item_get_key failed");
+        }
+        cb::unique_item_ptr existing(
+                item_get(engine, cookie, *key, DocStateFilter::Alive),
+                cb::ItemDeleter{handle});
+
+        if (existing.get()) {
+            item_info info;
+            if (!get_item_info(handle, cookie, existing.get(), &info)) {
+                throw cb::engine_error(
+                        cb::engine_errc::failed,
+                        "default_store_if: get_item_info failed");
+            }
+            allow_store = predicate(info);
+        }
+    }
+
+    if (allow_store) {
+        auto* it = get_real_item(item);
+        auto status =
+                store_item(engine, it, &cas, operation, cookie, document_state);
+        return {cb::engine_errc(status), cas};
+    }
+
+    return {cb::engine_errc::predicate_failed, 0};
 }
 
 static ENGINE_ERROR_CODE default_flush(ENGINE_HANDLE* handle,

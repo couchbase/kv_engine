@@ -695,13 +695,20 @@ MutationStatus VBucket::setFromInternal(Item& itm) {
 ENGINE_ERROR_CODE VBucket::set(Item& itm,
                                const void* cookie,
                                EventuallyPersistentEngine& engine,
-                               const int bgFetchDelay) {
+                               const int bgFetchDelay,
+                               cb::StoreIfPredicate predicate) {
     bool cas_op = (itm.getCas() != 0);
     auto hbl = ht.getLockedBucket(itm.getKey());
     StoredValue* v = ht.unlocked_find(itm.getKey(),
                                       hbl.getBucketNum(),
                                       WantsDeleted::Yes,
                                       TrackReference::No);
+    if (v) {
+        if (predicate &&
+            !predicate(v->getItemInfo(failovers->getLatestUUID()))) {
+            return ENGINE_PREDICATE_FAILED;
+        }
+    }
     if (v && v->isLocked(ep_current_time()) &&
         (getState() == vbucket_state_replica ||
          getState() == vbucket_state_pending)) {
@@ -784,13 +791,18 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
 ENGINE_ERROR_CODE VBucket::replace(Item& itm,
                                    const void* cookie,
                                    EventuallyPersistentEngine& engine,
-                                   const int bgFetchDelay) {
+                                   const int bgFetchDelay,
+                                   cb::StoreIfPredicate predicate) {
     auto hbl = ht.getLockedBucket(itm.getKey());
     StoredValue* v = ht.unlocked_find(itm.getKey(),
                                       hbl.getBucketNum(),
                                       WantsDeleted::Yes,
                                       TrackReference::No);
     if (v) {
+        if (predicate &&
+            !predicate(v->getItemInfo(failovers->getLatestUUID()))) {
+            return ENGINE_PREDICATE_FAILED;
+        }
         if (v->isDeleted() || v->isTempDeletedItem() ||
             v->isTempNonExistentItem()) {
             return ENGINE_KEY_ENOENT;

@@ -107,9 +107,14 @@ public:
      * @param item the item to set. On success, this will have its seqno and
      *             CAS updated.
      * @param cookie the cookie representing the client to store the item
+     * @param predicate an optional function to call which if returns true,
+     *        the replace will succeed. The function is called against any
+     *        existing item.
      * @return the result of the store operation
      */
-    ENGINE_ERROR_CODE set(Item &item, const void *cookie);
+    ENGINE_ERROR_CODE set(Item& item,
+                          const void* cookie,
+                          cb::StoreIfPredicate predicate = {});
 
     /**
      * Add an item in the store.
@@ -125,9 +130,14 @@ public:
      * @param item the item to replace. On success, this will have its seqno
      *             and CAS updated.
      * @param cookie the cookie representing the client to store the item
+     * @param predicate an optional function to call which if returns true,
+     *        the replace will succeed. The func§tion is called against any
+     *        existing item.
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE replace(Item &item, const void *cookie);
+    ENGINE_ERROR_CODE replace(Item& item,
+                              const void* cookie,
+                              cb::StoreIfPredicate predicate = {});
 
     /**
      * Add an TAP backfill or DCP backfill item into its corresponding vbucket

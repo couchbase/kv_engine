@@ -333,6 +333,23 @@ static ENGINE_ERROR_CODE EvpStore(ENGINE_HANDLE* handle,
     return engine->store(cookie, itm, cas, operation);
 }
 
+static cb::EngineErrorCasPair EvpStoreIf(ENGINE_HANDLE* handle,
+                                         const void* cookie,
+                                         item* itm,
+                                         uint64_t cas,
+                                         ENGINE_STORE_OPERATION operation,
+                                         cb::StoreIfPredicate predicate,
+                                         DocumentState document_state) {
+    auto engine = acquireEngine(handle);
+
+    Item& item = static_cast<Item&>(*static_cast<Item*>(itm));
+
+    if (document_state == DocumentState::Deleted) {
+        item.setDeleted();
+    }
+    return engine->store_if(cookie, item, cas, operation, predicate);
+}
+
 static ENGINE_ERROR_CODE EvpFlush(ENGINE_HANDLE* handle,
                                   const void* cookie) {
     return acquireEngine(handle)->flush(cookie);
@@ -1815,6 +1832,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::get_stats = EvpGetStats;
     ENGINE_HANDLE_V1::reset_stats = EvpResetStats;
     ENGINE_HANDLE_V1::store = EvpStore;
+    ENGINE_HANDLE_V1::store_if = EvpStoreIf;
     ENGINE_HANDLE_V1::flush = EvpFlush;
     ENGINE_HANDLE_V1::unknown_command = EvpUnknownCommand;
     ENGINE_HANDLE_V1::get_tap_iterator = EvpGetTapIterator;
@@ -2305,79 +2323,78 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::unlock(const void* cookie,
     return kvBucket->unlockKey(key, vbucket, cas, ep_current_time());
 }
 
+cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
+        const void* cookie,
+        Item& item,
+        uint64_t cas,
+        ENGINE_STORE_OPERATION operation,
+        cb::StoreIfPredicate predicate) {
+    BlockTimer timer(&stats.storeCmdHisto);
+    ENGINE_ERROR_CODE status;
+    switch (operation) {
+    case OPERATION_CAS:
+        if (item.getCas() == 0) {
+            // Using a cas command with a cas wildcard doesn't make sense
+            status = ENGINE_NOT_STORED;
+            break;
+        }
+    // FALLTHROUGH
+    case OPERATION_SET:
+        if (isDegradedMode()) {
+            return {cb::engine_errc::temporary_failure, cas};
+        }
+        status = kvBucket->set(item, cookie, predicate);
+        break;
+
+    case OPERATION_ADD:
+        if (isDegradedMode()) {
+            return {cb::engine_errc::temporary_failure, cas};
+        }
+
+        if (item.getCas() != 0) {
+            // Adding an item with a cas value doesn't really make sense...
+            return {cb::engine_errc::key_already_exists, cas};
+        }
+
+        status = kvBucket->add(item, cookie);
+        break;
+
+    case OPERATION_REPLACE:
+        status = kvBucket->replace(item, cookie, predicate);
+        break;
+    default:
+        status = ENGINE_ENOTSUP;
+    }
+
+    switch (status) {
+    case ENGINE_SUCCESS:
+        ++stats.numOpsStore;
+        break;
+    case ENGINE_ENOMEM:
+        status = memoryCondition();
+        break;
+    case ENGINE_NOT_STORED:
+    case ENGINE_NOT_MY_VBUCKET:
+        if (isDegradedMode()) {
+            return {cb::engine_errc::temporary_failure, cas};
+        }
+        break;
+    default:
+        break;
+    }
+
+    return {cb::engine_errc(status), item.getCas()};
+}
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::store(const void *cookie,
                                                     item* itm,
                                                     uint64_t *cas,
                                                     ENGINE_STORE_OPERATION
                                                                      operation) {
-    BlockTimer timer(&stats.storeCmdHisto);
-    ENGINE_ERROR_CODE ret;
-    Item *it = static_cast<Item*>(itm);
-
-    switch (operation) {
-    case OPERATION_CAS:
-        if (it->getCas() == 0) {
-            // Using a cas command with a cas wildcard doesn't make sense
-            ret = ENGINE_NOT_STORED;
-            break;
-        }
-        // FALLTHROUGH
-    case OPERATION_SET:
-        if (isDegradedMode()) {
-            return ENGINE_TMPFAIL;
-        }
-        ret = kvBucket->set(*it, cookie);
-        if (ret == ENGINE_SUCCESS) {
-            *cas = it->getCas();
-        }
-
-        break;
-
-    case OPERATION_ADD:
-        if (isDegradedMode()) {
-            return ENGINE_TMPFAIL;
-        }
-
-        if (it->getCas() != 0) {
-            // Adding an item with a cas value doesn't really make sense...
-            return ENGINE_KEY_EEXISTS;
-        }
-
-        ret = kvBucket->add(*it, cookie);
-        if (ret == ENGINE_SUCCESS) {
-            *cas = it->getCas();
-        }
-        break;
-
-    case OPERATION_REPLACE:
-        ret = kvBucket->replace(*it, cookie);
-        if (ret == ENGINE_SUCCESS) {
-            *cas = it->getCas();
-        }
-        break;
-    default:
-        ret = ENGINE_ENOTSUP;
-    }
-
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        ++stats.numOpsStore;
-        break;
-    case ENGINE_ENOMEM:
-        ret = memoryCondition();
-        break;
-    case ENGINE_NOT_STORED:
-    case ENGINE_NOT_MY_VBUCKET:
-        if (isDegradedMode()) {
-            return ENGINE_TMPFAIL;
-        }
-        break;
-    default:
-        break;
-    }
-
-    return ret;
+    Item& item = static_cast<Item&>(*static_cast<Item*>(itm));
+    auto rv = store_if(cookie, item, *cas, operation, {});
+    *cas = rv.cas;
+    return ENGINE_ERROR_CODE(rv.status);
 }
 
 inline uint16_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie,
@@ -5755,7 +5772,7 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
         }
 
         if (mutate_type == SET_RET_META) {
-            ret = kvBucket->set(*itm, cookie);
+            ret = kvBucket->set(*itm, cookie, {});
         } else {
             ret = kvBucket->add(*itm, cookie);
         }

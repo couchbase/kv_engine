@@ -94,6 +94,8 @@ std::string cb::to_string(cb::engine_errc code) {
         return "generic failure";
     case cb::engine_errc::unknown_collection:
         return "unknown collection";
+    case cb::engine_errc::predicate_failed:
+        return "predicate_failed";
     };
 
     throw std::invalid_argument(

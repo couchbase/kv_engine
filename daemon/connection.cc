@@ -426,6 +426,7 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
     case ENGINE_ROLLBACK: // FALLTHROUGH
     case ENGINE_EBUSY: // FALLTHROUGH
     case ENGINE_DELTA_BADVAL: // FALLTHROUGH
+    case ENGINE_PREDICATE_FAILED:
     case ENGINE_FAILED:
         return code;
 

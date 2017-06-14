@@ -613,8 +613,9 @@ bool KVBucket::isMetaDataResident(VBucketPtr &vb, const DocKey& key) {
     }
 }
 
-ENGINE_ERROR_CODE KVBucket::set(Item &itm, const void *cookie) {
-
+ENGINE_ERROR_CODE KVBucket::set(Item& itm,
+                                const void* cookie,
+                                cb::StoreIfPredicate predicate) {
     VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -646,7 +647,7 @@ ENGINE_ERROR_CODE KVBucket::set(Item &itm, const void *cookie) {
             return ENGINE_UNKNOWN_COLLECTION;
         } // now hold collections read access for the duration of the set
 
-        return vb->set(itm, cookie, engine, bgFetchDelay);
+        return vb->set(itm, cookie, engine, bgFetchDelay, predicate);
     }
 }
 
@@ -690,7 +691,9 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
     }
 }
 
-ENGINE_ERROR_CODE KVBucket::replace(Item &itm, const void *cookie) {
+ENGINE_ERROR_CODE KVBucket::replace(Item& itm,
+                                    const void* cookie,
+                                    cb::StoreIfPredicate predicate) {
     VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -716,7 +719,7 @@ ENGINE_ERROR_CODE KVBucket::replace(Item &itm, const void *cookie) {
             return ENGINE_UNKNOWN_COLLECTION;
         } // now hold collections read access for the duration of the set
 
-        return vb->replace(itm, cookie, engine, bgFetchDelay);
+        return vb->replace(itm, cookie, engine, bgFetchDelay, predicate);
     }
 }
 

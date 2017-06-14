@@ -50,6 +50,7 @@ public:
         ENGINE_HANDLE_V1::get_stats = get_stats;
         ENGINE_HANDLE_V1::reset_stats = reset_stats;
         ENGINE_HANDLE_V1::store = store;
+        ENGINE_HANDLE_V1::store_if = store_if;
         ENGINE_HANDLE_V1::flush = flush;
         ENGINE_HANDLE_V1::unknown_command = unknown_command;
         ENGINE_HANDLE_V1::tap_notify = tap_notify;
@@ -173,6 +174,16 @@ private:
                                    uint64_t*, ENGINE_STORE_OPERATION,
                                    DocumentState) {
         return ENGINE_NO_BUCKET;
+    }
+
+    static cb::EngineErrorCasPair store_if(ENGINE_HANDLE*,
+                                           const void*,
+                                           item*,
+                                           uint64_t,
+                                           ENGINE_STORE_OPERATION,
+                                           cb::StoreIfPredicate,
+                                           DocumentState) {
+        return {cb::engine_errc::no_bucket, 0};
     }
 
     static ENGINE_ERROR_CODE flush(ENGINE_HANDLE*, const void*) {

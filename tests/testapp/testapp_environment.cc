@@ -87,9 +87,12 @@ public:
 
 class EpBucketImpl : public TestBucketImpl {
 public:
-    EpBucketImpl() {
+    EpBucketImpl() : dbPath("mc_testapp." + std::to_string(cb_getpid())) {
         // Cleanup any files from a previous run still on disk.
-        cb::io::rmrf(dbPath);
+        try {
+            cb::io::rmrf(dbPath);
+        } catch (...) { /* nothing exists */
+        }
     }
 
     ~EpBucketImpl() {
@@ -162,10 +165,8 @@ public:
     }
 
     /// Directory for any database files.
-    static const std::string dbPath;
+    const std::string dbPath;
 };
-const std::string EpBucketImpl::dbPath =
-        "mc_testapp." + std::to_string(cb_getpid());
 
 McdEnvironment::McdEnvironment(bool manageSSL_, std::string engineName)
     : manageSSL(manageSSL_) {
