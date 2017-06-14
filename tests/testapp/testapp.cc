@@ -1203,7 +1203,7 @@ int main(int argc, char **argv) {
             engine_name.assign(optarg);
             break;
         default:
-            std::cerr << "Usage: " << argv[0] << " [-v] [-i]" << std::endl
+            std::cerr << "Usage: " << argv[0] << " [-v] [-e]" << std::endl
                       << std::endl
                       << "  -v Verbose - Print verbose memcached output "
                       << "to stderr." << std::endl
