@@ -5916,10 +5916,9 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
     prev_cas = curr_cas;
 
-    item* locked = nullptr;
-    checkeq(ENGINE_SUCCESS, getl(h, h1, NULL, &locked, key, 0, 10),
-          "Expected to be able to getl on first try");
-    h1->release(h, NULL, locked);
+    checkeq(cb::engine_errc::success,
+            getl(h, h1, NULL, key, 0, 10).first,
+            "Expected to be able to getl on first try");
     check(get_item_info(h, h1, &info, key), "Error in getting item info");
 
     curr_cas = info.cas;
@@ -5987,11 +5986,9 @@ static enum test_result test_mb17517_tap_with_locked_key(ENGINE_HANDLE *h,
 
     uint32_t lock_timeout = 10;
 
-    item* locked = nullptr;
-    checkeq(ENGINE_SUCCESS,
-            getl(h, h1, nullptr, &locked, key.c_str(), vbid, lock_timeout),
+    checkeq(cb::engine_errc::success,
+            getl(h, h1, nullptr, key.c_str(), vbid, lock_timeout).first,
             "Expected to be able to getl on first try");
-    h1->release(h, NULL, locked);
 
     wait_for_flusher_to_settle(h, h1);
 

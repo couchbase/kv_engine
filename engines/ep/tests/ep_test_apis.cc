@@ -591,16 +591,20 @@ bool get_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item *i,
     return true;
 }
 
-ENGINE_ERROR_CODE getl(ENGINE_HANDLE* h,
-                       ENGINE_HANDLE_V1* h1,
-                       const void* cookie,
-                       item** item,
-                       const char* key,
-                       uint16_t vb, uint32_t lock_timeout) {
-
-    return h1->get_locked(h, cookie, item,
-                          DocKey(key, testHarness.doc_namespace),
-                          vb, lock_timeout);
+cb::EngineErrorItemPair getl(ENGINE_HANDLE* h,
+                             ENGINE_HANDLE_V1* h1,
+                             const void* cookie,
+                             const char* key,
+                             uint16_t vb,
+                             uint32_t lock_timeout) {
+    item* itm = nullptr;
+    auto ret = h1->get_locked(h,
+                              cookie,
+                              &itm,
+                              DocKey(key, testHarness.doc_namespace),
+                              vb,
+                              lock_timeout);
+    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, h);
 }
 
 bool get_meta(ENGINE_HANDLE* h,

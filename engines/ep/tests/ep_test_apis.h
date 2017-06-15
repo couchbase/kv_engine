@@ -200,13 +200,12 @@ bool get_item_info(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item_info *info,
 bool get_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item *i,
              std::string &key);
 
-ENGINE_ERROR_CODE getl(ENGINE_HANDLE* h,
-                       ENGINE_HANDLE_V1* h1,
-                       const void* cookie,
-                       item** item,
-                       const char* key,
-                       uint16_t vb,
-                       uint32_t lock_timeout);
+cb::EngineErrorItemPair getl(ENGINE_HANDLE* h,
+                             ENGINE_HANDLE_V1* h1,
+                             const void* cookie,
+                             const char* key,
+                             uint16_t vb,
+                             uint32_t lock_timeout);
 
 void get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
                  uint16_t vb);

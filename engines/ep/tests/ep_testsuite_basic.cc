@@ -493,16 +493,15 @@ static enum test_result test_getl_delete_with_cas(ENGINE_HANDLE *h,
             "Failed to set key");
     h1->release(h, NULL, itm);
 
-    item* locked = nullptr;
-    checkeq(ENGINE_SUCCESS,
-            getl(h, h1, nullptr, &locked, "key", 0, 15),
+    auto ret = getl(h, h1, nullptr, "key", 0, 15);
+    checkeq(cb::engine_errc::success,
+            ret.first,
             "Expected getl to succeed on key");
     item_info info;
-    check(h1->get_item_info(h, nullptr, locked, &info),
+    check(h1->get_item_info(h, nullptr, ret.second.get(), &info),
           "Failed to get item info");
 
     checkeq(ENGINE_SUCCESS, del(h, h1, "key", info.cas, 0), "Expected SUCCESS");
-    h1->release(h, nullptr, locked);
 
     return SUCCESS;
 }
@@ -517,11 +516,9 @@ static enum test_result test_getl_delete_with_bad_cas(ENGINE_HANDLE *h,
     h1->release(h, NULL, itm);
 
     uint64_t cas = last_cas;
-    item* locked = nullptr;
-    checkeq(ENGINE_SUCCESS,
-            getl(h, h1, nullptr, &locked, "key", 0, 15),
+    checkeq(cb::engine_errc::success,
+            getl(h, h1, nullptr, "key", 0, 15).first,
             "Expected getl to succeed on key");
-    h1->release(h, nullptr, locked);
 
     checkeq(ENGINE_LOCKED_TMPFAIL, del(h, h1, "key", cas, 0), "Expected TMPFAIL");
 
@@ -539,10 +536,9 @@ static enum test_result test_getl_set_del_with_meta(ENGINE_HANDLE *h,
             "Failed to set key");
     h1->release(h, NULL, itm);
 
-    item* locked = nullptr;
-    checkeq(ENGINE_SUCCESS, getl(h, h1, nullptr, &locked, key, 0, 15),
-          "Expected getl to succeed on key");
-    h1->release(h, nullptr, locked);
+    checkeq(cb::engine_errc::success,
+            getl(h, h1, nullptr, key, 0, 15).first,
+            "Expected getl to succeed on key");
 
     check(get_meta(h, h1, key), "Expected to get meta");
 
@@ -571,10 +567,9 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint16_t vbucketId = 0;
     uint32_t expiration = 25;
 
-    item* locked;
-    checkeq(ENGINE_KEY_ENOENT,
-            getl(h, h1, nullptr, &locked, key, vbucketId, expiration),
-          "expected the key to be missing...");
+    checkeq(cb::engine_errc::no_such_key,
+            getl(h, h1, nullptr, key, vbucketId, expiration).first,
+            "expected the key to be missing...");
 
     item *i = NULL;
     checkeq(ENGINE_SUCCESS,
@@ -584,12 +579,13 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->release(h, NULL, i);
 
     /* retry getl, should succeed */
-    checkeq(ENGINE_SUCCESS,
-            getl(h, h1, nullptr, &locked, key, vbucketId, expiration),
+    auto ret = getl(h, h1, nullptr, key, vbucketId, expiration);
+    checkeq(cb::engine_errc::success,
+            ret.first,
             "Expected to be able to getl on first try");
 
     item_info info;
-    check(h1->get_item_info(h, nullptr, locked, &info),
+    check(h1->get_item_info(h, nullptr, ret.second.get(), &info),
           "Failed to get item info");
 
     checkeq(std::string{"{\"lock\":\"data\"}"},
@@ -599,14 +595,13 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
             info.datatype,
             "Expected datatype to be JSON");
-    h1->release(h, nullptr, locked);
 
     /* wait 16 seconds */
     testHarness.time_travel(16);
 
     /* lock's taken so this should fail */
-    checkeq(ENGINE_TMPFAIL,
-            getl(h, h1, nullptr, &locked, key, vbucketId, expiration),
+    checkeq(cb::engine_errc::temporary_failure,
+            getl(h, h1, nullptr, key, vbucketId, expiration).first,
             "Expected to fail getl on second try");
 
     checkne(ENGINE_SUCCESS,
@@ -625,19 +620,19 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->release(h, NULL, i);
 
     /* point to wrong vbucket, to test NOT_MY_VB response */
-    checkeq(ENGINE_NOT_MY_VBUCKET,
-            getl(h, h1, nullptr, &locked, key, 10, expiration),
+    checkeq(cb::engine_errc::not_my_vbucket,
+            getl(h, h1, nullptr, key, 10, expiration).first,
             "Should have received not my vbucket response");
 
     /* acquire lock, should succeed */
-    checkeq(ENGINE_SUCCESS,
-            getl(h, h1, nullptr, &locked, key, vbucketId, expiration),
-            "Aquire lock should have succeeded");
-    check(h1->get_item_info(h, nullptr, locked, &info),
+    ret = getl(h, h1, nullptr, key, vbucketId, expiration);
+    checkeq(cb::engine_errc::success,
+            ret.first,
+            "Acquire lock should have succeeded");
+    check(h1->get_item_info(h, nullptr, ret.second.get(), &info),
           "Failed to get item info");
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_RAW_BYTES), info.datatype,
             "Expected datatype to be RAW BYTES");
-    h1->release(h, nullptr, locked);
 
     /* try an delete operation which should fail */
     uint64_t cas = 0;
@@ -658,10 +653,9 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             "Failed set.");
 
     /* acquire lock, should succeed */
-    checkeq(ENGINE_SUCCESS,
-            getl(h, h1, nullptr, &locked, key, vbucketId, expiration),
-            "Aquire lock should have succeeded");
-    h1->release(h, nullptr, locked);
+    checkeq(cb::engine_errc::success,
+            getl(h, h1, nullptr, key, vbucketId, expiration).first,
+            "Acquire lock should have succeeded");
 
     /* bug MB 3252 & MB 3354.
      * 1. Set a key with an expiry value.
@@ -673,15 +667,15 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *ekey = "test_expiry";
     const char *edata = "some test data here.";
 
-    auto ret = allocate(h,
-                        h1,
-                        NULL,
-                        ekey,
-                        strlen(edata),
-                        0,
-                        2,
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        0);
+    ret = allocate(h,
+                   h1,
+                   NULL,
+                   ekey,
+                   strlen(edata),
+                   0,
+                   2,
+                   PROTOCOL_BINARY_RAW_BYTES,
+                   0);
     checkeq(cb::engine_errc::success, ret.first, "Allocation Failed");
 
     check(h1->get_item_info(h, NULL, ret.second.get(), &info),
@@ -758,15 +752,15 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->release(h, NULL, i);
 
     /* getl, should succeed */
-    item* locked = nullptr;
-    checkeq(ENGINE_SUCCESS,
-            getl(h, h1, nullptr, &locked, key, vbucketId, 0),
+    auto ret = getl(h, h1, nullptr, key, vbucketId, 0);
+    checkeq(cb::engine_errc::success,
+            ret.first,
             "Expected to be able to getl on first try");
     item_info info;
-    checkeq(true, h1->get_item_info(h, nullptr, locked, &info),
+    checkeq(true,
+            h1->get_item_info(h, nullptr, ret.second.get(), &info),
             "failed to get item info");
     uint64_t cas = info.cas;
-    h1->release(h, nullptr, locked);
 
     /* lock's taken unlocking with a random cas value should fail */
     checkeq(ENGINE_TMPFAIL,
@@ -778,10 +772,9 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             "Expected to succed unl with correct cas");
 
     /* acquire lock, should succeed */
-    checkeq(ENGINE_SUCCESS,
-            getl(h, h1, nullptr, &locked, key, vbucketId, 0),
+    checkeq(cb::engine_errc::success,
+            getl(h, h1, nullptr, key, vbucketId, 0).first,
             "Lock should work after unlock");
-    h1->release(h, nullptr, locked);
 
     /* wait 16 seconds */
     testHarness.time_travel(16);
@@ -1152,11 +1145,9 @@ static enum test_result test_gat_locked(ENGINE_HANDLE *h,
             "Failed to set key");
     h1->release(h, NULL, itm);
 
-    item* locked = nullptr;
-    checkeq(ENGINE_SUCCESS,
-            getl(h, h1, nullptr, &locked, "key", 0, 15),
-          "Expected getl to succeed on key");
-    h1->release(h, nullptr, locked);
+    checkeq(cb::engine_errc::success,
+            getl(h, h1, nullptr, "key", 0, 15).first,
+            "Expected getl to succeed on key");
 
     auto ret = gat(h, h1, "key", 0, 10);
     checkeq(ENGINE_LOCKED, ENGINE_ERROR_CODE(ret.first), "Expected LOCKED");
@@ -1180,11 +1171,9 @@ static enum test_result test_touch_locked(ENGINE_HANDLE *h,
             "Failed to set key");
     h1->release(h, NULL, itm);
 
-    item* locked = nullptr;
-    checkeq(ENGINE_SUCCESS,
-            getl(h, h1, nullptr, &locked, "key", 0, 15),
+    checkeq(cb::engine_errc::success,
+            getl(h, h1, nullptr, "key", 0, 15).first,
             "Expected getl to succeed on key");
-    h1->release(h, nullptr, locked);
 
     checkeq(ENGINE_LOCKED, touch(h, h1, "key", 0, 10),
             "Expected tmp fail");
