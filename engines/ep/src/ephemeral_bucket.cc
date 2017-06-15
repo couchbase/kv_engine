@@ -270,58 +270,27 @@ void EphemeralBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     KVBucket::appendAggregatedVBucketStats(
             active, replica, pending, dead, cookie, add_stat);
 
-    // Add Ephemeral-specific stats.
+    // Add Ephemeral-specific stats - add stats for each of active, replica
+    // and pending vBuckets.
 
-#define DO_STAT(k, v)                            \
-    do {                                         \
-        add_casted_stat(k, v, add_stat, cookie); \
+#define ARP_STAT(k, v)                                                    \
+    do {                                                                  \
+        add_casted_stat("vb_active_" k, ephActive.v, add_stat, cookie);   \
+        add_casted_stat("vb_replica_" k, ephReplica.v, add_stat, cookie); \
+        add_casted_stat("vb_pending_" k, ephPending.v, add_stat, cookie); \
     } while (0)
 
-    // Active vBuckets:
-    DO_STAT("vb_active_auto_delete_count", ephActive.autoDeleteCount);
-    DO_STAT("vb_active_ht_tombstone_purged_count",
-            ephActive.htDeletedPurgeCount);
-    DO_STAT("vb_active_seqlist_count", ephActive.seqlistCount);
-    DO_STAT("vb_active_seqlist_deleted_count", ephActive.seqlistDeletedCount);
-    DO_STAT("vb_active_seqlist_purged_count", ephActive.seqListPurgeCount);
-    DO_STAT("vb_active_seqlist_read_range_count",
-            ephActive.seqlistReadRangeCount);
-    DO_STAT("vb_active_seqlist_stale_count", ephActive.seqlistStaleCount);
-    DO_STAT("vb_active_seqlist_stale_value_bytes",
-            ephActive.seqlistStaleValueBytes);
-    DO_STAT("vb_active_seqlist_stale_metadata_bytes",
-            ephActive.seqlistStaleMetadataBytes);
+    ARP_STAT("auto_delete_count", autoDeleteCount);
+    ARP_STAT("ht_tombstone_purged_count", htDeletedPurgeCount);
+    ARP_STAT("seqlist_count", seqlistCount);
+    ARP_STAT("seqlist_deleted_count", seqlistDeletedCount);
+    ARP_STAT("seqlist_purged_count", seqListPurgeCount);
+    ARP_STAT("seqlist_read_range_count", seqlistReadRangeCount);
+    ARP_STAT("seqlist_stale_count", seqlistStaleCount);
+    ARP_STAT("seqlist_stale_value_bytes", seqlistStaleValueBytes);
+    ARP_STAT("seqlist_stale_metadata_bytes", seqlistStaleMetadataBytes);
 
-    // Replica vBuckets:
-    DO_STAT("vb_replica_auto_delete_count", ephReplica.autoDeleteCount);
-    DO_STAT("vb_replica_ht_tombstone_purged_count",
-            ephReplica.htDeletedPurgeCount);
-    DO_STAT("vb_replica_seqlist_count", ephReplica.seqlistCount);
-    DO_STAT("vb_replica_seqlist_deleted_count", ephReplica.seqlistDeletedCount);
-    DO_STAT("vb_replica_seqlist_purged_count", ephReplica.seqListPurgeCount);
-    DO_STAT("vb_replica_seqlist_read_range_count",
-            ephReplica.seqlistReadRangeCount);
-    DO_STAT("vb_replica_seqlist_stale_count", ephReplica.seqlistStaleCount);
-    DO_STAT("vb_replica_seqlist_stale_value_bytes",
-            ephReplica.seqlistStaleValueBytes);
-    DO_STAT("vb_replica_seqlist_stale_metadata_bytes",
-            ephReplica.seqlistStaleMetadataBytes);
-
-    // Pending vBuckets:
-    DO_STAT("vb_pending_auto_delete_count", ephPending.autoDeleteCount);
-    DO_STAT("vb_pending_ht_tombstone_purged_count",
-            ephPending.htDeletedPurgeCount);
-    DO_STAT("vb_pending_seqlist_count", ephPending.seqlistCount);
-    DO_STAT("vb_pending_seqlist_deleted_count", ephPending.seqlistDeletedCount);
-    DO_STAT("vb_pending_seqlist_purged_count", ephPending.seqListPurgeCount);
-    DO_STAT("vb_pending_seqlist_read_range_count",
-            ephPending.seqlistReadRangeCount);
-    DO_STAT("vb_pending_seqlist_stale_count", ephPending.seqlistStaleCount);
-    DO_STAT("vb_pending_seqlist_stale_value_bytes",
-            ephPending.seqlistStaleValueBytes);
-    DO_STAT("vb_pending_seqlist_stale_metadata_bytes",
-            ephPending.seqlistStaleMetadataBytes);
-#undef DO_STAT
+#undef ARP_STAT
 }
 
 EphemeralBucket::NotifyHighPriorityReqTask::NotifyHighPriorityReqTask(
