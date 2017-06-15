@@ -422,42 +422,68 @@ void ActiveStream::snapshotMarkerAckReceived() {
 }
 
 void ActiveStream::setVBucketStateAckRecieved() {
-    LockHolder lh(streamMutex);
-    if (state_ == STREAM_TAKEOVER_WAIT) {
-        if (takeoverState == vbucket_state_pending) {
-            producer->getLogger().log(EXTENSION_LOG_INFO,
-                "(vb %" PRIu16 ") Receive ack for set vbucket state to pending "
-                "message", vb_);
-
-            takeoverState = vbucket_state_active;
-            transitionState(STREAM_TAKEOVER_SEND);
-            lh.unlock();
-
-            engine->getEpStore()->setVBucketState(vb_, vbucket_state_dead,
-                                                  false, false);
-            RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
-            producer->getLogger().log(EXTENSION_LOG_NOTICE,
-                "(vb %" PRIu16 ") Vbucket marked as dead, last sent seqno: %"
-                PRIu64 ", high seqno: %" PRIu64,
-                vb_, lastSentSeqno.load(), vbucket->getHighSeqno());
-        } else {
-            producer->getLogger().log(EXTENSION_LOG_INFO,
-                "(vb %" PRIu16 ") Receive ack for set vbucket state to active "
-                "message", vb_);
-            endStream(END_STREAM_OK);
-            lh.unlock();
-        }
-
-        bool inverse = false;
-        if (itemsReady.compare_exchange_strong(inverse, true)) {
-            producer->notifyStreamReady(vb_);
-        }
-    } else {
+    RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
+    if (!vbucket) {
         producer->getLogger().log(EXTENSION_LOG_WARNING,
-            "(vb %" PRIu16 ") Unexpected ack for set vbucket op on stream '%s' "
-            "state '%s'", vb_, name_.c_str(), stateName(state_));
+                                  "(vb %" PRIu16
+                                  ") not present during ack for set vbucket "
+                                  "during takeover",
+                                  vb_);
+        return;
     }
 
+    {
+        /* Order in which the below 3 locks are acquired is important to avoid
+           any potential lock inversion problems */
+        LockHolder epVbSetLh(engine->getEpStore()->getVbSetMutexLock());
+        WriterLockHolder vbStateLh(vbucket->getStateLock());
+        LockHolder lh(streamMutex);
+        if (state_ == STREAM_TAKEOVER_WAIT) {
+            if (takeoverState == vbucket_state_pending) {
+                producer->getLogger().log(EXTENSION_LOG_INFO,
+                        "(vb %" PRIu16 ") Receive ack for set vbucket state to "
+                        "pending message",
+                        vb_);
+
+                takeoverState = vbucket_state_active;
+                transitionState(STREAM_TAKEOVER_SEND);
+
+                engine->getEpStore()->setVBucketState_UNLOCKED(
+                                                        vb_,
+                                                        vbucket_state_dead,
+                                                        false /* transfer */,
+                                                        false /* notify_dcp */,
+                                                        epVbSetLh,
+                                                        &vbStateLh);
+
+                producer->getLogger().log(EXTENSION_LOG_NOTICE,
+                        "(vb %" PRIu16 ") Vbucket marked as dead, last sent "
+                        "seqno: %" PRIu64 ", high seqno: %" PRIu64,
+                        vb_,
+                        lastSentSeqno.load(),
+                        vbucket->getHighSeqno());
+            } else {
+                producer->getLogger().log(EXTENSION_LOG_NOTICE,
+                        "(vb %" PRIu16 ") Receive ack for set vbucket state to "
+                        "active message",
+                        vb_);
+                endStream(END_STREAM_OK);
+            }
+        } else {
+            producer->getLogger().log(EXTENSION_LOG_WARNING,
+                    "(vb %" PRIu16 ") Unexpected ack for set vbucket op on "
+                    "stream '%s' state '%s'",
+                    vb_,
+                    name_.c_str(),
+                    stateName(state_));
+            return;
+        }
+    }
+
+    bool inverse = false;
+    if (itemsReady.compare_exchange_strong(inverse, true)) {
+        producer->notifyStreamReady(vb_);
+    }
 }
 
 DcpResponse* ActiveStream::backfillPhase() {

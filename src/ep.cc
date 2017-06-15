@@ -1115,11 +1115,13 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
     return setVBucketState_UNLOCKED(vbid, to, transfer, notify_dcp, lh);
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState_UNLOCKED(uint16_t vbid,
-                                                           vbucket_state_t to,
-                                                           bool transfer,
-                                                           bool notify_dcp,
-                                                           LockHolder& vbset) {
+ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState_UNLOCKED(
+                                            uint16_t vbid,
+                                            vbucket_state_t to,
+                                            bool transfer,
+                                            bool notify_dcp,
+                                            LockHolder& vbset,
+                                            WriterLockHolder* vbStateLock) {
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (vb && to == vb->getState()) {
         return ENGINE_SUCCESS;
@@ -1128,7 +1130,11 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState_UNLOCKED(uint16_t v
     if (vb) {
         vbucket_state_t oldstate = vb->getState();
 
-        vb->setState(to);
+        if (vbStateLock) {
+            vb->setState_UNLOCKED(to, *vbStateLock);
+        } else {
+            vb->setState(to);
+        }
 
         if (oldstate != to && notify_dcp) {
             bool closeInboundStreams = false;

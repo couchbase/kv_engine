@@ -515,10 +515,52 @@ public:
         return vbMap.getPersistenceSeqno(vb);
     }
 
-    /* transfer should be set to true *only* if this vbucket is becoming master
-     * as the result of the previous master cleanly handing off control. */
+    /**
+     * Sets the vbucket or creates a vbucket with the desired state
+     *
+     * @param vbid vbucket id
+     * @param state desired state of the vbucket
+     * @param transfer indicates that the vbucket is transferred to the active
+     *                 post a failover and/or rebalance
+     * @param notify_dcp indicates whether we must consider closing DCP streams
+     *                    associated with the vbucket
+     *
+     * return status of the operation
+     */
     ENGINE_ERROR_CODE setVBucketState(uint16_t vbid, vbucket_state_t state,
                                       bool transfer, bool notify_dcp = true);
+
+    /**
+     * Sets the vbucket or creates a vbucket with the desired state
+     *
+     * @param vbid vbucket id
+     * @param state desired state of the vbucket
+     * @param transfer indicates that the vbucket is transferred to the active
+     *                 post a failover and/or rebalance
+     * @param notify_dcp indicates whether we must consider closing DCP streams
+     *                    associated with the vbucket
+     * @param vbset LockHolder acquiring the 'vbsetMutex' lock in the
+     *              EventuallyPersistentStore class
+     * @param vbStateLock ptr to WriterLockHolder of 'stateLock' in the vbucket
+     *                    class. if passed as null, the function acquires the
+     *                    vbucket 'stateLock'
+     *
+     * return status of the operation
+     */
+    ENGINE_ERROR_CODE setVBucketState_UNLOCKED(
+                                    uint16_t vbid,
+                                    vbucket_state_t state,
+                                    bool transfer,
+                                    bool notify_dcp,
+                                    LockHolder& vbset,
+                                    WriterLockHolder* vbStateLock = nullptr);
+
+    /**
+     * Returns the 'vbsetMutex'
+     */
+    Mutex& getVbSetMutexLock() {
+        return vbsetMutex;
+    }
 
     /**
      * Physically deletes a VBucket from disk. This function should only
@@ -1021,10 +1063,6 @@ protected:
     void rollbackCheckpoint(RCPtr<VBucket> &vb, int64_t rollbackSeqno);
 
     bool resetVBucket_UNLOCKED(uint16_t vbid, LockHolder& vbset);
-
-    ENGINE_ERROR_CODE setVBucketState_UNLOCKED(uint16_t vbid, vbucket_state_t state,
-                                               bool transfer, bool notify_dcp,
-                                               LockHolder& vbset);
 
     friend class Warmup;
     friend class Flusher;
