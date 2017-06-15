@@ -248,3 +248,7 @@ ENABLE_CODE_COVERAGE_REPORT()
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in
                ${CMAKE_CURRENT_BINARY_DIR}/config.h)
+
+# Customize some CTest properties
+CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/CTestCustom.cmake.in
+                ${CMAKE_CURRENT_BINARY_DIR}/CTestCustom.cmake)
