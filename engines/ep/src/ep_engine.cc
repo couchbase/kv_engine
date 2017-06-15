@@ -155,29 +155,30 @@ static void EvpDestroy(ENGINE_HANDLE* handle, const bool force) {
     delete eng.get();
 }
 
-static ENGINE_ERROR_CODE EvpItemAllocate(ENGINE_HANDLE* handle,
-                                         const void* cookie,
-                                         item** itm,
-                                         const DocKey& key,
-                                         const size_t nbytes,
-                                         const int flags,
-                                         const rel_time_t exptime,
-                                         uint8_t datatype,
-                                         uint16_t vbucket) {
+static cb::EngineErrorItemPair EvpItemAllocate(ENGINE_HANDLE* handle,
+                                               const void* cookie,
+                                               const DocKey& key,
+                                               const size_t nbytes,
+                                               const int flags,
+                                               const rel_time_t exptime,
+                                               uint8_t datatype,
+                                               uint16_t vbucket) {
     if (!mcbp::datatype::is_valid(datatype)) {
         LOG(EXTENSION_LOG_WARNING, "Invalid value for datatype "
             " (ItemAllocate)");
-        return ENGINE_EINVAL;
+        return cb::makeEngineErrorItemPair(cb::engine_errc::invalid_arguments);
     }
 
-    return acquireEngine(handle)->itemAllocate(itm,
-                                               key,
-                                               nbytes,
-                                               0, // No privileged bytes
-                                               flags,
-                                               exptime,
-                                               datatype,
-                                               vbucket);
+    item* itm = nullptr;
+    auto ret = acquireEngine(handle)->itemAllocate(&itm,
+                                                   key,
+                                                   nbytes,
+                                                   0, // No privileged bytes
+                                                   flags,
+                                                   exptime,
+                                                   datatype,
+                                                   vbucket);
+    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, handle);
 }
 
 static bool EvpGetItemInfo(ENGINE_HANDLE *handle, const void *,

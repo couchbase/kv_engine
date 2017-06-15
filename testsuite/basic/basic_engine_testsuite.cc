@@ -103,12 +103,11 @@ static enum test_result get_info_features_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V
  * and that item struct is populated
  */
 static enum test_result allocate_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *test_item = NULL;
     DocKey key("akey", test_harness.doc_namespace);
-    cb_assert(h1->allocate(h, NULL, &test_item, key, 1,1,1,
-                        PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
-    cb_assert(test_item != NULL);
-    h1->release(h,NULL,test_item);
+    auto ret =
+            h1->allocate(h, NULL, key, 1, 1, 1, PROTOCOL_BINARY_RAW_BYTES, 0);
+    cb_assert(ret.first == cb::engine_errc::success);
+    cb_assert(ret.second != nullptr);
     return SUCCESS;
 }
 
@@ -116,21 +115,24 @@ static enum test_result allocate_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  * Verify set behavior
  */
 static enum test_result set_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *it;
     DocKey key("key", test_harness.doc_namespace);
     uint64_t prev_cas;
     uint64_t cas = 0;
     int ii;
-    cb_assert(h1->allocate(h, NULL, &it, key, 1, 1, 0,
-                           PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
+    auto ret =
+            h1->allocate(h, NULL, key, 1, 1, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    cb_assert(ret.first == cb::engine_errc::success);
 
     for (ii = 0; ii < 10; ++ii) {
         prev_cas = cas;
-        cb_assert(h1->store(h, NULL, it, &cas, OPERATION_SET,
+        cb_assert(h1->store(h,
+                            NULL,
+                            ret.second.get(),
+                            &cas,
+                            OPERATION_SET,
                             DocumentState::Alive) == ENGINE_SUCCESS);
         cb_assert(cas != prev_cas);
     }
-    h1->release(h, NULL, it);
     return SUCCESS;
 }
 
@@ -138,24 +140,27 @@ static enum test_result set_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  * Verify add behavior
  */
 static enum test_result add_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *it;
     DocKey key("key", test_harness.doc_namespace);
     uint64_t cas;
     int ii;
-    cb_assert(h1->allocate(h, NULL, &it, key, 1, 1, 0,
-                           PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
+    auto ret =
+            h1->allocate(h, NULL, key, 1, 1, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    cb_assert(ret.first == cb::engine_errc::success);
 
     for (ii = 0; ii < 10; ++ii) {
-        ENGINE_ERROR_CODE ret = h1->store(h, NULL, it, &cas, OPERATION_ADD,
-                                          DocumentState::Alive);
+        ENGINE_ERROR_CODE rv = h1->store(h,
+                                         NULL,
+                                         ret.second.get(),
+                                         &cas,
+                                         OPERATION_ADD,
+                                         DocumentState::Alive);
         if (ii == 0) {
-            cb_assert(ret == ENGINE_SUCCESS);
+            cb_assert(rv == ENGINE_SUCCESS);
             cb_assert(cas != 0);
         } else {
-            cb_assert(ret == ENGINE_NOT_STORED);
+            cb_assert(rv == ENGINE_NOT_STORED);
         }
     }
-    h1->release(h, NULL, it);
     return SUCCESS;
 }
 
@@ -163,7 +168,6 @@ static enum test_result add_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  * Verify replace behavior
  */
 static enum test_result replace_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *it;
     uint64_t prev_cas;
     uint64_t cas = 0;
     int ii;
@@ -171,21 +175,24 @@ static enum test_result replace_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     cb_assert(set_test(h, h1) == SUCCESS);
     DocKey key("key", test_harness.doc_namespace);
-    cb_assert(h1->allocate(h, NULL, &it, key, sizeof(int), 1, 0,
-                           PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
-    cb_assert(h1->get_item_info(h, NULL, it, &item_info) == true);
-
+    auto ret = h1->allocate(
+            h, NULL, key, sizeof(int), 1, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    cb_assert(ret.first == cb::engine_errc::success);
+    cb_assert(h1->get_item_info(h, NULL, ret.second.get(), &item_info) == true);
 
     for (ii = 0; ii < 10; ++ii) {
         prev_cas = cas;
         *(int*)(item_info.value[0].iov_base) = ii;
-        cb_assert(h1->store(h, NULL, it, &cas, OPERATION_REPLACE,
+        cb_assert(h1->store(h,
+                            NULL,
+                            ret.second.get(),
+                            &cas,
+                            OPERATION_REPLACE,
                             DocumentState::Alive) == ENGINE_SUCCESS);
         cb_assert(cas != prev_cas);
     }
-    h1->release(h, NULL, it);
 
-    auto ret = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
+    ret = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::success);
     cb_assert(h1->get_item_info(h, NULL, ret.second.get(), &item_info) == true);
     cb_assert(item_info.value[0].iov_len == sizeof(int));
@@ -199,15 +206,18 @@ static enum test_result replace_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  * and that the cas for the stored item has been generated.
  */
 static enum test_result store_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *test_item = NULL;
     DocKey key("bkey", test_harness.doc_namespace);
     uint64_t cas = 0;
-    cb_assert(h1->allocate(h, NULL, &test_item, key, 1,1,1,
-                           PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
-    cb_assert(h1->store(h, NULL, test_item, &cas,
-                        OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
+    auto ret =
+            h1->allocate(h, NULL, key, 1, 1, 1, PROTOCOL_BINARY_RAW_BYTES, 0);
+    cb_assert(ret.first == cb::engine_errc::success);
+    cb_assert(h1->store(h,
+                        NULL,
+                        ret.second.get(),
+                        &cas,
+                        OPERATION_SET,
+                        DocumentState::Alive) == ENGINE_SUCCESS);
     cb_assert(cas != 0);
-    h1->release(h,NULL,test_item);
     return SUCCESS;
 }
 
@@ -216,15 +226,18 @@ static enum test_result store_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  * the engine
  */
 static enum test_result get_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *test_item = NULL;
     DocKey key("get_test_key", test_harness.doc_namespace);
     uint64_t cas = 0;
-    cb_assert(h1->allocate(h, NULL, &test_item, key, 1, 0, 0,
-                           PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
-    cb_assert(h1->store(h, NULL, test_item, &cas,
-                        OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
-    h1->release(h, NULL, test_item);
-    auto ret = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
+    auto ret =
+            h1->allocate(h, NULL, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    cb_assert(ret.first == cb::engine_errc::success);
+    cb_assert(h1->store(h,
+                        NULL,
+                        ret.second.get(),
+                        &cas,
+                        OPERATION_SET,
+                        DocumentState::Alive) == ENGINE_SUCCESS);
+    ret = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::success);
     return SUCCESS;
 }
@@ -234,15 +247,18 @@ static enum test_result get_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  * the engine and then deleted.
  */
 static enum test_result get_deleted_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item* test_item = nullptr;
     DocKey key("get_removed_test_key", test_harness.doc_namespace);
     uint64_t cas = 0;
-    cb_assert(h1->allocate(h, nullptr, &test_item, key, 1, 0, 0,
-                           PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
-    cb_assert(h1->store(h, nullptr, test_item, &cas,
-                        OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
-    h1->release(h, nullptr, test_item);
-    auto ret = h1->get(h, nullptr, key, 0, DocStateFilter::Alive);
+    auto ret = h1->allocate(
+            h, nullptr, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    cb_assert(ret.first == cb::engine_errc::success);
+    cb_assert(h1->store(h,
+                        nullptr,
+                        ret.second.get(),
+                        &cas,
+                        OPERATION_SET,
+                        DocumentState::Alive) == ENGINE_SUCCESS);
+    ret = h1->get(h, nullptr, key, 0, DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::success);
 
     // Asking for a dead document should not find it!
@@ -267,16 +283,19 @@ static enum test_result get_deleted_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 
 
 static enum test_result expiry_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *test_item = NULL;
     DocKey key("get_test_key", test_harness.doc_namespace);
     uint64_t cas = 0;
-    cb_assert(h1->allocate(h, NULL, &test_item, key, 1, 0, 10,
-                           PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
-    cb_assert(h1->store(h, NULL, test_item, &cas,
-                        OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
-    h1->release(h, NULL, test_item);
+    auto ret =
+            h1->allocate(h, NULL, key, 1, 0, 10, PROTOCOL_BINARY_RAW_BYTES, 0);
+    cb_assert(ret.first == cb::engine_errc::success);
+    cb_assert(h1->store(h,
+                        NULL,
+                        ret.second.get(),
+                        &cas,
+                        OPERATION_SET,
+                        DocumentState::Alive) == ENGINE_SUCCESS);
     test_harness.time_travel(11);
-    auto ret = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
+    ret = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::no_such_key);
     return SUCCESS;
 }
@@ -287,14 +306,17 @@ static enum test_result expiry_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  * ensure that release did much of anything.
  */
 static enum test_result release_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *test_item = NULL;
     DocKey key("release_test_key", test_harness.doc_namespace);
     uint64_t cas = 0;
-    cb_assert(h1->allocate(h, NULL, &test_item, key, 1, 0, 0,
-                           PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
-    cb_assert(h1->store(h, NULL, test_item, &cas,
-                        OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
-    h1->release(h, NULL, test_item);
+    auto ret =
+            h1->allocate(h, NULL, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    cb_assert(ret.first == cb::engine_errc::success);
+    cb_assert(h1->store(h,
+                        NULL,
+                        ret.second.get(),
+                        &cas,
+                        OPERATION_SET,
+                        DocumentState::Alive) == ENGINE_SUCCESS);
     return SUCCESS;
 }
 
@@ -303,18 +325,21 @@ static enum test_result release_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  * removed it can not be retrieved.
  */
 static enum test_result remove_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *test_item = NULL;
     DocKey key("remove_test_key", test_harness.doc_namespace);
     uint64_t cas = 0;
     mutation_descr_t mut_info;
 
-    cb_assert(h1->allocate(h, NULL, &test_item, key, 1, 0, 0,
-                           PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
-    cb_assert(h1->store(h, NULL, test_item, &cas,
-                        OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
+    auto ret =
+            h1->allocate(h, NULL, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    cb_assert(ret.first == cb::engine_errc::success);
+    cb_assert(h1->store(h,
+                        NULL,
+                        ret.second.get(),
+                        &cas,
+                        OPERATION_SET,
+                        DocumentState::Alive) == ENGINE_SUCCESS);
     cb_assert(h1->remove(h, NULL, key, &cas, 0, &mut_info) == ENGINE_SUCCESS);
-    h1->release(h, NULL, test_item);
-    auto ret = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
+    ret = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::no_such_key);
     cb_assert(ret.second == nullptr);
     return SUCCESS;
@@ -325,18 +350,21 @@ static enum test_result remove_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  * stored before the flush can not be retrieved
  */
 static enum test_result flush_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *test_item = NULL;
     DocKey key("flush_test_key", test_harness.doc_namespace);
     uint64_t cas = 0;
 
     test_harness.time_travel(3);
-    cb_assert(h1->allocate(h, NULL, &test_item, key, 1, 0, 0,
-                           PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
-    cb_assert(h1->store(h, NULL, test_item, &cas,
-                        OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
+    auto ret =
+            h1->allocate(h, NULL, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    cb_assert(ret.first == cb::engine_errc::success);
+    cb_assert(h1->store(h,
+                        NULL,
+                        ret.second.get(),
+                        &cas,
+                        OPERATION_SET,
+                        DocumentState::Alive) == ENGINE_SUCCESS);
     cb_assert(h1->flush(h, NULL) == ENGINE_SUCCESS);
-    h1->release(h, NULL, test_item);
-    auto ret = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
+    ret = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::no_such_key);
     cb_assert(ret.second == nullptr);
     return SUCCESS;
@@ -347,18 +375,22 @@ static enum test_result flush_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
  * that the contents of the item_info are as expected.
  */
 static enum test_result get_item_info_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *test_item = NULL;
     DocKey key("get_item_info_test_key", test_harness.doc_namespace);
     uint64_t cas = 0;
     const rel_time_t exp = 1;
     item_info ii;
 
-    cb_assert(h1->allocate(h, NULL, &test_item, key, 1,0, exp,
-                           PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
-    cb_assert(h1->store(h, NULL, test_item, &cas,
-                        OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
+    auto ret =
+            h1->allocate(h, NULL, key, 1, 0, exp, PROTOCOL_BINARY_RAW_BYTES, 0);
+    cb_assert(ret.first == cb::engine_errc::success);
+    cb_assert(h1->store(h,
+                        NULL,
+                        ret.second.get(),
+                        &cas,
+                        OPERATION_SET,
+                        DocumentState::Alive) == ENGINE_SUCCESS);
     /* Had this been actual code, there'd be a connection here */
-    cb_assert(h1->get_item_info(h, NULL, test_item, &ii) == true);
+    cb_assert(h1->get_item_info(h, NULL, ret.second.get(), &ii) == true);
     assert_equal(cas, ii.cas);
     assert_equal(0u, ii.flags);
     cb_assert(strcmp(reinterpret_cast<const char*>(key.data()), static_cast<const char*>(ii.key)) == 0);
@@ -368,27 +400,29 @@ static enum test_result get_item_info_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     // check that the returned value is at least as large as the value
     // we requested (i.e. not in the past).
     assert_ge(ii.exptime, exp);
-    h1->release(h, NULL, test_item);
     return SUCCESS;
 }
 
 static enum test_result item_set_cas_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *test_item = NULL;
     DocKey key("item_set_cas_test_key", test_harness.doc_namespace);
     uint64_t cas = 0;
     const rel_time_t exp = 1;
     uint64_t newcas;
     item_info ii;
 
-    cb_assert(h1->allocate(h, NULL, &test_item, key, 1,0, exp,
-                           PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
-    cb_assert(h1->store(h, NULL, test_item, &cas,
-                        OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
+    auto ret =
+            h1->allocate(h, NULL, key, 1, 0, exp, PROTOCOL_BINARY_RAW_BYTES, 0);
+    cb_assert(ret.first == cb::engine_errc::success);
+    cb_assert(h1->store(h,
+                        NULL,
+                        ret.second.get(),
+                        &cas,
+                        OPERATION_SET,
+                        DocumentState::Alive) == ENGINE_SUCCESS);
     newcas = cas + 1;
-    h1->item_set_cas(h, NULL, test_item, newcas);
-    cb_assert(h1->get_item_info(h, NULL, test_item, &ii) == true);
+    h1->item_set_cas(h, NULL, ret.second.get(), newcas);
+    cb_assert(h1->get_item_info(h, NULL, ret.second.get(), &ii) == true);
     cb_assert(ii.cas == newcas);
-    h1->release(h, NULL, test_item);
     return SUCCESS;
 }
 
@@ -406,36 +440,45 @@ static void eviction_stats_handler(const char *key, const uint16_t klen,
 }
 
 static enum test_result lru_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *test_item = NULL;
     DocKey hot_key("hot_key", test_harness.doc_namespace);
     uint64_t cas = 0;
     int ii;
     int jj;
 
-    cb_assert(h1->allocate(h, NULL, &test_item,
-                           hot_key, 4096, 0, 0,
-                           PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
-    cb_assert(h1->store(h, NULL, test_item,
-                        &cas, OPERATION_SET,
+    auto ret = h1->allocate(
+            h, NULL, hot_key, 4096, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    cb_assert(ret.first == cb::engine_errc::success);
+    cb_assert(h1->store(h,
+                        NULL,
+                        ret.second.get(),
+                        &cas,
+                        OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
-    h1->release(h, NULL, test_item);
 
     for (ii = 0; ii < 250; ++ii) {
         uint8_t key[1024];
 
-        auto ret = h1->get(h, NULL, hot_key, 0, DocStateFilter::Alive);
+        ret = h1->get(h, NULL, hot_key, 0, DocStateFilter::Alive);
         cb_assert(ret.first == cb::engine_errc::success);
         DocKey allocate_key(key,
                             snprintf(reinterpret_cast<char*>(key), sizeof(key),
                                      "lru_test_key_%08d", ii),
                             test_harness.doc_namespace);
-        cb_assert(h1->allocate(h, NULL, &test_item,
-                               allocate_key, 4096, 0, 0,
-                               PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
-        cb_assert(h1->store(h, NULL, test_item,
-                            &cas, OPERATION_SET,
+        ret = h1->allocate(h,
+                           NULL,
+                           allocate_key,
+                           4096,
+                           0,
+                           0,
+                           PROTOCOL_BINARY_RAW_BYTES,
+                           0);
+        cb_assert(ret.first == cb::engine_errc::success);
+        cb_assert(h1->store(h,
+                            NULL,
+                            ret.second.get(),
+                            &cas,
+                            OPERATION_SET,
                             DocumentState::Alive) == ENGINE_SUCCESS);
-        h1->release(h, NULL, test_item);
         cb_assert(h1->get_stats(h, NULL, NULL, 0,
                              eviction_stats_handler) == ENGINE_SUCCESS);
         if (evictions == 2) {
@@ -451,10 +494,10 @@ static enum test_result lru_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                                 "lru_test_key_%08d", jj),
                        test_harness.doc_namespace);
         if (jj == 0 || jj == 1) {
-            auto ret = h1->get(h, NULL, get_key, 0, DocStateFilter::Alive);
+            ret = h1->get(h, NULL, get_key, 0, DocStateFilter::Alive);
             cb_assert(ret.first == cb::engine_errc::no_such_key);
         } else {
-            auto ret = h1->get(h, NULL, get_key, 0, DocStateFilter::Alive);
+            ret = h1->get(h, NULL, get_key, 0, DocStateFilter::Alive);
             cb_assert(ret.first == cb::engine_errc::success);
             cb_assert(ret.second != nullptr);
         }
@@ -479,19 +522,21 @@ static enum test_result aggregate_stats_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
 }
 
 static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *test_item = NULL;
     DocKey key("{foo:1}", test_harness.doc_namespace);
     uint64_t cas = 0;
     item_info ii;
     memset(&ii, 0, sizeof(ii));
 
-    cb_assert(h1->allocate(h, NULL, &test_item, key, 1, 0,
-                           0, 1, 0/*vb*/) == ENGINE_SUCCESS);
-    cb_assert(h1->store(h, NULL, test_item, &cas,
-                        OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
-    h1->release(h, NULL, test_item);
+    auto ret = h1->allocate(h, NULL, key, 1, 0, 0, 1, 0 /*vb*/);
+    cb_assert(ret.first == cb::engine_errc::success);
+    cb_assert(h1->store(h,
+                        NULL,
+                        ret.second.get(),
+                        &cas,
+                        OPERATION_SET,
+                        DocumentState::Alive) == ENGINE_SUCCESS);
 
-    auto ret = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
+    ret = h1->get(h, NULL, key, 0, DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::success);
 
     cb_assert(h1->get_item_info(h, NULL, ret.second.get(), &ii) == true);
@@ -521,16 +566,24 @@ static enum test_result test_n_bucket_destroy(engine_test_t *test) {
     for (auto bucket : buckets) {
         for (int ii = 0; ii < n_keys; ii++) {
             std::string ss = "KEY" + std::to_string(ii);
-            item *test_item = NULL;
             uint64_t cas = 0;
             DocKey allocate_key(ss, test_harness.doc_namespace);
-            cb_assert(bucket.second->allocate(bucket.first, NULL, &test_item,
-                                              allocate_key, 256, 1, 1,
-                                              PROTOCOL_BINARY_RAW_BYTES, 0) ==
-                                                    ENGINE_SUCCESS);
-            cb_assert(bucket.second->store(bucket.first, NULL, test_item, &cas,
+            auto ret = bucket.second->allocate(bucket.first,
+                                               NULL,
+                                               allocate_key,
+                                               256,
+                                               1,
+                                               1,
+                                               PROTOCOL_BINARY_RAW_BYTES,
+                                               0);
+            cb_assert(ret.first == cb::engine_errc::success);
+            cb_assert(bucket.second->store(bucket.first,
+                                           NULL,
+                                           ret.second.get(),
+                                           &cas,
                                            OPERATION_SET,
-                                           DocumentState::Alive) == ENGINE_SUCCESS);
+                                           DocumentState::Alive) ==
+                      ENGINE_SUCCESS);
         }
     }
 
@@ -555,14 +608,23 @@ static enum test_result test_bucket_destroy_interleaved(engine_test_t *test) {
 
         for (int ii = 0; ii < n_keys; ii++) {
             std::string ss = "KEY" + std::to_string(ii);
-            item *test_item = NULL;
             uint64_t cas = 0;
             DocKey allocate_key(ss, test_harness.doc_namespace);
-            cb_assert(h1->allocate(h, NULL, &test_item, allocate_key, 111256, 1,
-                                   1, PROTOCOL_BINARY_RAW_BYTES, 0) == ENGINE_SUCCESS);
-            cb_assert(h1->store(h, NULL, test_item, &cas,
-                                OPERATION_SET, DocumentState::Alive) == ENGINE_SUCCESS);
-            h1->release(h, NULL, test_item);
+            auto ret = h1->allocate(h,
+                                    NULL,
+                                    allocate_key,
+                                    111256,
+                                    1,
+                                    1,
+                                    PROTOCOL_BINARY_RAW_BYTES,
+                                    0);
+            cb_assert(ret.first == cb::engine_errc::success);
+            cb_assert(h1->store(h,
+                                NULL,
+                                ret.second.get(),
+                                &cas,
+                                OPERATION_SET,
+                                DocumentState::Alive) == ENGINE_SUCCESS);
         }
 
         test_harness.destroy_bucket(h, h1, false);

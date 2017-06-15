@@ -94,27 +94,31 @@ static ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                       uint32_t flags,
                                       item **outitem, uint64_t casIn,
                                       uint16_t vb) {
-    item *it = NULL;
     uint64_t cas = 0;
 
-    ENGINE_ERROR_CODE rv = h1->allocate(h, cookie, &it,
-                                        DocKey(key, DocNamespace::DefaultCollection),
-                                        vlen, flags, 3600,
-                                        PROTOCOL_BINARY_RAW_BYTES, vb);
-    check(rv == ENGINE_SUCCESS, "Allocation failed.");
+    auto ret = h1->allocate(h,
+                            cookie,
+                            DocKey(key, DocNamespace::DefaultCollection),
+                            vlen,
+                            flags,
+                            3600,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            vb);
+    check(ret.first == cb::engine_errc::success, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(h, cookie, it, &info)) {
+    if (!h1->get_item_info(h, cookie, ret.second.get(), &info)) {
         abort();
     }
 
     memcpy(info.value[0].iov_base, value, vlen);
-    h1->item_set_cas(h, cookie, it, casIn);
+    h1->item_set_cas(h, cookie, ret.second.get(), casIn);
 
-    rv = h1->store(h, cookie, it, &cas, op, DocumentState::Alive);
+    auto rv = h1->store(
+            h, cookie, ret.second.get(), &cas, op, DocumentState::Alive);
 
     if (outitem) {
-        *outitem = it;
+        *outitem = ret.second.release();
     }
 
     return rv;

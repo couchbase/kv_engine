@@ -126,17 +126,15 @@ static void destroy(ENGINE_HANDLE* handle, const bool force)
     cb_free(handle);
 }
 
-static ENGINE_ERROR_CODE item_allocate(ENGINE_HANDLE* handle,
-                                       const void* cookie,
-                                       item **item,
-                                       const DocKey& key,
-                                       const size_t nbytes,
-                                       const int flags,
-                                       const rel_time_t exptime,
-                                       uint8_t datatype,
-                                       uint16_t vbucket)
-{
-    return ENGINE_FAILED;
+static cb::EngineErrorItemPair item_allocate(ENGINE_HANDLE* handle,
+                                             const void* cookie,
+                                             const DocKey& key,
+                                             const size_t nbytes,
+                                             const int flags,
+                                             const rel_time_t exptime,
+                                             uint8_t datatype,
+                                             uint16_t vbucket) {
+    return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
 static std::pair<cb::unique_item_ptr, item_info> item_allocate_ex(ENGINE_HANDLE* handle,

@@ -161,23 +161,26 @@ static ENGINE_ERROR_CODE call_engine_and_handle_EWOULDBLOCK(
     return ret;
 }
 
-static ENGINE_ERROR_CODE mock_allocate(ENGINE_HANDLE* handle,
-                                       const void* cookie,
-                                       item **item,
-                                       const DocKey& key,
-                                       const size_t nbytes,
-                                       const int flags,
-                                       const rel_time_t exptime,
-                                       uint8_t datatype,
-                                       uint16_t vbucket) {
+static cb::EngineErrorItemPair mock_allocate(ENGINE_HANDLE* handle,
+                                             const void* cookie,
+                                             const DocKey& key,
+                                             const size_t nbytes,
+                                             const int flags,
+                                             const rel_time_t exptime,
+                                             uint8_t datatype,
+                                             uint16_t vbucket) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->allocate,
                                get_engine_from_handle(handle),
                                static_cast<const void*>(c),
-                               item, key, nbytes, flags, exptime, datatype,
+                               key,
+                               nbytes,
+                               flags,
+                               exptime,
+                               datatype,
                                vbucket);
 
-    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
+    auto ret = do_blocking_engine_call(handle, c, engine_fn);
 
     check_and_destroy_mock_connstruct(c, cookie);
 

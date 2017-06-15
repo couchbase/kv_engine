@@ -32,32 +32,29 @@ void delay(int amt) {
 
 static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       ENGINE_STORE_OPERATION op) {
-    item *it = NULL;
     uint64_t cas = 0;
     const char *value = "0";
     const int flags = 0;
     const void *cookie = NULL;
 	size_t vlen;
-	ENGINE_ERROR_CODE rv;
     item_info info;
 
     vlen = strlen(value);
-    rv = h1->allocate(h, cookie, &it, key, vlen, flags, expiry,
-                      PROTOCOL_BINARY_RAW_BYTES, 0);
-    cb_assert(rv == ENGINE_SUCCESS);
+    auto ret = h1->allocate(
+            h, cookie, key, vlen, flags, expiry, PROTOCOL_BINARY_RAW_BYTES, 0);
+    cb_assert(ret.first == cb::engine_errc::success);
 
-    if (!h1->get_item_info(h, cookie, it, &info)) {
+    if (!h1->get_item_info(h, cookie, ret.second.get(), &info)) {
         abort();
     }
 
     memcpy(info.value[0].iov_base, value, vlen);
-    h1->item_set_cas(h, cookie, it, 0);
+    h1->item_set_cas(h, cookie, ret.second.get(), 0);
 
-    rv = h1->store(h, cookie, it, &cas, op, DocumentState::Alive);
+    auto rv = h1->store(
+            h, cookie, ret.second.get(), &cas, op, DocumentState::Alive);
 
     hasError = rv != ENGINE_SUCCESS;
-
-    h1->release(h, cookie, it);
 }
 
 void add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {

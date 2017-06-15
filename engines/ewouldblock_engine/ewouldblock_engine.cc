@@ -304,19 +304,27 @@ public:
         delete ewb;
     }
 
-    static ENGINE_ERROR_CODE allocate(ENGINE_HANDLE* handle, const void* cookie,
-                                      item **item, const DocKey& key,
-                                      const size_t nbytes, const int flags,
-                                      const rel_time_t exptime,
-                                      uint8_t datatype, uint16_t vbucket) {
+    static cb::EngineErrorItemPair allocate(ENGINE_HANDLE* handle,
+                                            const void* cookie,
+                                            const DocKey& key,
+                                            const size_t nbytes,
+                                            const int flags,
+                                            const rel_time_t exptime,
+                                            uint8_t datatype,
+                                            uint16_t vbucket) {
         EWB_Engine* ewb = to_engine(handle);
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         if (ewb->should_inject_error(Cmd::ALLOCATE, cookie, err)) {
-            return err;
+            return cb::makeEngineErrorItemPair(cb::engine_errc(err));
         } else {
-            return ewb->real_engine->allocate(ewb->real_handle, cookie, item,
-                                              key, nbytes, flags, exptime,
-                                              datatype, vbucket);
+            return ewb->real_engine->allocate(ewb->real_handle,
+                                              cookie,
+                                              key,
+                                              nbytes,
+                                              flags,
+                                              exptime,
+                                              datatype,
+                                              vbucket);
         }
     }
 

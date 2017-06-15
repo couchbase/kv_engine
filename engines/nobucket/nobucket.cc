@@ -101,11 +101,15 @@ private:
         delete get_handle(handle);
     }
 
-    static ENGINE_ERROR_CODE item_allocate(ENGINE_HANDLE*, const void*,
-                                           item**, const DocKey&, const size_t,
-                                           const int, const rel_time_t,
-                                           uint8_t, uint16_t) {
-        return ENGINE_NO_BUCKET;
+    static cb::EngineErrorItemPair item_allocate(ENGINE_HANDLE*,
+                                                 const void*,
+                                                 const DocKey&,
+                                                 const size_t,
+                                                 const int,
+                                                 const rel_time_t,
+                                                 uint8_t,
+                                                 uint16_t) {
+        return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
     static std::pair<cb::unique_item_ptr, item_info> item_allocate_ex(ENGINE_HANDLE*, const void*,

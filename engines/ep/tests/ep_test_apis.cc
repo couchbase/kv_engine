@@ -1621,17 +1621,14 @@ cb::EngineErrorItemPair allocate(ENGINE_HANDLE* h,
                                  rel_time_t exptime,
                                  uint8_t datatype,
                                  uint16_t vb) {
-    item* outitem = nullptr;
-    auto ret = h1->allocate(h,
-                            cookie,
-                            &outitem,
-                            DocKey(key, testHarness.doc_namespace),
-                            nbytes,
-                            flags,
-                            exptime,
-                            datatype,
-                            vb);
-    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), outitem, h);
+    return h1->allocate(h,
+                        cookie,
+                        DocKey(key, testHarness.doc_namespace),
+                        nbytes,
+                        flags,
+                        exptime,
+                        datatype,
+                        vb);
 }
 
 cb::EngineErrorItemPair get(ENGINE_HANDLE* h,

@@ -264,17 +264,16 @@ typedef struct engine_interface_v1 {
      * @param exptime the maximum lifetime of this item
      * @param vbucket virtual bucket to request allocation from
      *
-     * @return ENGINE_SUCCESS if all goes well
+     * @return {cb::engine_errc::success, unique_item_ptr} if all goes well
      */
-    ENGINE_ERROR_CODE (* allocate)(ENGINE_HANDLE* handle,
-                                   const void* cookie,
-                                   item** item,
-                                   const DocKey& key,
-                                   const size_t nbytes,
-                                   const int flags,
-                                   const rel_time_t exptime,
-                                   uint8_t datatype,
-                                   uint16_t vbucket);
+    cb::EngineErrorItemPair (*allocate)(ENGINE_HANDLE* handle,
+                                        const void* cookie,
+                                        const DocKey& key,
+                                        const size_t nbytes,
+                                        const int flags,
+                                        const rel_time_t exptime,
+                                        uint8_t datatype,
+                                        uint16_t vbucket);
 
     /**
      * Allocate an item.

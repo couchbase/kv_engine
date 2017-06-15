@@ -265,26 +265,21 @@ cb::EngineErrorItemPair bucket_allocate(McbpConnection* c,
                                   const rel_time_t exptime,
                                   uint8_t datatype,
                                   uint16_t vbucket) {
-    item* it = nullptr;
     auto ret = c->getBucketEngine()->allocate(c->getBucketEngineAsV0(),
                                               c->getCookie(),
-                                              &it,
                                               key,
                                               nbytes,
                                               flags,
                                               exptime,
                                               datatype,
                                               vbucket);
-    if (ret == ENGINE_DISCONNECT) {
+    if (ret.first == cb::engine_errc::disconnect) {
         LOG_INFO(c,
                  "%u: %s bucket_allocate return ENGINE_DISCONNECT",
                  c->getId(),
                  c->getDescription().c_str());
     }
-
-    return std::make_pair(cb::engine_errc(ret),
-                          cb::unique_item_ptr{it,
-                                              cb::ItemDeleter{c->getBucketEngineAsV0()}});
+    return ret;
 }
 
 std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(McbpConnection& c,

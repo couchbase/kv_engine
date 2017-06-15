@@ -28,15 +28,14 @@ static ENGINE_ERROR_CODE default_initialize(ENGINE_HANDLE* handle,
                                             const char* config_str);
 static void default_destroy(ENGINE_HANDLE* handle,
                             const bool force);
-static ENGINE_ERROR_CODE default_item_allocate(ENGINE_HANDLE* handle,
-                                               const void* cookie,
-                                               item **item,
-                                               const DocKey& key,
-                                               const size_t nbytes,
-                                               const int flags,
-                                               const rel_time_t exptime,
-                                               uint8_t datatype,
-                                               uint16_t vbucket);
+static cb::EngineErrorItemPair default_item_allocate(ENGINE_HANDLE* handle,
+                                                     const void* cookie,
+                                                     const DocKey& key,
+                                                     const size_t nbytes,
+                                                     const int flags,
+                                                     const rel_time_t exptime,
+                                                     uint8_t datatype,
+                                                     uint16_t vbucket);
 static std::pair<cb::unique_item_ptr, item_info> default_item_allocate_ex(ENGINE_HANDLE* handle,
                                                                           const void* cookie,
                                                                           const DocKey& key,
@@ -293,25 +292,22 @@ void destroy_engine_instance(struct default_engine* engine) {
     }
 }
 
-static ENGINE_ERROR_CODE default_item_allocate(ENGINE_HANDLE* handle,
-                                               const void* cookie,
-                                               item **item,
-                                               const DocKey& key,
-                                               const size_t nbytes,
-                                               const int flags,
-                                               const rel_time_t exptime,
-                                               uint8_t datatype,
-                                               uint16_t vbucket) {
+static cb::EngineErrorItemPair default_item_allocate(ENGINE_HANDLE* handle,
+                                                     const void* cookie,
+                                                     const DocKey& key,
+                                                     const size_t nbytes,
+                                                     const int flags,
+                                                     const rel_time_t exptime,
+                                                     uint8_t datatype,
+                                                     uint16_t vbucket) {
     try {
         auto pair = default_item_allocate_ex(handle, cookie, key, nbytes,
                                              0, // No privileged bytes
                                              flags, exptime, datatype, vbucket);
-        // Given the older API doesn't return a smart pointer, need to 'release'
-        // the one we get back from allocate_ex.
-        *item = pair.first.release();
-        return ENGINE_SUCCESS;
+        return {cb::engine_errc::success, std::move(pair.first)};
     } catch (const cb::engine_error& error) {
-        return ENGINE_ERROR_CODE(error.code().value());
+        return cb::makeEngineErrorItemPair(
+                cb::engine_errc(error.code().value()));
     }
 }
 
