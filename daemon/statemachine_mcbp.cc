@@ -108,13 +108,19 @@ static void reset_cmd_handler(McbpConnection *c) {
     c->getCookieObject().reset();
     c->resetCommandContext();
 
-    if (c->read.bytes == 0) {
-        /* Make the whole read buffer available. */
-        c->read.curr = c->read.buf;
-    }
+    // Consume the packet we just executed
+    c->read->consume([c](cb::const_byte_buffer buffer) -> ssize_t {
+        size_t size = sizeof(c->binary_header) + c->binary_header.request.bodylen;
+        if (size > buffer.size()) {
+            throw std::logic_error("reset_cmd_handler: Not enough data in input buffer");
+        }
+
+        return size;
+    });
 
     c->shrinkBuffers();
-    if (c->read.bytes >= sizeof(c->binary_header)) {
+
+    if (c->read->rsize() >= sizeof(c->binary_header)) {
         c->setState(conn_parse_cmd);
     } else {
         c->setState(conn_waiting);
@@ -144,8 +150,8 @@ bool conn_ship_log(McbpConnection *c) {
         return false;
     }
 
-    if (c->isReadEvent() || c->read.bytes > 0) {
-        if (c->read.bytes >= sizeof(c->binary_header)) {
+    if (c->isReadEvent() || !c->read->empty()) {
+        if (c->read->rsize() >= sizeof(c->binary_header)) {
             try_read_mcbp_command(c);
         } else {
             c->setState(conn_read_packet_header);
@@ -217,7 +223,7 @@ bool conn_read_packet_header(McbpConnection* c) {
         }
         break;
     case McbpConnection::TryReadResult::DataReceived:
-        if (c->read.bytes >= sizeof(c->binary_header)) {
+        if (c->read->rsize() >= sizeof(c->binary_header)) {
             c->setState(conn_parse_cmd);
         } else {
             c->setState(conn_waiting);
@@ -301,9 +307,9 @@ bool conn_execute(McbpConnection *c) {
         return true;
     }
 
-    if (c->getRlbytes() != 0) {
-        throw std::logic_error("conn_execute: Expecting more data (" +
-                               std::to_string(c->getRlbytes()) + ")");
+    if (!c->isPacketAvailable()) {
+        throw std::logic_error(
+            "conn_execute: Internal error.. the input packet is not completely in memory");
     }
 
     c->setEwouldblock(false);
@@ -323,34 +329,28 @@ bool conn_read_packet_body(McbpConnection* c) {
         return true;
     }
 
-    if (c->getRlbytes() == 0) {
+    if (c->isPacketAvailable()) {
         c->setState(conn_execute);
         return true;
     }
 
-    /* first check if we have the bytes present in our input buffer */
-    if (c->read.bytes > 0) {
-        auto tocopy = std::min(c->getRlbytes(), c->read.bytes);
-        c->setRlbytes(c->getRlbytes() - tocopy);
-        c->read.curr += tocopy;
-        c->read.bytes -= tocopy;
+    // We need to get more data!!!
+    auto res = c->read->produce([c](cb::byte_buffer buffer) -> ssize_t {
+        return c->recv(reinterpret_cast<char*>(buffer.data()),
+                       buffer.size());
+    });
 
-        if (c->getRlbytes() == 0) {
-            // We've got all we need... go execute the command
-            c->setState(conn_execute);
-            return true;
-        }
-    }
-
-    /*  now try reading from the socket */
-    auto res = c->recv(c->read.curr, c->getRlbytes());
     auto error = GetLastNetworkError();
     if (res > 0) {
         get_thread_stats(c)->bytes_read += res;
-        c->read.curr += res;
-        c->setRlbytes(c->getRlbytes() - res);
+
+        if (c->isPacketAvailable()) {
+            c->setState(conn_execute);
+        }
+
         return true;
     }
+
     if (res == 0) { /* end of stream */
         c->setState(conn_closing);
         return true;
@@ -374,12 +374,8 @@ bool conn_read_packet_body(McbpConnection* c) {
     /* otherwise we have a real error, on which we close the connection */
     if (!is_closed_conn(error)) {
         LOG_WARNING(c,
-                    "%u Failed to read, and not due to blocking:\n"
-                        "errno: %d %s \n"
-                        "rcurr=%lx rbuf=%lx rlbytes=%d rsize=%d\n",
-                    c->getId(), errno, strerror(errno),
-                    (long)c->read.curr, (long)c->read.buf,
-                    (int)c->getRlbytes(), (int)c->read.size);
+                    "%u Failed to read, and not due to blocking: errno: %s (%d)",
+                    c->getId(), cb_strerror(error).c_str(), error);
     }
     c->setState(conn_closing);
     return true;
