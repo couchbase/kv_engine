@@ -158,11 +158,8 @@ void run_event_loop(Connection* c, short which) {
     const auto ns = duration_cast<nanoseconds>(stop - start).count();
     c->addCpuTime(stop - start);
 
-    // @todo verify if it is ever possible we can run without a thread
     auto* thread = c->getThread();
-    if (thread == nullptr) {
-        LOG_WARNING(nullptr, "%u: ran without a thread context", c->getId());
-    } else {
+    if (thread != nullptr) {
         scheduler_info[thread->index].add(ns);
     }
 
