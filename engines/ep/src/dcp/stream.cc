@@ -1311,16 +1311,16 @@ const char* ActiveStream::getEndStreamStatusStr(end_stream_status_t status)
 }
 
 void ActiveStream::transitionState(StreamState newState) {
+    if (state_ == newState) {
+        return;
+    }
+
     producer->getLogger().log(EXTENSION_LOG_NOTICE,
                               "ActiveStream::transitionState: (vb %d) "
                               "Transitioning from %s to %s",
                               vb_,
                               to_string(state_.load()).c_str(),
                               to_string(newState).c_str());
-
-    if (state_ == newState) {
-        return;
-    }
 
     bool validTransition = false;
     switch (state_.load()) {

@@ -213,7 +213,16 @@ protected:
     bool _cancel(size_t taskId, bool eraseTask=false);
     bool _wake(size_t taskId);
     virtual bool _startWorkers(void);
+
+    /**
+     * Change the number of worked threads.
+     *
+     * @param type Thread type to change
+     * @param desiredNumItems Number of threads we want to result in.
+     * @return How many threads have been created (+ve) / destroyed (-ve)
+     */
     ssize_t _adjustWorkers(task_type_t type, size_t desiredNumItems);
+
     bool _snooze(size_t taskId, double tosleep);
     size_t _schedule(ExTask task);
     void _registerTaskable(Taskable& taskable);

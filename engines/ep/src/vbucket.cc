@@ -207,16 +207,21 @@ VBucket::VBucket(id_type i,
     stats.memOverhead->fetch_add(sizeof(VBucket)
                                 + ht.memorySize() + sizeof(CheckpointManager));
     LOG(EXTENSION_LOG_NOTICE,
-        "VBucket: created vbucket:%" PRIu16 " with state:%s "
-                "initialState:%s "
-                "lastSeqno:%" PRIu64 " "
-                "lastSnapshot:{%" PRIu64 ",%" PRIu64 "} "
-                "persisted_snapshot:{%" PRIu64 ",%" PRIu64 "} "
-                "max_cas:%" PRIu64,
-        id, VBucket::toString(state), VBucket::toString(initialState),
-        lastSeqno, lastSnapStart, lastSnapEnd,
-        persisted_snapshot_start, persisted_snapshot_end,
-        getMaxCas());
+        "VBucket: created vbucket:%" PRIu16
+        " with state:%s "
+        "initialState:%s lastSeqno:%" PRIu64 " lastSnapshot:{%" PRIu64
+        ",%" PRIu64 "} persisted_snapshot:{%" PRIu64 ",%" PRIu64
+        "} max_cas:%" PRIu64 " uuid:%s",
+        id,
+        VBucket::toString(state),
+        VBucket::toString(initialState),
+        lastSeqno,
+        lastSnapStart,
+        lastSnapEnd,
+        persisted_snapshot_start,
+        persisted_snapshot_end,
+        getMaxCas(),
+        failovers ? std::to_string(failovers->getLatestUUID()).c_str() : "<>");
 }
 
 VBucket::~VBucket() {

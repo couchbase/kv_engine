@@ -523,12 +523,12 @@ ssize_t ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
                     return thread->taskType == type;
                 });
 
+        if (numItems == desiredNumItems) {
+            return 0;
+        }
+
         LOG(EXTENSION_LOG_NOTICE,
-            "Adjusting threads of"
-            " type:{%s}"
-            " from:{%" PRIu64
-            "}"
-            " to:{%" PRIu64 "}",
+            "Adjusting threads of type:%s from:%" PRIu64 " to:%" PRIu64,
             typeName.c_str(),
             uint64_t(numItems),
             uint64_t(desiredNumItems));
@@ -615,13 +615,6 @@ bool ExecutorPool::_startWorkers(void) {
     _adjustWorkers(WRITER_TASK_IDX, numWriters);
     _adjustWorkers(AUXIO_TASK_IDX, numAuxIO);
     _adjustWorkers(NONIO_TASK_IDX, numNonIO);
-
-    LOG(EXTENSION_LOG_NOTICE,
-        "%s",
-        (std::string("Spawning ") + std::to_string(numReaders) + " readers, " +
-         std::to_string(numWriters) + " writers, " + std::to_string(numAuxIO) +
-         " auxIO, " + std::to_string(numNonIO) + " nonIO threads")
-                .c_str());
 
     return true;
 }

@@ -50,7 +50,7 @@ void ExecutorThread::start() {
         throw std::runtime_error(ss.str().c_str());
     }
 
-    LOG(EXTENSION_LOG_NOTICE, "%s: Started", name.c_str());
+    LOG(EXTENSION_LOG_INFO, "%s: Started", name.c_str());
 }
 
 void ExecutorThread::stop(bool wait) {

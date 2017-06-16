@@ -807,11 +807,19 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
 
         if (to == vbucket_state_active && !transfer) {
             const snapshot_range_t range = vb->getPersistedSnapshot();
-            if (range.end == vb->getPersistenceSeqno()) {
-                vb->failovers->createEntry(range.end);
-            } else {
-                vb->failovers->createEntry(range.start);
-            }
+            auto highSeqno = range.end == vb->getPersistenceSeqno()
+                                     ? range.end
+                                     : range.start;
+            vb->failovers->createEntry(highSeqno);
+
+            auto entry = vb->failovers->getLatestEntry();
+            LOG(EXTENSION_LOG_NOTICE,
+                "KVBucket::setVBucketState: vb:%" PRIu16
+                " created new failover entry with "
+                "uuid:%" PRIu64 " and seqno:%" PRIu64,
+                vbid,
+                entry.vb_uuid,
+                entry.by_seqno);
         }
 
         if (oldstate == vbucket_state_pending &&
