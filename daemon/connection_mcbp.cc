@@ -205,25 +205,8 @@ bool McbpConnection::initializeEvent() {
 }
 
 void McbpConnection::shrinkBuffers() {
-    if (read.size > READ_BUFFER_HIGHWAT && read.bytes < DATA_BUFFER_SIZE) {
-        if (read.curr != read.buf) {
-            /* Pack the buffer */
-            memmove(read.buf, read.curr, (size_t)read.bytes);
-        }
-
-        void* ptr = cb_realloc(read.buf, DATA_BUFFER_SIZE);
-        char* newbuf = reinterpret_cast<char*>(ptr);
-        if (newbuf) {
-            read.buf = newbuf;
-            read.size = DATA_BUFFER_SIZE;
-        } else {
-            LOG_WARNING(this,
-                        "%u: Failed to shrink read buffer down to %"
-                            PRIu64
-                            " bytes.", getId(), DATA_BUFFER_SIZE);
-        }
-        read.curr = read.buf;
-    }
+    // We share the buffers with the thread, so we don't need to worry
+    // about the read and write buffer.
 
     if (msglist.size() > MSG_LIST_HIGHWAT) {
         try {
