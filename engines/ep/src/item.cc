@@ -257,7 +257,7 @@ bool Item::decompressValue() {
     return true;
 }
 
-item_info Item::toItemInfo(uint64_t vb_uuid) const {
+item_info Item::toItemInfo(uint64_t vb_uuid, int64_t hlcEpoch) const {
     item_info info;
     info.cas = getCas();
     info.vbucket_uuid = vb_uuid;
@@ -276,6 +276,9 @@ item_info Item::toItemInfo(uint64_t vb_uuid) const {
     info.key = getKey().data();
     info.value[0].iov_base = const_cast<char*>(getData());
     info.value[0].iov_len = getNBytes();
+
+    info.cas_is_hlc = hlcEpoch > HlcCasSeqnoUninitialised &&
+                      int64_t(info.seqno) >= hlcEpoch;
 
     return info;
 }

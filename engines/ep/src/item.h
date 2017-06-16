@@ -407,10 +407,11 @@ public:
     /* Retrieve item_info for this item instance
      *
      * @param vb_uuid the UUID of the associated vbucket
+     * @param hlcEpoch item's with seqno > hlcEpoch have a HLC CAS
      * return item_info structure with populate item
      *        information
      */
-    item_info toItemInfo(uint64_t vb_uuid) const;
+    item_info toItemInfo(uint64_t vb_uuid, int64_t hlcEpoch) const;
 
     /**
      * Removes the value and / or the xattributes from the item if they

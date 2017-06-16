@@ -20,7 +20,8 @@
 
 void PreLinkDocumentContext::preLink(uint64_t cas, uint64_t seqno) {
     // The vbucket_uuid is currently not being used by the pre_link callback
-    item_info info = item->toItemInfo(0);
+    // neither is the hlcEpoch
+    item_info info = item->toItemInfo(0, HlcCasSeqnoUninitialised);
     info.cas = cas;
     info.seqno = seqno;
     engine.getServerApi()->document->pre_link(cookie, info);

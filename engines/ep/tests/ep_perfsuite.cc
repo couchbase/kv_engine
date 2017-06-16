@@ -985,7 +985,7 @@ static void perf_tap_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
                                  &ttl, &flags, &seqno, &vbucket);
 
         switch (event) {
-        case TAP_MUTATION:
+        case TAP_MUTATION: {
             testHarness.unlock_cookie(cookie);
 
             // Check for sentinel
@@ -1000,7 +1000,7 @@ static void perf_tap_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
             h1->release(h, NULL, item);
             testHarness.lock_cookie(cookie);
             break;
-
+        }
         case TAP_DELETION:
             h1->release(h, NULL, item);
             break;

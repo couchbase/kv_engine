@@ -1233,4 +1233,16 @@ TEST_F(WarmupHLCEpochTest, warmup) {
     resetEngineAndWarmup();
     auto vb = engine->getKVBucket()->getVBucket(vbid);
     EXPECT_EQ(2, vb->getHLCEpochSeqno());
+
+    // key1 stored before we established the epoch should have cas_is_hlc==false
+    auto item1 = store->get(makeStoredDocKey("key1"), vbid, nullptr, {});
+    ASSERT_EQ(ENGINE_SUCCESS, item1.getStatus());
+    auto info1 = engine->getItemInfo(*item1.item);
+    EXPECT_FALSE(info1.cas_is_hlc);
+
+    // key2 should have a CAS generated from the HLC
+    auto item2 = store->get(makeStoredDocKey("key2"), vbid, nullptr, {});
+    ASSERT_EQ(ENGINE_SUCCESS, item2.getStatus());
+    auto info2 = engine->getItemInfo(*item2.item);
+    EXPECT_TRUE(info2.cas_is_hlc);
 }

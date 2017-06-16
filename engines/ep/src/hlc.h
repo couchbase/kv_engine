@@ -205,5 +205,5 @@ private:
     /**
      * Documents with a seqno >= epochSeqno have a HLC generated CAS.
      */
-    int64_t epochSeqno;
+    std::atomic<int64_t> epochSeqno;
 };

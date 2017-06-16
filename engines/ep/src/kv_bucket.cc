@@ -574,7 +574,8 @@ void KVBucket::deleteExpiredItem(Item& it,
     VBucketPtr vb = getVBucket(it.getVBucketId());
 
     if (vb) {
-        auto info = it.toItemInfo(vb->failovers->getLatestUUID());
+        auto info = it.toItemInfo(vb->failovers->getLatestUUID(),
+                                  vb->getHLCEpochSeqno());
         if (engine.getServerApi()->document->pre_expiry(info)) {
             // The payload is modified and contains data we should use
             value_t value(Blob::New(static_cast<char*>(info.value[0].iov_base),

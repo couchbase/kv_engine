@@ -388,7 +388,8 @@ void VBucket::handlePreExpiry(StoredValue& v) {
         std::unique_ptr<Item> itm(v.toItem(false, id));
         item_info itm_info;
         EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
-        itm_info = itm->toItemInfo(failovers->getLatestUUID());
+        itm_info =
+                itm->toItemInfo(failovers->getLatestUUID(), getHLCEpochSeqno());
         value_t new_val(Blob::Copy(*value));
         itm->setValue(new_val);
 

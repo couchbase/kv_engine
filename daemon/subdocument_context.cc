@@ -255,6 +255,15 @@ cb::const_char_buffer SubdocCmdContext::get_document_vattr() {
                 "deleted",
                 input_item_info.document_state == DocumentState::Deleted);
 
+        if (input_item_info.cas_is_hlc) {
+            // convert nanoseconds CAS into seconds
+            std::chrono::nanoseconds ns(input_item_info.cas);
+            cJSON_AddNumberToObject(
+                    doc.get(),
+                    "last_modified",
+                    std::chrono::duration_cast<std::chrono::seconds>(ns)
+                            .count());
+        }
         unique_cJSON_ptr root(cJSON_CreateObject());
         cJSON_AddItemToObject(root.get(), "$document", doc.release());
         document_vattr = to_string(root, false);

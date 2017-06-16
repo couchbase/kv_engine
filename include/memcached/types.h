@@ -71,7 +71,21 @@ enum class DocStateFilter : uint8_t {
     AliveOrDeleted = uint8_t(uint8_t(Alive) | uint8_t(Deleted))
 };
 
-typedef struct {
+struct item_info {
+    item_info()
+        : cas(0),
+          vbucket_uuid(0),
+          seqno(0),
+          exptime(0),
+          nbytes(0),
+          flags(0),
+          datatype(0),
+          document_state(DocumentState::Deleted),
+          nkey(0),
+          key(nullptr),
+          value{},
+          cas_is_hlc(false) {
+    }
     uint64_t cas;
     uint64_t vbucket_uuid;
     uint64_t seqno;
@@ -93,7 +107,12 @@ typedef struct {
      * finally the actual document payload.
      */
     struct iovec value[1];
-} item_info;
+
+    /**
+     * True if the CAS is a HLC timestamp
+     */
+    bool cas_is_hlc;
+};
 
 typedef struct {
     const char *username;

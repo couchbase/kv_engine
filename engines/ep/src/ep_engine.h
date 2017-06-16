@@ -664,6 +664,13 @@ public:
         return taskable;
     }
 
+    /**
+     * Return the item info as an item_info object.
+     * @param item item whose data should be retrieved
+     * @returns item_info created from item
+     */
+    item_info getItemInfo(const Item& item);
+
 protected:
     friend class EpEngineValueChangeListener;
 

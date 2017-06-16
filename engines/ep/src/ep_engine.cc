@@ -1760,9 +1760,7 @@ static bool EvpGetItemInfo(ENGINE_HANDLE* handle, const void*,
                            const item* itm, item_info* itm_info) {
     const Item* it = reinterpret_cast<const Item*>(itm);
     auto engine = acquireEngine(handle);
-    VBucketPtr vb = engine->getKVBucket()->getVBucket(it->getVBucketId());
-    uint64_t vb_uuid = vb ? vb->failovers->getLatestUUID() : 0;
-    *itm_info = it->toItemInfo(vb_uuid);
+    *itm_info = engine->getItemInfo(*it);
     return true;
 }
 
@@ -2264,12 +2262,16 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(const void* cookie,
         cb::unique_item_ptr ret{item, cb::ItemDeleter{handle}};
 
         const VBucketPtr vb = getKVBucket()->getVBucket(vbucket);
-        const uint64_t vb_uuid = vb ? vb->failovers->getLatestUUID() : 0;
-
+        uint64_t vb_uuid = 0;
+        int64_t hlcEpoch = HlcCasSeqnoUninitialised;
+        if (vb) {
+            vb_uuid = vb->failovers->getLatestUUID();
+            hlcEpoch = vb->getHLCEpochSeqno();
+        }
         // Apply filter; the item value isn't guaranteed to be present
-        // (meta only) so remove it to prevent people accidently trying to
+        // (meta only) so remove it to prevent people accidentally trying to
         // test it.
-        auto info = item->toItemInfo(vb_uuid);
+        auto info = item->toItemInfo(vb_uuid, hlcEpoch);
         info.value[0].iov_base = nullptr;
         info.value[0].iov_len = 0;
         if (filter(info)) {
@@ -6387,4 +6389,17 @@ void EpEngineTaskable::logQTime(TaskId id,
 void EpEngineTaskable::logRunTime(TaskId id,
                                   const ProcessClock::duration runTime) {
     myEngine->getKVBucket()->logRunTime(id, runTime);
+}
+
+item_info EventuallyPersistentEngine::getItemInfo(const Item& item) {
+    VBucketPtr vb = getKVBucket()->getVBucket(item.getVBucketId());
+    uint64_t uuid = 0;
+    int64_t hlcEpoch = HlcCasSeqnoUninitialised;
+
+    if (vb) {
+        uuid = vb->failovers->getLatestUUID();
+        hlcEpoch = vb->getHLCEpochSeqno();
+    }
+
+    return item.toItemInfo(uuid, hlcEpoch);
 }
