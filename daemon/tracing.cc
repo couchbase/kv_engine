@@ -61,6 +61,14 @@ Task::Status StaleTraceDumpRemover::periodicExecute() {
 
         using value_type = decltype(TraceDumps::dumps)::value_type;
         erase_if(traceDumps.dumps, [now, this](const value_type& dump) {
+            // If the mutex is locked then a
+            // chunk is being generated from this dump
+            auto isLocked = dump.second->mutex.try_lock();
+            if (!isLocked) {
+                return false;
+            }
+            dump.second->mutex.unlock();
+
             if (dump.second->last_touch + std::chrono::seconds(max_age) <=
                 now) {
                 return true;
@@ -119,9 +127,64 @@ ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Connection*,
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection*,
+/**
+ * A task for generating tasks in the background on an
+ * executor thread instead of a front-end thread
+ */
+class ChunkBuilderTask : public Task {
+public:
+    /// This constructor assumes that the dump's
+    /// mutex has already been locked
+    ChunkBuilderTask(McbpConnection& connection,
+                     DumpContext& dump,
+                     std::unique_lock<std::mutex> lck,
+                     size_t chunk_size)
+        : Task(), connection(connection), dump(dump), lck(std::move(lck)) {
+        chunk.resize(chunk_size);
+    }
+
+    Status execute() override {
+        size_t count = dump.json_export.read(&chunk[0], chunk.size());
+        chunk.resize(count);
+        return Status::Finished;
+    }
+
+    void notifyExecutionComplete() override {
+        notify_io_complete(connection.getCookie(), ENGINE_SUCCESS);
+    }
+
+    std::string& getChunk() {
+        return chunk;
+    }
+
+private:
+    std::string chunk;
+    McbpConnection& connection;
+    DumpContext& dump;
+    std::unique_lock<std::mutex> lck;
+};
+
+struct ChunkBuilderContext : public CommandContext {
+    ChunkBuilderContext(std::shared_ptr<ChunkBuilderTask>& task) : task(task) {
+    }
+
+    std::shared_ptr<ChunkBuilderTask> task;
+};
+
+ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection* c,
                                            const StrToStrMap& arguments,
                                            std::string& value) {
+    auto& connection = dynamic_cast<McbpConnection&>(*c);
+
+    // If we have a context then we already generated the chunk
+    auto* ctx =
+            dynamic_cast<ChunkBuilderContext*>(connection.getCommandContext());
+    if (ctx != nullptr) {
+        value = std::move(ctx->task->getChunk());
+        connection.resetCommandContext();
+        return ENGINE_SUCCESS;
+    }
+
     auto id = arguments.find("id");
     if (id == arguments.end()) {
         // id argument must be specified
@@ -138,28 +201,40 @@ ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection*,
 
     {
         std::lock_guard<std::mutex> lh(traceDumps.mutex);
-        auto dump = traceDumps.dumps.find(uuid);
-        if (dump == traceDumps.dumps.end()) {
+        auto iter = traceDumps.dumps.find(uuid);
+        if (iter == traceDumps.dumps.end()) {
             // uuid must exist in dumps map
             return ENGINE_EINVAL;
         }
+        auto& dump = *(iter->second);
 
         // @todo make configurable
         const size_t chunk_size = 1024 * 1024;
 
-        if (dump->second->json_export.done()) {
+        if (dump.json_export.done()) {
             value = "";
-        } else {
-            dump->second->last_touch = ProcessClock::now();
-            // @todo generate on background thread
-            // and add ewouldblock functionality
-            value.resize(chunk_size);
-            size_t count = dump->second->json_export.read(&value[0],
-                                                          chunk_size);
-            value.resize(count);
+            return ENGINE_SUCCESS;
         }
+
+        std::unique_lock<std::mutex> lck(dump.mutex, std::try_to_lock);
+        // A chunk is already being generated for this dump
+        if (!lck) {
+            value = "";
+            return ENGINE_TMPFAIL;
+        }
+
+        // ChunkBuilderTask assumes the lock above is already held
+        auto task = std::make_shared<ChunkBuilderTask>(
+                connection, dump, std::move(lck), chunk_size);
+        connection.setCommandContext(new ChunkBuilderContext{task});
+
+        connection.setEwouldblock(true);
+        std::lock_guard<std::mutex> guard(task->getMutex());
+        std::shared_ptr<Task> basicTask = task;
+        executorPool->schedule(basicTask, true);
+
+        return ENGINE_EWOULDBLOCK;
     }
-    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE ioctlSetTracingClearDump(Connection*,

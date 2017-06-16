@@ -55,6 +55,7 @@ struct DumpContext {
     phosphor::TraceContext context;
     phosphor::tools::JSONExport json_export;
     ProcessClock::time_point last_touch;
+    std::mutex mutex;
 };
 
 /**

@@ -24,9 +24,6 @@
 #include <atomic>
 #include <memory>
 
-// Create an instance of the singleton executor pool declared in memcached.h
-std::unique_ptr<ExecutorPool> executorPool = std::make_unique<ExecutorPool>(4);
-
 class ExecutorTest : public ::testing::Test {
 protected:
     void SetUp() {

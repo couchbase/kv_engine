@@ -966,17 +966,23 @@ static void init_complete_executor(McbpConnection* c, void* packet) {
 
 static void ioctl_get_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(packet);
-
-    const char* key_ptr = reinterpret_cast<const char*>(
-        req->bytes + sizeof(req->bytes));
-    size_t keylen = ntohs(req->message.header.request.keylen);
-    const std::string key(key_ptr, keylen);
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
     std::string value;
+    if (ret == ENGINE_SUCCESS) {
+        const char* key_ptr =
+                reinterpret_cast<const char*>(req->bytes + sizeof(req->bytes));
+        size_t keylen = ntohs(req->message.header.request.keylen);
+        const std::string key(key_ptr, keylen);
 
-    ENGINE_ERROR_CODE status = ioctl_get_property(c, key, value);
+        ret = ioctl_get_property(c, key, value);
+    }
 
-    if (status == ENGINE_SUCCESS) {
+    ret = c->remapErrorCode(ret);
+    switch (ret) {
+    case ENGINE_SUCCESS:
         try {
             if (mcbp_response_handler(NULL, 0, NULL, 0,
                                       value.data(), value.size(),
@@ -992,8 +998,16 @@ static void ioctl_get_executor(McbpConnection* c, void* packet) {
                         e.what());
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
         }
-    } else {
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(status));
+        break;
+    case ENGINE_EWOULDBLOCK:
+        c->setAiostat(ENGINE_EWOULDBLOCK);
+        c->setEwouldblock(true);
+        break;
+    case ENGINE_DISCONNECT:
+        c->setState(conn_closing);
+        break;
+    default:
+        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
     }
 }
 
