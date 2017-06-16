@@ -2597,13 +2597,13 @@ static void set_max_filehandles(void) {
     if (limit < maxfiles) {
         LOG_WARNING(NULL,
                     "Failed to set the number of file descriptors "
-                    " to %" PRIu64 " due to system resource restrictions. "
+                    "to %" PRIu64 " due to system resource restrictions. "
                     "This may cause the system to misbehave once you reach a "
-                    " high connection count as the system won't be able open"
-                    " new files on the system. The maximum number of file"
-                    " descriptors is currently set to %" PRIu64 ". The system "
-                    "is configured to allow %u number of client connections,"
-                    " and in addition to that the overhead of the worker "
+                    "high connection count as the system won't be able open "
+                    "new files on the system. The maximum number of file "
+                    "descriptors is currently set to %" PRIu64 ". The system "
+                    "is configured to allow %u number of client connections, "
+                    "and in addition to that the overhead of the worker "
                     "threads is %u. Finally the backed database needs to "
                     "open files to persist data.", int(maxfiles), int(limit),
                     settings.getMaxconns(),
