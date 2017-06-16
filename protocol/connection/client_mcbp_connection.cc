@@ -73,6 +73,66 @@ static Frame to_frame(const BinprotCommand& command) {
 }
 
 /////////////////////////////////////////////////////////////////////////
+// Implementation of the BinprotConnectionError class
+/////////////////////////////////////////////////////////////////////////
+
+// Generates error msgs like ``<prefix>: ["<context>", ]<reason> (#<reason>)``
+static std::string formatMcbpExceptionMsg(const std::string& prefix,
+                                          uint16_t reason,
+                                          const std::string& context = "") {
+    // Format the error message
+    std::string errormessage(prefix);
+    errormessage.append(": ");
+
+    if (!context.empty()) {
+        errormessage.append("'");
+        errormessage.append(context);
+        errormessage.append("', ");
+    }
+
+    auto err = static_cast<protocol_binary_response_status>(reason);
+    errormessage.append(memcached_status_2_text(err));
+    errormessage.append(" (");
+    errormessage.append(std::to_string(reason));
+    errormessage.append(")");
+    return errormessage;
+}
+
+static std::string formatMcbpExceptionMsg(const std::string& prefix,
+                                          const BinprotResponse& response) {
+    std::string context;
+    // If the response was not a success and the datatype is json then there's
+    // probably a JSON error context that's been included with the response body
+    if (mcbp::datatype::is_json(response.getDatatype()) &&
+        !response.isSuccess()) {
+        unique_cJSON_ptr json =
+                unique_cJSON_ptr(cJSON_Parse(response.getDataString().c_str()));
+        if (json != nullptr && json->type == cJSON_Object) {
+            auto* error = cJSON_GetObjectItem(json.get(), "error");
+            if (error != nullptr && error->type == cJSON_Object) {
+                auto* ctx = cJSON_GetObjectItem(error, "context");
+                if (ctx != nullptr && ctx->type == cJSON_String) {
+                    context = ctx->valuestring;
+                }
+            }
+        }
+    }
+    return formatMcbpExceptionMsg(prefix, response.getStatus(), context);
+}
+
+BinprotConnectionError::BinprotConnectionError(const std::string& prefix,
+                                               uint16_t reason)
+    : ConnectionError(formatMcbpExceptionMsg(prefix, reason).c_str()),
+      reason(reason) {
+}
+
+BinprotConnectionError::BinprotConnectionError(const std::string& prefix,
+                                               const BinprotResponse& response)
+    : ConnectionError(formatMcbpExceptionMsg(prefix, response).c_str()),
+      reason(response.getStatus()) {
+}
+
+/////////////////////////////////////////////////////////////////////////
 // Implementation of the MemcachedBinaryConnection class
 /////////////////////////////////////////////////////////////////////////
 
@@ -539,8 +599,8 @@ std::string MemcachedBinprotConnection::ioctl_get(const std::string& key) {
     BinprotResponse response;
     recvResponse(response);
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("ioctl_get \"" + key + "\" failed.",
-                                     response.getStatus());
+        throw BinprotConnectionError("ioctl_get '" + key + "' failed",
+                                     response);
     }
     return std::string(reinterpret_cast<const char *>(response.getPayload()),
                        response.getBodylen());
@@ -554,8 +614,8 @@ void MemcachedBinprotConnection::ioctl_set(const std::string& key,
     BinprotResponse response;
     recvResponse(response);
     if (!response.isSuccess()) {
-        throw BinprotConnectionError("ioctl_set \"" + key + "\" failed.",
-                                     response.getStatus());
+        throw BinprotConnectionError("ioctl_set '" + key + "' failed",
+                                     response);
     }
 }
 

@@ -24,37 +24,12 @@
 #include "client_connection.h"
 #include "client_mcbp_commands.h"
 
-inline std::string formatMcbpExceptionMsg(const std::string& prefix,
-                                          uint16_t reason) {
-    // Format the error message
-    std::string errormessage(prefix);
-    errormessage.append(": ");
-    auto err = static_cast<protocol_binary_response_status>(reason);
-    errormessage.append(memcached_status_2_text(err));
-    errormessage.append(" (");
-    errormessage.append(std::to_string(reason));
-    errormessage.append(")");
-    return errormessage;
-}
-
 class BinprotConnectionError : public ConnectionError {
 public:
-public:
-    explicit BinprotConnectionError(const char* prefix,
-                                    uint16_t reason_)
-        : ConnectionError(formatMcbpExceptionMsg(prefix, reason_).c_str()),
-          reason(reason_) {
-    }
+    BinprotConnectionError(const std::string& prefix, uint16_t reason_);
 
-    explicit BinprotConnectionError(const std::string& prefix,
-                                    uint16_t reason_)
-        : BinprotConnectionError(prefix.c_str(), reason_) {
-    }
-
-    explicit BinprotConnectionError(const char *prefix,
-                                    const BinprotResponse& response)
-        : BinprotConnectionError(prefix, response.getStatus()) {
-    }
+    BinprotConnectionError(const std::string& prefix,
+                           const BinprotResponse& response);
 
     uint16_t getReason() const override {
         return reason;
