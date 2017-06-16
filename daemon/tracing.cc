@@ -101,9 +101,10 @@ void deinitializeTracing() {
     traceDumps.dumps.clear();
 }
 
-ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Connection*,
+ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Connection* c,
                                            const StrToStrMap&,
                                            std::string& value) {
+    auto& connection = dynamic_cast<McbpConnection&>(*c);
     std::lock_guard<phosphor::TraceLog> lh(PHOSPHOR_INSTANCE);
     if (PHOSPHOR_INSTANCE.isEnabled()) {
         PHOSPHOR_INSTANCE.stop(lh);
@@ -111,6 +112,8 @@ ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Connection*,
 
     phosphor::TraceContext context = PHOSPHOR_INSTANCE.getTraceContext(lh);
     if (context.getBuffer() == nullptr) {
+        connection.getCookieObject().setErrorContext(
+                "Cannot begin a dump when there is no existing trace");
         return ENGINE_EINVAL;
     }
 
@@ -187,7 +190,8 @@ ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection* c,
 
     auto id = arguments.find("id");
     if (id == arguments.end()) {
-        // id argument must be specified
+        connection.getCookieObject().setErrorContext(
+                "Dump ID must be specified as a key argument");
         return ENGINE_EINVAL;
     }
 
@@ -195,7 +199,8 @@ ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection* c,
     try {
         uuid = cb::uuid::from_string(id->second);
     } catch (const std::invalid_argument&) {
-        // id argument must be a valid uuid
+        connection.getCookieObject().setErrorContext(
+                "Dump ID must be a valid UUID");
         return ENGINE_EINVAL;
     }
 
@@ -203,7 +208,8 @@ ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection* c,
         std::lock_guard<std::mutex> lh(traceDumps.mutex);
         auto iter = traceDumps.dumps.find(uuid);
         if (iter == traceDumps.dumps.end()) {
-            // uuid must exist in dumps map
+            connection.getCookieObject().setErrorContext(
+                    "Dump ID must correspond to an existing dump");
             return ENGINE_EINVAL;
         }
         auto& dump = *(iter->second);
@@ -220,6 +226,8 @@ ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection* c,
         // A chunk is already being generated for this dump
         if (!lck) {
             value = "";
+            connection.getCookieObject().setErrorContext(
+                    "A chunk is already being fetched for this dump");
             return ENGINE_TMPFAIL;
         }
 
@@ -237,14 +245,16 @@ ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Connection* c,
     }
 }
 
-ENGINE_ERROR_CODE ioctlSetTracingClearDump(Connection*,
+ENGINE_ERROR_CODE ioctlSetTracingClearDump(Connection* c,
                                            const StrToStrMap& arguments,
                                            const std::string& value) {
+    auto& connection = dynamic_cast<McbpConnection&>(*c);
     cb::uuid::uuid_t uuid;
     try {
         uuid = cb::uuid::from_string(value);
     } catch (const std::invalid_argument&) {
-        // id argument must be a valid uuid
+        connection.getCookieObject().setErrorContext(
+                "Dump ID must be a valid UUID");
         return ENGINE_EINVAL;
     }
 
@@ -252,7 +262,8 @@ ENGINE_ERROR_CODE ioctlSetTracingClearDump(Connection*,
         std::lock_guard<std::mutex> lh(traceDumps.mutex);
         auto dump = traceDumps.dumps.find(uuid);
         if (dump == traceDumps.dumps.end()) {
-            // uuid must exist in dumps map
+            connection.getCookieObject().setErrorContext(
+                    "Dump ID must correspond to an existing dump");
             return ENGINE_EINVAL;
         }
 
@@ -262,16 +273,21 @@ ENGINE_ERROR_CODE ioctlSetTracingClearDump(Connection*,
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE ioctlSetTracingConfig(Connection*,
+ENGINE_ERROR_CODE ioctlSetTracingConfig(Connection* c,
                                         const StrToStrMap&,
                                         const std::string& value) {
+    auto& connection = dynamic_cast<McbpConnection&>(*c);
     if (value == "") {
+        connection.getCookieObject().setErrorContext(
+                "Trace config cannot be empty");
         return ENGINE_EINVAL;
     }
     try {
         std::lock_guard<std::mutex> lh(configMutex);
         lastConfig = phosphor::TraceConfig::fromString(value);
-    } catch (const std::invalid_argument&) {
+    } catch (const std::invalid_argument& e) {
+        connection.getCookieObject().setErrorContext(
+                std::string("Trace config is illformed: ") + e.what());
         return ENGINE_EINVAL;
     }
     return ENGINE_SUCCESS;
