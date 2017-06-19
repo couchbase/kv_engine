@@ -22,6 +22,7 @@
 
 #include <cJSON.h>
 #include <memcached/openssl.h>
+#include <platform/pipe.h>
 #include <cstdint>
 #include <vector>
 
@@ -92,11 +93,11 @@ public:
     void drainBioSendPipe(SOCKET sfd);
 
     bool moreInputAvailable() const {
-        return (in.current < in.total);
+        return !inputPipe.empty();
     }
 
     bool morePendingOutput() const {
-        return (out.total > 0);
+        return !outputPipe.empty();
     }
 
     /**
@@ -131,16 +132,12 @@ protected:
     SSL_CTX* ctx = nullptr;
     SSL* client = nullptr;
 
-    struct bio_buffer {
-        bio_buffer() : total(0), current(0) {
-        }
-        // The data located in the buffer
-        std::vector<char> buffer;
-        // The number of bytes currently stored in the buffer
-        size_t total;
-        // The current offset of the buffer
-        size_t current;
-    } in, out;
+    // The pipe used to buffer data between the socket and the SSL library
+    // (data being read)
+    cb::Pipe inputPipe;
+    // The pipe used to buffer data between the SSL library and the socket
+    // (data being written)
+    cb::Pipe outputPipe;
 
     // Total number of bytes received on the network
     size_t totalRecv = 0;

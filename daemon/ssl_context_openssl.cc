@@ -86,14 +86,16 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
     client = NULL;
 
     try {
-        in.buffer.resize(settings.getBioDrainBufferSize());
-        out.buffer.resize(settings.getBioDrainBufferSize());
+        inputPipe.ensureCapacity(settings.getBioDrainBufferSize());
+        outputPipe.ensureCapacity(settings.getBioDrainBufferSize());
     } catch (std::bad_alloc) {
         return false;
     }
 
-    BIO_new_bio_pair(
-            &application, in.buffer.size(), &network, out.buffer.size());
+    BIO_new_bio_pair(&application,
+                     settings.getBioDrainBufferSize(),
+                     &network,
+                     settings.getBioDrainBufferSize());
 
     client = SSL_new(ctx);
     SSL_set_bio(client, application, application);
@@ -134,37 +136,36 @@ void SslContext::disable() {
 }
 
 void SslContext::drainBioRecvPipe(SOCKET sfd) {
-    int n;
-    bool stop = false;
+    bool stop;
 
     do {
-        if (in.current < in.total) {
-            n = BIO_write(network,
-                          in.buffer.data() + in.current,
-                          int(in.total - in.current));
+        stop = true;
+
+        if (!inputPipe.empty()) {
+            auto* bio = network;
+            auto n = inputPipe.consume(
+                    [bio](cb::const_byte_buffer data) -> ssize_t {
+                        return BIO_write(bio, data.data(), data.size());
+                    });
+
             if (n > 0) {
-                in.current += n;
-                if (in.current == in.total) {
-                    in.current = in.total = 0;
-                }
-            } else {
-                /* Our input BIO is full, no need to grab more data from
-                 * the network at this time..
-                 */
-                return;
+                // We did move some data
+                stop = false;
             }
         }
 
-        if (in.total < in.buffer.size()) {
-            n = recv(sfd,
-                     in.buffer.data() + in.total,
-                     in.buffer.size() - in.total,
-                     0);
+        if (!inputPipe.full()) {
+            auto n = inputPipe.produce([sfd](cb::byte_buffer data) -> ssize_t {
+                return ::recv(sfd,
+                              reinterpret_cast<char*>(data.data()),
+                              data.size(),
+                              0);
+            });
             if (n > 0) {
-                in.total += n;
                 totalRecv += n;
+                // We did receive some data... move it into the BIO
+                stop = false;
             } else {
-                stop = true;
                 if (n == 0) {
                     error = true; /* read end shutdown */
                 } else {
@@ -178,21 +179,23 @@ void SslContext::drainBioRecvPipe(SOCKET sfd) {
 }
 
 void SslContext::drainBioSendPipe(SOCKET sfd) {
-    int n;
-    bool stop = false;
+    bool stop;
 
     do {
-        if (out.current < out.total) {
-            n = send(sfd,
-                     out.buffer.data() + out.current,
-                     out.total - out.current,
-                     0);
+        stop = true;
+        if (!outputPipe.empty()) {
+            auto n = outputPipe.consume(
+                    [sfd](cb::const_byte_buffer data) -> ssize_t {
+                        return ::send(sfd,
+                                      reinterpret_cast<const char*>(data.data()),
+                                      data.size(),
+                                      0);
+                    });
+
             if (n > 0) {
-                out.current += n;
-                if (out.current == out.total) {
-                    out.current = out.total = 0;
-                }
                 totalSend += n;
+                // We did move some data
+                stop = false;
             } else {
                 if (n == -1) {
                     if (!is_blocking(GetLastNetworkError())) {
@@ -207,12 +210,15 @@ void SslContext::drainBioSendPipe(SOCKET sfd) {
             }
         }
 
-        if (out.total == 0) {
-            n = BIO_read(network, out.buffer.data(), int(out.buffer.size()));
+        if (!outputPipe.full()) {
+            auto* bio = network;
+            auto n = outputPipe.produce([bio](cb::byte_buffer data) -> ssize_t {
+                return BIO_read(bio, data.data(), data.size());
+            });
+
             if (n > 0) {
-                out.total = n;
-            } else {
-                stop = true;
+                // We did move data
+                stop = false;
             }
         }
     } while (!stop);
@@ -235,10 +241,6 @@ cJSON* SslContext::toJSON() const {
         cJSON_AddBoolToObject(obj, "error", error);
         cJSON_AddNumberToObject(obj, "total_recv", totalRecv);
         cJSON_AddNumberToObject(obj, "total_send", totalSend);
-        cJSON_AddNumberToObject(obj, "input_buff_total", in.total);
-        cJSON_AddNumberToObject(obj, "input_buff_current", in.current);
-        cJSON_AddNumberToObject(obj, "output_buff_total", out.total);
-        cJSON_AddNumberToObject(obj, "output_buff_current", out.current);
     }
 
     return obj;
