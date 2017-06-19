@@ -401,3 +401,30 @@ TEST_P(StatsTest, TestResponseStats) {
     EXPECT_EQ(successCount + statResps(),
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 }
+
+TEST_P(StatsTest, TracingStatsIsPrivileged) {
+    MemcachedConnection& conn = getConnection();
+
+    try {
+        conn.stats("tracing");
+        FAIL() << "tracing is a privileged operation";
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isAccessDenied());
+    }
+
+    conn.authenticate("@admin", "password", "PLAIN");
+    conn.stats("tracing");
+}
+
+TEST_P(StatsTest, TestTracingStats) {
+    MemcachedConnection& conn = getConnection();
+    conn.authenticate("@admin", "password", "PLAIN");
+
+    auto stats = conn.stats("tracing");
+
+    // Just check that we got some stats, no need to check all of them
+    // as we don't want memcached to be testing phosphor's logic
+    EXPECT_LT(0, cJSON_GetArraySize(stats.get()));
+    auto* enabled = cJSON_GetObjectItem(stats.get(), "log_is_enabled");
+    EXPECT_NE(nullptr, enabled);
+}

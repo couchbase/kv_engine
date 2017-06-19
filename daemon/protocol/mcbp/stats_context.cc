@@ -26,7 +26,10 @@
 #include <daemon/mcbp.h>
 #include <daemon/runtime.h>
 #include <memcached/audit_interface.h>
+#include <phosphor/stats_callback.h>
+#include <phosphor/trace_log.h>
 #include <platform/checked_snprintf.h>
+#include <platform/sized_buffer.h>
 #include <utilities/protocol2text.h>
 
 #include <numeric>
@@ -743,6 +746,72 @@ static ENGINE_ERROR_CODE stat_responses_json_executor(
     }
 }
 
+static ENGINE_ERROR_CODE stat_tracing_executor(const std::string& arg,
+                                               McbpConnection& connection) {
+    class MemcachedCallback : public phosphor::StatsCallback {
+    public:
+        MemcachedCallback(McbpConnection& connection) : c(connection) {
+        }
+
+        void operator()(gsl_p::cstring_span key,
+                        gsl_p::cstring_span value) override {
+            append_stats(key.data(),
+                         key.size(),
+                         value.data(),
+                         value.size(),
+                         c.getCookie());
+        }
+
+        void operator()(gsl_p::cstring_span key, bool value) override {
+            const auto svalue = value ? "true"_ccb : "false"_ccb;
+            append_stats(key.data(),
+                         key.size(),
+                         svalue.data(),
+                         svalue.size(),
+                         c.getCookie());
+        }
+
+        void operator()(gsl_p::cstring_span key, size_t value) override {
+            const auto svalue = std::to_string(value);
+            append_stats(key.data(),
+                         key.size(),
+                         svalue.data(),
+                         svalue.size(),
+                         c.getCookie());
+        }
+
+        void operator()(gsl_p::cstring_span key,
+                        phosphor::ssize_t value) override {
+            const auto svalue = std::to_string(value);
+            append_stats(key.data(),
+                         key.size(),
+                         svalue.data(),
+                         svalue.size(),
+                         c.getCookie());
+        }
+
+        void operator()(gsl_p::cstring_span key, double value) override {
+            const auto svalue = std::to_string(value);
+            append_stats(key.data(),
+                         key.size(),
+                         svalue.data(),
+                         svalue.size(),
+                         c.getCookie());
+        }
+
+    private:
+        McbpConnection& c;
+    };
+
+    if (arg.empty()) {
+        MemcachedCallback cb{connection};
+        phosphor::TraceLog::getInstance().getStats(cb);
+        return ENGINE_SUCCESS;
+    } else {
+        return ENGINE_EINVAL;
+    }
+}
+
 ENGINE_ERROR_CODE StatsCommandContext::step() {
     struct stat_handler {
         /**
@@ -771,7 +840,8 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
             {"topkeys", {false, stat_topkeys_executor}},
             {"topkeys_json", {false, stat_topkeys_json_executor}},
             {"subdoc_execute", {false, stat_subdoc_execute_executor}},
-            {"responses", {false, stat_responses_json_executor}}};
+            {"responses", {false, stat_responses_json_executor}},
+            {"tracing", {true, stat_tracing_executor}}};
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
