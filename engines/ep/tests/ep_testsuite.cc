@@ -4766,6 +4766,34 @@ static enum test_result test_control_data_traffic(ENGINE_HANDLE *h, ENGINE_HANDL
     return SUCCESS;
 }
 
+static enum test_result test_memory_condition(ENGINE_HANDLE* h,
+                                              ENGINE_HANDLE_V1* h1) {
+    char data[1024];
+    memset(&data, 'x', sizeof(data)-1);
+    data[1023] = '\0';
+
+    //Write 10 times as much data as the bucket quota
+    for (uint64_t j = 0; j < 26214400; ++j) {
+        std::stringstream ss;
+        ss << "key-" << j;
+        std::string key(ss.str());
+
+        item *i = NULL;
+        ENGINE_ERROR_CODE err = store(h, h1, NULL, OPERATION_SET, key.c_str(),
+                                      data, &i);
+        h1->release(h, NULL, i);
+
+        check(err == ENGINE_SUCCESS || err == ENGINE_TMPFAIL,
+              "Failed to store a value");
+        if (err == ENGINE_TMPFAIL) {
+            break;
+        }
+    }
+    wait_for_flusher_to_settle(h, h1);
+
+    return SUCCESS;
+}
+
 static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     // 1. Create enough 1KB items to hit the high watermark (i.e. get TEMP_OOM).
@@ -7527,6 +7555,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test item pager", test_item_pager, test_setup,
                  teardown, "max_size=6291456", prepare_ep_bucket, cleanup),
+        TestCase("test memory condition", test_memory_condition, test_setup,
+                 teardown, "max_size=2621440", prepare_ep_bucket, cleanup),
         TestCase("warmup conf", test_warmup_conf, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("bloomfilter conf", test_bloomfilter_conf, test_setup,

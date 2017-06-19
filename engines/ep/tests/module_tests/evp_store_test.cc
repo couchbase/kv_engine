@@ -35,6 +35,7 @@
 #include "tests/mock/mock_global_task.h"
 #include "tests/module_tests/test_helpers.h"
 #include "vbucketdeletiontask.h"
+#include "warmup.h"
 
 #include <string_utilities.h>
 #include <xattr/blob.h>
@@ -731,6 +732,43 @@ TEST_P(EPStoreEvictionTest, getDeletedItemWithValue) {
     Item* itm = gv.item.get();
     EXPECT_EQ("deletedvalue", itm->getValue()->to_s());
     EXPECT_TRUE(itm->isDeleted());
+}
+
+//Test to verify the behavior in the condition where
+//memOverhead is greater than the bucket quota
+TEST_P(EPStoreEvictionTest, memOverheadMemoryCondition) {
+    //Limit the bucket quota to 200K
+    Configuration& config = engine->getConfiguration();
+    config.setMaxSize(204800);
+    config.setMemHighWat(0.8 * 204800);
+    config.setMemLowWat(0.6 * 204800);
+
+    //Ensure the memOverhead is greater than the bucket quota
+    auto& stats = engine->getEpStats();
+    stats.memOverhead->store(config.getMaxSize() + 1);
+
+    //Set warmup complete to ensure that we don't hit
+    //degraded mode
+    engine->getKVBucket()->getWarmup()->setComplete();
+    // Fill bucket until we hit ENOMEM - note storing via external
+    // API (epstore) so we trigger the memoryCondition() code in the event of
+    // ENGINE_ENOMEM.
+    size_t count = 0;
+    const std::string value(512, 'x'); // 512B value to use for documents.
+    ENGINE_ERROR_CODE result;
+    for (result = ENGINE_SUCCESS; result == ENGINE_SUCCESS; count++) {
+        auto item = make_item(vbid,
+                              makeStoredDocKey("key_" + std::to_string(count)),
+                              value);
+        uint64_t cas;
+        result = engine->store(nullptr, &item, &cas, OPERATION_SET);
+    }
+
+    if (GetParam() == "value_only") {
+        ASSERT_EQ(ENGINE_ENOMEM, result);
+    } else {
+        ASSERT_EQ(ENGINE_TMPFAIL, result);
+    }
 }
 
 // Test cases which run in both Full and Value eviction

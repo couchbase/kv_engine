@@ -3058,6 +3058,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::memoryCondition() {
         getKVBucket()->wakeUpItemPager();
         return ENGINE_TMPFAIL;
     } else {
+        if (getKVBucket()->getItemEvictionPolicy() == FULL_EVICTION) {
+            ++stats.tmp_oom_errors;
+            getKVBucket()->wakeUpCheckpointRemover();
+            return ENGINE_TMPFAIL;
+        }
+
         ++stats.oom_errors;
         return ENGINE_ENOMEM;
     }
