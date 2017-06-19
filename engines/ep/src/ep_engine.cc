@@ -2258,9 +2258,6 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(const void* cookie,
             return cb::makeEngineErrorItemPair(cb::engine_errc(status));
         }
 
-        auto* item = gv.item.release();
-        cb::unique_item_ptr ret{item, cb::ItemDeleter{handle}};
-
         const VBucketPtr vb = getKVBucket()->getVBucket(vbucket);
         uint64_t vb_uuid = 0;
         int64_t hlcEpoch = HlcCasSeqnoUninitialised;
@@ -2271,12 +2268,13 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(const void* cookie,
         // Apply filter; the item value isn't guaranteed to be present
         // (meta only) so remove it to prevent people accidentally trying to
         // test it.
-        auto info = item->toItemInfo(vb_uuid, hlcEpoch);
+        auto info = gv.item->toItemInfo(vb_uuid, hlcEpoch);
         info.value[0].iov_base = nullptr;
         info.value[0].iov_len = 0;
         if (filter(info)) {
             if (!gv.isPartial()) {
-                return std::make_pair(cb::engine_errc::success, std::move(ret));
+                return cb::makeEngineErrorItemPair(
+                        cb::engine_errc::success, gv.item.release(), handle);
             }
             // We want this item, but we need to fetch it off disk
         } else {
