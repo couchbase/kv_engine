@@ -120,11 +120,8 @@ bool McbpConnection::updateEvent(const short new_flags) {
          * that case signal an EV_READ event without actually polling the
          * socket.
          */
-        char dummy;
-        /* SSL_pending() will not work here despite the name */
-        int rv = ssl.peek(&dummy, 1);
-        if (rv > 0) {
-            /* signal a call to the handler */
+        if (ssl.havePendingInputData()) {
+            // signal a call to the handler
             event_active(&event, EV_READ, 0);
             return true;
         }

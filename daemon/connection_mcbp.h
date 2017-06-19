@@ -675,14 +675,7 @@ public:
      * Do we have any pending input data on this connection?
      */
     bool havePendingInputData() {
-        int block = (read.bytes > 0);
-
-        if (!block && ssl.isEnabled()) {
-            char dummy;
-            block |= ssl.peek(&dummy, 1);
-        }
-
-        return block != 0;
+        return (read.bytes > 0 || ssl.havePendingInputData());
     }
 
     /**

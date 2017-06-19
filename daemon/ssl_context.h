@@ -115,7 +115,7 @@ public:
 
     int write(const void* buf, int num);
 
-    int peek(void* buf, int num);
+    bool havePendingInputData();
 
     std::pair<ClientCertUser::Status, std::string> getCertUserName();
     /**
@@ -124,6 +124,8 @@ public:
     cJSON* toJSON() const;
 
 protected:
+    bool drainInputSocketBuf();
+
     bool enabled = false;
     bool connected = false;
     bool error = false;

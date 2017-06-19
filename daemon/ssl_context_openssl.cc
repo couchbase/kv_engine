@@ -41,8 +41,13 @@ int SslContext::write(const void* buf, int num) {
     return SSL_write(client, buf, num);
 }
 
-int SslContext::peek(void* buf, int num) {
-    return SSL_peek(client, buf, num);
+bool SslContext::havePendingInputData() {
+    if (isEnabled()) {
+        // Move any data in the memory buffer over to the ssl pipe
+        drainInputSocketBuf();
+        return SSL_pending(client) > 0;
+    }
+    return false;
 }
 
 bool SslContext::enable(const std::string& cert, const std::string& pkey) {
@@ -135,24 +140,28 @@ void SslContext::disable() {
     enabled = false;
 }
 
+bool SslContext::drainInputSocketBuf() {
+    if (!inputPipe.empty()) {
+        auto* bio = network;
+        auto n = inputPipe.consume(
+            [bio](cb::const_byte_buffer data) -> ssize_t {
+                return BIO_write(bio, data.data(), data.size());
+            });
+
+        if (n > 0) {
+            // We did move some data
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void SslContext::drainBioRecvPipe(SOCKET sfd) {
     bool stop;
 
     do {
-        stop = true;
-
-        if (!inputPipe.empty()) {
-            auto* bio = network;
-            auto n = inputPipe.consume(
-                    [bio](cb::const_byte_buffer data) -> ssize_t {
-                        return BIO_write(bio, data.data(), data.size());
-                    });
-
-            if (n > 0) {
-                // We did move some data
-                stop = false;
-            }
-        }
+        stop = !drainInputSocketBuf();
 
         if (!inputPipe.full()) {
             auto n = inputPipe.produce([sfd](cb::byte_buffer data) -> ssize_t {
