@@ -6026,10 +6026,7 @@ BaseTestCase testsuite_testcases[] = {
                     ratio gets to 90%. See test body for more details. */
                  "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
                  "chk_remover_stime=1;max_size=6291456;chk_max_items=8000",
-                 /* [EPHE TODO]: hangs because of eviction. Need to figure out
-                    how to handle cursor dropping in case of high memory usage
-                    in ephemeral */
-                 prepare_skip_broken_under_ephemeral,
+                 prepare,
                  cleanup),
         TestCase("test dcp cursor dropping backfill",
                  test_dcp_cursor_dropping_backfill, test_setup, teardown,
@@ -6038,10 +6035,7 @@ BaseTestCase testsuite_testcases[] = {
                   ratio gets to 90%. See test body for more details. */
                  "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
                  "chk_remover_stime=1;max_size=6291456;chk_max_items=8000",
-                 /* [EPHE TODO]: hangs because of eviction. Need to figure out
-                  how to handle cursor dropping in case of high memory usage
-                  in ephemeral */
-                 prepare_skip_broken_under_ephemeral,
+                 prepare,
                  cleanup),
         TestCase("test dcp value compression",
                  test_dcp_value_compression, test_setup, teardown,
