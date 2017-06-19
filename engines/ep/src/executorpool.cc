@@ -931,6 +931,9 @@ void ExecutorPool::doTasksStat(EventuallyPersistentEngine* engine,
                 obj.get(),
                 "last_starttime_ns",
                 to_ns_since_epoch(task->getLastStartTime()).count());
+        cJSON_AddNumberToObject(obj.get(),
+                                "previous_runtime_ns",
+                                task->getPrevRuntime().count());
         cJSON_AddStringToObject(
                 obj.get(),
                 "type",

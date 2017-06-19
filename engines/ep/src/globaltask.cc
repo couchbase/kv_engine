@@ -50,6 +50,7 @@ GlobalTask::GlobalTask(Taskable& t,
       engine(NULL),
       taskable(t),
       totalRuntime(0),
+      previousRuntime(0),
       lastStartTime(0) {
     priority = getTaskPriority(taskId);
     snooze(sleeptime);

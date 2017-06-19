@@ -159,12 +159,16 @@ def tasks_stats_formatter(stats, sort_by=None, reverse=False, *args):
 
                 if task["state"] == "RUNNING":
                     # task is running
-                    task["runtime"] = ps_time_stat(cur_time -
-                                                   task["last_starttime_ns"])
+                    runtime = ps_time_stat(cur_time - task["last_starttime_ns"])
+
+                    #  Mark runtime of running tasks with asterisk
+                    runtime.display_value = ("*" + runtime.display_value)
+                    task["runtime"] = runtime
+
                     task["waketime_ns"] = ps_time_stat(0)
                     running_tasks[task["type"]]+=1
                 else:
-                    task["runtime"] = ps_time_stat(0)
+                    task["runtime"] = ps_time_stat(task["previous_runtime_ns"])
 
                 task["state"] = task["state"][0]
 

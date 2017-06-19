@@ -184,9 +184,16 @@ public:
         return std::chrono::nanoseconds(totalRuntime);
     }
 
+    ProcessClock::duration getPrevRuntime() const {
+        return std::chrono::nanoseconds(previousRuntime);
+    }
+
     void updateRuntime(ProcessClock::duration tp) {
-        totalRuntime += std::chrono::duration_cast<std::chrono::nanoseconds>(tp)
-                                .count();
+        int64_t nanoseconds =
+                std::chrono::duration_cast<std::chrono::nanoseconds>(tp)
+                        .count();
+        totalRuntime += nanoseconds;
+        previousRuntime = nanoseconds;
     }
 
     queue_priority_t getQueuePriority() const {
@@ -238,6 +245,7 @@ protected:
     static size_t nextTaskId() { return task_id_counter.fetch_add(1); }
 
     atomic_duration totalRuntime;
+    atomic_duration previousRuntime;
     atomic_time_point lastStartTime;
 
 private:
