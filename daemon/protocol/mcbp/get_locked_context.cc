@@ -14,6 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+
 #include "get_locked_context.h"
 #include "engine_wrapper.h"
 
@@ -22,11 +23,10 @@
 #include <xattr/utils.h>
 
 ENGINE_ERROR_CODE GetLockedCommandContext::getAndLockItem() {
-    item* item;
-    auto ret = bucket_get_locked(connection, &item, key, vbucket, lock_timeout);
-    if (ret == ENGINE_SUCCESS) {
-        it.reset(item);
-        if (!bucket_get_item_info(&connection, item, &info)) {
+    auto ret = bucket_get_locked(connection, key, vbucket, lock_timeout);
+    if (ret.first == cb::engine_errc::success) {
+        it = std::move(ret.second);
+        if (!bucket_get_item_info(&connection, it.get(), &info)) {
             LOG_WARNING(&connection, "%u: GetLockedCommandContext::"
                 "getAndLockItem Failed to get item info",
                 connection.getId());
@@ -47,13 +47,13 @@ ENGINE_ERROR_CODE GetLockedCommandContext::getAndLockItem() {
         } else {
             state = State::SendResponse;
         }
-    } else if (ret == ENGINE_LOCKED) {
+    } else if (ret.first == cb::engine_errc::locked) {
         // In order to be backward compatible we should return TMPFAIL
         // instead of the more correct EEXISTS
-        ret = ENGINE_LOCKED_TMPFAIL;
+        return ENGINE_LOCKED_TMPFAIL;
     }
 
-    return ret;
+    return ENGINE_ERROR_CODE(ret.first);
 }
 
 ENGINE_ERROR_CODE GetLockedCommandContext::inflateItem() {

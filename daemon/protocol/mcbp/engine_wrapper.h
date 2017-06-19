@@ -87,8 +87,7 @@ cb::EngineErrorItemPair bucket_get_and_touch(McbpConnection* c,
                                              uint16_t vbucket,
                                              uint32_t expiration);
 
-ENGINE_ERROR_CODE bucket_get_locked(McbpConnection& c,
-                                    item** item_,
+cb::EngineErrorItemPair bucket_get_locked(McbpConnection& c,
                                     const DocKey& key,
                                     uint16_t vbucket,
                                     uint32_t lock_timeout);

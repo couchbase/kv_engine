@@ -215,14 +215,14 @@ cb::EngineErrorItemPair bucket_get_and_touch(McbpConnection* c,
     return ret;
 }
 
-ENGINE_ERROR_CODE bucket_get_locked(McbpConnection& c,
-                                    item** item_,
+cb::EngineErrorItemPair bucket_get_locked(McbpConnection& c,
                                     const DocKey& key,
                                     uint16_t vbucket,
                                     uint32_t lock_timeout) {
+    item* item_ = nullptr;
     auto ret = c.getBucketEngine()->get_locked(c.getBucketEngineAsV0(),
                                                c.getCookie(),
-                                               item_,
+                                               &item_,
                                                key,
                                                vbucket,
                                                lock_timeout);
@@ -235,7 +235,7 @@ ENGINE_ERROR_CODE bucket_get_locked(McbpConnection& c,
                  c.getId(),
                  c.getDescription().c_str());
     }
-    return ret;
+    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), item_, c.getBucketEngineAsV0() );
 }
 
 ENGINE_ERROR_CODE bucket_unlock(McbpConnection& c,
