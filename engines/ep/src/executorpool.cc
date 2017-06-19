@@ -18,10 +18,11 @@
 #include "config.h"
 
 #include "ep_engine.h"
-#include "statwriter.h"
-#include "taskqueue.h"
+#include "ep_time.h"
 #include "executorpool.h"
 #include "executorthread.h"
+#include "statwriter.h"
+#include "taskqueue.h"
 
 #include <cJSON_utils.h>
 #include <platform/checked_snprintf.h>
@@ -952,6 +953,9 @@ void ExecutorPool::doTasksStat(EventuallyPersistentEngine* engine,
                     to_ns_since_epoch(ProcessClock::now()).count(),
                     add_stat,
                     cookie);
+
+    checked_snprintf(statname, sizeof(statname), "%s:uptime_s", prefix);
+    add_casted_stat(statname, ep_current_time(), add_stat, cookie);
 
     ObjectRegistry::onSwitchThread(epe);
 }

@@ -2,6 +2,7 @@
 
 import clitool
 import cli_auth_utils
+import datetime
 import sys
 import math
 import inspect
@@ -133,6 +134,8 @@ def tasks_stats_formatter(stats, sort_by=None, reverse=False, *args):
             stats_formatter(stats)
         else:
             cur_time = int(stats.pop("ep_tasks:cur_time"))
+            uptime = datetime.timedelta(
+                seconds=int(stats.pop("ep_tasks:uptime_s")))
 
             total_tasks = {"Reader":0,
                            "Writer":0,
@@ -177,10 +180,11 @@ def tasks_stats_formatter(stats, sort_by=None, reverse=False, *args):
             total_tasks["Total"] = len(tasks)
 
             headers = (
-                "Tasks     Writer Reader AuxIO  NonIO  Total \n" +
+                "Tasks     Writer Reader AuxIO  NonIO  Total"
+                "      Uptime: {uptime}\n"
                 "Running   {Writer:<6} {Reader:<6} "
                 "{AuxIO:<6} {NonIO:<6} {Total:<6}\n"
-                    .format(**running_tasks) +
+                    .format(uptime=uptime, **running_tasks) +
                 "All       {Writer:<6} {Reader:<6} "
                 "{AuxIO:<6} {NonIO:<6} {Total:<6}\n"
                     .format(**total_tasks)
@@ -236,14 +240,20 @@ def ps_time_label(microseconds):
     sign = "-" if microseconds < 0 else ""
 
     centiseconds = abs(microseconds)//10000
-
     seconds = centiseconds//100
-    centiseconds %= 100
 
-    minutes = seconds//60
-    seconds %= 60
+    time_str = str(datetime.timedelta(seconds=seconds))
 
-    return "{0}{1}:{2:0>2}.{3:0>2}".format(sign, minutes, seconds, centiseconds)
+    #  drop hours and tens of seconds if zero
+    if time_str.startswith("0:"):
+        time_str = time_str[2:]
+
+    if time_str.startswith("00"):
+        time_str = time_str[1:]
+
+    return "{0}{1}.{2:0>2}".format(sign,
+                                   time_str,
+                                   centiseconds % 100)
 
 def time_label(s):
     # -(2**64) -> '-inf'
