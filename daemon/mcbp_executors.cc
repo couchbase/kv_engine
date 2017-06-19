@@ -222,11 +222,7 @@ void setup_mcbp_lookup_cmd(
     request_handlers[cmd].callback = new_handler;
 }
 
-static void process_bin_unknown_packet(McbpConnection* c) {
-    char* packet = c->read.curr -
-                   (c->binary_header.request.bodylen +
-                    sizeof(c->binary_header));
-
+static void process_bin_unknown_packet(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_header*>(packet);
     ENGINE_ERROR_CODE ret = c->getAiostat();
     c->setAiostat(ENGINE_SUCCESS);
@@ -251,11 +247,11 @@ static void process_bin_unknown_packet(McbpConnection* c) {
         } else {
             c->setState(conn_new_cmd);
         }
-        update_topkeys(DocKey(reinterpret_cast<uint8_t*>(packet +
-                              sizeof(c->binary_header.request) +
-                              c->binary_header.request.extlen),
+        update_topkeys(DocKey(req->bytes + sizeof(c->binary_header.request) +
+                                      c->binary_header.request.extlen,
                               c->binary_header.request.keylen,
-                              c->getDocNamespace()), c);
+                              c->getDocNamespace()),
+                       c);
         break;
     }
     case ENGINE_EWOULDBLOCK:
@@ -1538,9 +1534,8 @@ static void process_bin_dcp_response(McbpConnection* c) {
     c->enableDatatype(mcbp::Feature::JSON);
 
     if (c->getBucketEngine()->dcp.response_handler != NULL) {
-        auto* header = reinterpret_cast<protocol_binary_response_header*>
-        (c->read.curr - (c->binary_header.request.bodylen +
-                         sizeof(c->binary_header)));
+        auto* header = reinterpret_cast<protocol_binary_response_header*>(
+                c->getPacket(c->getCookieObject()));
         ret = c->getBucketEngine()->dcp.response_handler
             (c->getBucketEngineAsV0(), c->getCookie(), header);
         ret = c->remapErrorCode(ret);
@@ -1610,9 +1605,7 @@ static void execute_request_packet(McbpConnection* c) {
     static McbpPrivilegeChains privilegeChains;
     protocol_binary_response_status result;
 
-    char* packet = (c->read.curr - (c->binary_header.request.bodylen +
-                                    sizeof(c->binary_header)));
-
+    char* packet = static_cast<char*>(c->getPacket(c->getCookieObject()));
     auto opcode = static_cast<protocol_binary_command>(c->binary_header.request.opcode);
     auto executor = executors[opcode];
 
@@ -1653,7 +1646,7 @@ static void execute_request_packet(McbpConnection* c) {
         if (executor != NULL) {
             executor(c, packet);
         } else {
-            process_bin_unknown_packet(c);
+            process_bin_unknown_packet(c, packet);
         }
         return;
     case cb::rbac::PrivilegeAccess::Stale:
