@@ -298,6 +298,7 @@ bool StoredValue::deleteImpl() {
     }
 
     resetValue();
+    setDatatype(PROTOCOL_BINARY_RAW_BYTES);
 
     deleted = true;
     markDirty();

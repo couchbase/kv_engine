@@ -161,6 +161,16 @@ TYPED_TEST(ValueTest, checkIfDeletedWithValueIsResident) {
     EXPECT_FALSE(this->sv->isResident());
 }
 
+/** Check that when an item is deleted (with no value) its datatype is set
+ * to RAW_BYTES.
+ */
+TYPED_TEST(ValueTest, deletedValueDatatypeIsBinary) {
+    ASSERT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, this->sv->getDatatype());
+    this->sv->del();
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, this->sv->getDatatype())
+            << "datatype should be RAW BYTES after deletion.";
+}
+
 /// Check that StoredValue / OrderedStoredValue don't unexpectedly change in
 /// size (we've carefully crafted them to be as efficient as possible).
 TEST(StoredValueTest, expectedSize) {

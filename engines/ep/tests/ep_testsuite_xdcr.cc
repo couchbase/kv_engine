@@ -437,7 +437,20 @@ static enum test_result test_get_meta_mb23905(ENGINE_HANDLE* h,
     }
 
     if (isPersistentBucket(h, h1)) {
-        checkeq(ENGINE_SUCCESS, del(h, h1, key, 0, 0), "Delete failed");
+        cb::xattr::Blob systemXattrBlob;
+        systemXattrBlob.set("_sync", "{\"cas\":\"0xdeadbeefcafefeed\"}");
+        auto deletedValue = systemXattrBlob.finalize();
+
+        checkeq(ENGINE_SUCCESS,
+                delete_with_value(h,
+                                  h1,
+                                  cookie,
+                                  0,
+                                  key,
+                                  {reinterpret_cast<char*>(deletedValue.data()),
+                                   deletedValue.size()},
+                                  cb::mcbp::Datatype::Xattr),
+                "delete_with_value() failed");
 
         // Run compaction to start using the bloomfilter
         useconds_t sleepTime = 128;
@@ -450,8 +463,10 @@ static enum test_result test_get_meta_mb23905(ENGINE_HANDLE* h,
                 get_meta(h, h1, key, true, GetMetaVersion::V2, cookie),
                 "Get meta command failed");
 
-        checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_XATTR),
-                last_datatype.load(), "Datatype is not XATTR");
+        checkeq(int(PROTOCOL_BINARY_DATATYPE_XATTR),
+                int(last_datatype.load()), "Datatype is not XATTR");
+
+        check(last_deleted_flag, "Expected deleted flag to be set");
     }
 
     testHarness.destroy_cookie(cookie);

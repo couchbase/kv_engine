@@ -179,12 +179,14 @@ ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
 /** Simplified version of store for handling the common case of performing
  * a delete with a value.
  */
-ENGINE_ERROR_CODE delete_with_value(ENGINE_HANDLE* h,
-                                    ENGINE_HANDLE_V1* h1,
-                                    const void* cookie,
-                                    uint64_t cas,
-                                    const char* key,
-                                    const char* value);
+ENGINE_ERROR_CODE delete_with_value(
+        ENGINE_HANDLE* h,
+        ENGINE_HANDLE_V1* h1,
+        const void* cookie,
+        uint64_t cas,
+        const char* key,
+        cb::const_char_buffer value,
+        cb::mcbp::Datatype datatype = cb::mcbp::Datatype::Raw);
 
 void disable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void enable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);

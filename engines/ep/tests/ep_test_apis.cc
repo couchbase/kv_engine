@@ -411,25 +411,24 @@ ENGINE_ERROR_CODE delete_with_value(ENGINE_HANDLE* h,
                                     const void* cookie,
                                     uint64_t cas,
                                     const char* key,
-                                    const char* value) {
-    item* itm = nullptr;
-    auto result = store(h,
-                        h1,
-                        cookie,
-                        OPERATION_SET,
-                        key,
-                        value,
-                        &itm,
-                        cas,
-                        /*vb*/ 0,
-                        /*exp*/ 0,
-                        /*datatype*/ 0,
-                        DocumentState::Deleted);
-    h1->release(h, cookie, itm);
-
+                                    cb::const_char_buffer value,
+                                    cb::mcbp::Datatype datatype) {
+    auto ret = storeCasVb11(h,
+                            h1,
+                            cookie,
+                            OPERATION_SET,
+                            key,
+                            value.data(),
+                            value.size(),
+                            9258,
+                            cas,
+                            /*vb*/ 0,
+                            /*exp*/ 0,
+                            uint8_t(datatype),
+                            DocumentState::Deleted);
     wait_for_flusher_to_settle(h, h1);
 
-    return result;
+    return ENGINE_ERROR_CODE(ret.first);
 }
 
 void del_with_meta(ENGINE_HANDLE* h,

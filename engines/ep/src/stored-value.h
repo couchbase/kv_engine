@@ -444,9 +444,9 @@ public:
         resident = false;
     }
 
+    /// Discard the value from this document.
     void resetValue() {
         value.reset();
-        value = nullptr;
     }
 
     /**
