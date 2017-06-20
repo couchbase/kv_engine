@@ -345,9 +345,17 @@ static protocol_binary_response_status dcp_mutation_validator(const Cookie& cook
 static protocol_binary_response_status dcp_deletion_validator(const Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_dcp_deletion*>(McbpConnection::getPacket(cookie));
+    const auto datatype = req->message.header.request.datatype;
+
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.keylen == 0 ||
-        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        req->message.header.request.keylen == 0) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    // Check datatype - only allow raw, or XATTR iff XATTRs are enabled.
+    if (!(mcbp::datatype::is_raw(datatype) ||
+          (datatype == PROTOCOL_BINARY_DATATYPE_XATTR &&
+           may_accept_xattr(cookie)))) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 

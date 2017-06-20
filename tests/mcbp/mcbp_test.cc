@@ -1859,6 +1859,36 @@ TEST_P(DcpDeletionValidatorTest, InvalidMagic) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
+TEST_P(DcpDeletionValidatorTest, ValidDatatype) {
+    using cb::mcbp::Datatype;
+    const std::array<uint8_t, 2> datatypes = {uint8_t(Datatype::Raw),
+                                              uint8_t(Datatype::Xattr)};
+
+    for (auto valid : datatypes) {
+        request.message.header.request.datatype = valid;
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate())
+                << "Testing valid datatype:" << int(valid);
+    }
+}
+
+TEST_P(DcpDeletionValidatorTest, InvalidDatatype) {
+    using cb::mcbp::Datatype;
+    const std::array<uint8_t, 6> datatypes = {
+            uint8_t(Datatype::JSON),
+            uint8_t(Datatype::Snappy),
+            uint8_t(Datatype::Snappy) | uint8_t(Datatype::JSON),
+            uint8_t(Datatype::Xattr) | uint8_t(Datatype::JSON),
+            uint8_t(Datatype::Xattr) | uint8_t(Datatype::Snappy),
+            uint8_t(Datatype::Xattr) | uint8_t(Datatype::Snappy) |
+                    uint8_t(Datatype::JSON)};
+
+    for (auto invalid : datatypes) {
+        request.message.header.request.datatype = invalid;
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate())
+                << "Testing invalid datatype:" << int(invalid);
+    }
+}
+
 TEST_P(DcpDeletionValidatorTest, InvalidExtlen) {
     request.message.header.request.extlen = 5;
     request.message.header.request.bodylen = htonl(7);
