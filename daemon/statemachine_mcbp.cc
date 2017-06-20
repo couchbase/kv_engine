@@ -94,10 +94,6 @@ const char* McbpStateMachine::getTaskName(TaskFunction task) const {
         return "conn_pending_close";
     } else if (task == conn_immediate_close) {
         return "conn_immediate_close";
-    } else if (task == conn_create_bucket) {
-        return "conn_create_bucket";
-    } else if (task == conn_delete_bucket) {
-        return "conn_delete_bucket";
     } else if (task == conn_sasl_auth) {
         return "conn_sasl_auth";
     } else if (task == conn_rbac_reload) {
@@ -492,51 +488,6 @@ bool conn_closing(McbpConnection *c) {
  */
 bool conn_destroyed(McbpConnection*) {
     return false;
-}
-
-bool conn_create_bucket(McbpConnection* c) {
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
-
-    if (ret == ENGINE_EWOULDBLOCK) {
-        LOG_WARNING(c,
-                    "conn_create_bucket: Unexpected AIO stat result "
-                        "EWOULDBLOCK. Shutting down connection");
-        c->setState(conn_closing);
-        return true;
-    }
-
-    if (ret == ENGINE_DISCONNECT) {
-        c->setState(conn_closing);
-    } else {
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-    }
-
-    return true;
-}
-
-bool conn_delete_bucket(McbpConnection *c) {
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
-
-    if (ret == ENGINE_EWOULDBLOCK) {
-        LOG_WARNING(c,
-                    "conn_delete_bucket: Unexpected AIO stat result "
-                        "EWOULDBLOCK. Shutting down connection");
-        c->setState(conn_closing);
-        return true;
-    }
-
-    ret = c->remapErrorCode(ret);
-    if (ret == ENGINE_DISCONNECT) {
-        c->setState(conn_closing);
-    } else {
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-    }
-
-    return true;
 }
 
 bool conn_sasl_auth(McbpConnection* c) {

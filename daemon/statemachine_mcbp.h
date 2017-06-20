@@ -251,30 +251,6 @@ bool conn_send_data(McbpConnection* c);
 bool conn_ship_log(McbpConnection* c);
 
 /**
- * Special state to park a connection which is creating a bucket
- *
- * possible next state:
- *   * conn_closing - failing to update the libevent setting
- *   * conn_send_data - sending the response packet
- *
- * @param c the connection object
- * @return true - always
- */
-bool conn_create_bucket(McbpConnection* c);
-
-/**
- * Special state to park a connection which is deleting a bucket
- *
- * possible next state:
- *   * conn_closing - failing to update the libevent setting
- *   * conn_send_data - sending the response packet
- *
- * @param c the connection object
- * @return true - always
- */
-bool conn_delete_bucket(McbpConnection* c);
-
-/**
  * Special state to park a connection which waiting for the SASL subsystem
  * to perform a task
  *

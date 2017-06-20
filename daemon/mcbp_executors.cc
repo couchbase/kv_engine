@@ -17,37 +17,34 @@
 
 #include "mcbp_executors.h"
 
-#include "mcbp.h"
-#include "memcached.h"
-#include "session_cas.h"
 #include "buckets.h"
 #include "config_parse.h"
-#include "ioctl.h"
-#include "runtime.h"
-#include "debug_helpers.h"
-#include "mcaudit.h"
-#include "subdocument.h"
-#include "mc_time.h"
 #include "connections.h"
-#include "mcbp_validators.h"
-#include "mcbp_topkeys.h"
+#include "debug_helpers.h"
 #include "enginemap.h"
-#include "mcbpdestroybuckettask.h"
-#include "sasl_tasks.h"
+#include "ioctl.h"
+#include "mc_time.h"
+#include "mcaudit.h"
+#include "mcbp.h"
 #include "mcbp_privileges.h"
+#include "mcbp_topkeys.h"
+#include "mcbp_validators.h"
+#include "mcbpdestroybuckettask.h"
+#include "memcached.h"
 #include "protocol/mcbp/appendprepend_context.h"
 #include "protocol/mcbp/arithmetic_context.h"
 #include "protocol/mcbp/audit_configure_context.h"
-#include "protocol/mcbp/gat_context.h"
-#include "protocol/mcbp/get_context.h"
-#include "protocol/mcbp/get_locked_context.h"
+#include "protocol/mcbp/create_remove_bucket_command_context.h"
 #include "protocol/mcbp/dcp_deletion.h"
 #include "protocol/mcbp/dcp_expiration.h"
 #include "protocol/mcbp/dcp_mutation.h"
 #include "protocol/mcbp/dcp_system_event_executor.h"
-#include "protocol/mcbp/flush_command_context.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "protocol/mcbp/executors.h"
+#include "protocol/mcbp/flush_command_context.h"
+#include "protocol/mcbp/gat_context.h"
+#include "protocol/mcbp/get_context.h"
+#include "protocol/mcbp/get_locked_context.h"
 #include "protocol/mcbp/mutation_context.h"
 #include "protocol/mcbp/remove_context.h"
 #include "protocol/mcbp/sasl_refresh_command_context.h"
@@ -55,7 +52,11 @@
 #include "protocol/mcbp/steppable_command_context.h"
 #include "protocol/mcbp/unlock_context.h"
 #include "protocol/mcbp/utilities.h"
+#include "runtime.h"
+#include "sasl_tasks.h"
+#include "session_cas.h"
 #include "settings.h"
+#include "subdocument.h"
 
 #include <cctype>
 #include <memcached/rbac.h>
@@ -1102,153 +1103,18 @@ static void audit_put_executor(McbpConnection* c, void* packet) {
 }
 
 /**
- * Override the CreateBucketTask so that we can have our own notification
- * mechanism to kickstart the clients thread
- */
-class McbpCreateBucketTask : public Task {
-public:
-    McbpCreateBucketTask(const std::string& name_,
-                         const std::string& config_,
-                         const BucketType& type_,
-                         McbpConnection& connection_)
-        : thread(name_, config_, type_, connection_, this),
-          mcbpconnection(connection_) { }
-
-    // start the bucket deletion
-    // May throw std::bad_alloc if we're failing to start the thread
-    void start() {
-        thread.start();
-    }
-
-    virtual Status execute() override {
-        return Status::Finished;
-    }
-
-    virtual void notifyExecutionComplete() override {
-        notify_io_complete(mcbpconnection.getCookie(), thread.getResult());
-    }
-
-    CreateBucketThread thread;
-    McbpConnection& mcbpconnection;
-};
-
-/**
  * The create bucket contains message have the following format:
  *    key: bucket name
  *    body: module\nconfig
  */
 static void create_bucket_executor(McbpConnection* c, void* packet) {
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
-
-    if (ret == ENGINE_SUCCESS) {
-        auto* req = reinterpret_cast<protocol_binary_request_create_bucket*>(packet);
-        /* decode packet */
-        uint16_t klen = ntohs(req->message.header.request.keylen);
-        uint32_t blen = ntohl(req->message.header.request.bodylen);
-        blen -= klen;
-
-        try {
-            std::string name((char*)(req + 1), klen);
-            std::string value((char*)(req + 1) + klen, blen);
-            std::string config;
-
-            // Check if (optional) config was included after the value.
-            auto marker = value.find('\0');
-            if (marker != std::string::npos) {
-                config.assign(&value[marker + 1]);
-            }
-
-            std::string errors;
-            BucketType type = module_to_bucket_type(value.c_str());
-            std::shared_ptr<Task> task = std::make_shared<McbpCreateBucketTask>(
-                name, config, type, *c);
-            std::lock_guard<std::mutex> guard(task->getMutex());
-            reinterpret_cast<McbpCreateBucketTask*>(task.get())->start();
-            ret = ENGINE_EWOULDBLOCK;
-            executorPool->schedule(task, false);
-        } catch (const std::bad_alloc&) {
-            ret = ENGINE_ENOMEM;
-        }
-        ret = c->remapErrorCode(ret);
-    }
-
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        break;
-    case ENGINE_EWOULDBLOCK:
-        c->setEwouldblock(true);
-        c->setState(conn_create_bucket);
-        break;
-    case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
-        break;
-    default:
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-    }
+    auto* req = static_cast<cb::mcbp::Request*>(packet);
+    c->obtainContext<CreateRemoveBucketCommandContext>(*c, *req).drive();
 }
 
 static void delete_bucket_executor(McbpConnection* c, void* packet) {
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    (void)packet;
-
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
-
-    if (ret == ENGINE_SUCCESS) {
-        McbpDestroyBucketTask* task = nullptr;
-        try {
-            auto* req = reinterpret_cast<protocol_binary_request_delete_bucket*>(packet);
-            /* decode packet */
-            uint16_t klen = ntohs(req->message.header.request.keylen);
-            uint32_t blen = ntohl(req->message.header.request.bodylen);
-            blen -= klen;
-
-            std::string name((char*)(req + 1), klen);
-            std::string config((char*)(req + 1) + klen, blen);
-            bool force = false;
-
-            struct config_item items[2];
-            memset(&items, 0, sizeof(items));
-            items[0].key = "force";
-            items[0].datatype = DT_BOOL;
-            items[0].value.dt_bool = &force;
-            items[1].key = NULL;
-
-            if (parse_config(config.c_str(), items, stderr) == 0) {
-                std::shared_ptr<Task> task = std::make_shared<McbpDestroyBucketTask>(
-                    name, force, c);
-                std::lock_guard<std::mutex> guard(task->getMutex());
-                reinterpret_cast<McbpDestroyBucketTask*>(task.get())->start();
-                ret = ENGINE_EWOULDBLOCK;
-                executorPool->schedule(task, false);
-            } else {
-                ret = ENGINE_EINVAL;
-            }
-        } catch (std::bad_alloc&) {
-            ret = ENGINE_ENOMEM;
-            delete task;
-        }
-        ret = c->remapErrorCode(ret);
-    }
-
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        break;
-    case ENGINE_EWOULDBLOCK:
-        c->setEwouldblock(true);
-        c->setState(conn_delete_bucket);
-        break;
-    case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
-        break;
-    default:
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-    }
+    auto* req = static_cast<cb::mcbp::Request*>(packet);
+    c->obtainContext<CreateRemoveBucketCommandContext>(*c, *req).drive();
 }
 
 static void get_errmap_executor(McbpConnection *c, void *packet) {
