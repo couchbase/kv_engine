@@ -72,6 +72,19 @@ public:
                 break;
         }
 
+        // Check if we've been notified of more work to do - if not then sleep;
+        // if so then wakeup and re-run the task.
+        // Note: The order of the wakeUp / snooze here is *critical* - another
+        // thread may concurrently notify us (set processorNotification=true)
+        // while we are performing the checks, so we need to ensure we don't
+        // loose a wakeup as that would result in this Task sleeping forever
+        // (and DCP hanging).
+        // To prevent this, we perform an initial check of notifiedProcessor(),
+        // which if false we initially sleep, and then check a second time.
+        // We could race if the other actor sets processorNotification=true
+        // between the second `if(consumer->notifiedProcessor)` and us calling
+        // `wakeUp()`; but that's essentially a benign race as it will just
+        // result in wakeUp() being called twice which is benign.
         if (consumer->notifiedProcessor(false)) {
             wakeUp();
             state = more_to_process;
