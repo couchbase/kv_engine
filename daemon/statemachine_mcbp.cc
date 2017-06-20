@@ -26,8 +26,6 @@
 #include "runtime.h"
 #include "mcaudit.h"
 
-static bool conn_execute(McbpConnection *c);
-
 void McbpStateMachine::setCurrentTask(McbpConnection& connection, TaskFunction task) {
     // Moving to the same state is legal
     if (task == currentTask) {
@@ -132,7 +130,7 @@ static void reset_cmd_handler(McbpConnection *c) {
     }
 
     c->shrinkBuffers();
-    if (c->read.bytes > 0) {
+    if (c->read.bytes >= sizeof(c->binary_header)) {
         c->setState(conn_parse_cmd);
     } else {
         c->setState(conn_waiting);
@@ -163,10 +161,8 @@ bool conn_ship_log(McbpConnection *c) {
     }
 
     if (c->isReadEvent() || c->read.bytes > 0) {
-        if (c->read.bytes > 0) {
-            if (try_read_mcbp_command(c) == 0) {
-                c->setState(conn_read_packet_header);
-            }
+        if (c->read.bytes >= sizeof(c->binary_header)) {
+            try_read_mcbp_command(c);
         } else {
             c->setState(conn_read_packet_header);
         }
@@ -237,7 +233,11 @@ bool conn_read_packet_header(McbpConnection* c) {
         }
         break;
     case McbpConnection::TryReadResult::DataReceived:
-        c->setState(conn_parse_cmd);
+        if (c->read.bytes >= sizeof(c->binary_header)) {
+            c->setState(conn_parse_cmd);
+        } else {
+            c->setState(conn_waiting);
+        }
         break;
     case McbpConnection::TryReadResult::SocketClosed:
     case McbpConnection::TryReadResult::SocketError:
@@ -252,11 +252,7 @@ bool conn_read_packet_header(McbpConnection* c) {
 }
 
 bool conn_parse_cmd(McbpConnection *c) {
-    if (try_read_mcbp_command(c) == 0) {
-        /* wee need more data! */
-        c->setState(conn_waiting);
-    }
-
+    try_read_mcbp_command(c);
     return !c->isEwouldblock();
 }
 
@@ -310,7 +306,7 @@ bool conn_new_cmd(McbpConnection *c) {
     return true;
 }
 
-static bool conn_execute(McbpConnection *c) {
+bool conn_execute(McbpConnection *c) {
     if (is_bucket_dying(c)) {
         return true;
     }

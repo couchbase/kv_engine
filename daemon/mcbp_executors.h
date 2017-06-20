@@ -37,7 +37,7 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors();
 
 void mcbp_complete_packet(McbpConnection* c);
 
-int try_read_mcbp_command(McbpConnection *c);
+void try_read_mcbp_command(McbpConnection *c);
 
 void initialize_mbcp_lookup_map(void);
 

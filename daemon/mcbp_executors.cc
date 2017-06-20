@@ -1761,76 +1761,69 @@ void mcbp_complete_packet(McbpConnection* c) {
     }
 }
 
-int try_read_mcbp_command(McbpConnection* c) {
+void try_read_mcbp_command(McbpConnection* c) {
     if (c == nullptr) {
         throw std::runtime_error("Internal eror, connection is not mcbp");
     }
     cb_assert(c->read.curr <= (c->read.buf + c->read.size));
-    cb_assert(c->read.bytes > 0);
+    cb_assert(c->read.bytes >= sizeof(c->binary_header));
 
     /* Do we have the complete packet header? */
-    if (c->read.bytes < sizeof(c->binary_header)) {
-        /* need more data! */
-        return 0;
-    } else {
 #ifdef NEED_ALIGN
-        if (((long)(c->read.curr)) % 8 != 0) {
-            /* must realign input buffer */
-            memmove(c->read.buf, c->read.curr, c->read.bytes);
-            c->read.curr = c->read.buf;
-            LOG_DEBUG(c, "%d: Realign input buffer", c->sfd);
-        }
+    if (((long)(c->read.curr)) % 8 != 0) {
+        /* must realign input buffer */
+        memmove(c->read.buf, c->read.curr, c->read.bytes);
+        c->read.curr = c->read.buf;
+        LOG_DEBUG(c, "%d: Realign input buffer", c->sfd);
+    }
 #endif
-        protocol_binary_request_header* req;
-        req = (protocol_binary_request_header*)c->read.curr;
+    protocol_binary_request_header* req;
+    req = (protocol_binary_request_header*)c->read.curr;
 
-        if (settings.getVerbose() > 1) {
-            /* Dump the packet before we convert it to host order */
-            char buffer[1024];
-            ssize_t nw;
-            nw = bytes_to_output_string(buffer, sizeof(buffer), c->getId(),
-                                        true, "Read binary protocol data:",
-                                        (const char*)req->bytes,
-                                        sizeof(req->bytes));
-            if (nw != -1) {
-                LOG_DEBUG(c, "%s", buffer);
-            }
+    if (settings.getVerbose() > 1) {
+        /* Dump the packet before we convert it to host order */
+        char buffer[1024];
+        ssize_t nw;
+        nw = bytes_to_output_string(buffer, sizeof(buffer), c->getId(),
+                                    true, "Read binary protocol data:",
+                                    (const char*)req->bytes,
+                                    sizeof(req->bytes));
+        if (nw != -1) {
+            LOG_DEBUG(c, "%s", buffer);
         }
-
-        c->binary_header = *req;
-        c->binary_header.request.keylen = ntohs(req->request.keylen);
-        c->binary_header.request.bodylen = ntohl(req->request.bodylen);
-        c->binary_header.request.vbucket = ntohs(req->request.vbucket);
-        c->binary_header.request.cas = ntohll(req->request.cas);
-
-        if (c->binary_header.request.magic != PROTOCOL_BINARY_REQ &&
-            !(c->binary_header.request.magic == PROTOCOL_BINARY_RES &&
-              response_handlers[c->binary_header.request.opcode])) {
-            if (c->binary_header.request.magic != PROTOCOL_BINARY_RES) {
-                LOG_WARNING(c, "%u: Invalid magic: %x, closing connection",
-                            c->getId(), c->binary_header.request.magic);
-            } else {
-                LOG_WARNING(c,
-                            "%u: Unsupported response packet received: %u, "
-                                "closing connection",
-                            c->getId(),
-                            (unsigned int)c->binary_header.request.opcode);
-
-            }
-            c->setState(conn_closing);
-            return -1;
-        }
-
-        c->addMsgHdr(true);
-        c->setCmd(c->binary_header.request.opcode);
-        /* clear the returned cas value */
-        c->setCAS(0);
-
-        dispatch_bin_command(c);
-
-        c->read.bytes -= sizeof(c->binary_header);
-        c->read.curr += sizeof(c->binary_header);
     }
 
-    return 1;
+    c->binary_header = *req;
+    c->binary_header.request.keylen = ntohs(req->request.keylen);
+    c->binary_header.request.bodylen = ntohl(req->request.bodylen);
+    c->binary_header.request.vbucket = ntohs(req->request.vbucket);
+    c->binary_header.request.cas = ntohll(req->request.cas);
+
+    if (c->binary_header.request.magic != PROTOCOL_BINARY_REQ &&
+        !(c->binary_header.request.magic == PROTOCOL_BINARY_RES &&
+          response_handlers[c->binary_header.request.opcode])) {
+        if (c->binary_header.request.magic != PROTOCOL_BINARY_RES) {
+            LOG_WARNING(c, "%u: Invalid magic: %x, closing connection",
+                        c->getId(), c->binary_header.request.magic);
+        } else {
+            LOG_WARNING(c,
+                        "%u: Unsupported response packet received: %u, "
+                            "closing connection",
+                        c->getId(),
+                        (unsigned int)c->binary_header.request.opcode);
+
+        }
+        c->setState(conn_closing);
+        return;
+    }
+
+    c->addMsgHdr(true);
+    c->setCmd(c->binary_header.request.opcode);
+    /* clear the returned cas value */
+    c->setCAS(0);
+
+    dispatch_bin_command(c);
+
+    c->read.bytes -= sizeof(c->binary_header);
+    c->read.curr += sizeof(c->binary_header);
 }
