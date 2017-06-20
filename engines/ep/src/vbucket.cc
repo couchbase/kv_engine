@@ -1967,7 +1967,7 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
     }
 
     if (v) {
-        if (!allowExisting && !v->isTempItem()) {
+        if (!allowExisting && !v->isTempItem() && !v->isDeleted()) {
             return {MutationStatus::InvalidCas, VBNotifyCtx()};
         }
         if (v->isLocked(ep_current_time())) {

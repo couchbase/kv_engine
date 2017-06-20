@@ -1656,8 +1656,9 @@ static enum test_result test_add_meta_conflict_resolution(ENGINE_HANDLE *h,
     itemMeta.cas++;
     add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
-    checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"),
-          "Expected two be meta fetches");
+    checkeq(isPersistentBucket(h, h1) ? 1 : 0,
+            get_int_stat(h, h1, "ep_bg_meta_fetched"),
+            "Expected bg meta fetches");
     checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
           "Expected set meta conflict resolution failure");
 
@@ -2585,8 +2586,11 @@ BaseTestCase testsuite_testcases[] = {
                  prepare,
                  cleanup),
         TestCase("test add meta conflict resolution",
-                 test_add_meta_conflict_resolution, test_setup, teardown, NULL,
-                 /* TODO Ephemeral: temp_items not currently updated on DELETE*/prepare_skip_broken_under_ephemeral,
+                 test_add_meta_conflict_resolution,
+                 test_setup,
+                 teardown,
+                 NULL,
+                 prepare,
                  cleanup),
         TestCase("test set meta conflict resolution",
                  test_set_meta_conflict_resolution, test_setup, teardown, NULL,
