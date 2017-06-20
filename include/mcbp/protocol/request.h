@@ -76,16 +76,16 @@ struct Request {
         cas = htonll(val);
     }
 
-    cb::const_byte_buffer getKey() {
+    cb::const_byte_buffer getKey() const {
         return {reinterpret_cast<const uint8_t*>(this) + sizeof(*this) + extlen,
                 getKeylen()};
     }
 
-    cb::const_byte_buffer getExtdata() {
+    cb::const_byte_buffer getExtdata() const {
         return {reinterpret_cast<const uint8_t*>(this) + sizeof(*this), extlen};
     }
 
-    cb::const_byte_buffer getValue() {
+    cb::const_byte_buffer getValue() const {
         const auto buf = getKey();
         return {buf.data() + buf.size(), getBodylen() - getKeylen() - extlen};
     }
