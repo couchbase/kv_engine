@@ -292,14 +292,15 @@ static cb::EngineErrorItemPair EvpGetAndTouch(ENGINE_HANDLE* handle,
                                                 expiry_time);
 }
 
-static ENGINE_ERROR_CODE EvpGetLocked(ENGINE_HANDLE* handle,
-                                      const void* cookie,
-                                      item** itm,
-                                      const DocKey& key,
-                                      uint16_t vbucket,
-                                      uint32_t lock_timeout) {
-    return acquireEngine(handle)->get_locked(
-            cookie, itm, key, vbucket, lock_timeout);
+static cb::EngineErrorItemPair EvpGetLocked(ENGINE_HANDLE* handle,
+                                            const void* cookie,
+                                            const DocKey& key,
+                                            uint16_t vbucket,
+                                            uint32_t lock_timeout) {
+    item* itm = nullptr;
+    auto ret = acquireEngine(handle)->get_locked(
+            cookie, &itm, key, vbucket, lock_timeout);
+    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, handle);
 }
 
 static ENGINE_ERROR_CODE EvpUnlock(ENGINE_HANDLE* handle,

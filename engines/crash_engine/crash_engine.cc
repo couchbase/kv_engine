@@ -186,13 +186,12 @@ static cb::EngineErrorItemPair get_and_touch(
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
-static ENGINE_ERROR_CODE get_locked(ENGINE_HANDLE* handle,
-                                    const void* cookie,
-                                    item** item,
-                                    const DocKey& key,
-                                    uint16_t vbucket,
-                                    uint32_t lock_timeout) {
-    return ENGINE_FAILED;
+static cb::EngineErrorItemPair get_locked(ENGINE_HANDLE* handle,
+                                          const void* cookie,
+                                          const DocKey& key,
+                                          uint16_t vbucket,
+                                          uint32_t lock_timeout) {
+    return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
 static ENGINE_ERROR_CODE unlock(ENGINE_HANDLE* handle,

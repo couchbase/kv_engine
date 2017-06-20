@@ -596,14 +596,11 @@ cb::EngineErrorItemPair getl(ENGINE_HANDLE* h,
                              const char* key,
                              uint16_t vb,
                              uint32_t lock_timeout) {
-    item* itm = nullptr;
-    auto ret = h1->get_locked(h,
-                              cookie,
-                              &itm,
-                              DocKey(key, testHarness.doc_namespace),
-                              vb,
-                              lock_timeout);
-    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, h);
+    return h1->get_locked(h,
+                          cookie,
+                          DocKey(key, testHarness.doc_namespace),
+                          vb,
+                          lock_timeout);
 }
 
 bool get_meta(ENGINE_HANDLE* h,

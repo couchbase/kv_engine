@@ -408,12 +408,11 @@ typedef struct engine_interface_v1 {
      *
      * @return ENGINE_SUCCESS if all goes well
      */
-    ENGINE_ERROR_CODE (* get_locked)(ENGINE_HANDLE* handle,
-                                     const void* cookie,
-                                     item** item,
-                                     const DocKey& key,
-                                     uint16_t vbucket,
-                                     uint32_t lock_timeout);
+    cb::EngineErrorItemPair (*get_locked)(ENGINE_HANDLE* handle,
+                                          const void* cookie,
+                                          const DocKey& key,
+                                          uint16_t vbucket,
+                                          uint32_t lock_timeout);
 
     /**
      * Get and update the expiry time for the document

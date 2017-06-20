@@ -159,9 +159,9 @@ private:
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
-    static ENGINE_ERROR_CODE get_locked(ENGINE_HANDLE*, const void*, item**,
-                                        const DocKey&, uint16_t, uint32_t) {
-        return ENGINE_NO_BUCKET;
+    static cb::EngineErrorItemPair get_locked(
+            ENGINE_HANDLE*, const void*, const DocKey&, uint16_t, uint32_t) {
+        return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
     static ENGINE_ERROR_CODE unlock(ENGINE_HANDLE*, const void*, const DocKey&,

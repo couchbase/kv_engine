@@ -427,20 +427,18 @@ public:
         }
     }
 
-    static ENGINE_ERROR_CODE get_locked(ENGINE_HANDLE* handle,
-                                        const void* cookie,
-                                        item** item,
-                                        const DocKey& key,
-                                        uint16_t vbucket,
-                                        uint32_t lock_timeout) {
+    static cb::EngineErrorItemPair get_locked(ENGINE_HANDLE* handle,
+                                              const void* cookie,
+                                              const DocKey& key,
+                                              uint16_t vbucket,
+                                              uint32_t lock_timeout) {
         EWB_Engine* ewb = to_engine(handle);
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         if (ewb->should_inject_error(Cmd::LOCK, cookie, err)) {
-            return err;
+            return cb::makeEngineErrorItemPair(cb::engine_errc(err));
         } else {
-            return ewb->real_engine->get_locked(ewb->real_handle,
-                                                cookie, item, key,
-                                                vbucket, lock_timeout);
+            return ewb->real_engine->get_locked(
+                    ewb->real_handle, cookie, key, vbucket, lock_timeout);
         }
     }
 

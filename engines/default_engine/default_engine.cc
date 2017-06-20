@@ -74,12 +74,11 @@ static cb::EngineErrorItemPair default_get_and_touch(ENGINE_HANDLE* handle,
                                                      uint16_t vbucket,
                                                      uint32_t expiry_time);
 
-static ENGINE_ERROR_CODE default_get_locked(ENGINE_HANDLE* handle,
-                                            const void* cookie,
-                                            item** item,
-                                            const DocKey& key,
-                                            uint16_t vbucket,
-                                            uint32_t lock_timeout);
+static cb::EngineErrorItemPair default_get_locked(ENGINE_HANDLE* handle,
+                                                  const void* cookie,
+                                                  const DocKey& key,
+                                                  uint16_t vbucket,
+                                                  uint32_t lock_timeout);
 static ENGINE_ERROR_CODE default_unlock(ENGINE_HANDLE* handle,
                                         const void* cookie,
                                         const DocKey& key,
@@ -517,14 +516,16 @@ static cb::EngineErrorItemPair default_get_and_touch(ENGINE_HANDLE* handle,
             cb::engine_errc(ret), reinterpret_cast<item*>(it), handle);
 }
 
-static ENGINE_ERROR_CODE default_get_locked(ENGINE_HANDLE* handle,
-                                            const void* cookie,
-                                            item** item,
-                                            const DocKey& key,
-                                            uint16_t vbucket,
-                                            uint32_t lock_timeout) {
+static cb::EngineErrorItemPair default_get_locked(ENGINE_HANDLE* handle,
+                                                  const void* cookie,
+                                                  const DocKey& key,
+                                                  uint16_t vbucket,
+                                                  uint32_t lock_timeout) {
     auto* engine = get_handle(handle);
-    VBUCKET_GUARD(engine, vbucket);
+
+    if (!handled_vbucket(engine, vbucket)) {
+        return cb::makeEngineErrorItemPair(cb::engine_errc::not_my_vbucket);
+    }
 
     // memcached buckets don't offer any way for the user to configure
     // the lock settings.
@@ -538,14 +539,10 @@ static ENGINE_ERROR_CODE default_get_locked(ENGINE_HANDLE* handle,
     // Convert the lock timeout to an absolute time
     lock_timeout += engine->server.core->get_current_time();
 
-    hash_item* it;
+    hash_item* it = nullptr;
     auto ret = item_get_locked(engine, cookie, &it, key.data(), key.size(),
                                lock_timeout);
-    if (ret == ENGINE_SUCCESS) {
-        *item = it;
-    }
-
-    return ret;
+    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), it, handle);
 }
 
 static ENGINE_ERROR_CODE default_unlock(ENGINE_HANDLE* handle,

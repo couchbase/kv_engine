@@ -219,23 +219,21 @@ cb::EngineErrorItemPair bucket_get_locked(McbpConnection& c,
                                     const DocKey& key,
                                     uint16_t vbucket,
                                     uint32_t lock_timeout) {
-    item* item_ = nullptr;
     auto ret = c.getBucketEngine()->get_locked(c.getBucketEngineAsV0(),
                                                c.getCookie(),
-                                               &item_,
                                                key,
                                                vbucket,
                                                lock_timeout);
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret.first == cb::engine_errc::success) {
         cb::audit::document::add(c, cb::audit::document::Operation::Lock);
-    } else if (ret == ENGINE_DISCONNECT) {
+    } else if (ret.first == cb::engine_errc::disconnect) {
         LOG_INFO(&c,
                  "%u: %s bucket_get_locked return ENGINE_DISCONNECT",
                  c.getId(),
                  c.getDescription().c_str());
     }
-    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), item_, c.getBucketEngineAsV0() );
+    return ret;
 }
 
 ENGINE_ERROR_CODE bucket_unlock(McbpConnection& c,
