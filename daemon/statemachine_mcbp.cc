@@ -98,8 +98,6 @@ const char* McbpStateMachine::getTaskName(TaskFunction task) const {
         return "conn_refresh_cbsasl";
     } else if (task == conn_flush) {
         return "conn_flush";
-    } else if (task == conn_audit_configuring) {
-        return "conn_audit_configuring";
     } else if (task == conn_create_bucket) {
         return "conn_create_bucket";
     } else if (task == conn_delete_bucket) {
@@ -554,29 +552,6 @@ bool conn_flush(McbpConnection *c) {
         break;
     default:
         mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-    }
-
-    return true;
-}
-
-bool conn_audit_configuring(McbpConnection *c) {
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
-
-    ret = c->remapErrorCode(ret);
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        break;
-    case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
-        break;
-    default:
-        LOG_WARNING(c,
-                    "configuration of audit daemon failed with config file: %s",
-                    settings.getAuditFile().c_str());
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
     }
 
     return true;

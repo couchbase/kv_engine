@@ -37,6 +37,7 @@
 #include "mcbp_privileges.h"
 #include "protocol/mcbp/appendprepend_context.h"
 #include "protocol/mcbp/arithmetic_context.h"
+#include "protocol/mcbp/audit_configure_context.h"
 #include "protocol/mcbp/gat_context.h"
 #include "protocol/mcbp/get_context.h"
 #include "protocol/mcbp/get_locked_context.h"
@@ -55,7 +56,6 @@
 #include "settings.h"
 
 #include <cctype>
-#include <memcached/audit_interface.h>
 #include <memcached/rbac.h>
 #include <platform/cb_malloc.h>
 #include <platform/checked_snprintf.h>
@@ -1127,22 +1127,7 @@ static void config_reload_executor(McbpConnection* c, void*) {
 }
 
 static void audit_config_reload_executor(McbpConnection* c, void*) {
-    if (settings.getAuditFile().empty()) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    } else {
-        if (configure_auditdaemon(get_audit_handle(),
-                                  settings.getAuditFile().c_str(),
-                                  c->getCookie()) == AUDIT_EWOULDBLOCK) {
-            c->setEwouldblock(true);
-            c->setState(conn_audit_configuring);
-        } else {
-            LOG_WARNING(NULL,
-                        "configuration of audit daemon failed with config "
-                            "file: %s",
-                        settings.getAuditFile().c_str());
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
-        }
-    }
+    c->obtainContext<AuditConfigureCommandContext>(*c).drive();
 }
 
 static void audit_put_executor(McbpConnection* c, void* packet) {

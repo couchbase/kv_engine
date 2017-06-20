@@ -278,19 +278,6 @@ bool conn_refresh_cbsasl(McbpConnection* c);
 bool conn_flush(McbpConnection* c);
 
 /**
- * Special state to park a connection which is reconfiguring audit
- * subsystem
- *
- * possible next state:
- *   * conn_closing - failing to update the libevent setting
- *   * conn_send_data - sending the response packet
- *
- * @param c the connection object
- * @return true - always
- */
-bool conn_audit_configuring(McbpConnection* c);
-
-/**
  * Special state to park a connection which is creating a bucket
  *
  * possible next state:
