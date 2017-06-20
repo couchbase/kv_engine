@@ -820,30 +820,8 @@ static void isasl_refresh_executor(McbpConnection* c, void* packet) {
 }
 
 static void ssl_certs_refresh_executor(McbpConnection* c, void* packet) {
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    (void)packet;
-
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
-
-    if (ret == ENGINE_SUCCESS) {
-        ret = refresh_ssl_certs(c);
-    }
-
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        break;
-    case ENGINE_EWOULDBLOCK:
-        c->setEwouldblock(true);
-        c->setState(conn_refresh_ssl_certs);
-        break;
-    case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
-        break;
-    default:
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-    }
+    // MB-22464 - We don't cache the SSL certificates in memory
+    mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
 static void verbosity_executor(McbpConnection* c, void* packet) {

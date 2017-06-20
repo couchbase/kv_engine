@@ -265,20 +265,6 @@ bool conn_ship_log(McbpConnection* c);
 bool conn_refresh_cbsasl(McbpConnection* c);
 
 /**
- * Special state to park a connection which is handling the refresh
- * of ssl certificates (this state is currently never used as we
- * don't cache the ssl certificates in memory)
- *
- * possible next state:
- *   * conn_closing - failing to update the libevent setting
- *   * conn_send_data - sending the response packet
- *
- * @param c the connection object
- * @return true - always
- */
-bool conn_refresh_ssl_certs(McbpConnection* c);
-
-/**
  * Special state to park a connection which is flushing the underlying
  * bucket
  *

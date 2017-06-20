@@ -854,36 +854,6 @@ ENGINE_ERROR_CODE refresh_cbsasl(Connection *c)
     return ENGINE_EWOULDBLOCK;
 }
 
-#if 0
-static void ssl_certs_refresh_main(void *c)
-{
-    /* Update the internal certificates */
-
-    notify_io_complete(c, ENGINE_SUCCESS);
-}
-#endif
-
-ENGINE_ERROR_CODE refresh_ssl_certs(Connection *c)
-{
-    (void)c;
-#if 0
-    cb_thread_t tid;
-    int err;
-
-    err = cb_create_thread(&tid, ssl_certs_refresh_main, c, 1);
-    if (err != 0) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "Failed to create ssl_certificate "
-                                        "update thread: %s",
-                                        strerror(err));
-        return ENGINE_DISCONNECT;
-    }
-
-    return ENGINE_EWOULDBLOCK;
-#endif
-    return ENGINE_SUCCESS;
-}
-
 static cJSON *get_bucket_details_UNLOCKED(const Bucket& bucket, int idx) {
     if (bucket.state == BucketState::None) {
         return nullptr;

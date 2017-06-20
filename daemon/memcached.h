@@ -278,7 +278,6 @@ bool is_listen_disabled(void);
 uint64_t get_listen_disabled_num(void);
 
 ENGINE_ERROR_CODE refresh_cbsasl(Connection *c);
-ENGINE_ERROR_CODE refresh_ssl_certs(Connection *c);
 
 /**
  * The executor pool used to pick up the result for requests spawn by the
