@@ -133,6 +133,12 @@ ADD_TEST(NAME memcached-dcp-unit-tests
          COMMAND memcached_testapp --gtest_filter=TransportProtocols/DcpTest.*)
 SET_TESTS_PROPERTIES(memcached-dcp-unit-tests PROPERTIES TIMEOUT 120)
 
+# Run the Flush tests
+ADD_TEST(NAME memcached-flush-unit-tests
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND memcached_testapp --gtest_filter=TransportProtocols/FlushTest.*)
+SET_TESTS_PROPERTIES(memcached-flush-unit-tests PROPERTIES TIMEOUT 120)
+
 # Run the tests with legacy users
 ADD_TEST(NAME memcached-legacy-users-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}

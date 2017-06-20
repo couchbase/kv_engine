@@ -23,7 +23,8 @@ protected:
     virtual void SetUp() {
         TestappClientTest::SetUp();
 
-        conn = static_cast<MemcachedBinprotConnection*>(&getConnection());
+        conn = static_cast<MemcachedBinprotConnection*>(&getAdminConnection());
+        conn->selectBucket("default");
 
         // Store our lone document
         Document doc;
@@ -108,7 +109,7 @@ TEST_P(FlushTest, FlushQWithExtlen) {
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, get(response));
 }
 
-TEST_P(FlushTest, DelayedFlushNotSupported) {
+TEST_P(FlushTest, DISABLED_DelayedFlushNotSupported) {
     TESTAPP_SKIP_IF_UNSUPPORTED(PROTOCOL_BINARY_CMD_FLUSH);
     BinprotGenericCommand command;
     BinprotResponse response;
