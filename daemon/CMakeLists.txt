@@ -133,6 +133,8 @@ ADD_LIBRARY(memcached_daemon STATIC
             protocol/mcbp/engine_wrapper.cc
             protocol/mcbp/engine_wrapper.h
             protocol/mcbp/executors.h
+            protocol/mcbp/flush_command_context.cc
+            protocol/mcbp/flush_command_context.h
             protocol/mcbp/gat_context.cc
             protocol/mcbp/gat_context.h
             protocol/mcbp/get_cmd_timer_executor.cc

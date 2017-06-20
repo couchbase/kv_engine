@@ -96,8 +96,6 @@ const char* McbpStateMachine::getTaskName(TaskFunction task) const {
         return "conn_immediate_close";
     } else if (task == conn_refresh_cbsasl) {
         return "conn_refresh_cbsasl";
-    } else if (task == conn_flush) {
-        return "conn_flush";
     } else if (task == conn_create_bucket) {
         return "conn_create_bucket";
     } else if (task == conn_delete_bucket) {
@@ -510,37 +508,6 @@ bool conn_refresh_cbsasl(McbpConnection *c) {
         c->setState(conn_closing);
         return true;
     }
-
-    ret = c->remapErrorCode(ret);
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        break;
-    case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
-        break;
-    default:
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-    }
-
-    return true;
-}
-
-/**
- * The conn_flush state in the state machinery means that we're currently
- * running a slow (and blocking) flush. The connection is "suspended" in
- * this state and when the connection is signalled this function is called
- * which sends the response back to the client.
- *
- * @param c the connection to send the result back to (currently stored in
- *          c->aiostat).
- * @return true to ensure that we continue to process events for this
- *              connection.
- */
-bool conn_flush(McbpConnection *c) {
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
 
     ret = c->remapErrorCode(ret);
     switch (ret) {

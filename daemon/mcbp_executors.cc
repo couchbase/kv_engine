@@ -45,6 +45,7 @@
 #include "protocol/mcbp/dcp_expiration.h"
 #include "protocol/mcbp/dcp_mutation.h"
 #include "protocol/mcbp/dcp_system_event_executor.h"
+#include "protocol/mcbp/flush_command_context.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "protocol/mcbp/executors.h"
 #include "protocol/mcbp/mutation_context.h"
@@ -922,33 +923,9 @@ static void noop_executor(McbpConnection* c, void*) {
     mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
-static void flush_executor(McbpConnection* c, void*) {
-    ENGINE_ERROR_CODE ret;
-    if (c->getCmd() == PROTOCOL_BINARY_CMD_FLUSHQ) {
-        c->setNoReply(true);
-    }
-
-    LOG_NOTICE(c, "%u: flush b:%s", c->getId(), c->getBucket().name);
-
-    ret = c->getBucketEngine()->flush(c->getBucketEngineAsV0(), c->getCookie());
-    ret = c->remapErrorCode(ret);
-
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        audit_bucket_flush(c, all_buckets[c->getBucketIndex()].name);
-        get_thread_stats(c)->cmd_flush++;
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        break;
-    case ENGINE_EWOULDBLOCK:
-        c->setEwouldblock(true);
-        c->setState(conn_flush);
-        break;
-    case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
-        break;
-    default:
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-    }
+static void flush_executor(McbpConnection* c, void* packet) {
+    auto* req = reinterpret_cast<cb::mcbp::Request*>(packet);
+    c->obtainContext<FlushCommandContext>(*c, *req).drive();
 }
 
 static void delete_executor(McbpConnection* c, void* packet) {
