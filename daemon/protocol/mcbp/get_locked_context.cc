@@ -95,7 +95,7 @@ ENGINE_ERROR_CODE GetLockedCommandContext::sendResponse() {
     connection.addIov(&info.flags, sizeof(info.flags));
     // Add the value
     connection.addIov(payload.buf, payload.len);
-    connection.setState(conn_mwrite);
+    connection.setState(conn_send_data);
 
     STATS_INCR(&connection, cmd_lock);
     update_topkeys(key, &connection);

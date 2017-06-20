@@ -106,7 +106,7 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
     }
 
     connection.addIov(payload.buf, payload.len);
-    connection.setState(conn_mwrite);
+    connection.setState(conn_send_data);
     cb::audit::document::add(connection, cb::audit::document::Operation::Read);
 
     STATS_HIT(&connection, get);
@@ -135,7 +135,7 @@ ENGINE_ERROR_CODE GetCommandContext::noSuchItem() {
                             uint32_t(key.size()),
                             PROTOCOL_BINARY_RAW_BYTES);
             connection.addIov(key.data(), key.size());
-            connection.setState(conn_mwrite);
+            connection.setState(conn_send_data);
         } else {
             mcbp_write_packet(&connection, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
         }

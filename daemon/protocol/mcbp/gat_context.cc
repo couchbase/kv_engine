@@ -124,7 +124,7 @@ ENGINE_ERROR_CODE GatCommandContext::sendResponse() {
     connection.addIov(&info.flags, sizeof(info.flags));
     // Add the value
     connection.addIov(payload.buf, payload.len);
-    connection.setState(conn_mwrite);
+    connection.setState(conn_send_data);
     cb::audit::document::add(connection, cb::audit::document::Operation::Read);
     state = State::Done;
     return ENGINE_SUCCESS;

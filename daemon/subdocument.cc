@@ -1349,7 +1349,7 @@ static void subdoc_single_response(SubdocCmdContext& context) {
         connection.addIov(value, context.response_val_len);
     }
 
-    connection.setState(conn_mwrite);
+    connection.setState(conn_send_data);
 }
 
 /* Construct and send a response to a multi-path mutation back to the client.
@@ -1467,7 +1467,7 @@ static void subdoc_multi_mutation_response(SubdocCmdContext& context) {
             }
         }
     }
-    connection.setState(conn_mwrite);
+    connection.setState(conn_send_data);
 }
 
 /* Construct and send a response to a multi-path lookup back to the client.
@@ -1548,7 +1548,7 @@ static void subdoc_multi_lookup_response(SubdocCmdContext& context) {
         }
     }
 
-    connection.setState(conn_mwrite);
+    connection.setState(conn_send_data);
 }
 
 // Respond back to the user as appropriate to the specific command.

@@ -61,7 +61,7 @@ void McbpStateMachine::setCurrentTask(McbpConnection& connection, TaskFunction t
                    getTaskName(task));
     }
 
-    if (task == conn_mwrite) {
+    if (task == conn_send_data) {
         if (connection.getStart() != 0) {
             mcbp_collect_timings(&connection);
             connection.setStart(0);
@@ -88,8 +88,8 @@ const char* McbpStateMachine::getTaskName(TaskFunction task) const {
         return "conn_execute";
     } else if (task == conn_closing) {
         return "conn_closing";
-    } else if (task == conn_mwrite) {
-        return "conn_mwrite";
+    } else if (task == conn_send_data) {
+        return "conn_send_data";
     } else if (task == conn_ship_log) {
         return "conn_ship_log";
     } else if (task == conn_pending_close) {
@@ -399,7 +399,7 @@ bool conn_read_packet_body(McbpConnection* c) {
     return true;
 }
 
-bool conn_mwrite(McbpConnection *c) {
+bool conn_send_data(McbpConnection* c) {
     bool ret = true;
 
     switch (c->transmit()) {
@@ -682,7 +682,7 @@ bool conn_sasl_auth(McbpConnection* c) {
                         task->getResponse_length(),
                         PROTOCOL_BINARY_RAW_BYTES);
         c->addIov(task->getResponse(), task->getResponse_length());
-        c->setState(conn_mwrite);
+        c->setState(conn_send_data);
         c->setWriteAndGo(conn_new_cmd);
         break;
     case CBSASL_BADPARAM:

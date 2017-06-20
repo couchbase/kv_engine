@@ -123,7 +123,7 @@ void mcbp_write_response(McbpConnection* c,
                         dlen,
                         PROTOCOL_BINARY_RAW_BYTES);
         c->addIov(d, dlen);
-        c->setState(conn_mwrite);
+        c->setState(conn_send_data);
         c->setWriteAndGo(conn_new_cmd);
     } else {
         if (c->getStart() != 0) {
@@ -147,7 +147,7 @@ void mcbp_write_and_free(McbpConnection* c, DynamicBuffer* buf) {
             return;
         }
         c->addIov(buf->getRoot(), buf->getOffset());
-        c->setState(conn_mwrite);
+        c->setState(conn_send_data);
         c->setWriteAndGo(conn_new_cmd);
 
         buf->takeOwnership();
@@ -188,7 +188,7 @@ void mcbp_write_packet(McbpConnection* c, protocol_binary_response_status err) {
     if (!payload.empty()) {
         c->addIov(payload.data(), payload.size());
     }
-    c->setState(conn_mwrite);
+    c->setState(conn_send_data);
     c->setWriteAndGo(conn_new_cmd);
 }
 

@@ -683,7 +683,7 @@ void ship_mcbp_dcp_log(McbpConnection* c) {
     } else if (ret == ENGINE_WANT_MORE) {
         /* The engine got more data it wants to send */
         ret = ENGINE_SUCCESS;
-        c->setState(conn_mwrite);
+        c->setState(conn_send_data);
         c->setWriteAndGo(conn_ship_log);
     }
 
