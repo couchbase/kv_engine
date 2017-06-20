@@ -50,6 +50,7 @@
 #include "protocol/mcbp/executors.h"
 #include "protocol/mcbp/mutation_context.h"
 #include "protocol/mcbp/remove_context.h"
+#include "protocol/mcbp/sasl_refresh_command_context.h"
 #include "protocol/mcbp/stats_context.h"
 #include "protocol/mcbp/steppable_command_context.h"
 #include "protocol/mcbp/unlock_context.h"
@@ -794,30 +795,7 @@ static void stat_executor(McbpConnection* c, void* packet) {
 }
 
 static void isasl_refresh_executor(McbpConnection* c, void* packet) {
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    (void)packet;
-
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
-
-    if (ret == ENGINE_SUCCESS) {
-        ret = refresh_cbsasl(c);
-    }
-
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        break;
-    case ENGINE_EWOULDBLOCK:
-        c->setEwouldblock(true);
-        c->setState(conn_refresh_cbsasl);
-        break;
-    case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
-        break;
-    default:
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-    }
+    c->obtainContext<SaslRefreshCommandContext>(*c).drive();
 }
 
 static void ssl_certs_refresh_executor(McbpConnection* c, void* packet) {
