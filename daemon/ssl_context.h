@@ -29,6 +29,33 @@
 /**
  * The SslContext class is a holder class for all of the ssl-related
  * information used by the connection object.
+ *
+ * As described in the architecture documentation, memcached use a "small"
+ * number of worker threads to server all of the clients. This means that
+ * the working threads can't block trying to send and receive data by using
+ * the "standard" BIO objects provided with OpenSSL.
+ *
+ * We _could_ have implemented our own BIO object which took care for this
+ * for ourself, but instead we (read I) decided to just use the standard
+ * BIO object and perform read/write operations from them into a socket
+ * due to the fact that it looked easier at the time (with the short deadline
+ * in order to add the support for OpenSSL).
+ *
+ * This gives us the following implementation:
+ *
+ * Call SSL_write with the data we want to send. OpenSSL tries to put as
+ * much as possible of the data we want to send into it's send BIO and
+ * when it is full it returns the number of bytes sent. At this time the
+ * memcached core tries to call drainBioSendPipe which loops trying to
+ * read the buffered data in the BIO, and tries to send it over the socket.
+ * The function returns when the BIO is empty or the socket buffer is full
+ * and memcached may try another SSL_write.
+ *
+ * The read path works the same way by reading from the socket before feeding
+ * the data into the BIO before calling SSL_read.
+ *
+ * It would most likely be more efficient to refactor our code to implement
+ * our own BIO object instead.
  */
 class SslContext {
 public:

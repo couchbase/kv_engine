@@ -161,8 +161,11 @@ void SslContext::drainBioRecvPipe(SOCKET sfd) {
     bool stop;
 
     do {
+        // Try to move data from our internal buffer to the SSL pipe
         stop = !drainInputSocketBuf();
 
+        // If there is room in the input pipe (the internal buffer for read)
+        // try to read out as much as possible from the socket
         if (!inputPipe.full()) {
             auto n = inputPipe.produce([sfd](cb::byte_buffer data) -> ssize_t {
                 return ::recv(sfd,
@@ -184,7 +187,18 @@ void SslContext::drainBioRecvPipe(SOCKET sfd) {
                 }
             }
         }
+
+        // As long as we moved some data (from the socket to our internal buffer
+        // or from our internal buffer to the BIO) we should keep on moving
+        // data.
     } while (!stop);
+
+    // At this time there is:
+    //   * either no more data to receive (everything is moved into the
+    //     BIO object
+    //   * The BIO object is full and the input pipe is:
+    //       * full - there may be more data on the network
+    //       * not full - there is no more data to read from the network
 }
 
 void SslContext::drainBioSendPipe(SOCKET sfd) {
@@ -192,6 +206,7 @@ void SslContext::drainBioSendPipe(SOCKET sfd) {
 
     do {
         stop = true;
+        // Try to move data from our internal buffer to the socket
         if (!outputPipe.empty()) {
             auto n = outputPipe.consume(
                     [sfd](cb::const_byte_buffer data) -> ssize_t {
@@ -230,7 +245,14 @@ void SslContext::drainBioSendPipe(SOCKET sfd) {
                 stop = false;
             }
         }
+        // As long as we moved some data (from the internal buffer to the
+        // socket or from the BIO to our internal buffer) we should keep on
+        // moving data.
     } while (!stop);
+
+    // At this time there is:
+    //   * There is no more data to send
+    //   * The socket buffer is full
 }
 
 void SslContext::dumpCipherList(uint32_t id) const {
