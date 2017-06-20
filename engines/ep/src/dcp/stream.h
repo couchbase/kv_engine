@@ -430,7 +430,7 @@ private:
     //! The amount of items that have been sent during the memory phase
     std::atomic<size_t> itemsFromMemoryPhase;
 
-    //! Whether ot not this is the first snapshot marker sent
+    //! Whether or not this is the first snapshot marker sent
     bool firstMarkerSent;
 
     std::atomic<int> waitForSnapshot;

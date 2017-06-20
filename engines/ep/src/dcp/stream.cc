@@ -376,8 +376,13 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
             return;
         }
 
-        startSeqno = std::min(snap_start_seqno_, startSeqno);
-        firstMarkerSent = true;
+        /* We need to send the requested 'snap_start_seqno_' as the snapshot
+           start when we are sending the first snapshot because the first
+           snapshot could be resumption of a previous snapshot */
+        if (!firstMarkerSent) {
+            startSeqno = std::min(snap_start_seqno_, startSeqno);
+            firstMarkerSent = true;
+        }
 
         VBucketPtr vb = engine->getVBucket(vb_);
         if (!vb) {
@@ -1021,6 +1026,9 @@ void ActiveStream::snapshot(std::deque<DcpResponse*>& items, bool mark) {
             flags |= MARKER_FLAG_ACK;
         }
 
+        /* We need to send the requested 'snap_start_seqno_' as the snapshot
+           start when we are sending the first snapshot because the first
+           snapshot could be resumption of a previous snapshot */
         if (!firstMarkerSent) {
             snapStart = std::min(snap_start_seqno_, snapStart);
             firstMarkerSent = true;

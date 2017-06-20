@@ -724,16 +724,19 @@ static void dcp_stream_to_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
    correctly only in case there is one vbucket)
    Currently this supports only streaming mutations, but can be extend to stream
    deletion etc */
-static void dcp_stream_from_producer_conn(ENGINE_HANDLE *h,
-                                          ENGINE_HANDLE_V1 *h1,
-                                          const void *cookie, uint32_t opaque,
-                                          uint64_t start, uint64_t end)
-{
+static void dcp_stream_from_producer_conn(ENGINE_HANDLE* h,
+                                          ENGINE_HANDLE_V1* h1,
+                                          const void* cookie,
+                                          uint32_t opaque,
+                                          uint64_t start,
+                                          uint64_t end,
+                                          uint64_t expSnapStart) {
     bool done = false;
     size_t bytes_read = 0;
     bool pending_marker_ack = false;
     uint64_t marker_end = 0;
     uint64_t num_mutations = 0;
+    uint64_t last_snap_start_seqno = 0;
     std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
 
     do {
@@ -769,6 +772,7 @@ static void dcp_stream_from_producer_conn(ENGINE_HANDLE *h,
                         marker_end = dcp_last_snap_end_seqno;
                     }
                     bytes_read += dcp_last_packet_size;
+                    last_snap_start_seqno = dcp_last_snap_start_seqno;
                     break;
                 case 0:
                     break;
@@ -788,6 +792,11 @@ static void dcp_stream_from_producer_conn(ENGINE_HANDLE *h,
     /* Do buffer ack of the outstanding bytes */
     h1->dcp.buffer_acknowledgement(h, cookie, ++opaque, 0, bytes_read);
     checkeq((end - start + 1), num_mutations, "Invalid number of mutations");
+    if (expSnapStart) {
+        checkeq(expSnapStart,
+                last_snap_start_seqno,
+                "Incorrect snap start seqno");
+    }
 }
 
 struct mb16357_ctx {
@@ -2469,6 +2478,7 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
                                             ENGINE_HANDLE_V1 *h1) {
     /* Initially write a few items */
     int num_items = 25;
+    const int initialSnapshotSize = num_items;
     const int cursor_dropping_mem_thres_perc = 90;
 
     write_items(h, h1, num_items, 1);
@@ -2500,8 +2510,8 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
     /* Stream (from in-memory state) less than the number of items written.
        We want to do this because we want to test if the stream drops the items
        in the readyQ when we later switch from in-memory -> backfill state */
-    dcp_stream_from_producer_conn(h, h1, cookie, opaque,
-                                  last_seqno_streamed + 1, num_items - 5);
+    dcp_stream_from_producer_conn(
+            h, h1, cookie, opaque, last_seqno_streamed + 1, num_items - 5, 0);
     last_seqno_streamed = num_items - 5;
 
     /* Check if the stream is still in in-memory state after sending out
@@ -2533,16 +2543,26 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
        For this we need to have correct combination of max_size and
        chk_max_items (max_size=6291456;chk_max_items=8000 in this case) */
     wait_for_stat_to_be_gte(h, h1, "ep_cursors_dropped", 1);
-    dcp_stream_from_producer_conn(h, h1, cookie, opaque,
-                                  last_seqno_streamed + 1, num_items);
+    dcp_stream_from_producer_conn(h,
+                                  h1,
+                                  cookie,
+                                  opaque,
+                                  last_seqno_streamed + 1,
+                                  num_items,
+                                  initialSnapshotSize + 1);
     last_seqno_streamed = num_items;
 
     /* Write 10 more items to test if stream transitions correctly from
        backfill -> in-memory and sends out items */
     write_items(h, h1, 10, num_items + 1);
     num_items += 10;
-    dcp_stream_from_producer_conn(h, h1, cookie, opaque,
-                                  last_seqno_streamed + 1, num_items);
+    dcp_stream_from_producer_conn(h,
+                                  h1,
+                                  cookie,
+                                  opaque,
+                                  last_seqno_streamed + 1,
+                                  num_items,
+                                  last_seqno_streamed + 1);
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -2552,6 +2572,7 @@ static test_result test_dcp_cursor_dropping_backfill(ENGINE_HANDLE *h,
                                                      ENGINE_HANDLE_V1 *h1) {
     /* Initially write a few items */
     int num_items = 50;
+    const int initialSnapshotSize = num_items;
     const int cursor_dropping_mem_thres_perc = 90;
 
     write_items(h, h1, num_items, 1);
@@ -2598,7 +2619,8 @@ static test_result test_dcp_cursor_dropping_backfill(ENGINE_HANDLE *h,
 
     /* Read all the items from the producer. This ensures that the items are
        backfilled correctly after scheduling 2 successive backfills. */
-    dcp_stream_from_producer_conn(h, h1, cookie, opaque, 1, num_items);
+    dcp_stream_from_producer_conn(
+            h, h1, cookie, opaque, 1, num_items, initialSnapshotSize + 1);
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;

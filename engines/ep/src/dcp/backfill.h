@@ -81,7 +81,7 @@ protected:
     /**
      * Start seqno of the backfill
      */
-    uint64_t startSeqno;
+    const uint64_t startSeqno;
 
     /**
      * End seqno of the backfill
