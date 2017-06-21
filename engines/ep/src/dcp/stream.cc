@@ -560,9 +560,15 @@ DcpResponse* ActiveStream::backfillPhase(std::lock_guard<std::mutex>& lh) {
     DcpResponse* resp = nextQueuedItem();
 
     if (resp) {
+        /* It is ok to have recordBackfillManagerBytesSent() and
+           bufferedBackfill.bytes.fetch_sub() for all events because
+           resp->getApproximateSize() is non zero for only certain resp types.
+           (MB-24905 is open to make the accounting cleaner) */
         producer->recordBackfillManagerBytesSent(resp->getApproximateSize());
         bufferedBackfill.bytes.fetch_sub(resp->getApproximateSize());
-        bufferedBackfill.items--;
+        if (!resp->isMetaEvent() || resp->isSystemEvent()) {
+            bufferedBackfill.items--;
+        }
 
         // Only DcpResponse objects representing items from "disk" have a size
         // so only update backfillRemaining when non-zero

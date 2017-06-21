@@ -97,6 +97,13 @@ public:
                 std::to_string(int(event_)));
     }
 
+    /**
+     * Returns if the response is a system event
+     */
+    bool isSystemEvent() const {
+        return (event_ == Event::SystemEvent);
+    }
+
     virtual uint32_t getMessageSize() const = 0;
 
     /**

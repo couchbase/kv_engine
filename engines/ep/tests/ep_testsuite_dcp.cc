@@ -470,6 +470,16 @@ void TestDcpConsumer::run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                 checkeq(static_cast<uint64_t>(0),
                         get_ull_stat(h, h1, stats_ready_queue_memory.str().c_str(), "dcp"),
                         "readyQ size did not go to zero");
+
+                std::string stats_backfill_buffer_items(
+                        "eq_dcpq:" + name + ":stream_" +
+                        std::to_string(ctx.vbucket) + "_backfill_buffer_items");
+                checkeq(static_cast<uint64_t>(0),
+                        get_ull_stat(h,
+                                     h1,
+                                     stats_backfill_buffer_items.c_str(),
+                                     "dcp"),
+                        "backfill buffer items did not go to zero");
             }
             if (ctx.expected_values) {
                 checkeq(ctx.expected_values,
