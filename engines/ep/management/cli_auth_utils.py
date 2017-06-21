@@ -68,7 +68,7 @@ def cmd_decorator(f):
             else:
                 f(*args, **kwargs)
         except mc_bin_client.ErrorEaccess:
-            print ("No access to bucket:{} - permission denied "
+            print ("No access to bucket:{0} - permission denied "
                    "or bucket does not exist.".format(bucket))
             sys.exit(1)
 
