@@ -3,12 +3,12 @@
 import clitool
 import cli_auth_utils
 import datetime
-import sys
-import math
 import inspect
 import itertools
+import math
 import mc_bin_client
 import re
+import sys
 
 from collections import defaultdict
 from operator import itemgetter
@@ -202,6 +202,7 @@ def tasks_stats_formatter(stats, sort_by=None, reverse=False, *args):
                     ('waketime_ns',      ('SleepFor', True,  True )),
                     ('runtime',          ('Runtime',  True,  True )),
                     ('total_runtime_ns', ('TotalRun', True,  True )),
+                    ('num_runs',         ('#Runs',    True,  True )),
                     ('type',             ('Type',     False, False)),
                     ('name',             ('Name',     False, False)),
                     ('description',      ('Descr.',   False, False)),

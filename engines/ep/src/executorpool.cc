@@ -935,6 +935,12 @@ void ExecutorPool::doTasksStat(EventuallyPersistentEngine* engine,
         cJSON_AddNumberToObject(obj.get(),
                                 "previous_runtime_ns",
                                 task->getPrevRuntime().count());
+        cJSON_AddNumberToObject(
+                obj.get(),
+                "num_runs",
+                engine->getEpStats()
+                        .taskRuntimeHisto[static_cast<int>(task->getTypeId())]
+                        .total());
         cJSON_AddStringToObject(
                 obj.get(),
                 "type",
