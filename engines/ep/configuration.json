@@ -699,7 +699,7 @@
             "type": "std::string"
         },
         "dcp_backfill_byte_limit": {
-            "default": "20971832",
+            "default": "20972856",
             "descr": "Max bytes a connection can backfill into memory",
             "dynamic": false,
             "type": "size_t"
