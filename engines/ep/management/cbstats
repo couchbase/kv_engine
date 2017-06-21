@@ -11,6 +11,7 @@ import re
 import sys
 
 from collections import defaultdict
+from difflib import SequenceMatcher
 from operator import itemgetter
 
 try:
@@ -226,12 +227,22 @@ def tasks_stats_formatter(stats, sort_by=None, reverse=False, *args):
                     if sort_by.isdigit():
                         sort_key = itemgetter(int(sort_by))
                     else:
+                        # Find which column has the lowest string distance
+                        # to the requested sort value.
                         sort_by = sort_by.lower()
-                        for index, column in enumerate(table_column_values):
-                            if sort_by == column.display_name.lower():
-                                sort_key = itemgetter(index)
-                                reverse ^= column.invert_sort
-                                break
+
+                        similarity = lambda s: (
+                            SequenceMatcher(None,
+                                            sort_by,
+                                            s.display_name.lower()).ratio())
+
+                        closest = sorted(table_column_values,
+                                         key=similarity,
+                                         reverse=True)[0]
+
+                        index = table_column_values.index(closest)
+                        sort_key = itemgetter(index)
+                        reverse ^= closest.invert_sort
 
             table_formatter(table_column_values, table_data,
                             sort_key, reverse=reverse)
