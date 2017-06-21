@@ -19,6 +19,7 @@
 #include "task.h"
 #include <cbsasl/cbsasl.h>
 #include <string>
+#include <platform/sized_buffer.h>
 
 
 class Connection;
@@ -46,12 +47,8 @@ public:
         return error;
     }
 
-    const char* getResponse() const {
-        return response;
-    }
-
-    unsigned int getResponse_length() const {
-        return response_length;
+    cb::const_char_buffer getResponse() const {
+        return {response, response_length};
     }
 
 protected:

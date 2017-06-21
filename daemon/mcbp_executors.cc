@@ -48,6 +48,7 @@
 #include "protocol/mcbp/mutation_context.h"
 #include "protocol/mcbp/rbac_reload_command_context.h"
 #include "protocol/mcbp/remove_context.h"
+#include "protocol/mcbp/sasl_auth_command_context.h"
 #include "protocol/mcbp/sasl_refresh_command_context.h"
 #include "protocol/mcbp/stats_context.h"
 #include "protocol/mcbp/steppable_command_context.h"
@@ -867,36 +868,8 @@ static void sasl_list_mech_executor(McbpConnection* c, void*) {
 }
 
 static void sasl_auth_executor(McbpConnection* c, void* packet) {
-    if (!c->isSaslAuthEnabled()) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-        return;
-    }
-
-    auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(packet);
-    int nkey = c->binary_header.request.keylen;
-    int vlen = c->binary_header.request.bodylen - nkey;
-
-    const char *ptr = reinterpret_cast<char*>(req->bytes) + sizeof(req->bytes);
-
-    std::string mechanism(ptr, nkey);
-    std::string challenge(ptr + nkey, vlen);
-
-    LOG_DEBUG(c, "%u: SASL auth with mech: '%s' with %d bytes of data",
-              c->getId(), mechanism.c_str(), vlen);
-
-    std::shared_ptr<Task> task;
-
-    if (c->getCmd() == PROTOCOL_BINARY_CMD_SASL_AUTH) {
-        task = std::make_shared<StartSaslAuthTask>(c->getCookieObject(), *c, mechanism, challenge);
-    } else {
-        task = std::make_shared<StepSaslAuthTask>(c->getCookieObject(), *c, mechanism, challenge);
-    }
-    c->setCommandContext(new SaslCommandContext(task));
-
-    c->setEwouldblock(true);
-    c->setState(conn_sasl_auth);
-    std::lock_guard<std::mutex> guard(task->getMutex());
-    executorPool->schedule(task, true);
+    auto* req = reinterpret_cast<cb::mcbp::Request*>(packet);
+    c->obtainContext<SaslAuthCommandContext>(*c, *req).drive();
 }
 
 static void noop_executor(McbpConnection* c, void*) {

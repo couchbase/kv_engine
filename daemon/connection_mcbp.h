@@ -47,14 +47,6 @@
 #include "ssl_context.h"
 #include "task.h"
 
-class SaslCommandContext : public CommandContext {
-public:
-    SaslCommandContext(std::shared_ptr<Task>& t)
-    : task(t) { }
-
-    std::shared_ptr<Task> task;
-};
-
 class McbpConnection : public Connection {
 public:
     McbpConnection() = delete;

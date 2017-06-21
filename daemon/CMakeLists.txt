@@ -152,6 +152,8 @@ ADD_LIBRARY(memcached_daemon STATIC
             protocol/mcbp/rbac_reload_command_context.h
             protocol/mcbp/remove_context.cc
             protocol/mcbp/remove_context.h
+            protocol/mcbp/sasl_auth_command_context.cc
+            protocol/mcbp/sasl_auth_command_context.h
             protocol/mcbp/sasl_refresh_command_context.cc
             protocol/mcbp/sasl_refresh_command_context.h
             protocol/mcbp/select_bucket_executor.cc

@@ -94,8 +94,6 @@ const char* McbpStateMachine::getTaskName(TaskFunction task) const {
         return "conn_pending_close";
     } else if (task == conn_immediate_close) {
         return "conn_immediate_close";
-    } else if (task == conn_sasl_auth) {
-        return "conn_sasl_auth";
     } else if (task == conn_destroyed) {
         return "conn_destroyed";
     } else {
@@ -486,69 +484,4 @@ bool conn_closing(McbpConnection *c) {
  */
 bool conn_destroyed(McbpConnection*) {
     return false;
-}
-
-bool conn_sasl_auth(McbpConnection* c) {
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
-
-    auto* ctx = reinterpret_cast<SaslCommandContext*>(c->getCommandContext());
-    auto task = reinterpret_cast<SaslAuthTask*>(ctx->task.get());
-
-    switch (task->getError()) {
-    case CBSASL_OK:
-        mcbp_write_response(
-                c, task->getResponse(), 0, 0, task->getResponse_length());
-        get_thread_stats(c)->auth_cmds++;
-        break;
-    case CBSASL_CONTINUE:
-        mcbp_add_header(c,
-                        PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE,
-                        0,
-                        0,
-                        task->getResponse_length(),
-                        PROTOCOL_BINARY_RAW_BYTES);
-        c->addIov(task->getResponse(), task->getResponse_length());
-        c->setState(conn_send_data);
-        c->setWriteAndGo(conn_new_cmd);
-        break;
-    case CBSASL_BADPARAM:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
-        {
-            auto* ts = get_thread_stats(c);
-            ts->auth_cmds++;
-            ts->auth_errors++;
-        }
-        break;
-    default:
-        if (!is_server_initialized()) {
-            auto ret = PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED;
-            if (!c->isXerrorSupport()) {
-                ret = PROTOCOL_BINARY_RESPONSE_AUTH_ERROR;
-            }
-            LOG_WARNING(c,
-                        "%u: SASL AUTH failure during initialization. "
-                        "UUID: [%s]",
-                        c->getId(),
-                        c->getCookieObject().getEventId().c_str());
-            mcbp_write_packet(c, ret);
-            c->setWriteAndGo(conn_closing);
-            return true;
-        }
-
-        if (task->getError() == CBSASL_NOUSER ||
-            task->getError() == CBSASL_PWERR) {
-            audit_auth_failure(c,
-                               task->getError() == CBSASL_NOUSER
-                                       ? "Unknown user"
-                                       : "Incorrect password");
-        }
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
-
-        auto* ts = get_thread_stats(c);
-        ts->auth_cmds++;
-        ts->auth_errors++;
-    }
-
-    return true;
 }

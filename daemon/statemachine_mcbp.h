@@ -249,16 +249,3 @@ bool conn_send_data(McbpConnection* c);
  *              for this connection, false if we're done
  */
 bool conn_ship_log(McbpConnection* c);
-
-/**
- * Special state to park a connection which waiting for the SASL subsystem
- * to perform a task
- *
- * possible next state:
- *   * conn_closing - failing to update the libevent setting
- *   * conn_send_data - sending the response packet
- *
- * @param c the connection object
- * @return true - always
- */
-bool conn_sasl_auth(McbpConnection* c);
