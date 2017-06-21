@@ -79,7 +79,8 @@ public:
           skip_verification(false),
           exp_err(ENGINE_SUCCESS),
           exp_rollback(0),
-          expected_values(0) {
+          expected_values(0),
+          opaque(0) {
         seqno = {0, static_cast<uint64_t>(~0)};
         snapshot = {0, static_cast<uint64_t>(~0)};
     }
@@ -127,6 +128,8 @@ public:
     uint64_t exp_rollback;
     /* Expected number of values (from mutations or deleted_values) */
     size_t expected_values;
+    /* stream opaque */
+    uint32_t opaque;
 };
 
 class TestDcpConsumer {
@@ -183,6 +186,11 @@ public:
        producer */
     ENGINE_ERROR_CODE openStreams();
 
+    /* if clear is true, it will also clear the stream vector */
+    ENGINE_ERROR_CODE closeStreams(bool fClear = false);
+
+    ENGINE_ERROR_CODE sendControlMessage(const std::string& name,
+                                         const std::string& value);
 private:
     /* Vbucket-level stream stats used in test */
     struct VBStats {
@@ -236,6 +244,17 @@ private:
     ENGINE_HANDLE* h;
     ENGINE_HANDLE_V1* h1;
 };
+
+ENGINE_ERROR_CODE TestDcpConsumer::sendControlMessage(
+        const std::string& name, const std::string& value) {
+    return h1->dcp.control(h,
+                           cookie,
+                           ++opaque,
+                           name.c_str(),
+                           name.size(),
+                           value.c_str(),
+                           value.size());
+}
 
 void TestDcpConsumer::run() {
     check(stream_ctxs.size() >= 1, "No dcp_stream arguments provided!");
@@ -593,6 +612,7 @@ ENGINE_ERROR_CODE TestDcpConsumer::openStreams() {
         checkeq(opaque,
                 (uint32_t)get_int_stat(h, h1, stats_opaque.str().c_str(), "dcp"),
                 "Opaque didn't match");
+        ctx.opaque = opaque;
 
         std::stringstream stats_start_seqno;
         stats_start_seqno << "eq_dcpq:" << name.c_str() << ":stream_"
@@ -665,6 +685,23 @@ ENGINE_ERROR_CODE TestDcpConsumer::openStreams() {
         vb_stats[ctx.vbucket] = stats;
     }
     return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE TestDcpConsumer::closeStreams(bool fClear) {
+    ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+    for (auto& ctx : stream_ctxs) {
+        if (ctx.opaque > 0) {
+            err = h1->dcp.close_stream(h, cookie, ctx.opaque, 0);
+            if (ENGINE_SUCCESS != err) {
+                break;
+            }
+        }
+    }
+
+    if (fClear) {
+        stream_ctxs.clear();
+    }
+    return err;
 }
 
 static void notifier_request(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -1668,6 +1705,104 @@ static enum test_result test_dcp_consumer_noop(ENGINE_HANDLE *h,
     // Message not recieved for over 400 seconds. Should disconnect.
     checkeq(ENGINE_DISCONNECT, h1->dcp.step(h, cookie, producers.get()),
             "Expected engine disconnect");
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+static enum test_result test_dcp_noop_mandatory(ENGINE_HANDLE* h,
+                                                ENGINE_HANDLE_V1* h1) {
+    const void* cookie = testHarness.create_cookie();
+
+    /* set dcp_noop_mandatory=ON */
+    set_param(h,
+              h1,
+              protocol_binary_engine_param_flush,
+              "dcp_noop_mandatory_for_v5_features",
+              "true");
+    checkeq(true,
+            get_bool_stat(h, h1, "ep_dcp_noop_mandatory_for_v5_features"),
+            "dcp_noop_mandatory should be true");
+
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, static_cast<uint64_t>(-1)};
+
+    std::string name("unittest");
+    TestDcpConsumer tdc(name.c_str(), cookie, h, h1);
+    tdc.openConnection();
+
+    /* Test Failure with noop=OFF and advancedFeatures=ON */
+    ctx.flags = DCP_OPEN_INCLUDE_XATTRS;
+    ctx.exp_err = ENGINE_ENOTSUP;
+    tdc.addStreamCtx(ctx);
+
+    checkeq(ENGINE_SUCCESS,
+            tdc.sendControlMessage("enable_noop", "false"),
+            "Failed to disable noop");
+
+    tdc.openStreams();
+    tdc.closeStreams(true);
+
+    /* Test Success with noop=ON and advancedFeatures=ON */
+    ctx.flags = DCP_OPEN_INCLUDE_XATTRS;
+    ctx.exp_err = ENGINE_SUCCESS;
+    tdc.addStreamCtx(ctx);
+
+    checkeq(ENGINE_SUCCESS,
+            tdc.sendControlMessage("enable_noop", "true"),
+            "Failed to enable noop");
+
+    tdc.openStreams();
+    tdc.closeStreams(true);
+
+    /* Test Success with noop=OFF and advancedFeatures=OFF */
+    ctx.flags = 0;
+    ctx.exp_err = ENGINE_SUCCESS;
+    tdc.addStreamCtx(ctx);
+
+    checkeq(ENGINE_SUCCESS,
+            tdc.sendControlMessage("enable_noop", "false"),
+            "Failed to disable noop");
+
+    tdc.openStreams();
+    tdc.closeStreams(true);
+
+    /* set dcp_noop_mandatory=OFF */
+    set_param(h,
+              h1,
+              protocol_binary_engine_param_flush,
+              "dcp_noop_mandatory_for_v5_features",
+              "false");
+    checkeq(false,
+            get_bool_stat(h, h1, "ep_dcp_noop_mandatory_for_v5_features"),
+            "dcp_noop_mandatory_for_v5_features should be false");
+
+    /* Test Success with noop=OFF and advancedFeatures=ON */
+    ctx.flags = DCP_OPEN_INCLUDE_XATTRS;
+    ctx.exp_err = ENGINE_SUCCESS;
+    tdc.addStreamCtx(ctx);
+
+    checkeq(ENGINE_SUCCESS,
+            tdc.sendControlMessage("enable_noop", "false"),
+            "Failed to disable noop");
+
+    tdc.openStreams();
+    tdc.closeStreams(true);
+
+    /* Test Success with noop=OFF and advancedFeatures=OFF */
+    ctx.flags = 0;
+    ctx.exp_err = ENGINE_SUCCESS;
+    tdc.addStreamCtx(ctx);
+
+    checkeq(ENGINE_SUCCESS,
+            tdc.sendControlMessage("enable_noop", "false"),
+            "Failed to disable noop");
+
+    tdc.openStreams();
+    tdc.closeStreams(true);
+
+    // destroy the cookie
     testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
@@ -6207,6 +6342,8 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test MB-23863 backfill deleted value",
                  test_dcp_producer_deleted_item_backfill, test_setup, teardown,
                  NULL, prepare_ep_bucket, cleanup),
+        TestCase("test noop mandatory",test_dcp_noop_mandatory,
+                 test_setup, teardown, NULL, prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };

@@ -358,6 +358,8 @@ For introductory information on stats within Couchbase, start with the
 |                                    | for all replica vbuckets.              |
 | ep_clock_cas_drift_threshold_excee-| ep_active_ahead_exceptions +           |
 | ded                                | ep_replica_ahead_exceptions            |
+| ep_dcp_noop_mandatory_for_v5_featu-|If True,NOOP will be required for using |
+| res                                | features like xattrs/collections       |
 
 ** vBucket total stats
 

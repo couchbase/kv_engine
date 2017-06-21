@@ -242,6 +242,18 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
+    // check for mandatory noop
+    const auto noopFeaturesMask = DCP_OPEN_INCLUDE_XATTRS | DCP_OPEN_COLLECTIONS;
+    if (flags & noopFeaturesMask) {
+        if (!noopCtx.enabled &&
+            engine_.getConfiguration().isDcpNoopMandatoryForV5Features()) {
+            LOG(EXTENSION_LOG_WARNING,
+                "%s (vb %" PRIu16 ") noop is mandatory for v5 features like "
+                "xattrs and collections", logHeader(), vbucket);
+            return ENGINE_ENOTSUP;
+        }
+    }
+
     if ((flags & DCP_ADD_STREAM_ACTIVE_VB_ONLY) &&
         (vb->getState() != vbucket_state_active)) {
         LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Stream request failed because "
@@ -249,6 +261,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
             logHeader(), vbucket, vb->toString(vb->getState()));
         return ENGINE_NOT_MY_VBUCKET;
     }
+
     if (vb->checkpointManager.getOpenCheckpointId() == 0) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
             "this vbucket is in backfill state", logHeader(), vbucket);

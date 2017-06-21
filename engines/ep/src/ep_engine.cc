@@ -574,6 +574,8 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setCompactionWriteQueueCap(std::stoull(valz));
         } else if (strcmp(keyz, "dcp_min_compression_ratio") == 0) {
             getConfiguration().setDcpMinCompressionRatio(std::stof(valz));
+        } else if (strcmp(keyz, "dcp_noop_mandatory_for_v5_features") == 0) {
+            getConfiguration().setDcpNoopMandatoryForV5Features(cb_stob(valz));
         } else if (strcmp(keyz, "access_scanner_run") == 0) {
             if (!(runAccessScannerTask())) {
                 rv = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;

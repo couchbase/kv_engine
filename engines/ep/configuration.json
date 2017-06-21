@@ -250,6 +250,12 @@
             "dynamic": false,
             "type": "std::string"
         },
+	"dcp_noop_mandatory_for_v5_features": {
+            "default": "false",
+            "descr": "Forces clients to enable noop for v5 features",
+            "type": "bool"
+        },
+
         "defragmenter_enabled": {
             "default": "true",
             "descr": "True if defragmenter task is enabled",
