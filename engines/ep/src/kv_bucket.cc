@@ -1552,17 +1552,17 @@ ENGINE_ERROR_CODE KVBucket::getMetaData(const DocKey& key,
     }
 }
 
-ENGINE_ERROR_CODE KVBucket::setWithMeta(Item &itm,
+ENGINE_ERROR_CODE KVBucket::setWithMeta(Item& itm,
                                         uint64_t cas,
-                                        uint64_t *seqno,
-                                        const void *cookie,
-                                        bool force,
+                                        uint64_t* seqno,
+                                        const void* cookie,
+                                        PermittedVBStates permittedVBStates,
+                                        CheckConflicts checkConflicts,
                                         bool allowExisting,
                                         GenerateBySeqno genBySeqno,
                                         GenerateCas genCas,
-                                        ExtendedMetaData *emd,
-                                        bool isReplication)
-{
+                                        ExtendedMetaData* emd,
+                                        bool isReplication) {
     VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -1570,15 +1570,14 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item &itm,
     }
 
     ReaderLockHolder rlh(vb->getStateLock());
-    if (vb->getState() == vbucket_state_dead) {
-        ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == vbucket_state_replica && !force) {
-        ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == vbucket_state_pending && !force) {
-        if (vb->addPendingOp(cookie)) {
-            return ENGINE_EWOULDBLOCK;
+    if (!permittedVBStates.test(vb->getState())) {
+        if (vb->getState() == vbucket_state_pending) {
+            if (vb->addPendingOp(cookie)) {
+                return ENGINE_EWOULDBLOCK;
+            }
+        } else {
+            ++stats.numNotMyVBuckets;
+            return ENGINE_NOT_MY_VBUCKET;
         }
     } else if (vb->isTakeoverBackedUp()) {
         LOG(EXTENSION_LOG_DEBUG, "(vb %u) Returned TMPFAIL to a setWithMeta op"
@@ -1603,7 +1602,7 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item &itm,
                                cookie,
                                engine,
                                bgFetchDelay,
-                               force,
+                               checkConflicts,
                                allowExisting,
                                genBySeqno,
                                genCas,
@@ -1801,7 +1800,8 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
                                            uint64_t* seqno,
                                            uint16_t vbucket,
                                            const void* cookie,
-                                           bool force,
+                                           PermittedVBStates permittedVBStates,
+                                           CheckConflicts checkConflicts,
                                            const ItemMetaData& itemMeta,
                                            bool backfill,
                                            GenerateBySeqno genBySeqno,
@@ -1817,19 +1817,20 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
     }
 
     ReaderLockHolder rlh(vb->getStateLock());
-    if (vb->getState() == vbucket_state_dead) {
-        ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == vbucket_state_replica && !force) {
-        ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == vbucket_state_pending && !force) {
-        if (vb->addPendingOp(cookie)) {
-            return ENGINE_EWOULDBLOCK;
+    if (!permittedVBStates.test(vb->getState())) {
+        if (vb->getState() == vbucket_state_pending) {
+            if (vb->addPendingOp(cookie)) {
+                return ENGINE_EWOULDBLOCK;
+            }
+        } else {
+            ++stats.numNotMyVBuckets;
+            return ENGINE_NOT_MY_VBUCKET;
         }
     } else if (vb->isTakeoverBackedUp()) {
-        LOG(EXTENSION_LOG_DEBUG, "(vb %u) Returned TMPFAIL to a deleteWithMeta "
-                "op, because takeover is lagging", vb->getId());
+        LOG(EXTENSION_LOG_DEBUG,
+            "(vb %u) Returned TMPFAIL to a setWithMeta op"
+            ", becuase takeover is lagging",
+            vb->getId());
         return ENGINE_TMPFAIL;
     }
 
@@ -1850,7 +1851,7 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
                                   cookie,
                                   engine,
                                   bgFetchDelay,
-                                  force,
+                                  checkConflicts,
                                   itemMeta,
                                   backfill,
                                   genBySeqno,

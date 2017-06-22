@@ -1846,14 +1846,15 @@ typedef union {
 
 /**
  * This flag is used by the setWithMeta/addWithMeta/deleteWithMeta packets
- * to specify that the conflict resolution mechanism should be skipped for
- * this operation.
+ * to specify that the operation should be forced. The update will not
+ * be subject to conflict resolution and the target vb can be active/pending or
+ * replica.
  */
-#define SKIP_CONFLICT_RESOLUTION_FLAG 0x01
+#define FORCE_WITH_META_OP 0x01
 
 /**
  * This flag is used to indicate that the *_with_meta should be accepted
- * regardless of the bucket config. LWW buckets require this.
+ * regardless of the bucket config. LWW buckets require this flag.
  */
 #define FORCE_ACCEPT_WITH_META_OPS 0x02
 
@@ -1862,6 +1863,13 @@ typedef union {
  * that SKIP_CONFLICT_RESOLUTION_FLAG is set along with this option.
  */
 #define REGENERATE_CAS 0x04
+
+/**
+ * This flag is used by the setWithMeta/addWithMeta/deleteWithMeta packets
+ * to specify that the conflict resolution mechanism should be skipped for
+ * this operation.
+ */
+#define SKIP_CONFLICT_RESOLUTION_FLAG 0x08
 
 #define SET_RET_META 1
 #define ADD_RET_META 2

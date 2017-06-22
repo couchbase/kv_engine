@@ -800,7 +800,7 @@ public:
      * @param cookie the cookie representing the client to store the item
      * @param engine Reference to ep engine
      * @param bgFetchDelay
-     * @param force override vbucket states
+     * @param checkConflicts should conflict resolution be done?
      * @param allowExisting set to false if you want set to fail if the
      *                      item exists already
      * @param genBySeqno whether or not to generate sequence number
@@ -816,7 +816,7 @@ public:
                                   const void* cookie,
                                   EventuallyPersistentEngine& engine,
                                   int bgFetchDelay,
-                                  bool force,
+                                  CheckConflicts checkConflicts,
                                   bool allowExisting,
                                   GenerateBySeqno genBySeqno,
                                   GenerateCas genCas,
@@ -857,8 +857,7 @@ public:
      * @param cookie the cookie representing the client to store the item
      * @param engine Reference to ep engine
      * @param bgFetchDelay
-     * @param force force a delete in full eviction mode without doing a
-     *              bg fetch
+     * @param checkConflicts should conflict resolution be done?
      * @param itemMeta ref to item meta data
      * @param backfill indicates if the item must be put onto vb queue or
      *                 onto checkpoint
@@ -876,7 +875,7 @@ public:
                                      const void* cookie,
                                      EventuallyPersistentEngine& engine,
                                      int bgFetchDelay,
-                                     bool force,
+                                     CheckConflicts checkConflicts,
                                      const ItemMetaData& itemMeta,
                                      bool backfill,
                                      GenerateBySeqno genBySeqno,

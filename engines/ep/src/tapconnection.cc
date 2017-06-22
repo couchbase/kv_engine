@@ -2253,10 +2253,19 @@ ENGINE_ERROR_CODE TapConsumer::mutation(uint32_t opaque,
         ret = kvBucket->addBackfillItem(*item, GenerateBySeqno::Yes);
     }
     else {
-        ret = kvBucket->setWithMeta(*item, 0, NULL, getCookie(), true, true,
+        ret = kvBucket->setWithMeta(*item,
+                                    0,
+                                    NULL,
+                                    getCookie(),
+                                    {vbucket_state_active,
+                                     vbucket_state_replica,
+                                     vbucket_state_pending},
+                                    CheckConflicts::No,
+                                    true,
                                     GenerateBySeqno::Yes,
                                     GenerateCas::No,
-                                    NULL, true);
+                                    NULL,
+                                    true);
     }
 
     delete item;
@@ -2318,7 +2327,10 @@ ENGINE_ERROR_CODE TapConsumer::deletion(uint32_t opaque,
                                    nullptr, // seqno
                                    vbucket,
                                    getCookie(), // cookie
-                                   true, // force
+                                   {vbucket_state_active,
+                                    vbucket_state_replica,
+                                    vbucket_state_pending},
+                                   CheckConflicts::No,
                                    itemMeta,
                                    isBackfillPhase(vbucket),
                                    GenerateBySeqno::Yes,

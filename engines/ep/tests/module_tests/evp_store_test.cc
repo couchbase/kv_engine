@@ -295,8 +295,13 @@ TEST_P(EPStoreEvictionTest, SetWithMeta_ReplaceNonResident) {
     // same arguments for each instance below).
     auto do_setWithMeta = [this, item]() mutable {
         uint64_t seqno;
-        return store->setWithMeta(std::ref(item), item.getCas(), &seqno,
-                           cookie, /*force*/false, /*allowExisting*/true);
+        return store->setWithMeta(std::ref(item),
+                                  item.getCas(),
+                                  &seqno,
+                                  cookie,
+                                  {vbucket_state_active},
+                                  CheckConflicts::No,
+                                  /*allowExisting*/ true);
     };
 
     if (GetParam() == "value_only") {

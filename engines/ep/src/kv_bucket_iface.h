@@ -191,7 +191,8 @@ public:
      * @param cas value to match
      * @param seqno sequence number of mutation
      * @param cookie the cookie representing the client to store the item
-     * @param force override vbucket states
+     * @param permittedVBStates set of VB states that the target VB can be in
+     * @param checkConflicts set to Yes if conflict resolution must be done
      * @param allowExisting set to false if you want set to fail if the
      *                      item exists already
      * @param genBySeqno whether or not to generate sequence number
@@ -201,16 +202,18 @@ public:
      *
      * @return the result of the store operation
      */
-    virtual ENGINE_ERROR_CODE setWithMeta(Item &item,
-                                          uint64_t cas,
-                                          uint64_t *seqno,
-                                          const void *cookie,
-                                          bool force,
-                                          bool allowExisting,
-                                          GenerateBySeqno genBySeqno = GenerateBySeqno::Yes,
-                                          GenerateCas genCas = GenerateCas::No,
-                                          ExtendedMetaData *emd = NULL,
-                                          bool isReplication = false) = 0;
+    virtual ENGINE_ERROR_CODE setWithMeta(
+            Item& item,
+            uint64_t cas,
+            uint64_t* seqno,
+            const void* cookie,
+            PermittedVBStates permittedVBStates,
+            CheckConflicts checkConflicts,
+            bool allowExisting,
+            GenerateBySeqno genBySeqno = GenerateBySeqno::Yes,
+            GenerateCas genCas = GenerateCas::No,
+            ExtendedMetaData* emd = NULL,
+            bool isReplication = false) = 0;
 
     /**
      * Retrieve a value, but update its TTL first
@@ -274,8 +277,8 @@ public:
      *                   NULL value is passed if not needed
      * @param vbucket the vbucket for the key
      * @param cookie the cookie representing the client
-     * @param force override access to the vbucket even if the state of the
-     *              vbucket would deny mutations.
+     * @param permittedVBStates set of VB states that the target VB can be in
+     * @param checkConflicts set to Yes if conflict resolution must be done
      * @param itm item holding a deleted value. A NULL value is passed
      *            if an empty body is to be used for deletion.
      * @param itemMeta the metadata to use for this deletion.
@@ -288,19 +291,21 @@ public:
      *
      * @return the result of the delete operation
      */
-    virtual ENGINE_ERROR_CODE deleteWithMeta(const DocKey& key,
-                                             uint64_t& cas,
-                                             uint64_t* seqno,
-                                             uint16_t vbucket,
-                                             const void* cookie,
-                                             bool force,
-                                             const ItemMetaData& itemMeta,
-                                             bool backfill,
-                                             GenerateBySeqno genBySeqno,
-                                             GenerateCas generateCas,
-                                             uint64_t bySeqno,
-                                             ExtendedMetaData* emd,
-                                             bool isReplication) = 0;
+    virtual ENGINE_ERROR_CODE deleteWithMeta(
+            const DocKey& key,
+            uint64_t& cas,
+            uint64_t* seqno,
+            uint16_t vbucket,
+            const void* cookie,
+            PermittedVBStates permittedVBStates,
+            CheckConflicts checkConflicts,
+            const ItemMetaData& itemMeta,
+            bool backfill,
+            GenerateBySeqno genBySeqno,
+            GenerateCas generateCas,
+            uint64_t bySeqno,
+            ExtendedMetaData* emd,
+            bool isReplication) = 0;
 
     /**
      * Resets the Bucket. Removes all elements from each VBucket's &

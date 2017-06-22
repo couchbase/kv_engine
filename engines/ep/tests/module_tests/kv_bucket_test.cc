@@ -494,7 +494,8 @@ TEST_P(KVBucketParamTest, SetWithMeta) {
                                  0,
                                  &seqno,
                                  cookie,
-                                 /*force*/ false,
+                                 {vbucket_state_active},
+                                 CheckConflicts::Yes,
                                  /*allowExisting*/ false));
 }
 
@@ -510,7 +511,8 @@ TEST_P(KVBucketParamTest, SetWithMeta_Conflicted) {
                                  item.getCas(),
                                  &seqno,
                                  cookie,
-                                 /*force*/ false,
+                                 {vbucket_state_active},
+                                 CheckConflicts::Yes,
                                  /*allowExisting*/ true));
 }
 
@@ -528,7 +530,8 @@ TEST_P(KVBucketParamTest, SetWithMeta_Replace) {
                                  item.getCas() + 1,
                                  &seqno,
                                  cookie,
-                                 /*force*/ false,
+                                 {vbucket_state_active},
+                                 CheckConflicts::Yes,
                                  /*allowExisting*/ true));
 
     // Should succeed with correct CAS, and different RevSeqno.
@@ -537,7 +540,8 @@ TEST_P(KVBucketParamTest, SetWithMeta_Replace) {
                                  item.getCas(),
                                  &seqno,
                                  cookie,
-                                 /*force*/ false,
+                                 {vbucket_state_active},
+                                 CheckConflicts::Yes,
                                  /*allowExisting*/ true));
 }
 
@@ -551,7 +555,10 @@ TEST_P(KVBucketParamTest, SetWithMeta_Forced) {
                                  0,
                                  &seqno,
                                  cookie,
-                                 /*force*/ true,
+                                 {vbucket_state_active,
+                                  vbucket_state_replica,
+                                  vbucket_state_pending},
+                                 CheckConflicts::No,
                                  /*allowExisting*/ false));
 }
 

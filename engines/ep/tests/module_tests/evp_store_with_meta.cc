@@ -201,7 +201,7 @@ public:
                       const std::array<TestData, 4>& testData,
                       const ItemMetaData& itemMeta);
     /**
-     * The conflict_win test is reused by seqno/lww and is intended to
+     * The conflict_lose test is reused by seqno/lww and is intended to
      * test each winning op/meta input
      */
     void conflict_lose(protocol_binary_command op,
@@ -410,6 +410,39 @@ TEST_P(AllWithMetaTest, regenerateCASInvalid) {
                   true,
                   PROTOCOL_BINARY_RESPONSE_EINVAL,
                   ENGINE_KEY_ENOENT);
+}
+
+TEST_P(AllWithMetaTest, forceFail) {
+    store->setVBucketState(vbid, vbucket_state_replica, false);
+    ItemMetaData itemMeta{1, 0, 0, expiry};
+    oneOpAndCheck(GetParam(),
+                  itemMeta,
+                  0 /*no options*/,
+                  true,
+                  PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+                  ENGINE_KEY_ENOENT);
+}
+
+TEST_P(AllWithMetaTest, forceSuccessReplica) {
+    store->setVBucketState(vbid, vbucket_state_replica, false);
+    ItemMetaData itemMeta{1, 0, 0, expiry};
+    oneOpAndCheck(GetParam(),
+                  itemMeta,
+                  FORCE_WITH_META_OP,
+                  true,
+                  PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                  ENGINE_SUCCESS);
+}
+
+TEST_P(AllWithMetaTest, forceSuccessPending) {
+    store->setVBucketState(vbid, vbucket_state_pending, false);
+    ItemMetaData itemMeta{1, 0, 0, expiry};
+    oneOpAndCheck(GetParam(),
+                  itemMeta,
+                  FORCE_WITH_META_OP,
+                  true,
+                  PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                  ENGINE_SUCCESS);
 }
 
 TEST_P(AllWithMetaTest, regenerateCAS) {
@@ -768,6 +801,8 @@ void WithMetaTest::conflict_win(protocol_binary_command op,
                                 int options,
                                 const std::array<TestData, 4>& testData,
                                 const ItemMetaData& itemMeta) {
+    EXPECT_NE(op, PROTOCOL_BINARY_CMD_ADD_WITH_META);
+    EXPECT_NE(op, PROTOCOL_BINARY_CMD_ADDQ_WITH_META);
     bool isDelete = op == PROTOCOL_BINARY_CMD_DEL_WITH_META ||
                     op == PROTOCOL_BINARY_CMD_DELQ_WITH_META;
     bool isSet = op == PROTOCOL_BINARY_CMD_SET_WITH_META ||
@@ -807,20 +842,20 @@ void WithMetaTest::conflict_win(protocol_binary_command op,
                                       {},
                                       options);
 
-        // Now set/add/del against the item using the test iteration metadata
+        // Now set/del against the item using the test iteration metadata
         EXPECT_EQ(ENGINE_SUCCESS, callEngine(op, wm));
 
         auto status = getAddResponseStatus();
         if (isDelete) {
             EXPECT_EQ(td.expectedStatus, status)
-                    << "Failed delete for iteration " << counter;
+                    << "Failed deleteWithMeta for iteration " << counter;
             if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
                 checkGetItem(key, value, td.meta);
             }
         } else {
             EXPECT_TRUE(isSet);
-            EXPECT_EQ(td.expectedStatus, status) << "Failed set for iteration "
-                                                 << counter;
+            EXPECT_EQ(td.expectedStatus, status)
+                    << "Failed setWithMeta for iteration " << counter;
             checkGetItem(key, value, td.meta);
         }
         counter++;
@@ -863,9 +898,129 @@ void WithMetaTest::conflict_win(protocol_binary_command op,
         checkGetItem(key, xattrValue, itemMeta);
     } else {
         EXPECT_TRUE(isDelete);
+        protocol_binary_response_status expected =
+                (options & SKIP_CONFLICT_RESOLUTION_FLAG) != 0
+                        ? PROTOCOL_BINARY_RESPONSE_SUCCESS
+                        : PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
         // del fails as conflict resolution won't get to the XATTR test
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, getAddResponseStatus());
+        EXPECT_EQ(expected, getAddResponseStatus());
     }
+}
+
+// Using test data that should cause a conflict, run the conflict_lose test
+// but with SKIP_CONFLICT_RESOLUTION_FLAG
+TEST_F(WithMetaLwwTest, mutate_conflict_resolve_skipped) {
+    ItemMetaData itemMeta{
+            100 /*cas*/, 100 /*revSeq*/, 100 /*flags*/, expiry /*expiry*/};
+
+    // Conflict test order: 1) cas 2) seqno 3) expiry 4) flags 5) xattr
+    std::array<TestData, 4> data;
+    // 1) cas is less and everything else larger. Expect conflict
+    data[0] = {{99, 101, 101, expiry + 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    // 2. cas is equal, revSeq is less, others are larger. Expect conflict
+    data[1] = {{100, 99, 101, expiry + 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    // 3. revSeqno/cas equal, flags larger, exp less, conflict
+    data[2] = {{100, 100, 101, expiry - 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    // 4. revSeqno/cas/exp equal, flags less, conflict
+    data[3] = {{100, 100, 99, expiry}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+
+    // Run with SKIP_CONFLICT_RESOLUTION_FLAG
+    conflict_win(PROTOCOL_BINARY_CMD_SET_WITH_META,
+                 FORCE_ACCEPT_WITH_META_OPS | SKIP_CONFLICT_RESOLUTION_FLAG,
+                 data,
+                 itemMeta);
+    conflict_win(PROTOCOL_BINARY_CMD_SETQ_WITH_META,
+                 FORCE_ACCEPT_WITH_META_OPS | SKIP_CONFLICT_RESOLUTION_FLAG,
+                 data,
+                 itemMeta);
+}
+
+// Using test data that should cause a conflict, run the conflict_lose test
+// but with SKIP_CONFLICT_RESOLUTION_FLAG
+TEST_F(WithMetaTest, mutate_conflict_resolve_skipped) {
+    ItemMetaData itemMeta{
+            100 /*cas*/, 100 /*revSeq*/, 100 /*flags*/, expiry /*expiry*/};
+
+    // Conflict test order: 1) cas 2) seqno 3) expiry 4) flags 5) xattr
+    std::array<TestData, 4> data;
+    // 1) cas is less and everything else larger. Expect conflict
+    data[0] = {{99, 101, 101, expiry + 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    // 2. cas is equal, revSeq is less, others are larger. Expect conflict
+    data[1] = {{100, 99, 101, expiry + 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    // 3. revSeqno/cas equal, flags larger, exp less, conflict
+    data[2] = {{100, 100, 101, expiry - 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    // 4. revSeqno/cas/exp equal, flags less, conflict
+    data[3] = {{100, 100, 99, expiry}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+
+    // Run with SKIP_CONFLICT_RESOLUTION_FLAG
+    conflict_win(PROTOCOL_BINARY_CMD_SET_WITH_META,
+                 SKIP_CONFLICT_RESOLUTION_FLAG,
+                 data,
+                 itemMeta);
+    conflict_win(PROTOCOL_BINARY_CMD_SETQ_WITH_META,
+                 SKIP_CONFLICT_RESOLUTION_FLAG,
+                 data,
+                 itemMeta);
+}
+
+// Using test data that should cause a conflict, run the conflict_lose test
+// but with SKIP_CONFLICT_RESOLUTION_FLAG
+TEST_F(WithMetaLwwTest, del_conflict_resolve_skipped) {
+    ItemMetaData itemMeta{
+            100 /*cas*/, 100 /*revSeq*/, 100 /*flags*/, expiry /*expiry*/};
+
+    // Conflict test order: 1) cas 2) seqno 3) expiry 4) flags 5) xattr
+    // However deletes only check 1 and 2.
+
+    std::array<TestData, 4> data;
+    // 1) cas is less and everything else larger. Expect conflict
+    data[0] = {{99, 101, 101, expiry + 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    // 2. cas is equal, revSeqno is less, others are larger. Expect conflict
+    data[1] = {{100, 99, 101, expiry + 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    // 3. revSeqno/cas/flags equal, exp larger. Conflict as exp not checked
+    data[2] = {{100, 100, 100, expiry + 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    // 4. revSeqno/cas/exp equal, flags larger. Conflict as exp not checked
+    data[3] = {{100, 100, 200, expiry}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+
+    // Run with SKIP_CONFLICT_RESOLUTION_FLAG
+    conflict_win(PROTOCOL_BINARY_CMD_DEL_WITH_META,
+                 FORCE_ACCEPT_WITH_META_OPS | SKIP_CONFLICT_RESOLUTION_FLAG,
+                 data,
+                 itemMeta);
+    conflict_win(PROTOCOL_BINARY_CMD_DELQ_WITH_META,
+                 FORCE_ACCEPT_WITH_META_OPS | SKIP_CONFLICT_RESOLUTION_FLAG,
+                 data,
+                 itemMeta);
+}
+
+// Using test data that should cause a conflict, run the conflict_lose test
+// but with SKIP_CONFLICT_RESOLUTION_FLAG
+TEST_F(WithMetaTest, del_conflict_resolve_skipped) {
+    ItemMetaData itemMeta{
+            100 /*cas*/, 100 /*revSeq*/, 100 /*flags*/, expiry /*expiry*/};
+
+    // Conflict test order: 1) cas 2) seqno 3) expiry 4) flags 5) xattr
+    // However deletes only check 1 and 2.
+
+    std::array<TestData, 4> data;
+    // 1) cas is less and everything else larger. Expect conflict
+    data[0] = {{99, 101, 101, expiry + 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    // 2. cas is equal, revSeqno is less, others are larger. Expect conflict
+    data[1] = {{100, 99, 101, expiry + 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    // 3. revSeqno/cas/flags equal, exp larger. Conflict as exp not checked
+    data[2] = {{100, 100, 100, expiry + 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    // 4. revSeqno/cas/exp equal, flags larger. Conflict as exp not checked
+    data[3] = {{100, 100, 200, expiry}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+
+    // Run with SKIP_CONFLICT_RESOLUTION_FLAG
+    conflict_win(PROTOCOL_BINARY_CMD_DEL_WITH_META,
+                 SKIP_CONFLICT_RESOLUTION_FLAG,
+                 data,
+                 itemMeta);
+    conflict_win(PROTOCOL_BINARY_CMD_DELQ_WITH_META,
+                 SKIP_CONFLICT_RESOLUTION_FLAG,
+                 data,
+                 itemMeta);
 }
 
 TEST_F(WithMetaTest, set_conflict_win) {
@@ -1090,6 +1245,26 @@ TEST_F(WithMetaTest, xattrPruneUserKeysOnDelete2) {
     // K/V is gone
     result = store->get(key, vbid, nullptr, options);
     EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus());
+}
+
+TEST_P(AllWithMetaTest, skipConflicts) {
+    ItemMetaData itemMeta{1, 0, 0, expiry};
+    auto swm = buildWithMetaPacket(GetParam(),
+                                   0 /*datatype*/,
+                                   vbid /*vbucket*/,
+                                   0 /*opaque*/,
+                                   0 /*cas*/,
+                                   itemMeta,
+                                   "mykey",
+                                   "myvalue");
+
+    engine->public_enableTraffic(false);
+    oneOpAndCheck(GetParam(),
+                  itemMeta,
+                  0,
+                  true,
+                  PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+                  ENGINE_KEY_ENOENT);
 }
 
 auto opcodeValues = ::testing::Values(PROTOCOL_BINARY_CMD_SET_WITH_META,

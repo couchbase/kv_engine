@@ -217,32 +217,18 @@ public:
                                   uint32_t& deleted,
                                   uint8_t& datatype);
 
-    /**
-     * Set an item in the store.
-     * @param item the item to set
-     * @param cas value to match
-     * @param seqno sequence number of mutation
-     * @param cookie the cookie representing the client to store the item
-     * @param force override vbucket states
-     * @param allowExisting set to false if you want set to fail if the
-     *                      item exists already
-     * @param genBySeqno whether or not to generate sequence number
-     * @param emd ExtendedMetaData class object that contains any ext meta
-     * @param isReplication set to true if we are to use replication
-     *                      throttle threshold
-     *
-     * @return the result of the store operation
-     */
-    ENGINE_ERROR_CODE setWithMeta(Item &item,
-                                  uint64_t cas,
-                                  uint64_t *seqno,
-                                  const void *cookie,
-                                  bool force,
-                                  bool allowExisting,
-                                  GenerateBySeqno genBySeqno = GenerateBySeqno::Yes,
-                                  GenerateCas genCas = GenerateCas::No,
-                                  ExtendedMetaData *emd = NULL,
-                                  bool isReplication = false);
+    ENGINE_ERROR_CODE setWithMeta(
+            Item& item,
+            uint64_t cas,
+            uint64_t* seqno,
+            const void* cookie,
+            PermittedVBStates permittedVBStates,
+            CheckConflicts checkConflicts,
+            bool allowExisting,
+            GenerateBySeqno genBySeqno = GenerateBySeqno::Yes,
+            GenerateCas genCas = GenerateCas::No,
+            ExtendedMetaData* emd = NULL,
+            bool isReplication = false);
 
     /**
      * Retrieve a value, but update its TTL first
@@ -269,7 +255,8 @@ public:
                                      uint64_t* seqno,
                                      uint16_t vbucket,
                                      const void* cookie,
-                                     bool force,
+                                     PermittedVBStates permittedVBStates,
+                                     CheckConflicts checkConflicts,
                                      const ItemMetaData& itemMeta,
                                      bool backfill,
                                      GenerateBySeqno genBySeqno,

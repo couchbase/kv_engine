@@ -820,17 +820,20 @@ protected:
      * Tighly coupled to the logic of both those functions, it will
      * take a request pointer and locate and validate any options within.
      * @param request pointer to the set/del_with_meta request packet
-     * @param generateCas set to Yes if CAS regeneration is enabled.
-     * @param skipConflictResolution set to true if conflict resolution should
+     * @param generateCas[out] set to Yes if CAS regeneration is enabled.
+     * @param checkConflicts[out] set to No if conflict resolution should
      *        not be performed.
+     * @param permittedVBStates[out] updates with replica and pending if the
+     *        options contain force.
      * @param keyOffset set to the number of bytes which are to be skipped to
      *        locate the key.
      */
     protocol_binary_response_status decodeWithMetaOptions(
-                              protocol_binary_request_delete_with_meta* request,
-                              GenerateCas& generateCas,
-                              bool& skipConflictResolution,
-                              int& keyOffset);
+            protocol_binary_request_delete_with_meta* request,
+            GenerateCas& generateCas,
+            CheckConflicts& checkConflicts,
+            PermittedVBStates& permittedVBStates,
+            int& keyOffset);
 
     /**
      * Sends NOT_SUPPORTED response, using the specified response callback
@@ -914,7 +917,8 @@ protected:
      * @param cas [in,out] CAS for the command (updated with new CAS)
      * @param seqno [out] optional - returns the seqno allocated to the mutation
      * @param cookie connection's cookie
-     * @param force Should the set skip conflict resolution?
+     * @param permittedVBStates set of VB states that the target VB can be in
+     * @param checkConflicts set to Yes if conflict resolution must be done
      * @param allowExisting true if the set can overwrite existing key
      * @param genBySeqno generate a new seqno? (yes/no)
      * @param genCas generate a new CAS? (yes/no)
@@ -930,7 +934,8 @@ protected:
                                   uint64_t& cas,
                                   uint64_t* seqno,
                                   const void* cookie,
-                                  bool force,
+                                  PermittedVBStates permittedVBStates,
+                                  CheckConflicts checkConflicts,
                                   bool allowExisting,
                                   GenerateBySeqno genBySeqno,
                                   GenerateCas genCas,
@@ -945,7 +950,8 @@ protected:
      * @param cas [in,out] CAS for the command (updated with new CAS)
      * @param seqno [out] optional - returns the seqno allocated to the mutation
      * @param cookie connection's cookie
-     * @param force Should the set skip conflict resolution?
+     * @param permittedVBStates set of VB states that the target VB can be in
+     * @param checkConflicts set to Yes if conflict resolution must be done
      * @param genBySeqno generate a new seqno? (yes/no)
      * @param genCas generate a new CAS? (yes/no)
      * @param emd buffer referencing ExtendedMetaData
@@ -957,7 +963,8 @@ protected:
                                      uint64_t& cas,
                                      uint64_t* seqno,
                                      const void* cookie,
-                                     bool force,
+                                     PermittedVBStates permittedVBStates,
+                                     CheckConflicts checkConflicts,
                                      GenerateBySeqno genBySeqno,
                                      GenerateCas genCas,
                                      cb::const_byte_buffer emd);

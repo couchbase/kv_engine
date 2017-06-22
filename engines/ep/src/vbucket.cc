@@ -961,16 +961,16 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm,
 }
 
 ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
-                                       const uint64_t cas,
+                                       uint64_t cas,
                                        uint64_t* seqno,
                                        const void* cookie,
                                        EventuallyPersistentEngine& engine,
-                                       const int bgFetchDelay,
-                                       const bool force,
-                                       const bool allowExisting,
-                                       const GenerateBySeqno genBySeqno,
-                                       const GenerateCas genCas,
-                                       const bool isReplication) {
+                                       int bgFetchDelay,
+                                       CheckConflicts checkConflicts,
+                                       bool allowExisting,
+                                       GenerateBySeqno genBySeqno,
+                                       GenerateCas genCas,
+                                       bool isReplication) {
     auto hbl = ht.getLockedBucket(itm.getKey());
     StoredValue* v = ht.unlocked_find(itm.getKey(),
                                       hbl.getBucketNum(),
@@ -978,7 +978,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
                                       TrackReference::No);
 
     bool maybeKeyExists = true;
-    if (!force) {
+    if (checkConflicts == CheckConflicts::Yes) {
         if (v) {
             if (v->isTempInitialItem()) {
                 bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
@@ -1209,18 +1209,19 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(const DocKey& key,
                                           uint64_t* seqno,
                                           const void* cookie,
                                           EventuallyPersistentEngine& engine,
-                                          const int bgFetchDelay,
-                                          const bool force,
+                                          int bgFetchDelay,
+                                          CheckConflicts checkConflicts,
                                           const ItemMetaData& itemMeta,
-                                          const bool backfill,
-                                          const GenerateBySeqno genBySeqno,
-                                          const GenerateCas generateCas,
-                                          const uint64_t bySeqno,
-                                          const bool isReplication) {
+                                          bool backfill,
+                                          GenerateBySeqno genBySeqno,
+                                          GenerateCas generateCas,
+                                          uint64_t bySeqno,
+                                          bool isReplication) {
     auto hbl = ht.getLockedBucket(key);
     StoredValue* v = ht.unlocked_find(
             key, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
-    if (!force) { // Need conflict resolution.
+    // Need conflict resolution?
+    if (checkConflicts == CheckConflicts::Yes) {
         if (v) {
             if (v->isTempInitialItem()) {
                 bgFetch(key, cookie, engine, bgFetchDelay, true);

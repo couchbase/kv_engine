@@ -21,6 +21,8 @@
 #include <type_traits>
 
 #include <boost/optional/optional.hpp>
+#include <platform/bitset.h>
+#include "memcached/vbucket.h"
 
 // Forward declarations for types defined elsewhere.
 class Item;
@@ -38,6 +40,7 @@ enum class TrackCasDrift { No, Yes };
 enum class WantsDeleted { No, Yes };
 enum class TrackReference { No, Yes };
 enum class QueueExpired { No, Yes };
+enum class CheckConflicts { No, Yes };
 
 std::string to_string(GenerateBySeqno generateBySeqno);
 std::string to_string(GenerateCas generateCas);
