@@ -321,7 +321,23 @@ public:
 
     id_type getId() const { return id; }
     vbucket_state_t getState(void) const { return state.load(); }
+
+    /**
+     * Sets the vbucket state to a desired state
+     *
+     * @param to desired vbucket state
+     */
     void setState(vbucket_state_t to);
+
+    /**
+     * Sets the vbucket state to a desired state with the 'stateLock' already
+     * acquired
+     *
+     * @param to desired vbucket state
+     * @param vbStateLock write lock holder on 'stateLock'
+     */
+    void setState_UNLOCKED(vbucket_state_t to, WriterLockHolder& vbStateLock);
+
     cb::RWLock& getStateLock() {return stateLock;}
 
     vbucket_state_t getInitialState(void) { return initialState; }

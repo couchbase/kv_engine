@@ -354,10 +354,52 @@ public:
         }
     }
 
-    /* transfer should be set to true *only* if this vbucket is becoming master
-     * as the result of the previous master cleanly handing off control. */
+    /**
+     * Sets the vbucket or creates a vbucket with the desired state
+     *
+     * @param vbid vbucket id
+     * @param state desired state of the vbucket
+     * @param transfer indicates that the vbucket is transferred to the active
+     *                 post a failover and/or rebalance
+     * @param notify_dcp indicates whether we must consider closing DCP streams
+     *                    associated with the vbucket
+     *
+     * return status of the operation
+     */
     ENGINE_ERROR_CODE setVBucketState(uint16_t vbid, vbucket_state_t state,
                                       bool transfer, bool notify_dcp = true);
+
+    /**
+     * Sets the vbucket or creates a vbucket with the desired state
+     *
+     * @param vbid vbucket id
+     * @param state desired state of the vbucket
+     * @param transfer indicates that the vbucket is transferred to the active
+     *                 post a failover and/or rebalance
+     * @param notify_dcp indicates whether we must consider closing DCP streams
+     *                    associated with the vbucket
+     * @param vbset LockHolder acquiring the 'vbsetMutex' lock in the
+     *              EventuallyPersistentStore class
+     * @param vbStateLock ptr to WriterLockHolder of 'stateLock' in the vbucket
+     *                    class. if passed as null, the function acquires the
+     *                    vbucket 'stateLock'
+     *
+     * return status of the operation
+     */
+    ENGINE_ERROR_CODE setVBucketState_UNLOCKED(
+                                    uint16_t vbid,
+                                    vbucket_state_t state,
+                                    bool transfer,
+                                    bool notify_dcp,
+                                    std::unique_lock<std::mutex>& vbset,
+                                    WriterLockHolder* vbStateLock = nullptr);
+
+    /**
+     * Returns the 'vbsetMutex'
+     */
+    std::mutex& getVbSetMutexLock() {
+        return vbsetMutex;
+    }
 
     /**
      * Deletes a vbucket
@@ -791,13 +833,6 @@ protected:
     bool resetVBucket_UNLOCKED(uint16_t vbid,
                                std::unique_lock<std::mutex>& vbset,
                                std::unique_lock<std::mutex>& vbMutex);
-
-    ENGINE_ERROR_CODE setVBucketState_UNLOCKED(
-            uint16_t vbid,
-            vbucket_state_t state,
-            bool transfer,
-            bool notify_dcp,
-            std::unique_lock<std::mutex>& vbset);
 
     /* Notify flusher of a new seqno being added in the vbucket */
     virtual void notifyFlusher(const uint16_t vbid);

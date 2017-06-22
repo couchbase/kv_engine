@@ -773,7 +773,8 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
         vbucket_state_t to,
         bool transfer,
         bool notify_dcp,
-        std::unique_lock<std::mutex>& vbset) {
+        std::unique_lock<std::mutex>& vbset,
+        WriterLockHolder* vbStateLock) {
     VBucketPtr vb = vbMap.getBucket(vbid);
     if (vb && to == vb->getState()) {
         return ENGINE_SUCCESS;
@@ -782,7 +783,11 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
     if (vb) {
         vbucket_state_t oldstate = vb->getState();
 
-        vb->setState(to);
+        if (vbStateLock) {
+            vb->setState_UNLOCKED(to, *vbStateLock);
+        } else {
+            vb->setState(to);
+        }
 
         if (oldstate != to && notify_dcp) {
             bool closeInboundStreams = false;

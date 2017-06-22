@@ -290,22 +290,26 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine) {
 }
 
 void VBucket::setState(vbucket_state_t to) {
-    vbucket_state_t oldstate;
-    {
-        WriterLockHolder wlh(stateLock);
-        oldstate = state;
+    WriterLockHolder wlh(stateLock);
+    setState_UNLOCKED(to, wlh);
+}
 
-        if (to == vbucket_state_active &&
-            checkpointManager.getOpenCheckpointId() < 2) {
-            checkpointManager.setOpenCheckpointId(2);
-        }
+void VBucket::setState_UNLOCKED(vbucket_state_t to,
+                                WriterLockHolder &vbStateLock) {
+    vbucket_state_t oldstate = state;
 
-        LOG(EXTENSION_LOG_NOTICE,
-            "VBucket::setState: transitioning vbucket:%" PRIu16 " from:%s to:%s",
-            id, VBucket::toString(oldstate), VBucket::toString(to));
-
-        state = to;
+    if (to == vbucket_state_active &&
+        checkpointManager.getOpenCheckpointId() < 2) {
+        checkpointManager.setOpenCheckpointId(2);
     }
+
+    LOG(EXTENSION_LOG_NOTICE,
+        "VBucket::setState: transitioning vbucket:%" PRIu16 " from:%s to:%s",
+        id,
+        VBucket::toString(oldstate),
+        VBucket::toString(to));
+    
+    state = to;
 }
 
 vbucket_state VBucket::getVBucketState() const {
