@@ -1130,8 +1130,9 @@ private:
             builder.set("meta", "{\"author\":\"jack\"}");
             const auto blob = builder.finalize();
             std::copy(blob.buf, blob.buf + blob.len, std::back_inserter(value));
-
-            const std::string body{"this is the value"};
+            // MB24971 - the body is large as it increases the probability of
+            // transit returning TransmitResult::SoftError
+            const std::string body(1000, 'x');
             std::copy(body.begin(), body.end(), std::back_inserter(value));
         }
 

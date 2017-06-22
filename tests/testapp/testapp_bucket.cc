@@ -276,6 +276,9 @@ TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
 // we manage to fill the buffer with the tiny DCP packets we use (they
 // have to be small so we totally fill it).
 // Therefore disabling this test for now.
+
+// The following test is also used for MB24971, which was causing a hang due
+// to being stuck in conn_send_data state.
 #if !defined(WIN32)
 TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
     // TODO: Remove this whenhttps://issues.couchbase.com/browse/MB-22413 is
@@ -364,9 +367,8 @@ TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
     };
 
     // Once we call deleteBucket below, it will hang forever (if the bug is
-    // present), so we need a watchdog thread which will write more data to
-    // the connection; triggering a READ event in libevent and hence causing
-    // the connection's state machine to be advanced (and connection closed).
+    // present), so we need a watchdog thread which will close the connection
+    // if the bucket was not deleted.
     std::mutex cv_m;
     std::condition_variable cv;
     std::atomic<bool> bucket_deleted{false};
@@ -380,13 +382,7 @@ TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
 
             if (!bucket_deleted) {
                 watchdog_fired = true;
-                auto frame = second_conn->encodeCmdGet("wakeup_conn", 0);
-                try {
-                    second_conn->sendFrame(frame);
-                } catch (std::runtime_error&) {
-                    // It is ok for sendFrame to fail - the connection might have
-                    // been closed by the server due to the bucket deletion.
-                }
+                second_conn->close();
             }
         }
     };

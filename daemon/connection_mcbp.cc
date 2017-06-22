@@ -1201,7 +1201,7 @@ void McbpConnection::signalIfIdle(bool logbusy, int workerthread) {
     if (!isEwouldblock() &&
         (state == conn_read_packet_header || state == conn_read_packet_body ||
          state == conn_waiting || state == conn_new_cmd ||
-         state == conn_ship_log)) {
+         state == conn_ship_log || state == conn_send_data)) {
         // Raise a 'fake' write event to ensure the connection has an
         // event delivered (for example if its sendQ is full).
         if (!registered_in_libevent) {
