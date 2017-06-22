@@ -200,7 +200,8 @@ public:
 
     std::mutex& getListWriteLock() const override;
 
-    boost::optional<SequenceList::RangeIterator> makeRangeIterator() override;
+    boost::optional<SequenceList::RangeIterator> makeRangeIterator(
+            bool isBackfill) override;
 
     void dump() const override;
 
@@ -315,10 +316,15 @@ private:
          * hence creation can fail and that's why object creation is via a
          * public method and not constructor.
          *
+         * @param ll ref to the linkedlist on which the iterator is created
+         * @param isBackfill indicates if the iterator is for backfill (for
+         *                   debug)
+         *
          * @return Non-null pointer on success, or null if a RangeIteratorLL
          *         already exists.
          */
-        static std::unique_ptr<RangeIteratorLL> create(BasicLinkedList& ll);
+        static std::unique_ptr<RangeIteratorLL> create(BasicLinkedList& ll,
+                                                       bool isBackfill);
 
         ~RangeIteratorLL();
 
@@ -349,7 +355,7 @@ private:
     private:
         /* We have a private constructor because we want to create the iterator
            optionally, that is, only when it is possible to get a read lock */
-        RangeIteratorLL(BasicLinkedList& ll);
+        RangeIteratorLL(BasicLinkedList& ll, bool isBackfill);
 
         /**
          * Indicates if the client should try creating the iterator at a later
@@ -384,6 +390,10 @@ private:
         /* Indicates the minimum seqno in the iterator that can give a
            consistent read snapshot */
         seqno_t earlySnapShotEndSeqno;
+
+        /* Indicates if the range iterator is for DCP backfill
+           (for debug) */
+        bool isBackfill;
     };
 
     friend class RangeIteratorLL;

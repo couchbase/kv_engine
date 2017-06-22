@@ -150,14 +150,15 @@ void DCPBackfillMemoryBuffered::cancel() {
 backfill_status_t DCPBackfillMemoryBuffered::create(EphemeralVBucket& evb) {
     /* Create range read cursor */
     try {
-        auto rangeItrOptional = evb.makeRangeIterator();
+        auto rangeItrOptional = evb.makeRangeIterator(true /*isBackfill*/);
         if (rangeItrOptional) {
             rangeItr = std::move(*rangeItrOptional);
         } else {
             stream->getLogger().log(
                     EXTENSION_LOG_WARNING,
-                    "Deferring backfill creation as another range iterator is "
-                    "already on the sequence list for (vb %" PRIu16 ")",
+                    "vb:%" PRIu16
+                    " Deferring backfill creation as another "
+                    "range iterator is already on the sequence list",
                     getVBucketId());
             return backfill_snooze;
         }
@@ -237,15 +238,18 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
             return backfill_snooze;
         }
 
+        int64_t seqnoDbg = item->getBySeqno();
         if (!stream->backfillReceived(
                     std::move(item), BACKFILL_FROM_MEMORY, /*force*/ false)) {
             /* Try backfill again later; here we do not snooze because we
                want to check if other backfills can be run by the
                backfillMgr */
             stream->getLogger().log(EXTENSION_LOG_WARNING,
-                                    "Deferring the backfill for (vb %d) as "
-                                    "scan buffer or backfill buffer is full",
-                                    getVBucketId());
+                                    "vb:%" PRIu16
+                                    " Deferring backfill at seqno:%" PRIi64
+                                    "as scan buffer or backfill buffer is full",
+                                    getVBucketId(),
+                                    seqnoDbg);
             return backfill_success;
         }
         ++rangeItr;

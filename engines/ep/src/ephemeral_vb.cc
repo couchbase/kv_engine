@@ -265,8 +265,8 @@ EphemeralVBucket::inMemoryBackfill(uint64_t start, uint64_t end) {
 }
 
 boost::optional<SequenceList::RangeIterator>
-EphemeralVBucket::makeRangeIterator() {
-    return seqList->makeRangeIterator();
+EphemeralVBucket::makeRangeIterator(bool isBackfill) {
+    return seqList->makeRangeIterator(isBackfill);
 }
 
 /* Vb level backfill queue is for items in a huge snapshot (disk backfill

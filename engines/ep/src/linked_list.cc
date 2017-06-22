@@ -382,9 +382,9 @@ std::mutex& BasicLinkedList::getListWriteLock() const {
     return writeLock;
 }
 
-boost::optional<SequenceList::RangeIterator>
-BasicLinkedList::makeRangeIterator() {
-    auto pRangeItr = RangeIteratorLL::create(*this);
+boost::optional<SequenceList::RangeIterator> BasicLinkedList::makeRangeIterator(
+        bool isBackfill) {
+    auto pRangeItr = RangeIteratorLL::create(*this, isBackfill);
     return pRangeItr ? RangeIterator(std::move(pRangeItr))
                      : boost::optional<SequenceList::RangeIterator>{};
 }
@@ -434,21 +434,23 @@ OrderedLL::iterator BasicLinkedList::purgeListElem(OrderedLL::iterator it) {
 }
 
 std::unique_ptr<BasicLinkedList::RangeIteratorLL>
-BasicLinkedList::RangeIteratorLL::create(BasicLinkedList& ll) {
+BasicLinkedList::RangeIteratorLL::create(BasicLinkedList& ll, bool isBackfill) {
     /* Note: cannot use std::make_unique because the constructor of
        RangeIteratorLL is private */
     std::unique_ptr<BasicLinkedList::RangeIteratorLL> pRangeItr(
-            new BasicLinkedList::RangeIteratorLL(ll));
+            new BasicLinkedList::RangeIteratorLL(ll, isBackfill));
     return pRangeItr->tryLater() ? nullptr : std::move(pRangeItr);
 }
 
-BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll)
+BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
+                                                  bool isBackfill)
     : list(ll),
       /* Try to get range read lock, do not block */
       readLockHolder(list.rangeReadLock, std::try_to_lock),
       itrRange(0, 0),
       numRemaining(0),
-      earlySnapShotEndSeqno(0) {
+      earlySnapShotEndSeqno(0),
+      isBackfill(isBackfill) {
     if (!readLockHolder) {
         /* no blocking */
         return;
@@ -488,6 +490,14 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll)
        not internally allow curr > end */
     itrRange = SeqRange(currIt->getBySeqno(),
                         list.seqList.back().getBySeqno() + 1);
+
+    EXTENSION_LOG_LEVEL severity =
+            isBackfill ? EXTENSION_LOG_NOTICE : EXTENSION_LOG_INFO;
+    LOG(severity,
+        "vb:%" PRIu16 " Created range iterator from %" PRIi64 "to %" PRIi64,
+        list.vbid,
+        curr(),
+        end());
 }
 
 BasicLinkedList::RangeIteratorLL::~RangeIteratorLL() {
@@ -496,6 +506,9 @@ BasicLinkedList::RangeIteratorLL::~RangeIteratorLL() {
         /* we must reset the list readRange only if the list iterator still owns
            the read lock on the list */
         list.readRange.reset();
+        EXTENSION_LOG_LEVEL severity =
+                isBackfill ? EXTENSION_LOG_NOTICE : EXTENSION_LOG_INFO;
+        LOG(severity, "vb:%" PRIu16 " Releasing the range iterator", list.vbid);
     }
     /* As readLockHolder goes out of scope here, it will automatically release
        the snapshot read lock on the linked list */
@@ -532,6 +545,9 @@ operator++() {
            iterator client that does not delete the iterator obj will not end up
            holding the list readRange lock forever */
         list.readRange.reset();
+        EXTENSION_LOG_LEVEL severity =
+                isBackfill ? EXTENSION_LOG_NOTICE : EXTENSION_LOG_INFO;
+        LOG(severity, "vb:%" PRIu16 " Releasing the range iterator", list.vbid);
         readLockHolder.unlock();
 
         /* Update the begin to end() so the client can see that the iteration

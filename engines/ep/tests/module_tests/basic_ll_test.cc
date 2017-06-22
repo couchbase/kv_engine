@@ -216,7 +216,7 @@ protected:
      * one always.
      */
     SequenceList::RangeIterator getRangeIterator() {
-        auto itrOptional = basicLL->makeRangeIterator();
+        auto itrOptional = basicLL->makeRangeIterator(true /*isBackfill*/);
         EXPECT_TRUE(itrOptional);
         return std::move(*itrOptional);
     }
@@ -675,7 +675,7 @@ TEST_F(BasicLinkedListTest, MultipleRangeIterator_MB24474) {
        the function scope ends */
     auto itr1Optional =
             std::make_unique<boost::optional<SequenceList::RangeIterator>>(
-                    basicLL->makeRangeIterator());
+                    basicLL->makeRangeIterator(true /*isBackfill*/));
     auto itr1 = std::move(**itr1Optional);
 
     /* Read all items */
@@ -709,7 +709,7 @@ TEST_F(BasicLinkedListTest, NonBlockingRangeIterators) {
 
     {
         auto itr1 = getRangeIterator();
-        auto itr2 = basicLL->makeRangeIterator();
+        auto itr2 = basicLL->makeRangeIterator(true /*isBackfill*/);
         /* itr1 is already using the list, we cannot have another iterator */
         EXPECT_FALSE(itr2);
 

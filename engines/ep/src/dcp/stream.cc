@@ -2060,8 +2060,14 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     }
 
     if (ret != ENGINE_SUCCESS) {
-        consumer->getLogger().log(EXTENSION_LOG_WARNING,
-            "Got an error code %d while trying to process mutation", ret);
+        consumer->getLogger().log(
+                EXTENSION_LOG_WARNING,
+                "vb:%" PRIu16
+                " Got an error code %d while trying to process "
+                "mutation with seqno:%" PRId64,
+                vb_,
+                ret,
+                mutation->getItem()->getBySeqno());
     } else {
         handleSnapshotEnd(vb, *mutation->getBySeqno());
     }
@@ -2118,8 +2124,14 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
     }
 
     if (ret != ENGINE_SUCCESS) {
-        consumer->getLogger().log(EXTENSION_LOG_WARNING,
-            "Got an error code %d while trying to process deletion", ret);
+        consumer->getLogger().log(
+                EXTENSION_LOG_WARNING,
+                "vb:%" PRIu16
+                " Got an error code %d while trying to process "
+                "deletion with seqno:%" PRId64,
+                vb_,
+                ret,
+                *deletion->getBySeqno());
     } else {
         handleSnapshotEnd(vb, *deletion->getBySeqno());
     }
@@ -2158,8 +2170,13 @@ ENGINE_ERROR_CODE PassiveStream::processSystemEvent(
     }
 
     if (rv != ENGINE_SUCCESS) {
-        consumer->getLogger().log(EXTENSION_LOG_WARNING,
-            "Got an error code %d while trying to process system event", rv);
+        consumer->getLogger().log(
+                EXTENSION_LOG_WARNING,
+                "vb:%" PRIu16
+                " Got an error code %d while trying to process "
+                "system event",
+                vb_,
+                rv);
     } else {
         handleSnapshotEnd(vb, *event.getBySeqno());
     }

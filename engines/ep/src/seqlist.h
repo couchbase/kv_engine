@@ -407,11 +407,13 @@ public:
      * Under scenarios like where we want to limit the number of range iterators
      * the SequenceList, new range iterator will not be allowed
      *
+     * @param isBackfill indicates if the iterator is for backfill (for debug)
+     *
      * @return range iterator object when possible
      *         null when not possible
      */
-    virtual boost::optional<SequenceList::RangeIterator>
-    makeRangeIterator() = 0;
+    virtual boost::optional<SequenceList::RangeIterator> makeRangeIterator(
+            bool isBackfill) = 0;
 
     /**
      * Debug - prints a representation of the list to stderr.

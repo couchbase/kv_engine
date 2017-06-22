@@ -645,7 +645,7 @@ TEST_F(EphemeralVBucketTest, AppendUpdatesHighestDedupedSeqno) {
     ASSERT_EQ(0, mockEpheVB->getLL()->getHighestDedupedSeqno());
 
     {
-        auto itr = mockEpheVB->getLL()->makeRangeIterator();
+        auto itr = mockEpheVB->getLL()->makeRangeIterator(true /*isBackfill*/);
 
         /* Update the items */
         setMany(keys, MutationStatus::WasClean);
@@ -662,7 +662,7 @@ TEST_F(EphemeralVBucketTest, SnapshotHasNoDuplicates) {
     setMany(keys, MutationStatus::WasClean);
 
     {
-        auto itr = mockEpheVB->getLL()->makeRangeIterator();
+        auto itr = mockEpheVB->getLL()->makeRangeIterator(true /*isBackfill*/);
 
         /* Update the items  */
         setMany(keys, MutationStatus::WasClean);
@@ -685,7 +685,7 @@ TEST_F(EphemeralVBucketTest, SnapshotIncludesNonDuplicateStaleItems) {
     setMany(keys, MutationStatus::WasClean);
 
     {
-        auto itr = mockEpheVB->getLL()->makeRangeIterator();
+        auto itr = mockEpheVB->getLL()->makeRangeIterator(true /*isBackfill*/);
 
         /* Update the items  */
         setMany(keys, MutationStatus::WasClean);
@@ -711,7 +711,7 @@ TEST_F(EphemeralVBucketTest, SnapshotHasNoDuplicatesWithInterveningItems) {
     EXPECT_EQ(MutationStatus::WasClean, setOne(firstFillerKey));
 
     {
-        auto itr = mockEpheVB->getLL()->makeRangeIterator();
+        auto itr = mockEpheVB->getLL()->makeRangeIterator(true /*isBackfill*/);
 
         EXPECT_EQ(MutationStatus::WasClean, setOne(secondFillerKey));
 
@@ -740,7 +740,8 @@ TEST_F(EphemeralVBucketTest, SnapshotHasNoDuplicatesWithMultipleStale) {
     for (int i = 0; i < updateIterations; ++i) {
         /* Set up a mock backfill, cover all items */
         {
-            auto itr = mockEpheVB->getLL()->makeRangeIterator();
+            auto itr =
+                    mockEpheVB->getLL()->makeRangeIterator(true /*isBackfill*/);
             /* Update the items  */
             setMany(keys, MutationStatus::WasClean);
         }
