@@ -1325,8 +1325,6 @@ void McbpConnection::runEventLoop(short which) {
                     getId(), e.what());
         }
     }
-
-    conn_return_buffers(this);
 }
 
 void McbpConnection::initateShutdown() {
