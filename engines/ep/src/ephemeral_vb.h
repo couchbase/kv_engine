@@ -216,6 +216,7 @@ private:
                                     const void* cookie,
                                     EventuallyPersistentEngine& engine,
                                     int bgFetchDelay,
+                                    get_options_t options,
                                     const StoredValue& v) override;
 
     /**

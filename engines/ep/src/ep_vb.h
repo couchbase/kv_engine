@@ -209,6 +209,7 @@ private:
                                     const void* cookie,
                                     EventuallyPersistentEngine& engine,
                                     int bgFetchDelay,
+                                    get_options_t options,
                                     const StoredValue& v) override;
 
     /* Indicates if multiple bg fetches are handled in a single bg fetch task */

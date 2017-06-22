@@ -574,8 +574,19 @@ GetValue EPVBucket::getInternalNonResident(const DocKey& key,
                                            const void* cookie,
                                            EventuallyPersistentEngine& engine,
                                            int bgFetchDelay,
+                                           get_options_t options,
                                            const StoredValue& v) {
-    bgFetch(key, cookie, engine, bgFetchDelay);
+    if (options & QUEUE_BG_FETCH) {
+        bgFetch(key, cookie, engine, bgFetchDelay);
+    } else if (options & get_options_t::ALLOW_META_ONLY) {
+        // You can't both ask for a background fetch and just the meta...
+        return GetValue(v.toItem(false, 0),
+                        ENGINE_SUCCESS,
+                        v.getBySeqno(),
+                        true,
+                        v.getNRUValue());
+    }
+
     return GetValue(
             nullptr, ENGINE_EWOULDBLOCK, v.getBySeqno(), true, v.getNRUValue());
 }

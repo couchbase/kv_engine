@@ -1552,8 +1552,7 @@ GetValue VBucket::getInternal(const DocKey& key,
                               EventuallyPersistentEngine& engine,
                               int bgFetchDelay,
                               get_options_t options,
-                              bool diskFlushAll,
-                              GetKeyOnly getKeyOnly) {
+                              bool diskFlushAll) {
     const TrackReference trackReference = (options & TRACK_REFERENCE)
                                                   ? TrackReference::Yes
                                                   : TrackReference::No;
@@ -1578,21 +1577,15 @@ GetValue VBucket::getInternal(const DocKey& key,
         }
 
         // If the value is not resident (and it was requested), wait for it...
-        if (!v->isResident() && !metadataOnly && bgFetchRequired) {
+        if (!v->isResident() && !metadataOnly) {
             return getInternalNonResident(
-                    key, cookie, engine, bgFetchDelay, *v);
+                    key, cookie, engine, bgFetchDelay, options, *v);
         }
 
         // Should we hide (return -1) for the items' CAS?
         const bool hideCas =
                 (options & HIDE_LOCKED_CAS) && v->isLocked(ep_current_time());
-        std::unique_ptr<Item> item;
-        if (getKeyOnly == GetKeyOnly::Yes) {
-            item = v->toItemKeyOnly(getId());
-        } else {
-            item = v->toItem(hideCas, getId());
-        }
-        return GetValue(std::move(item),
+        return GetValue(v->toItem(hideCas, getId()),
                         ENGINE_SUCCESS,
                         v->getBySeqno(),
                         !v->isResident(),

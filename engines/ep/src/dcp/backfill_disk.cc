@@ -20,7 +20,6 @@
 #include "dcp/backfill_disk.h"
 #include "dcp/stream.h"
 #include "ep_engine.h"
-#include "vbucket.h"
 
 static std::string backfillStateToString(backfill_state_t state) {
     switch (state) {
@@ -57,28 +56,39 @@ void CacheCallback::callback(CacheLookup& lookup) {
         return;
     }
 
-    GetValue gv = vb->getInternal(lookup.getKey(),
-                                  nullptr,
-                                  engine_,
-                                  0,
-                                  /*options*/ NONE,
-                                  /*diskFlushAll*/ false,
-                                  stream_->isKeyOnly() ?
-                                          VBucket::GetKeyOnly::Yes :
-                                          VBucket::GetKeyOnly::No);
-    if (gv.getStatus() == ENGINE_SUCCESS) {
-        if (gv.item->getBySeqno() == lookup.getBySeqno()) {
-            if (stream_->backfillReceived(std::move(gv.item),
-                                          BACKFILL_FROM_MEMORY,
-                                          /*force */false)) {
-                setStatus(ENGINE_KEY_EEXISTS);
-                return;
-            }
-            setStatus(ENGINE_ENOMEM); // Pause the backfill
+    auto hbl = vb->ht.getLockedBucket(lookup.getKey());
+    StoredValue* v = vb->ht.unlocked_find(lookup.getKey(),
+                                          hbl.getBucketNum(),
+                                          WantsDeleted::No,
+                                          TrackReference::No);
+    if (v && v->isResident() && v->getBySeqno() == lookup.getBySeqno()) {
+        std::unique_ptr<Item> it;
+        try {
+            it = stream_->isKeyOnly() ?
+                    v->toItemKeyOnly(lookup.getVBucketId()) :
+                    v->toItem(false, lookup.getVBucketId());
+        } catch (const std::bad_alloc&) {
+            setStatus(ENGINE_ENOMEM);
+            stream_->getLogger().log(
+                    EXTENSION_LOG_WARNING,
+                    "Alloc error when trying to create an "
+                    "item copy from hash table. Item seqno:%" PRIi64
+                    ", vb:%" PRIu16 " isKeyOnly:%s",
+                    v->getBySeqno(),
+                    lookup.getVBucketId(),
+                    stream_->isKeyOnly() ? "True" : "False");
             return;
         }
+        hbl.getHTLock().unlock();
+        if (!stream_->backfillReceived(
+                    std::move(it), BACKFILL_FROM_MEMORY, /*force*/ false)) {
+            setStatus(ENGINE_ENOMEM); // Pause the backfill
+        } else {
+            setStatus(ENGINE_KEY_EEXISTS);
+        }
+    } else {
+        setStatus(ENGINE_SUCCESS);
     }
-    setStatus(ENGINE_SUCCESS);
 }
 
 DiskCallback::DiskCallback(active_stream_t& s) : stream_(s) {
