@@ -46,6 +46,7 @@ list(APPEND TESTAPP_SOURCES
      testapp_tests.cc
      testapp_timeout.cc
      testapp_touch.cc
+     testapp_withmeta.cc
      testapp_xattr.cc
      testapp_xattr.h
      utilities.cc

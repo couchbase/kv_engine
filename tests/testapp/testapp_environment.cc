@@ -67,7 +67,12 @@ public:
             case PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT:
             case PROTOCOL_BINARY_CMD_DCP_CONTROL:
             case PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT:
-                return false;
+            case PROTOCOL_BINARY_CMD_SET_WITH_META:
+            case PROTOCOL_BINARY_CMD_SETQ_WITH_META:
+            case PROTOCOL_BINARY_CMD_ADD_WITH_META:
+            case PROTOCOL_BINARY_CMD_ADDQ_WITH_META:
+            case PROTOCOL_BINARY_CMD_DEL_WITH_META:
+            case PROTOCOL_BINARY_CMD_DELQ_WITH_META:
             case PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC:
             case PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC:
                 return false;

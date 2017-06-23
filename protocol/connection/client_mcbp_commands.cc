@@ -733,14 +733,37 @@ void BinprotSetParamCommand::encode(std::vector<uint8_t>& buf) const {
 }
 
 void BinprotSetWithMetaCommand::encode(std::vector<uint8_t>& buf) const {
-    writeHeader(buf, value.size() + meta.size(), 26);
-    append(buf, flags); // @todo make sure I set them in the same byte order as normal set
-    append(buf, exptime);
+    protocol_binary_request_header* hdr;
+    buf.resize(sizeof(hdr->bytes));
+    hdr = reinterpret_cast<protocol_binary_request_header*>(buf.data());
+
+    size_t extlen = 24;
+
+    if (options) {
+        extlen += 4;
+    }
+
+    if (!meta.empty()) {
+        extlen += 2;
+    }
+
+    fillHeader(*hdr, doc.value.size(), extlen);
+
+    hdr->request.datatype = uint8_t(doc.info.datatype);
+    append(buf, getFlags());
+    append(buf, getExptime());
     append(buf, seqno);
-    append(buf, cas);
-    append(buf, uint16_t(htons(meta.size())));
+    append(buf, getMetaCas());
+
+    if (options) {
+        append(buf, options);
+    }
+
+    if (!meta.empty()) {
+        append(buf, uint16_t(htons(meta.size())));
+    }
 
     buf.insert(buf.end(), key.begin(), key.end());
-    buf.insert(buf.end(), value.begin(), value.end());
+    buf.insert(buf.end(), doc.value.begin(), doc.value.end());
     buf.insert(buf.end(), meta.begin(), meta.end());
 }

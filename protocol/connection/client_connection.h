@@ -54,7 +54,7 @@ class DocumentInfo {
 public:
     std::string id;
     uint32_t flags;
-    std::string expiration;
+    uint32_t expiration;
     cb::mcbp::Datatype datatype;
     uint64_t cas;
 };
@@ -544,6 +544,27 @@ public:
         // Don't bother implementing it for Greenstack at this moment
         throw std::invalid_argument("Not implemented");
     }
+
+    /**
+     * Mutate with meta - stores doc into the bucket using all the metadata
+     * from doc, e.g. doc.cas will become the stored cas (on success).
+     *
+     * @param doc The document to set
+     * @param vbucket The vbucket the document is stored in
+     * @param cas The cas used for the setWithMeta (note this cas is not stored
+     *            on success)
+     * @param seqno The seqno to store the document as
+     * @param metaOption MCBP options that can be sent with the command
+     * @param metaExtras Optional - see ep/src/ext_meta_parser.h for the details
+     *                   of this.
+     */
+    virtual MutationInfo mutateWithMeta(
+            Document& doc,
+            uint16_t vbucket,
+            uint64_t cas,
+            uint64_t seqno,
+            uint32_t metaOption,
+            std::vector<uint8_t> metaExtras = {}) = 0;
 
 protected:
     /**

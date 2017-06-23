@@ -205,6 +205,13 @@ public:
                 != effective_features.end();
     }
 
+    MutationInfo mutateWithMeta(Document& doc,
+                                uint16_t vbucket,
+                                uint64_t cas,
+                                uint64_t seqno,
+                                uint32_t metaOption,
+                                std::vector<uint8_t> metaExtras = {}) override;
+
 protected:
     typedef std::unordered_set<uint16_t> Featureset;
 

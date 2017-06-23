@@ -760,3 +760,24 @@ void MemcachedBinprotConnection::dropPrivilege(cb::rbac::Privilege privilege) {
             response.getStatus());
     }
 }
+
+MutationInfo MemcachedBinprotConnection::mutateWithMeta(
+        Document& doc,
+        uint16_t vbucket,
+        uint64_t cas,
+        uint64_t seqno,
+        uint32_t metaOption,
+        std::vector<uint8_t> metaExtras) {
+    BinprotSetWithMetaCommand swm(
+            doc, vbucket, cas, seqno, metaOption, metaExtras);
+    sendCommand(swm);
+
+    BinprotMutationResponse response;
+    recvResponse(response);
+    if (!response.isSuccess()) {
+        throw BinprotConnectionError("Failed to mutateWithMeta " + doc.info.id,
+                                     response.getStatus());
+    }
+
+    return response.getMutationInfo();
+}

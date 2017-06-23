@@ -1280,13 +1280,21 @@ protected:
 class BinprotSetWithMetaCommand
     : public BinprotGenericCommand {
 public:
-    BinprotSetWithMetaCommand(const std::string& key, const std::string& value,
-                              uint32_t flags_, uint32_t exptime_, uint64_t cas_)
+    BinprotSetWithMetaCommand(const Document& doc,
+                              uint16_t vbucket,
+                              uint64_t operationCas,
+                              uint64_t seqno,
+                              uint32_t options,
+                              std::vector<uint8_t> meta)
         : BinprotGenericCommand(PROTOCOL_BINARY_CMD_SET_WITH_META),
-          flags(flags_),
-          exptime(exptime_),
-          cas(cas_) {
-        setKey(key);
+          doc(doc),
+          seqno(seqno),
+          operationCas(operationCas),
+          options(options),
+          meta(meta) {
+        setVBucket(vbucket);
+        setCas(operationCas);
+        setKey(doc.info.id);
         setMeta(meta);
     }
 
@@ -1300,20 +1308,20 @@ public:
     }
 
     uint32_t getFlags() const {
-        return flags;
+        return doc.info.flags;
     }
 
     BinprotSetWithMetaCommand& setFlags(uint32_t flags) {
-        BinprotSetWithMetaCommand::flags = flags;
+        doc.info.flags = flags;
         return *this;
     }
 
     uint32_t getExptime() const {
-        return exptime;
+        return doc.info.expiration;
     }
 
     BinprotSetWithMetaCommand& setExptime(uint32_t exptime) {
-        BinprotSetWithMetaCommand::exptime = exptime;
+        doc.info.expiration = exptime;
         return *this;
     }
 
@@ -1327,11 +1335,11 @@ public:
     }
 
     uint64_t getMetaCas() const {
-        return cas;
+        return doc.info.cas;
     }
 
     BinprotSetWithMetaCommand& setMetaCas(uint64_t cas) {
-        BinprotSetWithMetaCommand::cas = cas;
+        doc.info.cas = cas;
         return *this;
 
     }
@@ -1349,9 +1357,9 @@ public:
     void encode(std::vector<uint8_t>& buf) const override;
 
 protected:
-    uint32_t flags;
-    uint32_t exptime;
-    uint64_t seqno = 0;
-    uint64_t cas;
+    Document doc;
+    uint64_t seqno;
+    uint64_t operationCas;
+    uint32_t options;
     std::vector<uint8_t> meta;
 };
