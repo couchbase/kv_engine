@@ -20,7 +20,7 @@
 // DegragmentVisitor implementation ///////////////////////////////////////////
 
 DefragmentVisitor::DefragmentVisitor(uint8_t age_threshold_)
-  : max_size_class(3584),  // TODO: Derive from allocator hooks.
+  : max_size_class(14336),  // TODO: Derive from allocator hooks.
     age_threshold(age_threshold_),
     defrag_count(0),
     visited_count(0) {
