@@ -83,6 +83,10 @@ public:
     size_t getMaximumDocSize() const override {
         return 1024 * 1024;
     }
+
+    bool supportsLastModifiedVattr() const override {
+        return false;
+    }
 };
 
 class EpBucketImpl : public TestBucketImpl {
@@ -162,6 +166,10 @@ public:
 
     size_t getMaximumDocSize() const override {
         return 20 * 1024 * 1024;
+    }
+
+    bool supportsLastModifiedVattr() const override {
+        return true;
     }
 
     /// Directory for any database files.

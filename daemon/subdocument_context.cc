@@ -222,10 +222,11 @@ cb::const_char_buffer SubdocCmdContext::get_document_vattr() {
                                 "seqno",
                                 to_hex_string(input_item_info.seqno).c_str());
 
-        cJSON_AddNumberToObject(
-                doc.get(),
-                "exptime",
-                mc_time_convert_to_abs_time(input_item_info.exptime));
+        time_t expiry =
+                input_item_info.exptime
+                        ? mc_time_convert_to_abs_time(input_item_info.exptime)
+                        : 0;
+        cJSON_AddNumberToObject(doc.get(), "exptime", expiry);
 
         if (mcbp::datatype::is_xattr(input_item_info.datatype)) {
             // strip off xattr
@@ -256,13 +257,16 @@ cb::const_char_buffer SubdocCmdContext::get_document_vattr() {
                 input_item_info.document_state == DocumentState::Deleted);
 
         if (input_item_info.cas_is_hlc) {
-            // convert nanoseconds CAS into seconds
+            // convert nanoseconds CAS into seconds and ensure u64 before cJSON
+            // converts to a double internally.
             std::chrono::nanoseconds ns(input_item_info.cas);
-            cJSON_AddNumberToObject(
+            cJSON_AddStringToObject(
                     doc.get(),
                     "last_modified",
-                    std::chrono::duration_cast<std::chrono::seconds>(ns)
-                            .count());
+                    std::to_string(uint64_t(std::chrono::duration_cast<
+                                                    std::chrono::seconds>(ns)
+                                                    .count()))
+                            .c_str());
         }
         unique_cJSON_ptr root(cJSON_CreateObject());
         cJSON_AddItemToObject(root.get(), "$document", doc.release());
