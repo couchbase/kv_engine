@@ -284,7 +284,13 @@ item_info Item::toItemInfo(uint64_t vb_uuid, int64_t hlcEpoch) const {
 }
 
 void Item::pruneValueAndOrXattrs(IncludeValue includeVal,
-                               IncludeXattrs includeXattrs) {
+                                 IncludeXattrs includeXattrs) {
+    if (!value) {
+        // If the item does not have value (i.e. data and/or xattrs) then no
+        // pruning is required.
+        return;
+    }
+
     if (includeVal == IncludeValue::Yes) {
         if ((includeXattrs == IncludeXattrs::Yes) ||
                 !(mcbp::datatype::is_xattr(getDataType()))) {

@@ -26,6 +26,42 @@
 #include <memcached/protocol_binary.h>
 #include <platform/make_unique.h>
 
+class ItemNoValuePruneTest : public ::testing::TestWithParam<
+                             std::tuple<IncludeValue, IncludeXattrs>> {
+public:
+
+    SingleThreadedRCPtr<Item> item;
+    void SetUp() {
+         item = std::make_unique<Item>(makeStoredDocKey("key"),
+                                       /*vb*/ 0,
+                                       queue_op::empty,
+                                       /*revSeq*/ 0,
+                                       /*bySeq*/0);
+        }
+};
+
+TEST_P(ItemNoValuePruneTest, testPrune) {
+    IncludeValue includeValue = std::get<0>(GetParam());
+    IncludeXattrs includeXattrs = std::get<1>(GetParam());
+    item->pruneValueAndOrXattrs(includeValue, includeXattrs);
+
+    auto datatype = item->getDataType();
+    EXPECT_FALSE(mcbp::datatype::is_json(datatype));
+    EXPECT_FALSE(mcbp::datatype::is_xattr(datatype));
+    EXPECT_FALSE(mcbp::datatype::is_snappy(datatype));
+    EXPECT_TRUE(mcbp::datatype::is_raw(datatype));
+    // should not have value
+    EXPECT_EQ(0, item->getNBytes());
+}
+
+INSTANTIATE_TEST_CASE_P(PruneTestWithParameters,
+                        ItemNoValuePruneTest,
+                        ::testing::Combine(testing::Values(IncludeValue::Yes,
+                                                           IncludeValue::No),
+                                           testing::Values(IncludeXattrs::Yes,
+                                                           IncludeXattrs::No)),
+                                                           );
+
 class ItemTest : public ::testing::Test {
 public:
 
@@ -117,7 +153,7 @@ TEST_F(ItemPruneTest, testPruneXattrs) {
     EXPECT_EQ(0, memcmp(item->getData(), valueData.c_str(),
                          item->getNBytes()));
 }
-//
+
 TEST_F(ItemPruneTest, testPruneValue) {
     item->pruneValueAndOrXattrs(IncludeValue::No, IncludeXattrs::Yes);
 
