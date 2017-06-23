@@ -65,6 +65,8 @@ public:
                               uint64_t startSeqno,
                               uint64_t endSeqno);
 
+    ~DCPBackfillMemoryBuffered() override;
+
     backfill_status_t run() override;
 
     void cancel() override;
@@ -113,4 +115,7 @@ private:
      * Range iterator (on the vbucket) created for the backfill
      */
     SequenceList::RangeIterator rangeItr;
+
+    // VBucket ID, only used for debug / tracing.
+    const VBucket::id_type vbid;
 };
