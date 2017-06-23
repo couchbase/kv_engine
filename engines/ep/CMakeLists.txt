@@ -96,6 +96,8 @@ CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
                 ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbvdiff)
 CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
                 ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbvbucketctl)
+CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
+                ${CMAKE_CURRENT_BINARY_DIR}/wrapper/kv_trace_dump)
 
 SET(Python_ADDITIONAL_VERSIONS 2.6)
 FIND_PACKAGE(PythonInterp)
@@ -110,6 +112,9 @@ ADD_TEST(NAME cbstats_test
 ADD_TEST(NAME cbepctl_test
         COMMAND ${PYTHON_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/management/cbepctl --help)
+ADD_TEST(NAME kv_trace_dump_test
+        COMMAND ${PYTHON_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/management/kv_trace_dump --help)
 
 IF (WIN32)
    INCLUDE_DIRECTORIES(AFTER ${CMAKE_SOURCE_DIR}/platform/include/win32)
@@ -480,6 +485,7 @@ INSTALL(PROGRAMS
         ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbcompact
         ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbvdiff
         ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbvbucketctl
+        ${CMAKE_CURRENT_BINARY_DIR}/wrapper/kv_trace_dump
         management/cbanalyze-core
         DESTINATION bin)
 
@@ -489,6 +495,7 @@ INSTALL(PROGRAMS
         management/cbcompact
         management/cbvdiff
         management/cbvbucketctl
+        management/kv_trace_dump
         DESTINATION lib/python)
 
 INSTALL(FILES

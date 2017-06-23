@@ -39,7 +39,7 @@ to do this is with the mcctl executable:
 - `get trace.config`: Returns the current tracing config
 - `get trace.dump.begin`: Converts the last trace into a new dump and returns
 the uuid of the new dump
-- `get trace.dump.chunk?uuid=<uuid>`: Returns the next chunk from the dump of
+- `get trace.dump.chunk?id=<uuid>`: Returns the next chunk from the dump of
 the given uuid
 - `set trace.config`: Sets the tracing config
 - `set trace.start`: Starts tracing
@@ -52,13 +52,13 @@ A trace can be performed via IOCTL using the following steps
     <do stuff you want traced>
     set trace.stop
     get trace.dump.begin (save the returned uuid)
-    get trace.dump.chunk?uuid=<uuid> (and repeat until you recieve an empty chunk)
+    get trace.dump.chunk?id=<uuid> (and repeat until you recieve an empty chunk)
     set trace.dump.clear <uuid>
 
 The chunks must then be concatenated to assemble the full JSON dump. This can be
 done trivially with mcctl and bash:
 
-    $ ./mcctl -h localhost:11210 get trace.dump.chunk?uuid=<uuid> >> trace.json
+    $ ./mcctl -h localhost:11210 get trace.dump.chunk?id=<uuid> >> trace.json
 
 ## Tracing Config
 There are several semi-colon (';') separated options that can be used as part of
