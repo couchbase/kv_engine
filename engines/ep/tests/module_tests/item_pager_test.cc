@@ -90,6 +90,11 @@ protected:
         ASSERT_LT(stats.getTotalMemoryUsed(), stats.getMaxDataSize() * 0.5)
             << "Expected to start below 50% of bucket quota";
     }
+
+    ENGINE_ERROR_CODE storeItem(Item& item) {
+        uint64_t cas = 0;
+        return engine->store(nullptr, &item, &cas, OPERATION_SET);
+    }
 };
 
 /**
@@ -156,8 +161,7 @@ TEST_P(STItemPagerTest, ServerQuotaReached) {
         // Set NRU of item to maximum; so will be a candidate for paging out
         // straight away.
         item.setNRUValue(MAX_NRU_VALUE);
-        uint64_t cas;
-        result = engine->store(nullptr, &item, &cas, OPERATION_SET);
+        result = storeItem(item);
     }
     ASSERT_EQ(ENGINE_TMPFAIL, result);
     ASSERT_GE(count, 50) << "Too few documents stored";
@@ -197,9 +201,7 @@ TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
     do {
         auto key = makeStoredDocKey("key_" + std::to_string(countA));
         auto item = make_item(vbid, key, value);
-        uint64_t cas;
-        ASSERT_EQ(ENGINE_SUCCESS,
-                  engine->store(nullptr, &item, &cas, OPERATION_SET));
+        ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
         countA++;
     } while (stats.getTotalMemoryUsed() < stats.mem_low_wat.load());
 
@@ -213,8 +215,7 @@ TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
     for (result = ENGINE_SUCCESS; result == ENGINE_SUCCESS; countB++) {
         auto key = makeStoredDocKey("key_" + std::to_string(countB));
         auto item = make_item(vbid, key, value, ep_abs_time(1));
-        uint64_t cas;
-        result = engine->store(nullptr, &item, &cas, OPERATION_SET);
+        result = storeItem(item);
     }
     ASSERT_EQ(ENGINE_TMPFAIL, result);
     ASSERT_GE(countB, 50)
@@ -272,9 +273,7 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
         // Set NRU of item to maximum; so will be a candidate for paging out
         // straight away.
         item.setNRUValue(MAX_NRU_VALUE);
-        uint64_t cas;
-        ASSERT_EQ(ENGINE_SUCCESS,
-                  engine->store(nullptr, &item, &cas, OPERATION_SET));
+        ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
         active_count++;
     } while (stats.getTotalMemoryUsed() < stats.mem_low_wat.load());
 
@@ -292,8 +291,7 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
         // this test).
         item.setNRUValue(MAX_NRU_VALUE);
 
-        uint64_t cas;
-        result = engine->store(nullptr, &item, &cas, OPERATION_SET);
+        result = storeItem(item);
     } while (result == ENGINE_SUCCESS && ++replica_count);
     ASSERT_EQ(ENGINE_TMPFAIL, result);
     ASSERT_GE(replica_count, 10)
@@ -361,9 +359,7 @@ TEST_P(STExpiryPagerTest, ExpiredItemsDeleted) {
         const uint32_t expiry =
                 ii > 0 ? ep_abs_time(ep_current_time() + ii * 10) : 0;
         auto item = make_item(vbid, key, value, expiry);
-        uint64_t cas;
-        ASSERT_EQ(ENGINE_SUCCESS,
-                  engine->store(nullptr, &item, &cas, OPERATION_SET));
+        ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
     }
 
     if (GetParam() == "persistent") {

@@ -49,6 +49,7 @@ public:
           shardID(sh),
           stateFinalizer(sfin),
           as(aS),
+          items_scanned(0),
           items_to_scan(items_to_scan) {
         name = conf.getAlogPath();
         std::stringstream s;
