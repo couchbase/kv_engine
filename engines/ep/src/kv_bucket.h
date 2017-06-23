@@ -833,7 +833,7 @@ protected:
                          uint16_t vbucket,
                          const void *cookie,
                          vbucket_state_t allowedState,
-                         get_options_t options = TRACK_REFERENCE);
+                         get_options_t options);
 
     bool resetVBucket_UNLOCKED(uint16_t vbid,
                                std::unique_lock<std::mutex>& vbset,

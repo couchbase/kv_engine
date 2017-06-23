@@ -210,7 +210,7 @@ private:
                                     const void* cookie,
                                     EventuallyPersistentEngine& engine,
                                     int bgFetchDelay,
-                                    get_options_t options,
+                                    QueueBgFetch queueBgFetch,
                                     const StoredValue& v) override;
 
     size_t estimateNewMemoryUsage(EPStats& st, const Item& item) override {

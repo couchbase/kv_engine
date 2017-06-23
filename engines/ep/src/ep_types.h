@@ -64,6 +64,9 @@ enum get_options_t {
     ALLOW_META_ONLY = 0x0080 // Allow only the meta to be returned for an item
 };
 
+/// Used to identify if QUEUE_BG_FETCH option is set
+enum class QueueBgFetch {Yes, No};
+
 /* Meta data versions for GET_META */
 enum class GetMetaVersion : uint8_t {
     V1 = 1, // returns deleted, flags, expiry and seqno

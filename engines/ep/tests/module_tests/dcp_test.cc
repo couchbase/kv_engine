@@ -816,6 +816,42 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_success) {
 }
 
 /*
+ * Tests the callback member function of the CacheCallback class.  Due to the
+ * key being evicted the test should result in the CacheCallback having a status
+ * of ENGINE_SUCCESS.
+ */
+TEST_P(CacheCallbackTest, CacheCallback_engine_success_not_resident) {
+    if (bucketType == "ephemeral") {
+        /* The test relies on being able to evict a key from memory.
+         * Eviction is not supported with empherial buckets.
+         */
+        return;
+    }
+    MockActiveStream* mockStream = static_cast<MockActiveStream*>(stream.get());
+    active_stream_t activeStream(mockStream);
+    CacheCallback callback(*engine, activeStream);
+
+    mockStream->transitionStateToBackfilling();
+    CacheLookup lookup(docKey, /*BySeqno*/ 1, vbid);
+    // Make the key non-resident by evicting the key
+    const char* msg;
+    engine->evictKey(docKey, vbid, &msg);
+    callback.callback(lookup);
+
+    /* With the key evicted, invoking callback should result in backfillReceived
+     * NOT being called on activeStream, and hence the callback status should be
+     * set to ENGINE_SUCCESS
+     */
+    EXPECT_EQ(ENGINE_SUCCESS, callback.getStatus());
+
+    /* Verify that the item is not read in the backfill */
+    EXPECT_EQ(0, mockStream->getNumBackfillItems());
+
+    /* Verify do not have the backfill item sitting in the readyQ */
+    EXPECT_EQ(0, mockStream->public_readyQ().size());
+}
+
+/*
  * Tests the callback member function of the CacheCallback class.  This
  * particular test should result in the CacheCallback having a status of
  * ENGINE_ENOMEM.
