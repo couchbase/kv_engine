@@ -186,6 +186,7 @@ protected:
                                           sizeof(ext_meta));
     }
 
+    /* Add items onto the vbucket and wait for the checkpoint to be removed */
     void addItemsAndRemoveCheckpoint(int numItems) {
         for (int i = 0; i < numItems; ++i) {
             std::string key("key" + std::to_string(i));
@@ -596,26 +597,7 @@ TEST_P(StreamTest, test_mb18625) {
 TEST_P(StreamTest, BackfillOnly) {
     /* Add 3 items */
     int numItems = 3;
-    for (int i = 0; i < numItems; ++i) {
-        std::string key("key" + std::to_string(i));
-        store_item(vbid, key, "value");
-    }
-
-    /* Create new checkpoint so that we can remove the current checkpoint
-       and force a backfill in the DCP stream */
-    auto& ckpt_mgr = vb0->checkpointManager;
-    ckpt_mgr.createNewCheckpoint();
-
-    /* Wait for removal of the old checkpoint, this also would imply that the
-       items are persisted (in case of persistent buckets) */
-    {
-        bool new_ckpt_created;
-        std::chrono::microseconds uSleepTime(128);
-        while (static_cast<size_t>(numItems) !=
-               ckpt_mgr.removeClosedUnrefCheckpoints(*vb0, new_ckpt_created)) {
-            uSleepTime = decayingSleep(uSleepTime);
-        }
-    }
+    addItemsAndRemoveCheckpoint(numItems);
 
     /* Set up a DCP stream for the backfill */
     setup_dcp_stream();
@@ -657,26 +639,7 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
 
     /* Add 2 items */
     int numItems = 2;
-    for (int i = 0; i < numItems; ++i) {
-        std::string key("key" + std::to_string(i));
-        store_item(vbid, key, "value");
-    }
-
-    /* Create new checkpoint so that we can remove the current checkpoint
-       and force a backfill in the DCP stream */
-    auto& ckpt_mgr = vb0->checkpointManager;
-    ckpt_mgr.createNewCheckpoint();
-
-    /* Wait for removal of the old checkpoint, this also would imply that the
-       items are persisted (in case of persistent buckets) */
-    {
-        bool new_ckpt_created;
-        std::chrono::microseconds uSleepTime(128);
-        while (static_cast<size_t>(numItems) !=
-               ckpt_mgr.removeClosedUnrefCheckpoints(*vb0, new_ckpt_created)) {
-            uSleepTime = decayingSleep(uSleepTime);
-        }
-    }
+    addItemsAndRemoveCheckpoint(numItems);
 
     /* Set up a DCP stream for the backfill */
     setup_dcp_stream();
