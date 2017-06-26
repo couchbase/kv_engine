@@ -114,9 +114,9 @@ protected:
     }
 
     // Setup a DCP producer and attach a stream and cursor to it.
-    void setup_dcp_stream(IncludeValue includeVal = IncludeValue::Yes,
+    void setup_dcp_stream(int flags = 0,
+                          IncludeValue includeVal = IncludeValue::Yes,
                           IncludeXattrs includeXattrs = IncludeXattrs::Yes) {
-        int flags = 0;
         if (includeVal == IncludeValue::No) {
             flags |= DCP_OPEN_NO_VALUE;
         }
@@ -135,7 +135,7 @@ protected:
         EXPECT_TRUE(vb0) << "Failed to get valid VBucket object for id 0";
         stream = new MockActiveStream(engine,
                                       producer,
-                                      /*flags*/ 0,
+                                      flags,
                                       /*opaque*/ 0,
                                       *vb0,
                                       /*st_seqno*/ 0,
@@ -186,6 +186,31 @@ protected:
                                           sizeof(ext_meta));
     }
 
+    void addItemsAndRemoveCheckpoint(int numItems) {
+        for (int i = 0; i < numItems; ++i) {
+            std::string key("key" + std::to_string(i));
+            store_item(vbid, key, "value");
+        }
+
+        /* Create new checkpoint so that we can remove the current checkpoint
+         and force a backfill in the DCP stream */
+        auto& ckpt_mgr = vb0->checkpointManager;
+        ckpt_mgr.createNewCheckpoint();
+
+        /* Wait for removal of the old checkpoint, this also would imply that
+         the
+         items are persisted (in case of persistent buckets) */
+        {
+            bool new_ckpt_created;
+            std::chrono::microseconds uSleepTime(128);
+            while (static_cast<size_t>(numItems) !=
+                   ckpt_mgr.removeClosedUnrefCheckpoints(*vb0,
+                                                         new_ckpt_created)) {
+                uSleepTime = decayingSleep(uSleepTime);
+            }
+        }
+    }
+
     /*
      * Fake callback emulating dcp_add_failover_log
      */
@@ -206,7 +231,7 @@ protected:
  * isKeyOnly.
  */
 TEST_P(StreamTest, test_streamIsKeyOnlyTrue) {
-    setup_dcp_stream(IncludeValue::No, IncludeXattrs::No);
+    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
     uint64_t rollbackSeqno;
     auto err = producer->streamRequest(/*flags*/0,
                                        /*opaque*/0,
@@ -232,7 +257,7 @@ TEST_P(StreamTest, test_streamIsKeyOnlyTrue) {
  * isKeyOnly.
  */
 TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeValue) {
-    setup_dcp_stream(IncludeValue::Yes, IncludeXattrs::No);
+    setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::No);
     uint64_t rollbackSeqno;
     auto err = producer->streamRequest(/*flags*/0,
                                        /*opaque*/0,
@@ -258,7 +283,7 @@ TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeValue) {
  * isKeyOnly.
  */
 TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeXattrs) {
-    setup_dcp_stream(IncludeValue::No, IncludeXattrs::Yes);
+    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::Yes);
     uint64_t rollbackSeqno;
     auto err = producer->streamRequest(/*flags*/0,
                                        /*opaque*/0,
@@ -289,7 +314,7 @@ TEST_P(StreamTest, test_keyOnlyMessageSize) {
             item->getKey().size();
     queued_item qi(std::move(item));
 
-    setup_dcp_stream(IncludeValue::No, IncludeXattrs::No);
+    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
     std::unique_ptr<DcpResponse> dcpResponse =
             dynamic_cast<MockActiveStream*>(
                     stream.get())->public_makeResponseFromItem(qi);
@@ -308,7 +333,7 @@ TEST_P(StreamTest, test_keyValueAndXattrsMessageSize) {
             item->getKey().size() + item->getNBytes();
     queued_item qi(std::move(item));
 
-    setup_dcp_stream(IncludeValue::Yes, IncludeXattrs::Yes);
+    setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::Yes);
     std::unique_ptr<DcpResponse> dcpResponse =
             dynamic_cast<MockActiveStream*>(
                     stream.get())->public_makeResponseFromItem(qi);
@@ -327,7 +352,7 @@ TEST_P(StreamTest, test_keyAndValueMessageSize) {
             item->getKey().size() + item->getNBytes();
     queued_item qi(std::move(item));
 
-    setup_dcp_stream(IncludeValue::Yes, IncludeXattrs::Yes);
+    setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::Yes);
     std::unique_ptr<DcpResponse> dcpResponse =
             dynamic_cast<MockActiveStream*>(
                     stream.get())->public_makeResponseFromItem(qi);
@@ -350,7 +375,7 @@ TEST_P(StreamTest, test_keyAndValueExcludingXattrsMessageSize) {
             item->getKey().size() + item->getNBytes() - sz;
     queued_item qi(std::move(item));
 
-    setup_dcp_stream(IncludeValue::Yes, IncludeXattrs::No);
+    setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::No);
     std::unique_ptr<DcpResponse> dcpResponse =
             dynamic_cast<MockActiveStream*>(
                     stream.get())->public_makeResponseFromItem(qi);
@@ -370,7 +395,7 @@ TEST_P(StreamTest,
             item->getKey().size() + item->getNBytes();
     queued_item qi(std::move(item));
 
-    setup_dcp_stream(IncludeValue::Yes, IncludeXattrs::No);
+    setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::No);
     std::unique_ptr<DcpResponse> dcpResponse =
             dynamic_cast<MockActiveStream*>(
                     stream.get())->public_makeResponseFromItem(qi);
@@ -393,7 +418,7 @@ TEST_P(StreamTest, test_keyAndValueExcludingValueDataMessageSize) {
             item->getKey().size() + sz;
     queued_item qi(std::move(item));
 
-    setup_dcp_stream(IncludeValue::No, IncludeXattrs::Yes);
+    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::Yes);
     std::unique_ptr<DcpResponse> dcpResponse =
             dynamic_cast<MockActiveStream*>(
                     stream.get())->public_makeResponseFromItem(qi);
@@ -408,7 +433,7 @@ TEST_P(StreamTest, test_keyAndValueExcludingValueDataMessageSize) {
 
 TEST_P(StreamTest, backfillGetsNoItems) {
     if (engine->getConfiguration().getBucketType() == "ephemeral") {
-        setup_dcp_stream(IncludeValue::No, IncludeXattrs::No);
+        setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
         store_item(vbid, "key", "value1");
         store_item(vbid, "key", "value2");
 
@@ -693,6 +718,69 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
 
     /* Read the other item */
     mock_stream->consumeBackfillItems(1);
+}
+
+TEST_P(StreamTest, CursorDroppingBasicBackfillState) {
+    /* Add 2 items; we need this to keep stream in backfill state */
+    const int numItems = 2;
+    addItemsAndRemoveCheckpoint(numItems);
+
+    /* Set up a DCP stream */
+    setup_dcp_stream();
+    MockActiveStream* mock_stream =
+            dynamic_cast<MockActiveStream*>(stream.get());
+
+    /* Transition stream to backfill state and expect cursor dropping call to
+       succeed */
+    mock_stream->transitionStateToBackfilling();
+    EXPECT_TRUE(mock_stream->public_handleSlowStream());
+
+    /* Run the backfill task in background thread to run so that it can
+       complete/cancel itself */
+    ExecutorPool::get()->setNumAuxIO(1);
+    /* Finish up with the backilling of the remaining item */
+    {
+        std::chrono::microseconds uSleepTime(128);
+        while (numItems != mock_stream->getLastReadSeqno()) {
+            uSleepTime = decayingSleep(uSleepTime);
+        }
+    }
+}
+
+TEST_P(StreamTest, CursorDroppingBasicInMemoryState) {
+    /* Set up a DCP stream */
+    setup_dcp_stream();
+    MockActiveStream* mock_stream =
+            dynamic_cast<MockActiveStream*>(stream.get());
+
+    /* Transition stream to in-memory state and expect cursor dropping call to
+       succeed */
+    mock_stream->transitionStateToBackfilling();
+    mock_stream->transitionStateToInMemory();
+    EXPECT_TRUE(mock_stream->public_handleSlowStream());
+}
+
+TEST_P(StreamTest, CursorDroppingBasicNotAllowedStates) {
+    /* Set up a DCP stream */
+    setup_dcp_stream(DCP_ADD_STREAM_FLAG_TAKEOVER);
+    MockActiveStream* mock_stream =
+            dynamic_cast<MockActiveStream*>(stream.get());
+
+    /* Transition stream to takeoverSend state and expect cursor dropping call
+       to fail */
+    mock_stream->transitionStateToBackfilling();
+    mock_stream->transitionStateToTakeoverSend();
+    EXPECT_FALSE(mock_stream->public_handleSlowStream());
+
+    /* Transition stream to takeoverWait state and expect cursor dropping call
+       to fail */
+    mock_stream->transitionStateToTakeoverWait();
+    EXPECT_FALSE(mock_stream->public_handleSlowStream());
+
+    /* Transition stream to takeoverSend state and expect cursor dropping call
+       to fail */
+    mock_stream->transitionStateToTakeoverDead();
+    EXPECT_FALSE(mock_stream->public_handleSlowStream());
 }
 
 class CacheCallbackTest : public StreamTest {

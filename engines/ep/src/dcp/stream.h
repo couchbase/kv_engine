@@ -294,10 +294,14 @@ public:
     // Runs on ActiveStreamCheckpointProcessorTask
     void nextCheckpointItemTask();
 
-    /* Function to handle a slow stream that is supposedly hogging memory in
-       checkpoint mgr. Currently we handle the slow stream by switching from
-       in-memory to backfilling */
-    void handleSlowStream();
+    /**
+     * Function to handle a slow stream that is supposedly hogging memory in
+     * checkpoint mgr. Currently we handle the slow stream by switching from
+     * in-memory to backfilling
+     *
+     * @return true if cursor is dropped; else false
+     */
+    bool handleSlowStream();
 
     /// @return true if both includeValue and includeXattributes are set to No,
     /// otherwise return false.
@@ -419,10 +423,13 @@ private:
 
     bool isCurrentSnapshotCompleted() const;
 
-    /* Drop the cursor registered with the checkpoint manager.
+    /**
+     * Drop the cursor registered with the checkpoint manager.
      * Note: Expects the streamMutex to be acquired when called
+     *
+     * @return true if cursor is dropped; else false
      */
-    void dropCheckpointCursor_UNLOCKED();
+    bool dropCheckpointCursor_UNLOCKED();
 
     /* The last sequence number queued from disk or memory, but is yet to be
        snapshotted and put onto readyQ */

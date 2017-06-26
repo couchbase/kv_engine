@@ -1317,8 +1317,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
     }
 }
 
-void ActiveStream::handleSlowStream()
-{
+bool ActiveStream::handleSlowStream() {
     LockHolder lh(streamMutex);
     producer->getLogger().log(EXTENSION_LOG_NOTICE,
                               "(vb %" PRIu16 ") Handling slow stream; "
@@ -1330,20 +1329,22 @@ void ActiveStream::handleSlowStream()
                               lastReadSeqno.load(),
                               lastSentSeqno.load(),
                               isBackfillTaskRunning.load() ? "True" : "False");
+
+    bool status = false;
     switch (state_.load()) {
         case StreamState::Backfilling:
         case StreamState::InMemory:
             /* Drop the existing cursor and set pending backfill */
-            dropCheckpointCursor_UNLOCKED();
+            status = dropCheckpointCursor_UNLOCKED();
             pendingBackfill = true;
-            break;
+            return status;
         case StreamState::TakeoverSend:
             /* To be handled later if needed */
         case StreamState::TakeoverWait:
             /* To be handled later if needed */
         case StreamState::Dead:
             /* To be handled later if needed */
-            break;
+            return false;
         case StreamState::Pending:
         case StreamState::Reading:
             throw std::logic_error("ActiveStream::handleSlowStream: "
@@ -1352,6 +1353,7 @@ void ActiveStream::handleSlowStream()
                                    "for stream " + producer->logHeader() +
                                    "; vb " + std::to_string(vb_));
     }
+    return false;
 }
 
 const char* ActiveStream::getEndStreamStatusStr(end_stream_status_t status)
@@ -1526,8 +1528,7 @@ bool ActiveStream::isCurrentSnapshotCompleted() const
     return true;
 }
 
-void ActiveStream::dropCheckpointCursor_UNLOCKED()
-{
+bool ActiveStream::dropCheckpointCursor_UNLOCKED() {
     VBucketPtr vbucket = engine->getVBucket(vb_);
     if (!vbucket) {
         endStream(END_STREAM_STATE);
@@ -1537,7 +1538,7 @@ void ActiveStream::dropCheckpointCursor_UNLOCKED()
         }
     }
     /* Drop the existing cursor */
-    vbucket->checkpointManager.removeCursor(name_);
+    return vbucket->checkpointManager.removeCursor(name_);
 }
 
 void ActiveStream::processSystemEvent(DcpResponse* response) {

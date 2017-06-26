@@ -943,8 +943,7 @@ bool DcpProducer::handleSlowStream(uint16_t vbid,
         if (stream) {
             if (stream->getName().compare(name) == 0) {
                 ActiveStream* as = static_cast<ActiveStream*>(stream.get());
-                as->handleSlowStream();
-                return true;
+                return as->handleSlowStream();
             }
         }
     }

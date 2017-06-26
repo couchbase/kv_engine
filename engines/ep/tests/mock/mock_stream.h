@@ -94,6 +94,22 @@ public:
         transitionState(StreamState::Backfilling);
     }
 
+    void transitionStateToInMemory() {
+        transitionState(StreamState::InMemory);
+    }
+
+    void transitionStateToTakeoverSend() {
+        transitionState(StreamState::TakeoverSend);
+    }
+
+    void transitionStateToTakeoverWait() {
+        transitionState(StreamState::TakeoverWait);
+    }
+
+    void transitionStateToTakeoverDead() {
+        transitionState(StreamState::Dead);
+    }
+
     int getNumBackfillItems() const {
         return backfillItems.memory + backfillItems.disk;
     }
@@ -123,6 +139,10 @@ public:
                 ++items;
             }
         }
+    }
+
+    bool public_handleSlowStream() {
+        return handleSlowStream();
     }
 };
 
