@@ -136,14 +136,20 @@ class TestDcpConsumer {
  * messages from it.
  */
 public:
-    TestDcpConsumer(const std::string &_name, const void *_cookie)
+    TestDcpConsumer(const std::string& _name,
+                    const void* _cookie,
+                    ENGINE_HANDLE* h,
+                    ENGINE_HANDLE_V1* h1)
         : name(_name),
           cookie(_cookie),
           opaque(0),
           total_bytes(0),
           simulate_cursor_dropping(false),
           flow_control_buf_size(1024),
-          disable_ack(false) { }
+          disable_ack(false),
+          h(h),
+          h1(h1) {
+    }
 
     uint64_t getTotalBytes() {
         return total_bytes;
@@ -165,17 +171,17 @@ public:
         stream_ctxs.push_back(ctx);
     }
 
-    void run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
+    void run();
 
     /* This method just opens a DCP connection. Note it does not open a stream
        and does not call the dcp step function to get all the items from the
        producer */
-    void openConnection(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
+    void openConnection();
 
     /* This method opens a stream on an existing DCP connection.
        This does not call the dcp step function to get all the items from the
        producer */
-    ENGINE_ERROR_CODE openStreams(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
+    ENGINE_ERROR_CODE openStreams();
 
 private:
     /* Vbucket-level stream stats used in test */
@@ -227,17 +233,18 @@ private:
     bool disable_ack;
     /* map of vbstats */
     std::map<uint16_t, VBStats> vb_stats;
-
+    ENGINE_HANDLE* h;
+    ENGINE_HANDLE_V1* h1;
 };
 
-void TestDcpConsumer::run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void TestDcpConsumer::run() {
     check(stream_ctxs.size() >= 1, "No dcp_stream arguments provided!");
 
     /* Open the connection with the DCP producer */
-    openConnection(h, h1);
+    openConnection();
 
     /* Open streams in the above open connection */
-    openStreams(h, h1);
+    openStreams();
 
     std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
 
@@ -500,8 +507,7 @@ void TestDcpConsumer::run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     }
 }
 
-void TestDcpConsumer::openConnection(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
-{
+void TestDcpConsumer::openConnection() {
     /* Reset any stale dcp data */
     clear_dcp_data();
 
@@ -539,8 +545,7 @@ void TestDcpConsumer::openConnection(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
             "Failed to enable xdcr extras");
 }
 
-ENGINE_ERROR_CODE TestDcpConsumer::openStreams(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
-{
+ENGINE_ERROR_CODE TestDcpConsumer::openStreams() {
     for (auto& ctx : stream_ctxs) {
         /* Different opaque for every stream created */
         ++opaque;
@@ -557,7 +562,7 @@ ENGINE_ERROR_CODE TestDcpConsumer::openStreams(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
         checkeq(ctx.exp_err, rv, "Failed to initiate stream request");
 
-        if (rv == ENGINE_NOT_MY_VBUCKET) {
+        if (rv == ENGINE_NOT_MY_VBUCKET || rv == ENGINE_ENOTSUP) {
             return rv;
         }
 
@@ -953,9 +958,9 @@ extern "C" {
         ctx.snapshot = {cdc->start_seqno, cdc->start_seqno};
         ctx.skip_verification = true;
 
-        TestDcpConsumer tdc(cdc->name, cdc->cookie);
+        TestDcpConsumer tdc(cdc->name, cdc->cookie, cdc->h, cdc->h1);
         tdc.addStreamCtx(ctx);
-        tdc.run(cdc->h, cdc->h1);
+        tdc.run();
     }
 }
 
@@ -1679,10 +1684,10 @@ static enum test_result test_dcp_producer_stream_req_open(ENGINE_HANDLE *h,
     ctx.seqno = {0, static_cast<uint64_t>(-1)};
 
     std::string name("unittest");
-    TestDcpConsumer tdc(name.c_str(), cookie);
+    TestDcpConsumer tdc(name.c_str(), cookie, h, h1);
     tdc.addStreamCtx(ctx);
 
-    tdc.openConnection(h, h1);
+    tdc.openConnection();
 
     /* Create a separate thread that does tries to get any DCP items */
     std::thread dcp_step_thread(dcp_waiting_step, h, h1, cookie, 0, num_items);
@@ -1700,7 +1705,7 @@ static enum test_result test_dcp_producer_stream_req_open(ENGINE_HANDLE *h,
     }
 
     /* Now create a stream */
-    tdc.openStreams(h, h1);
+    tdc.openStreams();
 
     /* Write items */
     write_items(h, h1, num_items, 0);
@@ -1787,9 +1792,9 @@ static enum test_result test_dcp_producer_stream_req_partial(ENGINE_HANDLE *h,
         ctx.exp_markers = 1;
     }
 
-    TestDcpConsumer tdc("unittest", cookie);
+    TestDcpConsumer tdc("unittest", cookie, h, h1);
     tdc.addStreamCtx(ctx);
-    tdc.run(h, h1);
+    tdc.run();
 
     testHarness.destroy_cookie(cookie);
 
@@ -1819,9 +1824,9 @@ static enum test_result test_dcp_producer_stream_req_full_merged_snapshots(
     /* Disk backfill sends all items in disk as one snapshot */
     ctx.exp_markers = 1;
 
-    TestDcpConsumer tdc("unittest", cookie);
+    TestDcpConsumer tdc("unittest", cookie, h, h1);
     tdc.addStreamCtx(ctx);
-    tdc.run(h, h1);
+    tdc.run();
 
     testHarness.destroy_cookie(cookie);
 
@@ -1852,9 +1857,9 @@ static enum test_result test_dcp_producer_stream_req_full(ENGINE_HANDLE *h,
        Relies on backfill only when checkpoint snapshot is cleaned up */
     ctx.exp_markers = 2;
 
-    TestDcpConsumer tdc("unittest", cookie);
+    TestDcpConsumer tdc("unittest", cookie, h, h1);
     tdc.addStreamCtx(ctx);
-    tdc.run(h, h1);
+    tdc.run();
 
     testHarness.destroy_cookie(cookie);
 
@@ -1888,9 +1893,9 @@ static enum test_result test_dcp_producer_deleted_item_backfill(
     ctx.flags |= DCP_ADD_STREAM_FLAG_DISKONLY;
     ctx.exp_markers = 1;
 
-    TestDcpConsumer tdc("unittest", cookie);
+    TestDcpConsumer tdc("unittest", cookie, h, h1);
     tdc.addStreamCtx(ctx);
-    tdc.run(h, h1);
+    tdc.run();
 
     testHarness.destroy_cookie(cookie);
 
@@ -1921,9 +1926,9 @@ static enum test_result test_dcp_producer_stream_req_backfill(ENGINE_HANDLE *h,
     ctx.exp_mutations = 200;
     ctx.exp_markers = 1;
 
-    TestDcpConsumer tdc("unittest", cookie);
+    TestDcpConsumer tdc("unittest", cookie, h, h1);
     tdc.addStreamCtx(ctx);
-    tdc.run(h, h1);
+    tdc.run();
 
     testHarness.destroy_cookie(cookie);
 
@@ -1952,9 +1957,9 @@ static enum test_result test_dcp_producer_stream_req_diskonly(ENGINE_HANDLE *h,
     ctx.exp_mutations = 300;
     ctx.exp_markers = 1;
 
-    TestDcpConsumer tdc("unittest", cookie);
+    TestDcpConsumer tdc("unittest", cookie, h, h1);
     tdc.addStreamCtx(ctx);
-    tdc.run(h, h1);
+    tdc.run();
 
     testHarness.destroy_cookie(cookie);
 
@@ -1980,9 +1985,9 @@ static enum test_result test_dcp_producer_disk_backfill_limits(ENGINE_HANDLE *h,
     ctx.exp_mutations = 3;
     ctx.exp_markers = 1;
 
-    TestDcpConsumer tdc("unittest", cookie);
+    TestDcpConsumer tdc("unittest", cookie, h, h1);
     tdc.addStreamCtx(ctx);
-    tdc.run(h, h1);
+    tdc.run();
 
     uint64_t exp_backfill_task_runs;
     if (isPersistentBucket(h, h1)) {
@@ -2040,9 +2045,9 @@ static enum test_result test_dcp_producer_disk_backfill_buffer_limits(
     ctx.exp_mutations = 3;
     ctx.exp_markers = 1;
 
-    TestDcpConsumer tdc("unittest", cookie);
+    TestDcpConsumer tdc("unittest", cookie, h, h1);
     tdc.addStreamCtx(ctx);
-    tdc.run(h, h1);
+    tdc.run();
 
     testHarness.destroy_cookie(cookie);
 
@@ -2070,9 +2075,9 @@ static enum test_result test_dcp_producer_stream_req_mem(ENGINE_HANDLE *h,
     ctx.exp_mutations = 100;
     ctx.exp_markers = 1;
 
-    TestDcpConsumer tdc("unittest", cookie);
+    TestDcpConsumer tdc("unittest", cookie, h, h1);
     tdc.addStreamCtx(ctx);
-    tdc.run(h, h1);
+    tdc.run();
 
     testHarness.destroy_cookie(cookie);
 
@@ -2130,9 +2135,9 @@ static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
     ctx.exp_mutations = i;
     ctx.exp_markers = 1;
 
-    TestDcpConsumer tdc("unittest", cookie);
+    TestDcpConsumer tdc("unittest", cookie, h, h1);
     tdc.addStreamCtx(ctx);
-    tdc.run(h, h1);
+    tdc.run();
 
     testHarness.destroy_cookie(cookie);
 
@@ -2162,9 +2167,9 @@ static enum test_result test_dcp_producer_stream_latest(ENGINE_HANDLE *h,
     ctx.exp_mutations = 100;
     ctx.exp_markers = 1;
 
-    TestDcpConsumer tdc("unittest", cookie);
+    TestDcpConsumer tdc("unittest", cookie, h, h1);
     tdc.addStreamCtx(ctx);
-    tdc.run(h, h1);
+    tdc.run();
 
     testHarness.destroy_cookie(cookie);
 
@@ -2461,9 +2466,9 @@ static test_result test_dcp_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         ctx.exp_mutations = 100;
         ctx.exp_markers = 1;
 
-        TestDcpConsumer tdc(name, cookie[j]);
+        TestDcpConsumer tdc(name, cookie[j], h, h1);
         tdc.addStreamCtx(ctx);
-        tdc.run(h, h1);
+        tdc.run();
         total_bytes += tdc.getTotalBytes();
     }
 
@@ -2510,12 +2515,12 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
     ctx.seqno = {0, static_cast<uint64_t>(-1)};
     ctx.snapshot = {0, 0};
 
-    TestDcpConsumer tdc(conn_name, cookie);
+    TestDcpConsumer tdc(conn_name, cookie, h, h1);
 
     tdc.addStreamCtx(ctx);
 
-    tdc.openConnection(h, h1);
-    tdc.openStreams(h, h1);
+    tdc.openConnection();
+    tdc.openStreams();
 
     /* Stream (from in-memory state) less than the number of items written.
        We want to do this because we want to test if the stream drops the items
@@ -2601,12 +2606,12 @@ static test_result test_dcp_cursor_dropping_backfill(ENGINE_HANDLE *h,
     ctx.seqno = {0, static_cast<uint64_t>(-1)};
     ctx.snapshot = {0, 0};
 
-    TestDcpConsumer tdc(conn_name, cookie);
+    TestDcpConsumer tdc(conn_name, cookie, h, h1);
 
     tdc.addStreamCtx(ctx);
 
-    tdc.openConnection(h, h1);
-    tdc.openStreams(h, h1);
+    tdc.openConnection();
+    tdc.openStreams();
 
     /* Write items such that we cross threshold for cursor dropping */
     stop_persistence(h, h1);
@@ -2769,9 +2774,9 @@ static test_result test_dcp_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     ctx.exp_markers = 2;
     ctx.extra_takeover_ops = 10;
 
-    TestDcpConsumer tdc("unittest", cookie);
+    TestDcpConsumer tdc("unittest", cookie, h, h1);
     tdc.addStreamCtx(ctx);
-    tdc.run(h, h1);
+    tdc.run();
 
     check(verify_vbucket_state(h, h1, 0, vbucket_state_dead), "Wrong vb state");
 
@@ -3896,11 +3901,11 @@ static enum test_result test_dcp_producer_flow_control(ENGINE_HANDLE *h,
     ctx1.exp_markers = 1;
 
     const void *cookie = testHarness.create_cookie();
-    TestDcpConsumer tdc1(name, cookie);
+    TestDcpConsumer tdc1(name, cookie, h, h1);
     tdc1.setFlowControlBufSize(0);  // Disabling flow control
     tdc1.disableAcking();           // Do not ack
     tdc1.addStreamCtx(ctx1);
-    tdc1.run(h, h1);
+    tdc1.run();
 
     /* Set flow control buffer to a very low value such that producer is not
      expected to send more than 1 item when we do not send acks */
@@ -3913,11 +3918,11 @@ static enum test_result test_dcp_producer_flow_control(ENGINE_HANDLE *h,
     ctx2.exp_markers = 1;
 
     const void *cookie1 = testHarness.create_cookie();
-    TestDcpConsumer tdc2(name1, cookie1);
+    TestDcpConsumer tdc2(name1, cookie1, h, h1);
     tdc2.setFlowControlBufSize(100);    // Flow control buf set to low value
     tdc2.disableAcking();               // Do not ack
     tdc2.addStreamCtx(ctx2);
-    tdc2.run(h, h1);
+    tdc2.run();
 
     testHarness.destroy_cookie(cookie);
     testHarness.destroy_cookie(cookie1);
@@ -4382,9 +4387,9 @@ static enum test_result test_dcp_replica_stream_backfill(ENGINE_HANDLE *h,
     ctx.exp_markers = 1;
 
     const void *cookie1 = testHarness.create_cookie();
-    TestDcpConsumer tdc("unittest1", cookie1);
+    TestDcpConsumer tdc("unittest1", cookie1, h, h1);
     tdc.addStreamCtx(ctx);
-    tdc.run(h, h1);
+    tdc.run();
 
     testHarness.destroy_cookie(cookie1);
     testHarness.destroy_cookie(cookie);
@@ -4431,9 +4436,9 @@ static enum test_result test_dcp_replica_stream_in_memory(ENGINE_HANDLE *h,
     ctx.exp_markers = 1;
 
     const void *cookie1 = testHarness.create_cookie();
-    TestDcpConsumer tdc("unittest1", cookie1);
+    TestDcpConsumer tdc("unittest1", cookie1, h, h1);
     tdc.addStreamCtx(ctx);
-    tdc.run(h, h1);
+    tdc.run();
 
     testHarness.destroy_cookie(cookie1);
     testHarness.destroy_cookie(cookie);
@@ -4494,9 +4499,9 @@ static enum test_result test_dcp_replica_stream_all(ENGINE_HANDLE *h,
     ctx.exp_markers = 1;
 
     const void *cookie1 = testHarness.create_cookie();
-    TestDcpConsumer tdc("unittest1", cookie1);
+    TestDcpConsumer tdc("unittest1", cookie1, h, h1);
     tdc.addStreamCtx(ctx);
-    tdc.run(h, h1);
+    tdc.run();
 
     testHarness.destroy_cookie(cookie1);
     testHarness.destroy_cookie(cookie);
@@ -4715,9 +4720,9 @@ static enum test_result test_dcp_last_items_purged(ENGINE_HANDLE *h,
     ctx.skip_estimate_check = true;
 
     const void *cookie = testHarness.create_cookie();
-    TestDcpConsumer tdc("unittest", cookie);
+    TestDcpConsumer tdc("unittest", cookie, h, h1);
     tdc.addStreamCtx(ctx);
-    tdc.run(h, h1);
+    tdc.run();
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -4757,9 +4762,9 @@ static enum test_result test_dcp_rollback_after_purge(ENGINE_HANDLE *h,
     ctx.skip_estimate_check = true;
 
     const void *cookie = testHarness.create_cookie();
-    TestDcpConsumer tdc("unittest", cookie);
+    TestDcpConsumer tdc("unittest", cookie, h, h1);
     tdc.addStreamCtx(ctx);
-    tdc.run(h, h1);
+    tdc.run();
 
     testHarness.destroy_cookie(cookie);
 
@@ -4794,11 +4799,11 @@ static enum test_result test_dcp_rollback_after_purge(ENGINE_HANDLE *h,
     ctx1.exp_rollback = 0;
 
     const void *cookie1 = testHarness.create_cookie();
-    TestDcpConsumer tdc1("unittest1", cookie1);
+    TestDcpConsumer tdc1("unittest1", cookie1, h, h1);
     tdc1.addStreamCtx(ctx1);
 
-    tdc1.openConnection(h, h1);
-    tdc1.openStreams(h, h1);
+    tdc1.openConnection();
+    tdc1.openStreams();
 
     testHarness.destroy_cookie(cookie1);
 
@@ -4811,11 +4816,11 @@ static enum test_result test_dcp_rollback_after_purge(ENGINE_HANDLE *h,
     ctx2.exp_err = ENGINE_SUCCESS;
 
     const void *cookie2 = testHarness.create_cookie();
-    TestDcpConsumer tdc2("unittest2", cookie2);
+    TestDcpConsumer tdc2("unittest2", cookie2, h, h1);
     tdc2.addStreamCtx(ctx2);
 
-    tdc2.openConnection(h, h1);
-    tdc2.openStreams(h, h1);
+    tdc2.openConnection();
+    tdc2.openStreams();
 
     testHarness.destroy_cookie(cookie2);
 
@@ -5254,11 +5259,11 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
 
         const void *cookie = testHarness.create_cookie();
         std::string conn_name("test_failover_log_dcp");
-        TestDcpConsumer tdc(conn_name.c_str(), cookie);
+        TestDcpConsumer tdc(conn_name.c_str(), cookie, h, h1);
         tdc.addStreamCtx(ctx);
 
-        tdc.openConnection(h, h1);
-        tdc.openStreams(h, h1);
+        tdc.openConnection();
+        tdc.openStreams();
 
         testHarness.destroy_cookie(cookie);
     }
@@ -5486,7 +5491,7 @@ static enum test_result test_dcp_multiple_streams(ENGINE_HANDLE *h,
     ctx2.exp_mutations = num_items + extra_items;
     ctx2.live_frontend_client = true;
 
-    TestDcpConsumer tdc("unittest", cookie);
+    TestDcpConsumer tdc("unittest", cookie, h, h1);
     tdc.addStreamCtx(ctx1);
     tdc.addStreamCtx(ctx2);
 
@@ -5496,7 +5501,7 @@ static enum test_result test_dcp_multiple_streams(ENGINE_HANDLE *h,
     cb_assert(cb_create_thread(&thread1, writer_thread, &t1, 0) == 0);
     cb_assert(cb_create_thread(&thread2, writer_thread, &t2, 0) == 0);
 
-    tdc.run(h, h1);
+    tdc.run();
 
     cb_assert(cb_join_thread(thread1) == 0);
     cb_assert(cb_join_thread(thread2) == 0);
