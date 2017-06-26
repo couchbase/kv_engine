@@ -1199,6 +1199,7 @@ protected:
             bool allowExisting,
             bool hasMetaData,
             const VBQueueItemCtx& queueItmCtx,
+            cb::StoreIfPredicate predicate,
             bool maybeKeyExists = true,
             bool isReplication = false);
 

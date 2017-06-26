@@ -48,8 +48,6 @@ MutationCommandContext::MutationCommandContext(McbpConnection& c,
         store_if_predicate = [](const item_info& existing) {
             return !mcbp::datatype::is_xattr(existing.datatype);
         };
-    } else {
-        store_if_predicate = [](const item_info& existing) { return true; };
     }
 }
 
@@ -234,9 +232,9 @@ ENGINE_ERROR_CODE MutationCommandContext::storeItem() {
         // Mark as success and we'll move to the next state
         ret.status = cb::engine_errc::success;
 
-        // We will re-enter the StoreItem state after the xattr merge - that
-        // store will be forced using this predicate which returns true.
-        store_if_predicate = [](const item_info& existing) { return true; };
+        // We will re-enter the StoreItem state after the xattr merge. The next
+        // store_if skips the predicate check as the predicate is now empty
+        store_if_predicate = nullptr;
     } else if (ret.status == cb::engine_errc::not_stored) {
         // Need to remap error for add and replace
         if (operation == OPERATION_ADD) {

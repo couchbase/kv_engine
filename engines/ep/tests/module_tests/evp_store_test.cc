@@ -771,6 +771,132 @@ TEST_P(EPStoreEvictionTest, memOverheadMemoryCondition) {
     }
 }
 
+class EPStoreEvictionBloomOnOffTest
+        : public EPBucketTest,
+          public ::testing::WithParamInterface<
+                  ::testing::tuple<std::string, bool>> {
+public:
+    void SetUp() override {
+        config_string += std::string{"item_eviction_policy="} +
+                         ::testing::get<0>(GetParam());
+
+        if (::testing::get<1>(GetParam())) {
+            config_string += ";bfilter_enabled=true";
+        } else {
+            config_string += ";bfilter_enabled=false";
+        }
+
+        EPBucketTest::SetUp();
+
+        // Have all the objects, activate vBucket zero so we can store data.
+        store->setVBucketState(vbid, vbucket_state_active, false);
+    }
+};
+
+TEST_P(EPStoreEvictionBloomOnOffTest, store_if) {
+    engine->getKVBucket()->getWarmup()->setComplete();
+
+    // Store 3 items.
+    // key1 will be stored with a always true predicate
+    // key2 will be stored with a predicate which is expected to fail
+    // key3 will be store with an empty predicate
+    auto key1 = makeStoredDocKey("key1");
+    auto key2 = makeStoredDocKey("key2");
+    auto key3 = makeStoredDocKey("key3");
+
+    store_item(vbid, key1, "value1");
+    store_item(vbid, key2, "value1");
+    store_item(vbid, key3, "value1");
+    flush_vbucket_to_disk(vbid, 3);
+
+    // Evict the keys so the FE mode will bgFetch and not be optimised away by
+    // the bloomfilter
+    evict_key(vbid, key1);
+    evict_key(vbid, key2);
+    evict_key(vbid, key3);
+
+    uint64_t cas = 0;
+    auto predicate1 = [](const item_info& existing) { return true; };
+
+    auto predicate2 = [](const item_info& existing) {
+        return existing.datatype == PROTOCOL_BINARY_RAW_BYTES;
+    };
+
+    // Now store_if and check the return codes
+    auto item1 = make_item(vbid, key1, "value2");
+    auto result1 =
+            engine->store_if(nullptr, item1, cas, OPERATION_SET, predicate1);
+
+    auto item2 = make_item(vbid, key2, "value2");
+    auto result2 =
+            engine->store_if(nullptr, item2, cas, OPERATION_SET, predicate2);
+
+    auto item3 = make_item(vbid, key3, "value2");
+    auto result3 = engine->store_if(nullptr, item3, cas, OPERATION_SET, {});
+
+    if (::testing::get<0>(GetParam()) == "value_only") {
+        EXPECT_EQ(cb::engine_errc::success, result1.status)
+                << "Expected store_if(key1) to succeed in VE mode";
+        EXPECT_EQ(cb::engine_errc::predicate_failed, result2.status)
+                << "Expected store_if(key2) to return predicate_failed in VE "
+                   "mode";
+        EXPECT_EQ(cb::engine_errc::success, result3.status)
+                << "Expected store_if(key3) to succeed in VE mode";
+
+    } else if (::testing::get<0>(GetParam()) == "full_eviction") {
+        // The stores have to go to disk so that the predicate can be ran
+        ASSERT_EQ(cb::engine_errc::would_block, result1.status)
+                << "Expected store_if(key1) to block in FE mode";
+
+        ASSERT_EQ(cb::engine_errc::would_block, result2.status)
+                << "Expected store_if(key2) to block in FE mode";
+
+        EXPECT_EQ(cb::engine_errc::success, result3.status)
+                << "Expected store_if(key3) to succeed in FE mode because "
+                   "there's no predicate";
+
+        runBGFetcherTask();
+
+        // key1/key2 will need store_if running again.
+
+        result1 = engine->store_if(
+                nullptr, item1, cas, OPERATION_SET, predicate1);
+
+        EXPECT_EQ(cb::engine_errc::success, result1.status)
+                << "Expected store_if to succeed";
+
+        result2 = engine->store_if(
+                nullptr, item2, cas, OPERATION_SET, predicate2);
+
+        EXPECT_EQ(cb::engine_errc::predicate_failed, result2.status)
+                << "Expected store_if to return predicate_failed in FE mode";
+
+    } else {
+        FAIL() << "Unhandled GetParam() value:"
+               << ::testing::get<0>(GetParam());
+    }
+}
+
+struct PrintToStringCombinedName {
+    std::string operator()(
+            const ::testing::TestParamInfo<::testing::tuple<std::string, bool>>&
+                    info) const {
+        std::string bfilter = "_bfilter_enabled";
+        if (!::testing::get<1>(info.param)) {
+            bfilter = "_bfilter_disabled";
+        }
+        return ::testing::get<0>(info.param) + bfilter;
+    }
+};
+
+// Test cases which run in both Full and Value eviction
+INSTANTIATE_TEST_CASE_P(FullAndValueEvictionBloomOnOff,
+                        EPStoreEvictionBloomOnOffTest,
+                        ::testing::Combine(::testing::Values("value_only",
+                                                             "full_eviction"),
+                                           ::testing::Bool()),
+                        PrintToStringCombinedName());
+
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(FullAndValueEviction,
                         EPStoreEvictionTest,

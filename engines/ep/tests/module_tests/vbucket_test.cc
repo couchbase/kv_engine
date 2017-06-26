@@ -144,7 +144,8 @@ MutationStatus VBucketTest::public_processSet(Item& itm, const uint64_t cas) {
                          cas,
                          true,
                          false,
-                         queueItmCtx)
+                         queueItmCtx,
+                         {/*no predicate*/})
             .first;
 }
 

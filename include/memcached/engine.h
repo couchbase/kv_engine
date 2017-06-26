@@ -481,8 +481,13 @@ typedef struct engine_interface_v1 {
      * @param item the item to store
      * @param cas the CAS value for conditional sets
      * @param operation the type of store operation to perform.
-     * @param predicate a function which returns true if the item should be
-     *        stored
+     * @param predicate a function to run against any *existing* item, if the
+     *                  function returns false, store_if will fail with
+     *                  cb::engine_errc::predicate_failed. The function is
+     *                  optional, passing {} makes store_if act like store.
+     *                  Thus {} maybe more desirable than a function which
+     *                  returns true, because some buckets may need to fetch
+     *                  existing items from persisted storage.
      * @param document_state The state the document should have after
      *                       the update
      *

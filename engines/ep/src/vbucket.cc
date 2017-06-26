@@ -308,7 +308,7 @@ void VBucket::setState_UNLOCKED(vbucket_state_t to,
         id,
         VBucket::toString(oldstate),
         VBucket::toString(to));
-    
+
     state = to;
 }
 
@@ -733,10 +733,10 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
     }
 
     bool maybeKeyExists = true;
-    // If we didn't find a valid item, check Bloomfilter's prediction if in
-    // full eviction policy and for a CAS operation.
+    // If we didn't find a valid item then check the bloom filter, but only
+    // if we're full-eviction with a CAS operation or a have a predicate to test
     if ((v == nullptr || v->isTempInitialItem()) &&
-        (eviction == FULL_EVICTION) && (itm.getCas() != 0)) {
+        (eviction == FULL_EVICTION) && ((itm.getCas() != 0) || predicate)) {
         // Check Bloomfilter's prediction
         if (!maybeKeyExistsInFilter(itm.getKey())) {
             maybeKeyExists = false;
@@ -759,6 +759,7 @@ ENGINE_ERROR_CODE VBucket::set(Item& itm,
                                              /*allowExisting*/ true,
                                              /*hashMetaData*/ false,
                                              queueItmCtx,
+                                             predicate,
                                              maybeKeyExists);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
@@ -842,7 +843,8 @@ ENGINE_ERROR_CODE VBucket::replace(Item& itm,
                                                     0,
                                                     /*allowExisting*/ true,
                                                     /*hasMetaData*/ false,
-                                                    queueItmCtx);
+                                                    queueItmCtx,
+                                                    predicate);
         }
 
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
@@ -919,7 +921,8 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm,
                                              0,
                                              /*allowExisting*/ true,
                                              /*hasMetaData*/ true,
-                                             queueItmCtx);
+                                             queueItmCtx,
+                                             {/*no predicate*/});
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (status) {
@@ -1027,6 +1030,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(Item& itm,
                                              allowExisting,
                                              true,
                                              queueItmCtx,
+                                             {/*no predicate*/},
                                              maybeKeyExists,
                                              isReplication);
 
@@ -1927,6 +1931,7 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
         bool allowExisting,
         bool hasMetaData,
         const VBQueueItemCtx& queueItmCtx,
+        cb::StoreIfPredicate predicate,
         bool maybeKeyExists,
         bool isReplication) {
     if (!hbl.getHTLock()) {
@@ -1940,7 +1945,9 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
         return {MutationStatus::NoMem, VBNotifyCtx()};
     }
 
-    if (cas && eviction == FULL_EVICTION && maybeKeyExists) {
+    // bgFetch only in FE mode for CAS operations or store_if provided that the
+    // bloom filter thinks the key may exist (maybeKeyExists bool)
+    if (eviction == FULL_EVICTION && maybeKeyExists && (cas || predicate)) {
         if (!v || v->isTempInitialItem()) {
             return {MutationStatus::NeedBgFetch, VBNotifyCtx()};
         }
