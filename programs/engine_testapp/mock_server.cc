@@ -460,6 +460,7 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       hooks_api.get_detailed_stats = AllocHooks::get_detailed_stats;
       hooks_api.release_free_memory = AllocHooks::release_free_memory;
       hooks_api.enable_thread_cache = AllocHooks::enable_thread_cache;
+      hooks_api.get_allocator_property = AllocHooks::get_allocator_property;
 
       document_api.pre_link = mock_pre_link_document;
       document_api.pre_expiry = document_pre_expiry;

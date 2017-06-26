@@ -124,6 +124,14 @@ typedef struct engine_allocator_hooks_v1 {
      */
     bool (*enable_thread_cache)(bool enable);
 
+    /**
+     * Gets a property by name from the allocator.
+     * @param name property name
+     * @param value destination for numeric value from the allocator
+     * @return whether the call was successful
+     */
+    bool (*get_allocator_property)(const char* name, size_t* value);
+
 } ALLOCATOR_HOOKS_API;
 
 #ifdef __cplusplus
