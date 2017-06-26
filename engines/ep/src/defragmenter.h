@@ -109,6 +109,9 @@ public:
 
     cb::const_char_buffer getDescription();
 
+    /// Maximum allocation size the defragmenter should consider
+    static size_t getMaxValueSize(ALLOCATOR_HOOKS_API* alloc_hooks);
+
 private:
 
     /// Duration (in seconds) defragmenter should sleep for between iterations.

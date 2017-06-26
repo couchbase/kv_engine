@@ -18,6 +18,7 @@
 #include "defragmenter_test.h"
 
 #include "daemon/alloc_hooks.h"
+#include "defragmenter.h"
 #include "defragmenter_visitor.h"
 #include "vbucket.h"
 
@@ -229,7 +230,10 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
     // 3. Enable defragmenter and trigger defragmentation
     AllocHooks::enable_thread_cache(false);
 
-    PauseResumeVBAdapter prAdapter(std::make_unique<DefragmentVisitor>(0));
+    PauseResumeVBAdapter prAdapter(std::make_unique<DefragmentVisitor>(
+            0,
+            DefragmenterTask::getMaxValueSize(
+                    get_mock_server_api()->alloc_hooks)));
     prAdapter.visit(*vbucket);
 
     AllocHooks::enable_thread_cache(true);
@@ -314,7 +318,10 @@ TEST_P(DefragmenterTest, DISABLED_RefCountMemUsage) {
     {
         AllocHooks::enable_thread_cache(false);
 
-        PauseResumeVBAdapter prAdapter(std::make_unique<DefragmentVisitor>(0));
+        PauseResumeVBAdapter prAdapter(std::make_unique<DefragmentVisitor>(
+                0,
+                DefragmenterTask::getMaxValueSize(
+                        get_mock_server_api()->alloc_hooks)));
         prAdapter.visit(*vbucket);
 
         AllocHooks::enable_thread_cache(true);
@@ -329,6 +336,17 @@ TEST_P(DefragmenterTest, DISABLED_RefCountMemUsage) {
     size_t mem_used_after_defrag = mem_used.load();
 
     EXPECT_LE(mem_used_after_defrag, mem_used_before_defrag);
+}
+
+#if defined(HAVE_JEMALLOC)
+TEST_P(DefragmenterTest, MaxDefragValueSize) {
+#else
+TEST_P(DefragmenterTest, DISABLED_MaxDefragValueSize) {
+#endif
+
+    EXPECT_EQ(14336,
+              DefragmenterTask::getMaxValueSize(
+                      get_mock_server_api()->alloc_hooks));
 }
 
 INSTANTIATE_TEST_CASE_P(

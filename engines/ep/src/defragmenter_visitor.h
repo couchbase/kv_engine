@@ -29,7 +29,7 @@
  */
 class DefragmentVisitor : public VBucketAwareHTVisitor {
 public:
-    DefragmentVisitor(uint8_t age_threshold_);
+    DefragmentVisitor(uint8_t age_threshold_, size_t max_size_class);
 
     ~DefragmentVisitor();
 

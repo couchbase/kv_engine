@@ -33,12 +33,14 @@ DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine* e,
 bool DefragmenterTask::run(void) {
     TRACE_EVENT0("ep-engine/task", "DefragmenterTask");
     if (engine->getConfiguration().isDefragmenterEnabled()) {
+        ALLOCATOR_HOOKS_API* alloc_hooks = engine->getServerApi()->alloc_hooks;
         // Get our pause/resume visitor. If we didn't finish the previous pass,
         // then resume from where we last were, otherwise create a new visitor
         // starting from the beginning.
         if (!prAdapter) {
             prAdapter = std::make_unique<PauseResumeVBAdapter>(
-                    std::make_unique<DefragmentVisitor>(getAgeThreshold()));
+                    std::make_unique<DefragmentVisitor>(
+                            getAgeThreshold(), getMaxValueSize(alloc_hooks)));
             epstore_position = engine->getKVBucket()->startPosition();
         }
 
@@ -59,7 +61,6 @@ bool DefragmenterTask::run(void) {
 
         // Disable thread-caching (as we are about to defragment, and hence don't
         // want any of the new Blobs in tcache).
-        ALLOCATOR_HOOKS_API* alloc_hooks = engine->getServerApi()->alloc_hooks;
         bool old_tcache = alloc_hooks->enable_thread_cache(false);
 
         // Prepare the underlying visitor.
@@ -139,6 +140,22 @@ size_t DefragmenterTask::getSleepTime() const {
 
 size_t DefragmenterTask::getAgeThreshold() const {
     return engine->getConfiguration().getDefragmenterAgeThreshold();
+}
+
+size_t DefragmenterTask::getMaxValueSize(ALLOCATOR_HOOKS_API* alloc_hooks) {
+    size_t nbins{0};
+    alloc_hooks->get_allocator_property("arenas.nbins", &nbins);
+
+    char buff[20];
+    snprintf(buff,
+             sizeof(buff),
+             "arenas.bin.%" PRIu64 ".size",
+             static_cast<uint64_t>(nbins) - 1);
+
+    size_t largest_bin_size;
+    alloc_hooks->get_allocator_property(buff, &largest_bin_size);
+
+    return largest_bin_size;
 }
 
 std::chrono::milliseconds DefragmenterTask::getChunkDuration() const {

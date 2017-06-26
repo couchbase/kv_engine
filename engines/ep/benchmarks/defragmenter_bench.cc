@@ -22,6 +22,7 @@
 #include "tests/module_tests/test_helpers.h"
 
 #include <benchmark/benchmark.h>
+#include <engines/ep/src/defragmenter.h>
 #include <gtest/gtest.h>
 #include <valgrind/valgrind.h>
 
@@ -100,7 +101,9 @@ protected:
             std::chrono::milliseconds chunk_duration) {
         // Create and run visitor for the specified number of iterations, with
         // the given age.
-        DefragmentVisitor visitor(age_threshold);
+        DefragmentVisitor visitor(age_threshold,
+                                  DefragmenterTask::getMaxValueSize(
+                                          get_mock_server_api()->alloc_hooks));
         // Need to run 10 passes; so we allow the deframenter to defrag at
         // least once (given the age_threshold may be up to 10).
         const size_t passes = 10;
