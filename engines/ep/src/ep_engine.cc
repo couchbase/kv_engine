@@ -2545,7 +2545,7 @@ uint16_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
         return TAP_DISCONNECT;
     }
 
-    connection->setPaused(false);
+    connection->unPause();
 
     bool retry = false;
     uint16_t ret;
@@ -2575,7 +2575,7 @@ uint16_t EventuallyPersistentEngine::walkTapQueue(const void *cookie,
             }
         }
     } else {
-        connection->setPaused(true);
+        connection->pause("tap queue walked");
         connection->setNotifySent(false);
     }
 

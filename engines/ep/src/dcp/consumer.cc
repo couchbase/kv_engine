@@ -952,7 +952,7 @@ std::string DcpConsumer::getProcessorTaskStatusStr() {
 DcpResponse* DcpConsumer::getNextItem() {
     LockHolder lh(readyMutex);
 
-    setPaused(false);
+    unPause();
     while (!ready.empty()) {
         uint16_t vbucket = ready.front();
         ready.pop_front();
@@ -982,7 +982,7 @@ DcpResponse* DcpConsumer::getNextItem() {
         ready.push_back(vbucket);
         return op;
     }
-    setPaused(true);
+    pause("ready list empty");
 
     return NULL;
 }

@@ -1663,7 +1663,7 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify_paused) {
     EXPECT_EQ(1, notifyTest.connMap->getPendingNotifications().size());
 
     // 2. Mark connection as not paused.
-    notifyTest.producer->setPaused(false);
+    notifyTest.producer->unPause();
 
     // 3. Call notifyAllPausedConnections - as the connection is not paused
     // this should *not* invoke notifyIOComplete.
@@ -1676,7 +1676,7 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify_paused) {
 
     // 4. Now mark the connection as paused.
     ASSERT_FALSE(notifyTest.producer->isPaused());
-    notifyTest.producer->setPaused(true);
+    notifyTest.producer->pause();
 
     // 4. Add another notification - should queue the producer again.
     notifyTest.connMap->notifyPausedConnection(notifyTest.producer.get(),

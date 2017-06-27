@@ -74,7 +74,7 @@ void DcpProducer::BufferLog::release_UNLOCKED(size_t bytes) {
 bool DcpProducer::BufferLog::pauseIfFull() {
     ReaderLockHolder rlh(logLock);
     if (getState_UNLOCKED() == Full) {
-        producer.setPaused(true);
+        producer.pause("bufferLog full");
         return true;
     }
     return false;
@@ -151,7 +151,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
                jsonFilter.size()})) {
     setSupportAck(true);
     setReserved(true);
-    setPaused(true);
+    pause("initializing");
 
     logger.setId(e.getServerApi()->cookie->get_log_info(cookie).first);
     if (notifyOnly) {
@@ -1007,7 +1007,7 @@ const char* DcpProducer::getType() const {
 
 DcpResponse* DcpProducer::getNextItem() {
     do {
-        setPaused(false);
+        unPause();
 
         uint16_t vbucket = 0;
         while (ready.popFront(vbucket)) {
@@ -1064,7 +1064,7 @@ DcpResponse* DcpProducer::getNextItem() {
         }
 
         // flag we are paused
-        setPaused(true);
+        pause("ready queue empty");
 
         // re-check the ready queue.
         // A new vbucket could of became ready and the notifier could of seen

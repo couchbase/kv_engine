@@ -662,6 +662,7 @@ another colon.  For example, if your client is named, =slave1=, the
 | flags                       | Connection flags set by the client       | P  |
 | pending_disconnect          | true if we're hanging up on this client  | P  |
 | paused                      | true if this client is blocked           | P  |
+| paused_reason               | Description of why client is paused      | P  |
 | pending_backfill            | true if we're still backfilling keys     | P  |
 |                             | for this connection                      | P  |
 | pending_disk_backfill       | true if we're still backfilling keys     | P  |

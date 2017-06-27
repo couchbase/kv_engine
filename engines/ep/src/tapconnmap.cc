@@ -139,7 +139,7 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
             producer->setName(ConnHandler::getAnonName());
             producer->setDisconnect(true);
             producer->setConnected(false);
-            producer->setPaused(true);
+            producer->pause("keepalive timed out");
             producer->setExpiryTime(ep_current_time() - 1);
             producer = NULL;
         }
@@ -157,7 +157,7 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
                                              0);
             n->setDisconnect(true);
             n->setConnected(false);
-            n->setPaused(true);
+            n->pause("dummy expired connection");
             n->setExpiryTime(ep_current_time() - 1);
             all.push_back(connection_t(n));
         }
@@ -545,7 +545,7 @@ bool TapConnMap::closeConnectionByName_UNLOCKED(const std::string &name) {
             tp->setExpiryTime(ep_current_time() - 1);
             tp->setName(ConnHandler::getAnonName());
             tp->setDisconnect(true);
-            tp->setPaused(true);
+            tp->pause("connection closed");
             rv = true;
         }
     }

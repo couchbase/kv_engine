@@ -791,8 +791,25 @@ public:
         return paused;
     }
 
-    void setPaused(bool p) {
-        paused.store(p);
+    /** Pause the connection.
+     *
+     * @param reason Why the connection was paused - for debugging / diagnostic
+     */
+    void pause(std::string reason = "unknown") {
+        paused.store(true);
+        {
+            std::lock_guard<std::mutex> guard(pausedReason.mutex);
+            pausedReason.string = reason;
+        }
+    }
+
+    void unPause() {
+        paused.store(false);
+    }
+
+    std::string getPausedReason() const {
+        std::lock_guard<std::mutex> guard(pausedReason.mutex);
+        return pausedReason.string;
     }
 
     bool isNotificationScheduled() {
@@ -823,6 +840,12 @@ public:
     }
 
 private:
+    //! Description of why the connection is paused.
+    struct pausedReason {
+        mutable std::mutex mutex;
+        std::string string;
+    } pausedReason;
+
     //! Is this tap connection in a suspended state
     std::atomic<bool> suspended;
     //! Connection is temporarily paused?
