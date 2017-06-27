@@ -281,14 +281,6 @@ TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
 // to being stuck in conn_send_data state.
 #if !defined(WIN32)
 TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
-    // TODO: Remove this whenhttps://issues.couchbase.com/browse/MB-22413 is
-    // resolved.
-    if (getenv("TESTAPP_SKIP_HANGING_TEST") && *getenv("TESTAPP_SKIP_HANGING_TEST")) {
-        std::cerr <<
-                "Skipping MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer (might hang!)" <<
-                std::endl;
-        return;
-    }
     auto& conn = getAdminConnection();
 
     auto second_conn = conn.clone();
