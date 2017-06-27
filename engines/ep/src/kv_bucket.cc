@@ -165,6 +165,8 @@ public:
             } else {
                 store.disableExpiryPager();
             }
+        } else if (key.compare("xattr_enabled") == 0) {
+            store.setXattrEnabled(value);
         }
     }
 
@@ -354,7 +356,8 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
       backfillMemoryThreshold(0.95),
       statsSnapshotTaskId(0),
       lastTransTimePerItem(0),
-      collectionsManager(std::make_unique<Collections::Manager>()) {
+      collectionsManager(std::make_unique<Collections::Manager>()),
+      xattrEnabled(true) {
     cachedResidentRatio.activeRatio.store(0);
     cachedResidentRatio.replicaRatio.store(0);
 
@@ -457,6 +460,11 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
 
     config.addValueChangedListener("dcp_min_compression_ratio",
                                    new EPStoreValueChangeListener(*this));
+
+    config.addValueChangedListener("xattr_enabled",
+                                   new EPStoreValueChangeListener(*this));
+
+    xattrEnabled = config.isXattrEnabled();
 
     initializeWarmupTask();
 }
@@ -2932,4 +2940,12 @@ cb::engine_error KVBucket::setCollections(cb::const_char_buffer json) {
 
 const Collections::Manager& KVBucket::getCollectionsManager() const {
     return *collectionsManager.get();
+}
+
+bool KVBucket::isXattrEnabled() const {
+    return xattrEnabled;
+}
+
+void KVBucket::setXattrEnabled(bool value) {
+    xattrEnabled = value;
 }

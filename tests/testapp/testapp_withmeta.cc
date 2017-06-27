@@ -23,19 +23,11 @@
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
-class WithMetaTest : public TestappClientTest {
+class WithMetaTest : public TestappXattrClientTest {
 public:
-    void SetUp() {
-        TestappClientTest::SetUp();
-        document.info.cas = testCas;
-        document.info.datatype = cb::mcbp::Datatype::JSON;
-        document.info.flags = 0;
-        document.info.id = name;
-        document.info.expiration = 0;
-        const std::string content = to_string(memcached_cfg, false);
-        std::copy(content.begin(),
-                  content.end(),
-                  std::back_inserter(document.value));
+    void SetUp() override {
+        TestappXattrClientTest::SetUp();
+        document.info.cas = testCas; // Must have a cas for meta ops
     }
 
     /**
@@ -89,33 +81,60 @@ public:
     }
 
 protected:
-    Document document;
     const uint64_t testCas = 0xb33ff00dcafef00dull;
     const char* testCasStr = "0xb33ff00dcafef00d";
 };
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        WithMetaTest,
-                        ::testing::Values(TransportProtocols::McbpPlain,
-                                          TransportProtocols::McbpIpv6Plain,
-                                          TransportProtocols::McbpSsl,
-                                          TransportProtocols::McbpIpv6Ssl),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_CASE_P(
+        TransportProtocols,
+        WithMetaTest,
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,
+                                             TransportProtocols::McbpIpv6Plain,
+                                             TransportProtocols::McbpSsl,
+                                             TransportProtocols::McbpIpv6Ssl),
+                           ::testing::Values(XattrSupport::Yes,
+                                             XattrSupport::No)),
+        PrintToStringCombinedName());
 
 TEST_P(WithMetaTest, basicSet) {
     TESTAPP_SKIP_IF_UNSUPPORTED(PROTOCOL_BINARY_CMD_SET_WITH_META);
-    EXPECT_NO_THROW(getConnection().mutateWithMeta(
-            document, 0, mcbp::cas::Wildcard, 1, 0 /*options*/, {}));
 
-    checkCas();
+    MutationInfo resp;
+    try {
+        resp = getConnection().mutateWithMeta(document,
+                                              0,
+                                              mcbp::cas::Wildcard,
+                                              /*seqno*/ 1,
+                                              /*options*/ 0,
+                                              {});
+    } catch (std::exception& e) {
+        FAIL() << "mutateWithMeta threw an exception";
+    }
+
+    if (::testing::get<1>(GetParam()) == XattrSupport::Yes) {
+        checkCas();
+    }
 }
 
 TEST_P(WithMetaTest, basicSetXattr) {
     TESTAPP_SKIP_IF_UNSUPPORTED(PROTOCOL_BINARY_CMD_SET_WITH_META);
     makeDocumentXattrValue();
 
-    EXPECT_NO_THROW(getConnection().mutateWithMeta(
-            document, 0, mcbp::cas::Wildcard, 1, 0 /*options*/, {}));
+    MutationInfo resp;
+    try {
+        resp = getConnection().mutateWithMeta(document,
+                                              0,
+                                              mcbp::cas::Wildcard,
+                                              /*seqno*/ 1,
+                                              /*options*/ 0,
+                                              {});
+        EXPECT_EQ(XattrSupport::Yes, ::testing::get<1>(GetParam()));
+        EXPECT_EQ(testCas, ntohll(resp.cas));
+    } catch (std::exception& e) {
+        EXPECT_EQ(XattrSupport::No, ::testing::get<1>(GetParam()));
+    }
 
-    checkCas();
+    if (::testing::get<1>(GetParam()) == XattrSupport::Yes) {
+        checkCas();
+    }
 }

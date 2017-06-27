@@ -22,9 +22,7 @@
 #include <algorithm>
 #include <platform/compress.h>
 
-class RemoveTest : public TestappClientTest {
-public:
-
+class RemoveTest : public TestappXattrClientTest {
 protected:
     void verify_MB_22553(const std::string& config);
 
@@ -33,15 +31,7 @@ protected:
      * the info member
      */
     void createDocument() {
-        Document doc;
-        doc.info.cas = mcbp::cas::Wildcard;
-        doc.info.datatype = cb::mcbp::Datatype::JSON;
-        doc.info.flags = 0xcaffee;
-        doc.info.id = name;
-        auto content = to_string(memcached_cfg);
-        std::copy(content.begin(), content.end(),
-                  std::back_inserter(doc.value));
-        info = getConnection().mutate(doc, 0, MutationType::Add);
+        info = getConnection().mutate(document, 0, MutationType::Add);
     }
 
     MutationInfo info;
@@ -107,14 +97,16 @@ void RemoveTest::verify_MB_22553(const std::string& config) {
     conn.reconnect();
 }
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        RemoveTest,
-                        ::testing::Values(TransportProtocols::McbpPlain,
-                                          TransportProtocols::McbpIpv6Plain,
-                                          TransportProtocols::McbpSsl,
-                                          TransportProtocols::McbpIpv6Ssl
-                                         ),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_CASE_P(
+        TransportProtocols,
+        RemoveTest,
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,
+                                             TransportProtocols::McbpIpv6Plain,
+                                             TransportProtocols::McbpSsl,
+                                             TransportProtocols::McbpIpv6Ssl),
+                           ::testing::Values(XattrSupport::Yes,
+                                             XattrSupport::No)),
+        PrintToStringCombinedName());
 
 /**
  * Verify that remove of an non-existing object work (and return the expected
@@ -148,7 +140,6 @@ TEST_P(RemoveTest, RemoveCasWildcard) {
  */
 TEST_P(RemoveTest, RemoveWithInvalidCas) {
     auto& conn = getConnection();
-
     createDocument();
     try {
         conn.remove(name, 0, info.cas + 1);
@@ -177,18 +168,22 @@ TEST_P(RemoveTest, RemoveWithCas) {
 TEST_P(RemoveTest, RemoveWithXattr) {
     createDocument();
 
-    auto& conn = getConnection();
     createXattr("meta.content-type", "\"application/json; charset=utf-8\"");
     createXattr("_rbac.attribute", "\"read-only\"");
-    conn.remove(name, 0, 0);
+    getConnection().remove(name, 0, 0);
 
     // The system xattr should have been preserved
-    EXPECT_EQ("\"read-only\"", getXattr("_rbac.attribute", true));
+    const auto status = getXattr("_rbac.attribute", true);
+    if (status.getStatus() == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        EXPECT_EQ("\"read-only\"", status.getValue());
+    }
 
     // The user xattr should not be there
     try {
-        getXattr("meta.content_type", true);
-        FAIL() << "The user xattr should be gone!";
+        if (getXattr("meta.content_type", true).getStatus() !=
+            xattrOperationStatus) {
+            FAIL() << "The user xattr should be gone!";
+        }
     } catch (const BinprotConnectionError& exp) {
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT,
                   exp.getReason())

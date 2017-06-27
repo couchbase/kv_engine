@@ -597,6 +597,8 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setMemMergeCountThreshold(std::stoul(valz));
         } else if (strcmp(keyz, "mem_merge_bytes_threshold") == 0) {
             getConfiguration().setMemMergeBytesThreshold(std::stoul(valz));
+        } else if (strcmp(keyz, "xattr_enabled") == 0) {
+            getConfiguration().setXattrEnabled(cb_stob(valz));
         } else {
             msg = "Unknown config param";
             rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -1794,6 +1796,11 @@ static cb::engine_error EvpCollectionsSetManifest(ENGINE_HANDLE* handle,
     return engine->getKVBucket()->setCollections(json);
 }
 
+static bool EvpIsXattrEnabled(ENGINE_HANDLE* handle) {
+    auto engine = acquireEngine(handle);
+    return engine->getKVBucket()->isXattrEnabled();
+}
+
 void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
     va_list va;
     va_start(va, fmt);
@@ -1864,6 +1871,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::dcp.system_event = EvpDcpSystemEvent;
     ENGINE_HANDLE_V1::set_log_level = EvpSetLogLevel;
     ENGINE_HANDLE_V1::collections.set_manifest = EvpCollectionsSetManifest;
+    ENGINE_HANDLE_V1::isXattrEnabled = EvpIsXattrEnabled;
 
     serverApi = getServerApiFunc();
     memset(&info, 0, sizeof(info));

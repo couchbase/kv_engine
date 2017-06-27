@@ -73,6 +73,7 @@ public:
         ENGINE_HANDLE_V1::dcp.set_vbucket_state = dcp_set_vbucket_state;
         ENGINE_HANDLE_V1::dcp.system_event = dcp_system_event;
         ENGINE_HANDLE_V1::collections.set_manifest = collections_set_manifest;
+        ENGINE_HANDLE_V1::isXattrEnabled = isXattrEnabled;
         info.description = "Disconnect engine v1.0";
     };
 
@@ -340,6 +341,10 @@ private:
             ENGINE_HANDLE* handle, cb::const_char_buffer json) {
         return {cb::engine_errc::no_bucket,
                 "nobucket::collections_set_manifest"};
+    }
+
+    static bool isXattrEnabled(ENGINE_HANDLE* handle) {
+        return false;
     }
 };
 

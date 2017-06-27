@@ -22,30 +22,23 @@
 #include <algorithm>
 #include <platform/compress.h>
 
-class GetSetTest : public TestappClientTest {
+class GetSetTest : public TestappXattrClientTest {
 public:
-    void SetUp() {
-        document.info.cas = mcbp::cas::Wildcard;
-        document.info.datatype = cb::mcbp::Datatype::JSON;
-        document.info.flags = 0xcaffee;
-        document.info.id = name;
-        const std::string content = to_string(memcached_cfg, false);
-        std::copy(content.begin(), content.end(),
-                  std::back_inserter(document.value));
+    void SetUp() override {
+        TestappXattrClientTest::SetUp();
     }
-
-protected:
-    Document document;
 };
 
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        GetSetTest,
-                        ::testing::Values(TransportProtocols::McbpPlain,
-                                          TransportProtocols::McbpIpv6Plain,
-                                          TransportProtocols::McbpSsl,
-                                          TransportProtocols::McbpIpv6Ssl
-                                         ),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_CASE_P(
+        TransportProtocols,
+        GetSetTest,
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,
+                                             TransportProtocols::McbpIpv6Plain,
+                                             TransportProtocols::McbpSsl,
+                                             TransportProtocols::McbpIpv6Ssl),
+                           ::testing::Values(XattrSupport::Yes,
+                                             XattrSupport::No)),
+        PrintToStringCombinedName());
 
 TEST_P(GetSetTest, TestAdd) {
     MemcachedConnection& conn = getConnection();
@@ -134,12 +127,12 @@ TEST_P(GetSetTest, TestReplace) {
 
 TEST_P(GetSetTest, TestReplaceWithXattr) {
     // The current code does not preserve XATTRs yet
-    auto& conn = getConnection();
-    conn.mutate(document, 0, MutationType::Add);
+    getConnection().mutate(document, 0, MutationType::Add);
+
     createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
     const auto mutation_cas = getXattr("meta.cas");
-    EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas);
-    conn.mutate(document, 0, MutationType::Replace);
+    EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas.getValue());
+    getConnection().mutate(document, 0, MutationType::Replace);
     // The xattr should have been preserved, and the macro should not
     // be expanded more than once..
     EXPECT_EQ(mutation_cas, getXattr("meta.cas"));
@@ -248,33 +241,38 @@ TEST_P(GetSetTest, TestAppend) {
 
 TEST_P(GetSetTest, TestAppendWithXattr) {
     // The current code does not preserve XATTRs
-    auto& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value.clear();
     document.value.push_back('a');
     int sucCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    conn.mutate(document, 0, MutationType::Add);
+    getConnection().mutate(document, 0, MutationType::Add);
     createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
     const auto mutation_cas = getXattr("meta.cas");
-    EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas);
+    EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas.getValue());
 
     document.value[0] = 'b';
-    conn.mutate(document, 0, MutationType::Append);
+    getConnection().mutate(document, 0, MutationType::Append);
 
     // The xattr should have been preserved, and the macro should not
     // be expanded more than once..
     EXPECT_EQ(mutation_cas, getXattr("meta.cas"));
 
-    const auto stored = conn.get(name, 0);
+    const auto stored = getConnection().get(name, 0);
 
     // Check that we correctly increment the status counter stat.
-    // * We expect 4 * helloResps because the 3x createXattr/getXattr/getXattr
-    //   connected and ran hello *and* the final getResponseCount will include
-    //   the hellos for that call.
-    // * We expect 6 successes for each command we ran
+    // * We expect 7 * helloResps because of
+    //   a) 3x getConnection() above
+    //   b) 3x getConnection() in the 1xcreateXattr and 2xgetXattr
+    //   c) 1x for getResponseCount below
+    // * We expect testSuccessCount successes for each command we ran
     // * Plus 1 more success to account for the stat call in the first
     //   getResponseCount
-    EXPECT_EQ(sucCount + (helloResps() * 4) + 6 + 1,
+    int testSuccessCount = 6;
+    if (::testing::get<1>(GetParam()) == XattrSupport::No) {
+        // We had 3x xattr operations fail (1x createXattr 2x getXattr)
+        testSuccessCount = 3;
+    }
+    EXPECT_EQ(sucCount + (helloResps() * 7) + testSuccessCount + 1,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     // And the rest of the doc should look the same
@@ -367,35 +365,40 @@ TEST_P(GetSetTest, TestPrepend) {
 
 TEST_P(GetSetTest, TestPrependWithXattr) {
     // The current code does not preserve XATTRs
-    auto& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value.clear();
     document.value.push_back('a');
 
     int sucCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    conn.mutate(document, 0, MutationType::Add);
+    getConnection().mutate(document, 0, MutationType::Add);
     createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
     const auto mutation_cas = getXattr("meta.cas");
-    EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas);
+    EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas.getValue());
 
     document.value[0] = 'b';
-    conn.mutate(document, 0, MutationType::Prepend);
+    getConnection().mutate(document, 0, MutationType::Prepend);
 
     // The xattr should have been preserved, and the macro should not
     // be expanded more than once..
     EXPECT_EQ(mutation_cas, getXattr("meta.cas"));
 
-    const auto stored = conn.get(name, 0);
+    const auto stored = getConnection().get(name, 0);
 
     // Check that we correctly increment the status counter stat.
-    // * We expect 4 * helloResps because the 3x createXattr/getXattr/getXattr
-    //   connected and ran hello *and* the final getResponseCount will include
-    //   the hellos for that call.
-    // * We expect 6 successes for each command we ran
+    // * We expect 7 * helloResps because of
+    //   a) 3x getConnection() above
+    //   b) 3x getConnection() in the 1xcreateXattr and 2xgetXattr
+    //   c) 1x for getResponseCount below
+    // * We expect testSuccessCount successes for each command we ran
     // * Plus 1 more success to account for the stat call in the first
     //   getResponseCount
-    EXPECT_EQ(sucCount + (helloResps() * 4) + 6 + 1,
+    int testSuccessCount = 6;
+    if (::testing::get<1>(GetParam()) == XattrSupport::No) {
+        // We had xattr operations fail (1x createXattr 2x getXattr)
+        testSuccessCount = 3;
+    }
+    EXPECT_EQ(sucCount + (helloResps() * 7) + testSuccessCount + 1,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
     // And the rest of the doc should look the same

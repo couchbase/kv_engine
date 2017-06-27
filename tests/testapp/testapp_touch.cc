@@ -26,6 +26,7 @@
 class TouchTest : public TestappClientTest {
 public:
     void SetUp() {
+        TestappClientTest::SetUp();
         document.info.cas = mcbp::cas::Wildcard;
         document.info.datatype = cb::mcbp::Datatype::JSON;
         document.info.flags = 0xcaffee;

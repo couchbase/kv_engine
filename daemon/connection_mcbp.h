@@ -459,7 +459,15 @@ public:
      * @return true if the all of the dtype datatypes are all enabled
      */
     bool isDatatypeEnabled(protocol_binary_datatype_t dtype) const {
-        return datatype.isEnabled(dtype);
+        bool rv = datatype.isEnabled(dtype);
+
+        // If the bucket has disabled xattr, then we must reflect that in the
+        // returned value
+        if (rv && mcbp::datatype::is_xattr(dtype) &&
+            !selectedBucketIsXattrEnabled()) {
+            rv = false;
+        }
+        return rv;
     }
 
     /**
@@ -718,6 +726,8 @@ public:
     bool isSaslAuthEnabled() const {
         return saslAuthEnabled;
     }
+
+    bool selectedBucketIsXattrEnabled() const;
 
 protected:
     void runStateMachinery();

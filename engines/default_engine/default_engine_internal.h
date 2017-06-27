@@ -11,6 +11,7 @@
 #include "config.h"
 
 #include <stdbool.h>
+#include <atomic>
 
 #include <memcached/engine.h>
 #include <memcached/util.h>
@@ -59,6 +60,7 @@ struct config {
    bool vb0;
    char *uuid;
    bool keep_deleted;
+   std::atomic<bool> xattr_enabled;
 };
 
 /**

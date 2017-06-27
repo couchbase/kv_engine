@@ -44,7 +44,7 @@ MutationCommandContext::MutationCommandContext(McbpConnection& c,
       existing(nullptr, cb::ItemDeleter{c.getBucketEngineAsV0()}),
       xattr_size(0) {
     // MSVC2015 can't do this in the initializer list
-    if (settings.isXattrEnabled()) {
+    if (c.selectedBucketIsXattrEnabled()) {
         store_if_predicate = [](const item_info& existing) {
             return !mcbp::datatype::is_xattr(existing.datatype);
         };

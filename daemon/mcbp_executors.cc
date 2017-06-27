@@ -1292,6 +1292,7 @@ void initialize_mbcp_lookup_map(void) {
  *
  *    1) it is using an unknown value
  *    2) The connected client has not enabled the datatype
+ *    3) The bucket has disabled the datatype
  *
  * @param c - the connected client
  * @return true if the packet is considered invalid in this context,

@@ -926,6 +926,8 @@ private:
     static cb::engine_error collections_set_manifest(
             ENGINE_HANDLE* handle, cb::const_char_buffer json);
 
+    static bool isXattrEnabled(ENGINE_HANDLE* handle);
+
     // Base class for all fault injection modes.
     struct FaultInjectMode {
         FaultInjectMode(ENGINE_ERROR_CODE injected_error_)
@@ -1271,6 +1273,8 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 
     ENGINE_HANDLE_V1::collections = {};
     ENGINE_HANDLE_V1::collections.set_manifest = collections_set_manifest;
+
+    ENGINE_HANDLE_V1::isXattrEnabled = isXattrEnabled;
 
     std::memset(&info, 0, sizeof(info.buffer));
     info.eng_info.description = "EWOULDBLOCK Engine";
@@ -1684,6 +1688,15 @@ cb::engine_error EWB_Engine::collections_set_manifest(
     } else {
         return ewb->real_engine->collections.set_manifest(ewb->real_handle,
                                                           json);
+    }
+}
+
+bool EWB_Engine::isXattrEnabled(ENGINE_HANDLE* handle) {
+    EWB_Engine* ewb = to_engine(handle);
+    if (ewb->real_engine->isXattrEnabled == nullptr) {
+        return false;
+    } else {
+        return ewb->real_engine->isXattrEnabled(ewb->real_handle);
     }
 }
 

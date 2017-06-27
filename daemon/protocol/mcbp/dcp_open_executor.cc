@@ -80,7 +80,8 @@ void dcp_open_executor(McbpConnection* c, void* packet) {
     ret = c->remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS: {
-        const bool dcpXattrAware = (flags & DCP_OPEN_INCLUDE_XATTRS) != 0;
+        const bool dcpXattrAware = (flags & DCP_OPEN_INCLUDE_XATTRS) != 0 &&
+                                   c->selectedBucketIsXattrEnabled();
         const bool dcpNoValue = (flags & DCP_OPEN_NO_VALUE) != 0;
         const bool dcpCollections = (flags & DCP_OPEN_COLLECTIONS) != 0;
         c->setDcpXattrAware(dcpXattrAware);

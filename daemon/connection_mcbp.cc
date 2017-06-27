@@ -1299,6 +1299,14 @@ std::string McbpConnection::getPrintableKey() const {
     return buffer;
 }
 
+bool McbpConnection::selectedBucketIsXattrEnabled() const {
+    if (bucketEngine) {
+        return settings.isXattrEnabled() &&
+               bucketEngine->isXattrEnabled(getBucketEngineAsV0());
+    }
+    return settings.isXattrEnabled();
+}
+
 int PipeConnection::sendmsg(struct msghdr* m) {
     int res = 0;
     // Windows and POSIX safe, manually write the scatter/gather

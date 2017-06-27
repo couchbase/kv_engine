@@ -150,6 +150,8 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
 static bool set_item_info(ENGINE_HANDLE *handle, const void *cookie,
                           item* item, const item_info *itm_info);
 
+static bool is_xattr_supported(ENGINE_HANDLE* handle);
+
 /**
  * Given that default_engine is implemented in C and not C++ we don't have
  * a constructor for the struct to initialize the members to some sane
@@ -193,6 +195,7 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     engine->engine.item_set_cas = item_set_cas;
     engine->engine.get_item_info = get_item_info;
     engine->engine.set_item_info = set_item_info;
+    engine->engine.isXattrEnabled = is_xattr_supported;
     engine->config.verbose = 0;
     engine->config.oldest_live = 0;
     engine->config.evict_to_free = true;
@@ -201,6 +204,7 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     engine->config.factor = 1.25;
     engine->config.chunk_size = 48;
     engine->config.item_size_max= 1024 * 1024;
+    engine->config.xattr_enabled = true;
     engine->info.engine.description = "Default engine v0.1";
     engine->info.engine.num_features = 1;
     engine->info.engine.features[0].feature = ENGINE_FEATURE_LRU;
@@ -855,6 +859,57 @@ static bool scrub_cmd(struct default_engine *e,
                     res, 0, cookie);
 }
 
+/**
+ * set_param only added to allow per bucket xattr on/off
+ */
+static bool set_param(struct default_engine* e,
+                      const void* cookie,
+                      protocol_binary_request_set_param* req,
+                      ADD_RESPONSE response) {
+    size_t keylen = ntohs(req->message.header.request.keylen);
+    uint8_t extlen = req->message.header.request.extlen;
+    size_t vallen = ntohl(req->message.header.request.bodylen);
+    protocol_binary_engine_param_t paramtype =
+            static_cast<protocol_binary_engine_param_t>(
+                    ntohl(req->message.body.param_type));
+
+    if (keylen == 0 || (vallen - keylen - extlen) == 0) {
+        return false;
+    }
+
+    // Only support protocol_binary_engine_param_flush with xattr_enabled
+    if (paramtype == protocol_binary_engine_param_flush) {
+        const char* keyp =
+                reinterpret_cast<const char*>(req->bytes) + sizeof(req->bytes);
+        const char* valuep = keyp + keylen;
+        vallen -= (keylen + extlen);
+        cb::const_char_buffer key(keyp, keylen);
+        cb::const_char_buffer value(valuep, vallen);
+
+        if (key == "xattr_enabled") {
+            if (value == "true") {
+                e->config.xattr_enabled = true;
+            } else if (value == "false") {
+                e->config.xattr_enabled = false;
+            } else {
+                return false;
+            }
+            return response(NULL,
+                            0,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                            0,
+                            cookie);
+            ;
+        }
+    }
+    return false;
+}
+
 static ENGINE_ERROR_CODE default_unknown_command(ENGINE_HANDLE* handle,
                                                  const void* cookie,
                                                  protocol_binary_request_header *request,
@@ -879,6 +934,13 @@ static ENGINE_ERROR_CODE default_unknown_command(ENGINE_HANDLE* handle,
     case PROTOCOL_BINARY_CMD_GET_VBUCKET:
         sent = get_vbucket(e, cookie,
                 reinterpret_cast<protocol_binary_request_get_vbucket*>(request),
+                response);
+        break;
+    case PROTOCOL_BINARY_CMD_SET_PARAM:
+        sent = set_param(
+                e,
+                cookie,
+                reinterpret_cast<protocol_binary_request_set_param*>(request),
                 response);
         break;
     default:
@@ -959,4 +1021,8 @@ static bool set_item_info(ENGINE_HANDLE *handle, const void *cookie,
     }
     it->datatype = itm_info->datatype;
     return true;
+}
+
+static bool is_xattr_supported(ENGINE_HANDLE* handle) {
+    return get_handle(handle)->config.xattr_enabled;
 }

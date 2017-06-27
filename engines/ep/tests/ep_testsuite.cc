@@ -6564,7 +6564,8 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_warmup",
                 "ep_warmup_batch_size",
                 "ep_warmup_min_items_threshold",
-                "ep_warmup_min_memory_threshold"
+                "ep_warmup_min_memory_threshold",
+                "ep_xattr_enabled"
             }
         },
         {"workload",
@@ -6826,6 +6827,7 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_warmup_min_items_threshold",
                 "ep_warmup_min_memory_threshold",
                 "ep_workload_pattern",
+                "ep_xattr_enabled",
                 "mem_used",
                 "rollback_item_count",
                 "vb_active_backfill_queue_size",

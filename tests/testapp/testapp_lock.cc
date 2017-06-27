@@ -25,6 +25,8 @@
 class LockTest : public TestappClientTest {
 public:
     void SetUp() override {
+        TestappClientTest::SetUp();
+
         document.info.cas = mcbp::cas::Wildcard;
         document.info.datatype = cb::mcbp::Datatype::JSON;
         document.info.flags = 0xcaffee;

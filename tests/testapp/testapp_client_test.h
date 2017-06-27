@@ -20,132 +20,78 @@
 
 #include "testapp.h"
 
-enum class TransportProtocols {
-    McbpPlain,
-    McbpSsl,
-    McbpIpv6Plain,
-    McbpIpv6Ssl
-};
-
-std::ostream& operator << (std::ostream& os, const TransportProtocols& t);
-std::string to_string(const TransportProtocols& transport);
-
 class TestappClientTest
     : public TestappTest,
       public ::testing::WithParamInterface<TransportProtocols> {
+protected:
+    MemcachedConnection& getConnection() override;
+};
 
+enum class XattrSupport { Yes, No };
+std::ostream& operator<<(std::ostream& os, const XattrSupport& xattrSupport);
+std::string to_string(const XattrSupport& xattrSupport);
+
+class TestappXattrClientTest
+        : public TestappTest,
+          public ::testing::WithParamInterface<
+                  ::testing::tuple<TransportProtocols, XattrSupport>> {
 public:
-    TestappClientTest() {
-        const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
-        name.assign(info->test_case_name());
-        name.append("_");
-        name.append(info->name());
-        std::replace(name.begin(), name.end(), '/', '_');
+    TestappXattrClientTest()
+        : xattrOperationStatus(PROTOCOL_BINARY_RESPONSE_SUCCESS) {
     }
+    void SetUp() override {
+        TestappTest::SetUp();
 
-    /**
-     * Create an extended attribute
-     *
-     * This method doesn't really belong in this class (as it is supposed
-     * to work for greenstack as well, but we're going to need it from
-     * multiple tests so it can might as well live here..
-     *
-     * @param path the full path to the attribute (including the key)
-     * @param value The value to store
-     * @param macro is this a macro for expansion or not
-     */
-    void createXattr(const std::string& path, const std::string& value,
-                     bool macro = false) {
-        auto& conn = getConnection();
-        ASSERT_EQ(Protocol::Memcached, conn.getProtocol());
-        auto& connection = dynamic_cast<MemcachedBinprotConnection&>(conn);
-
-        BinprotSubdocCommand cmd;
-        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
-        cmd.setKey(name);
-        cmd.setPath(path);
-        cmd.setValue(value);
-        if (macro) {
-            cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS | SUBDOC_FLAG_MKDIR_P);
-        } else {
-            cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+        mcd_env->getTestBucket().setXattrEnabled(
+                getConnection(),
+                bucketName,
+                ::testing::get<1>(GetParam()) == XattrSupport::Yes);
+        if (::testing::get<1>(GetParam()) == XattrSupport::No) {
+            xattrOperationStatus = PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
         }
 
-        connection.sendCommand(cmd);
-
-        BinprotResponse resp;
-        connection.recvResponse(resp);
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        document.info.cas = mcbp::cas::Wildcard;
+        document.info.datatype = cb::mcbp::Datatype::JSON;
+        document.info.flags = 0xcaffee;
+        document.info.id = name;
+        document.info.expiration = 0;
+        const std::string content = to_string(memcached_cfg, false);
+        std::copy(content.begin(),
+                  content.end(),
+                  std::back_inserter(document.value));
     }
 
-    /**
-     * Get an extended attribute
-     *
-     * @param path the full path to the attribute to fetch
-     * @return the value stored for the key (it is expected to be there!)
-     */
-    std::string getXattr(const std::string& path, bool deleted = false) {
-        auto& conn = getConnection();
-        auto& connection = dynamic_cast<MemcachedBinprotConnection&>(conn);
-
-        BinprotSubdocCommand cmd;
-        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
-        cmd.setKey(name);
-        cmd.setPath(path);
-        if (deleted) {
-            cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
-            cmd.addDocFlags(mcbp::subdoc::doc_flag::AccessDeleted);
-        } else {
-            cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
+    MemcachedConnection& getConnection() override {
+        switch (::testing::get<0>(GetParam())) {
+        case TransportProtocols::McbpPlain:
+            return prepare(connectionMap.getConnection(
+                    Protocol::Memcached, false, AF_INET));
+        case TransportProtocols::McbpIpv6Plain:
+            return prepare(connectionMap.getConnection(
+                    Protocol::Memcached, false, AF_INET6));
+        case TransportProtocols::McbpSsl:
+            return prepare(connectionMap.getConnection(
+                    Protocol::Memcached, true, AF_INET));
+        case TransportProtocols::McbpIpv6Ssl:
+            return prepare(connectionMap.getConnection(
+                    Protocol::Memcached, true, AF_INET6));
         }
-        connection.sendCommand(cmd);
-
-        BinprotSubdocResponse resp;
-        connection.recvResponse(resp);
-        auto status = resp.getStatus();
-
-        if (deleted && status == PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED) {
-            status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-        }
-
-        if (status!= PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-            throw BinprotConnectionError("getXattr() failed: ", resp);
-        }
-        return resp.getValue();
+        throw std::logic_error("Unknown transport");
     }
 
-    int getResponseCount(protocol_binary_response_status statusCode) {
-        unique_cJSON_ptr stats(cJSON_Parse(
-                cJSON_GetObjectItem(
-                        getConnection().stats("responses detailed").get(),
-                        "responses")
-                        ->valuestring));
-        std::stringstream stream;
-        stream << std::hex << statusCode;
-        return cJSON_GetObjectItem(stats.get(), stream.str().c_str())->valueint;
-    }
-    static int statResps() {
-        // Each stats call gets a new connection prepared for it, resulting in
-        // a HELLO. This means we expect 1 success from the stats call and
-        // the number of successes a HELLO takes.
-        return 1 + helloResps();
-    }
-
-    static int helloResps() {
-        // We do a HELLO for each feature that we enable
-        // DatatypeJSON, Compression, MutationSeqNo, Xattr, Xerror. Therefore
-        // we expect a success for each of the responses.
-        return 5;
-    }
-
-    static int saslResps() {
-        // 2 successes expected due to the initial response and then the
-        // continue step.
-        return 2;
-    }
+    BinprotSubdocResponse getXattr(const std::string& path,
+                                   bool deleted = false);
+    void createXattr(const std::string& path,
+                     const std::string& value,
+                     bool macro = false);
 
 protected:
-    std::string name;
+    Document document;
+    protocol_binary_response_status xattrOperationStatus;
+};
 
-    MemcachedConnection& getConnection() override;
+struct PrintToStringCombinedName {
+    std::string
+    operator()(const ::testing::TestParamInfo<
+               ::testing::tuple<TransportProtocols, XattrSupport>>& info) const;
 };

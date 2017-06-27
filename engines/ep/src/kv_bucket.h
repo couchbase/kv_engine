@@ -777,6 +777,10 @@ public:
 
     const Collections::Manager& getCollectionsManager() const;
 
+    bool isXattrEnabled() const;
+
+    void setXattrEnabled(bool value);
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be
@@ -904,6 +908,13 @@ protected:
     std::list<CompTaskEntry> compactionTasks;
 
     std::unique_ptr<Collections::Manager> collectionsManager;
+
+    /**
+     * Status of XATTR support for this bucket - this is set from the
+     * bucket config and also via set_flush_param. Written/read by differing
+     * threads.
+     */
+    Couchbase::RelaxedAtomic<bool> xattrEnabled;
 
     friend class KVBucketTest;
 

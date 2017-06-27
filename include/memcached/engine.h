@@ -682,6 +682,12 @@ typedef struct engine_interface_v1 {
 
     collections_interface collections;
 
+    /**
+     * @param handle the engine handle
+     * @returns if XATTRs are enabled for this bucket
+     */
+    bool (*isXattrEnabled)(ENGINE_HANDLE* handle);
+
 } ENGINE_HANDLE_V1;
 
 namespace cb {

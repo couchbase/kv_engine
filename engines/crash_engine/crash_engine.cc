@@ -259,6 +259,10 @@ static bool set_item_info(ENGINE_HANDLE *handle, const void *cookie,
     return false;
 }
 
+static bool is_xattr_enabled(ENGINE_HANDLE* handle) {
+    return true;
+}
+
 ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                   GET_SERVER_API gsa,
                                   ENGINE_HANDLE **handle)
@@ -295,6 +299,7 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     engine->engine.item_set_cas = item_set_cas;
     engine->engine.get_item_info = get_item_info;
     engine->engine.set_item_info = set_item_info;
+    engine->engine.isXattrEnabled = is_xattr_enabled;
     engine->info.eng_info.description = "Crash Engine";
     engine->info.eng_info.num_features = 0;
     *handle = reinterpret_cast<ENGINE_HANDLE*>(&engine->engine);

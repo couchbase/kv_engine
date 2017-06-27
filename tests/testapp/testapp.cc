@@ -100,41 +100,46 @@ time_t get_server_start_time() {
     return server_start_time;
 }
 
-std::string to_string(const Transport& transport) {
+std::ostream& operator<<(std::ostream& os, const TransportProtocols& t) {
+    os << to_string(t);
+    return os;
+}
+
+std::string to_string(const TransportProtocols& transport) {
 #ifdef JETBRAINS_CLION_IDE
-    return std::to_string(int(transport));
+    // CLion don't properly parse the output when the
+    // output gets written as the string instead of the
+    // number. This makes it harder to debug the tests
+    // so let's just disable it while we're waiting
+    // for them to supply a fix.
+    // See https://youtrack.jetbrains.com/issue/CPP-6039
+    return std::to_string(static_cast<int>(transport));
 #else
     switch (transport) {
-    case Transport::Plain:
-        return "Plain";
-    case Transport::SSL:
-        return "SSL";
-    case Transport::PlainIpv6:
-        return "PlainIpv6";
-    case Transport::SslIpv6:
-        return "SslIpv6";
+    case TransportProtocols::McbpPlain:
+        return "Mcbp";
+    case TransportProtocols::McbpIpv6Plain:
+        return "McbpIpv6";
+    case TransportProtocols::McbpSsl:
+        return "McbpSsl";
+    case TransportProtocols::McbpIpv6Ssl:
+        return "McbpIpv6Ssl";
     }
     throw std::logic_error("Unknown transport");
 #endif
-}
-
-std::ostream& operator << (std::ostream& os, const Transport& t)
-{
-    os << to_string(t);
-    return os;
 }
 
 void TestappTest::CreateTestBucket()
 {
     auto& conn = connectionMap.getConnection(Protocol::Memcached, false);
 
-    // Reconnect to the server so we know we're on a "fresh" connetion
-    // to the server (and not one that might have been catched by the
+    // Reconnect to the server so we know we're on a "fresh" connection
+    // to the server (and not one that might have been cached by the
     // idle-timer, but not yet noticed on the client side)
     conn.reconnect();
     conn.authenticate("@admin", "password", "PLAIN");
 
-    mcd_env->getTestBucket().setUpBucket("default", "keep_deleted=true", conn);
+    mcd_env->getTestBucket().setUpBucket(bucketName, "keep_deleted=true", conn);
 
     // Reconnect the object to avoid others to reuse the admin creds
     conn.reconnect();
@@ -151,10 +156,13 @@ void TestappTest::DeleteTestBucket() {
         char bytes[1024];
     } buffer;
 
-    size_t plen = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
+    size_t plen = mcbp_raw_command(buffer.bytes,
+                                   sizeof(buffer.bytes),
                                    PROTOCOL_BINARY_CMD_DELETE_BUCKET,
-                                   "default", strlen("default"),
-                                   NULL, 0);
+                                   bucketName.c_str(),
+                                   bucketName.size(),
+                                   NULL,
+                                   0);
 
     safe_send(buffer.bytes, plen, false);
     safe_recv_packet(&buffer, sizeof(buffer));
@@ -208,12 +216,20 @@ void TestappTest::SetUp() {
                                  /*unused*/0);
 
     enabled_hello_features.clear();
+
+    const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
+    name.assign(info->test_case_name());
+    name.append("_");
+    name.append(info->name());
+    std::replace(name.begin(), name.end(), '/', '_');
 }
 
 // per test tear-down function.
 void TestappTest::TearDown() {
     closesocket(sock);
 }
+
+const std::string TestappTest::bucketName = "default";
 
 // Per-test-case set-up.
 // Called before the first test in this test case.
@@ -231,7 +247,7 @@ void McdTestappTest::SetUpTestCase() {
 // per test setup function.
 void McdTestappTest::SetUp() {
     verify_server_running();
-    if (GetParam() == Transport::Plain) {
+    if (GetParam() == TransportProtocols::McbpPlain) {
         current_phase = phase_plain;
         sock = connect_to_server_plain(port);
         ASSERT_NE(INVALID_SOCKET, sock);
@@ -248,7 +264,7 @@ void McdTestappTest::SetUp() {
 
 // per test tear-down function.
 void McdTestappTest::TearDown() {
-    if (GetParam() == Transport::Plain) {
+    if (GetParam() == TransportProtocols::McbpPlain) {
         closesocket(sock);
     } else {
         closesocket(sock_ssl);
@@ -1121,6 +1137,88 @@ void TestappTest::ewouldblock_engine_disable() {
     ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode::Next_N, 0);
 }
 
+void TestappTest::runCreateXattr(
+        const std::string& path,
+        const std::string& value,
+        bool macro,
+        protocol_binary_response_status expectedStatus) {
+    auto& conn = getConnection();
+    ASSERT_EQ(Protocol::Memcached, conn.getProtocol());
+    auto& connection = dynamic_cast<MemcachedBinprotConnection&>(conn);
+
+    BinprotSubdocCommand cmd;
+    cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
+    cmd.setKey(name);
+    cmd.setPath(path);
+    cmd.setValue(value);
+    if (macro) {
+        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS |
+                         SUBDOC_FLAG_MKDIR_P);
+    } else {
+        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    }
+
+    connection.sendCommand(cmd);
+
+    BinprotResponse resp;
+    connection.recvResponse(resp);
+    EXPECT_EQ(expectedStatus, resp.getStatus());
+}
+
+void TestappTest::createXattr(const std::string& path,
+                              const std::string& value,
+                              bool macro) {
+    runCreateXattr(path, value, macro, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+}
+
+BinprotSubdocResponse TestappTest::runGetXattr(
+        const std::string& path,
+        bool deleted,
+        protocol_binary_response_status expectedStatus) {
+    auto& conn = getConnection();
+    auto& connection = dynamic_cast<MemcachedBinprotConnection&>(conn);
+
+    BinprotSubdocCommand cmd;
+    cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
+    cmd.setKey(name);
+    cmd.setPath(path);
+    if (deleted) {
+        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
+        cmd.addDocFlags(mcbp::subdoc::doc_flag::AccessDeleted);
+    } else {
+        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
+    }
+    connection.sendCommand(cmd);
+
+    BinprotSubdocResponse resp;
+    connection.recvResponse(resp);
+    auto status = resp.getStatus();
+    if (deleted && status == PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED) {
+        status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    }
+
+    if (status != expectedStatus) {
+        throw BinprotConnectionError("runGetXattr() failed: ", resp);
+    }
+    return resp;
+}
+
+BinprotSubdocResponse TestappTest::getXattr(const std::string& path,
+                                            bool deleted) {
+    return runGetXattr(path, deleted, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+}
+
+int TestappTest::getResponseCount(protocol_binary_response_status statusCode) {
+    unique_cJSON_ptr stats(cJSON_Parse(
+            cJSON_GetObjectItem(
+                    getConnection().stats("responses detailed").get(),
+                    "responses")
+                    ->valuestring));
+    std::stringstream stream;
+    stream << std::hex << statusCode;
+    return cJSON_GetObjectItem(stats.get(), stream.str().c_str())->valueint;
+}
+
 MemcachedConnection& TestappTest::getConnection() {
     return prepare(connectionMap.getConnection());
 }
@@ -1149,7 +1247,8 @@ MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
 
 INSTANTIATE_TEST_CASE_P(Transport,
                         McdTestappTest,
-                        ::testing::Values(Transport::Plain, Transport::SSL),
+                        ::testing::Values(TransportProtocols::McbpPlain,
+                                          TransportProtocols::McbpSsl),
                         ::testing::PrintToStringParamName());
 
 unique_cJSON_ptr TestappTest::memcached_cfg;

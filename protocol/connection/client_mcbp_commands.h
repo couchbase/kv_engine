@@ -482,7 +482,7 @@ private:
 
 class BinprotSubdocResponse : public BinprotResponse {
 public:
-    const std::string& getValue() {
+    const std::string& getValue() const {
         return value;
     }
     virtual void clear() override {
@@ -491,6 +491,15 @@ public:
     }
 
     virtual void assign(std::vector<uint8_t>&& srcbuf) override;
+
+    bool operator==(const BinprotSubdocResponse& other) const {
+        bool rv = getStatus() == other.getStatus();
+
+        if (getStatus() == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            rv = getValue() == other.getValue();
+        }
+        return rv;
+    }
 
 private:
     std::string value;

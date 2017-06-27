@@ -942,6 +942,10 @@
                     "min": 0
                 }
             }
+        },
+        "xattr_enabled": {
+            "default": "true",
+            "type": "bool"
         }
     }
 }

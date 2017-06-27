@@ -39,11 +39,11 @@
 #include <protocol/connection/client_connection.h>
 #include "testapp_environment.h"
 
-enum class Transport {
-    Plain,
-    SSL,
-    PlainIpv6,
-    SslIpv6
+enum class TransportProtocols {
+    McbpPlain,
+    McbpSsl,
+    McbpIpv6Plain,
+    McbpIpv6Ssl
 };
 
 namespace Testapp {
@@ -51,8 +51,8 @@ const size_t MAX_CONNECTIONS = 1000;
 const size_t BACKLOG = 1000;
 }
 
-std::ostream& operator << (std::ostream& os, const Transport& t);
-std::string to_string(const Transport& transport);
+std::ostream& operator<<(std::ostream& os, const TransportProtocols& t);
+std::string to_string(const TransportProtocols& transport);
 
 // Needed by subdocument tests in seperate .cc file.
 extern SOCKET sock;
@@ -68,7 +68,6 @@ extern std::set<protocol_binary_hello_features_t> enabled_hello_features;
 
 class TestBucketImpl;
 
-// Base class for tests against just the "plain" socker (no SSL).
 class TestappTest : public ::testing::Test {
 public:
     // Per-test-case set-up.
@@ -178,8 +177,6 @@ protected:
     static uint64_t token;
     static cb_thread_t memcached_server_thread;
 
-
-
     /**
      * Prepare a connection object to be used from a client by reconnecting
      * and performing the initial handshake logic
@@ -189,6 +186,66 @@ protected:
      */
     MemcachedConnection& prepare(MemcachedConnection& connection);
 
+    /**
+     * Create an extended attribute
+     *
+     * This method doesn't really belong in this class (as it is supposed
+     * to work for greenstack as well, but we're going to need it from
+     * multiple tests so it can might as well live here..
+     *
+     * @param path the full path to the attribute (including the key)
+     * @param value The value to store
+     * @param macro is this a macro for expansion or not
+     * @param expectedStatus optional status if success is not expected
+     */
+    void createXattr(const std::string& path,
+                     const std::string& value,
+                     bool macro = false);
+
+    void runCreateXattr(const std::string& path,
+                        const std::string& value,
+                        bool macro,
+                        protocol_binary_response_status expectedStatus);
+
+    /**
+     * Get an extended attribute
+     *
+     * @param path the full path to the attribute to fetch
+     * @param deleted allow get from deleted documents
+     * @param expectedStatus optional status if success is not expected
+     * @return the value stored for the key (it is expected to be there!)
+     */
+    BinprotSubdocResponse getXattr(const std::string& path,
+                                   bool deleted = false);
+
+    BinprotSubdocResponse runGetXattr(
+            const std::string& path,
+            bool deleted,
+            protocol_binary_response_status expectedStatus);
+
+    int getResponseCount(protocol_binary_response_status statusCode);
+
+    static int statResps() {
+        // Each stats call gets a new connection prepared for it, resulting in
+        // a HELLO. This means we expect 1 success from the stats call and
+        // the number of successes a HELLO takes.
+        return 1 + helloResps();
+    }
+
+    static int helloResps() {
+        // We do a HELLO for each feature that we enable
+        // DatatypeJSON, Compression, MutationSeqNo, Xattr, Xerror. Therefore
+        // we expect a success for each of the responses.
+        return 5;
+    }
+
+    static int saslResps() {
+        // 2 successes expected due to the initial response and then the
+        // continue step.
+        return 2;
+    }
+    std::string name;
+    static const std::string bucketName;
 };
 
 #define TESTAPP__DOSKIP(cond, reason) \
@@ -212,8 +269,9 @@ protected:
 // Test the various memcached binary protocol commands against a
 // external `memcached` process. Tests are parameterized to test both Plain and
 // SSL transports.
-class McdTestappTest : public TestappTest,
-                       public ::testing::WithParamInterface<Transport> {
+class McdTestappTest
+        : public TestappTest,
+          public ::testing::WithParamInterface<TransportProtocols> {
 public:
     // Per-test-case set-up.
     // Called before the first test in this test case.

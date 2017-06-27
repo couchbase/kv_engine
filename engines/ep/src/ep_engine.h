@@ -377,7 +377,7 @@ public:
         return isSupported;
     }
 
-    bool isXattrSupported(const void* cookie) {
+    bool isXattrEnabled(const void* cookie) {
         return isDatatypeSupported(cookie, PROTOCOL_BINARY_DATATYPE_XATTR);
     }
 

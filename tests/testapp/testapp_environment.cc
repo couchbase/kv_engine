@@ -37,6 +37,31 @@ void TestBucketImpl::createEwbBucket(const std::string& name,
     conn.createBucket(name, cfg, BucketType::EWouldBlock);
 }
 
+// Both memcache and ep-engine buckets support set_param for xattr on/off
+void TestBucketImpl::setXattrEnabled(MemcachedConnection& conn,
+                                     const std::string& bucketName,
+                                     bool value) {
+    auto& bconn = dynamic_cast<MemcachedBinprotConnection&>(conn);
+    bconn.authenticate("@admin", "password", "PLAIN");
+    bconn.selectBucket(bucketName);
+
+    // Encode a set_flush_param (like cbepctl)
+    BinprotGenericCommand cmd;
+    BinprotResponse resp;
+
+    cmd.setOp(PROTOCOL_BINARY_CMD_SET_PARAM);
+    cmd.setKey("xattr_enabled");
+    cmd.setExtrasValue<uint32_t>(htonl(protocol_binary_engine_param_flush));
+    if (value) {
+        cmd.setValue("true");
+    } else {
+        cmd.setValue("false");
+    }
+
+    bconn.executeCommand(cmd, resp);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+}
+
 class DefaultBucketImpl : public TestBucketImpl {
 public:
     void setUpBucket(const std::string& name,
