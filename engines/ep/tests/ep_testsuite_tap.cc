@@ -702,13 +702,13 @@ static enum test_result test_tap_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
         check(keys[ii], "Failed to receive key");
     }
 
-    testHarness.unlock_cookie(cookie);
-    testHarness.destroy_cookie(cookie);
     check(get_int_stat(h, h1, "ep_tap_total_fetched", "tap") != 0,
           "http://bugs.northscale.com/show_bug.cgi?id=1695");
-    h1->reset_stats(h, NULL);
-    check(get_int_stat(h, h1, "ep_tap_total_fetched", "tap") == 0,
-          "Expected reset stats to clear ep_tap_total_fetched");
+
+    wait_for_stat_to_be(h, h1, "ep_bg_remaining_jobs", 0);
+
+    testHarness.unlock_cookie(cookie);
+    testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
 }
