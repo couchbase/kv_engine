@@ -125,6 +125,10 @@ public:
     void bytesForceRead(size_t bytes) {
         backfillMgr->bytesForceRead(bytes);
     }
+
+    BackfillManager& getBFM() {
+        return *backfillMgr;
+    }
 };
 
 using mock_dcp_producer_t = SingleThreadedRCPtr<MockDcpProducer>;

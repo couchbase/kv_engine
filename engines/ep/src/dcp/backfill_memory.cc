@@ -107,30 +107,29 @@ DCPBackfillMemoryBuffered::DCPBackfillMemoryBuffered(EphemeralVBucketPtr evb,
                                                      uint64_t startSeqno,
                                                      uint64_t endSeqno)
     : DCPBackfill(s, startSeqno, endSeqno),
-      weakVb(evb),
+      evb(evb),
       state(BackfillState::Init),
       rangeItr(nullptr) {
 }
 
 backfill_status_t DCPBackfillMemoryBuffered::run() {
-    auto evb = weakVb.lock();
-    if (!evb) {
+    ReaderLockHolder rlh(evb->getStateLock());
+    if (evb->getState() == vbucket_state_dead) {
         /* We don't have to close the stream here. Task doing vbucket state
-         change should handle stream closure */
+           change should handle stream closure */
         LOG(EXTENSION_LOG_WARNING,
             "DCPBackfillMemoryBuffered::run(): "
-            "(vb:%d) running backfill ended prematurely as weakVb can't be "
-            "locked; start seqno:%" PRIi64 ", end seqno:%" PRIi64,
+            "(vb:%d) running backfill ended prematurely with vb in dead state; "
+            "start seqno:%" PRIi64 ", end seqno:%" PRIi64,
             getVBucketId(),
             startSeqno,
             endSeqno);
-        cancel();
         return backfill_finished;
     }
 
     switch (state) {
     case BackfillState::Init:
-        return create(*evb);
+        return create();
     case BackfillState::Scanning:
         return scan();
     case BackfillState::Done:
@@ -147,10 +146,10 @@ void DCPBackfillMemoryBuffered::cancel() {
     }
 }
 
-backfill_status_t DCPBackfillMemoryBuffered::create(EphemeralVBucket& evb) {
+backfill_status_t DCPBackfillMemoryBuffered::create() {
     /* Create range read cursor */
     try {
-        auto rangeItrOptional = evb.makeRangeIterator(true /*isBackfill*/);
+        auto rangeItrOptional = evb->makeRangeIterator(true /*isBackfill*/);
         if (rangeItrOptional) {
             rangeItr = std::move(*rangeItrOptional);
         } else {

@@ -36,3 +36,16 @@ protected:
     /// Add a number of documents to allow testing of sequence list stats.
     void addDocumentsForSeqListTesting(uint16_t vbid);
 };
+
+/**
+ * Test fixture for single-threaded tests on EPBucket.
+ */
+class SingleThreadedEphemeralBackfillTest : public SingleThreadedKVBucketTest {
+protected:
+    void SetUp() override {
+        config_string +=
+                "bucket_type=ephemeral;"
+                "dcp_ephemeral_backfill_type=buffered";
+        SingleThreadedKVBucketTest::SetUp();
+    }
+};

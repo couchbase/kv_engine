@@ -144,6 +144,10 @@ public:
     bool public_handleSlowStream() {
         return handleSlowStream();
     }
+
+    void setState(StreamState state) {
+        state_ = state;
+    }
 };
 
 /**

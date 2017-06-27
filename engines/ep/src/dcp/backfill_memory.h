@@ -86,10 +86,8 @@ private:
     /**
      * Creates a range iterator on Ephemeral VBucket to read items as a snapshot
      * in sequential order. Backfill snapshot range is decided here.
-     *
-     * @param evb Ref to the ephemeral vbucket on which backfill is run
      */
-    backfill_status_t create(EphemeralVBucket& evb);
+    backfill_status_t create();
 
     /**
      * Reads the items in the snapshot (iterator) one by one. In case of high
@@ -112,10 +110,10 @@ private:
     void transitionState(BackfillState newState);
 
     /**
-     * Ensures there can be no cyclic dependency with VB pointers in the
-     * complex DCP slab of objects and tasks.
+     * shared pointer to EphemeralVBucket. Needs to be shared as we cannot
+     * delete the underlying VBucket while we have an iterator active on it.
      */
-    std::weak_ptr<EphemeralVBucket> weakVb;
+    std::shared_ptr<EphemeralVBucket> evb;
 
     BackfillState state;
 

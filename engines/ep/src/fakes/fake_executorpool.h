@@ -104,6 +104,23 @@ public:
         }
     }
 
+    /*
+     * Check if task with given name exists
+     */
+    bool isTaskScheduled(task_type_t queueType, cb::const_char_buffer name) {
+        LockHolder lh(tMutex);
+        for (auto& it : taskLocator) {
+            if (it.second.first->getDescription() != name) {
+                continue;
+            }
+            if (it.second.second->getQueueType() != queueType) {
+                continue;
+            }
+            return true;
+        }
+        return false;
+    }
+
     size_t getTotReadyTasks() {
         return totReadyTasks;
     }
@@ -162,7 +179,7 @@ public:
     }
 
     void runCurrentTask(cb::const_char_buffer expectedTask) {
-        EXPECT_EQ(expectedTask, getTaskName());
+        EXPECT_EQ(to_string(expectedTask), to_string(getTaskName()));
         run();
     }
 
