@@ -290,7 +290,8 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
  * If it does then we have demonstrated that data is not lost.
  *
  */
-TEST_F(SingleThreadedEPBucketTest, MB22960_cursor_dropping_data_loss) {
+// @todo This test is currently disabled whilst MB-25056 remains unresolved.
+TEST_F(SingleThreadedEPBucketTest, DISABLED_MB22960_cursor_dropping_data_loss) {
     // Records the number of times the callback function is invoked.
     size_t callbackCount = 0;
     // Make vbucket active.
