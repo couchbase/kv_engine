@@ -1865,13 +1865,19 @@ void KVBucket::reset() {
     for (auto vbid : buckets) {
         VBucketPtr vb = getVBucket(vbid);
         if (vb) {
-            LockHolder lh(vb_mutexes[vb->getId()]);
-            vb->ht.clear();
-            vb->checkpointManager.clear(vb->getState());
-            vb->resetStats();
-            vb->setPersistedSnapshot(0, 0);
+            {
+                LockHolder lh(vb_mutexes[vb->getId()]);
+                vb->ht.clear();
+                vb->checkpointManager.clear(vb->getState());
+                vb->resetStats();
+                vb->setPersistedSnapshot(0, 0);
+            }
+            LOG(EXTENSION_LOG_NOTICE,
+                "KVBucket::reset(): Successfully flushed vb:%" PRIu16,
+                vbid);
         }
     }
+    LOG(EXTENSION_LOG_NOTICE, "KVBucket::reset(): Successfully flushed bucket");
 }
 
 /**
