@@ -84,13 +84,13 @@ void DcpProducer::BufferLog::unpauseIfSpaceAvailable() {
     ReaderLockHolder rlh(logLock);
     if (getState_UNLOCKED() == Full) {
         LOG(EXTENSION_LOG_NOTICE,
-            "%s Unable to notify paused connection "
-            "because DcpProducer::BufferLog is full; ackedBytes:%lx, "
-            "bytesSent:%lx, maxBytes:%lx",
+            "%s Unable to notify paused connection because "
+            "DcpProducer::BufferLog is full; ackedBytes:%" PRIu64
+            ", bytesSent:%" PRIu64 ", maxBytes:%" PRIu64,
             producer.logHeader(),
-            ackedBytes,
-            bytesSent,
-            maxBytes);
+            uint64_t(ackedBytes),
+            uint64_t(bytesSent),
+            uint64_t(maxBytes));
     } else {
         producer.notifyPaused(true);
     }
@@ -105,12 +105,12 @@ void DcpProducer::BufferLog::acknowledge(size_t bytes) {
         if (state == Full) {
             LOG(EXTENSION_LOG_NOTICE,
                 "%s Notifying paused connection now that "
-                "DcpProducer::Bufferlog is no longer full; ackedBytes:%lx, "
-                "bytesSent:%lx, maxBytes:%lx",
+                "DcpProducer::Bufferlog is no longer full; ackedBytes:%" PRIu64
+                ", bytesSent:%" PRIu64 ", maxBytes:%" PRIu64,
                 producer.logHeader(),
-                ackedBytes,
-                bytesSent,
-                maxBytes);
+                uint64_t(ackedBytes),
+                uint64_t(bytesSent),
+                uint64_t(maxBytes));
             producer.notifyPaused(true);
         }
     }
