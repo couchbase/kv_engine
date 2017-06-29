@@ -837,7 +837,6 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
     uint16_t keylen2 = (uint16_t)strlen(key2);
     item *i = NULL;
     ItemMetaData itm_meta;
-    itm_meta.cas = 0x1;
     // check the stat
     size_t temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
     check(temp == 0, "Expect zero ops");
@@ -854,11 +853,24 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
     check(get_meta(h, h1, key1), "Expected to get meta");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
-    // do a concurrent delete
+    //Store the CAS. This will be used in a subsequent delete_with_meta call
+    uint64_t cas_from_store = last_cas;
+
+    //Do a concurrent delete. This should modify the CAS
     checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
 
+    //Get the latest meta data
+    check(get_meta(h, h1, key1), "Expected to get meta");
+
+    //Populate the item meta data in such a way, so that we will pass
+    //conflict resolution
+    itm_meta.revSeqno = last_meta.revSeqno + 1;
+    itm_meta.cas = last_meta.cas;
+    itm_meta.flags = last_meta.flags;
+    itm_meta.exptime = last_meta.exptime;
+
     // attempt delete_with_meta. should fail since cas is no longer valid.
-    del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas, true);
+    del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, cas_from_store);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected invalid cas error");
     // check the stat
@@ -880,7 +892,7 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
     checkeq(ENGINE_KEY_ENOENT, del(h, h1, key1, 0, 0), "Delete failed");
 
     // attempt delete_with_meta. should pass.
-    del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas, true);
+    del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected delete_with_meta success");
     // check the stat
@@ -900,7 +912,7 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
     checkeq(ENGINE_KEY_ENOENT, del(h, h1, key1, 0, 0), "Delete failed");
 
     // attempt delete_with_meta. should pass.
-    del_with_meta(h, h1, key2, keylen2, 0, &itm_meta, last_cas, true);
+    del_with_meta(h, h1, key2, keylen2, 0, &itm_meta, last_cas);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected delete_with_meta success");
     // check the stat
