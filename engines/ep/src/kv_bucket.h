@@ -411,26 +411,6 @@ public:
     ENGINE_ERROR_CODE checkForDBExistence(uint16_t db_file_id);
 
     /**
-     * Triggers compaction of a database file
-     *
-     * @param vbid The vbucket being compacted
-     * @param c The context for compaction of a DB file
-     * @param ck cookie used to notify connection of operation completion
-     */
-    ENGINE_ERROR_CODE scheduleCompaction(uint16_t vbid, compaction_ctx c, const void *ck);
-
-    /**
-     * Compaction of a database file
-     *
-     * @param ctx Context for compaction hooks
-     * @param ck cookie used to notify connection of operation completion
-     *
-     * return true if the compaction needs to be rescheduled and false
-     *             otherwise
-     */
-    bool doCompact(compaction_ctx *ctx, const void *ck);
-
-    /**
      * Get the database file id for the compaction request
      *
      * @param req compaction request structure
@@ -817,13 +797,6 @@ protected:
 
     void warmupCompleted();
     void stopWarmup(void);
-
-    /**
-     * Compaction of a database file
-     *
-     * @param ctx Context for compaction hooks
-     */
-    void compactInternal(compaction_ctx *ctx);
 
     void flushOneDeleteAll(void);
     PersistenceCallback* flushOneDelOrSet(const queued_item &qi,

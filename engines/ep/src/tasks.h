@@ -27,6 +27,7 @@
 #include <array>
 #include <string>
 
+class EPBucket;
 class EventuallyPersistentEngine;
 
 /**
@@ -60,13 +61,10 @@ private:
  */
 class CompactTask : public GlobalTask {
 public:
-    CompactTask(EventuallyPersistentEngine *e,
-                compaction_ctx c, const void *ck,
-                bool completeBeforeShutdown = false) :
-                GlobalTask(e, TaskId::CompactVBucketTask, 0, completeBeforeShutdown),
-                           compactCtx(c), cookie(ck) {
-        desc = "Compact DB file " + std::to_string(c.db_file_id);
-    }
+    CompactTask(EPBucket& bucket,
+                compaction_ctx c,
+                const void* ck,
+                bool completeBeforeShutdown = false);
 
     bool run();
 
@@ -75,6 +73,7 @@ public:
     }
 
 private:
+    EPBucket& bucket;
     compaction_ctx compactCtx;
     const void* cookie;
     std::string desc;

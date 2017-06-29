@@ -17,12 +17,12 @@
 #include "config.h"
 
 #include "bgfetcher.h"
+#include "ep_bucket.h"
 #include "ep_engine.h"
 #include "flusher.h"
+#include "kvstore.h"
 #include "tasks.h"
 #include "warmup.h"
-#include "ep_engine.h"
-#include "kvstore.h"
 
 #include <climits>
 #include <type_traits>
@@ -36,10 +36,24 @@ bool FlusherTask::run() {
     return flusher->step(this);
 }
 
+CompactTask::CompactTask(EPBucket& bucket,
+                         compaction_ctx c,
+                         const void* ck,
+                         bool completeBeforeShutdown)
+    : GlobalTask(&bucket.getEPEngine(),
+                 TaskId::CompactVBucketTask,
+                 0,
+                 completeBeforeShutdown),
+      bucket(bucket),
+      compactCtx(c),
+      cookie(ck) {
+    desc = "Compact DB file " + std::to_string(c.db_file_id);
+}
+
 bool CompactTask::run() {
     TRACE_EVENT1(
             "ep-engine/task", "CompactTask", "file_id", compactCtx.db_file_id);
-    return engine->getKVBucket()->doCompact(&compactCtx, cookie);
+    return bucket.doCompact(&compactCtx, cookie);
 }
 
 bool StatSnap::run() {

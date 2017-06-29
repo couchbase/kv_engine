@@ -36,6 +36,10 @@ public:
 
     bool initialize() override;
 
+    ENGINE_ERROR_CODE scheduleCompaction(uint16_t vbid,
+                                         compaction_ctx c,
+                                         const void* ck) override;
+
     /// Eviction not supported for Ephemeral buckets - without some backing
     /// storage, there is nowhere to evict /to/.
     protocol_binary_response_status evictKey(const DocKey& key,

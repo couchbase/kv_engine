@@ -454,17 +454,6 @@ public:
                                                  const void *ck) = 0;
 
     /**
-     * Compaction of a database file
-     *
-     * @param ctx Context for compaction hooks
-     * @param ck cookie used to notify connection of operation completion
-     *
-     * return true if the compaction needs to be rescheduled and false
-     *             otherwise
-     */
-    virtual bool doCompact(compaction_ctx *ctx, const void *ck) = 0;
-
-    /**
      * Get the database file id for the compaction request
      *
      * @param req compaction request structure
@@ -473,14 +462,6 @@ public:
      */
     virtual uint16_t getDBFileId(
                             const protocol_binary_request_compact_db& req) = 0;
-
-    /**
-     * Remove completed compaction tasks or wake snoozed tasks
-     *
-     * @param db_file_id vbucket id for couchstore or shard id in the
-     *                   case of forestdb
-     */
-    virtual void updateCompactionTasks(uint16_t db_file_id) = 0;
 
     /**
      * Reset a given vbucket from memory and disk. This differs from vbucket
@@ -804,13 +785,6 @@ protected:
 
     virtual void warmupCompleted() = 0;
     virtual void stopWarmup(void) = 0;
-
-    /**
-     * Compaction of a database file
-     *
-     * @param ctx Context for compaction hooks
-     */
-    virtual void compactInternal(compaction_ctx *ctx) = 0;
 
     virtual void flushOneDeleteAll(void) = 0;
     virtual PersistenceCallback* flushOneDelOrSet(const queued_item &qi,

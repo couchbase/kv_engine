@@ -58,6 +58,21 @@ public:
     /// Stops the background fetcher for each shard.
     void stopBgFetcher();
 
+    ENGINE_ERROR_CODE scheduleCompaction(uint16_t vbid,
+                                         compaction_ctx c,
+                                         const void* ck) override;
+
+    /**
+     * Compaction of a database file
+     *
+     * @param ctx Context for compaction hooks
+     * @param ck cookie used to notify connection of operation completion
+     *
+     * return true if the compaction needs to be rescheduled and false
+     *             otherwise
+     */
+    bool doCompact(compaction_ctx* ctx, const void* cookie);
+
     std::pair<uint64_t, bool> getLastPersistedCheckpointId(
             uint16_t vb) override;
 
@@ -107,4 +122,20 @@ public:
     virtual bool isGetAllKeysSupported() const override {
         return true;
     }
+
+protected:
+    /**
+     * Compaction of a database file
+     *
+     * @param ctx Context for compaction hooks
+     */
+    void compactInternal(compaction_ctx* ctx);
+
+    /**
+     * Remove completed compaction tasks or wake snoozed tasks
+     *
+     * @param db_file_id vbucket id for couchstore or shard id in the
+     *                   case of forestdb
+     */
+    void updateCompactionTasks(DBFileId db_file_id);
 };
