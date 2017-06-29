@@ -1037,7 +1037,8 @@ void DcpConsumer::closeAllStreams() {
     streams.clear(guard);
 }
 
-void DcpConsumer::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
+void DcpConsumer::closeStreamDueToVbStateChange(uint16_t vbucket,
+                                                vbucket_state_t state) {
     auto it = streams.erase(vbucket);
     if (it.second) {
         LOG(EXTENSION_LOG_INFO, "%s (vb %" PRIu16 ") State changed to "

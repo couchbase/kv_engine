@@ -939,7 +939,8 @@ void DcpProducer::notifySeqnoAvailable(uint16_t vbucket, uint64_t seqno) {
     }
 }
 
-void DcpProducer::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
+void DcpProducer::closeStreamDueToVbStateChange(uint16_t vbucket,
+                                                vbucket_state_t state) {
     auto stream = findStream(vbucket);
     if (stream) {
         LOG(EXTENSION_LOG_INFO, "%s (vb %" PRIu16 ") State changed to "

@@ -93,7 +93,7 @@ public:
 
     void notifySeqnoAvailable(uint16_t vbucket, uint64_t seqno);
 
-    void vbucketStateChanged(uint16_t vbucket, vbucket_state_t state);
+    void closeStreamDueToVbStateChange(uint16_t vbucket, vbucket_state_t state);
 
     /* This function handles a stream that is detected as slow by the checkpoint
        remover. Currently we handle the slow stream by switching from in-memory

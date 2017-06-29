@@ -196,10 +196,10 @@ void DcpConnMap::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state,
     for (; itr != map_.end(); ++itr) {
         DcpProducer* producer = dynamic_cast<DcpProducer*> (itr->second.get());
         if (producer) {
-            producer->vbucketStateChanged(vbucket, state);
+            producer->closeStreamDueToVbStateChange(vbucket, state);
         } else if (closeInboundStreams) {
-            static_cast<DcpConsumer*>(itr->second.get())->vbucketStateChanged(
-                                                                vbucket, state);
+            static_cast<DcpConsumer *>(itr->second.get())->closeStreamDueToVbStateChange(
+                    vbucket, state);
         }
     }
 }
