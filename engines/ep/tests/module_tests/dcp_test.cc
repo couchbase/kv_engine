@@ -874,8 +874,14 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_enomem) {
     EXPECT_EQ(0, mockStream->public_readyQ().size());
 }
 
-class ConnectionTest : public DCPTest {
+class ConnectionTest : public DCPTest,
+                       public ::testing::WithParamInterface<std::string> {
 protected:
+    void SetUp() override {
+        bucketType = GetParam();
+        DCPTest::SetUp();
+    }
+
     ENGINE_ERROR_CODE set_vb_state(uint16_t vbid, vbucket_state_t state) {
         return engine->getKVBucket()->setVBucketState(vbid, state, true);
     }
@@ -892,7 +898,7 @@ ENGINE_ERROR_CODE mock_noop_return_engine_e2big(const void* cookie,uint32_t opaq
  * is no DCP traffic we snooze for the connection manager interval before
  * sending the noop.
  */
-TEST_F(ConnectionTest, test_mb19955) {
+TEST_P(ConnectionTest, test_mb19955) {
     const void* cookie = create_mock_cookie();
     engine->getConfiguration().setConnectionManagerInterval(2);
 
@@ -912,7 +918,7 @@ TEST_F(ConnectionTest, test_mb19955) {
     destroy_mock_cookie(cookie);
 }
 
-TEST_F(ConnectionTest, test_maybesendnoop_buffer_full) {
+TEST_P(ConnectionTest, test_maybesendnoop_buffer_full) {
     const void* cookie = create_mock_cookie();
     // Create a Mock Dcp producer
     MockDcpProducer producer(
@@ -935,7 +941,7 @@ TEST_F(ConnectionTest, test_maybesendnoop_buffer_full) {
     destroy_mock_cookie(cookie);
 }
 
-TEST_F(ConnectionTest, test_maybesendnoop_send_noop) {
+TEST_P(ConnectionTest, test_maybesendnoop_send_noop) {
     const void* cookie = create_mock_cookie();
     // Create a Mock Dcp producer
     MockDcpProducer producer(
@@ -955,7 +961,7 @@ TEST_F(ConnectionTest, test_maybesendnoop_send_noop) {
     destroy_mock_cookie(cookie);
 }
 
-TEST_F(ConnectionTest, test_maybesendnoop_noop_already_pending) {
+TEST_P(ConnectionTest, test_maybesendnoop_noop_already_pending) {
     const void* cookie = create_mock_cookie();
     // Create a Mock Dcp producer
     MockDcpProducer producer(*engine,
@@ -999,7 +1005,7 @@ TEST_F(ConnectionTest, test_maybesendnoop_noop_already_pending) {
     destroy_mock_cookie(cookie);
 }
 
-TEST_F(ConnectionTest, test_maybesendnoop_not_enabled) {
+TEST_P(ConnectionTest, test_maybesendnoop_not_enabled) {
     const void* cookie = create_mock_cookie();
     // Create a Mock Dcp producer
     MockDcpProducer producer(
@@ -1019,7 +1025,7 @@ TEST_F(ConnectionTest, test_maybesendnoop_not_enabled) {
     destroy_mock_cookie(cookie);
 }
 
-TEST_F(ConnectionTest, test_maybesendnoop_not_sufficient_time_passed) {
+TEST_P(ConnectionTest, test_maybesendnoop_not_sufficient_time_passed) {
     const void* cookie = create_mock_cookie();
     // Create a Mock Dcp producer
     MockDcpProducer producer(
@@ -1039,7 +1045,7 @@ TEST_F(ConnectionTest, test_maybesendnoop_not_sufficient_time_passed) {
     destroy_mock_cookie(cookie);
 }
 
-TEST_F(ConnectionTest, test_deadConnections) {
+TEST_P(ConnectionTest, test_deadConnections) {
     MockDcpConnMap connMap(*engine);
     connMap.initialize(DCP_CONN_NOTIFIER);
     const void *cookie = create_mock_cookie();
@@ -1059,7 +1065,7 @@ TEST_F(ConnectionTest, test_deadConnections) {
         << "Dead connections still remain";
 }
 
-TEST_F(ConnectionTest, test_mb23637_findByNameWithConnectionDoDisconnect) {
+TEST_P(ConnectionTest, test_mb23637_findByNameWithConnectionDoDisconnect) {
     MockDcpConnMap connMap(*engine);
     connMap.initialize(DCP_CONN_NOTIFIER);
     const void *cookie = create_mock_cookie();
@@ -1085,7 +1091,7 @@ TEST_F(ConnectionTest, test_mb23637_findByNameWithConnectionDoDisconnect) {
         << "Dead connections still remain";
 }
 
-TEST_F(ConnectionTest, test_mb23637_findByNameWithDuplicateConnections) {
+TEST_P(ConnectionTest, test_mb23637_findByNameWithDuplicateConnections) {
     MockDcpConnMap connMap(*engine);
     connMap.initialize(DCP_CONN_NOTIFIER);
     const void* cookie1 = create_mock_cookie();
@@ -1125,7 +1131,7 @@ TEST_F(ConnectionTest, test_mb23637_findByNameWithDuplicateConnections) {
 }
 
 
-TEST_F(ConnectionTest, test_mb17042_duplicate_name_producer_connections) {
+TEST_P(ConnectionTest, test_mb17042_duplicate_name_producer_connections) {
     MockDcpConnMap connMap(*engine);
     connMap.initialize(DCP_CONN_NOTIFIER);
     const void* cookie1 = create_mock_cookie();
@@ -1156,7 +1162,7 @@ TEST_F(ConnectionTest, test_mb17042_duplicate_name_producer_connections) {
         << "Dead connections still remain";
 }
 
-TEST_F(ConnectionTest, test_mb17042_duplicate_name_consumer_connections) {
+TEST_P(ConnectionTest, test_mb17042_duplicate_name_consumer_connections) {
     MockDcpConnMap connMap(*engine);
     connMap.initialize(DCP_CONN_NOTIFIER);
     struct mock_connstruct* cookie1 = (struct mock_connstruct*)create_mock_cookie();
@@ -1181,7 +1187,7 @@ TEST_F(ConnectionTest, test_mb17042_duplicate_name_consumer_connections) {
         << "Dead connections still remain";
 }
 
-TEST_F(ConnectionTest, test_mb17042_duplicate_cookie_producer_connections) {
+TEST_P(ConnectionTest, test_mb17042_duplicate_cookie_producer_connections) {
     MockDcpConnMap connMap(*engine);
     connMap.initialize(DCP_CONN_NOTIFIER);
     const void* cookie = create_mock_cookie();
@@ -1209,7 +1215,7 @@ TEST_F(ConnectionTest, test_mb17042_duplicate_cookie_producer_connections) {
         << "Dead connections still remain";
 }
 
-TEST_F(ConnectionTest, test_mb17042_duplicate_cookie_consumer_connections) {
+TEST_P(ConnectionTest, test_mb17042_duplicate_cookie_consumer_connections) {
     MockDcpConnMap connMap(*engine);
     connMap.initialize(DCP_CONN_NOTIFIER);
     const void* cookie = create_mock_cookie();
@@ -1230,7 +1236,7 @@ TEST_F(ConnectionTest, test_mb17042_duplicate_cookie_consumer_connections) {
         << "Dead connections still remain";
 }
 
-TEST_F(ConnectionTest, test_update_of_last_message_time_in_consumer) {
+TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
     const void* cookie = create_mock_cookie();
     // Create a Mock Dcp consumer
     MockDcpConsumer *consumer = new MockDcpConsumer(*engine, cookie, "test_consumer");
@@ -1314,7 +1320,7 @@ TEST_F(ConnectionTest, test_update_of_last_message_time_in_consumer) {
     destroy_mock_cookie(cookie);
 }
 
-TEST_F(ConnectionTest, test_consumer_add_stream) {
+TEST_P(ConnectionTest, test_consumer_add_stream) {
     const void* cookie = create_mock_cookie();
     uint16_t vbid = 0;
 
@@ -1352,7 +1358,7 @@ TEST_F(ConnectionTest, test_consumer_add_stream) {
 
 // Regression test for MB 20645 - ensure that a call to addStats after a
 // connection has been disconnected (and closeAllStreams called) doesn't crash.
-TEST_F(ConnectionTest, test_mb20645_stats_after_closeAllStreams) {
+TEST_P(ConnectionTest, test_mb20645_stats_after_closeAllStreams) {
     MockDcpConnMap connMap(*engine);
     connMap.initialize(DCP_CONN_NOTIFIER);
     const void *cookie = create_mock_cookie();
@@ -1378,7 +1384,7 @@ TEST_F(ConnectionTest, test_mb20645_stats_after_closeAllStreams) {
 // can correctly close the connection.
 // If we don't notify then front-end connections can hang for a long period of
 // time).
-TEST_F(ConnectionTest, test_mb20716_connmap_notify_on_delete) {
+TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete) {
     MockDcpConnMap connMap(*engine);
     connMap.initialize(DCP_CONN_NOTIFIER);
     const void *cookie = create_mock_cookie();
@@ -1428,7 +1434,7 @@ TEST_F(ConnectionTest, test_mb20716_connmap_notify_on_delete) {
 }
 
 // Consumer variant of above test.
-TEST_F(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
+TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
     MockDcpConnMap connMap(*engine);
     connMap.initialize(DCP_CONN_NOTIFIER);
     const void *cookie = create_mock_cookie();
@@ -1489,7 +1495,7 @@ TEST_F(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
  * the openCheckpointID is 0.  In addition it checks that a subsequent
  * snapshotMarker results in a new checkpoint being created.
  */
-TEST_F(ConnectionTest, test_mb21784) {
+TEST_P(ConnectionTest, test_mb21784) {
     // Make vbucket replica so can add passive stream
     ASSERT_EQ(ENGINE_SUCCESS, set_vb_state(vbid, vbucket_state_replica));
 
@@ -1685,7 +1691,7 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify_paused) {
 
 // Tests that the MutationResponse created for the deletion response is of the
 // correct size.
-TEST_F(ConnectionTest, test_mb24424_deleteResponse) {
+TEST_P(ConnectionTest, test_mb24424_deleteResponse) {
     const void* cookie = create_mock_cookie();
     uint16_t vbid = 0;
 
@@ -1735,7 +1741,7 @@ TEST_F(ConnectionTest, test_mb24424_deleteResponse) {
 
 // Tests that the MutationResponse created for the mutation response is of the
 // correct size.
-TEST_F(ConnectionTest, test_mb24424_mutationResponse) {
+TEST_P(ConnectionTest, test_mb24424_mutationResponse) {
     const void* cookie = create_mock_cookie();
     uint16_t vbid = 0;
 
@@ -1799,6 +1805,14 @@ INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
                         CacheCallbackTest,
+                        ::testing::Values("persistent", "ephemeral"),
+                        [](const ::testing::TestParamInfo<std::string>& info) {
+                            return info.param;
+                        });
+
+// Test cases which run in both Full and Value eviction
+INSTANTIATE_TEST_CASE_P(PersistentAndEphemeral,
+                        ConnectionTest,
                         ::testing::Values("persistent", "ephemeral"),
                         [](const ::testing::TestParamInfo<std::string>& info) {
                             return info.param;
