@@ -4013,7 +4013,9 @@ static enum test_result test_disk_gt_ram_delete_paged_out(ENGINE_HANDLE *h,
 
     check(verify_key(h, h1, "k1") == ENGINE_KEY_ENOENT, "Expected miss.");
 
-    cb_assert(0 == get_int_stat(h, h1, "ep_bg_fetched"));
+    checkeq(0,
+            get_int_stat(h, h1, "ep_bg_fetched"),
+            "Unexpected bg_fetched after del/get");
 
     return SUCCESS;
 }
