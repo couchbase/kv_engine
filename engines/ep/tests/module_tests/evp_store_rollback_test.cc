@@ -19,6 +19,7 @@
  * Tests for Rollback functionality in EPStore.
  */
 
+#include <engines/ep/tests/mock/mock_dcp_conn_map.h>
 #include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
 #include "dcp/stream.h"
@@ -582,6 +583,115 @@ TEST_F(RollbackDcpTest, test_rollback_nonzero) {
                          vb->failovers->getLatestEntry().vb_uuid);
     EXPECT_EQ(rollbackPoint, vb->getHighSeqno()) << "VB hasn't rolled back to "
                                                  << rollbackPoint;
+}
+
+class ReplicaRollbackDcpTest : public SingleThreadedEPBucketTest {
+public:
+    ReplicaRollbackDcpTest() {
+    }
+
+    void SetUp() override {
+        SingleThreadedEPBucketTest::SetUp();
+        store->setVBucketState(vbid, vbucket_state_active, false);
+        vb = store->getVBucket(vbid);
+        producers = get_dcp_producers(
+                reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
+                reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+        engine->setDcpConnMap(std::make_unique<MockDcpConnMap>(*engine));
+    }
+
+    void TearDown() override {
+        vb.reset();
+        SingleThreadedEPBucketTest::TearDown();
+    }
+
+    std::unique_ptr<dcp_message_producers> producers;
+    VBucketPtr vb;
+};
+
+extern uint8_t dcp_last_op;
+
+TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
+    /* MB-21682: Confirm that producer DCP streams from a replica VB are closed
+     * if the VB does rollback to be consistent with the active. If we didn't
+     * do this, streams from replica VBs could see the seqno go backwards
+     * as we would continue to stream from the rollback point
+     * */
+    store_item(vbid, makeStoredDocKey("key"), "value");
+
+    EXPECT_EQ(1, store->flushVBucket(vbid));
+
+    auto& ckpt_mgr = vb->checkpointManager;
+    ckpt_mgr.createNewCheckpoint();
+    EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
+    EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+
+    // Now remove the earlier checkpoint
+    bool new_ckpt_created;
+    EXPECT_EQ(0, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
+
+    store->setVBucketState(vbid, vbucket_state_replica, false);
+
+    get_mock_server_api()->cookie->reserve(cookie);
+
+    // Create a Mock Dcp producer
+    SingleThreadedRCPtr<MockDcpProducer> producer =
+            new MockDcpProducer(*engine,
+                                /*cookie*/ cookie,
+                                "MB-21682",
+                                0,
+                                {/*no json*/});
+
+    MockDcpConnMap& mockConnMap =
+            static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    mockConnMap.addConn(cookie, producer.get());
+
+    uint64_t rollbackSeqno;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(
+                      /*flags*/ 0,
+                      /*opaque*/ 0,
+                      /*vbucket*/ vbid,
+                      /*start_seqno*/ 0,
+                      /*end_seqno*/ ~0,
+                      /*vb_uuid*/ 0xabcd,
+                      /*snap_start*/ 0,
+                      /*snap_end*/ ~0,
+                      &rollbackSeqno,
+                      [](vbucket_failover_t* entry,
+                         size_t nentries,
+                         const void* cookie) { return ENGINE_SUCCESS; }));
+
+    auto stream = producer->findStream(vbid);
+    ASSERT_TRUE(stream->isActive());
+
+    producer->notifySeqnoAvailable(vb->getId(), vb->getHighSeqno());
+
+    // Step which will notify the snapshot task
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
+
+    // Now call run on the snapshot task to move checkpoint into DCP stream
+    producer->getCheckpointSnapshotTask().run();
+
+    // snapshot marker
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
+
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
+
+    auto kvb = engine->getKVBucket();
+
+    // Perform the rollback
+    EXPECT_EQ(ENGINE_SUCCESS, kvb->rollback(vbid, 0));
+
+    // The stream should now be dead
+    EXPECT_FALSE(stream->isActive()) << "Stream should be dead";
+
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_STREAM_END, dcp_last_op)
+            << "stream should have received a STREAM_END";
 }
 
 // Test cases which run in both Full and Value eviction

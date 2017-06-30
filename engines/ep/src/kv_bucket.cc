@@ -2843,6 +2843,7 @@ ENGINE_ERROR_CODE KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
                                         */) {
                 rollbackUnpersistedItems(*vb, result.highSeqno);
                 vb->postProcessRollback(result, prevHighSeqno);
+                engine.getDcpConnMap().closeStreamsDueToRollback(vbid);
                 return ENGINE_SUCCESS;
             }
         }
@@ -2850,6 +2851,7 @@ ENGINE_ERROR_CODE KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
         if (resetVBucket_UNLOCKED(vbid, vbset, vbMutexLh)) {
             VBucketPtr newVb = vbMap.getBucket(vbid);
             newVb->incrRollbackItemCount(prevHighSeqno);
+            engine.getDcpConnMap().closeStreamsDueToRollback(vbid);
             return ENGINE_SUCCESS;
         }
         return ENGINE_NOT_MY_VBUCKET;
