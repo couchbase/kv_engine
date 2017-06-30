@@ -60,6 +60,14 @@ TYPED_TEST(MonotonicTest, Reset) {
     EXPECT_EQ(5, this->mono);
 }
 
+TYPED_TEST(MonotonicTest, PreIncrement) {
+    EXPECT_EQ(2, ++this->mono);
+}
+
+TYPED_TEST(MonotonicTest, PostIncrement) {
+    EXPECT_EQ(1, this->mono++);
+    EXPECT_EQ(2, this->mono);
+}
 
 // Similar, except with ThrowExceptionPolicy.
 template <typename T>
@@ -92,6 +100,15 @@ TYPED_TEST(ThrowingMonotonicTest, Reset) {
     ASSERT_EQ(10, this->mono);
     this->mono.reset(5);
     EXPECT_EQ(5, this->mono);
+}
+
+TYPED_TEST(ThrowingMonotonicTest, PreIncrement) {
+    EXPECT_EQ(2, ++this->mono);
+}
+
+TYPED_TEST(ThrowingMonotonicTest, PostIncrement) {
+    EXPECT_EQ(1, this->mono++);
+    EXPECT_EQ(2, this->mono);
 }
 
 // Similar but testing WeaklyMonotonic (i.e. Identical is allowed).

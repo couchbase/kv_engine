@@ -100,6 +100,17 @@ public:
         return val;
     }
 
+    T operator++() {
+        operator=(val + 1);
+        return val;
+    }
+
+    T operator++(int) {
+        T old = val;
+        operator=(val + 1);
+        return old;
+    }
+
     /* Can be used to lower the value */
     void reset(T desired) {
         val = desired;
@@ -152,6 +163,20 @@ public:
     }
 
     operator T() const {
+        return val;
+    }
+
+    T operator++() {
+        if (Invariant<T>()(val + 1, val)) {
+            return ++val;
+        }
+        return val;
+    }
+
+    T operator++(int) {
+        if (Invariant<T>()(val + 1, val)) {
+            return val++;
+        }
         return val;
     }
 
