@@ -1662,7 +1662,7 @@ private:
     std::mutex                           pendingOpLock;
     std::vector<const void*>        pendingOps;
     hrtime_t                        pendingOpsStart;
-    uint64_t                        purge_seqno;
+    WeaklyMonotonic<uint64_t>       purge_seqno;
     std::atomic<bool>               takeover_backed_up;
 
     /* snapshotMutex is used to update/read the pair {start, end} atomically,
