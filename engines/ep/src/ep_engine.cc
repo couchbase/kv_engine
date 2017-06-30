@@ -3158,6 +3158,78 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
+/**
+ * Helper class which sends the contents of an output stream to the ADD_STAT
+ * callback.
+ *
+ * Usage:
+ *     {
+ *         AddStatsStream as("stat_key", callback, cookie);
+ *         as << obj << std::endl;
+ *     }
+ *     // When 'as' goes out of scope, it will invoke the ADD_STAT callback
+ *     // with the key "stat_key" and value of everything streamed to it.
+ */
+class AddStatsStream : public std::ostream {
+public:
+    AddStatsStream(std::string key, ADD_STAT callback, const void* cookie)
+        : std::ostream(&buf), key(key), callback(callback), cookie(cookie) {
+    }
+
+    ~AddStatsStream() {
+        auto value = buf.str();
+        callback(key.data(), key.size(), value.data(), value.size(), cookie);
+    }
+
+private:
+    std::string key;
+    ADD_STAT callback;
+    const void* cookie;
+    std::stringbuf buf;
+};
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashDump(
+        const void* cookie, ADD_STAT addStat, cb::const_char_buffer keyArgs) {
+    if (keyArgs.empty()) {
+        // Must specify a vbucket.
+        return ENGINE_EINVAL;
+    }
+    uint16_t vbid;
+    if (!parseUint16(keyArgs.data(), &vbid)) {
+        return ENGINE_EINVAL;
+    }
+    VBucketPtr vb = getVBucket(vbid);
+    if (!vb) {
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    AddStatsStream as(std::to_string(vbid), addStat, cookie);
+    as << vb->ht << std::endl;
+
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointDump(
+        const void* cookie, ADD_STAT addStat, cb::const_char_buffer keyArgs) {
+    if (keyArgs.empty()) {
+        // Must specify a vbucket.
+        return ENGINE_EINVAL;
+    }
+    uint16_t vbid;
+    if (!parseUint16(keyArgs.data(), &vbid)) {
+        return ENGINE_EINVAL;
+    }
+    VBucketPtr vb = getVBucket(vbid);
+    if (!vb) {
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    AddStatsStream as(std::to_string(vbid), addStat, cookie);
+    as << *vb->checkpointManager << std::endl;
+
+    return ENGINE_SUCCESS;
+}
+
 class StatCheckpointVisitor : public VBucketVisitor {
 public:
     StatCheckpointVisitor(KVBucketIface* kvs, const void *c,
@@ -3989,6 +4061,29 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         // @todo MB-24546 For development, just log everything.
         kvBucket->getCollectionsManager().logAll(*kvBucket.get());
         rv = ENGINE_SUCCESS;
+
+    } else if (statKey[0] == '_') {
+        // Privileged stats - need Stats priv (and not just SimpleStats).
+        switch (getServerApi()->cookie->check_privilege(
+                cookie, cb::rbac::Privilege::Stats)) {
+        case cb::rbac::PrivilegeAccess::Fail:
+        case cb::rbac::PrivilegeAccess::Stale:
+            return ENGINE_EACCESS;
+
+        case cb::rbac::PrivilegeAccess::Ok:
+            if (cb_isPrefix(statKey, "_checkpoint-dump")) {
+                const size_t keyLen = strlen("_checkpoint-dump");
+                cb::const_char_buffer keyArgs(statKey.data() + keyLen,
+                                              statKey.size() - keyLen);
+                rv = doCheckpointDump(cookie, add_stat, keyArgs);
+            } else if (cb_isPrefix(statKey, "_hash-dump")) {
+                const size_t keyLen = strlen("_hash-dump");
+                cb::const_char_buffer keyArgs(statKey.data() + keyLen,
+                                              statKey.size() - keyLen);
+                rv = doHashDump(cookie, add_stat, keyArgs);
+            }
+            break;
+        }
     }
 
     return rv;
