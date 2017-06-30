@@ -714,11 +714,16 @@ protected:
     ENGINE_ERROR_CODE memoryCondition();
 
     /**
-     * Check if there is any available memory space to allocate an Item
+     * Check if there is memory available to allocate an Item
      * instance with a given size.
+     *
+     * @param totalItemSize Total size requured by the item
+     *
+     * @return True if there is memory for the item; else False
      */
-    bool hasAvailableSpace(uint32_t nBytes) {
-        return (stats.getTotalMemoryUsed() + nBytes) <= stats.getMaxDataSize();
+    bool hasMemoryForItemAllocation(uint32_t totalItemSize) {
+        return (stats.getTotalMemoryUsed() + totalItemSize) <=
+               stats.getMaxDataSize();
     }
 
     friend class BGFetchCallback;

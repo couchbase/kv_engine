@@ -26,7 +26,6 @@
 
 #include <platform/cb_malloc.h>
 
-double StoredValue::mutation_mem_threshold = 0.9;
 const int64_t StoredValue::state_deleted_key = -3;
 const int64_t StoredValue::state_non_existent_key = -4;
 const int64_t StoredValue::state_temp_init = -5;
@@ -174,27 +173,6 @@ bool StoredValue::del() {
         return static_cast<OrderedStoredValue*>(this)->deleteImpl();
     } else {
         return this->deleteImpl();
-    }
-}
-
-void StoredValue::setMutationMemoryThreshold(double memThreshold) {
-    if (memThreshold > 0.0 && memThreshold <= 1.0) {
-        mutation_mem_threshold = memThreshold;
-    }
-}
-
-/**
- * Is there enough space for this thing?
- */
-bool StoredValue::hasAvailableSpace(EPStats &st, const Item &itm,
-                                    bool isReplication) {
-    double newSize = static_cast<double>(st.getTotalMemoryUsed() +
-                                         sizeof(StoredValue) + itm.getKey().size());
-    double maxSize = static_cast<double>(st.getMaxDataSize());
-    if (isReplication) {
-        return newSize <= (maxSize * st.replicationThrottleThreshold);
-    } else {
-        return newSize <= (maxSize * mutation_mem_threshold);
     }
 }
 

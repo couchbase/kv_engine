@@ -246,10 +246,6 @@ std::unique_ptr<Item> HashTable::getRandomKey(long rnd) {
 }
 
 MutationStatus HashTable::set(Item& val) {
-    if (!StoredValue::hasAvailableSpace(stats, val, false)) {
-        return MutationStatus::NoMem;
-    }
-
     HashBucketLock hbl = getLockedBucket(val.getKey());
     StoredValue* v = unlocked_find(val.getKey(),
                                    hbl.getBucketNum(),

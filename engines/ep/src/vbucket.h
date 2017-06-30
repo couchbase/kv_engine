@@ -1120,6 +1120,14 @@ public:
 
     static size_t getCheckpointFlushTimeout();
 
+    /**
+     * Set the memory threshold on the current bucket quota for accepting a
+     * new mutation. This is same across all the vbuckets
+     *
+     * @param memThreshold Threshold between 0 and 1
+     */
+    static void setMutationMemoryThreshold(double memThreshold);
+
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
 
@@ -1363,6 +1371,20 @@ protected:
     std::map<const void*, ENGINE_ERROR_CODE> tmpFailAndGetAllHpNotifies(
             EventuallyPersistentEngine& engine);
 
+    /**
+     * Check if there is memory available to allocate the in-memory
+     * instance (StoredValue or OrderedStoredValue) for an item.
+     *
+     * @param st Reference to epstats
+     * @param item Item that is being added
+     * @param isReplication Flag indicating if the item is from replication
+     *
+     * @return True if there is memory for the item; else False
+     */
+    bool hasMemoryForStoredValue(EPStats& st,
+                                 const Item& item,
+                                 bool isReplication);
+
     void _addStats(bool details, ADD_STAT add_stat, const void* c);
 
     template <typename T>
@@ -1580,6 +1602,17 @@ private:
     std::unique_ptr<Item> pruneXattrDocument(StoredValue& v,
                                              const ItemMetaData& itemMeta);
 
+    /**
+     * Estimate the new total memory usage with the allocation of an in-memory
+     * instance for item
+     *
+     * @param st Reference to epstats
+     * @param item Item that is being added
+     *
+     * @return new total size for this Bucket once Item is allocated
+     */
+    virtual size_t estimateNewMemoryUsage(EPStats& st, const Item& item) = 0;
+
     id_type                         id;
     std::atomic<vbucket_state_t>    state;
     cb::RWLock                      stateLock;
@@ -1625,6 +1658,8 @@ private:
     Collections::VB::Manifest manifest;
 
     static std::atomic<size_t> chkFlushTimeout;
+
+    static double mutationMemThreshold;
 
     friend class VBucketTest;
 

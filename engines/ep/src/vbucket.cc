@@ -50,6 +50,7 @@ const size_t MAX_CHK_FLUSH_TIMEOUT = 30; // 30 sec.
 
 /* Statics definitions */
 std::atomic<size_t> VBucket::chkFlushTimeout(MIN_CHK_FLUSH_TIMEOUT);
+double VBucket::mutationMemThreshold = 0.9;
 
 VBucketFilter VBucketFilter::filter_diff(const VBucketFilter &other) const {
     std::vector<uint16_t> tmp(acceptable.size() + other.size());
@@ -706,6 +707,9 @@ void VBucket::incExpirationStat(const ExpireBy source) {
 }
 
 MutationStatus VBucket::setFromInternal(Item& itm) {
+    if (!hasMemoryForStoredValue(stats, itm, false)) {
+        return MutationStatus::NoMem;
+    }
     return ht.set(itm);
 }
 
@@ -1846,6 +1850,24 @@ void VBucket::dump() const {
               << "]" << std::endl;
 }
 
+void VBucket::setMutationMemoryThreshold(double memThreshold) {
+    if (memThreshold > 0.0 && memThreshold <= 1.0) {
+        mutationMemThreshold = memThreshold;
+    }
+}
+
+bool VBucket::hasMemoryForStoredValue(EPStats& st,
+                                      const Item& item,
+                                      bool isReplication) {
+    double newSize = static_cast<double>(estimateNewMemoryUsage(st, item));
+    double maxSize = static_cast<double>(st.getMaxDataSize());
+    if (isReplication) {
+        return newSize <= (maxSize * st.replicationThrottleThreshold);
+    } else {
+        return newSize <= (maxSize * mutationMemThreshold);
+    }
+}
+
 void VBucket::_addStats(bool details, ADD_STAT add_stat, const void* c) {
     addStat(NULL, toString(state), add_stat, c);
     if (details) {
@@ -1941,7 +1963,7 @@ std::pair<MutationStatus, VBNotifyCtx> VBucket::processSet(
                 std::to_string(getId()));
     }
 
-    if (!StoredValue::hasAvailableSpace(stats, itm, isReplication)) {
+    if (!hasMemoryForStoredValue(stats, itm, isReplication)) {
         return {MutationStatus::NoMem, VBNotifyCtx()};
     }
 
@@ -2050,7 +2072,7 @@ std::pair<AddStatus, VBNotifyCtx> VBucket::processAdd(
         !v->isTempItem()) {
         return {AddStatus::Exists, VBNotifyCtx()};
     }
-    if (!StoredValue::hasAvailableSpace(stats, itm, isReplication)) {
+    if (!hasMemoryForStoredValue(stats, itm, isReplication)) {
         return {AddStatus::NoMem, VBNotifyCtx()};
     }
 
@@ -2238,7 +2260,7 @@ AddStatus VBucket::addTempStoredValue(const HashTable::HashBucketLock& hbl,
              0,
              StoredValue::state_temp_init);
 
-    if (!StoredValue::hasAvailableSpace(stats, itm, isReplication)) {
+    if (!hasMemoryForStoredValue(stats, itm, isReplication)) {
         return AddStatus::NoMem;
     }
 

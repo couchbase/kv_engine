@@ -529,18 +529,6 @@ public:
         return chain_next_or_replacement;
     }
 
-    /**
-     * Set the memory threshold on the current bucket quota for accepting a new mutation
-     */
-    static void setMutationMemoryThreshold(double memThreshold);
-
-    /**
-     * Return the memory threshold for accepting a new mutation
-     */
-    static double getMutationMemThreshold() {
-        return mutation_mem_threshold;
-    }
-
     /*
      * Values of the bySeqno attribute used by temporarily created StoredValue
      * objects.
@@ -590,11 +578,6 @@ public:
      * @param other The StoredValue to be compared with
      */
     bool operator==(const StoredValue& other) const;
-
-    /* [TBD] : Move this function out of StoredValue class */
-    static bool hasAvailableSpace(EPStats&,
-                                  const Item& item,
-                                  bool isReplication = false);
 
     /// Return how many bytes are need to store Item as a StoredValue
     static size_t getRequiredStorage(const Item& item);
@@ -697,8 +680,6 @@ protected:
     // guarantee.
     // Note (2): Only 1 bit of this is currently used; rest is "spare".
     std::atomic<bool> stale;
-
-    static double mutation_mem_threshold;
 
     friend std::ostream& operator<<(std::ostream& os, const StoredValue& sv);
 };

@@ -127,7 +127,7 @@ public:
             store.resetAccessScannerStartTime();
         } else if (key.compare("mutation_mem_threshold") == 0) {
             double mem_threshold = static_cast<double>(value) / 100;
-            StoredValue::setMutationMemoryThreshold(mem_threshold);
+            VBucket::setMutationMemoryThreshold(mem_threshold);
         } else if (key.compare("backfill_mem_threshold") == 0) {
             double backfill_threshold = static_cast<double>(value) / 100;
             store.setBackfillMemoryThreshold(backfill_threshold);
@@ -430,7 +430,7 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
 
     double mem_threshold = static_cast<double>
                                       (config.getMutationMemThreshold()) / 100;
-    StoredValue::setMutationMemoryThreshold(mem_threshold);
+    VBucket::setMutationMemoryThreshold(mem_threshold);
     config.addValueChangedListener("mutation_mem_threshold",
                                    new EPStoreValueChangeListener(*this));
 

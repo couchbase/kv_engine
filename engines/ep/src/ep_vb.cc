@@ -607,7 +607,7 @@ void EPVBucket::scheduleDeferredDeletion(EventuallyPersistentEngine& engine) {
 MutationStatus EPVBucket::insertFromWarmup(Item& itm,
                                          bool eject,
                                          bool keyMetaDataOnly) {
-    if (!StoredValue::hasAvailableSpace(stats, itm)) {
+    if (!hasMemoryForStoredValue(stats, itm, false)) {
         return MutationStatus::NoMem;
     }
 

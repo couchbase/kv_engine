@@ -214,6 +214,11 @@ private:
                                     get_options_t options,
                                     const StoredValue& v) override;
 
+    size_t estimateNewMemoryUsage(EPStats& st, const Item& item) override {
+        return st.getTotalMemoryUsed() +
+               OrderedStoredValue::getRequiredStorage(item);
+    }
+
     /**
      * (i) Updates an already non-temp element in the sequence list (OR)
      * (ii) For a temp item that is being updated (that is, being made non-temp

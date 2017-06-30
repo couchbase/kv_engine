@@ -212,6 +212,10 @@ private:
                                     get_options_t options,
                                     const StoredValue& v) override;
 
+    size_t estimateNewMemoryUsage(EPStats& st, const Item& item) override {
+        return st.getTotalMemoryUsed() + StoredValue::getRequiredStorage(item);
+    }
+
     /* Indicates if multiple bg fetches are handled in a single bg fetch task */
     const bool multiBGFetchEnabled;
 
